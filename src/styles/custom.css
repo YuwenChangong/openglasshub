@@ -72,3 +72,10 @@ th {
 .toc-mobile > h2 {
   font-size: 0.8rem;
 }
+
+.site-title img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+

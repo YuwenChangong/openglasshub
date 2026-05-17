@@ -4,112 +4,67 @@ description: 主流 AR/AI 眼镜产品规格对比和适用场景分析。
 ---
 
 import { CardGrid, Card } from '@astrojs/starlight/components';
+import CommunityCTA from '../../../components/CommunityCTA.astro';
 
 ## 产品索引
 
-本页汇集当前主流 AR/AI 眼镜产品的基础规格和适用场景。所有参数基于厂商公开资料整理。
+本页作为设备知识库入口，优先提供设备定位与详情页入口，不在索引页堆叠长规格表。需要购买判断、开发判断或 Gaze OS 研究判断时，请进入单独设备页查看。
 
 :::caution[数据说明]
-标注「待核实」的参数为预估值，正在逐步与官方数据核对。购买前请以厂商官网为准。
+以下页面以公开资料整理为主。所有仍不确定的信息会明确标注为「待核实」。
 :::
 
-## XREAL
+## 重点设备页
 
-### XREAL Air 2 Ultra
+<CardGrid>
+  <Card title="XREAL Air 2 Pro" icon="seti:video">
+    外接显示型 AR 眼镜，适合观影、掌机和移动第二屏。
 
-- 类型: 观影 + 轻量 AR
-- 显示: Micro-OLED, 双目 1080p
-- FOV: 52°（待核实）
-- 重量: 约 60g（待核实）
-- 追踪: 6DoF（带摄像头）
-- 连接: USB-C 有线
-- 参考价格: ￥2,999（待核实）
-- 适用: 影音、轻量 AR 应用、开发测试
+    [查看详情 →](/devices/xreal-air-2-pro/)
+  </Card>
+  <Card title="XREAL Air 2 Ultra" icon="seti:graphql">
+    偏研究与空间感知路线的 XREAL 机型。
 
-### XREAL Air 2
+    [查看详情 →](/devices/xreal-air-2-ultra/)
+  </Card>
+  <Card title="Rokid Max" icon="seti:video">
+    以大屏观影和外接游戏体验为主的显示眼镜。
 
-- 类型: 观影为主
-- 显示: Micro-OLED, 双目 1080p
-- FOV: 46°（待核实）
-- 重量: 约 55g（待核实）
-- 追踪: 3DoF
-- 连接: USB-C 有线
-- 参考价格: ￥1,999（待核实）
-- 适用: 影音、便携大屏
+    [查看详情 →](/devices/rokid-max/)
+  </Card>
+  <Card title="RayNeo X2" icon="seti:mobile">
+    更接近独立 AR 眼镜定义的产品。
 
-## RayNeo
+    [查看详情 →](/devices/rayneo-x2/)
+  </Card>
+  <Card title="INMO Air 2" icon="seti:mobile">
+    国产独立 AR 路线的重要样本。
 
-### RayNeo X2
+    [查看详情 →](/devices/inmo-air-2/)
+  </Card>
+  <Card title="VITURE Pro" icon="seti:video">
+    以显示体验与配套软件见长的消费型 XR 眼镜。
 
-- 类型: 独立 AR 眼镜
-- 显示: Micro-LED 光波导
-- FOV: 25°（待核实）
-- 重量: 约 75g（待核实）
-- 追踪: 6DoF
-- 处理器: 高通（待核实）
-- 连接: Wi-Fi, 蓝牙
-- 参考价格: ￥3,999（待核实）
-- 适用: 导航、翻译、轻量 AR 应用
+    [查看详情 →](/devices/viture-pro/)
+  </Card>
+  <Card title="Ray-Ban Meta Smart Glasses" icon="seti:camera">
+    无显示智能眼镜路线的代表产品。
 
-## Rokid
+    [查看详情 →](/devices/ray-ban-meta/)
+  </Card>
+  <Card title="Even Realities G1" icon="seti:lightbulb">
+    低干扰提示型智能眼镜，强调日常佩戴感。
 
-### Rokid Max
+    [查看详情 →](/devices/even-realities-g1/)
+  </Card>
+</CardGrid>
 
-- 类型: 观影
-- 显示: Micro-OLED, 双目 1080p
-- FOV: 50°（待核实）
-- 重量: 约 75g（待核实）
-- 追踪: 3DoF
-- 连接: USB-C 有线
-- 参考价格: ￥2,499（待核实）
-- 适用: 影音、便携大屏
+## 如何使用这个设备库
 
-### Rokid AR Lite
+- 想买设备: 先看“快速结论”“适合谁”“不太适合谁”
+- 想做开发: 重点看“SDK / 开发支持状态”“应用安装可能性”“开发者友好度”
+- 想跟踪系统方向: 重点看“独立运行状态”“相机状态”“Gaze OS 研究适配度”
 
-- 类型: 轻量 AR
-- 显示: Micro-OLED
-- FOV: 36°（待核实）
-- 重量: 约 49g（待核实）
-- 追踪: 3DoF
-- 连接: USB-C 有线
-- 参考价格: ￥2,199（待核实）
-- 适用: 影音、轻量信息提示
+更多平台背景可结合 [开发者资源](/developers/) 与 [Gaze OS](/gaze-os/) 一起阅读。若你有真实使用反馈，欢迎到 [社区](/community/) 补充一手体验。
 
-## Meta
-
-### Ray-Ban Meta Smart Glasses
-
-- 类型: 智能眼镜（非 AR 显示）
-- 显示: 无（音频 + 摄像头）
-- 功能: 拍照/录像、音频、Meta AI 语音助手
-- 重量: 约 49g（待核实）
-- 连接: 蓝牙, Wi-Fi
-- 参考价格: $299 起（待核实）
-- 适用: 拍摄、音频、AI 语音交互
-
-## Apple
-
-### Apple Vision Pro
-
-- 类型: 空间计算头显（非眼镜形态）
-- 显示: Micro-OLED, 双目 4K+
-- FOV: 约 100°（待核实）
-- 重量: 约 600-650g
-- 追踪: 眼动 + 手势 + 头部 6DoF
-- 处理器: M2 + R1
-- 参考价格: $3,499 起
-- 适用: 空间计算、生产力、影音
-
-:::note
-Vision Pro 为头显形态而非眼镜形态，因行业参考价值纳入本库。
-:::
-
-## 对比维度说明
-
-| 维度 | 说明 |
-|------|------|
-| 显示技术 | Micro-OLED 适合观影，光波导适合透视 AR |
-| FOV | 视场角越大沉浸感越强，但通常重量和功耗也更高 |
-| 追踪 | 3DoF 仅旋转追踪，6DoF 支持空间定位 |
-| 重量 | 轻量设备更适合长时间佩戴 |
-| 独立运行 | 是否需要外接手机/电脑 |
+<CommunityCTA />

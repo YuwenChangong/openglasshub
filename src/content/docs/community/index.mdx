@@ -3,46 +3,98 @@ title: 社区
 description: 加入 OpenGlass Hub 社区，与 AR/AI 眼镜爱好者和开发者交流。
 ---
 
-import { CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
+import { CardGrid, Card, Badge, LinkCard } from '@astrojs/starlight/components';
 
 ## 社区入口
 
-OpenGlass Hub 的社区讨论通过以下平台进行：
+OpenGlass Hub 的社区讨论通过外部平台进行，不设站内论坛。
 
 <CardGrid>
-  <Card title="Discord" icon="discord">
-    实时交流，产品讨论和技术分享。
-
-    加入 Discord 服务器（即将开放）
-  </Card>
-  <Card title="微信" icon="seti:svg">
-    扫码加入微信群，中文交流为主。
-
-    微信群二维码即将开放
-  </Card>
   <Card title="GitHub Discussions" icon="github">
-    异步讨论，适合深度话题和技术问题。
+    <Badge text="已开放" variant="success" />
+
+    主要讨论平台。提交设备报告、内容纠错、功能建议和技术讨论。
 
     [进入 Discussions →](https://github.com/openglass-hub/discussions)
   </Card>
+  <Card title="Discord" icon="discord">
+    <Badge text="准备中" variant="caution" />
+
+    实时交流，产品讨论和技术分享。服务器搭建完成后开放。
+
+    暂未开放
+  </Card>
+  <Card title="微信" icon="seti:svg">
+    <Badge text="准备中" variant="caution" />
+
+    中文交流为主。群组建立后开放加入。
+
+    暂未开放
+  </Card>
 </CardGrid>
 
-:::note[关于站内论坛]
-MVP 阶段暂不建设站内论坛。社区讨论统一通过上述平台进行。
-:::
+## Discussions 分类说明
+
+GitHub Discussions 中设置了以下分类，方便不同类型的讨论：
+
+| 分类 | 用途 |
+|------|------|
+| **Announcements** | 官方公告，置顶帖汇总 |
+| **Q&A** | 问答，支持标记最佳答案 |
+| **Device Reports** | 设备实测报告和使用体验 |
+| **Gaze OS Lab** | Gaze OS 相关讨论和反馈 |
+| **Ideas** | 功能建议和内容建议 |
+| **Corrections** | 内容纠错和数据修正 |
+
+详见 [置顶帖模板](/community/pinned-posts) 了解各分类的发帖规范。
 
 ## 参与贡献
 
 OpenGlass Hub 欢迎社区贡献内容：
 
-1. **提交修正** — 发现内容错误？通过 [GitHub Issues](https://github.com/openglass-hub/issues) 提交
-2. **提交内容** — 想要新增内容？通过 [GitHub Pull Request](https://github.com/openglass-hub/pulls) 提交
-3. **参与讨论** — 有想法和建议？在 [GitHub Discussions](https://github.com/openglass-hub/discussions) 发起
+1. **提交修正** — 发现内容错误？通过 [GitHub Issues](https://github.com/openglass-hub/issues) 提交，附上来源链接
+2. **提交内容** — 想要新增内容？通过 [GitHub Pull Request](https://github.com/openglass-hub/pulls) 提交 Markdown 文件
+3. **参与讨论** — 有想法和建议？在 [GitHub Discussions](https://github.com/openglass-hub/discussions) 发起话题
+
+### 内容纠错流程
+
+如果发现网站上的产品规格或描述有误：
+
+1. 在 [Corrections 分类](https://github.com/openglass-hub/discussions) 发帖，说明错误位置
+2. 附上正确信息的来源（官方规格页、权威评测、实测数据）
+3. 社区讨论确认后，由维护者更新网站内容
+4. 如果你熟悉 Git，也可以直接提交 Pull Request
+
+:::note[关于「待核实」数据]
+标注「待核实」的参数为预估值，尚未与官方数据核对。如果你能提供官方来源，优先采用。所有修正需附带来源，不接受无来源的规格修改。
+:::
 
 ## 社区规范
 
-- 保持友善和专业
-- 尊重不同品牌和产品
-- 不发布广告和无关推广
-- 不发布违法或侵权内容
-- 鼓励分享真实使用体验和技术见解
+### 基本规则
+
+- **不发布虚假参数** — 规格数据需有来源，无来源请标注「待验证」
+- **不人身攻击** — 尊重不同品牌和用户
+- **不发布广告** — 不发布无关推广和垃圾信息
+- **不发布违法内容** — 不发布入侵、破解等违法教程
+- **尊重商标** — 不恶意使用或修改品牌标识
+
+### 内容质量
+
+- 优先使用官方链接、实物照片或一手体验
+- 未经验证的信息请明确标注
+- 涉及具体参数时请注明来源
+- 我们不对任何品牌做推荐或排名
+
+### 内容立场声明
+
+- OpenGlass Hub 与任何 AR 眼镜厂商无关联关系
+- 所有产品信息基于公开资料整理
+- Gaze OS 是实验性项目，不代表任何商业承诺
+- 网站不售卖产品，不接入电商链接
+
+### 违规处理
+
+- 首次违规：提醒
+- 重复违规：限制发帖权限
+- 严重违规：永久移除

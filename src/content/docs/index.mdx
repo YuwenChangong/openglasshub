@@ -1,6 +1,22 @@
 ---
 title: OpenGlass Hub
 description: AR/AI 眼镜知识库、选购指南与开发者资源
+head:
+  - tag: script
+    attrs:
+      type: application/ld+json
+    content: |
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "OpenGlass Hub",
+        "url": "https://openglasshub.pages.dev",
+        "description": "AR/AI 眼镜知识库、选购指南与开发者资源",
+        "publisher": {
+          "@type": "Organization",
+          "name": "Gaze"
+        }
+      }
 template: splash
 hero:
   tagline: AR/AI 眼镜的跨品牌知识库、选购指南和开发者资源，由 Gaze 团队维护。
@@ -52,5 +68,25 @@ import CommunityCTA from '../../components/CommunityCTA.astro';
 :::note[MVP 阶段]
 本站目前处于早期版本。产品规格数据标注「待核实」的条目，正在逐步验证中。
 :::
+
+## Start Here
+
+<CardGrid>
+  <Card title="AR 眼镜、AI 眼镜、XR 眼镜有什么区别？" icon="seti:book">
+    先分清产品类别，再看设备与路线。
+
+    [阅读文章 →](/guides/ar-ai-xr-glasses-difference/)
+  </Card>
+  <Card title="2026 年 AR/AI 眼镜怎么选？" icon="seti:checklist">
+    从用途出发，而不是从宣传词出发。
+
+    [阅读文章 →](/guides/ar-ai-glasses-buying-guide-2026/)
+  </Card>
+  <Card title="哪些 AR/AI 眼镜适合开发者？" icon="seti:code">
+    面向开发者、研究者和产品团队的选型入口。
+
+    [阅读文章 →](/guides/best-ar-ai-glasses-for-developers/)
+  </Card>
+</CardGrid>
 
 <CommunityCTA />

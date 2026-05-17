@@ -7,9 +7,16 @@ export default defineConfig({
     starlight({
       title: 'OpenGlass Hub',
       description: 'AR/AI 眼镜知识库、选购指南与开发者资源',
+      defaultLocale: 'root',
+      locales: {
+        root: {
+          label: '简体中文',
+          lang: 'zh-CN',
+        },
+      },
       favicon: '/gaze-icon-v6.ico',
       logo: {
-        src: './public/brand/logo.jpg',
+        src: './public/brand/logo-navbar.svg',
         alt: 'OpenGlass Hub',
         replacesTitle: false,
       },

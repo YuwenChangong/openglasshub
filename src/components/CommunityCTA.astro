@@ -7,15 +7,15 @@
     <h2>加入社区</h2>
     <p>OpenGlass Hub 的社区入口：</p>
     <div class="cta-links">
-      <a href="https://discord.gg/openglass" class="cta-link discord" target="_blank" rel="noopener">
-        Discord
-      </a>
-      <a href="/community" class="cta-link wechat">
-        微信群（即将开放）
-      </a>
       <a href="https://github.com/openglass-hub/discussions" class="cta-link github" target="_blank" rel="noopener">
         GitHub Discussions
       </a>
+      <span class="cta-link discord disabled">
+        Discord（准备中）
+      </span>
+      <span class="cta-link wechat disabled">
+        微信群（准备中）
+      </span>
     </div>
   </div>
 </section>
@@ -55,14 +55,14 @@
     background: #5865F2;
     color: #fff;
   }
-  .cta-link.discord:hover {
+  .cta-link.discord:not(.disabled):hover {
     background: #4752c4;
   }
   .cta-link.wechat {
     background: #07C160;
     color: #fff;
   }
-  .cta-link.wechat:hover {
+  .cta-link.wechat:not(.disabled):hover {
     background: #06ae56;
   }
   .cta-link.github {
@@ -71,5 +71,9 @@
   }
   .cta-link.github:hover {
     background: var(--sl-color-gray-5);
+  }
+  .cta-link.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>
