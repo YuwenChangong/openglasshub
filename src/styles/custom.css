@@ -1,0 +1,74 @@
+:root {
+  --sl-color-accent: #2563eb;
+  --sl-color-accent-high: #1d4ed8;
+  --sl-color-accent-low: #dbeafe;
+  --og-card-bg: #f8fafc;
+  --og-card-border: #e2e8f0;
+}
+
+/* Global typography - let the browser do its job */
+[data-theme='dark'] {
+  --og-card-bg: #1e293b;
+  --og-card-border: #334155;
+}
+
+.hero {
+  padding-bottom: 1rem !important;
+}
+
+.hero .tagline {
+  font-size: 1.15rem !important;
+  line-height: 1.6;
+  max-width: 36rem;
+}
+
+/* CardGrid adjustments */
+.card-grid {
+  --card-grid-min: 16rem;
+  gap: 1rem;
+}
+
+.card {
+  background: var(--og-card-bg);
+  border: 1px solid var(--og-card-border);
+  border-radius: 0.5rem;
+  transition: border-color 0.15s;
+}
+
+.card:hover {
+  border-color: var(--sl-color-accent);
+}
+
+/* Content area */
+.content {
+  line-height: 1.75;
+}
+
+.content h2 {
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.content h3 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Tables */
+table {
+  font-size: 0.875rem;
+}
+
+th {
+  white-space: nowrap;
+}
+
+/* Tips/admonitions */
+.starlight-aside {
+  font-size: 0.9rem;
+}
+
+/* Hide the redundant "On this page" title on wide screens */
+.toc-mobile > h2 {
+  font-size: 0.8rem;
+}

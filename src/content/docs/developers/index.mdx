@@ -1,0 +1,83 @@
+---
+title: 开发者资源
+description: AR/AI 眼镜各品牌开发者平台、SDK 信息和开发环境搭建参考。
+---
+
+import { CardGrid, Card } from '@astrojs/starlight/components';
+import CommunityCTA from '../../../components/CommunityCTA.astro';
+
+## 开发者平台入口
+
+各厂商提供的官方开发者资源。
+
+:::note[数据待核实]
+以下链接和 SDK 信息基于公开资料整理，具体可用性请以各厂商官网为准。如发现错误请提交 [Issue](https://github.com/openglass-hub/issues)。
+:::
+
+### XREAL
+
+- 开发者门户: [developer.xreal.com](https://developer.xreal.com)
+- SDK: Nebula SDK（AR 空间计算）
+- 平台支持: Android, Windows
+- 文档状态: 待核实
+
+### RayNeo
+
+- 开发者门户: [developer.rayneo.com](https://developer.rayneo.com)
+- SDK: RayNeo SDK
+- 平台支持: Android
+- 文档状态: 待核实
+
+### Rokid
+
+- 开发者门户: [developer.rokid.com](https://developer.rokid.com)
+- SDK: Rokid AR SDK / YodaOS
+- 平台支持: Android, Linux
+- 文档状态: 待核实
+
+### Meta（Ray-Ban Meta）
+
+- 开发者门户: [developers.meta.com](https://developers.meta.com)
+- 平台支持: 有限的 API 访问
+- 文档状态: 待核实
+
+### Apple（Vision Pro）
+
+- 开发者门户: [developer.apple.com/visionos](https://developer.apple.com/visionos)
+- SDK: visionOS SDK / RealityKit / ARKit
+- 平台支持: visionOS, iOS
+- 文档状态: 文档已发布，visionOS 为头显形态
+
+## 开发环境搭建
+
+### 通用前置条件
+
+- Git
+- Node.js 18+
+- Android Studio（Android 平台开发）
+- Xcode（visionOS / iOS 开发）
+
+### 各平台起步
+
+| 平台 | 最低硬件要求 | 开发语言 |
+|------|-------------|----------|
+| XREAL | Android 设备或 Windows PC | Kotlin, Java, C# |
+| RayNeo | Android 设备 | Kotlin, Java |
+| Rokid | Android 设备 | Kotlin, Java, C++ |
+| visionOS | Mac + Xcode 15+ | Swift |
+
+:::note
+以上为简化参考，实际环境配置请以各厂商官方文档为准。
+:::
+
+## Gaze OS 开发者资源
+
+Gaze OS 目前处于早期阶段，暂无可公开的 SDK。
+
+相关进展将在 [Gaze OS 页面](/gaze-os) 同步更新。如有兴趣参与系统层开发，欢迎在 [GitHub Discussions](https://github.com/openglass-hub/discussions) 中讨论。
+
+## 示例项目
+
+计划中。后续将整理各平台的官方示例和社区开源项目。
+
+<CommunityCTA />

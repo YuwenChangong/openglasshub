@@ -1,0 +1,56 @@
+---
+title: OpenGlass Hub
+description: AR/AI 眼镜知识库、选购指南与开发者资源
+template: splash
+hero:
+  tagline: AR/AI 眼镜的跨品牌知识库、选购指南和开发者资源，由 Gaze 团队维护。
+  actions:
+    - text: 浏览设备库
+      link: /devices
+      icon: right-arrow
+      variant: primary
+    - text: GitHub
+      link: https://github.com/openglass-hub
+      icon: external
+      variant: secondary
+---
+
+import { CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
+import CommunityCTA from '../../components/CommunityCTA.astro';
+
+## 内容导航
+
+<CardGrid>
+  <Card title="设备库" icon="laptop">
+    按品牌浏览主流 AR/AI 眼镜产品，包含规格参数与适用场景分析。
+
+    [查看设备库 →](/devices)
+  </Card>
+  <Card title="选购指南" icon="document">
+    按预算和使用场景筛选，找到最适合自己的 AR 眼镜。
+
+    [查看指南 →](/guides)
+  </Card>
+  <Card title="开发者" icon="seti:js">
+    各品牌开发者平台入口、SDK 信息和开发环境搭建参考。
+
+    [查看资源 →](/developers)
+  </Card>
+  <Card title="Gaze OS" icon="seti:pipeline">
+    Gaze OS 的文档、实验性功能和开发路线。
+
+    [了解更多 →](/gaze-os)
+  </Card>
+</CardGrid>
+
+## 为什么做这个站
+
+目前 AR/AI 眼镜信息分散在各厂商官网、科技媒体和社交平台，缺少一个中立、系统化的中文参考来源。OpenGlass Hub 试图填补这个空白。
+
+我们不售卖任何产品，不接受品牌付费推广，所有内容基于公开信息整理。
+
+:::note[MVP 阶段]
+本站目前处于早期版本。产品规格数据标注「待核实」的条目，正在逐步验证中。
+:::
+
+<CommunityCTA />
