@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://openglass.gaze.dev/sitemap-index.xml
+Sitemap: https://openglasshub.pages.dev/sitemap-index.xml
