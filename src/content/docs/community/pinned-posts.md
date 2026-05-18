@@ -18,7 +18,7 @@ description: GitHub Discussions 分类设置和置顶帖内容模板。
 | **Announcements** | Announcement | 官方公告，仅管理员可发帖 |
 | **Q&A** | Q&A | 问答，支持标记最佳答案 |
 | **Device Reports** | Open | 设备实测报告和使用体验 |
-| **Gaze OS Lab** | Open | Gaze OS 相关讨论和反馈 |
+| **Gaze Launcher** | Open | Gaze Launcher 相关讨论和反馈 |
 | **Ideas** | Open | 功能建议和内容建议 |
 | **Corrections** | Open | 内容纠错和数据修正 |
 
@@ -41,7 +41,7 @@ OpenGlass Hub 是一个 AR/AI 眼镜知识库，整理各品牌产品的规格�
 
 - 部分产品参数标注「待核实」，如果你有准确信息，请提供来源
 - OpenGlass Hub 与任何 AR 眼镜厂商无关联关系
-- Gaze OS 目前处于实验性阶段
+- Gaze Launcher 目前处于实验性阶段
 
 如有内容修正，建议直接提交 GitHub Issue 或 Pull Request。
 
@@ -109,16 +109,16 @@ OpenGlass Hub 是一个 AR/AI 眼镜知识库，整理各品牌产品的规格�
 
 ---
 
-## 置顶帖 4：Gaze OS Lab 反馈
+## 置顶帖 4：Gaze Launcher 反馈
 
-**标题：** Gaze OS Lab 反馈指南
+**标题：** Gaze Launcher 反馈指南
 
 **分类：** Announcements
 
 **内容：**
 
 ```
-Gaze OS 目前处于实验性阶段，大部分功能尚未实现。
+Gaze Launcher 目前处于实验性阶段，大部分功能尚未实现。
 
 当前可以讨论的内容：
 - 系统架构设计方案
@@ -132,7 +132,7 @@ Gaze OS 目前处于实验性阶段，大部分功能尚未实现。
 - 描述具体需求，而非笼统的功能请求
 - 如果你有技术方案建议，欢迎详细说明
 
-Gaze OS 不是已完成的产品，请基于当前状态讨论，避免与成熟 OS 直接对比。
+Gaze Launcher 不是已完成的产品，请基于当前状态讨论，避免与成熟系统直接对比。
 ```
 
 ---
@@ -158,7 +158,7 @@ OpenGlass Hub 社区规则：
 
 内容立场：
 - OpenGlass Hub 与任何 AR 眼镜厂商无关联
-- Gaze OS 是实验性项目，不代表任何商业承诺
+- Gaze Launcher 是实验性项目，不代表任何商业承诺
 - 所有产品信息基于公开资料，标注「待核实」的数据待验证
 
 违规处理：
@@ -166,3 +166,4 @@ OpenGlass Hub 社区规则：
 - 重复违规：限制发帖权限
 - 严重违规：永久移除
 ```
+

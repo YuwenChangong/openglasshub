@@ -81,7 +81,7 @@ export default defineConfig({
           link: '/developers',
         },
         {
-          label: 'Gaze OS',
+          label: 'Gaze Launcher',
           link: '/gaze-os',
         },
         {
