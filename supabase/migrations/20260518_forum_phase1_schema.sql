@@ -43,6 +43,24 @@ begin
 end;
 $$;
 
+-- Core tables
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  username text,
+  display_name text,
+  avatar_url text,
+  bio text,
+  role public.user_role not null default 'user',
+  trust_level integer not null default 0 check (trust_level >= 0 and trust_level <= 100),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (username is null or username ~ '^[a-zA-Z0-9_]{3,30}$')
+);
+
+create unique index if not exists profiles_username_unique_ci
+  on public.profiles (lower(username))
+  where username is not null;
+
 -- Role helper for RLS checks.
 create or replace function public.current_user_role()
 returns public.user_role
@@ -68,24 +86,6 @@ as $$
     false
   );
 $$;
-
--- Core tables
-create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  username text,
-  display_name text,
-  avatar_url text,
-  bio text,
-  role public.user_role not null default 'user',
-  trust_level integer not null default 0 check (trust_level >= 0 and trust_level <= 100),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  check (username is null or username ~ '^[a-zA-Z0-9_]{3,30}$')
-);
-
-create unique index if not exists profiles_username_unique_ci
-  on public.profiles (lower(username))
-  where username is not null;
 
 create table if not exists public.circles (
   id uuid primary key default gen_random_uuid(),
