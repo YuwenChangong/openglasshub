@@ -1,0 +1,70 @@
+---
+title: Search Console 上线检查清单
+description: OpenGlass Hub 在提交到 Google Search Console 前后的最小检查步骤、首批 URL 和验证标准。
+sidebar:
+  label: Search Console 清单
+---
+
+## 这份清单用于什么
+
+这份页面用于记录 OpenGlass Hub 在正式进入搜索引擎监控前需要完成的最小动作。它不依赖付费 SEO 工具，重点是把页面发现、索引确认和重点 URL 提交做扎实。
+
+## 1. Property 设置
+
+- 打开 Google Search Console
+- 选择 `URL prefix` 或 `Domain` 方式添加站点
+- 当前生产地址使用 `https://openglasshub.pages.dev`
+- 如果后续切换独立域名，需要重新补做域名级验证或新增 property
+
+## 2. Sitemap 提交
+
+- 站点上线后确认 `https://openglasshub.pages.dev/sitemap-index.xml` 可访问
+- 在 Search Console 的 `Sitemaps` 页面提交该地址
+- 等待 Google 抓取并记录成功、失败或警告状态
+
+## 3. 首批手动检查 URL
+
+建议优先用 `URL Inspection` 提交以下页面：
+
+- `/`
+- `/devices/`
+- `/guides/`
+- `/guides/ar-ai-glasses-buying-guide-2026/`
+- `/guides/ar-ai-xr-glasses-difference/`
+- `/guides/best-ar-ai-glasses-for-developers/`
+- `/guides/why-most-ar-glasses-cannot-run-custom-os/`
+- `/gaze-os/`
+- `/community/`
+
+## 4. 预期验证步骤
+
+- 页面能返回 200 状态
+- 页面使用生产域名 canonical
+- 页面 title 与 description 已输出
+- sitemap 中能看到对应 URL
+- robots.txt 可访问且未屏蔽关键内容页
+- 页面没有明显 broken links
+
+## 5. 常见异常
+
+- 新页面未被发现：通常是内部链接不足或 sitemap 尚未重新抓取
+- 页面未编入索引：可能是内容过薄、重复或 Google 认为价值不足
+- canonical 异常：需要优先检查配置中的 `site`
+
+## 6. 建议的 30 天观察节奏
+
+- 第 1 周：确认 sitemap 提交成功，重点 URL 已请求索引
+- 第 2 周：查看哪些页面开始进入索引
+- 第 3 周：检查高价值 guide 和 devices 页是否被发现
+- 第 4 周：根据展示量、点击量和未索引原因做内容补强
+
+## 相关阅读
+
+- [设备库](/devices/)
+- [选购指南](/guides/)
+- [开发者资源](/developers/)
+- [社区](/community/)
+
+## 最后更新
+
+2026-05-18

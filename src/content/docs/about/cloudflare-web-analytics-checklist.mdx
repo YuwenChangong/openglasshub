@@ -1,0 +1,60 @@
+---
+title: Cloudflare Web Analytics 检查清单
+description: OpenGlass Hub 启用 Cloudflare Web Analytics 后应关注的启用位置、核心指标和首周基线。
+sidebar:
+  label: Analytics 清单
+---
+
+## 这份清单用于什么
+
+这份页面用于记录 OpenGlass Hub 在启用 Cloudflare Web Analytics 后的最小观测项。目标不是做复杂埋点，而是确认网站是否真的有人访问、哪些页面有价值，以及社区入口是否开始被点击。
+
+## 1. 在哪里开启
+
+- 打开 Cloudflare Dashboard
+- 进入对应站点或 Pages 项目
+- 找到 `Web Analytics` 或 `Analytics` 入口
+- 创建或启用该项目的 Analytics 配置
+- 按 Cloudflare 提供的方式接入追踪脚本或项目关联
+
+## 2. 首批要看哪些指标
+
+- 总访问量
+- 独立访客趋势
+- 热门页面
+- Referrers / 来源站点
+- 国家或地区分布（如果可用）
+- 社区入口点击情况
+
+## 3. 首 7 天建议记录的基线
+
+- 首页访问量
+- `/devices/` 访问量
+- `/guides/` 访问量
+- `/community/` 访问量
+- 三篇核心 guide 的相对流量排序
+- 社区入口页面是否获得真实点击
+- 搜索入口页是否开始成为热门内容
+
+## 4. 如何判断数据有意义
+
+- 如果首页有访问但设备页和 guide 页几乎没有访问，说明内容分发或内部导航还不够强
+- 如果 `/community/` 有访问但外部社区没有转化，说明入口文案或开放状态需要调整
+- 如果某篇文章持续领先，说明它更适合作为后续内容集群中心
+
+## 5. 当前阶段不需要做什么
+
+- 不需要引入侵入式追踪
+- 不需要先上复杂事件分析系统
+- 不需要为了数据而过早加登录、数据库或用户体系
+
+## 相关阅读
+
+- [Search Console 上线检查清单](/about/search-console-launch-checklist/)
+- [设备库](/devices/)
+- [选购指南](/guides/)
+- [社区](/community/)
+
+## 最后更新
+
+2026-05-18
