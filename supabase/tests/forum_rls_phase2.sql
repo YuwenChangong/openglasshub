@@ -47,12 +47,22 @@ set username = excluded.username,
     display_name = excluded.display_name,
     role = excluded.role;
 
+update public.circles
+set
+  name = 'RLS Test Circle',
+  description = 'Used for RLS validation',
+  type = 'topic'
+where slug = 'rls-test-circle';
+
 insert into public.circles (slug, name, description, type)
-values ('rls-test-circle', 'RLS Test Circle', 'Used for RLS validation', 'topic')
-on conflict (slug) do update
-set name = excluded.name,
-    description = excluded.description,
-    type = excluded.type;
+select
+  'rls-test-circle',
+  'RLS Test Circle',
+  'Used for RLS validation',
+  'topic'
+where not exists (
+  select 1 from public.circles where slug = 'rls-test-circle'
+);
 
 with c as (
   select id as circle_id from public.circles where slug = 'rls-test-circle'
