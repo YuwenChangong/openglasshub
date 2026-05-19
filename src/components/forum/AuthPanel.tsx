@@ -98,9 +98,16 @@ export default function AuthPanel() {
         if (signInError) throw signInError;
         setMessage("登录成功。");
       } else {
+        const emailRedirectTo =
+          typeof window !== "undefined"
+            ? `${window.location.origin}/forum/`
+            : undefined;
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo,
+          },
         });
         if (signUpError) throw signUpError;
         setMessage("注册请求已提交。若开启邮箱确认，请先完成验证。");
