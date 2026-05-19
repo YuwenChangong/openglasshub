@@ -4,30 +4,56 @@
 
 begin;
 
-create temp table tmp_rls_users (
-  rn integer primary key,
-  id uuid not null
-) on commit drop;
-
-insert into tmp_rls_users (rn, id)
-select row_number() over (order by created_at, id), id
-from auth.users
-limit 4;
-
 do $$
 declare
   v_count integer;
 begin
-  select count(*) into v_count from tmp_rls_users;
+  select count(*) into v_count from auth.users;
   if v_count < 4 then
     raise exception 'RLS test requires at least 4 users in auth.users; found %', v_count;
   end if;
 end $$;
 
-select set_config('app.rls_owner_id', (select id::text from tmp_rls_users where rn = 1), true);
-select set_config('app.rls_other_id', (select id::text from tmp_rls_users where rn = 2), true);
-select set_config('app.rls_mod_id', (select id::text from tmp_rls_users where rn = 3), true);
-select set_config('app.rls_admin_id', (select id::text from tmp_rls_users where rn = 4), true);
+select set_config(
+  'app.rls_owner_id',
+  (
+    select id::text
+    from auth.users
+    order by created_at, id
+    offset 0 limit 1
+  ),
+  true
+);
+select set_config(
+  'app.rls_other_id',
+  (
+    select id::text
+    from auth.users
+    order by created_at, id
+    offset 1 limit 1
+  ),
+  true
+);
+select set_config(
+  'app.rls_mod_id',
+  (
+    select id::text
+    from auth.users
+    order by created_at, id
+    offset 2 limit 1
+  ),
+  true
+);
+select set_config(
+  'app.rls_admin_id',
+  (
+    select id::text
+    from auth.users
+    order by created_at, id
+    offset 3 limit 1
+  ),
+  true
+);
 
 -- ---------------------------------------------------------------------
 -- 0) Setup test identities and fixtures
@@ -38,7 +64,7 @@ select
   m.username,
   m.display_name,
   m.role
-from tmp_rls_users u
+from auth.users u
 join (
   values
     (1, 'rls_owner_u', 'RLS Owner', 'user'::public.user_role),
@@ -46,7 +72,19 @@ join (
     (3, 'rls_mod_u', 'RLS Moderator', 'moderator'::public.user_role),
     (4, 'rls_admin_u', 'RLS Admin', 'admin'::public.user_role)
 ) as m(rn, username, display_name, role)
-  on m.rn = u.rn
+  on true
+where u.id in (
+  current_setting('app.rls_owner_id')::uuid,
+  current_setting('app.rls_other_id')::uuid,
+  current_setting('app.rls_mod_id')::uuid,
+  current_setting('app.rls_admin_id')::uuid
+)
+and (
+  (m.rn = 1 and u.id = current_setting('app.rls_owner_id')::uuid)
+  or (m.rn = 2 and u.id = current_setting('app.rls_other_id')::uuid)
+  or (m.rn = 3 and u.id = current_setting('app.rls_mod_id')::uuid)
+  or (m.rn = 4 and u.id = current_setting('app.rls_admin_id')::uuid)
+)
 on conflict (id) do update
 set username = excluded.username,
     display_name = excluded.display_name,
