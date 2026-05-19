@@ -29,31 +29,19 @@ end $$;
 -- ---------------------------------------------------------------------
 insert into public.profiles (id, username, display_name, role)
 select
-  case rn
-    when 1 then id
-    when 2 then id
-    when 3 then id
-    when 4 then id
-  end as id,
-  case rn
-    when 1 then 'rls_owner_u'
-    when 2 then 'rls_other_u'
-    when 3 then 'rls_mod_u'
-    when 4 then 'rls_admin_u'
-  end as username,
-  case rn
-    when 1 then 'RLS Owner'
-    when 2 then 'RLS Other'
-    when 3 then 'RLS Moderator'
-    when 4 then 'RLS Admin'
-  end as display_name,
-  case rn
-    when 1 then 'user'::public.user_role
-    when 2 then 'user'::public.user_role
-    when 3 then 'moderator'::public.user_role
-    when 4 then 'admin'::public.user_role
-  end as role
-from tmp_rls_users
+  u.id,
+  m.username,
+  m.display_name,
+  m.role
+from tmp_rls_users u
+join (
+  values
+    (1, 'rls_owner_u', 'RLS Owner', 'user'::public.user_role),
+    (2, 'rls_other_u', 'RLS Other', 'user'::public.user_role),
+    (3, 'rls_mod_u', 'RLS Moderator', 'moderator'::public.user_role),
+    (4, 'rls_admin_u', 'RLS Admin', 'admin'::public.user_role)
+) as m(rn, username, display_name, role)
+  on m.rn = u.rn
 on conflict (id) do update
 set username = excluded.username,
     display_name = excluded.display_name,
