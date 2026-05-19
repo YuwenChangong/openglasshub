@@ -4,6 +4,10 @@
 
 Verify that permissions match MVP design before starting Auth UI and posting features.
 
+Prerequisite:
+
+- At least 4 rows exist in `auth.users` (script auto-selects them as owner/other/mod/admin test subjects).
+
 ## Roles
 
 - `anon`

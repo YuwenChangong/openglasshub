@@ -1,18 +1,59 @@
 -- Forum Phase 2 RLS test script (SQL Editor friendly).
 -- Run in a non-production environment first.
--- Uses fixed UUIDs for repeatable test setup.
+-- This version derives test identities from existing auth.users rows.
 
 begin;
+
+create temp table tmp_rls_users (
+  rn integer primary key,
+  id uuid not null
+) on commit drop;
+
+insert into tmp_rls_users (rn, id)
+select row_number() over (order by created_at, id), id
+from auth.users
+limit 4;
+
+do $$
+declare
+  v_count integer;
+begin
+  select count(*) into v_count from tmp_rls_users;
+  if v_count < 4 then
+    raise exception 'RLS test requires at least 4 users in auth.users; found %', v_count;
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- 0) Setup test identities and fixtures
 -- ---------------------------------------------------------------------
 insert into public.profiles (id, username, display_name, role)
-values
-  ('00000000-0000-0000-0000-000000000101', 'rls_owner_u', 'RLS Owner', 'user'),
-  ('00000000-0000-0000-0000-000000000102', 'rls_other_u', 'RLS Other', 'user'),
-  ('00000000-0000-0000-0000-000000000103', 'rls_mod_u', 'RLS Moderator', 'moderator'),
-  ('00000000-0000-0000-0000-000000000104', 'rls_admin_u', 'RLS Admin', 'admin')
+select
+  case rn
+    when 1 then id
+    when 2 then id
+    when 3 then id
+    when 4 then id
+  end as id,
+  case rn
+    when 1 then 'rls_owner_u'
+    when 2 then 'rls_other_u'
+    when 3 then 'rls_mod_u'
+    when 4 then 'rls_admin_u'
+  end as username,
+  case rn
+    when 1 then 'RLS Owner'
+    when 2 then 'RLS Other'
+    when 3 then 'RLS Moderator'
+    when 4 then 'RLS Admin'
+  end as display_name,
+  case rn
+    when 1 then 'user'::public.user_role
+    when 2 then 'user'::public.user_role
+    when 3 then 'moderator'::public.user_role
+    when 4 then 'admin'::public.user_role
+  end as role
+from tmp_rls_users
 on conflict (id) do update
 set username = excluded.username,
     display_name = excluded.display_name,
@@ -30,7 +71,7 @@ with c as (
 )
 insert into public.posts (author_id, circle_id, type, title, body, status)
 select
-  '00000000-0000-0000-0000-000000000101',
+  (select id from tmp_rls_users where rn = 1),
   c.circle_id,
   'question',
   'RLS test post published',
@@ -44,7 +85,7 @@ with c as (
 )
 insert into public.posts (author_id, circle_id, type, title, body, status)
 select
-  '00000000-0000-0000-0000-000000000101',
+  (select id from tmp_rls_users where rn = 1),
   c.circle_id,
   'question',
   'RLS test post hidden',
@@ -57,14 +98,14 @@ with p as (
   select id from public.posts where title = 'RLS test post published' order by created_at desc limit 1
 )
 insert into public.comments (post_id, author_id, body, status)
-select id, '00000000-0000-0000-0000-000000000101', 'RLS published comment', 'published' from p
+select id, (select id from tmp_rls_users where rn = 1), 'RLS published comment', 'published' from p
 on conflict do nothing;
 
 with p as (
   select id from public.posts where title = 'RLS test post published' order by created_at desc limit 1
 )
 insert into public.comments (post_id, author_id, body, status)
-select id, '00000000-0000-0000-0000-000000000101', 'RLS hidden comment', 'hidden' from p
+select id, (select id from tmp_rls_users where rn = 1), 'RLS hidden comment', 'hidden' from p
 on conflict do nothing;
 
 -- ---------------------------------------------------------------------
@@ -84,7 +125,7 @@ order by title;
 -- ---------------------------------------------------------------------
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
+select set_config('request.jwt.claim.sub', (select id::text from tmp_rls_users where rn = 1), true);
 
 update public.posts
 set title = 'RLS owner update ok'
@@ -94,13 +135,13 @@ with p as (
   select id from public.posts where title = 'RLS owner update ok' limit 1
 )
 insert into public.bookmarks (user_id, post_id)
-select '00000000-0000-0000-0000-000000000101', id from p
+select (select id from tmp_rls_users where rn = 1), id from p
 on conflict do nothing;
 
 -- ---------------------------------------------------------------------
 -- 3) AUTHENTICATED other user tests
 -- ---------------------------------------------------------------------
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000102', true);
+select set_config('request.jwt.claim.sub', (select id::text from tmp_rls_users where rn = 2), true);
 
 update public.posts
 set title = 'RLS other should fail'
@@ -109,7 +150,7 @@ where title = 'RLS owner update ok';
 -- ---------------------------------------------------------------------
 -- 4) MODERATOR tests
 -- ---------------------------------------------------------------------
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000103', true);
+select set_config('request.jwt.claim.sub', (select id::text from tmp_rls_users where rn = 3), true);
 
 update public.posts
 set status = 'hidden'
@@ -117,7 +158,7 @@ where title = 'RLS owner update ok';
 
 insert into public.moderation_actions (moderator_id, target_type, target_id, action, reason)
 select
-  '00000000-0000-0000-0000-000000000103',
+  (select id from tmp_rls_users where rn = 3),
   'post',
   p.id,
   'hide',
@@ -129,11 +170,11 @@ limit 1;
 -- ---------------------------------------------------------------------
 -- 5) ADMIN tests
 -- ---------------------------------------------------------------------
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000104', true);
+select set_config('request.jwt.claim.sub', (select id::text from tmp_rls_users where rn = 4), true);
 
 insert into public.reports (reporter_id, target_type, target_id, reason, status)
 select
-  '00000000-0000-0000-0000-000000000101',
+  (select id from tmp_rls_users where rn = 1),
   'post',
   p.id,
   'RLS report test',
