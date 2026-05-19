@@ -85,10 +85,37 @@ and (
   or (m.rn = 3 and u.id = current_setting('app.rls_mod_id')::uuid)
   or (m.rn = 4 and u.id = current_setting('app.rls_admin_id')::uuid)
 )
-on conflict (id) do update
-set username = excluded.username,
-    display_name = excluded.display_name,
-    role = excluded.role;
+and not exists (
+  select 1 from public.profiles p where p.id = u.id
+);
+
+update public.profiles p
+set
+  username = src.username,
+  display_name = src.display_name,
+  role = src.role
+from (
+  select
+    u.id,
+    m.username,
+    m.display_name,
+    m.role
+  from auth.users u
+  join (
+    values
+      (1, 'rls_owner_u', 'RLS Owner', 'user'::public.user_role),
+      (2, 'rls_other_u', 'RLS Other', 'user'::public.user_role),
+      (3, 'rls_mod_u', 'RLS Moderator', 'moderator'::public.user_role),
+      (4, 'rls_admin_u', 'RLS Admin', 'admin'::public.user_role)
+  ) as m(rn, username, display_name, role)
+    on true
+  where
+    (m.rn = 1 and u.id = current_setting('app.rls_owner_id')::uuid)
+    or (m.rn = 2 and u.id = current_setting('app.rls_other_id')::uuid)
+    or (m.rn = 3 and u.id = current_setting('app.rls_mod_id')::uuid)
+    or (m.rn = 4 and u.id = current_setting('app.rls_admin_id')::uuid)
+) src
+where p.id = src.id;
 
 update public.circles
 set
