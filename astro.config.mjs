@@ -1,9 +1,11 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import react from '@astrojs/react';
 
 export default defineConfig({
   site: 'https://openglasshub.pages.dev',
   integrations: [
+    react(),
     starlight({
       title: 'OpenGlass Hub',
       description: 'AR/AI 眼镜知识库、选购指南与开发者资源',

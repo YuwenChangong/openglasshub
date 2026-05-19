@@ -1,0 +1,56 @@
+---
+import AuthPanel from "../../components/forum/AuthPanel";
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forum Auth | OpenGlass Hub</title>
+    <meta
+      name="description"
+      content="OpenGlass Hub Forum Phase 3 最小认证入口：登录、注册、会话状态与发帖门控。"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: #0b0e16;
+        color: #e8edf8;
+      }
+      main {
+        padding: 2rem 1rem 4rem;
+        max-width: 920px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      a {
+        color: #7cb5ff;
+      }
+      .nav {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="nav">
+        <a href="/">返回文档首页</a>
+        <a href="/community/">社区页</a>
+        <a href="/developers/">开发者页</a>
+      </div>
+      <h1>Forum Phase 3：Auth Gate</h1>
+      <p>当前页面用于验证 Supabase Auth 与会话门控，不包含发帖编辑器与评论 UI。</p>
+      <AuthPanel client:load />
+    </main>
+  </body>
+</html>
