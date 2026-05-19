@@ -13,6 +13,7 @@ grant insert, update, delete on table public.profiles to authenticated;
 grant insert, update, delete on table public.posts to authenticated;
 grant insert, update, delete on table public.comments to authenticated;
 grant insert, update, delete on table public.reports to authenticated;
+grant select on table public.reports to authenticated;
 grant insert on table public.moderation_actions to authenticated;
 grant select on table public.moderation_actions to authenticated;
 grant insert, update, delete on table public.post_votes to authenticated;
