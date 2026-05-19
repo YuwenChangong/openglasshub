@@ -14,6 +14,8 @@ select row_number() over (order by created_at, id), id
 from auth.users
 limit 4;
 
+grant select on table tmp_rls_users to anon, authenticated;
+
 do $$
 declare
   v_count integer;
