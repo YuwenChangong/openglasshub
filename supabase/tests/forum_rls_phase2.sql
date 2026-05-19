@@ -173,7 +173,8 @@ limit 1;
 -- ---------------------------------------------------------------------
 -- 5) ADMIN tests
 -- ---------------------------------------------------------------------
-select set_config('request.jwt.claim.sub', current_setting('app.rls_admin_id'), true);
+-- report insert must be done by reporter (policy: reporter_id = auth.uid()).
+select set_config('request.jwt.claim.sub', current_setting('app.rls_owner_id'), true);
 
 insert into public.reports (reporter_id, target_type, target_id, reason, status)
 select
@@ -185,6 +186,9 @@ select
 from public.posts p
 where p.title = 'RLS test post hidden'
 limit 1;
+
+-- admin reviews report.
+select set_config('request.jwt.claim.sub', current_setting('app.rls_admin_id'), true);
 
 update public.reports
 set status = 'reviewed'
