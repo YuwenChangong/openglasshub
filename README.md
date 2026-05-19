@@ -25,6 +25,9 @@ Required env vars:
 
 - `PUBLIC_SUPABASE_URL`
 - `PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 Setup:
 
@@ -45,3 +48,25 @@ Not included yet:
 - post create API
 - comment API
 - server-side session verification with Cloudflare Pages Functions
+
+## Forum Phase 3.1 API skeleton
+
+Cloudflare Pages Functions route:
+
+- `GET /api/forum/posts?circle=<slug>&limit=<n>`
+- `POST /api/forum/posts`
+
+`POST` requirements:
+
+- `Authorization: Bearer <supabase_access_token>`
+- JSON body:
+  - `circle_slug`
+  - `title`
+  - `body`
+  - `type` (`experience|question|review|dev|news|feedback`)
+
+`POST` behavior in current phase:
+
+- validates user token server-side
+- validates payload
+- inserts post as `pending`
