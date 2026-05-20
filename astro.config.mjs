@@ -1,9 +1,16 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import react from '@astrojs/react';
+import cloudflare from '@astrojs/cloudflare';
 
 export default defineConfig({
   site: 'https://openglasshub.pages.dev',
+  output: 'static',
+  adapter: cloudflare({
+    platformProxy: {
+      enabled: true,
+    },
+  }),
   integrations: [
     react(),
     starlight({

@@ -1,9 +1,8 @@
-import { createAnonClient, createServiceClient } from "../../_lib/supabase";
+import { createAnonClient, createUserClient } from "../../_lib/supabase";
 
 type Env = {
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
 };
 
 type PagesContext = {
@@ -82,8 +81,8 @@ export async function onRequestPost({ env, request }: PagesContext): Promise<Res
       return json({ error: "Missing bearer token" }, 401);
     }
 
-    const anonClient = createAnonClient(env);
-    const { data: authData, error: authError } = await anonClient.auth.getUser(token);
+    const userClient = createUserClient(env, token);
+    const { data: authData, error: authError } = await userClient.auth.getUser(token);
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
     }
@@ -117,8 +116,7 @@ export async function onRequestPost({ env, request }: PagesContext): Promise<Res
       return json({ error: "Invalid post type" }, 400);
     }
 
-    const serviceClient = createServiceClient(env);
-    const { data: profile, error: profileError } = await serviceClient
+    const { data: profile, error: profileError } = await userClient
       .from("profiles")
       .select("id")
       .eq("id", authData.user.id)
@@ -130,7 +128,7 @@ export async function onRequestPost({ env, request }: PagesContext): Promise<Res
       return json({ error: "Profile not found for current user" }, 403);
     }
 
-    const { data: circle, error: circleError } = await serviceClient
+    const { data: circle, error: circleError } = await userClient
       .from("circles")
       .select("id")
       .eq("slug", circleSlug)
@@ -142,7 +140,7 @@ export async function onRequestPost({ env, request }: PagesContext): Promise<Res
       return json({ error: "Circle not found" }, 404);
     }
 
-    const { data: inserted, error: insertError } = await serviceClient
+    const { data: inserted, error: insertError } = await userClient
       .from("posts")
       .insert({
         author_id: authData.user.id,

@@ -1,0 +1,83 @@
+---
+export const prerender = false;
+
+import ForumLayout from "../../layouts/ForumLayout.astro";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+
+const env = Astro.locals.runtime.env as CloudflareEnv;
+const supabase = createSSRClient(env);
+
+const { data: posts, error } = await supabase
+  .from("posts")
+  .select("id, title, type, created_at, profiles:author_id(display_name), circles:circle_id(slug, name)")
+  .eq("status", "published")
+  .order("created_at", { ascending: false })
+  .limit(50);
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+const postTypeLabels: Record<string, string> = {
+  experience: "体验",
+  question: "提问",
+  review: "评测",
+  dev: "开发",
+  news: "资讯",
+  feedback: "反馈",
+};
+---
+
+<ForumLayout
+  title="帖子动态"
+  description="OpenGlass Hub 论坛最新公开帖子。AR/AI 眼镜社区讨论动态。"
+  canonical="https://openglasshub.pages.dev/feed/"
+>
+  <h1>帖子动态</h1>
+  <p style="color: #8892b0; margin-top: -0.5rem;">社区最新公开讨论</p>
+
+  <div style="margin-bottom: 1.5rem;">
+    <a href="/forum/" class="btn-primary">✍️ 发帖</a>
+    <a href="/circles/" class="btn-primary" style="margin-left: 0.5rem; background: #a78bfa; color: #0b0e16;">圈子</a>
+  </div>
+
+  {error ? (
+    <div class="empty-state">
+      <p>⚠️ 加载帖子时出错，请稍后重试。</p>
+      <p class="meta">{error.message}</p>
+    </div>
+  ) : !posts || posts.length === 0 ? (
+    <div class="empty-state">
+      <p style="font-size: 2rem; margin-bottom: 0.5rem;">🌱</p>
+      <p>暂时还没有帖子</p>
+      <p class="meta">成为第一个发帖的人吧！</p>
+      <a href="/forum/" class="btn-primary" style="margin-top: 1rem;">写第一篇帖子</a>
+    </div>
+  ) : (
+    <div style="display: grid; gap: 1rem;">
+      {posts.map((post) => (
+        <article class="card" style="padding: 1rem 1.5rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+            {post.type && (
+              <span class="tag tag-purple">{postTypeLabels[post.type] || post.type}</span>
+            )}
+            {post.circles && (
+              <a href={`/circles/${post.circles.slug}/`} class="tag tag-blue" style="text-decoration: none;">
+                {post.circles.name}
+              </a>
+            )}
+            <span class="meta">{formatDate(post.created_at)}</span>
+          </div>
+          <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">
+            <a href={`/posts/${post.id}/`} style="color: #e8edf8; text-decoration: none;">
+              {post.title}
+            </a>
+          </h3>
+          <div class="meta" style="display: flex; gap: 1rem;">
+            <span>by {post.profiles?.display_name || "匿名"}</span>
+          </div>
+        </article>
+      ))}
+    </div>
+  )}
+</ForumLayout>

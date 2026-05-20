@@ -70,6 +70,13 @@ export default function AuthPanel() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [postCircleSlug, setPostCircleSlug] = useState("xreal");
+  const [postType, setPostType] = useState("question");
+  const [postTitle, setPostTitle] = useState("");
+  const [postBody, setPostBody] = useState("");
+  const [postSubmitting, setPostSubmitting] = useState(false);
+  const [postMessage, setPostMessage] = useState("");
+  const [postError, setPostError] = useState("");
 
   async function refreshSession() {
     if (!supabase) return;
@@ -133,6 +140,54 @@ export default function AuthPanel() {
       setMessage("已退出登录。");
     }
     setLoading(false);
+  }
+
+  async function handleCreatePost(event: React.FormEvent) {
+    event.preventDefault();
+    if (!supabase || !user) return;
+
+    setPostSubmitting(true);
+    setPostError("");
+    setPostMessage("");
+
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session?.access_token) {
+        throw new Error("Auth session missing!");
+      }
+
+      const response = await fetch("/api/forum/posts", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify({
+          circle_slug: postCircleSlug.trim(),
+          type: postType.trim(),
+          title: postTitle.trim(),
+          body: postBody.trim(),
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; post?: { id: string; status: string } }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Request failed with status ${response.status}`);
+      }
+
+      setPostMessage(
+        `帖子提交成功，状态：${payload?.post?.status ?? "pending"}，ID：${payload?.post?.id ?? "-"}`,
+      );
+      setPostTitle("");
+      setPostBody("");
+    } catch (submitError) {
+      setPostError(submitError instanceof Error ? submitError.message : "提交失败。");
+    } finally {
+      setPostSubmitting(false);
+    }
   }
 
   if (!supabase) {
@@ -213,6 +268,60 @@ export default function AuthPanel() {
               退出登录
             </button>
             <p style={{ marginTop: "0.75rem" }}>你已通过最小门控，可进入下一阶段发帖 API 测试。</p>
+            <form onSubmit={handleCreatePost} style={{ ...stackStyle, marginTop: "1rem" }}>
+              <h3 style={{ margin: 0 }}>最小发帖测试（Phase 3.2）</h3>
+              <label>
+                Circle Slug
+                <input
+                  style={inputStyle}
+                  value={postCircleSlug}
+                  onChange={(event) => setPostCircleSlug(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                类型
+                <select
+                  style={inputStyle}
+                  value={postType}
+                  onChange={(event) => setPostType(event.target.value)}
+                >
+                  <option value="experience">experience</option>
+                  <option value="question">question</option>
+                  <option value="review">review</option>
+                  <option value="dev">dev</option>
+                  <option value="news">news</option>
+                  <option value="feedback">feedback</option>
+                </select>
+              </label>
+              <label>
+                标题
+                <input
+                  style={inputStyle}
+                  value={postTitle}
+                  onChange={(event) => setPostTitle(event.target.value)}
+                  minLength={3}
+                  maxLength={180}
+                  required
+                />
+              </label>
+              <label>
+                内容
+                <textarea
+                  style={{ ...inputStyle, minHeight: "120px", resize: "vertical" }}
+                  value={postBody}
+                  onChange={(event) => setPostBody(event.target.value)}
+                  minLength={10}
+                  maxLength={20000}
+                  required
+                />
+              </label>
+              <button type="submit" style={buttonStyle} disabled={postSubmitting}>
+                {postSubmitting ? "提交中..." : "提交帖子（应为 pending）"}
+              </button>
+              {postError ? <div style={messageStyle}>错误：{postError}</div> : null}
+              {postMessage ? <div style={messageStyle}>{postMessage}</div> : null}
+            </form>
           </>
         ) : (
           <p>未登录。未登录用户在 Forum Phase 3 不能发帖或评论。</p>
