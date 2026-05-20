@@ -1,7 +1,10 @@
-﻿node_modules/
+node_modules/
 dist/
 .astro/
+.wrangler/
+supabase/.temp/
 .env
 .env.*
+!.env.example
 .DS_Store
-node_modules
+Thumbs.db

@@ -1,0 +1,155 @@
+---
+export interface Props {
+  title: string;
+  description?: string;
+  noindex?: boolean;
+  canonical?: string;
+}
+
+const { title, description, noindex, canonical } = Astro.props;
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} | OpenGlass Hub</title>
+    {description && <meta name="description" content={description} />}
+    {noindex && <meta name="robots" content="noindex" />}
+    {canonical && <link rel="canonical" href={canonical} />}
+    <meta property="og:title" content={`${title} | OpenGlass Hub`} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="OpenGlass Hub" />
+    <link rel="icon" type="image/x-icon" href="/gaze-icon-v6.ico" />
+    <link rel="icon" type="image/svg+xml" href="/gaze-icon-v6.svg" />
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans SC", sans-serif;
+        background: #0b0e16;
+        color: #e8edf8;
+        line-height: 1.6;
+      }
+      main {
+        padding: 2rem 1rem 4rem;
+        max-width: 920px;
+        margin: 0 auto;
+      }
+      h1, h2, h3 { color: #e8edf8; }
+      a { color: #7cb5ff; }
+      .site-nav {
+        background: #111527;
+        border-bottom: 1px solid #2a2e45;
+        padding: 0.75rem 1rem;
+      }
+      .site-nav-inner {
+        max-width: 920px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      .site-nav-brand {
+        color: #e8edf8;
+        font-weight: 700;
+        font-size: 1.05rem;
+        text-decoration: none;
+      }
+      .site-nav-links {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        font-size: 0.9rem;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .site-nav-links a {
+        color: #8892b0;
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+      .site-nav-links a:hover { color: #e8edf8; }
+      .breadcrumb {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+        color: #5a6480;
+      }
+      .breadcrumb a { color: #7cb5ff; text-decoration: none; }
+      .breadcrumb a:hover { text-decoration: underline; }
+      .card {
+        background: #111527;
+        border-radius: 8px;
+        border: 1px solid #2a2e45;
+        padding: 1.25rem 1.5rem;
+        transition: border-color 0.15s;
+      }
+      .card:hover { border-color: #7cb5ff; }
+      .tag {
+        display: inline-block;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+      .tag-blue { background: #7cb5ff20; color: #7cb5ff; }
+      .tag-purple { background: #a78bfa20; color: #a78bfa; }
+      .meta { font-size: 0.8rem; color: #5a6480; }
+      .empty-state {
+        padding: 2rem;
+        background: #111527;
+        border-radius: 8px;
+        border: 1px solid #2a2e45;
+        text-align: center;
+        color: #8892b0;
+      }
+      .btn-primary {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background: #7cb5ff;
+        color: #0b0e16;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.9rem;
+        transition: background 0.15s;
+      }
+      .btn-primary:hover { background: #5a9dff; }
+      .footer {
+        margin-top: 3rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #2a2e45;
+        font-size: 0.85rem;
+        color: #5a6480;
+        text-align: center;
+      }
+      .footer a { color: #7cb5ff; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <nav class="site-nav">
+      <div class="site-nav-inner">
+        <a href="/" class="site-nav-brand">🟢 OpenGlass Hub</a>
+        <ul class="site-nav-links">
+          <li><a href="/">首页</a></li>
+          <li><a href="/feed/">动态</a></li>
+          <li><a href="/circles/">圈子</a></li>
+          <li><a href="/forum/">发帖</a></li>
+          <li><a href="/devices/">设备库</a></li>
+          <li><a href="/guides/">选购指南</a></li>
+          <li><a href="/community/">社区</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>

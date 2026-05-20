@@ -18,6 +18,22 @@ export function createAnonClient(env: EnvLike): SupabaseClient {
   return createClient(getEnvValue(env, "SUPABASE_URL"), getEnvValue(env, "SUPABASE_ANON_KEY"));
 }
 
+export function createUserClient(env: EnvLike, bearerToken: string): SupabaseClient {
+  return createClient(getEnvValue(env, "SUPABASE_URL"), getEnvValue(env, "SUPABASE_ANON_KEY"), {
+    global: {
+      headers: {
+        Authorization: `Bearer ${bearerToken}`,
+      },
+    },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
+// ⚠️ Service role bypasses RLS. Do NOT use for user post creation.
+// Use only for future admin/moderation endpoints.
 export function createServiceClient(env: EnvLike): SupabaseClient {
   return createClient(
     getEnvValue(env, "SUPABASE_URL"),

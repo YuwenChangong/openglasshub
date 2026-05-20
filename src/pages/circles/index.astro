@@ -1,0 +1,52 @@
+---
+export const prerender = false;
+
+import ForumLayout from "../../layouts/ForumLayout.astro";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+
+const env = Astro.locals.runtime.env as CloudflareEnv;
+const supabase = createSSRClient(env);
+
+const { data: circles, error } = await supabase
+  .from("circles")
+  .select("id, name, slug, description, created_at")
+  .order("name", { ascending: true });
+---
+
+<ForumLayout
+  title="圈子"
+  description="OpenGlass Hub 论坛圈子。按话题分类的 AR/AI 眼镜社区讨论。"
+  canonical="https://openglasshub.pages.dev/circles/"
+>
+  <h1>圈子</h1>
+  <p style="color: #8892b0; margin-top: -0.5rem;">按话题分类浏览社区讨论</p>
+
+  <div style="margin-bottom: 1.5rem;">
+    <a href="/feed/" class="btn-primary">← 返回动态</a>
+  </div>
+
+  {error ? (
+    <div class="empty-state">
+      <p>⚠️ 加载圈子时出错，请稍后重试。</p>
+      <p class="meta">{error.message}</p>
+    </div>
+  ) : !circles || circles.length === 0 ? (
+    <div class="empty-state">
+      <p style="font-size: 2rem; margin-bottom: 0.5rem;">⭕</p>
+      <p>暂时还没有圈子</p>
+      <p class="meta">圈子将会在社区活跃后开放。</p>
+    </div>
+  ) : (
+    <div style="display: grid; gap: 1rem;">
+      {circles.map((circle) => (
+        <a href={`/circles/${circle.slug}/`} class="card" style="text-decoration: none; display: block;">
+          <h3 style="margin: 0 0 0.5rem 0; color: #e8edf8; font-size: 1.15rem;">{circle.name}</h3>
+          {circle.description && (
+            <p style="color: #8892b0; margin: 0 0 0.5rem 0; font-size: 0.9rem;">{circle.description}</p>
+          )}
+          <span class="meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
+        </a>
+      ))}
+    </div>
+  )}
+</ForumLayout>

@@ -1,0 +1,129 @@
+---
+export const prerender = false;
+
+import ForumLayout from "../../layouts/ForumLayout.astro";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+
+const { id } = Astro.params;
+
+if (!id) {
+  return Astro.redirect("/feed/");
+}
+
+const env = Astro.locals.runtime.env as CloudflareEnv;
+const supabase = createSSRClient(env);
+
+const { data: post, error } = await supabase
+  .from("posts")
+  .select("id, title, body, type, status, created_at, updated_at, profiles:author_id(display_name), circles:circle_id(slug, name)")
+  .eq("id", id)
+  .eq("status", "published")
+  .single();
+
+if (error || !post) {
+  Astro.response.status = 404;
+  Astro.response.statusText = "Not Found";
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+const postTypeLabels: Record<string, string> = {
+  experience: "体验",
+  question: "提问",
+  review: "评测",
+  dev: "开发",
+  news: "资讯",
+  feedback: "反馈",
+};
+
+const circle = post?.circles ?? null;
+const canonicalUrl = post ? `https://openglasshub.pages.dev/posts/${post.id}/` : undefined;
+---
+
+{!post ? (
+  <ForumLayout title="帖子未找到" noindex={true}>
+    <div class="empty-state">
+      <p style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</p>
+      <p>帖子未找到</p>
+      <p class="meta">该帖子可能已被删除或不存在。</p>
+      <a href="/feed/" class="btn-primary" style="margin-top: 1rem;">返回动态</a>
+    </div>
+  </ForumLayout>
+) : (
+  <ForumLayout
+    title={post.title}
+    description={post.body ? post.body.substring(0, 160).replace(/[#*\n]/g, ' ').trim() : undefined}
+    canonical={canonicalUrl}
+  >
+    <nav class="breadcrumb">
+      <a href="/">首页</a>
+      <span>/</span>
+      <a href="/feed/">动态</a>
+      <span>/</span>
+      {circle && (
+        <>
+          <a href={`/circles/${circle.slug}/`}>{circle.name}</a>
+          <span>/</span>
+        </>
+      )}
+      <span style="color: #e8edf8;">{post.title}</span>
+    </nav>
+
+    <article>
+      <header style="margin-bottom: 2rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+          {post.type && (
+            <span class="tag tag-purple">{postTypeLabels[post.type] || post.type}</span>
+          )}
+          {circle && (
+            <a href={`/circles/${circle.slug}/`} class="tag tag-blue" style="text-decoration: none;">
+              {circle.name}
+            </a>
+          )}
+        </div>
+        <h1 style="margin: 0 0 0.75rem 0; font-size: 1.75rem; line-height: 1.3;">{post.title}</h1>
+        <div class="meta" style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.9rem;">
+          <span>👤 {post.profiles?.display_name || "匿名"}</span>
+          <span>📅 {formatDate(post.created_at)}</span>
+          {post.updated_at && post.updated_at !== post.created_at && (
+            <span>✏️ 更新于 {formatDate(post.updated_at)}</span>
+          )}
+        </div>
+      </header>
+
+      <section style="background: #111527; border-radius: 8px; border: 1px solid #2a2e45; padding: 2rem; line-height: 1.8; font-size: 1rem;">
+        {post.body ? (
+          <div style="white-space: pre-wrap; word-break: break-word;">{post.body}</div>
+        ) : (
+          <p style="color: #5a6480; font-style: italic;">此帖子没有正文内容。</p>
+        )}
+      </section>
+
+      <div class="footer">
+        <a href="/feed/">← 返回动态</a>
+        {" · "}
+        <a href="/community/">加入社区讨论</a>
+        {" · "}
+        <a href="/forum/">发帖</a>
+      </div>
+    </article>
+
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": post.title,
+      "description": post.body ? post.body.substring(0, 160).replace(/[#*\n]/g, ' ').trim() : "",
+      "author": { "@type": "Person", "name": post.profiles?.display_name || "匿名" },
+      "datePublished": post.created_at,
+      "dateModified": post.updated_at || post.created_at,
+      "url": canonicalUrl,
+      "publisher": { "@type": "Organization", "name": "OpenGlass Hub" },
+    })} />
+  </ForumLayout>
+)}
