@@ -3,6 +3,8 @@ export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import CommentForm from "../../components/forum/CommentForm";
+import CommentsSection from "../../components/forum/CommentsSection";
 
 const { id } = Astro.params;
 
@@ -113,6 +115,9 @@ const canonicalUrl = post ? `https://openglasshub.pages.dev/posts/${post.id}/` :
         <a href="/forum/">发帖</a>
       </div>
     </article>
+
+    <CommentForm postId={post.id} client:visible />
+    <CommentsSection postId={post.id} client:visible />
 
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
