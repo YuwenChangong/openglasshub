@@ -32,10 +32,12 @@
 
 在 Cloudflare Pages Dashboard 中设置：
 
-| 变量名 | 说明 | 示例 |
+| 变量名 | 说明 | 用途 |
 |--------|------|------|
-| `SUPABASE_URL` | Supabase 项目 URL | `https://xxx.supabase.co` |
-| `SUPABASE_ANON_KEY` | Supabase 匿名公钥 | `eyJhbGciOiJIUz...` |
+| `SUPABASE_URL` | Supabase 项目 URL | SSR 页面（Worker 运行时） |
+| `SUPABASE_ANON_KEY` | Supabase 匿名公钥 | SSR 页面（Worker 运行时） |
+| `PUBLIC_SUPABASE_URL` | Supabase 项目 URL | 客户端 AuthPanel（浏览器 JS） |
+| `PUBLIC_SUPABASE_ANON_KEY` | Supabase 匿名公钥 | 客户端 AuthPanel（浏览器 JS） |
 
 ### Wrangler 本地开发
 
@@ -43,7 +45,9 @@
 
 ```
 SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUz...
+SUPABASE_ANON_KEY=your-anon-key
+PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
 ---
@@ -107,8 +111,8 @@ npx wrangler pages deploy dist
 
 所有 SSR 页面查询均使用 anon key + RLS，确保安全性：
 
-- `forum_posts` 表：仅返回 `status = 'published'` 的帖子
-- `forum_circles` 表：公开可读
+- `posts` 表：仅返回 `status = 'published'` 的帖子
+- `circles` 表：公开可读
 - 发帖操作仍通过 `functions/api/forum/posts.ts`，使用 Bearer token 认证
 
 ---
