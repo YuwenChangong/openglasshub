@@ -50,7 +50,7 @@ import AuthPanel from "../../components/forum/AuthPanel";
       </div>
       <h1>Forum Phase 3：Auth Gate</h1>
       <p>当前页面用于验证 Supabase Auth 与会话门控，不包含发帖编辑器与评论 UI。</p>
-      <AuthPanel client:load />
+      <AuthPanel client:only="react" />
     </main>
   </body>
 </html>
