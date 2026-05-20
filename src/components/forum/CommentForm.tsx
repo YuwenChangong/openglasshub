@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 interface CommentFormProps {
@@ -76,11 +76,16 @@ export default function CommentForm({ postId, onCommentCreated }: CommentFormPro
   const [success, setSuccess] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
-  // Check session on mount
-  useMemo(async () => {
+  // Check session on mount (useEffect for side-effects, not useMemo)
+  useEffect(() => {
     if (!supabase) return;
-    const { data } = await supabase.auth.getSession();
-    setIsLoggedIn(!!data.session);
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) setIsLoggedIn(!!data.session);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [supabase]);
 
   // Reset success state when body changes
