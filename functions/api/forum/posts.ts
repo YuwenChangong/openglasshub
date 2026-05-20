@@ -1,3 +1,9 @@
+/**
+ * @deprecated IGNORED when @astrojs/cloudflare emits dist/_worker.js.
+ *
+ * In Cloudflare Pages advanced mode, the /functions directory is ignored
+ * when _worker.js exists. Active endpoint: src/pages/api/forum/posts.ts
+ */
 import { createAnonClient, createUserClient } from "../../_lib/supabase";
 
 type Env = {

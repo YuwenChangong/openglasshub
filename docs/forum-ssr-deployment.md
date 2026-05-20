@@ -62,6 +62,9 @@ src/
 │   └── ForumLayout.astro           # 论坛页面通用布局
 ├── pages/
 │   ├── feed/index.astro            # 帖子动态列表（SSR）
+│   ├── api/
+│   │   └── forum/
+│   │       └── posts.ts            # 发帖 API（Astro API Route，prerender=false）
 │   ├── posts/[id].astro            # 帖子详情（SSR）
 │   ├── circles/index.astro         # 圈子列表（SSR）
 │   ├── circles/[slug].astro        # 圈子帖子列表（SSR）
@@ -86,7 +89,19 @@ src/
 | `src/components/forum/CirclePosts.tsx` | 逻辑合并到 SSR 页面 |
 | `src/components/forum/PostDetail.tsx` | 逻辑合并到 SSR 页面 |
 
-API Functions（`functions/api/forum/`）保留，供发帖表单和未来客户端交互使用。
+### ⚠️ API Endpoints: Astro API Routes vs Cloudflare Functions
+
+**关键发现：** 当 `@astrojs/cloudflare` 输出 `dist/_worker.js` 时，Cloudflare Pages 会忽略 `functions/` 目录。所有 API 端点必须放在 `src/pages/api/` 下作为 Astro API Routes，由同一个 Cloudflare Worker 处理。
+
+| 路径 | 状态 | 说明 |
+|------|------|------|
+| `functions/api/forum/posts.ts` | ⚠️ 已弃用 | Cloudflare Pages 在 advanced mode 下忽略此文件 |
+| `functions/api/forum/feed.ts` | ⚠️ 已弃用 | 同上 |
+| `functions/api/forum/circles.ts` | ⚠️ 已弃用 | 同上 |
+| `functions/api/forum/post-detail.ts` | ⚠️ 已弃用 | 同上 |
+| **`src/pages/api/forum/posts.ts`** | ✅ 活跃 | 发帖 API，由 Astro SSR Worker 处理 |
+
+**迁移规则：** 新增或迁移 API 端点时，始终使用 `src/pages/api/` 并设置 `export const prerender = false;`。
 
 ---
 
@@ -113,7 +128,8 @@ npx wrangler pages deploy dist
 
 - `posts` 表：仅返回 `status = 'published'` 的帖子
 - `circles` 表：公开可读
-- 发帖操作仍通过 `functions/api/forum/posts.ts`，使用 Bearer token 认证
+- 发帖操作通过 `src/pages/api/forum/posts.ts`（Astro API Route），使用 Bearer token 认证
+- 环境变量 `SUPABASE_URL` 和 `SUPABASE_ANON_KEY` 通过 Cloudflare Worker `runtime.env` 获取
 
 ---
 
