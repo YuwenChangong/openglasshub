@@ -5,6 +5,7 @@ import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import CommentForm from "../../components/forum/CommentForm";
 import CommentsSection from "../../components/forum/CommentsSection";
+import { buildLoginHref } from "../../lib/auth-redirect";
 
 const { id } = Astro.params;
 
@@ -46,6 +47,7 @@ const postTypeLabels: Record<string, string> = {
 
 const circle = post?.circles ?? null;
 const canonicalUrl = post ? `https://openglasshub.pages.dev/posts/${post.id}/` : undefined;
+const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "/feed/");
 ---
 
 {!post ? (
@@ -112,12 +114,14 @@ const canonicalUrl = post ? `https://openglasshub.pages.dev/posts/${post.id}/` :
         {" · "}
         <a href="/community/">加入社区讨论</a>
         {" · "}
-        <a href="/forum/">发帖</a>
+        <a href="/posts/new/">发帖</a>
       </div>
     </article>
 
-    <CommentForm postId={post.id} client:visible />
-    <CommentsSection postId={post.id} client:visible />
+    <section id="comments">
+      <CommentForm postId={post.id} loginHref={commentLoginHref} client:visible />
+      <CommentsSection postId={post.id} client:visible />
+    </section>
 
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",

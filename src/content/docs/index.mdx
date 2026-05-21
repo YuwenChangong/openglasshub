@@ -33,6 +33,7 @@ hero:
 
 import { CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
 import CommunityCTA from '../../components/CommunityCTA.astro';
+import AuthCTA from '../../components/auth/AuthCTA';
 
 ## 内容导航
 
@@ -70,6 +71,8 @@ import CommunityCTA from '../../components/CommunityCTA.astro';
 :::
 
 ## Start Here
+
+<AuthCTA next="/" client:load />
 
 <CardGrid>
   <Card title="AR 眼镜、AI 眼镜、XR 眼镜有什么区别？" icon="seti:book">

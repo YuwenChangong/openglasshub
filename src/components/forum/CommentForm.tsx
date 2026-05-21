@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { buildLoginHref } from "../../lib/auth-redirect";
+import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 
 interface CommentFormProps {
   postId: string;
   onCommentCreated?: () => void;
+  loginHref?: string;
 }
 
 const wrapperStyle: React.CSSProperties = {
@@ -59,16 +61,9 @@ const loginBoxStyle: React.CSSProperties = {
   textAlign: "center" as const,
 };
 
-export default function CommentForm({ postId, onCommentCreated }: CommentFormProps) {
-  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey, {
-      auth: { persistSession: true, autoRefreshToken: true },
-    });
-  }, [supabaseAnonKey, supabaseUrl]);
+export default function CommentForm({ postId, onCommentCreated, loginHref }: CommentFormProps) {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const resolvedLoginHref = loginHref ?? buildLoginHref(`/posts/${postId}/#comments`);
 
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
@@ -150,7 +145,7 @@ export default function CommentForm({ postId, onCommentCreated }: CommentFormPro
         <p style={{ color: "#a0a8c0", marginBottom: "0.75rem" }}>
           登录后即可发表评论
         </p>
-        <a href="/forum/" style={buttonStyle}>
+        <a href={resolvedLoginHref} style={buttonStyle}>
           前往登录
         </a>
       </section>

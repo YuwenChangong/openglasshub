@@ -1,4 +1,6 @@
 ---
+import AuthCTA from "../components/auth/AuthCTA";
+
 export interface Props {
   title: string;
   description?: string;
@@ -141,11 +143,12 @@ const { title, description, noindex, canonical } = Astro.props;
           <li><a href="/">首页</a></li>
           <li><a href="/feed/">动态</a></li>
           <li><a href="/circles/">圈子</a></li>
-          <li><a href="/forum/">发帖</a></li>
+          <li><a href="/posts/new/">发帖</a></li>
           <li><a href="/devices/">设备库</a></li>
           <li><a href="/guides/">选购指南</a></li>
           <li><a href="/community/">社区</a></li>
         </ul>
+        <AuthCTA next={canonical ?? "/"} compact={true} client:only="react" />
       </div>
     </nav>
     <main>

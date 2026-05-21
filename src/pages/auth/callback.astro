@@ -1,0 +1,17 @@
+---
+export const prerender = false;
+
+import ForumLayout from "../../layouts/ForumLayout.astro";
+import AuthCallback from "../../components/auth/AuthCallback";
+
+const next = Astro.url.searchParams.get("next") ?? "/";
+---
+
+<ForumLayout
+  title="登录确认"
+  description="处理 OpenGlass Hub 的邮箱确认与登录回调。"
+  canonical="https://openglasshub.pages.dev/auth/callback/"
+  noindex={true}
+>
+  <AuthCallback next={next} client:only="react" />
+</ForumLayout>
