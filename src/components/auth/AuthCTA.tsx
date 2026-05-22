@@ -12,20 +12,22 @@ const primaryButtonStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  borderRadius: "6px",
-  padding: "0.65rem 1rem",
-  background: "#7cb5ff",
-  color: "#0b0e16",
+  borderRadius: "10px",
+  padding: "0.75rem 1.1rem",
+  background: "#2563eb",
+  color: "#f8fafc",
   textDecoration: "none",
   fontWeight: 600,
-  border: "1px solid #7cb5ff",
+  border: "1px solid #3474f6",
+  boxShadow: "0 10px 24px rgba(25, 83, 210, 0.22)",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
   ...primaryButtonStyle,
-  background: "transparent",
+  background: "#11182a",
   color: "#e8edf8",
-  border: "1px solid #2a2e45",
+  border: "1px solid #27314a",
+  boxShadow: "none",
 };
 
 export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
@@ -77,12 +79,12 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
       </div>
     ) : (
       <div style={{ display: "grid", gap: "0.85rem", padding: "1rem 0" }}>
-        <p style={{ margin: 0, color: "#8892b0" }}>
-          浏览内容无需登录。想发帖、评论或参与后续互动，需要先登录。
+        <p style={{ margin: 0, color: "#aab5d1", lineHeight: 1.7 }}>
+          浏览内容无需登录。想发帖、评论，或者开始记录自己的 AR / AI 眼镜体验，需要先加入社区。
         </p>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
           <a href={buildLoginHref(safeNext)} style={primaryButtonStyle}>注册 / 登录</a>
-          <a href="/feed/" style={secondaryButtonStyle}>先浏览社区动态</a>
+          <a href="/feed/" style={secondaryButtonStyle}>浏览讨论</a>
         </div>
       </div>
     );
