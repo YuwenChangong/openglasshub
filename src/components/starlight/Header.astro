@@ -13,16 +13,19 @@ const pathname = Astro.url.pathname;
 
 const navLinks = [
   { label: '首页', href: '/' },
-  { label: '动态', href: '/feed/' },
-  { label: '圈子', href: '/circles/' },
-  { label: '发帖', href: '/posts/new/' },
+  { label: '论坛', href: '/feed/' },
   { label: '设备库', href: '/devices/' },
   { label: '选购指南', href: '/guides/' },
+  { label: '开发者', href: '/developers/' },
+  { label: 'Gaze Launcher', href: '/gaze-os/' },
   { label: '社区', href: '/community/' },
 ];
 
 function isActive(href: string) {
   if (href === '/') return pathname === '/';
+  if (href === '/feed/') {
+    return pathname.startsWith('/feed/') || pathname.startsWith('/circles/') || pathname.startsWith('/posts/');
+  }
   return pathname === href || pathname.startsWith(href);
 }
 ---
@@ -76,13 +79,13 @@ function isActive(href: string) {
   .ogh-nav {
     display: none;
     align-items: center;
-    gap: 1.15rem;
+    gap: 1rem;
     flex-wrap: wrap;
   }
 
   .ogh-nav-link {
     color: #a8b0c7;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     font-weight: 500;
     text-decoration: none;
     transition: color 0.15s ease;

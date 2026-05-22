@@ -9,6 +9,38 @@ export interface Props {
 }
 
 const { title, description, noindex, canonical } = Astro.props;
+const pathname = Astro.url.pathname;
+
+const forumTabs = [
+  { label: "动态", href: "/feed/" },
+  { label: "圈子", href: "/circles/" },
+  { label: "发帖", href: "/posts/new/" },
+];
+
+const mainLinks = [
+  { label: "首页", href: "/" },
+  { label: "论坛", href: "/feed/" },
+  { label: "设备库", href: "/devices/" },
+  { label: "选购指南", href: "/guides/" },
+  { label: "开发者", href: "/developers/" },
+  { label: "Gaze Launcher", href: "/gaze-os/" },
+  { label: "社区", href: "/community/" },
+];
+
+function isMainActive(href: string) {
+  if (href === "/") return pathname === "/";
+  if (href === "/feed/") {
+    return pathname.startsWith("/feed/") || pathname.startsWith("/circles/") || pathname.startsWith("/posts/");
+  }
+  return pathname === href || pathname.startsWith(href);
+}
+
+function isForumTabActive(href: string) {
+  if (href === "/feed/") return pathname.startsWith("/feed/");
+  if (href === "/circles/") return pathname.startsWith("/circles/");
+  if (href === "/posts/new/") return pathname.startsWith("/posts/new/");
+  return pathname === href;
+}
 ---
 <!doctype html>
 <html lang="zh-CN">
@@ -30,42 +62,39 @@ const { title, description, noindex, canonical } = Astro.props;
       body {
         margin: 0;
         font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans SC", sans-serif;
-        background:
-          radial-gradient(circle at top, rgba(37, 99, 235, 0.12), transparent 26rem),
-          #0b0e16;
-        color: #e8edf8;
-        line-height: 1.6;
+        background: #0b0f19;
+        color: #e7ecf5;
+        line-height: 1.65;
       }
       main {
-        padding: 2.5rem 1rem 4rem;
-        max-width: 1120px;
+        padding: 1.5rem 1rem 4rem;
+        max-width: 1180px;
         margin: 0 auto;
       }
       h1, h2, h3 { color: #f8fafc; }
       h1 {
         margin: 0;
-        font-size: clamp(2.25rem, 5vw, 3.5rem);
-        line-height: 1.02;
-        letter-spacing: -0.04em;
+        font-size: 2rem;
+        line-height: 1.2;
+        letter-spacing: 0;
       }
       h2 {
         margin: 0;
-        font-size: clamp(1.35rem, 2vw, 1.8rem);
-        letter-spacing: -0.02em;
+        font-size: 1.25rem;
+        letter-spacing: 0;
       }
       a { color: #7cb5ff; }
       .site-nav {
         position: sticky;
         top: 0;
         z-index: 10;
-        background: rgba(17, 21, 39, 0.92);
-        border-bottom: 1px solid rgba(124, 181, 255, 0.12);
-        backdrop-filter: blur(14px);
-        padding: 0.9rem 1rem;
+        background: #111827;
+        border-bottom: 1px solid #20283a;
+        padding: 0.78rem 1rem;
       }
       .site-nav-inner {
-        max-width: 1120px;
-        margin: 0 auto;
+        max-width: none;
+        margin: 0;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -86,7 +115,7 @@ const { title, description, noindex, canonical } = Astro.props;
         font-weight: 700;
         font-size: 1.15rem;
         text-decoration: none;
-        letter-spacing: -0.02em;
+        letter-spacing: 0;
       }
       .site-nav-brand img {
         width: 28px;
@@ -95,9 +124,9 @@ const { title, description, noindex, canonical } = Astro.props;
       }
       .site-nav-links {
         display: flex;
-        gap: 1.15rem;
+        gap: 1rem;
         flex-wrap: wrap;
-        font-size: 0.95rem;
+        font-size: 0.92rem;
         list-style: none;
         margin: 0;
         padding: 0;
@@ -107,15 +136,38 @@ const { title, description, noindex, canonical } = Astro.props;
         text-decoration: none;
         transition: color 0.15s;
       }
-      .site-nav-links a:hover { color: #f8fafc; }
+      .site-nav-links a:hover,
+      .site-nav-links a.active { color: #f8fafc; }
+      .forum-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #20283a;
+      }
+      .forum-tabs a {
+        display: inline-flex;
+        align-items: center;
+        height: 2.25rem;
+        padding: 0 0.8rem;
+        border-radius: 6px;
+        color: #a8b0c7;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .forum-tabs a:hover,
+      .forum-tabs a.active {
+        background: #162033;
+        color: #f8fafc;
+      }
       .page-intro {
-        margin-bottom: 2rem;
+        margin-bottom: 1rem;
       }
       .page-lead {
         max-width: 760px;
-        margin: 0.85rem 0 0;
+        margin: 0.55rem 0 0;
         color: #a8b0c7;
-        font-size: 1.05rem;
+        font-size: 0.98rem;
       }
       .action-row {
         display: flex;
@@ -135,20 +187,18 @@ const { title, description, noindex, canonical } = Astro.props;
       .breadcrumb a:hover { text-decoration: underline; }
       .card {
         background: rgba(17, 21, 39, 0.88);
-        border-radius: 18px;
-        border: 1px solid rgba(124, 181, 255, 0.12);
-        padding: 1.35rem 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #20283a;
+        padding: 1rem 1.1rem;
         transition: border-color 0.15s, transform 0.15s;
-        box-shadow: 0 18px 40px rgba(4, 8, 18, 0.22);
       }
       .card:hover {
-        border-color: rgba(124, 181, 255, 0.28);
-        transform: translateY(-1px);
+        border-color: #334155;
       }
       .tag {
         display: inline-block;
-        padding: 0.2rem 0.62rem;
-        border-radius: 999px;
+        padding: 0.15rem 0.45rem;
+        border-radius: 4px;
         font-size: 0.76rem;
         font-weight: 600;
       }
@@ -156,10 +206,10 @@ const { title, description, noindex, canonical } = Astro.props;
       .tag-purple { background: rgba(96, 165, 250, 0.12); color: #93c5fd; }
       .meta { font-size: 0.84rem; color: #7b849d; }
       .empty-state {
-        padding: 2.25rem;
+        padding: 1.4rem;
         background: rgba(17, 21, 39, 0.88);
-        border-radius: 20px;
-        border: 1px solid rgba(124, 181, 255, 0.12);
+        border-radius: 8px;
+        border: 1px solid #20283a;
         text-align: left;
         color: #a8b0c7;
       }
@@ -167,33 +217,91 @@ const { title, description, noindex, canonical } = Astro.props;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0.72rem 1.1rem;
+        padding: 0.55rem 0.9rem;
         background: #2563eb;
         color: #f8fafc;
-        border-radius: 999px;
+        border-radius: 6px;
         text-decoration: none;
         font-weight: 600;
-        font-size: 0.95rem;
+        font-size: 0.92rem;
         border: 1px solid #2563eb;
         transition: background 0.15s, border-color 0.15s, transform 0.15s;
       }
       .btn-primary:hover {
         background: #1d4ed8;
         border-color: #1d4ed8;
-        transform: translateY(-1px);
       }
       .btn-secondary {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0.72rem 1.1rem;
-        border-radius: 999px;
+        padding: 0.55rem 0.9rem;
+        border-radius: 6px;
         text-decoration: none;
         font-weight: 600;
-        font-size: 0.95rem;
-        border: 1px solid rgba(124, 181, 255, 0.14);
-        background: rgba(255, 255, 255, 0.02);
+        font-size: 0.92rem;
+        border: 1px solid #20283a;
+        background: #101725;
         color: #dbeafe;
+      }
+      .forum-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 280px;
+        gap: 1rem;
+        align-items: start;
+      }
+      .forum-panel {
+        background: #0f1624;
+        border: 1px solid #20283a;
+        border-radius: 8px;
+      }
+      .forum-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid #20283a;
+      }
+      .forum-list {
+        display: grid;
+      }
+      .forum-item {
+        display: block;
+        padding: 1rem;
+        border-bottom: 1px solid #20283a;
+        color: inherit;
+        text-decoration: none;
+      }
+      .forum-item:last-child {
+        border-bottom: 0;
+      }
+      .forum-item:hover {
+        background: #111b2c;
+      }
+      .forum-item h3 {
+        margin: 0.35rem 0 0.45rem;
+        font-size: 1rem;
+        line-height: 1.45;
+      }
+      .forum-sidebar {
+        display: grid;
+        gap: 1rem;
+      }
+      .forum-side-list {
+        display: grid;
+      }
+      .forum-side-link {
+        display: block;
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid #20283a;
+        color: #dbeafe;
+        text-decoration: none;
+      }
+      .forum-side-link:last-child {
+        border-bottom: 0;
+      }
+      .forum-side-link:hover {
+        background: #111b2c;
       }
       .btn-secondary:hover {
         border-color: rgba(124, 181, 255, 0.32);
@@ -215,6 +323,12 @@ const { title, description, noindex, canonical } = Astro.props;
         .site-nav-inner {
           align-items: flex-start;
         }
+        .forum-grid {
+          grid-template-columns: 1fr;
+        }
+        .forum-sidebar {
+          order: -1;
+        }
       }
     </style>
   </head>
@@ -227,19 +341,26 @@ const { title, description, noindex, canonical } = Astro.props;
             <span>OpenGlass Hub</span>
           </a>
           <ul class="site-nav-links">
-            <li><a href="/">首页</a></li>
-            <li><a href="/feed/">动态</a></li>
-            <li><a href="/circles/">圈子</a></li>
-            <li><a href="/posts/new/">发帖</a></li>
-            <li><a href="/devices/">设备库</a></li>
-            <li><a href="/guides/">选购指南</a></li>
-            <li><a href="/community/">社区</a></li>
+            {mainLinks.map((link) => (
+              <li>
+                <a href={link.href} class:list={{ active: isMainActive(link.href) }}>
+                  {link.label}
+                </a>
+              </li>
+            ))}
           </ul>
         </div>
         <AuthCTA next={canonical ?? "/"} compact={true} client:only="react" />
       </div>
     </nav>
     <main>
+      <nav class="forum-tabs" aria-label="论坛频道">
+        {forumTabs.map((tab) => (
+          <a href={tab.href} class:list={{ active: isForumTabActive(tab.href) }}>
+            {tab.label}
+          </a>
+        ))}
+      </nav>
       <slot />
     </main>
   </body>

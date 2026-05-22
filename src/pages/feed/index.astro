@@ -14,6 +14,12 @@ const { data: posts, error } = await supabase
   .order("created_at", { ascending: false })
   .limit(50);
 
+const { data: circles } = await supabase
+  .from("circles")
+  .select("slug, name, description")
+  .order("name", { ascending: true })
+  .limit(8);
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
@@ -33,55 +39,59 @@ const postTypeLabels: Record<string, string> = {
   description="OpenGlass Hub 论坛最新公开帖子。AR/AI 眼镜社区讨论动态。"
   canonical="https://openglasshub.pages.dev/feed/"
 >
-  <header class="page-intro">
-    <h1>社区动态</h1>
-    <p class="page-lead">公开浏览 OpenGlass Hub 社区里的最新帖子、问题和开发讨论。</p>
-  </header>
-
-  <div class="action-row">
-    <a href="/posts/new/" class="btn-primary">发布帖子</a>
-    <a href="/circles/" class="btn-secondary">浏览圈子</a>
-  </div>
-
-  {error ? (
-    <div class="empty-state">
-      <p>加载帖子时出错，请稍后重试。</p>
-      <p class="meta">{error.message}</p>
-    </div>
-  ) : !posts || posts.length === 0 ? (
-    <div class="empty-state">
-      <h2 style="margin-bottom: 0.5rem;">还没有公开帖子</h2>
-      <p class="meta" style="margin: 0 0 1rem 0;">现在可以先发第一篇帖子，或者先去圈子页确定讨论范围。</p>
-      <div class="action-row" style="margin: 0;">
-        <a href="/posts/new/" class="btn-primary">写第一篇帖子</a>
-        <a href="/circles/" class="btn-secondary">查看圈子</a>
+  <div class="forum-grid">
+    <section class="forum-panel">
+      <div class="forum-panel-header">
+        <div>
+          <h1>动态</h1>
+          <p class="meta" style="margin: 0.25rem 0 0;">最新公开讨论</p>
+        </div>
+        <a href="/posts/new/" class="btn-primary">发帖</a>
       </div>
-    </div>
-  ) : (
-    <div style="display: grid; gap: 1rem;">
-      {posts.map((post) => (
-        <article class="card" style="padding: 1rem 1.5rem;">
-          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
-            {post.type && (
-              <span class="tag tag-purple">{postTypeLabels[post.type] || post.type}</span>
-            )}
-            {post.circles && (
-              <a href={`/circles/${post.circles.slug}/`} class="tag tag-blue" style="text-decoration: none;">
-                {post.circles.name}
-              </a>
-            )}
-            <span class="meta">{formatDate(post.created_at)}</span>
-          </div>
-          <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">
-            <a href={`/posts/${post.id}/`} style="color: #e8edf8; text-decoration: none;">
-              {post.title}
+
+      {error ? (
+        <div class="empty-state" style="border: 0; border-radius: 0;">
+          <p>加载帖子时出错，请稍后重试。</p>
+          <p class="meta">{error.message}</p>
+        </div>
+      ) : !posts || posts.length === 0 ? (
+        <div class="empty-state" style="border: 0; border-radius: 0;">
+          <h2 style="margin-bottom: 0.5rem;">还没有公开帖子</h2>
+          <p class="meta" style="margin: 0 0 1rem 0;">可以先发第一篇帖子，或者先进入圈子确定讨论范围。</p>
+          <a href="/posts/new/" class="btn-primary">写第一篇帖子</a>
+        </div>
+      ) : (
+        <div class="forum-list">
+          {posts.map((post) => (
+            <a href={`/posts/${post.id}/`} class="forum-item">
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                {post.type && <span class="tag tag-purple">{postTypeLabels[post.type] || post.type}</span>}
+                {post.circles && <span class="tag tag-blue">{post.circles.name}</span>}
+                <span class="meta">{formatDate(post.created_at)}</span>
+              </div>
+              <h3>{post.title}</h3>
+              <div class="meta">作者：{post.profiles?.display_name || "匿名"}</div>
             </a>
-          </h3>
-          <div class="meta" style="display: flex; gap: 1rem;">
-            <span>作者：{post.profiles?.display_name || "匿名"}</span>
-          </div>
-        </article>
-      ))}
-    </div>
-  )}
+          ))}
+        </div>
+      )}
+    </section>
+
+    <aside class="forum-sidebar">
+      <section class="forum-panel">
+        <div class="forum-panel-header">
+          <h2>圈子</h2>
+          <a href="/circles/" class="meta" style="text-decoration: none;">全部</a>
+        </div>
+        <div class="forum-side-list">
+          {(circles || []).map((circle) => (
+            <a href={`/circles/${circle.slug}/`} class="forum-side-link">
+              <strong>{circle.name}</strong>
+              {circle.description && <div class="meta" style="margin-top: 0.25rem;">{circle.description}</div>}
+            </a>
+          ))}
+        </div>
+      </section>
+    </aside>
+  </div>
 </ForumLayout>

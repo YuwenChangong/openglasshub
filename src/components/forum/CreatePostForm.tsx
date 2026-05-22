@@ -11,12 +11,11 @@ interface CircleOption {
 
 const wrapperStyle: React.CSSProperties = {
   maxWidth: "760px",
-  margin: "2rem auto",
-  padding: "1.75rem",
-  border: "1px solid rgba(124, 181, 255, 0.12)",
-  borderRadius: "1rem",
-  background: "rgba(17, 21, 39, 0.88)",
-  boxShadow: "0 18px 40px rgba(4, 8, 18, 0.18)",
+  margin: "1.5rem 0",
+  padding: "1.25rem",
+  border: "1px solid #20283a",
+  borderRadius: "8px",
+  background: "#0f1624",
 };
 
 const stackStyle: React.CSSProperties = {
@@ -34,7 +33,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const buttonStyle: React.CSSProperties = {
-  borderRadius: "999px",
+  borderRadius: "6px",
   border: "1px solid #2563eb",
   background: "#2563eb",
   color: "#f8fafc",

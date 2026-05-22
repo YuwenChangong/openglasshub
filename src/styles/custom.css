@@ -44,9 +44,7 @@
 
 html,
 body {
-  background:
-    radial-gradient(circle at top, rgba(37, 99, 235, 0.12), transparent 28rem),
-    #0b0f19;
+  background: #0b0f19;
 }
 
 body {
@@ -55,15 +53,12 @@ body {
 
 [data-has-sidebar] .main-frame,
 .main-frame {
-  background:
-    radial-gradient(circle at top, rgba(37, 99, 235, 0.08), transparent 24rem),
-    transparent;
+  background: transparent;
 }
 
 .header {
-  backdrop-filter: blur(14px);
-  background: rgba(17, 21, 39, 0.92);
-  border-bottom: 1px solid rgba(124, 181, 255, 0.12);
+  background: #111827;
+  border-bottom: 1px solid #20283a;
 }
 
 .sidebar-pane {
@@ -75,7 +70,7 @@ body {
 }
 
 .sidebar-content a {
-  border-radius: 0.85rem;
+  border-radius: 6px;
 }
 
 .sidebar-content a[aria-current='page'] {
@@ -94,8 +89,8 @@ body {
 }
 
 .hero {
-  padding-block: clamp(3rem, 8vw, 6rem) !important;
-  gap: 1.75rem;
+  padding-block: 3.25rem 2.75rem !important;
+  gap: 1rem;
 }
 
 .hero .copy {
@@ -103,16 +98,16 @@ body {
 }
 
 .hero h1 {
-  font-size: clamp(3.4rem, 8vw, 5.75rem) !important;
-  line-height: 0.95 !important;
-  letter-spacing: -0.05em;
-  max-width: 9ch;
+  font-size: 3.5rem !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0;
+  max-width: 14ch;
 }
 
 .hero .tagline {
-  font-size: 1.22rem !important;
-  line-height: 1.75;
-  max-width: 40rem;
+  font-size: 1.05rem !important;
+  line-height: 1.7;
+  max-width: 42rem;
   color: #a8b0c7 !important;
 }
 
@@ -121,13 +116,9 @@ body {
 }
 
 .sl-link-button {
-  border-radius: 999px !important;
+  border-radius: 6px !important;
   font-weight: 600;
-  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-}
-
-.sl-link-button:hover {
-  transform: translateY(-1px);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .sl-link-button.primary {
@@ -148,20 +139,20 @@ body {
 
 .card-grid {
   --card-grid-min: 17rem;
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 .card {
-  background: rgba(17, 21, 39, 0.88) !important;
-  border: 1px solid rgba(124, 181, 255, 0.12) !important;
-  border-radius: 1.15rem !important;
-  box-shadow: 0 18px 40px rgba(4, 8, 18, 0.22);
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  background: #0f1624 !important;
+  border: 1px solid #20283a !important;
+  border-radius: 8px !important;
+  box-shadow: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .card:hover {
-  border-color: rgba(124, 181, 255, 0.3) !important;
-  transform: translateY(-1px);
+  border-color: #334155 !important;
+  background: #111b2c !important;
 }
 
 .sl-markdown-content,
@@ -178,12 +169,12 @@ body {
 .content h3,
 .content h4 {
   color: #f8fafc;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .sl-markdown-content h1 {
-  font-size: clamp(2.5rem, 5vw, 4rem);
-  line-height: 1.02;
+  font-size: 2.25rem;
+  line-height: 1.2;
 }
 
 .sl-markdown-content h2 {
@@ -219,9 +210,9 @@ body {
 }
 
 .sl-markdown-content pre {
-  border-radius: 1rem;
-  border: 1px solid rgba(124, 181, 255, 0.12);
-  box-shadow: 0 12px 30px rgba(4, 8, 18, 0.18);
+  border-radius: 8px;
+  border: 1px solid #20283a;
+  box-shadow: none;
 }
 
 .sl-markdown-content table {
@@ -230,8 +221,8 @@ body {
   border-spacing: 0;
   width: 100%;
   overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid rgba(124, 181, 255, 0.12);
+  border-radius: 8px;
+  border: 1px solid #20283a;
 }
 
 .sl-markdown-content th,
@@ -250,7 +241,7 @@ body {
 
 .starlight-aside {
   font-size: 0.94rem;
-  border-radius: 1rem;
+  border-radius: 8px;
   border-width: 1px;
 }
 
@@ -259,9 +250,9 @@ body {
 }
 
 .right-sidebar-panel .sl-container {
-  background: rgba(17, 21, 39, 0.88);
-  border: 1px solid rgba(124, 181, 255, 0.12);
-  border-radius: 1rem;
+  background: #0f1624;
+  border: 1px solid #20283a;
+  border-radius: 8px;
   padding: 1rem 1rem 1.15rem;
   width: auto;
 }
@@ -279,10 +270,10 @@ body {
 }
 
 .pagination-links a {
-  border-radius: 1rem !important;
-  border-color: rgba(124, 181, 255, 0.12) !important;
-  background: rgba(17, 21, 39, 0.88);
-  box-shadow: 0 18px 40px rgba(4, 8, 18, 0.22) !important;
+  border-radius: 8px !important;
+  border-color: #20283a !important;
+  background: #0f1624;
+  box-shadow: none !important;
 }
 
 .pagination-links a:hover {
@@ -304,9 +295,9 @@ body {
 }
 
 button[data-open-modal] {
-  border-radius: 0.9rem !important;
-  border-color: rgba(124, 181, 255, 0.14) !important;
-  background: rgba(255, 255, 255, 0.02) !important;
+  border-radius: 8px !important;
+  border-color: #20283a !important;
+  background: #0f1624 !important;
 }
 
 button[data-open-modal] > kbd {
@@ -315,12 +306,13 @@ button[data-open-modal] > kbd {
 }
 
 dialog {
-  border-radius: 1rem !important;
-  border-color: rgba(124, 181, 255, 0.12) !important;
+  border-radius: 8px !important;
+  border-color: #20283a !important;
 }
 
 @media (max-width: 72rem) {
   .hero h1 {
     max-width: none;
+    font-size: 2.75rem !important;
   }
 }

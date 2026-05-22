@@ -18,37 +18,35 @@ const { data: circles, error } = await supabase
   description="OpenGlass Hub 论坛圈子。按话题分类的 AR/AI 眼镜社区讨论。"
   canonical="https://openglasshub.pages.dev/circles/"
 >
-  <header class="page-intro">
-    <h1>圈子</h1>
-    <p class="page-lead">按设备、项目和话题分类浏览讨论。先看圈子，再决定在哪里发帖会更清楚。</p>
-  </header>
+  <section class="forum-panel">
+    <div class="forum-panel-header">
+      <div>
+        <h1>圈子</h1>
+        <p class="meta" style="margin: 0.25rem 0 0;">按设备、项目和话题分类浏览讨论</p>
+      </div>
+      <a href="/posts/new/" class="btn-primary">发帖</a>
+    </div>
 
-  <div class="action-row">
-    <a href="/feed/" class="btn-secondary">返回动态</a>
-    <a href="/posts/new/" class="btn-primary">发布帖子</a>
-  </div>
-
-  {error ? (
-    <div class="empty-state">
-      <p>加载圈子时出错，请稍后重试。</p>
-      <p class="meta">{error.message}</p>
-    </div>
-  ) : !circles || circles.length === 0 ? (
-    <div class="empty-state">
-      <h2 style="margin-bottom: 0.5rem;">暂时还没有圈子</h2>
-      <p class="meta" style="margin: 0;">圈子会在社区内容更丰富后逐步扩展。</p>
-    </div>
-  ) : (
-    <div style="display: grid; gap: 1rem;">
-      {circles.map((circle) => (
-        <a href={`/circles/${circle.slug}/`} class="card" style="text-decoration: none; display: block;">
-          <h3 style="margin: 0 0 0.5rem 0; color: #e8edf8; font-size: 1.15rem;">{circle.name}</h3>
-          {circle.description && (
-            <p style="color: #8892b0; margin: 0 0 0.5rem 0; font-size: 0.9rem;">{circle.description}</p>
-          )}
-          <span class="meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
-        </a>
-      ))}
-    </div>
-  )}
+    {error ? (
+      <div class="empty-state" style="border: 0; border-radius: 0;">
+        <p>加载圈子时出错，请稍后重试。</p>
+        <p class="meta">{error.message}</p>
+      </div>
+    ) : !circles || circles.length === 0 ? (
+      <div class="empty-state" style="border: 0; border-radius: 0;">
+        <h2 style="margin-bottom: 0.5rem;">暂时还没有圈子</h2>
+        <p class="meta" style="margin: 0;">圈子会在社区内容更丰富后逐步扩展。</p>
+      </div>
+    ) : (
+      <div class="forum-list">
+        {circles.map((circle) => (
+          <a href={`/circles/${circle.slug}/`} class="forum-item">
+            <h3>{circle.name}</h3>
+            {circle.description && <p class="meta" style="margin: 0 0 0.45rem;">{circle.description}</p>}
+            <span class="meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
+          </a>
+        ))}
+      </div>
+    )}
+  </section>
 </ForumLayout>

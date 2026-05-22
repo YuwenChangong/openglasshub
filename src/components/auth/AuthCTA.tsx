@@ -12,7 +12,7 @@ const primaryButtonStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  borderRadius: "0.65rem",
+  borderRadius: "6px",
   padding: "0.65rem 1rem",
   background: "#7cb5ff",
   color: "#0b0e16",

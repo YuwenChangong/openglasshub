@@ -10,12 +10,12 @@ interface AuthPanelProps {
 }
 
 const wrapperStyle: React.CSSProperties = {
-  maxWidth: "760px",
-  margin: "2rem auto",
-  padding: "1.5rem",
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.75rem",
-  background: "var(--sl-color-bg-nav)",
+  maxWidth: "560px",
+  margin: "1.5rem 0",
+  padding: "1.25rem",
+  border: "1px solid #20283a",
+  borderRadius: "8px",
+  background: "#0f1624",
 };
 
 const stackStyle: React.CSSProperties = {
@@ -25,18 +25,18 @@ const stackStyle: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  background: "var(--sl-color-black)",
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.5rem",
-  color: "var(--sl-color-white)",
+  background: "#0b0f19",
+  border: "1px solid #20283a",
+  borderRadius: "6px",
+  color: "#f8fafc",
   padding: "0.625rem 0.75rem",
 };
 
 const buttonStyle: React.CSSProperties = {
-  borderRadius: "0.5rem",
-  border: "1px solid var(--sl-color-accent)",
-  background: "var(--sl-color-accent)",
-  color: "var(--sl-color-white)",
+  borderRadius: "6px",
+  border: "1px solid #2563eb",
+  background: "#2563eb",
+  color: "#f8fafc",
   fontWeight: 600,
   padding: "0.625rem 0.875rem",
   cursor: "pointer",
@@ -44,13 +44,13 @@ const buttonStyle: React.CSSProperties = {
 
 const secondaryButtonStyle: React.CSSProperties = {
   ...buttonStyle,
-  border: "1px solid var(--sl-color-gray-5)",
+  border: "1px solid #20283a",
   background: "transparent",
 };
 
 const messageStyle: React.CSSProperties = {
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.5rem",
+  border: "1px solid #20283a",
+  borderRadius: "6px",
   padding: "0.75rem",
   fontSize: "0.95rem",
 };
