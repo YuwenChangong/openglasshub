@@ -3,8 +3,9 @@ export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import AuthPanel from "../../components/forum/AuthPanel";
+import { getSafeNext } from "../../lib/auth-redirect";
 
-const next = Astro.url.searchParams.get("next") ?? "/";
+const next = getSafeNext(Astro.url.searchParams.get("next"));
 ---
 
 <ForumLayout
