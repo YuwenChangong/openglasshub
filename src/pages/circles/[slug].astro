@@ -59,10 +59,9 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
 {!circle ? (
   <ForumLayout title="圈子未找到" noindex={true}>
     <div class="empty-state">
-      <p style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</p>
-      <p>圈子未找到</p>
-      <p class="meta">该圈子可能不存在。</p>
-      <a href="/circles/" class="btn-primary" style="margin-top: 1rem;">返回圈子列表</a>
+      <h2 style="margin-bottom: 0.5rem;">圈子未找到</h2>
+      <p class="meta" style="margin: 0 0 1rem 0;">该圈子可能不存在，或者地址已经变更。</p>
+      <a href="/circles/" class="btn-primary">返回圈子列表</a>
     </div>
   </ForumLayout>
 ) : (
@@ -81,7 +80,7 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
       <span style="color: #e8edf8;">{circle.name}</span>
     </nav>
 
-    <header style="margin-bottom: 2rem;">
+    <header class="page-intro">
       <h1 style="margin: 0 0 0.5rem 0; font-size: 1.75rem;">{circle.name}</h1>
       {circle.description && (
         <p style="color: #8892b0; margin: 0 0 0.5rem 0; font-size: 1rem;">{circle.description}</p>
@@ -93,15 +92,14 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
 
     {postsError ? (
       <div class="empty-state">
-        <p>⚠️ 加载帖子时出错，请稍后重试。</p>
+        <p>加载帖子时出错，请稍后重试。</p>
         <p class="meta">{postsError.message}</p>
       </div>
     ) : posts.length === 0 ? (
       <div class="empty-state">
-        <p style="font-size: 2rem; margin-bottom: 0.5rem;">📝</p>
-        <p>该圈子暂无帖子</p>
-        <p class="meta">成为第一个在「{circle.name}」发帖的人吧！</p>
-        <a href="/posts/new/" class="btn-primary" style="margin-top: 1rem;">写第一篇帖子</a>
+        <h2 style="margin-bottom: 0.5rem;">该圈子还没有公开帖子</h2>
+        <p class="meta" style="margin: 0 0 1rem 0;">如果你有真实使用经验、开发问题或资料补充，可以直接在这里发帖。</p>
+        <a href="/posts/new/" class="btn-primary">写第一篇帖子</a>
       </div>
     ) : (
       <div style="display: grid; gap: 1rem;">
@@ -127,7 +125,7 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
     )}
 
     <div class="footer" style="margin-top: 2rem;">
-      <a href="/circles/">← 返回圈子列表</a>
+      <a href="/circles/">返回圈子列表</a>
       {" · "}
       <a href="/feed/">查看全部动态</a>
     </div>

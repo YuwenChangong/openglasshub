@@ -30,24 +30,41 @@ const { title, description, noindex, canonical } = Astro.props;
       body {
         margin: 0;
         font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans SC", sans-serif;
-        background: #0b0e16;
+        background:
+          radial-gradient(circle at top, rgba(37, 99, 235, 0.12), transparent 26rem),
+          #0b0e16;
         color: #e8edf8;
         line-height: 1.6;
       }
       main {
-        padding: 2rem 1rem 4rem;
-        max-width: 920px;
+        padding: 2.5rem 1rem 4rem;
+        max-width: 1120px;
         margin: 0 auto;
       }
-      h1, h2, h3 { color: #e8edf8; }
+      h1, h2, h3 { color: #f8fafc; }
+      h1 {
+        margin: 0;
+        font-size: clamp(2.25rem, 5vw, 3.5rem);
+        line-height: 1.02;
+        letter-spacing: -0.04em;
+      }
+      h2 {
+        margin: 0;
+        font-size: clamp(1.35rem, 2vw, 1.8rem);
+        letter-spacing: -0.02em;
+      }
       a { color: #7cb5ff; }
       .site-nav {
-        background: #111527;
-        border-bottom: 1px solid #2a2e45;
-        padding: 0.75rem 1rem;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(17, 21, 39, 0.92);
+        border-bottom: 1px solid rgba(124, 181, 255, 0.12);
+        backdrop-filter: blur(14px);
+        padding: 0.9rem 1rem;
       }
       .site-nav-inner {
-        max-width: 920px;
+        max-width: 1120px;
         margin: 0 auto;
         display: flex;
         align-items: center;
@@ -55,99 +72,170 @@ const { title, description, noindex, canonical } = Astro.props;
         gap: 1rem;
         flex-wrap: wrap;
       }
+      .site-nav-group {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        flex-wrap: wrap;
+      }
       .site-nav-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
         color: #e8edf8;
         font-weight: 700;
-        font-size: 1.05rem;
+        font-size: 1.15rem;
         text-decoration: none;
+        letter-spacing: -0.02em;
+      }
+      .site-nav-brand img {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
       }
       .site-nav-links {
         display: flex;
-        gap: 1rem;
+        gap: 1.15rem;
         flex-wrap: wrap;
-        font-size: 0.9rem;
+        font-size: 0.95rem;
         list-style: none;
         margin: 0;
         padding: 0;
       }
       .site-nav-links a {
-        color: #8892b0;
+        color: #a8b0c7;
         text-decoration: none;
         transition: color 0.15s;
       }
-      .site-nav-links a:hover { color: #e8edf8; }
+      .site-nav-links a:hover { color: #f8fafc; }
+      .page-intro {
+        margin-bottom: 2rem;
+      }
+      .page-lead {
+        max-width: 760px;
+        margin: 0.85rem 0 0;
+        color: #a8b0c7;
+        font-size: 1.05rem;
+      }
+      .action-row {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin: 1.5rem 0 2rem;
+      }
       .breadcrumb {
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
         margin-bottom: 1rem;
         font-size: 0.9rem;
-        color: #5a6480;
+        color: #69738c;
       }
       .breadcrumb a { color: #7cb5ff; text-decoration: none; }
       .breadcrumb a:hover { text-decoration: underline; }
       .card {
-        background: #111527;
-        border-radius: 8px;
-        border: 1px solid #2a2e45;
-        padding: 1.25rem 1.5rem;
-        transition: border-color 0.15s;
+        background: rgba(17, 21, 39, 0.88);
+        border-radius: 18px;
+        border: 1px solid rgba(124, 181, 255, 0.12);
+        padding: 1.35rem 1.5rem;
+        transition: border-color 0.15s, transform 0.15s;
+        box-shadow: 0 18px 40px rgba(4, 8, 18, 0.22);
       }
-      .card:hover { border-color: #7cb5ff; }
+      .card:hover {
+        border-color: rgba(124, 181, 255, 0.28);
+        transform: translateY(-1px);
+      }
       .tag {
         display: inline-block;
-        padding: 0.15rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 500;
+        padding: 0.2rem 0.62rem;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 600;
       }
       .tag-blue { background: #7cb5ff20; color: #7cb5ff; }
-      .tag-purple { background: #a78bfa20; color: #a78bfa; }
-      .meta { font-size: 0.8rem; color: #5a6480; }
+      .tag-purple { background: rgba(96, 165, 250, 0.12); color: #93c5fd; }
+      .meta { font-size: 0.84rem; color: #7b849d; }
       .empty-state {
-        padding: 2rem;
-        background: #111527;
-        border-radius: 8px;
-        border: 1px solid #2a2e45;
-        text-align: center;
-        color: #8892b0;
+        padding: 2.25rem;
+        background: rgba(17, 21, 39, 0.88);
+        border-radius: 20px;
+        border: 1px solid rgba(124, 181, 255, 0.12);
+        text-align: left;
+        color: #a8b0c7;
       }
       .btn-primary {
-        display: inline-block;
-        padding: 0.5rem 1rem;
-        background: #7cb5ff;
-        color: #0b0e16;
-        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.72rem 1.1rem;
+        background: #2563eb;
+        color: #f8fafc;
+        border-radius: 999px;
         text-decoration: none;
-        font-weight: 500;
-        font-size: 0.9rem;
-        transition: background 0.15s;
+        font-weight: 600;
+        font-size: 0.95rem;
+        border: 1px solid #2563eb;
+        transition: background 0.15s, border-color 0.15s, transform 0.15s;
       }
-      .btn-primary:hover { background: #5a9dff; }
+      .btn-primary:hover {
+        background: #1d4ed8;
+        border-color: #1d4ed8;
+        transform: translateY(-1px);
+      }
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.72rem 1.1rem;
+        border-radius: 999px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.95rem;
+        border: 1px solid rgba(124, 181, 255, 0.14);
+        background: rgba(255, 255, 255, 0.02);
+        color: #dbeafe;
+      }
+      .btn-secondary:hover {
+        border-color: rgba(124, 181, 255, 0.32);
+        color: #f8fafc;
+      }
       .footer {
         margin-top: 3rem;
         padding-top: 1.5rem;
-        border-top: 1px solid #2a2e45;
+        border-top: 1px solid rgba(124, 181, 255, 0.12);
         font-size: 0.85rem;
-        color: #5a6480;
-        text-align: center;
+        color: #7b849d;
+        text-align: left;
       }
       .footer a { color: #7cb5ff; text-decoration: none; }
+      @media (max-width: 720px) {
+        main {
+          padding-top: 2rem;
+        }
+        .site-nav-inner {
+          align-items: flex-start;
+        }
+      }
     </style>
   </head>
   <body>
     <nav class="site-nav">
       <div class="site-nav-inner">
-        <a href="/" class="site-nav-brand">🟢 OpenGlass Hub</a>
-        <ul class="site-nav-links">
-          <li><a href="/">首页</a></li>
-          <li><a href="/feed/">动态</a></li>
-          <li><a href="/circles/">圈子</a></li>
-          <li><a href="/posts/new/">发帖</a></li>
-          <li><a href="/devices/">设备库</a></li>
-          <li><a href="/guides/">选购指南</a></li>
-          <li><a href="/community/">社区</a></li>
-        </ul>
+        <div class="site-nav-group">
+          <a href="/" class="site-nav-brand">
+            <img src="/brand/logo-navbar.svg" alt="OpenGlass Hub" />
+            <span>OpenGlass Hub</span>
+          </a>
+          <ul class="site-nav-links">
+            <li><a href="/">首页</a></li>
+            <li><a href="/feed/">动态</a></li>
+            <li><a href="/circles/">圈子</a></li>
+            <li><a href="/posts/new/">发帖</a></li>
+            <li><a href="/devices/">设备库</a></li>
+            <li><a href="/guides/">选购指南</a></li>
+            <li><a href="/community/">社区</a></li>
+          </ul>
+        </div>
         <AuthCTA next={canonical ?? "/"} compact={true} client:only="react" />
       </div>
     </nav>

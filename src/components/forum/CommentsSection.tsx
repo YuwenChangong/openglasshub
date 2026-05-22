@@ -64,7 +64,7 @@ const headerStyle: React.CSSProperties = {
   marginBottom: "1rem",
   display: "flex",
   alignItems: "center",
-  gap: "0.5rem",
+  gap: "0.65rem",
 };
 
 const countBadgeStyle: React.CSSProperties = {
@@ -136,7 +136,7 @@ export default function CommentsSection({ postId, refreshKey }: CommentsSectionP
   return (
     <section style={sectionStyle} aria-label="评论区">
       <h2 style={headerStyle}>
-        💬 评论
+        评论
         {!loading && <span style={countBadgeStyle}>{comments.length}</span>}
       </h2>
 
@@ -155,13 +155,13 @@ export default function CommentsSection({ postId, refreshKey }: CommentsSectionP
             textAlign: "center",
           }}
         >
-          ❌ {error}
+          {error}
         </div>
       )}
 
       {!loading && !error && comments.length === 0 && (
         <div style={emptyStyle}>
-          暂无评论，来发表第一条吧 💭
+          暂无评论，可以先写下你的看法。
         </div>
       )}
 
@@ -171,12 +171,12 @@ export default function CommentsSection({ postId, refreshKey }: CommentsSectionP
             <article key={comment.id} style={commentStyle}>
               <div style={metaStyle}>
                 <span>
-                  👤 {comment.profiles?.display_name || comment.profiles?.username || "匿名用户"}
+                  {comment.profiles?.display_name || comment.profiles?.username || "匿名用户"}
                 </span>
-                <span>📅 {formatDate(comment.created_at)}</span>
+                <span>{formatDate(comment.created_at)}</span>
                 {comment.updated_at &&
                   comment.updated_at !== comment.created_at && (
-                    <span>✏️ 已编辑</span>
+                    <span>已编辑</span>
                   )}
               </div>
               <div style={bodyStyle}>{comment.body}</div>

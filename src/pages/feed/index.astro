@@ -33,25 +33,29 @@ const postTypeLabels: Record<string, string> = {
   description="OpenGlass Hub 论坛最新公开帖子。AR/AI 眼镜社区讨论动态。"
   canonical="https://openglasshub.pages.dev/feed/"
 >
-  <h1>帖子动态</h1>
-  <p style="color: #8892b0; margin-top: -0.5rem;">社区最新公开讨论</p>
+  <header class="page-intro">
+    <h1>社区动态</h1>
+    <p class="page-lead">公开浏览 OpenGlass Hub 社区里的最新帖子、问题和开发讨论。</p>
+  </header>
 
-  <div style="margin-bottom: 1.5rem;">
-    <a href="/posts/new/" class="btn-primary">✍️ 发帖</a>
-    <a href="/circles/" class="btn-primary" style="margin-left: 0.5rem; background: #a78bfa; color: #0b0e16;">圈子</a>
+  <div class="action-row">
+    <a href="/posts/new/" class="btn-primary">发布帖子</a>
+    <a href="/circles/" class="btn-secondary">浏览圈子</a>
   </div>
 
   {error ? (
     <div class="empty-state">
-      <p>⚠️ 加载帖子时出错，请稍后重试。</p>
+      <p>加载帖子时出错，请稍后重试。</p>
       <p class="meta">{error.message}</p>
     </div>
   ) : !posts || posts.length === 0 ? (
     <div class="empty-state">
-      <p style="font-size: 2rem; margin-bottom: 0.5rem;">🌱</p>
-      <p>暂时还没有帖子</p>
-      <p class="meta">成为第一个发帖的人吧！</p>
-      <a href="/posts/new/" class="btn-primary" style="margin-top: 1rem;">写第一篇帖子</a>
+      <h2 style="margin-bottom: 0.5rem;">还没有公开帖子</h2>
+      <p class="meta" style="margin: 0 0 1rem 0;">现在可以先发第一篇帖子，或者先去圈子页确定讨论范围。</p>
+      <div class="action-row" style="margin: 0;">
+        <a href="/posts/new/" class="btn-primary">写第一篇帖子</a>
+        <a href="/circles/" class="btn-secondary">查看圈子</a>
+      </div>
     </div>
   ) : (
     <div style="display: grid; gap: 1rem;">
@@ -74,7 +78,7 @@ const postTypeLabels: Record<string, string> = {
             </a>
           </h3>
           <div class="meta" style="display: flex; gap: 1rem;">
-            <span>by {post.profiles?.display_name || "匿名"}</span>
+            <span>作者：{post.profiles?.display_name || "匿名"}</span>
           </div>
         </article>
       ))}

@@ -11,10 +11,11 @@ interface CommentFormProps {
 const wrapperStyle: React.CSSProperties = {
   maxWidth: "760px",
   margin: "1.5rem 0",
-  padding: "1.25rem",
-  border: "1px solid #2a2e45",
-  borderRadius: "0.75rem",
-  background: "#111527",
+  padding: "1.5rem",
+  border: "1px solid rgba(124, 181, 255, 0.12)",
+  borderRadius: "1rem",
+  background: "rgba(17, 21, 39, 0.88)",
+  boxShadow: "0 18px 40px rgba(4, 8, 18, 0.18)",
 };
 
 const textareaStyle: React.CSSProperties = {
@@ -31,21 +32,21 @@ const textareaStyle: React.CSSProperties = {
 };
 
 const buttonStyle: React.CSSProperties = {
-  borderRadius: "0.5rem",
-  border: "1px solid #6366f1",
-  background: "#6366f1",
-  color: "#fff",
+  borderRadius: "999px",
+  border: "1px solid #2563eb",
+  background: "#2563eb",
+  color: "#f8fafc",
   fontWeight: 600,
-  padding: "0.5rem 1.25rem",
+  padding: "0.72rem 1.25rem",
   cursor: "pointer",
   fontSize: "0.9rem",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
   ...buttonStyle,
-  border: "1px solid #2a2e45",
+  border: "1px solid rgba(124, 181, 255, 0.12)",
   background: "transparent",
-  color: "#a0a8c0",
+  color: "#dbeafe",
 };
 
 const messageStyle: React.CSSProperties = {
@@ -155,7 +156,7 @@ export default function CommentForm({ postId, onCommentCreated, loginHref }: Com
   return (
     <section style={wrapperStyle}>
       <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", color: "#e8edf8" }}>
-        💬 发表评论
+        发表评论
       </h3>
       <form onSubmit={handleSubmit}>
         <textarea
@@ -185,12 +186,12 @@ export default function CommentForm({ postId, onCommentCreated, loginHref }: Com
       </form>
       {error && (
         <div style={{ ...messageStyle, borderColor: "#ef4444", color: "#fca5a5" }}>
-          ❌ {error}
+          {error}
         </div>
       )}
       {success && (
         <div style={{ ...messageStyle, borderColor: "#22c55e", color: "#86efac" }}>
-          ✅ 评论发布成功！
+          评论发布成功。
         </div>
       )}
     </section>

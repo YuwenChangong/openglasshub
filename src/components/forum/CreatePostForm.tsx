@@ -12,10 +12,11 @@ interface CircleOption {
 const wrapperStyle: React.CSSProperties = {
   maxWidth: "760px",
   margin: "2rem auto",
-  padding: "1.5rem",
-  border: "1px solid #2a2e45",
-  borderRadius: "0.75rem",
-  background: "#111527",
+  padding: "1.75rem",
+  border: "1px solid rgba(124, 181, 255, 0.12)",
+  borderRadius: "1rem",
+  background: "rgba(17, 21, 39, 0.88)",
+  boxShadow: "0 18px 40px rgba(4, 8, 18, 0.18)",
 };
 
 const stackStyle: React.CSSProperties = {
@@ -33,12 +34,12 @@ const inputStyle: React.CSSProperties = {
 };
 
 const buttonStyle: React.CSSProperties = {
-  borderRadius: "0.5rem",
-  border: "1px solid #7cb5ff",
-  background: "#7cb5ff",
-  color: "#0b0e16",
+  borderRadius: "999px",
+  border: "1px solid #2563eb",
+  background: "#2563eb",
+  color: "#f8fafc",
   fontWeight: 600,
-  padding: "0.625rem 0.875rem",
+  padding: "0.75rem 1.1rem",
   cursor: "pointer",
 };
 
@@ -182,8 +183,8 @@ export default function CreatePostForm() {
 
   return (
     <section style={wrapperStyle}>
-      <h2>发布帖子</h2>
-      <p>公开社区允许所有人浏览。发帖需要登录，帖子默认以 `pending` 状态提交。</p>
+      <h2 style={{ marginTop: 0, marginBottom: "0.75rem" }}>发布帖子</h2>
+      <p style={{ marginTop: 0, color: "#a8b0c7" }}>公开社区允许所有人浏览。发帖需要登录，帖子默认以 `pending` 状态提交。</p>
 
       <form onSubmit={handleSubmit} style={stackStyle}>
         <label>
