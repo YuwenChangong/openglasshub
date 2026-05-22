@@ -1,0 +1,509 @@
+---
+export const prerender = false;
+
+import AuthCTA from "../components/auth/AuthCTA";
+import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
+
+type PostRow = {
+  id: string;
+  title: string;
+  body?: string | null;
+  type?: string | null;
+  created_at: string;
+  last_activity_at?: string | null;
+  profiles?: { display_name?: string | null; username?: string | null } | null;
+  circles?: { slug?: string | null; name?: string | null } | null;
+};
+
+type CircleRow = {
+  slug: string;
+  name: string;
+  description?: string | null;
+};
+
+const env = (Astro.locals as { runtime?: { env?: CloudflareEnv } }).runtime?.env;
+const supabase = env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY ? createSSRClient(env) : null;
+
+let posts: PostRow[] = [];
+let circles: CircleRow[] = [];
+let loadError = "";
+
+const circleOrder = ["xreal", "rokid", "rayneo", "meta-ai-glasses", "gaze-os", "brilliant-labs"];
+
+if (supabase) {
+  const [postResult, circleResult] = await Promise.all([
+    supabase
+      .from("posts")
+      .select("id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name)")
+      .eq("status", "published")
+      .order("last_activity_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(8),
+    supabase
+      .from("circles")
+      .select("slug,name,description")
+      .in("slug", circleOrder)
+      .order("name", { ascending: true }),
+  ]);
+
+  if (postResult.error) {
+    loadError = postResult.error.message;
+  } else {
+    posts = (postResult.data ?? []) as PostRow[];
+  }
+
+  if (!circleResult.error) {
+    const bySlug = new Map((circleResult.data ?? []).map((circle) => [circle.slug, circle as CircleRow]));
+    circles = circleOrder.map((slug) => bySlug.get(slug)).filter(Boolean) as CircleRow[];
+  }
+}
+
+const curatedNews = [
+  {
+    title: "Gaze Launcher 仍处于开发阶段",
+    label: "项目进展",
+    href: "/gaze-os/",
+  },
+  {
+    title: "开发者选 AR/AI 眼镜前需要确认哪些限制",
+    label: "开发者",
+    href: "/guides/developer-limit-checklist-before-choosing-ar-ai-glasses/",
+  },
+  {
+    title: "2026 年 AR/AI 眼镜选购指南",
+    label: "选购",
+    href: "/guides/ar-ai-glasses-buying-guide-2026/",
+  },
+];
+
+const navLinks = [
+  { label: "首页", href: "/" },
+  { label: "论坛", href: "/feed/" },
+  { label: "热点资讯", href: "/news/" },
+  { label: "设备库", href: "/devices/" },
+  { label: "选购指南", href: "/guides/" },
+  { label: "开发者", href: "/developers/" },
+  { label: "Gaze Launcher", href: "/gaze-os/" },
+];
+
+const postTypeLabels: Record<string, string> = {
+  experience: "体验",
+  question: "提问",
+  review: "评测",
+  dev: "开发",
+  news: "资讯",
+  feedback: "反馈",
+};
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+}
+
+function excerpt(body?: string | null): string {
+  if (!body) return "";
+  return body.replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 96);
+}
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenGlass Hub | AR/AI 眼镜中文社区</title>
+    <meta name="description" content="OpenGlass Hub 是面向 AR/AI 眼镜玩家、开发者和早期用户的中文社区。" />
+    <link rel="canonical" href="https://openglasshub.pages.dev/" />
+    <link rel="icon" type="image/x-icon" href="/gaze-icon-v6.ico" />
+    <link rel="icon" type="image/svg+xml" href="/gaze-icon-v6.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/gaze-icon-32-v6.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v6.png" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a href="/" class="brand" aria-label="OpenGlass Hub 首页">
+        <img src="/brand/openglass-nav-logo.png" alt="" />
+        <span>OpenGlass Hub</span>
+      </a>
+      <nav class="main-nav" aria-label="主导航">
+        {navLinks.map((link) => (
+          <a href={link.href} class={link.href === "/" ? "active" : ""}>{link.label}</a>
+        ))}
+      </nav>
+      <AuthCTA next="/" compact={true} client:only="react" />
+    </header>
+
+    <main class="page">
+      <section class="hero">
+        <h1>OpenGlass Hub</h1>
+        <p>AR / AI 眼镜玩家、开发者和早期用户的中文社区。</p>
+        <p class="hero-sub">讨论 XREAL、Rokid、RayNeo、Meta AI Glasses、Gaze Launcher 与空间计算。</p>
+        <div class="hero-actions">
+          <a href="/feed/" class="btn primary">浏览讨论</a>
+          <a href="/login/?next=/" class="btn secondary">加入社区</a>
+          <a href="/posts/new/" class="btn secondary">发布帖子</a>
+        </div>
+      </section>
+
+      <section class="home-grid">
+        <div class="feed-panel">
+          <div class="panel-head">
+            <div>
+              <h2>正在讨论</h2>
+              <p>公开帖子按最近活动排序。</p>
+            </div>
+            <a href="/feed/">查看全部</a>
+          </div>
+
+          {loadError ? (
+            <div class="empty-state">
+              <strong>讨论加载失败</strong>
+              <p>{loadError}</p>
+            </div>
+          ) : posts.length === 0 ? (
+            <div class="empty-state">
+              <strong>还没有太多讨论</strong>
+              <p>成为第一个分享 AR/AI 眼镜体验的人。</p>
+              <a href="/posts/new/" class="btn primary">发布第一篇帖子</a>
+            </div>
+          ) : (
+            <div class="post-list">
+              {posts.map((post) => (
+                <a href={`/posts/${post.id}/`} class="post-row">
+                  <div class="post-meta">
+                    {post.circles?.name && <span>{post.circles.name}</span>}
+                    {post.type && <span>{postTypeLabels[post.type] || post.type}</span>}
+                    <span>{formatDate(post.last_activity_at || post.created_at)}</span>
+                    <span>{post.profiles?.display_name || post.profiles?.username || "匿名用户"}</span>
+                  </div>
+                  <h3>{post.title}</h3>
+                  {excerpt(post.body) && <p>{excerpt(post.body)}</p>}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <aside class="side-column">
+          <section class="side-card join-card">
+            <h2>加入讨论</h2>
+            <p>浏览无需登录。发帖、评论和后续互动需要账号。</p>
+            <AuthCTA next="/" client:only="react" />
+          </section>
+
+          <section class="side-card">
+            <div class="side-head">
+              <h2>热点资讯</h2>
+              <span>编辑精选 / 手动更新</span>
+            </div>
+            <div class="side-list">
+              {curatedNews.map((item) => (
+                <a href={item.href}>
+                  <small>{item.label}</small>
+                  <strong>{item.title}</strong>
+                </a>
+              ))}
+            </div>
+          </section>
+
+          <section class="side-card">
+            <div class="side-head">
+              <h2>热门圈子</h2>
+              <a href="/circles/">全部</a>
+            </div>
+            <div class="side-list">
+              {circles.length === 0 ? (
+                <a href="/circles/">
+                  <strong>查看圈子</strong>
+                  <small>圈子数据会按真实记录展示</small>
+                </a>
+              ) : (
+                circles.map((circle) => (
+                  <a href={`/circles/${circle.slug}/`}>
+                    <strong>{circle.name}</strong>
+                    {circle.description && <small>{circle.description}</small>}
+                  </a>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section class="side-card compact-links">
+            <h2>知识入口</h2>
+            <a href="/devices/">设备库</a>
+            <a href="/guides/">选购指南</a>
+            <a href="/developers/">开发者</a>
+            <a href="/gaze-os/">Gaze Launcher</a>
+          </section>
+        </aside>
+      </section>
+    </main>
+  </body>
+</html>
+
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #0b0f19;
+    color: #e7ecf5;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+    line-height: 1.65;
+  }
+  a { color: inherit; }
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    min-height: 64px;
+    padding: 0.75rem 1.25rem;
+    background: #111827;
+    border-bottom: 1px solid #20283a;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .brand img {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+  }
+  .main-nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .main-nav a {
+    color: #a8b0c7;
+    text-decoration: none;
+    font-size: 0.92rem;
+    white-space: nowrap;
+  }
+  .main-nav a:hover,
+  .main-nav a.active {
+    color: #f8fafc;
+  }
+  .page {
+    width: min(1180px, calc(100vw - 2rem));
+    margin: 0 auto;
+    padding: 1.75rem 0 4rem;
+  }
+  .hero {
+    padding: 1.5rem 0 1.4rem;
+    border-bottom: 1px solid #20283a;
+  }
+  .hero h1 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 2.35rem;
+    line-height: 1.15;
+  }
+  .hero p {
+    max-width: 760px;
+    margin: 0.55rem 0 0;
+    color: #d7deed;
+    font-size: 1rem;
+  }
+  .hero-sub {
+    color: #98a3bb !important;
+  }
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0.45rem 0.85rem;
+    border-radius: 6px;
+    border: 1px solid #20283a;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.92rem;
+  }
+  .btn.primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #f8fafc;
+  }
+  .btn.secondary {
+    background: #101725;
+    color: #dbeafe;
+  }
+  .home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 1rem;
+    align-items: start;
+    margin-top: 1rem;
+  }
+  .feed-panel,
+  .side-card {
+    background: #0f1624;
+    border: 1px solid #20283a;
+    border-radius: 8px;
+  }
+  .panel-head,
+  .side-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid #20283a;
+  }
+  .panel-head h2,
+  .side-card h2,
+  .side-head h2 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 1.08rem;
+  }
+  .panel-head p,
+  .side-card p,
+  .side-head span {
+    margin: 0.2rem 0 0;
+    color: #7b849d;
+    font-size: 0.84rem;
+  }
+  .panel-head a,
+  .side-head a {
+    color: #93c5fd;
+    font-size: 0.86rem;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .post-list {
+    display: grid;
+  }
+  .post-row {
+    display: block;
+    padding: 1rem;
+    border-bottom: 1px solid #20283a;
+    text-decoration: none;
+  }
+  .post-row:last-child {
+    border-bottom: 0;
+  }
+  .post-row:hover {
+    background: #111b2c;
+  }
+  .post-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    color: #7b849d;
+    font-size: 0.78rem;
+  }
+  .post-meta span:not(:last-child)::after {
+    content: "";
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    margin-left: 0.45rem;
+    vertical-align: middle;
+    border-radius: 50%;
+    background: #3b455d;
+  }
+  .post-row h3 {
+    margin: 0.35rem 0 0.3rem;
+    color: #f8fafc;
+    font-size: 1rem;
+    line-height: 1.45;
+  }
+  .post-row p,
+  .empty-state p {
+    margin: 0;
+    color: #a8b0c7;
+    font-size: 0.9rem;
+  }
+  .empty-state {
+    padding: 1.25rem;
+  }
+  .empty-state strong {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: #f8fafc;
+  }
+  .empty-state .btn {
+    margin-top: 1rem;
+  }
+  .side-column {
+    display: grid;
+    gap: 1rem;
+  }
+  .side-card {
+    padding: 0;
+  }
+  .join-card {
+    padding: 1rem;
+  }
+  .side-list {
+    display: grid;
+  }
+  .side-list a {
+    display: grid;
+    gap: 0.18rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #20283a;
+    text-decoration: none;
+  }
+  .side-list a:last-child {
+    border-bottom: 0;
+  }
+  .side-list a:hover {
+    background: #111b2c;
+  }
+  .side-list strong {
+    color: #f8fafc;
+    font-size: 0.92rem;
+  }
+  .side-list small {
+    color: #7b849d;
+    font-size: 0.78rem;
+  }
+  .compact-links {
+    padding: 1rem;
+  }
+  .compact-links h2 {
+    margin-bottom: 0.75rem;
+  }
+  .compact-links a {
+    display: inline-flex;
+    margin: 0 0.7rem 0.45rem 0;
+    color: #93c5fd;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+  @media (max-width: 860px) {
+    .site-header {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .main-nav {
+      order: 3;
+      width: 100%;
+    }
+    .home-grid {
+      grid-template-columns: 1fr;
+    }
+    .hero h1 {
+      font-size: 2rem;
+    }
+  }
+</style>

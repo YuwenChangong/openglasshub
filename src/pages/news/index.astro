@@ -1,0 +1,193 @@
+---
+import AuthCTA from "../../components/auth/AuthCTA";
+
+const navLinks = [
+  { label: "首页", href: "/" },
+  { label: "论坛", href: "/feed/" },
+  { label: "热点资讯", href: "/news/" },
+  { label: "设备库", href: "/devices/" },
+  { label: "选购指南", href: "/guides/" },
+  { label: "开发者", href: "/developers/" },
+  { label: "Gaze Launcher", href: "/gaze-os/" },
+];
+
+const updates = [
+  {
+    label: "项目进展",
+    title: "Gaze Launcher 仍处于开发阶段",
+    body: "Gaze Launcher 当前没有正式可用版本。相关页面只描述产品方向和实验性设计，不代表硬件兼容承诺。",
+    href: "/gaze-os/",
+  },
+  {
+    label: "开发者",
+    title: "开发者选 AR/AI 眼镜前需要确认哪些限制",
+    body: "购买或开发前应确认 SDK、应用安装路径、系统权限、相机和麦克风调用边界。",
+    href: "/guides/developer-limit-checklist-before-choosing-ar-ai-glasses/",
+  },
+  {
+    label: "选购",
+    title: "2026 年 AR/AI 眼镜选购指南",
+    body: "先按显示眼镜、AI 眼镜、独立 AR 和空间计算设备区分用途，再看具体设备。",
+    href: "/guides/ar-ai-glasses-buying-guide-2026/",
+  },
+];
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>热点资讯 | OpenGlass Hub</title>
+    <meta name="description" content="OpenGlass Hub 手动精选 AR / AI 眼镜行业动态与站内重要更新。" />
+    <link rel="canonical" href="https://openglasshub.pages.dev/news/" />
+    <link rel="icon" type="image/x-icon" href="/gaze-icon-v6.ico" />
+    <link rel="icon" type="image/svg+xml" href="/gaze-icon-v6.svg" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a href="/" class="brand" aria-label="OpenGlass Hub 首页">
+        <img src="/brand/openglass-nav-logo.png" alt="" />
+        <span>OpenGlass Hub</span>
+      </a>
+      <nav class="main-nav" aria-label="主导航">
+        {navLinks.map((link) => (
+          <a href={link.href} class={link.href === "/news/" ? "active" : ""}>{link.label}</a>
+        ))}
+      </nav>
+      <AuthCTA next="/news/" compact={true} client:only="react" />
+    </header>
+
+    <main class="page">
+      <header class="page-head">
+        <h1>热点资讯</h1>
+        <p>手动精选 AR / AI 眼镜行业动态，后续会逐步完善。这里不是实时新闻流，也不做外部抓取。</p>
+      </header>
+
+      <section class="updates">
+        {updates.map((item) => (
+          <a href={item.href} class="update-card">
+            <span>{item.label}</span>
+            <h2>{item.title}</h2>
+            <p>{item.body}</p>
+          </a>
+        ))}
+      </section>
+    </main>
+  </body>
+</html>
+
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #0b0f19;
+    color: #e7ecf5;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+    line-height: 1.65;
+  }
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    min-height: 64px;
+    padding: 0.75rem 1.25rem;
+    background: #111827;
+    border-bottom: 1px solid #20283a;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: #f8fafc;
+    text-decoration: none;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .brand img {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+  }
+  .main-nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+    overflow-x: auto;
+  }
+  .main-nav a {
+    color: #a8b0c7;
+    text-decoration: none;
+    font-size: 0.92rem;
+    white-space: nowrap;
+  }
+  .main-nav a:hover,
+  .main-nav a.active {
+    color: #f8fafc;
+  }
+  .page {
+    width: min(960px, calc(100vw - 2rem));
+    margin: 0 auto;
+    padding: 2rem 0 4rem;
+  }
+  .page-head {
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid #20283a;
+  }
+  h1 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 2rem;
+  }
+  .page-head p {
+    max-width: 720px;
+    margin: 0.6rem 0 0;
+    color: #a8b0c7;
+  }
+  .updates {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .update-card {
+    display: block;
+    padding: 1rem;
+    background: #0f1624;
+    border: 1px solid #20283a;
+    border-radius: 8px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .update-card:hover {
+    background: #111b2c;
+  }
+  .update-card span {
+    color: #7b849d;
+    font-size: 0.78rem;
+  }
+  .update-card h2 {
+    margin: 0.25rem 0;
+    color: #f8fafc;
+    font-size: 1.05rem;
+  }
+  .update-card p {
+    margin: 0;
+    color: #a8b0c7;
+    font-size: 0.92rem;
+  }
+  @media (max-width: 860px) {
+    .site-header {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .main-nav {
+      order: 3;
+      width: 100%;
+    }
+  }
+</style>
