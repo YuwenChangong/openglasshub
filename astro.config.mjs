@@ -102,6 +102,9 @@ export default defineConfig({
           link: '/about',
         },
       ],
+      components: {
+        Header: './src/components/starlight/Header.astro',
+      },
       customCss: ['./src/styles/custom.css'],
       expressiveCode: {
         themes: ['github-dark'],

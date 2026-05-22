@@ -1,0 +1,150 @@
+---
+import config from 'virtual:starlight/user-config';
+import Search from 'virtual:starlight/components/Search';
+import SiteTitle from 'virtual:starlight/components/SiteTitle';
+import SocialIcons from 'virtual:starlight/components/SocialIcons';
+import ThemeSelect from 'virtual:starlight/components/ThemeSelect';
+import AuthCTA from '../auth/AuthCTA';
+
+const shouldRenderSearch =
+  config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
+
+const pathname = Astro.url.pathname;
+
+const navLinks = [
+  { label: '首页', href: '/' },
+  { label: '动态', href: '/feed/' },
+  { label: '圈子', href: '/circles/' },
+  { label: '发帖', href: '/posts/new/' },
+  { label: '设备库', href: '/devices/' },
+  { label: '选购指南', href: '/guides/' },
+  { label: '社区', href: '/community/' },
+];
+
+function isActive(href: string) {
+  if (href === '/') return pathname === '/';
+  return pathname === href || pathname.startsWith(href);
+}
+---
+
+<div class="ogh-header">
+  <div class="ogh-left">
+    <SiteTitle />
+    <nav class="ogh-nav" aria-label="全站主导航">
+      {navLinks.map((link) => (
+        <a
+          href={link.href}
+          class:list={['ogh-nav-link', { active: isActive(link.href) }]}
+          aria-current={isActive(link.href) ? 'page' : undefined}
+        >
+          {link.label}
+        </a>
+      ))}
+    </nav>
+  </div>
+
+  <div class="ogh-right">
+    {shouldRenderSearch && (
+      <div class="ogh-search">
+        <Search />
+      </div>
+    )}
+    <div class="ogh-social">
+      <SocialIcons />
+    </div>
+    <ThemeSelect />
+    <AuthCTA next={pathname} compact={true} client:only="react" />
+  </div>
+</div>
+
+<style>
+  .ogh-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    height: 100%;
+  }
+
+  .ogh-left {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    min-width: 0;
+  }
+
+  .ogh-nav {
+    display: none;
+    align-items: center;
+    gap: 1.15rem;
+    flex-wrap: wrap;
+  }
+
+  .ogh-nav-link {
+    color: #a8b0c7;
+    font-size: 0.95rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+
+  .ogh-nav-link:hover,
+  .ogh-nav-link.active {
+    color: #f8fafc;
+  }
+
+  .ogh-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.85rem;
+    min-width: 0;
+  }
+
+  .ogh-search {
+    display: none;
+    min-width: 16rem;
+  }
+
+  .ogh-social {
+    display: none;
+  }
+
+  @media (min-width: 72rem) {
+    .ogh-nav,
+    .ogh-search,
+    .ogh-social {
+      display: flex;
+    }
+  }
+
+  :global(.ogh-header .site-title) {
+    color: #f8fafc;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    gap: 0.75rem;
+  }
+
+  :global(.ogh-header .site-title:hover) {
+    color: #f8fafc;
+  }
+
+  :global(.ogh-header .site-title img) {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+  }
+
+  :global(.ogh-header .social-icons) {
+    gap: 0.75rem;
+  }
+
+  :global(.ogh-header .social-icons::after) {
+    display: none;
+  }
+
+  :global(.ogh-header [data-open-modal]) {
+    max-width: 26rem;
+  }
+</style>
