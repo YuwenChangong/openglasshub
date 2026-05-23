@@ -32,6 +32,16 @@ export const forumTabs = [
   { key: "new-post", label: "发帖", href: "/posts/new/" },
 ] as const;
 
+export const hiddenPublicCircleSlugs = new Set(["rls-test-circle", "rls-test", "test-circle"]);
+
+export function isPublicVisibleCircle(input: { slug?: string | null; name?: string | null }) {
+  const slug = input.slug?.toLowerCase() ?? "";
+  const name = input.name?.toLowerCase() ?? "";
+  if (hiddenPublicCircleSlugs.has(slug)) return false;
+  if (name.includes("rls test")) return false;
+  return true;
+}
+
 export function inferNavKey(pathname: string): NavKey {
   if (pathname === "/" || pathname === "") return "home";
   if (pathname.startsWith("/feed") || pathname.startsWith("/forum") || pathname.startsWith("/circles") || pathname.startsWith("/posts")) {

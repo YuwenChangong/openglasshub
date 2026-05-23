@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
+import { isPublicVisibleCircle } from "../../../lib/site-navigation";
 
 export const prerender = false;
 
@@ -38,7 +39,7 @@ export const GET: APIRoute = async ({ locals }) => {
       return json({ error: error.message }, 500);
     }
 
-    return json({ circles: data ?? [] });
+    return json({ circles: (data ?? []).filter((circle) => isPublicVisibleCircle(circle)) });
   } catch (error) {
     return json(
       { error: error instanceof Error ? error.message : "Unexpected server error" },

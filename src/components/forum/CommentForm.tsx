@@ -9,19 +9,20 @@ interface CommentFormProps {
 }
 
 const wrapperStyle: React.CSSProperties = {
-  maxWidth: "760px",
+  maxWidth: "860px",
   margin: "1.5rem 0",
-  padding: "1.25rem",
-  border: "1px solid #2a2e45",
-  borderRadius: "0.75rem",
-  background: "#111527",
+  padding: "1.2rem",
+  border: "1px solid #20283a",
+  borderRadius: "1rem",
+  background: "#0f1624",
+  boxShadow: "0 16px 38px rgba(3, 8, 18, 0.2)",
 };
 
 const textareaStyle: React.CSSProperties = {
   width: "100%",
-  background: "#0a0d1a",
-  border: "1px solid #2a2e45",
-  borderRadius: "0.5rem",
+  background: "#0c1220",
+  border: "1px solid #25314a",
+  borderRadius: "0.75rem",
   color: "#e8edf8",
   padding: "0.75rem",
   minHeight: "80px",
@@ -31,9 +32,9 @@ const textareaStyle: React.CSSProperties = {
 };
 
 const buttonStyle: React.CSSProperties = {
-  borderRadius: "0.5rem",
-  border: "1px solid #6366f1",
-  background: "#6366f1",
+  borderRadius: "0.75rem",
+  border: "1px solid #2563eb",
+  background: "#2563eb",
   color: "#fff",
   fontWeight: 600,
   padding: "0.5rem 1.25rem",
@@ -43,17 +44,18 @@ const buttonStyle: React.CSSProperties = {
 
 const secondaryButtonStyle: React.CSSProperties = {
   ...buttonStyle,
-  border: "1px solid #2a2e45",
-  background: "transparent",
-  color: "#a0a8c0",
+  border: "1px solid #25314a",
+  background: "#111827",
+  color: "#aab5d1",
 };
 
 const messageStyle: React.CSSProperties = {
-  border: "1px solid #2a2e45",
-  borderRadius: "0.5rem",
+  border: "1px solid #25314a",
+  borderRadius: "0.75rem",
   padding: "0.75rem",
   fontSize: "0.9rem",
   marginTop: "0.75rem",
+  background: "#101827",
 };
 
 const loginBoxStyle: React.CSSProperties = {
@@ -134,7 +136,7 @@ export default function CommentForm({ postId, onCommentCreated, loginHref }: Com
   if (!supabase) {
     return (
       <section style={loginBoxStyle}>
-        <p style={{ color: "#5a6480" }}>评论功能未配置</p>
+        <p style={{ color: "#7d8fb0" }}>评论功能未配置</p>
       </section>
     );
   }
@@ -154,8 +156,8 @@ export default function CommentForm({ postId, onCommentCreated, loginHref }: Com
 
   return (
     <section style={wrapperStyle}>
-      <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", color: "#e8edf8" }}>
-        💬 发表评论
+      <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.08rem", color: "#e8edf8" }}>
+        发表评论
       </h3>
       <form onSubmit={handleSubmit}>
         <textarea
@@ -185,12 +187,12 @@ export default function CommentForm({ postId, onCommentCreated, loginHref }: Com
       </form>
       {error && (
         <div style={{ ...messageStyle, borderColor: "#ef4444", color: "#fca5a5" }}>
-          ❌ {error}
+          {error}
         </div>
       )}
       {success && (
         <div style={{ ...messageStyle, borderColor: "#22c55e", color: "#86efac" }}>
-          ✅ 评论发布成功！
+          评论发布成功。
         </div>
       )}
     </section>

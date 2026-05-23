@@ -1,0 +1,22 @@
+---
+interface Props {
+  name: string;
+  slug: string;
+  description?: string;
+  latestNote?: string;
+}
+
+const { name, slug, description, latestNote } = Astro.props;
+---
+
+<a href={`/circles/${slug}/`} class="community-circle-card">
+  <div class="community-tags">
+    <span class="community-tag community-tag--muted">圈子</span>
+  </div>
+  <h3>{name}</h3>
+  <p>{description || "查看这个圈子的公开讨论与后续动态。"}</p>
+  {latestNote && <span class="community-meta">{latestNote}</span>}
+  <div class="community-post-actions" style="padding-top: 0.4rem;">
+    <span class="community-action">进入圈子</span>
+  </div>
+</a>

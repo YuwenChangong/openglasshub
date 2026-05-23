@@ -1,0 +1,34 @@
+---
+interface Props {
+  title?: string;
+  description?: string;
+  primaryHref?: string;
+  secondaryHref?: string;
+  primaryLabel?: string;
+  secondaryLabel?: string;
+}
+
+const {
+  title = "还没有公开帖子",
+  description = "社区刚开始启动时，第一批讨论通常会围绕设备体验、选购求助、开发限制和 Gaze Launcher 建议展开。",
+  primaryHref = "/posts/new/",
+  secondaryHref = "/circles/",
+  primaryLabel = "写第一篇帖子",
+  secondaryLabel = "浏览圈子",
+} = Astro.props;
+---
+
+<div class="community-empty">
+  <strong>{title}</strong>
+  <p>{description}</p>
+  <div class="community-chip-row">
+    <span class="community-chip">设备体验</span>
+    <span class="community-chip">选购求助</span>
+    <span class="community-chip">开发问题</span>
+    <span class="community-chip">Gaze Launcher 建议</span>
+  </div>
+  <div class="community-cta-row">
+    <a href={primaryHref} class="community-button">{primaryLabel}</a>
+    <a href={secondaryHref} class="community-button--secondary">{secondaryLabel}</a>
+  </div>
+</div>

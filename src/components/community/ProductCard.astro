@@ -1,0 +1,19 @@
+---
+interface Props {
+  label?: string;
+  title: string;
+  description: string;
+  href: string;
+}
+
+const { label = "产品入口", title, description, href } = Astro.props;
+---
+
+<a href={href} class="community-product-card">
+  <span class="community-meta">{label}</span>
+  <h3>{title}</h3>
+  <p>{description}</p>
+  <div class="community-post-actions" style="padding-top: 0.35rem;">
+    <span class="community-action">进入</span>
+  </div>
+</a>

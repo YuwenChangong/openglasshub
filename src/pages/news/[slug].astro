@@ -1,5 +1,5 @@
 ---
-import SiteLayout from "../../layouts/SiteLayout.astro";
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import { curatedNews, getNewsEntry } from "../../lib/news";
 
 export function getStaticPaths() {
@@ -18,15 +18,15 @@ if (!item) {
 ---
 
 {!item ? (
-  <SiteLayout title="热点未找到" noindex={true} activeSection="news">
+  <CommunityLayout title="热点未找到" noindex={true} activeSection="news">
     <section class="news-empty">
       <strong>热点内容未找到</strong>
       <p>该条目可能不存在，或当前还没有发布到公开热点页。</p>
       <a href="/news/" class="back-link">返回热点列表</a>
     </section>
-  </SiteLayout>
+  </CommunityLayout>
 ) : (
-  <SiteLayout
+  <CommunityLayout
     title={item.title}
     description={item.summary}
     canonical={`https://openglasshub.pages.dev/news/${item.slug}/`}
@@ -34,11 +34,16 @@ if (!item) {
   >
     <article class="news-article">
       <header class="news-header">
-        <span class="news-tag">{item.category}</span>
+        <div class="news-topline">
+          <span class="news-tag">{item.category}</span>
+          <span class="news-note">管理员精选 / 手动更新</span>
+        </div>
         <h1>{item.title}</h1>
         <p>{item.summary}</p>
         <div class="news-meta">发布时间：{new Date(item.publishedAt).toLocaleDateString("zh-CN")}</div>
       </header>
+
+      <div class="community-media-placeholder" style="margin-bottom: 1rem;">封面/媒体位将在下一阶段接入，不伪装成真实素材。</div>
 
       <div class="news-body">
         {item.body.map((paragraph) => (
@@ -50,7 +55,7 @@ if (!item) {
         <a href="/news/" class="back-link">返回热点列表</a>
       </footer>
     </article>
-  </SiteLayout>
+  </CommunityLayout>
 )}
 
 <style>
@@ -61,6 +66,12 @@ if (!item) {
     display: grid;
     gap: 0.7rem;
     margin-bottom: 1.2rem;
+  }
+  .news-topline {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
   }
   .news-header h1 {
     margin: 0;
@@ -87,6 +98,10 @@ if (!item) {
   .news-meta {
     color: #8ea0c0;
     font-size: 0.88rem;
+  }
+  .news-note {
+    color: #8ea0c0;
+    font-size: 0.82rem;
   }
   .news-tag {
     display: inline-flex;

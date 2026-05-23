@@ -20,21 +20,21 @@ interface CommentsSectionProps {
 }
 
 const sectionStyle: React.CSSProperties = {
-  maxWidth: "760px",
+  maxWidth: "860px",
   margin: "2rem 0 0 0",
 };
 
 const commentStyle: React.CSSProperties = {
-  background: "#111527",
-  border: "1px solid #2a2e45",
-  borderRadius: "0.75rem",
-  padding: "1rem 1.25rem",
+  background: "#0f1624",
+  border: "1px solid #20283a",
+  borderRadius: "1rem",
+  padding: "1rem 1.15rem",
   marginBottom: "0.75rem",
 };
 
 const metaStyle: React.CSSProperties = {
   fontSize: "0.85rem",
-  color: "#5a6480",
+  color: "#7d8fb0",
   marginBottom: "0.5rem",
   display: "flex",
   gap: "0.75rem",
@@ -42,7 +42,7 @@ const metaStyle: React.CSSProperties = {
 };
 
 const bodyStyle: React.CSSProperties = {
-  color: "#c0c8e0",
+  color: "#c8d4ea",
   lineHeight: 1.7,
   whiteSpace: "pre-wrap" as const,
   wordBreak: "break-word" as const,
@@ -50,7 +50,7 @@ const bodyStyle: React.CSSProperties = {
 };
 
 const emptyStyle: React.CSSProperties = {
-  color: "#5a6480",
+  color: "#7d8fb0",
   fontStyle: "italic",
   textAlign: "center" as const,
   padding: "2rem 1rem",
@@ -68,11 +68,11 @@ const headerStyle: React.CSSProperties = {
 };
 
 const countBadgeStyle: React.CSSProperties = {
-  background: "#2a2e45",
+  background: "#1a2539",
   borderRadius: "0.75rem",
   padding: "0.15rem 0.6rem",
   fontSize: "0.8rem",
-  color: "#a0a8c0",
+  color: "#aab5d1",
   fontWeight: 400,
 };
 
@@ -136,7 +136,7 @@ export default function CommentsSection({ postId, refreshKey }: CommentsSectionP
   return (
     <section style={sectionStyle} aria-label="评论区">
       <h2 style={headerStyle}>
-        💬 评论
+        评论
         {!loading && <span style={countBadgeStyle}>{comments.length}</span>}
       </h2>
 
@@ -155,13 +155,13 @@ export default function CommentsSection({ postId, refreshKey }: CommentsSectionP
             textAlign: "center",
           }}
         >
-          ❌ {error}
+          {error}
         </div>
       )}
 
       {!loading && !error && comments.length === 0 && (
         <div style={emptyStyle}>
-          暂无评论，来发表第一条吧 💭
+          暂无评论，来发表第一条吧。
         </div>
       )}
 
@@ -171,12 +171,12 @@ export default function CommentsSection({ postId, refreshKey }: CommentsSectionP
             <article key={comment.id} style={commentStyle}>
               <div style={metaStyle}>
                 <span>
-                  👤 {comment.profiles?.display_name || comment.profiles?.username || "匿名用户"}
+                  {comment.profiles?.display_name || comment.profiles?.username || "社区成员"}
                 </span>
-                <span>📅 {formatDate(comment.created_at)}</span>
+                <span>{formatDate(comment.created_at)}</span>
                 {comment.updated_at &&
                   comment.updated_at !== comment.created_at && (
-                    <span>✏️ 已编辑</span>
+                    <span>已编辑</span>
                   )}
               </div>
               <div style={bodyStyle}>{comment.body}</div>

@@ -3,17 +3,29 @@ export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import PostCard from "../../components/community/PostCard.astro";
+import EmptyFeedState from "../../components/community/EmptyFeedState.astro";
+import CircleCard from "../../components/community/CircleCard.astro";
+import { isPublicVisibleCircle } from "../../lib/site-navigation";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
 
-const { data: posts, error } = await supabase
-  .from("posts")
-  .select("id, title, type, created_at, last_activity_at, profiles:author_id(display_name), circles:circle_id(slug, name)")
-  .eq("status", "published")
-  .order("last_activity_at", { ascending: false, nullsFirst: false })
-  .order("created_at", { ascending: false })
-  .limit(50);
+const [{ data: posts, error }, { data: circles }] = await Promise.all([
+  supabase
+    .from("posts")
+    .select("id, title, body, type, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name)")
+    .eq("status", "published")
+    .order("last_activity_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(50),
+  supabase
+    .from("circles")
+    .select("slug, name, description")
+    .order("name", { ascending: true }),
+]);
+
+const visibleCircles = (circles ?? []).filter((circle) => isPublicVisibleCircle(circle)).slice(0, 5);
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
@@ -38,50 +50,63 @@ const postTypeLabels: Record<string, string> = {
   <h1>帖子动态</h1>
   <p class="section-lead">公开帖子按发布时间倒序展示。这里不会展示待审核内容，也不会填充假互动数据。</p>
 
-  <div style="margin: 1.1rem 0 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
-    <a href="/posts/new/" class="forum-btn forum-btn--primary">发布帖子</a>
-    <a href="/circles/" class="forum-btn">浏览圈子</a>
-  </div>
-
-  {error ? (
-    <div class="forum-empty">
-      <strong>加载帖子失败</strong>
-      <p>{error.message}</p>
-    </div>
-  ) : !posts || posts.length === 0 ? (
-    <div class="forum-empty">
-      <strong>还没有公开帖子</strong>
-      <p>社区刚开始启动时，第一批讨论通常会围绕设备体验、选购求助、开发限制和项目建议展开。</p>
-      <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-        <a href="/posts/new/" class="forum-btn forum-btn--primary">写第一篇帖子</a>
-        <a href="/circles/" class="forum-btn">先看圈子</a>
+  <section class="community-grid" style="margin-top: 1.1rem;">
+    <div class="community-surface">
+      <div class="community-section-head">
+        <div>
+          <h2>公开动态</h2>
+          <p>围绕设备体验、选购、开发限制和项目方向的真实讨论流。</p>
+        </div>
+        <a href="/posts/new/" class="community-link">去发帖</a>
       </div>
+
+      {error ? (
+        <div class="community-empty">
+          <strong>加载帖子失败</strong>
+          <p>{error.message}</p>
+        </div>
+      ) : !posts || posts.length === 0 ? (
+        <EmptyFeedState />
+      ) : (
+        <div class="community-feed-list">
+          {posts.map((post) => (
+            <PostCard
+              id={post.id}
+              title={post.title}
+              excerpt={post.body ? post.body.replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) : ""}
+              circleName={post.circles?.name ?? undefined}
+              circleSlug={post.circles?.slug ?? undefined}
+              typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
+              authorName={post.profiles?.display_name || post.profiles?.username || undefined}
+              timestamp={formatDate(post.last_activity_at || post.created_at)}
+            />
+          ))}
+        </div>
+      )}
     </div>
-  ) : (
-    <div style="display: grid; gap: 1rem;">
-      {posts.map((post) => (
-        <article class="forum-card" style="padding: 1rem 1.2rem;">
-          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
-            {post.type && (
-              <span class="forum-tag">{postTypeLabels[post.type] || post.type}</span>
-            )}
-            {post.circles && (
-              <a href={`/circles/${post.circles.slug}/`} class="forum-tag forum-tag--muted" style="text-decoration: none;">
-                {post.circles.name}
-              </a>
-            )}
-            <span class="forum-meta">{formatDate(post.last_activity_at || post.created_at)}</span>
-          </div>
-          <h3 style="margin: 0 0 0.45rem 0; font-size: 1.12rem;">
-            <a href={`/posts/${post.id}/`} style="color: #e8edf8; text-decoration: none;">
-              {post.title}
-            </a>
-          </h3>
-          <div class="forum-meta" style="display: flex; gap: 1rem;">
-            <span>by {post.profiles?.display_name || "匿名"}</span>
-          </div>
-        </article>
-      ))}
-    </div>
-  )}
+
+    <aside class="community-sidebar">
+      <section class="community-surface community-surface--padded">
+        <div class="community-page-lead" style="margin-bottom: 0.55rem;">社区入口</div>
+        <h2 style="margin: 0 0 0.35rem;">准备发帖？</h2>
+        <p style="margin: 0; color: #97a8c8;">发帖前先看圈子，再决定内容放在哪个主题下更清楚。</p>
+        <div class="community-cta-row" style="margin-top: 1rem;">
+          <a href="/posts/new/" class="community-button">发布帖子</a>
+          <a href="/circles/" class="community-button--secondary">浏览圈子</a>
+        </div>
+      </section>
+
+      <section class="community-surface">
+        <div class="community-section-head">
+          <h2>圈子推荐</h2>
+          <a href="/circles/" class="community-link">全部</a>
+        </div>
+        <div class="community-card-list">
+          {visibleCircles.map((circle) => (
+            <CircleCard name={circle.name} slug={circle.slug} description={circle.description || undefined} />
+          ))}
+        </div>
+      </section>
+    </aside>
+  </section>
 </ForumLayout>

@@ -1,5 +1,5 @@
 ---
-import SiteLayout from "./SiteLayout.astro";
+import CommunityLayout from "./CommunityLayout.astro";
 import { forumTabs } from "../lib/site-navigation";
 
 export interface Props {
@@ -13,7 +13,7 @@ export interface Props {
 const { title, description, noindex, canonical, activeTab = "feed" } = Astro.props;
 ---
 
-<SiteLayout
+<CommunityLayout
   title={title}
   description={description}
   noindex={noindex}
@@ -38,7 +38,7 @@ const { title, description, noindex, canonical, activeTab = "feed" } = Astro.pro
   </div>
 
   <slot />
-</SiteLayout>
+</CommunityLayout>
 
 <style>
   .forum-subnav {

@@ -1,75 +1,40 @@
 ---
-import SiteLayout from "../../layouts/SiteLayout.astro";
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import { productLinks } from "../../lib/site-navigation";
+import ProductCard from "../../components/community/ProductCard.astro";
 ---
 
-<SiteLayout
+<CommunityLayout
   title="产品"
   description="OpenGlass Hub 的产品内容入口，汇总设备库、选购指南和开发者资源。"
   canonical="https://openglasshub.pages.dev/products/"
   activeSection="products"
 >
-  <section class="products-hero">
+  <section class="community-page-head">
     <div>
       <h1>产品</h1>
-      <p class="section-lead">把设备资料、选购内容和开发者入口收拢到同一个结构里，避免知识入口四散。</p>
+      <p class="community-page-lead">把设备资料、选购内容和开发者入口收拢到同一个结构里，做成更像产品发现页，而不是文档目录。</p>
     </div>
   </section>
 
   <section class="products-grid">
     {productLinks.map((item) => (
-      <a href={item.href} class="product-card">
-        <div class="product-card__label">产品入口</div>
-        <h2>{item.label}</h2>
-        <p>{item.description}</p>
-      </a>
+      <ProductCard href={item.href} title={item.label} description={item.description} />
     ))}
+    <ProductCard
+      href="/guides/"
+      label="后续方向"
+      title="对比与路线判断"
+      description="后续会补更多横向对比和路线判断入口，但不会在这一阶段伪造数据或榜单。"
+    />
   </section>
-</SiteLayout>
+</CommunityLayout>
 
 <style>
-  .products-hero {
-    margin-bottom: 1.25rem;
-  }
-  .products-hero h1 {
-    margin: 0 0 0.35rem;
-    font-size: 2.1rem;
-    color: #f8fafc;
-  }
   .products-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
-  }
-  .product-card {
-    display: grid;
-    gap: 0.4rem;
-    padding: 1.2rem;
-    text-decoration: none;
-    background: #0f1624;
-    border: 1px solid #20283a;
-    border-radius: 18px;
-    box-shadow: 0 16px 38px rgba(3, 8, 18, 0.2);
-  }
-  .product-card:hover {
-    border-color: #35507e;
-    background: #132033;
-  }
-  .product-card__label {
-    color: #7d91bb;
-    font-size: 0.76rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .product-card h2 {
-    margin: 0;
-    color: #f8fafc;
-    font-size: 1.18rem;
-  }
-  .product-card p {
-    margin: 0;
-    color: #94a4c3;
   }
   @media (max-width: 900px) {
     .products-grid {

@@ -3,6 +3,8 @@ export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import CircleCard from "../../components/community/CircleCard.astro";
+import { isPublicVisibleCircle } from "../../lib/site-navigation";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
@@ -11,6 +13,8 @@ const { data: circles, error } = await supabase
   .from("circles")
   .select("id, name, slug, description, created_at")
   .order("name", { ascending: true });
+
+const visibleCircles = (circles ?? []).filter((circle) => isPublicVisibleCircle(circle));
 ---
 
 <ForumLayout
@@ -32,22 +36,34 @@ const { data: circles, error } = await supabase
       <strong>加载圈子失败</strong>
       <p>{error.message}</p>
     </div>
-  ) : !circles || circles.length === 0 ? (
+  ) : visibleCircles.length === 0 ? (
     <div class="forum-empty">
       <strong>暂时还没有公开圈子</strong>
       <p>圈子会随着社区讨论逐步稳定下来。当前阶段更重要的是先形成真实话题，而不是制造空壳分类。</p>
     </div>
   ) : (
-    <div style="display: grid; gap: 1rem;">
-      {circles.map((circle) => (
-        <a href={`/circles/${circle.slug}/`} class="forum-card" style="text-decoration: none; display: block; padding: 1rem 1.15rem;">
-          <h3 style="margin: 0 0 0.5rem 0; color: #e8edf8; font-size: 1.15rem;">{circle.name}</h3>
-          {circle.description && (
-            <p style="color: #9badcd; margin: 0 0 0.5rem 0; font-size: 0.92rem;">{circle.description}</p>
-          )}
-          <span class="forum-meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
-        </a>
+    <section class="circle-grid">
+      {visibleCircles.map((circle) => (
+        <CircleCard
+          name={circle.name}
+          slug={circle.slug}
+          description={circle.description || undefined}
+          latestNote={`创建于 ${new Date(circle.created_at).toLocaleDateString("zh-CN")}`}
+        />
       ))}
-    </div>
+    </section>
   )}
 </ForumLayout>
+
+<style>
+  .circle-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  @media (max-width: 900px) {
+    .circle-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

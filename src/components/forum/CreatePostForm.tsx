@@ -11,11 +11,17 @@ interface CircleOption {
 
 const postTypes = [
   { value: "question", label: "求助", description: "适合兼容性、选购和使用问题。" },
-  { value: "experience", label: "体验", description: "记录真实使用体验、佩戴感受和场景反馈。" },
-  { value: "review", label: "评测", description: "适合更完整的对比、总结和长期观察。" },
+  { value: "experience", label: "文字", description: "适合一般讨论、观察记录和补充说明。" },
+  { value: "review", label: "体验/评测", description: "适合更完整的对比、总结和长期观察。" },
   { value: "dev", label: "开发", description: "围绕 SDK、权限、输入和系统能力讨论。" },
   { value: "news", label: "资讯", description: "适合手动整理的动态、公告和观察。" },
   { value: "feedback", label: "反馈", description: "适合对产品、社区和 Gaze Launcher 的建议。" },
+] as const;
+
+const upcomingModes = [
+  { key: "image", label: "图片" },
+  { key: "video", label: "视频链接" },
+  { key: "link", label: "链接" },
 ] as const;
 
 const wrapperStyle: React.CSSProperties = {
@@ -73,6 +79,7 @@ export default function CreatePostForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [upcomingNotice, setUpcomingNotice] = useState("");
 
   useEffect(() => {
     if (!supabase) {
@@ -203,6 +210,54 @@ export default function CreatePostForm() {
 
       <form onSubmit={handleSubmit} style={stackStyle}>
         <div>
+          <label style={{ display: "block", marginBottom: "0.55rem", fontWeight: 600 }}>发帖模式</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.65rem", marginBottom: "0.9rem" }}>
+            {postTypes.map((option) => {
+              const active = type === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    setType(option.value);
+                    setUpcomingNotice("");
+                  }}
+                  style={{
+                    minHeight: "40px",
+                    padding: "0.55rem 0.9rem",
+                    borderRadius: "999px",
+                    border: active ? "1px solid #3b82f6" : "1px solid #25314a",
+                    background: active ? "#13213a" : "#101827",
+                    color: active ? "#f8fafc" : "#bfd1ef",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+            {upcomingModes.map((mode) => (
+              <button
+                key={mode.key}
+                type="button"
+                onClick={() => setUpcomingNotice(`${mode.label}帖将在下一阶段开放，当前版本先支持文字发布。`)}
+                style={{
+                  minHeight: "40px",
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: "999px",
+                  border: "1px dashed #30415f",
+                  background: "#0f1626",
+                  color: "#8ea0c8",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+
           <label style={{ display: "block", marginBottom: "0.55rem", fontWeight: 600 }}>发布类型</label>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem" }}>
             {postTypes.map((option) => {
@@ -284,6 +339,7 @@ export default function CreatePostForm() {
       </form>
 
       <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
+        {upcomingNotice ? <div style={messageStyle}>{upcomingNotice}</div> : null}
         {error ? <div style={messageStyle}>错误：{error}</div> : null}
         {message ? <div style={messageStyle}>{message}</div> : null}
       </div>

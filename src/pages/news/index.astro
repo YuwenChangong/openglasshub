@@ -1,91 +1,38 @@
 ---
-import SiteLayout from "../../layouts/SiteLayout.astro";
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import { curatedNews } from "../../lib/news";
+import NewsCard from "../../components/community/NewsCard.astro";
 ---
 
-<SiteLayout
+<CommunityLayout
   title="热点"
   description="OpenGlass Hub 的热点内容入口，由管理员手动整理和更新。"
   canonical="https://openglasshub.pages.dev/news/"
   activeSection="news"
 >
-  <section class="news-hero">
+  <section class="community-page-head">
     <div>
       <h1>热点</h1>
-      <p class="section-lead">编辑精选、管理员精选、手动更新。这里不是抓取聚合流，也不会假装实时。</p>
+      <p class="community-page-lead">管理员精选、手动更新、偏内容流形态的公开入口。这里不是抓取聚合流，也不会假装实时。</p>
     </div>
   </section>
 
-  <section class="news-list">
+  <section class="news-stream">
     {curatedNews.map((item) => (
-      <a href={`/news/${item.slug}/`} class="news-card">
-        <div class="news-card__top">
-          <span class="news-tag">{item.category}</span>
-          <span class="news-date">{new Date(item.publishedAt).toLocaleDateString("zh-CN")}</span>
-        </div>
-        <h2>{item.title}</h2>
-        <p>{item.summary}</p>
-      </a>
+      <NewsCard
+        href={`/news/${item.slug}/`}
+        category={item.category}
+        title={item.title}
+        summary={item.summary}
+        date={new Date(item.publishedAt).toLocaleDateString("zh-CN")}
+      />
     ))}
   </section>
-</SiteLayout>
+</CommunityLayout>
 
 <style>
-  .news-hero {
-    margin-bottom: 1.2rem;
-  }
-  .news-hero h1 {
-    margin: 0 0 0.35rem;
-    font-size: 2.1rem;
-    color: #f8fafc;
-  }
-  .news-list {
+  .news-stream {
     display: grid;
     gap: 1rem;
-  }
-  .news-card {
-    display: grid;
-    gap: 0.55rem;
-    padding: 1.2rem;
-    text-decoration: none;
-    background: #0f1624;
-    border: 1px solid #20283a;
-    border-radius: 18px;
-    box-shadow: 0 16px 38px rgba(3, 8, 18, 0.2);
-  }
-  .news-card:hover {
-    background: #132033;
-    border-color: #35507e;
-  }
-  .news-card__top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-  .news-tag {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.24rem 0.52rem;
-    border-radius: 999px;
-    background: rgba(37, 99, 235, 0.12);
-    border: 1px solid rgba(86, 132, 242, 0.2);
-    color: #aac2fb;
-    font-size: 0.76rem;
-    font-weight: 700;
-  }
-  .news-date {
-    color: #8ea0c0;
-    font-size: 0.84rem;
-  }
-  .news-card h2 {
-    margin: 0;
-    font-size: 1.2rem;
-    color: #f8fafc;
-  }
-  .news-card p {
-    margin: 0;
-    color: #97a8c8;
   }
 </style>

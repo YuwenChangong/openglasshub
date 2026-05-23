@@ -1,0 +1,22 @@
+---
+interface Props {
+  title: string;
+  summary: string;
+  category: string;
+  href: string;
+  date: string;
+  showCoverPlaceholder?: boolean;
+}
+
+const { title, summary, category, href, date, showCoverPlaceholder = true } = Astro.props;
+---
+
+<a href={href} class="community-news-card">
+  <div class="community-news-top">
+    <span class="community-tag">{category}</span>
+    <span class="community-meta">{date}</span>
+  </div>
+  {showCoverPlaceholder && <div class="community-media-placeholder">管理员精选 / 手动更新</div>}
+  <h3>{title}</h3>
+  <p>{summary}</p>
+</a>

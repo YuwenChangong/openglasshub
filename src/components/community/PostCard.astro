@@ -1,0 +1,47 @@
+---
+interface Props {
+  id: string;
+  title: string;
+  excerpt?: string;
+  circleName?: string;
+  circleSlug?: string;
+  typeLabel?: string;
+  authorName?: string;
+  timestamp: string;
+  mediaLabel?: string;
+}
+
+const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, timestamp, mediaLabel } = Astro.props;
+const displayName = authorName?.trim() || "社区成员";
+const initial = displayName === "社区成员" ? "" : displayName.slice(0, 1).toUpperCase();
+const postHref = `/posts/${id}/`;
+---
+
+<article class="community-post-card">
+  <div class="community-post-top">
+    <div class="community-identity">
+      {initial ? <span class="community-avatar">{initial}</span> : <span class="community-avatar--neutral">◌</span>}
+      <div class="community-author">
+        <strong>{displayName}</strong>
+        <span>{timestamp}</span>
+      </div>
+    </div>
+    <div class="community-tags">
+      {circleName && circleSlug && <a href={`/circles/${circleSlug}/`} class="community-tag community-tag--muted">{circleName}</a>}
+      {typeLabel && <span class="community-tag">{typeLabel}</span>}
+    </div>
+  </div>
+
+  <a href={postHref} style="text-decoration: none;">
+    <h3>{title}</h3>
+  </a>
+
+  {excerpt && <p>{excerpt}</p>}
+  {mediaLabel && <div class="community-media-placeholder">{mediaLabel}</div>}
+
+  <div class="community-post-actions">
+    <a class="community-action" href={`${postHref}#comments`}>评论</a>
+    <span class="community-action--muted" title="收藏功能将在后续版本开放">收藏</span>
+    <a class="community-action" href={postHref}>分享</a>
+  </div>
+</article>

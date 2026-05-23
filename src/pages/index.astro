@@ -1,11 +1,16 @@
 ---
 export const prerender = false;
 
-import SiteLayout from "../layouts/SiteLayout.astro";
+import CommunityLayout from "../layouts/CommunityLayout.astro";
 import AuthCTA from "../components/auth/AuthCTA";
+import PostCard from "../components/community/PostCard.astro";
+import EmptyFeedState from "../components/community/EmptyFeedState.astro";
+import NewsCard from "../components/community/NewsCard.astro";
+import CircleCard from "../components/community/CircleCard.astro";
+import ProductCard from "../components/community/ProductCard.astro";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { curatedNews } from "../lib/news";
-import { productLinks } from "../lib/site-navigation";
+import { isPublicVisibleCircle, productLinks } from "../lib/site-navigation";
 
 type PostRow = {
   id: string;
@@ -57,7 +62,7 @@ if (supabase) {
 
   if (!circleResult.error) {
     const bySlug = new Map((circleResult.data ?? []).map((circle) => [circle.slug, circle as CircleRow]));
-    circles = circleOrder.map((slug) => bySlug.get(slug)).filter(Boolean) as CircleRow[];
+    circles = circleOrder.map((slug) => bySlug.get(slug)).filter(Boolean).filter((circle) => isPublicVisibleCircle(circle)) as CircleRow[];
   }
 }
 
@@ -80,7 +85,7 @@ function excerpt(body?: string | null): string {
 }
 ---
 
-<SiteLayout
+<CommunityLayout
   title="OpenGlass Hub"
   description="AR/AI 眼镜玩家、开发者和早期用户的中文社区。"
   canonical="https://openglasshub.pages.dev/"
@@ -105,117 +110,99 @@ function excerpt(body?: string | null): string {
   </section>
 
   <section class="home-grid">
-    <div class="feed-panel forum-card">
-      <div class="panel-head">
+    <div class="community-surface">
+      <div class="community-section-head">
         <div>
           <h2>正在讨论</h2>
           <p>{posts.length > 0 ? `已展示 ${posts.length} 条公开讨论，按最近活动排序。` : "社区公开讨论会优先显示在这里。"} </p>
         </div>
-        <a href="/feed/">查看全部</a>
+        <a href="/feed/" class="community-link">查看全部</a>
       </div>
 
       {loadError ? (
-        <div class="forum-empty" style="margin: 1rem;">
+        <div class="community-empty">
           <strong>讨论加载失败</strong>
           <p>{loadError}</p>
         </div>
       ) : posts.length === 0 ? (
-        <div class="forum-empty" style="margin: 1rem;">
-          <span class="status-tag">社区正在启动中</span>
-          <strong>还没有太多公开讨论</strong>
-          <p>OpenGlass Hub 正在从资料站过渡到真实社区。第一批帖子会决定这里接下来讨论什么，也会影响圈子和内容的沉淀方向。</p>
-          <div class="topic-suggestions" aria-label="建议话题">
-            <span>设备体验</span>
-            <span>选购问题</span>
-            <span>开发问题</span>
-            <span>Gaze Launcher 建议</span>
-          </div>
-          <div class="empty-actions">
-            <a href="/posts/new/" class="primary-btn">发布第一篇帖子</a>
-            <a href="/circles/" class="secondary-btn">浏览圈子</a>
-          </div>
-        </div>
+        <EmptyFeedState />
       ) : (
-        <div class="post-list">
+        <div class="community-feed-list">
           {posts.map((post) => (
-            <a href={`/posts/${post.id}/`} class="post-row">
-              <div class="post-meta">
-                {post.circles?.name && <span class="forum-tag forum-tag--muted">{post.circles.name}</span>}
-                {post.type && <span class="forum-tag">{postTypeLabels[post.type] || post.type}</span>}
-                <span class="forum-meta">{formatDate(post.last_activity_at || post.created_at)}</span>
-                <span class="forum-meta">{post.profiles?.display_name || post.profiles?.username || "匿名用户"}</span>
-              </div>
-              <h3>{post.title}</h3>
-              {excerpt(post.body) && <p>{excerpt(post.body)}</p>}
-            </a>
+            <PostCard
+              id={post.id}
+              title={post.title}
+              excerpt={excerpt(post.body)}
+              circleName={post.circles?.name ?? undefined}
+              circleSlug={post.circles?.slug ?? undefined}
+              typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
+              authorName={post.profiles?.display_name || post.profiles?.username || undefined}
+              timestamp={formatDate(post.last_activity_at || post.created_at)}
+            />
           ))}
         </div>
       )}
     </div>
 
-    <aside class="side-column">
-      <section class="side-card forum-card">
-        <div class="side-eyebrow">加入讨论</div>
+    <aside class="community-sidebar">
+      <section class="community-surface community-surface--padded">
+        <div class="community-meta" style="margin-bottom: 0.55rem; text-transform: uppercase; letter-spacing: 0.05em;">加入讨论</div>
         <h2>先看，再发言</h2>
         <p>浏览公开帖子不需要登录。想发帖、评论，或者开始记录自己的 AR / AI 眼镜体验，需要先加入社区。</p>
         <AuthCTA next="/" client:only="react" />
       </section>
 
-      <section class="side-card forum-card">
-        <div class="side-head">
+      <section class="community-surface">
+        <div class="community-section-head">
           <h2>热点</h2>
           <span>管理员精选 / 手动更新</span>
         </div>
-        <div class="side-list">
+        <div class="community-card-list">
           {curatedNews.slice(0, 3).map((item) => (
-            <a href={`/news/${item.slug}/`}>
-              <small class="news-tag">{item.category}</small>
-              <strong>{item.title}</strong>
-              <span>{item.summary}</span>
-            </a>
+            <NewsCard
+              href={`/news/${item.slug}/`}
+              category={item.category}
+              title={item.title}
+              summary={item.summary}
+              date={new Date(item.publishedAt).toLocaleDateString("zh-CN")}
+            />
           ))}
         </div>
       </section>
 
-      <section class="side-card forum-card">
-        <div class="side-head">
+      <section class="community-surface">
+        <div class="community-section-head">
           <h2>热门圈子</h2>
-          <a href="/circles/">全部</a>
+          <a href="/circles/" class="community-link">全部</a>
         </div>
-        <div class="side-list">
+        <div class="community-card-list">
           {circles.length === 0 ? (
-            <a href="/circles/">
-              <strong>查看圈子</strong>
-              <span>圈子数据会按真实记录展示，不显示假活跃度。</span>
-            </a>
+            <div class="community-empty" style="margin: 0;">
+              <strong>圈子数据暂不可用</strong>
+              <p>公开圈子会按真实记录展示，不显示假活跃度。</p>
+            </div>
           ) : (
             circles.map((circle) => (
-              <a href={`/circles/${circle.slug}/`}>
-                <strong>{circle.name}</strong>
-                <span>{circle.description || "查看这个圈子的公开讨论与后续动态。"}</span>
-              </a>
+              <CircleCard name={circle.name} slug={circle.slug} description={circle.description || undefined} />
             ))
           )}
         </div>
       </section>
 
-      <section class="side-card forum-card">
-        <div class="side-head">
+      <section class="community-surface">
+        <div class="community-section-head">
           <h2>产品入口</h2>
-          <a href="/products/">总览</a>
+          <a href="/products/" class="community-link">总览</a>
         </div>
-        <div class="side-list">
+        <div class="community-card-list">
           {productLinks.map((link) => (
-            <a href={link.href}>
-              <strong>{link.label}</strong>
-              <span>{link.description}</span>
-            </a>
+            <ProductCard href={link.href} title={link.label} description={link.description} />
           ))}
         </div>
       </section>
     </aside>
   </section>
-</SiteLayout>
+</CommunityLayout>
 
 <style>
   .hero {
@@ -243,8 +230,7 @@ function excerpt(body?: string | null): string {
     margin: 0.52rem 0 0;
     color: #8ea0c8;
   }
-  .hero-actions,
-  .empty-actions {
+  .hero-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
@@ -300,151 +286,6 @@ function excerpt(body?: string | null): string {
     grid-template-columns: minmax(0, 1fr) 348px;
     gap: 1rem;
     align-items: start;
-  }
-  .feed-panel {
-    overflow: hidden;
-  }
-  .panel-head,
-  .side-head {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    align-items: start;
-    padding: 1rem 1.1rem;
-    border-bottom: 1px solid #20283a;
-  }
-  .panel-head h2,
-  .side-head h2,
-  .side-card h2 {
-    margin: 0;
-    color: #f8fafc;
-    font-size: 1.12rem;
-    letter-spacing: -0.02em;
-  }
-  .panel-head p,
-  .side-head span,
-  .side-card p {
-    margin: 0.2rem 0 0;
-    color: #8d9fbe;
-    font-size: 0.86rem;
-  }
-  .panel-head a,
-  .side-head a {
-    color: #9bc2ff;
-    text-decoration: none;
-    font-size: 0.86rem;
-    white-space: nowrap;
-  }
-  .post-list {
-    display: grid;
-    gap: 0.95rem;
-    padding: 1rem;
-  }
-  .post-row {
-    display: grid;
-    gap: 0.55rem;
-    padding: 1.1rem 1.08rem;
-    border: 1px solid #22304a;
-    border-radius: 14px;
-    background: #101827;
-    text-decoration: none;
-  }
-  .post-row:hover {
-    border-color: #35507e;
-    background: #132033;
-  }
-  .post-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.48rem;
-    align-items: center;
-  }
-  .post-row h3 {
-    margin: 0;
-    font-size: 1.08rem;
-    line-height: 1.42;
-    color: #f4f7fd;
-  }
-  .post-row p {
-    margin: 0;
-    color: #a7b1c8;
-    font-size: 0.95rem;
-  }
-  .status-tag {
-    display: inline-flex;
-    width: fit-content;
-    align-items: center;
-    padding: 0.32rem 0.6rem;
-    border-radius: 999px;
-    background: rgba(37, 99, 235, 0.14);
-    border: 1px solid rgba(90, 135, 244, 0.24);
-    color: #abc2ff;
-    font-size: 0.76rem;
-    font-weight: 700;
-  }
-  .topic-suggestions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.55rem;
-  }
-  .topic-suggestions span {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.38rem 0.68rem;
-    border-radius: 999px;
-    background: #0f1829;
-    border: 1px solid #25314a;
-    color: #c4d1ea;
-    font-size: 0.83rem;
-  }
-  .side-column {
-    display: grid;
-    gap: 1rem;
-  }
-  .side-card {
-    padding: 1.05rem;
-  }
-  .side-eyebrow {
-    margin-bottom: 0.55rem;
-    color: #8ea0c8;
-    font-size: 0.76rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  .side-list {
-    display: grid;
-  }
-  .side-list a {
-    display: grid;
-    gap: 0.28rem;
-    padding: 0.95rem 0;
-    border-top: 1px solid #20283a;
-    text-decoration: none;
-  }
-  .side-list a:first-child {
-    border-top: 0;
-    padding-top: 0.2rem;
-  }
-  .side-list strong {
-    color: #f8fafc;
-    font-size: 0.92rem;
-  }
-  .side-list span {
-    color: #8a99b8;
-    font-size: 0.82rem;
-  }
-  .news-tag {
-    display: inline-flex;
-    width: fit-content;
-    align-items: center;
-    padding: 0.22rem 0.5rem;
-    border-radius: 999px;
-    background: rgba(37, 99, 235, 0.12);
-    border: 1px solid rgba(86, 132, 242, 0.18);
-    color: #aac2fb;
-    font-size: 0.74rem;
-    font-weight: 700;
   }
   @media (max-width: 900px) {
     .hero,
