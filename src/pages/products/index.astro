@@ -13,7 +13,7 @@ import ProductCard from "../../components/community/ProductCard.astro";
   <section class="community-page-head">
     <div>
       <h1>产品</h1>
-      <p class="community-page-lead">设备、选购指南、开发者资源的统一入口。先快速找到方向，再进入对应的资料和工具页。</p>
+      <p class="community-page-lead">看设备、做选购判断、查开发限制。这里是产品内容的直接入口，不是文档封面页。</p>
     </div>
   </section>
 
@@ -21,8 +21,8 @@ import ProductCard from "../../components/community/ProductCard.astro";
     <div class="community-surface">
       <div class="community-section-head">
         <div>
-          <h2>产品入口</h2>
-          <p>把设备资料、购买判断和开发者入口分成三个清晰方向，不再混成文档目录。</p>
+          <h2>从这里开始</h2>
+          <p>按你当前的问题进入对应入口，不用先读长说明。</p>
         </div>
       </div>
 
@@ -34,7 +34,7 @@ import ProductCard from "../../components/community/ProductCard.astro";
 
       <div class="products-secondary">
         <div class="products-secondary__text">
-          <span class="community-meta">下一阶段</span>
+          <span class="community-meta">补充入口</span>
           <h3>对比与路线判断</h3>
           <p>后续会补更多横向对比和路线判断入口，但不会在这个阶段伪造榜单、评分或结论。</p>
         </div>
@@ -44,9 +44,9 @@ import ProductCard from "../../components/community/ProductCard.astro";
 
     <aside class="community-sidebar">
       <section class="community-surface community-surface--padded">
-        <div class="community-page-lead" style="margin-bottom: 0.55rem;">快速进入</div>
+        <div class="community-page-lead" style="margin-bottom: 0.45rem;">快速进入</div>
         <h2 style="margin: 0 0 0.35rem;">先看哪一块？</h2>
-        <p style="margin: 0; color: #97a8c8;">如果你还不确定先看设备、先看选购还是先看开发，就从产品总览开始分流。</p>
+        <p style="margin: 0; color: #97a8c8;">如果你还不确定先看设备、先看选购还是先看开发，就从这里直接分流。</p>
         <div class="community-chip-row" style="margin-top: 1rem;">
           <span class="community-chip">设备资料</span>
           <span class="community-chip">购买判断</span>
@@ -82,18 +82,18 @@ import ProductCard from "../../components/community/ProductCard.astro";
   .products-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-    padding: 1rem;
+    gap: 0.8rem;
+    padding: 0.9rem 1rem;
   }
   .products-secondary {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0.9rem;
     margin: 0 1rem 1rem;
-    padding: 1rem 1.05rem;
+    padding: 0.9rem 0.95rem;
     border: 1px solid #22304a;
-    border-radius: 16px;
+    border-radius: 12px;
     background: #101827;
   }
   .products-secondary h3 {

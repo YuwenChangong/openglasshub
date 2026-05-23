@@ -95,17 +95,16 @@ function excerpt(body?: string | null): string {
     <div class="hero-copy">
       <h1>OpenGlass Hub</h1>
       <p class="hero-lead">AR / AI 眼镜玩家、开发者和早期用户的中文社区。</p>
-      <p class="hero-sub">讨论 XREAL、Rokid、RayNeo、Meta AI Glasses、Gaze Launcher 与空间计算。</p>
+      <p class="hero-sub">先看讨论，再判断设备、产品路线和开发限制。</p>
       <div class="hero-actions">
-        <a href="/feed/" class="primary-btn">浏览讨论</a>
+        <a href="/feed/" class="secondary-btn">浏览讨论</a>
         <a href="/login/?next=/" class="secondary-btn">加入社区</a>
         <a href="/posts/new/" class="secondary-btn">发布帖子</a>
       </div>
     </div>
-    <div class="hero-note forum-card">
-      <div class="hero-note__label">社区方向</div>
-      <h2>公开浏览，登录后互动</h2>
-      <p>首页不再是资料目录页，而是以公开讨论为主轴。设备库、指南和开发者内容仍然保留，但被归入更清晰的“产品”结构。</p>
+    <div class="hero-note">
+      <strong>公开浏览，登录后互动</strong>
+      <p>主页以讨论为主轴，产品资料和 Gaze Launcher 入口都收进更明确的结构里。</p>
     </div>
   </section>
 
@@ -146,9 +145,9 @@ function excerpt(body?: string | null): string {
 
     <aside class="community-sidebar">
       <section class="community-surface community-surface--padded">
-        <div class="community-meta" style="margin-bottom: 0.55rem; text-transform: uppercase; letter-spacing: 0.05em;">加入讨论</div>
+        <div class="community-meta" style="margin-bottom: 0.4rem;">加入讨论</div>
         <h2>先看，再发言</h2>
-        <p>浏览公开帖子不需要登录。想发帖、评论，或者开始记录自己的 AR / AI 眼镜体验，需要先加入社区。</p>
+        <p>浏览公开帖子不需要登录。想发帖、评论，或者开始记录自己的 AR / AI 眼镜体验，再进入账号流程。</p>
         <AuthCTA next="/" client:only="react" />
       </section>
 
@@ -207,84 +206,56 @@ function excerpt(body?: string | null): string {
 <style>
   .hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 1rem;
-    padding: 0.2rem 0 1.35rem;
+    grid-template-columns: minmax(0, 1fr) 290px;
+    gap: 0.9rem;
+    padding: 0 0 0.95rem;
+    align-items: end;
   }
   .hero-copy {
-    padding: 0.4rem 0 0;
+    padding: 0.05rem 0 0;
   }
   .hero h1 {
     margin: 0;
-    font-size: clamp(2.6rem, 5vw, 4.2rem);
-    line-height: 0.98;
-    letter-spacing: -0.06em;
+    font-size: clamp(2rem, 4vw, 2.8rem);
+    line-height: 1;
+    letter-spacing: -0.05em;
     color: #f8fafc;
   }
   .hero-lead {
-    margin: 0.95rem 0 0;
-    font-size: 1.08rem;
-    color: #dbe3f3;
+    margin: 0.55rem 0 0;
+    font-size: 0.98rem;
+    color: #d9e2f3;
   }
   .hero-sub {
-    margin: 0.52rem 0 0;
+    margin: 0.32rem 0 0;
     color: #8ea0c8;
+    font-size: 0.9rem;
   }
   .hero-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-top: 1.15rem;
-  }
-  .primary-btn,
-  .secondary-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 42px;
-    padding: 0.6rem 1rem;
-    border-radius: 10px;
-    border: 1px solid #27314a;
-    text-decoration: none;
-    font-weight: 600;
-  }
-  .primary-btn {
-    background: #2563eb;
-    border-color: #2563eb;
-    color: #f8fafc;
-    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.24);
-  }
-  .secondary-btn {
-    background: #11182a;
-    color: #dce7fb;
+    gap: 0.55rem;
+    margin-top: 0.8rem;
   }
   .hero-note {
-    padding: 1.15rem;
     display: grid;
-    align-content: start;
-    gap: 0.45rem;
+    gap: 0.25rem;
+    padding: 0.7rem 0.85rem;
+    border-left: 1px solid #243148;
+    color: #97a8c8;
   }
-  .hero-note__label {
-    color: #7d91bb;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .hero-note h2 {
-    margin: 0;
-    font-size: 1.12rem;
-    color: #f8fafc;
+  .hero-note strong {
+    color: #eef4ff;
+    font-size: 0.92rem;
   }
   .hero-note p {
     margin: 0;
-    color: #97a8c8;
-    font-size: 0.94rem;
+    font-size: 0.86rem;
   }
   .home-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 348px;
-    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr) 318px;
+    gap: 0.9rem;
     align-items: start;
   }
   @media (max-width: 900px) {
@@ -294,9 +265,13 @@ function excerpt(body?: string | null): string {
     }
     .hero-note {
       order: -1;
+      border-left: 0;
+      border-top: 1px solid #243148;
+      padding-left: 0;
+      padding-right: 0;
     }
     .hero h1 {
-      font-size: 2.7rem;
+      font-size: 2.2rem;
     }
   }
 </style>

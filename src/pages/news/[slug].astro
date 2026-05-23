@@ -43,7 +43,7 @@ if (!item) {
         <div class="news-meta">发布时间：{new Date(item.publishedAt).toLocaleDateString("zh-CN")}</div>
       </header>
 
-      <div class="community-media-placeholder" style="margin-bottom: 1rem;">封面/媒体位将在下一阶段接入，不伪装成真实素材。</div>
+      <div class="news-source-note">社区观察 / 管理员精选。当前页面不伪装真实封面或实时媒体流。</div>
 
       <div class="news-body">
         {item.body.map((paragraph) => (
@@ -86,14 +86,23 @@ if (!item) {
     color: #9badcd;
     line-height: 1.8;
   }
+  .news-source-note {
+    margin-bottom: 0.9rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 10px;
+    border: 1px solid #243148;
+    background: #101722;
+    color: #8ea0c0;
+    font-size: 0.84rem;
+  }
   .news-body {
     display: grid;
     gap: 1rem;
-    padding: 1.35rem;
+    padding: 1.1rem 1.15rem;
     background: #0f1624;
     border: 1px solid #20283a;
-    border-radius: 18px;
-    box-shadow: 0 16px 38px rgba(3, 8, 18, 0.2);
+    border-radius: 14px;
+    box-shadow: none;
   }
   .news-meta {
     color: #8ea0c0;
