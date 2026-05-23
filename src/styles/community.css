@@ -106,7 +106,7 @@
 .community-circle-card:hover,
 .community-product-card:hover {
   border-color: #35507e;
-  background: #132033;
+  background: #121d2f;
   transform: translateY(-1px);
 }
 
@@ -222,6 +222,11 @@
   padding: 1rem;
 }
 
+.community-media-placeholder--compact {
+  min-height: 76px;
+  font-size: 0.8rem;
+}
+
 .community-post-actions {
   display: flex;
   flex-wrap: wrap;
@@ -249,7 +254,7 @@
 .community-empty {
   display: grid;
   gap: 0.9rem;
-  padding: 1.35rem;
+  padding: 1.45rem;
   margin: 1rem;
   border: 1px dashed #30415f;
   border-radius: 16px;
@@ -312,6 +317,12 @@
 .community-button--secondary {
   background: #111827;
   color: #dce7fb;
+}
+
+.community-surface > .community-empty:first-child,
+.community-surface > .community-feed-list:first-child,
+.community-surface > .community-card-list:first-child {
+  margin-top: 0;
 }
 
 .community-field-note {

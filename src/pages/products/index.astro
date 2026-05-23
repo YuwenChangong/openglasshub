@@ -13,32 +13,126 @@ import ProductCard from "../../components/community/ProductCard.astro";
   <section class="community-page-head">
     <div>
       <h1>产品</h1>
-      <p class="community-page-lead">把设备资料、选购内容和开发者入口收拢到同一个结构里，做成更像产品发现页，而不是文档目录。</p>
+      <p class="community-page-lead">设备、选购指南、开发者资源的统一入口。先快速找到方向，再进入对应的资料和工具页。</p>
     </div>
   </section>
 
-  <section class="products-grid">
-    {productLinks.map((item) => (
-      <ProductCard href={item.href} title={item.label} description={item.description} />
-    ))}
-    <ProductCard
-      href="/guides/"
-      label="后续方向"
-      title="对比与路线判断"
-      description="后续会补更多横向对比和路线判断入口，但不会在这一阶段伪造数据或榜单。"
-    />
+  <section class="community-grid products-page-grid">
+    <div class="community-surface">
+      <div class="community-section-head">
+        <div>
+          <h2>产品入口</h2>
+          <p>把设备资料、购买判断和开发者入口分成三个清晰方向，不再混成文档目录。</p>
+        </div>
+      </div>
+
+      <div class="products-grid">
+        {productLinks.map((item) => (
+          <ProductCard href={item.href} title={item.label} description={item.description} />
+        ))}
+      </div>
+
+      <div class="products-secondary">
+        <div class="products-secondary__text">
+          <span class="community-meta">下一阶段</span>
+          <h3>对比与路线判断</h3>
+          <p>后续会补更多横向对比和路线判断入口，但不会在这个阶段伪造榜单、评分或结论。</p>
+        </div>
+        <a href="/guides/" class="community-button--secondary">查看指南</a>
+      </div>
+    </div>
+
+    <aside class="community-sidebar">
+      <section class="community-surface community-surface--padded">
+        <div class="community-page-lead" style="margin-bottom: 0.55rem;">快速进入</div>
+        <h2 style="margin: 0 0 0.35rem;">先看哪一块？</h2>
+        <p style="margin: 0; color: #97a8c8;">如果你还不确定先看设备、先看选购还是先看开发，就从产品总览开始分流。</p>
+        <div class="community-chip-row" style="margin-top: 1rem;">
+          <span class="community-chip">设备资料</span>
+          <span class="community-chip">购买判断</span>
+          <span class="community-chip">开发入口</span>
+        </div>
+      </section>
+
+      <section class="community-surface community-surface--padded">
+        <div class="community-page-lead" style="margin-bottom: 0.55rem;">相关入口</div>
+        <div class="products-links">
+          <a href="/feed/" class="products-links__item">
+            <strong>论坛动态</strong>
+            <span>先看大家在讨论什么。</span>
+          </a>
+          <a href="/news/" class="products-links__item">
+            <strong>热点</strong>
+            <span>查看管理员精选内容流。</span>
+          </a>
+          <a href="/gaze-os/" class="products-links__item">
+            <strong>Gaze Launcher</strong>
+            <span>了解项目方向和实验目标。</span>
+          </a>
+        </div>
+      </section>
+    </aside>
   </section>
 </CommunityLayout>
 
 <style>
+  .products-page-grid {
+    align-items: stretch;
+  }
   .products-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
+    padding: 1rem;
+  }
+  .products-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 1rem 1rem;
+    padding: 1rem 1.05rem;
+    border: 1px solid #22304a;
+    border-radius: 16px;
+    background: #101827;
+  }
+  .products-secondary h3 {
+    margin: 0.2rem 0 0.35rem;
+    color: #f8fafc;
+    font-size: 1.02rem;
+  }
+  .products-secondary p {
+    margin: 0;
+    color: #9aaccc;
+  }
+  .products-links {
+    display: grid;
+    gap: 0.8rem;
+  }
+  .products-links__item {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.88rem 0.95rem;
+    border-radius: 14px;
+    text-decoration: none;
+    border: 1px solid #22304a;
+    background: #101827;
+  }
+  .products-links__item strong {
+    color: #f8fafc;
+    font-size: 0.94rem;
+  }
+  .products-links__item span {
+    color: #92a5c7;
+    font-size: 0.84rem;
   }
   @media (max-width: 900px) {
     .products-grid {
       grid-template-columns: 1fr;
+    }
+    .products-secondary {
+      align-items: flex-start;
+      flex-direction: column;
     }
   }
 </style>

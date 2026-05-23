@@ -28,7 +28,7 @@ export default defineConfig({
       },
       favicon: '/gaze-icon-v6.ico',
       logo: {
-        src: './public/brand/logo-navbar.svg',
+      src: './public/brand/openglass-nav-logo.png',
         alt: 'OpenGlass Hub',
         replacesTitle: false,
       },

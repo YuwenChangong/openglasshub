@@ -48,16 +48,21 @@ const postTypeLabels: Record<string, string> = {
   activeTab="feed"
 >
   <h1>帖子动态</h1>
-  <p class="section-lead">公开帖子按发布时间倒序展示。这里不会展示待审核内容，也不会填充假互动数据。</p>
+  <p class="section-lead">围绕设备体验、选购判断、开发约束和项目方向的公开讨论流。这里只显示真实公开帖子，不补假热度。</p>
 
   <section class="community-grid" style="margin-top: 1.1rem;">
     <div class="community-surface">
       <div class="community-section-head">
         <div>
           <h2>公开动态</h2>
-          <p>围绕设备体验、选购、开发限制和项目方向的真实讨论流。</p>
+          <p>按最新公开活动排序。没帖子时也会保留明确的社区启动状态和发帖入口。</p>
         </div>
-        <a href="/posts/new/" class="community-link">去发帖</a>
+        <div class="feed-head-actions">
+          <span class="community-chip">文字</span>
+          <span class="community-chip">求助</span>
+          <span class="community-chip">体验/评测</span>
+          <a href="/posts/new/" class="community-link">去发帖</a>
+        </div>
       </div>
 
       {error ? (
@@ -89,7 +94,12 @@ const postTypeLabels: Record<string, string> = {
       <section class="community-surface community-surface--padded">
         <div class="community-page-lead" style="margin-bottom: 0.55rem;">社区入口</div>
         <h2 style="margin: 0 0 0.35rem;">准备发帖？</h2>
-        <p style="margin: 0; color: #97a8c8;">发帖前先看圈子，再决定内容放在哪个主题下更清楚。</p>
+        <p style="margin: 0; color: #97a8c8;">先看圈子，再决定内容放在哪个主题下更清楚。设备体验、选购求助、开发限制都适合从这里开始。</p>
+        <div class="community-chip-row" style="margin-top: 1rem;">
+          <span class="community-chip">设备体验</span>
+          <span class="community-chip">选购求助</span>
+          <span class="community-chip">开发问题</span>
+        </div>
         <div class="community-cta-row" style="margin-top: 1rem;">
           <a href="/posts/new/" class="community-button">发布帖子</a>
           <a href="/circles/" class="community-button--secondary">浏览圈子</a>
@@ -110,3 +120,18 @@ const postTypeLabels: Record<string, string> = {
     </aside>
   </section>
 </ForumLayout>
+
+<style>
+  .feed-head-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+  @media (max-width: 900px) {
+    .feed-head-actions {
+      justify-content: flex-start;
+    }
+  }
+</style>

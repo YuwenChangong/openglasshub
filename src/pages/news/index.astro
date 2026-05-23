@@ -17,22 +17,81 @@ import NewsCard from "../../components/community/NewsCard.astro";
     </div>
   </section>
 
-  <section class="news-stream">
-    {curatedNews.map((item) => (
-      <NewsCard
-        href={`/news/${item.slug}/`}
-        category={item.category}
-        title={item.title}
-        summary={item.summary}
-        date={new Date(item.publishedAt).toLocaleDateString("zh-CN")}
-      />
-    ))}
+  <section class="community-grid news-page-grid">
+    <div class="community-surface">
+      <div class="community-section-head">
+        <div>
+          <h2>管理员精选</h2>
+          <p>用手动整理的方式把值得关注的行业动态、项目进展和社区观察放在一起。</p>
+        </div>
+        <span class="community-chip">手动更新</span>
+      </div>
+      <div class="news-stream">
+        {curatedNews.map((item, index) => (
+          <NewsCard
+            href={`/news/${item.slug}/`}
+            category={item.category}
+            title={item.title}
+            summary={item.summary}
+            date={new Date(item.publishedAt).toLocaleDateString("zh-CN")}
+            showCoverPlaceholder={index === 0}
+          />
+        ))}
+      </div>
+    </div>
+
+    <aside class="community-sidebar">
+      <section class="community-surface community-surface--padded">
+        <div class="community-page-lead" style="margin-bottom: 0.55rem;">内容说明</div>
+        <h2 style="margin: 0 0 0.35rem;">这不是实时新闻流</h2>
+        <p style="margin: 0; color: #97a8c8;">热点页只放管理员精选内容。没有自动抓取，没有外部 scraping，也不会把设备资料和文档入口伪装成新闻。</p>
+      </section>
+
+      <section class="community-surface community-surface--padded">
+        <div class="community-page-lead" style="margin-bottom: 0.55rem;">相关入口</div>
+        <div class="news-links">
+          <a href="/feed/" class="news-links__item">
+            <strong>论坛动态</strong>
+            <span>回到真实讨论流，看用户现在在聊什么。</span>
+          </a>
+          <a href="/products/" class="news-links__item">
+            <strong>产品入口</strong>
+            <span>进入设备库、选购指南和开发者资源。</span>
+          </a>
+        </div>
+      </section>
+    </aside>
   </section>
 </CommunityLayout>
 
 <style>
+  .news-page-grid {
+    align-items: start;
+  }
   .news-stream {
     display: grid;
-    gap: 1rem;
+    gap: 0.9rem;
+    padding: 1rem;
+  }
+  .news-links {
+    display: grid;
+    gap: 0.8rem;
+  }
+  .news-links__item {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.88rem 0.95rem;
+    border-radius: 14px;
+    text-decoration: none;
+    border: 1px solid #22304a;
+    background: #101827;
+  }
+  .news-links__item strong {
+    color: #f8fafc;
+    font-size: 0.94rem;
+  }
+  .news-links__item span {
+    color: #92a5c7;
+    font-size: 0.84rem;
   }
 </style>
