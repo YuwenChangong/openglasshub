@@ -1,0 +1,143 @@
+---
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import ProductCard from "../../components/community/ProductCard.astro";
+
+const featuredDevices = [
+  {
+    title: "XREAL One / One Pro",
+    description: "偏显示体验与空间显示路线，适合先判断大屏、连接体验和进阶显示需求。",
+    href: "/devices/xreal-one/",
+  },
+  {
+    title: "Rokid Max / Rokid Glasses",
+    description: "一条偏显示、一条偏 AI 眼镜日常入口，适合比较“看屏”和“智能入口”的差异。",
+    href: "/devices/rokid-max/",
+  },
+  {
+    title: "RayNeo X2 / INMO Air 2",
+    description: "更接近独立 AR 与轻量系统路线，适合研究导航、翻译和系统边界。",
+    href: "/devices/rayneo-x2/",
+  },
+  {
+    title: "Ray-Ban Meta / Brilliant Labs Frame",
+    description: "更偏无显示或轻显示智能眼镜路线，适合观察 AI 入口与开放实验方向。",
+    href: "/devices/ray-ban-meta/",
+  },
+] as const;
+
+const brandLinks = [
+  { label: "XREAL", href: "/devices/xreal-one/" },
+  { label: "Rokid", href: "/devices/rokid-max/" },
+  { label: "RayNeo", href: "/devices/rayneo-x2/" },
+  { label: "INMO", href: "/devices/inmo-air-2/" },
+  { label: "VITURE", href: "/devices/viture-pro/" },
+  { label: "Meta AI Glasses", href: "/devices/ray-ban-meta/" },
+  { label: "Brilliant Labs", href: "/devices/brilliant-labs-frame/" },
+] as const;
+
+const scenarios = [
+  {
+    title: "看电影 / 大屏",
+    description: "先看显示型眼镜，重点不是 AI，而是显示效果、佩戴和连接稳定性。",
+  },
+  {
+    title: "拍摄 / 语音 / AI",
+    description: "先看智能眼镜路线，重点是语音入口、摄像头边界和日常佩戴体验。",
+  },
+  {
+    title: "导航 / 轻量 AR",
+    description: "更接近独立 AR 方向，但需要更谨慎地判断生态成熟度和权限开放度。",
+  },
+  {
+    title: "开发 / 实验验证",
+    description: "不要只看宣传名词，先确认 SDK、输入、权限、安装路径和真实设备边界。",
+  },
+] as const;
+---
+
+<CommunityLayout
+  title="设备库"
+  description="按品牌、形态和使用场景查看 AR / AI 眼镜资料。"
+  canonical="https://openglasshub.pages.dev/devices/"
+  activeSection="products"
+>
+  <section class="community-page-head">
+    <div>
+      <h1>设备库</h1>
+      <p class="community-page-lead">按品牌、形态和使用场景查看 AR / AI 眼镜资料。当前以公开资料整理为主，待核实内容会明确标注。</p>
+    </div>
+  </section>
+
+  <section class="devices-layout">
+    <div class="community-surface community-surface--primary">
+      <div class="community-section-head">
+        <div>
+          <h2>重点设备</h2>
+          <p>先看路线代表机型，再进入具体设备页核对边界。</p>
+        </div>
+        <a href="/reference/devices-docs/" class="community-link">查看技术索引</a>
+      </div>
+      <div class="devices-grid">
+        {featuredDevices.map((item) => (
+          <ProductCard label="重点设备" title={item.title} description={item.description} href={item.href} />
+        ))}
+      </div>
+    </div>
+
+    <div class="community-grid" style="margin-top: 1rem;">
+      <section class="community-surface community-surface--primary">
+        <div class="community-section-head">
+          <div>
+            <h2>品牌入口</h2>
+            <p>按品牌先找方向，再决定要不要继续看单机详情。</p>
+          </div>
+        </div>
+        <div class="community-list">
+          {brandLinks.map((item) => (
+            <a class="community-list-item community-link-row" href={item.href}>
+              <strong>{item.label}</strong>
+              <span>进入对应品牌代表机型</span>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <aside class="community-sidebar">
+        <section class="community-surface community-surface--padded community-surface--primary">
+          <div class="community-page-lead" style="margin-bottom: 0.35rem;">使用场景</div>
+          <div class="devices-scenarios">
+            {scenarios.map((item) => (
+              <article class="community-field-note">
+                <strong>{item.title}</strong>
+                <span>{item.description}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+      </aside>
+    </div>
+  </section>
+</CommunityLayout>
+
+<style>
+  .devices-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+    padding: 0.9rem 1rem 1rem;
+  }
+  .community-link-row {
+    text-decoration: none;
+  }
+  .community-link-row:hover strong {
+    color: var(--accent-hover);
+  }
+  .devices-scenarios {
+    display: grid;
+  }
+  @media (max-width: 900px) {
+    .devices-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

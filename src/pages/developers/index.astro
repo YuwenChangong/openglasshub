@@ -1,0 +1,101 @@
+---
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+
+const checks = [
+  "先确认有没有公开开发入口和持续更新的文档。",
+  "再确认设备是独立平台、手机协同，还是本质上只是显示终端。",
+  "不要默认摄像头、麦克风、空间感知、后台运行都对第三方开放。",
+] as const;
+
+const limits = [
+  {
+    title: "SDK 与权限边界",
+    description: "有 SDK 不代表有你需要的系统级能力。权限模型、系统调用入口和后台行为都要单独核对。",
+  },
+  {
+    title: "输入与传感器边界",
+    description: "按键、触控、语音、凝视、摄像头和位置能力通常不是同一个开放等级，不要混为一谈。",
+  },
+  {
+    title: "部署与安装路径",
+    description: "很多设备并不支持“像手机一样随意安装 App”。部署路径和分发方式需要提前确认。",
+  },
+] as const;
+---
+
+<CommunityLayout
+  title="开发者"
+  description="先确认 SDK、权限、输入能力和部署路径。"
+  canonical="https://openglasshub.pages.dev/developers/"
+  activeSection="products"
+>
+  <section class="community-page-head">
+    <div>
+      <h1>开发者</h1>
+      <p class="community-page-lead">先确认 SDK、权限、输入能力和部署路径。这里是做开发前的入口页，不是长技术文档。</p>
+    </div>
+  </section>
+
+  <section class="community-grid">
+    <section class="community-surface community-surface--primary">
+      <div class="community-section-head">
+        <div>
+          <h2>开发前确认</h2>
+          <p>先确认边界，再决定是否值得投入设备、时间和路线验证。</p>
+        </div>
+        <a href="/reference/developers-docs/" class="community-link">查看技术索引</a>
+      </div>
+      <div class="community-list">
+        {checks.map((item) => (
+          <article class="community-list-item">
+            <strong>{item}</strong>
+          </article>
+        ))}
+      </div>
+
+      <div class="community-section-head" style="border-top: 1px solid var(--border);">
+        <div>
+          <h2>常见限制</h2>
+          <p>这些限制比“支持不支持 AR”更重要。</p>
+        </div>
+      </div>
+      <div class="community-list">
+        {limits.map((item) => (
+          <article class="community-list-item">
+            <strong>{item.title}</strong>
+            <p>{item.description}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <aside class="community-sidebar">
+      <section class="community-surface community-surface--padded community-surface--primary">
+        <div class="community-page-lead" style="margin-bottom: 0.35rem;">相关入口</div>
+        <div class="community-list" style="padding: 0;">
+          <a class="community-list-item community-link-row" href="/guides/developer-limit-checklist-before-choosing-ar-ai-glasses/">
+            <strong>开发限制清单</strong>
+            <span>先看必须确认的现实约束</span>
+          </a>
+          <a class="community-list-item community-link-row" href="/gaze-launcher/">
+            <strong>Gaze Launcher</strong>
+            <span>看系统方向和当前验证边界</span>
+          </a>
+          <a class="community-list-item community-link-row" href="/feed/">
+            <strong>论坛讨论</strong>
+            <span>补真实设备反馈和运行时观察</span>
+          </a>
+        </div>
+      </section>
+    </aside>
+  </section>
+</CommunityLayout>
+
+<style>
+  .community-link-row {
+    text-decoration: none;
+  }
+  .community-link-row:hover strong {
+    color: var(--accent-hover);
+  }
+</style>
