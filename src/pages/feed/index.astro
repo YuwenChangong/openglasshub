@@ -5,7 +5,6 @@ import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import PostCard from "../../components/community/PostCard.astro";
 import EmptyFeedState from "../../components/community/EmptyFeedState.astro";
-import CircleCard from "../../components/community/CircleCard.astro";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
@@ -111,9 +110,12 @@ const postTypeLabels: Record<string, string> = {
           <h2>圈子推荐</h2>
           <a href="/circles/" class="community-link">全部</a>
         </div>
-        <div class="community-card-list">
+        <div class="community-list">
           {visibleCircles.map((circle) => (
-            <CircleCard name={circle.name} slug={circle.slug} description={circle.description || undefined} />
+            <a href={`/circles/${circle.slug}/`} class="community-list-item">
+              <strong>{circle.name}</strong>
+              <span>{circle.description || "进入圈子查看当前公开讨论。"}</span>
+            </a>
           ))}
         </div>
       </section>

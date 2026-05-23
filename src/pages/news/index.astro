@@ -17,8 +17,8 @@ import NewsCard from "../../components/community/NewsCard.astro";
     </div>
   </section>
 
-  <section class="community-grid news-page-grid">
-    <div class="community-surface">
+  <section class="news-layout">
+    <div class="community-surface community-surface--primary">
       <div class="community-section-head">
         <div>
           <h2>管理员精选</h2>
@@ -26,7 +26,7 @@ import NewsCard from "../../components/community/NewsCard.astro";
         </div>
         <span class="community-meta">非实时抓取</span>
       </div>
-      <div class="news-stream">
+      <div class="news-stream news-stream--compact">
         {curatedNews.map((item) => (
           <NewsCard
             href={`/news/${item.slug}/`}
@@ -40,32 +40,21 @@ import NewsCard from "../../components/community/NewsCard.astro";
       </div>
     </div>
 
-    <aside class="community-sidebar">
+    <aside class="news-side-note">
       <section class="community-surface community-surface--padded">
         <div class="community-page-lead" style="margin-bottom: 0.55rem;">内容说明</div>
         <h2 style="margin: 0 0 0.35rem;">这不是实时新闻流</h2>
         <p style="margin: 0; color: #97a8c8;">热点页只放管理员精选内容。没有自动抓取，没有外部 scraping，也不会把设备资料和文档入口伪装成新闻。</p>
-      </section>
-
-      <section class="community-surface community-surface--padded">
-        <div class="community-page-lead" style="margin-bottom: 0.55rem;">相关入口</div>
-        <div class="news-links">
-          <a href="/feed/" class="news-links__item">
-            <strong>论坛动态</strong>
-            <span>回到真实讨论流，看用户现在在聊什么。</span>
-          </a>
-          <a href="/products/" class="news-links__item">
-            <strong>产品入口</strong>
-            <span>进入设备库、选购指南和开发者资源。</span>
-          </a>
-        </div>
       </section>
     </aside>
   </section>
 </CommunityLayout>
 
 <style>
-  .news-page-grid {
+  .news-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 1.1rem;
     align-items: start;
   }
   .news-stream {
@@ -73,25 +62,24 @@ import NewsCard from "../../components/community/NewsCard.astro";
     gap: 0.75rem;
     padding: 0.85rem 1rem 1rem;
   }
-  .news-links {
-    display: grid;
-    gap: 0.8rem;
+  .news-stream--compact .community-news-card {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding-left: 0;
+    padding-right: 0;
   }
-  .news-links__item {
-    display: grid;
-    gap: 0.2rem;
-    padding: 0.88rem 0.95rem;
-    border-radius: 14px;
-    text-decoration: none;
-    border: 1px solid #22304a;
-    background: #101827;
+  .news-side-note {
+    padding-top: 0.2rem;
   }
-  .news-links__item strong {
-    color: #f8fafc;
-    font-size: 0.94rem;
-  }
-  .news-links__item span {
-    color: #92a5c7;
-    font-size: 0.84rem;
+  @media (max-width: 900px) {
+    .news-layout {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

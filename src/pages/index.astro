@@ -5,12 +5,8 @@ import CommunityLayout from "../layouts/CommunityLayout.astro";
 import AuthCTA from "../components/auth/AuthCTA";
 import PostCard from "../components/community/PostCard.astro";
 import EmptyFeedState from "../components/community/EmptyFeedState.astro";
-import NewsCard from "../components/community/NewsCard.astro";
-import CircleCard from "../components/community/CircleCard.astro";
-import ProductCard from "../components/community/ProductCard.astro";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { curatedNews } from "../lib/news";
-import { isPublicVisibleCircle, productLinks } from "../lib/site-navigation";
 
 type PostRow = {
   id: string;
@@ -23,46 +19,25 @@ type PostRow = {
   circles?: { slug?: string | null; name?: string | null } | null;
 };
 
-type CircleRow = {
-  slug: string;
-  name: string;
-  description?: string | null;
-};
-
 const env = (Astro.locals as { runtime?: { env?: CloudflareEnv } }).runtime?.env;
 const supabase = env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY ? createSSRClient(env) : null;
 
 let posts: PostRow[] = [];
-let circles: CircleRow[] = [];
 let loadError = "";
 
-const circleOrder = ["xreal", "rokid", "rayneo", "meta-ai-glasses", "gaze-os", "brilliant-labs"];
-
 if (supabase) {
-  const [postResult, circleResult] = await Promise.all([
-    supabase
-      .from("posts")
-      .select("id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name)")
-      .eq("status", "published")
-      .order("last_activity_at", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false })
-      .limit(8),
-    supabase
-      .from("circles")
-      .select("slug,name,description")
-      .in("slug", circleOrder)
-      .order("name", { ascending: true }),
-  ]);
+  const postResult = await supabase
+    .from("posts")
+    .select("id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name)")
+    .eq("status", "published")
+    .order("last_activity_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(8);
 
   if (postResult.error) {
     loadError = postResult.error.message;
   } else {
     posts = (postResult.data ?? []) as PostRow[];
-  }
-
-  if (!circleResult.error) {
-    const bySlug = new Map((circleResult.data ?? []).map((circle) => [circle.slug, circle as CircleRow]));
-    circles = circleOrder.map((slug) => bySlug.get(slug)).filter(Boolean).filter((circle) => isPublicVisibleCircle(circle)) as CircleRow[];
   }
 }
 
@@ -113,7 +88,7 @@ function excerpt(body?: string | null): string {
       <div class="community-section-head">
         <div>
           <h2>正在讨论</h2>
-          <p>{posts.length > 0 ? `已展示 ${posts.length} 条公开讨论，按最近活动排序。` : "社区公开讨论会优先显示在这里。"} </p>
+          <p>{posts.length > 0 ? `已展示 ${posts.length} 条公开讨论，按最近活动排序。` : "社区正在启动，公开讨论会先从这里长出来。"} </p>
         </div>
         <a href="/feed/" class="community-link">查看全部</a>
       </div>
@@ -144,7 +119,7 @@ function excerpt(body?: string | null): string {
     </div>
 
     <aside class="community-sidebar">
-      <section class="community-surface community-surface--padded">
+      <section class="community-surface community-surface--padded community-surface--primary">
         <div class="community-meta" style="margin-bottom: 0.4rem;">加入讨论</div>
         <h2>先看，再发言</h2>
         <p>浏览公开帖子不需要登录。想发帖、评论，或者开始记录自己的 AR / AI 眼镜体验，再进入账号流程。</p>
@@ -154,48 +129,14 @@ function excerpt(body?: string | null): string {
       <section class="community-surface">
         <div class="community-section-head">
           <h2>热点</h2>
-          <span>管理员精选 / 手动更新</span>
+          <span>管理员精选</span>
         </div>
-        <div class="community-card-list">
+        <div class="community-list">
           {curatedNews.slice(0, 3).map((item) => (
-            <NewsCard
-              href={`/news/${item.slug}/`}
-              category={item.category}
-              title={item.title}
-              summary={item.summary}
-              date={new Date(item.publishedAt).toLocaleDateString("zh-CN")}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section class="community-surface">
-        <div class="community-section-head">
-          <h2>热门圈子</h2>
-          <a href="/circles/" class="community-link">全部</a>
-        </div>
-        <div class="community-card-list">
-          {circles.length === 0 ? (
-            <div class="community-empty" style="margin: 0;">
-              <strong>圈子数据暂不可用</strong>
-              <p>公开圈子会按真实记录展示，不显示假活跃度。</p>
-            </div>
-          ) : (
-            circles.map((circle) => (
-              <CircleCard name={circle.name} slug={circle.slug} description={circle.description || undefined} />
-            ))
-          )}
-        </div>
-      </section>
-
-      <section class="community-surface">
-        <div class="community-section-head">
-          <h2>产品入口</h2>
-          <a href="/products/" class="community-link">总览</a>
-        </div>
-        <div class="community-card-list">
-          {productLinks.map((link) => (
-            <ProductCard href={link.href} title={link.label} description={link.description} />
+            <a href={`/news/${item.slug}/`} class="community-list-item">
+              <strong>{item.title}</strong>
+              <span>{item.category} · {new Date(item.publishedAt).toLocaleDateString("zh-CN")}</span>
+            </a>
           ))}
         </div>
       </section>

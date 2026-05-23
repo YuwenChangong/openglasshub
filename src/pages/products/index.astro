@@ -17,8 +17,8 @@ import ProductCard from "../../components/community/ProductCard.astro";
     </div>
   </section>
 
-  <section class="community-grid products-page-grid">
-    <div class="community-surface">
+  <section class="products-page">
+    <div class="community-surface community-surface--primary">
       <div class="community-section-head">
         <div>
           <h2>从这里开始</h2>
@@ -41,43 +41,12 @@ import ProductCard from "../../components/community/ProductCard.astro";
         <a href="/guides/" class="community-button--secondary">查看指南</a>
       </div>
     </div>
-
-    <aside class="community-sidebar">
-      <section class="community-surface community-surface--padded">
-        <div class="community-page-lead" style="margin-bottom: 0.45rem;">快速进入</div>
-        <h2 style="margin: 0 0 0.35rem;">先看哪一块？</h2>
-        <p style="margin: 0; color: #97a8c8;">如果你还不确定先看设备、先看选购还是先看开发，就从这里直接分流。</p>
-        <div class="community-chip-row" style="margin-top: 1rem;">
-          <span class="community-chip">设备资料</span>
-          <span class="community-chip">购买判断</span>
-          <span class="community-chip">开发入口</span>
-        </div>
-      </section>
-
-      <section class="community-surface community-surface--padded">
-        <div class="community-page-lead" style="margin-bottom: 0.55rem;">相关入口</div>
-        <div class="products-links">
-          <a href="/feed/" class="products-links__item">
-            <strong>论坛动态</strong>
-            <span>先看大家在讨论什么。</span>
-          </a>
-          <a href="/news/" class="products-links__item">
-            <strong>热点</strong>
-            <span>查看管理员精选内容流。</span>
-          </a>
-          <a href="/gaze-launcher/" class="products-links__item">
-            <strong>Gaze Launcher</strong>
-            <span>了解项目方向和实验目标。</span>
-          </a>
-        </div>
-      </section>
-    </aside>
   </section>
 </CommunityLayout>
 
 <style>
-  .products-page-grid {
-    align-items: stretch;
+  .products-page {
+    display: block;
   }
   .products-grid {
     display: grid;
@@ -92,9 +61,8 @@ import ProductCard from "../../components/community/ProductCard.astro";
     gap: 0.9rem;
     margin: 0 1rem 1rem;
     padding: 0.9rem 0.95rem;
-    border: 1px solid #22304a;
-    border-radius: 12px;
-    background: #101827;
+    border-top: 1px solid #22304a;
+    background: transparent;
   }
   .products-secondary h3 {
     margin: 0.2rem 0 0.35rem;
@@ -104,27 +72,6 @@ import ProductCard from "../../components/community/ProductCard.astro";
   .products-secondary p {
     margin: 0;
     color: #9aaccc;
-  }
-  .products-links {
-    display: grid;
-    gap: 0.8rem;
-  }
-  .products-links__item {
-    display: grid;
-    gap: 0.2rem;
-    padding: 0.88rem 0.95rem;
-    border-radius: 14px;
-    text-decoration: none;
-    border: 1px solid #22304a;
-    background: #101827;
-  }
-  .products-links__item strong {
-    color: #f8fafc;
-    font-size: 0.94rem;
-  }
-  .products-links__item span {
-    color: #92a5c7;
-    font-size: 0.84rem;
   }
   @media (max-width: 900px) {
     .products-grid {

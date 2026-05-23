@@ -47,13 +47,13 @@ body {
 .community-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 0.9rem;
+  gap: 1.1rem;
   align-items: start;
 }
 
 .community-sidebar {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.9rem;
 }
 
 .community-surface {
@@ -109,12 +109,52 @@ body {
   padding: 0.85rem 1rem 1rem;
 }
 
+.community-list {
+  display: grid;
+  gap: 0;
+  padding: 0.2rem 1rem 0.5rem;
+}
+
+.community-list-item {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid #1d2637;
+}
+
+.community-list-item:last-child {
+  border-bottom: 0;
+}
+
+.community-list-item strong {
+  color: #f8fafc;
+  font-size: 0.92rem;
+}
+
+.community-list-item p,
+.community-list-item span {
+  margin: 0;
+  color: #92a4c5;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
 .community-grid > .community-surface:first-child {
   box-shadow: var(--glass-shadow), var(--glass-highlight);
 }
 
 .community-sidebar .community-surface {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.74), rgba(15, 23, 42, 0.56));
+}
+
+.community-sidebar .community-surface:not(.community-surface--primary) {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #1d2637;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .community-post-card,
@@ -291,13 +331,13 @@ body {
   display: grid;
   gap: 0.7rem;
   padding: 1rem 1rem 1.05rem;
-  margin: 0.85rem 1rem 1rem;
-  border: 1px solid var(--glass-border);
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(17, 24, 39, 0.76), rgba(15, 23, 42, 0.56));
-  box-shadow: var(--glass-shadow-soft), var(--glass-highlight);
-  backdrop-filter: blur(14px) saturate(125%);
-  -webkit-backdrop-filter: blur(14px) saturate(125%);
+  margin: 0.35rem 1rem 1rem;
+  border-top: 1px solid #243148;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .community-empty strong {
@@ -373,12 +413,17 @@ body {
   display: grid;
   gap: 0.45rem;
   padding: 0.85rem 0.9rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--glass-border);
-  background: linear-gradient(180deg, rgba(17, 24, 39, 0.64), rgba(15, 23, 42, 0.48));
-  box-shadow: var(--glass-shadow-soft), var(--glass-highlight);
-  backdrop-filter: blur(12px) saturate(120%);
-  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid #243148;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.community-field-note:last-child {
+  border-bottom: 0;
 }
 
 @media (max-width: 900px) {
