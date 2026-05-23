@@ -5,7 +5,7 @@ export const mainNav = [
   { key: "forum", label: "论坛", href: "/feed/" },
   { key: "news", label: "热点", href: "/news/" },
   { key: "products", label: "产品", href: "/products/" },
-  { key: "launcher", label: "Gaze Launcher", href: "/gaze-os/" },
+  { key: "launcher", label: "Gaze Launcher", href: "/gaze-launcher/" },
 ] as const;
 
 export const productLinks = [
@@ -51,6 +51,6 @@ export function inferNavKey(pathname: string): NavKey {
   if (pathname.startsWith("/products") || pathname.startsWith("/devices") || pathname.startsWith("/guides") || pathname.startsWith("/developers")) {
     return "products";
   }
-  if (pathname.startsWith("/gaze-os")) return "launcher";
+  if (pathname.startsWith("/gaze-launcher") || pathname.startsWith("/gaze-os")) return "launcher";
   return "home";
 }

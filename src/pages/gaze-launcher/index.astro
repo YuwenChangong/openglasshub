@@ -1,0 +1,261 @@
+---
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+
+const conceptCards = [
+  {
+    title: "Home launcher surface",
+    description: "把常用应用、最近任务、Navi 入口和基础状态集中到一个更适合眼镜的起点，而不是照搬手机桌面。",
+  },
+  {
+    title: "App Library",
+    description: "整理眼镜上的功能入口，让翻译、导航、笔记、设置等能力在更轻量的结构里被找到。",
+  },
+  {
+    title: "Navi AI Assistant",
+    description: "把 Navi 作为核心入口，优先围绕“看见内容后要做什么”来组织交互，而不是先找图标再手动完成操作。",
+  },
+  {
+    title: "多入口确认机制",
+    description: "按键、触控、手机端控制，以及后续可能的凝视/语音入口，都需要落在明确确认层里，避免误触发。",
+  },
+  {
+    title: "Gaze / input abstraction",
+    description: "把不同设备可能提供的输入能力抽象成统一入口，减少产品层对单一厂商能力的强耦合。",
+  },
+  {
+    title: "Safety confirmation layer",
+    description: "任何涉及摄像头、麦克风、导航或潜在误操作的能力，都必须经过显式触发和任务确认，不做自动执行。",
+  },
+] as const;
+
+const progressItems = [
+  {
+    title: "Home / App Library 方向已明确",
+    description: "现有文档已经明确 Home 与 App Library 的职责边界：前者负责启动面，后者负责整理入口，不再按手机桌面思路堆叠图标。",
+    status: "方向已定义",
+  },
+  {
+    title: "Navi 作为核心入口",
+    description: "当前公开文档已明确 Navi 是核心交互入口，围绕翻译、解释、记录和打开功能等任务来组织调用。",
+    status: "产品方向已写入",
+  },
+  {
+    title: "可选语音唤醒边界",
+    description: "“Hello, Navi” 被定义为可选能力，不是默认强开；当前只描述产品边界，不代表已完成真实设备接入。",
+    status: "边界已说明",
+  },
+  {
+    title: "按需调用模型",
+    description: "当前方向强调先启动 Navi、再按任务需要调用摄像头或麦克风，而不是默认持续感知。",
+    status: "验证中",
+  },
+  {
+    title: "手机端管理协同",
+    description: "手机端负责账号、设置、远程控制和复杂输入，眼镜端保持轻量入口，这是当前已公开的设计判断。",
+    status: "方向已定义",
+  },
+] as const;
+---
+
+<CommunityLayout
+  title="Gaze Launcher"
+  description="面向 AR / AI 眼镜的 AI-first 智能启动器。"
+  canonical="https://openglasshub.pages.dev/gaze-launcher/"
+  activeSection="launcher"
+>
+  <section class="launcher-hero">
+    <div class="launcher-hero__copy">
+      <span class="community-tag">开发中 / 实验性</span>
+      <h1>Gaze Launcher</h1>
+      <p class="launcher-subtitle">面向 AR / AI 眼镜的 AI-first 智能启动器</p>
+      <p class="launcher-lead">当前页面描述产品方向与验证进展，不代表正式可用版本，也不代表任何真实硬件兼容承诺。</p>
+      <div class="community-cta-row">
+        <a href="/news/gaze-launcher-remains-an-early-project/" class="community-button">查看项目进展</a>
+        <a href="/feed/" class="community-button--secondary">进入论坛讨论</a>
+        <a href="/gaze-os/" class="community-button--secondary">阅读技术文档</a>
+      </div>
+    </div>
+
+    <aside class="community-surface community-surface--padded launcher-status">
+      <div class="community-page-lead" style="margin-bottom: 0.55rem;">状态说明</div>
+      <h2 style="margin: 0 0 0.45rem;">当前暂无正式可用版本</h2>
+      <p style="margin: 0; color: #97a8c8;">Gaze Launcher 仍处于实验性阶段。这里展示的是主界面、输入模型和安全边界的产品化表达，不应被理解为现成可安装系统。</p>
+      <div class="community-chip-row" style="margin-top: 1rem;">
+        <span class="community-chip">实验性</span>
+        <span class="community-chip">方向验证中</span>
+        <span class="community-chip">非兼容承诺</span>
+      </div>
+    </aside>
+  </section>
+
+  <section class="community-grid launcher-grid">
+    <div class="community-surface">
+      <div class="community-section-head">
+        <div>
+          <h2>产品概念</h2>
+          <p>先把主界面、入口结构和任务确认机制做清楚，再谈更深的设备与运行时接入。</p>
+        </div>
+      </div>
+      <div class="launcher-card-grid">
+        {conceptCards.map((item) => (
+          <article class="community-product-card">
+            <h3>{item.title}</h3>
+            <p>{item.description}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+
+    <aside class="community-sidebar">
+      <section class="community-surface community-surface--padded">
+        <div class="community-page-lead" style="margin-bottom: 0.55rem;">交互路径</div>
+        <h2 style="margin: 0 0 0.35rem;">看见内容，再触发能力</h2>
+        <p style="margin: 0; color: #97a8c8;">当前产品判断不是“先找应用”，而是先看到内容，再用 Navi、按键、触控或手机端入口完成下一步。</p>
+      </section>
+
+      <section class="community-surface community-surface--padded">
+        <div class="community-page-lead" style="margin-bottom: 0.55rem;">技术文档</div>
+        <h2 style="margin: 0 0 0.35rem;">详细设计仍在 docs</h2>
+        <p style="margin: 0; color: #97a8c8;">完整说明仍保留在现有 Starlight 文档页，包括 Navi 启动方式、手机端管理和按需调用模型。</p>
+        <div class="community-cta-row" style="margin-top: 1rem;">
+          <a href="/gaze-os/" class="community-button--secondary">查看技术文档</a>
+        </div>
+      </section>
+    </aside>
+  </section>
+
+  <section class="community-surface launcher-progress">
+    <div class="community-section-head">
+      <div>
+        <h2>当前已明确的进展</h2>
+        <p>只展示当前文档里已公开、已写明边界的方向，不补未验证的设备支持或运行时集成。</p>
+      </div>
+    </div>
+    <div class="launcher-progress__list">
+      {progressItems.map((item) => (
+        <article class="launcher-progress__item">
+          <div class="community-post-top">
+            <h3>{item.title}</h3>
+            <span class="community-tag community-tag--muted">{item.status}</span>
+          </div>
+          <p>{item.description}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="community-grid launcher-grid">
+    <div class="community-surface community-surface--padded">
+      <div class="community-section-head" style="padding: 0 0 1rem; border-bottom: 1px solid #20283a; margin-bottom: 1rem;">
+        <div>
+          <h2>安全与限制</h2>
+          <p>这里必须明确什么还没有，避免把实验性方向误写成成熟能力。</p>
+        </div>
+      </div>
+      <div class="community-card-list" style="padding: 0;">
+        <article class="community-field-note">
+          <strong>当前没有正式眼动支持</strong>
+          <span>文档里提到的是凝视/眼动方向和入口设计，不代表已完成真实眼动追踪接入。</span>
+        </article>
+        <article class="community-field-note">
+          <strong>没有证明中的厂商 SDK / OpenXR / 相机集成</strong>
+          <span>除非已有代码或文档明确证明，否则当前不能宣称已完成真实 camera、OpenXR 或厂商 SDK 集成。</span>
+        </article>
+        <article class="community-field-note">
+          <strong>不会通过凝视自动执行动作</strong>
+          <span>当前方向强调显式触发与确认层，不做“看一眼就自动执行”的危险交互。</span>
+        </article>
+        <article class="community-field-note">
+          <strong>仍然是实验性项目</strong>
+          <span>Gaze Launcher 现在是产品方向页与验证记录，不是 production-ready 系统。</span>
+        </article>
+      </div>
+    </div>
+
+    <aside class="community-sidebar">
+      <section class="community-surface community-surface--padded">
+        <div class="community-page-lead" style="margin-bottom: 0.55rem;">社区入口</div>
+        <h2 style="margin: 0 0 0.35rem;">一起验证边界</h2>
+        <p style="margin: 0; color: #97a8c8;">如果你在真实设备、运行时或系统权限上有一手信息，欢迎把反馈放到论坛和后续开发记录里。</p>
+        <div class="community-cta-row" style="margin-top: 1rem;">
+          <a href="/feed/" class="community-button">讨论 Gaze Launcher</a>
+          <a href="/news/" class="community-button--secondary">跟进开发记录</a>
+          <a href="/community/" class="community-button--secondary">反馈验证结果</a>
+        </div>
+      </section>
+    </aside>
+  </section>
+</CommunityLayout>
+
+<style>
+  .launcher-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .launcher-hero__copy {
+    display: grid;
+    align-content: start;
+    gap: 0.8rem;
+    padding: 0.2rem 0 0.4rem;
+  }
+  .launcher-hero__copy h1 {
+    margin: 0;
+    font-size: clamp(2.4rem, 4vw, 3.4rem);
+    line-height: 1.02;
+    letter-spacing: -0.05em;
+    color: #f8fafc;
+  }
+  .launcher-subtitle {
+    margin: 0;
+    color: #dce4f6;
+    font-size: 1.1rem;
+  }
+  .launcher-lead {
+    margin: 0;
+    color: #96a7c7;
+    max-width: 760px;
+  }
+  .launcher-grid {
+    margin-top: 1rem;
+  }
+  .launcher-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .launcher-progress {
+    margin-top: 1rem;
+  }
+  .launcher-progress__list {
+    display: grid;
+    gap: 0.95rem;
+    padding: 1rem;
+  }
+  .launcher-progress__item {
+    display: grid;
+    gap: 0.55rem;
+    padding: 1rem 1.05rem;
+    border: 1px solid #22304a;
+    border-radius: 16px;
+    background: #101827;
+  }
+  .launcher-progress__item h3 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 1rem;
+  }
+  .launcher-progress__item p {
+    margin: 0;
+    color: #99abc9;
+    line-height: 1.7;
+  }
+  @media (max-width: 900px) {
+    .launcher-hero,
+    .launcher-card-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
