@@ -46,21 +46,18 @@ const postTypeLabels: Record<string, string> = {
   canonical="https://openglasshub.pages.dev/feed/"
   activeTab="feed"
 >
-  <h1>帖子动态</h1>
-  <p class="section-lead">围绕设备体验、选购判断、开发约束和项目方向的公开讨论流。这里只显示真实公开帖子，不补假热度。</p>
-
-  <section class="community-grid" style="margin-top: 1.1rem;">
+  <section class="community-grid">
     <div class="community-surface">
       <div class="community-section-head">
         <div>
-          <h2>公开动态</h2>
-          <p>按最新公开活动排序。没帖子时也会保留明确的社区启动状态和发帖入口。</p>
+          <h2>帖子动态</h2>
+          <p>按最近公开活动排序，只显示真实帖子。</p>
         </div>
         <div class="feed-head-actions">
-          <span class="community-chip">文字</span>
-          <span class="community-chip">求助</span>
-          <span class="community-chip">体验/评测</span>
-          <a href="/posts/new/" class="community-link">去发帖</a>
+          <a href="/feed/" class="community-chip">最新</a>
+          <span class="community-chip community-chip--muted">热门</span>
+          <a href="/circles/" class="community-chip">圈子</a>
+          <a href="/posts/new/" class="community-chip">发帖</a>
         </div>
       </div>
 
@@ -91,15 +88,10 @@ const postTypeLabels: Record<string, string> = {
 
     <aside class="community-sidebar">
       <section class="community-surface community-surface--padded">
-        <div class="community-page-lead" style="margin-bottom: 0.45rem;">发帖前</div>
-        <h2 style="margin: 0 0 0.35rem;">准备发帖？</h2>
-        <p style="margin: 0; color: #97a8c8;">先看圈子，再决定内容放在哪个主题下更清楚。设备体验、选购求助、开发限制都适合从这里开始。</p>
-        <div class="community-chip-row" style="margin-top: 1rem;">
-          <span class="community-chip">设备体验</span>
-          <span class="community-chip">选购求助</span>
-          <span class="community-chip">开发问题</span>
-        </div>
-        <div class="community-cta-row" style="margin-top: 1rem;">
+        <div class="community-page-lead" style="margin-bottom: 0.4rem;">发帖入口</div>
+        <h2 style="margin: 0 0 0.3rem;">准备发帖？</h2>
+        <p style="margin: 0; color: var(--text-muted);">先看圈子，再决定内容放到哪里更清楚。</p>
+        <div class="community-cta-row" style="margin-top: 0.85rem;">
           <a href="/posts/new/" class="community-button">发布帖子</a>
           <a href="/circles/" class="community-button--secondary">浏览圈子</a>
         </div>
@@ -124,11 +116,6 @@ const postTypeLabels: Record<string, string> = {
 </ForumLayout>
 
 <style>
-  .section-lead {
-    margin: 0;
-    color: #94a5c6;
-    font-size: 0.92rem;
-  }
   .feed-head-actions {
     display: flex;
     align-items: center;

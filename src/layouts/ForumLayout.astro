@@ -23,10 +23,6 @@ const { title, description, noindex, canonical, activeTab = "feed" } = Astro.pro
 >
   <div slot="belowHeader" class="forum-subnav">
     <div class="forum-subnav__inner">
-      <div class="forum-subnav__copy">
-        <strong>论坛</strong>
-        <span>围绕设备体验、选购判断、开发限制和 Gaze Launcher 方向展开讨论。</span>
-      </div>
       <nav class="forum-subnav__tabs" aria-label="论坛频道">
         {forumTabs.map((tab) => (
           <a href={tab.href} class:list={[{ "is-active": activeTab === tab.key }]}>
@@ -42,29 +38,13 @@ const { title, description, noindex, canonical, activeTab = "feed" } = Astro.pro
 
 <style>
   .forum-subnav {
-    border-bottom: 1px solid #20283a;
-    background: #0d1321;
+    border-bottom: 1px solid var(--border);
+    background: var(--nav-bg);
   }
   .forum-subnav__inner {
-    width: min(1240px, calc(100vw - 2rem));
+    width: min(1200px, calc(100vw - 2rem));
     margin: 0 auto;
-    padding: 0.9rem 0 1rem;
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-  .forum-subnav__copy {
-    display: grid;
-    gap: 0.2rem;
-  }
-  .forum-subnav__copy strong {
-    font-size: 1rem;
-    color: #f8fafc;
-  }
-  .forum-subnav__copy span {
-    color: #90a0bf;
-    font-size: 0.88rem;
+    padding: 0.55rem 0 0.65rem;
   }
   .forum-subnav__tabs {
     display: flex;
@@ -75,101 +55,39 @@ const { title, description, noindex, canonical, activeTab = "feed" } = Astro.pro
   .forum-subnav__tabs a {
     display: inline-flex;
     align-items: center;
-    min-height: 38px;
-    padding: 0 0.95rem;
-    border-radius: 10px;
-    border: 1px solid #25314a;
+    min-height: 34px;
+    padding: 0 0.8rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
     text-decoration: none;
-    color: #a8b6d1;
-    font-size: 0.92rem;
+    color: var(--text-muted);
+    font-size: 0.88rem;
     font-weight: 600;
-    background: #101827;
+    background: transparent;
   }
   .forum-subnav__tabs a:hover,
   .forum-subnav__tabs a.is-active {
-    color: #f8fafc;
-    border-color: #35507e;
-    background: #142034;
+    color: var(--text);
+    border-color: var(--border);
+    background: var(--surface-soft);
   }
   :global(.forum-main) {
-    padding-top: 1.5rem;
+    padding-top: 0.9rem;
   }
   :global(.forum-main h1) {
     margin: 0 0 0.35rem;
-    font-size: 1.9rem;
+    font-size: 1.55rem;
     letter-spacing: -0.03em;
   }
   :global(.forum-main .section-lead) {
     margin: 0;
-    color: #92a2c2;
-    font-size: 0.96rem;
-  }
-  :global(.forum-card) {
-    background: #0f1624;
-    border: 1px solid #20283a;
-    border-radius: 16px;
-    box-shadow: 0 16px 38px rgba(3, 8, 18, 0.2);
-  }
-  :global(.forum-empty) {
-    display: grid;
-    gap: 0.9rem;
-    padding: 1.35rem;
-    border: 1px dashed #30415f;
-    border-radius: 16px;
-    background: linear-gradient(180deg, rgba(17, 24, 38, 0.98), rgba(12, 18, 30, 0.98));
-  }
-  :global(.forum-empty strong) {
-    color: #f8fafc;
-    font-size: 1.06rem;
-  }
-  :global(.forum-empty p) {
-    margin: 0;
-    color: #9bacca;
-  }
-  :global(.forum-tag) {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.24rem 0.55rem;
-    border-radius: 999px;
-    background: #111c30;
-    border: 1px solid #294062;
-    color: #bfd2f2;
-    font-size: 0.77rem;
-    font-weight: 700;
-  }
-  :global(.forum-tag--muted) {
-    background: #131a29;
-    border-color: #24344f;
-    color: #9badcd;
-  }
-  :global(.forum-meta) {
-    color: #8ea0c0;
-    font-size: 0.84rem;
-  }
-  :global(.forum-btn) {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 40px;
-    padding: 0.58rem 0.95rem;
-    border-radius: 10px;
-    border: 1px solid #27314a;
-    background: #111827;
-    color: #dbeafe;
-    text-decoration: none;
-    font-weight: 600;
-  }
-  :global(.forum-btn--primary) {
-    background: #2563eb;
-    border-color: #2563eb;
-    color: #f8fafc;
+    color: var(--text-muted);
+    font-size: 0.9rem;
   }
   @media (max-width: 900px) {
     .forum-subnav__inner {
-      width: min(1240px, calc(100vw - 1.25rem));
-      padding: 0.85rem 0 0.95rem;
-      align-items: flex-start;
-      flex-direction: column;
+      width: min(1200px, calc(100vw - 1.25rem));
+      padding: 0.5rem 0 0.6rem;
     }
   }
 </style>
