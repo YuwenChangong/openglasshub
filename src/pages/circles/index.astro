@@ -17,34 +17,35 @@ const { data: circles, error } = await supabase
   title="圈子"
   description="OpenGlass Hub 论坛圈子。按话题分类的 AR/AI 眼镜社区讨论。"
   canonical="https://openglasshub.pages.dev/circles/"
+  activeTab="circles"
 >
   <h1>圈子</h1>
-  <p style="color: #8892b0; margin-top: -0.5rem;">按话题分类浏览社区讨论</p>
+  <p class="section-lead">先看圈子，再决定把帖子发到哪里更合适。这里不显示假活跃度，只保留真实圈子说明。</p>
 
-  <div style="margin-bottom: 1.5rem;">
-    <a href="/feed/" class="btn-primary">← 返回动态</a>
+  <div style="margin: 1.1rem 0 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+    <a href="/feed/" class="forum-btn">返回动态</a>
+    <a href="/posts/new/" class="forum-btn forum-btn--primary">去发帖</a>
   </div>
 
   {error ? (
-    <div class="empty-state">
-      <p>⚠️ 加载圈子时出错，请稍后重试。</p>
-      <p class="meta">{error.message}</p>
+    <div class="forum-empty">
+      <strong>加载圈子失败</strong>
+      <p>{error.message}</p>
     </div>
   ) : !circles || circles.length === 0 ? (
-    <div class="empty-state">
-      <p style="font-size: 2rem; margin-bottom: 0.5rem;">⭕</p>
-      <p>暂时还没有圈子</p>
-      <p class="meta">圈子将会在社区活跃后开放。</p>
+    <div class="forum-empty">
+      <strong>暂时还没有公开圈子</strong>
+      <p>圈子会随着社区讨论逐步稳定下来。当前阶段更重要的是先形成真实话题，而不是制造空壳分类。</p>
     </div>
   ) : (
     <div style="display: grid; gap: 1rem;">
       {circles.map((circle) => (
-        <a href={`/circles/${circle.slug}/`} class="card" style="text-decoration: none; display: block;">
+        <a href={`/circles/${circle.slug}/`} class="forum-card" style="text-decoration: none; display: block; padding: 1rem 1.15rem;">
           <h3 style="margin: 0 0 0.5rem 0; color: #e8edf8; font-size: 1.15rem;">{circle.name}</h3>
           {circle.description && (
-            <p style="color: #8892b0; margin: 0 0 0.5rem 0; font-size: 0.9rem;">{circle.description}</p>
+            <p style="color: #9badcd; margin: 0 0 0.5rem 0; font-size: 0.92rem;">{circle.description}</p>
           )}
-          <span class="meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
+          <span class="forum-meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
         </a>
       ))}
     </div>

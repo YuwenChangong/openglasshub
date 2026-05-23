@@ -58,11 +58,10 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
 
 {!circle ? (
   <ForumLayout title="圈子未找到" noindex={true}>
-    <div class="empty-state">
-      <p style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</p>
-      <p>圈子未找到</p>
-      <p class="meta">该圈子可能不存在。</p>
-      <a href="/circles/" class="btn-primary" style="margin-top: 1rem;">返回圈子列表</a>
+    <div class="forum-empty">
+      <strong>圈子未找到</strong>
+      <p>该圈子可能不存在，或者当前还没有公开显示。</p>
+      <a href="/circles/" class="forum-btn">返回圈子列表</a>
     </div>
   </ForumLayout>
 ) : (
@@ -70,11 +69,12 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
     title={circle.name}
     description={circle.description || `${circle.name} — OpenGlass Hub 论坛圈子`}
     canonical={canonicalUrl}
+    activeTab="circles"
   >
     <nav class="breadcrumb">
       <a href="/">首页</a>
       <span>/</span>
-      <a href="/feed/">动态</a>
+      <a href="/feed/">论坛</a>
       <span>/</span>
       <a href="/circles/">圈子</a>
       <span>/</span>
@@ -84,41 +84,40 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
     <header style="margin-bottom: 2rem;">
       <h1 style="margin: 0 0 0.5rem 0; font-size: 1.75rem;">{circle.name}</h1>
       {circle.description && (
-        <p style="color: #8892b0; margin: 0 0 0.5rem 0; font-size: 1rem;">{circle.description}</p>
+        <p style="color: #9badcd; margin: 0 0 0.5rem 0; font-size: 1rem;">{circle.description}</p>
       )}
-      <span class="meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
+      <span class="forum-meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
     </header>
 
     <h2>圈子帖子</h2>
 
     {postsError ? (
-      <div class="empty-state">
-        <p>⚠️ 加载帖子时出错，请稍后重试。</p>
-        <p class="meta">{postsError.message}</p>
+      <div class="forum-empty">
+        <strong>加载帖子失败</strong>
+        <p>{postsError.message}</p>
       </div>
     ) : posts.length === 0 ? (
-      <div class="empty-state">
-        <p style="font-size: 2rem; margin-bottom: 0.5rem;">📝</p>
-        <p>该圈子暂无帖子</p>
-        <p class="meta">成为第一个在「{circle.name}」发帖的人吧！</p>
-        <a href="/posts/new/" class="btn-primary" style="margin-top: 1rem;">写第一篇帖子</a>
+      <div class="forum-empty">
+        <strong>该圈子还没有公开帖子</strong>
+        <p>如果你已经在用 {circle.name}，或者正在研究相关方向，现在就是最适合发第一篇帖子的时机。</p>
+        <a href="/posts/new/" class="forum-btn forum-btn--primary">写第一篇帖子</a>
       </div>
     ) : (
       <div style="display: grid; gap: 1rem;">
         {posts.map((post) => (
-          <article class="card" style="padding: 1rem 1.5rem;">
+          <article class="forum-card" style="padding: 1rem 1.15rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
               {post.type && (
-                <span class="tag tag-purple">{postTypeLabels[post.type] || post.type}</span>
+                <span class="forum-tag">{postTypeLabels[post.type] || post.type}</span>
               )}
-              <span class="meta">{formatDate(post.created_at)}</span>
+              <span class="forum-meta">{formatDate(post.created_at)}</span>
             </div>
             <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">
               <a href={`/posts/${post.id}/`} style="color: #e8edf8; text-decoration: none;">
                 {post.title}
               </a>
             </h3>
-            <div class="meta" style="display: flex; gap: 1rem;">
+            <div class="forum-meta" style="display: flex; gap: 1rem;">
               <span>by {post.profiles?.display_name || "匿名"}</span>
             </div>
           </article>

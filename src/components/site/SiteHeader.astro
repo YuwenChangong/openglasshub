@@ -1,0 +1,191 @@
+---
+import AuthCTA from "../auth/AuthCTA";
+import { inferNavKey, mainNav, productLinks, type NavKey } from "../../lib/site-navigation";
+
+interface Props {
+  currentPath?: string;
+  currentSection?: NavKey;
+  next?: string;
+}
+
+const { currentPath = Astro.url.pathname, currentSection, next = currentPath } = Astro.props;
+const activeKey = currentSection ?? inferNavKey(currentPath);
+---
+
+<header class="og-header">
+  <div class="og-header__inner">
+    <a href="/" class="og-header__brand" aria-label="OpenGlass Hub 首页">
+      <img src="/brand/logo-navbar.svg" alt="" />
+      <span>OpenGlass Hub</span>
+    </a>
+
+    <nav class="og-header__nav" aria-label="站点导航">
+      {mainNav.map((item) =>
+        item.key === "products" ? (
+          <details class:list={["og-header__group", { "is-active": activeKey === item.key }]}>
+            <summary>{item.label}</summary>
+            <div class="og-header__menu">
+              <a href={item.href} class="og-header__menu-title">产品总览</a>
+              {productLinks.map((link) => (
+                <a href={link.href}>
+                  <strong>{link.label}</strong>
+                  <span>{link.description}</span>
+                </a>
+              ))}
+            </div>
+          </details>
+        ) : (
+          <a href={item.href} class:list={["og-header__link", { "is-active": activeKey === item.key }]}>
+            {item.label}
+          </a>
+        )
+      )}
+    </nav>
+
+    <div class="og-header__auth">
+      <AuthCTA next={next} compact={true} client:only="react" />
+    </div>
+  </div>
+</header>
+
+<style>
+  .og-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    border-bottom: 1px solid #20283a;
+    background: rgba(10, 14, 24, 0.96);
+    backdrop-filter: blur(18px);
+  }
+  .og-header__inner {
+    width: min(1240px, calc(100vw - 2rem));
+    min-height: 66px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .og-header__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.72rem;
+    text-decoration: none;
+    color: #f8fafc;
+    font-weight: 800;
+    font-size: 1.05rem;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+  .og-header__brand img {
+    width: 31px;
+    height: 31px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.08));
+  }
+  .og-header__nav {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    min-width: 0;
+    overflow-x: auto;
+    flex: 1;
+  }
+  .og-header__link,
+  .og-header__group summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 0.88rem;
+    border-radius: 10px;
+    color: #a5b3ce;
+    text-decoration: none;
+    font-size: 0.93rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    white-space: nowrap;
+  }
+  .og-header__group summary::-webkit-details-marker { display: none; }
+  .og-header__link:hover,
+  .og-header__group summary:hover,
+  .og-header__link.is-active,
+  .og-header__group.is-active summary {
+    color: #f8fafc;
+    background: #12192a;
+  }
+  .og-header__group {
+    position: relative;
+  }
+  .og-header__menu {
+    position: absolute;
+    top: calc(100% + 0.55rem);
+    left: 0;
+    width: 320px;
+    display: grid;
+    gap: 0.6rem;
+    padding: 0.9rem;
+    border-radius: 16px;
+    border: 1px solid #25314a;
+    background: #0f1727;
+    box-shadow: 0 20px 42px rgba(2, 6, 14, 0.42);
+  }
+  .og-header__menu a {
+    display: grid;
+    gap: 0.22rem;
+    padding: 0.68rem 0.72rem;
+    border-radius: 12px;
+    color: #d9e2f4;
+    text-decoration: none;
+    border: 1px solid transparent;
+    background: #101828;
+  }
+  .og-header__menu a:hover {
+    border-color: #2f4164;
+    background: #132033;
+  }
+  .og-header__menu a strong {
+    font-size: 0.92rem;
+  }
+  .og-header__menu a span,
+  .og-header__menu-title {
+    color: #90a0bf;
+    font-size: 0.8rem;
+  }
+  .og-header__menu-title {
+    background: transparent !important;
+    border: 0 !important;
+    padding: 0 0 0.2rem !important;
+    color: #7d91bb !important;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .og-header__auth {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+  @media (max-width: 900px) {
+    .og-header__inner {
+      width: min(1240px, calc(100vw - 1.25rem));
+      min-height: auto;
+      padding: 0.75rem 0;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .og-header__nav {
+      order: 3;
+      width: 100%;
+      padding-bottom: 0.2rem;
+    }
+    .og-header__auth {
+      margin-left: auto;
+    }
+    .og-header__menu {
+      width: min(320px, calc(100vw - 2rem));
+      left: auto;
+      right: 0;
+    }
+  }
+</style>

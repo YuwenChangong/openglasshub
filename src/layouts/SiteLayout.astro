@@ -1,0 +1,64 @@
+---
+import SiteHeader from "../components/site/SiteHeader.astro";
+
+export interface Props {
+  title: string;
+  description?: string;
+  noindex?: boolean;
+  canonical?: string;
+  activeSection?: "home" | "forum" | "news" | "products" | "launcher";
+  pageClass?: string;
+}
+
+const { title, description, noindex, canonical, activeSection, pageClass = "" } = Astro.props;
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} | OpenGlass Hub</title>
+    {description && <meta name="description" content={description} />}
+    {noindex && <meta name="robots" content="noindex" />}
+    {canonical && <link rel="canonical" href={canonical} />}
+    <meta property="og:title" content={`${title} | OpenGlass Hub`} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="OpenGlass Hub" />
+    <link rel="icon" type="image/x-icon" href="/gaze-icon-v6.ico" />
+    <link rel="icon" type="image/svg+xml" href="/gaze-icon-v6.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/gaze-icon-32-v6.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v6.png" />
+  </head>
+  <body>
+    <SiteHeader currentPath={Astro.url.pathname} currentSection={activeSection} next={Astro.url.pathname} />
+    <slot name="belowHeader" />
+    <main class:list={["site-main", pageClass]}>
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #0b0f19;
+    color: #e8edf8;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+    line-height: 1.65;
+  }
+  a { color: inherit; }
+  .site-main {
+    width: min(1240px, calc(100vw - 2rem));
+    margin: 0 auto;
+    padding: 2rem 0 4rem;
+  }
+  @media (max-width: 900px) {
+    .site-main {
+      width: min(1240px, calc(100vw - 1.25rem));
+      padding-top: 1.25rem;
+    }
+  }
+</style>

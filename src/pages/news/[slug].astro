@@ -1,0 +1,125 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { curatedNews, getNewsEntry } from "../../lib/news";
+
+export function getStaticPaths() {
+  return curatedNews.map((item) => ({
+    params: { slug: item.slug },
+    props: { item },
+  }));
+}
+
+const item = Astro.props.item ?? getNewsEntry(Astro.params.slug ?? "");
+
+if (!item) {
+  Astro.response.status = 404;
+  Astro.response.statusText = "Not Found";
+}
+---
+
+{!item ? (
+  <SiteLayout title="热点未找到" noindex={true} activeSection="news">
+    <section class="news-empty">
+      <strong>热点内容未找到</strong>
+      <p>该条目可能不存在，或当前还没有发布到公开热点页。</p>
+      <a href="/news/" class="back-link">返回热点列表</a>
+    </section>
+  </SiteLayout>
+) : (
+  <SiteLayout
+    title={item.title}
+    description={item.summary}
+    canonical={`https://openglasshub.pages.dev/news/${item.slug}/`}
+    activeSection="news"
+  >
+    <article class="news-article">
+      <header class="news-header">
+        <span class="news-tag">{item.category}</span>
+        <h1>{item.title}</h1>
+        <p>{item.summary}</p>
+        <div class="news-meta">发布时间：{new Date(item.publishedAt).toLocaleDateString("zh-CN")}</div>
+      </header>
+
+      <div class="news-body">
+        {item.body.map((paragraph) => (
+          <p>{paragraph}</p>
+        ))}
+      </div>
+
+      <footer class="news-footer">
+        <a href="/news/" class="back-link">返回热点列表</a>
+      </footer>
+    </article>
+  </SiteLayout>
+)}
+
+<style>
+  .news-article {
+    max-width: 840px;
+  }
+  .news-header {
+    display: grid;
+    gap: 0.7rem;
+    margin-bottom: 1.2rem;
+  }
+  .news-header h1 {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.18;
+    color: #f8fafc;
+    letter-spacing: -0.03em;
+  }
+  .news-header p,
+  .news-body p {
+    margin: 0;
+    color: #9badcd;
+    line-height: 1.8;
+  }
+  .news-body {
+    display: grid;
+    gap: 1rem;
+    padding: 1.35rem;
+    background: #0f1624;
+    border: 1px solid #20283a;
+    border-radius: 18px;
+    box-shadow: 0 16px 38px rgba(3, 8, 18, 0.2);
+  }
+  .news-meta {
+    color: #8ea0c0;
+    font-size: 0.88rem;
+  }
+  .news-tag {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    padding: 0.24rem 0.52rem;
+    border-radius: 999px;
+    background: rgba(37, 99, 235, 0.12);
+    border: 1px solid rgba(86, 132, 242, 0.2);
+    color: #aac2fb;
+    font-size: 0.76rem;
+    font-weight: 700;
+  }
+  .news-footer,
+  .news-empty {
+    margin-top: 1.25rem;
+  }
+  .news-empty {
+    display: grid;
+    gap: 0.8rem;
+    max-width: 720px;
+    padding: 1.35rem;
+    border-radius: 16px;
+    border: 1px dashed #30415f;
+    background: linear-gradient(180deg, rgba(17, 24, 38, 0.98), rgba(12, 18, 30, 0.98));
+  }
+  .news-empty strong {
+    color: #f8fafc;
+    font-size: 1.06rem;
+  }
+  .back-link {
+    color: #9bc2ff;
+    text-decoration: none;
+    font-weight: 600;
+  }
+</style>

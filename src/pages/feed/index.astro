@@ -9,8 +9,9 @@ const supabase = createSSRClient(env);
 
 const { data: posts, error } = await supabase
   .from("posts")
-  .select("id, title, type, created_at, profiles:author_id(display_name), circles:circle_id(slug, name)")
+  .select("id, title, type, created_at, last_activity_at, profiles:author_id(display_name), circles:circle_id(slug, name)")
   .eq("status", "published")
+  .order("last_activity_at", { ascending: false, nullsFirst: false })
   .order("created_at", { ascending: false })
   .limit(50);
 
@@ -32,48 +33,51 @@ const postTypeLabels: Record<string, string> = {
   title="帖子动态"
   description="OpenGlass Hub 论坛最新公开帖子。AR/AI 眼镜社区讨论动态。"
   canonical="https://openglasshub.pages.dev/feed/"
+  activeTab="feed"
 >
   <h1>帖子动态</h1>
-  <p style="color: #8892b0; margin-top: -0.5rem;">社区最新公开讨论</p>
+  <p class="section-lead">公开帖子按发布时间倒序展示。这里不会展示待审核内容，也不会填充假互动数据。</p>
 
-  <div style="margin-bottom: 1.5rem;">
-    <a href="/posts/new/" class="btn-primary">✍️ 发帖</a>
-    <a href="/circles/" class="btn-primary" style="margin-left: 0.5rem; background: #a78bfa; color: #0b0e16;">圈子</a>
+  <div style="margin: 1.1rem 0 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+    <a href="/posts/new/" class="forum-btn forum-btn--primary">发布帖子</a>
+    <a href="/circles/" class="forum-btn">浏览圈子</a>
   </div>
 
   {error ? (
-    <div class="empty-state">
-      <p>⚠️ 加载帖子时出错，请稍后重试。</p>
-      <p class="meta">{error.message}</p>
+    <div class="forum-empty">
+      <strong>加载帖子失败</strong>
+      <p>{error.message}</p>
     </div>
   ) : !posts || posts.length === 0 ? (
-    <div class="empty-state">
-      <p style="font-size: 2rem; margin-bottom: 0.5rem;">🌱</p>
-      <p>暂时还没有帖子</p>
-      <p class="meta">成为第一个发帖的人吧！</p>
-      <a href="/posts/new/" class="btn-primary" style="margin-top: 1rem;">写第一篇帖子</a>
+    <div class="forum-empty">
+      <strong>还没有公开帖子</strong>
+      <p>社区刚开始启动时，第一批讨论通常会围绕设备体验、选购求助、开发限制和项目建议展开。</p>
+      <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        <a href="/posts/new/" class="forum-btn forum-btn--primary">写第一篇帖子</a>
+        <a href="/circles/" class="forum-btn">先看圈子</a>
+      </div>
     </div>
   ) : (
     <div style="display: grid; gap: 1rem;">
       {posts.map((post) => (
-        <article class="card" style="padding: 1rem 1.5rem;">
+        <article class="forum-card" style="padding: 1rem 1.2rem;">
           <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
             {post.type && (
-              <span class="tag tag-purple">{postTypeLabels[post.type] || post.type}</span>
+              <span class="forum-tag">{postTypeLabels[post.type] || post.type}</span>
             )}
             {post.circles && (
-              <a href={`/circles/${post.circles.slug}/`} class="tag tag-blue" style="text-decoration: none;">
+              <a href={`/circles/${post.circles.slug}/`} class="forum-tag forum-tag--muted" style="text-decoration: none;">
                 {post.circles.name}
               </a>
             )}
-            <span class="meta">{formatDate(post.created_at)}</span>
+            <span class="forum-meta">{formatDate(post.last_activity_at || post.created_at)}</span>
           </div>
-          <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">
+          <h3 style="margin: 0 0 0.45rem 0; font-size: 1.12rem;">
             <a href={`/posts/${post.id}/`} style="color: #e8edf8; text-decoration: none;">
               {post.title}
             </a>
           </h3>
-          <div class="meta" style="display: flex; gap: 1rem;">
+          <div class="forum-meta" style="display: flex; gap: 1rem;">
             <span>by {post.profiles?.display_name || "匿名"}</span>
           </div>
         </article>
