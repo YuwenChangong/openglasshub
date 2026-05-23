@@ -48,23 +48,14 @@ const statusRows = [
         <a href="/gaze-os/" class="community-button--secondary">查看技术文档</a>
       </div>
     </div>
-    <div class="launcher-hero__visual" aria-hidden="true">
-      <div class="launcher-mock">
-        <div class="launcher-mock__glasses">
-          <span></span><span></span><b></b>
-        </div>
-        <div class="launcher-mock__bubble launcher-mock__bubble--navi">
-          <strong>Navi</strong>
-          <span>“翻译这段内容”</span>
-        </div>
-        <div class="launcher-mock__flow">
-          <span>Home</span>
-          <i></i>
-          <span>App Library</span>
-          <i></i>
-          <span>Navi</span>
-        </div>
+    <div class="launcher-hero__note">
+      <strong>项目页，不是产品承诺页</strong>
+      <div class="community-chip-row">
+        <span class="community-chip">Home</span>
+        <span class="community-chip">App Library</span>
+        <span class="community-chip">Navi</span>
       </div>
+      <p>这里只说明当前方向、验证边界和下一步，不把未证明的硬件或运行时能力写成已支持。</p>
     </div>
   </section>
 
@@ -165,9 +156,9 @@ const statusRows = [
 <style>
   .launcher-hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
-    gap: 1.1rem;
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr) 290px;
+    gap: 1rem;
+    align-items: end;
     margin-bottom: 1rem;
   }
   .launcher-hero__copy h1 {
@@ -185,99 +176,20 @@ const statusRows = [
     max-width: 720px;
     margin-top: 0.4rem;
   }
-  .launcher-hero__visual {
+  .launcher-hero__note {
     display: grid;
-  }
-  .launcher-mock {
-    position: relative;
-    min-height: 230px;
-    overflow: hidden;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    background:
-      radial-gradient(180px 100px at 75% 22%, rgba(47,109,246,0.16), transparent 75%),
-      linear-gradient(180deg, rgba(12,16,24,0.92), rgba(9,13,20,0.88));
-    box-shadow: 0 12px 28px rgba(0,0,0,0.18);
-  }
-  .launcher-mock__glasses {
-    position: absolute;
-    inset: 28px auto auto 28px;
-    width: 170px;
-    height: 88px;
-  }
-  .launcher-mock__glasses span,
-  .launcher-mock__glasses b {
-    position: absolute;
-    border: 1px solid rgba(255,255,255,0.28);
-    border-radius: 18px;
-  }
-  .launcher-mock__glasses span:first-child {
-    left: 0;
-    top: 14px;
-    width: 64px;
-    height: 42px;
-  }
-  .launcher-mock__glasses span:last-child {
-    right: 0;
-    top: 14px;
-    width: 64px;
-    height: 42px;
-  }
-  .launcher-mock__glasses b {
-    left: 58px;
-    top: 28px;
-    width: 54px;
-    height: 16px;
-    border-radius: 999px;
-  }
-  .launcher-mock__bubble {
-    position: absolute;
-    display: grid;
-    gap: 0.16rem;
-    padding: 0.65rem 0.74rem;
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.08);
-    background: rgba(255,255,255,0.025);
-    backdrop-filter: blur(8px);
-  }
-  .launcher-mock__bubble strong {
-    color: var(--text);
-    font-size: 0.8rem;
-  }
-  .launcher-mock__bubble span {
-    color: var(--text-muted);
-    font-size: 0.76rem;
-  }
-  .launcher-mock__bubble--navi {
-    right: 22px;
-    top: 28px;
-    width: 164px;
-  }
-  .launcher-mock__flow {
-    position: absolute;
-    left: 24px;
-    right: 24px;
-    bottom: 22px;
-    display: flex;
-    align-items: center;
     gap: 0.45rem;
+    padding-bottom: 0.25rem;
   }
-  .launcher-mock__flow span {
-    display: inline-flex;
-    align-items: center;
-    min-height: 34px;
-    padding: 0.22rem 0.58rem;
-    border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.07);
-    background: rgba(255,255,255,0.03);
-    color: #d7e0ee;
-    font-size: 0.76rem;
-    white-space: nowrap;
+  .launcher-hero__note strong {
+    color: var(--text);
+    font-size: 0.9rem;
   }
-  .launcher-mock__flow i {
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(47,109,246,0.08), rgba(47,109,246,0.38), rgba(47,109,246,0.08));
+  .launcher-hero__note p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    line-height: 1.55;
   }
   .launcher-layout {
     display: grid;

@@ -48,25 +48,17 @@ const guideSections = [
 >
   <section class="community-page-head">
     <div>
-      <span class="guides-kicker">选购判断</span>
       <h1>选购指南</h1>
       <p class="community-page-lead">先判断用途，再看设备参数。这里不做假榜单，只帮助你更快缩小方向。</p>
     </div>
   </section>
 
   <section class="community-surface community-surface--primary">
-    <div class="guides-visual">
-      <div class="guides-visual__step">
-        <strong>观影 / 大屏</strong>
-        <span>先看显示型眼镜</span>
-      </div>
-      <div class="guides-visual__step">
-        <strong>拍摄 / 语音 / AI</strong>
-        <span>先看智能眼镜路线</span>
-      </div>
-      <div class="guides-visual__step">
-        <strong>空间计算 / 开发</strong>
-        <span>再核对独立 AR 与 SDK 限制</span>
+    <div class="guides-intro">
+      <div class="community-chip-row">
+        <a href="/guides/ar-ai-glasses-buying-guide-2026/" class="community-chip guides-link-chip">观影 / 大屏</a>
+        <a href="/guides/ar-ai-xr-glasses-difference/" class="community-chip guides-link-chip">拍摄 / 语音 / AI</a>
+        <a href="/guides/best-ar-ai-glasses-for-developers/" class="community-chip guides-link-chip">空间计算 / 开发</a>
       </div>
     </div>
     <div class="community-section-head">
@@ -120,36 +112,11 @@ const guideSections = [
 </CommunityLayout>
 
 <style>
-  .guides-kicker {
-    display: inline-flex;
-    margin-bottom: 0.45rem;
-    color: var(--accent-hover);
-    font-size: 0.74rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .guides-visual {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.7rem;
+  .guides-intro {
     padding: 1rem 1rem 0.2rem;
   }
-  .guides-visual__step {
-    display: grid;
-    gap: 0.18rem;
-    padding: 0.8rem 0.85rem;
-    border-bottom: 1px solid var(--border);
-    background: linear-gradient(180deg, rgba(255,255,255,0.025), transparent);
-  }
-  .guides-visual__step strong {
-    color: var(--text);
-    font-size: 0.9rem;
-  }
-  .guides-visual__step span {
-    color: var(--text-muted);
-    font-size: 0.82rem;
-    line-height: 1.5;
+  .guides-link-chip {
+    text-decoration: none;
   }
   .guides-grid {
     display: grid;
@@ -164,7 +131,6 @@ const guideSections = [
     color: var(--accent-hover);
   }
   @media (max-width: 900px) {
-    .guides-visual,
     .guides-grid {
       grid-template-columns: 1fr;
     }
