@@ -36,16 +36,35 @@ const statusRows = [
   canonical="https://openglasshub.pages.dev/gaze-launcher/"
   activeSection="launcher"
 >
-  <section class="community-page-head launcher-head">
-    <div>
+  <section class="launcher-hero">
+    <div class="launcher-hero__copy">
       <span class="community-tag">开发中 / 实验性</span>
       <h1>Gaze Launcher</h1>
-      <p class="community-page-lead launcher-lead">面向 AR / AI 眼镜的 AI-first 智能启动器。当前暂无正式可用版本，页面只说明产品方向和验证边界。</p>
+      <p class="launcher-subtitle">面向 AR / AI 眼镜的 AI-first 智能启动器</p>
+      <p class="community-page-lead launcher-lead">当前暂无正式可用版本，页面只说明产品方向和验证边界。</p>
+      <div class="community-cta-row">
+        <a href="#progress" class="community-button">查看项目进展</a>
+        <a href="/feed/" class="community-button--secondary">进入论坛讨论</a>
+        <a href="/gaze-os/" class="community-button--secondary">查看技术文档</a>
+      </div>
     </div>
-    <div class="community-cta-row">
-      <a href="#progress" class="community-button">查看项目进展</a>
-      <a href="/feed/" class="community-button--secondary">进入论坛讨论</a>
-      <a href="/gaze-os/" class="community-button--secondary">查看技术文档</a>
+    <div class="launcher-hero__visual" aria-hidden="true">
+      <div class="launcher-mock">
+        <div class="launcher-mock__glasses">
+          <span></span><span></span><b></b>
+        </div>
+        <div class="launcher-mock__bubble launcher-mock__bubble--navi">
+          <strong>Navi</strong>
+          <span>“翻译这段内容”</span>
+        </div>
+        <div class="launcher-mock__flow">
+          <span>Home</span>
+          <i></i>
+          <span>App Library</span>
+          <i></i>
+          <span>Navi</span>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -144,16 +163,121 @@ const statusRows = [
 </CommunityLayout>
 
 <style>
-  .launcher-head {
-    align-items: flex-start;
+  .launcher-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 1.1rem;
+    align-items: center;
     margin-bottom: 1rem;
   }
-  .launcher-head h1 {
-    margin-top: 0.45rem;
+  .launcher-hero__copy h1 {
+    margin: 0.45rem 0 0;
+    font-size: clamp(2.3rem, 4vw, 3.2rem);
+    line-height: 0.96;
+    letter-spacing: -0.05em;
+  }
+  .launcher-subtitle {
+    margin: 0.45rem 0 0;
+    color: #dfe7f4;
+    font-size: 1rem;
   }
   .launcher-lead {
-    max-width: 760px;
-    margin-top: 0.35rem;
+    max-width: 720px;
+    margin-top: 0.4rem;
+  }
+  .launcher-hero__visual {
+    display: grid;
+  }
+  .launcher-mock {
+    position: relative;
+    min-height: 230px;
+    overflow: hidden;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background:
+      radial-gradient(180px 100px at 75% 22%, rgba(47,109,246,0.16), transparent 75%),
+      linear-gradient(180deg, rgba(12,16,24,0.92), rgba(9,13,20,0.88));
+    box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+  }
+  .launcher-mock__glasses {
+    position: absolute;
+    inset: 28px auto auto 28px;
+    width: 170px;
+    height: 88px;
+  }
+  .launcher-mock__glasses span,
+  .launcher-mock__glasses b {
+    position: absolute;
+    border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 18px;
+  }
+  .launcher-mock__glasses span:first-child {
+    left: 0;
+    top: 14px;
+    width: 64px;
+    height: 42px;
+  }
+  .launcher-mock__glasses span:last-child {
+    right: 0;
+    top: 14px;
+    width: 64px;
+    height: 42px;
+  }
+  .launcher-mock__glasses b {
+    left: 58px;
+    top: 28px;
+    width: 54px;
+    height: 16px;
+    border-radius: 999px;
+  }
+  .launcher-mock__bubble {
+    position: absolute;
+    display: grid;
+    gap: 0.16rem;
+    padding: 0.65rem 0.74rem;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.025);
+    backdrop-filter: blur(8px);
+  }
+  .launcher-mock__bubble strong {
+    color: var(--text);
+    font-size: 0.8rem;
+  }
+  .launcher-mock__bubble span {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+  }
+  .launcher-mock__bubble--navi {
+    right: 22px;
+    top: 28px;
+    width: 164px;
+  }
+  .launcher-mock__flow {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .launcher-mock__flow span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0.22rem 0.58rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.07);
+    background: rgba(255,255,255,0.03);
+    color: #d7e0ee;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+  .launcher-mock__flow i {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(47,109,246,0.08), rgba(47,109,246,0.38), rgba(47,109,246,0.08));
   }
   .launcher-layout {
     display: grid;
@@ -244,6 +368,7 @@ const statusRows = [
     color: var(--accent-hover);
   }
   @media (max-width: 900px) {
+    .launcher-hero,
     .launcher-layout {
       grid-template-columns: 1fr;
     }

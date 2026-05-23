@@ -68,6 +68,7 @@ function excerpt(body?: string | null): string {
 >
   <section class="hero">
     <div class="hero-copy">
+      <span class="hero-kicker">中文 AR / AI 眼镜社区</span>
       <h1>OpenGlass Hub</h1>
       <p class="hero-lead">AR / AI 眼镜玩家、开发者和早期用户的中文社区。</p>
       <p class="hero-sub">先看讨论，再判断设备、产品路线和开发限制。</p>
@@ -77,9 +78,28 @@ function excerpt(body?: string | null): string {
         <a href="/posts/new/" class="secondary-btn">发布帖子</a>
       </div>
     </div>
-    <div class="hero-note">
-      <strong>公开浏览，登录后互动</strong>
-      <p>主页以讨论为主轴，产品资料和 Gaze Launcher 入口都收进更明确的结构里。</p>
+    <div class="hero-visual" aria-hidden="true">
+      <div class="hero-visual__frame">
+        <div class="hero-visual__glasses">
+          <span></span>
+          <span></span>
+          <b></b>
+        </div>
+        <div class="hero-visual__pane hero-visual__pane--top">
+          <strong>Navi</strong>
+          <span>翻译 · 解释 · 记录</span>
+        </div>
+        <div class="hero-visual__pane hero-visual__pane--mid">
+          <span class="hero-chip">XREAL</span>
+          <span class="hero-chip">Rokid</span>
+          <span class="hero-chip">RayNeo</span>
+        </div>
+        <div class="hero-visual__pane hero-visual__pane--bottom">
+          <span>论坛讨论</span>
+          <span>设备边界</span>
+          <span>开发限制</span>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -147,51 +167,144 @@ function excerpt(body?: string | null): string {
 <style>
   .hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 290px;
-    gap: 0.9rem;
-    padding: 0 0 0.95rem;
-    align-items: end;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 1.15rem;
+    padding: 0.1rem 0 1rem;
+    align-items: center;
   }
   .hero-copy {
     padding: 0.05rem 0 0;
   }
+  .hero-kicker {
+    display: inline-flex;
+    margin-bottom: 0.55rem;
+    color: var(--accent-hover);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
   .hero h1 {
     margin: 0;
-    font-size: clamp(2rem, 4vw, 2.8rem);
-    line-height: 1;
+    font-size: clamp(2.35rem, 4vw, 3.35rem);
+    line-height: 0.96;
     letter-spacing: -0.05em;
-    color: #f8fafc;
+    color: var(--text);
   }
   .hero-lead {
-    margin: 0.55rem 0 0;
-    font-size: 0.98rem;
-    color: #d9e2f3;
+    margin: 0.7rem 0 0;
+    font-size: 1.02rem;
+    color: #e2e8f2;
   }
   .hero-sub {
-    margin: 0.32rem 0 0;
-    color: #8ea0c8;
+    margin: 0.38rem 0 0;
+    color: var(--text-muted);
     font-size: 0.9rem;
   }
   .hero-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.55rem;
-    margin-top: 0.8rem;
+    margin-top: 0.95rem;
   }
-  .hero-note {
+  .hero-visual {
     display: grid;
-    gap: 0.25rem;
-    padding: 0.7rem 0.85rem;
-    border-left: 1px solid #243148;
-    color: #97a8c8;
+    align-items: stretch;
   }
-  .hero-note strong {
-    color: #eef4ff;
-    font-size: 0.92rem;
+  .hero-visual__frame {
+    position: relative;
+    min-height: 220px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background:
+      radial-gradient(220px 120px at 72% 18%, rgba(47, 109, 246, 0.16), transparent 72%),
+      linear-gradient(180deg, rgba(12, 17, 26, 0.92), rgba(9, 13, 20, 0.9));
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
   }
-  .hero-note p {
-    margin: 0;
-    font-size: 0.86rem;
+  .hero-visual__frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.03), transparent 42%);
+    pointer-events: none;
+  }
+  .hero-visual__glasses {
+    position: absolute;
+    inset: 28px auto auto 34px;
+    width: 180px;
+    height: 90px;
+  }
+  .hero-visual__glasses span,
+  .hero-visual__glasses b {
+    position: absolute;
+    border: 1px solid rgba(226, 232, 240, 0.3);
+    border-radius: 18px;
+  }
+  .hero-visual__glasses span:first-child {
+    left: 0;
+    top: 14px;
+    width: 68px;
+    height: 44px;
+  }
+  .hero-visual__glasses span:last-child {
+    right: 0;
+    top: 14px;
+    width: 68px;
+    height: 44px;
+  }
+  .hero-visual__glasses b {
+    left: 62px;
+    top: 28px;
+    width: 56px;
+    height: 16px;
+    border-radius: 999px;
+  }
+  .hero-visual__pane {
+    position: absolute;
+    display: grid;
+    gap: 0.18rem;
+    padding: 0.6rem 0.72rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.025);
+    backdrop-filter: blur(10px);
+  }
+  .hero-visual__pane strong,
+  .hero-visual__pane span {
+    color: var(--text);
+    font-size: 0.78rem;
+  }
+  .hero-visual__pane span {
+    color: var(--text-muted);
+  }
+  .hero-visual__pane--top {
+    top: 22px;
+    right: 22px;
+    width: 146px;
+  }
+  .hero-visual__pane--mid {
+    top: 106px;
+    left: 26px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    width: 180px;
+  }
+  .hero-visual__pane--bottom {
+    right: 18px;
+    bottom: 18px;
+    width: 160px;
+  }
+  .hero-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.22rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #d8e1f0 !important;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.72rem !important;
   }
   .home-grid {
     display: grid;
@@ -204,15 +317,11 @@ function excerpt(body?: string | null): string {
     .home-grid {
       grid-template-columns: 1fr;
     }
-    .hero-note {
-      order: -1;
-      border-left: 0;
-      border-top: 1px solid #243148;
-      padding-left: 0;
-      padding-right: 0;
-    }
     .hero h1 {
       font-size: 2.2rem;
+    }
+    .hero-visual__frame {
+      min-height: 190px;
     }
   }
 </style>

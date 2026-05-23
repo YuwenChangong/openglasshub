@@ -63,6 +63,7 @@ const scenarios = [
 >
   <section class="community-page-head">
     <div>
+      <span class="devices-kicker">设备发现</span>
       <h1>设备库</h1>
       <p class="community-page-lead">按品牌、形态和使用场景查看 AR / AI 眼镜资料。当前以公开资料整理为主，待核实内容会明确标注。</p>
     </div>
@@ -70,6 +71,18 @@ const scenarios = [
 
   <section class="devices-layout">
     <div class="community-surface community-surface--primary">
+      <div class="devices-intro">
+        <div class="devices-intro__copy">
+          <strong>从路线开始，不从参数表开始。</strong>
+          <p>先判断它是显示型、AI 眼镜，还是更接近独立 AR，再决定要不要继续看单机细节。</p>
+        </div>
+        <div class="community-chip-row">
+          <span class="community-chip">显示型</span>
+          <span class="community-chip">AI 眼镜</span>
+          <span class="community-chip">独立 AR</span>
+          <span class="community-chip">实验路线</span>
+        </div>
+      </div>
       <div class="community-section-head">
         <div>
           <h2>重点设备</h2>
@@ -120,6 +133,33 @@ const scenarios = [
 </CommunityLayout>
 
 <style>
+  .devices-kicker {
+    display: inline-flex;
+    margin-bottom: 0.45rem;
+    color: var(--accent-hover);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .devices-intro {
+    display: grid;
+    gap: 0.6rem;
+    padding: 1rem 1rem 0.15rem;
+  }
+  .devices-intro__copy {
+    display: grid;
+    gap: 0.25rem;
+  }
+  .devices-intro__copy strong {
+    color: var(--text);
+    font-size: 1rem;
+  }
+  .devices-intro__copy p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
   .devices-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -31,6 +31,7 @@ const limits = [
 >
   <section class="community-page-head">
     <div>
+      <span class="developers-kicker">开发准备度</span>
       <h1>开发者</h1>
       <p class="community-page-lead">先确认 SDK、权限、输入能力和部署路径。这里是做开发前的入口页，不是长技术文档。</p>
     </div>
@@ -38,6 +39,12 @@ const limits = [
 
   <section class="community-grid">
     <section class="community-surface community-surface--primary">
+      <div class="developers-checkline">
+        <span>SDK</span>
+        <span>权限</span>
+        <span>输入能力</span>
+        <span>部署路径</span>
+      </div>
       <div class="community-section-head">
         <div>
           <h2>开发前确认</h2>
@@ -92,6 +99,33 @@ const limits = [
 </CommunityLayout>
 
 <style>
+  .developers-kicker {
+    display: inline-flex;
+    margin-bottom: 0.45rem;
+    color: var(--accent-hover);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .developers-checkline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1rem 1rem 0.15rem;
+  }
+  .developers-checkline span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0.25rem 0.62rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.07);
+    background: rgba(255,255,255,0.025);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
   .community-link-row {
     text-decoration: none;
   }
