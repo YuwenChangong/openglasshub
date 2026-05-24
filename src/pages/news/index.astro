@@ -34,7 +34,9 @@ import NewsCard from "../../components/community/NewsCard.astro";
             title={item.title}
             summary={item.summary}
             date={new Date(item.publishedAt).toLocaleDateString("zh-CN")}
-            showCoverPlaceholder={false}
+            coverImageUrl={item.coverImageUrl}
+            coverAlt={item.coverAlt}
+            sourceLabel={`${item.sourceLabel ?? "管理员精选"} / 非实时抓取`}
           />
         ))}
       </div>

@@ -1,21 +1,46 @@
 ---
 export const prerender = false;
 
-import ForumLayout from "../../layouts/ForumLayout.astro";
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import AuthPanel from "../../components/forum/AuthPanel";
 import { getSafeNext } from "../../lib/auth-redirect";
 
 const next = getSafeNext(Astro.url.searchParams.get("next"));
 ---
 
-<ForumLayout
+<CommunityLayout
   title="登录"
   description="登录 OpenGlass Hub。浏览内容无需登录，发帖和评论等互动操作需要认证。"
   canonical="https://openglasshub.pages.dev/login/"
 >
-  <h1>登录 / 注册</h1>
-  <p style="color: #8892b0; margin-top: -0.5rem;">
-    OpenGlass Hub 采用全站级登录。浏览设备、指南、动态和帖子无需登录，互动操作才需要认证。
-  </p>
-  <AuthPanel next={next} client:only="react" />
-</ForumLayout>
+  <section class="auth-page">
+    <div class="auth-page__intro">
+      <h1>登录 / 注册</h1>
+      <p>浏览设备、指南、动态和帖子无需登录。只有发帖、评论和后续互动操作需要认证。</p>
+    </div>
+    <AuthPanel next={next} client:only="react" />
+  </section>
+</CommunityLayout>
+
+<style>
+  .auth-page {
+    width: min(100%, 480px);
+    margin: 2rem auto 0;
+    display: grid;
+    gap: 1rem;
+  }
+  .auth-page__intro {
+    display: grid;
+    gap: 0.4rem;
+    text-align: center;
+  }
+  .auth-page__intro h1 {
+    margin: 0;
+    font-size: 1.9rem;
+    letter-spacing: -0.04em;
+  }
+  .auth-page__intro p {
+    margin: 0;
+    color: var(--text-muted);
+  }
+</style>

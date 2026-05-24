@@ -5,10 +5,12 @@ interface Props {
   category: string;
   href: string;
   date: string;
-  showCoverPlaceholder?: boolean;
+  coverImageUrl?: string;
+  coverAlt?: string;
+  sourceLabel?: string;
 }
 
-const { title, summary, category, href, date, showCoverPlaceholder = true } = Astro.props;
+const { title, summary, category, href, date, coverImageUrl, coverAlt = title, sourceLabel = "管理员精选 / 手动更新" } = Astro.props;
 ---
 
 <a href={href} class="community-news-card">
@@ -16,8 +18,12 @@ const { title, summary, category, href, date, showCoverPlaceholder = true } = As
     <span class="community-tag">{category}</span>
     <span class="community-meta">{date}</span>
   </div>
-  {showCoverPlaceholder && <div class="community-media-placeholder community-media-placeholder--compact">管理员精选 / 手动更新</div>}
+  {coverImageUrl && (
+    <div class="community-news-cover">
+      <img src={coverImageUrl} alt={coverAlt} loading="lazy" />
+    </div>
+  )}
   <h3>{title}</h3>
   <p>{summary}</p>
-  <span class="community-meta">管理员精选 / 手动更新</span>
+  <span class="community-meta">{sourceLabel}</span>
 </a>

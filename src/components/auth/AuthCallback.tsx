@@ -6,21 +6,10 @@ interface AuthCallbackProps {
   next?: string;
 }
 
-const wrapperStyle: React.CSSProperties = {
-  maxWidth: "720px",
-  margin: "3rem auto",
-  padding: "1.5rem",
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.75rem",
-  background: "var(--sl-color-bg-nav)",
-};
-
-const messageStyle: React.CSSProperties = {
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.5rem",
-  padding: "0.75rem",
-  fontSize: "0.95rem",
-};
+function mapCallbackError(errorMessage: string): string {
+  if (/Auth session missing/i.test(errorMessage)) return "当前还没有建立登录会话，请稍候或重新打开确认链接。";
+  return errorMessage;
+}
 
 export default function AuthCallback({ next }: AuthCallbackProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -43,13 +32,8 @@ export default function AuthCallback({ next }: AuthCallbackProps) {
     let timeoutId: number | undefined;
 
     async function redirectIfReady() {
-      const { data, error: sessionError } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-
-      if (sessionError) {
-        setError(sessionError.message);
-        return;
-      }
 
       if (data.session) {
         window.location.replace(safeNext);
@@ -88,7 +72,8 @@ export default function AuthCallback({ next }: AuthCallbackProps) {
         };
       } catch (callbackError) {
         if (!mounted) return;
-        setError(callbackError instanceof Error ? callbackError.message : "登录确认失败。");
+        const rawMessage = callbackError instanceof Error ? callbackError.message : "登录确认失败。";
+        setError(mapCallbackError(rawMessage));
       }
     }
 
@@ -107,15 +92,19 @@ export default function AuthCallback({ next }: AuthCallbackProps) {
   }, [safeNext, supabase]);
 
   return (
-    <section style={wrapperStyle}>
-      <h2>确认登录</h2>
-      <p>OpenGlass Hub 正在处理邮箱确认或登录回调。</p>
-      <div style={messageStyle}>{status}</div>
+    <section className="auth-card">
+      <div className="auth-card__top">
+        <h2 style={{ margin: 0 }}>确认登录</h2>
+        <p style={{ margin: 0, color: "var(--text-muted)" }}>OpenGlass Hub 正在处理邮箱确认或登录回调。</p>
+      </div>
+      <div className="auth-alert">{status}</div>
       {error ? (
-        <div style={{ ...messageStyle, marginTop: "1rem" }}>
-          错误：{error}
-          <div style={{ marginTop: "0.75rem" }}>
-            <a href={`/login/?next=${encodeURIComponent(safeNext)}`}>返回登录页</a>
+        <div className="auth-feedback">
+          <div className="auth-alert auth-alert--error">{error}</div>
+          <div className="community-cta-row">
+            <a className="community-button--secondary" href={`/login/?next=${encodeURIComponent(safeNext)}`}>
+              返回登录页
+            </a>
           </div>
         </div>
       ) : null}

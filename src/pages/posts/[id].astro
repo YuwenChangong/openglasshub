@@ -23,6 +23,23 @@ const { data: post, error } = await supabase
   .eq("status", "published")
   .single();
 
+const { data: mediaRows } = !error && post
+  ? await supabase
+      .from("post_media")
+      .select("id, kind, url, storage_path, thumbnail_url, alt_text, sort_order")
+      .eq("post_id", id)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
+  : { data: [] as Array<{
+      id: string;
+      kind: "image" | "video_link";
+      url: string | null;
+      storage_path: string | null;
+      thumbnail_url: string | null;
+      alt_text: string | null;
+      sort_order: number;
+    }> };
+
 if (error || !post) {
   Astro.response.status = 404;
   Astro.response.statusText = "Not Found";
@@ -48,6 +65,22 @@ const postTypeLabels: Record<string, string> = {
 const circle = post?.circles ?? null;
 const canonicalUrl = post ? `https://openglasshub.pages.dev/posts/${post.id}/` : undefined;
 const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "/feed/");
+const imagePaths = (mediaRows ?? [])
+  .filter((item) => item.kind === "image" && item.storage_path)
+  .map((item) => item.storage_path as string);
+const { data: signedImages } = imagePaths.length
+  ? await supabase.storage.from("post-media").createSignedUrls(imagePaths, 60 * 60)
+  : { data: [] as Array<{ signedUrl?: string }> };
+const imageUrlMap = new Map(
+  imagePaths.map((path, index) => [path, signedImages?.[index]?.signedUrl ?? ""]),
+);
+const postMedia = (mediaRows ?? []).map((item) => ({
+  ...item,
+  displayUrl:
+    item.kind === "image" && item.storage_path
+      ? imageUrlMap.get(item.storage_path) ?? ""
+      : item.url ?? "",
+}));
 ---
 
 {!post ? (
@@ -109,6 +142,32 @@ const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "
         )}
       </section>
 
+      {postMedia.length > 0 && (
+        <section class="post-media-block">
+          {postMedia.some((item) => item.kind === "image") && (
+            <div class="post-media-gallery">
+              {postMedia
+                .filter((item) => item.kind === "image" && item.displayUrl)
+                .map((item) => (
+                  <a href={item.displayUrl} target="_blank" rel="noreferrer" class="post-media-gallery__item">
+                    <img src={item.displayUrl} alt={item.alt_text || post.title} loading="lazy" />
+                  </a>
+                ))}
+            </div>
+          )}
+
+          {postMedia
+            .filter((item) => item.kind === "video_link" && item.displayUrl)
+            .map((item) => (
+              <a href={item.displayUrl} target="_blank" rel="noreferrer" class="post-video-card">
+                <span class="forum-tag">视频链接</span>
+                <strong>{item.alt_text || "打开外部视频"}</strong>
+                <span class="forum-meta">当前阶段不做站内原生视频上传，只提供外部视频入口。</span>
+              </a>
+            ))}
+        </section>
+      )}
+
       <div class="footer" style="margin-top: 1.25rem;">
         <a href="/feed/">返回动态</a>
         {" · "}
@@ -136,3 +195,45 @@ const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "
     })} />
   </ForumLayout>
 )}
+
+<style>
+  .post-media-block {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .post-media-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.85rem;
+  }
+  .post-media-gallery__item {
+    display: block;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.035);
+  }
+  .post-media-gallery__item img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+  }
+  .post-video-card {
+    display: grid;
+    gap: 0.45rem;
+    padding: 1rem 1.05rem;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--text);
+    text-decoration: none;
+    backdrop-filter: blur(14px) saturate(120%);
+    -webkit-backdrop-filter: blur(14px) saturate(120%);
+    box-shadow: var(--glass-shadow-soft);
+  }
+  .post-video-card strong {
+    font-size: 1rem;
+  }
+</style>

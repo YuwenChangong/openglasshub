@@ -9,51 +9,13 @@ interface AuthPanelProps {
   next?: string;
 }
 
-const wrapperStyle: React.CSSProperties = {
-  maxWidth: "760px",
-  margin: "2rem auto",
-  padding: "1.5rem",
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.75rem",
-  background: "var(--sl-color-bg-nav)",
-};
-
-const stackStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "0.75rem",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  background: "var(--sl-color-black)",
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.5rem",
-  color: "var(--sl-color-white)",
-  padding: "0.625rem 0.75rem",
-};
-
-const buttonStyle: React.CSSProperties = {
-  borderRadius: "0.5rem",
-  border: "1px solid var(--sl-color-accent)",
-  background: "var(--sl-color-accent)",
-  color: "var(--sl-color-white)",
-  fontWeight: 600,
-  padding: "0.625rem 0.875rem",
-  cursor: "pointer",
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  ...buttonStyle,
-  border: "1px solid var(--sl-color-gray-5)",
-  background: "transparent",
-};
-
-const messageStyle: React.CSSProperties = {
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.5rem",
-  padding: "0.75rem",
-  fontSize: "0.95rem",
-};
+function mapAuthError(errorMessage: string): string {
+  if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
+  if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
+  if (/User already registered/i.test(errorMessage)) return "该邮箱已经注册，请直接登录。";
+  if (/Password should be at least/i.test(errorMessage)) return "密码长度至少为 8 位。";
+  return errorMessage;
+}
 
 export default function AuthPanel({ next }: AuthPanelProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -80,14 +42,9 @@ export default function AuthPanel({ next }: AuthPanelProps) {
 
     let mounted = true;
 
-    supabase.auth.getUser().then(({ data, error: sessionError }) => {
+    supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
-      if (sessionError) {
-        setError(sessionError.message);
-        setUser(null);
-      } else {
-        setUser(data.user ?? null);
-      }
+      setUser(data.session?.user ?? null);
       setCheckingSession(false);
     });
 
@@ -136,9 +93,10 @@ export default function AuthPanel({ next }: AuthPanelProps) {
       });
       if (signUpError) throw signUpError;
 
-      setMessage("注册请求已提交。请在 Brevo 确认邮件中完成验证，验证后会返回站内继续。");
+      setMessage("注册请求已提交。请先完成邮箱验证，再返回站内继续。");
     } catch (authError) {
-      setError(authError instanceof Error ? authError.message : "请求失败。");
+      const rawMessage = authError instanceof Error ? authError.message : "请求失败。";
+      setError(mapAuthError(rawMessage));
     } finally {
       setLoading(false);
     }
@@ -151,7 +109,7 @@ export default function AuthPanel({ next }: AuthPanelProps) {
     setMessage("");
     const { error: signOutError } = await supabase.auth.signOut();
     if (signOutError) {
-      setError(signOutError.message);
+      setError(mapAuthError(signOutError.message));
       setLoading(false);
       return;
     }
@@ -162,91 +120,98 @@ export default function AuthPanel({ next }: AuthPanelProps) {
 
   if (!supabase) {
     return (
-      <section style={wrapperStyle}>
-        <h2>登录暂不可用</h2>
-        <p>缺少 `PUBLIC_SUPABASE_URL` 或 `PUBLIC_SUPABASE_ANON_KEY`。</p>
+      <section className="auth-card">
+        <div className="auth-alert auth-alert--error">登录暂不可用，缺少必要的 Supabase 公共环境变量。</div>
       </section>
     );
   }
 
   return (
-    <section style={wrapperStyle}>
-      <h2>登录 OpenGlass Hub</h2>
-      <p>浏览内容无需登录。发帖、评论等互动操作需要先登录。</p>
-
-      <div style={{ ...messageStyle, marginBottom: "1rem" }}>
-        登录后将返回：<strong>{safeNext}</strong>
+    <section className="auth-card">
+      <div className="auth-card__top">
+        <div className="auth-switch" role="tablist" aria-label="登录注册切换">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "login"}
+            className={mode === "login" ? "is-active" : ""}
+            onClick={() => setMode("login")}
+          >
+            登录
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "signup"}
+            className={mode === "signup" ? "is-active" : ""}
+            onClick={() => setMode("signup")}
+          >
+            注册
+          </button>
+        </div>
+        <div className="auth-next-note">登录后将返回：{safeNext}</div>
       </div>
 
       {checkingSession ? (
-        <div style={messageStyle}>正在检查当前登录状态...</div>
+        <div className="auth-alert">正在检查当前登录状态...</div>
       ) : user ? (
-        <div style={{ ...stackStyle, marginTop: "1rem" }}>
-          <div style={messageStyle}>
+        <div className="auth-user-state">
+          <div className="auth-alert auth-alert--success">
             当前已登录：<strong>{user.email}</strong>
           </div>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <a href={safeNext} style={buttonStyle}>
+          <div className="community-cta-row">
+            <a href={safeNext} className="community-button">
               继续前往
             </a>
-            <button type="button" style={secondaryButtonStyle} onClick={handleSignOut} disabled={loading}>
+            <button type="button" className="community-button--secondary auth-button" onClick={handleSignOut} disabled={loading}>
               {loading ? "处理中..." : "退出登录"}
             </button>
           </div>
         </div>
       ) : (
-        <>
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-            <button
-              type="button"
-              onClick={() => setMode("login")}
-              style={mode === "login" ? buttonStyle : secondaryButtonStyle}
-            >
-              登录
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("signup")}
-              style={mode === "signup" ? buttonStyle : secondaryButtonStyle}
-            >
-              注册
-            </button>
-          </div>
-
-          <form onSubmit={handleAuthSubmit} style={stackStyle}>
-            <label>
-              邮箱
-              <input
-                style={inputStyle}
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </label>
-            <label>
-              密码
-              <input
-                style={inputStyle}
-                type="password"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                minLength={8}
-                required
-              />
-            </label>
-            <button style={buttonStyle} type="submit" disabled={loading}>
+        <form onSubmit={handleAuthSubmit} className="auth-form">
+          <label>
+            <span className="auth-label">邮箱</span>
+            <input
+              className="community-input"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            <span className="auth-label">密码</span>
+            <input
+              className="community-input"
+              type="password"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={8}
+              required
+            />
+          </label>
+          <div className="community-cta-row">
+            <button className="community-button auth-button" type="submit" disabled={loading}>
               {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
             </button>
-          </form>
-        </>
+            <button
+              type="button"
+              className="community-button--secondary auth-button"
+              onClick={() => setMode(mode === "login" ? "signup" : "login")}
+              disabled={loading}
+            >
+              {mode === "login" ? "切换到注册" : "切换到登录"}
+            </button>
+          </div>
+        </form>
       )}
 
-      <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
-        {error ? <div style={messageStyle}>错误：{error}</div> : null}
-        {message ? <div style={messageStyle}>{message}</div> : null}
+      <div className="auth-feedback">
+        {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
+        {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
       </div>
     </section>
   );

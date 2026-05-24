@@ -234,6 +234,67 @@ export const POST: APIRoute = async ({ request, locals }) => {
 };
 
 // ---------------------------------------------------------------------------
+// DELETE — remove a pending post owned by current user (rollback path)
+// ---------------------------------------------------------------------------
+
+export const DELETE: APIRoute = async ({ request, locals }) => {
+  try {
+    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    if (!env) {
+      return json({ error: "Runtime environment not available" }, 500);
+    }
+
+    const token = getBearerToken(request);
+    if (!token) {
+      return json({ error: "Missing bearer token" }, 401);
+    }
+
+    const userClient = createUserClient(env, token);
+    const { data: authData, error: authError } = await userClient.auth.getUser(token);
+    if (authError || !authData.user) {
+      return json({ error: "Invalid auth token" }, 401);
+    }
+
+    const url = new URL(request.url);
+    const postId = String(url.searchParams.get("post_id") ?? "").trim();
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(postId)) {
+      return json({ error: "Invalid post_id format" }, 400);
+    }
+
+    const { data: post, error: postError } = await userClient
+      .from("posts")
+      .select("id, author_id, status")
+      .eq("id", postId)
+      .maybeSingle();
+    if (postError) {
+      return json({ error: postError.message }, 500);
+    }
+    if (!post) {
+      return json({ error: "Post not found" }, 404);
+    }
+    if (post.author_id !== authData.user.id) {
+      return json({ error: "Cannot delete a post you do not own" }, 403);
+    }
+    if (post.status !== "pending") {
+      return json({ error: "Only pending posts can be removed from this flow" }, 409);
+    }
+
+    const { error: deleteError } = await userClient.from("posts").delete().eq("id", postId);
+    if (deleteError) {
+      return json({ error: deleteError.message }, 500);
+    }
+
+    return json({ ok: true });
+  } catch (err) {
+    return json(
+      { error: err instanceof Error ? err.message : "Unexpected server error" },
+      500,
+    );
+  }
+};
+
+// ---------------------------------------------------------------------------
 // Unsupported methods
 // ---------------------------------------------------------------------------
 

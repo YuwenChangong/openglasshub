@@ -15,6 +15,14 @@ if (!item) {
   Astro.response.status = 404;
   Astro.response.statusText = "Not Found";
 }
+
+const publishedDate = item
+  ? new Date(item.publishedAt).toLocaleDateString("zh-CN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  : "";
 ---
 
 {!item ? (
@@ -22,7 +30,7 @@ if (!item) {
     <section class="news-empty">
       <strong>热点内容未找到</strong>
       <p>该条目可能不存在，或当前还没有发布到公开热点页。</p>
-      <a href="/news/" class="back-link">返回热点列表</a>
+      <a href="/news/" class="community-button--secondary">返回热点列表</a>
     </section>
   </CommunityLayout>
 ) : (
@@ -32,118 +40,137 @@ if (!item) {
     canonical={`https://openglasshub.pages.dev/news/${item.slug}/`}
     activeSection="news"
   >
-    <article class="news-article">
-      <header class="news-header">
-        <div class="news-topline">
-          <span class="news-tag">{item.category}</span>
-          <span class="news-note">管理员精选 / 手动更新</span>
+    <article class="news-article-page">
+      <header class="news-article-page__head">
+        <div class="news-article-page__meta">
+          <span class="community-tag">{item.category}</span>
+          <span class="community-meta">{publishedDate}</span>
+          <span class="community-meta">{item.sourceLabel ?? "管理员精选"} / 手动更新 / 非实时抓取</span>
         </div>
         <h1>{item.title}</h1>
-        <p>{item.summary}</p>
-        <div class="news-meta">发布时间：{new Date(item.publishedAt).toLocaleDateString("zh-CN")}</div>
+        <p class="news-article-page__summary">{item.summary}</p>
       </header>
 
-      <div class="news-source-note">社区观察 / 管理员精选。当前页面不伪装真实封面或实时媒体流。</div>
+      {item.mediaType !== "none" && (
+        <section class="news-cover">
+          {item.mediaType === "image" && item.coverImageUrl ? (
+            <img src={item.coverImageUrl} alt={item.coverAlt ?? item.title} loading="eager" />
+          ) : item.mediaType === "video" && item.mediaUrl ? (
+            <a
+              href={item.mediaUrl}
+              target="_blank"
+              rel="noreferrer"
+              class="news-video-card"
+            >
+              <span class="community-tag community-tag--muted">视频</span>
+              <strong>查看相关视频</strong>
+              <span class="community-meta">当前阶段只提供外部视频链接，不在站内伪装播放器。</span>
+            </a>
+          ) : null}
+        </section>
+      )}
 
-      <div class="news-body">
+      <div class="news-article-page__body">
         {item.body.map((paragraph) => (
           <p>{paragraph}</p>
         ))}
       </div>
 
-      <footer class="news-footer">
-        <a href="/news/" class="back-link">返回热点列表</a>
+      <footer class="news-article-page__footer">
+        <div class="community-inline-meta">
+          <span>{item.sourceLabel ?? "管理员精选"}</span>
+          <span>发布时间：{publishedDate}</span>
+          {item.sourceUrl && (
+            <a href={item.sourceUrl} target="_blank" rel="noreferrer" class="community-inline-link">
+              查看来源
+            </a>
+          )}
+        </div>
+        <div class="community-cta-row">
+          <a href="/news/" class="community-button--secondary">返回热点</a>
+          <a href="/feed/" class="community-button">进入社区讨论</a>
+        </div>
       </footer>
     </article>
   </CommunityLayout>
 )}
 
 <style>
-  .news-article {
-    max-width: 840px;
+  .news-article-page {
+    width: min(100%, 760px);
+    margin: 0 auto;
+    padding: 0.35rem 0 1rem;
   }
-  .news-header {
+  .news-article-page__head {
     display: grid;
-    gap: 0.7rem;
+    gap: 0.75rem;
     margin-bottom: 1.2rem;
   }
-  .news-topline {
+  .news-article-page__meta {
     display: flex;
-    align-items: center;
-    gap: 0.65rem;
     flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
   }
-  .news-header h1 {
+  .news-article-page__head h1 {
     margin: 0;
-    font-size: 2rem;
-    line-height: 1.18;
-    color: #f8fafc;
-    letter-spacing: -0.03em;
+    font-size: clamp(2rem, 4vw, 2.8rem);
+    line-height: 1.12;
+    letter-spacing: -0.04em;
   }
-  .news-header p,
-  .news-body p {
+  .news-article-page__summary {
     margin: 0;
-    color: #9badcd;
-    line-height: 1.8;
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1.75;
   }
-  .news-source-note {
-    margin-bottom: 0.9rem;
-    padding: 0.6rem 0.75rem;
-    border-radius: 10px;
-    border: 1px solid #243148;
-    background: #101722;
-    color: #8ea0c0;
-    font-size: 0.84rem;
+  .news-cover {
+    margin-bottom: 1.4rem;
   }
-  .news-body {
+  .news-cover img {
+    display: block;
+    width: 100%;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .news-video-card {
+    display: grid;
+    gap: 0.45rem;
+    padding: 1rem 1.05rem;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    text-decoration: none;
+    color: var(--text);
+    backdrop-filter: blur(14px) saturate(120%);
+    -webkit-backdrop-filter: blur(14px) saturate(120%);
+    box-shadow: var(--glass-shadow-soft);
+  }
+  .news-video-card strong {
+    font-size: 1rem;
+  }
+  .news-article-page__body {
     display: grid;
     gap: 1rem;
-    padding: 1.1rem 1.15rem;
-    background: #0f1624;
-    border: 1px solid #20283a;
-    border-radius: 14px;
-    box-shadow: none;
   }
-  .news-meta {
-    color: #8ea0c0;
-    font-size: 0.88rem;
+  .news-article-page__body p {
+    margin: 0;
+    color: var(--text);
+    font-size: 1rem;
+    line-height: 1.75;
   }
-  .news-note {
-    color: #8ea0c0;
-    font-size: 0.82rem;
-  }
-  .news-tag {
-    display: inline-flex;
-    width: fit-content;
-    align-items: center;
-    padding: 0.24rem 0.52rem;
-    border-radius: 999px;
-    background: rgba(37, 99, 235, 0.12);
-    border: 1px solid rgba(86, 132, 242, 0.2);
-    color: #aac2fb;
-    font-size: 0.76rem;
-    font-weight: 700;
-  }
-  .news-footer,
-  .news-empty {
-    margin-top: 1.25rem;
+  .news-article-page__footer {
+    display: grid;
+    gap: 1rem;
+    padding-top: 1.2rem;
+    margin-top: 1.4rem;
+    border-top: 1px solid var(--border);
   }
   .news-empty {
     display: grid;
     gap: 0.8rem;
-    max-width: 720px;
-    padding: 1.35rem;
-    border-radius: 16px;
-    border: 1px dashed #30415f;
-    background: linear-gradient(180deg, rgba(17, 24, 38, 0.98), rgba(12, 18, 30, 0.98));
-  }
-  .news-empty strong {
-    color: #f8fafc;
-    font-size: 1.06rem;
-  }
-  .back-link {
-    color: #9bc2ff;
-    text-decoration: none;
-    font-weight: 600;
+    width: min(100%, 760px);
+    padding: 1rem 0 1.2rem;
   }
 </style>
