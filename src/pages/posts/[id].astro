@@ -209,6 +209,8 @@ const postMedia = (mediaRows ?? []).map((item) => ({
   }
   .post-media-gallery__item {
     display: block;
+    width: 100%;
+    max-width: 100%;
     border-radius: 18px;
     overflow: hidden;
     border: 1px solid var(--border);
@@ -217,12 +219,17 @@ const postMedia = (mediaRows ?? []).map((item) => ({
   .post-media-gallery__item img {
     display: block;
     width: 100%;
+    max-width: 100%;
+    height: auto;
     aspect-ratio: 4 / 3;
-    object-fit: cover;
+    object-fit: contain;
   }
   .post-video-card {
     display: grid;
     gap: 0.45rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     padding: 1rem 1.05rem;
     border-radius: 18px;
     border: 1px solid var(--border);
@@ -235,5 +242,14 @@ const postMedia = (mediaRows ?? []).map((item) => ({
   }
   .post-video-card strong {
     font-size: 1rem;
+    word-break: break-word;
+  }
+  .post-video-card .forum-meta {
+    word-break: break-word;
+  }
+  @media (max-width: 720px) {
+    .post-media-gallery {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

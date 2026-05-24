@@ -308,9 +308,13 @@ export default function CreatePostForm() {
       setBody("");
       setVideoUrl("");
       setImages([]);
-      setMessage(
-        `帖子已提交，当前状态为 ${createPayload.post.status ?? "pending"}。审核或发布后会出现在公开动态中。`,
-      );
+      const createdStatus = createPayload.post.status ?? "pending";
+      if (createdStatus === "published") {
+        setMessage("发布成功，正在跳转到帖子页面。");
+        window.location.assign(`/posts/${createdPostId}/`);
+        return;
+      }
+      setMessage("帖子已提交，正在等待审核。审核通过后会出现在公开动态里。");
     } catch (submitError) {
       if (uploadedPaths.length > 0) {
         await supabase.storage.from("post-media").remove(uploadedPaths).catch(() => undefined);
