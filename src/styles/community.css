@@ -640,6 +640,23 @@ body {
   flex-wrap: wrap;
 }
 
+.auth-forgot-link {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.84rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.auth-forgot-link:hover {
+  color: var(--text);
+}
+
 .auth-label,
 .post-composer__label {
   display: inline-block;

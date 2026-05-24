@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { buildAuthCallbackRedirect, getSafeNext } from "../../lib/auth-redirect";
+import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 
 type Mode = "login" | "signup";
@@ -31,10 +31,12 @@ export default function AuthPanel({ next }: AuthPanelProps) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
   const [resending, setResending] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
+  const [forgotMode, setForgotMode] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -139,6 +141,36 @@ export default function AuthPanel({ next }: AuthPanelProps) {
     }
   }
 
+  async function handleResetPasswordEmail(event: React.FormEvent) {
+    event.preventDefault();
+    if (!supabase) return;
+
+    setSendingReset(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const redirectTo =
+        typeof window !== "undefined"
+          ? buildResetPasswordRedirect(window.location.origin)
+          : undefined;
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo,
+      });
+
+      if (resetError) {
+        throw resetError;
+      }
+
+      setMessage("如果该邮箱存在对应账号，我们会发送重置密码邮件。请检查邮箱并打开重置链接。");
+    } catch {
+      setError("暂时无法发送重置邮件，请稍后再试。");
+    } finally {
+      setSendingReset(false);
+    }
+  }
+
   async function handleSignOut() {
     if (!supabase) return;
     setLoading(true);
@@ -206,44 +238,90 @@ export default function AuthPanel({ next }: AuthPanelProps) {
           </div>
         </div>
       ) : (
-        <form onSubmit={handleAuthSubmit} className="auth-form">
-          <label>
-            <span className="auth-label">邮箱</span>
-            <input
-              className="community-input"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            <span className="auth-label">密码</span>
-            <input
-              className="community-input"
-              type="password"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              minLength={8}
-              required
-            />
-          </label>
-          <div className="community-cta-row">
-            <button className="community-button auth-button" type="submit" disabled={loading}>
-              {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
-            </button>
-            <button
-              type="button"
-              className="community-button--secondary auth-button"
-              onClick={() => setMode(mode === "login" ? "signup" : "login")}
-              disabled={loading}
-            >
-              {mode === "login" ? "切换到注册" : "切换到登录"}
-            </button>
-          </div>
-        </form>
+        forgotMode ? (
+          <form onSubmit={handleResetPasswordEmail} className="auth-form">
+            <label>
+              <span className="auth-label">邮箱</span>
+              <input
+                className="community-input"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </label>
+            <div className="community-cta-row">
+              <button className="community-button auth-button" type="submit" disabled={sendingReset}>
+                {sendingReset ? "发送中..." : "发送重置邮件"}
+              </button>
+              <button
+                type="button"
+                className="community-button--secondary auth-button"
+                onClick={() => {
+                  setForgotMode(false);
+                  setError("");
+                  setMessage("");
+                }}
+                disabled={sendingReset}
+              >
+                返回登录
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleAuthSubmit} className="auth-form">
+            <label>
+              <span className="auth-label">邮箱</span>
+              <input
+                className="community-input"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </label>
+            <label>
+              <span className="auth-label">密码</span>
+              <input
+                className="community-input"
+                type="password"
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                minLength={8}
+                required
+              />
+            </label>
+            <div className="community-cta-row">
+              <button className="community-button auth-button" type="submit" disabled={loading}>
+                {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
+              </button>
+              <button
+                type="button"
+                className="community-button--secondary auth-button"
+                onClick={() => setMode(mode === "login" ? "signup" : "login")}
+                disabled={loading}
+              >
+                {mode === "login" ? "切换到注册" : "切换到登录"}
+              </button>
+            </div>
+            {mode === "login" && (
+              <button
+                type="button"
+                className="auth-forgot-link"
+                onClick={() => {
+                  setForgotMode(true);
+                  setError("");
+                  setMessage("");
+                }}
+              >
+                忘记密码？
+              </button>
+            )}
+          </form>
+        )
       )}
 
       <div className="auth-feedback">

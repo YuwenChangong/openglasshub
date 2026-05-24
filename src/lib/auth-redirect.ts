@@ -48,3 +48,21 @@ export function buildAuthCallbackRedirect(origin: string | undefined, next: stri
     return undefined;
   }
 }
+
+export function buildResetPasswordRedirect(origin: string | undefined): string | undefined {
+  if (!origin) return undefined;
+
+  try {
+    const originUrl = new URL(origin);
+    const isSafeHost =
+      SAFE_ORIGIN_HOSTS.has(originUrl.hostname) || originUrl.hostname.endsWith(".openglasshub.pages.dev");
+
+    if (!["http:", "https:"].includes(originUrl.protocol) || !isSafeHost) {
+      return undefined;
+    }
+
+    return new URL("/auth/reset-password/", originUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
