@@ -6,6 +6,9 @@ import cloudflare from '@astrojs/cloudflare';
 export default defineConfig({
   site: 'https://openglasshub.pages.dev',
   output: 'static',
+  redirects: {
+    '/gaze-os': '/gaze-launcher/',
+  },
   adapter: cloudflare({
     platformProxy: {
       enabled: true,
@@ -94,7 +97,7 @@ export default defineConfig({
         },
         {
           label: 'Gaze Launcher',
-          link: '/gaze-os',
+          link: '/gaze-launcher',
         },
         {
           label: '社区',

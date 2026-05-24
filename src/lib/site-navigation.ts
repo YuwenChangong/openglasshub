@@ -51,6 +51,6 @@ export function inferNavKey(pathname: string): NavKey {
   if (pathname.startsWith("/products") || pathname.startsWith("/devices") || pathname.startsWith("/guides") || pathname.startsWith("/developers")) {
     return "products";
   }
-  if (pathname.startsWith("/gaze-launcher") || pathname.startsWith("/gaze-os")) return "launcher";
+  if (pathname.startsWith("/gaze-launcher")) return "launcher";
   return "home";
 }

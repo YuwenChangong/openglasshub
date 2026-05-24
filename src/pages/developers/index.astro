@@ -39,7 +39,7 @@ const limits = [
 
   <section class="community-grid">
     <section class="community-surface community-surface--primary">
-      <div class="developers-checkline">
+      <div class="developers-checkline community-inline-meta">
         <span>SDK</span>
         <span>权限</span>
         <span>输入能力</span>
@@ -111,20 +111,13 @@ const limits = [
   .developers-checkline {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 0.8rem;
     padding: 1rem 1rem 0.15rem;
   }
   .developers-checkline span {
-    display: inline-flex;
-    align-items: center;
-    min-height: 34px;
-    padding: 0.25rem 0.62rem;
-    border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.07);
-    background: rgba(255,255,255,0.025);
-    color: var(--text-muted);
-    font-size: 0.78rem;
-    font-weight: 600;
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
   }
   .community-link-row {
     text-decoration: none;

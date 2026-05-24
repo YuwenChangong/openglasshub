@@ -72,17 +72,17 @@ function excerpt(body?: string | null): string {
       <p class="hero-lead">AR / AI 眼镜玩家、开发者和早期用户的中文社区。</p>
       <p class="hero-sub">先看讨论，再判断设备、产品路线和开发限制。</p>
       <div class="hero-actions">
-        <a href="/feed/" class="secondary-btn">浏览讨论</a>
-        <a href="/login/?next=/" class="secondary-btn">加入社区</a>
-        <a href="/posts/new/" class="secondary-btn">发布帖子</a>
+        <a href="/feed/" class="community-button--secondary">浏览讨论</a>
+        <a href="/login/?next=/" class="community-button--secondary">加入社区</a>
+        <a href="/posts/new/" class="community-button">发布帖子</a>
       </div>
     </div>
     <div class="hero-note">
       <strong>公开浏览，登录后互动</strong>
-      <div class="community-chip-row">
-        <a href="/products/" class="community-chip hero-link-chip">产品入口</a>
-        <a href="/news/" class="community-chip hero-link-chip">管理员精选</a>
-        <a href="/gaze-launcher/" class="community-chip hero-link-chip">Gaze Launcher</a>
+      <div class="community-inline-links">
+        <a href="/products/" class="community-inline-link">产品入口</a>
+        <a href="/news/" class="community-inline-link">管理员精选</a>
+        <a href="/gaze-launcher/" class="community-inline-link">Gaze Launcher</a>
       </div>
     </div>
   </section>
@@ -191,9 +191,6 @@ function excerpt(body?: string | null): string {
   .hero-note strong {
     color: var(--text);
     font-size: 0.88rem;
-  }
-  .hero-link-chip {
-    text-decoration: none;
   }
   .home-grid {
     display: grid;

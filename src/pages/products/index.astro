@@ -20,10 +20,10 @@ import ProductCard from "../../components/community/ProductCard.astro";
   <section class="products-page">
     <div class="community-surface community-surface--primary">
       <div class="products-intro">
-        <div class="community-chip-row">
-          <span class="community-chip">设备资料</span>
-          <span class="community-chip">选购判断</span>
-          <span class="community-chip">开发限制</span>
+        <div class="community-inline-meta">
+          <span>设备资料</span>
+          <span>选购判断</span>
+          <span>开发限制</span>
         </div>
       </div>
       <div class="community-section-head">
@@ -71,17 +71,17 @@ import ProductCard from "../../components/community/ProductCard.astro";
     gap: 0.9rem;
     margin: 0 1rem 1rem;
     padding: 0.9rem 0.95rem;
-    border-top: 1px solid #22304a;
+    border-top: 1px solid var(--border);
     background: transparent;
   }
   .products-secondary h3 {
     margin: 0.2rem 0 0.35rem;
-    color: #f8fafc;
+    color: var(--text);
     font-size: 1.02rem;
   }
   .products-secondary p {
     margin: 0;
-    color: #9aaccc;
+    color: var(--text-muted);
   }
   @media (max-width: 900px) {
     .products-grid {
