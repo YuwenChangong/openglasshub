@@ -632,6 +632,14 @@ body {
   gap: 1rem;
 }
 
+.auth-resend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .auth-label,
 .post-composer__label {
   display: inline-block;

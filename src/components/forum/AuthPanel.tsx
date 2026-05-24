@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { getSafeNext } from "../../lib/auth-redirect";
+import { buildAuthCallbackRedirect, getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 
 type Mode = "login" | "signup";
@@ -12,7 +12,7 @@ interface AuthPanelProps {
 function mapAuthError(errorMessage: string): string {
   if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
   if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
-  if (/User already registered/i.test(errorMessage)) return "该邮箱已经注册，请直接登录。";
+  if (/User already registered/i.test(errorMessage)) return "如果账号已存在，请直接登录；如果账号尚未完成验证，可以重新发送验证邮件。";
   if (/Password should be at least/i.test(errorMessage)) return "密码长度至少为 8 位。";
   return errorMessage;
 }
@@ -31,8 +31,10 @@ export default function AuthPanel({ next }: AuthPanelProps) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
 
   useEffect(() => {
     if (!supabase) {
@@ -81,7 +83,7 @@ export default function AuthPanel({ next }: AuthPanelProps) {
 
       const emailRedirectTo =
         typeof window !== "undefined"
-          ? `${window.location.origin}/auth/callback/?next=${encodeURIComponent(safeNext)}`
+          ? buildAuthCallbackRedirect(window.location.origin, safeNext)
           : undefined;
 
       const { error: signUpError } = await supabase.auth.signUp({
@@ -93,12 +95,47 @@ export default function AuthPanel({ next }: AuthPanelProps) {
       });
       if (signUpError) throw signUpError;
 
-      setMessage("注册请求已提交。请先完成邮箱验证，再返回站内继续。");
+      setPendingVerificationEmail(email.trim());
+      setMessage("验证邮件已发送。请先完成邮箱验证，再返回站内继续。");
     } catch (authError) {
       const rawMessage = authError instanceof Error ? authError.message : "请求失败。";
+      if (/Email not confirmed/i.test(rawMessage)) {
+        setPendingVerificationEmail(email.trim());
+      }
       setError(mapAuthError(rawMessage));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResendConfirmation() {
+    if (!supabase || !pendingVerificationEmail) return;
+
+    setResending(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const emailRedirectTo =
+        typeof window !== "undefined"
+          ? buildAuthCallbackRedirect(window.location.origin, safeNext)
+          : undefined;
+
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email: pendingVerificationEmail,
+        options: emailRedirectTo ? { emailRedirectTo } : undefined,
+      });
+
+      if (resendError) {
+        throw resendError;
+      }
+
+      setMessage("如果账号已存在且尚未验证，我们会尝试重新发送验证邮件。");
+    } catch {
+      setError("暂时无法重新发送验证邮件，请稍后再试。");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -212,6 +249,19 @@ export default function AuthPanel({ next }: AuthPanelProps) {
       <div className="auth-feedback">
         {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
         {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
+        {pendingVerificationEmail ? (
+          <div className="auth-resend">
+            <span className="auth-next-note">如果账号已存在且尚未验证，可以重新发送验证邮件。</span>
+            <button
+              type="button"
+              className="community-button--secondary auth-button"
+              onClick={handleResendConfirmation}
+              disabled={resending}
+            >
+              {resending ? "发送中..." : "重新发送验证邮件"}
+            </button>
+          </div>
+        ) : null}
       </div>
     </section>
   );
