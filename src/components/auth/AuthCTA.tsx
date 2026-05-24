@@ -91,7 +91,6 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
   return compact ? (
     <div className="ogh-auth-inline">
       <span className="ogh-auth-status">{user.email}</span>
-      <a href={safeNext} className="ogh-auth-secondary">继续</a>
       <button type="button" onClick={handleSignOut} className="ogh-auth-secondary ogh-auth-button-reset">退出</button>
     </div>
   ) : (
