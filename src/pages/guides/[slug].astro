@@ -1,0 +1,83 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import { getCollection, render } from "astro:content";
+
+const slug = Astro.params.slug ?? "";
+const docs = await getCollection("docs", ({ slug: s }) => s === `reference/guides/${slug}`);
+const entry = docs[0];
+
+if (!entry) {
+  return Astro.redirect("/guides/");
+}
+
+const { Content } = await render(entry);
+---
+
+<CommunityLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  canonical={`https://openglasshub.pages.dev/guides/${slug}/`}
+  activeSection="products"
+>
+  <section class="community-page-head">
+    <div>
+      <h1>{entry.data.title}</h1>
+      {entry.data.description && <p class="community-page-lead">{entry.data.description}</p>}
+    </div>
+  </section>
+
+  <section class="community-grid">
+    <article class="community-surface community-surface--padded detail-main">
+      <Content />
+    </article>
+    <aside class="community-sidebar">
+      <section class="community-surface community-surface--padded">
+        <div class="community-page-lead" style="margin-bottom: 0.4rem;">继续浏览</div>
+        <div class="community-list" style="padding: 0;">
+          <a class="community-list-item community-link-row" href="/guides/">
+            <strong>返回选购指南</strong>
+            <span>回到用途与路径入口。</span>
+          </a>
+          <a class="community-list-item community-link-row" href="/devices/">
+            <strong>查看设备库</strong>
+            <span>对照机型和路线边界。</span>
+          </a>
+          <a class="community-list-item community-link-row" href="/feed/">
+            <strong>进入论坛讨论</strong>
+            <span>查看社区用户的真实反馈。</span>
+          </a>
+        </div>
+      </section>
+    </aside>
+  </section>
+</CommunityLayout>
+
+<style>
+  .detail-main :global(h2) {
+    margin: 1.3rem 0 0.6rem;
+    font-size: 1.12rem;
+    color: var(--text);
+  }
+  .detail-main :global(h3) {
+    margin: 1rem 0 0.45rem;
+    font-size: 0.98rem;
+    color: var(--text);
+  }
+  .detail-main :global(p),
+  .detail-main :global(li) {
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .detail-main :global(ul) {
+    margin: 0.5rem 0 0;
+    padding-left: 1.1rem;
+  }
+  .detail-main :global(a) {
+    color: var(--accent-hover);
+  }
+  .detail-main :global(a:hover) {
+    color: var(--text);
+  }
+</style>

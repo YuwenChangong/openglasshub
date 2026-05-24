@@ -21,58 +21,50 @@ const { title, description, noindex, canonical, activeTab = "feed" } = Astro.pro
   activeSection="forum"
   pageClass="forum-main"
 >
-  <div slot="belowHeader" class="forum-subnav">
-    <div class="forum-subnav__inner">
-      <nav class="forum-subnav__tabs" aria-label="论坛频道">
-        {forumTabs.map((tab) => (
-          <a href={tab.href} class:list={[{ "is-active": activeTab === tab.key }]}>
-            {tab.label}
-          </a>
-        ))}
-      </nav>
-    </div>
+  <div class="forum-tabs-row">
+    <nav class="forum-tabs-row__tabs" aria-label="论坛频道">
+      {forumTabs.map((tab) => (
+        <a href={tab.href} class:list={[{ "is-active": activeTab === tab.key }]}>
+          {tab.label}
+        </a>
+      ))}
+    </nav>
   </div>
 
   <slot />
 </CommunityLayout>
 
 <style>
-  .forum-subnav {
-    border-bottom: 1px solid var(--border);
-    background: var(--nav-bg);
+  .forum-tabs-row {
+    padding: 0.15rem 0 0.6rem;
   }
-  .forum-subnav__inner {
-    width: min(1200px, calc(100vw - 2rem));
-    margin: 0 auto;
-    padding: 0.55rem 0 0.65rem;
-  }
-  .forum-subnav__tabs {
+  .forum-tabs-row__tabs {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.85rem;
     flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.55rem;
   }
-  .forum-subnav__tabs a {
+  .forum-tabs-row__tabs a {
     display: inline-flex;
     align-items: center;
-    min-height: 34px;
-    padding: 0 0.8rem;
-    border-radius: 999px;
-    border: 1px solid transparent;
+    min-height: 30px;
+    padding: 0;
+    border-radius: 0;
+    border: 0;
     text-decoration: none;
     color: var(--text-muted);
-    font-size: 0.88rem;
-    font-weight: 600;
+    font-size: 0.84rem;
+    font-weight: 500;
     background: transparent;
   }
-  .forum-subnav__tabs a:hover,
-  .forum-subnav__tabs a.is-active {
+  .forum-tabs-row__tabs a:hover,
+  .forum-tabs-row__tabs a.is-active {
     color: var(--text);
-    border-color: var(--border);
-    background: var(--surface-soft);
   }
   :global(.forum-main) {
-    padding-top: 0.9rem;
+    padding-top: 0.45rem;
   }
   :global(.forum-main h1) {
     margin: 0 0 0.35rem;
@@ -83,11 +75,5 @@ const { title, description, noindex, canonical, activeTab = "feed" } = Astro.pro
     margin: 0;
     color: var(--text-muted);
     font-size: 0.9rem;
-  }
-  @media (max-width: 900px) {
-    .forum-subnav__inner {
-      width: min(1200px, calc(100vw - 1.25rem));
-      padding: 0.5rem 0 0.6rem;
-    }
   }
 </style>
