@@ -25,6 +25,12 @@
   --control-bg: rgba(255, 255, 255, 0.035);
   --control-border: rgba(255, 255, 255, 0.1);
   --control-hover: rgba(255, 255, 255, 0.07);
+  --ogh-header-top: rgba(255, 255, 255, 0.055);
+  --ogh-header-bottom: rgba(255, 255, 255, 0.028);
+  --ogh-header-base: rgba(0, 0, 0, 0.72);
+  --ogh-header-border: rgba(255, 255, 255, 0.105);
+  --ogh-header-highlight: rgba(255, 255, 255, 0.07);
+  --ogh-header-shadow: rgba(0, 0, 0, 0.35);
 }
 
 body {

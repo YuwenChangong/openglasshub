@@ -71,9 +71,9 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
 
   if (!user) {
     return compact ? (
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-        <a href={buildLoginHref(safeNext)} style={secondaryButtonStyle}>登录</a>
-        <a href={buildLoginHref(safeNext)} style={primaryButtonStyle}>注册</a>
+      <div className="ogh-auth-inline">
+        <a href={buildLoginHref(safeNext)} className="ogh-login-button">登录</a>
+        <a href={buildLoginHref(safeNext)} className="ogh-register-button">注册</a>
       </div>
     ) : (
       <div style={{ display: "grid", gap: "0.85rem", padding: "1rem 0" }}>
@@ -89,10 +89,10 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
   }
 
   return compact ? (
-    <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
-      <span style={{ color: "#c0c8e0", fontSize: "0.9rem" }}>{user.email}</span>
-      <a href={safeNext} style={secondaryButtonStyle}>继续</a>
-      <button type="button" onClick={handleSignOut} style={secondaryButtonStyle}>退出</button>
+    <div className="ogh-auth-inline">
+      <span className="ogh-auth-status">{user.email}</span>
+      <a href={safeNext} className="ogh-auth-secondary">继续</a>
+      <button type="button" onClick={handleSignOut} className="ogh-auth-secondary ogh-auth-button-reset">退出</button>
     </div>
   ) : (
     <div style={{ display: "grid", gap: "0.85rem", padding: "1rem 0" }}>

@@ -6,73 +6,94 @@ interface Props {
   currentPath?: string;
   currentSection?: NavKey;
   next?: string;
+  variant?: "site" | "starlight";
 }
 
-const { currentPath = Astro.url.pathname, currentSection, next = currentPath } = Astro.props;
+const { currentPath = Astro.url.pathname, currentSection, next = currentPath, variant = "site" } = Astro.props;
 const activeKey = currentSection ?? inferNavKey(currentPath);
 ---
 
-<header class="og-header">
-  <div class="og-header__inner">
-    <a href="/" class="og-header__brand" aria-label="OpenGlass Hub 首页">
+<header class:list={["og-header", "ogh-site-header", { "is-starlight": variant === "starlight" }]}>
+  <div class="og-header__inner ogh-site-header__inner">
+    <a href="/" class="og-header__brand ogh-brand" aria-label="OpenGlass Hub 首页">
       <img src="/brand/openglass-nav-logo.png" alt="" />
       <span>OpenGlass Hub</span>
     </a>
 
-    <nav class="og-header__nav" aria-label="站点导航">
+    <nav class="og-header__nav ogh-nav" aria-label="站点导航">
       {mainNav.map((item) => (
-        <a href={item.href} class:list={["og-header__link", { "is-active": activeKey === item.key }]}>
+        <a
+          href={item.href}
+          class:list={["og-header__link", { "is-active": activeKey === item.key }]}
+          aria-current={activeKey === item.key ? "page" : undefined}
+        >
           {item.label}
         </a>
       ))}
     </nav>
 
-    <div class="og-header__auth">
+    <div class="og-header__auth ogh-header-actions">
       <AuthCTA next={next} compact={true} client:only="react" />
     </div>
   </div>
 </header>
 
 <style>
-  .og-header {
+  .og-header,
+  .ogh-site-header {
     position: sticky;
     top: 0;
-    z-index: 40;
-    border-bottom: 1px solid #20283a;
-    background: rgba(9, 13, 22, 0.97);
-    backdrop-filter: blur(18px);
+    z-index: 100;
+    width: 100%;
+    background:
+      linear-gradient(
+        180deg,
+        var(--ogh-header-top, rgba(255,255,255,0.055)),
+        var(--ogh-header-bottom, rgba(255,255,255,0.028))
+      ),
+      var(--ogh-header-base, rgba(0,0,0,0.72));
+    backdrop-filter: blur(18px) saturate(135%);
+    -webkit-backdrop-filter: blur(18px) saturate(135%);
+    border-bottom: 1px solid var(--ogh-header-border, rgba(255,255,255,0.105));
+    box-shadow:
+      inset 0 1px 0 var(--ogh-header-highlight, rgba(255,255,255,0.07)),
+      0 10px 30px var(--ogh-header-shadow, rgba(0,0,0,0.35));
   }
-  .og-header__inner {
+  .og-header__inner,
+  .ogh-site-header__inner {
     width: 100%;
     max-width: none;
     min-height: 64px;
     margin: 0;
-    padding: 0 1.25rem;
+    padding: 0 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1.25rem;
   }
-  .og-header__brand {
+  .og-header__brand,
+  .ogh-brand {
     display: inline-flex;
     align-items: center;
-    gap: 0.82rem;
+    gap: 12px;
     text-decoration: none;
-    color: #f8fafc;
+    color: #f5f5f5;
     font-weight: 800;
     font-size: 1.08rem;
     letter-spacing: -0.02em;
     white-space: nowrap;
     flex-shrink: 0;
   }
-  .og-header__brand img {
+  .og-header__brand img,
+  .ogh-brand img {
     width: 34px;
     height: 34px;
+    display: block;
     object-fit: contain;
     image-rendering: -webkit-optimize-contrast;
-    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.06));
   }
-  .og-header__nav {
+  .og-header__nav,
+  .ogh-nav {
     display: flex;
     align-items: center;
     gap: 0.18rem;
@@ -81,28 +102,109 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     flex: 1;
     justify-content: flex-start;
   }
-  .og-header__link {
+  .og-header__link,
+  .ogh-nav a {
     display: inline-flex;
     align-items: center;
     min-height: 40px;
-    padding: 0 0.84rem;
+    padding: 9px 10px;
     border-radius: 10px;
-    color: #a5b3ce;
+    color: rgba(245,245,245,0.72);
     text-decoration: none;
-    font-size: 0.92rem;
-    font-weight: 600;
+    font-size: 0.94rem;
+    font-weight: 650;
     white-space: nowrap;
+    border: 1px solid transparent;
+    transition:
+      color 140ms ease,
+      background 140ms ease,
+      border-color 140ms ease,
+      box-shadow 140ms ease;
   }
   .og-header__link:hover,
-  .og-header__link.is-active {
-    color: #f8fafc;
-    background: #131c2d;
+  .ogh-nav a:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.055);
   }
-  .og-header__auth {
+  .og-header__link[aria-current="page"],
+  .og-header__link.is-active,
+  .ogh-nav a[aria-current="page"],
+  .ogh-nav a.is-active {
+    color: #fff;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.11), rgba(255,255,255,0.065));
+    border-color: rgba(255,255,255,0.13);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      0 8px 20px rgba(0,0,0,0.24);
+  }
+  .og-header__auth,
+  .ogh-header-actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: 10px;
     flex-shrink: 0;
+  }
+  :global(.ogh-auth-inline) {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  :global(.ogh-login-button),
+  :global(.ogh-register-button),
+  :global(.ogh-auth-secondary) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 700;
+    border: 1px solid rgba(255,255,255,0.13);
+    color: #f5f5f5;
+    backdrop-filter: blur(14px) saturate(125%);
+    -webkit-backdrop-filter: blur(14px) saturate(125%);
+  }
+  :global(.ogh-login-button),
+  :global(.ogh-auth-secondary) {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.04));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.075),
+      0 8px 22px rgba(0,0,0,0.24);
+  }
+  :global(.ogh-register-button) {
+    background:
+      linear-gradient(180deg, rgba(89,169,255,0.98), rgba(47,129,247,0.9));
+    border-color: rgba(150,200,255,0.45);
+    color: #fff;
+    font-weight: 800;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.2),
+      0 12px 30px rgba(47,129,247,0.26);
+  }
+  :global(.ogh-auth-status) {
+    color: rgba(245,245,245,0.72);
+    font-size: 0.88rem;
+  }
+  :global(.ogh-auth-button-reset) {
+    appearance: none;
+    font: inherit;
+    cursor: pointer;
+  }
+  :global(.ogh-login-button:hover),
+  :global(.ogh-auth-secondary:hover) {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.05));
+    border-color: rgba(255,255,255,0.18);
+    color: #fff;
+  }
+  :global(.ogh-register-button:hover) {
+    background:
+      linear-gradient(180deg, rgba(104,178,255,1), rgba(59,130,246,0.94));
   }
   @media (max-width: 900px) {
     .og-header__inner {
