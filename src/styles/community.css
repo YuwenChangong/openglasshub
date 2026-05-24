@@ -20,17 +20,24 @@
   --glass-shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.045);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.045);
   --glass-hover-shadow: 0 20px 48px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  --radius-panel: 18px;
+  --radius-card: 16px;
+  --control-bg: rgba(255, 255, 255, 0.035);
+  --control-border: rgba(255, 255, 255, 0.1);
+  --control-hover: rgba(255, 255, 255, 0.07);
 }
 
 body {
-  background: linear-gradient(180deg, var(--page-bg-soft), var(--page-bg));
+  background:
+    radial-gradient(circle at top center, rgba(255, 255, 255, 0.035), transparent 34%),
+    linear-gradient(180deg, var(--page-bg-soft), var(--page-bg));
   color: var(--text);
 }
 
 .community-shell {
   width: min(1320px, calc(100vw - 2rem));
   margin: 0 auto;
-  padding: 1rem 0 3rem;
+  padding: 1.15rem 0 3rem;
 }
 
 .community-page-head {
@@ -68,9 +75,9 @@ body {
 }
 
 .community-surface {
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.035));
   border: 1px solid var(--glass-border);
-  border-radius: 16px;
+  border-radius: var(--radius-panel);
   box-shadow: var(--glass-shadow-soft);
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
@@ -103,7 +110,7 @@ body {
 }
 
 .community-link {
-  color: #d7e0ee;
+  color: var(--text);
   text-decoration: none;
   font-weight: 600;
   font-size: 0.85rem;
@@ -155,7 +162,7 @@ body {
 }
 
 .community-sidebar .community-surface {
-  background: var(--surface-soft);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.03));
 }
 
 .community-sidebar .community-surface:not(.community-surface--primary) {
@@ -177,9 +184,9 @@ body {
   padding: 0.9rem 0.95rem;
   text-decoration: none;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--glass-shadow-soft);
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.03));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.035);
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
@@ -190,9 +197,9 @@ body {
 .community-circle-card:hover,
 .community-product-card:hover {
   border-color: var(--border-strong);
-  background: var(--surface-hover);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.072), rgba(255, 255, 255, 0.042));
   box-shadow: var(--glass-hover-shadow);
-  transform: none;
+  transform: translateY(-1px);
 }
 
 .community-post-top,
@@ -224,13 +231,13 @@ body {
 }
 
 .community-avatar {
-  background: #1c2326;
-  color: #edf4ff;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .community-avatar--neutral {
-  background: #111821;
+  background: rgba(255, 255, 255, 0.035);
   color: var(--text-muted);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -298,8 +305,8 @@ body {
   place-items: center;
   min-height: 58px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.025);
   color: var(--text-faint);
   font-size: 0.78rem;
   text-align: center;
@@ -326,7 +333,7 @@ body {
   align-items: center;
   gap: 0.35rem;
   min-height: 30px;
-  color: #bcc6d4;
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 0.82rem;
   font-weight: 600;
@@ -423,24 +430,25 @@ body {
   justify-content: center;
   min-height: 38px;
   padding: 0.52rem 0.9rem;
-  border-radius: 9px;
-  border: 1px solid var(--border);
+  border-radius: 12px;
+  border: 1px solid var(--control-border);
   text-decoration: none;
   font-weight: 600;
   font-size: 0.88rem;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .community-button {
   background: var(--accent);
-  border-color: rgba(79, 140, 255, 0.24);
+  border-color: rgba(47, 129, 247, 0.34);
   color: var(--text);
-  box-shadow: none;
+  box-shadow: 0 10px 24px rgba(47, 129, 247, 0.16);
 }
 
 .community-button--secondary {
-  background: rgba(255, 255, 255, 0.045);
+  background: var(--control-bg);
   color: var(--text);
-  box-shadow: var(--glass-shadow-soft);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
 }
@@ -495,15 +503,21 @@ body {
 
 .community-button:hover {
   background: var(--accent-hover);
+  transform: translateY(-1px);
 }
 
 .community-button--secondary:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--control-hover);
   border-color: var(--border-strong);
+  transform: translateY(-1px);
 }
 
 .community-field-note:last-child {
   border-bottom: 0;
+}
+
+.community-surface--primary {
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 @media (max-width: 900px) {
