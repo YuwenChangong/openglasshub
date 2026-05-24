@@ -5,6 +5,7 @@ import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import CommentForm from "../../components/forum/CommentForm";
 import CommentsSection from "../../components/forum/CommentsSection";
+import PostModerationActions from "../../components/forum/PostModerationActions";
 import { buildLoginHref } from "../../lib/auth-redirect";
 
 const { id } = Astro.params;
@@ -18,7 +19,7 @@ const supabase = createSSRClient(env);
 
 const { data: post, error } = await supabase
   .from("posts")
-  .select("id, title, body, type, status, created_at, updated_at, profiles:author_id(display_name), circles:circle_id(slug, name)")
+  .select("id, author_id, title, body, type, status, created_at, updated_at, profiles:author_id(display_name), circles:circle_id(slug, name)")
   .eq("id", id)
   .eq("status", "published")
   .single();
@@ -175,6 +176,7 @@ const postMedia = (mediaRows ?? []).map((item) => ({
         {" · "}
         <a href="/posts/new/">发帖</a>
       </div>
+      <PostModerationActions postId={post.id} authorId={post.author_id} client:visible />
     </article>
 
     <section id="comments">
@@ -251,5 +253,12 @@ const postMedia = (mediaRows ?? []).map((item) => ({
     .post-media-gallery {
       grid-template-columns: 1fr;
     }
+  }
+  .post-moderation-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
   }
 </style>

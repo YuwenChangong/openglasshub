@@ -186,7 +186,7 @@ export default function CreatePostForm() {
   }
 
   async function rollbackPendingPost(token: string, postId: string) {
-    await fetch(`/api/forum/posts?post_id=${encodeURIComponent(postId)}`, {
+    await fetch(`/api/forum/posts?id=${encodeURIComponent(postId)}`, {
       method: "DELETE",
       headers: {
         authorization: `Bearer ${token}`,

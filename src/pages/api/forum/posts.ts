@@ -61,6 +61,14 @@ function createUserClient(
   });
 }
 
+function parseModeratorEmails(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
@@ -100,6 +108,24 @@ export const GET: APIRoute = async ({ request, locals }) => {
     }
 
     const url = new URL(request.url);
+    if (url.searchParams.get("moderation_check") === "1") {
+      const token = getBearerToken(request);
+      if (!token) {
+        return json({ error: "Missing bearer token" }, 401);
+      }
+      const userClient = createUserClient(env, token);
+      const { data: authData, error: authError } = await userClient.auth.getUser(token);
+      if (authError || !authData.user) {
+        return json({ error: "Invalid auth token" }, 401);
+      }
+      const moderators = parseModeratorEmails(env.MODERATOR_EMAILS);
+      const email = authData.user.email?.toLowerCase() ?? "";
+      return json({
+        configured: moderators.length > 0,
+        can_moderate: moderators.length > 0 && moderators.includes(email),
+      });
+    }
+
     const circleSlug = url.searchParams.get("circle");
     const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 20;
@@ -235,7 +261,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 };
 
 // ---------------------------------------------------------------------------
-// DELETE — remove a pending post owned by current user (rollback path)
+// DELETE — remove a post owned by current user (soft delete preferred)
 // ---------------------------------------------------------------------------
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
@@ -257,7 +283,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     }
 
     const url = new URL(request.url);
-    const postId = String(url.searchParams.get("post_id") ?? "").trim();
+    const postId = String(url.searchParams.get("id") ?? url.searchParams.get("post_id") ?? "").trim();
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(postId)) {
       return json({ error: "Invalid post_id format" }, 400);
@@ -277,16 +303,90 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     if (post.author_id !== authData.user.id) {
       return json({ error: "Cannot delete a post you do not own" }, 403);
     }
-    if (post.status !== "pending") {
-      return json({ error: "Only pending posts can be removed from this flow" }, 409);
+    if (post.status === "deleted") {
+      return json({ error: "Post already deleted" }, 409);
     }
 
-    const { error: deleteError } = await userClient.from("posts").delete().eq("id", postId);
-    if (deleteError) {
-      return json({ error: deleteError.message }, 500);
+    const { data: updated, error: updateError } = await userClient
+      .from("posts")
+      .update({ status: "deleted" })
+      .eq("id", postId)
+      .eq("author_id", authData.user.id)
+      .select("id,status")
+      .single();
+    if (updateError) {
+      // Backward compatibility: old RLS policies may not allow authors to set deleted.
+      const { error: hardDeleteError } = await userClient
+        .from("posts")
+        .delete()
+        .eq("id", postId)
+        .eq("author_id", authData.user.id);
+      if (hardDeleteError) {
+        return json({ error: updateError.message }, 500);
+      }
+      return json({ ok: true, post: { id: postId, status: "deleted" }, mode: "hard_delete_fallback" });
     }
 
-    return json({ ok: true });
+    return json({ ok: true, post: updated });
+  } catch (err) {
+    return json(
+      { error: err instanceof Error ? err.message : "Unexpected server error" },
+      500,
+    );
+  }
+};
+
+export const PATCH: APIRoute = async ({ request, locals }) => {
+  try {
+    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    if (!env) {
+      return json({ error: "Runtime environment not available" }, 500);
+    }
+
+    const token = getBearerToken(request);
+    if (!token) {
+      return json({ error: "Missing bearer token" }, 401);
+    }
+
+    const userClient = createUserClient(env, token);
+    const { data: authData, error: authError } = await userClient.auth.getUser(token);
+    if (authError || !authData.user) {
+      return json({ error: "Invalid auth token" }, 401);
+    }
+
+    const payload = (await request.json().catch(() => null)) as
+      | { id?: string; status?: string }
+      | null;
+    const postId = String(payload?.id ?? "").trim();
+    const nextStatus = String(payload?.status ?? "").trim();
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(postId)) {
+      return json({ error: "Invalid post id" }, 400);
+    }
+    if (nextStatus !== "hidden") {
+      return json({ error: "Only hidden status is supported in this endpoint" }, 400);
+    }
+
+    const moderators = parseModeratorEmails(env.MODERATOR_EMAILS);
+    if (moderators.length === 0) {
+      return json({ error: "moderation not configured" }, 403);
+    }
+    const email = authData.user.email?.toLowerCase() ?? "";
+    if (!moderators.includes(email)) {
+      return json({ error: "Forbidden" }, 403);
+    }
+
+    const { data: updated, error: updateError } = await userClient
+      .from("posts")
+      .update({ status: "hidden" })
+      .eq("id", postId)
+      .select("id,status")
+      .single();
+    if (updateError) {
+      return json({ error: updateError.message }, 500);
+    }
+
+    return json({ post: updated });
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },
