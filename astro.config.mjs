@@ -8,6 +8,10 @@ export default defineConfig({
   output: 'static',
   redirects: {
     '/gaze-os': '/gaze-launcher/',
+    '/reference/guides-docs': '/guides/',
+    '/reference/devices-docs': '/devices/',
+    '/reference/developers-docs': '/developers/',
+    '/reference/gaze-launcher-docs': '/gaze-launcher/',
   },
   adapter: cloudflare({
     platformProxy: {
