@@ -216,7 +216,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         type,
         title,
         body,
-        status: "pending",
+        // MVP policy: publish immediately until moderation tooling is available.
+        status: "published",
       })
       .select("id,author_id,circle_id,type,title,status,created_at")
       .single();
