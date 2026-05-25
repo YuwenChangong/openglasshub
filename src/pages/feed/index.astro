@@ -14,7 +14,7 @@ const supabase = createSSRClient(env);
 const [{ data: posts, error }, { data: circles }] = await Promise.all([
   supabase
     .from("posts")
-    .select("id, title, body, type, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(id, post_id, kind, url, storage_path, thumbnail_url, alt_text, width, height, duration_seconds, size_bytes, mime_type, sort_order, is_cover, created_at)")
+    .select("id, title, body, type, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(*)")
     .eq("status", "published")
     .order("last_activity_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })

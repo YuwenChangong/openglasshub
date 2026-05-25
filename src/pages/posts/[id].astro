@@ -29,7 +29,7 @@ const { data: post, error } = await supabase
 const { data: mediaRows } = !error && post
   ? await supabase
       .from("post_media")
-      .select("id, kind, url, storage_path, thumbnail_url, alt_text, width, height, duration_seconds, size_bytes, mime_type, sort_order, is_cover")
+      .select("*")
       .eq("post_id", id)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true })

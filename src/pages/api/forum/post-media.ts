@@ -113,6 +113,10 @@ function normalizeNonNegativeNumber(value: unknown): number | null {
   return parsed;
 }
 
+function shouldFallbackToLegacyColumns(message: string): boolean {
+  return /column .* does not exist/i.test(message) || /schema cache/i.test(message);
+}
+
 function validateMediaArray(postId: string, userId: string, media: MediaPayload[]): string | null {
   if (!Array.isArray(media) || media.length === 0) {
     return "media is required";
@@ -239,7 +243,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .eq("post_id", postId)
       .eq("user_id", authData.user.id);
 
-    if (resetCoverError) {
+    if (resetCoverError && !shouldFallbackToLegacyColumns(resetCoverError.message)) {
       return json({ error: resetCoverError.message }, 500);
     }
 
@@ -260,10 +264,31 @@ export const POST: APIRoute = async ({ request, locals }) => {
       is_cover: item.is_cover === true || (coverIndex < 0 && index === 0),
     }));
 
-    const { data: inserted, error: insertError } = await userClient
+    let { data: inserted, error: insertError } = await userClient
       .from("post_media")
       .insert(rows)
       .select("id, post_id, kind, url, storage_path, thumbnail_url, alt_text, width, height, duration_seconds, size_bytes, mime_type, sort_order, is_cover, created_at");
+
+    if (insertError && shouldFallbackToLegacyColumns(insertError.message)) {
+      const legacyRows = media.map((item, index) => ({
+        post_id: postId,
+        user_id: authData.user.id,
+        kind: item.kind,
+        url: item.kind === "video_link" ? item.url.trim() : null,
+        storage_path: item.kind === "image" || item.kind === "video" ? item.storage_path.trim() : null,
+        thumbnail_url: item.kind === "video_link" ? item.thumbnail_url?.trim() ?? null : null,
+        alt_text: item.alt_text?.trim() || null,
+        sort_order: Number.isFinite(item.sort_order) ? Number(item.sort_order) : index,
+      }));
+
+      const legacyResult = await userClient
+        .from("post_media")
+        .insert(legacyRows)
+        .select("id, post_id, kind, url, storage_path, thumbnail_url, alt_text, sort_order, created_at");
+
+      inserted = legacyResult.data as typeof inserted;
+      insertError = legacyResult.error;
+    }
 
     if (insertError) {
       return json({ error: insertError.message }, 500);
