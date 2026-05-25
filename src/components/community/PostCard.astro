@@ -1,4 +1,7 @@
 ---
+import type { ResolvedPostMedia } from "../../lib/forum-media";
+import PostMediaPreview from "./PostMediaPreview.astro";
+
 interface Props {
   id: string;
   title: string;
@@ -9,9 +12,10 @@ interface Props {
   authorName?: string;
   timestamp: string;
   mediaLabel?: string;
+  media?: ResolvedPostMedia[];
 }
 
-const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, timestamp, mediaLabel } = Astro.props;
+const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, timestamp, mediaLabel, media = [] } = Astro.props;
 const displayName = authorName?.trim() || "社区成员";
 const initial = displayName === "社区成员" ? "" : displayName.slice(0, 1).toUpperCase();
 const postHref = `/posts/${id}/`;
@@ -37,7 +41,7 @@ const postHref = `/posts/${id}/`;
   </a>
 
   {excerpt && <p>{excerpt}</p>}
-  {mediaLabel && <div class="community-media-placeholder">{mediaLabel}</div>}
+  {media.length > 0 ? <PostMediaPreview media={media} href={postHref} /> : mediaLabel ? <div class="community-media-placeholder">{mediaLabel}</div> : null}
 
   <div class="community-post-actions">
     <a class="community-action" href={`${postHref}#comments`}>评论</a>

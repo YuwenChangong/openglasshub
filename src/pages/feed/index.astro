@@ -6,6 +6,7 @@ import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import PostCard from "../../components/community/PostCard.astro";
 import EmptyFeedState from "../../components/community/EmptyFeedState.astro";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
+import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
@@ -13,7 +14,7 @@ const supabase = createSSRClient(env);
 const [{ data: posts, error }, { data: circles }] = await Promise.all([
   supabase
     .from("posts")
-    .select("id, title, body, type, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name)")
+    .select("id, title, body, type, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(id, post_id, kind, url, storage_path, thumbnail_url, alt_text, sort_order, created_at)")
     .eq("status", "published")
     .order("last_activity_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
@@ -23,6 +24,8 @@ const [{ data: posts, error }, { data: circles }] = await Promise.all([
     .select("slug, name, description")
     .order("name", { ascending: true }),
 ]);
+
+const postMediaMap = posts ? await buildResolvedPostMediaMap(supabase, posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>) : new Map();
 
 const visibleCircles = (circles ?? []).filter((circle) => isPublicVisibleCircle(circle)).slice(0, 5);
 
@@ -80,6 +83,7 @@ const postTypeLabels: Record<string, string> = {
               typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
               authorName={post.profiles?.display_name || post.profiles?.username || undefined}
               timestamp={formatDate(post.last_activity_at || post.created_at)}
+              media={postMediaMap.get(post.id) ?? []}
             />
           ))}
         </div>

@@ -7,6 +7,7 @@ import PostCard from "../components/community/PostCard.astro";
 import EmptyFeedState from "../components/community/EmptyFeedState.astro";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { curatedNews } from "../lib/news";
+import { buildResolvedPostMediaMap, type PostMediaRow } from "../lib/forum-media";
 
 type PostRow = {
   id: string;
@@ -17,6 +18,7 @@ type PostRow = {
   last_activity_at?: string | null;
   profiles?: { display_name?: string | null; username?: string | null } | null;
   circles?: { slug?: string | null; name?: string | null } | null;
+  post_media?: PostMediaRow[] | null;
 };
 
 const env = (Astro.locals as { runtime?: { env?: CloudflareEnv } }).runtime?.env;
@@ -28,7 +30,7 @@ let loadError = "";
 if (supabase) {
   const postResult = await supabase
     .from("posts")
-    .select("id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name)")
+    .select("id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(id,post_id,kind,url,storage_path,thumbnail_url,alt_text,sort_order,created_at)")
     .eq("status", "published")
     .order("last_activity_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
@@ -40,6 +42,8 @@ if (supabase) {
     posts = (postResult.data ?? []) as PostRow[];
   }
 }
+
+const postMediaMap = supabase ? await buildResolvedPostMediaMap(supabase, posts) : new Map();
 
 const postTypeLabels: Record<string, string> = {
   experience: "体验/评测",
@@ -116,6 +120,7 @@ function excerpt(body?: string | null): string {
               typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
               authorName={post.profiles?.display_name || post.profiles?.username || undefined}
               timestamp={formatDate(post.last_activity_at || post.created_at)}
+              media={postMediaMap.get(post.id) ?? []}
             />
           ))}
         </div>

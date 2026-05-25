@@ -42,13 +42,22 @@ const { title, description, noindex, canonical, activeSection, pageClass = "" } 
 
 <style>
   :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  *,
+  *::before,
+  *::after { box-sizing: border-box; }
   body {
     margin: 0;
     background: #0b0f10;
     color: #f2f4f5;
     font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
     line-height: 1.65;
+    overflow-x: hidden;
   }
   a { color: inherit; }
 </style>

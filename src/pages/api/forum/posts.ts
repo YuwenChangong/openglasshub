@@ -135,7 +135,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     let query = client
       .from("posts")
       .select(
-        "id,title,type,status,created_at,last_activity_at,circle_id,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name)",
+        "id,title,type,status,created_at,last_activity_at,circle_id,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(id,post_id,kind,url,storage_path,thumbnail_url,alt_text,sort_order,created_at)",
       )
       .eq("status", "published")
       .order("last_activity_at", { ascending: false })

@@ -47,6 +47,12 @@ type MediaPayload =
       sort_order?: number;
     }
   | {
+      kind: "video";
+      storage_path: string;
+      alt_text?: string;
+      sort_order?: number;
+    }
+  | {
       kind: "video_link";
       url: string;
       thumbnail_url?: string;
@@ -55,7 +61,7 @@ type MediaPayload =
     };
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const imagePathRegex = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[^/]+$/i;
+const storagePathRegex = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[^/]+$/i;
 
 function isValidVideoUrl(value: string): boolean {
   try {
@@ -70,8 +76,8 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
   if (!Array.isArray(media) || media.length === 0) {
     return "media is required";
   }
-  if (media.length > 10) {
-    return "media must contain at most 10 items";
+  if (media.length > 6) {
+    return "media must contain at most 6 items";
   }
 
   for (const [index, item] of media.entries()) {
@@ -80,13 +86,13 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
       return "sort_order must be between 0 and 99";
     }
 
-    if (item.kind === "image") {
+    if (item.kind === "image" || item.kind === "video") {
       const storagePath = String(item.storage_path ?? "").trim();
-      if (!storagePath || !imagePathRegex.test(storagePath)) {
-        return "Invalid image storage_path";
+      if (!storagePath || !storagePathRegex.test(storagePath)) {
+        return "Invalid media storage_path";
       }
       if (!storagePath.startsWith(`${userId}/${postId}/`)) {
-        return "Image storage_path must stay inside the current user/post folder";
+        return "Media storage_path must stay inside the current user/post folder";
       }
       continue;
     }
@@ -161,7 +167,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       user_id: authData.user.id,
       kind: item.kind,
       url: item.kind === "video_link" ? item.url.trim() : null,
-      storage_path: item.kind === "image" ? item.storage_path.trim() : null,
+      storage_path: item.kind === "image" || item.kind === "video" ? item.storage_path.trim() : null,
       thumbnail_url: item.kind === "video_link" ? item.thumbnail_url?.trim() ?? null : null,
       alt_text: item.alt_text?.trim() || null,
       sort_order: Number.isFinite(item.sort_order) ? Number(item.sort_order) : index,

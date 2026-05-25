@@ -7,6 +7,7 @@ import CommentForm from "../../components/forum/CommentForm";
 import CommentsSection from "../../components/forum/CommentsSection";
 import PostModerationActions from "../../components/forum/PostModerationActions";
 import { buildLoginHref } from "../../lib/auth-redirect";
+import { resolveSignedPostMedia, type PostMediaRow } from "../../lib/forum-media";
 
 const { id } = Astro.params;
 
@@ -33,7 +34,7 @@ const { data: mediaRows } = !error && post
       .order("created_at", { ascending: true })
   : { data: [] as Array<{
       id: string;
-      kind: "image" | "video_link";
+      kind: "image" | "video" | "video_link";
       url: string | null;
       storage_path: string | null;
       thumbnail_url: string | null;
@@ -66,22 +67,7 @@ const postTypeLabels: Record<string, string> = {
 const circle = post?.circles ?? null;
 const canonicalUrl = post ? `https://openglasshub.pages.dev/posts/${post.id}/` : undefined;
 const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "/feed/");
-const imagePaths = (mediaRows ?? [])
-  .filter((item) => item.kind === "image" && item.storage_path)
-  .map((item) => item.storage_path as string);
-const { data: signedImages } = imagePaths.length
-  ? await supabase.storage.from("post-media").createSignedUrls(imagePaths, 60 * 60)
-  : { data: [] as Array<{ signedUrl?: string }> };
-const imageUrlMap = new Map(
-  imagePaths.map((path, index) => [path, signedImages?.[index]?.signedUrl ?? ""]),
-);
-const postMedia = (mediaRows ?? []).map((item) => ({
-  ...item,
-  displayUrl:
-    item.kind === "image" && item.storage_path
-      ? imageUrlMap.get(item.storage_path) ?? ""
-      : item.url ?? "",
-}));
+const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as PostMediaRow[]);
 ---
 
 {!post ? (
@@ -135,7 +121,7 @@ const postMedia = (mediaRows ?? []).map((item) => ({
         </div>
       </header>
 
-      <section class="forum-card" style="padding: 1.6rem; line-height: 1.8; font-size: 1rem;">
+      <section class="forum-card post-body-card" style="padding: 1.6rem; line-height: 1.8; font-size: 1rem;">
         {post.body ? (
           <div style="white-space: pre-wrap; word-break: break-word;">{post.body}</div>
         ) : (
@@ -150,12 +136,22 @@ const postMedia = (mediaRows ?? []).map((item) => ({
               {postMedia
                 .filter((item) => item.kind === "image" && item.displayUrl)
                 .map((item) => (
-                  <a href={item.displayUrl} target="_blank" rel="noreferrer" class="post-media-gallery__item">
+                  <a href={item.displayUrl} target="_blank" rel="noreferrer" class="post-media-frame post-media-gallery__item">
                     <img src={item.displayUrl} alt={item.alt_text || post.title} loading="lazy" />
                   </a>
                 ))}
             </div>
           )}
+
+          {postMedia
+            .filter((item) => item.kind === "video" && item.displayUrl)
+            .map((item) => (
+              <div class="post-media-frame post-media-video-frame">
+                <video controls playsinline preload="metadata" src={item.displayUrl}>
+                  浏览器不支持该视频。
+                </video>
+              </div>
+            ))}
 
           {postMedia
             .filter((item) => item.kind === "video_link" && item.displayUrl)
@@ -208,23 +204,28 @@ const postMedia = (mediaRows ?? []).map((item) => ({
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 0.85rem;
+    min-width: 0;
+  }
+  .post-media-frame {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: 16px;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.1);
   }
   .post-media-gallery__item {
     display: block;
-    width: 100%;
-    max-width: 100%;
-    border-radius: 18px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.035);
   }
-  .post-media-gallery__item img {
+  .post-media-gallery__item img,
+  .post-media-video-frame video {
     display: block;
     width: 100%;
     max-width: 100%;
     height: auto;
-    aspect-ratio: 4 / 3;
+    max-height: 560px;
     object-fit: contain;
+    background: #000;
   }
   .post-video-card {
     display: grid;
@@ -242,6 +243,9 @@ const postMedia = (mediaRows ?? []).map((item) => ({
     -webkit-backdrop-filter: blur(14px) saturate(120%);
     box-shadow: var(--glass-shadow-soft);
   }
+  .post-body-card {
+    overflow: hidden;
+  }
   .post-video-card strong {
     font-size: 1rem;
     word-break: break-word;
@@ -252,6 +256,10 @@ const postMedia = (mediaRows ?? []).map((item) => ({
   @media (max-width: 720px) {
     .post-media-gallery {
       grid-template-columns: 1fr;
+    }
+    .post-media-gallery__item img,
+    .post-media-video-frame video {
+      max-height: 420px;
     }
   }
   .post-moderation-actions {

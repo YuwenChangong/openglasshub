@@ -9,10 +9,11 @@ interface CircleOption {
   description?: string | null;
 }
 
-interface LocalImage {
+interface LocalMedia {
   id: string;
   file: File;
   previewUrl: string;
+  kind: "image" | "video";
 }
 
 const postTypes = [
@@ -24,9 +25,12 @@ const postTypes = [
   { value: "feedback", label: "反馈", description: "对产品、社区和 Gaze Launcher 的建议。" },
 ] as const;
 
-const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const MAX_IMAGE_COUNT = 9;
+const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
+const MAX_MEDIA_COUNT = 6;
+const MAX_TOTAL_SIZE = 150 * 1024 * 1024;
 
 function normalizeFileName(fileName: string) {
   return fileName
@@ -56,7 +60,7 @@ function mapAuthError(errorMessage: string): string {
 export default function CreatePostForm() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const imagesRef = useRef<LocalImage[]>([]);
+  const mediaFilesRef = useRef<LocalMedia[]>([]);
   const [ready, setReady] = useState(false);
   const [circleSlug, setCircleSlug] = useState("");
   const [type, setType] = useState("question");
@@ -64,7 +68,7 @@ export default function CreatePostForm() {
   const [body, setBody] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [circles, setCircles] = useState<CircleOption[]>([]);
-  const [images, setImages] = useState<LocalImage[]>([]);
+  const [mediaFiles, setMediaFiles] = useState<LocalMedia[]>([]);
   const [loadingCircles, setLoadingCircles] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -132,34 +136,47 @@ export default function CreatePostForm() {
   }, []);
 
   useEffect(() => {
-    imagesRef.current = images;
-  }, [images]);
+    mediaFilesRef.current = mediaFiles;
+  }, [mediaFiles]);
 
   useEffect(() => {
     return () => {
-      imagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      mediaFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     };
   }, []);
 
-  function addImages(fileList: FileList | File[]) {
+  function addMediaFiles(fileList: FileList | File[]) {
     const nextFiles = Array.from(fileList);
     if (!nextFiles.length) return;
 
     setError("");
 
-    if (images.length + nextFiles.length > MAX_IMAGE_COUNT) {
-      setError(`单帖最多上传 ${MAX_IMAGE_COUNT} 张图片。`);
+    if (mediaFiles.length + nextFiles.length > MAX_MEDIA_COUNT) {
+      setError(`单帖最多上传 ${MAX_MEDIA_COUNT} 个媒体文件。`);
       return;
     }
 
-    const accepted: LocalImage[] = [];
+    const currentTotalSize = mediaFiles.reduce((sum, item) => sum + item.file.size, 0);
+    let nextTotalSize = currentTotalSize;
+    const accepted: LocalMedia[] = [];
     for (const file of nextFiles) {
-      if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
-        setError("只支持 jpg / jpeg / png / webp 图片。");
+      const isImage = ACCEPTED_IMAGE_TYPES.has(file.type);
+      const isVideo = ACCEPTED_VIDEO_TYPES.has(file.type);
+      if (!isImage && !isVideo) {
+        setError("只支持 jpg / png / webp / gif 图片，以及 mp4 / webm / mov 视频。");
         continue;
       }
-      if (file.size > MAX_IMAGE_SIZE) {
-        setError("单张图片不能超过 5MB。");
+      if (isImage && file.size > MAX_IMAGE_SIZE) {
+        setError("单张图片不能超过 10MB。");
+        continue;
+      }
+      if (isVideo && file.size > MAX_VIDEO_SIZE) {
+        setError("单个视频不能超过 100MB。");
+        continue;
+      }
+      nextTotalSize += file.size;
+      if (nextTotalSize > MAX_TOTAL_SIZE) {
+        setError("单帖媒体总大小不能超过 150MB。");
         continue;
       }
 
@@ -167,16 +184,17 @@ export default function CreatePostForm() {
         id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
         file,
         previewUrl: URL.createObjectURL(file),
+        kind: isVideo ? "video" : "image",
       });
     }
 
     if (accepted.length > 0) {
-      setImages((current) => [...current, ...accepted]);
+      setMediaFiles((current) => [...current, ...accepted]);
     }
   }
 
-  function removeImage(id: string) {
-    setImages((current) => {
+  function removeMedia(id: string) {
+    setMediaFiles((current) => {
       const target = current.find((item) => item.id === id);
       if (target) {
         URL.revokeObjectURL(target.previewUrl);
@@ -243,33 +261,34 @@ export default function CreatePostForm() {
 
       createdPostId = createPayload.post.id;
       const mediaPayload: Array<{
-        kind: "image" | "video_link";
+        kind: "image" | "video" | "video_link";
         storage_path?: string;
         url?: string;
         alt_text?: string;
         sort_order: number;
       }> = [];
 
-      if (images.length > 0) {
-        for (const [index, image] of images.entries()) {
-          const fileName = normalizeFileName(image.file.name) || `image-${index + 1}.jpg`;
+      if (mediaFiles.length > 0) {
+        for (const [index, item] of mediaFiles.entries()) {
+          const fallbackName = item.kind === "video" ? `video-${index + 1}.mp4` : `image-${index + 1}.jpg`;
+          const fileName = normalizeFileName(item.file.name) || fallbackName;
           const storagePath = `${sessionData.session.user.id}/${createdPostId}/${Date.now()}-${index}-${fileName}`;
           const { error: uploadError } = await supabase.storage
             .from("post-media")
-            .upload(storagePath, image.file, {
+            .upload(storagePath, item.file, {
               upsert: false,
-              contentType: image.file.type,
+              contentType: item.file.type,
             });
 
           if (uploadError) {
-            throw new Error(`图片上传失败：${uploadError.message}`);
+            throw new Error(`${item.kind === "video" ? "视频" : "图片"}上传失败：${uploadError.message}`);
           }
 
           uploadedPaths.push(storagePath);
           mediaPayload.push({
-            kind: "image",
+            kind: item.kind,
             storage_path: storagePath,
-            alt_text: title.trim() || image.file.name,
+            alt_text: title.trim() || item.file.name,
             sort_order: index,
           });
         }
@@ -303,11 +322,11 @@ export default function CreatePostForm() {
         }
       }
 
-      images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      mediaFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
       setTitle("");
       setBody("");
       setVideoUrl("");
-      setImages([]);
+      setMediaFiles([]);
       const createdStatus = createPayload.post.status ?? "pending";
       if (createdStatus === "published") {
         setMessage("发布成功，正在跳转到帖子页面。");
@@ -342,7 +361,7 @@ export default function CreatePostForm() {
     <section className="post-composer">
       <div className="post-composer__intro">
         <h2>发布帖子</h2>
-        <p>文字、图片和外部视频链接都可以从这里发布。图片会存到受 RLS 控制的媒体桶，视频当前只支持外部链接，不做原生视频上传。</p>
+        <p>文字、图片、视频文件和外部视频链接都可以从这里发布。媒体会存到受 RLS 控制的 `post-media` 桶，封面默认使用第一张图片或第一个视频。</p>
       </div>
 
       <form onSubmit={handleSubmit} className="post-composer__form">
@@ -409,8 +428,8 @@ export default function CreatePostForm() {
 
         <div className="media-upload-block">
           <div className="post-composer__label-row">
-            <span className="post-composer__label">图片</span>
-            <span className="community-meta">单图 5MB 以内，最多 9 张</span>
+            <span className="post-composer__label">媒体文件</span>
+            <span className="community-meta">图片 10MB / 视频 100MB，最多 6 个，总大小 150MB</span>
           </div>
           <button
             type="button"
@@ -420,34 +439,38 @@ export default function CreatePostForm() {
             onDrop={(event) => {
               event.preventDefault();
               if (event.dataTransfer.files) {
-                addImages(event.dataTransfer.files);
+                addMediaFiles(event.dataTransfer.files);
               }
             }}
           >
-            <strong>拖拽图片到这里，或点击选择文件</strong>
-            <span>支持 jpg / jpeg / png / webp</span>
+            <strong>拖拽图片或视频到这里，或点击选择文件</strong>
+            <span>支持 jpg / png / webp / gif，以及 mp4 / webm / mov</span>
           </button>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/*,video/mp4,video/webm,video/quicktime"
             multiple
             hidden
             onChange={(event) => {
               if (event.target.files) {
-                addImages(event.target.files);
+                addMediaFiles(event.target.files);
                 event.target.value = "";
               }
             }}
           />
-          {images.length > 0 && (
+          {mediaFiles.length > 0 && (
             <div className="media-preview-grid">
-              {images.map((image) => (
-                <figure key={image.id} className="media-preview-card">
-                  <img src={image.previewUrl} alt={image.file.name} />
+              {mediaFiles.map((item) => (
+                <figure key={item.id} className="media-preview-card">
+                  {item.kind === "video" ? (
+                    <video src={item.previewUrl} muted playsInline preload="metadata" />
+                  ) : (
+                    <img src={item.previewUrl} alt={item.file.name} />
+                  )}
                   <figcaption>
-                    <span>{image.file.name}</span>
-                    <button type="button" onClick={() => removeImage(image.id)}>
+                    <span>{item.file.name}</span>
+                    <button type="button" onClick={() => removeMedia(item.id)}>
                       删除
                     </button>
                   </figcaption>
@@ -458,7 +481,7 @@ export default function CreatePostForm() {
         </div>
 
         <label>
-          <span className="post-composer__label">视频链接</span>
+          <span className="post-composer__label">外部视频链接（可选）</span>
           <input
             className="community-input"
             type="url"
@@ -474,7 +497,7 @@ export default function CreatePostForm() {
             <a href={videoUrl.trim()} target="_blank" rel="noreferrer">
               {videoUrl.trim()}
             </a>
-            <span>当前阶段只保存外部视频链接，不做站内原生视频上传。</span>
+            <span>如果已经上传视频文件，这个外部链接会作为额外媒体附加到帖子里。</span>
           </div>
         )}
 

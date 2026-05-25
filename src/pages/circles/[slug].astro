@@ -4,6 +4,7 @@ export const prerender = false;
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import PostCard from "../../components/community/PostCard.astro";
+import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
 
 const { slug } = Astro.params;
 
@@ -31,7 +32,7 @@ let postsError: any = null;
 if (circle) {
   const result = await supabase
     .from("posts")
-    .select("id, title, type, created_at, profiles:author_id(display_name)")
+    .select("id, title, body, type, created_at, profiles:author_id(display_name), post_media(id, post_id, kind, url, storage_path, thumbnail_url, alt_text, sort_order, created_at)")
     .eq("circle_id", circle.id)
     .eq("status", "published")
     .order("created_at", { ascending: false })
@@ -40,6 +41,8 @@ if (circle) {
   posts = result.data || [];
   postsError = result.error;
 }
+
+const postMediaMap = circle ? await buildResolvedPostMediaMap(supabase, posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>) : new Map();
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
@@ -109,11 +112,13 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
           <PostCard
             id={post.id}
             title={post.title}
+            excerpt={post.body ? post.body.replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110) : ""}
             circleName={circle.name}
             circleSlug={circle.slug}
             typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
             authorName={post.profiles?.display_name || undefined}
             timestamp={formatDate(post.created_at)}
+            media={postMediaMap.get(post.id) ?? []}
           />
         ))}
       </div>
