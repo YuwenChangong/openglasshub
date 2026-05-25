@@ -14,6 +14,12 @@ interface LocalMedia {
   file: File;
   previewUrl: string;
   kind: "image" | "video";
+  width: number | null;
+  height: number | null;
+  durationSeconds: number | null;
+  sizeBytes: number;
+  mimeType: string;
+  isCover: boolean;
 }
 
 const postTypes = [
@@ -38,6 +44,73 @@ function normalizeFileName(fileName: string) {
     .replace(/[^a-z0-9.\-_]+/g, "-")
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(bytes >= 50 * 1024 * 1024 ? 0 : 1)} MB`;
+  }
+  if (bytes >= 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${bytes} B`;
+}
+
+function formatDuration(seconds: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds)) return "";
+  const totalSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(totalSeconds / 60);
+  const remain = totalSeconds % 60;
+  return `${minutes}:${String(remain).padStart(2, "0")}`;
+}
+
+function formatDimensions(width: number | null, height: number | null): string {
+  if (!width || !height) return "";
+  return `${width} × ${height}`;
+}
+
+function withSingleCover(items: LocalMedia[], preferredId?: string): LocalMedia[] {
+  if (items.length === 0) return items;
+  const coverId = preferredId ?? items.find((item) => item.isCover)?.id ?? items[0].id;
+  return items.map((item) => ({
+    ...item,
+    isCover: item.id === coverId,
+  }));
+}
+
+function readImageMetadata(file: File, previewUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      resolve({
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      });
+    };
+    image.onerror = () => reject(new Error(`无法读取图片元信息：${file.name}`));
+    image.src = previewUrl;
+  });
+}
+
+function readVideoMetadata(
+  file: File,
+  previewUrl: string,
+): Promise<{ width: number; height: number; durationSeconds: number }> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadedmetadata = () => {
+      resolve({
+        width: video.videoWidth,
+        height: video.videoHeight,
+        durationSeconds: Number.isFinite(video.duration) ? video.duration : 0,
+      });
+    };
+    video.onerror = () => reject(new Error(`无法读取视频元信息：${file.name}`));
+    video.src = previewUrl;
+  });
 }
 
 function isValidVideoUrl(value: string): boolean {
@@ -145,7 +218,7 @@ export default function CreatePostForm() {
     };
   }, []);
 
-  function addMediaFiles(fileList: FileList | File[]) {
+  async function addMediaFiles(fileList: FileList | File[]) {
     const nextFiles = Array.from(fileList);
     if (!nextFiles.length) return;
 
@@ -180,16 +253,47 @@ export default function CreatePostForm() {
         continue;
       }
 
-      accepted.push({
-        id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
-        file,
-        previewUrl: URL.createObjectURL(file),
-        kind: isVideo ? "video" : "image",
-      });
+      const previewUrl = URL.createObjectURL(file);
+      const id = `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`;
+
+      try {
+        if (isVideo) {
+          const metadata = await readVideoMetadata(file, previewUrl);
+          accepted.push({
+            id,
+            file,
+            previewUrl,
+            kind: "video",
+            width: metadata.width,
+            height: metadata.height,
+            durationSeconds: metadata.durationSeconds,
+            sizeBytes: file.size,
+            mimeType: file.type,
+            isCover: false,
+          });
+        } else {
+          const metadata = await readImageMetadata(file, previewUrl);
+          accepted.push({
+            id,
+            file,
+            previewUrl,
+            kind: "image",
+            width: metadata.width,
+            height: metadata.height,
+            durationSeconds: null,
+            sizeBytes: file.size,
+            mimeType: file.type,
+            isCover: false,
+          });
+        }
+      } catch (metadataError) {
+        URL.revokeObjectURL(previewUrl);
+        setError(metadataError instanceof Error ? metadataError.message : "读取媒体元信息失败。");
+      }
     }
 
     if (accepted.length > 0) {
-      setMediaFiles((current) => [...current, ...accepted]);
+      setMediaFiles((current) => withSingleCover([...current, ...accepted]));
     }
   }
 
@@ -199,8 +303,12 @@ export default function CreatePostForm() {
       if (target) {
         URL.revokeObjectURL(target.previewUrl);
       }
-      return current.filter((item) => item.id !== id);
+      return withSingleCover(current.filter((item) => item.id !== id));
     });
+  }
+
+  function markAsCover(id: string) {
+    setMediaFiles((current) => withSingleCover(current, id));
   }
 
   async function rollbackPendingPost(token: string, postId: string) {
@@ -266,6 +374,12 @@ export default function CreatePostForm() {
         url?: string;
         alt_text?: string;
         sort_order: number;
+        width?: number | null;
+        height?: number | null;
+        duration_seconds?: number | null;
+        size_bytes?: number | null;
+        mime_type?: string | null;
+        is_cover?: boolean;
       }> = [];
 
       if (mediaFiles.length > 0) {
@@ -290,6 +404,12 @@ export default function CreatePostForm() {
             storage_path: storagePath,
             alt_text: title.trim() || item.file.name,
             sort_order: index,
+            width: item.width,
+            height: item.height,
+            duration_seconds: item.durationSeconds,
+            size_bytes: item.sizeBytes,
+            mime_type: item.mimeType,
+            is_cover: item.isCover,
           });
         }
       }
@@ -452,9 +572,9 @@ export default function CreatePostForm() {
             accept="image/*,video/mp4,video/webm,video/quicktime"
             multiple
             hidden
-            onChange={(event) => {
+            onChange={async (event) => {
               if (event.target.files) {
-                addMediaFiles(event.target.files);
+                await addMediaFiles(event.target.files);
                 event.target.value = "";
               }
             }}
@@ -463,16 +583,33 @@ export default function CreatePostForm() {
             <div className="media-preview-grid">
               {mediaFiles.map((item) => (
                 <figure key={item.id} className="media-preview-card">
-                  {item.kind === "video" ? (
-                    <video src={item.previewUrl} muted playsInline preload="metadata" />
-                  ) : (
-                    <img src={item.previewUrl} alt={item.file.name} />
-                  )}
+                  <div className="media-preview-card__visual">
+                    {item.kind === "video" ? (
+                      <video src={item.previewUrl} muted playsInline preload="metadata" />
+                    ) : (
+                      <img src={item.previewUrl} alt={item.file.name} />
+                    )}
+                    {item.kind === "video" ? <span className="media-preview-card__badge">视频</span> : null}
+                    {item.isCover ? <span className="media-preview-card__badge media-preview-card__badge--cover">封面</span> : null}
+                  </div>
                   <figcaption>
-                    <span>{item.file.name}</span>
-                    <button type="button" onClick={() => removeMedia(item.id)}>
-                      删除
-                    </button>
+                    <div className="media-preview-card__meta">
+                      <strong title={item.file.name}>{item.file.name}</strong>
+                      <span>{formatBytes(item.sizeBytes)}</span>
+                      <span>
+                        {item.kind === "video"
+                          ? `${formatDimensions(item.width, item.height) || "视频"}${item.durationSeconds != null ? ` · ${formatDuration(item.durationSeconds)}` : ""}`
+                          : formatDimensions(item.width, item.height) || "图片"}
+                      </span>
+                    </div>
+                    <div className="media-preview-card__actions">
+                      <button type="button" onClick={() => markAsCover(item.id)} disabled={item.isCover}>
+                        {item.isCover ? "当前封面" : "设为封面"}
+                      </button>
+                      <button type="button" onClick={() => removeMedia(item.id)}>
+                        删除
+                      </button>
+                    </div>
                   </figcaption>
                 </figure>
               ))}

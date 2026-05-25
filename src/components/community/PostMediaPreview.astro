@@ -4,24 +4,47 @@ import type { ResolvedPostMedia } from "../../lib/forum-media";
 interface Props {
   media?: ResolvedPostMedia[];
   href: string;
+  mode?: "feed" | "compact";
   maxItems?: number;
 }
 
-const { media = [], href, maxItems = 3 } = Astro.props;
+const { media = [], href, mode = "feed", maxItems = 4 } = Astro.props;
 const items = media.filter((item) => item.displayUrl).slice(0, maxItems);
 const totalCount = media.filter((item) => item.displayUrl).length;
 const visibleCount = items.length;
 const extraCount = Math.max(totalCount - visibleCount, 0);
+const layout =
+  visibleCount <= 1 ? "single" : visibleCount === 2 ? "double" : visibleCount === 3 ? "triple" : "quad";
+const singleItem = items[0];
+const singleOrientation =
+  visibleCount === 1 && singleItem?.width && singleItem?.height
+    ? singleItem.height > singleItem.width
+      ? "portrait"
+      : "landscape"
+    : "landscape";
 ---
 
 {visibleCount > 0 && (
-  <div class:list={["community-post-media-preview", `community-post-media-preview--${Math.min(visibleCount, 3)}`]}>
+  <div
+    class:list={[
+      "community-post-media-preview",
+      `community-post-media-preview--${layout}`,
+      `community-post-media-preview--${mode}`,
+      {
+        "community-post-media-preview--portrait": visibleCount === 1 && singleOrientation === "portrait",
+        "community-post-media-preview--landscape": visibleCount === 1 && singleOrientation === "landscape",
+      },
+    ]}
+  >
     {items.map((item, index) => (
       <a
         href={href}
         class:list={[
           "community-post-media-preview__item",
-          { "community-post-media-preview__item--lead": visibleCount === 3 && index === 0 },
+          {
+            "community-post-media-preview__item--lead": visibleCount === 3 && index === 0,
+            "community-post-media-preview__item--single": visibleCount === 1,
+          },
         ]}
       >
         {item.kind === "image" ? (

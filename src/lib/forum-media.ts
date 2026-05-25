@@ -10,7 +10,13 @@ export interface PostMediaRow {
   storage_path?: string | null;
   thumbnail_url?: string | null;
   alt_text?: string | null;
+  width?: number | null;
+  height?: number | null;
+  duration_seconds?: number | null;
+  size_bytes?: number | null;
+  mime_type?: string | null;
   sort_order?: number | null;
+  is_cover?: boolean | null;
   created_at?: string | null;
 }
 
@@ -26,6 +32,9 @@ type PostWithMedia = {
 
 function sortMediaRows<T extends PostMediaRow>(rows: T[]): T[] {
   return [...rows].sort((left, right) => {
+    const leftCover = left.is_cover ? 1 : 0;
+    const rightCover = right.is_cover ? 1 : 0;
+    if (leftCover !== rightCover) return rightCover - leftCover;
     const leftOrder = Number.isFinite(left.sort_order) ? Number(left.sort_order) : 0;
     const rightOrder = Number.isFinite(right.sort_order) ? Number(right.sort_order) : 0;
     if (leftOrder !== rightOrder) return leftOrder - rightOrder;

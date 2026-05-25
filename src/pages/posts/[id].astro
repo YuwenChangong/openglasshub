@@ -6,6 +6,7 @@ import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import CommentForm from "../../components/forum/CommentForm";
 import CommentsSection from "../../components/forum/CommentsSection";
 import PostModerationActions from "../../components/forum/PostModerationActions";
+import PostMediaGallery from "../../components/forum/PostMediaGallery";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { resolveSignedPostMedia, type PostMediaRow } from "../../lib/forum-media";
 
@@ -28,7 +29,7 @@ const { data: post, error } = await supabase
 const { data: mediaRows } = !error && post
   ? await supabase
       .from("post_media")
-      .select("id, kind, url, storage_path, thumbnail_url, alt_text, sort_order")
+      .select("id, kind, url, storage_path, thumbnail_url, alt_text, width, height, duration_seconds, size_bytes, mime_type, sort_order, is_cover")
       .eq("post_id", id)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true })
@@ -39,7 +40,13 @@ const { data: mediaRows } = !error && post
       storage_path: string | null;
       thumbnail_url: string | null;
       alt_text: string | null;
+      width: number | null;
+      height: number | null;
+      duration_seconds: number | null;
+      size_bytes: number | null;
+      mime_type: string | null;
       sort_order: number;
+      is_cover: boolean | null;
     }> };
 
 if (error || !post) {
@@ -129,41 +136,7 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
         )}
       </section>
 
-      {postMedia.length > 0 && (
-        <section class="post-media-block">
-          {postMedia.some((item) => item.kind === "image") && (
-            <div class="post-media-gallery">
-              {postMedia
-                .filter((item) => item.kind === "image" && item.displayUrl)
-                .map((item) => (
-                  <a href={item.displayUrl} target="_blank" rel="noreferrer" class="post-media-frame post-media-gallery__item">
-                    <img src={item.displayUrl} alt={item.alt_text || post.title} loading="lazy" />
-                  </a>
-                ))}
-            </div>
-          )}
-
-          {postMedia
-            .filter((item) => item.kind === "video" && item.displayUrl)
-            .map((item) => (
-              <div class="post-media-frame post-media-video-frame">
-                <video controls playsinline preload="metadata" src={item.displayUrl}>
-                  浏览器不支持该视频。
-                </video>
-              </div>
-            ))}
-
-          {postMedia
-            .filter((item) => item.kind === "video_link" && item.displayUrl)
-            .map((item) => (
-              <a href={item.displayUrl} target="_blank" rel="noreferrer" class="post-video-card">
-                <span class="forum-tag">视频链接</span>
-                <strong>{item.alt_text || "打开外部视频"}</strong>
-                <span class="forum-meta">当前阶段不做站内原生视频上传，只提供外部视频入口。</span>
-              </a>
-            ))}
-        </section>
-      )}
+      {postMedia.length > 0 && <PostMediaGallery media={postMedia} postTitle={post.title} client:load />}
 
       <div class="footer" style="margin-top: 1.25rem;">
         <a href="/feed/">返回动态</a>
@@ -195,38 +168,6 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
 )}
 
 <style>
-  .post-media-block {
-    display: grid;
-    gap: 1rem;
-    margin-top: 1rem;
-  }
-  .post-media-gallery {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.85rem;
-    min-width: 0;
-  }
-  .post-media-frame {
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
-    border-radius: 16px;
-    background: rgba(255,255,255,.045);
-    border: 1px solid rgba(255,255,255,.1);
-  }
-  .post-media-gallery__item {
-    display: block;
-  }
-  .post-media-gallery__item img,
-  .post-media-video-frame video {
-    display: block;
-    width: 100%;
-    max-width: 100%;
-    height: auto;
-    max-height: 560px;
-    object-fit: contain;
-    background: #000;
-  }
   .post-video-card {
     display: grid;
     gap: 0.45rem;
@@ -243,6 +184,10 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
     -webkit-backdrop-filter: blur(14px) saturate(120%);
     box-shadow: var(--glass-shadow-soft);
   }
+  .post-video-card--inline {
+    min-height: 240px;
+    align-content: end;
+  }
   .post-body-card {
     overflow: hidden;
   }
@@ -252,15 +197,6 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
   }
   .post-video-card .forum-meta {
     word-break: break-word;
-  }
-  @media (max-width: 720px) {
-    .post-media-gallery {
-      grid-template-columns: 1fr;
-    }
-    .post-media-gallery__item img,
-    .post-media-video-frame video {
-      max-height: 420px;
-    }
   }
   .post-moderation-actions {
     display: flex;

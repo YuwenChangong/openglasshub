@@ -41,7 +41,7 @@ const postHref = `/posts/${id}/`;
   </a>
 
   {excerpt && <p>{excerpt}</p>}
-  {media.length > 0 ? <PostMediaPreview media={media} href={postHref} /> : mediaLabel ? <div class="community-media-placeholder">{mediaLabel}</div> : null}
+  {media.length > 0 ? <PostMediaPreview media={media} href={postHref} mode="feed" maxItems={4} /> : mediaLabel ? <div class="community-media-placeholder">{mediaLabel}</div> : null}
 
   <div class="community-post-actions">
     <a class="community-action" href={`${postHref}#comments`}>评论</a>

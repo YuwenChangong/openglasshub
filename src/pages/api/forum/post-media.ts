@@ -45,12 +45,24 @@ type MediaPayload =
       storage_path: string;
       alt_text?: string;
       sort_order?: number;
+      width?: number | null;
+      height?: number | null;
+      duration_seconds?: number | null;
+      size_bytes?: number | null;
+      mime_type?: string | null;
+      is_cover?: boolean;
     }
   | {
       kind: "video";
       storage_path: string;
       alt_text?: string;
       sort_order?: number;
+      width?: number | null;
+      height?: number | null;
+      duration_seconds?: number | null;
+      size_bytes?: number | null;
+      mime_type?: string | null;
+      is_cover?: boolean;
     }
   | {
       kind: "video_link";
@@ -58,10 +70,25 @@ type MediaPayload =
       thumbnail_url?: string;
       alt_text?: string;
       sort_order?: number;
+      width?: number | null;
+      height?: number | null;
+      duration_seconds?: number | null;
+      size_bytes?: number | null;
+      mime_type?: string | null;
+      is_cover?: boolean;
     };
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const storagePathRegex = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[^/]+$/i;
+const acceptedMimeTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+]);
 
 function isValidVideoUrl(value: string): boolean {
   try {
@@ -72,6 +99,20 @@ function isValidVideoUrl(value: string): boolean {
   }
 }
 
+function normalizePositiveInteger(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return Number.NaN;
+  return parsed;
+}
+
+function normalizeNonNegativeNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return Number.NaN;
+  return parsed;
+}
+
 function validateMediaArray(postId: string, userId: string, media: MediaPayload[]): string | null {
   if (!Array.isArray(media) || media.length === 0) {
     return "media is required";
@@ -80,10 +121,32 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
     return "media must contain at most 6 items";
   }
 
+  let coverCount = 0;
+
   for (const [index, item] of media.entries()) {
     const sortOrder = Number.isFinite(item.sort_order) ? Number(item.sort_order) : index;
     if (sortOrder < 0 || sortOrder > 99) {
       return "sort_order must be between 0 and 99";
+    }
+    if (typeof item.is_cover !== "undefined" && typeof item.is_cover !== "boolean") {
+      return "is_cover must be a boolean";
+    }
+    if (item.is_cover) {
+      coverCount += 1;
+    }
+
+    const width = normalizePositiveInteger(item.width);
+    const height = normalizePositiveInteger(item.height);
+    const durationSeconds = normalizeNonNegativeNumber(item.duration_seconds);
+    const sizeBytes = normalizeNonNegativeNumber(item.size_bytes);
+    if (Number.isNaN(width) || Number.isNaN(height)) {
+      return "width and height must be positive integers";
+    }
+    if (Number.isNaN(durationSeconds) || Number.isNaN(sizeBytes)) {
+      return "duration_seconds and size_bytes must be non-negative numbers";
+    }
+    if (item.mime_type && !acceptedMimeTypes.has(String(item.mime_type).trim().toLowerCase())) {
+      return "Unsupported mime_type";
     }
 
     if (item.kind === "image" || item.kind === "video") {
@@ -93,6 +156,9 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
       }
       if (!storagePath.startsWith(`${userId}/${postId}/`)) {
         return "Media storage_path must stay inside the current user/post folder";
+      }
+      if (!item.mime_type) {
+        return "mime_type is required for uploaded media";
       }
       continue;
     }
@@ -106,6 +172,10 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
     }
 
     return "Unsupported media kind";
+  }
+
+  if (coverCount > 1) {
+    return "Only one media item can be marked as cover";
   }
 
   return null;
@@ -162,6 +232,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: validationError }, 400);
     }
 
+    const coverIndex = media.findIndex((item) => item.is_cover === true);
+    const { error: resetCoverError } = await userClient
+      .from("post_media")
+      .update({ is_cover: false })
+      .eq("post_id", postId)
+      .eq("user_id", authData.user.id);
+
+    if (resetCoverError) {
+      return json({ error: resetCoverError.message }, 500);
+    }
+
     const rows = media.map((item, index) => ({
       post_id: postId,
       user_id: authData.user.id,
@@ -170,13 +251,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
       storage_path: item.kind === "image" || item.kind === "video" ? item.storage_path.trim() : null,
       thumbnail_url: item.kind === "video_link" ? item.thumbnail_url?.trim() ?? null : null,
       alt_text: item.alt_text?.trim() || null,
+      width: normalizePositiveInteger(item.width),
+      height: normalizePositiveInteger(item.height),
+      duration_seconds: normalizeNonNegativeNumber(item.duration_seconds),
+      size_bytes: normalizeNonNegativeNumber(item.size_bytes),
+      mime_type: item.mime_type?.trim().toLowerCase() || null,
       sort_order: Number.isFinite(item.sort_order) ? Number(item.sort_order) : index,
+      is_cover: item.is_cover === true || (coverIndex < 0 && index === 0),
     }));
 
     const { data: inserted, error: insertError } = await userClient
       .from("post_media")
       .insert(rows)
-      .select("id, post_id, kind, url, storage_path, thumbnail_url, alt_text, sort_order, created_at");
+      .select("id, post_id, kind, url, storage_path, thumbnail_url, alt_text, width, height, duration_seconds, size_bytes, mime_type, sort_order, is_cover, created_at");
 
     if (insertError) {
       return json({ error: insertError.message }, 500);
