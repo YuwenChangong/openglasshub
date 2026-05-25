@@ -4,17 +4,20 @@ export const prerender = false;
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import CircleCard from "../../components/community/CircleCard.astro";
+import CreateCircleForm from "../../components/forum/CreateCircleForm";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
+import { buildCircleImageMap } from "../../lib/circle-images";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
 
 const { data: circles, error } = await supabase
   .from("circles")
-  .select("id, name, slug, description, created_at")
+  .select("id, name, slug, description, created_at, image_path")
   .order("name", { ascending: true });
 
 const visibleCircles = (circles ?? []).filter((circle) => isPublicVisibleCircle(circle));
+const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
 ---
 
 <ForumLayout
@@ -31,6 +34,8 @@ const visibleCircles = (circles ?? []).filter((circle) => isPublicVisibleCircle(
     <a href="/posts/new/" class="forum-btn forum-btn--primary">去发帖</a>
   </div>
 
+  <CreateCircleForm client:visible />
+
   {error ? (
     <div class="forum-empty">
       <strong>加载圈子失败</strong>
@@ -45,10 +50,12 @@ const visibleCircles = (circles ?? []).filter((circle) => isPublicVisibleCircle(
     <section class="circle-grid">
       {visibleCircles.map((circle) => (
         <CircleCard
+          id={circle.id}
           name={circle.name}
           slug={circle.slug}
           description={circle.description || undefined}
           latestNote={`创建于 ${new Date(circle.created_at).toLocaleDateString("zh-CN")}`}
+          imageUrl={circleImageMap.get(circle.id)}
         />
       ))}
     </section>

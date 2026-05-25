@@ -1,15 +1,22 @@
 ---
 interface Props {
+  id: string;
   name: string;
   slug: string;
   description?: string;
   latestNote?: string;
+  imageUrl?: string;
 }
 
-const { name, slug, description, latestNote } = Astro.props;
+const { id, name, slug, description, latestNote, imageUrl } = Astro.props;
 ---
 
 <a href={`/circles/${slug}/`} class="community-circle-card">
+  {imageUrl ? (
+    <div class="community-circle-card__cover">
+      <img src={imageUrl} alt={`${name} 圈子封面`} loading="lazy" />
+    </div>
+  ) : null}
   <div class="community-tags">
     <span class="community-tag community-tag--muted">圈子</span>
   </div>

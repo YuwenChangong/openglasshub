@@ -235,6 +235,13 @@ const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
+  .post-detail__actions :global(.community-action-button--social.is-liked) {
+    color: #f06b7f;
+    border-color: rgba(240, 107, 127, 0.22);
+  }
+  .post-detail__actions :global(.community-action-button--social.is-liked .community-like-heart) {
+    color: #f06b7f;
+  }
   .post-detail__actions :global(.community-action-button:hover) {
     background: rgba(255, 255, 255, 0.05);
     border-color: rgba(255, 255, 255, 0.12);
@@ -246,6 +253,11 @@ const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
   }
   .post-detail__actions :global(.post-moderation-actions) {
     display: contents;
+  }
+  .post-detail__actions :global(.community-social-actions) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
   }
 </style>
 

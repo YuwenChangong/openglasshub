@@ -1,0 +1,285 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { buildLoginHref } from "../../lib/auth-redirect";
+import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+
+const circleTypes = [
+  { value: "topic", label: "通用话题" },
+  { value: "device", label: "设备圈子" },
+  { value: "project", label: "项目圈子" },
+] as const;
+
+const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+
+function normalizeFileName(fileName: string) {
+  return fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9.\-_]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function createSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5\s-]/g, "")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+export default function CreateCircleForm() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [ready, setReady] = useState(false);
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [description, setDescription] = useState("");
+  const [type, setType] = useState<(typeof circleTypes)[number]["value"]>("topic");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!supabase) {
+      setError("缺少 PUBLIC_SUPABASE_URL 或 PUBLIC_SUPABASE_ANON_KEY。");
+      return;
+    }
+
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      if (!data.session) {
+        window.location.replace(buildLoginHref("/circles/"));
+        return;
+      }
+      setReady(true);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    setSlug((current) => {
+      const next = createSlug(name);
+      if (!current || current === createSlug(current)) {
+        return next;
+      }
+      return current;
+    });
+  }, [name]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
+  function handleSelectImage(file: File | null) {
+    if (!file) return;
+    if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+      setError("圈子图片只支持 jpg / png / webp / gif。");
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setError("圈子图片不能超过 5MB。");
+      return;
+    }
+
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setError("");
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
+
+  function clearImage() {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!supabase) return;
+
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+    let uploadedPath = "";
+
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const session = sessionData.session;
+      if (sessionError || !session?.access_token || !session.user) {
+        window.location.replace(buildLoginHref("/circles/"));
+        return;
+      }
+
+      const nextName = name.trim();
+      const nextSlug = createSlug(slug || name);
+      const nextDescription = description.trim();
+
+      if (nextName.length < 2 || nextName.length > 60) {
+        throw new Error("圈子名称需要在 2 到 60 个字符之间。");
+      }
+      if (!nextSlug || nextSlug.length < 2 || nextSlug.length > 80) {
+        throw new Error("圈子标识需要在 2 到 80 个字符之间。");
+      }
+      if (nextDescription.length < 6 || nextDescription.length > 280) {
+        throw new Error("圈子简介需要在 6 到 280 个字符之间。");
+      }
+
+      if (imageFile) {
+        uploadedPath = `circles/${session.user.id}/${Date.now()}-${normalizeFileName(imageFile.name)}`;
+        const { error: uploadError } = await supabase.storage
+          .from("post-media")
+          .upload(uploadedPath, imageFile, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: imageFile.type,
+          });
+        if (uploadError) {
+          throw new Error(`圈子图片上传失败：${uploadError.message}`);
+        }
+      }
+
+      const response = await fetch("/api/forum/circles", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          slug: nextSlug,
+          name: nextName,
+          description: nextDescription,
+          type,
+          image_path: uploadedPath || null,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | { circle?: { slug?: string }; error?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `创建圈子失败 (${response.status})`);
+      }
+
+      setMessage("圈子创建成功，正在跳转。");
+      window.location.assign(`/circles/${payload?.circle?.slug || nextSlug}/`);
+    } catch (submitError) {
+      if (uploadedPath) {
+        await supabase.storage.from("post-media").remove([uploadedPath]).catch(() => undefined);
+      }
+      setError(submitError instanceof Error ? submitError.message : "创建圈子失败。");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!ready) return null;
+
+  return (
+    <form className="community-surface community-surface--padded create-circle-form" onSubmit={handleSubmit}>
+      <div className="community-section-head">
+        <div>
+          <h2>创建圈子</h2>
+          <p>登录用户可以直接创建自己的圈子，并添加一张对应封面图。</p>
+        </div>
+      </div>
+
+      <div className="create-circle-form__grid">
+        <label className="create-circle-form__field">
+          <span>圈子名称</span>
+          <input
+            className="community-input"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="例如 Brilliant Labs"
+            maxLength={60}
+            disabled={submitting}
+          />
+        </label>
+
+        <label className="create-circle-form__field">
+          <span>圈子标识</span>
+          <input
+            className="community-input"
+            value={slug}
+            onChange={(event) => setSlug(createSlug(event.target.value))}
+            placeholder="brilliant-labs"
+            maxLength={80}
+            disabled={submitting}
+          />
+        </label>
+
+        <label className="create-circle-form__field create-circle-form__field--full">
+          <span>圈子简介</span>
+          <textarea
+            className="community-input community-input--textarea"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="说明这个圈子主要讨论什么，方便其他人判断是否加入。"
+            maxLength={280}
+            disabled={submitting}
+          />
+        </label>
+
+        <label className="create-circle-form__field">
+          <span>圈子类型</span>
+          <select
+            className="community-input"
+            value={type}
+            onChange={(event) => setType(event.target.value as (typeof circleTypes)[number]["value"])}
+            disabled={submitting}
+          >
+            {circleTypes.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="create-circle-form__field">
+          <span>圈子图片</span>
+          <div className="create-circle-form__image-row">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(event) => handleSelectImage(event.target.files?.[0] ?? null)}
+              disabled={submitting}
+            />
+            {imageFile ? (
+              <button type="button" className="community-button--secondary" onClick={clearImage} disabled={submitting}>
+                移除图片
+              </button>
+            ) : null}
+          </div>
+          {imagePreview ? (
+            <div className="create-circle-form__preview">
+              <img src={imagePreview} alt="圈子封面预览" />
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {error ? <span className="inline-error">{error}</span> : null}
+      {message ? <span className="inline-success">{message}</span> : null}
+
+      <div className="community-cta-row">
+        <button type="submit" className="community-button" disabled={submitting}>
+          {submitting ? "创建中..." : "创建圈子"}
+        </button>
+      </div>
+    </form>
+  );
+}

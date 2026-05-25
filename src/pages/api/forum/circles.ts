@@ -22,6 +22,23 @@ function requireEnv(env: Record<string, string | undefined>, key: string): strin
   return value;
 }
 
+function getBearerToken(request: Request): string | null {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader) return null;
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
+  return token.trim();
+}
+
+function createUserClient(env: Record<string, string | undefined>, bearerToken: string) {
+  return createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_ANON_KEY"), {
+    global: {
+      headers: { Authorization: `Bearer ${bearerToken}` },
+    },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 export const GET: APIRoute = async ({ locals }) => {
   try {
     const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
@@ -32,7 +49,7 @@ export const GET: APIRoute = async ({ locals }) => {
     const supabase = createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_ANON_KEY"));
     const { data, error } = await supabase
       .from("circles")
-      .select("id, slug, name, description, type")
+      .select("id, slug, name, description, type, image_path")
       .order("name", { ascending: true });
 
     if (error) {
@@ -40,6 +57,89 @@ export const GET: APIRoute = async ({ locals }) => {
     }
 
     return json({ circles: (data ?? []).filter((circle) => isPublicVisibleCircle(circle)) });
+  } catch (error) {
+    return json(
+      { error: error instanceof Error ? error.message : "Unexpected server error" },
+      500,
+    );
+  }
+};
+
+export const POST: APIRoute = async ({ request, locals }) => {
+  try {
+    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    if (!env) {
+      return json({ error: "Runtime environment not available" }, 500);
+    }
+
+    const token = getBearerToken(request);
+    if (!token) {
+      return json({ error: "Missing bearer token" }, 401);
+    }
+
+    const supabase = createUserClient(env, token);
+    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !authData.user) {
+      return json({ error: "Invalid auth token" }, 401);
+    }
+
+    const payload = (await request.json().catch(() => null)) as
+      | { slug?: string; name?: string; description?: string; type?: string; image_path?: string | null }
+      | null;
+
+    const slug = String(payload?.slug ?? "").trim().toLowerCase();
+    const name = String(payload?.name ?? "").trim();
+    const description = String(payload?.description ?? "").trim();
+    const type = String(payload?.type ?? "").trim();
+    const imagePath = payload?.image_path ? String(payload.image_path).trim() : null;
+
+    if (!slug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+      return json({ error: "Invalid circle slug" }, 400);
+    }
+    if (name.length < 2 || name.length > 60) {
+      return json({ error: "Circle name must be 2-60 characters" }, 400);
+    }
+    if (description.length < 6 || description.length > 280) {
+      return json({ error: "Circle description must be 6-280 characters" }, 400);
+    }
+    if (!["topic", "device", "project"].includes(type)) {
+      return json({ error: "Invalid circle type" }, 400);
+    }
+    if (imagePath && imagePath.length > 500) {
+      return json({ error: "Circle image path is too long" }, 400);
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from("circles")
+      .select("id")
+      .eq("slug", slug)
+      .maybeSingle();
+
+    if (existingError) {
+      return json({ error: existingError.message }, 500);
+    }
+    if (existing) {
+      return json({ error: "Circle slug already exists" }, 409);
+    }
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("circles")
+      .insert({
+        slug,
+        name,
+        description,
+        type,
+        owner_id: authData.user.id,
+        image_path: imagePath,
+      })
+      .select("id, slug, name, description, type, image_path")
+      .single();
+
+    if (insertError) {
+      return json({ error: insertError.message }, 500);
+    }
+
+    return json({ circle: inserted }, 201);
   } catch (error) {
     return json(
       { error: error instanceof Error ? error.message : "Unexpected server error" },
