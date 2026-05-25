@@ -42,11 +42,11 @@ const postHref = `/posts/${id}/`;
   {media.length > 0 ? <PostMediaPreview media={media} href={postHref} mode="feed" maxItems={4} /> : mediaLabel ? <div class="community-media-placeholder">{mediaLabel}</div> : null}
 
   <div class="community-post-actions">
-    <a class="community-action" href={`${postHref}#comments`}>评论</a>
-    <span class="community-action--muted" title="收藏功能将在后续版本开放">收藏</span>
-    <a class="community-action" href={postHref}>分享</a>
+    <a class="community-action-button" href={`${postHref}#comments`}>评论</a>
+    <span class="community-action-button community-action-button--muted" title="收藏功能将在后续版本开放">收藏</span>
+    <a class="community-action-button" href={postHref}>分享</a>
     <div class="community-post-actions__spacer" />
-    <a class="community-action--muted" href={postHref}>查看详情</a>
+    <a class="community-action-button community-action-button--muted" href={postHref}>查看详情</a>
   </div>
   <div class="community-post-divider" aria-hidden="true"></div>
 </article>

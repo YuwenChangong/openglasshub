@@ -138,12 +138,10 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
 
       {postMedia.length > 0 && <PostMediaGallery media={postMedia} postTitle={post.title} client:load />}
 
-      <div class="footer" style="margin-top: 1.25rem;">
-        <a href="/feed/">返回动态</a>
-        {" · "}
-        <a href="/community/">加入社区讨论</a>
-        {" · "}
-        <a href="/posts/new/">发帖</a>
+      <div class="post-detail__actions">
+        <a href="/feed/" class="community-action-button">返回动态</a>
+        <a href="/community/" class="community-action-button">加入社区讨论</a>
+        <a href="/posts/new/" class="community-action-button community-action-button--primary">发帖</a>
       </div>
       <PostModerationActions postId={post.id} authorId={post.author_id} client:visible />
     </article>
@@ -214,6 +212,13 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
     align-items: center;
     flex-wrap: wrap;
     gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .post-detail__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.55rem;
     margin-top: 1rem;
   }
 </style>

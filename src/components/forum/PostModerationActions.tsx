@@ -277,10 +277,10 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
   if (!session) {
     return (
       <>
-        <div className="post-moderation-actions">
-          <a href={loginHref} className="community-button--secondary">登录后可举报</a>
-          {error ? <span className="inline-error">{error}</span> : null}
-        </div>
+      <div className="post-moderation-actions">
+        <a href={loginHref} className="community-action-button">登录后可举报</a>
+        {error ? <span className="inline-error">{error}</span> : null}
+      </div>
         {renderModal()}
       </>
     );
@@ -291,7 +291,7 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
       <div className="post-moderation-actions">
         <button
           type="button"
-          className="community-button--secondary"
+          className="community-action-button"
           onClick={openReportModal}
           disabled={loading || reportSubmitted}
         >
@@ -300,7 +300,7 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
         {isAuthor ? (
           <button
             type="button"
-            className="community-button--secondary"
+            className="community-action-button community-action-button--danger"
             onClick={openDeleteModal}
             disabled={loading}
           >
@@ -310,7 +310,7 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
         {canModerate ? (
           <button
             type="button"
-            className="community-button--secondary"
+            className="community-action-button"
             onClick={openHideModal}
             disabled={loading}
           >
