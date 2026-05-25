@@ -8,61 +8,6 @@ interface CommentFormProps {
   loginHref?: string;
 }
 
-const wrapperStyle: React.CSSProperties = {
-  maxWidth: "860px",
-  margin: "1.5rem 0",
-  padding: "1.2rem",
-  border: "1px solid #20283a",
-  borderRadius: "1rem",
-  background: "#0f1624",
-  boxShadow: "0 16px 38px rgba(3, 8, 18, 0.2)",
-};
-
-const textareaStyle: React.CSSProperties = {
-  width: "100%",
-  background: "#0c1220",
-  border: "1px solid #25314a",
-  borderRadius: "0.75rem",
-  color: "#e8edf8",
-  padding: "0.75rem",
-  minHeight: "80px",
-  resize: "vertical",
-  fontFamily: "inherit",
-  fontSize: "0.95rem",
-};
-
-const buttonStyle: React.CSSProperties = {
-  borderRadius: "0.75rem",
-  border: "1px solid #2563eb",
-  background: "#2563eb",
-  color: "#fff",
-  fontWeight: 600,
-  padding: "0.5rem 1.25rem",
-  cursor: "pointer",
-  fontSize: "0.9rem",
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  ...buttonStyle,
-  border: "1px solid #25314a",
-  background: "#111827",
-  color: "#aab5d1",
-};
-
-const messageStyle: React.CSSProperties = {
-  border: "1px solid #25314a",
-  borderRadius: "0.75rem",
-  padding: "0.75rem",
-  fontSize: "0.9rem",
-  marginTop: "0.75rem",
-  background: "#101827",
-};
-
-const loginBoxStyle: React.CSSProperties = {
-  ...wrapperStyle,
-  textAlign: "center" as const,
-};
-
 export default function CommentForm({ postId, onCommentCreated, loginHref }: CommentFormProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const resolvedLoginHref = loginHref ?? buildLoginHref(`/posts/${postId}/#comments`);
@@ -135,33 +80,36 @@ export default function CommentForm({ postId, onCommentCreated, loginHref }: Com
 
   if (!supabase) {
     return (
-      <section style={loginBoxStyle}>
-        <p style={{ color: "#7d8fb0" }}>评论功能未配置</p>
+      <section className="comment-shell">
+        <div className="glass-panel comment-panel comment-panel__login">
+          <p className="community-meta">评论功能未配置</p>
+        </div>
       </section>
     );
   }
 
   if (isLoggedIn === false) {
     return (
-      <section style={loginBoxStyle}>
-        <p style={{ color: "#a0a8c0", marginBottom: "0.75rem" }}>
+      <section className="comment-shell">
+        <div className="glass-panel comment-panel comment-panel__login">
+          <p className="community-meta" style={{ margin: "0 0 0.75rem" }}>
           登录后即可发表评论
-        </p>
-        <a href={resolvedLoginHref} style={buttonStyle}>
-          前往登录
-        </a>
+          </p>
+          <a href={resolvedLoginHref} className="community-button">
+            前往登录
+          </a>
+        </div>
       </section>
     );
   }
 
   return (
-    <section style={wrapperStyle}>
-      <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.08rem", color: "#e8edf8" }}>
-        发表评论
-      </h3>
-      <form onSubmit={handleSubmit}>
+    <section className="comment-shell">
+      <div className="glass-panel comment-panel">
+      <h3 className="comment-panel__title">发表评论</h3>
+      <form onSubmit={handleSubmit} className="comment-form">
         <textarea
-          style={textareaStyle}
+          className="glass-textarea"
           value={body}
           onChange={handleBodyChange}
           placeholder="写下你的想法..."
@@ -169,32 +117,26 @@ export default function CommentForm({ postId, onCommentCreated, loginHref }: Com
           maxLength={5000}
           required
         />
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: "0.75rem",
-          }}
-        >
-          <span style={{ fontSize: "0.8rem", color: "#5a6480" }}>
+        <div className="comment-form__footer">
+          <span className="community-meta">
             {body.length}/5000
           </span>
-          <button type="submit" style={buttonStyle} disabled={loading || !body.trim()}>
+          <button type="submit" className="community-button" disabled={loading || !body.trim()}>
             {loading ? "提交中..." : "发布评论"}
           </button>
         </div>
       </form>
       {error && (
-        <div style={{ ...messageStyle, borderColor: "#ef4444", color: "#fca5a5" }}>
+        <div className="auth-alert auth-alert--error">
           {error}
         </div>
       )}
       {success && (
-        <div style={{ ...messageStyle, borderColor: "#22c55e", color: "#86efac" }}>
+        <div className="auth-alert auth-alert--success">
           评论发布成功。
         </div>
       )}
+      </div>
     </section>
   );
 }

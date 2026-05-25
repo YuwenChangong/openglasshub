@@ -110,7 +110,7 @@ const postMedia = (mediaRows ?? []).map((item) => ({
           <span>/</span>
         </>
       )}
-      <span style="color: #e8edf8;">{post.title}</span>
+      <span style="color: var(--text);">{post.title}</span>
     </nav>
 
     <article>
@@ -139,7 +139,7 @@ const postMedia = (mediaRows ?? []).map((item) => ({
         {post.body ? (
           <div style="white-space: pre-wrap; word-break: break-word;">{post.body}</div>
         ) : (
-          <p style="color: #7f91b2; font-style: italic;">此帖子没有正文内容。</p>
+          <p style="color: var(--text-muted); font-style: italic;">此帖子没有正文内容。</p>
         )}
       </section>
 

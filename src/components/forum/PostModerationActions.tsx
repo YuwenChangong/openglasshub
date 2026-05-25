@@ -12,6 +12,17 @@ interface SessionState {
   userId: string;
 }
 
+type ModalMode = "report" | "delete" | "hide" | null;
+
+const REPORT_CATEGORIES = [
+  "垃圾广告",
+  "骚扰/攻击",
+  "虚假或误导信息",
+  "不相关内容",
+  "侵权或违规内容",
+  "其他",
+] as const;
+
 export default function PostModerationActions({ postId, authorId }: PostModerationActionsProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [session, setSession] = useState<SessionState | null>(null);
@@ -19,6 +30,10 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [reportCategory, setReportCategory] = useState<string>(REPORT_CATEGORIES[0]);
+  const [reportDescription, setReportDescription] = useState("");
+  const [reportSubmitted, setReportSubmitted] = useState(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -52,12 +67,36 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
   const isAuthor = session?.userId === authorId;
   const loginHref = buildLoginHref(`/posts/${postId}/`);
 
+  function closeModal() {
+    if (loading) return;
+    setModalMode(null);
+    setError("");
+    setReportDescription("");
+    setReportCategory(REPORT_CATEGORIES[0]);
+  }
+
+  function openReportModal() {
+    setMessage("");
+    setError("");
+    setModalMode("report");
+  }
+
+  function openDeleteModal() {
+    setMessage("");
+    setError("");
+    setModalMode("delete");
+  }
+
+  function openHideModal() {
+    setMessage("");
+    setError("");
+    setModalMode("hide");
+  }
+
   async function handleDelete() {
     if (!session) return;
-    if (!window.confirm("确认删除这篇帖子？删除后公开区将不再显示。")) return;
     setLoading(true);
     setError("");
-    setMessage("");
     try {
       const response = await fetch(`/api/forum/posts?id=${encodeURIComponent(postId)}`, {
         method: "DELETE",
@@ -77,10 +116,8 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
 
   async function handleHide() {
     if (!session) return;
-    if (!window.confirm("确认隐藏这篇帖子？隐藏后公开区将不再显示。")) return;
     setLoading(true);
     setError("");
-    setMessage("");
     try {
       const response = await fetch("/api/forum/posts", {
         method: "PATCH",
@@ -102,13 +139,27 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
     }
   }
 
-  async function handleReport() {
-    if (!session) return;
-    const reason = window.prompt("请输入举报原因（5-500字）");
-    if (!reason || !reason.trim()) return;
+  async function handleReportSubmit() {
+    if (!session) {
+      setError("请先登录后再举报。");
+      return;
+    }
+    if (reportSubmitted) {
+      return;
+    }
+
+    const trimmedDescription = reportDescription.trim();
+    if (trimmedDescription && (trimmedDescription.length < 5 || trimmedDescription.length > 500)) {
+      setError("补充说明需要在 5 到 500 字之间。");
+      return;
+    }
+
+    const reason = trimmedDescription
+      ? `${reportCategory}：${trimmedDescription}`
+      : `${reportCategory}：未补充说明`;
+
     setLoading(true);
     setError("");
-    setMessage("");
     try {
       const response = await fetch("/api/forum/reports", {
         method: "POST",
@@ -116,13 +167,16 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
           "content-type": "application/json",
           authorization: `Bearer ${session.accessToken}`,
         },
-        body: JSON.stringify({ post_id: postId, reason: reason.trim() }),
+        body: JSON.stringify({ post_id: postId, reason }),
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
         throw new Error(payload?.error ?? `举报失败 (${response.status})`);
       }
-      setMessage("举报已提交，我们会尽快处理。");
+      setReportSubmitted(true);
+      setMessage("已举报");
+      setModalMode(null);
+      setReportDescription("");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "举报失败。");
     } finally {
@@ -130,46 +184,143 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
     }
   }
 
-  if (!session) {
+  function renderModal() {
+    if (modalMode === null) return null;
+
+    const title =
+      modalMode === "report" ? "举报内容" : modalMode === "delete" ? "删除帖子" : "隐藏帖子";
+    const description =
+      modalMode === "report"
+        ? "选择原因并补充说明，提交后管理员会查看。"
+        : modalMode === "delete"
+          ? "删除后该帖子将从公开区移除，并跳回动态页。"
+          : "隐藏后该帖子将从公开区移除，并跳回动态页。";
+
     return (
-      <div className="post-moderation-actions">
-        <a href={loginHref} className="community-button--secondary">登录后可举报</a>
+      <div className="glass-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="moderation-modal-title">
+        <div className="glass-modal">
+          <div className="glass-modal__header">
+            <h3 id="moderation-modal-title">{title}</h3>
+            <p>{description}</p>
+          </div>
+          <div className="glass-modal__body">
+            {modalMode === "report" ? (
+              <>
+                <div className="glass-choice-grid">
+                  {REPORT_CATEGORIES.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      className={`glass-choice${reportCategory === category ? " is-selected" : ""}`}
+                      onClick={() => setReportCategory(category)}
+                      disabled={loading}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+                <label>
+                  <span className="community-meta" style={{ display: "inline-block", marginBottom: "0.45rem" }}>
+                    补充说明
+                  </span>
+                  <textarea
+                    className="glass-textarea"
+                    placeholder="请补充说明，帮助管理员判断"
+                    value={reportDescription}
+                    onChange={(event) => setReportDescription(event.target.value)}
+                    maxLength={500}
+                    disabled={loading}
+                  />
+                </label>
+                <span className="community-meta">可只提交原因分类；如填写说明，需在 5 到 500 字之间。</span>
+              </>
+            ) : (
+              <p>{modalMode === "delete" ? "确认执行删除操作？" : "确认执行隐藏操作？"}</p>
+            )}
+            {error ? <span className="inline-error">{error}</span> : null}
+          </div>
+          <div className="glass-modal__actions">
+            <button
+              type="button"
+              className="community-button--secondary"
+              onClick={closeModal}
+              disabled={loading}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="community-button"
+              onClick={
+                modalMode === "report"
+                  ? handleReportSubmit
+                  : modalMode === "delete"
+                    ? handleDelete
+                    : handleHide
+              }
+              disabled={loading || (modalMode === "report" && reportSubmitted)}
+            >
+              {loading
+                ? "提交中..."
+                : modalMode === "report"
+                  ? "提交举报"
+                  : modalMode === "delete"
+                    ? "确认删除"
+                    : "确认隐藏"}
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
+  if (!session) {
+    return (
+      <>
+        <div className="post-moderation-actions">
+          <a href={loginHref} className="community-button--secondary">登录后可举报</a>
+          {error ? <span className="inline-error">{error}</span> : null}
+        </div>
+        {renderModal()}
+      </>
+    );
+  }
+
   return (
-    <div className="post-moderation-actions">
-      <button
-        type="button"
-        className="community-button--secondary"
-        onClick={handleReport}
-        disabled={loading}
-      >
-        举报
-      </button>
-      {isAuthor ? (
+    <>
+      <div className="post-moderation-actions">
         <button
           type="button"
           className="community-button--secondary"
-          onClick={handleDelete}
-          disabled={loading}
+          onClick={openReportModal}
+          disabled={loading || reportSubmitted}
         >
-          删除帖子
+          {reportSubmitted ? "已举报" : "举报"}
         </button>
-      ) : null}
-      {canModerate ? (
-        <button
-          type="button"
-          className="community-button"
-          onClick={handleHide}
-          disabled={loading}
-        >
-          隐藏帖子
-        </button>
-      ) : null}
-      {message ? <span className="community-meta">{message}</span> : null}
-      {error ? <span className="community-meta" style={{ color: "#fca5a5" }}>{error}</span> : null}
-    </div>
+        {isAuthor ? (
+          <button
+            type="button"
+            className="community-button--secondary"
+            onClick={openDeleteModal}
+            disabled={loading}
+          >
+            删除帖子
+          </button>
+        ) : null}
+        {canModerate ? (
+          <button
+            type="button"
+            className="community-button--secondary"
+            onClick={openHideModal}
+            disabled={loading}
+          >
+            隐藏帖子
+          </button>
+        ) : null}
+        {message ? <span className="inline-success">{message}</span> : null}
+        {error && modalMode === null ? <span className="inline-error">{error}</span> : null}
+      </div>
+      {renderModal()}
+    </>
   );
 }
