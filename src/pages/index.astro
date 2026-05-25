@@ -92,8 +92,8 @@ function excerpt(body?: string | null): string {
   </section>
 
   <section class="home-grid">
-    <div class="community-surface">
-      <div class="community-section-head">
+    <div class="community-feed-column">
+      <div class="community-stream-head">
         <div>
           <h2>正在讨论</h2>
           <p>{posts.length > 0 ? `已展示 ${posts.length} 条公开讨论，按最近活动排序。` : "社区正在启动，公开讨论会先从这里长出来。"} </p>
@@ -128,15 +128,15 @@ function excerpt(body?: string | null): string {
     </div>
 
     <aside class="community-sidebar">
-      <section class="community-surface community-surface--padded community-surface--primary">
+      <section class="community-sidebar-block community-sidebar-block--strong">
         <div class="community-meta" style="margin-bottom: 0.4rem;">加入讨论</div>
         <h2>先看，再发言</h2>
         <p>浏览公开帖子不需要登录。想发帖、评论，或者开始记录自己的 AR / AI 眼镜体验，再进入账号流程。</p>
         <AuthCTA next="/" client:only="react" />
       </section>
 
-      <section class="community-surface">
-        <div class="community-section-head">
+      <section class="community-sidebar-block">
+        <div class="community-sidebar-head">
           <h2>热点</h2>
           <span>管理员精选</span>
         </div>
@@ -174,7 +174,7 @@ function excerpt(body?: string | null): string {
   .hero-lead {
     margin: 0.7rem 0 0;
     font-size: 1.02rem;
-    color: #e2e8f2;
+    color: var(--text);
   }
   .hero-sub {
     margin: 0.38rem 0 0;
@@ -200,13 +200,38 @@ function excerpt(body?: string | null): string {
   .home-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 318px;
-    gap: 0.9rem;
+    gap: 1.5rem;
     align-items: start;
+  }
+  .community-feed-column {
+    min-width: 0;
+  }
+  .community-stream-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 0 0.8rem;
+    margin-bottom: 0.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .community-stream-head h2 {
+    margin: 0;
+    font-size: 1.12rem;
+  }
+  .community-stream-head p {
+    margin: 0.2rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
   }
   @media (max-width: 900px) {
     .hero,
     .home-grid {
       grid-template-columns: 1fr;
+    }
+    .community-stream-head {
+      align-items: flex-start;
+      flex-direction: column;
     }
     .hero h1 {
       font-size: 2.2rem;

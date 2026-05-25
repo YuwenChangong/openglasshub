@@ -50,8 +50,8 @@ const postTypeLabels: Record<string, string> = {
   activeTab="feed"
 >
   <section class="community-grid">
-    <div class="community-surface">
-      <div class="community-section-head">
+    <div class="community-feed-column">
+      <div class="community-stream-head">
         <div>
           <h2>帖子动态</h2>
           <p>按最近公开活动排序，只显示真实帖子。</p>
@@ -91,7 +91,7 @@ const postTypeLabels: Record<string, string> = {
     </div>
 
     <aside class="community-sidebar">
-      <section class="community-surface community-surface--padded">
+      <section class="community-sidebar-block community-sidebar-block--strong">
         <div class="community-page-lead" style="margin-bottom: 0.4rem;">发帖入口</div>
         <h2 style="margin: 0 0 0.3rem;">准备发帖？</h2>
         <p style="margin: 0; color: var(--text-muted);">先看圈子，再决定内容放到哪里更清楚。</p>
@@ -101,8 +101,8 @@ const postTypeLabels: Record<string, string> = {
         </div>
       </section>
 
-      <section class="community-surface">
-        <div class="community-section-head">
+      <section class="community-sidebar-block">
+        <div class="community-sidebar-head">
           <h2>圈子推荐</h2>
           <a href="/circles/" class="community-link">全部</a>
         </div>
@@ -120,6 +120,27 @@ const postTypeLabels: Record<string, string> = {
 </ForumLayout>
 
 <style>
+  .community-feed-column {
+    min-width: 0;
+  }
+  .community-stream-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 0 0.8rem;
+    margin-bottom: 0.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .community-stream-head h2 {
+    margin: 0;
+    font-size: 1.12rem;
+  }
+  .community-stream-head p {
+    margin: 0.2rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+  }
   .feed-head-actions {
     display: flex;
     align-items: center;
@@ -128,6 +149,10 @@ const postTypeLabels: Record<string, string> = {
     gap: 0.5rem;
   }
   @media (max-width: 900px) {
+    .community-stream-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
     .feed-head-actions {
       justify-content: flex-start;
     }

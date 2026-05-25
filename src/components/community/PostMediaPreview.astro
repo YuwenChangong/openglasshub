@@ -16,6 +16,10 @@ const extraCount = Math.max(totalCount - visibleCount, 0);
 const layout =
   visibleCount <= 1 ? "single" : visibleCount === 2 ? "double" : visibleCount === 3 ? "triple" : "quad";
 const singleItem = items[0];
+const singleRatio =
+  visibleCount === 1 && singleItem?.width && singleItem?.height
+    ? singleItem.width / singleItem.height
+    : null;
 const singleOrientation =
   visibleCount === 1 && singleItem?.width && singleItem?.height
     ? singleItem.height > singleItem.width
@@ -33,6 +37,8 @@ const singleOrientation =
       {
         "community-post-media-preview--portrait": visibleCount === 1 && singleOrientation === "portrait",
         "community-post-media-preview--landscape": visibleCount === 1 && singleOrientation === "landscape",
+        "community-post-media-preview--single-wide": visibleCount === 1 && (singleRatio ?? 0) > 2.2,
+        "community-post-media-preview--single-balanced": visibleCount === 1 && (singleRatio ?? 0) >= 1.2 && (singleRatio ?? 0) <= 2.2,
       },
     ]}
   >

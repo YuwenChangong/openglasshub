@@ -82,18 +82,27 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
       <span>/</span>
       <a href="/circles/">圈子</a>
       <span>/</span>
-      <span style="color: #e8edf8;">{circle.name}</span>
+      <span style="color: var(--text);">{circle.name}</span>
     </nav>
 
-    <header style="margin-bottom: 2rem;">
+    <header style="margin-bottom: 1.4rem;">
       <h1 style="margin: 0 0 0.5rem 0; font-size: 1.75rem;">{circle.name}</h1>
       {circle.description && (
-        <p style="color: #9badcd; margin: 0 0 0.5rem 0; font-size: 1rem;">{circle.description}</p>
+        <p style="color: var(--text-muted); margin: 0 0 0.5rem 0; font-size: 1rem;">{circle.description}</p>
       )}
       <span class="forum-meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
     </header>
 
-    <h2>圈子帖子</h2>
+    <div class="circle-stream-head">
+      <div>
+        <h2>圈子帖子</h2>
+        <p>只显示该圈子的公开帖子，按发布时间倒序排列。</p>
+      </div>
+      <div class="community-inline-links">
+        <a href="/posts/new/" class="community-inline-link">发帖</a>
+        <a href="/feed/" class="community-inline-link">全部动态</a>
+      </div>
+    </div>
 
     {postsError ? (
       <div class="forum-empty">
@@ -107,7 +116,7 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
         <a href="/posts/new/" class="forum-btn forum-btn--primary">写第一篇帖子</a>
       </div>
     ) : (
-      <div style="display: grid; gap: 1rem;">
+      <div class="circle-post-stream">
         {posts.map((post) => (
           <PostCard
             id={post.id}
@@ -131,3 +140,34 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
     </div>
   </ForumLayout>
 )}
+
+<style>
+  .circle-stream-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.8rem;
+    margin-bottom: 0.3rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .circle-stream-head h2 {
+    margin: 0;
+    font-size: 1.08rem;
+  }
+  .circle-stream-head p {
+    margin: 0.2rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+  }
+  .circle-post-stream {
+    display: grid;
+    gap: 0.2rem;
+  }
+  @media (max-width: 900px) {
+    .circle-stream-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+</style>
