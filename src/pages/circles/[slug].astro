@@ -5,6 +5,7 @@ import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import PostCard from "../../components/community/PostCard.astro";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
+import { buildPostLikeCountMap } from "../../lib/post-engagement";
 
 const { slug } = Astro.params;
 
@@ -43,6 +44,7 @@ if (circle) {
 }
 
 const postMediaMap = circle ? await buildResolvedPostMediaMap(supabase, posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>) : new Map();
+const likeCountMap = circle ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
@@ -75,14 +77,14 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
     canonical={canonicalUrl}
     activeTab="circles"
   >
-    <nav class="breadcrumb">
+    <nav class="community-breadcrumb" aria-label="面包屑">
       <a href="/">首页</a>
-      <span>/</span>
+      <span class="community-breadcrumb__sep">/</span>
       <a href="/feed/">论坛</a>
-      <span>/</span>
+      <span class="community-breadcrumb__sep">/</span>
       <a href="/circles/">圈子</a>
-      <span>/</span>
-      <span style="color: var(--text);">{circle.name}</span>
+      <span class="community-breadcrumb__sep">/</span>
+      <span class="community-breadcrumb__current">{circle.name}</span>
     </nav>
 
     <header style="margin-bottom: 1.4rem;">
@@ -128,6 +130,7 @@ const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.s
             authorName={post.profiles?.display_name || undefined}
             timestamp={formatDate(post.created_at)}
             media={postMediaMap.get(post.id) ?? []}
+            likeCount={likeCountMap.get(post.id) ?? 0}
           />
         ))}
       </div>

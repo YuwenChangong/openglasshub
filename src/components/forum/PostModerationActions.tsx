@@ -283,7 +283,7 @@ export default function PostModerationActions({
     return (
       <>
       <div className="post-moderation-actions">
-        <a href={loginHref} className="community-action-button">登录后可举报</a>
+        <a href={loginHref} className="community-action-button">举报</a>
         {error ? <span className="inline-error">{error}</span> : null}
       </div>
         {renderModal()}

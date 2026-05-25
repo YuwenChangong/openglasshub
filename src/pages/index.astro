@@ -8,6 +8,7 @@ import EmptyFeedState from "../components/community/EmptyFeedState.astro";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { curatedNews } from "../lib/news";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../lib/forum-media";
+import { buildPostLikeCountMap } from "../lib/post-engagement";
 
 type PostRow = {
   id: string;
@@ -44,6 +45,7 @@ if (supabase) {
 }
 
 const postMediaMap = supabase ? await buildResolvedPostMediaMap(supabase, posts) : new Map();
+const likeCountMap = supabase ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
 
 const postTypeLabels: Record<string, string> = {
   experience: "体验/评测",
@@ -121,6 +123,7 @@ function excerpt(body?: string | null): string {
               authorName={post.profiles?.display_name || post.profiles?.username || undefined}
               timestamp={formatDate(post.last_activity_at || post.created_at)}
               media={postMediaMap.get(post.id) ?? []}
+              likeCount={likeCountMap.get(post.id) ?? 0}
             />
           ))}
         </div>

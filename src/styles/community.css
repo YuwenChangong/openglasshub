@@ -372,9 +372,10 @@ body {
 }
 
 .community-post-meta__link {
-  color: var(--text);
+  color: rgba(242, 244, 245, 0.82);
   text-decoration: none;
   font-weight: 600;
+  transition: color 140ms ease;
 }
 
 .community-post-meta__link:hover {
@@ -672,6 +673,64 @@ body {
   border-color: rgba(231, 176, 176, 0.14);
 }
 
+.community-social-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.community-social-actions--compact {
+  gap: 0.4rem;
+}
+
+.community-action-button--social {
+  gap: 0.42rem;
+  color: rgba(242, 244, 245, 0.72);
+}
+
+.community-action-button--social.is-active {
+  color: rgba(242, 244, 245, 0.94);
+}
+
+.community-action-button--social.is-liked {
+  color: #f06b7f;
+}
+
+.community-like-heart,
+.community-bookmark-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.92rem;
+  height: 0.92rem;
+  flex: 0 0 auto;
+}
+
+.community-like-heart svg,
+.community-bookmark-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+}
+
+.community-like-heart.is-animating {
+  animation: heart-pop 240ms ease;
+}
+
+@keyframes heart-pop {
+  0% {
+    transform: scale(0.92);
+  }
+  45% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 .community-post-actions__spacer {
   flex: 1 1 auto;
   min-width: 0;
@@ -740,13 +799,44 @@ body {
 }
 
 .community-inline-link {
-  color: var(--text-muted);
+  color: rgba(242, 244, 245, 0.68);
   text-decoration: none;
-  font-size: 0.84rem;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  transition: color 140ms ease;
 }
 
 .community-inline-link:hover {
   color: var(--text);
+}
+
+.community-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+  margin: 0 0 1rem;
+  color: var(--text-faint);
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+.community-breadcrumb a {
+  color: rgba(242, 244, 245, 0.68);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.community-breadcrumb a:hover {
+  color: rgba(242, 244, 245, 0.92);
+}
+
+.community-breadcrumb__sep {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.community-breadcrumb__current {
+  color: rgba(242, 244, 245, 0.94);
 }
 
 .community-inline-meta {

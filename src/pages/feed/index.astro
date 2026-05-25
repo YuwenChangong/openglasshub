@@ -7,6 +7,7 @@ import PostCard from "../../components/community/PostCard.astro";
 import EmptyFeedState from "../../components/community/EmptyFeedState.astro";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
+import { buildPostLikeCountMap } from "../../lib/post-engagement";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
@@ -26,6 +27,7 @@ const [{ data: posts, error }, { data: circles }] = await Promise.all([
 ]);
 
 const postMediaMap = posts ? await buildResolvedPostMediaMap(supabase, posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>) : new Map();
+const likeCountMap = posts ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
 
 const visibleCircles = (circles ?? []).filter((circle) => isPublicVisibleCircle(circle)).slice(0, 5);
 
@@ -84,6 +86,7 @@ const postTypeLabels: Record<string, string> = {
               authorName={post.profiles?.display_name || post.profiles?.username || undefined}
               timestamp={formatDate(post.last_activity_at || post.created_at)}
               media={postMediaMap.get(post.id) ?? []}
+              likeCount={likeCountMap.get(post.id) ?? 0}
             />
           ))}
         </div>

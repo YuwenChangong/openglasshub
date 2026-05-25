@@ -7,8 +7,10 @@ import CommentForm from "../../components/forum/CommentForm";
 import CommentsSection from "../../components/forum/CommentsSection";
 import PostModerationActions from "../../components/forum/PostModerationActions";
 import PostMediaGallery from "../../components/forum/PostMediaGallery";
+import PostSocialActions from "../../components/forum/PostSocialActions";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { resolveSignedPostMedia, type PostMediaRow } from "../../lib/forum-media";
+import { buildPostLikeCountMap } from "../../lib/post-engagement";
 
 const { id } = Astro.params;
 
@@ -75,6 +77,8 @@ const circle = post?.circles ?? null;
 const canonicalUrl = post ? `https://openglasshub.pages.dev/posts/${post.id}/` : undefined;
 const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "/feed/");
 const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as PostMediaRow[]);
+const likeCountMap = post ? await buildPostLikeCountMap(supabase, [post.id]) : new Map();
+const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
 ---
 
 {!post ? (
@@ -92,18 +96,18 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
     canonical={canonicalUrl}
     activeTab="feed"
   >
-    <nav class="breadcrumb" aria-label="面包屑">
+    <nav class="community-breadcrumb" aria-label="面包屑">
       <a href="/">首页</a>
-      <span class="breadcrumb__sep">/</span>
+      <span class="community-breadcrumb__sep">/</span>
       <a href="/feed/">论坛</a>
-      <span class="breadcrumb__sep">/</span>
+      <span class="community-breadcrumb__sep">/</span>
       {circle && (
         <>
           <a href={`/circles/${circle.slug}/`}>{circle.name}</a>
-          <span class="breadcrumb__sep">/</span>
+          <span class="community-breadcrumb__sep">/</span>
         </>
       )}
-      <span class="breadcrumb__current">{post.title}</span>
+      <span class="community-breadcrumb__current">{post.title}</span>
     </nav>
 
     <article class="post-detail">
@@ -140,8 +144,7 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
 
       <div class="post-detail__actions">
         <a href="/feed/" class="community-action-button">返回动态</a>
-        <button type="button" class="community-action-button post-detail__action-button" title="点赞功能将在后续版本开放">点赞</button>
-        <button type="button" class="community-action-button post-detail__action-button" title="收藏功能将在后续版本开放">收藏</button>
+        <PostSocialActions postId={post.id} initialLikeCount={initialLikeCount} client:visible />
         <PostModerationActions postId={post.id} authorId={post.author_id} showManagementActions={false} client:visible />
       </div>
     </article>
@@ -166,30 +169,6 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
 )}
 
 <style>
-  .breadcrumb {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0 0 1rem;
-    color: var(--text-faint);
-    font-size: 0.94rem;
-    line-height: 1.5;
-  }
-  .breadcrumb a {
-    color: rgba(242, 244, 245, 0.78);
-    text-decoration: none;
-    transition: color 140ms ease;
-  }
-  .breadcrumb a:hover {
-    color: var(--text);
-  }
-  .breadcrumb__sep {
-    color: rgba(255, 255, 255, 0.22);
-  }
-  .breadcrumb__current {
-    color: rgba(242, 244, 245, 0.92);
-  }
   .post-detail {
     max-width: 860px;
   }
@@ -267,12 +246,6 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
   }
   .post-detail__actions :global(.post-moderation-actions) {
     display: contents;
-  }
-  .post-detail__action-button {
-    cursor: pointer;
-  }
-  .post-detail__action-button:disabled {
-    cursor: default;
   }
 </style>
 
