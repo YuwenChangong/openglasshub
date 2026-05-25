@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { isPublicVisibleCircle } from "../../../lib/site-navigation";
+import { fetchCirclesWithFallback } from "../../../lib/circle-data";
 
 export const prerender = false;
 
@@ -47,16 +48,16 @@ export const GET: APIRoute = async ({ locals }) => {
     }
 
     const supabase = createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_ANON_KEY"));
-    const { data, error } = await supabase
-      .from("circles")
-      .select("id, slug, name, description, type, image_path")
-      .order("name", { ascending: true });
+    const { circles, error, supportsExtendedSchema } = await fetchCirclesWithFallback(supabase);
 
     if (error) {
       return json({ error: error.message }, 500);
     }
 
-    return json({ circles: (data ?? []).filter((circle) => isPublicVisibleCircle(circle)) });
+    return json({
+      circles: circles.filter((circle) => isPublicVisibleCircle(circle)),
+      supports_extended_schema: supportsExtendedSchema,
+    });
   } catch (error) {
     return json(
       { error: error instanceof Error ? error.message : "Unexpected server error" },
@@ -136,6 +137,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .single();
 
     if (insertError) {
+      if (/owner_id|image_path/i.test(insertError.message)) {
+        return json({ error: "Circle creation is not available until the latest Supabase migration is applied" }, 503);
+      }
       return json({ error: insertError.message }, 500);
     }
 

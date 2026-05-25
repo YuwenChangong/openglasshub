@@ -7,6 +7,7 @@ import PostCard from "../../components/community/PostCard.astro";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
 import { buildPostLikeCountMap } from "../../lib/post-engagement";
 import { buildCircleImageMap } from "../../lib/circle-images";
+import { fetchCircleBySlugWithFallback } from "../../lib/circle-data";
 
 const { slug } = Astro.params;
 
@@ -17,11 +18,7 @@ if (!slug) {
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
 
-const { data: circle, error: circleError } = await supabase
-  .from("circles")
-  .select("id, name, slug, description, created_at, image_path")
-  .eq("slug", slug)
-  .single();
+const { circle, error: circleError, supportsExtendedSchema } = await fetchCircleBySlugWithFallback(supabase, slug);
 
 if (circleError || !circle) {
   Astro.response.status = 404;
@@ -91,6 +88,11 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
     </nav>
 
     <header style="margin-bottom: 1.4rem;">
+      {!supportsExtendedSchema && (
+        <p class="forum-meta" style="margin: 0 0 0.8rem;">
+          当前预览环境尚未启用圈子封面图字段，因此这里先按兼容模式显示。
+        </p>
+      )}
       {circleImageUrl ? (
         <div class="circle-detail-cover">
           <img src={circleImageUrl} alt={`${circle.name} 圈子封面`} />

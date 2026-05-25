@@ -1,0 +1,101 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+type CircleBase = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  created_at?: string | null;
+};
+
+export type CircleRow = CircleBase & {
+  image_path?: string | null;
+};
+
+function isMissingImagePathError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("image_path") && message.includes("does not exist");
+}
+
+export async function fetchCirclesWithFallback(
+  supabase: SupabaseClient,
+): Promise<{ circles: CircleRow[]; error: { message: string } | null; supportsExtendedSchema: boolean }> {
+  const extendedResult = await supabase
+    .from("circles")
+    .select("id, name, slug, description, created_at, image_path")
+    .order("name", { ascending: true });
+
+  if (!extendedResult.error) {
+    return {
+      circles: (extendedResult.data ?? []) as CircleRow[],
+      error: null,
+      supportsExtendedSchema: true,
+    };
+  }
+
+  if (!isMissingImagePathError(extendedResult.error)) {
+    return {
+      circles: [],
+      error: { message: extendedResult.error.message },
+      supportsExtendedSchema: false,
+    };
+  }
+
+  const fallbackResult = await supabase
+    .from("circles")
+    .select("id, name, slug, description, created_at")
+    .order("name", { ascending: true });
+
+  return {
+    circles: ((fallbackResult.data ?? []) as CircleBase[]).map((circle) => ({
+      ...circle,
+      image_path: null,
+    })),
+    error: fallbackResult.error ? { message: fallbackResult.error.message } : null,
+    supportsExtendedSchema: false,
+  };
+}
+
+export async function fetchCircleBySlugWithFallback(
+  supabase: SupabaseClient,
+  slug: string,
+): Promise<{ circle: CircleRow | null; error: { message: string } | null; supportsExtendedSchema: boolean }> {
+  const extendedResult = await supabase
+    .from("circles")
+    .select("id, name, slug, description, created_at, image_path")
+    .eq("slug", slug)
+    .single();
+
+  if (!extendedResult.error) {
+    return {
+      circle: (extendedResult.data ?? null) as CircleRow | null,
+      error: null,
+      supportsExtendedSchema: true,
+    };
+  }
+
+  if (!isMissingImagePathError(extendedResult.error)) {
+    return {
+      circle: null,
+      error: { message: extendedResult.error.message },
+      supportsExtendedSchema: false,
+    };
+  }
+
+  const fallbackResult = await supabase
+    .from("circles")
+    .select("id, name, slug, description, created_at")
+    .eq("slug", slug)
+    .single();
+
+  return {
+    circle: fallbackResult.data
+      ? {
+          ...(fallbackResult.data as CircleBase),
+          image_path: null,
+        }
+      : null,
+    error: fallbackResult.error ? { message: fallbackResult.error.message } : null,
+    supportsExtendedSchema: false,
+  };
+}
