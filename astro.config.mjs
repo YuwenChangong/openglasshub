@@ -12,6 +12,7 @@ export default defineConfig({
     '/reference/devices-docs': '/devices/',
     '/reference/developers-docs': '/developers/',
     '/reference/gaze-launcher-docs': '/gaze-launcher/',
+    '/community': '/feed/',
   },
   adapter: cloudflare({
     platformProxy: {
@@ -102,10 +103,6 @@ export default defineConfig({
         {
           label: 'Gaze Launcher',
           link: '/gaze-launcher',
-        },
-        {
-          label: '社区',
-          link: '/community',
         },
         {
           label: '关于',

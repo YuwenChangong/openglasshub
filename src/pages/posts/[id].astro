@@ -140,7 +140,7 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
 
       <div class="post-detail__actions">
         <a href="/feed/" class="community-action-button">返回动态</a>
-        <a href="/community/" class="community-action-button">加入社区讨论</a>
+        <a href="/feed/" class="community-action-button">加入社区讨论</a>
         <a href="/posts/new/" class="community-action-button community-action-button--primary">发帖</a>
       </div>
       <PostModerationActions postId={post.id} authorId={post.author_id} client:visible />
@@ -222,3 +222,4 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
     margin-top: 1rem;
   }
 </style>
+
