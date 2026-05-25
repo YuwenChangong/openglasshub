@@ -5,6 +5,7 @@ import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 interface PostModerationActionsProps {
   postId: string;
   authorId: string;
+  showManagementActions?: boolean;
 }
 
 interface SessionState {
@@ -23,7 +24,11 @@ const REPORT_CATEGORIES = [
   "其他",
 ] as const;
 
-export default function PostModerationActions({ postId, authorId }: PostModerationActionsProps) {
+export default function PostModerationActions({
+  postId,
+  authorId,
+  showManagementActions = true,
+}: PostModerationActionsProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [session, setSession] = useState<SessionState | null>(null);
   const [canModerate, setCanModerate] = useState(false);
@@ -297,7 +302,7 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
         >
           {reportSubmitted ? "已举报" : "举报"}
         </button>
-        {isAuthor ? (
+        {showManagementActions && isAuthor ? (
           <button
             type="button"
             className="community-action-button community-action-button--danger"
@@ -307,7 +312,7 @@ export default function PostModerationActions({ postId, authorId }: PostModerati
             删除帖子
           </button>
         ) : null}
-        {canModerate ? (
+        {showManagementActions && canModerate ? (
           <button
             type="button"
             className="community-action-button"

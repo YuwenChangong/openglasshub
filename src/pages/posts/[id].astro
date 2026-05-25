@@ -92,18 +92,18 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
     canonical={canonicalUrl}
     activeTab="feed"
   >
-    <nav class="breadcrumb">
+    <nav class="breadcrumb" aria-label="面包屑">
       <a href="/">首页</a>
-      <span>/</span>
+      <span class="breadcrumb__sep">/</span>
       <a href="/feed/">论坛</a>
-      <span>/</span>
+      <span class="breadcrumb__sep">/</span>
       {circle && (
         <>
           <a href={`/circles/${circle.slug}/`}>{circle.name}</a>
-          <span>/</span>
+          <span class="breadcrumb__sep">/</span>
         </>
       )}
-      <span style="color: var(--text);">{post.title}</span>
+      <span class="breadcrumb__current">{post.title}</span>
     </nav>
 
     <article class="post-detail">
@@ -140,10 +140,10 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
 
       <div class="post-detail__actions">
         <a href="/feed/" class="community-action-button">返回动态</a>
-        <a href="/feed/" class="community-action-button">加入社区讨论</a>
-        <a href="/posts/new/" class="community-action-button community-action-button--primary">发帖</a>
+        <button type="button" class="community-action-button post-detail__action-button" title="点赞功能将在后续版本开放">点赞</button>
+        <button type="button" class="community-action-button post-detail__action-button" title="收藏功能将在后续版本开放">收藏</button>
+        <PostModerationActions postId={post.id} authorId={post.author_id} showManagementActions={false} client:visible />
       </div>
-      <PostModerationActions postId={post.id} authorId={post.author_id} client:visible />
     </article>
 
     <section id="comments">
@@ -166,6 +166,30 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
 )}
 
 <style>
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0 0 1rem;
+    color: var(--text-faint);
+    font-size: 0.94rem;
+    line-height: 1.5;
+  }
+  .breadcrumb a {
+    color: rgba(242, 244, 245, 0.78);
+    text-decoration: none;
+    transition: color 140ms ease;
+  }
+  .breadcrumb a:hover {
+    color: var(--text);
+  }
+  .breadcrumb__sep {
+    color: rgba(255, 255, 255, 0.22);
+  }
+  .breadcrumb__current {
+    color: rgba(242, 244, 245, 0.92);
+  }
   .post-detail {
     max-width: 860px;
   }
@@ -220,6 +244,35 @@ const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as Po
     flex-wrap: wrap;
     gap: 0.55rem;
     margin-top: 1rem;
+  }
+  .post-detail__actions :global(.community-action-button) {
+    min-height: 30px;
+    padding: 0.32rem 0.72rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: rgba(242, 244, 245, 0.72);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .post-detail__actions :global(.community-action-button:hover) {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: rgba(242, 244, 245, 0.92);
+  }
+  .post-detail__actions :global(.community-action-button--danger) {
+    color: rgba(255, 205, 205, 0.78);
+    border-color: rgba(231, 176, 176, 0.12);
+  }
+  .post-detail__actions :global(.post-moderation-actions) {
+    display: contents;
+  }
+  .post-detail__action-button {
+    cursor: pointer;
+  }
+  .post-detail__action-button:disabled {
+    cursor: default;
   }
 </style>
 
