@@ -170,3 +170,64 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   }
 };
+
+export const PATCH: APIRoute = async ({ request, locals }) => {
+  try {
+    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    if (!env) {
+      return json({ error: "Runtime environment not available" }, 500);
+    }
+
+    const token = getBearerToken(request);
+    if (!token) {
+      return json({ error: "Missing bearer token" }, 401);
+    }
+
+    const supabase = createUserClient(env, token);
+    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !authData.user) {
+      return json({ error: "Invalid auth token" }, 401);
+    }
+
+    const payload = (await request.json().catch(() => null)) as
+      | { id?: string; slug?: string; image_path?: string | null }
+      | null;
+
+    const id = String(payload?.id ?? "").trim();
+    const slug = String(payload?.slug ?? "").trim().toLowerCase();
+    const imagePathRaw = payload?.image_path;
+    const imagePath = typeof imagePathRaw === "string" ? imagePathRaw.trim() : null;
+
+    if (!id && !slug) {
+      return json({ error: "Missing circle id or slug" }, 400);
+    }
+    if (imagePath && imagePath.length > 500) {
+      return json({ error: "Circle image path is too long" }, 400);
+    }
+
+    const query = supabase
+      .from("circles")
+      .update({ image_path: imagePath })
+      .select("id, slug, image_path")
+      .limit(1);
+
+    const { data, error } = id ? await query.eq("id", id).single() : await query.eq("slug", slug).single();
+
+    if (error) {
+      if (/image_path/i.test(error.message)) {
+        return json({ error: "当前数据库还没有启用圈子图片字段，请先执行最新 Supabase migration。" }, 503);
+      }
+      if (/row-level security|permission/i.test(error.message)) {
+        return json({ error: "你没有权限修改这个圈子的封面。仅圈子 owner 或管理员可修改。" }, 403);
+      }
+      return json({ error: error.message }, 500);
+    }
+
+    return json({ circle: data }, 200);
+  } catch (error) {
+    return json(
+      { error: error instanceof Error ? error.message : "Unexpected server error" },
+      500,
+    );
+  }
+};
