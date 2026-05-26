@@ -2,67 +2,170 @@
 export const prerender = false;
 
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
-import ProductCard from "../../components/community/ProductCard.astro";
+
+const deviceCatalog = {
+  "xreal-one": {
+    slug: "xreal-one",
+    title: "XREAL One",
+    short: "偏显示体验与空间显示路线，适合先判断大屏、连接体验和进阶显示需求。",
+    summary: "XREAL One 更适合作为显示型路线入口。核心看点是显示、连接和佩戴连续性，不是把它当独立系统。",
+    fit: "看电影/掌机/PC 第二屏；重视显示稳定性。",
+    avoid: "希望脱离手机/电脑独立运行完整应用的人群。",
+    sourceLabel: "XREAL One 系列连接说明",
+    sourceUrl: "https://tutorials.xreal.com/docs/glasses/one-series/first-use/connect-device/",
+  },
+  "xreal-one-pro": {
+    slug: "xreal-one-pro",
+    title: "XREAL One Pro",
+    short: "继续看显示质量、佩戴舒适度和更进阶的空间显示边界。",
+    summary: "One Pro 依旧属于显示型路线，重点在显示体验升级与佩戴优化。判断逻辑仍应围绕显示与连接。",
+    fit: "追求更高显示体验、同路线升级。",
+    avoid: "把它当独立 AR 系统替代。",
+    sourceLabel: "XREAL One 系列连接说明",
+    sourceUrl: "https://tutorials.xreal.com/docs/glasses/one-series/first-use/connect-device/",
+  },
+  "xreal-air-2-pro": {
+    slug: "xreal-air-2-pro",
+    title: "XREAL Air 2 Pro",
+    short: "适合对比上一代主流显示型眼镜的佩戴与日常连接体验。",
+    summary: "Air 2 Pro 适合做显示型路线对照机型，用来核对日常连接、佩戴舒适度和显示效果。",
+    fit: "显示型路线对比、日常便携观影。",
+    avoid: "需要独立系统/复杂本机应用生态。",
+    sourceLabel: "XREAL 官网",
+    sourceUrl: "https://www.xreal.com/",
+  },
+  "xreal-air-2-ultra": {
+    slug: "xreal-air-2-ultra",
+    title: "XREAL Air 2 Ultra",
+    short: "更偏开发与空间计算实验路线，先核对 SDK 和输入边界。",
+    summary: "Air 2 Ultra 更适合开发和空间计算实验，不该按纯消费观影逻辑判断。",
+    fit: "开发验证、空间计算实验。",
+    avoid: "只想开箱即用的稳定消费体验。",
+    sourceLabel: "XREAL 官网",
+    sourceUrl: "https://www.xreal.com/",
+  },
+  "rokid-max": {
+    slug: "rokid-max",
+    title: "Rokid Max",
+    short: "偏显示路线，适合判断大屏观影和连接体验。",
+    summary: "Rokid Max 是典型显示型眼镜路线，关键是显示参数、连接方式和长时间佩戴稳定性。",
+    fit: "观影/大屏、游戏外接显示。",
+    avoid: "把它当无手机依赖的独立系统。",
+    sourceLabel: "Rokid Max 官方页",
+    sourceUrl: "https://max.rokid.com/product/index.html",
+  },
+  "rokid-glasses": {
+    slug: "rokid-glasses",
+    title: "Rokid Glasses",
+    short: "偏 AI 眼镜日常入口，适合比较“看屏”和“智能入口”的差异。",
+    summary: "Rokid Glasses 更偏 AI 眼镜入口，关注点应是语音、拍摄、翻译和日常交互边界。",
+    fit: "语音/拍摄/轻 AI 助手入口。",
+    avoid: "期待显示型大屏体验。",
+    sourceLabel: "Rokid AI Glasses 官方页",
+    sourceUrl: "https://global.rokid.com/products/rokid-ai-glasses-style",
+  },
+  "rayneo-x2": {
+    slug: "rayneo-x2",
+    title: "RayNeo X2",
+    short: "更接近独立 AR 与轻量系统路线，适合研究导航、翻译和系统边界。",
+    summary: "RayNeo X2 更接近独立 AR 路线，核心在系统能力与输入边界，而非大屏显示。",
+    fit: "独立 AR 方向研究、导航/翻译等系统能力验证。",
+    avoid: "只看显示效果、只要低门槛上手。",
+    sourceLabel: "RayNeo X2 官方页",
+    sourceUrl: "https://www.rayneo.com/products/tcl-rayneo-x2",
+  },
+  "inmo-air-2": {
+    slug: "inmo-air-2",
+    title: "INMO Air 2",
+    short: "关注轻量 AR 佩戴、显示入口与日常系统边界。",
+    summary: "INMO Air 2 适合做轻量 AR 路线观察，关注点应放在输入能力、佩戴和系统边界。",
+    fit: "轻量 AR 场景与系统边界验证。",
+    avoid: "把它当成熟消费显示设备。",
+    sourceLabel: "INMO 官方",
+    sourceUrl: "https://inmoglobal.com/",
+  },
+  "viture-pro": {
+    slug: "viture-pro",
+    title: "VITURE Pro",
+    short: "适合对比显示型路线里的便携观影与连接体验。",
+    summary: "VITURE Pro 更偏显示型路线，适合和 XREAL、Rokid Max 做显示和连接路径对比。",
+    fit: "显示型路线对比、便携观影。",
+    avoid: "把它当独立 AI/AR 系统。",
+    sourceLabel: "VITURE 官方",
+    sourceUrl: "https://www.viture.com/",
+  },
+  "ray-ban-meta": {
+    slug: "ray-ban-meta",
+    title: "Ray-Ban Meta",
+    short: "更偏无显示智能眼镜路线，重点看语音入口、拍摄与日常佩戴。",
+    summary: "Ray-Ban Meta 是无显示/轻显示智能眼镜路线，核心价值在语音和拍摄入口，而非大屏显示。",
+    fit: "拍摄、语音交互、日常佩戴。",
+    avoid: "期待 AR 大屏/空间显示体验。",
+    sourceLabel: "Ray-Ban Meta 官方页",
+    sourceUrl: "https://www.ray-ban.com/usa/discover-ray-ban-meta-ai-glasses/clp",
+  },
+  "brilliant-labs-frame": {
+    slug: "brilliant-labs-frame",
+    title: "Brilliant Labs Frame",
+    short: "开放实验方向，适合观察 AI 入口与硬件实验边界。",
+    summary: "Frame 更适合实验和开发探索，重心在开放性与验证价值，而不是消费级完成度。",
+    fit: "实验验证、开发探索。",
+    avoid: "直接当成熟消费产品。",
+    sourceLabel: "Brilliant Frame 硬件文档",
+    sourceUrl: "https://docs.brilliant.xyz/frame/hardware/",
+  },
+} as const;
+
+type DeviceKey = keyof typeof deviceCatalog;
+type DeviceEntry = (typeof deviceCatalog)[DeviceKey];
 
 const brandCatalog = [
   {
     key: "xreal",
     label: "XREAL",
-    devices: [
-      { title: "XREAL One", description: "偏显示体验与空间显示路线，适合先判断大屏、连接体验和进阶显示需求。", href: "/devices/xreal-one/" },
-      { title: "XREAL One Pro", description: "继续看显示质量、佩戴舒适度和更进阶的空间显示边界。", href: "/devices/xreal-one-pro/" },
-      { title: "XREAL Air 2 Pro", description: "适合对比上一代主流显示型眼镜的佩戴与日常连接体验。", href: "/devices/xreal-air-2-pro/" },
-      { title: "XREAL Air 2 Ultra", description: "更偏开发与空间计算实验路线，先核对 SDK 和输入边界。", href: "/devices/xreal-air-2-ultra/" },
-    ],
+    devices: ["xreal-one", "xreal-one-pro", "xreal-air-2-pro", "xreal-air-2-ultra"],
   },
   {
     key: "rokid",
     label: "Rokid",
-    devices: [
-      { title: "Rokid Max", description: "偏显示路线，适合判断大屏观影和连接体验。", href: "/devices/rokid-max/" },
-      { title: "Rokid Glasses", description: "偏 AI 眼镜日常入口，适合比较“看屏”和“智能入口”的差异。", href: "/devices/rokid-glasses/" },
-    ],
+    devices: ["rokid-max", "rokid-glasses"],
   },
   {
     key: "rayneo",
     label: "RayNeo",
-    devices: [{ title: "RayNeo X2", description: "更接近独立 AR 与轻量系统路线，适合研究导航、翻译和系统边界。", href: "/devices/rayneo-x2/" }],
+    devices: ["rayneo-x2"],
   },
   {
     key: "inmo",
     label: "INMO",
-    devices: [{ title: "INMO Air 2", description: "关注轻量 AR 佩戴、显示入口与日常系统边界。", href: "/devices/inmo-air-2/" }],
+    devices: ["inmo-air-2"],
   },
   {
     key: "viture",
     label: "VITURE",
-    devices: [{ title: "VITURE Pro", description: "适合对比显示型路线里的便携观影与连接体验。", href: "/devices/viture-pro/" }],
+    devices: ["viture-pro"],
   },
   {
     key: "meta",
     label: "Meta AI Glasses",
-    devices: [{ title: "Ray-Ban Meta", description: "更偏无显示智能眼镜路线，重点看语音入口、拍摄与日常佩戴。", href: "/devices/ray-ban-meta/" }],
+    devices: ["ray-ban-meta"],
   },
   {
     key: "brilliant-labs",
     label: "Brilliant Labs",
-    devices: [{ title: "Brilliant Labs Frame", description: "开放实验方向，适合观察 AI 入口与硬件实验边界。", href: "/devices/brilliant-labs-frame/" }],
+    devices: ["brilliant-labs-frame"],
   },
 ] as const;
 
-const selectedBrandKey = Astro.url.searchParams.get("brand")?.trim().toLowerCase() ?? "";
-const selectedBrand = brandCatalog.find((brand) => brand.key === selectedBrandKey);
 const routeCatalog = [
   {
     key: "display",
     label: "显示型",
     title: "显示型路线",
     description: "更适合观影、掌机、PC 第二屏和便携大屏。重点不是 AI，而是显示、连接和佩戴。",
-    sourceLabel: "XREAL 官方连接说明",
-    sourceUrl: "https://tutorials.xreal.com/docs/glasses/one-series/first-use/connect-device/",
     notes: [
-      "先确认设备接口是否支持 DP 视频输出和供电，不然显示体验判断没有意义。",
-      "优先比较清晰度、亮度、佩戴舒适度、连接稳定性和音频，而不是把它当独立系统。",
+      "优先确认接口是否支持 DP 视频输出与供电。",
+      "真正要比较的是清晰度、亮度、舒适度、连接稳定性。",
     ],
     devices: ["xreal-one", "xreal-one-pro", "xreal-air-2-pro", "rokid-max", "viture-pro"],
   },
@@ -70,12 +173,10 @@ const routeCatalog = [
     key: "ai",
     label: "AI 眼镜",
     title: "AI 眼镜路线",
-    description: "更适合语音入口、拍摄记录、翻译、导航和轻量 AI 助手，不要默认等同于 AR 显示设备。",
-    sourceLabel: "Rokid AI Glasses Style 官方说明",
-    sourceUrl: "https://global.rokid.com/products/rokid-ai-glasses-style",
+    description: "更适合语音入口、拍摄记录、翻译、导航和轻量 AI 助手。",
     notes: [
-      "日常价值主要看语音入口、拍摄边界、翻译/导航和续航，而不是纸面参数堆叠。",
-      "如果产品明确写着没有 display，就不要把它拿去和显示型 AR 眼镜直接对比大屏体验。",
+      "先看是否有显示能力，再判断日常 AI 入口价值。",
+      "不要直接拿来和显示型 AR 眼镜做大屏对比。",
     ],
     devices: ["rokid-glasses", "ray-ban-meta"],
   },
@@ -83,12 +184,10 @@ const routeCatalog = [
     key: "standalone",
     label: "独立 AR",
     title: "独立 AR / 系统型路线",
-    description: "更接近系统化体验，适合研究导航、翻译、系统交互与输入方式，但风险和学习成本更高。",
-    sourceLabel: "RayNeo X2 官方产品页",
-    sourceUrl: "https://www.rayneo.com/products/tcl-rayneo-x2",
+    description: "更接近系统化体验，适合研究导航、翻译、系统交互与输入方式。",
     notes: [
-      "先看输入方式、导航/翻译等系统能力是否真能落地，再看日常佩戴与配套 app 依赖。",
-      "这类产品更容易受到生态成熟度、配套手机应用、输入限制和续航的影响。",
+      "先看输入方式与系统能力是否真落地。",
+      "关注生态成熟度、权限与外部配套 app 依赖。",
     ],
     devices: ["rayneo-x2", "inmo-air-2"],
   },
@@ -96,61 +195,61 @@ const routeCatalog = [
     key: "experimental",
     label: "实验路线",
     title: "开放实验 / 开发路线",
-    description: "更适合研发和实验验证，重点是 SDK、蓝牙或宿主 app 关系、相机/麦克风/显示的可控边界。",
-    sourceLabel: "Brilliant Frame 硬件文档",
-    sourceUrl: "https://docs.brilliant.xyz/frame/hardware/",
+    description: "更适合研发和实验验证，重点是 SDK、输入与系统边界。",
     notes: [
-      "先确认它是不是更像宿主设备配件，而不是把逻辑都跑在眼镜本体上。",
-      "实验路线的价值常在开放能力，不在消费级完成度；适合开发验证，不适合拿来当成熟日常系统。",
+      "优先确认 SDK、权限、安装路径和调试链路。",
+      "这类机型价值通常在开放能力，不在消费级完成度。",
     ],
     devices: ["brilliant-labs-frame"],
   },
 ] as const;
-const selectedRouteKey = Astro.url.searchParams.get("route")?.trim().toLowerCase() ?? "display";
+
+type RouteKey = (typeof routeCatalog)[number]["key"];
+type BrandKey = (typeof brandCatalog)[number]["key"];
+
+const selectedBrandKey = (Astro.url.searchParams.get("brand")?.trim().toLowerCase() ?? "") as BrandKey | "";
+const selectedBrand = brandCatalog.find((brand) => brand.key === selectedBrandKey);
+
+const selectedRouteKey = (Astro.url.searchParams.get("route")?.trim().toLowerCase() ?? "display") as RouteKey;
 const selectedRoute = routeCatalog.find((route) => route.key === selectedRouteKey) ?? routeCatalog[0];
 
-const featuredDevices = [
-  {
-    key: "xreal-one",
-    title: "XREAL One / One Pro",
-    description: "偏显示体验与空间显示路线，适合先判断大屏、连接体验和进阶显示需求。",
-    href: "/devices/xreal-one/",
-  },
-  {
-    key: "rokid-max",
-    title: "Rokid Max / Rokid Glasses",
-    description: "一条偏显示、一条偏 AI 眼镜日常入口，适合比较“看屏”和“智能入口”的差异。",
-    href: "/devices/rokid-max/",
-  },
-  {
-    key: "rayneo-x2",
-    title: "RayNeo X2 / INMO Air 2",
-    description: "更接近独立 AR 与轻量系统路线，适合研究导航、翻译和系统边界。",
-    href: "/devices/rayneo-x2/",
-  },
-  {
-    key: "ray-ban-meta",
-    title: "Ray-Ban Meta / Brilliant Labs Frame",
-    description: "更偏无显示或轻显示智能眼镜路线，适合观察 AI 入口与开放实验方向。",
-    href: "/devices/ray-ban-meta/",
-  },
-] as const;
+const selectedDeviceKey = (Astro.url.searchParams.get("device")?.trim().toLowerCase() ?? "") as DeviceKey | "";
+
+function getDeviceByKey(key: string): DeviceEntry | null {
+  if (!key) return null;
+  if (key in deviceCatalog) {
+    return deviceCatalog[key as DeviceKey];
+  }
+  return null;
+}
+
+function mapDeviceKeys(keys: readonly string[]) {
+  return keys.map((key) => getDeviceByKey(key)).filter(Boolean) as DeviceEntry[];
+}
+
+const visibleDevices = selectedBrand ? mapDeviceKeys(selectedBrand.devices) : mapDeviceKeys(selectedRoute.devices);
+const firstVisibleDevice = visibleDevices[0] ?? null;
+const selectedDevice = getDeviceByKey(selectedDeviceKey) ?? firstVisibleDevice;
+
+function buildQueryHref(params: { brand?: string; route?: string; device?: string }, hash?: string) {
+  const query = new URLSearchParams();
+  if (params.brand) query.set("brand", params.brand);
+  if (params.route) query.set("route", params.route);
+  if (params.device) query.set("device", params.device);
+  const qs = query.toString();
+  return `/devices/${qs ? `?${qs}` : ""}${hash ?? ""}`;
+}
 
 const brandLinks = brandCatalog.map((brand) => ({
   key: brand.key,
   label: brand.label,
-  href: `/devices/?brand=${brand.key}#brand-results`,
+  href: buildQueryHref({ brand: brand.key, route: selectedRoute.key, device: brand.devices[0] }, "#device-detail"),
 }));
 
-const routeDeviceCards = brandCatalog
-  .flatMap((brand) => brand.devices)
-  .filter((device) => selectedRoute.devices.includes(device.href.split("/").filter(Boolean).pop() ?? ""));
-const visibleDevices = selectedBrand ? selectedBrand.devices : routeDeviceCards;
-const visibleDevicesHeading = selectedBrand ? `${selectedBrand.label} 机型` : "重点设备";
+const visibleDevicesHeading = selectedBrand ? `${selectedBrand.label} 机型` : `${selectedRoute.title}机型`;
 const visibleDevicesDescription = selectedBrand
   ? `当前只显示 ${selectedBrand.label} 相关机型，便于按品牌继续缩小范围。`
-  : `${selectedRoute.title}：${selectedRoute.description}`;
-
+  : selectedRoute.description;
 ---
 
 <CommunityLayout
@@ -177,7 +276,7 @@ const visibleDevicesDescription = selectedBrand
         <div class="community-inline-links">
           {routeCatalog.map((route) => (
             <a
-              href={`/devices/?route=${route.key}#route-panel`}
+              href={buildQueryHref({ route: route.key, device: route.devices[0] }, "#device-detail")}
               class:list={["community-inline-link", { "community-inline-link--active": !selectedBrand && selectedRoute.key === route.key }]}
             >
               {route.label}
@@ -185,33 +284,61 @@ const visibleDevicesDescription = selectedBrand
           ))}
         </div>
       </div>
-      {!selectedBrand && (
-        <div class="devices-route-panel" id="route-panel">
-          <div>
-            <span class="community-meta">路线判断</span>
-            <h2>{selectedRoute.title}</h2>
-            <p>{selectedRoute.description}</p>
-          </div>
-          <ul class="devices-route-panel__notes">
-            {selectedRoute.notes.map((note) => <li>{note}</li>)}
-          </ul>
-          <a href={selectedRoute.sourceUrl} target="_blank" rel="noreferrer" class="community-link">
-            官方参考：{selectedRoute.sourceLabel}
-          </a>
-        </div>
-      )}
       <div class="community-section-head">
         <div>
           <h2 id="brand-results">{visibleDevicesHeading}</h2>
           <p>{visibleDevicesDescription}</p>
         </div>
-        {(selectedBrand || selectedRouteKey !== "display") && <a href="/devices/" class="community-action-button community-action-button--muted">查看默认视图</a>}
+        {(selectedBrand || selectedRouteKey !== "display") && (
+          <a href="/devices/" class="community-action-button community-action-button--muted">查看默认视图</a>
+        )}
       </div>
       <div class="devices-grid">
         {visibleDevices.map((item) => (
-          <ProductCard label="重点设备" title={item.title} description={item.description} href={item.href} />
+          <a
+            href={buildQueryHref(
+              {
+                brand: selectedBrand?.key,
+                route: selectedRoute.key,
+                device: item.slug,
+              },
+              "#device-detail",
+            )}
+            class="community-product-card"
+          >
+            <span class="community-meta">重点设备</span>
+            <h3>{item.title}</h3>
+            <p>{item.short}</p>
+            <div class="community-post-actions" style="padding-top: 0.35rem;">
+              <span class="community-action">查看说明</span>
+            </div>
+          </a>
         ))}
       </div>
+
+      {selectedDevice && (
+        <section class="device-detail-panel" id="device-detail">
+          <div>
+            <span class="community-meta">产品说明</span>
+            <h2>{selectedDevice.title}</h2>
+            <p>{selectedDevice.summary}</p>
+          </div>
+          <div class="device-detail-panel__grid">
+            <article class="community-field-note">
+              <strong>更适合</strong>
+              <span>{selectedDevice.fit}</span>
+            </article>
+            <article class="community-field-note">
+              <strong>不太适合</strong>
+              <span>{selectedDevice.avoid}</span>
+            </article>
+          </div>
+          <div class="community-cta-row">
+            <a href={`/devices/${selectedDevice.slug}/`} class="community-action-button community-action-button--primary">查看完整设备页</a>
+            <a href={selectedDevice.sourceUrl} target="_blank" rel="noreferrer" class="community-action-button community-action-button--muted">官方参考：{selectedDevice.sourceLabel}</a>
+          </div>
+        </section>
+      )}
     </div>
 
     <div class="community-grid" style="margin-top: 1rem;">
@@ -283,27 +410,26 @@ const visibleDevicesDescription = selectedBrand
     gap: 0.8rem;
     padding: 0.9rem 1rem 1rem;
   }
-  .devices-route-panel {
+  .device-detail-panel {
     display: grid;
-    gap: 0.7rem;
-    padding: 0 1rem 0.9rem;
+    gap: 0.75rem;
+    padding: 0 1rem 1rem;
+    border-top: 1px solid var(--border);
   }
-  .devices-route-panel h2 {
-    margin: 0.18rem 0 0.25rem;
+  .device-detail-panel h2 {
+    margin: 0.16rem 0 0.25rem;
     color: var(--text);
-    font-size: 1.08rem;
+    font-size: 1.1rem;
   }
-  .devices-route-panel p {
+  .device-detail-panel p {
     margin: 0;
     color: var(--text-muted);
     line-height: 1.65;
   }
-  .devices-route-panel__notes {
-    margin: 0;
-    padding-left: 1.1rem;
-    color: var(--text-muted);
+  .device-detail-panel__grid {
     display: grid;
-    gap: 0.3rem;
+    gap: 0.7rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .community-link-row {
     text-decoration: none;
@@ -321,9 +447,9 @@ const visibleDevicesDescription = selectedBrand
     display: grid;
   }
   @media (max-width: 900px) {
-    .devices-grid {
+    .devices-grid,
+    .device-detail-panel__grid {
       grid-template-columns: 1fr;
     }
   }
 </style>
-
