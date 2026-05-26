@@ -127,7 +127,10 @@ export default function PostModerationActions({
   }
 
   async function handleDelete() {
-    if (!session) return;
+    if (!session) {
+      setError("请先登录后再删除帖子。");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -327,6 +330,11 @@ export default function PostModerationActions({
           <button type="button" className="community-action-button" disabled>
             举报
           </button>
+          {showManagementActions ? (
+            <button type="button" className="community-action-button community-action-button--danger">
+              删除帖子
+            </button>
+          ) : null}
         </div>
         {renderModal()}
       </>
@@ -344,7 +352,7 @@ export default function PostModerationActions({
         >
           {reportSubmitted ? "已举报" : "举报"}
         </button>
-        {showManagementActions && session ? (
+        {showManagementActions ? (
           <button
             type="button"
             className="community-action-button community-action-button--danger"
