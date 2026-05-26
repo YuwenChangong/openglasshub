@@ -145,7 +145,7 @@ const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
       <div class="post-detail__actions">
         <a href="/feed/" class="community-action-button">返回动态</a>
         <PostSocialActions postId={post.id} initialLikeCount={initialLikeCount} client:visible />
-        <PostModerationActions postId={post.id} authorId={post.author_id} client:visible />
+        <PostModerationActions postId={post.id} authorId={post.author_id} client:load />
       </div>
     </article>
 
