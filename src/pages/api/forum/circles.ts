@@ -138,7 +138,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (insertError) {
       if (/owner_id|image_path/i.test(insertError.message)) {
-        return json({ error: "Circle creation is not available until the latest Supabase migration is applied" }, 503);
+        const fallbackInsert = await supabase
+          .from("circles")
+          .insert({
+            slug,
+            name,
+            description,
+            type,
+          })
+          .select("id, slug, name, description, type")
+          .single();
+
+        if (!fallbackInsert.error) {
+          return json({ circle: fallbackInsert.data }, 201);
+        }
+
+        if (/row-level security|permission/i.test(fallbackInsert.error.message)) {
+          return json({ error: "当前数据库还没有开放普通用户创建圈子。先执行最新 Supabase migration 后，用户才能自由创建圈子并上传圈子图片。" }, 503);
+        }
+
+        return json({ error: fallbackInsert.error.message }, 500);
       }
       return json({ error: insertError.message }, 500);
     }

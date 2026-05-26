@@ -30,6 +30,7 @@ export default function PostModerationActions({
   showManagementActions = true,
 }: PostModerationActionsProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const [sessionResolved, setSessionResolved] = useState(false);
   const [session, setSession] = useState<SessionState | null>(null);
   const [canModerate, setCanModerate] = useState(false);
   const [message, setMessage] = useState("");
@@ -44,12 +45,15 @@ export default function PostModerationActions({
     if (!supabase) return;
     let mounted = true;
 
-    supabase.auth.getSession().then(async ({ data }) => {
+    const syncSession = async () => {
+      const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       const token = data.session?.access_token;
       const userId = data.session?.user?.id;
       if (!token || !userId) {
         setSession(null);
+        setCanModerate(false);
+        setSessionResolved(true);
         return;
       }
 
@@ -62,10 +66,18 @@ export default function PostModerationActions({
         | null;
       if (!mounted) return;
       setCanModerate(Boolean(moderationPayload?.can_moderate));
+      setSessionResolved(true);
+    };
+
+    syncSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      void syncSession();
     });
 
     return () => {
       mounted = false;
+      authListener.subscription.unsubscribe();
     };
   }, [supabase]);
 
@@ -83,6 +95,9 @@ export default function PostModerationActions({
   function openReportModal() {
     setMessage("");
     setError("");
+    if (!sessionResolved) {
+      return;
+    }
     setModalMode("report");
   }
 
@@ -196,7 +211,9 @@ export default function PostModerationActions({
       modalMode === "report" ? "举报内容" : modalMode === "delete" ? "删除帖子" : "隐藏帖子";
     const description =
       modalMode === "report"
-        ? "选择原因并补充说明，提交后管理员会查看。"
+        ? session
+          ? "选择原因并补充说明，提交后管理员会查看。"
+          : "先登录账号，再提交举报内容。"
         : modalMode === "delete"
           ? "删除后该帖子将从公开区移除，并跳回动态页。"
           : "隐藏后该帖子将从公开区移除，并跳回动态页。";
@@ -210,7 +227,8 @@ export default function PostModerationActions({
           </div>
           <div className="glass-modal__body">
             {modalMode === "report" ? (
-              <>
+              session ? (
+                <>
                 <div className="glass-choice-grid">
                   {REPORT_CATEGORIES.map((category) => (
                     <button
@@ -238,7 +256,15 @@ export default function PostModerationActions({
                   />
                 </label>
                 <span className="community-meta">可只提交原因分类；如填写说明，需在 5 到 500 字之间。</span>
-              </>
+                </>
+              ) : (
+                <div className="report-login-cta">
+                  <p>当前需要登录后才能提交举报。登录后会返回当前帖子。</p>
+                  <a href={loginHref} className="community-button">
+                    去登录
+                  </a>
+                </div>
+              )
             ) : (
               <p>{modalMode === "delete" ? "确认执行删除操作？" : "确认执行隐藏操作？"}</p>
             )}
@@ -253,39 +279,42 @@ export default function PostModerationActions({
             >
               取消
             </button>
-            <button
-              type="button"
-              className="community-button"
-              onClick={
-                modalMode === "report"
-                  ? handleReportSubmit
-                  : modalMode === "delete"
-                    ? handleDelete
-                    : handleHide
-              }
-              disabled={loading || (modalMode === "report" && reportSubmitted)}
-            >
-              {loading
-                ? "提交中..."
-                : modalMode === "report"
-                  ? "提交举报"
-                  : modalMode === "delete"
-                    ? "确认删除"
-                    : "确认隐藏"}
-            </button>
+            {modalMode !== "report" || session ? (
+              <button
+                type="button"
+                className="community-button"
+                onClick={
+                  modalMode === "report"
+                    ? handleReportSubmit
+                    : modalMode === "delete"
+                      ? handleDelete
+                      : handleHide
+                }
+                disabled={loading || (modalMode === "report" && reportSubmitted)}
+              >
+                {loading
+                  ? "提交中..."
+                  : modalMode === "report"
+                    ? "提交举报"
+                    : modalMode === "delete"
+                      ? "确认删除"
+                      : "确认隐藏"}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
     );
   }
 
-  if (!session) {
+  if (!sessionResolved) {
     return (
       <>
-      <div className="post-moderation-actions">
-        <a href={loginHref} className="community-action-button">举报</a>
-        {error ? <span className="inline-error">{error}</span> : null}
-      </div>
+        <div className="post-moderation-actions">
+          <button type="button" className="community-action-button" disabled>
+            举报
+          </button>
+        </div>
         {renderModal()}
       </>
     );

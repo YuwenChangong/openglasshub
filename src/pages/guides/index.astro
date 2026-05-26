@@ -1,24 +1,52 @@
 ---
+export const prerender = false;
+
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import ProductCard from "../../components/community/ProductCard.astro";
 
 const decisionPaths = [
   {
+    key: "display",
     title: "看电影 / 大屏",
     description: "先看显示型眼镜。重点是显示效果、连接方式、佩戴舒适度，而不是营销里的 AI 标签。",
-    href: "/guides/ar-ai-glasses-buying-guide-2026/",
+    href: "/guides/?path=display#decision-panel",
+    detailHref: "/guides/ar-ai-glasses-buying-guide-2026/",
+    sourceLabel: "XREAL 官方连接说明",
+    sourceUrl: "https://tutorials.xreal.com/docs/glasses/one-series/first-use/connect-device/",
+    notes: [
+      "优先确认接口是否支持 DP 视频输出，以及眼镜是否依赖外部设备供电。",
+      "真正要比较的是显示清晰度、亮度、佩戴舒适度、音频和连接稳定性。",
+    ],
   },
   {
+    key: "ai",
     title: "拍摄 / 语音 / AI",
     description: "先看智能眼镜路线，重点确认摄像头边界、语音入口和日常佩戴价值。",
-    href: "/guides/ar-ai-xr-glasses-difference/",
+    href: "/guides/?path=ai#decision-panel",
+    detailHref: "/guides/ar-ai-xr-glasses-difference/",
+    sourceLabel: "Rokid AI Glasses Style 官方说明",
+    sourceUrl: "https://global.rokid.com/products/rokid-ai-glasses-style",
+    notes: [
+      "先确认它有没有 display，以及 AI 功能到底落在语音、拍摄、翻译还是导航。",
+      "日常价值通常看免掏手机能力，而不是把它误判成 AR 大屏替代品。",
+    ],
   },
   {
+    key: "spatial",
     title: "空间计算 / 开发",
     description: "先判断是不是独立 AR 设备，再核对 SDK、输入权限和安装路径。",
-    href: "/guides/best-ar-ai-glasses-for-developers/",
+    href: "/guides/?path=spatial#decision-panel",
+    detailHref: "/guides/best-ar-ai-glasses-for-developers/",
+    sourceLabel: "RayNeo X2 官方产品页",
+    sourceUrl: "https://www.rayneo.com/products/tcl-rayneo-x2",
+    notes: [
+      "先看输入方式、导航/翻译等系统能力是不是产品核心，而不是附带功能。",
+      "开发前要把 SDK、安装路径、权限边界和外部配套 app 关系问清楚。",
+    ],
   },
 ] as const;
+const selectedPathKey = Astro.url.searchParams.get("path")?.trim().toLowerCase() ?? "display";
+const selectedPath = decisionPaths.find((item) => item.key === selectedPathKey) ?? decisionPaths[0];
 
 const guideSections = [
   {
@@ -56,9 +84,11 @@ const guideSections = [
   <section class="community-surface community-surface--primary">
     <div class="guides-intro">
       <div class="community-inline-links">
-        <a href="/guides/ar-ai-glasses-buying-guide-2026/" class="community-inline-link">观影 / 大屏</a>
-        <a href="/guides/ar-ai-xr-glasses-difference/" class="community-inline-link">拍摄 / 语音 / AI</a>
-        <a href="/guides/best-ar-ai-glasses-for-developers/" class="community-inline-link">空间计算 / 开发</a>
+        {decisionPaths.map((item) => (
+          <a href={item.href} class:list={["community-inline-link", { "community-inline-link--active": selectedPath.key === item.key }]}>
+            {item.title}
+          </a>
+        ))}
       </div>
     </div>
     <div class="community-section-head">
@@ -71,6 +101,20 @@ const guideSections = [
       {decisionPaths.map((item) => (
         <ProductCard label="决策路径" title={item.title} description={item.description} href={item.href} />
       ))}
+    </div>
+    <div class="guides-decision-panel" id="decision-panel">
+      <div>
+        <span class="community-meta">当前路径</span>
+        <h2>{selectedPath.title}</h2>
+        <p>{selectedPath.description}</p>
+      </div>
+      <ul class="guides-decision-panel__notes">
+        {selectedPath.notes.map((note) => <li>{note}</li>)}
+      </ul>
+      <div class="community-cta-row">
+        <a href={selectedPath.detailHref} class="community-action-button community-action-button--primary">查看详细指南</a>
+        <a href={selectedPath.sourceUrl} target="_blank" rel="noreferrer" class="community-action-button community-action-button--muted">官方参考：{selectedPath.sourceLabel}</a>
+      </div>
     </div>
   </section>
 
@@ -119,6 +163,29 @@ const guideSections = [
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.8rem;
     padding: 0.9rem 1rem 1rem;
+  }
+  .guides-decision-panel {
+    display: grid;
+    gap: 0.7rem;
+    padding: 0 1rem 1rem;
+    border-top: 1px solid var(--border);
+  }
+  .guides-decision-panel h2 {
+    margin: 0.18rem 0 0.25rem;
+    color: var(--text);
+    font-size: 1.08rem;
+  }
+  .guides-decision-panel p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+  .guides-decision-panel__notes {
+    margin: 0;
+    padding-left: 1.1rem;
+    display: grid;
+    gap: 0.3rem;
+    color: var(--text-muted);
   }
   .community-link-row {
     text-decoration: none;

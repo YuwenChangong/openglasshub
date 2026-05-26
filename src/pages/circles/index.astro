@@ -12,7 +12,7 @@ import { fetchCirclesWithFallback } from "../../lib/circle-data";
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
 
-const { circles, error, supportsExtendedSchema } = await fetchCirclesWithFallback(supabase);
+const { circles, error } = await fetchCirclesWithFallback(supabase);
 const visibleCircles = circles.filter((circle) => isPublicVisibleCircle(circle));
 const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
 ---
@@ -31,7 +31,7 @@ const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
     <a href="/posts/new/" class="community-action-button community-action-button--primary">去发帖</a>
   </div>
 
-  {supportsExtendedSchema ? <CreateCircleForm client:visible /> : null}
+  <CreateCircleForm client:visible />
 
   {error ? (
     <div class="forum-empty">

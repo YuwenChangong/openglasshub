@@ -191,7 +191,7 @@ export default function CreateCircleForm() {
       <div className="community-section-head">
         <div>
           <h2>创建圈子</h2>
-          <p>登录用户可以直接创建自己的圈子，并添加一张对应封面图。</p>
+          <p>登录用户可以直接创建自己的圈子。若当前环境尚未启用圈子图片字段，会先创建文字圈子。</p>
         </div>
       </div>
 

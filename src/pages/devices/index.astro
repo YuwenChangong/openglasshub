@@ -52,24 +52,84 @@ const brandCatalog = [
 
 const selectedBrandKey = Astro.url.searchParams.get("brand")?.trim().toLowerCase() ?? "";
 const selectedBrand = brandCatalog.find((brand) => brand.key === selectedBrandKey);
+const routeCatalog = [
+  {
+    key: "display",
+    label: "显示型",
+    title: "显示型路线",
+    description: "更适合观影、掌机、PC 第二屏和便携大屏。重点不是 AI，而是显示、连接和佩戴。",
+    sourceLabel: "XREAL 官方连接说明",
+    sourceUrl: "https://tutorials.xreal.com/docs/glasses/one-series/first-use/connect-device/",
+    notes: [
+      "先确认设备接口是否支持 DP 视频输出和供电，不然显示体验判断没有意义。",
+      "优先比较清晰度、亮度、佩戴舒适度、连接稳定性和音频，而不是把它当独立系统。",
+    ],
+    devices: ["xreal-one", "xreal-one-pro", "xreal-air-2-pro", "rokid-max", "viture-pro"],
+  },
+  {
+    key: "ai",
+    label: "AI 眼镜",
+    title: "AI 眼镜路线",
+    description: "更适合语音入口、拍摄记录、翻译、导航和轻量 AI 助手，不要默认等同于 AR 显示设备。",
+    sourceLabel: "Rokid AI Glasses Style 官方说明",
+    sourceUrl: "https://global.rokid.com/products/rokid-ai-glasses-style",
+    notes: [
+      "日常价值主要看语音入口、拍摄边界、翻译/导航和续航，而不是纸面参数堆叠。",
+      "如果产品明确写着没有 display，就不要把它拿去和显示型 AR 眼镜直接对比大屏体验。",
+    ],
+    devices: ["rokid-glasses", "ray-ban-meta"],
+  },
+  {
+    key: "standalone",
+    label: "独立 AR",
+    title: "独立 AR / 系统型路线",
+    description: "更接近系统化体验，适合研究导航、翻译、系统交互与输入方式，但风险和学习成本更高。",
+    sourceLabel: "RayNeo X2 官方产品页",
+    sourceUrl: "https://www.rayneo.com/products/tcl-rayneo-x2",
+    notes: [
+      "先看输入方式、导航/翻译等系统能力是否真能落地，再看日常佩戴与配套 app 依赖。",
+      "这类产品更容易受到生态成熟度、配套手机应用、输入限制和续航的影响。",
+    ],
+    devices: ["rayneo-x2", "inmo-air-2"],
+  },
+  {
+    key: "experimental",
+    label: "实验路线",
+    title: "开放实验 / 开发路线",
+    description: "更适合研发和实验验证，重点是 SDK、蓝牙或宿主 app 关系、相机/麦克风/显示的可控边界。",
+    sourceLabel: "Brilliant Frame 硬件文档",
+    sourceUrl: "https://docs.brilliant.xyz/frame/hardware/",
+    notes: [
+      "先确认它是不是更像宿主设备配件，而不是把逻辑都跑在眼镜本体上。",
+      "实验路线的价值常在开放能力，不在消费级完成度；适合开发验证，不适合拿来当成熟日常系统。",
+    ],
+    devices: ["brilliant-labs-frame"],
+  },
+] as const;
+const selectedRouteKey = Astro.url.searchParams.get("route")?.trim().toLowerCase() ?? "display";
+const selectedRoute = routeCatalog.find((route) => route.key === selectedRouteKey) ?? routeCatalog[0];
 
 const featuredDevices = [
   {
+    key: "xreal-one",
     title: "XREAL One / One Pro",
     description: "偏显示体验与空间显示路线，适合先判断大屏、连接体验和进阶显示需求。",
     href: "/devices/xreal-one/",
   },
   {
+    key: "rokid-max",
     title: "Rokid Max / Rokid Glasses",
     description: "一条偏显示、一条偏 AI 眼镜日常入口，适合比较“看屏”和“智能入口”的差异。",
     href: "/devices/rokid-max/",
   },
   {
+    key: "rayneo-x2",
     title: "RayNeo X2 / INMO Air 2",
     description: "更接近独立 AR 与轻量系统路线，适合研究导航、翻译和系统边界。",
     href: "/devices/rayneo-x2/",
   },
   {
+    key: "ray-ban-meta",
     title: "Ray-Ban Meta / Brilliant Labs Frame",
     description: "更偏无显示或轻显示智能眼镜路线，适合观察 AI 入口与开放实验方向。",
     href: "/devices/ray-ban-meta/",
@@ -82,30 +142,15 @@ const brandLinks = brandCatalog.map((brand) => ({
   href: `/devices/?brand=${brand.key}#brand-results`,
 }));
 
-const visibleDevices = selectedBrand ? selectedBrand.devices : featuredDevices;
+const routeDeviceCards = brandCatalog
+  .flatMap((brand) => brand.devices)
+  .filter((device) => selectedRoute.devices.includes(device.href.split("/").filter(Boolean).pop() ?? ""));
+const visibleDevices = selectedBrand ? selectedBrand.devices : routeDeviceCards;
 const visibleDevicesHeading = selectedBrand ? `${selectedBrand.label} 机型` : "重点设备";
 const visibleDevicesDescription = selectedBrand
   ? `当前只显示 ${selectedBrand.label} 相关机型，便于按品牌继续缩小范围。`
-  : "先看路线代表机型，再进入具体设备页核对边界。";
+  : `${selectedRoute.title}：${selectedRoute.description}`;
 
-const scenarios = [
-  {
-    title: "看电影 / 大屏",
-    description: "先看显示型眼镜，重点不是 AI，而是显示效果、佩戴和连接稳定性。",
-  },
-  {
-    title: "拍摄 / 语音 / AI",
-    description: "先看智能眼镜路线，重点是语音入口、摄像头边界和日常佩戴体验。",
-  },
-  {
-    title: "导航 / 轻量 AR",
-    description: "更接近独立 AR 方向，但需要更谨慎地判断生态成熟度和权限开放度。",
-  },
-  {
-    title: "开发 / 实验验证",
-    description: "不要只看宣传名词，先确认 SDK、输入、权限、安装路径和真实设备边界。",
-  },
-] as const;
 ---
 
 <CommunityLayout
@@ -129,19 +174,38 @@ const scenarios = [
           <strong>从路线开始，不从参数表开始。</strong>
           <p>先判断它是显示型、AI 眼镜，还是更接近独立 AR，再决定要不要继续看单机细节。</p>
         </div>
-        <div class="community-inline-meta">
-          <span>显示型</span>
-          <span>AI 眼镜</span>
-          <span>独立 AR</span>
-          <span>实验路线</span>
+        <div class="community-inline-links">
+          {routeCatalog.map((route) => (
+            <a
+              href={`/devices/?route=${route.key}#route-panel`}
+              class:list={["community-inline-link", { "community-inline-link--active": !selectedBrand && selectedRoute.key === route.key }]}
+            >
+              {route.label}
+            </a>
+          ))}
         </div>
       </div>
+      {!selectedBrand && (
+        <div class="devices-route-panel" id="route-panel">
+          <div>
+            <span class="community-meta">路线判断</span>
+            <h2>{selectedRoute.title}</h2>
+            <p>{selectedRoute.description}</p>
+          </div>
+          <ul class="devices-route-panel__notes">
+            {selectedRoute.notes.map((note) => <li>{note}</li>)}
+          </ul>
+          <a href={selectedRoute.sourceUrl} target="_blank" rel="noreferrer" class="community-link">
+            官方参考：{selectedRoute.sourceLabel}
+          </a>
+        </div>
+      )}
       <div class="community-section-head">
         <div>
           <h2 id="brand-results">{visibleDevicesHeading}</h2>
           <p>{visibleDevicesDescription}</p>
         </div>
-        {selectedBrand && <a href="/devices/" class="community-action-button community-action-button--muted">查看全部品牌</a>}
+        {(selectedBrand || selectedRouteKey !== "display") && <a href="/devices/" class="community-action-button community-action-button--muted">查看默认视图</a>}
       </div>
       <div class="devices-grid">
         {visibleDevices.map((item) => (
@@ -170,12 +234,12 @@ const scenarios = [
 
       <aside class="community-sidebar">
         <section class="community-surface community-surface--padded community-surface--primary">
-          <div class="community-page-lead" style="margin-bottom: 0.35rem;">使用场景</div>
+          <div class="community-page-lead" style="margin-bottom: 0.35rem;">当前路线关注点</div>
           <div class="devices-scenarios">
-            {scenarios.map((item) => (
+            {selectedRoute.notes.map((item) => (
               <article class="community-field-note">
-                <strong>{item.title}</strong>
-                <span>{item.description}</span>
+                <strong>{selectedRoute.label}</strong>
+                <span>{item}</span>
               </article>
             ))}
           </div>
@@ -218,6 +282,28 @@ const scenarios = [
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.8rem;
     padding: 0.9rem 1rem 1rem;
+  }
+  .devices-route-panel {
+    display: grid;
+    gap: 0.7rem;
+    padding: 0 1rem 0.9rem;
+  }
+  .devices-route-panel h2 {
+    margin: 0.18rem 0 0.25rem;
+    color: var(--text);
+    font-size: 1.08rem;
+  }
+  .devices-route-panel p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+  .devices-route-panel__notes {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: var(--text-muted);
+    display: grid;
+    gap: 0.3rem;
   }
   .community-link-row {
     text-decoration: none;

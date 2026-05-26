@@ -247,6 +247,17 @@ body {
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
+.community-circle-card {
+  grid-template-columns: minmax(0, 1fr) 260px;
+  align-items: stretch;
+}
+
+.community-circle-card__content {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
 .community-post-card:hover,
 .community-news-card:hover,
 .community-circle-card:hover,
@@ -869,6 +880,12 @@ body {
   border-color: rgba(255, 255, 255, 0.11);
 }
 
+.community-inline-link--active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
 .community-circle-card__cover {
   overflow: hidden;
   border-radius: 12px;
@@ -876,11 +893,18 @@ body {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.community-circle-card__cover--side {
+  align-self: stretch;
+  min-height: 100%;
+}
+
 .community-circle-card__cover img {
   display: block;
   width: 100%;
   max-width: 100%;
-  aspect-ratio: 16 / 9;
+  height: 100%;
+  min-height: 180px;
+  aspect-ratio: 16 / 10;
   object-fit: cover;
 }
 
@@ -2017,6 +2041,13 @@ body {
   .community-post-media-preview__external {
     min-height: 160px;
     max-height: 200px;
+  }
+  .community-circle-card {
+    grid-template-columns: 1fr;
+  }
+  .community-circle-card__cover img {
+    min-height: 160px;
+    height: auto;
   }
 }
 
