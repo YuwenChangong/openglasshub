@@ -26,19 +26,12 @@ const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
   <h1>圈子</h1>
   <p class="section-lead">先看圈子，再决定把帖子发到哪里更合适。这里不显示假活跃度，只保留真实圈子说明。</p>
 
-  <div style="margin: 1.1rem 0 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
-    <a href="/feed/" class="forum-btn">返回动态</a>
-    <a href="/posts/new/" class="forum-btn forum-btn--primary">去发帖</a>
+  <div class="community-cta-row" style="margin: 1.1rem 0 1.5rem;">
+    <a href="/feed/" class="community-action-button">返回动态</a>
+    <a href="/posts/new/" class="community-action-button community-action-button--primary">去发帖</a>
   </div>
 
-  {supportsExtendedSchema ? (
-    <CreateCircleForm client:visible />
-  ) : (
-    <div class="forum-empty" style="margin-bottom: 1.25rem;">
-      <strong>圈子图片和用户创建圈子暂未启用</strong>
-      <p>当前预览环境还没有执行对应的 Supabase migration，所以先按旧结构降级显示，不再让页面报错。</p>
-    </div>
-  )}
+  {supportsExtendedSchema ? <CreateCircleForm client:visible /> : null}
 
   {error ? (
     <div class="forum-empty">

@@ -1,6 +1,57 @@
 ---
+export const prerender = false;
+
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import ProductCard from "../../components/community/ProductCard.astro";
+
+const brandCatalog = [
+  {
+    key: "xreal",
+    label: "XREAL",
+    devices: [
+      { title: "XREAL One", description: "偏显示体验与空间显示路线，适合先判断大屏、连接体验和进阶显示需求。", href: "/devices/xreal-one/" },
+      { title: "XREAL One Pro", description: "继续看显示质量、佩戴舒适度和更进阶的空间显示边界。", href: "/devices/xreal-one-pro/" },
+      { title: "XREAL Air 2 Pro", description: "适合对比上一代主流显示型眼镜的佩戴与日常连接体验。", href: "/devices/xreal-air-2-pro/" },
+      { title: "XREAL Air 2 Ultra", description: "更偏开发与空间计算实验路线，先核对 SDK 和输入边界。", href: "/devices/xreal-air-2-ultra/" },
+    ],
+  },
+  {
+    key: "rokid",
+    label: "Rokid",
+    devices: [
+      { title: "Rokid Max", description: "偏显示路线，适合判断大屏观影和连接体验。", href: "/devices/rokid-max/" },
+      { title: "Rokid Glasses", description: "偏 AI 眼镜日常入口，适合比较“看屏”和“智能入口”的差异。", href: "/devices/rokid-glasses/" },
+    ],
+  },
+  {
+    key: "rayneo",
+    label: "RayNeo",
+    devices: [{ title: "RayNeo X2", description: "更接近独立 AR 与轻量系统路线，适合研究导航、翻译和系统边界。", href: "/devices/rayneo-x2/" }],
+  },
+  {
+    key: "inmo",
+    label: "INMO",
+    devices: [{ title: "INMO Air 2", description: "关注轻量 AR 佩戴、显示入口与日常系统边界。", href: "/devices/inmo-air-2/" }],
+  },
+  {
+    key: "viture",
+    label: "VITURE",
+    devices: [{ title: "VITURE Pro", description: "适合对比显示型路线里的便携观影与连接体验。", href: "/devices/viture-pro/" }],
+  },
+  {
+    key: "meta",
+    label: "Meta AI Glasses",
+    devices: [{ title: "Ray-Ban Meta", description: "更偏无显示智能眼镜路线，重点看语音入口、拍摄与日常佩戴。", href: "/devices/ray-ban-meta/" }],
+  },
+  {
+    key: "brilliant-labs",
+    label: "Brilliant Labs",
+    devices: [{ title: "Brilliant Labs Frame", description: "开放实验方向，适合观察 AI 入口与硬件实验边界。", href: "/devices/brilliant-labs-frame/" }],
+  },
+] as const;
+
+const selectedBrandKey = Astro.url.searchParams.get("brand")?.trim().toLowerCase() ?? "";
+const selectedBrand = brandCatalog.find((brand) => brand.key === selectedBrandKey);
 
 const featuredDevices = [
   {
@@ -25,15 +76,17 @@ const featuredDevices = [
   },
 ] as const;
 
-const brandLinks = [
-  { label: "XREAL", href: "/devices/xreal-one/" },
-  { label: "Rokid", href: "/devices/rokid-max/" },
-  { label: "RayNeo", href: "/devices/rayneo-x2/" },
-  { label: "INMO", href: "/devices/inmo-air-2/" },
-  { label: "VITURE", href: "/devices/viture-pro/" },
-  { label: "Meta AI Glasses", href: "/devices/ray-ban-meta/" },
-  { label: "Brilliant Labs", href: "/devices/brilliant-labs-frame/" },
-] as const;
+const brandLinks = brandCatalog.map((brand) => ({
+  key: brand.key,
+  label: brand.label,
+  href: `/devices/?brand=${brand.key}#brand-results`,
+}));
+
+const visibleDevices = selectedBrand ? selectedBrand.devices : featuredDevices;
+const visibleDevicesHeading = selectedBrand ? `${selectedBrand.label} 机型` : "重点设备";
+const visibleDevicesDescription = selectedBrand
+  ? `当前只显示 ${selectedBrand.label} 相关机型，便于按品牌继续缩小范围。`
+  : "先看路线代表机型，再进入具体设备页核对边界。";
 
 const scenarios = [
   {
@@ -85,12 +138,13 @@ const scenarios = [
       </div>
       <div class="community-section-head">
         <div>
-          <h2>重点设备</h2>
-          <p>先看路线代表机型，再进入具体设备页核对边界。</p>
+          <h2 id="brand-results">{visibleDevicesHeading}</h2>
+          <p>{visibleDevicesDescription}</p>
         </div>
+        {selectedBrand && <a href="/devices/" class="community-action-button community-action-button--muted">查看全部品牌</a>}
       </div>
       <div class="devices-grid">
-        {featuredDevices.map((item) => (
+        {visibleDevices.map((item) => (
           <ProductCard label="重点设备" title={item.title} description={item.description} href={item.href} />
         ))}
       </div>
@@ -106,9 +160,9 @@ const scenarios = [
         </div>
         <div class="community-list">
           {brandLinks.map((item) => (
-            <a class="community-list-item community-link-row" href={item.href}>
+            <a class:list={["community-list-item", "community-link-row", { "community-list-item--active": selectedBrand?.key === item.key }]} href={item.href}>
               <strong>{item.label}</strong>
-              <span>进入对应品牌代表机型</span>
+              <span>查看该品牌相关机型</span>
             </a>
           ))}
         </div>
@@ -167,6 +221,12 @@ const scenarios = [
   }
   .community-link-row {
     text-decoration: none;
+  }
+  .community-list-item--active strong {
+    color: var(--text);
+  }
+  .community-list-item--active span {
+    color: rgba(242, 244, 245, 0.78);
   }
   .community-link-row:hover strong {
     color: var(--accent-hover);

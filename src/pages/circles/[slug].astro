@@ -18,7 +18,7 @@ if (!slug) {
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
 
-const { circle, error: circleError, supportsExtendedSchema } = await fetchCircleBySlugWithFallback(supabase, slug);
+const { circle, error: circleError } = await fetchCircleBySlugWithFallback(supabase, slug);
 
 if (circleError || !circle) {
   Astro.response.status = 404;
@@ -67,7 +67,7 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
     <div class="forum-empty">
       <strong>圈子未找到</strong>
       <p>该圈子可能不存在，或者当前还没有公开显示。</p>
-      <a href="/circles/" class="forum-btn">返回圈子列表</a>
+      <a href="/circles/" class="community-action-button">返回圈子列表</a>
     </div>
   </ForumLayout>
 ) : (
@@ -88,11 +88,6 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
     </nav>
 
     <header style="margin-bottom: 1.4rem;">
-      {!supportsExtendedSchema && (
-        <p class="forum-meta" style="margin: 0 0 0.8rem;">
-          当前预览环境尚未启用圈子封面图字段，因此这里先按兼容模式显示。
-        </p>
-      )}
       {circleImageUrl ? (
         <div class="circle-detail-cover">
           <img src={circleImageUrl} alt={`${circle.name} 圈子封面`} />
@@ -111,8 +106,8 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
         <p>只显示该圈子的公开帖子，按发布时间倒序排列。</p>
       </div>
       <div class="community-inline-links">
-        <a href="/posts/new/" class="community-inline-link">发帖</a>
-        <a href="/feed/" class="community-inline-link">全部动态</a>
+        <a href="/posts/new/" class="community-action-button community-action-button--primary">发帖</a>
+        <a href="/feed/" class="community-action-button community-action-button--muted">全部动态</a>
       </div>
     </div>
 
@@ -125,7 +120,7 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
       <div class="forum-empty">
         <strong>该圈子还没有公开帖子</strong>
         <p>如果你已经在用 {circle.name}，或者正在研究相关方向，现在就是最适合发第一篇帖子的时机。</p>
-        <a href="/posts/new/" class="forum-btn forum-btn--primary">写第一篇帖子</a>
+        <a href="/posts/new/" class="community-action-button community-action-button--primary">写第一篇帖子</a>
       </div>
     ) : (
       <div class="circle-post-stream">
@@ -146,10 +141,9 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
       </div>
     )}
 
-    <div class="footer" style="margin-top: 2rem;">
-      <a href="/circles/">← 返回圈子列表</a>
-      {" · "}
-      <a href="/feed/">查看全部动态</a>
+    <div class="community-cta-row footer-actions" style="margin-top: 2rem;">
+      <a href="/circles/" class="community-action-button community-action-button--muted">返回圈子列表</a>
+      <a href="/feed/" class="community-action-button community-action-button--muted">查看全部动态</a>
     </div>
   </ForumLayout>
 )}
@@ -193,16 +187,8 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
     display: grid;
     gap: 0.2rem;
   }
-  .footer {
-    color: var(--text-faint);
-  }
-  .footer a {
-    color: rgba(242, 244, 245, 0.72);
-    text-decoration: none;
-    transition: color 140ms ease;
-  }
-  .footer a:hover {
-    color: var(--text);
+  .footer-actions {
+    gap: 0.6rem;
   }
   @media (max-width: 900px) {
     .circle-stream-head {
