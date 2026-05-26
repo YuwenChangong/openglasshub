@@ -344,7 +344,7 @@ export default function PostModerationActions({
         >
           {reportSubmitted ? "已举报" : "举报"}
         </button>
-        {showManagementActions && isAuthor ? (
+        {showManagementActions && session ? (
           <button
             type="button"
             className="community-action-button community-action-button--danger"
