@@ -231,7 +231,7 @@ export default function PostModerationActions({
           ? "选择原因并补充说明，提交后管理员会查看。"
           : "先登录账号，再提交举报内容。"
         : modalMode === "delete"
-          ? "删除后该帖子将从公开区移除，并跳回动态页。"
+          ? "删除后该帖子将从公开区移除，并跳回动态页。该操作不可撤销。"
           : "隐藏后该帖子将从公开区移除，并跳回动态页。";
 
     return (
@@ -281,8 +281,19 @@ export default function PostModerationActions({
                   </a>
                 </div>
               )
+            ) : modalMode === "delete" ? (
+              session ? (
+                <p>确认删除这篇帖子？删除后公开区将不再显示该帖子。</p>
+              ) : (
+                <div className="report-login-cta">
+                  <p>当前登录状态不可用，无法直接删除。请先重新登录，再返回当前帖子继续操作。</p>
+                  <a href={loginHref} className="community-button">
+                    去登录
+                  </a>
+                </div>
+              )
             ) : (
-              <p>{modalMode === "delete" ? "确认执行删除操作？" : "确认执行隐藏操作？"}</p>
+              <p>确认执行隐藏操作？</p>
             )}
             {error ? <span className="inline-error">{error}</span> : null}
           </div>
@@ -295,7 +306,7 @@ export default function PostModerationActions({
             >
               取消
             </button>
-            {modalMode !== "report" || session ? (
+            {(modalMode === "report" && session) || modalMode === "delete" || modalMode === "hide" ? (
               <button
                 type="button"
                 className="community-button"
@@ -306,7 +317,7 @@ export default function PostModerationActions({
                       ? handleDelete
                       : handleHide
                 }
-                disabled={loading || (modalMode === "report" && reportSubmitted)}
+                disabled={loading || !session && modalMode === "delete" || (modalMode === "report" && reportSubmitted)}
               >
                 {loading
                   ? "提交中..."
@@ -331,7 +342,11 @@ export default function PostModerationActions({
             举报
           </button>
           {showManagementActions ? (
-            <button type="button" className="community-action-button community-action-button--danger">
+            <button
+              type="button"
+              className="community-action-button community-action-button--danger"
+              onClick={openDeleteModal}
+            >
               删除帖子
             </button>
           ) : null}
