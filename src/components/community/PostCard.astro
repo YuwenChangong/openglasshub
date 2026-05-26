@@ -2,6 +2,7 @@
 import type { ResolvedPostMedia } from "../../lib/forum-media";
 import PostMediaPreview from "./PostMediaPreview.astro";
 import PostSocialActions from "../forum/PostSocialActions";
+import SharePostButton from "../forum/SharePostButton";
 
 interface Props {
   id: string;
@@ -46,7 +47,7 @@ const postHref = `/posts/${id}/`;
   <div class="community-post-actions">
     <a class="community-action-button" href={`${postHref}#comments`}>评论</a>
     <PostSocialActions postId={id} initialLikeCount={likeCount} compact={true} client:visible />
-    <a class="community-action-button" href={postHref}>分享</a>
+    <SharePostButton postPath={postHref} client:visible />
     <div class="community-post-actions__spacer" />
     <a class="community-action-button community-action-button--muted" href={postHref}>查看详情</a>
   </div>

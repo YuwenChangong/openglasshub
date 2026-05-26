@@ -40,6 +40,7 @@ export default function PostModerationActions({
   const [reportCategory, setReportCategory] = useState<string>(REPORT_CATEGORIES[0]);
   const [reportDescription, setReportDescription] = useState("");
   const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [isAuthor, setIsAuthor] = useState(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -53,11 +54,24 @@ export default function PostModerationActions({
       if (!token || !userId) {
         setSession(null);
         setCanModerate(false);
+        setIsAuthor(false);
         setSessionResolved(true);
         return;
       }
 
       setSession({ accessToken: token, userId });
+
+      // Canonical ownership check from server to avoid client-side id mismatch.
+      const ownershipResponse = await fetch(`/api/forum/posts?ownership_check=${encodeURIComponent(postId)}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const ownershipPayload = (await ownershipResponse.json().catch(() => null)) as
+        | { is_author?: boolean }
+        | null;
+      if (mounted) {
+        setIsAuthor(Boolean(ownershipPayload?.is_author) || userId === authorId);
+      }
+
       const moderationResponse = await fetch("/api/forum/posts?moderation_check=1", {
         headers: { authorization: `Bearer ${token}` },
       });
@@ -81,7 +95,6 @@ export default function PostModerationActions({
     };
   }, [supabase]);
 
-  const isAuthor = session?.userId === authorId;
   const loginHref = buildLoginHref(`/posts/${postId}/`);
 
   function closeModal() {

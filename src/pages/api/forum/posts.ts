@@ -126,6 +126,31 @@ export const GET: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    const ownershipCheckId = String(url.searchParams.get("ownership_check") ?? "").trim();
+    if (ownershipCheckId) {
+      const token = getBearerToken(request);
+      if (!token) {
+        return json({ error: "Missing bearer token" }, 401);
+      }
+      const userClient = createUserClient(env, token);
+      const { data: authData, error: authError } = await userClient.auth.getUser(token);
+      if (authError || !authData.user) {
+        return json({ error: "Invalid auth token" }, 401);
+      }
+      const { data: post, error: postError } = await userClient
+        .from("posts")
+        .select("id,author_id")
+        .eq("id", ownershipCheckId)
+        .maybeSingle();
+      if (postError) {
+        return json({ error: postError.message }, 500);
+      }
+      if (!post) {
+        return json({ exists: false, is_author: false }, 200);
+      }
+      return json({ exists: true, is_author: post.author_id === authData.user.id }, 200);
+    }
+
     const circleSlug = url.searchParams.get("circle");
     const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 20;
