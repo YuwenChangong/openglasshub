@@ -9,6 +9,7 @@ import { buildPostLikeCountMap } from "../../lib/post-engagement";
 import { buildCircleImageMap } from "../../lib/circle-images";
 import { fetchCircleBySlugWithFallback } from "../../lib/circle-data";
 import CircleCoverEditor from "../../components/forum/CircleCoverEditor";
+import { sanitizeBodyForDisplay } from "../../lib/post-body";
 
 const { slug } = Astro.params;
 
@@ -132,10 +133,10 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
     ) : (
       <div class="circle-post-stream">
         {posts.map((post) => (
-          <PostCard
-            id={post.id}
-            title={post.title}
-            excerpt={post.body ? post.body.replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110) : ""}
+            <PostCard
+              id={post.id}
+              title={post.title}
+              excerpt={sanitizeBodyForDisplay(post.body).replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110)}
             circleName={circle.name}
             circleSlug={circle.slug}
             typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}

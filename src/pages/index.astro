@@ -9,6 +9,7 @@ import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { curatedNews } from "../lib/news";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../lib/forum-media";
 import { buildPostLikeCountMap } from "../lib/post-engagement";
+import { sanitizeBodyForDisplay } from "../lib/post-body";
 
 type PostRow = {
   id: string;
@@ -61,8 +62,9 @@ function formatDate(dateStr: string): string {
 }
 
 function excerpt(body?: string | null): string {
-  if (!body) return "";
-  return body.replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110);
+  const sanitized = sanitizeBodyForDisplay(body);
+  if (!sanitized) return "";
+  return sanitized.replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110);
 }
 ---
 

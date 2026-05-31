@@ -34,6 +34,8 @@ function getBearerToken(request: Request): string | null {
   return token.trim();
 }
 
+const MEDIA_ONLY_SENTINEL = "\u2063\u2063\u2063\u2063\u2063\u2063\u2063\u2063\u2063\u2063\u2063\u2063";
+
 export async function onRequestGet({ env, request }: PagesContext): Promise<Response> {
   try {
     const url = new URL(request.url);
@@ -94,7 +96,7 @@ export async function onRequestPost({ env, request }: PagesContext): Promise<Res
     }
 
     const payload = (await request.json().catch(() => null)) as
-      | { circle_slug?: string; title?: string; body?: string; type?: string }
+      | { circle_slug?: string; title?: string; body?: string; type?: string; has_media?: boolean }
       | null;
 
     if (!payload) {
@@ -116,7 +118,11 @@ export async function onRequestPost({ env, request }: PagesContext): Promise<Res
     if (body.length > 20000) {
       return json({ error: "body must be <=20000 characters" }, 400);
     }
-    const normalizedBody = body || "仅媒体内容占位：该帖子包含图片或视频媒体。";
+    const hasMedia = payload.has_media === true;
+    if (!body && !hasMedia) {
+      return json({ error: "body or media is required" }, 400);
+    }
+    const normalizedBody = body || (hasMedia ? MEDIA_ONLY_SENTINEL : "");
 
     const allowedTypes = new Set(["experience", "question", "review", "dev", "news", "feedback"]);
     if (!allowedTypes.has(type)) {

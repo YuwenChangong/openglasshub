@@ -8,6 +8,7 @@ import EmptyFeedState from "../../components/community/EmptyFeedState.astro";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
 import { buildPostLikeCountMap } from "../../lib/post-engagement";
+import { sanitizeBodyForDisplay } from "../../lib/post-body";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
@@ -79,7 +80,7 @@ const postTypeLabels: Record<string, string> = {
             <PostCard
               id={post.id}
               title={post.title}
-              excerpt={post.body ? post.body.replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) : ""}
+              excerpt={sanitizeBodyForDisplay(post.body).replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)}
               circleName={post.circles?.name ?? undefined}
               circleSlug={post.circles?.slug ?? undefined}
               typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}

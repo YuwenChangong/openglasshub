@@ -11,6 +11,7 @@ import PostSocialActions from "../../components/forum/PostSocialActions";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { resolveSignedPostMedia, type PostMediaRow } from "../../lib/forum-media";
 import { buildPostLikeCountMap } from "../../lib/post-engagement";
+import { sanitizeBodyForDisplay } from "../../lib/post-body";
 
 const { id } = Astro.params;
 
@@ -79,6 +80,7 @@ const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "
 const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as PostMediaRow[]);
 const likeCountMap = post ? await buildPostLikeCountMap(supabase, [post.id]) : new Map();
 const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
+const displayBody = sanitizeBodyForDisplay(post?.body);
 ---
 
 {!post ? (
@@ -92,7 +94,7 @@ const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
 ) : (
   <ForumLayout
     title={post.title}
-    description={post.body ? post.body.substring(0, 160).replace(/[#*\n]/g, ' ').trim() : undefined}
+    description={displayBody ? displayBody.substring(0, 160).replace(/[#*\n]/g, ' ').trim() : undefined}
     canonical={canonicalUrl}
     activeTab="feed"
   >
@@ -133,8 +135,8 @@ const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
       </header>
 
       <section class="post-body-card">
-        {post.body ? (
-          <div class="post-body-card__content">{post.body}</div>
+        {displayBody ? (
+          <div class="post-body-card__content">{displayBody}</div>
         ) : (
           <p class="post-body-card__empty">此帖子没有正文内容。</p>
         )}
@@ -158,7 +160,7 @@ const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
       "@context": "https://schema.org",
       "@type": "Article",
       "headline": post.title,
-      "description": post.body ? post.body.substring(0, 160).replace(/[#*\n]/g, ' ').trim() : "",
+      "description": displayBody ? displayBody.substring(0, 160).replace(/[#*\n]/g, ' ').trim() : "",
       "author": { "@type": "Person", "name": post.profiles?.display_name || "匿名" },
       "datePublished": post.created_at,
       "dateModified": post.updated_at || post.created_at,

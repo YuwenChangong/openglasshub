@@ -12,6 +12,7 @@
 
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
 
 export const prerender = false;
 
@@ -79,6 +80,7 @@ function validatePayload(payload: Record<string, unknown>): string | null {
   const circleSlug = String(payload.circle_slug ?? "").trim();
   const title = String(payload.title ?? "").trim();
   const body = String(payload.body ?? "").trim();
+  const hasMedia = payload.has_media === true;
   const type = String(payload.type ?? "").trim();
 
   if (!circleSlug || !title || !type) {
@@ -89,6 +91,9 @@ function validatePayload(payload: Record<string, unknown>): string | null {
   }
   if (body.length > 20000) {
     return "body must be <=20000 characters";
+  }
+  if (!body && !hasMedia) {
+    return "body or media is required";
   }
   if (!ALLOWED_TYPES.has(type)) {
     return "Invalid post type";
@@ -230,7 +235,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const circleSlug = String(payload.circle_slug ?? "").trim();
     const title = String(payload.title ?? "").trim();
     const body = String(payload.body ?? "").trim();
-    const normalizedBody = body || "仅媒体内容占位：该帖子包含图片或视频媒体。";
+    const hasMedia = payload.has_media === true;
+    const normalizedBody = body || (hasMedia ? MEDIA_ONLY_SENTINEL : "");
     const type = String(payload.type ?? "").trim();
 
     // Verify profile exists

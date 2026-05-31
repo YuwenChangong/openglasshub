@@ -3,6 +3,7 @@ import type { ResolvedPostMedia } from "../../lib/forum-media";
 import PostMediaPreview from "./PostMediaPreview.astro";
 import PostSocialActions from "../forum/PostSocialActions";
 import SharePostButton from "../forum/SharePostButton";
+import { sanitizeBodyForDisplay } from "../../lib/post-body";
 
 interface Props {
   id: string;
@@ -21,6 +22,7 @@ interface Props {
 const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, timestamp, mediaLabel, media = [], likeCount = 0 } = Astro.props;
 const displayName = authorName?.trim() || "社区成员";
 const postHref = `/posts/${id}/`;
+const displayExcerpt = sanitizeBodyForDisplay(excerpt ?? "");
 ---
 
 <article class="community-post-card">
@@ -38,8 +40,8 @@ const postHref = `/posts/${id}/`;
     <h3>{title}</h3>
   </a>
 
-  {excerpt && (
-    <p class="community-post-excerpt">{excerpt}</p>
+  {displayExcerpt && (
+    <p class="community-post-excerpt">{displayExcerpt}</p>
   )}
 
   {media.length > 0 ? <PostMediaPreview media={media} href={postHref} mode="feed" maxItems={4} /> : mediaLabel ? <div class="community-media-placeholder">{mediaLabel}</div> : null}

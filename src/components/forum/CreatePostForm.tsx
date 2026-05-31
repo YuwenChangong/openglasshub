@@ -356,6 +356,7 @@ export default function CreatePostForm() {
           type: type.trim(),
           title: title.trim(),
           body: body.trim(),
+          has_media: mediaFiles.length > 0 || Boolean(videoUrl.trim()),
         }),
       });
 
