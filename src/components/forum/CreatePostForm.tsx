@@ -34,7 +34,7 @@ const postTypes = [
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 150 * 1024 * 1024;
 const MAX_MEDIA_COUNT = 6;
 const MAX_TOTAL_SIZE = 150 * 1024 * 1024;
 
@@ -128,7 +128,7 @@ function mapAuthError(errorMessage: string): string {
   if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
   if (/User already registered/i.test(errorMessage)) return "该邮箱已经注册，请直接登录。";
   if (/exceeded the maximum allowed size/i.test(errorMessage)) {
-    return "视频上传失败：当前存储桶大小上限低于该文件大小（52MB 会被拒绝）。请先让管理员提高 Supabase Storage bucket 的 file_size_limit。";
+    return "视频上传失败：当前存储桶大小上限低于该文件大小。请先让管理员提高 Supabase Storage bucket 的 file_size_limit。";
   }
   return errorMessage;
 }
@@ -247,7 +247,7 @@ export default function CreatePostForm() {
         continue;
       }
       if (isVideo && file.size > MAX_VIDEO_SIZE) {
-        setError("单个视频不能超过 100MB。");
+        setError("单个视频不能超过 150MB。");
         continue;
       }
       nextTotalSize += file.size;
@@ -550,7 +550,7 @@ export default function CreatePostForm() {
         <div className="media-upload-block">
           <div className="post-composer__label-row">
             <span className="post-composer__label">媒体文件</span>
-            <span className="community-meta">图片 10MB / 视频 100MB，最多 6 个，总大小 150MB</span>
+            <span className="community-meta">图片 10MB / 视频 150MB，最多 6 个，总大小 150MB</span>
           </div>
           <button
             type="button"
