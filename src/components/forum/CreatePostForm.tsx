@@ -134,9 +134,16 @@ declare global {
     turnstile?: {
       render: (
         container: string | HTMLElement,
-        options: { sitekey: string; callback?: (token: string) => void; "error-callback"?: () => void },
+        options: {
+          sitekey: string;
+          size?: "normal" | "compact" | "invisible";
+          callback?: (token: string) => void;
+          "error-callback"?: () => void;
+          "expired-callback"?: () => void;
+        },
       ) => string | number;
       reset: (widgetId?: string | number) => void;
+      execute?: (widgetId?: string | number) => void;
     };
   }
 }
@@ -203,12 +210,9 @@ export default function CreatePostForm() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [turnstilePostToken, setTurnstilePostToken] = useState("");
-  const [turnstileUploadToken, setTurnstileUploadToken] = useState("");
   const [turnstileReady, setTurnstileReady] = useState(!TURNSTILE_SITE_KEY);
   const postWidgetRef = useRef<string | number | null>(null);
-  const uploadWidgetRef = useRef<string | number | null>(null);
   const postWidgetContainerRef = useRef<HTMLDivElement | null>(null);
-  const uploadWidgetContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -290,15 +294,10 @@ export default function CreatePostForm() {
       if (postWidgetContainerRef.current && postWidgetRef.current == null) {
         postWidgetRef.current = window.turnstile.render(postWidgetContainerRef.current, {
           sitekey: TURNSTILE_SITE_KEY,
+          size: "invisible",
           callback: (token) => setTurnstilePostToken(token),
           "error-callback": () => setError("安全验证失败，请刷新后重试。"),
-        });
-      }
-      if (uploadWidgetContainerRef.current && uploadWidgetRef.current == null) {
-        uploadWidgetRef.current = window.turnstile.render(uploadWidgetContainerRef.current, {
-          sitekey: TURNSTILE_SITE_KEY,
-          callback: (token) => setTurnstileUploadToken(token),
-          "error-callback": () => setError("上传安全验证失败，请刷新后重试。"),
+          "expired-callback": () => setTurnstilePostToken(""),
         });
       }
       setTurnstileReady(true);
@@ -449,10 +448,10 @@ export default function CreatePostForm() {
 
     try {
       if (TURNSTILE_SITE_KEY && !turnstilePostToken) {
+        if (postWidgetRef.current != null && window.turnstile?.execute) {
+          window.turnstile.execute(postWidgetRef.current);
+        }
         throw new Error("请先完成发布安全验证。");
-      }
-      if (TURNSTILE_SITE_KEY && mediaFiles.some((item) => item.kind === "video") && !turnstileUploadToken) {
-        throw new Error("请先完成视频上传安全验证。");
       }
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -510,7 +509,7 @@ export default function CreatePostForm() {
                 accessToken,
                 postId: createdPostId,
                 file: item.file,
-                turnstileToken: turnstileUploadToken || "",
+                turnstileToken: turnstilePostToken || "",
               });
               mediaPayload.push({
                 kind: "video",
@@ -617,12 +616,8 @@ export default function CreatePostForm() {
       setBody("");
       setMediaFiles([]);
       setTurnstilePostToken("");
-      setTurnstileUploadToken("");
       if (postWidgetRef.current != null && window.turnstile) {
         window.turnstile.reset(postWidgetRef.current);
-      }
-      if (uploadWidgetRef.current != null && window.turnstile) {
-        window.turnstile.reset(uploadWidgetRef.current);
       }
       const createdStatus = createPayload.post.status ?? "pending";
       if (createdStatus === "published") {
@@ -644,11 +639,7 @@ export default function CreatePostForm() {
       if (postWidgetRef.current != null && window.turnstile) {
         window.turnstile.reset(postWidgetRef.current);
       }
-      if (uploadWidgetRef.current != null && window.turnstile) {
-        window.turnstile.reset(uploadWidgetRef.current);
-      }
       setTurnstilePostToken("");
-      setTurnstileUploadToken("");
     } finally {
       setSubmitting(false);
     }
@@ -802,24 +793,13 @@ export default function CreatePostForm() {
             {submitting ? "提交中..." : "提交帖子"}
           </button>
         </div>
+        <div ref={postWidgetContainerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />
       </form>
-
-        <div className="post-composer__turnstile">
-          <label className="post-composer__label">发布安全验证</label>
-          <div ref={postWidgetContainerRef} />
-        </div>
-
-        {mediaFiles.some((item) => item.kind === "video") ? (
-          <div className="post-composer__turnstile">
-            <label className="post-composer__label">视频上传安全验证</label>
-            <div ref={uploadWidgetContainerRef} />
-          </div>
-        ) : null}
 
       <div className="post-composer__feedback">
         {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
         {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
-        {!turnstileReady && TURNSTILE_SITE_KEY ? <div className="auth-alert">正在加载安全验证…</div> : null}
+        {!turnstileReady && TURNSTILE_SITE_KEY ? <div className="auth-alert">正在初始化提交环境…</div> : null}
       </div>
     </section>
   );
