@@ -212,6 +212,7 @@ export default function CreatePostForm() {
   const [turnstilePostToken, setTurnstilePostToken] = useState("");
   const [turnstileReady, setTurnstileReady] = useState(!TURNSTILE_SITE_KEY);
   const postWidgetRef = useRef<string | number | null>(null);
+  const turnstilePostTokenRef = useRef("");
   const postWidgetContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -286,6 +287,10 @@ export default function CreatePostForm() {
   }, []);
 
   useEffect(() => {
+    turnstilePostTokenRef.current = turnstilePostToken;
+  }, [turnstilePostToken]);
+
+  useEffect(() => {
     if (!TURNSTILE_SITE_KEY) return;
     let cancelled = false;
 
@@ -325,6 +330,25 @@ export default function CreatePostForm() {
       script.removeEventListener("load", onLoad);
     };
   }, []);
+
+  async function ensureTurnstileToken(): Promise<string> {
+    if (!TURNSTILE_SITE_KEY) return "";
+    if (turnstilePostTokenRef.current) return turnstilePostTokenRef.current;
+    if (postWidgetRef.current != null && window.turnstile?.execute) {
+      window.turnstile.execute(postWidgetRef.current);
+    }
+
+    const maxWaitMs = 4000;
+    const intervalMs = 120;
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      if (turnstilePostTokenRef.current) {
+        return turnstilePostTokenRef.current;
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    throw new Error("请先完成发布安全验证。");
+  }
 
   async function addMediaFiles(fileList: FileList | File[]) {
     const nextFiles = Array.from(fileList);
@@ -447,12 +471,7 @@ export default function CreatePostForm() {
     let accessToken = "";
 
     try {
-      if (TURNSTILE_SITE_KEY && !turnstilePostToken) {
-        if (postWidgetRef.current != null && window.turnstile?.execute) {
-          window.turnstile.execute(postWidgetRef.current);
-        }
-        throw new Error("请先完成发布安全验证。");
-      }
+      const verifiedTurnstileToken = await ensureTurnstileToken();
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !sessionData.session?.access_token || !sessionData.session.user) {
@@ -474,7 +493,7 @@ export default function CreatePostForm() {
           title: title.trim(),
           body: body.trim(),
           has_media: mediaFiles.length > 0,
-          turnstile_token: turnstilePostToken || undefined,
+          turnstile_token: verifiedTurnstileToken || undefined,
         }),
       });
 
@@ -509,7 +528,7 @@ export default function CreatePostForm() {
                 accessToken,
                 postId: createdPostId,
                 file: item.file,
-                turnstileToken: turnstilePostToken || "",
+                turnstileToken: verifiedTurnstileToken || "",
               });
               mediaPayload.push({
                 kind: "video",
