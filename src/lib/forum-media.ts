@@ -65,7 +65,7 @@ export async function resolveSignedPostMedia(
   return sortedRows.map((item) => {
     const signedUrl =
       item.storage_path && (item.kind === "image" || item.kind === "video")
-        ? signedUrlMap.get(item.storage_path) ?? ""
+        ? signedUrlMap.get(item.storage_path) ?? item.url?.trim() ?? ""
         : item.url?.trim() ?? "";
 
     return {

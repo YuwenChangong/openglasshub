@@ -77,12 +77,9 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
       </div>
     ) : (
       <div style={{ display: "grid", gap: "0.85rem", padding: "1rem 0" }}>
-        <p style={{ margin: 0, color: "#8892b0" }}>
-          浏览内容无需登录。想发帖、评论或参与后续互动，需要先登录。
-        </p>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
           <a href={buildLoginHref(safeNext)} style={primaryButtonStyle}>注册 / 登录</a>
-          <a href="/feed/" style={secondaryButtonStyle}>先浏览社区动态</a>
+          <a href="/feed/" style={secondaryButtonStyle}>浏览动态</a>
         </div>
       </div>
     );

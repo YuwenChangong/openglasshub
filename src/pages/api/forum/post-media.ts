@@ -54,7 +54,8 @@ type MediaPayload =
     }
   | {
       kind: "video";
-      storage_path: string;
+      storage_path?: string;
+      url?: string;
       alt_text?: string;
       sort_order?: number;
       width?: number | null;
@@ -153,13 +154,39 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
       return "Unsupported mime_type";
     }
 
-    if (item.kind === "image" || item.kind === "video") {
+    if (item.kind === "image") {
       const storagePath = String(item.storage_path ?? "").trim();
       if (!storagePath || !storagePathRegex.test(storagePath)) {
         return "Invalid media storage_path";
       }
       if (!storagePath.startsWith(`${userId}/${postId}/`)) {
         return "Media storage_path must stay inside the current user/post folder";
+      }
+      if (!item.mime_type) {
+        return "mime_type is required for uploaded media";
+      }
+      continue;
+    }
+
+    if (item.kind === "video") {
+      const storagePath = String(item.storage_path ?? "").trim();
+      const externalUrl = String(item.url ?? "").trim();
+      const hasStoragePath = Boolean(storagePath);
+      const hasExternalUrl = Boolean(externalUrl);
+
+      if (!hasStoragePath && !hasExternalUrl) {
+        return "video requires storage_path or url";
+      }
+      if (hasStoragePath) {
+        if (!storagePathRegex.test(storagePath)) {
+          return "Invalid media storage_path";
+        }
+        if (!storagePath.startsWith(`${userId}/${postId}/`)) {
+          return "Media storage_path must stay inside the current user/post folder";
+        }
+      }
+      if (hasExternalUrl && !isValidVideoUrl(externalUrl)) {
+        return "Invalid video url";
       }
       if (!item.mime_type) {
         return "mime_type is required for uploaded media";
@@ -251,8 +278,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       post_id: postId,
       user_id: authData.user.id,
       kind: item.kind,
-      url: item.kind === "video_link" ? item.url.trim() : null,
-      storage_path: item.kind === "image" || item.kind === "video" ? item.storage_path.trim() : null,
+      url: item.kind === "video_link" ? item.url.trim() : item.kind === "video" && item.url ? item.url.trim() : null,
+      storage_path:
+        item.kind === "image"
+          ? item.storage_path.trim()
+          : item.kind === "video" && item.storage_path
+            ? item.storage_path.trim()
+            : null,
       thumbnail_url: item.kind === "video_link" ? item.thumbnail_url?.trim() ?? null : null,
       alt_text: item.alt_text?.trim() || null,
       width: normalizePositiveInteger(item.width),
@@ -274,8 +306,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         post_id: postId,
         user_id: authData.user.id,
         kind: item.kind,
-        url: item.kind === "video_link" ? item.url.trim() : null,
-        storage_path: item.kind === "image" || item.kind === "video" ? item.storage_path.trim() : null,
+        url: item.kind === "video_link" ? item.url.trim() : item.kind === "video" && item.url ? item.url.trim() : null,
+        storage_path:
+          item.kind === "image"
+            ? item.storage_path.trim()
+            : item.kind === "video" && item.storage_path
+              ? item.storage_path.trim()
+              : null,
         thumbnail_url: item.kind === "video_link" ? item.thumbnail_url?.trim() ?? null : null,
         alt_text: item.alt_text?.trim() || null,
         sort_order: Number.isFinite(item.sort_order) ? Number(item.sort_order) : index,

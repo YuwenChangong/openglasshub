@@ -35,7 +35,7 @@ const postTypes = [
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
-const MAX_VIDEO_SIZE = 150 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
 const MAX_MEDIA_COUNT = 6;
 const MAX_TOTAL_SIZE = 150 * 1024 * 1024;
 
@@ -129,9 +129,53 @@ function mapAuthError(errorMessage: string): string {
   if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
   if (/User already registered/i.test(errorMessage)) return "该邮箱已经注册，请直接登录。";
   if (/exceeded the maximum allowed size/i.test(errorMessage)) {
-    return "视频上传失败：当前存储桶大小上限低于该文件大小。请先让管理员提高 Supabase Storage bucket 的 file_size_limit。";
+    return "视频上传失败。";
   }
   return errorMessage;
+}
+
+async function uploadVideoToExternal(params: {
+  accessToken: string;
+  postId: string;
+  file: File;
+}): Promise<{ mediaUrl: string }> {
+  const { accessToken, postId, file } = params;
+  const ticketResponse = await fetch("/api/forum/external-video-upload", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      post_id: postId,
+      file_name: file.name,
+      mime_type: file.type,
+      size_bytes: file.size,
+    }),
+  });
+
+  const ticketPayload = (await ticketResponse.json().catch(() => null)) as
+    | { error?: string; upload_url?: string; media_url?: string }
+    | null;
+
+  if (!ticketResponse.ok || !ticketPayload?.upload_url || !ticketPayload.media_url) {
+    throw new Error(ticketPayload?.error ?? `视频上传初始化失败 (${ticketResponse.status})`);
+  }
+
+  const uploadResponse = await fetch(ticketPayload.upload_url, {
+    method: "PUT",
+    headers: {
+      "content-type": file.type || "application/octet-stream",
+    },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text().catch(() => "");
+    throw new Error(errorText || `视频上传失败 (${uploadResponse.status})`);
+  }
+
+  return { mediaUrl: ticketPayload.media_url };
 }
 
 export default function CreatePostForm() {
@@ -248,7 +292,7 @@ export default function CreatePostForm() {
         continue;
       }
       if (isVideo && file.size > MAX_VIDEO_SIZE) {
-        setError("单个视频不能超过 150MB。");
+        setError("单个视频不能超过 50MB。");
         continue;
       }
       nextTotalSize += file.size;
@@ -389,8 +433,66 @@ export default function CreatePostForm() {
 
       if (mediaFiles.length > 0) {
         for (const [index, item] of mediaFiles.entries()) {
-          const fallbackName = item.kind === "video" ? `video-${index + 1}.mp4` : `image-${index + 1}.jpg`;
-          const fileName = normalizeFileName(item.file.name) || fallbackName;
+          if (item.kind === "video") {
+            try {
+              const uploaded = await uploadVideoToExternal({
+                accessToken,
+                postId: createdPostId,
+                file: item.file,
+              });
+              mediaPayload.push({
+                kind: "video",
+                url: uploaded.mediaUrl,
+                alt_text: title.trim() || item.file.name,
+                sort_order: index,
+                width: item.width,
+                height: item.height,
+                duration_seconds: item.durationSeconds,
+                size_bytes: item.sizeBytes,
+                mime_type: item.mimeType,
+                is_cover: item.isCover,
+              });
+            } catch (uploadError) {
+              const uploadMessage = uploadError instanceof Error ? uploadError.message : "未知错误";
+              const canFallbackToSupabase =
+                /Missing required env var: R2_/i.test(uploadMessage) ||
+                /视频上传初始化失败 \(500\)/i.test(uploadMessage);
+
+              if (!canFallbackToSupabase) {
+                throw new Error(`视频上传失败：${uploadMessage}`);
+              }
+
+              const fileName = normalizeFileName(item.file.name) || `video-${index + 1}.mp4`;
+              const storagePath = `${sessionData.session.user.id}/${createdPostId}/${Date.now()}-${index}-${fileName}`;
+              try {
+                await uploadToPostMediaWithTus({
+                  file: item.file,
+                  objectPath: storagePath,
+                  accessToken,
+                });
+              } catch (fallbackError) {
+                const fallbackMessage =
+                  fallbackError instanceof Error ? fallbackError.message : "未知错误";
+                throw new Error(`视频上传失败：${fallbackMessage}`);
+              }
+              uploadedPaths.push(storagePath);
+              mediaPayload.push({
+                kind: "video",
+                storage_path: storagePath,
+                alt_text: title.trim() || item.file.name,
+                sort_order: index,
+                width: item.width,
+                height: item.height,
+                duration_seconds: item.durationSeconds,
+                size_bytes: item.sizeBytes,
+                mime_type: item.mimeType,
+                is_cover: item.isCover,
+              });
+            }
+            continue;
+          }
+
+          const fileName = normalizeFileName(item.file.name) || `image-${index + 1}.jpg`;
           const storagePath = `${sessionData.session.user.id}/${createdPostId}/${Date.now()}-${index}-${fileName}`;
           try {
             await uploadToPostMediaWithTus({
@@ -400,12 +502,12 @@ export default function CreatePostForm() {
             });
           } catch (uploadError) {
             const uploadMessage = uploadError instanceof Error ? uploadError.message : "未知错误";
-            throw new Error(`${item.kind === "video" ? "视频" : "图片"}上传失败：${uploadMessage}`);
+            throw new Error(`图片上传失败：${uploadMessage}`);
           }
 
           uploadedPaths.push(storagePath);
           mediaPayload.push({
-            kind: item.kind,
+            kind: "image",
             storage_path: storagePath,
             alt_text: title.trim() || item.file.name,
             sort_order: index,
@@ -551,7 +653,6 @@ export default function CreatePostForm() {
         <div className="media-upload-block">
           <div className="post-composer__label-row">
             <span className="post-composer__label">媒体文件</span>
-            <span className="community-meta">图片 10MB / 视频 150MB，最多 6 个，总大小 150MB</span>
           </div>
           <button
             type="button"
@@ -566,7 +667,6 @@ export default function CreatePostForm() {
             }}
           >
             <strong>拖拽图片或视频到这里，或点击选择文件</strong>
-            <span>支持 jpg / png / webp / gif，以及 mp4 / webm / mov</span>
           </button>
           <input
             ref={fileInputRef}
