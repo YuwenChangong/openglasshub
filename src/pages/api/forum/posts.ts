@@ -81,14 +81,14 @@ function validatePayload(payload: Record<string, unknown>): string | null {
   const body = String(payload.body ?? "").trim();
   const type = String(payload.type ?? "").trim();
 
-  if (!circleSlug || !title || !body || !type) {
-    return "circle_slug, title, body, type are required";
+  if (!circleSlug || !title || !type) {
+    return "circle_slug, title, type are required";
   }
   if (title.length < 3 || title.length > 180) {
     return "title must be 3-180 characters";
   }
-  if (body.length < 10 || body.length > 20000) {
-    return "body must be 10-20000 characters";
+  if (body.length > 20000) {
+    return "body must be <=20000 characters";
   }
   if (!ALLOWED_TYPES.has(type)) {
     return "Invalid post type";

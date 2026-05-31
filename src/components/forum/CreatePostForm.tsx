@@ -540,9 +540,7 @@ export default function CreatePostForm() {
             className="community-input community-input--textarea"
             value={body}
             onChange={(event) => setBody(event.target.value)}
-            minLength={10}
             maxLength={20000}
-            required
           />
         </label>
 
