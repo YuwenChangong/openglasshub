@@ -11,11 +11,16 @@ export async function validateTurnstileToken(params: {
 }): Promise<TurnstileResult> {
   const { env, token, remoteIp } = params;
   const secret = env.TURNSTILE_SECRET_KEY;
-  const isCloudflareRuntime = env.CF_PAGES === "1";
   const bypass = env.DEV_TURNSTILE_BYPASS === "true";
+  const envName = (env.CF_PAGES_BRANCH || env.NODE_ENV || "").toLowerCase();
+  const isProductionLike =
+    envName === "production" ||
+    envName === "prod" ||
+    env.CF_PAGES_BRANCH === "main" ||
+    env.CF_PAGES_BRANCH === "master";
 
   if (!secret) {
-    if (!isCloudflareRuntime && bypass) {
+    if (bypass) {
       return { ok: true };
     }
     return {
@@ -23,6 +28,12 @@ export async function validateTurnstileToken(params: {
       code: "TURNSTILE_NOT_CONFIGURED",
       message: "Turnstile not configured",
     };
+  }
+
+  // Preview/local escape hatch: allow explicit bypass to keep release flow unblocked.
+  // Keep DEV_TURNSTILE_BYPASS=false in production.
+  if (bypass && !isProductionLike) {
+    return { ok: true };
   }
 
   if (!token) {
@@ -63,4 +74,3 @@ export async function validateTurnstileToken(params: {
 
   return { ok: true };
 }
-
