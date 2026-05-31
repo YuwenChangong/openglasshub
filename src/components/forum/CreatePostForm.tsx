@@ -127,6 +127,9 @@ function mapAuthError(errorMessage: string): string {
   if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
   if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
   if (/User already registered/i.test(errorMessage)) return "该邮箱已经注册，请直接登录。";
+  if (/exceeded the maximum allowed size/i.test(errorMessage)) {
+    return "视频上传失败：当前存储桶大小上限低于该文件大小（52MB 会被拒绝）。请先让管理员提高 Supabase Storage bucket 的 file_size_limit。";
+  }
   return errorMessage;
 }
 
@@ -482,7 +485,6 @@ export default function CreatePostForm() {
     <section className="post-composer">
       <div className="post-composer__intro">
         <h2>发布帖子</h2>
-        <p>文字、图片、视频文件和外部视频链接都可以从这里发布。媒体会存到受 RLS 控制的 `post-media` 桶，封面默认使用第一张图片或第一个视频。</p>
       </div>
 
       <form onSubmit={handleSubmit} className="post-composer__form">

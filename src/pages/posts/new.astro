@@ -12,8 +12,5 @@ import CreatePostForm from "../../components/forum/CreatePostForm";
   activeTab="new-post"
 >
   <h1>发布帖子</h1>
-  <p class="section-lead">
-    先选发帖类型和圈子，再写标题与正文。当前支持图片上传和外部视频链接；原生大视频上传仍然不开放。
-  </p>
   <CreatePostForm client:only="react" />
 </ForumLayout>
