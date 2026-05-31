@@ -116,7 +116,7 @@ export async function onRequestPost({ env, request }: PagesContext): Promise<Res
     if (body.length > 20000) {
       return json({ error: "body must be <=20000 characters" }, 400);
     }
-    const normalizedBody = body || "（仅媒体内容）";
+    const normalizedBody = body || "仅媒体内容占位：该帖子包含图片或视频媒体。";
 
     const allowedTypes = new Set(["experience", "question", "review", "dev", "news", "feedback"]);
     if (!allowedTypes.has(type)) {

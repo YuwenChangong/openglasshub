@@ -230,7 +230,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const circleSlug = String(payload.circle_slug ?? "").trim();
     const title = String(payload.title ?? "").trim();
     const body = String(payload.body ?? "").trim();
-    const normalizedBody = body || "（仅媒体内容）";
+    const normalizedBody = body || "仅媒体内容占位：该帖子包含图片或视频媒体。";
     const type = String(payload.type ?? "").trim();
 
     // Verify profile exists
