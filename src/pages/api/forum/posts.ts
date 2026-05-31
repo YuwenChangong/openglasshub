@@ -230,6 +230,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const circleSlug = String(payload.circle_slug ?? "").trim();
     const title = String(payload.title ?? "").trim();
     const body = String(payload.body ?? "").trim();
+    const normalizedBody = body || "（仅媒体内容）";
     const type = String(payload.type ?? "").trim();
 
     // Verify profile exists
@@ -266,7 +267,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         circle_id: circle.id,
         type,
         title,
-        body,
+        body: normalizedBody,
         // MVP policy: publish immediately until moderation tooling is available.
         status: "published",
       })
