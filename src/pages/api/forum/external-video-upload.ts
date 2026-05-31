@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { buildR2PublicUrl, buildTmpVideoKey, signR2PutUrl } from "../../../lib/r2-server";
+import { getRequestIp } from "../../../lib/request-ip";
+import { validateTurnstileToken } from "../../../lib/turnstile";
 
 export const prerender = false;
 
@@ -29,16 +30,16 @@ function requireEnv(env: Record<string, string | undefined>, key: string): strin
   return value;
 }
 
-function normalizeFileName(fileName: string) {
-  return fileName
-    .toLowerCase()
-    .replace(/[^a-z0-9.\-_]+/g, "-")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 150 * 1024 * 1024;
+
+async function hashIp(ip: string, salt: string): Promise<string> {
+  const data = new TextEncoder().encode(`${salt}:${ip}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -56,7 +57,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) return json({ error: "Invalid auth token" }, 401);
 
     const payload = (await request.json().catch(() => null)) as
-      | { post_id?: string; file_name?: string; mime_type?: string; size_bytes?: number }
+      | { post_id?: string; file_name?: string; mime_type?: string; size_bytes?: number; turnstile_token?: string }
       | null;
     if (!payload) return json({ error: "Invalid JSON payload" }, 400);
 
@@ -64,6 +65,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const fileNameRaw = String(payload.file_name ?? "").trim();
     const mimeType = String(payload.mime_type ?? "").trim().toLowerCase();
     const sizeBytes = Number(payload.size_bytes ?? 0);
+    const turnstileToken = String(payload.turnstile_token ?? "").trim();
+    const remoteIp = getRequestIp(request);
+
+    const turnstile = await validateTurnstileToken({
+      env,
+      token: turnstileToken,
+      remoteIp,
+    });
+    if (!turnstile.ok) {
+      return json({ error: turnstile.message ?? "Turnstile verification failed", code: turnstile.code }, 403);
+    }
 
     if (!postId || !/^[0-9a-f-]{36}$/i.test(postId)) return json({ error: "Invalid post_id format" }, 400);
     if (!fileNameRaw) return json({ error: "file_name is required" }, 400);
@@ -81,38 +93,62 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!post) return json({ error: "Post not found" }, 404);
     if (post.author_id !== authData.user.id) return json({ error: "Cannot upload media for a post you do not own" }, 403);
 
-    const accountId = requireEnv(env, "R2_ACCOUNT_ID");
-    const accessKeyId = requireEnv(env, "R2_ACCESS_KEY_ID");
-    const secretAccessKey = requireEnv(env, "R2_SECRET_ACCESS_KEY");
-    const bucketName = requireEnv(env, "R2_BUCKET_NAME");
-    const publicBaseUrl = requireEnv(env, "R2_PUBLIC_BASE_URL").replace(/\/+$/, "");
+    const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
+    const ipHash = await hashIp(remoteIp, rateSalt);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const objectName = normalizeFileName(fileNameRaw) || "video.mp4";
-    const objectKey = `${authData.user.id}/${postId}/${Date.now()}-${objectName}`;
+    const { count: ipCount, error: ipCountError } = await supabase
+      .from("forum_upload_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("purpose", "external_video_upload")
+      .eq("ip_hash", ipHash)
+      .gte("created_at", oneHourAgo);
+    if (ipCountError) return json({ error: ipCountError.message }, 500);
+    if ((ipCount ?? 0) >= 10) {
+      return json({ error: "Too many upload attempts from this IP", code: "UPLOAD_RATE_LIMITED" }, 429);
+    }
 
-    const client = new S3Client({
-      region: "auto",
-      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
+    const { data: dailyRows, error: dailyError } = await supabase
+      .from("forum_upload_attempts")
+      .select("bytes")
+      .eq("user_id", authData.user.id)
+      .gte("created_at", oneDayAgo);
+    if (dailyError) return json({ error: dailyError.message }, 500);
+    const usedAttemptBytes = (dailyRows ?? []).reduce((sum, row) => sum + Number(row.bytes ?? 0), 0);
+    const { data: mediaRows, error: mediaBytesError } = await supabase
+      .from("post_media")
+      .select("size_bytes")
+      .eq("user_id", authData.user.id)
+      .gte("created_at", oneDayAgo);
+    if (mediaBytesError) return json({ error: mediaBytesError.message }, 500);
+    const usedMediaBytes = (mediaRows ?? []).reduce((sum, row) => sum + Number(row.size_bytes ?? 0), 0);
+    const usedBytes = Math.max(usedAttemptBytes, usedMediaBytes);
+    if (usedBytes + sizeBytes > 300 * 1024 * 1024) {
+      return json({ error: "Daily upload limit exceeded", code: "DAILY_UPLOAD_LIMIT_EXCEEDED" }, 429);
+    }
+
+    const objectKey = buildTmpVideoKey(authData.user.id, fileNameRaw);
+    const uploadUrl = await signR2PutUrl({
+      env,
+      objectKey,
+      contentType: mimeType,
+      contentLength: sizeBytes,
     });
 
-    const command = new PutObjectCommand({
-      Bucket: bucketName,
-      Key: objectKey,
-      ContentType: mimeType,
-      ContentLength: sizeBytes,
+    const { error: insertAttemptError } = await supabase.from("forum_upload_attempts").insert({
+      user_id: authData.user.id,
+      ip_hash: ipHash,
+      bytes: sizeBytes,
+      purpose: "external_video_upload",
     });
-
-    const uploadUrl = await getSignedUrl(client, command, { expiresIn: 15 * 60 });
-    const publicUrl = `${publicBaseUrl}/${objectKey}`;
+    if (insertAttemptError) return json({ error: insertAttemptError.message }, 500);
 
     return json({
       upload_url: uploadUrl,
-      media_url: publicUrl,
-      object_key: objectKey,
+      media_url: buildR2PublicUrl(env, objectKey),
+      storage_path: objectKey,
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
@@ -120,4 +156,3 @@ export const POST: APIRoute = async ({ request, locals }) => {
 };
 
 export const ALL: APIRoute = () => json({ error: "Method not allowed" }, 405);
-

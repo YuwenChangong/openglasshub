@@ -64,19 +64,6 @@ type MediaPayload =
       size_bytes?: number | null;
       mime_type?: string | null;
       is_cover?: boolean;
-    }
-  | {
-      kind: "video_link";
-      url: string;
-      thumbnail_url?: string;
-      alt_text?: string;
-      sort_order?: number;
-      width?: number | null;
-      height?: number | null;
-      duration_seconds?: number | null;
-      size_bytes?: number | null;
-      mime_type?: string | null;
-      is_cover?: boolean;
     };
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -194,14 +181,6 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
       continue;
     }
 
-    if (item.kind === "video_link") {
-      const url = String(item.url ?? "").trim();
-      if (!url || !isValidVideoUrl(url)) {
-        return "Invalid video url";
-      }
-      continue;
-    }
-
     return "Unsupported media kind";
   }
 
@@ -278,14 +257,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
       post_id: postId,
       user_id: authData.user.id,
       kind: item.kind,
-      url: item.kind === "video_link" ? item.url.trim() : item.kind === "video" && item.url ? item.url.trim() : null,
+      url: item.kind === "video" && item.url ? item.url.trim() : null,
       storage_path:
         item.kind === "image"
           ? item.storage_path.trim()
           : item.kind === "video" && item.storage_path
             ? item.storage_path.trim()
             : null,
-      thumbnail_url: item.kind === "video_link" ? item.thumbnail_url?.trim() ?? null : null,
+      thumbnail_url: null,
       alt_text: item.alt_text?.trim() || null,
       width: normalizePositiveInteger(item.width),
       height: normalizePositiveInteger(item.height),
@@ -306,14 +285,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
         post_id: postId,
         user_id: authData.user.id,
         kind: item.kind,
-        url: item.kind === "video_link" ? item.url.trim() : item.kind === "video" && item.url ? item.url.trim() : null,
+        url: item.kind === "video" && item.url ? item.url.trim() : null,
         storage_path:
           item.kind === "image"
             ? item.storage_path.trim()
             : item.kind === "video" && item.storage_path
               ? item.storage_path.trim()
               : null,
-        thumbnail_url: item.kind === "video_link" ? item.thumbnail_url?.trim() ?? null : null,
+        thumbnail_url: null,
         alt_text: item.alt_text?.trim() || null,
         sort_order: Number.isFinite(item.sort_order) ? Number(item.sort_order) : index,
       }));

@@ -35,7 +35,7 @@ const postTypes = [
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 150 * 1024 * 1024;
 const MAX_MEDIA_COUNT = 6;
 const MAX_TOTAL_SIZE = 150 * 1024 * 1024;
 
@@ -114,16 +114,6 @@ function readVideoMetadata(
   });
 }
 
-function isValidVideoUrl(value: string): boolean {
-  if (!value) return true;
-  try {
-    const url = new URL(value);
-    return ["http:", "https:"].includes(url.protocol);
-  } catch {
-    return false;
-  }
-}
-
 function mapAuthError(errorMessage: string): string {
   if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
   if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
@@ -134,12 +124,30 @@ function mapAuthError(errorMessage: string): string {
   return errorMessage;
 }
 
+const TURNSTILE_SITE_KEY =
+  import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ||
+  import.meta.env.ASTRO_PUBLIC_TURNSTILE_SITE_KEY ||
+  "";
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: string | HTMLElement,
+        options: { sitekey: string; callback?: (token: string) => void; "error-callback"?: () => void },
+      ) => string | number;
+      reset: (widgetId?: string | number) => void;
+    };
+  }
+}
+
 async function uploadVideoToExternal(params: {
   accessToken: string;
   postId: string;
   file: File;
+  turnstileToken: string;
 }): Promise<{ mediaUrl: string }> {
-  const { accessToken, postId, file } = params;
+  const { accessToken, postId, file, turnstileToken } = params;
   const ticketResponse = await fetch("/api/forum/external-video-upload", {
     method: "POST",
     headers: {
@@ -151,6 +159,7 @@ async function uploadVideoToExternal(params: {
       file_name: file.name,
       mime_type: file.type,
       size_bytes: file.size,
+      turnstile_token: turnstileToken,
     }),
   });
 
@@ -187,13 +196,19 @@ export default function CreatePostForm() {
   const [type, setType] = useState("question");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [videoUrl, setVideoUrl] = useState("");
   const [circles, setCircles] = useState<CircleOption[]>([]);
   const [mediaFiles, setMediaFiles] = useState<LocalMedia[]>([]);
   const [loadingCircles, setLoadingCircles] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [turnstilePostToken, setTurnstilePostToken] = useState("");
+  const [turnstileUploadToken, setTurnstileUploadToken] = useState("");
+  const [turnstileReady, setTurnstileReady] = useState(!TURNSTILE_SITE_KEY);
+  const postWidgetRef = useRef<string | number | null>(null);
+  const uploadWidgetRef = useRef<string | number | null>(null);
+  const postWidgetContainerRef = useRef<HTMLDivElement | null>(null);
+  const uploadWidgetContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -266,6 +281,52 @@ export default function CreatePostForm() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) return;
+    let cancelled = false;
+
+    const renderWidgets = () => {
+      if (cancelled || !window.turnstile) return;
+      if (postWidgetContainerRef.current && postWidgetRef.current == null) {
+        postWidgetRef.current = window.turnstile.render(postWidgetContainerRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          callback: (token) => setTurnstilePostToken(token),
+          "error-callback": () => setError("安全验证失败，请刷新后重试。"),
+        });
+      }
+      if (uploadWidgetContainerRef.current && uploadWidgetRef.current == null) {
+        uploadWidgetRef.current = window.turnstile.render(uploadWidgetContainerRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          callback: (token) => setTurnstileUploadToken(token),
+          "error-callback": () => setError("上传安全验证失败，请刷新后重试。"),
+        });
+      }
+      setTurnstileReady(true);
+    };
+
+    if (window.turnstile) {
+      renderWidgets();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>('script[src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"]');
+    const script = existing ?? document.createElement("script");
+    if (!existing) {
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+    const onLoad = () => renderWidgets();
+    script.addEventListener("load", onLoad);
+    return () => {
+      cancelled = true;
+      script.removeEventListener("load", onLoad);
+    };
+  }, []);
+
   async function addMediaFiles(fileList: FileList | File[]) {
     const nextFiles = Array.from(fileList);
     if (!nextFiles.length) return;
@@ -278,6 +339,7 @@ export default function CreatePostForm() {
     }
 
     const currentTotalSize = mediaFiles.reduce((sum, item) => sum + item.file.size, 0);
+    let videoCount = mediaFiles.filter((item) => item.kind === "video").length;
     let nextTotalSize = currentTotalSize;
     const accepted: LocalMedia[] = [];
     for (const file of nextFiles) {
@@ -292,7 +354,11 @@ export default function CreatePostForm() {
         continue;
       }
       if (isVideo && file.size > MAX_VIDEO_SIZE) {
-        setError("单个视频不能超过 50MB。");
+        setError("单个视频不能超过 150MB。");
+        continue;
+      }
+      if (isVideo && videoCount >= 1) {
+        setError("每个帖子最多上传 1 个视频。");
         continue;
       }
       nextTotalSize += file.size;
@@ -306,6 +372,7 @@ export default function CreatePostForm() {
 
       try {
         if (isVideo) {
+          videoCount += 1;
           const metadata = await readVideoMetadata(file, previewUrl);
           accepted.push({
             id,
@@ -381,8 +448,11 @@ export default function CreatePostForm() {
     let accessToken = "";
 
     try {
-      if (videoUrl.trim() && !isValidVideoUrl(videoUrl.trim())) {
-        throw new Error("视频链接格式无效，请输入可访问的 http(s) 地址。");
+      if (TURNSTILE_SITE_KEY && !turnstilePostToken) {
+        throw new Error("请先完成发布安全验证。");
+      }
+      if (TURNSTILE_SITE_KEY && mediaFiles.some((item) => item.kind === "video") && !turnstileUploadToken) {
+        throw new Error("请先完成视频上传安全验证。");
       }
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -404,7 +474,8 @@ export default function CreatePostForm() {
           type: type.trim(),
           title: title.trim(),
           body: body.trim(),
-          has_media: mediaFiles.length > 0 || Boolean(videoUrl.trim()),
+          has_media: mediaFiles.length > 0,
+          turnstile_token: turnstilePostToken || undefined,
         }),
       });
 
@@ -418,7 +489,7 @@ export default function CreatePostForm() {
 
       createdPostId = createPayload.post.id;
       const mediaPayload: Array<{
-        kind: "image" | "video" | "video_link";
+        kind: "image" | "video";
         storage_path?: string;
         url?: string;
         alt_text?: string;
@@ -439,6 +510,7 @@ export default function CreatePostForm() {
                 accessToken,
                 postId: createdPostId,
                 file: item.file,
+                turnstileToken: turnstileUploadToken || "",
               });
               mediaPayload.push({
                 kind: "video",
@@ -521,15 +593,6 @@ export default function CreatePostForm() {
         }
       }
 
-      if (videoUrl.trim()) {
-        mediaPayload.push({
-          kind: "video_link",
-          url: videoUrl.trim(),
-          alt_text: `${title.trim() || "帖子视频"} 视频链接`,
-          sort_order: mediaPayload.length,
-        });
-      }
-
       if (mediaPayload.length > 0) {
         const mediaResponse = await fetch("/api/forum/post-media", {
           method: "POST",
@@ -552,8 +615,15 @@ export default function CreatePostForm() {
       mediaFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
       setTitle("");
       setBody("");
-      setVideoUrl("");
       setMediaFiles([]);
+      setTurnstilePostToken("");
+      setTurnstileUploadToken("");
+      if (postWidgetRef.current != null && window.turnstile) {
+        window.turnstile.reset(postWidgetRef.current);
+      }
+      if (uploadWidgetRef.current != null && window.turnstile) {
+        window.turnstile.reset(uploadWidgetRef.current);
+      }
       const createdStatus = createPayload.post.status ?? "pending";
       if (createdStatus === "published") {
         setMessage("发布成功，正在跳转到帖子页面。");
@@ -571,6 +641,14 @@ export default function CreatePostForm() {
 
       const rawMessage = submitError instanceof Error ? submitError.message : "提交失败。";
       setError(mapAuthError(rawMessage));
+      if (postWidgetRef.current != null && window.turnstile) {
+        window.turnstile.reset(postWidgetRef.current);
+      }
+      if (uploadWidgetRef.current != null && window.turnstile) {
+        window.turnstile.reset(uploadWidgetRef.current);
+      }
+      setTurnstilePostToken("");
+      setTurnstileUploadToken("");
     } finally {
       setSubmitting(false);
     }
@@ -719,27 +797,6 @@ export default function CreatePostForm() {
           )}
         </div>
 
-        <label>
-          <span className="post-composer__label">外部视频链接（可选）</span>
-          <input
-            className="community-input"
-            type="url"
-            placeholder="https://www.youtube.com/... 或 https://www.bilibili.com/..."
-            value={videoUrl}
-            onChange={(event) => setVideoUrl(event.target.value)}
-          />
-        </label>
-
-        {videoUrl.trim() && (
-          <div className="video-link-preview">
-            <strong>视频链接预览</strong>
-            <a href={videoUrl.trim()} target="_blank" rel="noreferrer">
-              {videoUrl.trim()}
-            </a>
-            <span>如果已经上传视频文件，这个外部链接会作为额外媒体附加到帖子里。</span>
-          </div>
-        )}
-
         <div className="community-cta-row">
           <button type="submit" className="community-button post-composer__submit" disabled={submitting || loadingCircles}>
             {submitting ? "提交中..." : "提交帖子"}
@@ -747,9 +804,22 @@ export default function CreatePostForm() {
         </div>
       </form>
 
+        <div className="post-composer__turnstile">
+          <label className="post-composer__label">发布安全验证</label>
+          <div ref={postWidgetContainerRef} />
+        </div>
+
+        {mediaFiles.some((item) => item.kind === "video") ? (
+          <div className="post-composer__turnstile">
+            <label className="post-composer__label">视频上传安全验证</label>
+            <div ref={uploadWidgetContainerRef} />
+          </div>
+        ) : null}
+
       <div className="post-composer__feedback">
         {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
         {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
+        {!turnstileReady && TURNSTILE_SITE_KEY ? <div className="auth-alert">正在加载安全验证…</div> : null}
       </div>
     </section>
   );

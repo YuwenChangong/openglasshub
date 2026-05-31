@@ -13,6 +13,9 @@
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
+import { getRequestIp } from "../../../lib/request-ip";
+import { validateTurnstileToken } from "../../../lib/turnstile";
+import { deleteR2Objects } from "../../../lib/r2-server";
 
 export const prerender = false;
 
@@ -231,6 +234,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (validationError) {
       return json({ error: validationError }, 400);
     }
+    const turnstileToken = String(payload.turnstile_token ?? "").trim();
+    const turnstile = await validateTurnstileToken({
+      env,
+      token: turnstileToken,
+      remoteIp: getRequestIp(request),
+    });
+    if (!turnstile.ok) {
+      return json({ error: turnstile.message ?? "Turnstile verification failed", code: turnstile.code }, 403);
+    }
 
     const circleSlug = String(payload.circle_slug ?? "").trim();
     const title = String(payload.title ?? "").trim();
@@ -339,6 +351,47 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       return json({ error: "Post already deleted" }, 409);
     }
 
+    const { data: mediaRows, error: mediaQueryError } = await userClient
+      .from("post_media")
+      .select("id,kind,storage_path")
+      .eq("post_id", postId)
+      .eq("user_id", authData.user.id);
+    if (mediaQueryError) {
+      return json({ error: mediaQueryError.message }, 500);
+    }
+
+    const postMediaStoragePaths = (mediaRows ?? [])
+      .map((row) => row.storage_path)
+      .filter((value): value is string => Boolean(value));
+    const r2Keys = postMediaStoragePaths.filter((path) => path.startsWith("tmp/") || path.startsWith("posts/"));
+    const supabaseMediaPaths = postMediaStoragePaths.filter((path) => !r2Keys.includes(path));
+
+    const deletionWarnings: string[] = [];
+
+    if (r2Keys.length > 0) {
+      try {
+        await deleteR2Objects({ env, objectKeys: r2Keys });
+      } catch (r2DeleteError) {
+        deletionWarnings.push(`R2 media delete failed: ${r2DeleteError instanceof Error ? r2DeleteError.message : "unknown error"}`);
+      }
+    }
+
+    if (supabaseMediaPaths.length > 0) {
+      const { error: removeStorageError } = await userClient.storage.from("post-media").remove(supabaseMediaPaths);
+      if (removeStorageError) {
+        deletionWarnings.push(`Supabase media delete failed: ${removeStorageError.message}`);
+      }
+    }
+
+    const { error: deleteMediaRowsError } = await userClient
+      .from("post_media")
+      .delete()
+      .eq("post_id", postId)
+      .eq("user_id", authData.user.id);
+    if (deleteMediaRowsError) {
+      deletionWarnings.push(`post_media delete failed: ${deleteMediaRowsError.message}`);
+    }
+
     const { data: updated, error: updateError } = await userClient
       .from("posts")
       .update({ status: "deleted" })
@@ -359,7 +412,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       return json({ ok: true, post: { id: postId, status: "deleted" }, mode: "hard_delete_fallback" });
     }
 
-    return json({ ok: true, post: updated });
+    return json({ ok: true, post: updated, warnings: deletionWarnings });
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },
