@@ -354,9 +354,14 @@ export default function CreatePostForm() {
     };
   }, []);
 
-  async function ensureTurnstileToken(): Promise<string> {
+  async function ensureTurnstileToken(options?: { forceRefresh?: boolean }): Promise<string> {
+    const forceRefresh = options?.forceRefresh === true;
     if (!TURNSTILE_SITE_KEY) return "";
-    if (turnstilePostTokenRef.current) return turnstilePostTokenRef.current;
+    if (!forceRefresh && turnstilePostTokenRef.current) return turnstilePostTokenRef.current;
+    setTurnstilePostToken("");
+    if (postWidgetRef.current != null && window.turnstile) {
+      window.turnstile.reset(postWidgetRef.current);
+    }
     if (postWidgetRef.current != null && window.turnstile?.execute) {
       window.turnstile.execute(postWidgetRef.current);
     }
@@ -494,7 +499,7 @@ export default function CreatePostForm() {
     let accessToken = "";
 
     try {
-      const verifiedTurnstileToken = await ensureTurnstileToken();
+      const verifiedTurnstileToken = await ensureTurnstileToken({ forceRefresh: true });
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !sessionData.session?.access_token || !sessionData.session.user) {
@@ -549,11 +554,12 @@ export default function CreatePostForm() {
         for (const [index, item] of mediaFiles.entries()) {
           if (item.kind === "video") {
             try {
+              const uploadTurnstileToken = await ensureTurnstileToken({ forceRefresh: true });
               const uploaded = await uploadVideoToExternal({
                 accessToken,
                 postId: createdPostId,
                 file: item.file,
-                turnstileToken: verifiedTurnstileToken || "",
+                turnstileToken: uploadTurnstileToken || "",
               });
               mediaPayload.push({
                 kind: "video",
