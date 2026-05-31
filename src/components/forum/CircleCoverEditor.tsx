@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
+import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 
 interface CircleCoverEditorProps {
@@ -91,14 +92,11 @@ export default function CircleCoverEditor({
       }
 
       uploadedPath = `circles/${user.id}/${Date.now()}-${normalizeFileName(file.name)}`;
-      const { error: uploadError } = await supabase.storage.from("post-media").upload(uploadedPath, file, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: file.type,
+      await uploadToPostMediaWithTus({
+        file,
+        objectPath: uploadedPath,
+        accessToken: token,
       });
-      if (uploadError) {
-        throw new Error(`图片上传失败：${uploadError.message}`);
-      }
 
       await updateCircleCover(uploadedPath, token);
       setMessage("圈子封面已更新。");
@@ -167,4 +165,3 @@ export default function CircleCoverEditor({
     </div>
   );
 }
-

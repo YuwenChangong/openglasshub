@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
+import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 
 interface CircleOption {
@@ -391,15 +392,15 @@ export default function CreatePostForm() {
           const fallbackName = item.kind === "video" ? `video-${index + 1}.mp4` : `image-${index + 1}.jpg`;
           const fileName = normalizeFileName(item.file.name) || fallbackName;
           const storagePath = `${sessionData.session.user.id}/${createdPostId}/${Date.now()}-${index}-${fileName}`;
-          const { error: uploadError } = await supabase.storage
-            .from("post-media")
-            .upload(storagePath, item.file, {
-              upsert: false,
-              contentType: item.file.type,
+          try {
+            await uploadToPostMediaWithTus({
+              file: item.file,
+              objectPath: storagePath,
+              accessToken,
             });
-
-          if (uploadError) {
-            throw new Error(`${item.kind === "video" ? "视频" : "图片"}上传失败：${uploadError.message}`);
+          } catch (uploadError) {
+            const uploadMessage = uploadError instanceof Error ? uploadError.message : "未知错误";
+            throw new Error(`${item.kind === "video" ? "视频" : "图片"}上传失败：${uploadMessage}`);
           }
 
           uploadedPaths.push(storagePath);

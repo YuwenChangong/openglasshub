@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
+import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 
 const circleTypes = [
@@ -137,16 +138,11 @@ export default function CreateCircleForm() {
 
       if (imageFile) {
         uploadedPath = `circles/${session.user.id}/${Date.now()}-${normalizeFileName(imageFile.name)}`;
-        const { error: uploadError } = await supabase.storage
-          .from("post-media")
-          .upload(uploadedPath, imageFile, {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: imageFile.type,
-          });
-        if (uploadError) {
-          throw new Error(`圈子图片上传失败：${uploadError.message}`);
-        }
+        await uploadToPostMediaWithTus({
+          file: imageFile,
+          objectPath: uploadedPath,
+          accessToken: session.access_token,
+        });
       }
 
       const response = await fetch("/api/forum/circles", {
