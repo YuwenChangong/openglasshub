@@ -121,6 +121,27 @@ function mapAuthError(errorMessage: string): string {
   if (/exceeded the maximum allowed size/i.test(errorMessage)) {
     return "视频上传失败。";
   }
+  if (/TURNSTILE_NOT_CONFIGURED/i.test(errorMessage)) {
+    return "发布验证服务未配置完成，请联系管理员检查 Turnstile 密钥。";
+  }
+  if (/invalid-input-secret/i.test(errorMessage)) {
+    return "发布验证配置错误（Secret 无效），请联系管理员修复。";
+  }
+  if (/invalid-input-response|missing-input-response/i.test(errorMessage)) {
+    return "发布验证已过期或未生效，请刷新页面后重试。";
+  }
+  if (/invalid hostname|hostname mismatch|invalid hostname/i.test(errorMessage)) {
+    return "当前站点域名不在发布验证白名单，请联系管理员把此域名加入 Turnstile Hostnames。";
+  }
+  if (/timeout-or-duplicate/i.test(errorMessage)) {
+    return "发布验证已超时，请稍后重试。";
+  }
+  if (/Turnstile verification failed/i.test(errorMessage)) {
+    return "发布验证失败，请刷新页面后重试。";
+  }
+  if (/请先完成发布安全验证/.test(errorMessage)) {
+    return "发布验证尚未准备好。请刷新页面后重试；若仍失败，检查 Turnstile Hostnames 与当前域名是否一致。";
+  }
   return errorMessage;
 }
 
@@ -171,11 +192,13 @@ async function uploadVideoToExternal(params: {
   });
 
   const ticketPayload = (await ticketResponse.json().catch(() => null)) as
-    | { error?: string; upload_url?: string; media_url?: string }
+    | { error?: string; code?: string; upload_url?: string; media_url?: string }
     | null;
 
   if (!ticketResponse.ok || !ticketPayload?.upload_url || !ticketPayload.media_url) {
-    throw new Error(ticketPayload?.error ?? `视频上传初始化失败 (${ticketResponse.status})`);
+    throw new Error(
+      ticketPayload?.code ? `${ticketPayload.code}: ${ticketPayload?.error ?? ""}` : ticketPayload?.error ?? `视频上传初始化失败 (${ticketResponse.status})`,
+    );
   }
 
   const uploadResponse = await fetch(ticketPayload.upload_url, {
@@ -347,7 +370,7 @@ export default function CreatePostForm() {
       }
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
-    throw new Error("请先完成发布安全验证。");
+    throw new Error("请先完成发布安全验证（token 未返回）。");
   }
 
   async function addMediaFiles(fileList: FileList | File[]) {
@@ -498,11 +521,13 @@ export default function CreatePostForm() {
       });
 
       const createPayload = (await createResponse.json().catch(() => null)) as
-        | { error?: string; post?: { id: string; status: string } }
+        | { error?: string; code?: string; post?: { id: string; status: string } }
         | null;
 
       if (!createResponse.ok || !createPayload?.post?.id) {
-        throw new Error(createPayload?.error ?? `发帖失败 (${createResponse.status})`);
+        throw new Error(
+          createPayload?.code ? `${createPayload.code}: ${createPayload?.error ?? ""}` : createPayload?.error ?? `发帖失败 (${createResponse.status})`,
+        );
       }
 
       createdPostId = createPayload.post.id;
