@@ -79,13 +79,11 @@ export async function deleteR2Objects(params: {
         },
       }),
     );
-    const errors = (result.Errors ?? [])
-      .map((item) => ({
-        key: item.Key ?? "",
-        code: item.Code ?? "Unknown",
-        message: item.Message ?? "Unknown R2 delete error",
-      }))
-      .filter((item) => item.code !== "NoSuchKey");
+    const errors = (result.Errors ?? []).map((item) => ({
+      key: item.Key ?? "",
+      code: item.Code ?? "Unknown",
+      message: item.Message ?? "Unknown R2 delete error",
+    }));
     if (errors.length > 0) {
       throw new Error(`R2_DELETE_FAILED:${JSON.stringify(errors)}`);
     }
