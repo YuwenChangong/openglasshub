@@ -456,16 +456,6 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    if (deletionFailures.length > 0) {
-      return json(
-        {
-          error: "POST_DELETE_MEDIA_PARTIAL_FAILURE",
-          failures: deletionFailures,
-        },
-        500,
-      );
-    }
-
     const { error: deleteMediaRowsError } = await userClient
       .from("post_media")
       .delete()
@@ -500,6 +490,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
         ok: true,
         post: { id: postId, status: "deleted" },
         mode: "hard_delete_cascade_fallback",
+        warnings: deletionFailures,
       });
     }
 
@@ -520,10 +511,15 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       if (hardDeleteError) {
         return json({ error: updateError.message }, 500);
       }
-      return json({ ok: true, post: { id: postId, status: "deleted" }, mode: "hard_delete_fallback" });
+      return json({
+        ok: true,
+        post: { id: postId, status: "deleted" },
+        mode: "hard_delete_fallback",
+        warnings: deletionFailures,
+      });
     }
 
-    return json({ ok: true, post: updated });
+    return json({ ok: true, post: updated, warnings: deletionFailures });
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },
