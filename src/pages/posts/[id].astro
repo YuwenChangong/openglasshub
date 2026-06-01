@@ -21,6 +21,7 @@ if (!id) {
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
+const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
 
 const { data: post, error } = await supabase
   .from("posts")
@@ -77,7 +78,12 @@ const postTypeLabels: Record<string, string> = {
 const circle = post?.circles ?? null;
 const canonicalUrl = post ? `https://openglasshub.pages.dev/posts/${post.id}/` : undefined;
 const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "/feed/");
-const postMedia = await resolveSignedPostMedia(supabase, (mediaRows ?? []) as PostMediaRow[]);
+const postMedia = await resolveSignedPostMedia(
+  supabase,
+  (mediaRows ?? []) as PostMediaRow[],
+  60 * 60,
+  r2PublicBaseUrl,
+);
 const likeCountMap = post ? await buildPostLikeCountMap(supabase, [post.id]) : new Map();
 const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
 const displayBody = sanitizeBodyForDisplay(post?.body);

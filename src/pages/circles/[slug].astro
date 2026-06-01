@@ -19,6 +19,7 @@ if (!slug) {
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
+const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
 
 const { circle, error: circleError, supportsExtendedSchema } = await fetchCircleBySlugWithFallback(supabase, slug);
 
@@ -43,7 +44,14 @@ if (circle) {
   postsError = result.error;
 }
 
-const postMediaMap = circle ? await buildResolvedPostMediaMap(supabase, posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>) : new Map();
+const postMediaMap = circle
+  ? await buildResolvedPostMediaMap(
+      supabase,
+      posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>,
+      60 * 60,
+      r2PublicBaseUrl,
+    )
+  : new Map();
 const likeCountMap = circle ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
 
 function formatDate(dateStr: string): string {

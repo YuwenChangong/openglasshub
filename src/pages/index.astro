@@ -25,6 +25,7 @@ type PostRow = {
 
 const env = (Astro.locals as { runtime?: { env?: CloudflareEnv } }).runtime?.env;
 const supabase = env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY ? createSSRClient(env) : null;
+const r2PublicBaseUrl = env?.R2_PUBLIC_BASE_URL || "";
 
 let posts: PostRow[] = [];
 let loadError = "";
@@ -45,7 +46,9 @@ if (supabase) {
   }
 }
 
-const postMediaMap = supabase ? await buildResolvedPostMediaMap(supabase, posts) : new Map();
+const postMediaMap = supabase
+  ? await buildResolvedPostMediaMap(supabase, posts, 60 * 60, r2PublicBaseUrl)
+  : new Map();
 const likeCountMap = supabase ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
 
 const postTypeLabels: Record<string, string> = {

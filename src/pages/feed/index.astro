@@ -12,6 +12,7 @@ import { sanitizeBodyForDisplay } from "../../lib/post-body";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
+const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
 
 const [{ data: posts, error }, { data: circles }] = await Promise.all([
   supabase
@@ -27,7 +28,14 @@ const [{ data: posts, error }, { data: circles }] = await Promise.all([
     .order("name", { ascending: true }),
 ]);
 
-const postMediaMap = posts ? await buildResolvedPostMediaMap(supabase, posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>) : new Map();
+const postMediaMap = posts
+  ? await buildResolvedPostMediaMap(
+      supabase,
+      posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>,
+      60 * 60,
+      r2PublicBaseUrl,
+    )
+  : new Map();
 const likeCountMap = posts ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
 
 const visibleCircles = (circles ?? []).filter((circle) => isPublicVisibleCircle(circle)).slice(0, 5);

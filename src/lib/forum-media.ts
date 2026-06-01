@@ -44,10 +44,17 @@ function sortMediaRows<T extends PostMediaRow>(rows: T[]): T[] {
   });
 }
 
+function buildPublicR2Url(baseUrl: string, storagePath: string): string {
+  const normalizedBase = baseUrl.replace(/\/+$/, "");
+  const normalizedPath = storagePath.replace(/^\/+/, "");
+  return `${normalizedBase}/${normalizedPath}`;
+}
+
 export async function resolveSignedPostMedia(
   supabase: SupabaseClient,
   mediaRows: PostMediaRow[],
   expiresIn = 60 * 60,
+  r2PublicBaseUrl?: string,
 ): Promise<ResolvedPostMedia[]> {
   const sortedRows = sortMediaRows(mediaRows);
   const storagePaths = sortedRows
@@ -63,9 +70,13 @@ export async function resolveSignedPostMedia(
   );
 
   return sortedRows.map((item) => {
+    const fallbackExternalUrl =
+      r2PublicBaseUrl && item.storage_path && item.storage_path.startsWith("tmp/")
+        ? buildPublicR2Url(r2PublicBaseUrl, item.storage_path)
+        : "";
     const signedUrl =
       item.storage_path && (item.kind === "image" || item.kind === "video")
-        ? signedUrlMap.get(item.storage_path) ?? item.url?.trim() ?? ""
+        ? signedUrlMap.get(item.storage_path) || fallbackExternalUrl || item.url?.trim() || ""
         : item.url?.trim() ?? "";
 
     return {
@@ -80,6 +91,7 @@ export async function buildResolvedPostMediaMap(
   supabase: SupabaseClient,
   posts: PostWithMedia[],
   expiresIn = 60 * 60,
+  r2PublicBaseUrl?: string,
 ): Promise<Map<string, ResolvedPostMedia[]>> {
   const flattened = posts.flatMap((post) =>
     (post.post_media ?? []).map((item) => ({
@@ -88,7 +100,12 @@ export async function buildResolvedPostMediaMap(
     })),
   );
 
-  const resolvedMedia = await resolveSignedPostMedia(supabase, flattened, expiresIn);
+  const resolvedMedia = await resolveSignedPostMedia(
+    supabase,
+    flattened,
+    expiresIn,
+    r2PublicBaseUrl,
+  );
   const mediaMap = new Map<string, ResolvedPostMedia[]>();
 
   for (const item of resolvedMedia) {
