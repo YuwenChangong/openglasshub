@@ -68,6 +68,7 @@ type MediaPayload =
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const storagePathRegex = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[^/]+$/i;
+const tempStoragePathRegex = /^tmp\/[0-9a-f-]{36}\/[^/]+$/i;
 const acceptedMimeTypes = new Set([
   "image/jpeg",
   "image/png",
@@ -165,10 +166,12 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
         return "video requires storage_path or url";
       }
       if (hasStoragePath) {
-        if (!storagePathRegex.test(storagePath)) {
+        if (!storagePathRegex.test(storagePath) && !tempStoragePathRegex.test(storagePath)) {
           return "Invalid media storage_path";
         }
-        if (!storagePath.startsWith(`${userId}/${postId}/`)) {
+        const isUserPostPath = storagePath.startsWith(`${userId}/${postId}/`);
+        const isUserTempPath = storagePath.startsWith(`tmp/${userId}/`);
+        if (!isUserPostPath && !isUserTempPath) {
           return "Media storage_path must stay inside the current user/post folder";
         }
       }
