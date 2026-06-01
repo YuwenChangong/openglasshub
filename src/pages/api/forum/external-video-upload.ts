@@ -162,7 +162,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       env,
       objectKey,
       contentType: mimeType,
-      contentLength: sizeBytes,
     });
 
     if (!previewBypass) {

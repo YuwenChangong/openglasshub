@@ -39,17 +39,15 @@ export async function signR2PutUrl(params: {
   env: Record<string, string | undefined>;
   objectKey: string;
   contentType: string;
-  contentLength: number;
   expiresInSeconds?: number;
 }): Promise<string> {
-  const { env, objectKey, contentType, contentLength, expiresInSeconds = 15 * 60 } = params;
+  const { env, objectKey, contentType, expiresInSeconds = 15 * 60 } = params;
   const client = createR2Client(env);
   const bucketName = getR2BucketName(env);
   const command = new PutObjectCommand({
     Bucket: bucketName,
     Key: objectKey,
     ContentType: contentType,
-    ContentLength: contentLength,
   });
   return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
 }
@@ -83,4 +81,3 @@ export async function deleteR2Objects(params: {
     );
   }
 }
-
