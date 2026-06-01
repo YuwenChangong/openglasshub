@@ -375,7 +375,8 @@ export default function CreatePostForm() {
       }
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
-    throw new Error("请先完成发布安全验证（token 未返回）。");
+    // Let the server decide final authz/verification (supports preview bypass).
+    return "";
   }
 
   async function addMediaFiles(fileList: FileList | File[]) {
