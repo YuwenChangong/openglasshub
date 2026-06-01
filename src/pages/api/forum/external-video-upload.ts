@@ -113,42 +113,47 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (post.author_id !== authData.user.id) return json({ error: "Cannot upload media for a post you do not own" }, 403);
 
     stage = "rate.ip";
-    const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
-    const ipHash = await hashIp(remoteIp, rateSalt);
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const previewBypass = env.DEV_TURNSTILE_BYPASS === "true";
+    let ipHash = "";
+    if (!previewBypass) {
+      const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
+      ipHash = await hashIp(remoteIp, rateSalt);
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    stage = "rate.ip.count";
-    const { count: ipCount, error: ipCountError } = await supabase
-      .from("forum_upload_attempts")
-      .select("id", { count: "exact", head: true })
-      .eq("purpose", "external_video_upload")
-      .eq("ip_hash", ipHash)
-      .gte("created_at", oneHourAgo);
-    if (ipCountError) return json({ error: formatDbError(stage, ipCountError) }, 500);
-    if ((ipCount ?? 0) >= 10) {
-      return json({ error: "Too many upload attempts from this IP", code: "UPLOAD_RATE_LIMITED" }, 429);
-    }
+      stage = "rate.ip.count";
+      const { count: ipCount, error: ipCountError } = await supabase
+        .from("forum_upload_attempts")
+        .select("id", { count: "exact", head: true })
+        .eq("purpose", "external_video_upload")
+        .eq("ip_hash", ipHash)
+        .gte("created_at", oneHourAgo);
+      if (ipCountError) return json({ error: formatDbError(stage, ipCountError) }, 500);
+      if ((ipCount ?? 0) >= 10) {
+        return json({ error: "Too many upload attempts from this IP", code: "UPLOAD_RATE_LIMITED" }, 429);
+      }
 
-    stage = "rate.daily.attempts";
-    const { data: dailyRows, error: dailyError } = await supabase
-      .from("forum_upload_attempts")
-      .select("bytes")
-      .eq("user_id", authData.user.id)
-      .gte("created_at", oneDayAgo);
-    if (dailyError) return json({ error: formatDbError(stage, dailyError) }, 500);
-    const usedAttemptBytes = (dailyRows ?? []).reduce((sum, row) => sum + Number(row.bytes ?? 0), 0);
-    stage = "rate.daily.media";
-    const { data: mediaRows, error: mediaBytesError } = await supabase
-      .from("post_media")
-      .select("size_bytes")
-      .eq("user_id", authData.user.id)
-      .gte("created_at", oneDayAgo);
-    if (mediaBytesError) return json({ error: formatDbError(stage, mediaBytesError) }, 500);
-    const usedMediaBytes = (mediaRows ?? []).reduce((sum, row) => sum + Number(row.size_bytes ?? 0), 0);
-    const usedBytes = Math.max(usedAttemptBytes, usedMediaBytes);
-    if (usedBytes + sizeBytes > 300 * 1024 * 1024) {
-      return json({ error: "Daily upload limit exceeded", code: "DAILY_UPLOAD_LIMIT_EXCEEDED" }, 429);
+      stage = "rate.daily.attempts";
+      const { data: dailyRows, error: dailyError } = await supabase
+        .from("forum_upload_attempts")
+        .select("bytes")
+        .eq("user_id", authData.user.id)
+        .gte("created_at", oneDayAgo);
+      if (dailyError) return json({ error: formatDbError(stage, dailyError) }, 500);
+      const usedAttemptBytes = (dailyRows ?? []).reduce((sum, row) => sum + Number(row.bytes ?? 0), 0);
+
+      stage = "rate.daily.media";
+      const { data: mediaRows, error: mediaBytesError } = await supabase
+        .from("post_media")
+        .select("size_bytes")
+        .eq("user_id", authData.user.id)
+        .gte("created_at", oneDayAgo);
+      if (mediaBytesError) return json({ error: formatDbError(stage, mediaBytesError) }, 500);
+      const usedMediaBytes = (mediaRows ?? []).reduce((sum, row) => sum + Number(row.size_bytes ?? 0), 0);
+      const usedBytes = Math.max(usedAttemptBytes, usedMediaBytes);
+      if (usedBytes + sizeBytes > 300 * 1024 * 1024) {
+        return json({ error: "Daily upload limit exceeded", code: "DAILY_UPLOAD_LIMIT_EXCEEDED" }, 429);
+      }
     }
 
     stage = "r2.sign";
@@ -160,14 +165,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
       contentLength: sizeBytes,
     });
 
-    stage = "attempt.insert";
-    const { error: insertAttemptError } = await supabase.from("forum_upload_attempts").insert({
-      user_id: authData.user.id,
-      ip_hash: ipHash,
-      bytes: sizeBytes,
-      purpose: "external_video_upload",
-    });
-    if (insertAttemptError) return json({ error: formatDbError(stage, insertAttemptError) }, 500);
+    if (!previewBypass) {
+      stage = "attempt.insert";
+      const { error: insertAttemptError } = await supabase.from("forum_upload_attempts").insert({
+        user_id: authData.user.id,
+        ip_hash: ipHash,
+        bytes: sizeBytes,
+        purpose: "external_video_upload",
+      });
+      if (insertAttemptError) return json({ error: formatDbError(stage, insertAttemptError) }, 500);
+    }
 
     return json({
       upload_url: uploadUrl,
