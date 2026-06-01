@@ -112,6 +112,15 @@ function normalizeR2ObjectKey(
   return null;
 }
 
+function isIgnorableStorageDeleteError(message: string | null | undefined): boolean {
+  const value = String(message ?? "").toLowerCase();
+  return (
+    value.includes("not found") ||
+    value.includes("the resource was not found") ||
+    value.includes("no such key")
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
@@ -438,7 +447,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     if (supabaseMediaPaths.length > 0) {
       const { error: removeStorageError } = await userClient.storage.from("post-media").remove(supabaseMediaPaths);
-      if (removeStorageError) {
+      if (removeStorageError && !isIgnorableStorageDeleteError(removeStorageError.message)) {
         deletionFailures.push({
           stage: "supabase_storage_delete",
           message: removeStorageError.message,
@@ -463,18 +472,35 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       .eq("post_id", postId)
       .eq("user_id", authData.user.id);
     if (deleteMediaRowsError) {
-      return json(
-        {
-          error: "POST_DELETE_MEDIA_PARTIAL_FAILURE",
-          failures: [
-            {
-              stage: "post_media_delete",
-              message: deleteMediaRowsError.message,
-            },
-          ],
-        },
-        500,
-      );
+      // Fallback: hard-delete post so FK cascade can remove remaining post_media rows.
+      const { error: hardDeleteCascadeError } = await userClient
+        .from("posts")
+        .delete()
+        .eq("id", postId)
+        .eq("author_id", authData.user.id);
+      if (hardDeleteCascadeError) {
+        return json(
+          {
+            error: "POST_DELETE_MEDIA_PARTIAL_FAILURE",
+            failures: [
+              {
+                stage: "post_media_delete",
+                message: deleteMediaRowsError.message,
+              },
+              {
+                stage: "post_media_delete",
+                message: `hard_delete_fallback_failed: ${hardDeleteCascadeError.message}`,
+              },
+            ],
+          },
+          500,
+        );
+      }
+      return json({
+        ok: true,
+        post: { id: postId, status: "deleted" },
+        mode: "hard_delete_cascade_fallback",
+      });
     }
 
     const { data: updated, error: updateError } = await userClient
