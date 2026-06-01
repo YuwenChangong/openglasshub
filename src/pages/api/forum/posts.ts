@@ -73,6 +73,45 @@ function parseModeratorEmails(raw: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function normalizeR2ObjectKey(
+  value: string | null | undefined,
+  r2PublicBaseUrl?: string,
+): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const stripLeading = (input: string) => input.replace(/^\/+/, "");
+  const isLikelyKey = (input: string) =>
+    input.startsWith("tmp/") || input.startsWith("posts/");
+
+  const direct = stripLeading(raw);
+  if (isLikelyKey(direct)) return direct;
+
+  const tryFromUrl = (urlString: string): string | null => {
+    try {
+      const url = new URL(urlString);
+      const key = stripLeading(url.pathname);
+      if (isLikelyKey(key)) return key;
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const fromRawUrl = tryFromUrl(raw);
+  if (fromRawUrl) return fromRawUrl;
+
+  if (r2PublicBaseUrl) {
+    const base = r2PublicBaseUrl.replace(/\/+$/, "");
+    if (raw.startsWith(base + "/")) {
+      const tail = stripLeading(raw.slice(base.length + 1));
+      if (isLikelyKey(tail)) return tail;
+    }
+  }
+
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
@@ -353,7 +392,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     const { data: mediaRows, error: mediaQueryError } = await userClient
       .from("post_media")
-      .select("id,kind,storage_path")
+      .select("id,kind,storage_path,url")
       .eq("post_id", postId)
       .eq("user_id", authData.user.id);
     if (mediaQueryError) {
@@ -363,8 +402,17 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     const postMediaStoragePaths = (mediaRows ?? [])
       .map((row) => row.storage_path)
       .filter((value): value is string => Boolean(value));
-    const r2Keys = postMediaStoragePaths.filter((path) => path.startsWith("tmp/") || path.startsWith("posts/"));
-    const supabaseMediaPaths = postMediaStoragePaths.filter((path) => !r2Keys.includes(path));
+    const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL;
+    const r2Keys = Array.from(
+      new Set(
+        (mediaRows ?? [])
+          .map((row) => normalizeR2ObjectKey(row.storage_path, r2PublicBaseUrl) ?? normalizeR2ObjectKey(row.url, r2PublicBaseUrl))
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const supabaseMediaPaths = postMediaStoragePaths.filter(
+      (path) => !r2Keys.includes(path.replace(/^\/+/, "")),
+    );
 
     const deletionFailures: Array<{
       stage: "r2_delete" | "supabase_storage_delete" | "post_media_delete";
