@@ -174,7 +174,7 @@ async function uploadVideoToExternal(params: {
   postId: string;
   file: File;
   turnstileToken: string;
-}): Promise<{ mediaUrl: string }> {
+}): Promise<{ mediaUrl: string; storagePath: string }> {
   const { accessToken, postId, file, turnstileToken } = params;
   const ticketResponse = await fetch("/api/forum/external-video-upload", {
     method: "POST",
@@ -192,10 +192,21 @@ async function uploadVideoToExternal(params: {
   });
 
   const ticketPayload = (await ticketResponse.json().catch(() => null)) as
-    | { error?: string; code?: string; upload_url?: string; media_url?: string }
+    | {
+        error?: string;
+        code?: string;
+        upload_url?: string;
+        media_url?: string;
+        storage_path?: string;
+      }
     | null;
 
-  if (!ticketResponse.ok || !ticketPayload?.upload_url || !ticketPayload.media_url) {
+  if (
+    !ticketResponse.ok ||
+    !ticketPayload?.upload_url ||
+    !ticketPayload.media_url ||
+    !ticketPayload.storage_path
+  ) {
     throw new Error(
       ticketPayload?.code ? `${ticketPayload.code}: ${ticketPayload?.error ?? ""}` : ticketPayload?.error ?? `视频上传初始化失败 (${ticketResponse.status})`,
     );
@@ -214,7 +225,7 @@ async function uploadVideoToExternal(params: {
     throw new Error(errorText || `视频上传失败 (${uploadResponse.status})`);
   }
 
-  return { mediaUrl: ticketPayload.media_url };
+  return { mediaUrl: ticketPayload.media_url, storagePath: ticketPayload.storage_path };
 }
 
 export default function CreatePostForm() {
@@ -564,7 +575,7 @@ export default function CreatePostForm() {
               });
               mediaPayload.push({
                 kind: "video",
-                url: uploaded.mediaUrl,
+                storage_path: uploaded.storagePath,
                 alt_text: title.trim() || item.file.name,
                 sort_order: index,
                 width: item.width,
