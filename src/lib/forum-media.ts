@@ -57,8 +57,15 @@ export async function resolveSignedPostMedia(
   r2PublicBaseUrl?: string,
 ): Promise<ResolvedPostMedia[]> {
   const sortedRows = sortMediaRows(mediaRows);
+  const isR2TempMedia = (item: PostMediaRow) =>
+    Boolean(item.storage_path && item.storage_path.startsWith("tmp/"));
   const storagePaths = sortedRows
-    .filter((item) => (item.kind === "image" || item.kind === "video") && item.storage_path)
+    .filter(
+      (item) =>
+        (item.kind === "image" || item.kind === "video") &&
+        item.storage_path &&
+        !isR2TempMedia(item),
+    )
     .map((item) => item.storage_path as string);
 
   const { data: signedUrls } = storagePaths.length
@@ -70,12 +77,14 @@ export async function resolveSignedPostMedia(
   );
 
   return sortedRows.map((item) => {
+    const isTempR2 = isR2TempMedia(item);
     const fallbackExternalUrl =
-      r2PublicBaseUrl && item.storage_path && item.storage_path.startsWith("tmp/")
+      r2PublicBaseUrl && item.storage_path && isTempR2
         ? buildPublicR2Url(r2PublicBaseUrl, item.storage_path)
         : "";
-    const signedUrl =
-      item.storage_path && (item.kind === "image" || item.kind === "video")
+    const signedUrl = isTempR2
+      ? fallbackExternalUrl || item.url?.trim() || ""
+      : item.storage_path && (item.kind === "image" || item.kind === "video")
         ? signedUrlMap.get(item.storage_path) || fallbackExternalUrl || item.url?.trim() || ""
         : item.url?.trim() ?? "";
 
