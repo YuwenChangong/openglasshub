@@ -410,9 +410,12 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
           .filter((value): value is string => Boolean(value)),
       ),
     );
-    const supabaseMediaPaths = postMediaStoragePaths.filter(
-      (path) => !r2Keys.includes(path.replace(/^\/+/, "")),
-    );
+    const supabaseMediaPaths = postMediaStoragePaths.filter((path) => {
+      // If this value can be resolved to an R2 object key (including full URL),
+      // it must NOT be sent to Supabase Storage remove.
+      const resolvedR2Key = normalizeR2ObjectKey(path, r2PublicBaseUrl);
+      return !resolvedR2Key;
+    });
 
     const deletionFailures: Array<{
       stage: "r2_delete" | "supabase_storage_delete" | "post_media_delete";
