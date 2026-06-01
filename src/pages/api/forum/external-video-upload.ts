@@ -42,10 +42,13 @@ async function hashIp(ip: string, salt: string): Promise<string> {
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
+  let stage = "init";
   try {
+    stage = "env";
     const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
     if (!env) return json({ error: "Runtime environment not available" }, 500);
 
+    stage = "auth";
     const token = getBearerToken(request);
     if (!token) return json({ error: "Missing bearer token" }, 401);
 
@@ -53,9 +56,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
+    stage = "auth.getUser";
     const { data: authData, error: authError } = await supabase.auth.getUser(token);
     if (authError || !authData.user) return json({ error: "Invalid auth token" }, 401);
 
+    stage = "payload";
     const payload = (await request.json().catch(() => null)) as
       | { post_id?: string; file_name?: string; mime_type?: string; size_bytes?: number; turnstile_token?: string }
       | null;
@@ -68,6 +73,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const turnstileToken = String(payload.turnstile_token ?? "").trim();
     const remoteIp = getRequestIp(request);
 
+    stage = "turnstile";
     const turnstile = await validateTurnstileToken({
       env,
       token: turnstileToken,
@@ -84,6 +90,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "Video size exceeds current upload limit" }, 400);
     }
 
+    stage = "post.lookup";
     const { data: post, error: postError } = await supabase
       .from("posts")
       .select("id, author_id")
@@ -93,11 +100,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!post) return json({ error: "Post not found" }, 404);
     if (post.author_id !== authData.user.id) return json({ error: "Cannot upload media for a post you do not own" }, 403);
 
+    stage = "rate.ip";
     const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
     const ipHash = await hashIp(remoteIp, rateSalt);
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+    stage = "rate.ip.count";
     const { count: ipCount, error: ipCountError } = await supabase
       .from("forum_upload_attempts")
       .select("id", { count: "exact", head: true })
@@ -109,6 +118,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "Too many upload attempts from this IP", code: "UPLOAD_RATE_LIMITED" }, 429);
     }
 
+    stage = "rate.daily.attempts";
     const { data: dailyRows, error: dailyError } = await supabase
       .from("forum_upload_attempts")
       .select("bytes")
@@ -116,6 +126,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .gte("created_at", oneDayAgo);
     if (dailyError) return json({ error: dailyError.message }, 500);
     const usedAttemptBytes = (dailyRows ?? []).reduce((sum, row) => sum + Number(row.bytes ?? 0), 0);
+    stage = "rate.daily.media";
     const { data: mediaRows, error: mediaBytesError } = await supabase
       .from("post_media")
       .select("size_bytes")
@@ -128,6 +139,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "Daily upload limit exceeded", code: "DAILY_UPLOAD_LIMIT_EXCEEDED" }, 429);
     }
 
+    stage = "r2.sign";
     const objectKey = buildTmpVideoKey(authData.user.id, fileNameRaw);
     const uploadUrl = await signR2PutUrl({
       env,
@@ -136,6 +148,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       contentLength: sizeBytes,
     });
 
+    stage = "attempt.insert";
     const { error: insertAttemptError } = await supabase.from("forum_upload_attempts").insert({
       user_id: authData.user.id,
       ip_hash: ipHash,
@@ -151,7 +164,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
+    const message =
+      error instanceof Error
+        ? (error.message?.trim() || error.name || "Unexpected server error")
+        : "Unexpected server error";
+    return json({ error: `[${stage}] ${message}` }, 500);
   }
 };
 
