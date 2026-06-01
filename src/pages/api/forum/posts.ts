@@ -366,21 +366,44 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     const r2Keys = postMediaStoragePaths.filter((path) => path.startsWith("tmp/") || path.startsWith("posts/"));
     const supabaseMediaPaths = postMediaStoragePaths.filter((path) => !r2Keys.includes(path));
 
-    const deletionWarnings: string[] = [];
+    const deletionFailures: Array<{
+      stage: "r2_delete" | "supabase_storage_delete" | "post_media_delete";
+      message: string;
+      storagePaths?: string[];
+    }> = [];
 
     if (r2Keys.length > 0) {
       try {
         await deleteR2Objects({ env, objectKeys: r2Keys });
       } catch (r2DeleteError) {
-        deletionWarnings.push(`R2 media delete failed: ${r2DeleteError instanceof Error ? r2DeleteError.message : "unknown error"}`);
+        deletionFailures.push({
+          stage: "r2_delete",
+          message:
+            r2DeleteError instanceof Error ? r2DeleteError.message : "unknown error",
+          storagePaths: r2Keys,
+        });
       }
     }
 
     if (supabaseMediaPaths.length > 0) {
       const { error: removeStorageError } = await userClient.storage.from("post-media").remove(supabaseMediaPaths);
       if (removeStorageError) {
-        deletionWarnings.push(`Supabase media delete failed: ${removeStorageError.message}`);
+        deletionFailures.push({
+          stage: "supabase_storage_delete",
+          message: removeStorageError.message,
+          storagePaths: supabaseMediaPaths,
+        });
       }
+    }
+
+    if (deletionFailures.length > 0) {
+      return json(
+        {
+          error: "POST_DELETE_MEDIA_PARTIAL_FAILURE",
+          failures: deletionFailures,
+        },
+        500,
+      );
     }
 
     const { error: deleteMediaRowsError } = await userClient
@@ -389,7 +412,18 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       .eq("post_id", postId)
       .eq("user_id", authData.user.id);
     if (deleteMediaRowsError) {
-      deletionWarnings.push(`post_media delete failed: ${deleteMediaRowsError.message}`);
+      return json(
+        {
+          error: "POST_DELETE_MEDIA_PARTIAL_FAILURE",
+          failures: [
+            {
+              stage: "post_media_delete",
+              message: deleteMediaRowsError.message,
+            },
+          ],
+        },
+        500,
+      );
     }
 
     const { data: updated, error: updateError } = await userClient
@@ -412,7 +446,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       return json({ ok: true, post: { id: postId, status: "deleted" }, mode: "hard_delete_fallback" });
     }
 
-    return json({ ok: true, post: updated, warnings: deletionWarnings });
+    return json({ ok: true, post: updated });
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },

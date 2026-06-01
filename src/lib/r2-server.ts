@@ -70,7 +70,7 @@ export async function deleteR2Objects(params: {
     chunks.push(objectKeys.slice(i, i + 1000));
   }
   for (const chunk of chunks) {
-    await client.send(
+    const result = await client.send(
       new DeleteObjectsCommand({
         Bucket: bucketName,
         Delete: {
@@ -79,5 +79,13 @@ export async function deleteR2Objects(params: {
         },
       }),
     );
+    const errors = (result.Errors ?? []).map((item) => ({
+      key: item.Key ?? "",
+      code: item.Code ?? "Unknown",
+      message: item.Message ?? "Unknown R2 delete error",
+    }));
+    if (errors.length > 0) {
+      throw new Error(`R2_DELETE_FAILED:${JSON.stringify(errors)}`);
+    }
   }
 }
