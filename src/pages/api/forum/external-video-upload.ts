@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { buildR2PublicUrl, buildTmpVideoKey, signR2PutUrl } from "../../../lib/r2-server";
 import { getRequestIp } from "../../../lib/request-ip";
 import { validateTurnstileToken } from "../../../lib/turnstile";
+import type { PostgrestError } from "@supabase/supabase-js";
 
 export const prerender = false;
 
@@ -28,6 +29,17 @@ function requireEnv(env: Record<string, string | undefined>, key: string): strin
   const value = env[key];
   if (!value) throw new Error(`Missing required env var: ${key}`);
   return value;
+}
+
+function formatDbError(stage: string, error: PostgrestError | null): string {
+  if (!error) return `[${stage}] Unknown database error`;
+  const parts = [
+    error.message?.trim() || "Unknown database error",
+    error.code ? `code=${error.code}` : "",
+    error.details ? `details=${error.details}` : "",
+    error.hint ? `hint=${error.hint}` : "",
+  ].filter(Boolean);
+  return `[${stage}] ${parts.join(" | ")}`;
 }
 
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
@@ -96,7 +108,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .select("id, author_id")
       .eq("id", postId)
       .maybeSingle();
-    if (postError) return json({ error: postError.message }, 500);
+    if (postError) return json({ error: formatDbError(stage, postError) }, 500);
     if (!post) return json({ error: "Post not found" }, 404);
     if (post.author_id !== authData.user.id) return json({ error: "Cannot upload media for a post you do not own" }, 403);
 
@@ -113,7 +125,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .eq("purpose", "external_video_upload")
       .eq("ip_hash", ipHash)
       .gte("created_at", oneHourAgo);
-    if (ipCountError) return json({ error: ipCountError.message }, 500);
+    if (ipCountError) return json({ error: formatDbError(stage, ipCountError) }, 500);
     if ((ipCount ?? 0) >= 10) {
       return json({ error: "Too many upload attempts from this IP", code: "UPLOAD_RATE_LIMITED" }, 429);
     }
@@ -124,7 +136,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .select("bytes")
       .eq("user_id", authData.user.id)
       .gte("created_at", oneDayAgo);
-    if (dailyError) return json({ error: dailyError.message }, 500);
+    if (dailyError) return json({ error: formatDbError(stage, dailyError) }, 500);
     const usedAttemptBytes = (dailyRows ?? []).reduce((sum, row) => sum + Number(row.bytes ?? 0), 0);
     stage = "rate.daily.media";
     const { data: mediaRows, error: mediaBytesError } = await supabase
@@ -132,7 +144,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .select("size_bytes")
       .eq("user_id", authData.user.id)
       .gte("created_at", oneDayAgo);
-    if (mediaBytesError) return json({ error: mediaBytesError.message }, 500);
+    if (mediaBytesError) return json({ error: formatDbError(stage, mediaBytesError) }, 500);
     const usedMediaBytes = (mediaRows ?? []).reduce((sum, row) => sum + Number(row.size_bytes ?? 0), 0);
     const usedBytes = Math.max(usedAttemptBytes, usedMediaBytes);
     if (usedBytes + sizeBytes > 300 * 1024 * 1024) {
@@ -155,7 +167,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       bytes: sizeBytes,
       purpose: "external_video_upload",
     });
-    if (insertAttemptError) return json({ error: insertAttemptError.message }, 500);
+    if (insertAttemptError) return json({ error: formatDbError(stage, insertAttemptError) }, 500);
 
     return json({
       upload_url: uploadUrl,
