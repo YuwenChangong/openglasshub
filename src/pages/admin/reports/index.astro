@@ -1,0 +1,19 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../../layouts/CommunityLayout.astro";
+import AdminReportsPanel from "../../../components/admin/AdminReportsPanel";
+---
+
+<CommunityLayout
+  title="管理员举报列表"
+  description="OpenGlass Hub 管理员举报列表。"
+  noindex={true}
+  activeSection="forum"
+>
+  <section class="community-section" style="padding-top: 1rem;">
+    <h1 class="community-page-title">/admin/reports</h1>
+    <p class="community-page-subtitle">查看举报内容并跳转到帖子处理。</p>
+    <AdminReportsPanel client:load />
+  </section>
+</CommunityLayout>

@@ -1,0 +1,19 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../../layouts/CommunityLayout.astro";
+import AdminForumDashboard from "../../../components/admin/AdminForumDashboard";
+---
+
+<CommunityLayout
+  title="管理员论坛治理"
+  description="OpenGlass Hub 管理员论坛治理页。"
+  noindex={true}
+  activeSection="forum"
+>
+  <section class="community-section" style="padding-top: 1rem;">
+    <h1 class="community-page-title">/admin/forum</h1>
+    <p class="community-page-subtitle">最近帖子、状态、媒体体积、举报量，以及隐藏/恢复/删除操作。</p>
+    <AdminForumDashboard client:load />
+  </section>
+</CommunityLayout>
