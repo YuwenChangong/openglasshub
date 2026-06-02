@@ -81,13 +81,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         target_id: postId,
         reason,
       })
-      .select("id, created_at")
+      .select("id,target_type,target_id,reason,created_at")
       .single();
     if (insertError) {
       return json({ error: insertError.message }, 500);
     }
 
-    return json({ report }, 201);
+    return json({ ok: true, report }, 201);
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },

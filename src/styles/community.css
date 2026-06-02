@@ -1708,6 +1708,17 @@ body {
   color: var(--text);
 }
 
+.report-success-message {
+  display: block;
+  padding: 0.7rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(174, 199, 176, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: #d7e5d8;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
 .admin-state-message {
   margin: 0.6rem 1rem 1rem;
 }
@@ -1757,6 +1768,29 @@ body {
   color: var(--text-muted);
   font-size: 0.82rem;
   line-height: 1.5;
+}
+
+.admin-report-card {
+  gap: 0.7rem;
+}
+
+.admin-report-target {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.admin-report-target span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.admin-report-author {
+  color: var(--text-muted);
+}
+
+.admin-report-missing-target {
+  color: #ddbebe;
+  font-size: 0.82rem;
 }
 
 .admin-error,

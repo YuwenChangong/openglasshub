@@ -4,23 +4,39 @@ import { useAdminSession } from "./useAdminSession";
 
 type AdminReport = {
   id: string;
-  post_id: string;
+  target_type: string | null;
+  target_id: string | null;
   reporter_id: string;
   reason: string;
-  status: string;
+  status: string | null;
   created_at: string;
-  post_title: string | null;
-  post_status: string | null;
-  post_author_id: string | null;
-  post_author_profile: {
-    id: string;
-    display_name?: string | null;
-    username?: string | null;
-  } | null;
   reporter_profile: {
     id: string;
     display_name?: string | null;
     username?: string | null;
+    avatar_url?: string | null;
+    role?: string | null;
+  } | null;
+  post: {
+    id: string;
+    title: string | null;
+    body_excerpt: string;
+    status: string | null;
+    author_id: string | null;
+    author_profile: {
+      id: string;
+      display_name?: string | null;
+      username?: string | null;
+      avatar_url?: string | null;
+      role?: string | null;
+    } | null;
+    circle: {
+      id: string;
+      name: string | null;
+      slug: string | null;
+    } | null;
+    created_at: string | null;
+    updated_at: string | null;
   } | null;
 };
 
@@ -48,6 +64,10 @@ function getStatusBadge(status: string | null) {
     default:
       return { label: status ?? "未知", className: "admin-status-badge" };
   }
+}
+
+function profileLabel(profile: { display_name?: string | null; username?: string | null } | null, fallback = "未知用户") {
+  return profile?.display_name || profile?.username || fallback;
 }
 
 export default function AdminReportsPanel() {
@@ -146,31 +166,44 @@ export default function AdminReportsPanel() {
       {reports.length > 0 ? (
         <div className="community-list" style={{ marginTop: "0.8rem" }}>
           {reports.map((report) => {
-            const badge = getStatusBadge(report.post_status);
-            const postAuthor =
-              report.post_author_profile?.display_name ||
-              report.post_author_profile?.username ||
-              "未知用户";
-            const reporter =
-              report.reporter_profile?.display_name ||
-              report.reporter_profile?.username ||
-              "未知用户";
+            const badge = getStatusBadge(report.post?.status ?? report.status);
+            const postAuthor = profileLabel(report.post?.author_profile);
+            const reporter = profileLabel(report.reporter_profile);
+            const postExists = report.target_type === "post" && Boolean(report.post);
 
             return (
-              <article key={report.id} className="community-list-item" style={{ gap: "0.6rem" }}>
+              <article key={report.id} className="community-list-item admin-report-card" style={{ gap: "0.6rem" }}>
                 <div className="admin-action-row">
-                  <strong>{report.post_title ?? "(帖子已删除)"}</strong>
+                  <strong>{report.post?.title ?? "帖子不存在或已删除"}</strong>
                   <span className={badge.className}>{badge.label}</span>
                 </div>
+                <div className="admin-report-target">
+                  {report.post ? (
+                    <>
+                      <span>圈子：{report.post.circle?.name ?? "未归属圈子"}</span>
+                      {report.post.body_excerpt ? <p className="admin-post-excerpt">{report.post.body_excerpt}</p> : null}
+                    </>
+                  ) : (
+                    <span className="admin-report-missing-target">
+                      {report.target_type === "post" ? "帖子不存在或已删除" : "暂不支持的举报目标类型"}
+                    </span>
+                  )}
+                </div>
                 <div className="admin-meta-grid">
-                  <span>帖子作者：{postAuthor} <code>{shortId(report.post_author_id)}</code></span>
+                  <span className="admin-report-author">帖子作者：{postAuthor} <code>{shortId(report.post?.author_id)}</code></span>
                   <span>举报人：{reporter} <code>{shortId(report.reporter_id)}</code></span>
                   <span>举报时间：{new Date(report.created_at).toLocaleString("zh-CN")}</span>
                 </div>
                 <p className="admin-post-excerpt">举报原因：{report.reason}</p>
                 <div className="admin-action-row">
-                  <a href={`/posts/${report.post_id}/`} className="admin-action-button">查看帖子</a>
-                  <a href="/admin/forum/" className="admin-action-button">去处理帖子</a>
+                  {postExists ? (
+                    <>
+                      <a href={`/posts/${report.post?.id}/`} className="admin-action-button">查看帖子</a>
+                      <a href={`/admin/forum/?post=${report.post?.id}`} className="admin-action-button">去处理帖子</a>
+                    </>
+                  ) : (
+                    <span className="admin-report-missing-target">帖子不存在或已删除</span>
+                  )}
                 </div>
               </article>
             );

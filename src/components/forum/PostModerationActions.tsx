@@ -40,6 +40,7 @@ export default function PostModerationActions({
   const [reportCategory, setReportCategory] = useState<string>(REPORT_CATEGORIES[0]);
   const [reportDescription, setReportDescription] = useState("");
   const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [reportSuccessMessage, setReportSuccessMessage] = useState("");
   const [isAuthor, setIsAuthor] = useState(false);
 
   useEffect(() => {
@@ -108,6 +109,8 @@ export default function PostModerationActions({
   function openReportModal() {
     setMessage("");
     setError("");
+    setReportSuccessMessage("");
+    setReportSubmitted(false);
     if (!sessionResolved) {
       return;
     }
@@ -210,9 +213,13 @@ export default function PostModerationActions({
         throw new Error(payload?.error ?? `举报失败 (${response.status})`);
       }
       setReportSubmitted(true);
-      setMessage("已举报");
-      setModalMode(null);
+      setMessage("已成功提交举报，管理员会尽快处理。");
+      setReportSuccessMessage("已成功提交举报，管理员会尽快处理。");
       setReportDescription("");
+      window.setTimeout(() => {
+        setModalMode(null);
+        setReportSuccessMessage("");
+      }, 1500);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "举报失败。");
     } finally {
@@ -272,6 +279,7 @@ export default function PostModerationActions({
                   />
                 </label>
                 <span className="community-meta">可只提交原因分类；如填写说明，需在 5 到 500 字之间。</span>
+                {reportSuccessMessage ? <span className="report-success-message">{reportSuccessMessage}</span> : null}
                 </>
               ) : (
                 <div className="report-login-cta">
@@ -321,6 +329,8 @@ export default function PostModerationActions({
               >
                 {loading
                   ? "提交中..."
+                  : reportSubmitted && modalMode === "report"
+                    ? "已提交"
                   : modalMode === "report"
                     ? "提交举报"
                     : modalMode === "delete"
