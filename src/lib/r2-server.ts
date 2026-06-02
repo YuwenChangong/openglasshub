@@ -1,5 +1,6 @@
-import { S3Client, PutObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { AwsClient } from "aws4fetch";
 
 function requireEnv(env: Record<string, string | undefined>, key: string): string {
   const value = env[key];
@@ -57,35 +58,79 @@ export function buildR2PublicUrl(env: Record<string, string | undefined>, object
   return `${base}/${objectKey}`;
 }
 
-export async function deleteR2Objects(params: {
-  env: Record<string, string | undefined>;
-  objectKeys: string[];
-}): Promise<void> {
-  const { env, objectKeys } = params;
-  if (!objectKeys.length) return;
-  const client = createR2Client(env);
+export type R2DeleteObjectResult = {
+  ok: boolean;
+  httpStatus?: number;
+  body?: string;
+  code?: string;
+  error?: string;
+};
+
+function buildR2ObjectDeleteUrl(env: Record<string, string | undefined>, objectKey: string): string {
+  const accountId = requireEnv(env, "R2_ACCOUNT_ID");
   const bucketName = getR2BucketName(env);
-  const chunks: string[][] = [];
-  for (let i = 0; i < objectKeys.length; i += 1000) {
-    chunks.push(objectKeys.slice(i, i + 1000));
+  const normalizedKey = objectKey.replace(/^\/+/, "").split("/").map(encodeURIComponent).join("/");
+  return `https://${accountId}.r2.cloudflarestorage.com/${bucketName}/${normalizedKey}`;
+}
+
+function extractXmlTagValue(xml: string, tagName: string): string {
+  const match = xml.match(new RegExp(`<${tagName}>([^<]+)</${tagName}>`, "i"));
+  return match?.[1]?.trim() ?? "";
+}
+
+export async function deleteR2Object(params: {
+  env: Record<string, string | undefined>;
+  objectKey: string;
+}): Promise<R2DeleteObjectResult> {
+  const { env, objectKey } = params;
+  const missingEnv = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET_NAME"].filter(
+    (key) => !String(env[key] ?? "").trim(),
+  );
+
+  if (missingEnv.length > 0) {
+    return {
+      ok: false,
+      error: `R2 delete skipped: missing R2 env ${missingEnv.join(", ")}`,
+    };
   }
-  for (const chunk of chunks) {
-    const result = await client.send(
-      new DeleteObjectsCommand({
-        Bucket: bucketName,
-        Delete: {
-          Objects: chunk.map((key) => ({ Key: key })),
-          Quiet: true,
-        },
-      }),
-    );
-    const errors = (result.Errors ?? []).map((item) => ({
-      key: item.Key ?? "",
-      code: item.Code ?? "Unknown",
-      message: item.Message ?? "Unknown R2 delete error",
-    }));
-    if (errors.length > 0) {
-      throw new Error(`R2_DELETE_FAILED:${JSON.stringify(errors)}`);
+
+  try {
+    const client = new AwsClient({
+      accessKeyId: requireEnv(env, "R2_ACCESS_KEY_ID"),
+      secretAccessKey: requireEnv(env, "R2_SECRET_ACCESS_KEY"),
+      service: "s3",
+      region: "auto",
+    });
+    const response = await client.fetch(buildR2ObjectDeleteUrl(env, objectKey), {
+      method: "DELETE",
+    });
+    const body = (await response.text().catch(() => "")).trim();
+
+    if (response.status === 200 || response.status === 204) {
+      return { ok: true, httpStatus: response.status, body };
     }
+
+    const code = extractXmlTagValue(body, "Code");
+    if (response.status === 404 || code === "NoSuchKey") {
+      return {
+        ok: true,
+        httpStatus: response.status,
+        body,
+        code: code || "NoSuchKey",
+      };
+    }
+
+    return {
+      ok: false,
+      httpStatus: response.status,
+      body,
+      code,
+      error: `R2 delete failed: HTTP ${response.status}${body ? ` ${body}` : ""}`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unknown R2 delete error",
+    };
   }
 }

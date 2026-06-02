@@ -210,8 +210,8 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       post: { id: postId, status: "deleted" },
       cleanup: cleanupPayload,
       message: cleanup.ok
-        ? "帖子已删除并清理媒体。"
-        : "帖子已删除，部分媒体清理需要后续重试。",
+        ? "已删除并清理媒体"
+        : "已删除，部分媒体清理需要后续重试",
     });
   } catch (error) {
     if (error instanceof Response) return error;

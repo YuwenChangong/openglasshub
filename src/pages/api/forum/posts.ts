@@ -359,7 +359,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
           deletedObjects: [],
           deletedRows: 0,
         },
-        message: "帖子已删除。",
+        message: "已删除",
       });
     }
 
@@ -421,7 +421,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
         deletedObjects: cleanup.deletedObjects,
         deletedRows: cleanup.deletedRows,
       },
-      message: cleanup.ok ? "帖子已删除并清理媒体。" : "帖子已删除，部分媒体清理需要后续重试。",
+      message: cleanup.ok ? "已删除并清理媒体" : "已删除，部分媒体清理需要后续重试",
     });
   } catch (err) {
     return json(

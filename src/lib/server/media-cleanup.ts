@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deleteR2Objects } from "../r2-server";
+import { deleteR2Object } from "../r2-server";
 import type { RuntimeEnv } from "./admin-auth";
 
 export type PostMediaLike = {
@@ -19,6 +19,7 @@ export type MediaCleanupResult = {
     storage: MediaCleanupStorage;
     path?: string;
     status: MediaCleanupObjectStatus;
+    httpStatus?: number;
     error?: string;
   }>;
   deletedRows: number;
@@ -74,33 +75,6 @@ function isIgnorableStorageDeleteError(message: string | null | undefined): bool
   );
 }
 
-function parseR2DeleteErrorMessage(message: string): Array<{ code: string; detail: string }> {
-  const normalized = nonEmptyMessage(message, "Unknown R2 delete error");
-  const prefix = "R2_DELETE_FAILED:";
-  if (!normalized.startsWith(prefix)) {
-    return [{ code: "Unknown", detail: normalized }];
-  }
-
-  try {
-    const parsed = JSON.parse(normalized.slice(prefix.length)) as Array<{
-      code?: string;
-      message?: string;
-      key?: string;
-    }>;
-
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return [{ code: "Unknown", detail: normalized }];
-    }
-
-    return parsed.map((item) => ({
-      code: nonEmptyMessage(item.code, "Unknown"),
-      detail: nonEmptyMessage(item.message, "Unknown R2 delete error"),
-    }));
-  } catch {
-    return [{ code: "Unknown", detail: normalized }];
-  }
-}
-
 function mergeResults(target: MediaCleanupResult, partial: MediaCleanupResult) {
   target.deletedObjects.push(...partial.deletedObjects);
   target.deletedRows += partial.deletedRows;
@@ -154,27 +128,27 @@ export async function deleteMediaObject(params: {
     storage: resolved.storage,
     path: resolved.path,
     status: "skipped" as MediaCleanupObjectStatus,
+    httpStatus: undefined as number | undefined,
   };
 
   if (resolved.storage === "r2" && resolved.path) {
-    try {
-      await deleteR2Objects({ env, objectKeys: [resolved.path] });
+    const deletion = await deleteR2Object({ env, objectKey: resolved.path });
+    entry.httpStatus = deletion.httpStatus;
+    if (deletion.ok && deletion.httpStatus !== 404 && deletion.code !== "NoSuchKey") {
       entry.status = "deleted";
-    } catch (error) {
-      const message = nonEmptyMessage(
-        error instanceof Error ? error.message : null,
-        "Unknown R2 delete error",
-      );
-      const parsedErrors = parseR2DeleteErrorMessage(message);
-      if (parsedErrors.every((item) => isIgnorableStorageDeleteError(item.code) || isIgnorableStorageDeleteError(item.detail))) {
-        entry.status = "already_missing";
-        result.warnings.push(`media ${media.id} R2 object already missing: ${resolved.path}`);
+    } else if (deletion.ok) {
+      entry.status = "already_missing";
+      result.warnings.push(`media ${media.id} R2 object already missing: ${resolved.path}`);
+    } else {
+      const message = nonEmptyMessage(deletion.error, "Unknown R2 delete error");
+      entry.status = "failed";
+      entry.error = message;
+      if (message.startsWith("R2 delete skipped: missing R2 env ")) {
+        result.warnings.push(`media ${media.id} ${message}`);
       } else {
-        entry.status = "failed";
-        entry.error = message;
-        result.errors.push(`media ${media.id} R2 delete failed: ${message}`);
-        result.ok = false;
+        result.errors.push(`media ${media.id} ${message}`);
       }
+      result.ok = false;
     }
   } else if (resolved.storage === "supabase" && resolved.path) {
     const { error: removeStorageError } = await client.storage.from("post-media").remove([resolved.path]);
