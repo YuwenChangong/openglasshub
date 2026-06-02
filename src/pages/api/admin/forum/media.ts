@@ -103,13 +103,22 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     const deletion = await deleteMediaObject({ env, client, media });
     if (!deletion.ok) {
-      return jsonResponse({ error: "MEDIA_DELETE_STORAGE_FAILED", details: deletion.failures }, 500);
+      return jsonResponse({ error: "MEDIA_DELETE_STORAGE_FAILED", details: deletion.errors }, 500);
     }
 
     const { error: deleteError } = await client.from("post_media").delete().eq("id", mediaId);
     if (deleteError) return jsonResponse({ error: deleteError.message }, 500);
 
-    return jsonResponse({ ok: true, id: mediaId, warnings: deletion.warnings });
+    return jsonResponse({
+      ok: true,
+      id: mediaId,
+      cleanup: {
+        ok: deletion.ok,
+        warnings: deletion.warnings,
+        errors: deletion.errors,
+        deletedObjects: deletion.deletedObjects,
+      },
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);

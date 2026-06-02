@@ -14,8 +14,8 @@ import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
 import { getRequestIp } from "../../../lib/request-ip";
+import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
 import { validateTurnstileToken } from "../../../lib/turnstile";
-import { deleteR2Objects } from "../../../lib/r2-server";
 
 export const prerender = false;
 
@@ -71,54 +71,6 @@ function parseModeratorEmails(raw: string | undefined): string[] {
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
-}
-
-function normalizeR2ObjectKey(
-  value: string | null | undefined,
-  r2PublicBaseUrl?: string,
-): string | null {
-  const raw = String(value ?? "").trim();
-  if (!raw) return null;
-
-  const stripLeading = (input: string) => input.replace(/^\/+/, "");
-  const isLikelyKey = (input: string) =>
-    input.startsWith("tmp/") || input.startsWith("posts/");
-
-  const direct = stripLeading(raw);
-  if (isLikelyKey(direct)) return direct;
-
-  const tryFromUrl = (urlString: string): string | null => {
-    try {
-      const url = new URL(urlString);
-      const key = stripLeading(url.pathname);
-      if (isLikelyKey(key)) return key;
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
-  const fromRawUrl = tryFromUrl(raw);
-  if (fromRawUrl) return fromRawUrl;
-
-  if (r2PublicBaseUrl) {
-    const base = r2PublicBaseUrl.replace(/\/+$/, "");
-    if (raw.startsWith(base + "/")) {
-      const tail = stripLeading(raw.slice(base.length + 1));
-      if (isLikelyKey(tail)) return tail;
-    }
-  }
-
-  return null;
-}
-
-function isIgnorableStorageDeleteError(message: string | null | undefined): boolean {
-  const value = String(message ?? "").toLowerCase();
-  return (
-    value.includes("not found") ||
-    value.includes("the resource was not found") ||
-    value.includes("no such key")
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -396,7 +348,19 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       return json({ error: "Cannot delete a post you do not own" }, 403);
     }
     if (post.status === "deleted") {
-      return json({ error: "Post already deleted" }, 409);
+      return json({
+        ok: true,
+        status: "deleted",
+        post: { id: postId, status: "deleted" },
+        cleanup: {
+          ok: true,
+          warnings: [],
+          errors: [],
+          deletedObjects: [],
+          deletedRows: 0,
+        },
+        message: "帖子已删除。",
+      });
     }
 
     const { data: mediaRows, error: mediaQueryError } = await userClient
@@ -406,92 +370,6 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       .eq("user_id", authData.user.id);
     if (mediaQueryError) {
       return json({ error: mediaQueryError.message }, 500);
-    }
-
-    const postMediaStoragePaths = (mediaRows ?? [])
-      .map((row) => row.storage_path)
-      .filter((value): value is string => Boolean(value));
-    const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL;
-    const r2Keys = Array.from(
-      new Set(
-        (mediaRows ?? [])
-          .map((row) => normalizeR2ObjectKey(row.storage_path, r2PublicBaseUrl) ?? normalizeR2ObjectKey(row.url, r2PublicBaseUrl))
-          .filter((value): value is string => Boolean(value)),
-      ),
-    );
-    const supabaseMediaPaths = postMediaStoragePaths.filter((path) => {
-      // If this value can be resolved to an R2 object key (including full URL),
-      // it must NOT be sent to Supabase Storage remove.
-      const resolvedR2Key = normalizeR2ObjectKey(path, r2PublicBaseUrl);
-      return !resolvedR2Key;
-    });
-
-    const deletionFailures: Array<{
-      stage: "r2_delete" | "supabase_storage_delete" | "post_media_delete";
-      message: string;
-      storagePaths?: string[];
-    }> = [];
-
-    if (r2Keys.length > 0) {
-      try {
-        await deleteR2Objects({ env, objectKeys: r2Keys });
-      } catch (r2DeleteError) {
-        deletionFailures.push({
-          stage: "r2_delete",
-          message:
-            r2DeleteError instanceof Error ? r2DeleteError.message : "unknown error",
-          storagePaths: r2Keys,
-        });
-      }
-    }
-
-    if (supabaseMediaPaths.length > 0) {
-      const { error: removeStorageError } = await userClient.storage.from("post-media").remove(supabaseMediaPaths);
-      if (removeStorageError && !isIgnorableStorageDeleteError(removeStorageError.message)) {
-        deletionFailures.push({
-          stage: "supabase_storage_delete",
-          message: removeStorageError.message,
-          storagePaths: supabaseMediaPaths,
-        });
-      }
-    }
-
-    const { error: deleteMediaRowsError } = await userClient
-      .from("post_media")
-      .delete()
-      .eq("post_id", postId)
-      .eq("user_id", authData.user.id);
-    if (deleteMediaRowsError) {
-      // Fallback: hard-delete post so FK cascade can remove remaining post_media rows.
-      const { error: hardDeleteCascadeError } = await userClient
-        .from("posts")
-        .delete()
-        .eq("id", postId)
-        .eq("author_id", authData.user.id);
-      if (hardDeleteCascadeError) {
-        return json(
-          {
-            error: "POST_DELETE_MEDIA_PARTIAL_FAILURE",
-            failures: [
-              {
-                stage: "post_media_delete",
-                message: deleteMediaRowsError.message,
-              },
-              {
-                stage: "post_media_delete",
-                message: `hard_delete_fallback_failed: ${hardDeleteCascadeError.message}`,
-              },
-            ],
-          },
-          500,
-        );
-      }
-      return json({
-        ok: true,
-        post: { id: postId, status: "deleted" },
-        mode: "hard_delete_cascade_fallback",
-        warnings: deletionFailures,
-      });
     }
 
     const { data: updated, error: updateError } = await userClient
@@ -515,11 +393,36 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
         ok: true,
         post: { id: postId, status: "deleted" },
         mode: "hard_delete_fallback",
-        warnings: deletionFailures,
+        cleanup: {
+          ok: true,
+          warnings: [],
+          errors: [],
+          deletedObjects: [],
+          deletedRows: 0,
+        },
       });
     }
 
-    return json({ ok: true, post: updated, warnings: deletionFailures });
+    const cleanup = await deletePostMediaObjects({
+      env: env as Record<string, string | undefined>,
+      client: userClient,
+      mediaRows: mediaRows ?? [],
+      deleteRows: true,
+    });
+
+    return json({
+      ok: true,
+      status: "deleted",
+      post: updated,
+      cleanup: {
+        ok: cleanup.ok,
+        warnings: cleanup.warnings,
+        errors: cleanup.errors,
+        deletedObjects: cleanup.deletedObjects,
+        deletedRows: cleanup.deletedRows,
+      },
+      message: cleanup.ok ? "帖子已删除并清理媒体。" : "帖子已删除，部分媒体清理需要后续重试。",
+    });
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },

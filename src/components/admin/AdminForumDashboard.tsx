@@ -26,15 +26,34 @@ type AdminPost = {
   report_count: number;
 };
 
+type CleanupPayload = {
+  ok?: boolean;
+  warnings?: string[];
+  errors?: string[];
+  deletedObjects?: Array<{
+    mediaId: string;
+    storage: "r2" | "supabase" | "external" | "unknown";
+    path?: string;
+    status: "deleted" | "already_missing" | "skipped" | "failed";
+    error?: string;
+  }>;
+  deletedRows?: number;
+  warningCode?: string;
+};
+
 type PostsPayload = {
   posts?: AdminPost[];
+  focused_post_id?: string | null;
   error?: string;
   details?: unknown;
 };
 
 type PostActionPayload = {
+  ok?: boolean;
+  status?: string;
   post?: { id: string; status: string };
-  deleted?: boolean;
+  cleanup?: CleanupPayload;
+  message?: string;
   error?: string;
   details?: unknown;
 };
@@ -80,6 +99,18 @@ function authorLabel(post: AdminPost): string {
   return post.author_profile?.display_name || post.author_profile?.username || "未知用户";
 }
 
+function cleanupMessage(cleanup?: CleanupPayload): string {
+  if (cleanup?.ok === false) return "已删除，部分媒体清理需要后续重试";
+  return "已删除并清理媒体";
+}
+
+function cleanupWarning(cleanup?: CleanupPayload): string {
+  const values = [...(cleanup?.warnings ?? []), ...(cleanup?.errors ?? [])]
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+  return values.join("；");
+}
+
 export default function AdminForumDashboard() {
   const adminSession = useAdminSession();
   const [dataState, setDataState] = useState<DataState>("idle");
@@ -89,8 +120,16 @@ export default function AdminForumDashboard() {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [rowSuccess, setRowSuccess] = useState<Record<string, string>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [rowWarning, setRowWarning] = useState<Record<string, string>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [focusPostId, setFocusPostId] = useState("");
   const deleteConfirmTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setFocusPostId(String(params.get("post") ?? "").trim());
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -107,7 +146,8 @@ export default function AdminForumDashboard() {
       setDataState("loading");
       setError("");
       try {
-        const query = new URLSearchParams({ status: statusFilter, limit: "80" });
+        const query = new URLSearchParams({ status: statusFilter, limit: focusPostId ? "20" : "80" });
+        if (focusPostId) query.set("post", focusPostId);
         const payload = await adminFetch<PostsPayload>(`/api/admin/forum/posts?${query.toString()}`, {
           method: "GET",
           session: adminSession.session,
@@ -146,7 +186,7 @@ export default function AdminForumDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [adminSession.session, adminSession.state.status, statusFilter]);
+  }, [adminSession.session, adminSession.state.status, focusPostId, statusFilter]);
 
   function clearRowFeedback(postId: string) {
     setRowSuccess((current) => {
@@ -155,6 +195,11 @@ export default function AdminForumDashboard() {
       return next;
     });
     setRowError((current) => {
+      const next = { ...current };
+      delete next[postId];
+      return next;
+    });
+    setRowWarning((current) => {
       const next = { ...current };
       delete next[postId];
       return next;
@@ -198,8 +243,12 @@ export default function AdminForumDashboard() {
             session: adminSession.session,
           },
         );
-        applyPostStatus(postId, payload.post?.status ?? "deleted");
-        setRowSuccess((current) => ({ ...current, [postId]: "已删除并清理媒体" }));
+        applyPostStatus(postId, payload.post?.status ?? payload.status ?? "deleted");
+        setRowSuccess((current) => ({ ...current, [postId]: cleanupMessage(payload.cleanup) }));
+        const warning = cleanupWarning(payload.cleanup);
+        if (warning) {
+          setRowWarning((current) => ({ ...current, [postId]: warning }));
+        }
       } else {
         const payload = await adminFetch<PostActionPayload>("/api/admin/forum/posts", {
           method: "PATCH",
@@ -215,7 +264,11 @@ export default function AdminForumDashboard() {
         }));
       }
     } catch (requestError) {
-      const message = requestError instanceof Error ? requestError.message : "操作失败";
+      const details =
+        requestError instanceof AdminApiError && typeof requestError.details === "string"
+          ? `：${requestError.details}`
+          : "";
+      const message = `${requestError instanceof Error ? requestError.message : "操作失败"}${details}`;
       if (requestError instanceof AdminApiError && requestError.status === 401) {
         adminSession.setState({
           status: "signed_out",
@@ -241,6 +294,14 @@ export default function AdminForumDashboard() {
       setConfirmDeleteId(null);
       setActionLoadingId(null);
     }
+  }
+
+  function clearFocusFilter() {
+    if (typeof window !== "undefined") {
+      window.location.assign("/admin/forum/");
+      return;
+    }
+    setFocusPostId("");
   }
 
   if (adminSession.state.status === "checking") {
@@ -319,13 +380,22 @@ export default function AdminForumDashboard() {
         角色 {adminSession.me?.role}
       </div>
 
+      {focusPostId ? (
+        <div className="admin-inline-actions" style={{ margin: "0.8rem 1rem 0" }}>
+          <span className="community-meta">当前仅显示帖子 {shortId(focusPostId)}</span>
+          <button type="button" className="admin-action-button" onClick={clearFocusFilter}>
+            返回全部帖子
+          </button>
+        </div>
+      ) : null}
+
       {error && dataState !== "loading" ? <div className="admin-error">{error}</div> : null}
       {dataState === "loading" ? <p className="community-meta admin-state-message">正在加载帖子列表...</p> : null}
 
       {dataState === "ready" && posts.length === 0 ? (
         <div className="community-empty">
           <strong>暂无帖子</strong>
-          <p>当前筛选条件下没有可治理的帖子。</p>
+          <p>{focusPostId ? "未找到对应帖子。" : "当前筛选条件下没有可治理的帖子。"}</p>
         </div>
       ) : null}
 
@@ -361,9 +431,10 @@ export default function AdminForumDashboard() {
                 </div>
 
                 {rowSuccess[post.id] ? <div className="admin-inline-success">{rowSuccess[post.id]}</div> : null}
+                {rowWarning[post.id] ? <div className="admin-row-warning admin-cleanup-warning">{rowWarning[post.id]}</div> : null}
                 {rowError[post.id] ? <div className="admin-error">{rowError[post.id]}</div> : null}
 
-                <div className="admin-action-row">
+                <div className="admin-inline-actions">
                   <a href={`/posts/${post.id}/`} className="admin-action-button">
                     查看帖子
                   </a>
@@ -373,7 +444,7 @@ export default function AdminForumDashboard() {
                     onClick={() => mutatePost(post.id, "hide")}
                     disabled={hideDisabled}
                   >
-                    {loadingThis && post.status !== "hidden" ? "处理中..." : deleted ? "已删除" : "隐藏"}
+                    {loadingThis && post.status !== "hidden" ? "处理中..." : deleted ? "已删除" : "隐藏帖子"}
                   </button>
                   <button
                     type="button"
@@ -381,7 +452,7 @@ export default function AdminForumDashboard() {
                     onClick={() => mutatePost(post.id, "restore")}
                     disabled={restoreDisabled}
                   >
-                    {loadingThis && post.status !== "published" ? "处理中..." : deleted ? "已删除" : "恢复"}
+                    {loadingThis && post.status !== "published" ? "处理中..." : deleted ? "已删除" : "恢复公开"}
                   </button>
                   <button
                     type="button"
@@ -389,7 +460,7 @@ export default function AdminForumDashboard() {
                     onClick={() => mutatePost(post.id, "delete")}
                     disabled={loadingThis || deleted}
                   >
-                    {deleted ? "已删除" : deleteArmed ? "确认删除" : loadingThis ? "处理中..." : "删除"}
+                    {deleted ? "已删除" : deleteArmed ? "确认删除" : loadingThis ? "处理中..." : "删除帖子"}
                   </button>
                 </div>
               </article>

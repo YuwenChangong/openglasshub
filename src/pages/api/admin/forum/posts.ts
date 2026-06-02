@@ -8,6 +8,7 @@ export const prerender = false;
 type RuntimeLocals = { runtime?: { env?: RuntimeEnv } };
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DELETE_WARNING_CODE = "POST_DELETE_MEDIA_CLEANUP_WARNING";
 
 function excerpt(text: string | null | undefined): string {
   return sanitizeBodyForDisplay(text ?? "")
@@ -27,14 +28,23 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const url = new URL(request.url);
     const statusFilter = String(url.searchParams.get("status") ?? "all").trim();
     const kindFilter = String(url.searchParams.get("kind") ?? "all").trim();
+    const focusPostId = String(url.searchParams.get("post") ?? "").trim();
     const limitRaw = Number.parseInt(String(url.searchParams.get("limit") ?? "50"), 10);
     const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 100)) : 50;
+
+    if (focusPostId && !uuidRegex.test(focusPostId)) {
+      return jsonResponse({ error: "Invalid post id" }, 400);
+    }
 
     let query = client
       .from("posts")
       .select("id,title,body,status,author_id,circle_id,created_at,updated_at,circles:circle_id(name,slug),post_media(id,kind,size_bytes),profiles:author_id(id,display_name,username,avatar_url,role)")
       .order("created_at", { ascending: false })
       .limit(limit);
+
+    if (focusPostId) {
+      query = query.eq("id", focusPostId);
+    }
 
     if (statusFilter && statusFilter !== "all") {
       query = query.eq("status", statusFilter);
@@ -100,7 +110,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         return true;
       });
 
-    return jsonResponse({ posts: items });
+    return jsonResponse({ posts: items, focused_post_id: focusPostId || null });
   } catch (error) {
     if (error instanceof Response) return error;
     return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
@@ -159,31 +169,50 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     if (postError) return jsonResponse({ error: postError.message }, 500);
     if (!post) return jsonResponse({ error: "Post not found" }, 404);
 
+    if (post.status !== "deleted") {
+      const { data: updated, error: postUpdateError } = await client
+        .from("posts")
+        .update({ status: "deleted" })
+        .eq("id", postId)
+        .select("id,status")
+        .single();
+      if (postUpdateError) {
+        return jsonResponse({ error: "POST_DELETE_FAILED", details: postUpdateError.message }, 500);
+      }
+      post.status = updated.status;
+    }
+
     const { data: mediaRows, error: mediaError } = await client
       .from("post_media")
       .select("id,kind,storage_path,url")
       .eq("post_id", postId);
     if (mediaError) return jsonResponse({ error: mediaError.message }, 500);
 
-    const mediaDelete = await deletePostMediaObjects({ env, client, mediaRows: mediaRows ?? [] });
-    if (!mediaDelete.ok) {
-      return jsonResponse({
-        error: "POST_DELETE_MEDIA_PARTIAL_FAILURE",
-        details: mediaDelete.failures,
-      }, 500);
-    }
+    const cleanup = await deletePostMediaObjects({
+      env,
+      client,
+      mediaRows: mediaRows ?? [],
+      deleteRows: true,
+    });
 
-    const { error: mediaRowsDeleteError } = await client.from("post_media").delete().eq("post_id", postId);
-    if (mediaRowsDeleteError) {
-      return jsonResponse({ error: "POST_MEDIA_DELETE_FAILED", details: mediaRowsDeleteError.message }, 500);
-    }
+    const cleanupPayload = {
+      ok: cleanup.ok,
+      warningCode: cleanup.ok ? undefined : DELETE_WARNING_CODE,
+      warnings: cleanup.warnings,
+      errors: cleanup.errors,
+      deletedObjects: cleanup.deletedObjects,
+      deletedRows: cleanup.deletedRows,
+    };
 
-    const { error: postUpdateError } = await client.from("posts").update({ status: "deleted" }).eq("id", postId);
-    if (postUpdateError) {
-      return jsonResponse({ error: "POST_DELETE_FAILED", details: postUpdateError.message }, 500);
-    }
-
-    return jsonResponse({ ok: true, post: { id: postId, status: "deleted" }, warnings: mediaDelete.warnings });
+    return jsonResponse({
+      ok: true,
+      status: "deleted",
+      post: { id: postId, status: "deleted" },
+      cleanup: cleanupPayload,
+      message: cleanup.ok
+        ? "帖子已删除并清理媒体。"
+        : "帖子已删除，部分媒体清理需要后续重试。",
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);

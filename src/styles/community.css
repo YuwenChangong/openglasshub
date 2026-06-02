@@ -1777,6 +1777,10 @@ body {
 .admin-report-target {
   display: grid;
   gap: 0.35rem;
+  padding: 0.72rem 0.8rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .admin-report-target span {
@@ -1855,6 +1859,13 @@ body {
   flex-wrap: wrap;
 }
 
+.admin-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
 .admin-action-button {
   display: inline-flex;
   align-items: center;
@@ -1887,6 +1898,18 @@ body {
 .admin-action-danger {
   color: #e2bbbb;
   border-color: rgba(226, 187, 187, 0.14);
+}
+
+.admin-row-warning,
+.admin-cleanup-warning {
+  display: block;
+  padding: 0.7rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(224, 192, 138, 0.16);
+  background: rgba(88, 70, 36, 0.14);
+  color: #dcc8a5;
+  font-size: 0.84rem;
+  line-height: 1.55;
 }
 
 .comment-shell {

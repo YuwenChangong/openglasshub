@@ -9,12 +9,27 @@ export type PostMediaLike = {
   url: string | null;
 };
 
-export type MediaDeleteFailure = {
-  stage: "r2_delete" | "supabase_storage_delete";
-  message: string;
-  mediaId: string;
-  storagePath?: string;
+export type MediaCleanupObjectStatus = "deleted" | "already_missing" | "skipped" | "failed";
+export type MediaCleanupStorage = "r2" | "supabase" | "external" | "unknown";
+
+export type MediaCleanupResult = {
+  ok: boolean;
+  deletedObjects: Array<{
+    mediaId: string;
+    storage: MediaCleanupStorage;
+    path?: string;
+    status: MediaCleanupObjectStatus;
+    error?: string;
+  }>;
+  deletedRows: number;
+  warnings: string[];
+  errors: string[];
 };
+
+function nonEmptyMessage(message: string | null | undefined, fallback: string): string {
+  const normalized = String(message ?? "").trim();
+  return normalized || fallback;
+}
 
 function normalizeR2ObjectKey(value: string | null | undefined, r2PublicBaseUrl?: string): string | null {
   const raw = String(value ?? "").trim();
@@ -59,60 +74,177 @@ function isIgnorableStorageDeleteError(message: string | null | undefined): bool
   );
 }
 
+function parseR2DeleteErrorMessage(message: string): Array<{ code: string; detail: string }> {
+  const normalized = nonEmptyMessage(message, "Unknown R2 delete error");
+  const prefix = "R2_DELETE_FAILED:";
+  if (!normalized.startsWith(prefix)) {
+    return [{ code: "Unknown", detail: normalized }];
+  }
+
+  try {
+    const parsed = JSON.parse(normalized.slice(prefix.length)) as Array<{
+      code?: string;
+      message?: string;
+      key?: string;
+    }>;
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return [{ code: "Unknown", detail: normalized }];
+    }
+
+    return parsed.map((item) => ({
+      code: nonEmptyMessage(item.code, "Unknown"),
+      detail: nonEmptyMessage(item.message, "Unknown R2 delete error"),
+    }));
+  } catch {
+    return [{ code: "Unknown", detail: normalized }];
+  }
+}
+
+function mergeResults(target: MediaCleanupResult, partial: MediaCleanupResult) {
+  target.deletedObjects.push(...partial.deletedObjects);
+  target.deletedRows += partial.deletedRows;
+  target.warnings.push(...partial.warnings);
+  target.errors.push(...partial.errors);
+  target.ok = target.ok && partial.ok;
+}
+
+function resolveStorageType(media: PostMediaLike, r2PublicBaseUrl?: string): {
+  storage: MediaCleanupStorage;
+  path?: string;
+} {
+  const r2Key =
+    normalizeR2ObjectKey(media.storage_path, r2PublicBaseUrl) ??
+    normalizeR2ObjectKey(media.url, r2PublicBaseUrl);
+
+  if (r2Key) {
+    return { storage: "r2", path: r2Key };
+  }
+
+  const storagePath = String(media.storage_path ?? "").trim();
+  if (storagePath) {
+    return { storage: "supabase", path: storagePath };
+  }
+
+  const url = String(media.url ?? "").trim();
+  if (url) {
+    return { storage: "external", path: url };
+  }
+
+  return { storage: "unknown" };
+}
+
 export async function deleteMediaObject(params: {
   env: RuntimeEnv;
   client: SupabaseClient;
   media: PostMediaLike;
-}): Promise<{ ok: boolean; failures: MediaDeleteFailure[]; warnings: string[] }> {
+}): Promise<MediaCleanupResult> {
   const { env, client, media } = params;
-  const failures: MediaDeleteFailure[] = [];
-  const warnings: string[] = [];
+  const result: MediaCleanupResult = {
+    ok: true,
+    deletedObjects: [],
+    deletedRows: 0,
+    warnings: [],
+    errors: [],
+  };
 
-  const r2Key = normalizeR2ObjectKey(media.storage_path, env.R2_PUBLIC_BASE_URL)
-    ?? normalizeR2ObjectKey(media.url, env.R2_PUBLIC_BASE_URL);
+  const resolved = resolveStorageType(media, env.R2_PUBLIC_BASE_URL);
+  const entry = {
+    mediaId: media.id,
+    storage: resolved.storage,
+    path: resolved.path,
+    status: "skipped" as MediaCleanupObjectStatus,
+  };
 
-  if (r2Key) {
+  if (resolved.storage === "r2" && resolved.path) {
     try {
-      await deleteR2Objects({ env, objectKeys: [r2Key] });
+      await deleteR2Objects({ env, objectKeys: [resolved.path] });
+      entry.status = "deleted";
     } catch (error) {
-      failures.push({
-        stage: "r2_delete",
-        message: error instanceof Error ? error.message : "unknown r2 delete error",
-        mediaId: media.id,
-        storagePath: r2Key,
-      });
+      const message = nonEmptyMessage(
+        error instanceof Error ? error.message : null,
+        "Unknown R2 delete error",
+      );
+      const parsedErrors = parseR2DeleteErrorMessage(message);
+      if (parsedErrors.every((item) => isIgnorableStorageDeleteError(item.code) || isIgnorableStorageDeleteError(item.detail))) {
+        entry.status = "already_missing";
+        result.warnings.push(`media ${media.id} R2 object already missing: ${resolved.path}`);
+      } else {
+        entry.status = "failed";
+        entry.error = message;
+        result.errors.push(`media ${media.id} R2 delete failed: ${message}`);
+        result.ok = false;
+      }
     }
-  } else if (media.storage_path) {
-    const { error: removeStorageError } = await client.storage.from("post-media").remove([media.storage_path]);
-    if (removeStorageError && !isIgnorableStorageDeleteError(removeStorageError.message)) {
-      failures.push({
-        stage: "supabase_storage_delete",
-        message: removeStorageError.message,
-        mediaId: media.id,
-        storagePath: media.storage_path,
-      });
+  } else if (resolved.storage === "supabase" && resolved.path) {
+    const { error: removeStorageError } = await client.storage.from("post-media").remove([resolved.path]);
+    if (removeStorageError) {
+      const message = nonEmptyMessage(removeStorageError.message, "Unknown Supabase storage delete error");
+      if (isIgnorableStorageDeleteError(message)) {
+        entry.status = "already_missing";
+        result.warnings.push(`media ${media.id} storage object already missing: ${resolved.path}`);
+      } else {
+        entry.status = "failed";
+        entry.error = message;
+        result.errors.push(`media ${media.id} storage delete failed: ${message}`);
+        result.ok = false;
+      }
+    } else {
+      entry.status = "deleted";
     }
-  } else if (media.url) {
-    warnings.push(`media ${media.id} has URL but no managed storage_path; DB row only will be removed`);
+  } else if (resolved.storage === "external") {
+    entry.status = "skipped";
+    result.warnings.push(`media ${media.id} uses external URL; only DB row cleanup is attempted`);
+  } else {
+    entry.status = "skipped";
+    result.warnings.push(`media ${media.id} has no managed storage path`);
   }
 
-  return { ok: failures.length === 0, failures, warnings };
+  result.deletedObjects.push(entry);
+  return result;
 }
 
 export async function deletePostMediaObjects(params: {
   env: RuntimeEnv;
   client: SupabaseClient;
   mediaRows: PostMediaLike[];
-}): Promise<{ ok: boolean; failures: MediaDeleteFailure[]; warnings: string[] }> {
-  const { env, client, mediaRows } = params;
-  const failures: MediaDeleteFailure[] = [];
-  const warnings: string[] = [];
+  deleteRows?: boolean;
+}): Promise<MediaCleanupResult> {
+  const { env, client, mediaRows, deleteRows = false } = params;
+  const result: MediaCleanupResult = {
+    ok: true,
+    deletedObjects: [],
+    deletedRows: 0,
+    warnings: [],
+    errors: [],
+  };
 
   for (const media of mediaRows) {
-    const result = await deleteMediaObject({ env, client, media });
-    failures.push(...result.failures);
-    warnings.push(...result.warnings);
+    const partial = await deleteMediaObject({ env, client, media });
+    mergeResults(result, partial);
   }
 
-  return { ok: failures.length === 0, failures, warnings };
+  if (deleteRows && mediaRows.length > 0) {
+    const mediaIds = mediaRows.map((media) => media.id).filter(Boolean);
+    const { data: deletedRows, error: deleteRowsError } = await client
+      .from("post_media")
+      .delete()
+      .in("id", mediaIds)
+      .select("id");
+
+    if (deleteRowsError) {
+      const message = nonEmptyMessage(deleteRowsError.message, "Unknown post_media delete error");
+      result.errors.push(`post_media row delete failed: ${message}`);
+      result.ok = false;
+    } else {
+      result.deletedRows = deletedRows?.length ?? 0;
+      if (result.deletedRows < mediaIds.length) {
+        result.warnings.push(
+          `post_media rows already missing: ${mediaIds.length - result.deletedRows}`,
+        );
+      }
+    }
+  }
+
+  return result;
 }
