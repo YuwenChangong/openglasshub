@@ -32,7 +32,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     let query = client
       .from("posts")
-      .select("id,title,body,status,author_id,circle_id,created_at,updated_at,circles:circle_id(name,slug),post_media(id,kind,size_bytes),profiles:author_id(display_name,username)")
+      .select("id,title,body,status,author_id,circle_id,created_at,updated_at,circles:circle_id(name,slug),post_media(id,kind,size_bytes),profiles:author_id(id,display_name,username,avatar_url,role)")
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -74,7 +74,15 @@ export const GET: APIRoute = async ({ request, locals }) => {
           body_excerpt: excerpt(post.body),
           status: post.status,
           author_id: post.author_id,
-          author_name: post.profiles?.display_name || post.profiles?.username || null,
+          author_profile: post.profiles
+            ? {
+                id: post.profiles.id ?? post.author_id,
+                username: post.profiles.username ?? null,
+                display_name: post.profiles.display_name ?? null,
+                avatar_url: post.profiles.avatar_url ?? null,
+                role: post.profiles.role ?? null,
+              }
+            : null,
           circle_id: post.circle_id,
           circle_name: post.circles?.name ?? null,
           circle_slug: post.circles?.slug ?? null,

@@ -1712,6 +1712,53 @@ body {
   margin: 0.6rem 1rem 1rem;
 }
 
+.admin-debug-note {
+  margin: 0.45rem 0 0;
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.admin-timeout strong {
+  color: #e7d0a9;
+}
+
+.admin-user-line {
+  margin: 0.2rem 1rem 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.admin-user-line code,
+.admin-meta-grid code {
+  color: var(--text-faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.admin-post-excerpt {
+  margin: 0;
+  color: var(--text-muted);
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.6;
+}
+
+.admin-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.35rem 0.8rem;
+}
+
+.admin-meta-grid span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .admin-error,
 .admin-inline-success {
   display: block;

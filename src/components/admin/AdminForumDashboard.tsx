@@ -1,20 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
-import { AdminApiError, adminFetch, type AdminAuthState } from "../../lib/admin-api-client";
-import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { useEffect, useRef, useState } from "react";
+import { AdminApiError, adminFetch } from "../../lib/admin-api-client";
+import { useAdminSession } from "./useAdminSession";
 
 type AdminPost = {
   id: string;
   title: string;
+  body_excerpt: string;
   status: string;
   author_id: string;
-  author_name: string | null;
+  author_profile: {
+    id: string;
+    username?: string | null;
+    display_name?: string | null;
+    avatar_url?: string | null;
+    role?: string | null;
+  } | null;
+  circle_id: string | null;
   circle_name: string | null;
   circle_slug: string | null;
   created_at: string;
+  updated_at: string;
   media_count: number;
-  video_count: number;
   media_total_bytes: number;
+  video_count: number;
   report_count: number;
 };
 
@@ -31,10 +39,8 @@ type PostActionPayload = {
   details?: unknown;
 };
 
-type StatusBadgeConfig = {
-  label: string;
-  className: string;
-};
+type DataState = "idle" | "loading" | "ready" | "error";
+type StatusBadgeConfig = { label: string; className: string };
 
 const DELETE_CONFIRM_MS = 5000;
 
@@ -65,11 +71,18 @@ function getStatusBadge(status: string): StatusBadgeConfig {
   }
 }
 
+function shortId(id: string | null | undefined): string {
+  if (!id) return "-";
+  return `${id.slice(0, 8)}...`;
+}
+
+function authorLabel(post: AdminPost): string {
+  return post.author_profile?.display_name || post.author_profile?.username || "未知用户";
+}
+
 export default function AdminForumDashboard() {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [session, setSession] = useState<Session | null>(null);
-  const [authState, setAuthState] = useState<AdminAuthState>("checking");
-  const [loading, setLoading] = useState(false);
+  const adminSession = useAdminSession();
+  const [dataState, setDataState] = useState<DataState>("idle");
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [posts, setPosts] = useState<AdminPost[]>([]);
@@ -81,84 +94,59 @@ export default function AdminForumDashboard() {
 
   useEffect(() => {
     return () => {
-      if (deleteConfirmTimer.current !== null) {
-        window.clearTimeout(deleteConfirmTimer.current);
-      }
+      if (deleteConfirmTimer.current !== null) window.clearTimeout(deleteConfirmTimer.current);
     };
   }, []);
 
   useEffect(() => {
-    if (!supabase) {
-      setAuthState("error");
-      setError("Supabase 浏览器客户端不可用");
-      return;
-    }
+    if (adminSession.state.status !== "ready" || !adminSession.session) return;
 
-    let mounted = true;
+    let cancelled = false;
 
-    const applySession = async () => {
-      setAuthState("checking");
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (!mounted) return;
-
-      if (sessionError) {
-        setSession(null);
-        setAuthState("error");
-        setError(sessionError.message);
-        return;
+    const loadPosts = async () => {
+      setDataState("loading");
+      setError("");
+      try {
+        const query = new URLSearchParams({ status: statusFilter, limit: "80" });
+        const payload = await adminFetch<PostsPayload>(`/api/admin/forum/posts?${query.toString()}`, {
+          method: "GET",
+          session: adminSession.session,
+        });
+        if (cancelled) return;
+        setPosts(payload.posts ?? []);
+        setDataState("ready");
+      } catch (requestError) {
+        if (cancelled) return;
+        if (requestError instanceof AdminApiError && requestError.status === 401) {
+          adminSession.setState({
+            status: "signed_out",
+            message: "登录状态已失效，请重新登录",
+            details: `api status code: 401 | error message: ${requestError.message}`,
+          });
+          return;
+        }
+        if (requestError instanceof AdminApiError && requestError.status === 403) {
+          adminSession.setState({
+            status: "forbidden",
+            message: "当前账号没有管理员权限",
+            details:
+              typeof requestError.details === "string"
+                ? requestError.details
+                : `api status code: 403 | error message: ${requestError.message}`,
+          });
+          return;
+        }
+        setError(requestError instanceof Error ? requestError.message : "加载帖子列表失败");
+        setDataState("error");
       }
-
-      const nextSession = data.session ?? null;
-      setSession(nextSession);
-      setAuthState(nextSession ? "ready" : "signed_out");
     };
 
-    void applySession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(async () => {
-      await applySession();
-    });
+    void loadPosts();
 
     return () => {
-      mounted = false;
-      listener.subscription.unsubscribe();
+      cancelled = true;
     };
-  }, [supabase]);
-
-  async function loadPosts(currentSession: Session, currentStatus: string) {
-    setLoading(true);
-    setError("");
-    try {
-      const query = new URLSearchParams({ status: currentStatus, limit: "80" });
-      const payload = await adminFetch<PostsPayload>(`/api/admin/forum/posts?${query.toString()}`, {
-        method: "GET",
-        session: currentSession,
-      });
-      setPosts(payload.posts ?? []);
-      setAuthState("ready");
-    } catch (requestError) {
-      if (requestError instanceof AdminApiError) {
-        if (requestError.status === 401) {
-          setAuthState("signed_out");
-        } else if (requestError.status === 403) {
-          setAuthState("forbidden");
-        } else {
-          setAuthState("error");
-        }
-        setError(requestError.message);
-      } else {
-        setAuthState("error");
-        setError(requestError instanceof Error ? requestError.message : "加载失败");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (authState !== "ready" || !session) return;
-    void loadPosts(session, statusFilter);
-  }, [authState, session, statusFilter]);
+  }, [adminSession.session, adminSession.state.status, statusFilter]);
 
   function clearRowFeedback(postId: string) {
     setRowSuccess((current) => {
@@ -175,9 +163,7 @@ export default function AdminForumDashboard() {
 
   function armDeleteConfirmation(postId: string) {
     setConfirmDeleteId(postId);
-    if (deleteConfirmTimer.current !== null) {
-      window.clearTimeout(deleteConfirmTimer.current);
-    }
+    if (deleteConfirmTimer.current !== null) window.clearTimeout(deleteConfirmTimer.current);
     deleteConfirmTimer.current = window.setTimeout(() => {
       setConfirmDeleteId((current) => (current === postId ? null : current));
       deleteConfirmTimer.current = null;
@@ -191,7 +177,7 @@ export default function AdminForumDashboard() {
   }
 
   async function mutatePost(postId: string, action: "hide" | "restore" | "delete") {
-    if (!session) return;
+    if (!adminSession.session) return;
 
     if (action === "delete" && confirmDeleteId !== postId) {
       clearRowFeedback(postId);
@@ -209,7 +195,7 @@ export default function AdminForumDashboard() {
           `/api/admin/forum/posts?id=${encodeURIComponent(postId)}`,
           {
             method: "DELETE",
-            session,
+            session: adminSession.session,
           },
         );
         applyPostStatus(postId, payload.post?.status ?? "deleted");
@@ -217,7 +203,7 @@ export default function AdminForumDashboard() {
       } else {
         const payload = await adminFetch<PostActionPayload>("/api/admin/forum/posts", {
           method: "PATCH",
-          session,
+          session: adminSession.session,
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ id: postId, action }),
         });
@@ -229,16 +215,24 @@ export default function AdminForumDashboard() {
         }));
       }
     } catch (requestError) {
-      const message =
-        requestError instanceof Error ? requestError.message : action === "delete" ? "删除失败" : "操作失败";
-      setRowError((current) => ({ ...current, [postId]: message }));
-      if (requestError instanceof AdminApiError) {
-        if (requestError.status === 401) {
-          setAuthState("signed_out");
-        } else if (requestError.status === 403) {
-          setAuthState("forbidden");
-        }
+      const message = requestError instanceof Error ? requestError.message : "操作失败";
+      if (requestError instanceof AdminApiError && requestError.status === 401) {
+        adminSession.setState({
+          status: "signed_out",
+          message: "登录状态已失效，请重新登录",
+          details: `api status code: 401 | error message: ${message}`,
+        });
+      } else if (requestError instanceof AdminApiError && requestError.status === 403) {
+        adminSession.setState({
+          status: "forbidden",
+          message: "当前账号没有管理员权限",
+          details:
+            typeof requestError.details === "string"
+              ? requestError.details
+              : `api status code: 403 | error message: ${message}`,
+        });
       }
+      setRowError((current) => ({ ...current, [postId]: message }));
     } finally {
       if (deleteConfirmTimer.current !== null) {
         window.clearTimeout(deleteConfirmTimer.current);
@@ -249,36 +243,46 @@ export default function AdminForumDashboard() {
     }
   }
 
-  if (authState === "checking") {
+  if (adminSession.state.status === "checking") {
     return (
       <div className="community-empty admin-state-message">
-        <strong>正在确认登录状态...</strong>
+        <strong>{adminSession.state.message}</strong>
       </div>
     );
   }
 
-  if (authState === "signed_out") {
+  if (adminSession.state.status === "timeout") {
+    return (
+      <div className="community-empty admin-state-message admin-timeout">
+        <strong>{adminSession.state.message}</strong>
+        {adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}
+      </div>
+    );
+  }
+
+  if (adminSession.state.status === "signed_out") {
     return (
       <div className="community-empty admin-state-message">
-        <strong>请先登录</strong>
-        <p>管理员页面需要登录后访问。</p>
+        <strong>{adminSession.state.message}</strong>
+        {adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}
       </div>
     );
   }
 
-  if (authState === "forbidden") {
+  if (adminSession.state.status === "forbidden") {
     return (
       <div className="community-empty admin-state-message admin-error">
-        <strong>当前账号没有管理员权限</strong>
+        <strong>{adminSession.state.message}</strong>
+        {adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}
       </div>
     );
   }
 
-  if (authState === "error") {
+  if (adminSession.state.status === "error") {
     return (
       <div className="community-empty admin-state-message admin-error">
-        <strong>加载失败</strong>
-        <p>{error || "管理员页面加载失败"}</p>
+        <strong>{adminSession.state.message}</strong>
+        {adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}
       </div>
     );
   }
@@ -288,7 +292,7 @@ export default function AdminForumDashboard() {
       <div className="community-stream-head">
         <div>
           <h2>管理员帖子治理</h2>
-          <p>查看帖子状态、举报量和媒体体积，并执行隐藏、恢复、删除。</p>
+          <p>查看帖子内容、作者资料、媒体体积和举报数量，并执行隐藏、恢复、删除。</p>
         </div>
         <div className="community-cta-row">
           {[
@@ -310,15 +314,22 @@ export default function AdminForumDashboard() {
         </div>
       </div>
 
-      {error && authState === "ready" ? <div className="admin-error">{error}</div> : null}
-      {loading ? <p className="community-meta admin-state-message">正在加载帖子列表...</p> : null}
+      <div className="admin-user-line">
+        当前管理员：{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || shortId(adminSession.me?.user_id)} ·
+        角色 {adminSession.me?.role}
+      </div>
 
-      {!loading && posts.length === 0 ? (
+      {error && dataState !== "loading" ? <div className="admin-error">{error}</div> : null}
+      {dataState === "loading" ? <p className="community-meta admin-state-message">正在加载帖子列表...</p> : null}
+
+      {dataState === "ready" && posts.length === 0 ? (
         <div className="community-empty">
           <strong>暂无帖子</strong>
           <p>当前筛选条件下没有可治理的帖子。</p>
         </div>
-      ) : (
+      ) : null}
+
+      {posts.length > 0 ? (
         <div className="community-list" style={{ marginTop: "0.8rem" }}>
           {posts.map((post) => {
             const loadingThis = actionLoadingId === post.id;
@@ -334,13 +345,20 @@ export default function AdminForumDashboard() {
                   <strong>{post.title}</strong>
                   <span className={badge.className}>{badge.label}</span>
                 </div>
-                <span>
-                  圈子 {post.circle_name ?? "-"} · 作者 {post.author_name ?? post.author_id}
-                </span>
-                <span>
-                  媒体 {post.media_count}（视频 {post.video_count}）· 总大小 {bytesLabel(post.media_total_bytes)} · 举报 {post.report_count}
-                </span>
-                <span>{new Date(post.created_at).toLocaleString("zh-CN")}</span>
+
+                {post.body_excerpt ? <p className="admin-post-excerpt">{post.body_excerpt}</p> : null}
+
+                <div className="admin-meta-grid">
+                  <span>
+                    作者：{authorLabel(post)} <code>{shortId(post.author_id)}</code>
+                  </span>
+                  <span>圈子：{post.circle_name ?? "-"}</span>
+                  <span>媒体：{post.media_count}</span>
+                  <span>视频：{post.video_count}</span>
+                  <span>媒体总大小：{bytesLabel(post.media_total_bytes)}</span>
+                  <span>举报：{post.report_count}</span>
+                  <span>创建时间：{new Date(post.created_at).toLocaleString("zh-CN")}</span>
+                </div>
 
                 {rowSuccess[post.id] ? <div className="admin-inline-success">{rowSuccess[post.id]}</div> : null}
                 {rowError[post.id] ? <div className="admin-error">{rowError[post.id]}</div> : null}
@@ -371,20 +389,14 @@ export default function AdminForumDashboard() {
                     onClick={() => mutatePost(post.id, "delete")}
                     disabled={loadingThis || deleted}
                   >
-                    {deleted
-                      ? "已删除"
-                      : deleteArmed
-                        ? "确认删除"
-                        : loadingThis
-                          ? "处理中..."
-                          : "删除"}
+                    {deleted ? "已删除" : deleteArmed ? "确认删除" : loadingThis ? "处理中..." : "删除"}
                   </button>
                 </div>
               </article>
             );
           })}
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

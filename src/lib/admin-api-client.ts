@@ -1,7 +1,5 @@
 import type { Session } from "@supabase/supabase-js";
 
-export type AdminAuthState = "checking" | "signed_out" | "forbidden" | "ready" | "error";
-
 export class AdminApiError extends Error {
   status: number;
   details?: unknown;
@@ -35,7 +33,15 @@ export async function adminFetch<T = JsonObject>(path: string, options: AdminFet
     },
   });
 
-  const payload = (await response.json().catch(() => null)) as JsonObject | null;
+  const rawText = await response.text().catch(() => "");
+  let payload: JsonObject | null = null;
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText) as JsonObject;
+    } catch {
+      payload = { error: rawText };
+    }
+  }
 
   if (!response.ok) {
     const apiMessage =

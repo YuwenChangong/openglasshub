@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
-import { AdminApiError, adminFetch, type AdminAuthState } from "../../lib/admin-api-client";
-import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { useEffect, useState } from "react";
+import { AdminApiError, adminFetch } from "../../lib/admin-api-client";
+import { useAdminSession } from "./useAdminSession";
 
 type AdminReport = {
   id: string;
@@ -12,13 +11,29 @@ type AdminReport = {
   created_at: string;
   post_title: string | null;
   post_status: string | null;
+  post_author_id: string | null;
+  post_author_profile: {
+    id: string;
+    display_name?: string | null;
+    username?: string | null;
+  } | null;
+  reporter_profile: {
+    id: string;
+    display_name?: string | null;
+    username?: string | null;
+  } | null;
 };
 
 type ReportsPayload = {
   reports?: AdminReport[];
-  error?: string;
-  details?: unknown;
 };
+
+type DataState = "idle" | "loading" | "ready" | "error";
+
+function shortId(id: string | null | undefined): string {
+  if (!id) return "-";
+  return `${id.slice(0, 8)}...`;
+}
 
 function getStatusBadge(status: string | null) {
   switch (status) {
@@ -36,117 +51,73 @@ function getStatusBadge(status: string | null) {
 }
 
 export default function AdminReportsPanel() {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [session, setSession] = useState<Session | null>(null);
-  const [authState, setAuthState] = useState<AdminAuthState>("checking");
-  const [loading, setLoading] = useState(false);
+  const adminSession = useAdminSession();
+  const [dataState, setDataState] = useState<DataState>("idle");
   const [error, setError] = useState("");
   const [reports, setReports] = useState<AdminReport[]>([]);
 
   useEffect(() => {
-    if (!supabase) {
-      setAuthState("error");
-      setError("Supabase 浏览器客户端不可用");
-      return;
-    }
+    if (adminSession.state.status !== "ready" || !adminSession.session) return;
 
-    let mounted = true;
+    let cancelled = false;
 
-    const applySession = async () => {
-      setAuthState("checking");
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (!mounted) return;
-
-      if (sessionError) {
-        setSession(null);
-        setAuthState("error");
-        setError(sessionError.message);
-        return;
-      }
-
-      const nextSession = data.session ?? null;
-      setSession(nextSession);
-      setAuthState(nextSession ? "ready" : "signed_out");
-    };
-
-    void applySession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(async () => {
-      await applySession();
-    });
-
-    return () => {
-      mounted = false;
-      listener.subscription.unsubscribe();
-    };
-  }, [supabase]);
-
-  useEffect(() => {
-    if (authState !== "ready" || !session) return;
-
-    const load = async () => {
-      setLoading(true);
+    const loadReports = async () => {
+      setDataState("loading");
       setError("");
       try {
         const payload = await adminFetch<ReportsPayload>("/api/admin/forum/reports?limit=120", {
           method: "GET",
-          session,
+          session: adminSession.session,
         });
+        if (cancelled) return;
         setReports(payload.reports ?? []);
+        setDataState("ready");
       } catch (requestError) {
-        if (requestError instanceof AdminApiError) {
-          if (requestError.status === 401) {
-            setAuthState("signed_out");
-          } else if (requestError.status === 403) {
-            setAuthState("forbidden");
-          } else {
-            setAuthState("error");
-          }
-          setError(requestError.message);
-        } else {
-          setAuthState("error");
-          setError(requestError instanceof Error ? requestError.message : "加载失败");
+        if (cancelled) return;
+        if (requestError instanceof AdminApiError && requestError.status === 401) {
+          adminSession.setState({
+            status: "signed_out",
+            message: "登录状态已失效，请重新登录",
+            details: `api status code: 401 | error message: ${requestError.message}`,
+          });
+          return;
         }
-      } finally {
-        setLoading(false);
+        if (requestError instanceof AdminApiError && requestError.status === 403) {
+          adminSession.setState({
+            status: "forbidden",
+            message: "当前账号没有管理员权限",
+            details:
+              typeof requestError.details === "string"
+                ? requestError.details
+                : `api status code: 403 | error message: ${requestError.message}`,
+          });
+          return;
+        }
+        setError(requestError instanceof Error ? requestError.message : "加载举报列表失败");
+        setDataState("error");
       }
     };
 
-    void load();
-  }, [authState, session]);
+    void loadReports();
+    return () => {
+      cancelled = true;
+    };
+  }, [adminSession.session, adminSession.state.status]);
 
-  if (authState === "checking") {
-    return (
-      <div className="community-empty admin-state-message">
-        <strong>正在确认登录状态...</strong>
-      </div>
-    );
+  if (adminSession.state.status === "checking") {
+    return <div className="community-empty admin-state-message"><strong>{adminSession.state.message}</strong></div>;
   }
-
-  if (authState === "signed_out") {
-    return (
-      <div className="community-empty admin-state-message">
-        <strong>请先登录</strong>
-        <p>管理员页面需要登录后访问。</p>
-      </div>
-    );
+  if (adminSession.state.status === "timeout") {
+    return <div className="community-empty admin-state-message admin-timeout"><strong>{adminSession.state.message}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
   }
-
-  if (authState === "forbidden") {
-    return (
-      <div className="community-empty admin-state-message admin-error">
-        <strong>当前账号没有管理员权限</strong>
-      </div>
-    );
+  if (adminSession.state.status === "signed_out") {
+    return <div className="community-empty admin-state-message"><strong>{adminSession.state.message}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
   }
-
-  if (authState === "error") {
-    return (
-      <div className="community-empty admin-state-message admin-error">
-        <strong>加载失败</strong>
-        <p>{error || "管理员页面加载失败"}</p>
-      </div>
-    );
+  if (adminSession.state.status === "forbidden") {
+    return <div className="community-empty admin-state-message admin-error"><strong>{adminSession.state.message}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
+  }
+  if (adminSession.state.status === "error") {
+    return <div className="community-empty admin-state-message admin-error"><strong>{adminSession.state.message}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
   }
 
   return (
@@ -154,45 +125,58 @@ export default function AdminReportsPanel() {
       <div className="community-stream-head">
         <div>
           <h2>举报列表</h2>
-          <p>查看帖子举报内容，并跳转到帖子执行隐藏、恢复或删除处理。</p>
+          <p>查看举报原因、帖子状态和相关作者信息，并跳转处理。</p>
         </div>
       </div>
 
-      {error && authState === "ready" ? <div className="admin-error">{error}</div> : null}
-      {loading ? <p className="community-meta admin-state-message">正在加载举报列表...</p> : null}
+      <div className="admin-user-line">
+        当前管理员：{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || shortId(adminSession.me?.user_id)} · 角色 {adminSession.me?.role}
+      </div>
 
-      {!loading && reports.length === 0 ? (
+      {error ? <div className="admin-error">{error}</div> : null}
+      {dataState === "loading" ? <p className="community-meta admin-state-message">正在加载举报列表...</p> : null}
+
+      {dataState === "ready" && reports.length === 0 ? (
         <div className="community-empty">
           <strong>暂无举报</strong>
           <p>当前没有可处理的举报记录。</p>
         </div>
-      ) : (
+      ) : null}
+
+      {reports.length > 0 ? (
         <div className="community-list" style={{ marginTop: "0.8rem" }}>
           {reports.map((report) => {
             const badge = getStatusBadge(report.post_status);
+            const postAuthor =
+              report.post_author_profile?.display_name ||
+              report.post_author_profile?.username ||
+              "未知用户";
+            const reporter =
+              report.reporter_profile?.display_name ||
+              report.reporter_profile?.username ||
+              "未知用户";
+
             return (
               <article key={report.id} className="community-list-item" style={{ gap: "0.6rem" }}>
                 <div className="admin-action-row">
                   <strong>{report.post_title ?? "(帖子已删除)"}</strong>
                   <span className={badge.className}>{badge.label}</span>
                 </div>
-                <span>post: {report.post_id}</span>
-                <span>reporter: {report.reporter_id}</span>
-                <span>举报原因：{report.reason}</span>
-                <span>{new Date(report.created_at).toLocaleString("zh-CN")}</span>
+                <div className="admin-meta-grid">
+                  <span>帖子作者：{postAuthor} <code>{shortId(report.post_author_id)}</code></span>
+                  <span>举报人：{reporter} <code>{shortId(report.reporter_id)}</code></span>
+                  <span>举报时间：{new Date(report.created_at).toLocaleString("zh-CN")}</span>
+                </div>
+                <p className="admin-post-excerpt">举报原因：{report.reason}</p>
                 <div className="admin-action-row">
-                  <a href={`/posts/${report.post_id}/`} className="admin-action-button">
-                    查看帖子
-                  </a>
-                  <a href="/admin/forum/" className="admin-action-button">
-                    去处理帖子
-                  </a>
+                  <a href={`/posts/${report.post_id}/`} className="admin-action-button">查看帖子</a>
+                  <a href="/admin/forum/" className="admin-action-button">去处理帖子</a>
                 </div>
               </article>
             );
           })}
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

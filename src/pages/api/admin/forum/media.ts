@@ -25,7 +25,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     let query = client
       .from("post_media")
-      .select("id,post_id,user_id,kind,size_bytes,mime_type,storage_path,url,width,height,duration_seconds,created_at,posts:post_id(id,status)")
+      .select("id,post_id,user_id,kind,size_bytes,mime_type,storage_path,url,width,height,duration_seconds,created_at,posts:post_id(id,title,status),profiles:user_id(id,display_name,username)")
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -57,7 +57,15 @@ export const GET: APIRoute = async ({ request, locals }) => {
         duration_seconds: row.duration_seconds,
         created_at: row.created_at,
         is_bound_to_post: isBoundToPost,
+        post_title: row.posts?.title ?? null,
         post_status: postStatus,
+        uploader_profile: row.profiles
+          ? {
+              id: row.profiles.id ?? row.user_id,
+              display_name: row.profiles.display_name ?? null,
+              username: row.profiles.username ?? null,
+            }
+          : null,
       };
     });
 

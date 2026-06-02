@@ -17,7 +17,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     const { data, error } = await client
       .from("reports")
-      .select("id,target_id,target_type,reporter_id,reason,status,created_at,posts:target_id(title,status)")
+      .select("id,target_id,target_type,reporter_id,reason,status,created_at,posts:target_id(title,status,author_id,profiles:author_id(id,display_name,username)),profiles:reporter_id(id,display_name,username)")
       .eq("target_type", "post")
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -34,6 +34,21 @@ export const GET: APIRoute = async ({ request, locals }) => {
         created_at: row.created_at,
         post_title: row.posts?.title ?? null,
         post_status: row.posts?.status ?? null,
+        post_author_id: row.posts?.author_id ?? null,
+        post_author_profile: row.posts?.profiles
+          ? {
+              id: row.posts.profiles.id ?? row.posts.author_id,
+              display_name: row.posts.profiles.display_name ?? null,
+              username: row.posts.profiles.username ?? null,
+            }
+          : null,
+        reporter_profile: row.profiles
+          ? {
+              id: row.profiles.id ?? row.reporter_id,
+              display_name: row.profiles.display_name ?? null,
+              username: row.profiles.username ?? null,
+            }
+          : null,
       })),
     });
   } catch (error) {
