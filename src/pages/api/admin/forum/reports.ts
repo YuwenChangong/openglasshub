@@ -5,6 +5,7 @@ import { sanitizeBodyForDisplay } from "../../../../lib/post-body";
 export const prerender = false;
 
 type RuntimeLocals = { runtime?: { env?: RuntimeEnv } };
+const IMPLEMENTATION = "admin_reports_manual_merge_v2";
 
 function excerpt(text: string | null | undefined): string {
   return sanitizeBodyForDisplay(text ?? "")
@@ -14,10 +15,33 @@ function excerpt(text: string | null | undefined): string {
     .slice(0, 120);
 }
 
+function nonEmptyErrorMessage(message: string | null | undefined, fallback: string): string {
+  const normalized = String(message ?? "").trim();
+  return normalized || fallback;
+}
+
+function errorResponse(
+  error: string,
+  status: number,
+  details?: string | null,
+): Response {
+  const payload: { error: string; implementation: string; details?: string } = {
+    error: nonEmptyErrorMessage(error, "Unexpected server error"),
+    implementation: IMPLEMENTATION,
+  };
+
+  const normalizedDetails = String(details ?? "").trim();
+  if (normalizedDetails) {
+    payload.details = normalizedDetails;
+  }
+
+  return jsonResponse(payload, status);
+}
+
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
     const env = (locals as RuntimeLocals).runtime?.env;
-    if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
+    if (!env) return errorResponse("Runtime environment not available", 500);
 
     const { client } = await requireModerator(request, env);
     const url = new URL(request.url);
@@ -31,7 +55,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (error) return jsonResponse({ error: error.message }, 500);
+    if (error) return errorResponse(error.message, 500, error.details);
 
     const targetIds = Array.from(
       new Set(
@@ -67,7 +91,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         .from("posts")
         .select("id,title,body,status,author_id,circle_id,created_at,updated_at")
         .in("id", targetIds);
-      if (postsError) return jsonResponse({ error: postsError.message }, 500);
+      if (postsError) return errorResponse(postsError.message, 500, postsError.details);
 
       for (const post of posts ?? []) {
         postMap.set(post.id, {
@@ -95,7 +119,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
           .from("circles")
           .select("id,name,slug")
           .in("id", circleIds);
-        if (circlesError) return jsonResponse({ error: circlesError.message }, 500);
+        if (circlesError) return errorResponse(circlesError.message, 500, circlesError.details);
 
         for (const circle of circles ?? []) {
           circleMap.set(circle.id, {
@@ -122,7 +146,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
           .from("profiles")
           .select("id,username,display_name,avatar_url,role")
           .in("id", profileIds);
-        if (profilesError) return jsonResponse({ error: profilesError.message }, 500);
+        if (profilesError) return errorResponse(profilesError.message, 500, profilesError.details);
 
         for (const profile of profiles ?? []) {
           profileMap.set(profile.id, {
@@ -139,7 +163,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         .from("profiles")
         .select("id,username,display_name,avatar_url,role")
         .in("id", reporterIds);
-      if (profilesError) return jsonResponse({ error: profilesError.message }, 500);
+      if (profilesError) return errorResponse(profilesError.message, 500, profilesError.details);
 
       for (const profile of profiles ?? []) {
         profileMap.set(profile.id, {
@@ -153,6 +177,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
     }
 
     return jsonResponse({
+      ok: true,
+      implementation: IMPLEMENTATION,
       reports: (reports ?? []).map((row) => {
         const targetId = String(row.target_id ?? "").trim();
         const post = row.target_type === "post" ? postMap.get(targetId) ?? null : null;
@@ -187,8 +213,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
+    return errorResponse(
+      error instanceof Error ? error.message : "Unexpected server error",
+      500,
+    );
   }
 };
 
-export const ALL: APIRoute = () => jsonResponse({ error: "Method not allowed" }, 405);
+export const ALL: APIRoute = () => errorResponse("Method not allowed", 405);
