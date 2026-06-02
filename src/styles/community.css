@@ -1708,6 +1708,106 @@ body {
   color: var(--text);
 }
 
+.admin-state-message {
+  margin: 0.6rem 1rem 1rem;
+}
+
+.admin-error,
+.admin-inline-success {
+  display: block;
+  padding: 0.7rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.admin-error {
+  color: #e9bbbb;
+  border-color: rgba(233, 187, 187, 0.16);
+}
+
+.admin-inline-success {
+  color: var(--text);
+}
+
+.admin-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0.18rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-status-published {
+  color: rgba(242, 244, 245, 0.9);
+}
+
+.admin-status-hidden {
+  color: #ddc1a1;
+  border-color: rgba(221, 193, 161, 0.16);
+  background: rgba(106, 72, 35, 0.18);
+}
+
+.admin-status-deleted {
+  color: #e2afaf;
+  border-color: rgba(226, 175, 175, 0.18);
+  background: rgba(101, 40, 40, 0.18);
+}
+
+.admin-status-pending {
+  color: var(--text-faint);
+}
+
+.admin-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.admin-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0.34rem 0.78rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease, opacity 140ms ease;
+}
+
+.admin-action-button:hover {
+  background: rgba(255, 255, 255, 0.075);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.13);
+}
+
+.admin-action-button:disabled,
+.admin-action-loading {
+  opacity: 0.72;
+  cursor: default;
+}
+
+.admin-action-danger {
+  color: #e2bbbb;
+  border-color: rgba(226, 187, 187, 0.14);
+}
+
 .comment-shell {
   max-width: 860px;
   margin: 1.5rem 0 0;

@@ -43,13 +43,13 @@ export function createUserClient(env: RuntimeEnv, bearerToken: string): Supabase
 export async function requireModerator(request: Request, env: RuntimeEnv): Promise<ModeratorAuthResult> {
   const token = getBearerToken(request);
   if (!token) {
-    throw new Response(JSON.stringify({ error: "Missing bearer token" }), { status: 401 });
+    throw jsonResponse({ error: "Missing bearer token" }, 401);
   }
 
   const client = createUserClient(env, token);
   const { data: authData, error: authError } = await client.auth.getUser(token);
   if (authError || !authData.user) {
-    throw new Response(JSON.stringify({ error: "Invalid auth token" }), { status: 401 });
+    throw jsonResponse({ error: "Invalid auth token" }, 401);
   }
 
   const { data: profile, error: profileError } = await client
@@ -59,11 +59,11 @@ export async function requireModerator(request: Request, env: RuntimeEnv): Promi
     .maybeSingle();
 
   if (profileError) {
-    throw new Response(JSON.stringify({ error: profileError.message }), { status: 500 });
+    throw jsonResponse({ error: profileError.message }, 500);
   }
 
   if (!profile || (profile.role !== "moderator" && profile.role !== "admin")) {
-    throw new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
+    throw jsonResponse({ error: "Forbidden" }, 403);
   }
 
   return {
