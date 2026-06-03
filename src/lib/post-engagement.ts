@@ -1,5 +1,49 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+type PostViewCountResult = { ok: true } | { ok: false; error: string };
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+export function isMissingViewCountError(error: { message?: string } | null | undefined): boolean {
+  const message = error?.message?.toLowerCase() ?? "";
+  return (
+    message.includes("view_count") &&
+    (message.includes("does not exist") ||
+      message.includes("schema cache") ||
+      message.includes("column"))
+  );
+}
+
+export async function safeIncrementPostViewCount(
+  supabase: SupabaseClient,
+  postId: string,
+): Promise<PostViewCountResult> {
+  const attempts = [
+    { p_post_id: postId },
+    { target_post_id: postId },
+  ];
+
+  let lastError = "";
+
+  for (const params of attempts) {
+    try {
+      const { error } = await supabase.rpc("increment_post_view_count", params);
+      if (!error) {
+        return { ok: true };
+      }
+      lastError = error.message;
+    } catch (error) {
+      lastError = getErrorMessage(error);
+    }
+  }
+
+  console.warn("[post-view-count] increment failed", lastError);
+  return { ok: false, error: lastError || "increment_post_view_count unavailable" };
+}
+
 export async function buildPostLikeCountMap(
   supabase: SupabaseClient,
   postIds: string[],

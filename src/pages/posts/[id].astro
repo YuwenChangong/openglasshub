@@ -10,7 +10,7 @@ import PostSocialActions from "../../components/forum/PostSocialActions";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { formatPostTime } from "../../lib/format-time";
 import { resolveSignedPostMedia, type PostMediaRow } from "../../lib/forum-media";
-import { buildPostLikeCountMap } from "../../lib/post-engagement";
+import { buildPostLikeCountMap, safeIncrementPostViewCount } from "../../lib/post-engagement";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
 
 const { id } = Astro.params;
@@ -80,7 +80,7 @@ const likeCountMap = post ? await buildPostLikeCountMap(supabase, [post.id]) : n
 const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
 const displayBody = sanitizeBodyForDisplay(post?.body);
 if (post) {
-  await supabase.rpc("increment_post_view_count", { target_post_id: post.id }).catch(() => undefined);
+  await safeIncrementPostViewCount(supabase, post.id);
 }
 ---
 

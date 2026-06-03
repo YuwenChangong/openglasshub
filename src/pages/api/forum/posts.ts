@@ -12,7 +12,12 @@
 
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { buildPostCommentCountMap, buildPostLikeCountMap } from "../../../lib/post-engagement";
+import {
+  buildPostCommentCountMap,
+  buildPostLikeCountMap,
+  isMissingViewCountError,
+  safeIncrementPostViewCount,
+} from "../../../lib/post-engagement";
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
 import { getRequestIp } from "../../../lib/request-ip";
 import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
@@ -170,20 +175,18 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const client = createAnonClient(env);
 
     if (incrementView && incrementPostId) {
-      const { error: incrementError } = await client.rpc("increment_post_view_count", {
-        target_post_id: incrementPostId,
-      });
-      if (incrementError) {
-        return json({ error: incrementError.message }, 500);
-      }
-      return json({ ok: true });
+      const result = await safeIncrementPostViewCount(client, incrementPostId);
+      return json(result.ok ? { ok: true } : { ok: false }, 200);
     }
+
+    const selectWithViewCount =
+      "id,title,type,status,created_at,last_activity_at,view_count,circle_id,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)";
+    const selectWithoutViewCount =
+      "id,title,type,status,created_at,last_activity_at,circle_id,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)";
 
     let query = client
       .from("posts")
-      .select(
-        "id,title,type,status,created_at,last_activity_at,view_count,circle_id,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)",
-      )
+      .select(selectWithViewCount)
       .eq("status", "published")
       .order("created_at", { ascending: false })
       .limit(sort === "hot" ? Math.min(Math.max(limit * 4, 60), 200) : limit);
@@ -203,7 +206,29 @@ export const GET: APIRoute = async ({ request, locals }) => {
       query = query.eq("circle_id", circle.id);
     }
 
-    const { data, error } = await query;
+    let supportsViewCount = true;
+    let { data, error } = await query;
+    if (error && isMissingViewCountError(error)) {
+      console.warn("[forum-posts-api] view_count unavailable, falling back", error.message);
+      supportsViewCount = false;
+      let fallbackQuery = client
+        .from("posts")
+        .select(selectWithoutViewCount)
+        .eq("status", "published")
+        .order("created_at", { ascending: false })
+        .limit(sort === "hot" ? Math.min(Math.max(limit * 4, 60), 200) : limit);
+
+      if (circleSlug) {
+        const { data: circle } = await client.from("circles").select("id").eq("slug", circleSlug).maybeSingle();
+        if (circle) {
+          fallbackQuery = fallbackQuery.eq("circle_id", circle.id);
+        }
+      }
+
+      const fallbackResult = await fallbackQuery;
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
     if (error) {
       return json({ error: error.message }, 500);
     }
@@ -221,11 +246,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
           const leftScore =
             (commentCountMap.get(left.id) ?? 0) * 3 +
             (likeCountMap.get(left.id) ?? 0) * 2 +
-            Number(left.view_count ?? 0);
+            Number(supportsViewCount ? left.view_count ?? 0 : 0);
           const rightScore =
             (commentCountMap.get(right.id) ?? 0) * 3 +
             (likeCountMap.get(right.id) ?? 0) * 2 +
-            Number(right.view_count ?? 0);
+            Number(supportsViewCount ? right.view_count ?? 0 : 0);
 
           if (rightScore !== leftScore) return rightScore - leftScore;
           return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
@@ -233,7 +258,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         .slice(0, limit);
     }
 
-    return json({ posts, total: posts.length, sort });
+    return json({ posts, total: posts.length, sort, supports_view_count: supportsViewCount });
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },

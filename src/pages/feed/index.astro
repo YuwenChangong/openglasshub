@@ -8,7 +8,7 @@ import EmptyFeedState from "../../components/community/EmptyFeedState.astro";
 import { formatPostTime } from "../../lib/format-time";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
-import { buildPostCommentCountMap, buildPostLikeCountMap } from "../../lib/post-engagement";
+import { buildPostCommentCountMap, buildPostLikeCountMap, isMissingViewCountError } from "../../lib/post-engagement";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
@@ -17,18 +17,38 @@ const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
 const sort = Astro.url.searchParams.get("sort") === "hot" ? "hot" : "latest";
 
 const baseLimit = sort === "hot" ? 120 : 50;
-const [{ data: fetchedPosts, error }, { data: circles }] = await Promise.all([
-  supabase
-    .from("posts")
-    .select("id, title, body, type, created_at, last_activity_at, view_count, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(*)")
-    .eq("status", "published")
-    .order("created_at", { ascending: false })
-    .limit(baseLimit),
+const postsWithViewCountQuery = supabase
+  .from("posts")
+  .select("id, title, body, type, created_at, last_activity_at, view_count, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(*)")
+  .eq("status", "published")
+  .order("created_at", { ascending: false })
+  .limit(baseLimit);
+const postsWithoutViewCountQuery = supabase
+  .from("posts")
+  .select("id, title, body, type, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(*)")
+  .eq("status", "published")
+  .order("created_at", { ascending: false })
+  .limit(baseLimit);
+
+const [{ data: fetchedPostsWithViewCount, error: viewCountQueryError }, { data: circles }] = await Promise.all([
+  postsWithViewCountQuery,
   supabase
     .from("circles")
     .select("slug, name, description")
     .order("name", { ascending: true }),
 ]);
+
+let fetchedPosts = fetchedPostsWithViewCount ?? [];
+let error = viewCountQueryError;
+let supportsViewCount = !viewCountQueryError;
+
+if (viewCountQueryError && isMissingViewCountError(viewCountQueryError)) {
+  console.warn("[feed-hot-sort] view_count unavailable, falling back", viewCountQueryError.message);
+  const fallbackResult = await postsWithoutViewCountQuery;
+  fetchedPosts = fallbackResult.data ?? [];
+  error = fallbackResult.error;
+  supportsViewCount = false;
+}
 
 const likeCountMap = fetchedPosts ? await buildPostLikeCountMap(supabase, fetchedPosts.map((post) => post.id)) : new Map();
 const commentCountMap = fetchedPosts ? await buildPostCommentCountMap(supabase, fetchedPosts.map((post) => post.id)) : new Map();
@@ -41,11 +61,11 @@ const posts = [...(fetchedPosts ?? [])]
     const leftScore =
       (commentCountMap.get(left.id) ?? 0) * 3 +
       (likeCountMap.get(left.id) ?? 0) * 2 +
-      Number(left.view_count ?? 0);
+      Number(supportsViewCount ? left.view_count ?? 0 : 0);
     const rightScore =
       (commentCountMap.get(right.id) ?? 0) * 3 +
       (likeCountMap.get(right.id) ?? 0) * 2 +
-      Number(right.view_count ?? 0);
+      Number(supportsViewCount ? right.view_count ?? 0 : 0);
 
     if (rightScore !== leftScore) {
       return rightScore - leftScore;
