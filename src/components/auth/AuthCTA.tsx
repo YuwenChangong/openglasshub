@@ -75,7 +75,7 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
       </p>
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
         <a href="/feed/" style={primaryButtonStyle}>进入社区动态</a>
-        <a href="/posts/new/" style={secondaryButtonStyle}>发布帖子</a>
+        <a href="/posts/new/" style={secondaryButtonStyle}>去发帖</a>
         <button type="button" onClick={handleSignOut} style={secondaryButtonStyle} disabled={signingOut}>
           {signingOut ? "退出中..." : "退出登录"}
         </button>
