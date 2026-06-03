@@ -8,6 +8,7 @@ import PostModerationActions from "../../components/forum/PostModerationActions"
 import PostMediaGallery from "../../components/forum/PostMediaGallery";
 import PostSocialActions from "../../components/forum/PostSocialActions";
 import { buildLoginHref } from "../../lib/auth-redirect";
+import { formatPostTime } from "../../lib/format-time";
 import { resolveSignedPostMedia, type PostMediaRow } from "../../lib/forum-media";
 import { buildPostLikeCountMap } from "../../lib/post-engagement";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
@@ -24,7 +25,7 @@ const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
 
 const { data: post, error } = await supabase
   .from("posts")
-  .select("id, author_id, title, body, type, status, created_at, updated_at, profiles:author_id(display_name), circles:circle_id(slug, name)")
+  .select("id, author_id, title, body, type, status, created_at, updated_at, profiles:author_id(display_name,username), circles:circle_id(slug, name)")
   .eq("id", id)
   .eq("status", "published")
   .single();
@@ -57,14 +58,6 @@ if (error || !post) {
   Astro.response.statusText = "Not Found";
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("zh-CN", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
 const postTypeLabels: Record<string, string> = {
   experience: "体验",
   question: "提问",
@@ -86,6 +79,9 @@ const postMedia = await resolveSignedPostMedia(
 const likeCountMap = post ? await buildPostLikeCountMap(supabase, [post.id]) : new Map();
 const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
 const displayBody = sanitizeBodyForDisplay(post?.body);
+if (post) {
+  await supabase.rpc("increment_post_view_count", { target_post_id: post.id }).catch(() => undefined);
+}
 ---
 
 {!post ? (
@@ -131,10 +127,10 @@ const displayBody = sanitizeBodyForDisplay(post?.body);
         </div>
         <h1 class="post-detail__title">{post.title}</h1>
         <div class="forum-meta post-detail__meta">
-          <span>{post.profiles?.display_name || "匿名"}</span>
-          <span>{formatDate(post.created_at)}</span>
+          <span>{post.profiles?.display_name || post.profiles?.username || "匿名"}</span>
+          <span>{formatPostTime(post.created_at)}</span>
           {post.updated_at && post.updated_at !== post.created_at && (
-            <span>更新于 {formatDate(post.updated_at)}</span>
+            <span>更新于 {new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(post.updated_at))}</span>
           )}
         </div>
       </header>

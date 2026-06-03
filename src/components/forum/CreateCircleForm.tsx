@@ -30,6 +30,16 @@ function createSlug(value: string) {
     .replace(/^-|-$/g, "");
 }
 
+function mapCircleError(message: string) {
+  if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) {
+    return "圈子名称已存在，请换一个名称。";
+  }
+  if (message.includes("CIRCLE_SLUG_ALREADY_EXISTS")) {
+    return "圈子标识已存在，请换一个标识。";
+  }
+  return message;
+}
+
 export default function CreateCircleForm() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -174,7 +184,7 @@ export default function CreateCircleForm() {
       if (uploadedPath) {
         await supabase.storage.from("post-media").remove([uploadedPath]).catch(() => undefined);
       }
-      setError(submitError instanceof Error ? submitError.message : "创建圈子失败。");
+      setError(mapCircleError(submitError instanceof Error ? submitError.message : "创建圈子失败。"));
     } finally {
       setSubmitting(false);
     }
@@ -187,7 +197,7 @@ export default function CreateCircleForm() {
       <div className="community-section-head">
         <div>
           <h2>创建圈子</h2>
-          <p>登录用户可以直接创建自己的圈子。若当前环境尚未启用圈子图片字段，会先创建文字圈子。</p>
+          <p>登录后即可创建自己的圈子，并由 owner 或管理员继续维护。</p>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
@@ -7,6 +7,7 @@ interface CircleCoverEditorProps {
   circleId: string;
   circleSlug: string;
   supportsExtendedSchema: boolean;
+  ownerId: string | null;
 }
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -24,12 +25,42 @@ export default function CircleCoverEditor({
   circleId,
   circleSlug,
   supportsExtendedSchema,
+  ownerId,
 }: CircleCoverEditorProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [permissionResolved, setPermissionResolved] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
+
+  async function resolvePermission() {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token ?? "";
+    const userId = data.session?.user?.id ?? "";
+
+    if (!token || !userId) {
+      setCanEdit(false);
+      setPermissionResolved(true);
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const role = String(profile?.role ?? "");
+    const allowed = role === "admin" || role === "moderator" || (ownerId != null && ownerId === userId);
+    setCanEdit(allowed);
+    setPermissionResolved(true);
+  }
+
+  useEffect(() => {
+    void resolvePermission();
+  }, [ownerId, supabase]);
 
   async function getSessionToken() {
     const { data } = await supabase.auth.getSession();
@@ -134,6 +165,10 @@ export default function CircleCoverEditor({
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!permissionResolved || !canEdit) {
+    return null;
   }
 
   return (

@@ -10,11 +10,15 @@ type CircleBase = {
 
 export type CircleRow = CircleBase & {
   image_path?: string | null;
+  owner_id?: string | null;
 };
 
 function isMissingImagePathError(error: { message?: string } | null | undefined) {
   const message = error?.message?.toLowerCase() ?? "";
-  return message.includes("image_path") && message.includes("does not exist");
+  return (
+    ((message.includes("image_path") || message.includes("owner_id")) && message.includes("does not exist")) ||
+    message.includes("column circles.owner_id does not exist")
+  );
 }
 
 export async function fetchCirclesWithFallback(
@@ -22,7 +26,7 @@ export async function fetchCirclesWithFallback(
 ): Promise<{ circles: CircleRow[]; error: { message: string } | null; supportsExtendedSchema: boolean }> {
   const extendedResult = await supabase
     .from("circles")
-    .select("id, name, slug, description, created_at, image_path")
+    .select("id, name, slug, description, created_at, image_path, owner_id")
     .order("name", { ascending: true });
 
   if (!extendedResult.error) {
@@ -50,6 +54,7 @@ export async function fetchCirclesWithFallback(
     circles: ((fallbackResult.data ?? []) as CircleBase[]).map((circle) => ({
       ...circle,
       image_path: null,
+      owner_id: null,
     })),
     error: fallbackResult.error ? { message: fallbackResult.error.message } : null,
     supportsExtendedSchema: false,
@@ -62,7 +67,7 @@ export async function fetchCircleBySlugWithFallback(
 ): Promise<{ circle: CircleRow | null; error: { message: string } | null; supportsExtendedSchema: boolean }> {
   const extendedResult = await supabase
     .from("circles")
-    .select("id, name, slug, description, created_at, image_path")
+    .select("id, name, slug, description, created_at, image_path, owner_id")
     .eq("slug", slug)
     .single();
 
@@ -93,6 +98,7 @@ export async function fetchCircleBySlugWithFallback(
       ? {
           ...(fallbackResult.data as CircleBase),
           image_path: null,
+          owner_id: null,
         }
       : null,
     error: fallbackResult.error ? { message: fallbackResult.error.message } : null,

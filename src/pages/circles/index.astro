@@ -24,7 +24,7 @@ const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
   activeTab="circles"
 >
   <h1>圈子</h1>
-  <p class="section-lead">先看圈子，再决定把帖子发到哪里更合适。这里不显示假活跃度，只保留真实圈子说明。</p>
+  <p class="section-lead">浏览现有圈子，或直接创建一个新的讨论空间。</p>
 
   <div class="community-cta-row" style="margin: 1.1rem 0 1.5rem;">
     <a href="/feed/" class="community-action-button">返回动态</a>
@@ -41,7 +41,7 @@ const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
   ) : visibleCircles.length === 0 ? (
     <div class="forum-empty">
       <strong>暂时还没有公开圈子</strong>
-      <p>圈子会随着社区讨论逐步稳定下来。当前阶段更重要的是先形成真实话题，而不是制造空壳分类。</p>
+      <p>现在可以直接创建第一个圈子，开始聚合相关讨论。</p>
     </div>
   ) : (
     <section class="circle-grid">

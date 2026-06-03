@@ -9,6 +9,7 @@ import { buildPostLikeCountMap } from "../../lib/post-engagement";
 import { buildCircleImageMap } from "../../lib/circle-images";
 import { fetchCircleBySlugWithFallback } from "../../lib/circle-data";
 import CircleCoverEditor from "../../components/forum/CircleCoverEditor";
+import { formatPostTime } from "../../lib/format-time";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
 
 const { slug } = Astro.params;
@@ -34,7 +35,7 @@ let postsError: any = null;
 if (circle) {
   const result = await supabase
     .from("posts")
-    .select("id, title, body, type, created_at, profiles:author_id(display_name), post_media(*)")
+    .select("id, title, body, type, created_at, profiles:author_id(display_name,username), post_media(*)")
     .eq("circle_id", circle.id)
     .eq("status", "published")
     .order("created_at", { ascending: false })
@@ -53,10 +54,6 @@ const postMediaMap = circle
     )
   : new Map();
 const likeCountMap = circle ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
-}
 
 const postTypeLabels: Record<string, string> = {
   experience: "体验",
@@ -112,6 +109,7 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
         circleId={circle.id}
         circleSlug={circle.slug}
         supportsExtendedSchema={supportsExtendedSchema}
+        ownerId={circle.owner_id ?? null}
         client:visible
       />
     </header>
@@ -148,8 +146,8 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
             circleName={circle.name}
             circleSlug={circle.slug}
             typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
-            authorName={post.profiles?.display_name || undefined}
-            timestamp={formatDate(post.created_at)}
+            authorName={post.profiles?.display_name || post.profiles?.username || undefined}
+            timestamp={formatPostTime(post.created_at)}
             media={postMediaMap.get(post.id) ?? []}
             likeCount={likeCountMap.get(post.id) ?? 0}
           />

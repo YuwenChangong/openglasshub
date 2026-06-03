@@ -231,6 +231,8 @@ async function uploadVideoToExternal(params: {
 export default function CreatePostForm() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const circlePickerRef = useRef<HTMLDivElement | null>(null);
+  const circleButtonRef = useRef<HTMLButtonElement | null>(null);
   const mediaFilesRef = useRef<LocalMedia[]>([]);
   const [ready, setReady] = useState(false);
   const [circleSlug, setCircleSlug] = useState("");
@@ -238,6 +240,8 @@ export default function CreatePostForm() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [circles, setCircles] = useState<CircleOption[]>([]);
+  const [circleMenuOpen, setCircleMenuOpen] = useState(false);
+  const [circleActiveIndex, setCircleActiveIndex] = useState(0);
   const [mediaFiles, setMediaFiles] = useState<LocalMedia[]>([]);
   const [loadingCircles, setLoadingCircles] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -291,6 +295,7 @@ export default function CreatePostForm() {
         setCircles(nextCircles);
         if (nextCircles[0] && !circleSlug) {
           setCircleSlug(nextCircles[0].slug);
+          setCircleActiveIndex(0);
         }
       } catch (fetchError) {
         if (!cancelled) {
@@ -313,6 +318,30 @@ export default function CreatePostForm() {
   useEffect(() => {
     mediaFilesRef.current = mediaFiles;
   }, [mediaFiles]);
+
+  useEffect(() => {
+    if (!circleMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!circlePickerRef.current?.contains(event.target as Node)) {
+        setCircleMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCircleMenuOpen(false);
+        circleButtonRef.current?.focus();
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [circleMenuOpen]);
 
   useEffect(() => {
     return () => {
@@ -487,6 +516,14 @@ export default function CreatePostForm() {
 
   function markAsCover(id: string) {
     setMediaFiles((current) => withSingleCover(current, id));
+  }
+
+  function selectCircle(slug: string) {
+    const nextIndex = circles.findIndex((circle) => circle.slug === slug);
+    setCircleSlug(slug);
+    setCircleActiveIndex(nextIndex >= 0 ? nextIndex : 0);
+    setCircleMenuOpen(false);
+    circleButtonRef.current?.focus();
   }
 
   async function rollbackPendingPost(token: string, postId: string) {
@@ -715,6 +752,11 @@ export default function CreatePostForm() {
     return <section className="post-composer"><div className="auth-alert">正在检查登录状态...</div></section>;
   }
 
+  const selectedCircle =
+    circles.find((circle) => circle.slug === circleSlug) ??
+    circles[0] ??
+    null;
+
   return (
     <section className="post-composer">
       <div className="post-composer__intro">
@@ -744,19 +786,48 @@ export default function CreatePostForm() {
 
         <label>
           <span className="post-composer__label">圈子</span>
-          <select
-            className="community-input"
-            value={circleSlug}
-            onChange={(event) => setCircleSlug(event.target.value)}
-            disabled={loadingCircles}
-            required
-          >
-            {circles.map((circle) => (
-              <option key={circle.id} value={circle.slug}>
-                {circle.name}
-              </option>
-            ))}
-          </select>
+          <div className={`community-select${circleMenuOpen ? " is-open" : ""}${loadingCircles ? " is-disabled" : ""}`} ref={circlePickerRef}>
+            <input type="hidden" name="circle_slug" value={circleSlug} />
+            <button
+              ref={circleButtonRef}
+              type="button"
+              className="community-select__trigger"
+              onClick={() => {
+                if (loadingCircles || circles.length === 0) return;
+                setCircleMenuOpen((current) => !current);
+              }}
+              disabled={loadingCircles || circles.length === 0}
+              aria-haspopup="listbox"
+              aria-expanded={circleMenuOpen}
+            >
+              <span className="community-select__content">
+                <strong>{selectedCircle?.name ?? (loadingCircles ? "正在加载圈子..." : "暂无可选圈子")}</strong>
+                <span>{selectedCircle?.description || "选择要发布到的圈子"}</span>
+              </span>
+              <span className="community-select__chevron" aria-hidden="true">⌄</span>
+            </button>
+            {circleMenuOpen ? (
+              <div className="community-select__menu" role="listbox" aria-label="圈子列表">
+                {circles.map((circle, index) => {
+                  const active = circle.slug === circleSlug;
+                  return (
+                    <button
+                      key={circle.id}
+                      type="button"
+                      className={`community-select__option${active ? " is-selected" : ""}${circleActiveIndex === index ? " is-active" : ""}`}
+                      onClick={() => selectCircle(circle.slug)}
+                      onMouseEnter={() => setCircleActiveIndex(index)}
+                      role="option"
+                      aria-selected={active}
+                    >
+                      <strong>{circle.name}</strong>
+                      <span>{circle.description || circle.slug}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
         </label>
 
         <label>

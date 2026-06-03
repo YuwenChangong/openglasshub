@@ -65,10 +65,10 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
-  const [likeAnimatingId, setLikeAnimatingId] = useState<string | null>(null);
+  const [likeAnimatingById, setLikeAnimatingById] = useState<Record<string, boolean>>({});
   const [commentErrors, setCommentErrors] = useState<Record<string, string>>({});
   const [likePendingById, setLikePendingById] = useState<Record<string, boolean>>({});
-  const likeTimerRef = useRef<number | null>(null);
+  const likeTimerRef = useRef<Record<string, number>>({});
 
   const clearCommentError = useCallback((commentId: string) => {
     setCommentErrors((current) => {
@@ -122,9 +122,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
 
   useEffect(() => {
     return () => {
-      if (likeTimerRef.current !== null) {
-        window.clearTimeout(likeTimerRef.current);
-      }
+      Object.values(likeTimerRef.current).forEach((timerId) => window.clearTimeout(timerId));
     };
   }, []);
 
@@ -134,13 +132,17 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
   }, []);
 
   const triggerLikeAnimation = useCallback((commentId: string) => {
-    setLikeAnimatingId(commentId);
-    if (likeTimerRef.current !== null) {
-      window.clearTimeout(likeTimerRef.current);
+    setLikeAnimatingById((current) => ({ ...current, [commentId]: true }));
+    if (likeTimerRef.current[commentId]) {
+      window.clearTimeout(likeTimerRef.current[commentId]);
     }
-    likeTimerRef.current = window.setTimeout(() => {
-      setLikeAnimatingId((current) => (current === commentId ? null : current));
-      likeTimerRef.current = null;
+    likeTimerRef.current[commentId] = window.setTimeout(() => {
+      setLikeAnimatingById((current) => {
+        const next = { ...current };
+        delete next[commentId];
+        return next;
+      });
+      delete likeTimerRef.current[commentId];
     }, LIKE_ANIMATION_MS);
   }, []);
 
@@ -327,7 +329,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
                   disabled={!supabase || Boolean(likePendingById[comment.id])}
                   aria-label={comment.liked_by_me ? "取消点赞" : "点赞"}
                 >
-                  <span className={`community-like-heart${likeAnimatingId === comment.id ? " is-animating" : ""}`} aria-hidden="true">
+                  <span className={`community-like-heart${likeAnimatingById[comment.id] ? " is-animating" : ""}`} aria-hidden="true">
                     <svg viewBox="0 0 24 24" focusable="false">
                       <path d="M12 21.35 10.55 20C5.4 15.24 2 12.09 2 8.23 2 5.08 4.42 2.7 7.5 2.7c1.74 0 3.41.82 4.5 2.09 1.09-1.27 2.76-2.09 4.5-2.09 3.08 0 5.5 2.38 5.5 5.53 0 3.86-3.4 7.01-8.55 11.78L12 21.35Z" />
                     </svg>

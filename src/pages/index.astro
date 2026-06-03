@@ -5,6 +5,7 @@ import CommunityLayout from "../layouts/CommunityLayout.astro";
 import AuthCTA from "../components/auth/AuthCTA";
 import PostCard from "../components/community/PostCard.astro";
 import EmptyFeedState from "../components/community/EmptyFeedState.astro";
+import { formatPostTime } from "../lib/format-time";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { curatedNews } from "../lib/news";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../lib/forum-media";
@@ -35,7 +36,6 @@ if (supabase) {
     .from("posts")
     .select("id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)")
     .eq("status", "published")
-    .order("last_activity_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(8);
 
@@ -59,10 +59,6 @@ const postTypeLabels: Record<string, string> = {
   news: "资讯",
   feedback: "反馈",
 };
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
-}
 
 function excerpt(body?: string | null): string {
   const sanitized = sanitizeBodyForDisplay(body);
@@ -102,7 +98,7 @@ function excerpt(body?: string | null): string {
       <div class="community-stream-head">
         <div>
           <h2>正在讨论</h2>
-          <p>{posts.length > 0 ? `已展示 ${posts.length} 条公开讨论，按最近活动排序。` : "社区正在启动，公开讨论会先从这里长出来。"} </p>
+          <p>{posts.length > 0 ? `已展示 ${posts.length} 条公开讨论。` : "社区正在启动，公开讨论会先从这里长出来。"} </p>
         </div>
         <a href="/feed/" class="community-link">查看全部</a>
       </div>
@@ -125,7 +121,7 @@ function excerpt(body?: string | null): string {
               circleSlug={post.circles?.slug ?? undefined}
               typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
               authorName={post.profiles?.display_name || post.profiles?.username || undefined}
-              timestamp={formatDate(post.last_activity_at || post.created_at)}
+              timestamp={formatPostTime(post.created_at)}
               media={postMediaMap.get(post.id) ?? []}
               likeCount={likeCountMap.get(post.id) ?? 0}
             />

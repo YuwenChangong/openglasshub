@@ -12,6 +12,7 @@
 
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { buildPostCommentCountMap, buildPostLikeCountMap } from "../../../lib/post-engagement";
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
 import { getRequestIp } from "../../../lib/request-ip";
 import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
@@ -160,19 +161,32 @@ export const GET: APIRoute = async ({ request, locals }) => {
     }
 
     const circleSlug = url.searchParams.get("circle");
+    const sort = url.searchParams.get("sort") === "hot" ? "hot" : "latest";
     const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 20;
+    const incrementView = url.searchParams.get("increment_view") === "1";
+    const incrementPostId = String(url.searchParams.get("id") ?? "").trim();
 
     const client = createAnonClient(env);
+
+    if (incrementView && incrementPostId) {
+      const { error: incrementError } = await client.rpc("increment_post_view_count", {
+        target_post_id: incrementPostId,
+      });
+      if (incrementError) {
+        return json({ error: incrementError.message }, 500);
+      }
+      return json({ ok: true });
+    }
 
     let query = client
       .from("posts")
       .select(
-        "id,title,type,status,created_at,last_activity_at,circle_id,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)",
+        "id,title,type,status,created_at,last_activity_at,view_count,circle_id,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)",
       )
       .eq("status", "published")
-      .order("last_activity_at", { ascending: false })
-      .limit(limit);
+      .order("created_at", { ascending: false })
+      .limit(sort === "hot" ? Math.min(Math.max(limit * 4, 60), 200) : limit);
 
     if (circleSlug) {
       const { data: circle, error: circleError } = await client
@@ -194,7 +208,32 @@ export const GET: APIRoute = async ({ request, locals }) => {
       return json({ error: error.message }, 500);
     }
 
-    return json({ posts: data ?? [], total: data?.length ?? 0 });
+    let posts = data ?? [];
+    if (sort === "hot" && posts.length > 0) {
+      const postIds = posts.map((post) => post.id);
+      const [likeCountMap, commentCountMap] = await Promise.all([
+        buildPostLikeCountMap(client, postIds),
+        buildPostCommentCountMap(client, postIds),
+      ]);
+
+      posts = [...posts]
+        .sort((left, right) => {
+          const leftScore =
+            (commentCountMap.get(left.id) ?? 0) * 3 +
+            (likeCountMap.get(left.id) ?? 0) * 2 +
+            Number(left.view_count ?? 0);
+          const rightScore =
+            (commentCountMap.get(right.id) ?? 0) * 3 +
+            (likeCountMap.get(right.id) ?? 0) * 2 +
+            Number(right.view_count ?? 0);
+
+          if (rightScore !== leftScore) return rightScore - leftScore;
+          return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+        })
+        .slice(0, limit);
+    }
+
+    return json({ posts, total: posts.length, sort });
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },
