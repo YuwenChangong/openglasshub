@@ -88,7 +88,7 @@ function excerpt(body?: string | null): string {
       <SignedOutHeroNote client:only="react" />
       <div class="community-inline-links">
         <a href="/products/" class="community-inline-link">产品入口</a>
-        <a href="/news/" class="community-inline-link">管理员精选</a>
+        <a href="/news/" class="community-inline-link">热点</a>
         <a href="/gaze-launcher/" class="community-inline-link">Gaze Launcher</a>
       </div>
     </div>
@@ -139,7 +139,6 @@ function excerpt(body?: string | null): string {
       <section class="community-sidebar-block">
         <div class="community-sidebar-head">
           <h2>热点</h2>
-          <span>管理员精选</span>
         </div>
         <div class="community-list">
           {curatedNews.slice(0, 3).map((item) => (

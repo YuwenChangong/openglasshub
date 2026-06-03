@@ -18,11 +18,6 @@ import NewsCard from "../../components/community/NewsCard.astro";
 
   <section class="news-layout">
     <div class="community-surface community-surface--primary">
-      <div class="community-section-head">
-        <div>
-          <h2>管理员精选</h2>
-        </div>
-      </div>
       <div class="news-stream news-stream--compact">
         {curatedNews.map((item) => (
           <NewsCard
@@ -33,7 +28,6 @@ import NewsCard from "../../components/community/NewsCard.astro";
             date={new Date(item.publishedAt).toLocaleDateString("zh-CN")}
             coverImageUrl={item.coverImageUrl}
             coverAlt={item.coverAlt}
-            sourceLabel={item.sourceLabel ?? "管理员精选"}
           />
         ))}
       </div>

@@ -22,7 +22,6 @@ export const curatedNews: NewsEntry[] = [
     category: "社区观察",
     summary: "从参数表和宣传词回到佩戴体验、兼容性、续航和系统限制，是当前更有价值的讨论方向。",
     publishedAt: "2026-05-23",
-    sourceLabel: "OpenGlass Hub 编辑部",
     mediaType: "none",
     body: [
       "过去一段时间里，很多中文讨论仍然停留在参数、宣传视频和品牌口号层面。但真正会影响购买决策和长期使用体验的，通常是更具体的问题，例如佩戴舒适度、外接链路稳定性、语音和输入方式、权限边界，以及是否存在明确的开发入口。",
@@ -36,7 +35,6 @@ export const curatedNews: NewsEntry[] = [
     category: "行业整理",
     summary: "很多设备的分野并不只来自显示能力，而来自系统权限、可安装路径和输入方式的约束。",
     publishedAt: "2026-05-22",
-    sourceLabel: "OpenGlass Hub 编辑部",
     mediaType: "none",
     body: [
       "同样是“眼镜”，不同产品的实际能力可能完全不同。有些更像显示终端，有些强调拍摄和 AI 入口，有些则试图提供更完整的独立系统体验。",
@@ -64,7 +62,6 @@ export const curatedNews: NewsEntry[] = [
     category: "开发者",
     summary: "比起单纯问有没有 SDK，更重要的是搞清楚摄像头、麦克风、安装路径和输入链路是否可用。",
     publishedAt: "2026-05-20",
-    sourceLabel: "OpenGlass Hub 编辑部",
     mediaType: "none",
     body: [
       "很多开发者在看 AR/AI 眼镜平台时，第一反应是找 SDK。但真正进入实现阶段后，最先撞到的问题通常不是 SDK 文档，而是权限、安装链路、输入方式和系统限制。",

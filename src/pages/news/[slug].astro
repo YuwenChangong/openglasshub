@@ -45,7 +45,6 @@ const publishedDate = item
         <div class="news-article-page__meta">
           <span class="community-tag">{item.category}</span>
           <span class="community-meta">{publishedDate}</span>
-          <span class="community-meta">{item.sourceLabel ?? "管理员精选"}</span>
         </div>
         <h1>{item.title}</h1>
         <p class="news-article-page__summary">{item.summary}</p>
@@ -64,7 +63,6 @@ const publishedDate = item
             >
               <span class="community-tag community-tag--muted">视频</span>
               <strong>查看相关视频</strong>
-              <span class="community-meta">当前阶段只提供外部视频链接，不在站内伪装播放器。</span>
             </a>
           ) : null}
         </section>
@@ -78,7 +76,6 @@ const publishedDate = item
 
       <footer class="news-article-page__footer">
         <div class="community-inline-meta">
-          <span>{item.sourceLabel ?? "管理员精选"}</span>
           <span>发布时间：{publishedDate}</span>
           {item.sourceUrl && (
             <a href={item.sourceUrl} target="_blank" rel="noreferrer" class="community-inline-link">
