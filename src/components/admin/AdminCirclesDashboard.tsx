@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AdminApiError, adminFetch } from "../../lib/admin-api-client";
+import { adminFetch } from "../../lib/admin-api-client";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { useAdminSession } from "./useAdminSession";
 
@@ -13,6 +13,8 @@ type CircleRecord = {
   updated_at: string;
   image_path: string | null;
   owner_id: string | null;
+  post_count: number;
+  comment_count: number;
   owner_profile: {
     id: string | null;
     username?: string | null;
@@ -124,11 +126,7 @@ export default function AdminCirclesDashboard() {
   async function uploadCircleImage(file: File, ownerId: string) {
     if (!accessToken) throw new Error("登录状态已失效，请重新登录");
     const objectPath = `circles/${ownerId}/${Date.now()}-${normalizeFileName(file.name)}`;
-    await uploadToPostMediaWithTus({
-      file,
-      objectPath,
-      accessToken,
-    });
+    await uploadToPostMediaWithTus({ file, objectPath, accessToken });
     return objectPath;
   }
 
@@ -158,16 +156,18 @@ export default function AdminCirclesDashboard() {
       });
 
       if (payload.circle) {
-        setCircles((current) => [payload.circle as CircleRecord, ...current]);
+        const nextCircle = payload.circle as CircleRecord;
+        setCircles((current) => [nextCircle, ...current]);
         setDrafts((current) => ({
           ...current,
-          [payload.circle!.id]: {
-            name: payload.circle!.name,
-            description: payload.circle!.description ?? "",
-            type: payload.circle!.type,
+          [nextCircle.id]: {
+            name: nextCircle.name,
+            description: nextCircle.description ?? "",
+            type: nextCircle.type,
           },
         }));
       }
+
       setCreateName("");
       setCreateSlugValue("");
       setCreateDescription("");
@@ -241,6 +241,7 @@ export default function AdminCirclesDashboard() {
       if (payload.circle) {
         setCircles((current) => current.map((item) => (item.id === circle.id ? { ...item, ...payload.circle } as CircleRecord : item)));
       }
+
       setSuccess(imagePath ? "圈子封面已更新。" : "圈子封面已清除。");
     } catch (requestError) {
       if (imagePath) {
@@ -268,7 +269,7 @@ export default function AdminCirclesDashboard() {
       <div className="community-stream-head">
         <div>
           <h2>管理员圈子管理</h2>
-          <p>查看 owner、创建新圈子，并修改名称、说明和封面。</p>
+          <p>查看 owner、帖子/评论数量，并维护圈子信息与封面。</p>
         </div>
       </div>
 
@@ -282,7 +283,7 @@ export default function AdminCirclesDashboard() {
           <div className="admin-meta-grid">
             <label>
               <span>圈子名称</span>
-              <input className="community-input" value={createName} onChange={(event) => setCreateName(event.target.value)} />
+              <input className="community-input" value={createName} onChange={(event) => setCreateName(event.target.value)} maxLength={40} />
             </label>
             <label>
               <span>圈子标识</span>
@@ -303,7 +304,7 @@ export default function AdminCirclesDashboard() {
           </div>
           <label>
             <span className="community-meta">圈子说明</span>
-            <textarea className="community-input community-input--textarea" value={createDescription} onChange={(event) => setCreateDescription(event.target.value)} maxLength={280} />
+            <textarea className="community-input community-input--textarea" value={createDescription} onChange={(event) => setCreateDescription(event.target.value)} maxLength={200} />
           </label>
           <div className="admin-inline-actions">
             <button type="button" className="admin-action-button" onClick={() => void handleCreate()} disabled={creating}>
@@ -334,6 +335,8 @@ export default function AdminCirclesDashboard() {
                 <span>slug：<code>{circle.slug}</code></span>
                 <span>创建时间：{new Date(circle.created_at).toLocaleString("zh-CN")}</span>
                 <span>封面：{circle.image_path ? "已设置" : "未设置"}</span>
+                <span>帖子：{circle.post_count}</span>
+                <span>评论：{circle.comment_count}</span>
               </div>
               <div className="admin-meta-grid">
                 <label>
@@ -368,13 +371,7 @@ export default function AdminCirclesDashboard() {
                 </label>
                 <label>
                   <span>更新封面</span>
-                  <input
-                    className="community-input"
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => void updateCover(circle, event.target.files?.[0] ?? null)}
-                    disabled={rowLoading}
-                  />
+                  <input className="community-input" type="file" accept="image/*" onChange={(event) => void updateCover(circle, event.target.files?.[0] ?? null)} disabled={rowLoading} />
                 </label>
               </div>
               <label>
@@ -388,7 +385,7 @@ export default function AdminCirclesDashboard() {
                       [circle.id]: { ...draft, description: event.target.value },
                     }))
                   }
-                  maxLength={280}
+                  maxLength={200}
                 />
               </label>
               <div className="admin-inline-actions">
@@ -398,6 +395,7 @@ export default function AdminCirclesDashboard() {
                 <button type="button" className="admin-action-button" onClick={() => void updateCover(circle, null)} disabled={rowLoading}>
                   清除封面
                 </button>
+                <a href={`/circles/${circle.slug}/manage/`} className="admin-action-button">管理帖子和评论</a>
                 <a href={`/circles/${circle.slug}/`} className="admin-action-button">查看公开页</a>
               </div>
             </article>

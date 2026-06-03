@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 
 interface CircleCoverEditorProps {
   circleId: string;
   circleSlug: string;
   supportsExtendedSchema: boolean;
   ownerId: string | null;
+  onUpdated?: (imagePath: string | null) => void;
 }
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -26,41 +28,46 @@ export default function CircleCoverEditor({
   circleSlug,
   supportsExtendedSchema,
   ownerId,
+  onUpdated,
 }: CircleCoverEditorProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const authState = useBrowserAuthState(supabase);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [permissionResolved, setPermissionResolved] = useState(false);
-  const [canEdit, setCanEdit] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
 
-  async function resolvePermission() {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token ?? "";
-    const userId = data.session?.user?.id ?? "";
-
-    if (!token || !userId) {
-      setCanEdit(false);
-      setPermissionResolved(true);
+  useEffect(() => {
+    if (authState.status !== "signed_in" || !authState.user) {
+      setRole(null);
       return;
     }
 
-    const { data: profile } = await supabase
+    let cancelled = false;
+    supabase
       .from("profiles")
       .select("role")
-      .eq("id", userId)
-      .maybeSingle();
+      .eq("id", authState.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        setRole(String(data?.role ?? ""));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRole("");
+      });
 
-    const role = String(profile?.role ?? "");
-    const allowed = role === "admin" || role === "moderator" || (ownerId != null && ownerId === userId);
-    setCanEdit(allowed);
-    setPermissionResolved(true);
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [authState.status, authState.user, supabase]);
 
-  useEffect(() => {
-    void resolvePermission();
-  }, [ownerId, supabase]);
+  const canEdit =
+    authState.status === "signed_in" &&
+    !!authState.user &&
+    (authState.user.id === ownerId || role === "moderator" || role === "admin");
 
   async function getSessionToken() {
     const { data } = await supabase.auth.getSession();
@@ -68,7 +75,7 @@ export default function CircleCoverEditor({
   }
 
   async function updateCircleCover(imagePath: string | null, token: string) {
-    const response = await fetch("/api/forum/circles", {
+    const response = await fetch(`/api/forum/circles/${circleSlug}/manage`, {
       method: "PATCH",
       headers: {
         "content-type": "application/json",
@@ -79,6 +86,7 @@ export default function CircleCoverEditor({
         image_path: imagePath,
       }),
     });
+
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
     if (!response.ok) {
       throw new Error(payload?.error ?? `更新封面失败 (${response.status})`);
@@ -111,18 +119,12 @@ export default function CircleCoverEditor({
     let uploadedPath = "";
     try {
       const token = await getSessionToken();
-      if (!token) {
-        window.location.assign(buildLoginHref(`/circles/${circleSlug}/`));
+      if (!token || authState.status !== "signed_in" || !authState.user) {
+        window.location.assign(buildLoginHref(`/circles/${circleSlug}/manage/`));
         return;
       }
 
-      const user = (await supabase.auth.getUser(token)).data.user;
-      if (!user) {
-        window.location.assign(buildLoginHref(`/circles/${circleSlug}/`));
-        return;
-      }
-
-      uploadedPath = `circles/${user.id}/${Date.now()}-${normalizeFileName(file.name)}`;
+      uploadedPath = `circles/${authState.user.id}/${Date.now()}-${normalizeFileName(file.name)}`;
       await uploadToPostMediaWithTus({
         file,
         objectPath: uploadedPath,
@@ -131,7 +133,7 @@ export default function CircleCoverEditor({
 
       await updateCircleCover(uploadedPath, token);
       setMessage("圈子封面已更新。");
-      window.location.reload();
+      onUpdated?.(uploadedPath);
     } catch (requestError) {
       if (uploadedPath) {
         await supabase.storage.from("post-media").remove([uploadedPath]).catch(() => undefined);
@@ -148,18 +150,19 @@ export default function CircleCoverEditor({
     setLoading(true);
     setError("");
     setMessage("");
+
     try {
       if (!supportsExtendedSchema) {
         throw new Error("当前环境未启用圈子图片字段，无法清除封面。");
       }
       const token = await getSessionToken();
       if (!token) {
-        window.location.assign(buildLoginHref(`/circles/${circleSlug}/`));
+        window.location.assign(buildLoginHref(`/circles/${circleSlug}/manage/`));
         return;
       }
       await updateCircleCover(null, token);
       setMessage("圈子封面已清除。");
-      window.location.reload();
+      onUpdated?.(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "清除封面失败。");
     } finally {
@@ -167,20 +170,14 @@ export default function CircleCoverEditor({
     }
   }
 
-  if (!permissionResolved || !canEdit) {
+  if (!canEdit) {
     return null;
   }
 
   return (
     <div className="circle-cover-editor">
       <div className="circle-cover-editor__row">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-          disabled={loading}
-        />
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={loading} />
         <button
           type="button"
           className="community-action-button community-action-button--muted"

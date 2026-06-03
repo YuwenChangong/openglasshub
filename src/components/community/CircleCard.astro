@@ -8,7 +8,8 @@ interface Props {
   imageUrl?: string;
 }
 
-const { id, name, slug, description, latestNote, imageUrl } = Astro.props;
+const { name, slug, description, latestNote, imageUrl } = Astro.props;
+const fallbackLetter = name.trim().charAt(0).toUpperCase() || "圈";
 ---
 
 <a href={`/circles/${slug}/`} class="community-circle-card">
@@ -23,9 +24,13 @@ const { id, name, slug, description, latestNote, imageUrl } = Astro.props;
       <span class="community-action">进入圈子</span>
     </div>
   </div>
-  {imageUrl ? (
-    <div class="community-circle-card__cover community-circle-card__cover--side">
+  <div class="community-circle-card__cover community-circle-card__cover--side">
+    {imageUrl ? (
       <img src={imageUrl} alt={`${name} 圈子封面`} loading="lazy" />
-    </div>
-  ) : null}
+    ) : (
+      <div class="community-circle-card__fallback" aria-hidden="true">
+        <span>{fallbackLetter}</span>
+      </div>
+    )}
+  </div>
 </a>

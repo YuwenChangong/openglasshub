@@ -1,34 +1,17 @@
 import type { APIRoute } from "astro";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
+import { normalizeCircleSlug } from "../../../../lib/server/circle-management";
 
 export const prerender = false;
 
 type RuntimeLocals = { runtime?: { env?: RuntimeEnv } };
 
-function normalizeSlug(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5\s-]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+function validateType(type: string) {
+  return ["topic", "device", "project"].includes(type);
 }
 
-function validateBase(payload: { name?: string; slug?: string; description?: string; type?: string; image_path?: string | null }) {
-  const name = String(payload.name ?? "").trim();
-  const slug = normalizeSlug(String(payload.slug ?? ""));
-  const description = String(payload.description ?? "").trim();
-  const type = String(payload.type ?? "").trim();
-  const imagePath = typeof payload.image_path === "string" ? payload.image_path.trim() : null;
-
-  if (name.length < 2 || name.length > 60) return { error: "Circle name must be 2-60 characters" };
-  if (!slug || slug.length < 2 || slug.length > 80) return { error: "Invalid circle slug" };
-  if (description.length < 6 || description.length > 280) return { error: "Circle description must be 6-280 characters" };
-  if (!["topic", "device", "project"].includes(type)) return { error: "Invalid circle type" };
-  if (imagePath && imagePath.length > 500) return { error: "Circle image path is too long" };
-
-  return { name, slug, description, type, imagePath };
+function validateDescription(description: string) {
+  return description.length <= 200;
 }
 
 async function checkDuplicates(
@@ -46,7 +29,7 @@ async function checkDuplicates(
   }
 
   if (name) {
-    let query = client.from("circles").select("id,name").ilike("name", name).limit(5);
+    let query = client.from("circles").select("id,name").ilike("name", name).limit(8);
     if (excludeId) query = query.neq("id", excludeId);
     const { data, error } = await query;
     if (error) return { error: error.message };
@@ -64,24 +47,52 @@ export const GET: APIRoute = async ({ request, locals }) => {
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const { client } = await requireModerator(request, env);
-    const { data, error } = await client
+    const { data: circles, error } = await client
       .from("circles")
       .select("id,slug,name,description,type,created_at,updated_at,image_path,owner_id,profiles:owner_id(id,username,display_name,avatar_url,role)")
       .order("created_at", { ascending: false });
 
     if (error) return jsonResponse({ error: error.message }, 500);
 
+    const circleIds = (circles ?? []).map((circle) => circle.id);
+    const { data: posts, error: postsError } = circleIds.length
+      ? await client.from("posts").select("id,circle_id").in("circle_id", circleIds)
+      : { data: [], error: null };
+    if (postsError) return jsonResponse({ error: postsError.message }, 500);
+
+    const postCountMap = new Map<string, number>();
+    const postIds: string[] = [];
+    for (const post of posts ?? []) {
+      postIds.push(post.id);
+      postCountMap.set(post.circle_id, (postCountMap.get(post.circle_id) ?? 0) + 1);
+    }
+
+    const { data: comments, error: commentsError } = postIds.length
+      ? await client.from("comments").select("id,post_id").in("post_id", postIds)
+      : { data: [], error: null };
+    if (commentsError) return jsonResponse({ error: commentsError.message }, 500);
+
+    const postToCircleMap = new Map((posts ?? []).map((post) => [post.id, post.circle_id]));
+    const commentCountMap = new Map<string, number>();
+    for (const comment of comments ?? []) {
+      const circleId = postToCircleMap.get(comment.post_id);
+      if (!circleId) continue;
+      commentCountMap.set(circleId, (commentCountMap.get(circleId) ?? 0) + 1);
+    }
+
     return jsonResponse({
-      circles: (data ?? []).map((circle) => ({
+      circles: (circles ?? []).map((circle) => ({
         id: circle.id,
         slug: circle.slug,
         name: circle.name,
-        description: circle.description,
+        description: circle.description ?? "",
         type: circle.type,
         created_at: circle.created_at,
         updated_at: circle.updated_at,
         image_path: circle.image_path ?? null,
         owner_id: circle.owner_id ?? null,
+        post_count: postCountMap.get(circle.id) ?? 0,
+        comment_count: commentCountMap.get(circle.id) ?? 0,
         owner_profile: circle.profiles
           ? {
               id: circle.profiles.id ?? circle.owner_id ?? null,
@@ -106,31 +117,42 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const auth = await requireModerator(request, env);
     const payload = (await request.json().catch(() => null)) as
-      | { name?: string; slug?: string; description?: string; type?: string; image_path?: string | null; owner_id?: string | null }
+      | { name?: string; slug?: string; description?: string | null; type?: string; image_path?: string | null; owner_id?: string | null }
       | null;
 
     if (!payload) return jsonResponse({ error: "Invalid JSON payload" }, 400);
-    const parsed = validateBase(payload);
-    if ("error" in parsed) return jsonResponse({ error: parsed.error }, 400);
 
-    const duplicate = await checkDuplicates(auth.client, { name: parsed.name, slug: parsed.slug });
+    const name = String(payload.name ?? "").trim();
+    const slug = normalizeCircleSlug(String(payload.slug ?? payload.name ?? ""));
+    const description = typeof payload.description === "string" ? payload.description.trim() : "";
+    const type = String(payload.type ?? "").trim();
+    const imagePath = typeof payload.image_path === "string" ? payload.image_path.trim() : null;
+    const ownerId = typeof payload.owner_id === "string" && payload.owner_id.trim() ? payload.owner_id.trim() : auth.user.id;
+
+    if (name.length < 2 || name.length > 40) return jsonResponse({ error: "Circle name must be 2-40 characters" }, 400);
+    if (!slug || slug.length < 2 || slug.length > 80) return jsonResponse({ error: "Invalid circle slug" }, 400);
+    if (!validateDescription(description)) return jsonResponse({ error: "Circle description must be <=200 characters" }, 400);
+    if (!validateType(type)) return jsonResponse({ error: "Invalid circle type" }, 400);
+    if (imagePath && imagePath.length > 500) return jsonResponse({ error: "Circle image path is too long" }, 400);
+
+    const duplicate = await checkDuplicates(auth.client, { name, slug });
     if (duplicate) return jsonResponse({ error: duplicate.error }, duplicate.status ?? 500);
 
     const { data, error } = await auth.client
       .from("circles")
       .insert({
-        slug: parsed.slug,
-        name: parsed.name,
-        description: parsed.description,
-        type: parsed.type,
-        image_path: parsed.imagePath,
-        owner_id: payload.owner_id?.trim() || auth.user.id,
+        name,
+        slug,
+        description: description || null,
+        type,
+        image_path: imagePath,
+        owner_id: ownerId,
       })
       .select("id,slug,name,description,type,created_at,updated_at,image_path,owner_id")
       .single();
 
     if (error) {
-      if (/circles_name_lower_unique_idx|duplicate key value/i.test(error.message) && /name/i.test(error.message)) {
+      if (/circles_name_lower_unique|duplicate key value/i.test(error.message) && /name/i.test(error.message)) {
         return jsonResponse({ error: "CIRCLE_NAME_ALREADY_EXISTS" }, 409);
       }
       if (/circles_slug_key|duplicate key value/i.test(error.message) && /slug/i.test(error.message)) {
@@ -153,27 +175,28 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
 
     const auth = await requireModerator(request, env);
     const payload = (await request.json().catch(() => null)) as
-      | { id?: string; name?: string; description?: string; type?: string; image_path?: string | null }
+      | { id?: string; name?: string; description?: string | null; type?: string; image_path?: string | null }
       | null;
 
     const id = String(payload?.id ?? "").trim();
     if (!id) return jsonResponse({ error: "Missing circle id" }, 400);
 
     const updates: Record<string, string | null> = {};
-
     if (payload && "name" in payload) {
       const name = String(payload.name ?? "").trim();
-      if (name.length < 2 || name.length > 60) return jsonResponse({ error: "Circle name must be 2-60 characters" }, 400);
+      if (name.length < 2 || name.length > 40) return jsonResponse({ error: "Circle name must be 2-40 characters" }, 400);
+      const duplicate = await checkDuplicates(auth.client, { name, excludeId: id });
+      if (duplicate) return jsonResponse({ error: duplicate.error }, duplicate.status ?? 500);
       updates.name = name;
     }
     if (payload && "description" in payload) {
-      const description = String(payload.description ?? "").trim();
-      if (description.length < 6 || description.length > 280) return jsonResponse({ error: "Circle description must be 6-280 characters" }, 400);
-      updates.description = description;
+      const description = typeof payload.description === "string" ? payload.description.trim() : "";
+      if (!validateDescription(description)) return jsonResponse({ error: "Circle description must be <=200 characters" }, 400);
+      updates.description = description || null;
     }
     if (payload && "type" in payload) {
       const type = String(payload.type ?? "").trim();
-      if (!["topic", "device", "project"].includes(type)) return jsonResponse({ error: "Invalid circle type" }, 400);
+      if (!validateType(type)) return jsonResponse({ error: "Invalid circle type" }, 400);
       updates.type = type;
     }
     if (payload && "image_path" in payload) {
@@ -182,14 +205,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
       updates.image_path = imagePath;
     }
 
-    if (Object.keys(updates).length === 0) {
-      return jsonResponse({ error: "Nothing to update" }, 400);
-    }
-
-    if (typeof updates.name === "string") {
-      const duplicate = await checkDuplicates(auth.client, { name: updates.name, excludeId: id });
-      if (duplicate) return jsonResponse({ error: duplicate.error }, duplicate.status ?? 500);
-    }
+    if (Object.keys(updates).length === 0) return jsonResponse({ error: "Nothing to update" }, 400);
 
     const { data, error } = await auth.client
       .from("circles")
@@ -199,7 +215,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
       .single();
 
     if (error) {
-      if (/circles_name_lower_unique_idx|duplicate key value/i.test(error.message) && /name/i.test(error.message)) {
+      if (/circles_name_lower_unique|duplicate key value/i.test(error.message) && /name/i.test(error.message)) {
         return jsonResponse({ error: "CIRCLE_NAME_ALREADY_EXISTS" }, 409);
       }
       return jsonResponse({ error: error.message }, 500);

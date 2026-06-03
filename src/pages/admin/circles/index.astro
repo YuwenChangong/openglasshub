@@ -1,4 +1,3 @@
----
 export const prerender = false;
 
 import CommunityLayout from "../../../layouts/CommunityLayout.astro";
@@ -7,13 +6,13 @@ import AdminCirclesDashboard from "../../../components/admin/AdminCirclesDashboa
 
 <CommunityLayout
   title="管理员圈子管理"
-  description="OpenGlass Hub 管理员圈子管理。"
+  description="OpenGlass Hub 管理员圈子管理"
   noindex={true}
   activeSection="forum"
 >
   <section class="community-section" style="padding-top: 1rem;">
     <h1 class="community-page-title">/admin/circles</h1>
-    <p class="community-page-subtitle">创建和编辑圈子，查看 owner，并维护圈子封面。</p>
+    <p class="community-page-subtitle">创建和编辑圈子，查看 owner，并进入圈子的帖子 / 评论管理视图。</p>
     <AdminCirclesDashboard client:load />
   </section>
 </CommunityLayout>

@@ -8,7 +8,7 @@ import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-me
 import { buildPostLikeCountMap } from "../../lib/post-engagement";
 import { buildCircleImageMap } from "../../lib/circle-images";
 import { fetchCircleBySlugWithFallback } from "../../lib/circle-data";
-import CircleCoverEditor from "../../components/forum/CircleCoverEditor";
+import CircleManageEntry from "../../components/forum/CircleManageEntry";
 import { formatPostTime } from "../../lib/format-time";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
 
@@ -105,13 +105,9 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
         <p style="color: var(--text-muted); margin: 0 0 0.5rem 0; font-size: 1rem;">{circle.description}</p>
       )}
       <span class="forum-meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
-      <CircleCoverEditor
-        circleId={circle.id}
-        circleSlug={circle.slug}
-        supportsExtendedSchema={supportsExtendedSchema}
-        ownerId={circle.owner_id ?? null}
-        client:visible
-      />
+      <div class="community-inline-links" style="margin-top: 0.8rem;">
+        <CircleManageEntry circleSlug={circle.slug} ownerId={circle.owner_id ?? null} client:visible />
+      </div>
     </header>
 
     <div class="circle-stream-head">

@@ -250,6 +250,11 @@ body {
 .community-circle-card {
   grid-template-columns: minmax(0, 1fr) 260px;
   align-items: stretch;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(33, 37, 36, 0.94), rgba(22, 25, 24, 0.9));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px) saturate(118%);
+  -webkit-backdrop-filter: blur(18px) saturate(118%);
 }
 
 .community-circle-card__content {
@@ -266,6 +271,11 @@ body {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.072), rgba(255, 255, 255, 0.042));
   box-shadow: var(--glass-hover-shadow);
   transform: translateY(-1px);
+}
+
+.community-circle-card:hover {
+  background: linear-gradient(180deg, rgba(37, 42, 41, 0.96), rgba(24, 28, 27, 0.92));
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .community-post-card {
@@ -878,8 +888,8 @@ body {
 .community-circle-card__cover {
   overflow: hidden;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(34, 39, 38, 0.96), rgba(24, 27, 26, 0.94));
 }
 
 .community-circle-card__cover--side {
@@ -895,6 +905,24 @@ body {
   min-height: 180px;
   aspect-ratio: 16 / 10;
   object-fit: cover;
+}
+
+.community-circle-card__fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 180px;
+  aspect-ratio: 16 / 10;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.09), transparent 58%),
+    linear-gradient(180deg, rgba(40, 45, 44, 0.98), rgba(22, 26, 25, 0.96));
+}
+
+.community-circle-card__fallback span {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: clamp(2.6rem, 6vw, 4.4rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .community-breadcrumb {
@@ -1202,7 +1230,7 @@ body {
   padding: 0.8rem 0.95rem;
   border-radius: 14px;
   border: 1px solid var(--control-border);
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(27, 31, 30, 0.92);
   color: var(--text);
   font: inherit;
   text-align: left;
@@ -1213,7 +1241,7 @@ body {
 .community-select__trigger:hover,
 .community-select.is-open .community-select__trigger {
   border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(31, 35, 34, 0.96);
 }
 
 .community-select.is-disabled .community-select__trigger,
@@ -1249,16 +1277,21 @@ body {
   position: absolute;
   inset-inline: 0;
   top: calc(100% + 0.45rem);
-  z-index: 30;
+  z-index: 80;
   display: grid;
   gap: 0.35rem;
   padding: 0.4rem;
   border-radius: 16px;
-  border: 1px solid var(--glass-border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.04));
-  box-shadow: var(--glass-shadow-soft);
-  backdrop-filter: blur(14px) saturate(120%);
-  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  width: min(100%, 100%);
+  max-width: 100%;
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(26, 30, 29, 0.98), rgba(18, 21, 20, 0.96));
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px) saturate(118%);
+  -webkit-backdrop-filter: blur(18px) saturate(118%);
 }
 
 .community-select__option {
@@ -1288,13 +1321,13 @@ body {
 
 .community-select__option:hover,
 .community-select__option.is-active {
-  background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .community-select__option.is-selected {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.095);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .community-input--textarea {
@@ -2009,6 +2042,43 @@ body {
   border-color: rgba(255, 255, 255, 0.13);
 }
 
+.circle-manage-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.circle-manage-gate {
+  gap: 0.9rem;
+}
+
+.circle-manage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.circle-manage-panel {
+  gap: 0.8rem;
+}
+
+.circle-manage-panel--full {
+  grid-column: 1 / -1;
+}
+
+.circle-manage-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.circle-manage-item {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.82rem 0.88rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .admin-action-button:disabled,
 .admin-action-loading {
   opacity: 0.72;
@@ -2546,6 +2616,9 @@ body {
     max-height: 200px;
   }
   .community-circle-card {
+    grid-template-columns: 1fr;
+  }
+  .circle-manage-grid {
     grid-template-columns: 1fr;
   }
   .community-circle-card__cover img {

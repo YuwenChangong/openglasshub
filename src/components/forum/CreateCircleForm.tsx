@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 
 const circleTypes = [
   { value: "topic", label: "通用话题" },
@@ -42,8 +43,8 @@ function mapCircleError(message: string) {
 
 export default function CreateCircleForm() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const authState = useBrowserAuthState(supabase);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [ready, setReady] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
@@ -53,27 +54,6 @@ export default function CreateCircleForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    if (!supabase) {
-      setError("缺少 PUBLIC_SUPABASE_URL 或 PUBLIC_SUPABASE_ANON_KEY。");
-      return;
-    }
-
-    let mounted = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      if (!data.session) {
-        window.location.replace(buildLoginHref("/circles/"));
-        return;
-      }
-      setReady(true);
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, [supabase]);
 
   useEffect(() => {
     setSlug((current) => {
@@ -117,8 +97,6 @@ export default function CreateCircleForm() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!supabase) return;
-
     setSubmitting(true);
     setError("");
     setMessage("");
@@ -136,14 +114,14 @@ export default function CreateCircleForm() {
       const nextSlug = createSlug(slug || name);
       const nextDescription = description.trim();
 
-      if (nextName.length < 2 || nextName.length > 60) {
-        throw new Error("圈子名称需要在 2 到 60 个字符之间。");
+      if (nextName.length < 2 || nextName.length > 40) {
+        throw new Error("圈子名称需要在 2 - 40 个字符之间。");
       }
       if (!nextSlug || nextSlug.length < 2 || nextSlug.length > 80) {
-        throw new Error("圈子标识需要在 2 到 80 个字符之间。");
+        throw new Error("圈子标识需要在 2 - 80 个字符之间。");
       }
-      if (nextDescription.length < 6 || nextDescription.length > 280) {
-        throw new Error("圈子简介需要在 6 到 280 个字符之间。");
+      if (nextDescription.length > 200) {
+        throw new Error("圈子简介最多 200 个字符。");
       }
 
       if (imageFile) {
@@ -170,10 +148,7 @@ export default function CreateCircleForm() {
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as
-        | { circle?: { slug?: string }; error?: string }
-        | null;
-
+      const payload = (await response.json().catch(() => null)) as { circle?: { slug?: string }; error?: string } | null;
       if (!response.ok) {
         throw new Error(payload?.error ?? `创建圈子失败 (${response.status})`);
       }
@@ -190,7 +165,25 @@ export default function CreateCircleForm() {
     }
   }
 
-  if (!ready) return null;
+  if (authState.status === "checking") return null;
+
+  if (authState.status !== "signed_in") {
+    return (
+      <section className="community-surface community-surface--padded create-circle-form">
+        <div className="community-section-head">
+          <div>
+            <h2>创建圈子</h2>
+            <p>登录后即可创建自己的讨论空间。</p>
+          </div>
+        </div>
+        <div className="community-cta-row">
+          <a href={buildLoginHref("/circles/")} className="community-action-button community-action-button--primary">
+            去登录
+          </a>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <form className="community-surface community-surface--padded create-circle-form" onSubmit={handleSubmit}>
@@ -209,7 +202,7 @@ export default function CreateCircleForm() {
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="例如 Brilliant Labs"
-            maxLength={60}
+            maxLength={40}
             disabled={submitting}
           />
         </label>
@@ -227,13 +220,13 @@ export default function CreateCircleForm() {
         </label>
 
         <label className="create-circle-form__field create-circle-form__field--full">
-          <span>圈子简介</span>
+          <span>圈子简介（可选）</span>
           <textarea
             className="community-input community-input--textarea"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="说明这个圈子主要讨论什么，方便其他人判断是否加入。"
-            maxLength={280}
+            maxLength={200}
             disabled={submitting}
           />
         </label>
