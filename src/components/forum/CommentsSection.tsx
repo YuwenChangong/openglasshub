@@ -46,7 +46,7 @@ function formatDate(dateStr: string): string {
 }
 
 function authorDisplayName(author: Author | null): string {
-  return author?.display_name || author?.username || "\u793e\u533a\u6210\u5458";
+  return author?.display_name || author?.username || "社区成员";
 }
 
 function isStaff(author: Author | null): boolean {
@@ -75,10 +75,20 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
       }
       const res = await fetch(`/api/forum/comments?post_id=${encodeURIComponent(postId)}`, { headers });
       const data = (await res.json().catch(() => null)) as { comments?: Comment[]; error?: string } | null;
-      if (!res.ok) throw new Error(data?.error ?? `\u8bf7\u6c42\u5931\u8d25 (${res.status})`);
+      if (!res.ok) {
+        if (data?.error === "COMMENTS_INTERACTIONS_MIGRATION_REQUIRED") {
+          throw new Error("MIGRATION_REQUIRED::评论互动数据库迁移尚未执行，请先运行 comments interactions migration。");
+        }
+        throw new Error(data?.error ?? `请求失败 (${res.status})`);
+      }
       setComments(data?.comments ?? []);
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "\u52a0\u8f7d\u8bc4\u8bba\u5931\u8d25");
+      const msg = fetchError instanceof Error ? fetchError.message : "加载评论失败";
+      if (msg.startsWith("MIGRATION_REQUIRED::")) {
+        setError(msg.slice("MIGRATION_REQUIRED::".length));
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -110,7 +120,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
         body: JSON.stringify({ comment_id: commentId }),
       });
       const payload = (await res.json().catch(() => null)) as { liked?: boolean; like_count?: number; error?: string } | null;
-      if (!res.ok) throw new Error(payload?.error ?? "\u64cd\u4f5c\u5931\u8d25");
+      if (!res.ok) throw new Error(payload?.error ?? "操作失败");
 
       setComments((prev) =>
         prev.map((c) =>
@@ -138,14 +148,14 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session?.access_token) throw new Error("\u8bf7\u5148\u767b\u5f55");
+      if (!sessionData.session?.access_token) throw new Error("请先登录");
 
       const res = await fetch(`/api/forum/comments?id=${encodeURIComponent(commentId)}`, {
         method: "DELETE",
         headers: { authorization: `Bearer ${sessionData.session.access_token}` },
       });
       const payload = (await res.json().catch(() => null)) as { deleted?: boolean; has_replies?: boolean; error?: string } | null;
-      if (!res.ok) throw new Error(payload?.error ?? "\u5220\u9664\u5931\u8d25");
+      if (!res.ok) throw new Error(payload?.error ?? "删除失败");
 
       if (payload?.has_replies) {
         setComments((prev) =>
@@ -155,7 +165,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
         setComments((prev) => prev.filter((c) => c.id !== commentId));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "\u5220\u9664\u5931\u8d25");
+      setError(e instanceof Error ? e.message : "删除失败");
     } finally {
       setDeletingId(null);
     }
@@ -182,7 +192,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
     const replies = repliesByParent.get(comment.id) ?? [];
     const isConfirming = confirmDeleteId === comment.id;
     const isDeleting = deletingId === comment.id;
-    const authorName = isDeleted ? "\u533f\u540d" : authorDisplayName(comment.author);
+    const authorName = isDeleted ? "匿名" : authorDisplayName(comment.author);
     const showReplyForm = replyingTo === comment.id;
 
     return (
@@ -192,18 +202,18 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
             <span className={isStaff(comment.author) ? "comment-author--staff" : ""}>
               {authorName}
               {isStaff(comment.author) && !isDeleted && (
-                <span className="comment-staff-badge">{comment.author?.role === "admin" ? "\u7ba1\u7406\u5458" : "\u7248\u4e3b"}</span>
+                <span className="comment-staff-badge">{comment.author?.role === "admin" ? "管理员" : "版主"}</span>
               )}
             </span>
             <span>{formatDate(comment.created_at)}</span>
             {comment.updated_at && comment.updated_at !== comment.created_at && !isDeleted && (
-              <span>\u5df2\u7f16\u8f91</span>
+              <span>已编辑</span>
             )}
           </div>
 
           {isDeleted ? (
             <div className="comment-card__body comment-card__body--deleted">
-              \u8be5\u8bc4\u8bba\u5df2\u5220\u9664
+              该评论已删除
             </div>
           ) : (
             <div className="comment-card__body">{comment.body}</div>
@@ -215,7 +225,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
                 className={`comment-action-button${comment.liked_by_me ? " comment-liked" : ""}`}
                 onClick={() => handleToggleLike(comment.id)}
                 disabled={!supabase}
-                aria-label={comment.liked_by_me ? "\u53d6\u6d88\u70b9\u8d5e" : "\u70b9\u8d5e"}
+                aria-label={comment.liked_by_me ? "取消点赞" : "点赞"}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill={comment.liked_by_me ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -239,9 +249,9 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
                 isConfirming ? (
                   <span className="comment-delete-confirm">
                     <button className="comment-action-button comment-action-button--danger" onClick={() => handleConfirmDelete(comment.id)} disabled={isDeleting}>
-                      {isDeleting ? "\u5220\u9664\u4e2d..." : "\u786e\u8ba4\u5220\u9664"}
+                      {isDeleting ? "删除中..." : "确认删除"}
                     </button>
-                    <button className="comment-action-button" onClick={handleCancelDelete}>\u53d6\u6d88</button>
+                    <button className="comment-action-button" onClick={handleCancelDelete}>取消</button>
                   </span>
                 ) : (
                   <button
@@ -255,7 +265,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
                       <path d="M10 11v6" />
                       <path d="M14 11v6" />
                     </svg>
-                    \u5220\u9664
+                    删除
                   </button>
                 )
               )}
@@ -274,7 +284,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
             <CommentForm
               postId={postId}
               parentId={comment.id}
-              placeholder={"\u56de\u590d\u8fd9\u6761\u8bc4\u8bba..."}
+              placeholder={"回复这条评论..."}
               onCommentCreated={(c) => handleCommentCreated(c as Comment)}
               inline
             />
@@ -285,7 +295,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
   };
 
   return (
-    <section className="comment-shell" aria-label="\u8bc4\u8bba\u533a">
+    <section className="comment-shell" aria-label="评论区">
       {/* Top-level comment form */}
       <CommentForm
         postId={postId}
@@ -294,11 +304,11 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
       />
 
       <h2 className="comment-panel__title" style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-        \u8bc4\u8bba
+        评论
         {!loading && <span className="comment-count">{totalCount}</span>}
       </h2>
 
-      {loading && <div className="comment-empty">\u52a0\u8f7d\u8bc4\u8bba\u4e2d...</div>}
+      {loading && <div className="comment-empty">加载评论中...</div>}
 
       {error && (
         <div className="glass-card comment-card auth-alert auth-alert--error" style={{ textAlign: "center" }}>
@@ -307,7 +317,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
       )}
 
       {!loading && !error && topLevelComments.length === 0 && (
-        <div className="comment-empty">\u6682\u65e0\u8bc4\u8bba\uff0c\u6765\u53d1\u8868\u7b2c\u4e00\u6761\u5427\u3002</div>
+        <div className="comment-empty">暂无评论，来发表第一条吧。</div>
       )}
 
       {!loading && !error && topLevelComments.length > 0 && (

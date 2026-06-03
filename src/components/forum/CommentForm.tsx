@@ -21,7 +21,7 @@ export default function CommentForm({
 }: CommentFormProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const resolvedLoginHref = loginHref ?? buildLoginHref(`/posts/${postId}/#comments`);
-  const resolvedPlaceholder = placeholder ?? "\u5199\u4e0b\u4f60\u7684\u60f3\u6cd5...";
+  const resolvedPlaceholder = placeholder ?? "写下你的想法...";
 
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,7 +57,7 @@ export default function CommentForm({
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !sessionData.session?.access_token) {
-        throw new Error("\u8bf7\u5148\u767b\u5f55\u540e\u518d\u8bc4\u8bba");
+        throw new Error("请先登录后再评论");
       }
 
       const reqBody: Record<string, unknown> = { post_id: postId, body: body.trim() };
@@ -77,14 +77,14 @@ export default function CommentForm({
         | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? `\u8bf7\u6c42\u5931\u8d25 (${response.status})`);
+        throw new Error(payload?.error ?? `请求失败 (${response.status})`);
       }
 
       setBody("");
       setSuccess(true);
       onCommentCreated?.(payload?.comment ?? { id: "", post_id: postId, body: body.trim() });
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "\u63d0\u4ea4\u5931\u8d25");
+      setError(submitError instanceof Error ? submitError.message : "提交失败");
     } finally {
       setLoading(false);
     }
@@ -94,7 +94,7 @@ export default function CommentForm({
     return (
       <section className="comment-shell">
         <div className="glass-panel comment-panel comment-panel__login">
-          <p className="community-meta">\u8bc4\u8bba\u529f\u80fd\u672a\u914d\u7f6e</p>
+          <p className="community-meta">评论功能未配置</p>
         </div>
       </section>
     );
@@ -106,10 +106,10 @@ export default function CommentForm({
       <section className="comment-shell">
         <div className="glass-panel comment-panel comment-panel__login">
           <p className="community-meta" style={{ margin: "0 0 0.75rem" }}>
-            \u767b\u5f55\u540e\u5373\u53ef\u53d1\u8868\u8bc4\u8bba
+            登录后即可发表评论
           </p>
           <a href={resolvedLoginHref} className="community-button">
-            \u524d\u5f80\u767b\u5f55
+            前往登录
           </a>
         </div>
       </section>
@@ -124,7 +124,7 @@ export default function CommentForm({
   return (
     <Shell className={inline ? "comment-reply-form" : "comment-shell"}>
       <div className={panelClass}>
-        {!inline && <h3 className="comment-panel__title">\u53d1\u8868\u8bc4\u8bba</h3>}
+        {!inline && <h3 className="comment-panel__title">发表评论</h3>}
         <form onSubmit={handleSubmit} className="comment-form">
           <textarea
             className="glass-textarea"
@@ -139,12 +139,12 @@ export default function CommentForm({
           <div className="comment-form__footer">
             <span className="community-meta">{body.length}/5000</span>
             <button type="submit" className="community-button" disabled={loading || !body.trim()}>
-              {loading ? "\u63d0\u4ea4\u4e2d..." : parentId ? "\u53d1\u5e03\u56de\u590d" : "\u53d1\u5e03\u8bc4\u8bba"}
+              {loading ? "提交中..." : parentId ? "发布回复" : "发布评论"}
             </button>
           </div>
         </form>
         {error && <div className="comment-inline-error">{error}</div>}
-        {success && <div className="comment-inline-success">\u8bc4\u8bba\u53d1\u5e03\u6210\u529f\u3002</div>}
+        {success && <div className="comment-inline-success">评论发布成功。</div>}
       </div>
     </Shell>
   );

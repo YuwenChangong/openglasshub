@@ -78,6 +78,18 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
+function isMigrationMissingError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return /parent_id.*does not exist|relation.*comment_reactions.*does not exist/i.test(msg);
+}
+
+function migrationRequiredResponse(): Response {
+  return json({
+    error: "COMMENTS_INTERACTIONS_MIGRATION_REQUIRED",
+    details: "Run supabase/migrations/20260603_forum_comments_interactions.sql before using replies and likes.",
+  }, 500);
+}
+
 function getBearerToken(request: Request): string | null {
   const authHeader = request.headers.get("authorization");
   if (!authHeader) return null;
@@ -140,6 +152,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .order("created_at", { ascending: true });
 
     if (commentsError) {
+      if (isMigrationMissingError(commentsError)) return migrationRequiredResponse();
       return json({ error: commentsError.message }, 500);
     }
 
@@ -170,6 +183,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .in("id", authorIds);
 
     if (profilesError) {
+      if (isMigrationMissingError(profilesError)) return migrationRequiredResponse();
       return json({ error: profilesError.message }, 500);
     }
 
@@ -271,6 +285,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     return json({ comments: enriched, total: enriched.length });
   } catch (err) {
+    if (isMigrationMissingError(err)) return migrationRequiredResponse();
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },
       500,
