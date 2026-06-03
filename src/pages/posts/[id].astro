@@ -16,7 +16,7 @@ import { sanitizeBodyForDisplay } from "../../lib/post-body";
 const { id } = Astro.params;
 
 if (!id) {
-  return Astro.redirect("/feed/");
+  return Astro.redirect("/feed/?sort=latest");
 }
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
@@ -69,7 +69,7 @@ const postTypeLabels: Record<string, string> = {
 
 const circle = post?.circles ?? null;
 const canonicalUrl = post ? `https://openglasshub.pages.dev/posts/${post.id}/` : undefined;
-const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "/feed/");
+const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "/feed/?sort=latest");
 const postMedia = await resolveSignedPostMedia(
   supabase,
   (mediaRows ?? []) as PostMediaRow[],
@@ -89,7 +89,7 @@ if (post) {
     <div class="forum-empty">
       <strong>帖子未找到</strong>
       <p>该帖子可能已被删除、尚未公开，或者当前链接无效。</p>
-      <a href="/feed/" class="forum-btn">返回动态</a>
+      <a href="/feed/?sort=latest" class="forum-btn">返回动态</a>
     </div>
   </ForumLayout>
 ) : (
@@ -102,7 +102,7 @@ if (post) {
     <nav class="community-breadcrumb" aria-label="面包屑">
       <a href="/">首页</a>
       <span class="community-breadcrumb__sep">/</span>
-      <a href="/feed/">论坛</a>
+      <a href="/feed/?sort=latest">论坛</a>
       <span class="community-breadcrumb__sep">/</span>
       {circle && (
         <>
@@ -146,7 +146,7 @@ if (post) {
       {postMedia.length > 0 && <PostMediaGallery media={postMedia} postTitle={post.title} client:load />}
 
       <div class="post-detail__actions">
-        <a href="/feed/" class="community-action-button">返回动态</a>
+        <a href="/feed/?sort=latest" class="community-action-button">返回动态</a>
         <PostSocialActions postId={post.id} initialLikeCount={initialLikeCount} client:visible />
         <PostModerationActions postId={post.id} authorId={post.author_id} client:load />
       </div>

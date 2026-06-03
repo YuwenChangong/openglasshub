@@ -100,6 +100,21 @@ function cleanupWarning(cleanup?: CleanupPayload): string {
     .join("；");
 }
 
+function getReportPostViewConfig(report: AdminReport) {
+  const postId = report.post?.id ?? null;
+  const postStatus = report.post?.status ?? null;
+  if (!postId) {
+    return { publicHref: null as string | null, publicLabel: "帖子不存在", adminHref: null as string | null };
+  }
+  if (postStatus === "deleted") {
+    return { publicHref: null as string | null, publicLabel: "帖子已删除", adminHref: `/admin/forum/?post=${postId}` };
+  }
+  if (postStatus === "hidden") {
+    return { publicHref: null as string | null, publicLabel: "公开页不可见", adminHref: `/admin/forum/?post=${postId}` };
+  }
+  return { publicHref: `/posts/${postId}/`, publicLabel: "查看帖子", adminHref: `/admin/forum/?post=${postId}` };
+}
+
 export default function AdminReportsPanel() {
   const adminSession = useAdminSession();
   const [dataState, setDataState] = useState<DataState>("idle");
@@ -336,6 +351,7 @@ export default function AdminReportsPanel() {
             const canHide = postStatus === "published";
             const canRestore = postStatus === "hidden";
             const deleteArmed = confirmDeleteId === report.id;
+            const viewConfig = getReportPostViewConfig(report);
 
             return (
               <article key={report.id} className="community-list-item admin-report-card" style={{ gap: "0.6rem" }}>
@@ -367,8 +383,14 @@ export default function AdminReportsPanel() {
                 <div className="admin-inline-actions">
                   {postExists ? (
                     <>
-                      <a href={`/posts/${report.post?.id}/`} className="admin-action-button">查看帖子</a>
-                      <a href={`/admin/forum/?post=${report.post?.id}`} className="admin-action-button">去管理页</a>
+                      {viewConfig.publicHref ? (
+                        <a href={viewConfig.publicHref} className="admin-action-button">{viewConfig.publicLabel}</a>
+                      ) : (
+                        <span className="admin-action-button admin-action-loading">{viewConfig.publicLabel}</span>
+                      )}
+                      {viewConfig.adminHref ? (
+                        <a href={viewConfig.adminHref} className="admin-action-button">去管理页</a>
+                      ) : null}
                       <button
                         type="button"
                         className="admin-action-button"

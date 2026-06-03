@@ -111,6 +111,16 @@ function cleanupWarning(cleanup?: CleanupPayload): string {
   return values.join("；");
 }
 
+function getAdminViewConfig(post: AdminPost) {
+  if (post.status === "deleted") {
+    return { label: "帖子已删除", href: null as string | null, disabled: true };
+  }
+  if (post.status === "hidden") {
+    return { label: "去管理页", href: `/admin/forum/?post=${post.id}`, disabled: false };
+  }
+  return { label: "查看帖子", href: `/posts/${post.id}/`, disabled: false };
+}
+
 export default function AdminForumDashboard() {
   const adminSession = useAdminSession();
   const [dataState, setDataState] = useState<DataState>("idle");
@@ -408,6 +418,7 @@ export default function AdminForumDashboard() {
             const hideDisabled = loadingThis || deleted || post.status === "hidden";
             const restoreDisabled = loadingThis || deleted || post.status === "published";
             const deleteArmed = confirmDeleteId === post.id;
+            const viewConfig = getAdminViewConfig(post);
 
             return (
               <article key={post.id} className="community-list-item" style={{ gap: "0.65rem" }}>
@@ -435,9 +446,15 @@ export default function AdminForumDashboard() {
                 {rowError[post.id] ? <div className="admin-error">{rowError[post.id]}</div> : null}
 
                 <div className="admin-inline-actions">
-                  <a href={`/posts/${post.id}/`} className="admin-action-button">
-                    查看帖子
-                  </a>
+                  {viewConfig.href ? (
+                    <a href={viewConfig.href} className="admin-action-button">
+                      {viewConfig.label}
+                    </a>
+                  ) : (
+                    <span className="admin-action-button admin-action-loading">
+                      {viewConfig.label}
+                    </span>
+                  )}
                   <button
                     type="button"
                     className="admin-action-button"
