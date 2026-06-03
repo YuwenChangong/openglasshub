@@ -3,6 +3,7 @@ export const prerender = false;
 
 import CommunityLayout from "../layouts/CommunityLayout.astro";
 import AuthCTA from "../components/auth/AuthCTA";
+import SignedOutHeroNote from "../components/auth/SignedOutHeroNote";
 import PostCard from "../components/community/PostCard.astro";
 import EmptyFeedState from "../components/community/EmptyFeedState.astro";
 import { formatPostTime } from "../lib/format-time";
@@ -84,7 +85,7 @@ function excerpt(body?: string | null): string {
       </div>
     </div>
     <div class="hero-note">
-      <strong>公开浏览，登录后互动</strong>
+      <SignedOutHeroNote client:only="react" />
       <div class="community-inline-links">
         <a href="/products/" class="community-inline-link">产品入口</a>
         <a href="/news/" class="community-inline-link">管理员精选</a>

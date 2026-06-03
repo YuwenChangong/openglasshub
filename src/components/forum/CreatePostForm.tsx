@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 
 interface CircleOption {
   id: string;
@@ -234,7 +235,6 @@ export default function CreatePostForm() {
   const circlePickerRef = useRef<HTMLDivElement | null>(null);
   const circleButtonRef = useRef<HTMLButtonElement | null>(null);
   const mediaFilesRef = useRef<LocalMedia[]>([]);
-  const [ready, setReady] = useState(false);
   const [circleSlug, setCircleSlug] = useState("");
   const [type, setType] = useState("question");
   const [title, setTitle] = useState("");
@@ -252,27 +252,12 @@ export default function CreatePostForm() {
   const postWidgetRef = useRef<string | number | null>(null);
   const turnstilePostTokenRef = useRef("");
   const postWidgetContainerRef = useRef<HTMLDivElement | null>(null);
+  const authState = useBrowserAuthState(supabase);
 
   useEffect(() => {
     if (!supabase) {
       setError("缺少 PUBLIC_SUPABASE_URL 或 PUBLIC_SUPABASE_ANON_KEY。");
-      return;
     }
-
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      if (!data.session) {
-        window.location.replace(buildLoginHref("/posts/new/"));
-        return;
-      }
-      setReady(true);
-    });
-
-    return () => {
-      mounted = false;
-    };
   }, [supabase]);
 
   useEffect(() => {
@@ -744,12 +729,22 @@ export default function CreatePostForm() {
     }
   }
 
-  if (error && !ready && !loadingCircles) {
+  if (error && authState.status !== "signed_in" && !loadingCircles) {
     return <section className="post-composer"><div className="auth-alert auth-alert--error">{error}</div></section>;
   }
 
-  if (!ready) {
+  if (authState.status === "checking") {
     return <section className="post-composer"><div className="auth-alert">正在检查登录状态...</div></section>;
+  }
+
+  if (authState.status !== "signed_in") {
+    return (
+      <section className="post-composer">
+        <div className="auth-alert">
+          <a href={buildLoginHref("/posts/new/")} className="community-link">登录后继续发帖</a>
+        </div>
+      </section>
+    );
   }
 
   const selectedCircle =

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import type { User } from "@supabase/supabase-js";
+import { useMemo, useState } from "react";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 
 type Mode = "login" | "signup";
 
@@ -33,36 +33,9 @@ export default function AuthPanel({ next }: AuthPanelProps) {
   const [loading, setLoading] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
   const [resending, setResending] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [checkingSession, setCheckingSession] = useState(true);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [forgotMode, setForgotMode] = useState(false);
-
-  useEffect(() => {
-    if (!supabase) {
-      setCheckingSession(false);
-      return;
-    }
-
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setUser(data.session?.user ?? null);
-      setCheckingSession(false);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      setUser(session?.user ?? null);
-      setCheckingSession(false);
-    });
-
-    return () => {
-      mounted = false;
-      listener.subscription.unsubscribe();
-    };
-  }, [supabase]);
+  const { status, user } = useBrowserAuthState(supabase);
 
   async function handleAuthSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -221,9 +194,9 @@ export default function AuthPanel({ next }: AuthPanelProps) {
         <div className="auth-next-note">登录后将返回：{safeNext}</div>
       </div>
 
-      {checkingSession ? (
+      {status === "checking" ? (
         <div className="auth-alert">正在检查当前登录状态...</div>
-      ) : user ? (
+      ) : status === "signed_in" && user ? (
         <div className="auth-user-state">
           <div className="auth-alert auth-alert--success">
             当前已登录：<strong>{user.email}</strong>

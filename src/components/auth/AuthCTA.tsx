@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import type { User } from "@supabase/supabase-js";
+import { useMemo, useState } from "react";
 import { buildLoginHref, getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { useBrowserAuthState } from "./useBrowserAuthState";
 
 interface AuthCTAProps {
   next?: string;
@@ -31,45 +31,21 @@ const secondaryButtonStyle: React.CSSProperties = {
 export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const safeNext = useMemo(() => getSafeNext(next), [next]);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-
-    let mounted = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (!mounted) return;
-      setUser(data.user ?? null);
-      setLoading(false);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      listener.subscription.unsubscribe();
-    };
-  }, [supabase]);
+  const { status, user } = useBrowserAuthState(supabase);
+  const [signingOut, setSigningOut] = useState(false);
 
   async function handleSignOut() {
     if (!supabase) return;
+    setSigningOut(true);
     await supabase.auth.signOut();
     window.location.reload();
   }
 
-  if (loading) {
+  if (status === "checking") {
     return compact ? <span style={{ color: "#8892b0" }}>检查登录状态...</span> : null;
   }
 
-  if (!user) {
+  if (status !== "signed_in" || !user) {
     return compact ? (
       <div className="ogh-auth-inline">
         <a href={buildLoginHref(safeNext)} className="ogh-login-button">登录</a>
@@ -88,7 +64,9 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
   return compact ? (
     <div className="ogh-auth-inline">
       <span className="ogh-auth-status">{user.email}</span>
-      <button type="button" onClick={handleSignOut} className="ogh-auth-secondary ogh-auth-button-reset">退出</button>
+      <button type="button" onClick={handleSignOut} className="ogh-auth-secondary ogh-auth-button-reset" disabled={signingOut}>
+        {signingOut ? "退出中..." : "退出"}
+      </button>
     </div>
   ) : (
     <div style={{ display: "grid", gap: "0.85rem", padding: "1rem 0" }}>
@@ -98,7 +76,9 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
         <a href="/feed/" style={primaryButtonStyle}>进入社区动态</a>
         <a href="/posts/new/" style={secondaryButtonStyle}>发布帖子</a>
-        <button type="button" onClick={handleSignOut} style={secondaryButtonStyle}>退出登录</button>
+        <button type="button" onClick={handleSignOut} style={secondaryButtonStyle} disabled={signingOut}>
+          {signingOut ? "退出中..." : "退出登录"}
+        </button>
       </div>
     </div>
   );

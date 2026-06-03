@@ -2,6 +2,7 @@
 export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
+import FeedSidebarAuthHint from "../../components/auth/FeedSidebarAuthHint";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import PostCard from "../../components/community/PostCard.astro";
 import EmptyFeedState from "../../components/community/EmptyFeedState.astro";
@@ -144,15 +145,7 @@ const postTypeLabels: Record<string, string> = {
     </div>
 
     <aside class="community-sidebar">
-      <section class="community-sidebar-block community-sidebar-block--strong">
-        <div class="community-page-lead" style="margin-bottom: 0.4rem;">开始发帖</div>
-        <h2 style="margin: 0 0 0.3rem;">有新内容想发？</h2>
-        <p style="margin: 0; color: var(--text-muted);">登录后即可把问题、体验和观察发到对应圈子。</p>
-        <div class="community-cta-row" style="margin-top: 0.85rem;">
-          <a href="/posts/new/" class="community-button">发布帖子</a>
-          <a href="/circles/" class="community-button--secondary">浏览圈子</a>
-        </div>
-      </section>
+      <FeedSidebarAuthHint client:only="react" />
 
       <section class="community-sidebar-block">
         <div class="community-sidebar-head">

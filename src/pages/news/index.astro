@@ -6,14 +6,14 @@ import NewsCard from "../../components/community/NewsCard.astro";
 
 <CommunityLayout
   title="热点"
-  description="OpenGlass Hub 的热点内容入口，由管理员手动整理和更新。"
+  description="OpenGlass Hub 的热点内容。"
   canonical="https://openglasshub.pages.dev/news/"
   activeSection="news"
 >
   <section class="community-page-head">
     <div>
       <h1>热点</h1>
-      <p class="community-page-lead">管理员精选、手动更新、偏内容流形态的公开入口。这里不是抓取聚合流，也不会假装实时。</p>
+      <p class="community-page-lead">整理值得关注的行业动态、项目进展和社区观察。</p>
     </div>
   </section>
 
@@ -22,9 +22,7 @@ import NewsCard from "../../components/community/NewsCard.astro";
       <div class="community-section-head">
         <div>
           <h2>管理员精选</h2>
-          <p>用手动整理的方式把值得关注的行业动态、项目进展和社区观察放在一起。</p>
         </div>
-        <span class="community-meta">非实时抓取</span>
       </div>
       <div class="news-stream news-stream--compact">
         {curatedNews.map((item) => (
@@ -36,28 +34,17 @@ import NewsCard from "../../components/community/NewsCard.astro";
             date={new Date(item.publishedAt).toLocaleDateString("zh-CN")}
             coverImageUrl={item.coverImageUrl}
             coverAlt={item.coverAlt}
-            sourceLabel={`${item.sourceLabel ?? "管理员精选"} / 非实时抓取`}
+            sourceLabel={item.sourceLabel ?? "管理员精选"}
           />
         ))}
       </div>
     </div>
-
-    <aside class="news-side-note">
-      <section class="community-surface community-surface--padded">
-        <div class="community-page-lead" style="margin-bottom: 0.55rem;">内容说明</div>
-        <h2 style="margin: 0 0 0.35rem;">这不是实时新闻流</h2>
-        <p style="margin: 0; color: #97a8c8;">热点页只放管理员精选内容。没有自动抓取，没有外部 scraping，也不会把设备资料和文档入口伪装成新闻。</p>
-      </section>
-    </aside>
   </section>
 </CommunityLayout>
 
 <style>
   .news-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 280px;
-    gap: 1.1rem;
-    align-items: start;
+    display: block;
   }
   .news-stream {
     display: grid;
@@ -75,14 +62,6 @@ import NewsCard from "../../components/community/NewsCard.astro";
     -webkit-backdrop-filter: none;
     padding-left: 0;
     padding-right: 0;
-  }
-  .news-side-note {
-    padding-top: 0.2rem;
-  }
-  @media (max-width: 900px) {
-    .news-layout {
-      grid-template-columns: 1fr;
-    }
   }
 </style>
 

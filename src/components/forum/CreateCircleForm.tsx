@@ -197,7 +197,7 @@ export default function CreateCircleForm() {
       <div className="community-section-head">
         <div>
           <h2>创建圈子</h2>
-          <p>登录后即可创建自己的圈子，并由 owner 或管理员继续维护。</p>
+          <p>创建自己的圈子，并由 owner 或管理员继续维护。</p>
         </div>
       </div>
 

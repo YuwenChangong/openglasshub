@@ -10,7 +10,7 @@ interface Props {
   sourceLabel?: string;
 }
 
-const { title, summary, category, href, date, coverImageUrl, coverAlt = title, sourceLabel = "管理员精选 / 手动更新" } = Astro.props;
+const { title, summary, category, href, date, coverImageUrl, coverAlt = title, sourceLabel = "管理员精选" } = Astro.props;
 ---
 
 <a href={href} class="community-news-card">
