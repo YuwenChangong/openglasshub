@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import CommentForm from "./CommentForm";
 
@@ -31,7 +32,6 @@ interface CommentsSectionProps {
   loginHref?: string;
 }
 
-const DELETE_CONFIRM_MS = 5000;
 const LIKE_ANIMATION_MS = 240;
 
 function formatDate(dateStr: string): string {
@@ -63,10 +63,11 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
   const [error, setError] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   const [likeAnimatingId, setLikeAnimatingId] = useState<string | null>(null);
   const [commentErrors, setCommentErrors] = useState<Record<string, string>>({});
-  const deleteConfirmTimerRef = useRef<number | null>(null);
+  const [likePendingById, setLikePendingById] = useState<Record<string, boolean>>({});
   const likeTimerRef = useRef<number | null>(null);
 
   const clearCommentError = useCallback((commentId: string) => {
@@ -75,25 +76,6 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
       delete next[commentId];
       return next;
     });
-  }, []);
-
-  const clearDeleteConfirm = useCallback(() => {
-    if (deleteConfirmTimerRef.current !== null) {
-      window.clearTimeout(deleteConfirmTimerRef.current);
-      deleteConfirmTimerRef.current = null;
-    }
-    setConfirmDeleteId(null);
-  }, []);
-
-  const triggerLikeAnimation = useCallback((commentId: string) => {
-    setLikeAnimatingId(commentId);
-    if (likeTimerRef.current !== null) {
-      window.clearTimeout(likeTimerRef.current);
-    }
-    likeTimerRef.current = window.setTimeout(() => {
-      setLikeAnimatingId((current) => (current === commentId ? null : current));
-      likeTimerRef.current = null;
-    }, LIKE_ANIMATION_MS);
   }, []);
 
   const fetchComments = useCallback(async () => {
@@ -140,9 +122,6 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
 
   useEffect(() => {
     return () => {
-      if (deleteConfirmTimerRef.current !== null) {
-        window.clearTimeout(deleteConfirmTimerRef.current);
-      }
       if (likeTimerRef.current !== null) {
         window.clearTimeout(likeTimerRef.current);
       }
@@ -154,12 +133,39 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
     setReplyingTo(null);
   }, []);
 
+  const triggerLikeAnimation = useCallback((commentId: string) => {
+    setLikeAnimatingId(commentId);
+    if (likeTimerRef.current !== null) {
+      window.clearTimeout(likeTimerRef.current);
+    }
+    likeTimerRef.current = window.setTimeout(() => {
+      setLikeAnimatingId((current) => (current === commentId ? null : current));
+      likeTimerRef.current = null;
+    }, LIKE_ANIMATION_MS);
+  }, []);
+
   const handleToggleLike = useCallback(async (commentId: string) => {
-    if (!supabase) return;
+    if (!supabase || likePendingById[commentId]) return;
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session?.access_token) return;
 
     clearCommentError(commentId);
+
+    let previous: { liked_by_me: boolean; like_count: number } | null = null;
+    setComments((prev) =>
+      prev.map((comment) => {
+        if (comment.id !== commentId) return comment;
+        previous = { liked_by_me: comment.liked_by_me, like_count: comment.like_count };
+        const nextLiked = !comment.liked_by_me;
+        return {
+          ...comment,
+          liked_by_me: nextLiked,
+          like_count: Math.max(0, comment.like_count + (nextLiked ? 1 : -1)),
+        };
+      }),
+    );
+    triggerLikeAnimation(commentId);
+    setLikePendingById((current) => ({ ...current, [commentId]: true }));
 
     try {
       const res = await fetch("/api/forum/comments", {
@@ -173,70 +179,101 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
       const payload = (await res.json().catch(() => null)) as { liked?: boolean; like_count?: number; error?: string } | null;
       if (!res.ok) throw new Error(payload?.error ?? "操作失败");
 
-      triggerLikeAnimation(commentId);
       setComments((prev) =>
-        prev.map((c) =>
-          c.id === commentId
-            ? { ...c, liked_by_me: payload?.liked ?? false, like_count: payload?.like_count ?? c.like_count }
-            : c,
+        prev.map((comment) =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                liked_by_me: Boolean(payload?.liked),
+                like_count: Math.max(0, Number(payload?.like_count ?? comment.like_count)),
+              }
+            : comment,
         ),
       );
-    } catch {
-      // Keep the existing lightweight failure behavior for likes.
+    } catch (likeError) {
+      if (previous) {
+        setComments((prev) =>
+          prev.map((comment) =>
+            comment.id === commentId
+              ? { ...comment, liked_by_me: previous!.liked_by_me, like_count: previous!.like_count }
+              : comment,
+          ),
+        );
+      }
+      setCommentErrors((current) => ({
+        ...current,
+        [commentId]: likeError instanceof Error ? likeError.message : "点赞失败",
+      }));
+    } finally {
+      setLikePendingById((current) => {
+        const next = { ...current };
+        delete next[commentId];
+        return next;
+      });
     }
-  }, [clearCommentError, supabase, triggerLikeAnimation]);
+  }, [clearCommentError, likePendingById, supabase, triggerLikeAnimation]);
 
-  const armDeleteConfirmation = useCallback((commentId: string) => {
-    clearDeleteConfirm();
-    setConfirmDeleteId(commentId);
-    deleteConfirmTimerRef.current = window.setTimeout(() => {
-      setConfirmDeleteId((current) => (current === commentId ? null : current));
-      deleteConfirmTimerRef.current = null;
-    }, DELETE_CONFIRM_MS);
-  }, [clearDeleteConfirm]);
-
-  const handleDeleteClick = useCallback(async (commentId: string) => {
+  const openDeleteModal = useCallback((commentId: string) => {
+    setDeleteError("");
     clearCommentError(commentId);
+    setDeleteTargetId(commentId);
+  }, [clearCommentError]);
 
-    if (confirmDeleteId !== commentId) {
-      armDeleteConfirmation(commentId);
-      return;
-    }
+  const closeDeleteModal = useCallback(() => {
+    if (deletingId) return;
+    setDeleteTargetId(null);
+    setDeleteError("");
+  }, [deletingId]);
 
-    if (!supabase) return;
-    setDeletingId(commentId);
-    clearDeleteConfirm();
+  const handleConfirmDelete = useCallback(async () => {
+    if (!supabase || !deleteTargetId) return;
+    setDeletingId(deleteTargetId);
+    setDeleteError("");
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session?.access_token) throw new Error("请先登录");
 
-      const res = await fetch(`/api/forum/comments?id=${encodeURIComponent(commentId)}`, {
+      const commentBeforeDelete = comments.find((comment) => comment.id === deleteTargetId) ?? null;
+      const hasPublishedReplies = comments.some(
+        (comment) => comment.parent_id === deleteTargetId && comment.status === "published",
+      );
+
+      const res = await fetch(`/api/forum/comments?id=${encodeURIComponent(deleteTargetId)}`, {
         method: "DELETE",
         headers: { authorization: `Bearer ${sessionData.session.access_token}` },
       });
-      const payload = (await res.json().catch(() => null)) as { deleted?: boolean; has_replies?: boolean; error?: string } | null;
-      if (!res.ok) throw new Error(payload?.error ?? "删除失败");
+      const payload = (await res.json().catch(() => null)) as
+        | { ok?: boolean; comment_id?: string; status?: string; already_deleted?: boolean; error?: string; details?: string }
+        | null;
+      if (!res.ok) {
+        const details = typeof payload?.details === "string" && payload.details.trim()
+          ? `：${payload.details.trim()}`
+          : "";
+        throw new Error(`${payload?.error ?? "删除失败"}${details}`);
+      }
 
-      setReplyingTo((current) => (current === commentId ? null : current));
-      if (payload?.has_replies) {
+      setReplyingTo((current) => (current === deleteTargetId ? null : current));
+      setDeleteTargetId(null);
+      if (!commentBeforeDelete) return;
+
+      if (hasPublishedReplies) {
         setComments((prev) =>
-          prev.map((c) =>
-            c.id === commentId ? { ...c, status: "deleted", body: "", like_count: 0, liked_by_me: false } : c,
+          prev.map((comment) =>
+            comment.id === deleteTargetId
+              ? { ...comment, status: "deleted", liked_by_me: false, like_count: 0 }
+              : comment,
           ),
         );
       } else {
-        setComments((prev) => prev.filter((c) => c.id !== commentId));
+        setComments((prev) => prev.filter((comment) => comment.id !== deleteTargetId));
       }
-    } catch (deleteError) {
-      setCommentErrors((current) => ({
-        ...current,
-        [commentId]: deleteError instanceof Error ? deleteError.message : "删除失败",
-      }));
+    } catch (deleteRequestError) {
+      setDeleteError(deleteRequestError instanceof Error ? deleteRequestError.message : "删除失败");
     } finally {
       setDeletingId(null);
     }
-  }, [armDeleteConfirmation, clearCommentError, clearDeleteConfirm, confirmDeleteId, supabase]);
+  }, [comments, deleteTargetId, supabase]);
 
   const topLevelComments = comments.filter((c) => !c.parent_id || c.status === "deleted");
   const repliesByParent = new Map<string, Comment[]>();
@@ -253,8 +290,6 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
   const renderComment = (comment: Comment, isReply: boolean) => {
     const isDeleted = comment.status === "deleted";
     const replies = repliesByParent.get(comment.id) ?? [];
-    const isConfirming = confirmDeleteId === comment.id;
-    const isDeleting = deletingId === comment.id;
     const authorName = isDeleted ? "匿名" : authorDisplayName(comment.author);
     const showReplyForm = replyingTo === comment.id;
 
@@ -289,7 +324,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
                   type="button"
                   className={`community-action-button community-action-button--social comment-action-button${comment.liked_by_me ? " is-active is-liked" : ""}`}
                   onClick={() => void handleToggleLike(comment.id)}
-                  disabled={!supabase}
+                  disabled={!supabase || Boolean(likePendingById[comment.id])}
                   aria-label={comment.liked_by_me ? "取消点赞" : "点赞"}
                 >
                   <span className={`community-like-heart${likeAnimatingId === comment.id ? " is-animating" : ""}`} aria-hidden="true">
@@ -322,9 +357,9 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
                 {comment.can_delete ? (
                   <button
                     type="button"
-                    className={`community-action-button community-action-button--danger comment-action-button comment-action-button--danger${isConfirming ? " is-confirming" : ""}`}
-                    onClick={() => void handleDeleteClick(comment.id)}
-                    disabled={isDeleting}
+                    className="community-action-button community-action-button--danger community-action-button--compact comment-action-button is-danger"
+                    onClick={() => openDeleteModal(comment.id)}
+                    disabled={Boolean(deletingId)}
                   >
                     <span className="comment-action-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24" focusable="false">
@@ -334,24 +369,10 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
                         <path d="M14 11v6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </span>
-                    <span>{isDeleting ? "删除中..." : isConfirming ? "确认删除" : "删除"}</span>
+                    <span>删除</span>
                   </button>
                 ) : null}
               </div>
-
-              {isConfirming ? (
-                <div className="comment-delete-confirm glass-card">
-                  <span>再次点击“确认删除”即可删除评论，5 秒后自动恢复。</span>
-                  <button
-                    type="button"
-                    className="community-action-button community-action-button--muted comment-action-button"
-                    onClick={clearDeleteConfirm}
-                    disabled={isDeleting}
-                  >
-                    取消
-                  </button>
-                </div>
-              ) : null}
 
               {commentErrors[comment.id] ? <div className="comment-inline-error">{commentErrors[comment.id]}</div> : null}
             </>
@@ -411,6 +432,20 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
           {topLevelComments.map((comment) => renderComment(comment, false))}
         </div>
       ) : null}
+
+      <GlassConfirmDialog
+        open={Boolean(deleteTargetId)}
+        title="删除评论"
+        description="删除后该评论将从公开区移除。若评论下已有回复，将显示为“该评论已删除”。"
+        detail="该操作不可撤销。"
+        confirmLabel="确认删除"
+        cancelLabel="取消"
+        danger
+        loading={Boolean(deletingId)}
+        error={deleteError}
+        onConfirm={() => void handleConfirmDelete()}
+        onCancel={closeDeleteModal}
+      />
     </section>
   );
 }

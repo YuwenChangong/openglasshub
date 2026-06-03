@@ -435,9 +435,10 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     }
 
     const url = new URL(request.url);
-    const commentId = url.searchParams.get("id");
+    const payload = (await request.json().catch(() => null)) as { comment_id?: string } | null;
+    const commentId = String(url.searchParams.get("id") ?? payload?.comment_id ?? "").trim();
     if (!commentId || !UUID_REGEX.test(commentId)) {
-      return json({ error: "id is required (valid UUID)" }, 400);
+      return json({ error: "comment_id is required (valid UUID)" }, 400);
     }
 
     const userClient = createUserClient(env, token);
@@ -460,41 +461,40 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     // Fetch the comment
     const { data: comment, error: commentError } = await userClient
       .from("comments")
-      .select("id, author_id, status")
+      .select("id, author_id, status, post_id")
       .eq("id", commentId)
       .maybeSingle();
     if (commentError) return json({ error: commentError.message }, 500);
     if (!comment) return json({ error: "Comment not found" }, 404);
 
-    const commentRow = comment as { id: string; author_id: string; status: string };
+    const commentRow = comment as { id: string; author_id: string; status: string; post_id: string };
     if (commentRow.status === "deleted") {
-      return json({ error: "Comment already deleted" }, 400);
+      return json({ ok: true, comment_id: commentId, status: "deleted", already_deleted: true });
     }
 
     if (commentRow.author_id !== authData.user.id && !isStaff) {
       return json({ error: "You can only delete your own comments" }, 403);
     }
 
-    // Soft-delete (RLS also enforces this)
     const { error: updateError } = await userClient
       .from("comments")
-      .update({ status: "deleted", body: "", updated_at: new Date().toISOString() })
-      .eq("id", commentId);
+      .update({ status: "deleted", updated_at: new Date().toISOString() })
+      .eq("id", commentId)
+      .select("id")
+      .single();
 
     if (updateError) {
+      const message = String(updateError.message ?? "").trim();
+      if (/comments_body_check/i.test(message)) {
+        return json({
+          error: "COMMENT_DELETE_BODY_CHECK_FAILED",
+          details: "Soft delete must not clear comment body; update status only.",
+        }, 500);
+      }
       return json({ error: updateError.message }, 500);
     }
 
-    // Check if there are published replies
-    const { count, error: countError } = await userClient
-      .from("comments")
-      .select("id", { count: "exact", head: true })
-      .eq("parent_id", commentId)
-      .eq("status", "published");
-
-    if (countError) return json({ error: countError.message }, 500);
-
-    return json({ deleted: true, id: commentId, has_replies: (count ?? 0) > 0 });
+    return json({ ok: true, comment_id: commentId, status: "deleted" });
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },

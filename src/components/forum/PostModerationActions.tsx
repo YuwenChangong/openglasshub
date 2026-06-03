@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
+import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 
 interface PostModerationActionsProps {
@@ -230,16 +231,32 @@ export default function PostModerationActions({
   function renderModal() {
     if (modalMode === null) return null;
 
+    if (modalMode === "delete") {
+      return (
+        <GlassConfirmDialog
+          open
+          title="删除帖子"
+          description="删除后该帖子将从公开区移除，并跳回动态页。"
+          detail="该操作不可撤销。"
+          confirmLabel="确认删除"
+          cancelLabel="取消"
+          danger
+          loading={loading}
+          error={error}
+          onConfirm={() => void handleDelete()}
+          onCancel={closeModal}
+        />
+      );
+    }
+
     const title =
-      modalMode === "report" ? "举报内容" : modalMode === "delete" ? "删除帖子" : "隐藏帖子";
+      modalMode === "report" ? "举报内容" : "隐藏帖子";
     const description =
       modalMode === "report"
         ? session
           ? "选择原因并补充说明，提交后管理员会查看。"
           : "先登录账号，再提交举报内容。"
-        : modalMode === "delete"
-          ? "删除后该帖子将从公开区移除，并跳回动态页。该操作不可撤销。"
-          : "隐藏后该帖子将从公开区移除，并跳回动态页。";
+        : "隐藏后该帖子将从公开区移除，并跳回动态页。";
 
     return (
       <div className="glass-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="moderation-modal-title">
@@ -289,17 +306,6 @@ export default function PostModerationActions({
                   </a>
                 </div>
               )
-            ) : modalMode === "delete" ? (
-              session ? (
-                <p>确认删除这篇帖子？删除后公开区将不再显示该帖子。</p>
-              ) : (
-                <div className="report-login-cta">
-                  <p>当前登录状态不可用，无法直接删除。请先重新登录，再返回当前帖子继续操作。</p>
-                  <a href={loginHref} className="community-button">
-                    去登录
-                  </a>
-                </div>
-              )
             ) : (
               <p>确认执行隐藏操作？</p>
             )}
@@ -314,27 +320,23 @@ export default function PostModerationActions({
             >
               取消
             </button>
-            {(modalMode === "report" && session) || modalMode === "delete" || modalMode === "hide" ? (
+            {(modalMode === "report" && session) || modalMode === "hide" ? (
               <button
                 type="button"
                 className="community-button"
                 onClick={
                   modalMode === "report"
                     ? handleReportSubmit
-                    : modalMode === "delete"
-                      ? handleDelete
-                      : handleHide
+                    : handleHide
                 }
-                disabled={loading || !session && modalMode === "delete" || (modalMode === "report" && reportSubmitted)}
+                disabled={loading || (modalMode === "report" && reportSubmitted)}
               >
                 {loading
                   ? "提交中..."
                   : reportSubmitted && modalMode === "report"
                     ? "已提交"
-                  : modalMode === "report"
-                    ? "提交举报"
-                    : modalMode === "delete"
-                      ? "确认删除"
+                    : modalMode === "report"
+                      ? "提交举报"
                       : "确认隐藏"}
               </button>
             ) : null}
@@ -354,7 +356,7 @@ export default function PostModerationActions({
           {showManagementActions ? (
             <button
               type="button"
-              className="community-action-button community-action-button--danger"
+              className="community-action-button community-action-button--danger community-action-button--compact"
               onClick={openDeleteModal}
             >
               删除帖子
@@ -380,7 +382,7 @@ export default function PostModerationActions({
         {showManagementActions ? (
           <button
             type="button"
-            className="community-action-button community-action-button--danger"
+            className="community-action-button community-action-button--danger community-action-button--compact"
             onClick={openDeleteModal}
             disabled={loading}
           >

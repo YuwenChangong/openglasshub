@@ -701,6 +701,12 @@ body {
   transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
 }
 
+.community-action-button--compact {
+  min-height: 30px;
+  padding: 0.28rem 0.62rem;
+  font-size: 0.79rem;
+}
+
 .community-action-button:hover {
   background: rgba(255, 255, 255, 0.09);
   color: var(--text);
@@ -727,6 +733,7 @@ body {
   border-color: rgba(231, 176, 176, 0.14);
 }
 
+.community-action-button.is-danger,
 .community-action-button.is-confirming {
   background: rgba(101, 40, 40, 0.18);
   border-color: rgba(226, 175, 175, 0.2);
@@ -1588,10 +1595,30 @@ body {
   background: rgba(0, 0, 0, 0.62);
 }
 
+.glass-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.62);
+}
+
 .glass-modal {
   width: min(100%, 32rem);
   border-radius: 20px;
   color: var(--text);
+}
+
+.glass-confirm-dialog {
+  width: min(100%, 32rem);
+}
+
+.glass-confirm-header,
+.glass-confirm-body,
+.glass-confirm-actions {
+  width: 100%;
 }
 
 .glass-modal__header,
@@ -2080,21 +2107,6 @@ body {
   color: #e7b0b0;
 }
 
-.comment-delete-confirm {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  margin-top: 0.05rem;
-  padding: 0.68rem 0.8rem;
-  border-radius: 14px;
-  border: 1px solid rgba(231, 176, 176, 0.12);
-  background: rgba(255, 255, 255, 0.035);
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  line-height: 1.5;
-}
-
 .comment-action-icon {
   display: inline-flex;
   align-items: center;
@@ -2142,6 +2154,16 @@ body {
   line-height: 1.5;
 }
 
+.comment-delete-error {
+  padding: 0.68rem 0.8rem;
+  border-radius: 14px;
+  border: 1px solid rgba(231, 176, 176, 0.16);
+  background: rgba(255, 255, 255, 0.035);
+  color: #e9bbbb;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
 .comment-inline-success {
   margin-top: 0.5rem;
   padding: 0.45rem 0.65rem;
@@ -2161,9 +2183,11 @@ body {
     margin-left: 0.8rem;
     padding-left: 0.6rem;
   }
-  .comment-delete-confirm {
-    align-items: flex-start;
-    flex-direction: column;
+  .glass-confirm-actions {
+    flex-wrap: wrap;
+  }
+  .glass-confirm-actions > * {
+    width: 100%;
   }
 }
 .report-trigger-row {
