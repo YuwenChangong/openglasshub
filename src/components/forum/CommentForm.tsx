@@ -9,6 +9,7 @@ interface CommentFormProps {
   onCommentCreated?: (comment: unknown) => void;
   loginHref?: string;
   inline?: boolean;
+  onCancel?: () => void;
 }
 
 export default function CommentForm({
@@ -18,6 +19,7 @@ export default function CommentForm({
   onCommentCreated,
   loginHref,
   inline,
+  onCancel,
 }: CommentFormProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const resolvedLoginHref = loginHref ?? buildLoginHref(`/posts/${postId}/#comments`);
@@ -116,7 +118,9 @@ export default function CommentForm({
     );
   }
 
-  const panelClass = inline ? "comment-panel comment-panel--inline" : "glass-panel comment-panel";
+  const panelClass = inline
+    ? "glass-card comment-panel comment-panel--inline comment-reply-form__panel"
+    : "glass-panel comment-panel";
   const shellTag = inline ? "div" : "section";
 
   const Shell = shellTag as keyof JSX.IntrinsicElements;
@@ -138,9 +142,21 @@ export default function CommentForm({
           />
           <div className="comment-form__footer">
             <span className="community-meta">{body.length}/5000</span>
-            <button type="submit" className="community-button" disabled={loading || !body.trim()}>
-              {loading ? "提交中..." : parentId ? "发布回复" : "发布评论"}
-            </button>
+            <div className="comment-form__actions">
+              {inline && onCancel ? (
+                <button
+                  type="button"
+                  className="community-action-button community-action-button--muted"
+                  onClick={onCancel}
+                  disabled={loading}
+                >
+                  取消回复
+                </button>
+              ) : null}
+              <button type="submit" className="community-button" disabled={loading || !body.trim()}>
+                {loading ? "提交中..." : parentId ? "发布回复" : "发布评论"}
+              </button>
+            </div>
           </div>
         </form>
         {error && <div className="comment-inline-error">{error}</div>}
