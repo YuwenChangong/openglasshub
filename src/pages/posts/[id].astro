@@ -1,9 +1,8 @@
----
+﻿---
 export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
-import CommentForm from "../../components/forum/CommentForm";
 import CommentsSection from "../../components/forum/CommentsSection";
 import PostModerationActions from "../../components/forum/PostModerationActions";
 import PostMediaGallery from "../../components/forum/PostMediaGallery";
@@ -158,8 +157,7 @@ const displayBody = sanitizeBodyForDisplay(post?.body);
     </article>
 
     <section id="comments">
-      <CommentForm postId={post.id} loginHref={commentLoginHref} client:visible />
-      <CommentsSection postId={post.id} client:visible />
+      <CommentsSection postId={post.id} loginHref={commentLoginHref} client:visible />
     </section>
 
     <script type="application/ld+json" set:html={JSON.stringify({
@@ -268,4 +266,3 @@ const displayBody = sanitizeBodyForDisplay(post?.body);
     gap: 0.45rem;
   }
 </style>
-

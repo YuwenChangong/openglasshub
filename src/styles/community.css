@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --page-bg: #000000;
   --nav-bg: #000000;
   --page-bg-soft: #050505;
@@ -407,7 +407,7 @@ body {
 .community-post-meta > span::before,
 .community-post-meta > a + span::before,
 .community-post-meta > span + span::before {
-  content: "·";
+  content: "路";
   margin-right: 0.45rem;
   color: var(--text-faint);
 }
@@ -1991,6 +1991,150 @@ body {
   font-weight: 500;
 }
 
+
+/* ---- comment interactions (threads, likes, delete) ---- */
+
+.comment-thread {
+  margin-bottom: 0.35rem;
+}
+
+.comment-thread--reply {
+  margin-left: 1.6rem;
+  border-left: 1px solid var(--border);
+  padding-left: 1rem;
+}
+
+.comment-replies {
+  margin-top: 0.35rem;
+}
+
+.comment-reply-form {
+  margin: 0.5rem 0 0.3rem 1.6rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--border);
+  max-width: 100%;
+}
+
+.comment-panel--inline {
+  padding: 0.75rem 0 0;
+}
+
+.comment-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.comment-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 28px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.comment-action-button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border);
+}
+
+.comment-action-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.comment-liked {
+  color: #f06b7f;
+}
+
+.comment-liked:hover {
+  color: #f06b7f;
+}
+
+.comment-action-button--danger {
+  color: rgba(231, 176, 176, 0.68);
+}
+
+.comment-action-button--danger:hover {
+  color: rgba(255, 180, 180, 0.85);
+  border-color: rgba(231, 176, 176, 0.18);
+}
+
+.comment-delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.comment-deleted {
+  opacity: 0.6;
+}
+
+.comment-card__body--deleted {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.88rem;
+}
+
+.comment-author--staff {
+  color: #c9a86c;
+  font-weight: 600;
+}
+
+.comment-staff-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(201, 168, 108, 0.12);
+  border: 1px solid rgba(201, 168, 108, 0.22);
+  color: #c9a86c;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.comment-inline-error {
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  background: rgba(231, 76, 60, 0.1);
+  border: 1px solid rgba(231, 76, 60, 0.18);
+  color: rgba(255, 160, 150, 0.85);
+  font-size: 0.82rem;
+}
+
+.comment-inline-success {
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  background: rgba(46, 204, 113, 0.08);
+  border: 1px solid rgba(46, 204, 113, 0.15);
+  color: rgba(160, 230, 180, 0.82);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 720px) {
+  .comment-thread--reply {
+    margin-left: 0.8rem;
+    padding-left: 0.6rem;
+  }
+  .comment-reply-form {
+    margin-left: 0.8rem;
+    padding-left: 0.6rem;
+  }
+}
 .report-trigger-row {
   display: flex;
   align-items: center;

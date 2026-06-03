@@ -1,8 +1,10 @@
-/**
- * Forum Comments API — Astro endpoint for Cloudflare Worker.
+﻿/**
+ * Forum Comments API - Astro endpoint for Cloudflare Worker.
  *
- * GET  /api/forum/comments?post_id=<uuid>  → published comments for a post
- * POST /api/forum/comments                 → create a comment (requires auth)
+ * GET    /api/forum/comments?post_id=<uuid>   -> threaded comments with likes, can_delete
+ * POST   /api/forum/comments                  -> create a comment (requires auth)
+ * DELETE /api/forum/comments?id=<uuid>        -> soft-delete a comment (author or staff)
+ * PUT    /api/forum/comments                  -> toggle like on a comment
  *
  * Uses Cloudflare runtime env vars: SUPABASE_URL, SUPABASE_ANON_KEY.
  * Does NOT use service role key. RLS enforces ownership.
@@ -12,6 +14,55 @@ import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const prerender = false;
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface CommentRow {
+  id: string;
+  post_id: string;
+  author_id: string;
+  parent_id: string | null;
+  body: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ProfileRow {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  role: string | null;
+}
+
+interface ReactionRow {
+  comment_id: string;
+  user_id: string;
+}
+
+interface EnrichedComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  parent_id: string | null;
+  body: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  author: {
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+    role: string | null;
+  } | null;
+  like_count: number;
+  liked_by_me: boolean;
+  reply_count: number;
+  can_delete: boolean;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,8 +108,10 @@ function createUserClient(
   });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ---------------------------------------------------------------------------
-// GET — list published comments for a post
+// GET - threaded comments with likes, reply count, and can_delete
 // ---------------------------------------------------------------------------
 
 export const GET: APIRoute = async ({ request, locals }) => {
@@ -71,30 +124,152 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const url = new URL(request.url);
     const postId = url.searchParams.get("post_id");
 
-    if (!postId) {
-      return json({ error: "post_id is required" }, 400);
+    if (!postId || !UUID_REGEX.test(postId)) {
+      return json({ error: "post_id is required (valid UUID)" }, 400);
     }
 
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(postId)) {
-      return json({ error: "Invalid post_id format" }, 400);
-    }
-
+    const token = getBearerToken(request);
     const client = createAnonClient(env);
 
-    const { data, error } = await client
+    // Fetch comments (published + deleted placeholders for those with replies)
+    const { data: allComments, error: commentsError } = await client
       .from("comments")
-      .select("id, post_id, author_id, body, status, created_at, updated_at, profiles:author_id(username, display_name)")
+      .select("id, post_id, author_id, parent_id, body, status, created_at, updated_at")
       .eq("post_id", postId)
-      .eq("status", "published")
+      .in("status", ["published", "deleted"])
       .order("created_at", { ascending: true });
 
-    if (error) {
-      return json({ error: error.message }, 500);
+    if (commentsError) {
+      return json({ error: commentsError.message }, 500);
     }
 
-    return json({ comments: data ?? [], total: data?.length ?? 0 });
+    const rows = (allComments ?? []) as CommentRow[];
+
+    // Separate published and deleted
+    const publishedComments = rows.filter((c) => c.status === "published");
+    const deletedComments = rows.filter((c) => c.status === "deleted");
+
+    // A deleted comment is only kept if it has child replies among published comments
+    const deletedWithReplies = deletedComments.filter((dc) =>
+      publishedComments.some((pc) => pc.parent_id === dc.id),
+    );
+    const deletedIds = new Set(deletedWithReplies.map((c) => c.id));
+
+    // Final comment set: all published + deleted placeholders with replies
+    const visibleComments = [...publishedComments, ...deletedWithReplies];
+
+    if (visibleComments.length === 0) {
+      return json({ comments: [], total: 0 });
+    }
+
+    // Fetch profiles for all visible comment authors
+    const authorIds = [...new Set(visibleComments.map((c) => c.author_id))];
+    const { data: profiles, error: profilesError } = await client
+      .from("profiles")
+      .select("id, username, display_name, avatar_url, role")
+      .in("id", authorIds);
+
+    if (profilesError) {
+      return json({ error: profilesError.message }, 500);
+    }
+
+    const profileMap = new Map<string, ProfileRow>();
+    for (const p of (profiles ?? []) as ProfileRow[]) {
+      profileMap.set(p.id, p);
+    }
+
+    // Fetch reaction counts per comment
+    const commentIds = visibleComments.map((c) => c.id);
+    const { data: reactions, error: reactionsError } = await client
+      .from("comment_reactions")
+      .select("comment_id, user_id")
+      .in("comment_id", commentIds);
+
+    if (reactionsError) {
+      return json({ error: reactionsError.message }, 500);
+    }
+
+    const reactionRows = (reactions ?? []) as ReactionRow[];
+
+    // Build like_count map
+    const likeCountMap = new Map<string, number>();
+    for (const r of reactionRows) {
+      likeCountMap.set(r.comment_id, (likeCountMap.get(r.comment_id) ?? 0) + 1);
+    }
+
+    // Build reply_count map (count published children per parent)
+    const replyCountMap = new Map<string, number>();
+    for (const c of publishedComments) {
+      if (c.parent_id) {
+        replyCountMap.set(c.parent_id, (replyCountMap.get(c.parent_id) ?? 0) + 1);
+      }
+    }
+
+    // Determine liked_by_me if authenticated
+    let myUserId: string | null = null;
+    let myRole: string | null = null;
+
+    if (token) {
+      try {
+        const userClient = createUserClient(env, token);
+        const { data: authData } = await userClient.auth.getUser(token);
+        if (authData?.user) {
+          myUserId = authData.user.id;
+          const profile = profileMap.get(myUserId);
+          if (!profile) {
+            const { data: myProfile } = await userClient
+              .from("profiles")
+              .select("id, role")
+              .eq("id", myUserId)
+              .maybeSingle();
+            if (myProfile) myRole = (myProfile as { role: string }).role;
+          } else {
+            myRole = profile.role;
+          }
+        }
+      } catch {
+        // Token invalid, proceed as anonymous
+      }
+    }
+
+    const likedSet = new Set<string>();
+    if (myUserId) {
+      for (const r of reactionRows) {
+        if (r.user_id === myUserId) likedSet.add(r.comment_id);
+      }
+    }
+
+    const isStaff = myRole === "moderator" || myRole === "admin";
+
+    // Enrich comments
+    const enriched: EnrichedComment[] = visibleComments.map((c) => {
+      const profile = profileMap.get(c.author_id);
+      const isDeleted = c.status === "deleted" || deletedIds.has(c.id);
+      return {
+        id: c.id,
+        post_id: c.post_id,
+        author_id: c.author_id,
+        parent_id: c.parent_id,
+        body: isDeleted ? "" : c.body,
+        status: isDeleted ? "deleted" : c.status,
+        created_at: c.created_at,
+        updated_at: c.updated_at,
+        author: profile
+          ? {
+              username: profile.username,
+              display_name: profile.display_name,
+              avatar_url: profile.avatar_url,
+              role: profile.role,
+            }
+          : null,
+        like_count: likeCountMap.get(c.id) ?? 0,
+        liked_by_me: likedSet.has(c.id),
+        reply_count: replyCountMap.get(c.id) ?? 0,
+        can_delete: myUserId === c.author_id || isStaff,
+      };
+    });
+
+    return json({ comments: enriched, total: enriched.length });
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },
@@ -104,7 +279,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 };
 
 // ---------------------------------------------------------------------------
-// POST — create a comment (requires auth)
+// POST - create a comment (requires auth), supports parent_id for replies
 // ---------------------------------------------------------------------------
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -132,17 +307,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const postId = String(payload.post_id ?? "").trim();
     const body = String(payload.body ?? "").trim();
+    const parentId = payload.parent_id ? String(payload.parent_id).trim() : null;
 
-    // Validate post_id
-    if (!postId) {
-      return json({ error: "post_id is required" }, 400);
-    }
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(postId)) {
-      return json({ error: "Invalid post_id format" }, 400);
+    if (!postId || !UUID_REGEX.test(postId)) {
+      return json({ error: "post_id is required (valid UUID)" }, 400);
     }
 
-    // Validate body
+    if (parentId && !UUID_REGEX.test(parentId)) {
+      return json({ error: "Invalid parent_id format" }, 400);
+    }
+
     if (body.length < 1 || body.length > 5000) {
       return json({ error: "body must be 1-5000 characters" }, 400);
     }
@@ -150,7 +324,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Verify profile exists
     const { data: profile, error: profileError } = await userClient
       .from("profiles")
-      .select("id")
+      .select("id, username, display_name, avatar_url, role")
       .eq("id", authData.user.id)
       .maybeSingle();
     if (profileError) {
@@ -166,33 +340,239 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .select("id, status")
       .eq("id", postId)
       .maybeSingle();
-    if (postError) {
-      return json({ error: postError.message }, 500);
-    }
-    if (!post) {
-      return json({ error: "Post not found" }, 404);
-    }
-    if (post.status !== "published") {
+    if (postError) return json({ error: postError.message }, 500);
+    if (!post) return json({ error: "Post not found" }, 404);
+    if ((post as { status: string }).status !== "published") {
       return json({ error: "Cannot comment on non-published post" }, 403);
     }
 
-    // Insert comment (RLS enforces ownership)
+    // If parent_id is provided, verify parent comment exists and is published
+    if (parentId) {
+      const { data: parentComment, error: parentError } = await userClient
+        .from("comments")
+        .select("id, status")
+        .eq("id", parentId)
+        .eq("post_id", postId)
+        .maybeSingle();
+      if (parentError) return json({ error: parentError.message }, 500);
+      if (!parentComment) return json({ error: "Parent comment not found" }, 404);
+      if ((parentComment as { status: string }).status !== "published") {
+        return json({ error: "Cannot reply to a deleted comment" }, 400);
+      }
+    }
+
+    // Insert comment
+    const insertPayload: Record<string, unknown> = {
+      post_id: postId,
+      author_id: authData.user.id,
+      body,
+      status: "published",
+    };
+    if (parentId) insertPayload.parent_id = parentId;
+
     const { data: inserted, error: insertError } = await userClient
       .from("comments")
-      .insert({
-        post_id: postId,
-        author_id: authData.user.id,
-        body,
-        status: "published",
-      })
-      .select("id, post_id, author_id, body, status, created_at")
+      .insert(insertPayload)
+      .select("id, post_id, author_id, parent_id, body, status, created_at, updated_at")
       .single();
 
     if (insertError) {
       return json({ error: insertError.message }, 500);
     }
 
-    return json({ comment: inserted }, 201);
+    const enriched = {
+      ...inserted,
+      author: {
+        username: (profile as ProfileRow).username,
+        display_name: (profile as ProfileRow).display_name,
+        avatar_url: (profile as ProfileRow).avatar_url,
+        role: (profile as ProfileRow).role,
+      },
+      like_count: 0,
+      liked_by_me: false,
+      reply_count: 0,
+      can_delete: true,
+    };
+
+    return json({ comment: enriched }, 201);
+  } catch (err) {
+    return json(
+      { error: err instanceof Error ? err.message : "Unexpected server error" },
+      500,
+    );
+  }
+};
+
+// ---------------------------------------------------------------------------
+// DELETE - soft-delete a comment (author or moderator/admin)
+// ---------------------------------------------------------------------------
+
+export const DELETE: APIRoute = async ({ request, locals }) => {
+  try {
+    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    if (!env) {
+      return json({ error: "Runtime environment not available" }, 500);
+    }
+
+    const token = getBearerToken(request);
+    if (!token) {
+      return json({ error: "Missing bearer token" }, 401);
+    }
+
+    const url = new URL(request.url);
+    const commentId = url.searchParams.get("id");
+    if (!commentId || !UUID_REGEX.test(commentId)) {
+      return json({ error: "id is required (valid UUID)" }, 400);
+    }
+
+    const userClient = createUserClient(env, token);
+    const { data: authData, error: authError } = await userClient.auth.getUser(token);
+    if (authError || !authData.user) {
+      return json({ error: "Invalid auth token" }, 401);
+    }
+
+    // Check user's role
+    const { data: profile, error: profileError } = await userClient
+      .from("profiles")
+      .select("role")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+    if (profileError) return json({ error: profileError.message }, 500);
+    if (!profile) return json({ error: "Profile not found" }, 403);
+
+    const isStaff = (profile as { role: string }).role === "moderator" || (profile as { role: string }).role === "admin";
+
+    // Fetch the comment
+    const { data: comment, error: commentError } = await userClient
+      .from("comments")
+      .select("id, author_id, status")
+      .eq("id", commentId)
+      .maybeSingle();
+    if (commentError) return json({ error: commentError.message }, 500);
+    if (!comment) return json({ error: "Comment not found" }, 404);
+
+    const commentRow = comment as { id: string; author_id: string; status: string };
+    if (commentRow.status === "deleted") {
+      return json({ error: "Comment already deleted" }, 400);
+    }
+
+    if (commentRow.author_id !== authData.user.id && !isStaff) {
+      return json({ error: "You can only delete your own comments" }, 403);
+    }
+
+    // Soft-delete (RLS also enforces this)
+    const { error: updateError } = await userClient
+      .from("comments")
+      .update({ status: "deleted", body: "", updated_at: new Date().toISOString() })
+      .eq("id", commentId);
+
+    if (updateError) {
+      return json({ error: updateError.message }, 500);
+    }
+
+    // Check if there are published replies
+    const { count, error: countError } = await userClient
+      .from("comments")
+      .select("id", { count: "exact", head: true })
+      .eq("parent_id", commentId)
+      .eq("status", "published");
+
+    if (countError) return json({ error: countError.message }, 500);
+
+    return json({ deleted: true, id: commentId, has_replies: (count ?? 0) > 0 });
+  } catch (err) {
+    return json(
+      { error: err instanceof Error ? err.message : "Unexpected server error" },
+      500,
+    );
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PUT - toggle like on a comment
+// ---------------------------------------------------------------------------
+
+export const PUT: APIRoute = async ({ request, locals }) => {
+  try {
+    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    if (!env) {
+      return json({ error: "Runtime environment not available" }, 500);
+    }
+
+    const token = getBearerToken(request);
+    if (!token) {
+      return json({ error: "Missing bearer token" }, 401);
+    }
+
+    const userClient = createUserClient(env, token);
+    const { data: authData, error: authError } = await userClient.auth.getUser(token);
+    if (authError || !authData.user) {
+      return json({ error: "Invalid auth token" }, 401);
+    }
+
+    const payload = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!payload) {
+      return json({ error: "Invalid JSON payload" }, 400);
+    }
+
+    const commentId = String(payload.comment_id ?? "").trim();
+    if (!commentId || !UUID_REGEX.test(commentId)) {
+      return json({ error: "comment_id is required (valid UUID)" }, 400);
+    }
+
+    // Verify comment exists and is published
+    const { data: comment, error: commentError } = await userClient
+      .from("comments")
+      .select("id, status")
+      .eq("id", commentId)
+      .maybeSingle();
+    if (commentError) return json({ error: commentError.message }, 500);
+    if (!comment) return json({ error: "Comment not found" }, 404);
+    if ((comment as { status: string }).status !== "published") {
+      return json({ error: "Cannot like a deleted comment" }, 400);
+    }
+
+    // Check if already liked
+    const { data: existing, error: existingError } = await userClient
+      .from("comment_reactions")
+      .select("id")
+      .eq("comment_id", commentId)
+      .eq("user_id", authData.user.id)
+      .eq("reaction_type", "like")
+      .maybeSingle();
+
+    if (existingError) return json({ error: existingError.message }, 500);
+
+    if (existing) {
+      // Unlike: remove the reaction
+      const { error: deleteError } = await userClient
+        .from("comment_reactions")
+        .delete()
+        .eq("id", (existing as { id: string }).id);
+      if (deleteError) return json({ error: deleteError.message }, 500);
+
+      // Get new count
+      const { count: newCount } = await userClient
+        .from("comment_reactions")
+        .select("id", { count: "exact", head: true })
+        .eq("comment_id", commentId);
+
+      return json({ liked: false, like_count: newCount ?? 0 });
+    } else {
+      // Like: insert reaction
+      const { error: insertError } = await userClient
+        .from("comment_reactions")
+        .insert({ comment_id: commentId, user_id: authData.user.id, reaction_type: "like" });
+      if (insertError) return json({ error: insertError.message }, 500);
+
+      // Get new count
+      const { count: newCount } = await userClient
+        .from("comment_reactions")
+        .select("id", { count: "exact", head: true })
+        .eq("comment_id", commentId);
+
+      return json({ liked: true, like_count: newCount ?? 0 });
+    }
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },
