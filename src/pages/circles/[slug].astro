@@ -106,7 +106,7 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
       )}
       <span class="forum-meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
       <div class="community-inline-links" style="margin-top: 0.8rem;">
-        <CircleManageEntry circleSlug={circle.slug} ownerId={circle.owner_id ?? null} client:visible />
+        <CircleManageEntry circleSlug={circle.slug} ownerId={circle.owner_id ?? null} client:load />
       </div>
     </header>
 

@@ -31,7 +31,7 @@ const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
     <a href="/posts/new/" class="community-action-button community-action-button--primary">去发帖</a>
   </div>
 
-  <CreateCircleForm client:visible />
+  <CreateCircleForm client:load />
 
   {error ? (
     <div class="forum-empty">
