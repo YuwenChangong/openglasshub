@@ -83,13 +83,13 @@ export async function requireForumUser(request: Request, env: ForumRuntimeEnv): 
 }> {
   const token = getBearerToken(request);
   if (!token) {
-    throw jsonResponse({ error: "Missing bearer token" }, 401);
+    throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
   }
 
   const client = createUserClient(env, token);
   const { data: authData, error: authError } = await client.auth.getUser(token);
   if (authError || !authData.user) {
-    throw jsonResponse({ error: "Invalid auth token" }, 401);
+    throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
   }
 
   const { data: profile, error: profileError } = await client
@@ -99,10 +99,10 @@ export async function requireForumUser(request: Request, env: ForumRuntimeEnv): 
     .maybeSingle();
 
   if (profileError) {
-    throw jsonResponse({ error: profileError.message }, 500);
+    throw jsonResponse({ error: "PROFILE_NOT_FOUND", details: profileError.message }, 403);
   }
   if (!profile) {
-    throw jsonResponse({ error: "Profile not found for current user" }, 403);
+    throw jsonResponse({ error: "PROFILE_NOT_FOUND" }, 403);
   }
 
   return {
@@ -132,13 +132,13 @@ export async function requireManagedCircleBySlug(params: {
     .maybeSingle();
 
   if (error) {
-    throw jsonResponse({ error: error.message }, 500);
+    throw jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error.message }, 500);
   }
   if (!circle) {
-    throw jsonResponse({ error: "Circle not found" }, 404);
+    throw jsonResponse({ error: "CIRCLE_NOT_FOUND" }, 404);
   }
   if (!isCircleManager(circle.owner_id, auth.user.id, auth.profile.role)) {
-    throw jsonResponse({ error: "你没有权限管理这个圈子。" }, 403);
+    throw jsonResponse({ error: "CIRCLE_MANAGE_FORBIDDEN" }, 403);
   }
 
   return {

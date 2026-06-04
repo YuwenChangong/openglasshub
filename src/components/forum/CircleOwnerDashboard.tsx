@@ -25,7 +25,7 @@ type ManagedPost = {
   title: string;
   status: string;
   created_at: string;
-  author: { label: string | null } | null;
+  author: { label?: string | null; display_name?: string | null; username?: string | null } | null;
   media_count: number;
   report_count: number;
 };
@@ -47,6 +47,11 @@ type ManagePayload = {
   error?: string;
 };
 
+type ApiErrorPayload = {
+  error?: string;
+  details?: string;
+};
+
 function formatActorLabel(author?: { display_name?: string | null; username?: string | null; label?: string | null } | null) {
   return author?.display_name || author?.username || author?.label || "未知用户";
 }
@@ -61,11 +66,20 @@ async function sessionFetch<T>(path: string, session: Session, options?: Request
     },
   });
 
-  const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+  const payload = (await response.json().catch(() => null)) as ApiErrorPayload | null;
   if (!response.ok) {
     throw new Error(payload?.error ?? `请求失败 (${response.status})`);
   }
   return (payload ?? {}) as T;
+}
+
+function mapManageError(message: string) {
+  if (message.includes("NOT_AUTHENTICATED")) return { kind: "auth", text: "登录后才能管理圈子。" };
+  if (message.includes("CIRCLE_NOT_FOUND")) return { kind: "not_found", text: "圈子不存在。" };
+  if (message.includes("PROFILE_NOT_FOUND")) return { kind: "profile", text: "当前账号缺少 profile，暂时无法管理圈子。" };
+  if (message.includes("CIRCLE_MANAGE_FORBIDDEN")) return { kind: "forbidden", text: "没有权限管理该圈子。" };
+  if (message.includes("CIRCLE_MANAGE_QUERY_FAILED")) return { kind: "query", text: "圈子管理信息查询失败，请稍后重试。" };
+  return { kind: "generic", text: message };
 }
 
 export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: string }) {
@@ -74,6 +88,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [permissionError, setPermissionError] = useState("");
+  const [notFoundError, setNotFoundError] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [circle, setCircle] = useState<ManagedCircle | null>(null);
@@ -89,29 +104,33 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
     setLoading(true);
     setError("");
     setPermissionError("");
+    setNotFoundError("");
 
     try {
-      const [managePayload, postsPayload, commentsPayload] = await Promise.all([
-        sessionFetch<ManagePayload>(`/api/forum/circles/${circleSlug}/manage`, activeSession, { method: "GET" }),
-        sessionFetch<{ posts: ManagedPost[] }>(`/api/forum/circles/${circleSlug}/posts`, activeSession, { method: "GET" }),
-        sessionFetch<{ comments: ManagedComment[] }>(`/api/forum/circles/${circleSlug}/comments`, activeSession, { method: "GET" }),
-      ]);
-
+      const managePayload = await sessionFetch<ManagePayload>(`/api/forum/circles/${circleSlug}/manage`, activeSession, { method: "GET" });
       if (!managePayload.circle) {
-        throw new Error("圈子管理数据为空");
+        throw new Error("CIRCLE_MANAGE_QUERY_FAILED");
       }
 
       setCircle(managePayload.circle);
       setDraftName(managePayload.circle.name);
       setDraftDescription(managePayload.circle.description ?? "");
+
+      const [postsPayload, commentsPayload] = await Promise.all([
+        sessionFetch<{ posts: ManagedPost[] }>(`/api/forum/circles/${circleSlug}/posts`, activeSession, { method: "GET" }),
+        sessionFetch<{ comments: ManagedComment[] }>(`/api/forum/circles/${circleSlug}/comments`, activeSession, { method: "GET" }),
+      ]);
+
       setPosts(postsPayload.posts ?? []);
       setComments(commentsPayload.comments ?? []);
     } catch (requestError) {
-      const message = requestError instanceof Error ? requestError.message : "加载圈子管理数据失败";
-      if (message.includes("权限") || message.includes("403")) {
-        setPermissionError("你没有权限管理这个圈子。");
+      const mapped = mapManageError(requestError instanceof Error ? requestError.message : "加载圈子管理数据失败");
+      if (mapped.kind === "forbidden") {
+        setPermissionError(mapped.text);
+      } else if (mapped.kind === "not_found") {
+        setNotFoundError(mapped.text);
       } else {
-        setError(message);
+        setError(mapped.text);
       }
     } finally {
       setLoading(false);
@@ -148,9 +167,8 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
       sessionFetch<{ posts: ManagedPost[] }>(`/api/forum/circles/${circleSlug}/posts`, activeSession, { method: "GET" }),
       sessionFetch<{ comments: ManagedComment[] }>(`/api/forum/circles/${circleSlug}/comments`, activeSession, { method: "GET" }),
     ]);
-    if (managePayload.circle) {
-      setCircle(managePayload.circle);
-    }
+
+    if (managePayload.circle) setCircle(managePayload.circle);
     setPosts(postsPayload.posts ?? []);
     setComments(commentsPayload.comments ?? []);
   }
@@ -174,7 +192,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
       setDraftDescription(payload.circle.description ?? "");
       setSuccess("圈子信息已更新。");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "更新圈子失败");
+      setError(mapManageError(requestError instanceof Error ? requestError.message : "更新圈子失败").text);
     } finally {
       setSavingCircle(false);
     }
@@ -194,7 +212,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
       await refreshLists(session);
       setSuccess(status === "hidden" ? "帖子已隐藏。" : status === "published" ? "帖子已恢复公开。" : "帖子已删除。");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "更新帖子状态失败");
+      setError(mapManageError(requestError instanceof Error ? requestError.message : "更新帖子状态失败").text);
     } finally {
       setRowLoadingId(null);
     }
@@ -207,19 +225,15 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
 
     try {
       if (confirmDelete.type === "post") {
-        await sessionFetch(`/api/forum/circles/${circleSlug}/posts?id=${confirmDelete.id}`, session, {
-          method: "DELETE",
-        });
+        await sessionFetch(`/api/forum/circles/${circleSlug}/posts?id=${confirmDelete.id}`, session, { method: "DELETE" });
       } else {
-        await sessionFetch(`/api/forum/circles/${circleSlug}/comments?id=${confirmDelete.id}`, session, {
-          method: "DELETE",
-        });
+        await sessionFetch(`/api/forum/circles/${circleSlug}/comments?id=${confirmDelete.id}`, session, { method: "DELETE" });
       }
       await refreshLists(session);
       setSuccess(confirmDelete.type === "post" ? "帖子已删除。" : "评论已删除。");
       setConfirmDelete(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "删除失败");
+      setError(mapManageError(requestError instanceof Error ? requestError.message : "删除失败").text);
     } finally {
       setRowLoadingId(null);
     }
@@ -238,7 +252,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
       await refreshLists(session);
       setSuccess(status === "published" ? "评论已恢复。" : "评论已删除。");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "更新评论状态失败");
+      setError(mapManageError(requestError instanceof Error ? requestError.message : "更新评论状态失败").text);
     } finally {
       setRowLoadingId(null);
     }
@@ -273,10 +287,22 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
     return <section className="community-surface community-surface--padded circle-manage-shell"><p>正在加载圈子管理数据...</p></section>;
   }
 
+  if (notFoundError) {
+    return (
+      <section className="community-surface community-surface--padded circle-manage-shell circle-manage-gate">
+        <h2>圈子不存在</h2>
+        <p>{notFoundError}</p>
+        <a href="/circles/" className="community-action-button community-action-button--muted">
+          返回圈子列表
+        </a>
+      </section>
+    );
+  }
+
   if (permissionError) {
     return (
       <section className="community-surface community-surface--padded circle-manage-shell circle-manage-gate">
-        <h2>无权限</h2>
+        <h2>没有权限管理该圈子</h2>
         <p>{permissionError}</p>
         <a href={`/circles/${circleSlug}/`} className="community-action-button community-action-button--muted">
           返回圈子详情
@@ -286,7 +312,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
   }
 
   if (!circle) {
-    return <section className="community-surface community-surface--padded circle-manage-shell"><p>圈子不存在或暂时不可管理。</p></section>;
+    return <section className="community-surface community-surface--padded circle-manage-shell"><p>圈子不存在。</p></section>;
   }
 
   return (
@@ -320,12 +346,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
             </label>
             <label>
               <span className="community-meta">圈子介绍</span>
-              <textarea
-                className="community-input community-input--textarea"
-                value={draftDescription}
-                onChange={(event) => setDraftDescription(event.target.value)}
-                maxLength={200}
-              />
+              <textarea className="community-input community-input--textarea" value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)} maxLength={200} />
             </label>
             <CircleCoverEditor
               circleId={circle.id}

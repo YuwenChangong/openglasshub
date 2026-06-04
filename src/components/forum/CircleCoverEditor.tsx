@@ -18,7 +18,7 @@ const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 function normalizeFileName(fileName: string) {
   return fileName
     .toLowerCase()
-    .replace(/[^a-z0-9.\-_]+/g, "-")
+    .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "");
 }
@@ -51,12 +51,10 @@ export default function CircleCoverEditor({
       .eq("id", authState.user.id)
       .maybeSingle()
       .then(({ data }) => {
-        if (cancelled) return;
-        setRole(String(data?.role ?? ""));
+        if (!cancelled) setRole(String(data?.role ?? ""));
       })
       .catch(() => {
-        if (cancelled) return;
-        setRole("");
+        if (!cancelled) setRole("");
       });
 
     return () => {
@@ -96,6 +94,7 @@ export default function CircleCoverEditor({
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
     if (!file || loading) return;
+
     setError("");
     setMessage("");
 
@@ -117,6 +116,7 @@ export default function CircleCoverEditor({
 
     setLoading(true);
     let uploadedPath = "";
+
     try {
       const token = await getSessionToken();
       if (!token || authState.status !== "signed_in" || !authState.user) {
@@ -155,11 +155,13 @@ export default function CircleCoverEditor({
       if (!supportsExtendedSchema) {
         throw new Error("当前环境未启用圈子图片字段，无法清除封面。");
       }
+
       const token = await getSessionToken();
       if (!token) {
         window.location.assign(buildLoginHref(`/circles/${circleSlug}/manage/`));
         return;
       }
+
       await updateCircleCover(null, token);
       setMessage("圈子封面已清除。");
       onUpdated?.(null);

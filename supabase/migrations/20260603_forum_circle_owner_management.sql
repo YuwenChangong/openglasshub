@@ -1,6 +1,43 @@
 create unique index if not exists circles_name_lower_unique
 on public.circles (lower(name));
 
+drop policy if exists "circles_insert_authenticated" on public.circles;
+drop policy if exists "circles_insert_owner_or_staff" on public.circles;
+create policy "circles_insert_owner_or_staff"
+on public.circles
+for insert
+to authenticated
+with check (
+  owner_id = auth.uid()
+  or (select public.is_moderator_or_admin())
+);
+
+drop policy if exists "circles_update_staff_only" on public.circles;
+drop policy if exists "circles_update_owner_or_staff" on public.circles;
+create policy "circles_update_owner_or_staff"
+on public.circles
+for update
+to authenticated
+using (
+  owner_id = auth.uid()
+  or (select public.is_moderator_or_admin())
+)
+with check (
+  owner_id = auth.uid()
+  or (select public.is_moderator_or_admin())
+);
+
+drop policy if exists "circles_delete_staff_only" on public.circles;
+drop policy if exists "circles_delete_owner_or_staff" on public.circles;
+create policy "circles_delete_owner_or_staff"
+on public.circles
+for delete
+to authenticated
+using (
+  owner_id = auth.uid()
+  or (select public.is_moderator_or_admin())
+);
+
 create or replace function public.can_manage_circle(target_circle_id uuid)
 returns boolean
 language sql

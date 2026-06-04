@@ -16,7 +16,7 @@ const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 function normalizeFileName(fileName: string) {
   return fileName
     .toLowerCase()
-    .replace(/[^a-z0-9.\-_]+/g, "-")
+    .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "");
 }
@@ -32,12 +32,12 @@ function createSlug(value: string) {
 }
 
 function mapCircleError(message: string) {
-  if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) {
-    return "圈子名称已存在，请换一个名称。";
-  }
-  if (message.includes("CIRCLE_SLUG_ALREADY_EXISTS")) {
-    return "圈子标识已存在，请换一个标识。";
-  }
+  if (message.includes("NOT_AUTHENTICATED")) return "登录状态已失效，请重新登录后再创建圈子。";
+  if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在，请换一个名称。";
+  if (message.includes("CIRCLE_SLUG_ALREADY_EXISTS")) return "圈子标识已存在，请换一个标识。";
+  if (message.includes("CIRCLE_OWNER_RLS_NOT_READY")) return "数据库还没有准备好 owner/RLS，请先执行最新 migration。";
+  if (message.includes("PROFILE_NOT_FOUND")) return "当前账号缺少 profile，请先重新登录或补齐资料。";
+  if (message.includes("CIRCLE_CREATE_FAILED")) return "圈子创建失败，请稍后重试。";
   return message;
 }
 
@@ -58,9 +58,7 @@ export default function CreateCircleForm() {
   useEffect(() => {
     setSlug((current) => {
       const next = createSlug(name);
-      if (!current || current === createSlug(current)) {
-        return next;
-      }
+      if (!current || current === createSlug(current)) return next;
       return current;
     });
   }, [name]);
@@ -106,8 +104,7 @@ export default function CreateCircleForm() {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       const session = sessionData.session;
       if (sessionError || !session?.access_token || !session.user) {
-        window.location.replace(buildLoginHref("/circles/"));
-        return;
+        throw new Error("NOT_AUTHENTICATED");
       }
 
       const nextName = name.trim();
@@ -150,7 +147,7 @@ export default function CreateCircleForm() {
 
       const payload = (await response.json().catch(() => null)) as { circle?: { slug?: string }; error?: string } | null;
       if (!response.ok) {
-        throw new Error(payload?.error ?? `创建圈子失败 (${response.status})`);
+        throw new Error(payload?.error ?? `CIRCLE_CREATE_FAILED (${response.status})`);
       }
 
       setMessage("圈子创建成功，正在跳转。");
@@ -159,7 +156,13 @@ export default function CreateCircleForm() {
       if (uploadedPath) {
         await supabase.storage.from("post-media").remove([uploadedPath]).catch(() => undefined);
       }
-      setError(mapCircleError(submitError instanceof Error ? submitError.message : "创建圈子失败。"));
+
+      const nextMessage = submitError instanceof Error ? submitError.message : "CIRCLE_CREATE_FAILED";
+      if (nextMessage === "NOT_AUTHENTICATED") {
+        window.location.replace(buildLoginHref("/circles/"));
+        return;
+      }
+      setError(mapCircleError(nextMessage));
     } finally {
       setSubmitting(false);
     }
