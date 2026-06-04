@@ -252,7 +252,10 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
     try {
       if (confirmDelete.type === "circle") {
         await sessionFetch(`/api/forum/circles/${circleSlug}/manage`, session, { method: "DELETE" });
-        await refreshLists(session);
+        setConfirmDelete(null);
+        setSuccess("圈子已删除，正在返回圈子列表。");
+        window.location.assign("/circles/");
+        return;
       } else if (confirmDelete.type === "post") {
         await sessionFetch(`/api/forum/circles/${circleSlug}/posts?id=${confirmDelete.id}`, session, { method: "DELETE" });
       } else {
@@ -358,7 +361,6 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
         <div className="community-stream-head">
           <div>
             <h2>管理圈子</h2>
-            <p>编辑圈子信息，并管理该圈子下的帖子与评论。</p>
           </div>
           <div className="community-inline-links">
             {circle.status === "deleted" ? (

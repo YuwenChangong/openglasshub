@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
+import { buildUniqueCircleSlug, slugifyCircleName } from "../../../../lib/circle-slug";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
-import { normalizeCircleSlug } from "../../../../lib/server/circle-management";
 
 export const prerender = false;
 
@@ -20,17 +20,9 @@ function validateDescription(description: string) {
 
 async function checkDuplicates(
   client: Awaited<ReturnType<typeof requireModerator>>["client"],
-  params: { name?: string; slug?: string; excludeId?: string },
+  params: { name?: string; excludeId?: string },
 ) {
-  const { name, slug, excludeId } = params;
-
-  if (slug) {
-    let query = client.from("circles").select("id").eq("slug", slug).limit(1);
-    if (excludeId) query = query.neq("id", excludeId);
-    const { data, error } = await query;
-    if (error) return { error: error.message };
-    if ((data ?? []).length > 0) return { error: "CIRCLE_SLUG_ALREADY_EXISTS", status: 409 };
-  }
+  const { name, excludeId } = params;
 
   if (name) {
     let query = client.from("circles").select("id,name").ilike("name", name).limit(8);
@@ -142,40 +134,52 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!payload) return jsonResponse({ error: "Invalid JSON payload" }, 400);
 
     const name = String(payload.name ?? "").trim();
-    const slug = normalizeCircleSlug(String(payload.slug ?? payload.name ?? ""));
     const description = typeof payload.description === "string" ? payload.description.trim() : "";
     const type = String(payload.type ?? "").trim();
     const imagePath = typeof payload.image_path === "string" ? payload.image_path.trim() : null;
     const ownerId = typeof payload.owner_id === "string" && payload.owner_id.trim() ? payload.owner_id.trim() : auth.user.id;
 
     if (name.length < 2 || name.length > 40) return jsonResponse({ error: "Circle name must be 2-40 characters" }, 400);
-    if (!slug || slug.length < 2 || slug.length > 80) return jsonResponse({ error: "Invalid circle slug" }, 400);
     if (!validateDescription(description)) return jsonResponse({ error: "Circle description must be <=200 characters" }, 400);
     if (!validateType(type)) return jsonResponse({ error: "Invalid circle type" }, 400);
     if (imagePath && imagePath.length > 500) return jsonResponse({ error: "Circle image path is too long" }, 400);
 
-    const duplicate = await checkDuplicates(auth.client, { name, slug });
+    const duplicate = await checkDuplicates(auth.client, { name });
     if (duplicate) return jsonResponse({ error: duplicate.error }, duplicate.status ?? 500);
 
-    const { data, error } = await auth.client
-      .from("circles")
-      .insert({
-        name,
-        slug,
-        description: description || null,
-        type,
-        image_path: imagePath,
-        owner_id: ownerId,
-      })
-      .select("id,slug,name,description,type,created_at,updated_at,image_path,owner_id")
-      .single();
+    const slugBase = slugifyCircleName(name);
+
+    async function insertCircleWithSlug(slug: string) {
+      return auth.client
+        .from("circles")
+        .insert({
+          name,
+          slug,
+          description: description || null,
+          type,
+          image_path: imagePath,
+          owner_id: ownerId,
+        })
+        .select("id,slug,name,description,type,created_at,updated_at,image_path,owner_id")
+        .single();
+    }
+
+    let generatedSlug = await buildUniqueCircleSlug(auth.client, name);
+    let { data, error } = await insertCircleWithSlug(generatedSlug);
+
+    if (error && /circles_slug_key|duplicate key value/i.test(error.message) && /slug/i.test(error.message)) {
+      generatedSlug = await buildUniqueCircleSlug(auth.client, `${slugBase}-${Date.now()}`);
+      const retry = await insertCircleWithSlug(generatedSlug);
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       if (/circles_name_lower_unique|duplicate key value/i.test(error.message) && /name/i.test(error.message)) {
         return jsonResponse({ error: "CIRCLE_NAME_ALREADY_EXISTS" }, 409);
       }
       if (/circles_slug_key|duplicate key value/i.test(error.message) && /slug/i.test(error.message)) {
-        return jsonResponse({ error: "CIRCLE_SLUG_ALREADY_EXISTS" }, 409);
+        return jsonResponse({ error: "Circle slug generation conflict persisted after retry." }, 500);
       }
       return jsonResponse({ error: error.message }, 500);
     }

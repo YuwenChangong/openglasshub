@@ -37,7 +37,6 @@ const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
   ) : visibleCircles.length === 0 ? (
     <div class="forum-empty">
       <strong>暂时还没有公开圈子</strong>
-      <p>现在可以直接创建第一个圈子，开始聚合相关讨论。</p>
     </div>
   ) : (
     <section class="circle-grid">

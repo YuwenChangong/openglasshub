@@ -115,7 +115,6 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
     <div class="circle-stream-head">
       <div>
         <h2>圈子帖子</h2>
-        <p>只显示该圈子的公开帖子，按发布时间倒序排列。</p>
       </div>
       <div class="community-inline-links">
         <a href="/posts/new/" class="community-action-button community-action-button--primary">发帖</a>
@@ -131,8 +130,6 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
     ) : posts.length === 0 ? (
       <div class="forum-empty">
         <strong>该圈子还没有公开帖子</strong>
-        <p>如果你已经在用 {publicCircle.name}，或者正在研究相关方向，现在就是最适合发第一篇帖子的时机。</p>
-        <a href="/posts/new/" class="community-action-button community-action-button--primary">写第一篇帖子</a>
       </div>
     ) : (
       <div class="circle-post-stream">

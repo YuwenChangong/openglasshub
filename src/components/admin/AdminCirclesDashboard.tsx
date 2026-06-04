@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { adminFetch } from "../../lib/admin-api-client";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
@@ -52,19 +52,8 @@ function normalizeFileName(fileName: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function createSlug(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5\s-]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
 function mapCircleError(message: string) {
   if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在。";
-  if (message.includes("CIRCLE_SLUG_ALREADY_EXISTS")) return "圈子标识已存在。";
   if (message.includes("CIRCLE_STATUS_SCHEMA_NOT_READY")) return "数据库还没有完成圈子状态 migration，请先执行最新 SQL。";
   return message;
 }
@@ -82,14 +71,12 @@ export default function AdminCirclesDashboard() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState("");
-  const [createSlugValue, setCreateSlugValue] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [createType, setCreateType] = useState<(typeof circleTypes)[number]["value"]>("topic");
   const [createImage, setCreateImage] = useState<File | null>(null);
   const [confirmCircleAction, setConfirmCircleAction] = useState<{ id: string; name: string; nextStatus: "active" | "deleted" } | null>(null);
 
   const accessToken = adminSession.session?.access_token ?? "";
-  const createSlugPreview = useMemo(() => createSlug(createSlugValue || createName), [createName, createSlugValue]);
 
   useEffect(() => {
     if (adminSession.state.status !== "ready" || !adminSession.session) return;
@@ -152,7 +139,6 @@ export default function AdminCirclesDashboard() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: createName.trim(),
-          slug: createSlugPreview,
           description: createDescription.trim(),
           type: createType,
           image_path: uploadedPath || null,
@@ -173,7 +159,6 @@ export default function AdminCirclesDashboard() {
       }
 
       setCreateName("");
-      setCreateSlugValue("");
       setCreateDescription("");
       setCreateType("topic");
       setCreateImage(null);
@@ -313,10 +298,6 @@ export default function AdminCirclesDashboard() {
             <label>
               <span>圈子名称</span>
               <input className="community-input" value={createName} onChange={(event) => setCreateName(event.target.value)} maxLength={40} />
-            </label>
-            <label>
-              <span>圈子标识</span>
-              <input className="community-input" value={createSlugValue} onChange={(event) => setCreateSlugValue(event.target.value)} placeholder={createSlugPreview || "circle-slug"} />
             </label>
             <label>
               <span>圈子类型</span>

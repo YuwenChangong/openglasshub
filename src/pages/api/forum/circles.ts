@@ -1,10 +1,10 @@
 import type { APIRoute } from "astro";
+import { buildUniqueCircleSlug, slugifyCircleName } from "../../../lib/circle-slug";
 import { isPublicVisibleCircle } from "../../../lib/site-navigation";
 import { fetchCirclesWithFallback } from "../../../lib/circle-data";
 import {
   createAnonClient,
   jsonResponse,
-  normalizeCircleSlug,
   requireForumUser,
   isCircleManager,
 } from "../../../lib/server/circle-management";
@@ -23,16 +23,8 @@ function validateType(type: string) {
 
 async function findDuplicateCircle(
   client: ReturnType<typeof createAnonClient>,
-  params: { name?: string; slug?: string; excludeId?: string },
+  params: { name?: string; excludeId?: string },
 ) {
-  if (params.slug) {
-    let query = client.from("circles").select("id").eq("slug", params.slug).limit(1);
-    if (params.excludeId) query = query.neq("id", params.excludeId);
-    const { data, error } = await query;
-    if (error) return { status: 500, details: error.message };
-    if ((data ?? []).length > 0) return { error: "CIRCLE_SLUG_ALREADY_EXISTS", status: 409 };
-  }
-
   if (params.name) {
     let query = client.from("circles").select("id, name").ilike("name", params.name).limit(8);
     if (params.excludeId) query = query.neq("id", params.excludeId);
@@ -85,16 +77,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (!payload) return jsonResponse({ error: "INVALID_JSON_PAYLOAD" }, 400);
 
-    const slug = normalizeCircleSlug(String(payload.slug ?? payload.name ?? ""));
     const name = String(payload.name ?? "").trim();
     const description = typeof payload.description === "string" ? payload.description.trim() : "";
     const type = String(payload.type ?? "").trim();
     const imagePath = typeof payload.image_path === "string" ? payload.image_path.trim() : null;
     const requestedOwnerId = typeof payload.owner_id === "string" ? payload.owner_id.trim() : "";
 
-    if (!slug || slug.length < 2 || slug.length > 80) {
-      return jsonResponse({ error: "INVALID_CIRCLE_SLUG" }, 400);
-    }
     if (name.length < 2 || name.length > 40) {
       return jsonResponse({ error: "INVALID_CIRCLE_NAME" }, 400);
     }
@@ -111,7 +99,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return jsonResponse({ error: "CIRCLE_CREATE_FAILED", details: "owner_id is assigned by the server." }, 400);
     }
 
-    const duplicate = await findDuplicateCircle(auth.client, { name, slug });
+    const duplicate = await findDuplicateCircle(auth.client, { name });
     if (duplicate) {
       if (!duplicate.error) {
         return jsonResponse({ error: "CIRCLE_CREATE_FAILED", details: duplicate.details ?? "Duplicate lookup failed" }, 500);
@@ -119,25 +107,39 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return jsonResponse({ error: duplicate.error }, duplicate.status ?? 500);
     }
 
-    const { data, error } = await auth.client
-      .from("circles")
-      .insert({
-        slug,
-        name,
-        description: description || null,
-        type,
-        image_path: imagePath,
-        owner_id: auth.user.id,
-      })
-      .select("id, slug, name, description, type, image_path, owner_id")
-      .single();
+    const slugBase = slugifyCircleName(name);
+
+    async function insertCircleWithSlug(slug: string) {
+      return auth.client
+        .from("circles")
+        .insert({
+          slug,
+          name,
+          description: description || null,
+          type,
+          image_path: imagePath,
+          owner_id: auth.user.id,
+        })
+        .select("id, slug, name, description, type, image_path, owner_id")
+        .single();
+    }
+
+    let generatedSlug = await buildUniqueCircleSlug(auth.client, name);
+    let { data, error } = await insertCircleWithSlug(generatedSlug);
+
+    if (error && /circles_slug_key|duplicate key value/i.test(error.message) && /slug/i.test(error.message)) {
+      generatedSlug = await buildUniqueCircleSlug(auth.client, `${slugBase}-${Date.now()}`);
+      const retry = await insertCircleWithSlug(generatedSlug);
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       if (/circles_name_lower_unique|duplicate key value/i.test(error.message) && /name/i.test(error.message)) {
         return jsonResponse({ error: "CIRCLE_NAME_ALREADY_EXISTS" }, 409);
       }
       if (/circles_slug_key|duplicate key value/i.test(error.message) && /slug/i.test(error.message)) {
-        return jsonResponse({ error: "CIRCLE_SLUG_ALREADY_EXISTS" }, 409);
+        return jsonResponse({ error: "CIRCLE_CREATE_FAILED", details: "Circle slug generation conflict persisted after retry." }, 500);
       }
       if (isMissingCircleOwnerSchemaError(error.message)) {
         return jsonResponse({
@@ -173,7 +175,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     if (!payload) return jsonResponse({ error: "INVALID_JSON_PAYLOAD" }, 400);
 
     const id = String(payload.id ?? "").trim();
-    const slug = normalizeCircleSlug(String(payload.slug ?? ""));
+    const slug = String(payload.slug ?? "").trim();
     if (!id && !slug) {
       return jsonResponse({ error: "MISSING_CIRCLE_ID_OR_SLUG" }, 400);
     }

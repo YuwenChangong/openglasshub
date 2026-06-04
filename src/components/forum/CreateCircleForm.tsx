@@ -22,20 +22,9 @@ function normalizeFileName(fileName: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function createSlug(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5\s-]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
 function mapCircleError(message: string) {
   if (message.includes("NOT_AUTHENTICATED")) return "登录状态已失效，请重新登录后再创建圈子。";
   if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在，请换一个名称。";
-  if (message.includes("CIRCLE_SLUG_ALREADY_EXISTS")) return "圈子标识已存在，请换一个标识。";
   if (message.includes("CIRCLE_OWNER_RLS_NOT_READY")) return "数据库还没有准备好 owner/RLS，请先执行最新 migration。";
   if (message.includes("PROFILE_NOT_FOUND")) return "当前账号缺少 profile，请先重新登录或补齐资料。";
   if (message.includes("CIRCLE_CREATE_FAILED")) return "圈子创建失败，请稍后重试。";
@@ -54,7 +43,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
   const typeButtonRef = useRef<HTMLButtonElement | null>(null);
   const typeMenuRef = useRef<HTMLDivElement | null>(null);
   const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<(typeof circleTypes)[number]["value"]>("topic");
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
@@ -78,14 +66,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    setSlug((current) => {
-      const next = createSlug(name);
-      if (!current || current === createSlug(current)) return next;
-      return current;
-    });
-  }, [name]);
 
   useEffect(() => {
     return () => {
@@ -239,14 +219,10 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
       }
 
       const nextName = name.trim();
-      const nextSlug = createSlug(slug || name);
       const nextDescription = description.trim();
 
       if (nextName.length < 2 || nextName.length > 40) {
         throw new Error("圈子名称需要在 2 - 40 个字符之间。");
-      }
-      if (!nextSlug || nextSlug.length < 2 || nextSlug.length > 80) {
-        throw new Error("圈子标识需要在 2 - 80 个字符之间。");
       }
       if (nextDescription.length > 200) {
         throw new Error("圈子简介最多 200 个字符。");
@@ -268,7 +244,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
           authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          slug: nextSlug,
           name: nextName,
           description: nextDescription,
           type,
@@ -280,9 +255,12 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
       if (!response.ok) {
         throw new Error(payload?.error ?? `CIRCLE_CREATE_FAILED (${response.status})`);
       }
+      if (!payload?.circle?.slug) {
+        throw new Error("CIRCLE_CREATE_FAILED");
+      }
 
       setMessage("圈子创建成功，正在跳转。");
-      window.location.assign(`/circles/${payload?.circle?.slug || nextSlug}/`);
+      window.location.assign(`/circles/${payload.circle.slug}/`);
     } catch (submitError) {
       if (uploadedPath) {
         await supabase.storage.from("post-media").remove([uploadedPath]).catch(() => undefined);
@@ -343,20 +321,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
             className="community-input"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="例如 Brilliant Labs"
             maxLength={40}
-            disabled={submitting}
-          />
-        </label>
-
-        <label className="create-circle-form__field circle-create-field">
-          <span>圈子标识</span>
-          <input
-            className="community-input"
-            value={slug}
-            onChange={(event) => setSlug(createSlug(event.target.value))}
-            placeholder="brilliant-labs"
-            maxLength={80}
             disabled={submitting}
           />
         </label>
@@ -367,7 +332,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
             className="community-input community-input--textarea"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="说明这个圈子主要讨论什么，方便其他人判断是否加入。"
             maxLength={200}
             disabled={submitting}
           />
@@ -391,7 +355,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
             >
               <span className="community-select__content">
                 <strong>{selectedType.label}</strong>
-                <span>选择这个圈子的主要讨论方向</span>
               </span>
               <span className="community-select__chevron" aria-hidden="true">⌄</span>
             </button>
