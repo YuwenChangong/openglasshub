@@ -5,6 +5,10 @@ export const prerender = false;
 
 type RuntimeLocals = { runtime?: { env?: Record<string, string | undefined> } };
 
+function isMissingCircleStatusError(message: string) {
+  return /status/i.test(message) && /does not exist/i.test(message);
+}
+
 export const GET: APIRoute = async ({ request, params, locals }) => {
   try {
     const env = (locals as RuntimeLocals).runtime?.env;
@@ -66,7 +70,7 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
 
     const auth = await requireManagedCircleBySlug({ request, env, slug });
     const payload = (await request.json().catch(() => null)) as
-      | { name?: string; description?: string | null; image_path?: string | null }
+      | { name?: string; description?: string | null; image_path?: string | null; status?: string }
       | null;
 
     if (!payload) return jsonResponse({ error: "INVALID_JSON_PAYLOAD" }, 400);
@@ -103,25 +107,84 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
       }
       updates.image_path = imagePath;
     }
+    if ("status" in payload) {
+      const status = String(payload.status ?? "").trim();
+      if (!["active", "deleted"].includes(status)) {
+        return jsonResponse({ error: "INVALID_CIRCLE_STATUS" }, 400);
+      }
+      updates.status = status;
+    }
     if (Object.keys(updates).length === 0) {
       return jsonResponse({ error: "NOTHING_TO_UPDATE" }, 400);
     }
 
-    const { data, error } = await auth.client
+    let { data, error } = await auth.client
       .from("circles")
       .update(updates)
       .eq("id", auth.circle.id)
-      .select("id, slug, name, description, type, created_at, updated_at, image_path, owner_id")
+      .select("id, slug, name, description, type, status, created_at, updated_at, image_path, owner_id")
       .single();
+
+    if (error && isMissingCircleStatusError(error.message) && !("status" in payload)) {
+      const fallback = await auth.client
+        .from("circles")
+        .update(updates)
+        .eq("id", auth.circle.id)
+        .select("id, slug, name, description, type, created_at, updated_at, image_path, owner_id")
+        .single();
+      data = fallback.data
+        ? {
+            ...fallback.data,
+            status: "active",
+          }
+        : null;
+      error = fallback.error;
+    }
 
     if (error) {
       if (/circles_name_lower_unique|duplicate key value/i.test(error.message) && /name/i.test(error.message)) {
         return jsonResponse({ error: "CIRCLE_NAME_ALREADY_EXISTS" }, 409);
       }
+      if (isMissingCircleStatusError(error.message) && "status" in payload) {
+        return jsonResponse({ error: "CIRCLE_STATUS_SCHEMA_NOT_READY", details: error.message }, 503);
+      }
       return jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error.message }, 500);
     }
 
     return jsonResponse({ circle: data });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    return jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error instanceof Error ? error.message : "Unexpected server error" }, 500);
+  }
+};
+
+export const DELETE: APIRoute = async ({ request, params, locals }) => {
+  try {
+    const env = (locals as RuntimeLocals).runtime?.env;
+    const slug = String(params.slug ?? "").trim().toLowerCase();
+    if (!env) return jsonResponse({ error: "RUNTIME_ENV_MISSING" }, 500);
+    if (!slug) return jsonResponse({ error: "MISSING_CIRCLE_SLUG" }, 400);
+
+    const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const { data, error } = await auth.client
+      .from("circles")
+      .update({ status: "deleted" })
+      .eq("id", auth.circle.id)
+      .select("id, slug, name, description, type, status, created_at, updated_at, image_path, owner_id")
+      .single();
+
+    if (error) {
+      if (isMissingCircleStatusError(error.message)) {
+        return jsonResponse({ error: "CIRCLE_STATUS_SCHEMA_NOT_READY", details: error.message }, 503);
+      }
+      return jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error.message }, 500);
+    }
+
+    return jsonResponse({
+      ok: true,
+      circle: data,
+      message: "圈子已删除。",
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     return jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error instanceof Error ? error.message : "Unexpected server error" }, 500);

@@ -45,16 +45,21 @@ export default function CreateCircleForm() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const authState = useBrowserAuthState(supabase);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const typePickerRef = useRef<HTMLDivElement | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<(typeof circleTypes)[number]["value"]>("topic");
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+  const [typeActiveIndex, setTypeActiveIndex] = useState(0);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const selectedType = circleTypes.find((item) => item.value === type) ?? circleTypes[0];
 
   useEffect(() => {
     setSlug((current) => {
@@ -70,14 +75,43 @@ export default function CreateCircleForm() {
     };
   }, [imagePreview]);
 
+  useEffect(() => {
+    if (!typeMenuOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!typePickerRef.current?.contains(event.target as Node)) {
+        setTypeMenuOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setTypeMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [typeMenuOpen]);
+
+  function selectType(nextType: (typeof circleTypes)[number]["value"]) {
+    setType(nextType);
+    setTypeActiveIndex(circleTypes.findIndex((item) => item.value === nextType));
+    setTypeMenuOpen(false);
+  }
+
   function handleSelectImage(file: File | null) {
     if (!file) return;
     if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
-      setError("圈子图片只支持 jpg / png / webp / gif。");
+      setError("圈子封面只支持 jpg / png / webp / gif。");
       return;
     }
     if (file.size > MAX_IMAGE_SIZE) {
-      setError("圈子图片不能超过 5MB。");
+      setError("圈子封面不能超过 5MB。");
       return;
     }
 
@@ -211,7 +245,7 @@ export default function CreateCircleForm() {
         <div className="community-section-head">
           <div>
             <h2>创建圈子</h2>
-            <p>创建自己的圈子，并由 owner 或管理员继续维护。</p>
+            <p>创建一个新的讨论空间。</p>
           </div>
         </div>
         {error ? <span className="inline-error">{error}</span> : null}
@@ -234,12 +268,12 @@ export default function CreateCircleForm() {
       <div className="community-section-head">
         <div>
           <h2>创建圈子</h2>
-          <p>创建自己的圈子，并由 owner 或管理员继续维护。</p>
+          <p>填写名称、标识和封面后即可创建。</p>
         </div>
       </div>
 
-      <div className="create-circle-form__grid">
-        <label className="create-circle-form__field">
+      <div className="create-circle-form__grid circle-create-grid">
+        <label className="create-circle-form__field circle-create-field">
           <span>圈子名称</span>
           <input
             className="community-input"
@@ -251,7 +285,7 @@ export default function CreateCircleForm() {
           />
         </label>
 
-        <label className="create-circle-form__field">
+        <label className="create-circle-form__field circle-create-field">
           <span>圈子标识</span>
           <input
             className="community-input"
@@ -263,7 +297,7 @@ export default function CreateCircleForm() {
           />
         </label>
 
-        <label className="create-circle-form__field create-circle-form__field--full">
+        <label className="create-circle-form__field create-circle-form__field--full circle-create-field">
           <span>圈子简介（可选）</span>
           <textarea
             className="community-input community-input--textarea"
@@ -275,24 +309,53 @@ export default function CreateCircleForm() {
           />
         </label>
 
-        <label className="create-circle-form__field">
+        <div className="create-circle-form__field circle-create-field">
           <span>圈子类型</span>
-          <select
-            className="community-input"
-            value={type}
-            onChange={(event) => setType(event.target.value as (typeof circleTypes)[number]["value"])}
-            disabled={submitting}
-          >
-            {circleTypes.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className={`community-select circle-type-select${typeMenuOpen ? " is-open" : ""}${submitting ? " is-disabled" : ""}`} ref={typePickerRef}>
+            <input type="hidden" name="type" value={type} />
+            <button
+              type="button"
+              className="community-select__trigger circle-type-trigger"
+              onClick={() => {
+                if (submitting) return;
+                setTypeMenuOpen((current) => !current);
+              }}
+              disabled={submitting}
+              aria-haspopup="listbox"
+              aria-expanded={typeMenuOpen}
+            >
+              <span className="community-select__content">
+                <strong>{selectedType.label}</strong>
+                <span>选择这个圈子的主要讨论方向</span>
+              </span>
+              <span className="community-select__chevron" aria-hidden="true">⌄</span>
+            </button>
+            {typeMenuOpen ? (
+              <div className="community-select__menu circle-type-menu" role="listbox" aria-label="圈子类型">
+                {circleTypes.map((item, index) => {
+                  const active = item.value === type;
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className={`community-select__option circle-type-option${active ? " is-selected" : ""}${typeActiveIndex === index ? " is-active" : ""}`}
+                      onClick={() => selectType(item.value)}
+                      onMouseEnter={() => setTypeActiveIndex(index)}
+                      role="option"
+                      aria-selected={active}
+                    >
+                      <strong>{item.label}</strong>
+                      <span>{item.value === "topic" ? "适合一般讨论、经验分享与问题交流" : item.value === "device" ? "围绕具体设备、眼镜或硬件展开讨论" : "围绕项目、应用或持续协作展开讨论"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        </div>
 
-        <div className="create-circle-form__field">
-          <span>圈子图片</span>
+        <div className="create-circle-form__field circle-create-field">
+          <span>圈子封面</span>
           <div className="create-circle-form__image-row">
             <input
               ref={fileInputRef}
@@ -303,7 +366,7 @@ export default function CreateCircleForm() {
             />
             {imageFile ? (
               <button type="button" className="community-button--secondary" onClick={clearImage} disabled={submitting}>
-                移除图片
+                移除封面
               </button>
             ) : null}
           </div>
@@ -318,7 +381,7 @@ export default function CreateCircleForm() {
       {error ? <span className="inline-error">{error}</span> : null}
       {message ? <span className="inline-success">{message}</span> : null}
 
-      <div className="community-cta-row">
+      <div className="community-cta-row circle-create-actions">
         <button
           type="button"
           className="community-action-button community-action-button--muted"

@@ -996,6 +996,12 @@ body {
   margin: 0 0 1.4rem;
 }
 
+.create-circle-form .community-section-head {
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0;
+}
+
 .circle-cover-editor {
   display: grid;
   gap: 0.45rem;
@@ -1013,11 +1019,13 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.85rem 1rem;
+  margin-top: 0.4rem;
 }
 
 .create-circle-form__field {
   display: grid;
   gap: 0.45rem;
+  min-width: 0;
 }
 
 .create-circle-form__field > span {
@@ -1040,6 +1048,36 @@ body {
 .create-circle-form__image-row input[type="file"] {
   max-width: 100%;
   color: var(--text-muted);
+}
+
+.circle-create-grid {
+  align-items: start;
+}
+
+.circle-create-field {
+  align-content: start;
+}
+
+.circle-create-actions {
+  margin-top: 0.35rem;
+  justify-content: flex-end;
+  gap: 0.7rem;
+}
+
+.circle-type-select {
+  width: 100%;
+}
+
+.circle-type-trigger {
+  min-height: 48px;
+}
+
+.circle-type-menu {
+  z-index: 90;
+}
+
+.circle-type-option strong {
+  font-size: 0.9rem;
 }
 
 .create-circle-form__preview {
@@ -2079,6 +2117,17 @@ body {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.circle-manage-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.admin-status-active {
+  color: rgba(242, 244, 245, 0.9);
+}
+
 .admin-action-button:disabled,
 .admin-action-loading {
   opacity: 0.72;
@@ -2621,6 +2670,9 @@ body {
   .circle-manage-grid {
     grid-template-columns: 1fr;
   }
+  .create-circle-form__grid {
+    grid-template-columns: 1fr;
+  }
   .community-circle-card__cover img {
     min-height: 160px;
     height: auto;
@@ -2672,5 +2724,8 @@ body {
   }
   .community-post-divider {
     margin: 0 -0.82rem;
+  }
+  .circle-create-actions > * {
+    width: 100%;
   }
 }

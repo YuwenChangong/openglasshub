@@ -6,6 +6,7 @@ type CircleBase = {
   slug: string;
   description?: string | null;
   created_at?: string | null;
+  status?: string | null;
 };
 
 export type CircleRow = CircleBase & {
@@ -16,7 +17,7 @@ export type CircleRow = CircleBase & {
 function isMissingImagePathError(error: { message?: string } | null | undefined) {
   const message = error?.message?.toLowerCase() ?? "";
   return (
-    ((message.includes("image_path") || message.includes("owner_id")) && message.includes("does not exist")) ||
+    ((message.includes("image_path") || message.includes("owner_id") || message.includes("status")) && message.includes("does not exist")) ||
     message.includes("column circles.owner_id does not exist")
   );
 }
@@ -26,7 +27,7 @@ export async function fetchCirclesWithFallback(
 ): Promise<{ circles: CircleRow[]; error: { message: string } | null; supportsExtendedSchema: boolean }> {
   const extendedResult = await supabase
     .from("circles")
-    .select("id, name, slug, description, created_at, image_path, owner_id")
+    .select("id, name, slug, description, created_at, status, image_path, owner_id")
     .order("name", { ascending: true });
 
   if (!extendedResult.error) {
@@ -53,6 +54,7 @@ export async function fetchCirclesWithFallback(
   return {
     circles: ((fallbackResult.data ?? []) as CircleBase[]).map((circle) => ({
       ...circle,
+      status: "active",
       image_path: null,
       owner_id: null,
     })),
@@ -67,7 +69,7 @@ export async function fetchCircleBySlugWithFallback(
 ): Promise<{ circle: CircleRow | null; error: { message: string } | null; supportsExtendedSchema: boolean }> {
   const extendedResult = await supabase
     .from("circles")
-    .select("id, name, slug, description, created_at, image_path, owner_id")
+    .select("id, name, slug, description, created_at, status, image_path, owner_id")
     .eq("slug", slug)
     .single();
 
@@ -97,6 +99,7 @@ export async function fetchCircleBySlugWithFallback(
     circle: fallbackResult.data
       ? {
           ...(fallbackResult.data as CircleBase),
+          status: "active",
           image_path: null,
           owner_id: null,
         }

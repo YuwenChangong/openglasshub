@@ -12,6 +12,7 @@ type ManagedCircle = {
   name: string;
   description: string;
   type: string;
+  status: string;
   created_at: string;
   updated_at?: string | null;
   image_path: string | null;
@@ -82,6 +83,7 @@ function mapManageError(message: string) {
   if (message.includes("CIRCLE_NOT_FOUND")) return { kind: "not_found", text: "圈子不存在。" };
   if (message.includes("PROFILE_NOT_FOUND")) return { kind: "profile", text: "当前账号缺少 profile，暂时无法管理圈子。" };
   if (message.includes("CIRCLE_MANAGE_FORBIDDEN")) return { kind: "forbidden", text: "没有权限管理该圈子。" };
+  if (message.includes("CIRCLE_STATUS_SCHEMA_NOT_READY")) return { kind: "schema", text: "数据库还没有完成圈子状态 migration，请先执行最新 SQL。" };
   if (message.includes("CIRCLE_MANAGE_QUERY_FAILED")) return { kind: "query", text: "圈子管理信息查询失败，请稍后重试。" };
   return { kind: "generic", text: message };
 }
@@ -102,7 +104,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
   const [draftDescription, setDraftDescription] = useState("");
   const [savingCircle, setSavingCircle] = useState(false);
   const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<{ type: "post" | "comment"; id: string; title: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ type: "post" | "comment" | "circle"; id: string; title: string } | null>(null);
 
   async function loadAll(activeSession: Session) {
     setLoading(true);
@@ -222,19 +224,50 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
     }
   }
 
+  async function updateCircleStatus(status: "active" | "deleted") {
+    if (!session || !circle) return;
+    setSavingCircle(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const payload = await sessionFetch<{ circle: ManagedCircle }>(`/api/forum/circles/${circleSlug}/manage`, session, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setCircle(payload.circle);
+      setSuccess(status === "deleted" ? "圈子已删除。" : "圈子已恢复。");
+    } catch (requestError) {
+      setError(mapManageError(requestError instanceof Error ? requestError.message : "更新圈子状态失败").text);
+    } finally {
+      setSavingCircle(false);
+    }
+  }
+
   async function confirmDeleteAction() {
     if (!session || !confirmDelete) return;
     setRowLoadingId(confirmDelete.id);
     setError("");
 
     try {
-      if (confirmDelete.type === "post") {
+      if (confirmDelete.type === "circle") {
+        await sessionFetch(`/api/forum/circles/${circleSlug}/manage`, session, { method: "DELETE" });
+        await refreshLists(session);
+      } else if (confirmDelete.type === "post") {
         await sessionFetch(`/api/forum/circles/${circleSlug}/posts?id=${confirmDelete.id}`, session, { method: "DELETE" });
       } else {
         await sessionFetch(`/api/forum/circles/${circleSlug}/comments?id=${confirmDelete.id}`, session, { method: "DELETE" });
       }
-      await refreshLists(session);
-      setSuccess(confirmDelete.type === "post" ? "帖子已删除。" : "评论已删除。");
+      if (confirmDelete.type !== "circle") {
+        await refreshLists(session);
+      }
+      setSuccess(
+        confirmDelete.type === "circle"
+          ? "圈子已删除。"
+          : confirmDelete.type === "post"
+            ? "帖子已删除。"
+            : "评论已删除。",
+      );
       setConfirmDelete(null);
     } catch (requestError) {
       setError(mapManageError(requestError instanceof Error ? requestError.message : "删除失败").text);
@@ -328,7 +361,11 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
             <p>编辑圈子信息，并管理该圈子下的帖子与评论。</p>
           </div>
           <div className="community-inline-links">
-            <a href={`/circles/${circle.slug}/`} className="community-action-button community-action-button--muted">返回圈子详情</a>
+            {circle.status === "deleted" ? (
+              <a href="/circles/" className="community-action-button community-action-button--muted">返回圈子列表</a>
+            ) : (
+              <a href={`/circles/${circle.slug}/`} className="community-action-button community-action-button--muted">返回圈子详情</a>
+            )}
           </div>
         </div>
 
@@ -340,6 +377,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
             <strong>圈子信息</strong>
             <div className="admin-meta-grid">
               <span>slug：<code>{circle.slug}</code></span>
+              <span className="circle-manage-status">状态：<span className={`admin-status-badge admin-status-${circle.status}`}>{circle.status}</span></span>
               <span>帖子：{circle.post_count}</span>
               <span>评论：{circle.comment_count}</span>
               <span>创建时间：{new Date(circle.created_at).toLocaleString("zh-CN")}</span>
@@ -363,6 +401,25 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
               <button type="button" className="community-button" disabled={savingCircle} onClick={() => void saveCircle()}>
                 {savingCircle ? "保存中..." : "保存圈子信息"}
               </button>
+              {circle.status === "deleted" ? (
+                <button
+                  type="button"
+                  className="community-action-button community-action-button--muted"
+                  disabled={savingCircle}
+                  onClick={() => void updateCircleStatus("active")}
+                >
+                  恢复圈子
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="community-action-button community-action-button--danger"
+                  disabled={savingCircle}
+                  onClick={() => setConfirmDelete({ type: "circle", id: circle.id, title: circle.name })}
+                >
+                  删除圈子
+                </button>
+              )}
             </div>
           </article>
 
@@ -450,10 +507,28 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
 
       <GlassConfirmDialog
         open={!!confirmDelete}
-        title={confirmDelete?.type === "post" ? "确认删除帖子" : "确认删除评论"}
-        description={confirmDelete?.type === "post" ? "删除后该帖子会在公开页面隐藏。" : "删除后有回复的评论会显示删除占位。"}
+        title={
+          confirmDelete?.type === "circle"
+            ? "确认删除圈子"
+            : confirmDelete?.type === "post"
+              ? "确认删除帖子"
+              : "确认删除评论"
+        }
+        description={
+          confirmDelete?.type === "circle"
+            ? "删除后圈子会从公开列表、公开详情和发帖选择器中隐藏，但数据库记录仍保留。"
+            : confirmDelete?.type === "post"
+              ? "删除后该帖子会在公开页面隐藏。"
+              : "删除后有回复的评论会显示删除占位。"
+        }
         detail={confirmDelete ? `目标：${confirmDelete.title}` : ""}
-        confirmLabel={confirmDelete?.type === "post" ? "确认删除帖子" : "确认删除评论"}
+        confirmLabel={
+          confirmDelete?.type === "circle"
+            ? "确认删除圈子"
+            : confirmDelete?.type === "post"
+              ? "确认删除帖子"
+              : "确认删除评论"
+        }
         cancelLabel="取消"
         danger={true}
         loading={!!confirmDelete && rowLoadingId === confirmDelete.id}

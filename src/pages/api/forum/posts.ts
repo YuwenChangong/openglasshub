@@ -79,6 +79,11 @@ function parseModeratorEmails(raw: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function isMissingCircleStatusError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("status") && message.includes("does not exist");
+}
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
@@ -192,11 +197,21 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .limit(sort === "hot" ? Math.min(Math.max(limit * 4, 60), 200) : limit);
 
     if (circleSlug) {
-      const { data: circle, error: circleError } = await client
+      let { data: circle, error: circleError } = await client
         .from("circles")
         .select("id")
         .eq("slug", circleSlug)
+        .eq("status", "active")
         .maybeSingle();
+      if (circleError && isMissingCircleStatusError(circleError)) {
+        const fallback = await client
+          .from("circles")
+          .select("id")
+          .eq("slug", circleSlug)
+          .maybeSingle();
+        circle = fallback.data;
+        circleError = fallback.error;
+      }
       if (circleError) {
         return json({ error: circleError.message }, 500);
       }
@@ -219,7 +234,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
         .limit(sort === "hot" ? Math.min(Math.max(limit * 4, 60), 200) : limit);
 
       if (circleSlug) {
-        const { data: circle } = await client.from("circles").select("id").eq("slug", circleSlug).maybeSingle();
+        let { data: circle, error: circleError } = await client.from("circles").select("id").eq("slug", circleSlug).eq("status", "active").maybeSingle();
+        if (circleError && isMissingCircleStatusError(circleError)) {
+          const fallback = await client.from("circles").select("id").eq("slug", circleSlug).maybeSingle();
+          circle = fallback.data;
+        }
         if (circle) {
           fallbackQuery = fallbackQuery.eq("circle_id", circle.id);
         }
@@ -329,16 +348,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Resolve circle
-    const { data: circle, error: circleError } = await userClient
+    let { data: circle, error: circleError } = await userClient
       .from("circles")
       .select("id")
       .eq("slug", circleSlug)
+      .eq("status", "active")
       .maybeSingle();
+    if (circleError && isMissingCircleStatusError(circleError)) {
+      const fallback = await userClient
+        .from("circles")
+        .select("id")
+        .eq("slug", circleSlug)
+        .maybeSingle();
+      circle = fallback.data;
+      circleError = fallback.error;
+    }
     if (circleError) {
       return json({ error: circleError.message }, 500);
     }
     if (!circle) {
-      return json({ error: "Circle not found" }, 404);
+      return json({ error: "Circle not found or deleted" }, 404);
     }
 
     // Insert post (RLS enforces ownership)

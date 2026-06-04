@@ -11,6 +11,7 @@ import { fetchCircleBySlugWithFallback } from "../../lib/circle-data";
 import CircleManageEntry from "../../components/forum/CircleManageEntry";
 import { formatPostTime } from "../../lib/format-time";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
+import { isPublicVisibleCircle } from "../../lib/site-navigation";
 
 const { slug } = Astro.params;
 
@@ -22,9 +23,10 @@ const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
 const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
 
-const { circle, error: circleError, supportsExtendedSchema } = await fetchCircleBySlugWithFallback(supabase, slug);
+const { circle, error: circleError } = await fetchCircleBySlugWithFallback(supabase, slug);
+const publicCircle = circle && isPublicVisibleCircle(circle) ? circle : null;
 
-if (circleError || !circle) {
+if (circleError || !publicCircle) {
   Astro.response.status = 404;
   Astro.response.statusText = "Not Found";
 }
@@ -32,11 +34,11 @@ if (circleError || !circle) {
 let posts: any[] = [];
 let postsError: any = null;
 
-if (circle) {
+if (publicCircle) {
   const result = await supabase
     .from("posts")
     .select("id, title, body, type, created_at, profiles:author_id(display_name,username), post_media(*)")
-    .eq("circle_id", circle.id)
+    .eq("circle_id", publicCircle.id)
     .eq("status", "published")
     .order("created_at", { ascending: false })
     .limit(50);
@@ -45,7 +47,7 @@ if (circle) {
   postsError = result.error;
 }
 
-const postMediaMap = circle
+const postMediaMap = publicCircle
   ? await buildResolvedPostMediaMap(
       supabase,
       posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>,
@@ -53,7 +55,7 @@ const postMediaMap = circle
       r2PublicBaseUrl,
     )
   : new Map();
-const likeCountMap = circle ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
+const likeCountMap = publicCircle ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
 
 const postTypeLabels: Record<string, string> = {
   experience: "体验",
@@ -64,12 +66,12 @@ const postTypeLabels: Record<string, string> = {
   feedback: "反馈",
 };
 
-const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.slug}/` : undefined;
-const circleImageMap = circle ? await buildCircleImageMap(supabase, [circle]) : new Map();
-const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
+const canonicalUrl = publicCircle ? `https://openglasshub.pages.dev/circles/${publicCircle.slug}/` : undefined;
+const circleImageMap = publicCircle ? await buildCircleImageMap(supabase, [publicCircle]) : new Map();
+const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
 ---
 
-{!circle ? (
+{!publicCircle ? (
   <ForumLayout title="圈子未找到" noindex={true}>
     <div class="forum-empty">
       <strong>圈子未找到</strong>
@@ -79,8 +81,8 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
   </ForumLayout>
 ) : (
   <ForumLayout
-    title={circle.name}
-    description={circle.description || `${circle.name} — OpenGlass Hub 论坛圈子`}
+    title={publicCircle.name}
+    description={publicCircle.description || `${publicCircle.name} — OpenGlass Hub 论坛圈子`}
     canonical={canonicalUrl}
     activeTab="circles"
   >
@@ -91,22 +93,22 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
       <span class="community-breadcrumb__sep">/</span>
       <a href="/circles/">圈子</a>
       <span class="community-breadcrumb__sep">/</span>
-      <span class="community-breadcrumb__current">{circle.name}</span>
+      <span class="community-breadcrumb__current">{publicCircle.name}</span>
     </nav>
 
     <header style="margin-bottom: 1.4rem;">
       {circleImageUrl ? (
         <div class="circle-detail-cover">
-          <img src={circleImageUrl} alt={`${circle.name} 圈子封面`} />
+          <img src={circleImageUrl} alt={`${publicCircle.name} 圈子封面`} />
         </div>
       ) : null}
-      <h1 style="margin: 0 0 0.5rem 0; font-size: 1.75rem;">{circle.name}</h1>
-      {circle.description && (
-        <p style="color: var(--text-muted); margin: 0 0 0.5rem 0; font-size: 1rem;">{circle.description}</p>
+      <h1 style="margin: 0 0 0.5rem 0; font-size: 1.75rem;">{publicCircle.name}</h1>
+      {publicCircle.description && (
+        <p style="color: var(--text-muted); margin: 0 0 0.5rem 0; font-size: 1rem;">{publicCircle.description}</p>
       )}
-      <span class="forum-meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
+      <span class="forum-meta">创建于 {new Date(publicCircle.created_at).toLocaleDateString("zh-CN")}</span>
       <div class="community-inline-links" style="margin-top: 0.8rem;">
-        <CircleManageEntry circleSlug={circle.slug} ownerId={circle.owner_id ?? null} client:load />
+        <CircleManageEntry circleSlug={publicCircle.slug} ownerId={publicCircle.owner_id ?? null} client:load />
       </div>
     </header>
 
@@ -129,18 +131,18 @@ const circleImageUrl = circle ? circleImageMap.get(circle.id) : "";
     ) : posts.length === 0 ? (
       <div class="forum-empty">
         <strong>该圈子还没有公开帖子</strong>
-        <p>如果你已经在用 {circle.name}，或者正在研究相关方向，现在就是最适合发第一篇帖子的时机。</p>
+        <p>如果你已经在用 {publicCircle.name}，或者正在研究相关方向，现在就是最适合发第一篇帖子的时机。</p>
         <a href="/posts/new/" class="community-action-button community-action-button--primary">写第一篇帖子</a>
       </div>
     ) : (
       <div class="circle-post-stream">
         {posts.map((post) => (
-            <PostCard
-              id={post.id}
-              title={post.title}
-              excerpt={sanitizeBodyForDisplay(post.body).replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110)}
-            circleName={circle.name}
-            circleSlug={circle.slug}
+          <PostCard
+            id={post.id}
+            title={post.title}
+            excerpt={sanitizeBodyForDisplay(post.body).replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110)}
+            circleName={publicCircle.name}
+            circleSlug={publicCircle.slug}
             typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
             authorName={post.profiles?.display_name || post.profiles?.username || undefined}
             timestamp={formatPostTime(post.created_at)}

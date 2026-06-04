@@ -34,9 +34,11 @@ export const forumTabs = [
 
 export const hiddenPublicCircleSlugs = new Set(["rls-test-circle", "rls-test", "test-circle"]);
 
-export function isPublicVisibleCircle(input: { slug?: string | null; name?: string | null }) {
+export function isPublicVisibleCircle(input: { slug?: string | null; name?: string | null; status?: string | null }) {
   const slug = input.slug?.toLowerCase() ?? "";
   const name = input.name?.toLowerCase() ?? "";
+  const status = input.status?.toLowerCase() ?? "active";
+  if (status === "deleted") return false;
   if (hiddenPublicCircleSlugs.has(slug)) return false;
   if (name.includes("rls test")) return false;
   return true;

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { adminFetch } from "../../lib/admin-api-client";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { useAdminSession } from "./useAdminSession";
@@ -9,6 +10,7 @@ type CircleRecord = {
   name: string;
   description: string;
   type: string;
+  status: string;
   created_at: string;
   updated_at: string;
   image_path: string | null;
@@ -63,11 +65,12 @@ function createSlug(value: string) {
 function mapCircleError(message: string) {
   if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在。";
   if (message.includes("CIRCLE_SLUG_ALREADY_EXISTS")) return "圈子标识已存在。";
+  if (message.includes("CIRCLE_STATUS_SCHEMA_NOT_READY")) return "数据库还没有完成圈子状态 migration，请先执行最新 SQL。";
   return message;
 }
 
 function ownerLabel(circle: CircleRecord) {
-  return circle.owner_profile?.display_name || circle.owner_profile?.username || circle.owner_id || "未设置";
+  return circle.owner_profile?.display_name || circle.owner_profile?.username || circle.owner_id || "无 owner";
 }
 
 export default function AdminCirclesDashboard() {
@@ -83,6 +86,7 @@ export default function AdminCirclesDashboard() {
   const [createDescription, setCreateDescription] = useState("");
   const [createType, setCreateType] = useState<(typeof circleTypes)[number]["value"]>("topic");
   const [createImage, setCreateImage] = useState<File | null>(null);
+  const [confirmCircleAction, setConfirmCircleAction] = useState<{ id: string; name: string; nextStatus: "active" | "deleted" } | null>(null);
 
   const accessToken = adminSession.session?.access_token ?? "";
   const createSlugPreview = useMemo(() => createSlug(createSlugValue || createName), [createName, createSlugValue]);
@@ -156,7 +160,7 @@ export default function AdminCirclesDashboard() {
       });
 
       if (payload.circle) {
-        const nextCircle = payload.circle as CircleRecord;
+        const nextCircle = { status: "active", ...(payload.circle as CircleRecord) };
         setCircles((current) => [nextCircle, ...current]);
         setDrafts((current) => ({
           ...current,
@@ -253,6 +257,31 @@ export default function AdminCirclesDashboard() {
     }
   }
 
+  async function updateCircleStatus(circleId: string, status: "active" | "deleted") {
+    if (!adminSession.session) return;
+    setLoadingId(circleId);
+    setError("");
+    setSuccess("");
+
+    try {
+      const payload = await adminFetch<CirclePayload>("/api/admin/forum/circles", {
+        method: "PATCH",
+        session: adminSession.session,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: circleId, status }),
+      });
+
+      if (payload.circle) {
+        setCircles((current) => current.map((circle) => (circle.id === circleId ? { ...circle, ...payload.circle } as CircleRecord : circle)));
+      }
+      setSuccess(status === "deleted" ? "圈子已删除。" : "圈子已恢复。");
+    } catch (requestError) {
+      setError(mapCircleError(requestError instanceof Error ? requestError.message : "更新圈子状态失败"));
+    } finally {
+      setLoadingId(null);
+    }
+  }
+
   if (adminSession.state.status !== "ready") {
     return (
       <section className="community-surface">
@@ -328,6 +357,7 @@ export default function AdminCirclesDashboard() {
             <article key={circle.id} className="community-list-item" style={{ gap: "0.7rem" }}>
               <div className="admin-action-row">
                 <strong>{circle.name}</strong>
+                <span className={`admin-status-badge admin-status-${circle.status}`}>{circle.status}</span>
                 <span className="admin-status-badge">{circle.type}</span>
               </div>
               <div className="admin-meta-grid">
@@ -395,13 +425,56 @@ export default function AdminCirclesDashboard() {
                 <button type="button" className="admin-action-button" onClick={() => void updateCover(circle, null)} disabled={rowLoading}>
                   清除封面
                 </button>
+                {circle.status === "deleted" ? (
+                  <button
+                    type="button"
+                    className="admin-action-button"
+                    onClick={() => void updateCircleStatus(circle.id, "active")}
+                    disabled={rowLoading}
+                  >
+                    恢复圈子
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="admin-action-button admin-action-danger"
+                    onClick={() => setConfirmCircleAction({ id: circle.id, name: circle.name, nextStatus: "deleted" })}
+                    disabled={rowLoading}
+                  >
+                    删除圈子
+                  </button>
+                )}
                 <a href={`/circles/${circle.slug}/manage/`} className="admin-action-button">管理帖子和评论</a>
-                <a href={`/circles/${circle.slug}/`} className="admin-action-button">查看公开页</a>
+                {circle.status === "deleted" ? (
+                  <span className="admin-action-button" aria-disabled="true">公开页已隐藏</span>
+                ) : (
+                  <a href={`/circles/${circle.slug}/`} className="admin-action-button">查看公开页</a>
+                )}
               </div>
             </article>
           );
         })}
       </div>
+
+      <GlassConfirmDialog
+        open={!!confirmCircleAction}
+        title="确认删除圈子"
+        description="删除后圈子会从公开列表、圈子详情和发帖选择器中隐藏，但数据库记录仍会保留。"
+        detail={confirmCircleAction ? `目标：${confirmCircleAction.name}` : ""}
+        confirmLabel="确认删除圈子"
+        cancelLabel="取消"
+        danger={true}
+        loading={!!confirmCircleAction && loadingId === confirmCircleAction.id}
+        error=""
+        onCancel={() => setConfirmCircleAction(null)}
+        onConfirm={() => {
+          if (!confirmCircleAction) return;
+          void (async () => {
+            await updateCircleStatus(confirmCircleAction.id, confirmCircleAction.nextStatus);
+            setConfirmCircleAction(null);
+          })();
+        }}
+      />
     </section>
   );
 }

@@ -6,6 +6,10 @@ export const prerender = false;
 
 type RuntimeLocals = { runtime?: { env?: RuntimeEnv } };
 
+function isMissingCircleStatusError(message: string) {
+  return /status/i.test(message) && /does not exist/i.test(message);
+}
+
 function validateType(type: string) {
   return ["topic", "device", "project"].includes(type);
 }
@@ -47,10 +51,24 @@ export const GET: APIRoute = async ({ request, locals }) => {
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const { client } = await requireModerator(request, env);
-    const { data: circles, error } = await client
+    const selectWithStatus =
+      "id,slug,name,description,type,status,created_at,updated_at,image_path,owner_id,profiles:owner_id(id,username,display_name,avatar_url,role)";
+    const selectWithoutStatus =
+      "id,slug,name,description,type,created_at,updated_at,image_path,owner_id,profiles:owner_id(id,username,display_name,avatar_url,role)";
+
+    let { data: circles, error } = await client
       .from("circles")
-      .select("id,slug,name,description,type,created_at,updated_at,image_path,owner_id,profiles:owner_id(id,username,display_name,avatar_url,role)")
+      .select(selectWithStatus)
       .order("created_at", { ascending: false });
+
+    if (error && isMissingCircleStatusError(error.message)) {
+      const fallback = await client
+        .from("circles")
+        .select(selectWithoutStatus)
+        .order("created_at", { ascending: false });
+      circles = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) return jsonResponse({ error: error.message }, 500);
 
@@ -87,6 +105,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         name: circle.name,
         description: circle.description ?? "",
         type: circle.type,
+        status: "status" in circle ? circle.status ?? "active" : "active",
         created_at: circle.created_at,
         updated_at: circle.updated_at,
         image_path: circle.image_path ?? null,
@@ -175,7 +194,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
 
     const auth = await requireModerator(request, env);
     const payload = (await request.json().catch(() => null)) as
-      | { id?: string; name?: string; description?: string | null; type?: string; image_path?: string | null }
+      | { id?: string; name?: string; description?: string | null; type?: string; image_path?: string | null; status?: string }
       | null;
 
     const id = String(payload?.id ?? "").trim();
@@ -204,19 +223,43 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
       if (imagePath && imagePath.length > 500) return jsonResponse({ error: "Circle image path is too long" }, 400);
       updates.image_path = imagePath;
     }
+    if (payload && "status" in payload) {
+      const status = String(payload.status ?? "").trim();
+      if (!["active", "deleted"].includes(status)) return jsonResponse({ error: "Invalid circle status" }, 400);
+      updates.status = status;
+    }
 
     if (Object.keys(updates).length === 0) return jsonResponse({ error: "Nothing to update" }, 400);
 
-    const { data, error } = await auth.client
+    let { data, error } = await auth.client
       .from("circles")
       .update(updates)
       .eq("id", id)
-      .select("id,slug,name,description,type,created_at,updated_at,image_path,owner_id")
+      .select("id,slug,name,description,type,status,created_at,updated_at,image_path,owner_id")
       .single();
+
+    if (error && isMissingCircleStatusError(error.message) && !("status" in (payload ?? {}))) {
+      const fallback = await auth.client
+        .from("circles")
+        .update(updates)
+        .eq("id", id)
+        .select("id,slug,name,description,type,created_at,updated_at,image_path,owner_id")
+        .single();
+      data = fallback.data
+        ? {
+            ...fallback.data,
+            status: "active",
+          }
+        : null;
+      error = fallback.error;
+    }
 
     if (error) {
       if (/circles_name_lower_unique|duplicate key value/i.test(error.message) && /name/i.test(error.message)) {
         return jsonResponse({ error: "CIRCLE_NAME_ALREADY_EXISTS" }, 409);
+      }
+      if (isMissingCircleStatusError(error.message) && "status" in (payload ?? {})) {
+        return jsonResponse({ error: "CIRCLE_STATUS_SCHEMA_NOT_READY", details: error.message }, 503);
       }
       return jsonResponse({ error: error.message }, 500);
     }

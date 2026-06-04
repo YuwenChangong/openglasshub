@@ -16,6 +16,7 @@ export type ManagedCircleRow = {
   name: string;
   description: string | null;
   type: string;
+  status: string | null;
   created_at: string;
   updated_at?: string | null;
   image_path?: string | null;
@@ -75,6 +76,11 @@ export function isCircleManager(ownerId: string | null | undefined, userId: stri
   return role === "moderator" || role === "admin" || (!!ownerId && ownerId === userId);
 }
 
+function isMissingCircleStatusSchemaError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("status") && message.includes("does not exist");
+}
+
 export async function requireForumUser(request: Request, env: ForumRuntimeEnv): Promise<{
   token: string;
   client: SupabaseClient;
@@ -125,11 +131,26 @@ export async function requireManagedCircleBySlug(params: {
   circle: ManagedCircleRow;
 }> {
   const auth = await requireForumUser(params.request, params.env);
-  const { data: circle, error } = await auth.client
+  let { data: circle, error } = await auth.client
     .from("circles")
-    .select("id, slug, name, description, type, created_at, updated_at, image_path, owner_id")
+    .select("id, slug, name, description, type, status, created_at, updated_at, image_path, owner_id")
     .eq("slug", params.slug)
     .maybeSingle();
+
+  if (error && isMissingCircleStatusSchemaError(error)) {
+    const fallback = await auth.client
+      .from("circles")
+      .select("id, slug, name, description, type, created_at, updated_at, image_path, owner_id")
+      .eq("slug", params.slug)
+      .maybeSingle();
+    circle = fallback.data
+      ? {
+          ...fallback.data,
+          status: "active",
+        }
+      : null;
+    error = fallback.error;
+  }
 
   if (error) {
     throw jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error.message }, 500);
