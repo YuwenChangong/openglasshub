@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
@@ -50,6 +51,8 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
   const authState = useBrowserAuthState(supabase);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const typePickerRef = useRef<HTMLDivElement | null>(null);
+  const typeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const typeMenuRef = useRef<HTMLDivElement | null>(null);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
@@ -61,8 +64,20 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [mounted, setMounted] = useState(false);
+  const [typeMenuPosition, setTypeMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+    openUp: boolean;
+  } | null>(null);
 
   const selectedType = circleTypes.find((item) => item.value === type) ?? circleTypes[0];
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setSlug((current) => {
@@ -81,8 +96,38 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
   useEffect(() => {
     if (!typeMenuOpen) return;
 
+    function updateTypeMenuPosition() {
+      const trigger = typeButtonRef.current;
+      if (!trigger) return;
+
+      const rect = trigger.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const horizontalPadding = 16;
+      const verticalGap = 8;
+      const viewportTopPadding = 76;
+      const viewportBottomPadding = 16;
+      const minMenuHeight = 160;
+      const preferredMenuHeight = 280;
+      const availableBelow = viewportHeight - rect.bottom - viewportBottomPadding - verticalGap;
+      const availableAbove = rect.top - viewportTopPadding - verticalGap;
+      const openUp = availableBelow < minMenuHeight && availableAbove > availableBelow;
+      const width = Math.min(rect.width, viewportWidth - horizontalPadding * 2);
+      const left = Math.min(Math.max(rect.left, horizontalPadding), viewportWidth - width - horizontalPadding);
+      const maxHeight = Math.max(
+        120,
+        Math.min(preferredMenuHeight, openUp ? availableAbove : availableBelow),
+      );
+      const top = openUp
+        ? Math.max(viewportTopPadding, rect.top - verticalGap - maxHeight)
+        : Math.min(rect.bottom + verticalGap, viewportHeight - viewportBottomPadding - maxHeight);
+
+      setTypeMenuPosition({ top, left, width, maxHeight, openUp });
+    }
+
     function handlePointerDown(event: MouseEvent) {
-      if (!typePickerRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!typePickerRef.current?.contains(target) && !typeMenuRef.current?.contains(target)) {
         setTypeMenuOpen(false);
       }
     }
@@ -93,11 +138,21 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
       }
     }
 
+    function handleViewportChange() {
+      updateTypeMenuPosition();
+    }
+
+    updateTypeMenuPosition();
+
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleEscape);
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
     };
   }, [typeMenuOpen]);
 
@@ -106,6 +161,44 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
     setTypeActiveIndex(circleTypes.findIndex((item) => item.value === nextType));
     setTypeMenuOpen(false);
   }
+
+  const typeMenuPortal = mounted && typeMenuOpen && typeMenuPosition
+    ? createPortal(
+        <div
+          ref={typeMenuRef}
+          className={`community-select__menu community-select-menu--floating circle-type-menu${typeMenuPosition.openUp ? " community-select-menu--open-up" : ""}`}
+          role="listbox"
+          aria-label="圈子类型"
+          style={{
+            position: "fixed",
+            top: `${typeMenuPosition.top}px`,
+            left: `${typeMenuPosition.left}px`,
+            width: `${typeMenuPosition.width}px`,
+            maxHeight: `${typeMenuPosition.maxHeight}px`,
+            zIndex: 80,
+          }}
+        >
+          {circleTypes.map((item, index) => {
+            const active = item.value === type;
+            return (
+              <button
+                key={item.value}
+                type="button"
+                className={`community-select__option community-select-option circle-type-option${active ? " is-selected" : ""}${typeActiveIndex === index ? " is-active" : ""}`}
+                onClick={() => selectType(item.value)}
+                onMouseEnter={() => setTypeActiveIndex(index)}
+                role="option"
+                aria-selected={active}
+              >
+                <strong>{item.label}</strong>
+                <span>{item.value === "topic" ? "适合一般讨论、经验分享与问题交流" : item.value === "device" ? "围绕具体设备、眼镜或硬件展开讨论" : "围绕项目、应用或持续协作展开讨论"}</span>
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )
+    : null;
 
   function handleSelectImage(file: File | null) {
     if (!file) return;
@@ -285,6 +378,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
           <div className={`community-select circle-type-select${typeMenuOpen ? " is-open" : ""}${submitting ? " is-disabled" : ""}`} ref={typePickerRef}>
             <input type="hidden" name="type" value={type} />
             <button
+              ref={typeButtonRef}
               type="button"
               className="community-select__trigger circle-type-trigger"
               onClick={() => {
@@ -301,27 +395,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
               </span>
               <span className="community-select__chevron" aria-hidden="true">⌄</span>
             </button>
-            {typeMenuOpen ? (
-              <div className="community-select__menu circle-type-menu" role="listbox" aria-label="圈子类型">
-                {circleTypes.map((item, index) => {
-                  const active = item.value === type;
-                  return (
-                    <button
-                      key={item.value}
-                      type="button"
-                      className={`community-select__option circle-type-option${active ? " is-selected" : ""}${typeActiveIndex === index ? " is-active" : ""}`}
-                      onClick={() => selectType(item.value)}
-                      onMouseEnter={() => setTypeActiveIndex(index)}
-                      role="option"
-                      aria-selected={active}
-                    >
-                      <strong>{item.label}</strong>
-                      <span>{item.value === "topic" ? "适合一般讨论、经验分享与问题交流" : item.value === "device" ? "围绕具体设备、眼镜或硬件展开讨论" : "围绕项目、应用或持续协作展开讨论"}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
           </div>
         </div>
 
@@ -357,6 +430,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
           {submitting ? "创建中..." : "创建圈子"}
         </button>
       </div>
+      {typeMenuPortal}
     </form>
   );
 }

@@ -1349,6 +1349,39 @@ body {
   -webkit-backdrop-filter: blur(18px) saturate(118%);
 }
 
+.community-select-menu--floating {
+  inset-inline: auto;
+  top: auto;
+  width: auto;
+  min-width: 0;
+  background: linear-gradient(180deg, rgba(26, 30, 30, 0.96), rgba(18, 22, 22, 0.94));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 22px 46px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.community-select-menu--floating::-webkit-scrollbar {
+  width: 8px;
+}
+
+.community-select-menu--floating::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.community-select-menu--floating::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+}
+
+.community-select-menu--open-up {
+  transform-origin: bottom center;
+}
+
 .community-select__option {
   display: grid;
   gap: 0.16rem;
@@ -1383,6 +1416,10 @@ body {
 .community-select__option.is-selected {
   background: rgba(255, 255, 255, 0.095);
   border-color: rgba(255, 255, 255, 0.16);
+}
+
+.community-select-option.is-active {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .community-input--textarea {
