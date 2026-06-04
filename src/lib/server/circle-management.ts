@@ -81,6 +81,11 @@ function isMissingCircleStatusSchemaError(error: { message?: string } | null | u
   return message.includes("status") && message.includes("does not exist");
 }
 
+function isCircleManageRlsError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("row-level security") || message.includes("permission denied");
+}
+
 export async function requireForumUser(request: Request, env: ForumRuntimeEnv): Promise<{
   token: string;
   client: SupabaseClient;
@@ -153,6 +158,12 @@ export async function requireManagedCircleBySlug(params: {
   }
 
   if (error) {
+    if (isMissingCircleStatusSchemaError(error)) {
+      throw jsonResponse({ error: "CIRCLE_STATUS_COLUMN_MISSING", details: error.message }, 503);
+    }
+    if (isCircleManageRlsError(error)) {
+      throw jsonResponse({ error: "CIRCLE_DELETE_RLS_FAILED", details: error.message }, 403);
+    }
     throw jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error.message }, 500);
   }
   if (!circle) {

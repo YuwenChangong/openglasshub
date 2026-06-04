@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const MAX_CIRCLE_SLUG_LENGTH = 64;
+const MIN_FALLBACK_HASH_LENGTH = 8;
 
 function trimSlugEdge(value: string) {
   return value.replace(/^-+|-+$/g, "");
@@ -10,16 +11,27 @@ function shortenSlugBase(value: string, maxLength: number) {
   return trimSlugEdge(value.slice(0, Math.max(1, maxLength)));
 }
 
+export function hashSlugSeed(value: string): string {
+  let hash = 2166136261;
+  for (const char of value) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36).slice(0, MIN_FALLBACK_HASH_LENGTH).padStart(MIN_FALLBACK_HASH_LENGTH, "0");
+}
+
 export function slugifyCircleName(name: string): string {
   const normalized = name
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
     .replace(/-+/g, "-");
 
-  const base = trimSlugEdge(normalized);
-  if (!base) return "circle";
-  return shortenSlugBase(base, MAX_CIRCLE_SLUG_LENGTH) || "circle";
+  const base = shortenSlugBase(trimSlugEdge(normalized), MAX_CIRCLE_SLUG_LENGTH);
+  if (base.length >= 2) return base;
+  return `circle-${hashSlugSeed(name || "circle")}`;
 }
 
 async function slugExists(client: SupabaseClient, slug: string) {

@@ -55,6 +55,7 @@ function normalizeFileName(fileName: string) {
 function mapCircleError(message: string) {
   if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在。";
   if (message.includes("CIRCLE_COVER_UPLOAD_FAILED")) return "圈子封面上传失败。";
+  if (message.includes("INVALID_GENERATED_CIRCLE_SLUG")) return "圈子链接生成失败，请换一个名称后重试。";
   if (message.includes("CIRCLE_STATUS_SCHEMA_NOT_READY")) return "数据库还没有完成圈子状态 migration，请先执行最新 SQL。";
   return message;
 }

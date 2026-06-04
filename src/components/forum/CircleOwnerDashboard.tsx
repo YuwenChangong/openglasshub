@@ -73,7 +73,8 @@ async function sessionFetch<T>(path: string, session: Session, options?: Request
 
   const payload = (await response.json().catch(() => null)) as ApiErrorPayload | null;
   if (!response.ok) {
-    throw new Error(payload?.error ?? `请求失败 (${response.status})`);
+    const detailSuffix = payload?.details ? `: ${payload.details}` : "";
+    throw new Error(`${payload?.error ?? `请求失败 (${response.status})`}${detailSuffix}`);
   }
   return (payload ?? {}) as T;
 }
@@ -83,7 +84,11 @@ function mapManageError(message: string) {
   if (message.includes("CIRCLE_NOT_FOUND")) return { kind: "not_found", text: "圈子不存在。" };
   if (message.includes("PROFILE_NOT_FOUND")) return { kind: "profile", text: "当前账号缺少 profile，暂时无法管理圈子。" };
   if (message.includes("CIRCLE_MANAGE_FORBIDDEN")) return { kind: "forbidden", text: "没有权限管理该圈子。" };
-  if (message.includes("CIRCLE_STATUS_SCHEMA_NOT_READY")) return { kind: "schema", text: "数据库还没有完成圈子状态 migration，请先执行最新 SQL。" };
+  if (message.includes("CIRCLE_STATUS_SCHEMA_NOT_READY") || message.includes("CIRCLE_STATUS_COLUMN_MISSING")) {
+    return { kind: "schema", text: "数据库还没有完成圈子状态 migration，请先执行最新 SQL。" };
+  }
+  if (message.includes("CIRCLE_DELETE_RLS_FAILED")) return { kind: "delete_rls", text: "圈子删除权限未就绪，请检查 circles RLS / policy。" };
+  if (message.includes("CIRCLE_DELETE_FAILED")) return { kind: "delete_failed", text: "圈子删除失败，请稍后重试。" };
   if (message.includes("CIRCLE_MANAGE_QUERY_FAILED")) return { kind: "query", text: "圈子管理信息查询失败，请稍后重试。" };
   return { kind: "generic", text: message };
 }
@@ -105,6 +110,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
   const [savingCircle, setSavingCircle] = useState(false);
   const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ type: "post" | "comment" | "circle"; id: string; title: string } | null>(null);
+  const [deletingCircle, setDeletingCircle] = useState(false);
 
   async function loadAll(activeSession: Session) {
     setLoading(true);
@@ -246,11 +252,13 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
 
   async function confirmDeleteAction() {
     if (!session || !confirmDelete) return;
+    if (confirmDelete.type === "circle" && deletingCircle) return;
     setRowLoadingId(confirmDelete.id);
     setError("");
 
     try {
       if (confirmDelete.type === "circle") {
+        setDeletingCircle(true);
         await sessionFetch(`/api/forum/circles/${circleSlug}/manage`, session, { method: "DELETE" });
         setConfirmDelete(null);
         setSuccess("圈子已删除，正在返回圈子列表。");
@@ -273,8 +281,10 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
       );
       setConfirmDelete(null);
     } catch (requestError) {
+      setConfirmDelete(null);
       setError(mapManageError(requestError instanceof Error ? requestError.message : "删除失败").text);
     } finally {
+      setDeletingCircle(false);
       setRowLoadingId(null);
     }
   }
@@ -416,8 +426,11 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
                 <button
                   type="button"
                   className="community-action-button community-action-button--danger"
-                  disabled={savingCircle}
-                  onClick={() => setConfirmDelete({ type: "circle", id: circle.id, title: circle.name })}
+                  disabled={savingCircle || deletingCircle}
+                  onClick={() => {
+                    if (deletingCircle) return;
+                    setConfirmDelete({ type: "circle", id: circle.id, title: circle.name });
+                  }}
                 >
                   删除圈子
                 </button>
@@ -533,9 +546,12 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
         }
         cancelLabel="取消"
         danger={true}
-        loading={!!confirmDelete && rowLoadingId === confirmDelete.id}
+        loading={confirmDelete?.type === "circle" ? deletingCircle : !!confirmDelete && rowLoadingId === confirmDelete.id}
         error=""
-        onCancel={() => setConfirmDelete(null)}
+        onCancel={() => {
+          if (deletingCircle) return;
+          setConfirmDelete(null);
+        }}
         onConfirm={() => void confirmDeleteAction()}
       />
     </>

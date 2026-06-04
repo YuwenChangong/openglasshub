@@ -10,6 +10,10 @@ function isMissingCircleStatusError(message: string) {
   return /status/i.test(message) && /does not exist/i.test(message);
 }
 
+function isCircleSlugConstraintError(message: string) {
+  return /circles_slug_check/i.test(message);
+}
+
 function validateType(type: string) {
   return ["topic", "device", "project"].includes(type);
 }
@@ -180,6 +184,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
       if (/circles_slug_key|duplicate key value/i.test(error.message) && /slug/i.test(error.message)) {
         return jsonResponse({ error: "Circle slug generation conflict persisted after retry." }, 500);
+      }
+      if (isCircleSlugConstraintError(error.message)) {
+        return jsonResponse({ error: "INVALID_GENERATED_CIRCLE_SLUG", details: error.message }, 500);
       }
       return jsonResponse({ error: error.message }, 500);
     }

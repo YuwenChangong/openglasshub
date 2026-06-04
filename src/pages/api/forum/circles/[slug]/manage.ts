@@ -9,6 +9,10 @@ function isMissingCircleStatusError(message: string) {
   return /status/i.test(message) && /does not exist/i.test(message);
 }
 
+function isCircleDeleteRlsError(message: string) {
+  return /row-level security|permission denied/i.test(message);
+}
+
 export const GET: APIRoute = async ({ request, params, locals }) => {
   try {
     const env = (locals as RuntimeLocals).runtime?.env;
@@ -57,7 +61,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
+    return jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error instanceof Error ? error.message : "Unexpected server error" }, 500);
   }
 };
 
@@ -175,9 +179,12 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
 
     if (error) {
       if (isMissingCircleStatusError(error.message)) {
-        return jsonResponse({ error: "CIRCLE_STATUS_SCHEMA_NOT_READY", details: error.message }, 503);
+        return jsonResponse({ error: "CIRCLE_STATUS_COLUMN_MISSING", details: error.message }, 503);
       }
-      return jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error.message }, 500);
+      if (isCircleDeleteRlsError(error.message)) {
+        return jsonResponse({ error: "CIRCLE_DELETE_RLS_FAILED", details: error.message }, 403);
+      }
+      return jsonResponse({ error: "CIRCLE_DELETE_FAILED", details: error.message }, 500);
     }
 
     return jsonResponse({
@@ -187,7 +194,7 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    return jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error instanceof Error ? error.message : "Unexpected server error" }, 500);
+    return jsonResponse({ error: "CIRCLE_DELETE_FAILED", details: error instanceof Error ? error.message : "Unexpected server error" }, 500);
   }
 };
 
