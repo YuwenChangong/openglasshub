@@ -35,9 +35,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
     }
 
     return jsonResponse({
-      can_manage: true,
-      role: auth.profile.role,
-      is_owner: auth.circle.owner_id === auth.user.id,
+      ok: true,
       circle: {
         ...auth.circle,
         description: auth.circle.description ?? "",
@@ -45,6 +43,12 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
         owner_id: auth.circle.owner_id ?? null,
         post_count: postCount ?? 0,
         comment_count: totalComments,
+      },
+      viewer: {
+        id: auth.user.id,
+        role: auth.profile.role ?? null,
+        is_owner: auth.circle.owner_id === auth.user.id,
+        can_manage: true,
       },
     });
   } catch (error) {

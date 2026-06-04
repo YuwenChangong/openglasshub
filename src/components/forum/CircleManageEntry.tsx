@@ -7,42 +7,81 @@ interface CircleManageEntryProps {
   ownerId: string | null;
 }
 
+type ManageViewerPayload = {
+  ok?: boolean;
+  viewer?: {
+    id: string;
+    role: string | null;
+    is_owner: boolean;
+    can_manage: boolean;
+  };
+  error?: string;
+};
+
 export default function CircleManageEntry({ circleSlug, ownerId }: CircleManageEntryProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const authState = useBrowserAuthState(supabase);
-  const [role, setRole] = useState<string | null>(null);
+  const [canManage, setCanManage] = useState(false);
 
   useEffect(() => {
     if (authState.status !== "signed_in" || !authState.user) {
-      setRole(null);
+      setCanManage(false);
       return;
     }
 
     let cancelled = false;
-    supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", authState.user.id)
-      .maybeSingle()
-      .then(({ data }) => {
+    supabase.auth
+      .getSession()
+      .then(async ({ data, error }) => {
         if (cancelled) return;
-        setRole(String(data?.role ?? ""));
+        if (error || !data.session?.access_token) {
+          console.warn("[circle-manage-entry] session lookup failed", error?.message ?? "missing access token");
+          setCanManage(false);
+          return;
+        }
+
+        const response = await fetch(`/api/forum/circles/${circleSlug}/manage`, {
+          method: "GET",
+          headers: {
+            authorization: `Bearer ${data.session.access_token}`,
+          },
+        });
+
+        const payload = (await response.json().catch(() => null)) as ManageViewerPayload | null;
+        if (cancelled) return;
+
+        if (!response.ok) {
+          const errorCode = payload?.error ?? `HTTP_${response.status}`;
+          if (
+            errorCode.includes("NOT_AUTHENTICATED") ||
+            errorCode.includes("CIRCLE_MANAGE_FORBIDDEN") ||
+            errorCode.includes("CIRCLE_NOT_FOUND")
+          ) {
+            setCanManage(false);
+            return;
+          }
+          console.warn("[circle-manage-entry] manage visibility check failed", errorCode);
+          setCanManage(false);
+          return;
+        }
+
+        setCanManage(Boolean(payload?.viewer?.can_manage));
       })
-      .catch(() => {
+      .catch((error) => {
         if (cancelled) return;
-        setRole("");
+        console.warn("[circle-manage-entry] visibility check crashed", error);
+        setCanManage(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [authState.status, authState.user, supabase]);
+  }, [authState.status, authState.user, circleSlug, ownerId, supabase]);
 
   if (authState.status !== "signed_in" || !authState.user) {
     return null;
   }
 
-  const canManage = authState.user.id === ownerId || role === "moderator" || role === "admin";
   if (!canManage) {
     return null;
   }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
@@ -36,36 +36,7 @@ export default function CircleCoverEditor({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [role, setRole] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (authState.status !== "signed_in" || !authState.user) {
-      setRole(null);
-      return;
-    }
-
-    let cancelled = false;
-    supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", authState.user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) setRole(String(data?.role ?? ""));
-      })
-      .catch(() => {
-        if (!cancelled) setRole("");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authState.status, authState.user, supabase]);
-
-  const canEdit =
-    authState.status === "signed_in" &&
-    !!authState.user &&
-    (authState.user.id === ownerId || role === "moderator" || role === "admin");
+  const canEdit = authState.status === "signed_in" && !!authState.user;
 
   async function getSessionToken() {
     const { data } = await supabase.auth.getSession();
@@ -173,6 +144,9 @@ export default function CircleCoverEditor({
   }
 
   if (!canEdit) {
+    if (authState.status === "signed_in" && !authState.user) {
+      console.warn("[circle-cover-editor] signed-in state missing user", { circleSlug, ownerId });
+    }
     return null;
   }
 

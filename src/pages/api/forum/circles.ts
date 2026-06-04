@@ -80,7 +80,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const auth = await requireForumUser(request, env);
     const payload = (await request.json().catch(() => null)) as
-      | { slug?: string; name?: string; description?: string | null; type?: string; image_path?: string | null }
+      | { slug?: string; name?: string; description?: string | null; type?: string; image_path?: string | null; owner_id?: string | null }
       | null;
 
     if (!payload) return jsonResponse({ error: "INVALID_JSON_PAYLOAD" }, 400);
@@ -90,6 +90,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const description = typeof payload.description === "string" ? payload.description.trim() : "";
     const type = String(payload.type ?? "").trim();
     const imagePath = typeof payload.image_path === "string" ? payload.image_path.trim() : null;
+    const requestedOwnerId = typeof payload.owner_id === "string" ? payload.owner_id.trim() : "";
 
     if (!slug || slug.length < 2 || slug.length > 80) {
       return jsonResponse({ error: "INVALID_CIRCLE_SLUG" }, 400);
@@ -105,6 +106,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
     if (imagePath && imagePath.length > 500) {
       return jsonResponse({ error: "INVALID_CIRCLE_IMAGE_PATH" }, 400);
+    }
+    if (requestedOwnerId && requestedOwnerId !== auth.user.id) {
+      return jsonResponse({ error: "CIRCLE_CREATE_FAILED", details: "owner_id is assigned by the server." }, 400);
     }
 
     const duplicate = await findDuplicateCircle(auth.client, { name, slug });

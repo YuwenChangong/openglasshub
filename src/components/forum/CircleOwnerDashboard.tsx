@@ -40,10 +40,14 @@ type ManagedComment = {
 };
 
 type ManagePayload = {
-  can_manage?: boolean;
-  role?: string | null;
-  is_owner?: boolean;
+  ok?: boolean;
   circle?: ManagedCircle;
+  viewer?: {
+    id: string;
+    role: string | null;
+    is_owner: boolean;
+    can_manage: boolean;
+  };
   error?: string;
 };
 
