@@ -1,0 +1,49 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import CreateCircleForm from "../../components/forum/CreateCircleForm";
+---
+
+<CommunityLayout
+  title="创建圈子"
+  description="登录后在 OpenGlass Hub 创建圈子。"
+  activeSection="forum"
+>
+  <section class="circle-create-page">
+    <nav class="circle-create-page__nav" aria-label="返回导航">
+      <a href="/circles/" class="community-action-button community-action-button--muted">返回圈子</a>
+    </nav>
+
+    <section class="community-surface community-surface--padded circle-create-page-panel">
+      <h1 class="circle-create-page-panel__title">创建圈子</h1>
+      <CreateCircleForm client:load mode="page" />
+    </section>
+  </section>
+</CommunityLayout>
+
+<style>
+  .circle-create-page {
+    width: min(100%, 760px);
+    margin: 0 auto;
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .circle-create-page__nav {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .circle-create-page-panel {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .circle-create-page-panel__title {
+    margin: 0;
+    font-size: 1.65rem;
+    letter-spacing: -0.03em;
+  }
+</style>

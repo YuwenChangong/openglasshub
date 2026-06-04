@@ -41,12 +41,15 @@ function mapCircleError(message: string) {
   return message;
 }
 
-export default function CreateCircleForm() {
+type CreateCircleFormProps = {
+  mode?: "inline" | "page";
+};
+
+export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const authState = useBrowserAuthState(supabase);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const typePickerRef = useRef<HTMLDivElement | null>(null);
-  const [expanded, setExpanded] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
@@ -194,7 +197,7 @@ export default function CreateCircleForm() {
 
       const nextMessage = submitError instanceof Error ? submitError.message : "CIRCLE_CREATE_FAILED";
       if (nextMessage === "NOT_AUTHENTICATED") {
-        window.location.replace(buildLoginHref("/circles/"));
+        window.location.replace(buildLoginHref("/circles/new/"));
         return;
       }
       setError(mapCircleError(nextMessage));
@@ -203,16 +206,20 @@ export default function CreateCircleForm() {
     }
   }
 
+  if (mode === "inline") {
+    return (
+      <div className="circle-create-inline-entry">
+        <a href="/circles/new/" className="community-action-button community-action-button--primary">
+          创建圈子
+        </a>
+      </div>
+    );
+  }
+
   if (authState.status === "checking") {
     return (
-      <section className="community-surface community-surface--padded create-circle-form">
-        <div className="community-section-head">
-          <div>
-            <h2>创建圈子</h2>
-            <p>正在检查登录状态，稍后即可创建圈子。</p>
-          </div>
-        </div>
-        <div className="community-cta-row">
+      <section className="create-circle-form create-circle-form--page-state">
+        <div className="community-cta-row circle-create-actions circle-create-actions--start">
           <button type="button" className="community-action-button community-action-button--muted" disabled>
             检查登录状态...
           </button>
@@ -223,15 +230,10 @@ export default function CreateCircleForm() {
 
   if (authState.status !== "signed_in") {
     return (
-      <section className="community-surface community-surface--padded create-circle-form">
-        <div className="community-section-head">
-          <div>
-            <h2>创建圈子</h2>
-            <p>登录后即可创建自己的讨论空间。</p>
-          </div>
-        </div>
-        <div className="community-cta-row">
-          <a href={buildLoginHref("/circles/")} className="community-action-button community-action-button--primary">
+      <section className="create-circle-form create-circle-form--page-state">
+        <p className="community-meta">登录后可创建圈子</p>
+        <div className="community-cta-row circle-create-actions circle-create-actions--start">
+          <a href={buildLoginHref("/circles/new/")} className="community-action-button community-action-button--primary">
             去登录
           </a>
         </div>
@@ -239,39 +241,8 @@ export default function CreateCircleForm() {
     );
   }
 
-  if (!expanded) {
-    return (
-      <section className="community-surface community-surface--padded create-circle-form">
-        <div className="community-section-head">
-          <div>
-            <h2>创建圈子</h2>
-            <p>创建一个新的讨论空间。</p>
-          </div>
-        </div>
-        {error ? <span className="inline-error">{error}</span> : null}
-        {message ? <span className="inline-success">{message}</span> : null}
-        <div className="community-cta-row">
-          <button
-            type="button"
-            className="community-action-button community-action-button--primary"
-            onClick={() => setExpanded(true)}
-          >
-            创建圈子
-          </button>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <form className="community-surface community-surface--padded create-circle-form" onSubmit={handleSubmit}>
-      <div className="community-section-head">
-        <div>
-          <h2>创建圈子</h2>
-          <p>填写名称、标识和封面后即可创建。</p>
-        </div>
-      </div>
-
+    <form className="create-circle-form create-circle-form--page" onSubmit={handleSubmit}>
       <div className="create-circle-form__grid circle-create-grid">
         <label className="create-circle-form__field circle-create-field">
           <span>圈子名称</span>
@@ -382,14 +353,6 @@ export default function CreateCircleForm() {
       {message ? <span className="inline-success">{message}</span> : null}
 
       <div className="community-cta-row circle-create-actions">
-        <button
-          type="button"
-          className="community-action-button community-action-button--muted"
-          disabled={submitting}
-          onClick={() => setExpanded(false)}
-        >
-          收起
-        </button>
         <button type="submit" className="community-button" disabled={submitting}>
           {submitting ? "创建中..." : "创建圈子"}
         </button>

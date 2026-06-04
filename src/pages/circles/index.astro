@@ -4,7 +4,6 @@ export const prerender = false;
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import CircleCard from "../../components/community/CircleCard.astro";
-import CreateCircleForm from "../../components/forum/CreateCircleForm";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
 import { buildCircleImageMap } from "../../lib/circle-images";
 import { fetchCirclesWithFallback } from "../../lib/circle-data";
@@ -24,14 +23,11 @@ const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
   activeTab="circles"
 >
   <h1>圈子</h1>
-  <p class="section-lead">浏览现有圈子，或直接创建一个新的讨论空间。</p>
 
   <div class="community-cta-row" style="margin: 1.1rem 0 1.5rem;">
     <a href="/feed/" class="community-action-button">返回动态</a>
-    <a href="/posts/new/" class="community-action-button community-action-button--primary">去发帖</a>
+    <a href="/circles/new/" class="community-action-button community-action-button--primary">创建圈子</a>
   </div>
-
-  <CreateCircleForm client:load />
 
   {error ? (
     <div class="forum-empty">
@@ -60,14 +56,19 @@ const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
 </ForumLayout>
 
 <style>
+.circle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+:global(.community-circle-card) {
+  background: linear-gradient(180deg, rgba(36, 41, 40, 0.97), rgba(24, 28, 27, 0.95));
+}
+
+@media (max-width: 900px) {
   .circle-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-  }
-  @media (max-width: 900px) {
-    .circle-grid {
-      grid-template-columns: 1fr;
+    grid-template-columns: 1fr;
     }
   }
 </style>

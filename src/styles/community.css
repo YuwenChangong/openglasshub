@@ -996,6 +996,18 @@ body {
   margin: 0 0 1.4rem;
 }
 
+.create-circle-form--page {
+  margin: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.create-circle-form--page-state {
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
 .create-circle-form .community-section-head {
   padding-left: 0;
   padding-right: 0;
@@ -1064,8 +1076,13 @@ body {
   gap: 0.7rem;
 }
 
+.circle-create-actions--start {
+  justify-content: flex-start;
+}
+
 .circle-type-select {
   width: 100%;
+  position: relative;
 }
 
 .circle-type-trigger {
