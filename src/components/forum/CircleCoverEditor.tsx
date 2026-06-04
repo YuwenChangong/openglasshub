@@ -95,12 +95,16 @@ export default function CircleCoverEditor({
         return;
       }
 
-      uploadedPath = `circles/${authState.user.id}/${Date.now()}-${normalizeFileName(file.name)}`;
-      await uploadToPostMediaWithTus({
-        file,
-        objectPath: uploadedPath,
-        accessToken: token,
-      });
+      uploadedPath = `circle-covers/${authState.user.id}/${Date.now()}-${normalizeFileName(file.name)}`;
+      try {
+        await uploadToPostMediaWithTus({
+          file,
+          objectPath: uploadedPath,
+          accessToken: token,
+        });
+      } catch {
+        throw new Error("圈子封面上传失败。");
+      }
 
       await updateCircleCover(uploadedPath, token);
       setMessage("圈子封面已更新。");

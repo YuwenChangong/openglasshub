@@ -54,6 +54,7 @@ function normalizeFileName(fileName: string) {
 
 function mapCircleError(message: string) {
   if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在。";
+  if (message.includes("CIRCLE_COVER_UPLOAD_FAILED")) return "圈子封面上传失败。";
   if (message.includes("CIRCLE_STATUS_SCHEMA_NOT_READY")) return "数据库还没有完成圈子状态 migration，请先执行最新 SQL。";
   return message;
 }
@@ -114,10 +115,14 @@ export default function AdminCirclesDashboard() {
     };
   }, [adminSession.session, adminSession.state.status]);
 
-  async function uploadCircleImage(file: File, ownerId: string) {
+  async function uploadCircleImage(file: File, userId: string) {
     if (!accessToken) throw new Error("登录状态已失效，请重新登录");
-    const objectPath = `circles/${ownerId}/${Date.now()}-${normalizeFileName(file.name)}`;
-    await uploadToPostMediaWithTus({ file, objectPath, accessToken });
+    const objectPath = `circle-covers/${userId}/${Date.now()}-${normalizeFileName(file.name)}`;
+    try {
+      await uploadToPostMediaWithTus({ file, objectPath, accessToken });
+    } catch {
+      throw new Error("CIRCLE_COVER_UPLOAD_FAILED");
+    }
     return objectPath;
   }
 
@@ -214,7 +219,7 @@ export default function AdminCirclesDashboard() {
 
     try {
       if (file) {
-        imagePath = await uploadCircleImage(file, circle.owner_id || adminSession.me?.user_id || "admin");
+        imagePath = await uploadCircleImage(file, adminSession.me?.user_id || "admin");
       }
 
       const payload = await adminFetch<CirclePayload>("/api/admin/forum/circles", {

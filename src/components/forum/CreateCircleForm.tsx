@@ -25,6 +25,7 @@ function normalizeFileName(fileName: string) {
 function mapCircleError(message: string) {
   if (message.includes("NOT_AUTHENTICATED")) return "登录状态已失效，请重新登录后再创建圈子。";
   if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在，请换一个名称。";
+  if (message.includes("CIRCLE_COVER_UPLOAD_FAILED")) return "圈子封面上传失败。";
   if (message.includes("CIRCLE_OWNER_RLS_NOT_READY")) return "数据库还没有准备好 owner/RLS，请先执行最新 migration。";
   if (message.includes("PROFILE_NOT_FOUND")) return "当前账号缺少 profile，请先重新登录或补齐资料。";
   if (message.includes("CIRCLE_CREATE_FAILED")) return "圈子创建失败，请稍后重试。";
@@ -229,12 +230,16 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
       }
 
       if (imageFile) {
-        uploadedPath = `circles/${session.user.id}/${Date.now()}-${normalizeFileName(imageFile.name)}`;
-        await uploadToPostMediaWithTus({
-          file: imageFile,
-          objectPath: uploadedPath,
-          accessToken: session.access_token,
-        });
+        uploadedPath = `circle-covers/${session.user.id}/${Date.now()}-${normalizeFileName(imageFile.name)}`;
+        try {
+          await uploadToPostMediaWithTus({
+            file: imageFile,
+            objectPath: uploadedPath,
+            accessToken: session.access_token,
+          });
+        } catch {
+          throw new Error("CIRCLE_COVER_UPLOAD_FAILED");
+        }
       }
 
       const response = await fetch("/api/forum/circles", {
