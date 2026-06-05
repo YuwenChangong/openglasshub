@@ -1,6 +1,6 @@
-import type { APIRoute } from "astro";
+﻿import type { APIRoute } from "astro";
 import { createSSRClient } from "../../../lib/supabase-server";
-import { runForumSearch } from "../../../lib/forum-search";
+import { FORUM_SEARCH_LIMITS, runForumSearch } from "../../../lib/forum-search";
 
 export const prerender = false;
 
@@ -23,6 +23,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
   const url = new URL(request.url);
   const q = String(url.searchParams.get("q") ?? "");
   const type = url.searchParams.get("type");
+  const circle = url.searchParams.get("circle");
+  const limitPostsRaw = Number.parseInt(url.searchParams.get("limit_posts") ?? "", 10);
+  const limitPosts = Number.isFinite(limitPostsRaw)
+    ? Math.min(Math.max(limitPostsRaw, 1), FORUM_SEARCH_LIMITS.maxPostResults)
+    : undefined;
 
   const supabase = createSSRClient({
     SUPABASE_URL: env.SUPABASE_URL,
@@ -32,6 +37,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
   const result = await runForumSearch(supabase, {
     query: q,
     type: type === "posts" || type === "circles" || type === "all" ? type : "all",
+    circleSlug: circle,
+    limitPosts,
+    r2PublicBaseUrl: env.R2_PUBLIC_BASE_URL,
   });
 
   if (!result.ok) {
@@ -39,7 +47,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     return json({ error: result.error }, status);
   }
 
-  return json(result.results);
+  return json({ ok: true, results: result.results });
 };
 
 export const ALL: APIRoute = () => json({ error: "Method not allowed" }, 405);

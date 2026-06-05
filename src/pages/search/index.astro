@@ -12,9 +12,10 @@ import type { ForumSearchType } from "../../lib/search-types";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
-
 const rawQuery = String(Astro.url.searchParams.get("q") ?? "");
+const circleSlug = String(Astro.url.searchParams.get("circle") ?? "").trim() || null;
 const searchType = (() => {
+  if (circleSlug) return "posts";
   const raw = Astro.url.searchParams.get("type");
   return raw === "posts" || raw === "circles" || raw === "all" ? raw : "all";
 })() as ForumSearchType;
@@ -24,12 +25,16 @@ const invalidQuery = hasQuery && rawQuery.trim().length < FORUM_SEARCH_LIMITS.mi
 
 const searchResult = !hasQuery || invalidQuery
   ? null
-  : await runForumSearch(supabase, { query: rawQuery, type: searchType });
+  : await runForumSearch(supabase, {
+      query: rawQuery,
+      type: searchType,
+      circleSlug,
+      r2PublicBaseUrl: env.R2_PUBLIC_BASE_URL,
+    });
 
 const posts = searchResult?.ok ? searchResult.results.posts : [];
-const circles = searchResult?.ok ? searchResult.results.circles : [];
+const circles = !circleSlug && searchResult?.ok ? searchResult.results.circles : [];
 const circleImageMap = circles.length > 0 ? await buildCircleImageMap(supabase, circles) : new Map();
-
 const showPostsSection = posts.length > 0;
 const showCirclesSection = circles.length > 0;
 const hasAnyResults = showPostsSection || showCirclesSection;
@@ -37,6 +42,7 @@ const hasAnyResults = showPostsSection || showCirclesSection;
 function searchHref(nextType: ForumSearchType) {
   const params = new URLSearchParams();
   if (rawQuery.trim()) params.set("q", rawQuery.trim());
+  if (circleSlug) params.set("circle", circleSlug);
   if (nextType !== "all") params.set("type", nextType);
   return `/search/${params.toString() ? `?${params.toString()}` : ""}`;
 }
@@ -55,7 +61,6 @@ const postTypeLabels: Record<string, string> = {
   title="搜索"
   description="搜索 OpenGlass Hub 论坛内容。"
   noindex={true}
-  activeTab="search"
 >
   <section class="search-page-head">
     <h1>搜索</h1>
@@ -76,14 +81,17 @@ const postTypeLabels: Record<string, string> = {
         />
         <button type="submit" class="community-action-button community-action-button--primary">搜索</button>
       </div>
+      {circleSlug ? <input type="hidden" name="circle" value={circleSlug} /> : null}
       <input type="hidden" name="type" value={searchType} />
     </form>
 
-    <div class="search-filter-row" role="tablist" aria-label="搜索类型">
-      <a href={searchHref("all")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "all" }]} role="tab" aria-selected={searchType === "all"}>全部</a>
-      <a href={searchHref("posts")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "posts" }]} role="tab" aria-selected={searchType === "posts"}>帖子</a>
-      <a href={searchHref("circles")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "circles" }]} role="tab" aria-selected={searchType === "circles"}>圈子</a>
-    </div>
+    {!circleSlug ? (
+      <div class="search-filter-row" role="tablist" aria-label="搜索类型">
+        <a href={searchHref("all")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "all" }]} role="tab" aria-selected={searchType === "all"}>全部</a>
+        <a href={searchHref("posts")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "posts" }]} role="tab" aria-selected={searchType === "posts"}>帖子</a>
+        <a href={searchHref("circles")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "circles" }]} role="tab" aria-selected={searchType === "circles"}>圈子</a>
+      </div>
+    ) : null}
   </section>
 
   {invalidQuery ? (
@@ -114,7 +122,7 @@ const postTypeLabels: Record<string, string> = {
                   typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
                   authorName={post.author?.display_name || post.author?.username || undefined}
                   timestamp={formatPostTime(post.created_at)}
-                  media={[]}
+                  media={post.preview_image_url ? [{ id: `search-${post.id}`, kind: "image", displayUrl: post.preview_image_url, previewUrl: post.preview_image_url }] : []}
                   likeCount={0}
                 />
               ))}

@@ -91,7 +91,7 @@ function isMissingCircleStatusError(error: { message?: string } | null | undefin
 
 const ALLOWED_TYPES = new Set(["experience", "question", "review", "dev", "news", "feedback"]);
 
-function validatePayload(payload: Record<string, unknown>): string | null {
+function validatePayload(payload: Record<string, unknown>): { code: string; message: string } | null {
   const circleSlug = String(payload.circle_slug ?? "").trim();
   const title = String(payload.title ?? "").trim();
   const body = String(payload.body ?? "").trim();
@@ -99,21 +99,26 @@ function validatePayload(payload: Record<string, unknown>): string | null {
   const type = String(payload.type ?? "").trim();
 
   if (!circleSlug || !title || !type) {
-    return "circle_slug, title, type are required";
+    return { code: "INVALID_POST_PAYLOAD", message: "circle_slug, title, type are required" };
   }
   if (title.length < 3 || title.length > 180) {
-    return "title must be 3-180 characters";
+    return { code: "INVALID_POST_TITLE", message: "title must be 3-180 characters" };
   }
-  if (body.length > 20000) {
-    return "body must be <=20000 characters";
+  if (body.length > 50000) {
+    return { code: "INVALID_POST_BODY", message: "body must be <=50000 characters" };
   }
   if (!body && !hasMedia) {
-    return "body or media is required";
+    return { code: "INVALID_POST_BODY", message: "body or media is required" };
   }
   if (!ALLOWED_TYPES.has(type)) {
-    return "Invalid post type";
+    return { code: "INVALID_POST_TYPE", message: "Invalid post type" };
   }
   return null;
+}
+
+function isPostBodyConstraintError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("posts_body_check") || (message.includes("body") && message.includes("check constraint"));
 }
 
 // ---------------------------------------------------------------------------
@@ -316,7 +321,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const validationError = validatePayload(payload);
     if (validationError) {
-      return json({ error: validationError }, 400);
+      return json({ error: validationError.message, code: validationError.code }, 400);
     }
     const turnstileToken = String(payload.turnstile_token ?? "").trim();
     const turnstile = await validateTurnstileToken({
@@ -402,6 +407,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .select("id,author_id,circle_id,type,title,status,created_at")
       .single();
     if (insertError) {
+      if (isPostBodyConstraintError(insertError)) {
+        return json({ error: "Post body is invalid", code: "INVALID_POST_BODY" }, 400);
+      }
       return json({ error: insertError.message }, 500);
     }
 

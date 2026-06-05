@@ -1,4 +1,4 @@
----
+﻿---
 import CommunityLayout from "./CommunityLayout.astro";
 import { forumTabs } from "../lib/site-navigation";
 
@@ -7,10 +7,10 @@ export interface Props {
   description?: string;
   noindex?: boolean;
   canonical?: string;
-  activeTab?: "feed" | "circles" | "new-post" | "search";
+  activeTab?: "feed" | "circles" | "new-post";
 }
 
-const { title, description, noindex, canonical, activeTab = "feed" } = Astro.props;
+const { title, description, noindex, canonical, activeTab } = Astro.props;
 ---
 
 <CommunityLayout

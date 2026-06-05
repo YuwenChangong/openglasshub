@@ -1,16 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-
-type SearchType = "all" | "posts" | "circles";
+﻿import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 type SearchPostResult = {
   id: string;
   title: string;
-};
-
-type SearchCircleResult = {
-  id: string;
-  slug: string;
-  name: string;
+  excerpt: string;
+  preview_image_url: string | null;
 };
 
 type SearchApiResponse =
@@ -18,9 +12,7 @@ type SearchApiResponse =
       ok: true;
       results: {
         query: string;
-        type: SearchType;
         posts: SearchPostResult[];
-        circles: SearchCircleResult[];
       };
     }
   | {
@@ -30,24 +22,28 @@ type SearchApiResponse =
 type Props = {
   className?: string;
   compact?: boolean;
+  circleSlug?: string;
 };
 
 const MIN_QUERY_LENGTH = 2;
-const PREVIEW_LIMIT = 5;
+const PREVIEW_LIMIT = 3;
 
-export default function GlobalSearchBox({ className = "", compact = false }: Props) {
+export default function GlobalSearchBox({ className = "", compact = false, circleSlug }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [posts, setPosts] = useState<SearchPostResult[]>([]);
-  const [circles, setCircles] = useState<SearchCircleResult[]>([]);
   const [mounted, setMounted] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const trimmedQuery = query.trim();
-  const detailHref = trimmedQuery ? `/search/?q=${encodeURIComponent(trimmedQuery)}` : "/search/";
+  const detailHref = trimmedQuery
+    ? circleSlug
+      ? `/search/?q=${encodeURIComponent(trimmedQuery)}&circle=${encodeURIComponent(circleSlug)}&type=posts`
+      : `/search/?q=${encodeURIComponent(trimmedQuery)}`
+    : "/search/";
   const hasPreviewQuery = trimmedQuery.length >= MIN_QUERY_LENGTH;
-  const hasResults = posts.length > 0 || circles.length > 0;
+  const hasResults = posts.length > 0;
 
   useEffect(() => {
     setMounted(true);
@@ -80,7 +76,6 @@ export default function GlobalSearchBox({ className = "", compact = false }: Pro
   useEffect(() => {
     if (!hasPreviewQuery) {
       setPosts([]);
-      setCircles([]);
       setLoading(false);
       return;
     }
@@ -89,7 +84,16 @@ export default function GlobalSearchBox({ className = "", compact = false }: Pro
     const timeoutId = window.setTimeout(async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/forum/search?q=${encodeURIComponent(trimmedQuery)}`, {
+        const params = new URLSearchParams({
+          q: trimmedQuery,
+          type: "posts",
+          limit_posts: String(PREVIEW_LIMIT),
+        });
+        if (circleSlug) {
+          params.set("circle", circleSlug);
+        }
+
+        const response = await fetch(`/api/forum/search?${params.toString()}`, {
           method: "GET",
           signal: controller.signal,
           headers: {
@@ -101,18 +105,15 @@ export default function GlobalSearchBox({ className = "", compact = false }: Pro
 
         if (!response.ok || !("ok" in payload) || !payload.ok) {
           setPosts([]);
-          setCircles([]);
           setOpen(true);
           return;
         }
 
         setPosts(payload.results.posts.slice(0, PREVIEW_LIMIT));
-        setCircles(payload.results.circles.slice(0, PREVIEW_LIMIT));
         setOpen(true);
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
           setPosts([]);
-          setCircles([]);
           setOpen(true);
         }
       } finally {
@@ -124,7 +125,7 @@ export default function GlobalSearchBox({ className = "", compact = false }: Pro
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [hasPreviewQuery, trimmedQuery]);
+  }, [circleSlug, hasPreviewQuery, trimmedQuery]);
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -186,32 +187,18 @@ export default function GlobalSearchBox({ className = "", compact = false }: Pro
           {loading ? (
             <div className="global-search-box__empty">搜索中…</div>
           ) : hasResults ? (
-            <div className="global-search-box__sections">
-              {posts.length > 0 ? (
-                <section className="global-search-box__section">
-                  <h3>帖子</h3>
-                  <div className="global-search-box__list">
-                    {posts.map((post) => (
-                      <a key={post.id} href={`/posts/${post.id}/`} className="global-search-box__item">
-                        {post.title}
-                      </a>
-                    ))}
+            <div className="global-search-box__list">
+              {posts.map((post) => (
+                <a key={post.id} href={`/posts/${post.id}/`} className="global-search-box__item">
+                  {post.preview_image_url ? (
+                    <img src={post.preview_image_url} alt="" className="global-search-box__thumb" />
+                  ) : null}
+                  <div className="global-search-box__item-copy">
+                    <strong>{post.title}</strong>
+                    {post.excerpt ? <span>{post.excerpt}</span> : null}
                   </div>
-                </section>
-              ) : null}
-
-              {circles.length > 0 ? (
-                <section className="global-search-box__section">
-                  <h3>圈子</h3>
-                  <div className="global-search-box__list">
-                    {circles.map((circle) => (
-                      <a key={circle.id} href={`/circles/${circle.slug}/`} className="global-search-box__item">
-                        {circle.name}
-                      </a>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
+                </a>
+              ))}
             </div>
           ) : (
             <div className="global-search-box__empty">没有找到相关内容</div>

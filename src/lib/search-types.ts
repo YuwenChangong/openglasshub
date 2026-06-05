@@ -1,4 +1,4 @@
-export type ForumSearchType = "all" | "posts" | "circles";
+﻿export type ForumSearchType = "all" | "posts" | "circles";
 
 export interface ForumSearchPostResult {
   id: string;
@@ -6,6 +6,7 @@ export interface ForumSearchPostResult {
   excerpt: string;
   created_at: string;
   type: string | null;
+  preview_image_url: string | null;
   circle: {
     slug: string | null;
     name: string | null;
@@ -29,6 +30,7 @@ export interface ForumSearchCircleResult {
 export interface ForumSearchResults {
   query: string;
   type: ForumSearchType;
+  circle: string | null;
   posts: ForumSearchPostResult[];
   circles: ForumSearchCircleResult[];
 }

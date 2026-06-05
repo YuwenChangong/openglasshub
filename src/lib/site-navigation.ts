@@ -30,7 +30,6 @@ export const forumTabs = [
   { key: "feed", label: "动态", href: "/feed/?sort=latest" },
   { key: "circles", label: "圈子", href: "/circles/" },
   { key: "new-post", label: "发帖", href: "/posts/new/" },
-  { key: "search", label: "搜索", href: "/search/" },
 ] as const;
 
 export const hiddenPublicCircleSlugs = new Set(["rls-test-circle", "rls-test", "test-circle"]);

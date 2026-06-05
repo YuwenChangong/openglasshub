@@ -1,9 +1,10 @@
----
+﻿---
 export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import PostCard from "../../components/community/PostCard.astro";
+import GlobalSearchBox from "../../components/community/GlobalSearchBox";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
 import { buildPostLikeCountMap } from "../../lib/post-engagement";
 import { buildCircleImageMap } from "../../lib/circle-images";
@@ -82,7 +83,7 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
 ) : (
   <ForumLayout
     title={publicCircle.name}
-    description={publicCircle.description || `${publicCircle.name} — OpenGlass Hub 论坛圈子`}
+    description={publicCircle.description || `${publicCircle.name} · OpenGlass Hub 论坛圈子`}
     canonical={canonicalUrl}
     activeTab="circles"
   >
@@ -103,9 +104,9 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
         </div>
       ) : null}
       <h1 style="margin: 0 0 0.5rem 0; font-size: 1.75rem;">{publicCircle.name}</h1>
-      {publicCircle.description && (
+      {publicCircle.description ? (
         <p style="color: var(--text-muted); margin: 0 0 0.5rem 0; font-size: 1rem;">{publicCircle.description}</p>
-      )}
+      ) : null}
       <span class="forum-meta">创建于 {new Date(publicCircle.created_at).toLocaleDateString("zh-CN")}</span>
       <div class="community-inline-links" style="margin-top: 0.8rem;">
         <CircleManageEntry circleSlug={publicCircle.slug} ownerId={publicCircle.owner_id ?? null} client:load />
@@ -120,6 +121,10 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
         <a href="/posts/new/" class="community-action-button community-action-button--primary">发帖</a>
         <a href="/feed/" class="community-action-button community-action-button--muted">全部动态</a>
       </div>
+    </div>
+
+    <div class="circle-search-box-wrap">
+      <GlobalSearchBox circleSlug={publicCircle.slug} compact={true} client:load />
     </div>
 
     {postsError ? (
@@ -187,10 +192,9 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
     margin: 0;
     font-size: 1.08rem;
   }
-  .circle-stream-head p {
-    margin: 0.2rem 0 0;
-    color: var(--text-muted);
-    font-size: 0.82rem;
+  .circle-search-box-wrap {
+    margin: 1rem 0 1.5rem;
+    max-width: 28rem;
   }
   .circle-post-stream {
     display: grid;
@@ -203,6 +207,9 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
     .circle-stream-head {
       align-items: flex-start;
       flex-direction: column;
+    }
+    .circle-search-box-wrap {
+      max-width: 100%;
     }
   }
 </style>

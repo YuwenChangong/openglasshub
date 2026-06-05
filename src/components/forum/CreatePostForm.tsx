@@ -118,6 +118,7 @@ function readVideoMetadata(
 
 function mapAuthError(errorMessage: string): string {
   if (/RATE_LIMITED/i.test(errorMessage)) return "操作过于频繁，请稍后再试。";
+  if (/INVALID_POST_BODY/i.test(errorMessage)) return "正文至少需要 1 个字符，且不能超过 50000 个字符。";
   if (/TURNSTILE_REQUIRED/i.test(errorMessage)) return "请先完成安全验证后再提交。";
   if (/TURNSTILE_INVALID/i.test(errorMessage)) return "安全验证失败，请刷新页面后重试。";
   if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
@@ -798,7 +799,7 @@ export default function CreatePostForm() {
             className="community-input community-input--textarea"
             value={body}
             onChange={(event) => setBody(event.target.value)}
-            maxLength={20000}
+            maxLength={50000}
           />
         </label>
 
