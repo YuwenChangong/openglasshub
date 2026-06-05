@@ -8,11 +8,20 @@ export type ForumRateLimitPurpose =
   | "circle_create";
 
 export type ForumRateLimitResult =
-  | { ok: true }
   | {
-      ok: false;
-      code: "RATE_LIMITED" | "RATE_LIMIT_BACKEND_ERROR";
-      error: string;
+      allowed: true;
+      backendAvailable: true;
+    }
+  | {
+      allowed: false;
+      backendAvailable: true;
+      reason: "RATE_LIMITED";
+    }
+  | {
+      allowed: true;
+      backendAvailable: false;
+      reason: "RATE_LIMIT_BACKEND_UNAVAILABLE";
+      details: string;
     };
 
 function windowStartIso(windowMs: number): string {
@@ -29,6 +38,20 @@ function normalizeBytes(value: unknown): number {
 
 function sanitizeRateLimitError(message: string): string {
   return message.replace(/\s+/g, " ").trim().slice(0, 240);
+}
+
+function backendUnavailableResult(purpose: ForumRateLimitPurpose, message: string): ForumRateLimitResult {
+  const sanitizedMessage = sanitizeRateLimitError(message);
+  console.warn("[rate-limit] backend unavailable", {
+    purpose,
+    message: sanitizedMessage,
+  });
+  return {
+    allowed: true,
+    backendAvailable: false,
+    reason: "RATE_LIMIT_BACKEND_UNAVAILABLE",
+    details: sanitizedMessage,
+  };
 }
 
 export async function hashRateLimitIp(ip: string, salt: string): Promise<string> {
@@ -57,15 +80,11 @@ export async function enforceUserRateLimit(params: {
     .gte("created_at", windowStartIso(windowMs));
 
   if (error) {
-    return {
-      ok: false,
-      code: "RATE_LIMIT_BACKEND_ERROR",
-      error: sanitizeRateLimitError(error.message),
-    };
+    return backendUnavailableResult(purpose, error.message);
   }
 
   if ((count ?? 0) >= maxAttempts) {
-    return { ok: false, code: "RATE_LIMITED", error: "RATE_LIMITED" };
+    return { allowed: false, backendAvailable: true, reason: "RATE_LIMITED" };
   }
 
   const { error: insertError } = await client.from("forum_upload_attempts").insert({
@@ -76,14 +95,10 @@ export async function enforceUserRateLimit(params: {
   });
 
   if (insertError) {
-    return {
-      ok: false,
-      code: "RATE_LIMIT_BACKEND_ERROR",
-      error: sanitizeRateLimitError(insertError.message),
-    };
+    return backendUnavailableResult(purpose, insertError.message);
   }
 
-  return { ok: true };
+  return { allowed: true, backendAvailable: true };
 }
 
 export async function enforceUploadRateLimit(params: {
@@ -104,15 +119,11 @@ export async function enforceUploadRateLimit(params: {
     .gte("created_at", windowStartIso(windowMs));
 
   if (error) {
-    return {
-      ok: false,
-      code: "RATE_LIMIT_BACKEND_ERROR",
-      error: sanitizeRateLimitError(error.message),
-    };
+    return backendUnavailableResult(purpose, error.message);
   }
 
   if ((count ?? 0) >= maxAttempts) {
-    return { ok: false, code: "RATE_LIMITED", error: "RATE_LIMITED" };
+    return { allowed: false, backendAvailable: true, reason: "RATE_LIMITED" };
   }
 
   const { error: insertError } = await client.from("forum_upload_attempts").insert({
@@ -123,12 +134,8 @@ export async function enforceUploadRateLimit(params: {
   });
 
   if (insertError) {
-    return {
-      ok: false,
-      code: "RATE_LIMIT_BACKEND_ERROR",
-      error: sanitizeRateLimitError(insertError.message),
-    };
+    return backendUnavailableResult(purpose, insertError.message);
   }
 
-  return { ok: true };
+  return { allowed: true, backendAvailable: true };
 }

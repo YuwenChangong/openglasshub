@@ -119,8 +119,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .select("bytes")
         .eq("user_id", authData.user.id)
         .gte("created_at", oneDayAgo);
-      if (dailyError) return json({ error: formatDbError(stage, dailyError) }, 500);
-      const usedAttemptBytes = (dailyRows ?? []).reduce((sum, row) => sum + Number(row.bytes ?? 0), 0);
+      if (dailyError) {
+        console.warn("[rate-limit] backend unavailable", {
+          purpose: "external_video_upload",
+          message: formatDbError(stage, dailyError),
+        });
+      }
+      const usedAttemptBytes = dailyError ? 0 : (dailyRows ?? []).reduce((sum, row) => sum + Number(row.bytes ?? 0), 0);
 
       stage = "rate.daily.media";
       const { data: mediaRows, error: mediaBytesError } = await supabase
@@ -155,11 +160,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
         windowMs: 60 * 60 * 1000,
         bytes: sizeBytes,
       });
-      if (!uploadLimit.ok) {
-        if (uploadLimit.code === "RATE_LIMITED") {
+      if (!uploadLimit.allowed) {
+        if (uploadLimit.reason === "RATE_LIMITED") {
           return json({ error: "Too many upload attempts from this IP", code: "RATE_LIMITED" }, 429);
         }
-        return json({ error: "Rate limit backend failed", code: "RATE_LIMIT_BACKEND_ERROR", details: `[${stage}] ${uploadLimit.error}` }, 500);
       }
     }
 

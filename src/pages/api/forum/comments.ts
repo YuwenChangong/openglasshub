@@ -360,11 +360,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       windowMs: 60 * 60 * 1000,
       bytes: 0,
     });
-    if (!rateLimit.ok) {
-      if (rateLimit.code === "RATE_LIMITED") {
+    if (!rateLimit.allowed) {
+      if (rateLimit.reason === "RATE_LIMITED") {
         return json({ error: "Too many comments created", code: "RATE_LIMITED" }, 429);
       }
-      return json({ error: "Rate limit backend failed", code: "RATE_LIMIT_BACKEND_ERROR", details: rateLimit.error }, 500);
     }
 
     // Verify profile exists
