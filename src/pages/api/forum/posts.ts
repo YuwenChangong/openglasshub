@@ -336,12 +336,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       purpose: "post_create",
       maxAttempts: 10,
       windowMs: 60 * 60 * 1000,
+      bytes: 0,
     });
     if (!rateLimit.ok) {
-      if (rateLimit.error === "RATE_LIMITED") {
+      if (rateLimit.code === "RATE_LIMITED") {
         return json({ error: "Too many posts created", code: "RATE_LIMITED" }, 429);
       }
-      return json({ error: rateLimit.error }, 500);
+      return json({ error: "Rate limit backend failed", code: "RATE_LIMIT_BACKEND_ERROR", details: rateLimit.error }, 500);
     }
 
     const circleSlug = String(payload.circle_slug ?? "").trim();

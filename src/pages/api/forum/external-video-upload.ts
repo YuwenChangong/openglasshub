@@ -156,10 +156,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
         bytes: sizeBytes,
       });
       if (!uploadLimit.ok) {
-        if (uploadLimit.error === "RATE_LIMITED") {
+        if (uploadLimit.code === "RATE_LIMITED") {
           return json({ error: "Too many upload attempts from this IP", code: "RATE_LIMITED" }, 429);
         }
-        return json({ error: `[${stage}] ${uploadLimit.error}` }, 500);
+        return json({ error: "Rate limit backend failed", code: "RATE_LIMIT_BACKEND_ERROR", details: `[${stage}] ${uploadLimit.error}` }, 500);
       }
     }
 

@@ -7,8 +7,28 @@ export type ForumRateLimitPurpose =
   | "comment_create"
   | "circle_create";
 
+export type ForumRateLimitResult =
+  | { ok: true }
+  | {
+      ok: false;
+      code: "RATE_LIMITED" | "RATE_LIMIT_BACKEND_ERROR";
+      error: string;
+    };
+
 function windowStartIso(windowMs: number): string {
   return new Date(Date.now() - windowMs).toISOString();
+}
+
+function normalizeBytes(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.trunc(parsed));
+}
+
+function sanitizeRateLimitError(message: string): string {
+  return message.replace(/\s+/g, " ").trim().slice(0, 240);
 }
 
 export async function hashRateLimitIp(ip: string, salt: string): Promise<string> {
@@ -26,8 +46,9 @@ export async function enforceUserRateLimit(params: {
   purpose: Extract<ForumRateLimitPurpose, "post_create" | "comment_create" | "circle_create">;
   maxAttempts: number;
   windowMs: number;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { client, userId, ipHash, purpose, maxAttempts, windowMs } = params;
+  bytes?: number;
+}): Promise<ForumRateLimitResult> {
+  const { client, userId, ipHash, purpose, maxAttempts, windowMs, bytes = 0 } = params;
   const { count, error } = await client
     .from("forum_upload_attempts")
     .select("id", { count: "exact", head: true })
@@ -36,22 +57,30 @@ export async function enforceUserRateLimit(params: {
     .gte("created_at", windowStartIso(windowMs));
 
   if (error) {
-    return { ok: false, error: error.message };
+    return {
+      ok: false,
+      code: "RATE_LIMIT_BACKEND_ERROR",
+      error: sanitizeRateLimitError(error.message),
+    };
   }
 
   if ((count ?? 0) >= maxAttempts) {
-    return { ok: false, error: "RATE_LIMITED" };
+    return { ok: false, code: "RATE_LIMITED", error: "RATE_LIMITED" };
   }
 
   const { error: insertError } = await client.from("forum_upload_attempts").insert({
     user_id: userId,
     ip_hash: ipHash,
-    bytes: 0,
+    bytes: normalizeBytes(bytes),
     purpose,
   });
 
   if (insertError) {
-    return { ok: false, error: insertError.message };
+    return {
+      ok: false,
+      code: "RATE_LIMIT_BACKEND_ERROR",
+      error: sanitizeRateLimitError(insertError.message),
+    };
   }
 
   return { ok: true };
@@ -65,7 +94,7 @@ export async function enforceUploadRateLimit(params: {
   maxAttempts: number;
   windowMs: number;
   bytes?: number;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<ForumRateLimitResult> {
   const { client, userId, ipHash, purpose, maxAttempts, windowMs, bytes = 0 } = params;
   const { count, error } = await client
     .from("forum_upload_attempts")
@@ -75,22 +104,30 @@ export async function enforceUploadRateLimit(params: {
     .gte("created_at", windowStartIso(windowMs));
 
   if (error) {
-    return { ok: false, error: error.message };
+    return {
+      ok: false,
+      code: "RATE_LIMIT_BACKEND_ERROR",
+      error: sanitizeRateLimitError(error.message),
+    };
   }
 
   if ((count ?? 0) >= maxAttempts) {
-    return { ok: false, error: "RATE_LIMITED" };
+    return { ok: false, code: "RATE_LIMITED", error: "RATE_LIMITED" };
   }
 
   const { error: insertError } = await client.from("forum_upload_attempts").insert({
     user_id: userId,
     ip_hash: ipHash,
-    bytes: Math.max(0, bytes),
+    bytes: normalizeBytes(bytes),
     purpose,
   });
 
   if (insertError) {
-    return { ok: false, error: insertError.message };
+    return {
+      ok: false,
+      code: "RATE_LIMIT_BACKEND_ERROR",
+      error: sanitizeRateLimitError(insertError.message),
+    };
   }
 
   return { ok: true };
