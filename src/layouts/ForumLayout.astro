@@ -7,7 +7,7 @@ export interface Props {
   description?: string;
   noindex?: boolean;
   canonical?: string;
-  activeTab?: "feed" | "circles" | "new-post";
+  activeTab?: "feed" | "circles" | "new-post" | "search";
 }
 
 const { title, description, noindex, canonical, activeTab = "feed" } = Astro.props;

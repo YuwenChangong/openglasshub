@@ -1,4 +1,4 @@
-export type NavKey = "home" | "forum" | "news" | "products" | "launcher";
+﻿export type NavKey = "home" | "forum" | "news" | "products" | "launcher";
 
 export const mainNav = [
   { key: "home", label: "首页", href: "/" },
@@ -30,6 +30,7 @@ export const forumTabs = [
   { key: "feed", label: "动态", href: "/feed/?sort=latest" },
   { key: "circles", label: "圈子", href: "/circles/" },
   { key: "new-post", label: "发帖", href: "/posts/new/" },
+  { key: "search", label: "搜索", href: "/search/" },
 ] as const;
 
 export const hiddenPublicCircleSlugs = new Set(["rls-test-circle", "rls-test", "test-circle"]);
@@ -46,7 +47,7 @@ export function isPublicVisibleCircle(input: { slug?: string | null; name?: stri
 
 export function inferNavKey(pathname: string): NavKey {
   if (pathname === "/" || pathname === "") return "home";
-  if (pathname.startsWith("/feed") || pathname.startsWith("/forum") || pathname.startsWith("/circles") || pathname.startsWith("/posts")) {
+  if (pathname.startsWith("/feed") || pathname.startsWith("/forum") || pathname.startsWith("/circles") || pathname.startsWith("/posts") || pathname.startsWith("/search")) {
     return "forum";
   }
   if (pathname.startsWith("/news")) return "news";
