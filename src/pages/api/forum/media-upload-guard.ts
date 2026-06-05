@@ -1,0 +1,93 @@
+import type { APIRoute } from "astro";
+import { createClient } from "@supabase/supabase-js";
+import { getRequestIp } from "../../../lib/request-ip";
+import { enforceUploadRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { validateTurnstileToken } from "../../../lib/server/turnstile";
+
+export const prerender = false;
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+function getBearerToken(request: Request): string | null {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader) return null;
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
+  return token.trim();
+}
+
+function requireEnv(env: Record<string, string | undefined>, key: string): string {
+  const value = env[key];
+  if (!value) throw new Error(`Missing required env var: ${key}`);
+  return value;
+}
+
+export const POST: APIRoute = async ({ request, locals }) => {
+  try {
+    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    if (!env) return json({ error: "Runtime environment not available" }, 500);
+
+    const token = getBearerToken(request);
+    if (!token) return json({ error: "Missing bearer token" }, 401);
+
+    const supabase = createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_ANON_KEY"), {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !authData.user) return json({ error: "Invalid auth token" }, 401);
+
+    const payload = (await request.json().catch(() => null)) as
+      | { turnstile_token?: string; upload_kind?: string; size_bytes?: number }
+      | null;
+    if (!payload) return json({ error: "Invalid JSON payload" }, 400);
+
+    const uploadKind = String(payload.upload_kind ?? "").trim();
+    if (!["post_media", "circle_cover"].includes(uploadKind)) {
+      return json({ error: "Invalid upload_kind" }, 400);
+    }
+
+    const turnstile = await validateTurnstileToken({
+      env,
+      token: String(payload.turnstile_token ?? "").trim(),
+      remoteIp: getRequestIp(request),
+    });
+    if (!turnstile.ok) {
+      return json({ error: turnstile.message, code: turnstile.code }, 403);
+    }
+
+    const salt = requireEnv(env, "RATE_LIMIT_SALT");
+    const ipHash = await hashRateLimitIp(getRequestIp(request), salt);
+    const limit = await enforceUploadRateLimit({
+      client: supabase,
+      userId: authData.user.id,
+      ipHash,
+      purpose: "post_media_upload",
+      maxAttempts: 10,
+      windowMs: 60 * 60 * 1000,
+      bytes: Number(payload.size_bytes ?? 0),
+    });
+
+    if (!limit.ok) {
+      if (limit.error === "RATE_LIMITED") {
+        return json({ error: "Too many upload requests", code: "RATE_LIMITED" }, 429);
+      }
+      return json({ error: limit.error }, 500);
+    }
+
+    return json({ ok: true });
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
+  }
+};
+
+export const ALL: APIRoute = () => json({ error: "Method not allowed" }, 405);

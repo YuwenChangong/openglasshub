@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { buildUniqueCircleSlug, slugifyCircleName } from "../../../../lib/circle-slug";
+import { buildCircleCoverUrlMap, resolveCircleCoverUrl } from "../../../../lib/circle-cover";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
 
 export const prerender = false;
@@ -94,6 +95,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
       commentCountMap.set(circleId, (commentCountMap.get(circleId) ?? 0) + 1);
     }
 
+    const coverUrlMap = await buildCircleCoverUrlMap(
+      client,
+      (circles ?? []).map((circle) => ({ id: circle.id, image_path: circle.image_path ?? null })),
+    );
+
     return jsonResponse({
       circles: (circles ?? []).map((circle) => ({
         id: circle.id,
@@ -105,6 +111,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         created_at: circle.created_at,
         updated_at: circle.updated_at,
         image_path: circle.image_path ?? null,
+        cover_url: coverUrlMap.get(circle.id) ?? null,
         owner_id: circle.owner_id ?? null,
         post_count: postCountMap.get(circle.id) ?? 0,
         comment_count: commentCountMap.get(circle.id) ?? 0,
@@ -191,7 +198,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return jsonResponse({ error: error.message }, 500);
     }
 
-    return jsonResponse({ circle: data }, 201);
+    return jsonResponse({
+      circle: data
+        ? {
+            ...data,
+            cover_url: await resolveCircleCoverUrl(auth.client, data.image_path ?? null),
+          }
+        : data,
+    }, 201);
   } catch (error) {
     if (error instanceof Response) return error;
     return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
@@ -275,7 +289,14 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
       return jsonResponse({ error: error.message }, 500);
     }
 
-    return jsonResponse({ circle: data });
+    return jsonResponse({
+      circle: data
+        ? {
+            ...data,
+            cover_url: await resolveCircleCoverUrl(auth.client, data.image_path ?? null),
+          }
+        : data,
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);

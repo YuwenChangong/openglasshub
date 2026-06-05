@@ -12,6 +12,9 @@
 
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getRequestIp } from "../../../lib/request-ip";
+import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { validateTurnstileToken } from "../../../lib/server/turnstile";
 
 export const prerender = false;
 
@@ -323,6 +326,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const postId = String(payload.post_id ?? "").trim();
     const body = String(payload.body ?? "").trim();
     const parentId = payload.parent_id ? String(payload.parent_id).trim() : null;
+    const turnstileToken = String(payload.turnstile_token ?? "").trim();
 
     if (!postId || !UUID_REGEX.test(postId)) {
       return json({ error: "post_id is required (valid UUID)" }, 400);
@@ -334,6 +338,32 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (body.length < 1 || body.length > 5000) {
       return json({ error: "body must be 1-5000 characters" }, 400);
+    }
+
+    const turnstile = await validateTurnstileToken({
+      env,
+      token: turnstileToken,
+      remoteIp: getRequestIp(request),
+    });
+    if (!turnstile.ok) {
+      return json({ error: turnstile.message ?? "Turnstile verification failed", code: turnstile.code }, 403);
+    }
+
+    const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
+    const ipHash = await hashRateLimitIp(getRequestIp(request), rateSalt);
+    const rateLimit = await enforceUserRateLimit({
+      client: userClient,
+      userId: authData.user.id,
+      ipHash,
+      purpose: "comment_create",
+      maxAttempts: 60,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimit.ok) {
+      if (rateLimit.error === "RATE_LIMITED") {
+        return json({ error: "Too many comments created", code: "RATE_LIMITED" }, 429);
+      }
+      return json({ error: rateLimit.error }, 500);
     }
 
     // Verify profile exists

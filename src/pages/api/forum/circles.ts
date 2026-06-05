@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { buildUniqueCircleSlug, slugifyCircleName } from "../../../lib/circle-slug";
+import { getRequestIp } from "../../../lib/request-ip";
 import { isPublicVisibleCircle } from "../../../lib/site-navigation";
 import { fetchCirclesWithFallback } from "../../../lib/circle-data";
 import {
@@ -8,6 +9,8 @@ import {
   requireForumUser,
   isCircleManager,
 } from "../../../lib/server/circle-management";
+import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { validateTurnstileToken } from "../../../lib/server/turnstile";
 
 export const prerender = false;
 
@@ -80,7 +83,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const auth = await requireForumUser(request, env);
     const payload = (await request.json().catch(() => null)) as
-      | { slug?: string; name?: string; description?: string | null; type?: string; image_path?: string | null; owner_id?: string | null }
+      | { slug?: string; name?: string; description?: string | null; type?: string; image_path?: string | null; owner_id?: string | null; turnstile_token?: string }
       | null;
 
     if (!payload) return jsonResponse({ error: "INVALID_JSON_PAYLOAD" }, 400);
@@ -90,6 +93,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const type = String(payload.type ?? "").trim();
     const imagePath = typeof payload.image_path === "string" ? payload.image_path.trim() : null;
     const requestedOwnerId = typeof payload.owner_id === "string" ? payload.owner_id.trim() : "";
+    const turnstileToken = String(payload.turnstile_token ?? "").trim();
 
     if (name.length < 2 || name.length > 40) {
       return jsonResponse({ error: "INVALID_CIRCLE_NAME" }, 400);
@@ -105,6 +109,35 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
     if (requestedOwnerId && requestedOwnerId !== auth.user.id) {
       return jsonResponse({ error: "CIRCLE_CREATE_FAILED", details: "owner_id is assigned by the server." }, 400);
+    }
+
+    const turnstile = await validateTurnstileToken({
+      env,
+      token: turnstileToken,
+      remoteIp: getRequestIp(request),
+    });
+    if (!turnstile.ok) {
+      return jsonResponse({ error: turnstile.message ?? "Turnstile verification failed", code: turnstile.code }, 403);
+    }
+
+    const rateSalt = env.RATE_LIMIT_SALT;
+    if (!rateSalt) {
+      return jsonResponse({ error: "Missing required env var: RATE_LIMIT_SALT" }, 500);
+    }
+    const ipHash = await hashRateLimitIp(getRequestIp(request), rateSalt);
+    const rateLimit = await enforceUserRateLimit({
+      client: auth.client,
+      userId: auth.user.id,
+      ipHash,
+      purpose: "circle_create",
+      maxAttempts: 5,
+      windowMs: 24 * 60 * 60 * 1000,
+    });
+    if (!rateLimit.ok) {
+      if (rateLimit.error === "RATE_LIMITED") {
+        return jsonResponse({ error: "Too many circles created", code: "RATE_LIMITED" }, 429);
+      }
+      return jsonResponse({ error: "CIRCLE_CREATE_FAILED", details: rateLimit.error }, 500);
     }
 
     const duplicate = await findDuplicateCircle(auth.client, { name });

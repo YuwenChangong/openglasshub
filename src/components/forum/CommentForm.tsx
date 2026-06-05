@@ -1,6 +1,7 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { useInvisibleTurnstile } from "./useInvisibleTurnstile";
 
 interface CommentFormProps {
   postId: string;
@@ -24,6 +25,14 @@ export default function CommentForm({
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const resolvedLoginHref = loginHref ?? buildLoginHref(`/posts/${postId}/#comments`);
   const resolvedPlaceholder = placeholder ?? "写下你的想法...";
+  const {
+    siteKeyEnabled,
+    ready: turnstileReady,
+    error: turnstileError,
+    containerRef,
+    ensureToken,
+    resetToken,
+  } = useInvisibleTurnstile("评论验证失败，请刷新后重试。");
 
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
@@ -62,7 +71,12 @@ export default function CommentForm({
         throw new Error("请先登录后再评论");
       }
 
-      const reqBody: Record<string, unknown> = { post_id: postId, body: body.trim() };
+      const turnstileToken = await ensureToken({ forceRefresh: true });
+      const reqBody: Record<string, unknown> = {
+        post_id: postId,
+        body: body.trim(),
+        turnstile_token: turnstileToken || undefined,
+      };
       if (parentId) reqBody.parent_id = parentId;
 
       const response = await fetch("/api/forum/comments", {
@@ -75,18 +89,31 @@ export default function CommentForm({
       });
 
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; comment?: Record<string, unknown> }
+        | { error?: string; code?: string; comment?: Record<string, unknown> }
         | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? `请求失败 (${response.status})`);
+        throw new Error(
+          payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `请求失败 (${response.status})`,
+        );
       }
 
       setBody("");
       setSuccess(true);
+      resetToken();
       onCommentCreated?.(payload?.comment ?? { id: "", post_id: postId, body: body.trim() });
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "提交失败");
+      const message = submitError instanceof Error ? submitError.message : "提交失败";
+      if (/TURNSTILE_REQUIRED/i.test(message)) {
+        setError("请先完成安全验证后再评论。");
+      } else if (/TURNSTILE_INVALID/i.test(message)) {
+        setError("评论验证失败，请刷新页面后重试。");
+      } else if (/RATE_LIMITED/i.test(message)) {
+        setError("评论过于频繁，请稍后再试。");
+      } else {
+        setError(message);
+      }
+      resetToken();
     } finally {
       setLoading(false);
     }
@@ -122,7 +149,6 @@ export default function CommentForm({
     ? "glass-card comment-panel comment-panel--inline comment-reply-form__panel"
     : "glass-panel comment-panel";
   const shellTag = inline ? "div" : "section";
-
   const Shell = shellTag as keyof JSX.IntrinsicElements;
 
   return (
@@ -161,6 +187,9 @@ export default function CommentForm({
         </form>
         {error && <div className="comment-inline-error">{error}</div>}
         {success && <div className="comment-inline-success">评论发布成功。</div>}
+        {turnstileError && <div className="comment-inline-error">{turnstileError}</div>}
+        {!turnstileReady && siteKeyEnabled && <div className="community-meta">正在初始化评论验证…</div>}
+        <div ref={containerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />
       </div>
     </Shell>
   );

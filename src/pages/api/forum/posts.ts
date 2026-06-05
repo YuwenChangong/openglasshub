@@ -21,7 +21,8 @@ import {
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
 import { getRequestIp } from "../../../lib/request-ip";
 import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
-import { validateTurnstileToken } from "../../../lib/turnstile";
+import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { validateTurnstileToken } from "../../../lib/server/turnstile";
 
 export const prerender = false;
 
@@ -325,6 +326,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
     if (!turnstile.ok) {
       return json({ error: turnstile.message ?? "Turnstile verification failed", code: turnstile.code }, 403);
+    }
+    const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
+    const ipHash = await hashRateLimitIp(getRequestIp(request), rateSalt);
+    const rateLimit = await enforceUserRateLimit({
+      client: userClient,
+      userId: authData.user.id,
+      ipHash,
+      purpose: "post_create",
+      maxAttempts: 10,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimit.ok) {
+      if (rateLimit.error === "RATE_LIMITED") {
+        return json({ error: "Too many posts created", code: "RATE_LIMITED" }, 429);
+      }
+      return json({ error: rateLimit.error }, 500);
     }
 
     const circleSlug = String(payload.circle_slug ?? "").trim();

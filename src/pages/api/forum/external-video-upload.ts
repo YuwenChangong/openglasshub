@@ -2,7 +2,8 @@ import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { buildR2PublicUrl, buildTmpVideoKey, signR2PutUrl } from "../../../lib/r2-server";
 import { getRequestIp } from "../../../lib/request-ip";
-import { validateTurnstileToken } from "../../../lib/turnstile";
+import { enforceUploadRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { validateTurnstileToken } from "../../../lib/server/turnstile";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 export const prerender = false;
@@ -44,14 +45,6 @@ function formatDbError(stage: string, error: PostgrestError | null): string {
 
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const MAX_VIDEO_SIZE = 150 * 1024 * 1024;
-
-async function hashIp(ip: string, salt: string): Promise<string> {
-  const data = new TextEncoder().encode(`${salt}:${ip}`);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 export const POST: APIRoute = async ({ request, locals }) => {
   let stage = "init";
@@ -117,21 +110,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     let ipHash = "";
     if (!previewBypass) {
       const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
-      ipHash = await hashIp(remoteIp, rateSalt);
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      ipHash = await hashRateLimitIp(remoteIp, rateSalt);
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
-      stage = "rate.ip.count";
-      const { count: ipCount, error: ipCountError } = await supabase
-        .from("forum_upload_attempts")
-        .select("id", { count: "exact", head: true })
-        .eq("purpose", "external_video_upload")
-        .eq("ip_hash", ipHash)
-        .gte("created_at", oneHourAgo);
-      if (ipCountError) return json({ error: formatDbError(stage, ipCountError) }, 500);
-      if ((ipCount ?? 0) >= 10) {
-        return json({ error: "Too many upload attempts from this IP", code: "UPLOAD_RATE_LIMITED" }, 429);
-      }
 
       stage = "rate.daily.attempts";
       const { data: dailyRows, error: dailyError } = await supabase
@@ -166,13 +146,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (!previewBypass) {
       stage = "attempt.insert";
-      const { error: insertAttemptError } = await supabase.from("forum_upload_attempts").insert({
-        user_id: authData.user.id,
-        ip_hash: ipHash,
-        bytes: sizeBytes,
+      const uploadLimit = await enforceUploadRateLimit({
+        client: supabase,
+        userId: authData.user.id,
+        ipHash,
         purpose: "external_video_upload",
+        maxAttempts: 10,
+        windowMs: 60 * 60 * 1000,
+        bytes: sizeBytes,
       });
-      if (insertAttemptError) return json({ error: formatDbError(stage, insertAttemptError) }, 500);
+      if (!uploadLimit.ok) {
+        if (uploadLimit.error === "RATE_LIMITED") {
+          return json({ error: "Too many upload attempts from this IP", code: "RATE_LIMITED" }, 429);
+        }
+        return json({ error: `[${stage}] ${uploadLimit.error}` }, 500);
+      }
     }
 
     return json({

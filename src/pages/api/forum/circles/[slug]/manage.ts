@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { resolveCircleCoverUrl } from "../../../../../lib/circle-cover";
 import { requireManagedCircleBySlug, jsonResponse } from "../../../../../lib/server/circle-management";
 
 export const prerender = false;
@@ -42,12 +43,15 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
       totalComments = count ?? 0;
     }
 
+    const coverUrl = await resolveCircleCoverUrl(auth.client, auth.circle.image_path ?? null);
+
     return jsonResponse({
       ok: true,
       circle: {
         ...auth.circle,
         description: auth.circle.description ?? "",
         image_path: auth.circle.image_path ?? null,
+        cover_url: coverUrl,
         owner_id: auth.circle.owner_id ?? null,
         post_count: postCount ?? 0,
         comment_count: totalComments,
@@ -155,7 +159,14 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
       return jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error.message }, 500);
     }
 
-    return jsonResponse({ circle: data });
+    return jsonResponse({
+      circle: data
+        ? {
+            ...data,
+            cover_url: await resolveCircleCoverUrl(auth.client, data.image_path ?? null),
+          }
+        : data,
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     return jsonResponse({ error: "CIRCLE_MANAGE_QUERY_FAILED", details: error instanceof Error ? error.message : "Unexpected server error" }, 500);

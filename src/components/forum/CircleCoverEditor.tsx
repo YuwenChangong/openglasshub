@@ -3,13 +3,14 @@ import { buildLoginHref } from "../../lib/auth-redirect";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
+import { useInvisibleTurnstile } from "./useInvisibleTurnstile";
 
 interface CircleCoverEditorProps {
   circleId: string;
   circleSlug: string;
   supportsExtendedSchema: boolean;
   ownerId: string | null;
-  onUpdated?: (imagePath: string | null) => void;
+  onUpdated?: (imagePath: string | null, coverUrl?: string | null) => void;
 }
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -21,6 +22,13 @@ function normalizeFileName(fileName: string) {
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function mapCoverError(message: string) {
+  if (/TURNSTILE_REQUIRED/i.test(message)) return "请先完成安全验证后再上传封面。";
+  if (/TURNSTILE_INVALID/i.test(message)) return "封面验证失败，请刷新页面后重试。";
+  if (/RATE_LIMITED/i.test(message)) return "上传过于频繁，请稍后再试。";
+  return message;
 }
 
 export default function CircleCoverEditor({
@@ -37,6 +45,14 @@ export default function CircleCoverEditor({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const canEdit = authState.status === "signed_in" && !!authState.user;
+  const {
+    siteKeyEnabled,
+    ready: turnstileReady,
+    error: turnstileError,
+    containerRef,
+    ensureToken,
+    resetToken,
+  } = useInvisibleTurnstile("封面验证失败，请刷新后重试。");
 
   async function getSessionToken() {
     const { data } = await supabase.auth.getSession();
@@ -56,9 +72,37 @@ export default function CircleCoverEditor({
       }),
     });
 
-    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: string; circle?: { cover_url?: string | null } }
+      | null;
     if (!response.ok) {
       throw new Error(payload?.error ?? `更新封面失败 (${response.status})`);
+    }
+    return payload?.circle?.cover_url ?? null;
+  }
+
+  async function guardUpload(token: string, sizeBytes: number) {
+    const turnstileToken = await ensureToken({ forceRefresh: true });
+    const response = await fetch("/api/forum/media-upload-guard", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        upload_kind: "circle_cover",
+        size_bytes: sizeBytes,
+        turnstile_token: turnstileToken || undefined,
+      }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: string; code?: string }
+      | null;
+    if (!response.ok) {
+      throw new Error(
+        payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `上传校验失败 (${response.status})`,
+      );
     }
   }
 
@@ -95,6 +139,7 @@ export default function CircleCoverEditor({
         return;
       }
 
+      await guardUpload(token, file.size);
       uploadedPath = `circle-covers/${authState.user.id}/${Date.now()}-${normalizeFileName(file.name)}`;
       try {
         await uploadToPostMediaWithTus({
@@ -106,14 +151,16 @@ export default function CircleCoverEditor({
         throw new Error("圈子封面上传失败。");
       }
 
-      await updateCircleCover(uploadedPath, token);
+      const coverUrl = await updateCircleCover(uploadedPath, token);
       setMessage("圈子封面已更新。");
-      onUpdated?.(uploadedPath);
+      resetToken();
+      onUpdated?.(uploadedPath, coverUrl);
     } catch (requestError) {
       if (uploadedPath) {
         await supabase.storage.from("post-media").remove([uploadedPath]).catch(() => undefined);
       }
-      setError(requestError instanceof Error ? requestError.message : "更新封面失败。");
+      setError(mapCoverError(requestError instanceof Error ? requestError.message : "更新封面失败。"));
+      resetToken();
     } finally {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -137,9 +184,9 @@ export default function CircleCoverEditor({
         return;
       }
 
-      await updateCircleCover(null, token);
+      const coverUrl = await updateCircleCover(null, token);
       setMessage("圈子封面已清除。");
-      onUpdated?.(null);
+      onUpdated?.(null, coverUrl);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "清除封面失败。");
     } finally {
@@ -174,6 +221,9 @@ export default function CircleCoverEditor({
       )}
       {error ? <span className="inline-error">{error}</span> : null}
       {message ? <span className="inline-success">{message}</span> : null}
+      {turnstileError ? <span className="inline-error">{turnstileError}</span> : null}
+      {!turnstileReady && siteKeyEnabled ? <span className="community-meta">正在初始化上传验证…</span> : null}
+      <div ref={containerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />
     </div>
   );
 }

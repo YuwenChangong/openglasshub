@@ -16,6 +16,7 @@ type ManagedCircle = {
   created_at: string;
   updated_at?: string | null;
   image_path: string | null;
+  cover_url?: string | null;
   owner_id: string | null;
   post_count: number;
   comment_count: number;
@@ -394,6 +395,11 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
               <span>评论：{circle.comment_count}</span>
               <span>创建时间：{new Date(circle.created_at).toLocaleString("zh-CN")}</span>
             </div>
+            {circle.cover_url ? (
+              <div className="create-circle-form__preview">
+                <img src={circle.cover_url} alt={`${circle.name} 圈子封面`} />
+              </div>
+            ) : null}
             <label>
               <span className="community-meta">圈子名称</span>
               <input className="community-input" value={draftName} onChange={(event) => setDraftName(event.target.value)} maxLength={40} />
@@ -407,7 +413,9 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
               circleSlug={circle.slug}
               supportsExtendedSchema={true}
               ownerId={circle.owner_id}
-              onUpdated={(imagePath) => setCircle((current) => (current ? { ...current, image_path: imagePath } : current))}
+              onUpdated={(imagePath, coverUrl) =>
+                setCircle((current) => (current ? { ...current, image_path: imagePath, cover_url: coverUrl ?? null } : current))
+              }
             />
             <div className="community-cta-row">
               <button type="button" className="community-button" disabled={savingCircle} onClick={() => void saveCircle()}>

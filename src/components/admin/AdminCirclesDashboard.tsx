@@ -14,6 +14,7 @@ type CircleRecord = {
   created_at: string;
   updated_at: string;
   image_path: string | null;
+  cover_url?: string | null;
   owner_id: string | null;
   post_count: number;
   comment_count: number;
@@ -342,6 +343,11 @@ export default function AdminCirclesDashboard() {
 
           return (
             <article key={circle.id} className="community-list-item" style={{ gap: "0.7rem" }}>
+              {circle.cover_url ? (
+                <div className="create-circle-form__preview">
+                  <img src={circle.cover_url} alt={`${circle.name} 圈子封面`} />
+                </div>
+              ) : null}
               <div className="admin-action-row">
                 <strong>{circle.name}</strong>
                 <span className={`admin-status-badge admin-status-${circle.status}`}>{circle.status}</span>
