@@ -4,7 +4,6 @@ export const prerender = false;
 import CommunityLayout from "../layouts/CommunityLayout.astro";
 import AuthCTA from "../components/auth/AuthCTA";
 import SignedOutHeroNote from "../components/auth/SignedOutHeroNote";
-import GlobalSearchBox from "../components/community/GlobalSearchBox";
 import PostCard from "../components/community/PostCard.astro";
 import EmptyFeedState from "../components/community/EmptyFeedState.astro";
 import { formatPostTime } from "../lib/format-time";
@@ -79,7 +78,6 @@ function excerpt(body?: string | null): string {
     <div class="hero-copy">
       <h1>OpenGlass Hub</h1>
       <p class="hero-lead">AR / AI 眼镜玩家、开发者和早期用户的中文社区。</p>
-      <GlobalSearchBox className="hero-search" client:load />
       <div class="hero-actions">
         <a href="/feed/" class="community-button--secondary">浏览讨论</a>
         <a href="/login/?next=/" class="community-button--secondary">加入社区</a>
@@ -177,10 +175,6 @@ function excerpt(body?: string | null): string {
     margin: 0.7rem 0 0;
     font-size: 1.02rem;
     color: var(--text);
-  }
-  .hero-search {
-    margin-top: 1rem;
-    max-width: 42rem;
   }
   .hero-sub {
     margin: 0.38rem 0 0;

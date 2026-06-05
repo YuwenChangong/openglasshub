@@ -1,9 +1,8 @@
-﻿export type NavKey = "home" | "forum" | "search" | "news" | "products" | "launcher";
+﻿export type NavKey = "home" | "forum" | "news" | "products" | "launcher";
 
 export const mainNav = [
   { key: "home", label: "首页", href: "/" },
   { key: "forum", label: "论坛", href: "/feed/" },
-  { key: "search", label: "搜索", href: "/search/" },
   { key: "news", label: "热点", href: "/news/" },
   { key: "products", label: "产品", href: "/products/" },
   { key: "launcher", label: "Gaze Launcher", href: "/gaze-launcher/" },
@@ -48,10 +47,15 @@ export function isPublicVisibleCircle(input: { slug?: string | null; name?: stri
 
 export function inferNavKey(pathname: string): NavKey {
   if (pathname === "/" || pathname === "") return "home";
-  if (pathname.startsWith("/feed") || pathname.startsWith("/forum") || pathname.startsWith("/circles") || pathname.startsWith("/posts")) {
+  if (
+    pathname.startsWith("/feed") ||
+    pathname.startsWith("/forum") ||
+    pathname.startsWith("/circles") ||
+    pathname.startsWith("/posts") ||
+    pathname.startsWith("/search")
+  ) {
     return "forum";
   }
-  if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/news")) return "news";
   if (pathname.startsWith("/products") || pathname.startsWith("/devices") || pathname.startsWith("/guides") || pathname.startsWith("/developers")) {
     return "products";

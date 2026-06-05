@@ -1,5 +1,6 @@
----
+﻿---
 import AuthCTA from "../auth/AuthCTA";
+import GlobalSearchBox from "../community/GlobalSearchBox";
 import { inferNavKey, mainNav, type NavKey } from "../../lib/site-navigation";
 
 interface Props {
@@ -31,6 +32,10 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
         </a>
       ))}
     </nav>
+
+    <div class="og-header__search">
+      <GlobalSearchBox compact={true} client:load />
+    </div>
 
     <div class="og-header__auth ogh-header-actions">
       <AuthCTA next={next} compact={true} client:only="react" />
@@ -69,7 +74,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1.25rem;
+    gap: 1rem;
   }
   .og-header__brand,
   .ogh-brand {
@@ -149,6 +154,10 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     border-radius: 999px;
     background: #2f81f7;
   }
+  .og-header__search {
+    flex: 0 1 360px;
+    min-width: 220px;
+  }
   .og-header__auth,
   .ogh-header-actions {
     display: flex;
@@ -217,6 +226,12 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     background:
       linear-gradient(180deg, rgba(104,178,255,1), rgba(59,130,246,0.94));
   }
+  @media (max-width: 1100px) {
+    .og-header__search {
+      flex-basis: 300px;
+      min-width: 180px;
+    }
+  }
   @media (max-width: 900px) {
     .og-header__inner {
       min-height: auto;
@@ -224,8 +239,13 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
       align-items: flex-start;
       flex-wrap: wrap;
     }
-    .og-header__nav {
+    .og-header__search {
       order: 3;
+      width: 100%;
+      flex-basis: 100%;
+    }
+    .og-header__nav {
+      order: 4;
       width: 100%;
       padding-bottom: 0.2rem;
     }

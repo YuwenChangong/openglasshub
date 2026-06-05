@@ -30,6 +30,10 @@ const posts = searchResult?.ok ? searchResult.results.posts : [];
 const circles = searchResult?.ok ? searchResult.results.circles : [];
 const circleImageMap = circles.length > 0 ? await buildCircleImageMap(supabase, circles) : new Map();
 
+const showPostsSection = posts.length > 0;
+const showCirclesSection = circles.length > 0;
+const hasAnyResults = showPostsSection || showCirclesSection;
+
 function searchHref(nextType: ForumSearchType) {
   const params = new URLSearchParams();
   if (rawQuery.trim()) params.set("q", rawQuery.trim());
@@ -67,7 +71,7 @@ const postTypeLabels: Record<string, string> = {
           value={rawQuery}
           minlength={FORUM_SEARCH_LIMITS.minQueryLength}
           maxlength={FORUM_SEARCH_LIMITS.maxQueryLength}
-          placeholder="搜索帖子或圈子"
+          placeholder="搜索"
           aria-label="搜索内容"
         />
         <button type="submit" class="community-action-button community-action-button--primary">搜索</button>
@@ -91,16 +95,14 @@ const postTypeLabels: Record<string, string> = {
       <strong>{searchResult.error === "INVALID_QUERY" ? "请输入至少 2 个字符" : "搜索失败，请稍后重试"}</strong>
     </section>
   ) : hasQuery ? (
-    <section class="search-results">
-      {(searchType === "all" || searchType === "posts") ? (
-        <section class="search-group">
-          <div class="community-stream-head search-group__head">
-            <h2>帖子</h2>
-            <span class="community-meta">{posts.length}</span>
-          </div>
-          {posts.length === 0 ? (
-            <div class="community-empty search-empty"><strong>没有找到相关内容</strong></div>
-          ) : (
+    hasAnyResults ? (
+      <section class="search-results">
+        {showPostsSection ? (
+          <section class="search-group">
+            <div class="community-stream-head search-group__head">
+              <h2>帖子</h2>
+              <span class="community-meta">{posts.length}</span>
+            </div>
             <div class="community-feed-list">
               {posts.map((post) => (
                 <PostCard
@@ -117,19 +119,15 @@ const postTypeLabels: Record<string, string> = {
                 />
               ))}
             </div>
-          )}
-        </section>
-      ) : null}
+          </section>
+        ) : null}
 
-      {(searchType === "all" || searchType === "circles") ? (
-        <section class="search-group">
-          <div class="community-stream-head search-group__head">
-            <h2>圈子</h2>
-            <span class="community-meta">{circles.length}</span>
-          </div>
-          {circles.length === 0 ? (
-            <div class="community-empty search-empty"><strong>没有找到相关内容</strong></div>
-          ) : (
+        {showCirclesSection ? (
+          <section class="search-group">
+            <div class="community-stream-head search-group__head">
+              <h2>圈子</h2>
+              <span class="community-meta">{circles.length}</span>
+            </div>
             <div class="search-circle-grid">
               {circles.map((circle) => (
                 <CircleCard
@@ -142,9 +140,13 @@ const postTypeLabels: Record<string, string> = {
                 />
               ))}
             </div>
-          )}
-        </section>
-      ) : null}
-    </section>
+          </section>
+        ) : null}
+      </section>
+    ) : (
+      <section class="community-empty search-empty">
+        <strong>没有找到相关内容</strong>
+      </section>
+    )
   ) : null}
 </ForumLayout>
