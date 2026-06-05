@@ -1,9 +1,10 @@
----
+﻿---
 export const prerender = false;
 
 import CommunityLayout from "../layouts/CommunityLayout.astro";
 import AuthCTA from "../components/auth/AuthCTA";
 import SignedOutHeroNote from "../components/auth/SignedOutHeroNote";
+import GlobalSearchBox from "../components/community/GlobalSearchBox";
 import PostCard from "../components/community/PostCard.astro";
 import EmptyFeedState from "../components/community/EmptyFeedState.astro";
 import { formatPostTime } from "../lib/format-time";
@@ -78,6 +79,7 @@ function excerpt(body?: string | null): string {
     <div class="hero-copy">
       <h1>OpenGlass Hub</h1>
       <p class="hero-lead">AR / AI 眼镜玩家、开发者和早期用户的中文社区。</p>
+      <GlobalSearchBox className="hero-search" client:load />
       <div class="hero-actions">
         <a href="/feed/" class="community-button--secondary">浏览讨论</a>
         <a href="/login/?next=/" class="community-button--secondary">加入社区</a>
@@ -99,7 +101,7 @@ function excerpt(body?: string | null): string {
       <div class="community-stream-head">
         <div>
           <h2>正在讨论</h2>
-          <p>{posts.length > 0 ? `已展示 ${posts.length} 条公开讨论。` : "社区正在启动，公开讨论会先从这里长出来。"} </p>
+          <p>{posts.length > 0 ? `已展示 ${posts.length} 条公开讨论。` : "社区正在启动，公开讨论会先从这里长出来。"}</p>
         </div>
         <a href="/feed/" class="community-link">查看全部</a>
       </div>
@@ -176,6 +178,10 @@ function excerpt(body?: string | null): string {
     font-size: 1.02rem;
     color: var(--text);
   }
+  .hero-search {
+    margin-top: 1rem;
+    max-width: 42rem;
+  }
   .hero-sub {
     margin: 0.38rem 0 0;
     color: var(--text-muted);
@@ -238,4 +244,3 @@ function excerpt(body?: string | null): string {
     }
   }
 </style>
-
