@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
@@ -9,10 +9,19 @@ interface AuthPanelProps {
   next?: string;
 }
 
+type ResendResponse =
+  | { ok: true; message?: string }
+  | { ok: false; error?: string };
+
+const RESEND_COOLDOWN_MS = 60_000;
+const RESEND_COOLDOWN_STORAGE_KEY = "auth-resend-confirmation-cooldown-until";
+
 function mapAuthError(errorMessage: string): string {
   if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
   if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
-  if (/User already registered/i.test(errorMessage)) return "如果账号已存在，请直接登录；如果账号尚未完成验证，可以重新发送验证邮件。";
+  if (/User already registered/i.test(errorMessage)) {
+    return "如果账号已存在，请直接登录；如果账号尚未完成验证，可以重新发送验证邮件。";
+  }
   if (/Password should be at least/i.test(errorMessage)) return "密码长度至少为 8 位。";
   return errorMessage;
 }
@@ -35,7 +44,41 @@ export default function AuthPanel({ next }: AuthPanelProps) {
   const [resending, setResending] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [forgotMode, setForgotMode] = useState(false);
+  const [resendCooldownUntil, setResendCooldownUntil] = useState(0);
   const { status, user } = useBrowserAuthState(supabase);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedValue = window.localStorage.getItem(RESEND_COOLDOWN_STORAGE_KEY);
+    const parsed = Number(storedValue ?? "0");
+    if (Number.isFinite(parsed) && parsed > Date.now()) {
+      setResendCooldownUntil(parsed);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!resendCooldownUntil || resendCooldownUntil <= Date.now()) return;
+    const timer = window.setInterval(() => {
+      if (Date.now() >= resendCooldownUntil) {
+        setResendCooldownUntil(0);
+        window.localStorage.removeItem(RESEND_COOLDOWN_STORAGE_KEY);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [resendCooldownUntil]);
+
+  const resendCooldownSeconds = resendCooldownUntil > Date.now()
+    ? Math.ceil((resendCooldownUntil - Date.now()) / 1000)
+    : 0;
+
+  function startResendCooldown() {
+    const until = Date.now() + RESEND_COOLDOWN_MS;
+    setResendCooldownUntil(until);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(RESEND_COOLDOWN_STORAGE_KEY, String(until));
+    }
+  }
 
   async function handleAuthSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -84,29 +127,37 @@ export default function AuthPanel({ next }: AuthPanelProps) {
   }
 
   async function handleResendConfirmation() {
-    if (!supabase || !pendingVerificationEmail) return;
+    if (!pendingVerificationEmail || resendCooldownSeconds > 0) return;
 
     setResending(true);
     setError("");
     setMessage("");
 
     try {
-      const emailRedirectTo =
-        typeof window !== "undefined"
-          ? buildAuthCallbackRedirect(window.location.origin, safeNext)
-          : undefined;
-
-      const { error: resendError } = await supabase.auth.resend({
-        type: "signup",
-        email: pendingVerificationEmail,
-        options: emailRedirectTo ? { emailRedirectTo } : undefined,
+      const response = await fetch("/api/auth/resend-confirmation", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          email: pendingVerificationEmail,
+          next: safeNext,
+        }),
       });
 
-      if (resendError) {
-        throw resendError;
+      const payload = (await response.json().catch(() => null)) as ResendResponse | null;
+
+      if (response.status === 429 || payload?.error === "VERIFICATION_EMAIL_RATE_LIMITED") {
+        setError("今天发送次数已达上限，请明天再试。");
+        return;
       }
 
-      setMessage("如果账号已存在且尚未验证，我们会尝试重新发送验证邮件。");
+      if (!response.ok || !payload || payload.ok !== true) {
+        throw new Error("RESEND_CONFIRMATION_FAILED");
+      }
+
+      startResendCooldown();
+      setMessage(payload.message || "如果该邮箱可用，我们会发送验证邮件。");
     } catch {
       setError("暂时无法重新发送验证邮件，请稍后再试。");
     } finally {
@@ -189,7 +240,6 @@ export default function AuthPanel({ next }: AuthPanelProps) {
             注册
           </button>
         </div>
-        <div className="auth-next-note">登录后将返回：{safeNext}</div>
       </div>
 
       {status === "checking" ? (
@@ -207,96 +257,99 @@ export default function AuthPanel({ next }: AuthPanelProps) {
             <a href={safeNext} className="community-button">
               继续前往
             </a>
-            <button type="button" className="community-button--secondary auth-button" onClick={handleSignOut} disabled={loading}>
+            <button
+              type="button"
+              className="community-button--secondary auth-button"
+              onClick={handleSignOut}
+              disabled={loading}
+            >
               {loading ? "处理中..." : "退出登录"}
             </button>
           </div>
         </div>
+      ) : forgotMode ? (
+        <form onSubmit={handleResetPasswordEmail} className="auth-form">
+          <label>
+            <span className="auth-label">邮箱</span>
+            <input
+              className="community-input"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </label>
+          <div className="community-cta-row">
+            <button className="community-button auth-button" type="submit" disabled={sendingReset}>
+              {sendingReset ? "发送中..." : "发送重置邮件"}
+            </button>
+            <button
+              type="button"
+              className="community-button--secondary auth-button"
+              onClick={() => {
+                setForgotMode(false);
+                setError("");
+                setMessage("");
+              }}
+              disabled={sendingReset}
+            >
+              返回登录
+            </button>
+          </div>
+        </form>
       ) : (
-        forgotMode ? (
-          <form onSubmit={handleResetPasswordEmail} className="auth-form">
-            <label>
-              <span className="auth-label">邮箱</span>
-              <input
-                className="community-input"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </label>
-            <div className="community-cta-row">
-              <button className="community-button auth-button" type="submit" disabled={sendingReset}>
-                {sendingReset ? "发送中..." : "发送重置邮件"}
-              </button>
-              <button
-                type="button"
-                className="community-button--secondary auth-button"
-                onClick={() => {
-                  setForgotMode(false);
-                  setError("");
-                  setMessage("");
-                }}
-                disabled={sendingReset}
-              >
-                返回登录
-              </button>
-            </div>
-          </form>
-        ) : (
-          <form onSubmit={handleAuthSubmit} className="auth-form">
-            <label>
-              <span className="auth-label">邮箱</span>
-              <input
-                className="community-input"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </label>
-            <label>
-              <span className="auth-label">密码</span>
-              <input
-                className="community-input"
-                type="password"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                minLength={8}
-                required
-              />
-            </label>
-            <div className="community-cta-row">
-              <button className="community-button auth-button" type="submit" disabled={loading}>
-                {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
-              </button>
-              <button
-                type="button"
-                className="community-button--secondary auth-button"
-                onClick={() => setMode(mode === "login" ? "signup" : "login")}
-                disabled={loading}
-              >
-                {mode === "login" ? "切换到注册" : "切换到登录"}
-              </button>
-            </div>
-            {mode === "login" && (
-              <button
-                type="button"
-                className="auth-forgot-link"
-                onClick={() => {
-                  setForgotMode(true);
-                  setError("");
-                  setMessage("");
-                }}
-              >
-                忘记密码？
-              </button>
-            )}
-          </form>
-        )
+        <form onSubmit={handleAuthSubmit} className="auth-form">
+          <label>
+            <span className="auth-label">邮箱</span>
+            <input
+              className="community-input"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            <span className="auth-label">密码</span>
+            <input
+              className="community-input"
+              type="password"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={8}
+              required
+            />
+          </label>
+          <div className="community-cta-row">
+            <button className="community-button auth-button" type="submit" disabled={loading}>
+              {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
+            </button>
+            <button
+              type="button"
+              className="community-button--secondary auth-button"
+              onClick={() => setMode(mode === "login" ? "signup" : "login")}
+              disabled={loading}
+            >
+              {mode === "login" ? "切换到注册" : "切换到登录"}
+            </button>
+          </div>
+          {mode === "login" ? (
+            <button
+              type="button"
+              className="auth-forgot-link"
+              onClick={() => {
+                setForgotMode(true);
+                setError("");
+                setMessage("");
+              }}
+            >
+              忘记密码？
+            </button>
+          ) : null}
+        </form>
       )}
 
       <div className="auth-feedback">
@@ -304,15 +357,25 @@ export default function AuthPanel({ next }: AuthPanelProps) {
         {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
         {pendingVerificationEmail ? (
           <div className="auth-resend">
-            <span className="auth-next-note">如果账号已存在且尚未验证，可以重新发送验证邮件。</span>
-            <button
-              type="button"
-              className="community-button--secondary auth-button"
-              onClick={handleResendConfirmation}
-              disabled={resending}
-            >
-              {resending ? "发送中..." : "重新发送验证邮件"}
-            </button>
+            <div className="auth-resend__copy">
+              <span className="auth-resend__note">已发送，请检查邮箱或垃圾箱。</span>
+              <span className="auth-resend__hint">如果 QQ 邮箱收不到，建议换用 Gmail / Outlook 再试。</span>
+              <span className="auth-resend__hint">请等待几分钟后再重试。</span>
+            </div>
+            <div className="auth-resend__actions">
+              <button
+                type="button"
+                className="community-button--secondary auth-button"
+                onClick={handleResendConfirmation}
+                disabled={resending || resendCooldownSeconds > 0}
+              >
+                {resending
+                  ? "发送中..."
+                  : resendCooldownSeconds > 0
+                    ? `${resendCooldownSeconds} 秒后可重新发送`
+                    : "重新发送验证邮件"}
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

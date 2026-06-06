@@ -26,6 +26,7 @@ type PopoverPosition = {
 const DESKTOP_POPOVER_WIDTH = 360;
 const MOBILE_VIEWPORT_MARGIN = 12;
 const DESKTOP_VIEWPORT_MARGIN = 16;
+const CLOSE_DELAY_MS = 160;
 
 function formatRelativeTime(value: string): string {
   const date = new Date(value);
@@ -39,6 +40,7 @@ function formatRelativeTime(value: string): string {
   if (diff < day) return `${Math.max(1, Math.floor(diff / hour))} 小时前`;
   return `${Math.max(1, Math.floor(diff / day))} 天前`;
 }
+
 function clampUnreadCount(value: number): string {
   if (value > 99) return "99+";
   return String(Math.max(0, value));
@@ -46,6 +48,25 @@ function clampUnreadCount(value: number): string {
 
 function getInitial(label?: string | null): string {
   return (label?.trim().charAt(0) || "U").toUpperCase();
+}
+
+function supportsHover() {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+function NotificationBellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <path
+        d="M8.25 18.25h7.5m-9-1.5h10.5c-.82-.86-1.5-2.56-1.5-5.03 0-2.2-1.53-4.1-3.75-4.58V6.5a1.5 1.5 0 1 0-3 0v.64C6.78 7.62 5.25 9.52 5.25 11.72c0 2.47-.68 4.17-1.5 5.03Zm3.75 1.5a2.25 2.25 0 0 0 4.5 0"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 export default function HeaderNotifications() {
@@ -64,10 +85,26 @@ export default function HeaderNotifications() {
   });
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleClose = useCallback(() => {
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      setOpen(false);
+      closeTimerRef.current = null;
+    }, CLOSE_DELAY_MS);
+  }, [clearCloseTimer]);
 
   const loadNotifications = useCallback(async () => {
     if (!supabase || status !== "signed_in" || !user) {
@@ -126,7 +163,7 @@ export default function HeaderNotifications() {
     const viewportHeight = window.innerHeight;
     const viewportMargin = viewportWidth <= 720 ? MOBILE_VIEWPORT_MARGIN : DESKTOP_VIEWPORT_MARGIN;
     const width = Math.min(DESKTOP_POPOVER_WIDTH, viewportWidth - viewportMargin * 2);
-    const maxHeight = Math.min(520, Math.max(240, viewportHeight - 96));
+    const maxHeight = Math.min(520, Math.max(240, viewportHeight - 140));
     const popoverHeight = popoverRef.current?.offsetHeight ?? 380;
     const top = Math.max(
       viewportMargin,
@@ -184,6 +221,10 @@ export default function HeaderNotifications() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
+
+  useEffect(() => {
+    return () => clearCloseTimer();
+  }, [clearCloseTimer]);
 
   const unreadCount = notificationsState.status === "ready" ? notificationsState.data.unread_count : 0;
   const notifications = notificationsState.status === "ready" ? notificationsState.data.notifications : [];
@@ -282,7 +323,7 @@ export default function HeaderNotifications() {
     ? createPortal(
         <div
           ref={popoverRef}
-          className={`header-notifications__popover${position.ready ? " is-ready" : ""}`}
+          className={`header-notifications__popover header-notifications__popover--fixed${position.ready ? " is-ready" : ""}`}
           style={{
             position: "fixed",
             top: `${position.top}px`,
@@ -290,6 +331,12 @@ export default function HeaderNotifications() {
             width: `${position.width}px`,
             maxHeight: `${position.maxHeight}px`,
             zIndex: 10045,
+          }}
+          onMouseEnter={() => {
+            if (supportsHover()) clearCloseTimer();
+          }}
+          onMouseLeave={() => {
+            if (supportsHover()) scheduleClose();
           }}
         >
           <div className="header-notifications__head">
@@ -313,8 +360,7 @@ export default function HeaderNotifications() {
               <div className="header-notifications__empty">暂无通知</div>
             ) : (
               notifications.map((notification) => {
-                const actorLabel =
-                  notification.actor.display_name || notification.actor.username || "有人";
+                const actorLabel = notification.actor.display_name || notification.actor.username || "有人";
                 const unread = notification.read_at === null;
 
                 return (
@@ -353,7 +399,21 @@ export default function HeaderNotifications() {
     : null;
 
   return (
-    <div className="header-notifications">
+    <div
+      className="header-notifications"
+      onMouseEnter={() => {
+        if (supportsHover()) {
+          clearCloseTimer();
+          setOpen(true);
+          void loadNotifications();
+        }
+      }}
+      onMouseLeave={() => {
+        if (supportsHover()) {
+          scheduleClose();
+        }
+      }}
+    >
       <button
         ref={triggerRef}
         type="button"
@@ -362,14 +422,16 @@ export default function HeaderNotifications() {
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => {
-          const nextOpen = !open;
-          setOpen(nextOpen);
+          clearCloseTimer();
+          setOpen((current) => !current);
           if (!open) {
             void loadNotifications();
           }
         }}
       >
-        <span className="header-notifications__icon" aria-hidden="true">🔔</span>
+        <span className="header-notifications__icon" aria-hidden="true">
+          <NotificationBellIcon />
+        </span>
         {unreadCount > 0 ? (
           <span className="header-notifications__badge">
             {clampUnreadCount(unreadCount)}

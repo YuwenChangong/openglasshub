@@ -5,7 +5,8 @@ export type ForumRateLimitPurpose =
   | "external_video_upload"
   | "post_create"
   | "comment_create"
-  | "circle_create";
+  | "circle_create"
+  | "verification_email_resend";
 
 export type ForumRateLimitResult =
   | {
@@ -135,6 +136,36 @@ export async function enforceUploadRateLimit(params: {
 
   if (insertError) {
     return backendUnavailableResult(purpose, insertError.message);
+  }
+
+  return { allowed: true, backendAvailable: true };
+}
+
+export async function consumeVerificationEmailResendLimit(params: {
+  client: SupabaseClient;
+  ipHash: string;
+  maxAttempts?: number;
+  windowHours?: number;
+}): Promise<ForumRateLimitResult> {
+  const { client, ipHash, maxAttempts = 5, windowHours = 24 } = params;
+
+  const { data, error } = await client.rpc("consume_verification_email_resend_limit", {
+    input_ip_hash: ipHash,
+    max_attempts: Math.max(1, Math.trunc(maxAttempts)),
+    window_hours: Math.max(1, Math.trunc(windowHours)),
+  });
+
+  if (error) {
+    return backendUnavailableResult("verification_email_resend", error.message);
+  }
+
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row || typeof row.allowed !== "boolean") {
+    return backendUnavailableResult("verification_email_resend", "Invalid resend rate limit response");
+  }
+
+  if (!row.allowed) {
+    return { allowed: false, backendAvailable: true, reason: "RATE_LIMITED" };
   }
 
   return { allowed: true, backendAvailable: true };
