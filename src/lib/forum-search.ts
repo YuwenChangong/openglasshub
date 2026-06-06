@@ -401,12 +401,14 @@ export async function runForumSearch(
                 name: post.circles.name ?? null,
               }
             : null,
-          author: post.profiles
-            ? {
-                username: post.profiles.username ?? null,
-                display_name: post.profiles.display_name ?? null,
-              }
-            : null,
+          author:
+            post.author_id || post.profiles
+              ? {
+                  id: post.author_id ?? null,
+                  username: post.profiles?.username ?? null,
+                  display_name: post.profiles?.display_name ?? null,
+                }
+              : null,
         } satisfies ForumSearchPostResult;
       });
 

@@ -12,6 +12,7 @@ export interface ForumSearchPostResult {
     name: string | null;
   } | null;
   author: {
+    id: string | null;
     username: string | null;
     display_name: string | null;
   } | null;
