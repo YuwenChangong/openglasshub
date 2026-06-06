@@ -1,5 +1,6 @@
 ﻿---
 import HeaderUserMenu from "./HeaderUserMenu";
+import HeaderNotifications from "./HeaderNotifications";
 import GlobalSearchBox from "../community/GlobalSearchBox";
 import { inferNavKey, mainNav, type NavKey } from "../../lib/site-navigation";
 
@@ -38,6 +39,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     </div>
 
     <div class="og-header__auth ogh-header-actions">
+      <HeaderNotifications client:only="react" />
       <HeaderUserMenu next={next} client:only="react" />
     </div>
   </div>

@@ -299,7 +299,10 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
 
     return (
       <div key={comment.id} className={isReply ? "comment-thread comment-thread--reply" : "comment-thread"}>
-        <article className={`glass-card comment-card comment-item${isDeleted ? " comment-deleted" : ""}`}>
+        <article
+          id={`comment-${comment.id}`}
+          className={`glass-card comment-card comment-item${isDeleted ? " comment-deleted" : ""}`}
+        >
           <div className="comment-item-main">
             <div className="comment-meta">
               {authorHref ? (
