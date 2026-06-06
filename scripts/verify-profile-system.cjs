@@ -76,7 +76,7 @@ check("buildProfileHref falls back to id route", profileLinks.includes("return `
 
 const usernamePage = read("src/pages/u/[username].astro");
 check("username route preserves query on canonical redirect", usernamePage.includes("const canonicalUsernameHref = `${canonicalUsernamePath}${Astro.url.search}`;"));
-check("username route renders posts/comments/circles tabs", ["帖子", "评论", "创建的圈子"].every((label) => usernamePage.includes(label)));
+check("username route uses unified profile component", usernamePage.includes("<MyProfilePage client:load"));
 
 const idPage = read("src/pages/users/[id].astro");
 check("id route redirects to username route with query preserved", idPage.includes("return Astro.redirect(`/u/${encodeURIComponent(profile.username)}/${Astro.url.search}`);"));
@@ -84,9 +84,10 @@ check("id route redirects to username route with query preserved", idPage.includ
 console.log("\n--- 3. Edit profile + media ---");
 const editProfile = read("src/components/profile/EditProfileForm.tsx");
 check("edit profile supports avatar uploads", editProfile.includes('kind === "avatar" ? "profile-avatars" : "profile-banners"'));
-check("edit profile supports banner uploads", editProfile.includes('kind === "avatar" ? "头像不能超过 4MB。" : "横幅不能超过 6MB。"'));
+check("edit profile supports new upload size limits", editProfile.includes('kind === "avatar" ? "头像不能超过 5MB。" : "横幅不能超过 8MB。"'));
 check("edit profile validates username format", editProfile.includes("USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;"));
-check("edit profile shows username preview href", editProfile.includes("保存后地址：{usernamePreviewHref}"));
+check("edit profile removes URL preview helper text", !editProfile.includes("保存后地址：") && !editProfile.includes("当前公开主页："));
+check("edit profile delays media save until profile save", editProfile.includes("avatar_url: avatarPending.path ?? profile.avatar_url ?? null"));
 
 const profileMedia = read("src/lib/profile-media.ts");
 check("profile media uses post-media bucket", profileMedia.includes('PROFILE_MEDIA_BUCKET = "post-media"'));
@@ -98,7 +99,8 @@ const myProfile = read("src/components/profile/MyProfilePage.tsx");
 check("my profile has posts tab", myProfile.includes('posts: "帖子"'));
 check("my profile has comments tab", myProfile.includes('comments: "评论"'));
 check("my profile has circles tab", myProfile.includes('circles: "创建的圈子"'));
-check("my profile has saved tab", myProfile.includes('saved: "收藏"'));
+check("my profile has liked tab", myProfile.includes('liked: "我的喜欢"'));
+check("my profile has saved tab", myProfile.includes('saved: "我的收藏"'));
 check("saved posts are gated by availability", myProfile.includes("const [savedPostsAvailable, setSavedPostsAvailable] = useState(false);"));
 
 console.log("\n--- 5. Public activity rules ---");

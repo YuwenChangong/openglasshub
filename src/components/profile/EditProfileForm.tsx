@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { getProfileById, type ProfileRecord } from "../../lib/profile-data";
-import { buildProfileHref } from "../../lib/profile-links";
 import { resolveProfileAvatarUrl, resolveProfileBannerUrl } from "../../lib/profile-media";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
@@ -70,7 +69,6 @@ export default function EditProfileForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [profile, setProfile] = useState<EditableProfile | null>(null);
-  const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [avatarPending, setAvatarPending] = useState<PendingUploadState>({ path: null, previewUrl: null });
@@ -85,19 +83,6 @@ export default function EditProfileForm() {
     ensureToken,
     resetToken,
   } = useInvisibleTurnstile("资料上传验证失败，请刷新后重试。");
-
-  const usernamePreviewHref = useMemo(() => {
-    const trimmedUsername = normalizeUsernameInput(username.trim());
-    if (trimmedUsername) {
-      return buildProfileHref({ id: profile?.id ?? null, username: trimmedUsername }) ?? null;
-    }
-    return profile ? buildProfileHref({ id: profile.id, username: null }) : null;
-  }, [profile, username]);
-
-  const publicProfileHref = useMemo(() => {
-    if (!profile) return null;
-    return buildProfileHref({ id: profile.id, username: profile.username ?? null });
-  }, [profile]);
 
   const avatarDisplayUrl = avatarPending.previewUrl ?? avatarResolvedUrl;
   const bannerDisplayUrl = bannerPending.previewUrl ?? bannerResolvedUrl;
@@ -138,7 +123,6 @@ export default function EditProfileForm() {
 
       if (!cancelled) {
         setProfile(profileRow);
-        setDisplayName(profileRow.display_name ?? "");
         setUsername(profileRow.username ?? "");
         setBio(profileRow.bio ?? "");
         setAvatarResolvedUrl(resolvedAvatarUrl);
@@ -280,18 +264,17 @@ export default function EditProfileForm() {
         applyUsernameNormalization();
       }
 
-      const nextDisplayName = displayName.trim();
       const nextUsername = normalizeUsernameInput(username.trim());
       const nextBio = bio.trim();
       const validationError = validateProfileInput({
-        displayName: nextDisplayName,
+        displayName: nextUsername,
         username: nextUsername,
         bio: nextBio,
       });
       if (validationError) throw new Error(validationError);
 
       const payload = {
-        display_name: nextDisplayName || null,
+        display_name: nextUsername || null,
         username: nextUsername || null,
         bio: nextBio || null,
         avatar_url: avatarPending.path ?? profile.avatar_url ?? null,
@@ -344,7 +327,6 @@ export default function EditProfileForm() {
       ]);
 
       setProfile(data);
-      setDisplayName(data.display_name ?? "");
       setUsername(data.username ?? "");
       setBio(data.bio ?? "");
       setAvatarResolvedUrl(resolvedAvatar);
@@ -408,13 +390,13 @@ export default function EditProfileForm() {
             <img src={avatarDisplayUrl} alt="" className="profile-avatar-image" />
           ) : (
             <span className="community-avatar profile-avatar-fallback" aria-hidden="true">
-              {(displayName.trim().charAt(0) || username.trim().charAt(0) || "U").toUpperCase()}
+              {(username.trim().charAt(0) || profile?.display_name?.trim().charAt(0) || "U").toUpperCase()}
             </span>
           )}
         </div>
         <div className="profile-copy">
           <div className="profile-copy__title">
-            <h1>{displayName.trim() || username.trim() || "我的资料"}</h1>
+            <h1>{username.trim() || profile?.display_name?.trim() || "我的资料"}</h1>
             {profile ? <span className="profile-account-id">ID: {profile.id}</span> : null}
           </div>
           <div className="profile-upload-grid">
@@ -447,16 +429,6 @@ export default function EditProfileForm() {
       </div>
 
       <label className="create-circle-form__field">
-        <span>显示名称</span>
-        <input
-          className="community-input"
-          value={displayName}
-          onChange={(event) => setDisplayName(event.target.value)}
-          maxLength={40}
-        />
-      </label>
-
-      <label className="create-circle-form__field">
         <span>用户名</span>
         <input
           ref={usernameInputRef}
@@ -480,8 +452,6 @@ export default function EditProfileForm() {
           autoCorrect="off"
           spellCheck={false}
         />
-        {usernamePreviewHref ? <span className="community-meta">保存后地址：{usernamePreviewHref}</span> : null}
-        {publicProfileHref ? <span className="community-meta">当前公开主页：{publicProfileHref}</span> : null}
       </label>
 
       <label className="create-circle-form__field">

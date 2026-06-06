@@ -52,7 +52,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!payload) return json({ error: "Invalid JSON payload" }, 400);
 
     const uploadKind = String(payload.upload_kind ?? "").trim();
-    if (!["post_media", "circle_cover"].includes(uploadKind)) {
+    if (!["post_media", "circle_cover", "profile_avatar", "profile_banner"].includes(uploadKind)) {
       return json({ error: "Invalid upload_kind" }, 400);
     }
 

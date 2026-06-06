@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCircleImageMap } from "./circle-images";
 import { buildResolvedPostMediaMap, type ResolvedPostMedia } from "./forum-media";
-import { buildPostLikeCountMap } from "./post-engagement";
+import { buildPostCommentCountMap, buildPostLikeCountMap } from "./post-engagement";
 import { resolveProfileAvatarUrl, resolveProfileBannerUrl } from "./profile-media";
 
 export type ProfileTab = "posts" | "comments" | "circles";
@@ -57,7 +57,7 @@ export type LoadedProfilePage = {
     commentCount: number;
     circleCount: number;
   };
-  posts: Array<ProfilePostRecord & { likeCount: number; mediaResolved: ResolvedPostMedia[] }>;
+  posts: Array<ProfilePostRecord & { likeCount: number; commentCount: number; mediaResolved: ResolvedPostMedia[] }>;
   comments: Array<ProfileCommentRecord & { postTitle: string; postHref: string }>;
   circles: Array<ProfileCircleRecord & { imageUrl: string }>;
 };
@@ -274,10 +274,11 @@ export async function loadProfilePageData(
   const circles = (circlesRaw as ProfileCircleRecord[] | null) ?? [];
 
   const mediaMap = await buildResolvedPostMediaMap(supabase, posts, 60 * 60, r2PublicBaseUrl);
-  const likeCountMap = await buildPostLikeCountMap(
-    supabase,
-    posts.map((post) => post.id),
-  );
+  const postIds = posts.map((post) => post.id);
+  const [likeCountMap, commentCountMap] = await Promise.all([
+    buildPostLikeCountMap(supabase, postIds),
+    buildPostCommentCountMap(supabase, postIds),
+  ]);
   const circleImageMap = await buildCircleImageMap(supabase, circles, 60 * 60);
   const [resolvedAvatarUrl, resolvedBannerUrl] = await Promise.all([
     resolveProfileAvatarUrl(supabase, profile.avatar_url),
@@ -296,6 +297,7 @@ export async function loadProfilePageData(
     posts: posts.map((post) => ({
       ...post,
       likeCount: likeCountMap.get(post.id) ?? 0,
+      commentCount: commentCountMap.get(post.id) ?? 0,
       mediaResolved: mediaMap.get(post.id) ?? [],
     })),
     comments: comments.map((comment) => ({

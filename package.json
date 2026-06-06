@@ -8,7 +8,8 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test:profile-audit": "node scripts/verify-profile-system.cjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.6.13",

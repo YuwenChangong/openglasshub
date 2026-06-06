@@ -63,17 +63,17 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
 
   return compact ? (
     <div className="ogh-auth-inline">
-      <span className="ogh-auth-status">{user.email}</span>
+      <a href="/me/" className="ogh-auth-secondary">我的主页</a>
+      <a href="/me/edit/" className="ogh-auth-secondary">编辑资料</a>
       <button type="button" onClick={handleSignOut} className="ogh-auth-secondary ogh-auth-button-reset" disabled={signingOut}>
         {signingOut ? "退出中..." : "退出"}
       </button>
     </div>
   ) : (
     <div style={{ display: "grid", gap: "0.85rem", padding: "1rem 0" }}>
-      <p style={{ margin: 0, color: "#8892b0" }}>
-        当前已登录：<strong style={{ color: "#e8edf8" }}>{user.email}</strong>
-      </p>
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+        <a href="/me/" style={secondaryButtonStyle}>我的主页</a>
+        <a href="/me/edit/" style={secondaryButtonStyle}>编辑资料</a>
         <a href="/feed/" style={primaryButtonStyle}>进入社区动态</a>
         <a href="/posts/new/" style={secondaryButtonStyle}>去发帖</a>
         <button type="button" onClick={handleSignOut} style={secondaryButtonStyle} disabled={signingOut}>

@@ -6,6 +6,8 @@ interface PostSocialActionsProps {
   postId: string;
   initialLikeCount?: number;
   compact?: boolean;
+  onLikeChange?: (liked: boolean, likeCount: number) => void;
+  onBookmarkChange?: (bookmarked: boolean) => void;
 }
 
 type AuthState = {
@@ -16,6 +18,8 @@ export default function PostSocialActions({
   postId,
   initialLikeCount = 0,
   compact = false,
+  onLikeChange,
+  onBookmarkChange,
 }: PostSocialActionsProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [authState, setAuthState] = useState<AuthState>(null);
@@ -25,7 +29,9 @@ export default function PostSocialActions({
   const [loadingLike, setLoadingLike] = useState(false);
   const [loadingBookmark, setLoadingBookmark] = useState(false);
   const [likeAnimating, setLikeAnimating] = useState(false);
+  const [bookmarkAnimating, setBookmarkAnimating] = useState(false);
   const likeTimerRef = useRef<number | null>(null);
+  const bookmarkTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -60,6 +66,9 @@ export default function PostSocialActions({
       listener.subscription.unsubscribe();
       if (likeTimerRef.current !== null) {
         window.clearTimeout(likeTimerRef.current);
+      }
+      if (bookmarkTimerRef.current !== null) {
+        window.clearTimeout(bookmarkTimerRef.current);
       }
     };
   }, [postId, supabase]);
@@ -109,6 +118,17 @@ export default function PostSocialActions({
     }, 240);
   }
 
+  function triggerBookmarkAnimation() {
+    setBookmarkAnimating(true);
+    if (bookmarkTimerRef.current !== null) {
+      window.clearTimeout(bookmarkTimerRef.current);
+    }
+    bookmarkTimerRef.current = window.setTimeout(() => {
+      setBookmarkAnimating(false);
+      bookmarkTimerRef.current = null;
+    }, 240);
+  }
+
   async function handleToggleLike() {
     if (loadingLike) return;
     if (!authState) {
@@ -143,6 +163,7 @@ export default function PostSocialActions({
           .eq("user_id", authState.userId);
         if (error) throw error;
       }
+      onLikeChange?.(nextLiked, nextCount);
     } catch {
       setLiked(!nextLiked);
       setLikeCount(Math.max(0, likeCount));
@@ -161,6 +182,7 @@ export default function PostSocialActions({
     const nextBookmarked = !bookmarked;
     setLoadingBookmark(true);
     setBookmarked(nextBookmarked);
+    triggerBookmarkAnimation();
 
     try {
       if (nextBookmarked) {
@@ -180,6 +202,7 @@ export default function PostSocialActions({
           .eq("user_id", authState.userId);
         if (error) throw error;
       }
+      onBookmarkChange?.(nextBookmarked);
     } catch {
       setBookmarked(!nextBookmarked);
     } finally {
@@ -207,13 +230,13 @@ export default function PostSocialActions({
 
       <button
         type="button"
-        className={`community-action-button community-action-button--social${bookmarked ? " is-active" : ""}`}
+        className={`community-action-button community-action-button--social${bookmarked ? " is-active is-bookmarked" : ""}`}
         onClick={handleToggleBookmark}
         disabled={loadingBookmark}
         aria-pressed={bookmarked}
         title={bookmarked ? "取消收藏" : "收藏"}
       >
-        <span className="community-bookmark-icon" aria-hidden="true">
+        <span className={`community-bookmark-icon${bookmarkAnimating ? " is-animating" : ""}`} aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
             <path d="M6 3.75h12a1 1 0 0 1 1 1v15.83a.75.75 0 0 1-1.24.58L12 16.3l-5.76 4.86A.75.75 0 0 1 5 20.58V4.75a1 1 0 0 1 1-1Z" />
           </svg>

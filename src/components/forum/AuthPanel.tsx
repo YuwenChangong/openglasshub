@@ -155,9 +155,7 @@ export default function AuthPanel({ next }: AuthPanelProps) {
       setLoading(false);
       return;
     }
-    setUser(null);
-    setMessage("已退出登录。");
-    setLoading(false);
+    window.location.reload();
   }
 
   if (!supabase) {
@@ -198,10 +196,14 @@ export default function AuthPanel({ next }: AuthPanelProps) {
         <div className="auth-alert">正在检查当前登录状态...</div>
       ) : status === "signed_in" && user ? (
         <div className="auth-user-state">
-          <div className="auth-alert auth-alert--success">
-            当前已登录：<strong>{user.email}</strong>
-          </div>
+          <div className="auth-alert auth-alert--success">当前已登录。</div>
           <div className="community-cta-row">
+            <a href="/me/" className="community-button--secondary auth-button">
+              我的主页
+            </a>
+            <a href="/me/edit/" className="community-button--secondary auth-button">
+              编辑资料
+            </a>
             <a href={safeNext} className="community-button">
               继续前往
             </a>

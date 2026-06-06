@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { ResolvedPostMedia } from "../../lib/forum-media";
 import { buildResolvedPostMediaMap } from "../../lib/forum-media";
 import { buildPostCommentCountMap, buildPostLikeCountMap } from "../../lib/post-engagement";
-import { MEDIA_ONLY_SENTINEL, sanitizeBodyForDisplay } from "../../lib/post-body";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import {
@@ -12,7 +11,7 @@ import {
   type ProfilePostRecord,
 } from "../../lib/profile-data";
 import { buildProfileHref } from "../../lib/profile-links";
-import PostSocialActions from "../forum/PostSocialActions";
+import ProfilePostCard from "./ProfilePostCard";
 
 type BookmarkRow = {
   created_at: string;
@@ -29,7 +28,7 @@ type CollectionPost = ProfilePostRecord & {
   mediaResolved: ResolvedPostMedia[];
 };
 
-type OwnTab = "posts" | "comments" | "circles" | "liked" | "saved";
+export type OwnTab = "posts" | "comments" | "circles" | "liked" | "saved";
 
 const TAB_LABELS: Record<OwnTab, string> = {
   posts: "帖子",
@@ -39,24 +38,11 @@ const TAB_LABELS: Record<OwnTab, string> = {
   saved: "我的收藏",
 };
 
-function formatTime(value: string) {
-  try {
-    return new Date(value).toLocaleString("zh-CN");
-  } catch {
-    return value;
-  }
-}
-
-function buildProfileSnippet(body?: string | null) {
-  const text = sanitizeBodyForDisplay(body ?? "").replace(MEDIA_ONLY_SENTINEL, "").trim();
-  if (!text) return "";
-  const chars = Array.from(text);
-  return chars.length > 15 ? `${chars.slice(0, 15).join("")}...` : text;
-}
-
-function pickPreviewMedia(media: ResolvedPostMedia[]) {
-  return media.find((item) => item.kind === "image" || item.kind === "video") ?? media[0] ?? null;
-}
+type MyProfilePageProps = {
+  profileId?: string;
+  initialPageData?: LoadedProfilePage | null;
+  initialTab?: OwnTab;
+};
 
 async function loadCollectionPosts(
   supabase: ReturnType<typeof createBrowserSupabaseClient>,
@@ -95,15 +81,16 @@ async function loadCollectionPosts(
   }));
 }
 
-export default function MyProfilePage() {
+export default function MyProfilePage({ profileId, initialPageData = null, initialTab = "posts" }: MyProfilePageProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialPageData ? false : true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<OwnTab>("posts");
-  const [pageData, setPageData] = useState<LoadedProfilePage | null>(null);
+  const [tab, setTab] = useState<OwnTab>(initialTab);
+  const [pageData, setPageData] = useState<LoadedProfilePage | null>(initialPageData);
   const [likedPosts, setLikedPosts] = useState<CollectionPost[]>([]);
   const [savedPosts, setSavedPosts] = useState<CollectionPost[]>([]);
   const [savedPostsAvailable, setSavedPostsAvailable] = useState(false);
+  const [viewerIsOwner, setViewerIsOwner] = useState(!profileId);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,31 +106,47 @@ export default function MyProfilePage() {
 
       const { data } = await supabase.auth.getSession();
       const session = data.session;
-      if (!session?.user) {
+      const viewerId = session?.user?.id ?? null;
+      const targetProfileId = profileId ?? viewerId;
+
+      if (!targetProfileId) {
         window.location.replace(buildLoginHref("/me/"));
         return;
       }
 
-      const profile = await getProfileById(supabase, session.user.id);
+      const ownsProfile = Boolean(viewerId && viewerId === targetProfileId);
+      if (!cancelled) {
+        setViewerIsOwner(ownsProfile);
+      }
+
+      const profile = await getProfileById(supabase, targetProfileId);
       if (!profile) {
         if (!cancelled) {
           setLoading(false);
-          setError("当前账号还没有可用的个人资料。");
+          setError("当前用户还没有可用的个人资料。");
         }
         return;
       }
 
       const r2PublicBaseUrl = (import.meta.env.PUBLIC_R2_PUBLIC_BASE_URL as string | undefined) || undefined;
 
+      const profilePagePromise = loadProfilePageData(supabase, profile, r2PublicBaseUrl);
+      const likedVotesPromise = ownsProfile && viewerId
+        ? supabase.from("post_votes").select("post_id").eq("user_id", viewerId).eq("vote", 1)
+        : Promise.resolve({ data: [] as VoteRow[] | null, error: null });
+      const bookmarksPromise = ownsProfile && viewerId
+        ? supabase
+            .from("bookmarks")
+            .select("created_at,post_id")
+            .eq("user_id", viewerId)
+            .order("created_at", { ascending: false })
+            .limit(20)
+        : Promise.resolve({ data: [] as BookmarkRow[] | null, error: null });
+
       const [profilePage, likedVotesResult, bookmarksResult] = await Promise.all([
-        loadProfilePageData(supabase, profile, r2PublicBaseUrl),
-        supabase.from("post_votes").select("post_id").eq("user_id", session.user.id).eq("vote", 1),
-        supabase
-          .from("bookmarks")
-          .select("created_at,post_id")
-          .eq("user_id", session.user.id)
-          .order("created_at", { ascending: false })
-          .limit(20),
+        profilePagePromise,
+        likedVotesPromise,
+        bookmarksPromise,
       ]);
 
       if (cancelled) return;
@@ -155,18 +158,20 @@ export default function MyProfilePage() {
         .map((item) => item.post_id)
         .filter(Boolean);
 
-      const [liked, saved] = await Promise.all([
-        loadCollectionPosts(supabase, likedPostIds, r2PublicBaseUrl),
-        loadCollectionPosts(supabase, savedPostIds, r2PublicBaseUrl),
-      ]);
+      const [liked, saved] = ownsProfile
+        ? await Promise.all([
+            loadCollectionPosts(supabase, likedPostIds, r2PublicBaseUrl),
+            loadCollectionPosts(supabase, savedPostIds, r2PublicBaseUrl),
+          ])
+        : [[], []];
 
       if (cancelled) return;
 
       setPageData(profilePage);
       setLikedPosts(liked);
 
-      const bookmarksAvailable = !bookmarksResult.error;
-      if (bookmarksResult.error) {
+      const bookmarksAvailable = ownsProfile && !bookmarksResult.error;
+      if (ownsProfile && bookmarksResult.error) {
         console.warn("[profile] bookmarks unavailable", {
           message: bookmarksResult.error.message,
         });
@@ -186,13 +191,19 @@ export default function MyProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [supabase]);
+  }, [initialPageData, profileId, supabase]);
 
   useEffect(() => {
     if (!savedPostsAvailable && tab === "saved") {
       setTab("posts");
     }
   }, [savedPostsAvailable, tab]);
+
+  useEffect(() => {
+    if (!viewerIsOwner && (tab === "liked" || tab === "saved")) {
+      setTab("posts");
+    }
+  }, [tab, viewerIsOwner]);
 
   function syncLikeState(postId: string, liked: boolean, likeCount: number, sourcePost?: CollectionPost) {
     const applyLikeCount = (posts: CollectionPost[]) =>
@@ -253,62 +264,30 @@ export default function MyProfilePage() {
 
   const displayName = pageData.profile.display_name || pageData.profile.username || "社区成员";
   const publicHref = buildProfileHref(pageData.profile) ?? "/feed/";
-  const visibleTabs = savedPostsAvailable
-    ? (["posts", "comments", "circles", "liked", "saved"] as OwnTab[])
-    : (["posts", "comments", "circles", "liked"] as OwnTab[]);
+  const visibleTabs = viewerIsOwner
+    ? savedPostsAvailable
+      ? (["posts", "comments", "circles", "liked", "saved"] as OwnTab[])
+      : (["posts", "comments", "circles", "liked"] as OwnTab[])
+    : (["posts", "comments", "circles"] as OwnTab[]);
 
-  const renderPostCard = (post: CollectionPost, extraMeta?: string) => {
-    const previewMedia = pickPreviewMedia(post.mediaResolved);
-    const previewImageUrl =
-      previewMedia?.kind === "video" ? previewMedia.previewUrl ?? previewMedia.displayUrl : previewMedia?.displayUrl;
-    const snippet = buildProfileSnippet(post.body);
-
-    return (
-      <article key={`${post.id}-${extraMeta ?? "default"}`} className="community-post-card profile-post-card profile-post-card--rich">
-        <div className="community-post-meta-row">
-          <div className="community-post-meta">
-            {post.circles?.slug && post.circles?.name ? (
-              <a href={`/circles/${post.circles.slug}/`} className="community-post-meta__link">
-                {post.circles.name}
-              </a>
-            ) : null}
-            <a href={`/posts/${post.id}/`} className="community-post-meta__link">
-              {post.title}
-            </a>
-            <span>{formatTime(post.created_at)}</span>
-            {extraMeta ? <span>{extraMeta}</span> : null}
-          </div>
-        </div>
-
-        {previewImageUrl ? (
-          <a href={`/posts/${post.id}/`} className="profile-post-card__media" aria-label={`${post.title} 预览`}>
-            <img src={previewImageUrl} alt="" loading="lazy" />
-          </a>
-        ) : null}
-
-        {snippet ? <p className="community-post-excerpt">{snippet}</p> : null}
-
-        <div className="profile-post-card__metrics">
-          <span>点赞 {post.likeCount}</span>
-          <span>评论 {post.commentCount}</span>
-        </div>
-
-        <div className="community-post-actions">
-          <a href={`/posts/${post.id}/`} className="community-action-button community-action-button--muted">
-            查看帖子
-          </a>
-          <PostSocialActions
-            postId={post.id}
-            initialLikeCount={post.likeCount}
-            compact={true}
-            onLikeChange={(liked, likeCount) => syncLikeState(post.id, liked, likeCount, post)}
-            onBookmarkChange={(bookmarked) => syncBookmarkState(post.id, bookmarked, post)}
-          />
-        </div>
-        <div className="community-post-divider" aria-hidden="true"></div>
-      </article>
-    );
-  };
+  const renderPostCard = (post: CollectionPost, extraMeta?: string) => (
+    <ProfilePostCard
+      key={`${post.id}-${extraMeta ?? "default"}`}
+      id={post.id}
+      title={post.title}
+      body={post.body}
+      createdAt={post.created_at}
+      circleName={post.circles?.name ?? null}
+      circleSlug={post.circles?.slug ?? null}
+      likeCount={post.likeCount}
+      commentCount={post.commentCount}
+      mediaResolved={post.mediaResolved}
+      extraMeta={extraMeta}
+      interactive={true}
+      onLikeChange={(liked, likeCount) => syncLikeState(post.id, liked, likeCount, post)}
+      onBookmarkChange={(bookmarked) => syncBookmarkState(post.id, bookmarked, post)}
+    />
+  );
 
   return (
     <div className="profile-layout">
@@ -345,23 +324,27 @@ export default function MyProfilePage() {
               <span>
                 <strong>{pageData.stats.circleCount}</strong> 圈子
               </span>
-              <span>
-                <strong>{likedPosts.length}</strong> 喜欢
-              </span>
-              {savedPostsAvailable ? (
+              {viewerIsOwner ? (
+                <span>
+                  <strong>{likedPosts.length}</strong> 喜欢
+                </span>
+              ) : null}
+              {viewerIsOwner && savedPostsAvailable ? (
                 <span>
                   <strong>{savedPosts.length}</strong> 收藏
                 </span>
               ) : null}
             </div>
-            <div className="community-inline-links profile-owner-actions">
-              <a href="/me/edit/" className="community-inline-link community-inline-link--active">
-                编辑资料
-              </a>
-              <a href={publicHref} className="community-inline-link">
-                公开主页
-              </a>
-            </div>
+            {viewerIsOwner ? (
+              <div className="community-inline-links profile-owner-actions">
+                <a href="/me/edit/" className="community-inline-link community-inline-link--active">
+                  编辑资料
+                </a>
+                <a href={publicHref} className="community-inline-link">
+                  公开主页
+                </a>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
