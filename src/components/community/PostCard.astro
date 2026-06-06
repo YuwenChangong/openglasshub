@@ -20,9 +20,10 @@ interface Props {
   mediaLabel?: string;
   media?: ResolvedPostMedia[];
   likeCount?: number;
+  commentCount?: number;
 }
 
-const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, authorId, authorUsername, timestamp, mediaLabel, media = [], likeCount = 0 } = Astro.props;
+const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, authorId, authorUsername, timestamp, mediaLabel, media = [], likeCount = 0, commentCount = 0 } = Astro.props;
 const displayName = authorName?.trim() || "社区成员";
 const postHref = `/posts/${id}/`;
 const displayExcerpt = sanitizeBodyForDisplay(excerpt ?? "");
@@ -50,7 +51,7 @@ const authorHref = buildProfileHref({ id: authorId, username: authorUsername });
   {media.length > 0 ? <PostMediaPreview media={media} href={postHref} mode="feed" maxItems={4} /> : mediaLabel ? <div class="community-media-placeholder">{mediaLabel}</div> : null}
 
   <div class="community-post-actions">
-    <a class="community-action-button" href={`${postHref}#comments`}>评论</a>
+    <a class="community-action-button" href={`${postHref}#comments`}>评论{commentCount > 0 ? ` ${commentCount}` : ""}</a>
     <PostSocialActions postId={id} initialLikeCount={likeCount} compact={true} client:visible />
     <SharePostButton postPath={postHref} client:visible />
     <div class="community-post-actions__spacer" />

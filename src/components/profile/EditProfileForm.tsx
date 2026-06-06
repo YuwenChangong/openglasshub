@@ -8,12 +8,17 @@ import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { useInvisibleTurnstile } from "../forum/useInvisibleTurnstile";
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-const MAX_AVATAR_SIZE = 4 * 1024 * 1024;
-const MAX_BANNER_SIZE = 6 * 1024 * 1024;
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
+const MAX_BANNER_SIZE = 8 * 1024 * 1024;
 const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 
 type EditableProfile = ProfileRecord & {
   banner_url?: string | null;
+};
+
+type PendingUploadState = {
+  path: string | null;
+  previewUrl: string | null;
 };
 
 function normalizeFileName(fileName: string) {
@@ -25,10 +30,7 @@ function normalizeFileName(fileName: string) {
 }
 
 function normalizeUsernameInput(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, "")
-    .slice(0, 30);
+  return value.toLowerCase().replace(/[^a-z0-9_]+/g, "").slice(0, 30);
 }
 
 function mapProfileError(message: string) {
@@ -60,16 +62,21 @@ export default function EditProfileForm() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
+  const usernameInputRef = useRef<HTMLInputElement | null>(null);
+  const usernameComposingRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingKind, setUploadingKind] = useState<"avatar" | "banner" | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [profile, setProfile] = useState<EditableProfile | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [avatarPending, setAvatarPending] = useState<PendingUploadState>({ path: null, previewUrl: null });
+  const [bannerPending, setBannerPending] = useState<PendingUploadState>({ path: null, previewUrl: null });
+  const [avatarResolvedUrl, setAvatarResolvedUrl] = useState<string | null>(null);
+  const [bannerResolvedUrl, setBannerResolvedUrl] = useState<string | null>(null);
   const {
     siteKeyEnabled,
     ready: turnstileReady,
@@ -78,20 +85,27 @@ export default function EditProfileForm() {
     ensureToken,
     resetToken,
   } = useInvisibleTurnstile("资料上传验证失败，请刷新后重试。");
+
   const usernamePreviewHref = useMemo(() => {
-    const trimmedUsername = username.trim();
+    const trimmedUsername = normalizeUsernameInput(username.trim());
     if (trimmedUsername) {
       return buildProfileHref({ id: profile?.id ?? null, username: trimmedUsername }) ?? null;
     }
     return profile ? buildProfileHref({ id: profile.id, username: null }) : null;
   }, [profile, username]);
+
   const publicProfileHref = useMemo(() => {
     if (!profile) return null;
     return buildProfileHref({ id: profile.id, username: profile.username ?? null });
   }, [profile]);
 
+  const avatarDisplayUrl = avatarPending.previewUrl ?? avatarResolvedUrl;
+  const bannerDisplayUrl = bannerPending.previewUrl ?? bannerResolvedUrl;
+  const isBusy = saving || uploadingKind !== null;
+
   useEffect(() => {
     let cancelled = false;
+
     async function load() {
       if (!supabase) {
         if (!cancelled) {
@@ -127,8 +141,8 @@ export default function EditProfileForm() {
         setDisplayName(profileRow.display_name ?? "");
         setUsername(profileRow.username ?? "");
         setBio(profileRow.bio ?? "");
-        setAvatarPreview(resolvedAvatarUrl);
-        setBannerPreview(resolvedBannerUrl);
+        setAvatarResolvedUrl(resolvedAvatarUrl);
+        setBannerResolvedUrl(resolvedBannerUrl);
         setLoading(false);
       }
     }
@@ -144,9 +158,21 @@ export default function EditProfileForm() {
     };
   }, [supabase]);
 
+  useEffect(() => {
+    return () => {
+      if (avatarPending.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(avatarPending.previewUrl);
+      if (bannerPending.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(bannerPending.previewUrl);
+    };
+  }, [avatarPending.previewUrl, bannerPending.previewUrl]);
+
   async function getSessionToken() {
     const { data } = await supabase.auth.getSession();
     return data.session?.access_token ?? "";
+  }
+
+  async function removeStorageObject(path: string | null | undefined) {
+    if (!supabase || !path || !/^(profile-avatars|profile-banners)\//.test(path)) return;
+    await supabase.storage.from("post-media").remove([path]).catch(() => undefined);
   }
 
   async function guardUpload(token: string, sizeBytes: number, uploadKind: "profile_avatar" | "profile_banner") {
@@ -166,7 +192,9 @@ export default function EditProfileForm() {
 
     const payload = (await response.json().catch(() => null)) as { error?: string; code?: string } | null;
     if (!response.ok) {
-      throw new Error(payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `上传校验失败 (${response.status})`);
+      throw new Error(
+        payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `上传校验失败 (${response.status})`,
+      );
     }
   }
 
@@ -180,7 +208,7 @@ export default function EditProfileForm() {
 
     const sizeLimit = kind === "avatar" ? MAX_AVATAR_SIZE : MAX_BANNER_SIZE;
     if (!ACCEPTED_IMAGE_TYPES.has(file.type)) throw new Error("仅支持 jpg / png / webp / gif。");
-    if (file.size > sizeLimit) throw new Error(kind === "avatar" ? "头像不能超过 4MB。" : "横幅不能超过 6MB。");
+    if (file.size > sizeLimit) throw new Error(kind === "avatar" ? "头像不能超过 5MB。" : "横幅不能超过 8MB。");
 
     const objectPath = `${kind === "avatar" ? "profile-avatars" : "profile-banners"}/${profile.id}/${Date.now()}-${normalizeFileName(file.name)}`;
     await guardUpload(token, file.size, kind === "avatar" ? "profile_avatar" : "profile_banner");
@@ -190,72 +218,84 @@ export default function EditProfileForm() {
   }
 
   async function handleImageUpload(kind: "avatar" | "banner", file: File | null) {
-    if (!file || !profile || saving) return;
-    setSaving(true);
+    if (!file || !profile || isBusy) return;
+    setUploadingKind(kind);
     setError("");
     setSuccess("");
 
     let nextPath: string | null = null;
-    const previousPath = kind === "avatar" ? profile.avatar_url : profile.banner_url ?? null;
+    const previousPendingPath = kind === "avatar" ? avatarPending.path : bannerPending.path;
+    const previousPreviewUrl = kind === "avatar" ? avatarPending.previewUrl : bannerPending.previewUrl;
 
     try {
       nextPath = await uploadProfileImage(file, kind);
       if (!nextPath) return;
 
-      const patch: Record<string, string | null> =
-        kind === "avatar" ? { avatar_url: nextPath } : { banner_url: nextPath };
-
-      const { data, error: updateError } = await supabase
-        .from("profiles")
-        .update(patch)
-        .eq("id", profile.id)
-        .select("id, username, display_name, avatar_url, bio, role, created_at, banner_url")
-        .single();
-
-      if (updateError || !data) throw updateError ?? new Error("更新资料失败。");
-
-      const updated = data as EditableProfile;
-      setProfile(updated);
-
+      const nextPreviewUrl = URL.createObjectURL(file);
       if (kind === "avatar") {
-        setAvatarPreview(await resolveProfileAvatarUrl(supabase, updated.avatar_url));
+        setAvatarPending({ path: nextPath, previewUrl: nextPreviewUrl });
       } else {
-        setBannerPreview(await resolveProfileBannerUrl(supabase, updated.banner_url ?? null));
+        setBannerPending({ path: nextPath, previewUrl: nextPreviewUrl });
       }
 
-      if (previousPath && previousPath !== nextPath && /^(profile-avatars|profile-banners)\//.test(previousPath)) {
-        await supabase.storage.from("post-media").remove([previousPath]).catch(() => undefined);
+      if (previousPreviewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(previousPreviewUrl);
+      }
+      if (previousPendingPath && previousPendingPath !== nextPath) {
+        await removeStorageObject(previousPendingPath);
       }
 
-      setSuccess(kind === "avatar" ? "头像已更新。" : "横幅已更新。");
+      setSuccess(kind === "avatar" ? "头像已上传，记得保存资料。" : "横幅已上传，记得保存资料。");
     } catch (requestError) {
       if (nextPath) {
-        await supabase.storage.from("post-media").remove([nextPath]).catch(() => undefined);
+        await removeStorageObject(nextPath);
       }
       setError(mapProfileError(requestError instanceof Error ? requestError.message : "上传失败。"));
       resetToken();
     } finally {
-      setSaving(false);
+      setUploadingKind(null);
       if (kind === "avatar" && avatarInputRef.current) avatarInputRef.current.value = "";
       if (kind === "banner" && bannerInputRef.current) bannerInputRef.current.value = "";
     }
   }
 
+  function applyUsernameNormalization(rawValue?: string) {
+    if (!usernameInputRef.current) return;
+    const source = rawValue ?? usernameInputRef.current.value;
+    const normalized = normalizeUsernameInput(source);
+    if (normalized !== source) {
+      usernameInputRef.current.value = normalized;
+    }
+    setUsername(normalized);
+  }
+
   async function handleSaveProfile() {
-    if (!profile || !supabase || saving) return;
+    if (!profile || !supabase || isBusy) return;
     setSaving(true);
     setError("");
     setSuccess("");
 
     try {
-      const validationError = validateProfileInput({ displayName, username, bio });
+      if (!usernameComposingRef.current) {
+        applyUsernameNormalization();
+      }
+
+      const nextDisplayName = displayName.trim();
+      const nextUsername = normalizeUsernameInput(username.trim());
+      const nextBio = bio.trim();
+      const validationError = validateProfileInput({
+        displayName: nextDisplayName,
+        username: nextUsername,
+        bio: nextBio,
+      });
       if (validationError) throw new Error(validationError);
 
-      const nextUsername = username.trim();
       const payload = {
-        display_name: displayName.trim() || null,
+        display_name: nextDisplayName || null,
         username: nextUsername || null,
-        bio: bio.trim() || null,
+        bio: nextBio || null,
+        avatar_url: avatarPending.path ?? profile.avatar_url ?? null,
+        banner_url: bannerPending.path ?? profile.banner_url ?? null,
       };
 
       const withBannerResult = await supabase
@@ -268,10 +308,15 @@ export default function EditProfileForm() {
       let data = withBannerResult.data as EditableProfile | null;
       let updateError = withBannerResult.error;
 
-      if (updateError && /banner_url/i.test(updateError.message)) {
+      if (updateError && /banner_url/i.test(updateError.message) && !bannerPending.path) {
         const fallbackResult = await supabase
           .from("profiles")
-          .update(payload)
+          .update({
+            display_name: payload.display_name,
+            username: payload.username,
+            bio: payload.bio,
+            avatar_url: payload.avatar_url,
+          })
           .eq("id", profile.id)
           .select("id, username, display_name, avatar_url, bio, role, created_at")
           .single();
@@ -281,10 +326,37 @@ export default function EditProfileForm() {
 
       if (updateError || !data) throw updateError ?? new Error("保存资料失败。");
 
+      const previousAvatarPath = profile.avatar_url ?? null;
+      const previousBannerPath = profile.banner_url ?? null;
+      const finalAvatarPath = data.avatar_url ?? null;
+      const finalBannerPath = data.banner_url ?? null;
+
+      if (avatarPending.path && previousAvatarPath && previousAvatarPath !== finalAvatarPath) {
+        await removeStorageObject(previousAvatarPath);
+      }
+      if (bannerPending.path && previousBannerPath && previousBannerPath !== finalBannerPath) {
+        await removeStorageObject(previousBannerPath);
+      }
+
+      const [resolvedAvatar, resolvedBanner] = await Promise.all([
+        resolveProfileAvatarUrl(supabase, finalAvatarPath),
+        resolveProfileBannerUrl(supabase, finalBannerPath),
+      ]);
+
       setProfile(data);
       setDisplayName(data.display_name ?? "");
       setUsername(data.username ?? "");
       setBio(data.bio ?? "");
+      setAvatarResolvedUrl(resolvedAvatar);
+      setBannerResolvedUrl(resolvedBanner);
+      setAvatarPending((current) => {
+        if (current.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(current.previewUrl);
+        return { path: null, previewUrl: null };
+      });
+      setBannerPending((current) => {
+        if (current.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(current.previewUrl);
+        return { path: null, previewUrl: null };
+      });
       setSuccess("个人资料已保存。");
     } catch (requestError) {
       setError(mapProfileError(requestError instanceof Error ? requestError.message : "保存资料失败。"));
@@ -312,27 +384,28 @@ export default function EditProfileForm() {
   }
 
   return (
-    <section className="community-surface community-surface--padded profile-shell">
-      <div className="community-stream-head">
+    <section className="community-surface community-surface--padded profile-shell profile-editor">
+      <div className="community-stream-head profile-editor__head">
         <div>
           <h2>编辑资料</h2>
         </div>
         <div className="community-inline-links">
-          <a href="/me/" className="community-inline-link">返回我的主页</a>
-          {publicProfileHref ? <a href={publicProfileHref} className="community-inline-link">公开主页</a> : null}
+          <a href="/me/" className="community-inline-link">
+            返回我的主页
+          </a>
         </div>
       </div>
 
-      {bannerPreview ? (
+      {bannerDisplayUrl ? (
         <div className="profile-banner">
-          <img src={bannerPreview} alt="" className="profile-banner__image" />
+          <img src={bannerDisplayUrl} alt="" className="profile-banner__image" />
         </div>
       ) : null}
 
-      <div className="profile-head">
+      <div className="profile-head profile-head--editor">
         <div className="profile-avatar-wrap">
-          {avatarPreview ? (
-            <img src={avatarPreview} alt="" className="profile-avatar-image" />
+          {avatarDisplayUrl ? (
+            <img src={avatarDisplayUrl} alt="" className="profile-avatar-image" />
           ) : (
             <span className="community-avatar profile-avatar-fallback" aria-hidden="true">
               {(displayName.trim().charAt(0) || username.trim().charAt(0) || "U").toUpperCase()}
@@ -340,14 +413,34 @@ export default function EditProfileForm() {
           )}
         </div>
         <div className="profile-copy">
+          <div className="profile-copy__title">
+            <h1>{displayName.trim() || username.trim() || "我的资料"}</h1>
+            {profile ? <span className="profile-account-id">ID: {profile.id}</span> : null}
+          </div>
           <div className="profile-upload-grid">
             <label className="profile-upload-field">
               <span className="community-meta">头像</span>
-              <input ref={avatarInputRef} className="community-input" type="file" accept="image/*" onChange={(event) => void handleImageUpload("avatar", event.target.files?.[0] ?? null)} disabled={saving} />
+              <input
+                ref={avatarInputRef}
+                className="community-input"
+                type="file"
+                accept="image/*"
+                onChange={(event) => void handleImageUpload("avatar", event.target.files?.[0] ?? null)}
+                disabled={isBusy}
+              />
+              <small className="community-meta">支持 jpg / png / webp / gif，最大 5MB</small>
             </label>
             <label className="profile-upload-field">
               <span className="community-meta">横幅</span>
-              <input ref={bannerInputRef} className="community-input" type="file" accept="image/*" onChange={(event) => void handleImageUpload("banner", event.target.files?.[0] ?? null)} disabled={saving} />
+              <input
+                ref={bannerInputRef}
+                className="community-input"
+                type="file"
+                accept="image/*"
+                onChange={(event) => void handleImageUpload("banner", event.target.files?.[0] ?? null)}
+                disabled={isBusy}
+              />
+              <small className="community-meta">支持 jpg / png / webp / gif，最大 8MB</small>
             </label>
           </div>
         </div>
@@ -355,22 +448,50 @@ export default function EditProfileForm() {
 
       <label className="create-circle-form__field">
         <span>显示名称</span>
-        <input className="community-input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={40} />
+        <input
+          className="community-input"
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+          maxLength={40}
+        />
       </label>
 
       <label className="create-circle-form__field">
         <span>用户名</span>
-        <input className="community-input" value={username} onChange={(event) => setUsername(normalizeUsernameInput(event.target.value))} maxLength={30} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
-        {usernamePreviewHref ? (
-          <span className="community-meta">
-            保存后地址：{usernamePreviewHref}
-          </span>
-        ) : null}
+        <input
+          ref={usernameInputRef}
+          className="community-input"
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
+          onCompositionStart={() => {
+            usernameComposingRef.current = true;
+          }}
+          onCompositionEnd={(event) => {
+            usernameComposingRef.current = false;
+            applyUsernameNormalization(event.currentTarget.value);
+          }}
+          onBlur={() => {
+            if (!usernameComposingRef.current) {
+              applyUsernameNormalization();
+            }
+          }}
+          maxLength={30}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+        />
+        {usernamePreviewHref ? <span className="community-meta">保存后地址：{usernamePreviewHref}</span> : null}
+        {publicProfileHref ? <span className="community-meta">当前公开主页：{publicProfileHref}</span> : null}
       </label>
 
       <label className="create-circle-form__field">
         <span>个人简介</span>
-        <textarea className="community-input community-input--textarea" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={240} />
+        <textarea
+          className="community-input community-input--textarea"
+          value={bio}
+          onChange={(event) => setBio(event.target.value)}
+          maxLength={240}
+        />
       </label>
 
       {error ? <span className="inline-error">{error}</span> : null}
@@ -380,7 +501,7 @@ export default function EditProfileForm() {
       <div ref={containerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />
 
       <div className="community-cta-row">
-        <button type="button" className="community-button" onClick={() => void handleSaveProfile()} disabled={saving}>
+        <button type="button" className="community-button" onClick={() => void handleSaveProfile()} disabled={isBusy}>
           {saving ? "保存中..." : "保存资料"}
         </button>
       </div>

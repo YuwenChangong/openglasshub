@@ -34,22 +34,8 @@ function shortenUserId(value?: string | null) {
   return value.length <= 12 ? value : `${value.slice(0, 6)}…${value.slice(-4)}`;
 }
 
-function getDisplayName(summary: HeaderSummary | null, fallbackUserId?: string | null) {
-  return (
-    summary?.profile.display_name?.trim() ||
-    summary?.profile.username?.trim() ||
-    shortenUserId(summary?.profile.id ?? fallbackUserId)
-  );
-}
-
 function getInitial(value: string) {
   return (value.trim().charAt(0) || "U").toUpperCase();
-}
-
-function getRoleLabel(role?: string | null) {
-  if (role === "admin") return "管理员";
-  if (role === "moderator") return "版主";
-  return null;
 }
 
 export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
@@ -145,18 +131,25 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
   if (status !== "signed_in" || !user) {
     return (
       <div className="ogh-auth-inline">
-        <a href={buildLoginHref(safeNext)} className="ogh-login-button">登录</a>
-        <a href={buildLoginHref(safeNext)} className="ogh-register-button">注册</a>
+        <a href={buildLoginHref(safeNext)} className="ogh-login-button">
+          登录
+        </a>
+        <a href={buildLoginHref(safeNext)} className="ogh-register-button">
+          注册
+        </a>
       </div>
     );
   }
 
   const summary = summaryState.status === "ready" ? summaryState.data : null;
-  const displayName = getDisplayName(summary, user.id);
+  const displayName =
+    summary?.profile.display_name?.trim() ||
+    summary?.profile.username?.trim() ||
+    (summaryState.status === "ready" ? shortenUserId(summary?.profile.id ?? user.id) : "我的账号");
   const avatarUrl = summary?.profile.avatar_resolved_url ?? null;
   const profileHref = summary?.profile.profile_href ?? `/users/${encodeURIComponent(user.id)}/`;
   const username = summary?.profile.username?.trim() || null;
-  const roleLabel = getRoleLabel(summary?.profile.role);
+  const identityId = summary?.profile.id ?? user.id;
   const postCount = summary?.stats.post_count ?? 0;
   const receivedLikeCount = Math.max(0, summary?.stats.received_like_count ?? 0);
 
@@ -177,10 +170,16 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
             {getInitial(displayName)}
           </span>
         )}
-        <span className="header-user-menu__trigger-copy">
+        <span
+          className={`header-user-menu__trigger-copy${
+            summaryState.status !== "ready" ? " header-user-menu__trigger-copy--loading" : ""
+          }`}
+        >
           <strong>{displayName}</strong>
         </span>
-        <span className="header-user-menu__chevron" aria-hidden="true">⌄</span>
+        <span className="header-user-menu__chevron" aria-hidden="true">
+          ▾
+        </span>
       </button>
 
       {open ? (
@@ -189,16 +188,19 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
             {avatarUrl ? (
               <img src={avatarUrl} alt="" className="header-user-menu__profile-avatar" />
             ) : (
-              <span className="header-user-menu__profile-avatar header-user-menu__profile-avatar--fallback" aria-hidden="true">
+              <span
+                className="header-user-menu__profile-avatar header-user-menu__profile-avatar--fallback"
+                aria-hidden="true"
+              >
                 {getInitial(displayName)}
               </span>
             )}
             <div className="header-user-menu__identity">
               <div className="header-user-menu__identity-top">
                 <strong>{displayName}</strong>
-                {roleLabel ? <span className="header-user-menu__role">{roleLabel}</span> : null}
               </div>
               {username ? <span>@{username}</span> : null}
+              <span className="header-user-menu__identity-id">ID: {identityId}</span>
             </div>
           </div>
 

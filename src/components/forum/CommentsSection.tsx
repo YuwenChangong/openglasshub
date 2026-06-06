@@ -29,6 +29,7 @@ interface Comment {
 
 interface CommentsSectionProps {
   postId: string;
+  postAuthorId?: string;
   refreshKey?: number;
   loginHref?: string;
 }
@@ -53,11 +54,7 @@ function authorDisplayName(author: Author | null): string {
   return author?.display_name || author?.username || "社区成员";
 }
 
-function isStaff(author: Author | null): boolean {
-  return author?.role === "moderator" || author?.role === "admin";
-}
-
-export default function CommentsSection({ postId, refreshKey, loginHref }: CommentsSectionProps) {
+export default function CommentsSection({ postId, postAuthorId, refreshKey, loginHref }: CommentsSectionProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -298,6 +295,7 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
       ? buildProfileHref({ id: comment.author_id, username: comment.author?.username ?? null })
       : null;
     const showReplyForm = replyingTo === comment.id;
+    const isPostAuthor = Boolean(postAuthorId) && comment.author_id === postAuthorId;
 
     return (
       <div key={comment.id} className={isReply ? "comment-thread comment-thread--reply" : "comment-thread"}>
@@ -305,16 +303,16 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
           <div className="comment-item-main">
             <div className="comment-meta">
               {authorHref ? (
-                <a href={authorHref} className={`comment-author comment-author-link${isStaff(comment.author) ? " comment-author--staff" : ""}`}>
+                <a href={authorHref} className={`comment-author comment-author-link${isPostAuthor ? " comment-author--author" : ""}`}>
                   {authorName}
                 </a>
               ) : (
-                <span className={`comment-author${isStaff(comment.author) ? " comment-author--staff" : ""}`}>
+                <span className={`comment-author${isPostAuthor ? " comment-author--author" : ""}`}>
                   {authorName}
                 </span>
               )}
-              {isStaff(comment.author) && !isDeleted ? (
-                <span className="comment-staff-badge">{comment.author?.role === "admin" ? "管理员" : "版主"}</span>
+              {isPostAuthor && !isDeleted ? (
+                <span className="comment-staff-badge">作者</span>
               ) : null}
               <span className="comment-time">{formatDate(comment.created_at)}</span>
               {comment.updated_at && comment.updated_at !== comment.created_at && !isDeleted ? (

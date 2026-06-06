@@ -71,6 +71,7 @@ const canonicalProfileHref = pageData ? buildProfileHref(pageData.profile) : nul
               <h1>{displayName}</h1>
               {pageData.profile.username ? <span class="community-meta">@{pageData.profile.username}</span> : null}
             </div>
+            <span class="profile-account-id">ID: {pageData.profile.id}</span>
             {pageData.profile.bio ? <p class="profile-bio">{pageData.profile.bio}</p> : null}
             <div class="profile-stats">
               <span><strong>{pageData.stats.postCount}</strong> 帖子</span>
@@ -82,7 +83,7 @@ const canonicalProfileHref = pageData ? buildProfileHref(pageData.profile) : nul
       </section>
 
       <section class="community-surface community-surface--padded profile-tabs">
-        <div class="community-inline-links" role="tablist" aria-label="用户动态">
+        <div class="community-inline-links profile-tabs__links" role="tablist" aria-label="用户动态">
           <a href={tabHref("posts")} class:list={["community-inline-link", { "community-inline-link--active": tab === "posts" }]} role="tab" aria-selected={tab === "posts"}>帖子</a>
           <a href={tabHref("comments")} class:list={["community-inline-link", { "community-inline-link--active": tab === "comments" }]} role="tab" aria-selected={tab === "comments"}>评论</a>
           <a href={tabHref("circles")} class:list={["community-inline-link", { "community-inline-link--active": tab === "circles" }]} role="tab" aria-selected={tab === "circles"}>创建的圈子</a>
@@ -105,6 +106,7 @@ const canonicalProfileHref = pageData ? buildProfileHref(pageData.profile) : nul
               timestamp={formatPostTime(post.created_at)}
               media={post.mediaResolved}
               likeCount={post.likeCount}
+              commentCount={post.commentCount}
             />
           )) : (
             <section class="community-empty">
