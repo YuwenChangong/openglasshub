@@ -1,0 +1,158 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import PostCard from "../../components/community/PostCard.astro";
+import CircleCard from "../../components/community/CircleCard.astro";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import {
+  getProfileById,
+  getRequestedProfileTab,
+  loadProfilePageData,
+  type ProfileTab,
+} from "../../lib/profile-data";
+import { formatPostTime } from "../../lib/format-time";
+import { buildProfileHref } from "../../lib/profile-links";
+
+const env = Astro.locals.runtime.env as CloudflareEnv & { R2_PUBLIC_BASE_URL?: string };
+const supabase = createSSRClient(env);
+const id = Astro.params.id?.trim() ?? "";
+const tab = getRequestedProfileTab(Astro.url);
+
+const profile = id ? await getProfileById(supabase, id) : null;
+if (profile?.username) {
+  return Astro.redirect(`/u/${encodeURIComponent(profile.username)}/${Astro.url.search}`);
+}
+
+const pageData = profile ? await loadProfilePageData(supabase, profile, env.R2_PUBLIC_BASE_URL) : null;
+
+function tabHref(nextTab: ProfileTab) {
+  const params = new URLSearchParams();
+  if (nextTab !== "posts") params.set("tab", nextTab);
+  return `${Astro.url.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+}
+
+const displayName = pageData?.profile.display_name || pageData?.profile.username || "社区成员";
+const canonicalProfileHref = pageData ? buildProfileHref(pageData.profile) : null;
+---
+
+<CommunityLayout
+  title={pageData ? displayName : "用户未找到"}
+  activeSection="forum"
+  canonical={canonicalProfileHref ? `https://openglasshub.pages.dev${canonicalProfileHref}` : undefined}
+  noindex={!pageData}
+>
+  {!pageData ? (
+    <section class="community-surface community-surface--padded profile-shell">
+      <h1>用户未找到</h1>
+      <p class="community-meta">该用户不存在，或用户链接无效。</p>
+      <a href="/feed/" class="community-action-button community-action-button--muted">返回论坛</a>
+    </section>
+  ) : (
+    <>
+      <section class="community-surface community-surface--padded profile-shell">
+        {pageData.resolvedBannerUrl ? (
+          <div class="profile-banner">
+            <img src={pageData.resolvedBannerUrl} alt="" class="profile-banner__image" />
+          </div>
+        ) : null}
+        <div class="profile-head">
+          <div class="profile-avatar-wrap">
+            {pageData.resolvedAvatarUrl ? (
+              <img src={pageData.resolvedAvatarUrl} alt="" class="profile-avatar-image" />
+            ) : (
+              <span class="community-avatar profile-avatar-fallback" aria-hidden="true">
+                {(displayName.trim().charAt(0) || "U").toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div class="profile-copy">
+            <div class="profile-copy__title">
+              <h1>{displayName}</h1>
+              {pageData.profile.username ? <span class="community-meta">@{pageData.profile.username}</span> : null}
+            </div>
+            {pageData.profile.bio ? <p class="profile-bio">{pageData.profile.bio}</p> : null}
+            <div class="profile-stats">
+              <span><strong>{pageData.stats.postCount}</strong> 帖子</span>
+              <span><strong>{pageData.stats.commentCount}</strong> 评论</span>
+              <span><strong>{pageData.stats.circleCount}</strong> 圈子</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="community-surface community-surface--padded profile-tabs">
+        <div class="community-inline-links" role="tablist" aria-label="用户动态">
+          <a href={tabHref("posts")} class:list={["community-inline-link", { "community-inline-link--active": tab === "posts" }]} role="tab" aria-selected={tab === "posts"}>帖子</a>
+          <a href={tabHref("comments")} class:list={["community-inline-link", { "community-inline-link--active": tab === "comments" }]} role="tab" aria-selected={tab === "comments"}>评论</a>
+          <a href={tabHref("circles")} class:list={["community-inline-link", { "community-inline-link--active": tab === "circles" }]} role="tab" aria-selected={tab === "circles"}>创建的圈子</a>
+        </div>
+      </section>
+
+      {tab === "posts" ? (
+        <section class="community-feed-list">
+          {pageData.posts.length > 0 ? pageData.posts.map((post) => (
+            <PostCard
+              id={post.id}
+              title={post.title}
+              excerpt={post.body}
+              circleName={post.circles?.name ?? undefined}
+              circleSlug={post.circles?.slug ?? undefined}
+              typeLabel={post.type ?? undefined}
+              authorName={displayName}
+              authorId={pageData.profile.id}
+              authorUsername={pageData.profile.username ?? undefined}
+              timestamp={formatPostTime(post.created_at)}
+              media={post.mediaResolved}
+              likeCount={post.likeCount}
+            />
+          )) : (
+            <section class="community-empty">
+              <strong>还没有公开帖子</strong>
+            </section>
+          )}
+        </section>
+      ) : null}
+
+      {tab === "comments" ? (
+        <section class="community-list">
+          {pageData.comments.length > 0 ? pageData.comments.map((comment) => (
+            <article class="community-list-item profile-comment-card">
+              <div class="community-post-meta">
+                <a href={comment.postHref} class="community-post-meta__link">{comment.postTitle}</a>
+                <span>{formatPostTime(comment.created_at)}</span>
+              </div>
+              <p>{comment.body}</p>
+              <div class="community-post-actions">
+                <a href={comment.postHref} class="community-action-button community-action-button--muted">查看帖子</a>
+              </div>
+            </article>
+          )) : (
+            <section class="community-empty">
+              <strong>还没有公开评论</strong>
+            </section>
+          )}
+        </section>
+      ) : null}
+
+      {tab === "circles" ? (
+        <section class="search-circle-grid">
+          {pageData.circles.length > 0 ? pageData.circles.map((circle) => (
+            <CircleCard
+              id={circle.id}
+              name={circle.name}
+              slug={circle.slug}
+              description={circle.description ?? undefined}
+              latestNote={circle.created_at ? `创建于 ${new Date(circle.created_at).toLocaleDateString("zh-CN")}` : undefined}
+              imageUrl={circle.imageUrl}
+            />
+          )) : (
+            <section class="community-empty">
+              <strong>还没有创建公开圈子</strong>
+            </section>
+          )}
+        </section>
+      ) : null}
+    </>
+  )}
+</CommunityLayout>

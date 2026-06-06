@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { buildLoginHref } from "../../lib/auth-redirect";
+import { buildProfileHref } from "../../lib/profile-links";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import CircleCoverEditor from "./CircleCoverEditor";
@@ -27,7 +28,7 @@ type ManagedPost = {
   title: string;
   status: string;
   created_at: string;
-  author: { label?: string | null; display_name?: string | null; username?: string | null } | null;
+  author: { id?: string | null; label?: string | null; display_name?: string | null; username?: string | null } | null;
   media_count: number;
   report_count: number;
 };
@@ -38,7 +39,7 @@ type ManagedComment = {
   status: string;
   created_at: string;
   post_title: string;
-  author: { display_name?: string | null; username?: string | null } | null;
+  author: { id?: string | null; display_name?: string | null; username?: string | null } | null;
 };
 
 type ManagePayload = {
@@ -60,6 +61,13 @@ type ApiErrorPayload = {
 
 function formatActorLabel(author?: { display_name?: string | null; username?: string | null; label?: string | null } | null) {
   return author?.display_name || author?.username || author?.label || "未知用户";
+}
+
+function actorHref(author?: { id?: string | null; username?: string | null } | null) {
+  return buildProfileHref({
+    id: author?.id ?? null,
+    username: author?.username ?? null,
+  });
 }
 
 async function sessionFetch<T>(path: string, session: Session, options?: RequestInit): Promise<T> {
@@ -456,7 +464,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
                     <span className={`admin-status-badge admin-status-${post.status}`}>{post.status}</span>
                   </div>
                   <div className="admin-meta-grid">
-                    <span>作者：{formatActorLabel(post.author)}</span>
+                    <span>作者：{actorHref(post.author) ? <a href={actorHref(post.author)!} className="community-post-meta__link">{formatActorLabel(post.author)}</a> : formatActorLabel(post.author)}</span>
                     <span>媒体：{post.media_count}</span>
                     <span>举报：{post.report_count}</span>
                     <span>创建时间：{new Date(post.created_at).toLocaleString("zh-CN")}</span>
@@ -501,7 +509,7 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
                     <span className={`admin-status-badge admin-status-${comment.status}`}>{comment.status}</span>
                   </div>
                   <div className="admin-meta-grid">
-                    <span>作者：{formatActorLabel(comment.author)}</span>
+                    <span>作者：{actorHref(comment.author) ? <a href={actorHref(comment.author)!} className="community-post-meta__link">{formatActorLabel(comment.author)}</a> : formatActorLabel(comment.author)}</span>
                     <span>帖子：{comment.post_title}</span>
                     <span>创建时间：{new Date(comment.created_at).toLocaleString("zh-CN")}</span>
                   </div>

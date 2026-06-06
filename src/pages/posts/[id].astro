@@ -12,6 +12,7 @@ import { formatPostTime } from "../../lib/format-time";
 import { resolveSignedPostMedia, type PostMediaRow } from "../../lib/forum-media";
 import { buildPostLikeCountMap, safeIncrementPostViewCount } from "../../lib/post-engagement";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
+import { buildProfileHref } from "../../lib/profile-links";
 
 const { id } = Astro.params;
 
@@ -79,6 +80,7 @@ const postMedia = await resolveSignedPostMedia(
 const likeCountMap = post ? await buildPostLikeCountMap(supabase, [post.id]) : new Map();
 const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
 const displayBody = sanitizeBodyForDisplay(post?.body);
+const authorHref = post ? buildProfileHref({ id: post.author_id, username: post.profiles?.username ?? null }) : null;
 if (post) {
   await safeIncrementPostViewCount(supabase, post.id);
 }
@@ -127,7 +129,11 @@ if (post) {
         </div>
         <h1 class="post-detail__title">{post.title}</h1>
         <div class="forum-meta post-detail__meta">
-          <span>{post.profiles?.display_name || post.profiles?.username || "匿名"}</span>
+          {authorHref ? (
+            <a href={authorHref} class="post-detail__author-link">{post.profiles?.display_name || post.profiles?.username || "匿名"}</a>
+          ) : (
+            <span>{post.profiles?.display_name || post.profiles?.username || "匿名"}</span>
+          )}
           <span>{formatPostTime(post.created_at)}</span>
           {post.updated_at && post.updated_at !== post.created_at && (
             <span>更新于 {new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(post.updated_at))}</span>
@@ -197,6 +203,15 @@ if (post) {
     gap: 1rem;
     flex-wrap: wrap;
     font-size: 0.84rem;
+  }
+  .post-detail__author-link {
+    color: rgba(242, 244, 245, 0.88);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  }
+  .post-detail__author-link:hover {
+    color: var(--text);
+    border-color: rgba(255, 255, 255, 0.28);
   }
   .post-body-card {
     padding: 0 0 0.2rem;

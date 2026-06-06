@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { adminFetch } from "../../lib/admin-api-client";
+import { buildProfileHref } from "../../lib/profile-links";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { useAdminSession } from "./useAdminSession";
 
@@ -63,6 +64,13 @@ function mapCircleError(message: string) {
 
 function ownerLabel(circle: CircleRecord) {
   return circle.owner_profile?.display_name || circle.owner_profile?.username || circle.owner_id || "无 owner";
+}
+
+function ownerHref(circle: CircleRecord) {
+  return buildProfileHref({
+    id: circle.owner_profile?.id ?? circle.owner_id,
+    username: circle.owner_profile?.username ?? null,
+  });
 }
 
 export default function AdminCirclesDashboard() {
@@ -354,7 +362,7 @@ export default function AdminCirclesDashboard() {
                 <span className="admin-status-badge">{circle.type}</span>
               </div>
               <div className="admin-meta-grid">
-                <span>owner：{ownerLabel(circle)}</span>
+                <span>owner：{ownerHref(circle) ? <a href={ownerHref(circle)!} className="community-post-meta__link">{ownerLabel(circle)}</a> : ownerLabel(circle)}</span>
                 <span>slug：<code>{circle.slug}</code></span>
                 <span>创建时间：{new Date(circle.created_at).toLocaleString("zh-CN")}</span>
                 <span>封面：{circle.image_path ? "已设置" : "未设置"}</span>

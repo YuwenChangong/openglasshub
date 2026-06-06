@@ -38,7 +38,7 @@ let postsError: any = null;
 if (publicCircle) {
   const result = await supabase
     .from("posts")
-    .select("id, title, body, type, created_at, profiles:author_id(display_name,username), post_media(*)")
+    .select("id, author_id, title, body, type, created_at, profiles:author_id(display_name,username), post_media(*)")
     .eq("circle_id", publicCircle.id)
     .eq("status", "published")
     .order("created_at", { ascending: false })
@@ -147,6 +147,8 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
             circleSlug={publicCircle.slug}
             typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
             authorName={post.profiles?.display_name || post.profiles?.username || undefined}
+            authorId={post.author_id}
+            authorUsername={post.profiles?.username || undefined}
             timestamp={formatPostTime(post.created_at)}
             media={postMediaMap.get(post.id) ?? []}
             likeCount={likeCountMap.get(post.id) ?? 0}

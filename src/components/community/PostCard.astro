@@ -4,6 +4,7 @@ import PostMediaPreview from "./PostMediaPreview.astro";
 import PostSocialActions from "../forum/PostSocialActions";
 import SharePostButton from "../forum/SharePostButton";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
+import { buildProfileHref } from "../../lib/profile-links";
 
 interface Props {
   id: string;
@@ -13,23 +14,26 @@ interface Props {
   circleSlug?: string;
   typeLabel?: string;
   authorName?: string;
+  authorId?: string;
+  authorUsername?: string;
   timestamp: string;
   mediaLabel?: string;
   media?: ResolvedPostMedia[];
   likeCount?: number;
 }
 
-const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, timestamp, mediaLabel, media = [], likeCount = 0 } = Astro.props;
+const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, authorId, authorUsername, timestamp, mediaLabel, media = [], likeCount = 0 } = Astro.props;
 const displayName = authorName?.trim() || "社区成员";
 const postHref = `/posts/${id}/`;
 const displayExcerpt = sanitizeBodyForDisplay(excerpt ?? "");
+const authorHref = buildProfileHref({ id: authorId, username: authorUsername });
 ---
 
 <article class="community-post-card">
   <div class="community-post-meta-row">
     <div class="community-post-meta">
       {circleName && circleSlug && <a href={`/circles/${circleSlug}/`} class="community-post-meta__link">{circleName}</a>}
-      <span>{displayName}</span>
+      {authorHref ? <a href={authorHref} class="community-post-meta__link">{displayName}</a> : <span>{displayName}</span>}
       <span>{timestamp}</span>
       {typeLabel && <span>{typeLabel}</span>}
     </div>

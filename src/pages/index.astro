@@ -15,6 +15,7 @@ import { sanitizeBodyForDisplay } from "../lib/post-body";
 
 type PostRow = {
   id: string;
+  author_id: string;
   title: string;
   body?: string | null;
   type?: string | null;
@@ -35,7 +36,7 @@ let loadError = "";
 if (supabase) {
   const postResult = await supabase
     .from("posts")
-    .select("id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)")
+    .select("id,author_id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)")
     .eq("status", "published")
     .order("created_at", { ascending: false })
     .limit(8);
@@ -122,6 +123,8 @@ function excerpt(body?: string | null): string {
               circleSlug={post.circles?.slug ?? undefined}
               typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
               authorName={post.profiles?.display_name || post.profiles?.username || undefined}
+              authorId={post.author_id}
+              authorUsername={post.profiles?.username || undefined}
               timestamp={formatPostTime(post.created_at)}
               media={postMediaMap.get(post.id) ?? []}
               likeCount={likeCountMap.get(post.id) ?? 0}

@@ -20,13 +20,13 @@ const sort = Astro.url.searchParams.get("sort") === "hot" ? "hot" : "latest";
 const baseLimit = sort === "hot" ? 120 : 50;
 const postsWithViewCountQuery = supabase
   .from("posts")
-  .select("id, title, body, type, created_at, last_activity_at, view_count, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(*)")
+  .select("id, author_id, title, body, type, created_at, last_activity_at, view_count, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(*)")
   .eq("status", "published")
   .order("created_at", { ascending: false })
   .limit(baseLimit);
 const postsWithoutViewCountQuery = supabase
   .from("posts")
-  .select("id, title, body, type, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(*)")
+  .select("id, author_id, title, body, type, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(*)")
   .eq("status", "published")
   .order("created_at", { ascending: false })
   .limit(baseLimit);
@@ -135,6 +135,8 @@ const postTypeLabels: Record<string, string> = {
               circleSlug={post.circles?.slug ?? undefined}
               typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
               authorName={post.profiles?.display_name || post.profiles?.username || undefined}
+              authorId={post.author_id}
+              authorUsername={post.profiles?.username || undefined}
               timestamp={formatPostTime(post.created_at)}
               media={postMediaMap.get(post.id) ?? []}
               likeCount={likeCountMap.get(post.id) ?? 0}

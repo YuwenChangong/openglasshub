@@ -1,0 +1,389 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { buildLoginHref } from "../../lib/auth-redirect";
+import { getProfileById, type ProfileRecord } from "../../lib/profile-data";
+import { buildProfileHref } from "../../lib/profile-links";
+import { resolveProfileAvatarUrl, resolveProfileBannerUrl } from "../../lib/profile-media";
+import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
+import { useInvisibleTurnstile } from "../forum/useInvisibleTurnstile";
+
+const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const MAX_AVATAR_SIZE = 4 * 1024 * 1024;
+const MAX_BANNER_SIZE = 6 * 1024 * 1024;
+const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
+
+type EditableProfile = ProfileRecord & {
+  banner_url?: string | null;
+};
+
+function normalizeFileName(fileName: string) {
+  return fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeUsernameInput(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "")
+    .slice(0, 30);
+}
+
+function mapProfileError(message: string) {
+  if (/23505|duplicate key|profiles_username_unique_ci/i.test(message)) return "用户名已被占用。";
+  if (/username/i.test(message) && /check/i.test(message)) return "用户名需为 3-30 位字母、数字或下划线。";
+  if (/TURNSTILE_REQUIRED/i.test(message)) return "请先完成安全验证后再上传。";
+  if (/TURNSTILE_INVALID/i.test(message)) return "上传验证失败，请刷新后重试。";
+  if (/RATE_LIMITED/i.test(message)) return "上传过于频繁，请稍后再试。";
+  if (/banner_url/i.test(message)) return "当前环境尚未完成个人横幅 migration。";
+  return message;
+}
+
+function validateProfileInput(values: {
+  displayName: string;
+  username: string;
+  bio: string;
+}) {
+  const displayName = values.displayName.trim();
+  const username = values.username.trim();
+  const bio = values.bio.trim();
+
+  if (displayName.length > 40) return "显示名称不能超过 40 个字符。";
+  if (username && !USERNAME_PATTERN.test(username)) return "用户名需为 3-30 位字母、数字或下划线。";
+  if (bio.length > 240) return "个人简介不能超过 240 个字符。";
+  return "";
+}
+
+export default function EditProfileForm() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const bannerInputRef = useRef<HTMLInputElement | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [profile, setProfile] = useState<EditableProfile | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
+  const [bio, setBio] = useState("");
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const {
+    siteKeyEnabled,
+    ready: turnstileReady,
+    error: turnstileError,
+    containerRef,
+    ensureToken,
+    resetToken,
+  } = useInvisibleTurnstile("资料上传验证失败，请刷新后重试。");
+  const usernamePreviewHref = useMemo(() => {
+    const trimmedUsername = username.trim();
+    if (trimmedUsername) {
+      return buildProfileHref({ id: profile?.id ?? null, username: trimmedUsername }) ?? null;
+    }
+    return profile ? buildProfileHref({ id: profile.id, username: null }) : null;
+  }, [profile, username]);
+  const publicProfileHref = useMemo(() => {
+    if (!profile) return null;
+    return buildProfileHref({ id: profile.id, username: profile.username ?? null });
+  }, [profile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!supabase) {
+        if (!cancelled) {
+          setLoading(false);
+          setError("当前环境未启用登录。");
+        }
+        return;
+      }
+
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
+      if (!session?.user) {
+        window.location.replace(buildLoginHref("/me/edit/"));
+        return;
+      }
+
+      const profileRow = (await getProfileById(supabase, session.user.id)) as EditableProfile | null;
+      if (!profileRow) {
+        if (!cancelled) {
+          setLoading(false);
+          setError("当前账号还没有可用的个人资料。");
+        }
+        return;
+      }
+
+      const [resolvedAvatarUrl, resolvedBannerUrl] = await Promise.all([
+        resolveProfileAvatarUrl(supabase, profileRow.avatar_url),
+        resolveProfileBannerUrl(supabase, profileRow.banner_url ?? null),
+      ]);
+
+      if (!cancelled) {
+        setProfile(profileRow);
+        setDisplayName(profileRow.display_name ?? "");
+        setUsername(profileRow.username ?? "");
+        setBio(profileRow.bio ?? "");
+        setAvatarPreview(resolvedAvatarUrl);
+        setBannerPreview(resolvedBannerUrl);
+        setLoading(false);
+      }
+    }
+
+    void load().catch((requestError) => {
+      if (cancelled) return;
+      setLoading(false);
+      setError(requestError instanceof Error ? requestError.message : "加载资料失败。");
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  async function getSessionToken() {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? "";
+  }
+
+  async function guardUpload(token: string, sizeBytes: number, uploadKind: "profile_avatar" | "profile_banner") {
+    const turnstileToken = await ensureToken({ forceRefresh: true });
+    const response = await fetch("/api/forum/media-upload-guard", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        upload_kind: uploadKind,
+        size_bytes: sizeBytes,
+        turnstile_token: turnstileToken || undefined,
+      }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as { error?: string; code?: string } | null;
+    if (!response.ok) {
+      throw new Error(payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `上传校验失败 (${response.status})`);
+    }
+  }
+
+  async function uploadProfileImage(file: File, kind: "avatar" | "banner") {
+    if (!profile || !supabase) throw new Error("当前资料尚未加载完成。");
+    const token = await getSessionToken();
+    if (!token) {
+      window.location.replace(buildLoginHref("/me/edit/"));
+      return null;
+    }
+
+    const sizeLimit = kind === "avatar" ? MAX_AVATAR_SIZE : MAX_BANNER_SIZE;
+    if (!ACCEPTED_IMAGE_TYPES.has(file.type)) throw new Error("仅支持 jpg / png / webp / gif。");
+    if (file.size > sizeLimit) throw new Error(kind === "avatar" ? "头像不能超过 4MB。" : "横幅不能超过 6MB。");
+
+    const objectPath = `${kind === "avatar" ? "profile-avatars" : "profile-banners"}/${profile.id}/${Date.now()}-${normalizeFileName(file.name)}`;
+    await guardUpload(token, file.size, kind === "avatar" ? "profile_avatar" : "profile_banner");
+    await uploadToPostMediaWithTus({ file, objectPath, accessToken: token });
+    resetToken();
+    return objectPath;
+  }
+
+  async function handleImageUpload(kind: "avatar" | "banner", file: File | null) {
+    if (!file || !profile || saving) return;
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    let nextPath: string | null = null;
+    const previousPath = kind === "avatar" ? profile.avatar_url : profile.banner_url ?? null;
+
+    try {
+      nextPath = await uploadProfileImage(file, kind);
+      if (!nextPath) return;
+
+      const patch: Record<string, string | null> =
+        kind === "avatar" ? { avatar_url: nextPath } : { banner_url: nextPath };
+
+      const { data, error: updateError } = await supabase
+        .from("profiles")
+        .update(patch)
+        .eq("id", profile.id)
+        .select("id, username, display_name, avatar_url, bio, role, created_at, banner_url")
+        .single();
+
+      if (updateError || !data) throw updateError ?? new Error("更新资料失败。");
+
+      const updated = data as EditableProfile;
+      setProfile(updated);
+
+      if (kind === "avatar") {
+        setAvatarPreview(await resolveProfileAvatarUrl(supabase, updated.avatar_url));
+      } else {
+        setBannerPreview(await resolveProfileBannerUrl(supabase, updated.banner_url ?? null));
+      }
+
+      if (previousPath && previousPath !== nextPath && /^(profile-avatars|profile-banners)\//.test(previousPath)) {
+        await supabase.storage.from("post-media").remove([previousPath]).catch(() => undefined);
+      }
+
+      setSuccess(kind === "avatar" ? "头像已更新。" : "横幅已更新。");
+    } catch (requestError) {
+      if (nextPath) {
+        await supabase.storage.from("post-media").remove([nextPath]).catch(() => undefined);
+      }
+      setError(mapProfileError(requestError instanceof Error ? requestError.message : "上传失败。"));
+      resetToken();
+    } finally {
+      setSaving(false);
+      if (kind === "avatar" && avatarInputRef.current) avatarInputRef.current.value = "";
+      if (kind === "banner" && bannerInputRef.current) bannerInputRef.current.value = "";
+    }
+  }
+
+  async function handleSaveProfile() {
+    if (!profile || !supabase || saving) return;
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const validationError = validateProfileInput({ displayName, username, bio });
+      if (validationError) throw new Error(validationError);
+
+      const nextUsername = username.trim();
+      const payload = {
+        display_name: displayName.trim() || null,
+        username: nextUsername || null,
+        bio: bio.trim() || null,
+      };
+
+      const withBannerResult = await supabase
+        .from("profiles")
+        .update(payload)
+        .eq("id", profile.id)
+        .select("id, username, display_name, avatar_url, bio, role, created_at, banner_url")
+        .single();
+
+      let data = withBannerResult.data as EditableProfile | null;
+      let updateError = withBannerResult.error;
+
+      if (updateError && /banner_url/i.test(updateError.message)) {
+        const fallbackResult = await supabase
+          .from("profiles")
+          .update(payload)
+          .eq("id", profile.id)
+          .select("id, username, display_name, avatar_url, bio, role, created_at")
+          .single();
+        data = (fallbackResult.data as EditableProfile | null) ?? null;
+        updateError = fallbackResult.error;
+      }
+
+      if (updateError || !data) throw updateError ?? new Error("保存资料失败。");
+
+      setProfile(data);
+      setDisplayName(data.display_name ?? "");
+      setUsername(data.username ?? "");
+      setBio(data.bio ?? "");
+      setSuccess("个人资料已保存。");
+    } catch (requestError) {
+      setError(mapProfileError(requestError instanceof Error ? requestError.message : "保存资料失败。"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <section className="community-surface community-surface--padded profile-shell">
+        <h1>编辑资料</h1>
+        <p className="community-meta">正在加载...</p>
+      </section>
+    );
+  }
+
+  if (error && !profile) {
+    return (
+      <section className="community-surface community-surface--padded profile-shell">
+        <h1>编辑资料</h1>
+        <p className="community-meta">{error}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="community-surface community-surface--padded profile-shell">
+      <div className="community-stream-head">
+        <div>
+          <h2>编辑资料</h2>
+        </div>
+        <div className="community-inline-links">
+          <a href="/me/" className="community-inline-link">返回我的主页</a>
+          {publicProfileHref ? <a href={publicProfileHref} className="community-inline-link">公开主页</a> : null}
+        </div>
+      </div>
+
+      {bannerPreview ? (
+        <div className="profile-banner">
+          <img src={bannerPreview} alt="" className="profile-banner__image" />
+        </div>
+      ) : null}
+
+      <div className="profile-head">
+        <div className="profile-avatar-wrap">
+          {avatarPreview ? (
+            <img src={avatarPreview} alt="" className="profile-avatar-image" />
+          ) : (
+            <span className="community-avatar profile-avatar-fallback" aria-hidden="true">
+              {(displayName.trim().charAt(0) || username.trim().charAt(0) || "U").toUpperCase()}
+            </span>
+          )}
+        </div>
+        <div className="profile-copy">
+          <div className="profile-upload-grid">
+            <label className="profile-upload-field">
+              <span className="community-meta">头像</span>
+              <input ref={avatarInputRef} className="community-input" type="file" accept="image/*" onChange={(event) => void handleImageUpload("avatar", event.target.files?.[0] ?? null)} disabled={saving} />
+            </label>
+            <label className="profile-upload-field">
+              <span className="community-meta">横幅</span>
+              <input ref={bannerInputRef} className="community-input" type="file" accept="image/*" onChange={(event) => void handleImageUpload("banner", event.target.files?.[0] ?? null)} disabled={saving} />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <label className="create-circle-form__field">
+        <span>显示名称</span>
+        <input className="community-input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={40} />
+      </label>
+
+      <label className="create-circle-form__field">
+        <span>用户名</span>
+        <input className="community-input" value={username} onChange={(event) => setUsername(normalizeUsernameInput(event.target.value))} maxLength={30} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+        {usernamePreviewHref ? (
+          <span className="community-meta">
+            保存后地址：{usernamePreviewHref}
+          </span>
+        ) : null}
+      </label>
+
+      <label className="create-circle-form__field">
+        <span>个人简介</span>
+        <textarea className="community-input community-input--textarea" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={240} />
+      </label>
+
+      {error ? <span className="inline-error">{error}</span> : null}
+      {success ? <span className="inline-success">{success}</span> : null}
+      {turnstileError ? <span className="inline-error">{turnstileError}</span> : null}
+      {!turnstileReady && siteKeyEnabled ? <span className="community-meta">正在初始化上传验证…</span> : null}
+      <div ref={containerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />
+
+      <div className="community-cta-row">
+        <button type="button" className="community-button" onClick={() => void handleSaveProfile()} disabled={saving}>
+          {saving ? "保存中..." : "保存资料"}
+        </button>
+      </div>
+    </section>
+  );
+}

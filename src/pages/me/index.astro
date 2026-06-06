@@ -1,0 +1,17 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import MyProfilePage from "../../components/profile/MyProfilePage";
+---
+
+<CommunityLayout title="我的主页" activeSection="forum" noindex={true}>
+  <main class="community-main community-main--narrow">
+    <nav class="community-inline-links" aria-label="资料导航">
+      <a href="/me/" class="community-inline-link community-inline-link--active">我的主页</a>
+      <a href="/me/edit/" class="community-inline-link">编辑资料</a>
+      <a href="/feed/" class="community-inline-link">返回论坛</a>
+    </nav>
+    <MyProfilePage client:load />
+  </main>
+</CommunityLayout>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import CommentForm from "./CommentForm";
+import { buildProfileHref } from "../../lib/profile-links";
 
 interface Author {
   username: string | null;
@@ -293,6 +294,9 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
     const isDeleted = comment.status === "deleted";
     const replies = repliesByParent.get(comment.id) ?? [];
     const authorName = isDeleted ? "匿名" : authorDisplayName(comment.author);
+    const authorHref = !isDeleted
+      ? buildProfileHref({ id: comment.author_id, username: comment.author?.username ?? null })
+      : null;
     const showReplyForm = replyingTo === comment.id;
 
     return (
@@ -300,9 +304,15 @@ export default function CommentsSection({ postId, refreshKey, loginHref }: Comme
         <article className={`glass-card comment-card comment-item${isDeleted ? " comment-deleted" : ""}`}>
           <div className="comment-item-main">
             <div className="comment-meta">
-              <span className={`comment-author${isStaff(comment.author) ? " comment-author--staff" : ""}`}>
-                {authorName}
-              </span>
+              {authorHref ? (
+                <a href={authorHref} className={`comment-author comment-author-link${isStaff(comment.author) ? " comment-author--staff" : ""}`}>
+                  {authorName}
+                </a>
+              ) : (
+                <span className={`comment-author${isStaff(comment.author) ? " comment-author--staff" : ""}`}>
+                  {authorName}
+                </span>
+              )}
               {isStaff(comment.author) && !isDeleted ? (
                 <span className="comment-staff-badge">{comment.author?.role === "admin" ? "管理员" : "版主"}</span>
               ) : null}
