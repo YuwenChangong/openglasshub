@@ -1,5 +1,5 @@
 ﻿---
-import AuthCTA from "../auth/AuthCTA";
+import HeaderUserMenu from "./HeaderUserMenu";
 import GlobalSearchBox from "../community/GlobalSearchBox";
 import { inferNavKey, mainNav, type NavKey } from "../../lib/site-navigation";
 
@@ -38,7 +38,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     </div>
 
     <div class="og-header__auth ogh-header-actions">
-      <AuthCTA next={next} compact={true} client:only="react" />
+      <HeaderUserMenu next={next} client:only="react" />
     </div>
   </div>
 </header>
@@ -165,6 +165,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     justify-content: flex-end;
     gap: 10px;
     flex-shrink: 0;
+    position: relative;
   }
   :global(.ogh-auth-inline) {
     display: inline-flex;
