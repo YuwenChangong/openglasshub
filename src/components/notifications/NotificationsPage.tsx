@@ -154,10 +154,7 @@ export default function NotificationsPage() {
   return (
     <section className="notifications-page">
       <div className="community-stream-head notifications-page__head">
-        <div>
-          <h2>通知</h2>
-          <span className="community-meta">未读 {unreadCount}</span>
-        </div>
+        <span className="community-meta">未读 {unreadCount}</span>
         <button
           type="button"
           className="community-action-button"

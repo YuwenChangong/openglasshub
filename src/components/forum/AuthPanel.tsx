@@ -45,6 +45,7 @@ export default function AuthPanel({ next }: AuthPanelProps) {
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [forgotMode, setForgotMode] = useState(false);
   const [resendCooldownUntil, setResendCooldownUntil] = useState(0);
+  const [cooldownNow, setCooldownNow] = useState(() => Date.now());
   const { status, user } = useBrowserAuthState(supabase);
 
   useEffect(() => {
@@ -53,27 +54,40 @@ export default function AuthPanel({ next }: AuthPanelProps) {
     const parsed = Number(storedValue ?? "0");
     if (Number.isFinite(parsed) && parsed > Date.now()) {
       setResendCooldownUntil(parsed);
+      setCooldownNow(Date.now());
     }
   }, []);
 
   useEffect(() => {
-    if (!resendCooldownUntil || resendCooldownUntil <= Date.now()) return;
+    if (!resendCooldownUntil || resendCooldownUntil <= Date.now()) {
+      if (resendCooldownUntil && typeof window !== "undefined") {
+        window.localStorage.removeItem(RESEND_COOLDOWN_STORAGE_KEY);
+      }
+      return;
+    }
+
+    setCooldownNow(Date.now());
     const timer = window.setInterval(() => {
-      if (Date.now() >= resendCooldownUntil) {
+      const nextNow = Date.now();
+      setCooldownNow(nextNow);
+      if (nextNow >= resendCooldownUntil) {
         setResendCooldownUntil(0);
         window.localStorage.removeItem(RESEND_COOLDOWN_STORAGE_KEY);
+        window.clearInterval(timer);
       }
     }, 1000);
 
     return () => window.clearInterval(timer);
   }, [resendCooldownUntil]);
 
-  const resendCooldownSeconds = resendCooldownUntil > Date.now()
-    ? Math.ceil((resendCooldownUntil - Date.now()) / 1000)
+  const resendCooldownSeconds = resendCooldownUntil > cooldownNow
+    ? Math.max(1, Math.ceil((resendCooldownUntil - cooldownNow) / 1000))
     : 0;
 
   function startResendCooldown() {
-    const until = Date.now() + RESEND_COOLDOWN_MS;
+    const now = Date.now();
+    const until = now + RESEND_COOLDOWN_MS;
+    setCooldownNow(now);
     setResendCooldownUntil(until);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(RESEND_COOLDOWN_STORAGE_KEY, String(until));
@@ -359,8 +373,7 @@ export default function AuthPanel({ next }: AuthPanelProps) {
           <div className="auth-resend">
             <div className="auth-resend__copy">
               <span className="auth-resend__note">已发送，请检查邮箱或垃圾箱。</span>
-              <span className="auth-resend__hint">如果 QQ 邮箱收不到，建议换用 Gmail / Outlook 再试。</span>
-              <span className="auth-resend__hint">请等待几分钟后再重试。</span>
+              <span className="auth-resend__hint">如果没有收到邮件，请检查垃圾箱，或稍后重新发送。</span>
             </div>
             <div className="auth-resend__actions">
               <button
