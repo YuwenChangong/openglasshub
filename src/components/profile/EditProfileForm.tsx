@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { getProfileById, type ProfileRecord } from "../../lib/profile-data";
+import { isValidProfileUsername } from "../../lib/profile-links";
 import { resolveProfileAvatarUrl, resolveProfileBannerUrl } from "../../lib/profile-media";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
@@ -9,7 +10,6 @@ import { useInvisibleTurnstile } from "../forum/useInvisibleTurnstile";
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
 const MAX_BANNER_SIZE = 8 * 1024 * 1024;
-const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 
 type EditableProfile = ProfileRecord & {
   banner_url?: string | null;
@@ -28,13 +28,24 @@ function normalizeFileName(fileName: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function normalizeUsernameInput(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9_]+/g, "").slice(0, 30);
+function normalizeUsernameForSave(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function normalizeUsernameForBlur(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^[A-Za-z0-9_-]+$/.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  return trimmed;
 }
 
 function mapProfileError(message: string) {
-  if (/23505|duplicate key|profiles_username_unique_ci/i.test(message)) return "用户名已被占用。";
-  if (/username/i.test(message) && /check/i.test(message)) return "用户名需为 3-30 位字母、数字或下划线。";
+  if (/23505|duplicate key|profiles_username_unique_ci/i.test(message)) return "主页地址已被占用。";
+  if (/username/i.test(message) && /check|constraint|invalid/i.test(message)) {
+    return "主页地址仅支持小写英文、数字、下划线和短横线。";
+  }
   if (/TURNSTILE_REQUIRED/i.test(message)) return "请先完成安全验证后再上传。";
   if (/TURNSTILE_INVALID/i.test(message)) return "上传验证失败，请刷新后重试。";
   if (/RATE_LIMITED/i.test(message)) return "上传过于频繁，请稍后再试。";
@@ -48,11 +59,14 @@ function validateProfileInput(values: {
   bio: string;
 }) {
   const displayName = values.displayName.trim();
-  const username = values.username.trim();
+  const username = normalizeUsernameForSave(values.username);
   const bio = values.bio.trim();
 
-  if (displayName.length > 40) return "显示名称不能超过 40 个字符。";
-  if (username && !USERNAME_PATTERN.test(username)) return "用户名需为 3-30 位字母、数字或下划线。";
+  if (!displayName) return "用户名不能为空。";
+  if (displayName.length > 40) return "用户名不能超过 40 个字符。";
+  if (username && !isValidProfileUsername(username)) {
+    return "主页地址仅支持小写英文、数字、下划线和短横线。";
+  }
   if (bio.length > 240) return "个人简介不能超过 240 个字符。";
   return "";
 }
@@ -61,20 +75,20 @@ export default function EditProfileForm() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
-  const usernameInputRef = useRef<HTMLInputElement | null>(null);
-  const usernameComposingRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingKind, setUploadingKind] = useState<"avatar" | "banner" | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [profile, setProfile] = useState<EditableProfile | null>(null);
+  const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [avatarPending, setAvatarPending] = useState<PendingUploadState>({ path: null, previewUrl: null });
   const [bannerPending, setBannerPending] = useState<PendingUploadState>({ path: null, previewUrl: null });
   const [avatarResolvedUrl, setAvatarResolvedUrl] = useState<string | null>(null);
   const [bannerResolvedUrl, setBannerResolvedUrl] = useState<string | null>(null);
+  const [usernameComposing, setUsernameComposing] = useState(false);
   const {
     siteKeyEnabled,
     ready: turnstileReady,
@@ -123,6 +137,7 @@ export default function EditProfileForm() {
 
       if (!cancelled) {
         setProfile(profileRow);
+        setDisplayName(profileRow.display_name ?? "");
         setUsername(profileRow.username ?? "");
         setBio(profileRow.bio ?? "");
         setAvatarResolvedUrl(resolvedAvatarUrl);
@@ -243,16 +258,6 @@ export default function EditProfileForm() {
     }
   }
 
-  function applyUsernameNormalization(rawValue?: string) {
-    if (!usernameInputRef.current) return;
-    const source = rawValue ?? usernameInputRef.current.value;
-    const normalized = normalizeUsernameInput(source);
-    if (normalized !== source) {
-      usernameInputRef.current.value = normalized;
-    }
-    setUsername(normalized);
-  }
-
   async function handleSaveProfile() {
     if (!profile || !supabase || isBusy) return;
     setSaving(true);
@@ -260,21 +265,18 @@ export default function EditProfileForm() {
     setSuccess("");
 
     try {
-      if (!usernameComposingRef.current) {
-        applyUsernameNormalization();
-      }
-
-      const nextUsername = normalizeUsernameInput(username.trim());
+      const nextDisplayName = displayName.trim();
+      const nextUsername = normalizeUsernameForSave(username);
       const nextBio = bio.trim();
       const validationError = validateProfileInput({
-        displayName: nextUsername,
+        displayName: nextDisplayName,
         username: nextUsername,
         bio: nextBio,
       });
       if (validationError) throw new Error(validationError);
 
       const payload = {
-        display_name: nextUsername || null,
+        display_name: nextDisplayName || null,
         username: nextUsername || null,
         bio: nextBio || null,
         avatar_url: avatarPending.path ?? profile.avatar_url ?? null,
@@ -327,6 +329,7 @@ export default function EditProfileForm() {
       ]);
 
       setProfile(data);
+      setDisplayName(data.display_name ?? "");
       setUsername(data.username ?? "");
       setBio(data.bio ?? "");
       setAvatarResolvedUrl(resolvedAvatar);
@@ -365,6 +368,8 @@ export default function EditProfileForm() {
     );
   }
 
+  const visibleName = displayName.trim() || profile?.display_name?.trim() || username.trim() || profile?.username?.trim() || "我的资料";
+
   return (
     <section className="community-surface community-surface--padded profile-shell profile-editor">
       <div className="community-stream-head profile-editor__head">
@@ -390,13 +395,13 @@ export default function EditProfileForm() {
             <img src={avatarDisplayUrl} alt="" className="profile-avatar-image" />
           ) : (
             <span className="community-avatar profile-avatar-fallback" aria-hidden="true">
-              {(username.trim().charAt(0) || profile?.display_name?.trim().charAt(0) || "U").toUpperCase()}
+              {(visibleName.trim().charAt(0) || "U").toUpperCase()}
             </span>
           )}
         </div>
         <div className="profile-copy">
           <div className="profile-copy__title">
-            <h1>{username.trim() || profile?.display_name?.trim() || "我的资料"}</h1>
+            <h1>{visibleName}</h1>
             {profile ? <span className="profile-account-id">ID: {profile.id}</span> : null}
           </div>
           <div className="profile-upload-grid">
@@ -431,20 +436,26 @@ export default function EditProfileForm() {
       <label className="create-circle-form__field">
         <span>用户名</span>
         <input
-          ref={usernameInputRef}
+          className="community-input"
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+          maxLength={40}
+          autoCapitalize="words"
+          autoCorrect="off"
+        />
+      </label>
+
+      <label className="create-circle-form__field">
+        <span>主页地址</span>
+        <input
           className="community-input"
           value={username}
           onChange={(event) => setUsername(event.target.value)}
-          onCompositionStart={() => {
-            usernameComposingRef.current = true;
-          }}
-          onCompositionEnd={(event) => {
-            usernameComposingRef.current = false;
-            applyUsernameNormalization(event.currentTarget.value);
-          }}
+          onCompositionStart={() => setUsernameComposing(true)}
+          onCompositionEnd={() => setUsernameComposing(false)}
           onBlur={() => {
-            if (!usernameComposingRef.current) {
-              applyUsernameNormalization();
+            if (!usernameComposing) {
+              setUsername((current) => normalizeUsernameForBlur(current));
             }
           }}
           maxLength={30}
@@ -452,6 +463,7 @@ export default function EditProfileForm() {
           autoCorrect="off"
           spellCheck={false}
         />
+        <small className="community-meta">仅支持小写英文、数字、下划线和短横线。留空则使用账号 ID。</small>
       </label>
 
       <label className="create-circle-form__field">

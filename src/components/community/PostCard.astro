@@ -24,7 +24,8 @@ interface Props {
 }
 
 const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, authorId, authorUsername, timestamp, mediaLabel, media = [], likeCount = 0, commentCount = 0 } = Astro.props;
-const displayName = authorName?.trim() || "社区成员";
+const fallbackAuthorId = authorId?.trim();
+const displayName = authorName?.trim() || (fallbackAuthorId ? `${fallbackAuthorId.slice(0, 6)}…${fallbackAuthorId.slice(-4)}` : "社区成员");
 const postHref = `/posts/${id}/`;
 const displayExcerpt = sanitizeBodyForDisplay(excerpt ?? "");
 const authorHref = buildProfileHref({ id: authorId, username: authorUsername });

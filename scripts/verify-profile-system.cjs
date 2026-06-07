@@ -85,7 +85,12 @@ console.log("\n--- 3. Edit profile + media ---");
 const editProfile = read("src/components/profile/EditProfileForm.tsx");
 check("edit profile supports avatar uploads", editProfile.includes('kind === "avatar" ? "profile-avatars" : "profile-banners"'));
 check("edit profile supports new upload size limits", editProfile.includes('kind === "avatar" ? "头像不能超过 5MB。" : "横幅不能超过 8MB。"'));
-check("edit profile validates username format", editProfile.includes("USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;"));
+check(
+  "edit profile validates username format",
+  editProfile.includes("normalizeUsernameForSave") &&
+    editProfile.includes("isValidProfileUsername") &&
+    editProfile.includes("主页地址仅支持小写英文、数字、下划线和短横线。"),
+);
 check("edit profile removes URL preview helper text", !editProfile.includes("保存后地址：") && !editProfile.includes("当前公开主页："));
 check("edit profile delays media save until profile save", editProfile.includes("avatar_url: avatarPending.path ?? profile.avatar_url ?? null"));
 
