@@ -118,6 +118,51 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
     };
   }, [fetchComments, refreshKey]);
 
+  const visibleCommentIds = useMemo(
+    () => comments.map((comment) => comment.id).sort().join(","),
+    [comments],
+  );
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel(`forum-comments-${postId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "comments",
+          filter: `post_id=eq.${postId}`,
+        },
+        () => {
+          void fetchComments();
+        },
+      );
+
+    for (const commentId of visibleCommentIds.split(",").filter(Boolean)) {
+      channel.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "comment_reactions",
+          filter: `comment_id=eq.${commentId}`,
+        },
+        () => {
+          void fetchComments();
+        },
+      );
+    }
+
+    channel.subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchComments, postId, supabase, visibleCommentIds]);
+
   useEffect(() => {
     return () => {
       Object.values(likeTimerRef.current).forEach((timerId) => window.clearTimeout(timerId));

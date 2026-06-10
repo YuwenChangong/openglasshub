@@ -154,6 +154,30 @@ export default function HeaderNotifications() {
     void loadNotifications();
   }, [loadNotifications, status, user]);
 
+  useEffect(() => {
+    if (!supabase || status !== "signed_in" || !user) return;
+
+    const channel = supabase
+      .channel(`forum-notifications-header-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "forum_notifications",
+          filter: `recipient_id=eq.${user.id}`,
+        },
+        () => {
+          void loadNotifications();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadNotifications, status, supabase, user]);
+
   const updatePopoverPosition = useCallback(() => {
     const trigger = triggerRef.current;
     if (!trigger || typeof window === "undefined") return;

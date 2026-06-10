@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 
@@ -32,6 +32,47 @@ export default function PostSocialActions({
   const [bookmarkAnimating, setBookmarkAnimating] = useState(false);
   const likeTimerRef = useRef<number | null>(null);
   const bookmarkTimerRef = useRef<number | null>(null);
+
+  const refreshSocialState = useCallback(async (shouldApply: () => boolean = () => true) => {
+    if (!supabase) return;
+
+    const [countResult, voteResult, bookmarkResult] = await Promise.all([
+      supabase
+        .from("post_votes")
+        .select("id", { count: "exact", head: true })
+        .eq("post_id", postId)
+        .eq("vote", 1),
+      authState?.userId
+        ? supabase
+            .from("post_votes")
+            .select("id, vote")
+            .eq("post_id", postId)
+            .eq("user_id", authState.userId)
+            .eq("vote", 1)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      authState?.userId
+        ? supabase
+            .from("bookmarks")
+            .select("id")
+            .eq("post_id", postId)
+            .eq("user_id", authState.userId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    if (!shouldApply()) return;
+
+    if (!countResult.error && typeof countResult.count === "number") {
+      setLikeCount(Math.max(0, countResult.count));
+    }
+    if (!voteResult.error) {
+      setLiked(Boolean(voteResult.data));
+    }
+    if (!bookmarkResult.error) {
+      setBookmarked(Boolean(bookmarkResult.data));
+    }
+  }, [authState?.userId, postId, supabase]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -74,33 +115,39 @@ export default function PostSocialActions({
   }, [postId, supabase]);
 
   useEffect(() => {
-    if (!supabase || !authState?.userId) return;
+    if (!supabase) return;
     let mounted = true;
 
-    Promise.all([
-      supabase
-        .from("post_votes")
-        .select("id, vote")
-        .eq("post_id", postId)
-        .eq("user_id", authState.userId)
-        .eq("vote", 1)
-        .maybeSingle(),
-      supabase
-        .from("bookmarks")
-        .select("id")
-        .eq("post_id", postId)
-        .eq("user_id", authState.userId)
-        .maybeSingle(),
-    ]).then(([voteResult, bookmarkResult]) => {
-      if (!mounted) return;
-      setLiked(Boolean(voteResult.data));
-      setBookmarked(Boolean(bookmarkResult.data));
-    });
+    void refreshSocialState(() => mounted);
 
     return () => {
       mounted = false;
     };
-  }, [authState?.userId, postId, supabase]);
+  }, [refreshSocialState, supabase]);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel(`forum-post-votes-${postId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "post_votes",
+          filter: `post_id=eq.${postId}`,
+        },
+        () => {
+          void refreshSocialState();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [postId, refreshSocialState, supabase]);
 
   function requireLogin() {
     const next = `${window.location.pathname}${window.location.search}${window.location.hash}`;
