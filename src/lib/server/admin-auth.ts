@@ -13,6 +13,10 @@ export type ModeratorAuthResult = {
   client: SupabaseClient;
 };
 
+export function isModeratorRole(role: string | null | undefined): boolean {
+  return role === "moderator" || role === "admin";
+}
+
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -72,7 +76,7 @@ export async function requireModerator(request: Request, env: RuntimeEnv): Promi
     throw jsonResponse({ error: "Forbidden", details: "profile role not found or not moderator/admin" }, 403);
   }
 
-  if (profile.role !== "moderator" && profile.role !== "admin") {
+  if (!isModeratorRole(profile.role)) {
     throw jsonResponse({ error: "Forbidden", details: "profile role not found or not moderator/admin" }, 403);
   }
 

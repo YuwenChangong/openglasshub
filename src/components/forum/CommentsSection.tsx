@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import GlassConfirmDialog from "../common/GlassConfirmDialog";
-import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 import CommentForm from "./CommentForm";
 import { buildProfileHref } from "../../lib/profile-links";
 
@@ -126,40 +126,57 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
   useEffect(() => {
     if (!supabase) return;
 
-    const channel = supabase
-      .channel(`forum-comments-${postId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "comments",
-          filter: `post_id=eq.${postId}`,
-        },
-        () => {
-          void fetchComments();
-        },
-      );
+    let cancelled = false;
+    let channel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
 
-    for (const commentId of visibleCommentIds.split(",").filter(Boolean)) {
-      channel.on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "comment_reactions",
-          filter: `comment_id=eq.${commentId}`,
-        },
-        () => {
-          void fetchComments();
-        },
-      );
-    }
+    const setupChannel = async () => {
+      await syncBrowserRealtimeAuth(supabase);
+      if (cancelled) return;
 
-    channel.subscribe();
+      channel = supabase
+        .channel(`forum-comments-${postId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "comments",
+            filter: `post_id=eq.${postId}`,
+          },
+          () => {
+            void fetchComments();
+          },
+        );
+
+      for (const commentId of visibleCommentIds.split(",").filter(Boolean)) {
+        channel.on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "comment_reactions",
+            filter: `comment_id=eq.${commentId}`,
+          },
+          () => {
+            void fetchComments();
+          },
+        );
+      }
+
+      channel.subscribe((subscriptionStatus) => {
+        if (import.meta.env.DEV) {
+          console.debug("[realtime] comments", { subscriptionStatus, postId });
+        }
+      });
+    };
+
+    void setupChannel();
 
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
     };
   }, [fetchComments, postId, supabase, visibleCommentIds]);
 

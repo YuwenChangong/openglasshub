@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { isModeratorRole } from "./admin-auth";
 
 export type ForumRuntimeEnv = Record<string, string | undefined>;
 
@@ -73,7 +74,7 @@ export function normalizeCircleSlug(value: string): string {
 }
 
 export function isCircleManager(ownerId: string | null | undefined, userId: string, role: string | null | undefined) {
-  return role === "moderator" || role === "admin" || (!!ownerId && ownerId === userId);
+  return isModeratorRole(role) || (!!ownerId && ownerId === userId);
 }
 
 function isMissingCircleStatusSchemaError(error: { message?: string } | null | undefined) {

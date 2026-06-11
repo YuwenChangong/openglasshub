@@ -21,3 +21,14 @@ export function createBrowserSupabaseClient(): SupabaseClient | null {
 
   return browserClient;
 }
+
+export async function syncBrowserRealtimeAuth(supabase: SupabaseClient | null): Promise<string | null> {
+  if (!supabase) return null;
+
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token ?? null;
+  if (!accessToken) return null;
+
+  await Promise.resolve(supabase.realtime.setAuth(accessToken));
+  return accessToken;
+}

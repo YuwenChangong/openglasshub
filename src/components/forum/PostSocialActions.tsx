@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
-import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 
 interface PostSocialActionsProps {
   postId: string;
@@ -128,24 +128,41 @@ export default function PostSocialActions({
   useEffect(() => {
     if (!supabase) return;
 
-    const channel = supabase
-      .channel(`forum-post-votes-${postId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "post_votes",
-          filter: `post_id=eq.${postId}`,
-        },
-        () => {
-          void refreshSocialState();
-        },
-      )
-      .subscribe();
+    let cancelled = false;
+    let channel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
+
+    const setupChannel = async () => {
+      await syncBrowserRealtimeAuth(supabase);
+      if (cancelled) return;
+
+      channel = supabase
+        .channel(`forum-post-votes-${postId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "post_votes",
+            filter: `post_id=eq.${postId}`,
+          },
+          () => {
+            void refreshSocialState();
+          },
+        )
+        .subscribe((subscriptionStatus) => {
+          if (import.meta.env.DEV) {
+            console.debug("[realtime] post votes", { subscriptionStatus, postId });
+          }
+        });
+    };
+
+    void setupChannel();
 
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
     };
   }, [postId, refreshSocialState, supabase]);
 

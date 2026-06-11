@@ -13,6 +13,7 @@
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getRequestIp } from "../../../lib/request-ip";
+import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { validateTurnstileToken } from "../../../lib/server/turnstile";
 
@@ -91,6 +92,10 @@ function migrationRequiredResponse(): Response {
     error: "COMMENTS_INTERACTIONS_MIGRATION_REQUIRED",
     details: "Run supabase/migrations/20260603_forum_comments_interactions.sql before using replies and likes.",
   }, 500);
+}
+
+function isNotificationGuardError(error: { message?: string } | null | undefined): boolean {
+  return /forum_notifications only allow read_at updates/i.test(error?.message ?? "");
 }
 
 function getBearerToken(request: Request): string | null {
@@ -256,7 +261,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    const isStaff = myRole === "moderator" || myRole === "admin";
+    const isStaff = isModeratorRole(myRole);
 
     // Enrich comments
     const enriched: EnrichedComment[] = visibleComments.map((c) => {
@@ -486,7 +491,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     if (profileError) return json({ error: profileError.message }, 500);
     if (!profile) return json({ error: "Profile not found" }, 403);
 
-    const isStaff = (profile as { role: string }).role === "moderator" || (profile as { role: string }).role === "admin";
+    const isStaff = isModeratorRole((profile as { role: string }).role);
 
     // Fetch the comment
     const { data: comment, error: commentError } = await userClient
@@ -608,7 +613,12 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       const { error: insertError } = await userClient
         .from("comment_reactions")
         .insert({ comment_id: commentId, user_id: authData.user.id, reaction_type: "like" });
-      if (insertError) return json({ error: insertError.message }, 500);
+      if (insertError) {
+        if (isNotificationGuardError(insertError)) {
+          return json({ error: "操作失败，请稍后重试。", code: "COMMENT_LIKE_NOTIFICATION_FAILED" }, 500);
+        }
+        return json({ error: insertError.message }, 500);
+      }
 
       // Get new count
       const { count: newCount } = await userClient

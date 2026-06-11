@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
-import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import type { NotificationItem } from "../../lib/notifications";
 
@@ -76,24 +76,41 @@ export default function NotificationsPage() {
   useEffect(() => {
     if (!supabase || status !== "signed_in" || !user) return;
 
-    const channel = supabase
-      .channel(`forum-notifications-page-${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "forum_notifications",
-          filter: `recipient_id=eq.${user.id}`,
-        },
-        () => {
-          void loadNotifications();
-        },
-      )
-      .subscribe();
+    let cancelled = false;
+    let channel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
+
+    const setupChannel = async () => {
+      const accessToken = await syncBrowserRealtimeAuth(supabase);
+      if (!accessToken || cancelled) return;
+
+      channel = supabase
+        .channel(`forum-notifications-page-${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "forum_notifications",
+            filter: `recipient_id=eq.${user.id}`,
+          },
+          () => {
+            void loadNotifications();
+          },
+        )
+        .subscribe((subscriptionStatus) => {
+          if (import.meta.env.DEV) {
+            console.debug("[realtime] notifications page", { subscriptionStatus, userId: user.id });
+          }
+        });
+    };
+
+    void setupChannel();
 
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
     };
   }, [loadNotifications, status, supabase, user]);
 

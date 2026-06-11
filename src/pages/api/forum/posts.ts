@@ -21,6 +21,7 @@ import {
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
 import { getRequestIp } from "../../../lib/request-ip";
 import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
+import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { validateTurnstileToken } from "../../../lib/server/turnstile";
 
@@ -72,17 +73,23 @@ function createUserClient(
   });
 }
 
-function parseModeratorEmails(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 function isMissingCircleStatusError(error: { message?: string } | null | undefined) {
   const message = error?.message?.toLowerCase() ?? "";
   return message.includes("status") && message.includes("does not exist");
+}
+
+async function loadViewerRole(client: SupabaseClient, userId: string): Promise<string | null> {
+  const { data, error } = await client
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as { role?: string | null } | null)?.role ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,11 +150,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
       if (authError || !authData.user) {
         return json({ error: "Invalid auth token" }, 401);
       }
-      const moderators = parseModeratorEmails(env.MODERATOR_EMAILS);
-      const email = authData.user.email?.toLowerCase() ?? "";
       return json({
-        configured: moderators.length > 0,
-        can_moderate: moderators.length > 0 && moderators.includes(email),
+        configured: true,
+        can_moderate: isModeratorRole(await loadViewerRole(userClient, authData.user.id)),
       });
     }
 
@@ -443,6 +448,8 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
     }
+    const viewerRole = await loadViewerRole(userClient, authData.user.id);
+    const isStaff = isModeratorRole(viewerRole);
 
     const url = new URL(request.url);
     const postId = String(url.searchParams.get("id") ?? url.searchParams.get("post_id") ?? "").trim();
@@ -462,7 +469,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     if (!post) {
       return json({ error: "Post not found" }, 404);
     }
-    if (post.author_id !== authData.user.id) {
+    if (post.author_id !== authData.user.id && !isStaff) {
       return json({ error: "Cannot delete a post you do not own" }, 403);
     }
     if (post.status === "deleted") {
@@ -481,29 +488,40 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    const { data: mediaRows, error: mediaQueryError } = await userClient
+    let mediaQuery = userClient
       .from("post_media")
       .select("id,kind,storage_path,url")
-      .eq("post_id", postId)
-      .eq("user_id", authData.user.id);
+      .eq("post_id", postId);
+    if (!isStaff) {
+      mediaQuery = mediaQuery.eq("user_id", authData.user.id);
+    }
+
+    const { data: mediaRows, error: mediaQueryError } = await mediaQuery;
     if (mediaQueryError) {
       return json({ error: mediaQueryError.message }, 500);
     }
 
-    const { data: updated, error: updateError } = await userClient
+    let updateQuery = userClient
       .from("posts")
       .update({ status: "deleted" })
-      .eq("id", postId)
-      .eq("author_id", authData.user.id)
+      .eq("id", postId);
+    if (!isStaff) {
+      updateQuery = updateQuery.eq("author_id", authData.user.id);
+    }
+
+    const { data: updated, error: updateError } = await updateQuery
       .select("id,status")
       .single();
     if (updateError) {
       // Backward compatibility: old RLS policies may not allow authors to set deleted.
-      const { error: hardDeleteError } = await userClient
+      let hardDeleteQuery = userClient
         .from("posts")
         .delete()
-        .eq("id", postId)
-        .eq("author_id", authData.user.id);
+        .eq("id", postId);
+      if (!isStaff) {
+        hardDeleteQuery = hardDeleteQuery.eq("author_id", authData.user.id);
+      }
+      const { error: hardDeleteError } = await hardDeleteQuery;
       if (hardDeleteError) {
         return json({ error: updateError.message }, 500);
       }
@@ -566,6 +584,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
     }
+    const viewerRole = await loadViewerRole(userClient, authData.user.id);
 
     const payload = (await request.json().catch(() => null)) as
       | { id?: string; status?: string }
@@ -580,12 +599,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
       return json({ error: "Only hidden status is supported in this endpoint" }, 400);
     }
 
-    const moderators = parseModeratorEmails(env.MODERATOR_EMAILS);
-    if (moderators.length === 0) {
-      return json({ error: "moderation not configured" }, 403);
-    }
-    const email = authData.user.email?.toLowerCase() ?? "";
-    if (!moderators.includes(email)) {
+    if (!isModeratorRole(viewerRole)) {
       return json({ error: "Forbidden" }, 403);
     }
 

@@ -29,6 +29,7 @@ type ManagedPost = {
   status: string;
   created_at: string;
   author: { id?: string | null; label?: string | null; display_name?: string | null; username?: string | null } | null;
+  can_manage?: boolean;
   media_count: number;
   report_count: number;
 };
@@ -39,6 +40,7 @@ type ManagedComment = {
   status: string;
   created_at: string;
   post_title: string;
+  can_manage?: boolean;
   author: { id?: string | null; display_name?: string | null; username?: string | null } | null;
 };
 
@@ -93,6 +95,7 @@ function mapManageError(message: string) {
   if (message.includes("CIRCLE_NOT_FOUND")) return { kind: "not_found", text: "圈子不存在。" };
   if (message.includes("PROFILE_NOT_FOUND")) return { kind: "profile", text: "当前账号缺少 profile，暂时无法管理圈子。" };
   if (message.includes("CIRCLE_MANAGE_FORBIDDEN")) return { kind: "forbidden", text: "没有权限管理该圈子。" };
+  if (message.includes("FORBIDDEN")) return { kind: "forbidden", text: "没有权限管理这条内容。" };
   if (message.includes("CIRCLE_STATUS_SCHEMA_NOT_READY") || message.includes("CIRCLE_STATUS_COLUMN_MISSING")) {
     return { kind: "schema", text: "数据库还没有完成圈子状态 migration，请先执行最新 SQL。" };
   }
@@ -470,28 +473,34 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
                     <span>创建时间：{new Date(post.created_at).toLocaleString("zh-CN")}</span>
                   </div>
                   <div className="admin-inline-actions">
-                    {post.status !== "hidden" ? (
-                      <button type="button" className="admin-action-button" disabled={rowLoadingId === post.id} onClick={() => void updatePostStatus(post.id, "hidden")}>
-                        隐藏帖子
-                      </button>
+                    {post.can_manage ? (
+                      <>
+                        {post.status !== "hidden" ? (
+                          <button type="button" className="admin-action-button" disabled={rowLoadingId === post.id} onClick={() => void updatePostStatus(post.id, "hidden")}>
+                            隐藏帖子
+                          </button>
+                        ) : (
+                          <button type="button" className="admin-action-button" disabled={rowLoadingId === post.id} onClick={() => void updatePostStatus(post.id, "published")}>
+                            恢复公开
+                          </button>
+                        )}
+                        {post.status === "deleted" ? (
+                          <button type="button" className="admin-action-button" disabled={rowLoadingId === post.id} onClick={() => void updatePostStatus(post.id, "published")}>
+                            恢复帖子
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="admin-action-button admin-action-danger"
+                            disabled={rowLoadingId === post.id}
+                            onClick={() => setConfirmDelete({ type: "post", id: post.id, title: post.title })}
+                          >
+                            删除帖子
+                          </button>
+                        )}
+                      </>
                     ) : (
-                      <button type="button" className="admin-action-button" disabled={rowLoadingId === post.id} onClick={() => void updatePostStatus(post.id, "published")}>
-                        恢复公开
-                      </button>
-                    )}
-                    {post.status === "deleted" ? (
-                      <button type="button" className="admin-action-button" disabled={rowLoadingId === post.id} onClick={() => void updatePostStatus(post.id, "published")}>
-                        恢复帖子
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="admin-action-button admin-action-danger"
-                        disabled={rowLoadingId === post.id}
-                        onClick={() => setConfirmDelete({ type: "post", id: post.id, title: post.title })}
-                      >
-                        删除帖子
-                      </button>
+                      <span className="community-meta">仅作者或管理员可管理该帖子</span>
                     )}
                   </div>
                 </div>
@@ -514,19 +523,25 @@ export default function CircleOwnerDashboard({ circleSlug }: { circleSlug: strin
                     <span>创建时间：{new Date(comment.created_at).toLocaleString("zh-CN")}</span>
                   </div>
                   <div className="admin-inline-actions">
-                    {comment.status === "deleted" ? (
-                      <button type="button" className="admin-action-button" disabled={rowLoadingId === comment.id} onClick={() => void updateCommentStatus(comment.id, "published")}>
-                        恢复评论
-                      </button>
+                    {comment.can_manage ? (
+                      <>
+                        {comment.status === "deleted" ? (
+                          <button type="button" className="admin-action-button" disabled={rowLoadingId === comment.id} onClick={() => void updateCommentStatus(comment.id, "published")}>
+                            恢复评论
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="admin-action-button admin-action-danger"
+                            disabled={rowLoadingId === comment.id}
+                            onClick={() => setConfirmDelete({ type: "comment", id: comment.id, title: comment.post_title })}
+                          >
+                            删除评论
+                          </button>
+                        )}
+                      </>
                     ) : (
-                      <button
-                        type="button"
-                        className="admin-action-button admin-action-danger"
-                        disabled={rowLoadingId === comment.id}
-                        onClick={() => setConfirmDelete({ type: "comment", id: comment.id, title: comment.post_title })}
-                      >
-                        删除评论
-                      </button>
+                      <span className="community-meta">仅作者或管理员可管理该评论</span>
                     )}
                   </div>
                 </div>

@@ -25,6 +25,16 @@ const REPORT_CATEGORIES = [
   "其他",
 ] as const;
 
+function mapModerationError(message: string, fallback: string): string {
+  if (message.includes("Cannot delete a post you do not own") || message.includes("FORBIDDEN")) {
+    return "无权执行该操作。";
+  }
+  if (message.includes("forum_notifications only allow read_at updates")) {
+    return "操作失败，请稍后重试。";
+  }
+  return fallback;
+}
+
 export default function PostModerationActions({
   postId,
   authorId,
@@ -43,46 +53,52 @@ export default function PostModerationActions({
   const [reportSubmitted, setReportSubmitted] = useState(false);
   const [reportSuccessMessage, setReportSuccessMessage] = useState("");
   const [isAuthor, setIsAuthor] = useState(false);
+  const showDeleteButton = showManagementActions && (isAuthor || canModerate);
 
   useEffect(() => {
     if (!supabase) return;
     let mounted = true;
 
     const syncSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      const token = data.session?.access_token;
-      const userId = data.session?.user?.id;
-      if (!token || !userId) {
-        setSession(null);
-        setCanModerate(false);
-        setIsAuthor(false);
-        setSessionResolved(true);
-        return;
-      }
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        const token = data.session?.access_token;
+        const userId = data.session?.user?.id;
+        if (!token || !userId) {
+          setSession(null);
+          setCanModerate(false);
+          setIsAuthor(false);
+          setSessionResolved(true);
+          return;
+        }
 
-      setSession({ accessToken: token, userId });
+        setSession({ accessToken: token, userId });
 
-      // Canonical ownership check from server to avoid client-side id mismatch.
-      const ownershipResponse = await fetch(`/api/forum/posts?ownership_check=${encodeURIComponent(postId)}`, {
-        headers: { authorization: `Bearer ${token}` },
-      });
-      const ownershipPayload = (await ownershipResponse.json().catch(() => null)) as
-        | { is_author?: boolean }
-        | null;
-      if (mounted) {
+        const [ownershipResponse, moderationResponse] = await Promise.all([
+          fetch(`/api/forum/posts?ownership_check=${encodeURIComponent(postId)}`, {
+            headers: { authorization: `Bearer ${token}` },
+          }),
+          fetch("/api/forum/posts?moderation_check=1", {
+            headers: { authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        const ownershipPayload = (await ownershipResponse.json().catch(() => null)) as
+          | { is_author?: boolean }
+          | null;
+        const moderationPayload = (await moderationResponse.json().catch(() => null)) as
+          | { can_moderate?: boolean }
+          | null;
+        if (!mounted) return;
+
         setIsAuthor(Boolean(ownershipPayload?.is_author) || userId === authorId);
+        setCanModerate(Boolean(moderationPayload?.can_moderate));
+      } finally {
+        if (mounted) {
+          setSessionResolved(true);
+        }
       }
-
-      const moderationResponse = await fetch("/api/forum/posts?moderation_check=1", {
-        headers: { authorization: `Bearer ${token}` },
-      });
-      const moderationPayload = (await moderationResponse.json().catch(() => null)) as
-        | { can_moderate?: boolean }
-        | null;
-      if (!mounted) return;
-      setCanModerate(Boolean(moderationPayload?.can_moderate));
-      setSessionResolved(true);
     };
 
     syncSession();
@@ -95,7 +111,7 @@ export default function PostModerationActions({
       mounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [authorId, postId, supabase]);
 
   const loginHref = buildLoginHref(`/posts/${postId}/`);
 
@@ -144,7 +160,7 @@ export default function PostModerationActions({
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
-        throw new Error(payload?.error ?? `删除失败 (${response.status})`);
+        throw new Error(mapModerationError(payload?.error ?? "", `删除失败 (${response.status})`));
       }
       window.location.assign("/feed/");
     } catch (requestError) {
@@ -169,7 +185,7 @@ export default function PostModerationActions({
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
-        throw new Error(payload?.error ?? `隐藏失败 (${response.status})`);
+        throw new Error(mapModerationError(payload?.error ?? "", `隐藏失败 (${response.status})`));
       }
       window.location.assign("/feed/");
     } catch (requestError) {
@@ -353,15 +369,6 @@ export default function PostModerationActions({
           <button type="button" className="community-action-button" disabled>
             举报
           </button>
-          {showManagementActions ? (
-            <button
-              type="button"
-              className="community-action-button community-action-button--danger community-action-button--compact"
-              onClick={openDeleteModal}
-            >
-              删除帖子
-            </button>
-          ) : null}
         </div>
         {renderModal()}
       </>
@@ -379,7 +386,7 @@ export default function PostModerationActions({
         >
           {reportSubmitted ? "已举报" : "举报"}
         </button>
-        {showManagementActions ? (
+        {showDeleteButton ? (
           <button
             type="button"
             className="community-action-button community-action-button--danger community-action-button--compact"

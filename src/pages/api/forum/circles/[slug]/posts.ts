@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { requireManagedCircleBySlug, jsonResponse } from "../../../../../lib/server/circle-management";
+import { isModeratorRole } from "../../../../../lib/server/admin-auth";
 
 export const prerender = false;
 
@@ -19,6 +20,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);
 
     const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const isStaff = isModeratorRole(auth.profile.role);
     const { data: posts, error: postsError } = await auth.client
       .from("posts")
       .select("id, title, status, author_id, created_at, updated_at")
@@ -71,6 +73,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
                 label: authorLabel(profile, post.author_id),
               }
             : null,
+          can_manage: isStaff || post.author_id === auth.user.id,
           media_count: mediaCountMap.get(post.id) ?? 0,
           report_count: reportCountMap.get(post.id) ?? 0,
         };
@@ -90,6 +93,7 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);
 
     const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const isStaff = isModeratorRole(auth.profile.role);
     const payload = (await request.json().catch(() => null)) as { id?: string; status?: string } | null;
     const postId = String(payload?.id ?? "").trim();
     const status = String(payload?.status ?? "").trim();
@@ -101,7 +105,7 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
 
     const { data: existingPost, error: existingPostError } = await auth.client
       .from("posts")
-      .select("id, circle_id, status")
+      .select("id, circle_id, status, author_id")
       .eq("id", postId)
       .maybeSingle();
 
@@ -109,15 +113,23 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
     if (!existingPost || existingPost.circle_id !== auth.circle.id) {
       return jsonResponse({ error: "Post not found in this circle" }, 404);
     }
+    if (!isStaff && existingPost.author_id !== auth.user.id) {
+      return jsonResponse({ error: "FORBIDDEN" }, 403);
+    }
     if (existingPost.status === status) {
       return jsonResponse({ ok: true, post: existingPost, unchanged: true });
     }
 
-    const { data: updated, error: updateError } = await auth.client
+    let updateQuery = auth.client
       .from("posts")
       .update({ status })
       .eq("id", postId)
-      .eq("circle_id", auth.circle.id)
+      .eq("circle_id", auth.circle.id);
+    if (!isStaff) {
+      updateQuery = updateQuery.eq("author_id", auth.user.id);
+    }
+
+    const { data: updated, error: updateError } = await updateQuery
       .select("id, circle_id, status")
       .single();
 
@@ -137,13 +149,14 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);
 
     const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const isStaff = isModeratorRole(auth.profile.role);
     const url = new URL(request.url);
     const postId = String(url.searchParams.get("id") ?? "").trim();
     if (!UUID_REGEX.test(postId)) return jsonResponse({ error: "Invalid post id" }, 400);
 
     const { data: existingPost, error: existingPostError } = await auth.client
       .from("posts")
-      .select("id, circle_id, status")
+      .select("id, circle_id, status, author_id")
       .eq("id", postId)
       .maybeSingle();
 
@@ -151,15 +164,23 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
     if (!existingPost || existingPost.circle_id !== auth.circle.id) {
       return jsonResponse({ error: "Post not found in this circle" }, 404);
     }
+    if (!isStaff && existingPost.author_id !== auth.user.id) {
+      return jsonResponse({ error: "FORBIDDEN" }, 403);
+    }
     if (existingPost.status === "deleted") {
       return jsonResponse({ ok: true, post: existingPost, already_deleted: true });
     }
 
-    const { data: updated, error: updateError } = await auth.client
+    let updateQuery = auth.client
       .from("posts")
       .update({ status: "deleted" })
       .eq("id", postId)
-      .eq("circle_id", auth.circle.id)
+      .eq("circle_id", auth.circle.id);
+    if (!isStaff) {
+      updateQuery = updateQuery.eq("author_id", auth.user.id);
+    }
+
+    const { data: updated, error: updateError } = await updateQuery
       .select("id, circle_id, status")
       .single();
 

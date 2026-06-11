@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { jsonResponse, requireManagedCircleBySlug } from "../../../../../lib/server/circle-management";
+import { isModeratorRole } from "../../../../../lib/server/admin-auth";
 
 export const prerender = false;
 
@@ -15,6 +16,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);
 
     const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const isStaff = isModeratorRole(auth.profile.role);
     const { data: posts, error: postsError } = await auth.client
       .from("posts")
       .select("id, title")
@@ -49,6 +51,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
         return {
           ...comment,
           post_title: postMap.get(comment.post_id) ?? "未知帖子",
+          can_manage: isStaff || comment.author_id === auth.user.id,
           author: author
             ? {
                 id: author.id,
@@ -74,6 +77,7 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);
 
     const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const isStaff = isModeratorRole(auth.profile.role);
     const payload = (await request.json().catch(() => null)) as { id?: string; status?: string } | null;
     const commentId = String(payload?.id ?? "").trim();
     const status = String(payload?.status ?? "").trim();
@@ -85,7 +89,7 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
 
     const { data: existingComment, error: existingCommentError } = await auth.client
       .from("comments")
-      .select("id, post_id, status")
+      .select("id, post_id, status, author_id")
       .eq("id", commentId)
       .maybeSingle();
 
@@ -101,14 +105,22 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
 
     if (owningPostError) return jsonResponse({ error: owningPostError.message }, 500);
     if (!owningPost) return jsonResponse({ error: "Comment not found in this circle" }, 404);
+    if (!isStaff && existingComment.author_id !== auth.user.id) {
+      return jsonResponse({ error: "FORBIDDEN" }, 403);
+    }
     if (existingComment.status === status) {
       return jsonResponse({ ok: true, comment: existingComment, unchanged: true });
     }
 
-    const { data: updated, error: updateError } = await auth.client
+    let updateQuery = auth.client
       .from("comments")
       .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", commentId)
+      .eq("id", commentId);
+    if (!isStaff) {
+      updateQuery = updateQuery.eq("author_id", auth.user.id);
+    }
+
+    const { data: updated, error: updateError } = await updateQuery
       .select("id, post_id, status")
       .single();
 
@@ -128,13 +140,14 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);
 
     const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const isStaff = isModeratorRole(auth.profile.role);
     const url = new URL(request.url);
     const commentId = String(url.searchParams.get("id") ?? "").trim();
     if (!UUID_REGEX.test(commentId)) return jsonResponse({ error: "Invalid comment id" }, 400);
 
     const { data: existingComment, error: existingCommentError } = await auth.client
       .from("comments")
-      .select("id, post_id, status")
+      .select("id, post_id, status, author_id")
       .eq("id", commentId)
       .maybeSingle();
 
@@ -150,14 +163,22 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
 
     if (owningPostError) return jsonResponse({ error: owningPostError.message }, 500);
     if (!owningPost) return jsonResponse({ error: "Comment not found in this circle" }, 404);
+    if (!isStaff && existingComment.author_id !== auth.user.id) {
+      return jsonResponse({ error: "FORBIDDEN" }, 403);
+    }
     if (existingComment.status === "deleted") {
       return jsonResponse({ ok: true, comment: existingComment, already_deleted: true });
     }
 
-    const { data: updated, error: updateError } = await auth.client
+    let updateQuery = auth.client
       .from("comments")
       .update({ status: "deleted", updated_at: new Date().toISOString() })
-      .eq("id", commentId)
+      .eq("id", commentId);
+    if (!isStaff) {
+      updateQuery = updateQuery.eq("author_id", auth.user.id);
+    }
+
+    const { data: updated, error: updateError } = await updateQuery
       .select("id, post_id, status")
       .single();
 
