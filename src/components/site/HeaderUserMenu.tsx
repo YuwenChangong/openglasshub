@@ -252,7 +252,6 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
     : "";
   const avatarUrl = summary?.profile.avatar_resolved_url ?? null;
   const profileHref = summary?.profile.profile_href ?? `/users/${encodeURIComponent(user.id)}/`;
-  const username = summary?.profile.username?.trim() || null;
   const identityId = summary?.profile.id ?? user.id;
   const postCount = summary?.stats.post_count ?? 0;
   const receivedLikeCount = Math.max(0, summary?.stats.received_like_count ?? 0);
@@ -296,7 +295,6 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
               <div className="header-user-menu__identity-top">
                 <strong>{summaryReady ? displayName : ""}</strong>
               </div>
-              {summaryReady && username ? <span>@{username}</span> : null}
               {summaryReady ? <span className="header-user-menu__identity-id">ID: {identityId}</span> : null}
             </div>
           </div>

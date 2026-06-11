@@ -310,7 +310,6 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
           <div className="profile-copy">
             <div className="profile-copy__title">
               <h1>{displayName}</h1>
-              {pageData.profile.username ? <span className="community-meta">@{pageData.profile.username}</span> : null}
             </div>
             <span className="profile-account-id">ID: {pageData.profile.id}</span>
             {pageData.profile.bio ? <p className="profile-bio">{pageData.profile.bio}</p> : null}

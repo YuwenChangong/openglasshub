@@ -106,13 +106,15 @@ export default function HeaderNotifications() {
     }, CLOSE_DELAY_MS);
   }, [clearCloseTimer]);
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!supabase || status !== "signed_in" || !user) {
       setNotificationsState({ status: "idle" });
       return;
     }
 
-    setNotificationsState((current) => (current.status === "ready" ? current : { status: "loading" }));
+    if (!silent) {
+      setNotificationsState((current) => (current.status === "ready" ? current : { status: "loading" }));
+    }
 
     try {
       const { data } = await supabase.auth.getSession();
@@ -175,7 +177,7 @@ export default function HeaderNotifications() {
             filter: `recipient_id=eq.${user.id}`,
           },
           () => {
-            void loadNotifications();
+            void loadNotifications({ silent: true });
           },
         )
         .subscribe((subscriptionStatus) => {

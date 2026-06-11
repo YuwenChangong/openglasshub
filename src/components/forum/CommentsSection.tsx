@@ -58,6 +58,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -76,9 +77,11 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
     });
   }, []);
 
-  const fetchComments = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const fetchComments = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent || !hasLoadedOnce) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const headers: Record<string, string> = {};
       if (supabase) {
@@ -96,6 +99,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
         throw new Error(data?.error ?? `请求失败 (${res.status})`);
       }
       setComments(data?.comments ?? []);
+      setHasLoadedOnce(true);
     } catch (fetchError) {
       const msg = fetchError instanceof Error ? fetchError.message : "加载评论失败";
       if (msg.startsWith("MIGRATION_REQUIRED::")) {
@@ -103,10 +107,11 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
       } else {
         setError(msg);
       }
+      setHasLoadedOnce(true);
     } finally {
       setLoading(false);
     }
-  }, [postId, supabase]);
+  }, [hasLoadedOnce, postId, supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,7 +149,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
             filter: `post_id=eq.${postId}`,
           },
           () => {
-            void fetchComments();
+            void fetchComments({ silent: true });
           },
         );
 
@@ -158,7 +163,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
             filter: `comment_id=eq.${commentId}`,
           },
           () => {
-            void fetchComments();
+            void fetchComments({ silent: true });
           },
         );
       }

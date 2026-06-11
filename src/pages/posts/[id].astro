@@ -88,7 +88,6 @@ const authorName = post
     || post.profiles?.username?.trim()
     || `${post.author_id.slice(0, 6)}…${post.author_id.slice(-4)}`
   : "匿名";
-const authorHandle = post?.profiles?.username?.trim() ? `@${post.profiles.username.trim()}` : null;
 const authorInitial = authorName.trim().charAt(0).toUpperCase() || "U";
 if (post) {
   await safeIncrementPostViewCount(supabase, post.id);
@@ -147,20 +146,16 @@ if (post) {
               {authorAvatarUrl ? <img src={authorAvatarUrl} alt="" loading="lazy" /> : <span>{authorInitial}</span>}
             </span>
           )}
-          <div class="post-detail__author-copy">
-            <div class="post-detail__author-heading">
-              {authorHref ? (
-                <a href={authorHref} class="post-detail__author-link">{authorName}</a>
-              ) : (
-                <span class="post-detail__author-link">{authorName}</span>
-              )}
-              {authorHandle ? <span class="post-detail__author-handle">{authorHandle}</span> : null}
-            </div>
+            <div class="post-detail__author-copy">
+              <div class="post-detail__author-heading">
+                {authorHref ? (
+                  <a href={authorHref} class="post-detail__author-link">{authorName}</a>
+                ) : (
+                  <span class="post-detail__author-link">{authorName}</span>
+                )}
+              </div>
             <div class="forum-meta post-detail__meta">
               <span>{formatPostTime(post.created_at)}</span>
-              {post.updated_at && post.updated_at !== post.created_at && (
-                <span>更新于 {new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(post.updated_at))}</span>
-              )}
             </div>
           </div>
         </div>

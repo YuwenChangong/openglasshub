@@ -35,7 +35,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [markingAll, setMarkingAll] = useState(false);
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (status !== "signed_in" || !user || !supabase) {
       setNotifications([]);
       setUnreadCount(0);
@@ -43,8 +43,10 @@ export default function NotificationsPage() {
       return;
     }
 
-    setLoading(true);
-    setError("");
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const { data } = await supabase.auth.getSession();
       const accessToken = data.session?.access_token;
@@ -63,9 +65,13 @@ export default function NotificationsPage() {
       setUnreadCount(payload.unread_count);
       setNotifications(payload.notifications);
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "NOTIFICATIONS_FETCH_FAILED");
+      if (!silent) {
+        setError(fetchError instanceof Error ? fetchError.message : "NOTIFICATIONS_FETCH_FAILED");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [status, supabase, user]);
 
@@ -94,7 +100,7 @@ export default function NotificationsPage() {
             filter: `recipient_id=eq.${user.id}`,
           },
           () => {
-            void loadNotifications();
+            void loadNotifications({ silent: true });
           },
         )
         .subscribe((subscriptionStatus) => {
