@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { sortNotificationsByLatestEvent, type NotificationItem } from "../../lib/notifications";
@@ -34,6 +34,7 @@ export default function NotificationsPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [markingAll, setMarkingAll] = useState(false);
+  const hasMarkedOnEntryRef = useRef(false);
 
   const loadNotifications = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (status !== "signed_in" || !user || !supabase) {
@@ -163,6 +164,16 @@ export default function NotificationsPage() {
   const markAllRead = useCallback(async () => {
     if (markingAll || !supabase) return;
     setMarkingAll(true);
+    setUnreadCount(0);
+    setNotifications((current) =>
+      sortNotificationsByLatestEvent(
+        current.map((item) => ({
+          ...item,
+          read_at: item.read_at ?? new Date().toISOString(),
+        })),
+      ),
+    );
+    window.dispatchEvent(new CustomEvent("openglass:notifications-read"));
     try {
       const { data } = await supabase.auth.getSession();
       const accessToken = data.session?.access_token;
@@ -176,21 +187,23 @@ export default function NotificationsPage() {
         },
         body: JSON.stringify({ action: "mark_all_read" }),
       });
-      if (!response.ok) return;
-
-      setUnreadCount(0);
-      setNotifications((current) =>
-        sortNotificationsByLatestEvent(
-          current.map((item) => ({
-            ...item,
-            read_at: item.read_at ?? new Date().toISOString(),
-          })),
-        ),
-      );
+      if (!response.ok) {
+        void loadNotifications({ silent: true });
+      }
     } finally {
       setMarkingAll(false);
     }
-  }, [markingAll, supabase]);
+  }, [loadNotifications, markingAll, supabase]);
+
+  useEffect(() => {
+    if (status !== "signed_in" || !user) return;
+    if (loading || notifications.length === 0) return;
+    if (unreadCount < 1) return;
+    if (hasMarkedOnEntryRef.current) return;
+
+    hasMarkedOnEntryRef.current = true;
+    void markAllRead();
+  }, [loading, markAllRead, notifications.length, status, unreadCount, user, hasMarkedOnEntryRef]);
 
   if (status === "checking" || loading) {
     return <section className="community-empty"><strong>加载通知中...</strong></section>;
