@@ -35,6 +35,7 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
   const [posts, setPosts] = useState<SearchPostResult[]>([]);
   const [mounted, setMounted] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const lastRequestedQueryRef = useRef("");
 
   const trimmedQuery = query.trim();
   const detailHref = trimmedQuery
@@ -44,6 +45,56 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
     : "/search/";
   const hasPreviewQuery = trimmedQuery.length >= MIN_QUERY_LENGTH;
   const hasResults = posts.length > 0;
+
+  const fetchPreview = useCallback(async (nextQuery: string) => {
+    const normalizedQuery = nextQuery.trim();
+    if (normalizedQuery.length < MIN_QUERY_LENGTH) {
+      setPosts([]);
+      setLoading(false);
+      setOpen(false);
+      return;
+    }
+
+    lastRequestedQueryRef.current = normalizedQuery;
+    setLoading(true);
+    setOpen(true);
+
+    try {
+      const params = new URLSearchParams({
+        q: normalizedQuery,
+        type: "posts",
+        limit_posts: String(PREVIEW_LIMIT),
+      });
+      if (circleSlug) {
+        params.set("circle", circleSlug);
+      }
+
+      const response = await fetch(`/api/forum/search?${params.toString()}`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      const payload = (await response.json()) as SearchApiResponse;
+
+      if (lastRequestedQueryRef.current !== normalizedQuery) return;
+
+      if (!response.ok || !("ok" in payload) || !payload.ok) {
+        setPosts([]);
+        return;
+      }
+
+      setPosts(payload.results.posts.slice(0, PREVIEW_LIMIT));
+    } catch {
+      if (lastRequestedQueryRef.current !== normalizedQuery) return;
+      setPosts([]);
+    } finally {
+      if (lastRequestedQueryRef.current === normalizedQuery) {
+        setLoading(false);
+      }
+    }
+  }, [circleSlug]);
 
   useEffect(() => {
     setMounted(true);
@@ -130,9 +181,10 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      if (!trimmedQuery) return;
       window.location.assign(detailHref);
     },
-    [detailHref],
+    [detailHref, trimmedQuery],
   );
 
   const dropdownVisible = open && hasPreviewQuery && (loading || hasResults || trimmedQuery.length >= MIN_QUERY_LENGTH);
@@ -170,7 +222,13 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
             maxLength={80}
           />
         </label>
-        <button type="submit" className="community-button global-search-box__button">
+        <button
+          type="button"
+          className="community-button global-search-box__button"
+          onClick={() => {
+            void fetchPreview(trimmedQuery);
+          }}
+        >
           搜索
         </button>
       </form>
