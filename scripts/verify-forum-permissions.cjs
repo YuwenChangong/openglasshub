@@ -58,6 +58,14 @@ const criticalChecks = [
     ok: /existingComment\.author_id !== auth\.user\.id/.test(read("src/pages/api/forum/circles/[slug]/comments.ts")),
   },
   {
+    label: "Notifications API only updates own notifications",
+    ok: /\.update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]*?\.eq\("id", notificationId\)[\s\S]*?\.eq\("recipient_id", auth\.userId\)/.test(read("src/pages/api/users/me/notifications.ts")),
+  },
+  {
+    label: "Notifications API only updates own notifications for mark all",
+    ok: /\.update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]*?\.eq\("recipient_id", auth\.userId\)[\s\S]*?\.is\("read_at", null\)/.test(read("src/pages/api/users/me/notifications.ts")),
+  },
+  {
     label: "Post detail links author profile",
     ok: /post-detail__author-block/.test(read("src/pages/posts/[id].astro")) && /buildProfileHref/.test(read("src/pages/posts/[id].astro")),
   },

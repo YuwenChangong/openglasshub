@@ -5,6 +5,7 @@ import {
   buildNotificationMessage,
   buildNotificationPreview,
   getNotificationActorName,
+  sortNotificationsByLatestEvent,
   type ForumNotificationType,
   type NotificationActor,
   type NotificationItem,
@@ -24,6 +25,7 @@ type NotificationRow = {
   comment_id: string | null;
   read_at: string | null;
   created_at: string;
+  last_event_at: string;
 };
 
 type ProfileRow = {
@@ -113,8 +115,9 @@ async function loadNotificationRows(
 ): Promise<NotificationRow[]> {
   let query = client
     .from("forum_notifications")
-    .select("id, recipient_id, actor_id, type, post_id, comment_id, read_at, created_at")
+    .select("id, recipient_id, actor_id, type, post_id, comment_id, read_at, created_at, last_event_at")
     .eq("recipient_id", recipientId)
+    .order("last_event_at", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -221,6 +224,7 @@ function buildNotificationItem(
     id: row.id,
     type: row.type,
     created_at: row.created_at,
+    last_event_at: row.last_event_at,
     read_at: row.read_at,
     post_id: row.post_id,
     comment_id: row.comment_id,
@@ -276,7 +280,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
     return json({
       ok: true,
       unread_count: unreadCount,
-      notifications: rows.map((row) => buildNotificationItem(row, actors, posts, comments)),
+      notifications: sortNotificationsByLatestEvent(
+        rows.map((row) => buildNotificationItem(row, actors, posts, comments)),
+      ),
     });
   } catch (error) {
     console.warn("[notifications] fetch failed", {

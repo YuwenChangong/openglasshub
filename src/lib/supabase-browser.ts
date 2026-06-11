@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 let browserClient: SupabaseClient | null = null;
 const REALTIME_AUTH_RETRY_DELAY_MS = 180;
 const REALTIME_AUTH_MAX_ATTEMPTS = 4;
+const REALTIME_AUTH_WAIT_TIMEOUT_MS = 3500;
 
 export function createBrowserSupabaseClient(): SupabaseClient | null {
   const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
@@ -36,6 +37,24 @@ export async function syncBrowserRealtimeAuth(supabase: SupabaseClient | null): 
     if (attempt < REALTIME_AUTH_MAX_ATTEMPTS - 1) {
       await new Promise((resolve) => window.setTimeout(resolve, REALTIME_AUTH_RETRY_DELAY_MS));
     }
+  }
+
+  if (!accessToken) {
+    accessToken = await new Promise<string | null>((resolve) => {
+      let timeoutId = 0;
+      const authSubscription = supabase.auth.onAuthStateChange((_event, session) => {
+        const token = session?.access_token ?? null;
+        if (!token) return;
+        window.clearTimeout(timeoutId);
+        authSubscription.data.subscription.unsubscribe();
+        resolve(token);
+      });
+
+      timeoutId = window.setTimeout(() => {
+        authSubscription.data.subscription.unsubscribe();
+        resolve(null);
+      }, REALTIME_AUTH_WAIT_TIMEOUT_MS);
+    });
   }
 
   if (!accessToken) {

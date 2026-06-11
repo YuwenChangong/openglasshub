@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
-import type { NotificationItem } from "../../lib/notifications";
+import { sortNotificationsByLatestEvent, type NotificationItem } from "../../lib/notifications";
 
 type NotificationsPayload = {
   ok: true;
@@ -120,7 +120,9 @@ export default function HeaderNotifications() {
       const { data } = await supabase.auth.getSession();
       const accessToken = data.session?.access_token;
       if (!accessToken) {
-        setNotificationsState({ status: "error" });
+        if (!silent) {
+          setNotificationsState({ status: "error" });
+        }
         return;
       }
 
@@ -131,18 +133,30 @@ export default function HeaderNotifications() {
       });
 
       if (!response.ok) {
-        setNotificationsState({ status: "error" });
+        if (!silent) {
+          setNotificationsState({ status: "error" });
+        }
         return;
       }
 
       const payload = (await response.json().catch(() => null)) as NotificationsPayload | null;
       if (payload?.ok) {
-        setNotificationsState({ status: "ready", data: payload });
+        setNotificationsState({
+          status: "ready",
+          data: {
+            ...payload,
+            notifications: sortNotificationsByLatestEvent(payload.notifications),
+          },
+        });
       } else {
-        setNotificationsState({ status: "error" });
+        if (!silent) {
+          setNotificationsState({ status: "error" });
+        }
       }
     } catch {
-      setNotificationsState({ status: "error" });
+      if (!silent) {
+        setNotificationsState({ status: "error" });
+      }
     }
   }, [status, supabase, user]);
 
@@ -270,7 +284,9 @@ export default function HeaderNotifications() {
   }, [clearCloseTimer]);
 
   const unreadCount = notificationsState.status === "ready" ? notificationsState.data.unread_count : 0;
-  const notifications = notificationsState.status === "ready" ? notificationsState.data.notifications : [];
+  const notifications = notificationsState.status === "ready"
+    ? sortNotificationsByLatestEvent(notificationsState.data.notifications)
+    : [];
 
   const markRead = useCallback(async (notificationId: string) => {
     if (!supabase) return;
@@ -304,8 +320,10 @@ export default function HeaderNotifications() {
           status: "ready",
           data: {
             unread_count: nextUnread,
-            notifications: current.data.notifications.map((item) =>
-              item.id === notificationId ? { ...item, read_at: new Date().toISOString() } : item,
+            notifications: sortNotificationsByLatestEvent(
+              current.data.notifications.map((item) =>
+                item.id === notificationId ? { ...item, read_at: new Date().toISOString() } : item,
+              ),
             ),
           },
         };
@@ -345,10 +363,12 @@ export default function HeaderNotifications() {
               status: "ready",
               data: {
                 unread_count: 0,
-                notifications: current.data.notifications.map((item) => ({
-                  ...item,
-                  read_at: item.read_at ?? new Date().toISOString(),
-                })),
+                notifications: sortNotificationsByLatestEvent(
+                  current.data.notifications.map((item) => ({
+                    ...item,
+                    read_at: item.read_at ?? new Date().toISOString(),
+                  })),
+                ),
               },
             }
           : current,
@@ -423,7 +443,7 @@ export default function HeaderNotifications() {
                     <span className="header-notifications__copy">
                       <strong>{notification.message}</strong>
                       {notification.preview ? <span>{notification.preview}</span> : null}
-                      <small>{formatRelativeTime(notification.created_at)}</small>
+                          <small>{formatRelativeTime(notification.last_event_at || notification.created_at)}</small>
                     </span>
                   </button>
                 );

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
-import type { NotificationItem } from "../../lib/notifications";
+import { sortNotificationsByLatestEvent, type NotificationItem } from "../../lib/notifications";
 
 type NotificationsPayload = {
   ok: true;
@@ -63,7 +63,7 @@ export default function NotificationsPage() {
       }
 
       setUnreadCount(payload.unread_count);
-      setNotifications(payload.notifications);
+      setNotifications(sortNotificationsByLatestEvent(payload.notifications));
     } catch (fetchError) {
       if (!silent) {
         setError(fetchError instanceof Error ? fetchError.message : "NOTIFICATIONS_FETCH_FAILED");
@@ -142,7 +142,9 @@ export default function NotificationsPage() {
 
       const wasUnread = notifications.some((item) => item.id === notificationId && item.read_at === null);
       setNotifications((current) =>
-        current.map((item) => (item.id === notificationId ? { ...item, read_at: new Date().toISOString() } : item)),
+        sortNotificationsByLatestEvent(
+          current.map((item) => (item.id === notificationId ? { ...item, read_at: new Date().toISOString() } : item)),
+        ),
       );
       if (wasUnread) {
         setUnreadCount((current) => Math.max(0, current - 1));
@@ -177,10 +179,14 @@ export default function NotificationsPage() {
       if (!response.ok) return;
 
       setUnreadCount(0);
-      setNotifications((current) => current.map((item) => ({
-        ...item,
-        read_at: item.read_at ?? new Date().toISOString(),
-      })));
+      setNotifications((current) =>
+        sortNotificationsByLatestEvent(
+          current.map((item) => ({
+            ...item,
+            read_at: item.read_at ?? new Date().toISOString(),
+          })),
+        ),
+      );
     } finally {
       setMarkingAll(false);
     }
@@ -239,7 +245,7 @@ export default function NotificationsPage() {
                 <span className="notifications-page__copy">
                   <strong>{notification.message}</strong>
                   {notification.preview ? <span>{notification.preview}</span> : null}
-                  <small>{formatRelativeTime(notification.created_at)}</small>
+                  <small>{formatRelativeTime(notification.last_event_at || notification.created_at)}</small>
                 </span>
               </a>
             );

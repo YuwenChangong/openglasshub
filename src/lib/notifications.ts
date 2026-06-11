@@ -15,6 +15,7 @@ export interface NotificationItem {
   id: string;
   type: ForumNotificationType;
   created_at: string;
+  last_event_at: string;
   read_at: string | null;
   post_id: string | null;
   comment_id: string | null;
@@ -57,4 +58,20 @@ export function buildNotificationPreview(type: ForumNotificationType, previewSou
     return shortened;
   }
   return shortened;
+}
+
+function toTimestamp(value?: string | null): number {
+  if (!value) return 0;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+export function sortNotificationsByLatestEvent<T extends Pick<NotificationItem, "created_at" | "last_event_at">>(
+  items: T[],
+): T[] {
+  return [...items].sort((left, right) => {
+    const lastEventDelta = toTimestamp(right.last_event_at) - toTimestamp(left.last_event_at);
+    if (lastEventDelta !== 0) return lastEventDelta;
+    return toTimestamp(right.created_at) - toTimestamp(left.created_at);
+  });
 }

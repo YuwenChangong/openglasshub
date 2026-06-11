@@ -146,14 +146,14 @@ if (post) {
               {authorAvatarUrl ? <img src={authorAvatarUrl} alt="" loading="lazy" /> : <span>{authorInitial}</span>}
             </span>
           )}
-            <div class="post-detail__author-copy">
-              <div class="post-detail__author-heading">
-                {authorHref ? (
-                  <a href={authorHref} class="post-detail__author-link">{authorName}</a>
-                ) : (
-                  <span class="post-detail__author-link">{authorName}</span>
-                )}
-              </div>
+          <div class="post-detail__author-copy">
+            <div class="post-detail__author-heading">
+              {authorHref ? (
+                <a href={authorHref} class="post-detail__author-link">{authorName}</a>
+              ) : (
+                <span class="post-detail__author-link">{authorName}</span>
+              )}
+            </div>
             <div class="forum-meta post-detail__meta">
               <span>{formatPostTime(post.created_at)}</span>
             </div>
@@ -268,10 +268,6 @@ if (post) {
   .post-detail__author-link:hover {
     color: var(--text);
     border-color: rgba(255, 255, 255, 0.28);
-  }
-  .post-detail__author-handle {
-    color: rgba(242, 244, 245, 0.54);
-    font-size: 0.86rem;
   }
   .post-body-card {
     padding: 0 0 0.2rem;
