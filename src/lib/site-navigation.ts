@@ -27,7 +27,7 @@ export const productLinks = [
 ] as const;
 
 export const forumTabs = [
-  { key: "feed", label: "动态", href: "/feed/?sort=latest" },
+  { key: "feed", label: "动态", href: "/feed/?sort=recommended" },
   { key: "circles", label: "圈子", href: "/circles/" },
   { key: "new-post", label: "发帖", href: "/posts/new/" },
 ] as const;

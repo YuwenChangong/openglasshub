@@ -13,9 +13,6 @@
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
-  buildPostCommentCountMap,
-  buildPostLikeCountMap,
-  isMissingViewCountError,
   safeIncrementPostViewCount,
 } from "../../../lib/post-engagement";
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
@@ -24,6 +21,7 @@ import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { validateTurnstileToken } from "../../../lib/server/turnstile";
+import { listForumFeed, parseFeedSort } from "../../../lib/forum-feed";
 
 export const prerender = false;
 
@@ -182,9 +180,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
     }
 
     const circleSlug = url.searchParams.get("circle");
-    const sort = url.searchParams.get("sort") === "hot" ? "hot" : "latest";
+    const sort = parseFeedSort(url.searchParams.get("sort"));
     const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 20;
+    const pageParam = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
+    const page = Number.isFinite(pageParam) ? Math.max(1, pageParam) : 1;
     const incrementView = url.searchParams.get("increment_view") === "1";
     const incrementPostId = String(url.searchParams.get("id") ?? "").trim();
 
@@ -195,100 +195,15 @@ export const GET: APIRoute = async ({ request, locals }) => {
       return json(result.ok ? { ok: true } : { ok: false }, 200);
     }
 
-    const selectWithViewCount =
-      "id,title,type,status,created_at,last_activity_at,view_count,circle_id,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)";
-    const selectWithoutViewCount =
-      "id,title,type,status,created_at,last_activity_at,circle_id,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)";
+    const feed = await listForumFeed({
+      client,
+      sort,
+      limit,
+      page,
+      circleSlug,
+    });
 
-    let query = client
-      .from("posts")
-      .select(selectWithViewCount)
-      .eq("status", "published")
-      .order("created_at", { ascending: false })
-      .limit(sort === "hot" ? Math.min(Math.max(limit * 4, 60), 200) : limit);
-
-    if (circleSlug) {
-      let { data: circle, error: circleError } = await client
-        .from("circles")
-        .select("id")
-        .eq("slug", circleSlug)
-        .eq("status", "active")
-        .maybeSingle();
-      if (circleError && isMissingCircleStatusError(circleError)) {
-        const fallback = await client
-          .from("circles")
-          .select("id")
-          .eq("slug", circleSlug)
-          .maybeSingle();
-        circle = fallback.data;
-        circleError = fallback.error;
-      }
-      if (circleError) {
-        return json({ error: circleError.message }, 500);
-      }
-      if (!circle) {
-        return json({ posts: [], total: 0 }, 200);
-      }
-      query = query.eq("circle_id", circle.id);
-    }
-
-    let supportsViewCount = true;
-    let { data, error } = await query;
-    if (error && isMissingViewCountError(error)) {
-      console.warn("[forum-posts-api] view_count unavailable, falling back", error.message);
-      supportsViewCount = false;
-      let fallbackQuery = client
-        .from("posts")
-        .select(selectWithoutViewCount)
-        .eq("status", "published")
-        .order("created_at", { ascending: false })
-        .limit(sort === "hot" ? Math.min(Math.max(limit * 4, 60), 200) : limit);
-
-      if (circleSlug) {
-        let { data: circle, error: circleError } = await client.from("circles").select("id").eq("slug", circleSlug).eq("status", "active").maybeSingle();
-        if (circleError && isMissingCircleStatusError(circleError)) {
-          const fallback = await client.from("circles").select("id").eq("slug", circleSlug).maybeSingle();
-          circle = fallback.data;
-        }
-        if (circle) {
-          fallbackQuery = fallbackQuery.eq("circle_id", circle.id);
-        }
-      }
-
-      const fallbackResult = await fallbackQuery;
-      data = fallbackResult.data;
-      error = fallbackResult.error;
-    }
-    if (error) {
-      return json({ error: error.message }, 500);
-    }
-
-    let posts = data ?? [];
-    if (sort === "hot" && posts.length > 0) {
-      const postIds = posts.map((post) => post.id);
-      const [likeCountMap, commentCountMap] = await Promise.all([
-        buildPostLikeCountMap(client, postIds),
-        buildPostCommentCountMap(client, postIds),
-      ]);
-
-      posts = [...posts]
-        .sort((left, right) => {
-          const leftScore =
-            (commentCountMap.get(left.id) ?? 0) * 3 +
-            (likeCountMap.get(left.id) ?? 0) * 2 +
-            Number(supportsViewCount ? left.view_count ?? 0 : 0);
-          const rightScore =
-            (commentCountMap.get(right.id) ?? 0) * 3 +
-            (likeCountMap.get(right.id) ?? 0) * 2 +
-            Number(supportsViewCount ? right.view_count ?? 0 : 0);
-
-          if (rightScore !== leftScore) return rightScore - leftScore;
-          return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
-        })
-        .slice(0, limit);
-    }
-
-    return json({ posts, total: posts.length, sort, supports_view_count: supportsViewCount });
+    return json(feed);
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },

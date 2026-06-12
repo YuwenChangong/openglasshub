@@ -9,73 +9,35 @@ import EmptyFeedState from "../../components/community/EmptyFeedState.astro";
 import { formatPostTime } from "../../lib/format-time";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
-import { buildPostCommentCountMap, buildPostLikeCountMap, isMissingViewCountError } from "../../lib/post-engagement";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
+import { listForumFeed, parseFeedSort } from "../../lib/forum-feed";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
 const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
-const sort = Astro.url.searchParams.get("sort") === "hot" ? "hot" : "latest";
+const sort = parseFeedSort(Astro.url.searchParams.get("sort"));
+const pageParam = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);
+const page = Number.isFinite(pageParam) ? Math.max(1, pageParam) : 1;
+const feedLimit = 20;
 
-const baseLimit = sort === "hot" ? 120 : 50;
-const postsWithViewCountQuery = supabase
-  .from("posts")
-  .select("id, author_id, title, body, type, created_at, last_activity_at, view_count, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(*)")
-  .eq("status", "published")
-  .order("created_at", { ascending: false })
-  .limit(baseLimit);
-const postsWithoutViewCountQuery = supabase
-  .from("posts")
-  .select("id, author_id, title, body, type, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name), post_media(*)")
-  .eq("status", "published")
-  .order("created_at", { ascending: false })
-  .limit(baseLimit);
-
-const [{ data: fetchedPostsWithViewCount, error: viewCountQueryError }, { data: circles }] = await Promise.all([
-  postsWithViewCountQuery,
+const [feed, { data: circles, error: circlesError }] = await Promise.all([
+  listForumFeed({
+    client: supabase,
+    sort,
+    limit: feedLimit,
+    page,
+  }),
   supabase
     .from("circles")
-    .select("slug, name, description")
+    .select("slug, name, description, status")
     .order("name", { ascending: true }),
 ]);
 
-let fetchedPosts = fetchedPostsWithViewCount ?? [];
-let error = viewCountQueryError;
-let supportsViewCount = !viewCountQueryError;
-
-if (viewCountQueryError && isMissingViewCountError(viewCountQueryError)) {
-  console.warn("[feed-hot-sort] view_count unavailable, falling back", viewCountQueryError.message);
-  const fallbackResult = await postsWithoutViewCountQuery;
-  fetchedPosts = fallbackResult.data ?? [];
-  error = fallbackResult.error;
-  supportsViewCount = false;
+if (circlesError) {
+  console.warn("[feed] failed to load sidebar circles", circlesError.message);
 }
 
-const likeCountMap = fetchedPosts ? await buildPostLikeCountMap(supabase, fetchedPosts.map((post) => post.id)) : new Map();
-const commentCountMap = fetchedPosts ? await buildPostCommentCountMap(supabase, fetchedPosts.map((post) => post.id)) : new Map();
-const posts = [...(fetchedPosts ?? [])]
-  .sort((left, right) => {
-    if (sort === "latest") {
-      return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
-    }
-
-    const leftScore =
-      (commentCountMap.get(left.id) ?? 0) * 3 +
-      (likeCountMap.get(left.id) ?? 0) * 2 +
-      Number(supportsViewCount ? left.view_count ?? 0 : 0);
-    const rightScore =
-      (commentCountMap.get(right.id) ?? 0) * 3 +
-      (likeCountMap.get(right.id) ?? 0) * 2 +
-      Number(supportsViewCount ? right.view_count ?? 0 : 0);
-
-    if (rightScore !== leftScore) {
-      return rightScore - leftScore;
-    }
-
-    return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
-  })
-  .slice(0, 50);
-
+const posts = feed.posts;
 const postMediaMap = posts.length > 0
   ? await buildResolvedPostMediaMap(
       supabase,
@@ -95,11 +57,30 @@ const postTypeLabels: Record<string, string> = {
   news: "资讯",
   feedback: "反馈",
 };
+
+const sortMeta = {
+  recommended: {
+    title: "推荐",
+    description: "按新鲜度、讨论度和收藏表现综合排序。",
+  },
+  latest: {
+    title: "最新",
+    description: "按发布时间倒序查看最新公开帖子。",
+  },
+  hot: {
+    title: "热门",
+    description: "聚焦近两周互动更高的公开帖子。",
+  },
+} as const;
+
+const currentMeta = sortMeta[sort];
+const buildFeedHref = (nextSort: string, nextPage = 1) =>
+  nextPage > 1 ? `/feed/?sort=${nextSort}&page=${nextPage}` : `/feed/?sort=${nextSort}`;
 ---
 
 <ForumLayout
   title="帖子动态"
-  description="OpenGlass Hub 论坛最新公开帖子。AR/AI 眼镜社区讨论动态。"
+  description="OpenGlass Hub 论坛公开帖子动态，支持推荐、最新与热门排序。"
   canonical="https://openglasshub.pages.dev/feed/"
   activeTab="feed"
 >
@@ -108,21 +89,22 @@ const postTypeLabels: Record<string, string> = {
       <div class="community-stream-head">
         <div>
           <h2>帖子动态</h2>
-          <p>浏览公开讨论，支持按发布时间或真实热度切换。</p>
+          <p>{currentMeta.description}</p>
         </div>
         <div class="feed-head-actions community-inline-links">
-          <a href="/feed/?sort=latest" class={`community-inline-link${sort === "latest" ? " community-inline-link--active" : ""}`}>最新</a>
-          <a href="/feed/?sort=hot" class={`community-inline-link${sort === "hot" ? " community-inline-link--active" : ""}`}>热门</a>
+          <a href={buildFeedHref("recommended")} class={`community-inline-link${sort === "recommended" ? " community-inline-link--active" : ""}`}>推荐</a>
+          <a href={buildFeedHref("latest")} class={`community-inline-link${sort === "latest" ? " community-inline-link--active" : ""}`}>最新</a>
+          <a href={buildFeedHref("hot")} class={`community-inline-link${sort === "hot" ? " community-inline-link--active" : ""}`}>热门</a>
           <a href="/posts/new/" class="community-inline-link">发帖</a>
         </div>
       </div>
 
-      {error ? (
-        <div class="community-empty">
-          <strong>加载帖子失败</strong>
-          <p>{error.message}</p>
-        </div>
-      ) : !posts || posts.length === 0 ? (
+      <div class="community-feed-meta">
+        <span class="community-meta">当前模式：{currentMeta.title}</span>
+        <span class="community-meta">第 {feed.page} 页</span>
+      </div>
+
+      {!posts || posts.length === 0 ? (
         <EmptyFeedState />
       ) : (
         <div class="community-feed-list">
@@ -139,11 +121,27 @@ const postTypeLabels: Record<string, string> = {
               authorUsername={post.profiles?.username || undefined}
               timestamp={formatPostTime(post.created_at)}
               media={postMediaMap.get(post.id) ?? []}
-              likeCount={likeCountMap.get(post.id) ?? 0}
+              likeCount={post.like_count ?? 0}
+              commentCount={post.comment_count ?? 0}
             />
           ))}
         </div>
       )}
+
+      {posts.length > 0 ? (
+        <div class="community-feed-pagination">
+          {page > 1 ? (
+            <a href={buildFeedHref(sort, page - 1)} class="community-action-button community-action-button--muted">上一页</a>
+          ) : (
+            <span class="community-action-button community-action-button--muted is-disabled" aria-disabled="true">上一页</span>
+          )}
+          {feed.has_more ? (
+            <a href={buildFeedHref(sort, page + 1)} class="community-action-button community-action-button--muted">下一页</a>
+          ) : (
+            <span class="community-action-button community-action-button--muted is-disabled" aria-disabled="true">下一页</span>
+          )}
+        </div>
+      ) : null}
     </div>
 
     <aside class="community-sidebar">
@@ -196,6 +194,24 @@ const postTypeLabels: Record<string, string> = {
     justify-content: flex-end;
     gap: 0.5rem;
   }
+  .community-feed-meta,
+  .community-feed-pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .community-feed-meta {
+    margin: 0 0 0.8rem;
+  }
+  .community-feed-pagination {
+    justify-content: space-between;
+    margin-top: 1rem;
+  }
+  .is-disabled {
+    pointer-events: none;
+    opacity: 0.5;
+  }
   @media (max-width: 900px) {
     .community-stream-head {
       align-items: flex-start;
@@ -204,6 +220,8 @@ const postTypeLabels: Record<string, string> = {
     .feed-head-actions {
       justify-content: flex-start;
     }
+    .community-feed-pagination {
+      justify-content: flex-start;
+    }
   }
 </style>
-
