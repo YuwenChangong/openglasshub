@@ -120,7 +120,7 @@ function validatePayload(payload: NewsPayload) {
 
 function toResponseError(error: unknown) {
   if (error instanceof Response) return error;
-  return jsonResponse({ ok: false, error: "保存资讯时发生了服务器错误，请稍后再试" }, 500);
+  return jsonResponse({ ok: false, code: "SERVER_ERROR", message: "操作失败，请稍后重试。" }, 500);
 }
 
 function successMessage(status: NewsStatus, mode: "create" | "update" | "delete") {
@@ -133,12 +133,12 @@ function successMessage(status: NewsStatus, mode: "create" | "update" | "delete"
 function toDatabaseErrorMessage(message: string) {
   const text = message.toLowerCase();
   if (text.includes("duplicate key") && text.includes("slug")) {
-    return { code: "NEWS_SLUG_CONFLICT", error: "文章链接已存在，请修改标题后重试" };
+    return { code: "NEWS_SLUG_CONFLICT", message: "文章链接已存在，请修改标题后重试。" };
   }
   if (text.includes("duplicate key") && text.includes("title")) {
-    return { code: "NEWS_TITLE_CONFLICT", error: "文章标题已存在，请调整后重试" };
+    return { code: "NEWS_TITLE_CONFLICT", message: "文章标题已存在，请调整后重试。" };
   }
-  return { code: "NEWS_WRITE_FAILED", error: "保存资讯失败，请稍后再试" };
+  return { code: "NEWS_WRITE_FAILED", message: "保存资讯失败，请稍后再试。" };
 }
 
 export const GET: APIRoute = async ({ request, locals }) => {
@@ -179,10 +179,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const auth = await requireModerator(request, env);
     const payload = (await request.json().catch(() => null)) as NewsPayload | null;
-    if (!payload) return jsonResponse({ ok: false, error: "请求内容无效" }, 400);
+    if (!payload) return jsonResponse({ ok: false, code: "INVALID_PAYLOAD", message: "请求内容无效。" }, 400);
 
     const validation = validatePayload(payload);
-    if (!validation.ok) return jsonResponse({ ok: false, code: validation.code, error: validation.error }, 400);
+    if (!validation.ok) return jsonResponse({ ok: false, code: validation.code, message: validation.error }, 400);
 
     const nextSlug = await buildUniqueNewsSlug(auth.client, {
       title: validation.value.title,
@@ -203,7 +203,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (result.error) {
       const mapped = toDatabaseErrorMessage(result.error.message);
-      return jsonResponse({ ok: false, code: mapped.code, error: mapped.error }, 500);
+      return jsonResponse({ ok: false, code: mapped.code, message: mapped.message }, 500);
     }
 
     return jsonResponse({ ok: true, article: result.data, message: successMessage(insertPayload.status, "create") }, 201);
@@ -219,10 +219,10 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
 
     const auth = await requireModerator(request, env);
     const payload = (await request.json().catch(() => null)) as NewsPayload | null;
-    if (!payload?.id) return jsonResponse({ ok: false, error: "缺少资讯 ID" }, 400);
+    if (!payload?.id) return jsonResponse({ ok: false, code: "MISSING_ID", message: "缺少资讯 ID。" }, 400);
 
     const validation = validatePayload(payload);
-    if (!validation.ok) return jsonResponse({ ok: false, code: validation.code, error: validation.error }, 400);
+    if (!validation.ok) return jsonResponse({ ok: false, code: validation.code, message: validation.error }, 400);
 
     const nextSlug = await buildUniqueNewsSlug(auth.client, {
       title: validation.value.title,
@@ -243,7 +243,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
 
     if (result.error) {
       const mapped = toDatabaseErrorMessage(result.error.message);
-      return jsonResponse({ ok: false, code: mapped.code, error: mapped.error }, 500);
+      return jsonResponse({ ok: false, code: mapped.code, message: mapped.message }, 500);
     }
 
     return jsonResponse({ ok: true, article: result.data, message: successMessage(validation.value.status, "update") });
@@ -260,7 +260,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     const auth = await requireModerator(request, env);
     const url = new URL(request.url);
     const id = String(url.searchParams.get("id") ?? "").trim();
-    if (!id) return jsonResponse({ ok: false, error: "缺少资讯 ID" }, 400);
+    if (!id) return jsonResponse({ ok: false, code: "MISSING_ID", message: "缺少资讯 ID。" }, 400);
 
     const result = await auth.client
       .from("news_articles")
@@ -271,7 +271,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     if (result.error) {
       const mapped = toDatabaseErrorMessage(result.error.message);
-      return jsonResponse({ ok: false, code: mapped.code, error: mapped.error }, 500);
+      return jsonResponse({ ok: false, code: mapped.code, message: mapped.message }, 500);
     }
 
     return jsonResponse({ ok: true, id: result.data?.id ?? id, message: successMessage("archived", "delete") });

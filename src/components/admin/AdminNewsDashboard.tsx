@@ -173,6 +173,25 @@ function successLabel(action: SaveAction, fallbackStatus: NewsStatus) {
   return "已保存";
 }
 
+function pendingLabel(action: SaveAction) {
+  if (action === "draft" || action === "save") return "正在保存...";
+  if (action === "publish") return "正在发布...";
+  if (action === "archive") return "正在归档...";
+  return "";
+}
+
+function normalizeActionError(error: unknown) {
+  if (error instanceof AdminApiError) {
+    if (error.status === 401) return "登录状态已失效，请重新登录。";
+    if (error.status === 403) return "当前账号没有管理员权限。";
+    return error.message || "操作失败，请稍后重试。";
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return "操作失败，请稍后重试。";
+}
+
 function bodyImageMarkdown(alt: string, url: string) {
   return `![${alt || "图片"}](${url})`;
 }
@@ -210,6 +229,7 @@ export default function AdminNewsDashboard() {
   const coverInputRef = useRef<HTMLInputElement | null>(null);
   const contentInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const isDev = import.meta.env.DEV;
 
   const selectedArticle = useMemo(
     () => articles.find((article) => article.id === selectedId) ?? null,
@@ -339,6 +359,11 @@ export default function AdminNewsDashboard() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function logAction(event: string, details?: Record<string, unknown>) {
+    if (!isDev) return;
+    console.debug(`[admin-news] ${event}`, details ?? {});
+  }
+
   function applySearchFilter(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSearchFilter(searchDraft.trim());
@@ -437,11 +462,21 @@ export default function AdminNewsDashboard() {
   }
 
   async function saveArticle(nextStatus?: NewsStatus, action?: SaveAction) {
-    if (!adminSession.session) return;
+    if (!adminSession.session) {
+      setError("登录状态已失效，请重新登录。");
+      setSuccess("");
+      return;
+    }
     const finalAction = action ?? "save";
     setSaveAction(finalAction);
     setError("");
     setSuccess("");
+    logAction("mutation:start", {
+      action: finalAction,
+      hasId: Boolean(form.id),
+      status: nextStatus ?? form.status,
+      hasTitle: Boolean(form.title.trim()),
+    });
 
     try {
       const body = {
@@ -466,6 +501,13 @@ export default function AdminNewsDashboard() {
             body: JSON.stringify(body),
           });
 
+      logAction("mutation:response", {
+        action: finalAction,
+        ok: payload.ok ?? true,
+        message: payload.message ?? null,
+        articleId: payload.article?.id ?? null,
+      });
+
       const article = payload.article ?? null;
       if (article) {
         setSelectedId(article.id);
@@ -477,21 +519,40 @@ export default function AdminNewsDashboard() {
       setSuccess(payload.message || successLabel(finalAction, nextStatus ?? form.status));
       await loadArticles();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "保存失败");
+      logAction("mutation:error", {
+        action: finalAction,
+        message: requestError instanceof Error ? requestError.message : String(requestError),
+      });
+      setError(normalizeActionError(requestError));
     } finally {
       setSaveAction(null);
     }
   }
 
   async function deleteArticle() {
-    if (!adminSession.session || !form.id) return;
+    if (!adminSession.session) {
+      setError("登录状态已失效，请重新登录。");
+      setSuccess("");
+      return;
+    }
+    if (!form.id) {
+      setError("当前没有可删除的资讯。");
+      setSuccess("");
+      return;
+    }
     setDeleting(true);
     setError("");
     setSuccess("");
+    logAction("delete:start", { id: form.id });
     try {
       const payload = await adminFetch<AdminNewsPayload>(`/api/admin/news?id=${encodeURIComponent(form.id)}`, {
         method: "DELETE",
         session: adminSession.session,
+      });
+      logAction("delete:response", {
+        ok: payload.ok ?? true,
+        message: payload.message ?? null,
+        id: form.id,
       });
       setConfirmDeleteOpen(false);
       setSelectedId("");
@@ -500,7 +561,10 @@ export default function AdminNewsDashboard() {
       setSuccess(payload.message || "已删除");
       setArticles((current) => current.filter((item) => item.id !== form.id));
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "删除失败");
+      logAction("delete:error", {
+        message: requestError instanceof Error ? requestError.message : String(requestError),
+      });
+      setError(normalizeActionError(requestError));
     } finally {
       setDeleting(false);
     }
@@ -969,6 +1033,8 @@ export default function AdminNewsDashboard() {
               </a>
             ) : null}
           </div>
+
+          {saveAction ? <div className="community-meta">{pendingLabel(saveAction)}</div> : null}
         </form>
       </div>
 

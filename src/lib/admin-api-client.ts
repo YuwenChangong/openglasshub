@@ -43,11 +43,21 @@ export async function adminFetch<T = JsonObject>(path: string, options: AdminFet
     }
   }
 
+  const payloadMessage =
+    typeof payload?.message === "string" && payload.message.trim().length > 0
+      ? payload.message.trim()
+      : null;
+  const payloadError =
+    typeof payload?.error === "string" && payload.error.trim().length > 0
+      ? payload.error.trim()
+      : null;
+
+  if (response.ok && payload && payload.ok === false) {
+    throw new AdminApiError(payloadMessage || payloadError || "操作失败，请稍后重试。", response.status, payload?.details);
+  }
+
   if (!response.ok) {
-    const apiMessage =
-      typeof payload?.error === "string" && payload.error.trim().length > 0
-        ? payload.error.trim()
-        : `请求失败 (${response.status})`;
+    const apiMessage = payloadMessage || payloadError || `请求失败 (${response.status})`;
 
     if (response.status === 401) {
       throw new AdminApiError("登录状态已失效，请重新登录", 401, payload?.details);
