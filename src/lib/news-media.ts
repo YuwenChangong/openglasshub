@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const NEWS_MEDIA_BUCKET = "post-media";
 const NEWS_MEDIA_PREFIXES = ["news-covers/", "news-content/"] as const;
+const newsMediaUrlCache = new WeakMap<SupabaseClient, Map<string, Promise<string | null>>>();
 
 export function isNewsStoragePath(value: string | null | undefined) {
   const path = String(value ?? "").trim();
@@ -23,16 +24,33 @@ export async function resolveNewsMediaUrl(
   if (isHttpUrl(text)) return text;
   if (!isNewsStoragePath(text)) return null;
 
-  const { data, error } = await client.storage.from(NEWS_MEDIA_BUCKET).createSignedUrl(text, expiresIn);
-  if (error || !data?.signedUrl) {
-    console.warn("[news-media] createSignedUrl failed", {
-      path: text,
-      message: error?.message ?? "missing signed url",
-    });
-    return null;
+  let clientCache = newsMediaUrlCache.get(client);
+  if (!clientCache) {
+    clientCache = new Map<string, Promise<string | null>>();
+    newsMediaUrlCache.set(client, clientCache);
   }
 
-  return data.signedUrl;
+  const cacheKey = `${expiresIn}:${text}`;
+  const cached = clientCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = (async () => {
+    const { data, error } = await client.storage.from(NEWS_MEDIA_BUCKET).createSignedUrl(text, expiresIn);
+    if (error || !data?.signedUrl) {
+      console.warn("[news-media] createSignedUrl failed", {
+        path: text,
+        message: error?.message ?? "missing signed url",
+      });
+      return null;
+    }
+
+    return data.signedUrl;
+  })();
+
+  clientCache.set(cacheKey, pending);
+  return pending;
 }
 
 export async function resolveNewsMediaUrls(

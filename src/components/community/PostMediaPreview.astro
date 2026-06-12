@@ -58,6 +58,7 @@ const singleOrientation =
             src={item.previewUrl || item.displayUrl}
             alt={item.alt_text || "帖子图片"}
             loading="lazy"
+            decoding="async"
           />
         ) : item.kind === "video" ? (
           <>
@@ -65,7 +66,7 @@ const singleOrientation =
               src={item.previewUrl || item.displayUrl}
               muted
               playsinline
-              preload="metadata"
+              preload="none"
             />
             <span class="community-post-media-preview__badge">视频</span>
           </>

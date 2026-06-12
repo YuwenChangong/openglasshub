@@ -73,6 +73,7 @@ export default function PostMediaGallery({ media, postTitle }: Props) {
               src={active.displayUrl}
               alt={active.alt_text || postTitle}
               loading="eager"
+              decoding="async"
             />
           </button>
         ) : active.kind === "video" ? (
@@ -107,10 +108,10 @@ export default function PostMediaGallery({ media, postTitle }: Props) {
                 onClick={() => setActiveIndex(index)}
               >
                 {item.kind === "image" ? (
-                  <img src={item.previewUrl || item.displayUrl} alt={item.alt_text || postTitle} loading="lazy" />
+                  <img src={item.previewUrl || item.displayUrl} alt={item.alt_text || postTitle} loading="lazy" decoding="async" />
                 ) : item.kind === "video" ? (
                   <>
-                    <video src={item.previewUrl || item.displayUrl} muted playsInline preload="metadata" />
+                    <video src={item.previewUrl || item.displayUrl} muted playsInline preload="none" />
                     <span className="post-media-video-badge">视频</span>
                   </>
                 ) : (

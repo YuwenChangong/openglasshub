@@ -19,7 +19,7 @@ const { title, summary, category, href, date, coverImageUrl, coverAlt = title } 
   </div>
   {coverImageUrl && (
     <div class="community-news-cover">
-      <img src={coverImageUrl} alt={coverAlt} loading="lazy" />
+      <img src={coverImageUrl} alt={coverAlt} loading="lazy" decoding="async" />
     </div>
   )}
   <h3>{title}</h3>

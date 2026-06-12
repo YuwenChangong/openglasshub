@@ -170,7 +170,12 @@ type PublicNewsFeedResult = {
 
 function sortPublishedNews(left: NewsArticle, right: NewsArticle) {
   if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
-  if (left.featured !== right.featured) return left.featured ? -1 : 1;
+  const leftTime = new Date(left.published_at ?? left.created_at).getTime();
+  const rightTime = new Date(right.published_at ?? right.created_at).getTime();
+  return rightTime - leftTime;
+}
+
+function sortNewsByPublishedTime(left: NewsArticle, right: NewsArticle) {
   const leftTime = new Date(left.published_at ?? left.created_at).getTime();
   const rightTime = new Date(right.published_at ?? right.created_at).getTime();
   return rightTime - leftTime;
@@ -331,7 +336,6 @@ export async function listPublicNewsFeed(
     .select("*", { count: "exact" })
     .eq("status", "published")
     .order("pinned", { ascending: false })
-    .order("featured", { ascending: false })
     .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .range(rangeFrom, rangeTo);
@@ -345,12 +349,21 @@ export async function listPublicNewsFeed(
     .select("*")
     .eq("status", "published")
     .eq("featured", true)
-    .order("pinned", { ascending: false })
     .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const latestPublishedQuery = client
+    .from("news_articles")
+    .select("*")
+    .eq("status", "published")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
     .limit(1);
 
   if (filter !== "recommended") {
     featuredQuery.eq("category", filter);
+    latestPublishedQuery.eq("category", filter);
   }
 
   const hotQuery = client
@@ -362,19 +375,23 @@ export async function listPublicNewsFeed(
     .order("created_at", { ascending: false })
     .limit(5);
 
-  const [mainResult, featuredResult, hotResult] = await Promise.all([
+  const [mainResult, featuredResult, latestPublishedResult, hotResult] = await Promise.all([
     query,
     featuredQuery,
+    latestPublishedQuery,
     hotQuery,
   ]);
 
   if (
     isMissingNewsTableError(mainResult.error) ||
     isMissingNewsTableError(featuredResult.error) ||
+    isMissingNewsTableError(latestPublishedResult.error) ||
     isMissingNewsTableError(hotResult.error)
   ) {
     const fallback = fallbackArticlesFor(filter);
-    const featured = fallback.find((item) => item.featured) ?? fallback[0] ?? null;
+    const featured = [...fallback]
+      .filter((item) => item.featured)
+      .sort(sortNewsByPublishedTime)[0] ?? [...fallback].sort(sortNewsByPublishedTime)[0] ?? null;
     const fallbackHotBase = [...FALLBACK_NEWS_ARTICLES];
     const allZeroViews = fallbackHotBase.every((item) => (item.view_count ?? 0) === 0);
     const fallbackHot = allZeroViews
@@ -405,6 +422,7 @@ export async function listPublicNewsFeed(
 
   if (mainResult.error) throw new Error(mainResult.error.message);
   if (featuredResult.error) throw new Error(featuredResult.error.message);
+  if (latestPublishedResult.error) throw new Error(latestPublishedResult.error.message);
   if (hotResult.error) throw new Error(hotResult.error.message);
 
   const articles = ((mainResult.data as NewsArticleRow[] | null) ?? [])
@@ -412,7 +430,11 @@ export async function listPublicNewsFeed(
     .filter(Boolean) as NewsArticle[];
   const featuredArticle = ((featuredResult.data as NewsArticleRow[] | null) ?? [])
     .map(normalizeNewsRow)
-    .filter(Boolean)[0] ?? null;
+    .filter(Boolean)[0]
+    ?? ((latestPublishedResult.data as NewsArticleRow[] | null) ?? [])
+      .map(normalizeNewsRow)
+      .filter(Boolean)[0]
+    ?? null;
   const hotArticles = ((hotResult.data as NewsArticleRow[] | null) ?? [])
     .map(normalizeNewsRow)
     .filter(Boolean) as NewsArticle[];

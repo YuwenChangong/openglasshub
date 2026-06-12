@@ -280,7 +280,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
         >
           <div className="header-user-menu__profile">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="header-user-menu__profile-avatar" />
+              <img src={avatarUrl} alt="" className="header-user-menu__profile-avatar" decoding="async" />
             ) : (
               <span
                 className={`header-user-menu__profile-avatar header-user-menu__profile-avatar--fallback${
@@ -360,7 +360,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
         aria-label="打开账户菜单"
       >
         {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="header-user-menu__avatar" />
+          <img src={avatarUrl} alt="" className="header-user-menu__avatar" decoding="async" />
         ) : (
           <span
             className={`header-user-menu__avatar header-user-menu__avatar--fallback${

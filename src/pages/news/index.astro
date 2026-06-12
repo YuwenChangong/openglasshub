@@ -73,7 +73,13 @@ const buildCategoryHref = (nextFilter: string) =>
           </div>
           {featuredArticle.cover_image_url && coverUrlMap.get(featuredArticle.cover_image_url) ? (
             <div class="news-featured-card__media">
-              <img src={coverUrlMap.get(featuredArticle.cover_image_url)!} alt={featuredArticle.title} loading="eager" />
+              <img
+                src={coverUrlMap.get(featuredArticle.cover_image_url)!}
+                alt={featuredArticle.title}
+                loading="eager"
+                decoding="async"
+                fetchpriority="high"
+              />
             </div>
           ) : null}
         </a>
@@ -93,7 +99,7 @@ const buildCategoryHref = (nextFilter: string) =>
             </div>
             {article.cover_image_url && coverUrlMap.get(article.cover_image_url) ? (
               <div class="news-feed-card__thumb">
-                <img src={coverUrlMap.get(article.cover_image_url)!} alt={article.title} loading="lazy" />
+                <img src={coverUrlMap.get(article.cover_image_url)!} alt={article.title} loading="lazy" decoding="async" />
               </div>
             ) : null}
           </a>

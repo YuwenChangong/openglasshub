@@ -75,7 +75,7 @@ const discussionHref = article ? `/search/?q=${encodeURIComponent(article.title)
 
         {coverUrl ? (
           <section class="news-cover">
-            <img src={coverUrl} alt={article.title} loading="eager" />
+            <img src={coverUrl} alt={article.title} loading="eager" decoding="async" fetchpriority="high" />
           </section>
         ) : null}
 
@@ -121,7 +121,7 @@ const discussionHref = article ? `/search/?q=${encodeURIComponent(article.title)
             if (block.type === "image") {
               return (
                 <figure class="news-article-page__image">
-                  <img src={block.src} alt={block.alt} loading="lazy" />
+                  <img src={block.src} alt={block.alt} loading="lazy" decoding="async" />
                   {block.alt ? <figcaption>{block.alt}</figcaption> : null}
                 </figure>
               );

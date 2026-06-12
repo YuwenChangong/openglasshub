@@ -294,13 +294,13 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
       <section className="community-surface community-surface--padded profile-shell profile-shell--owner">
         {pageData.resolvedBannerUrl ? (
           <div className="profile-banner">
-            <img src={pageData.resolvedBannerUrl} alt="" className="profile-banner__image" />
+            <img src={pageData.resolvedBannerUrl} alt="" className="profile-banner__image" loading="eager" decoding="async" />
           </div>
         ) : null}
         <div className="profile-head">
           <div className="profile-avatar-wrap">
             {pageData.resolvedAvatarUrl ? (
-              <img src={pageData.resolvedAvatarUrl} alt="" className="profile-avatar-image" />
+              <img src={pageData.resolvedAvatarUrl} alt="" className="profile-avatar-image" loading="eager" decoding="async" />
             ) : (
               <span className="community-avatar profile-avatar-fallback" aria-hidden="true">
                 {(displayName.trim().charAt(0) || "U").toUpperCase()}

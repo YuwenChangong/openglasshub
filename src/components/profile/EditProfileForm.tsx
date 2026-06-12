@@ -385,14 +385,14 @@ export default function EditProfileForm() {
 
       {bannerDisplayUrl ? (
         <div className="profile-banner">
-          <img src={bannerDisplayUrl} alt="" className="profile-banner__image" />
+          <img src={bannerDisplayUrl} alt="" className="profile-banner__image" loading="eager" decoding="async" />
         </div>
       ) : null}
 
       <div className="profile-head profile-head--editor">
         <div className="profile-avatar-wrap">
           {avatarDisplayUrl ? (
-            <img src={avatarDisplayUrl} alt="" className="profile-avatar-image" />
+            <img src={avatarDisplayUrl} alt="" className="profile-avatar-image" loading="eager" decoding="async" />
           ) : (
             <span className="community-avatar profile-avatar-fallback" aria-hidden="true">
               {(visibleName.trim().charAt(0) || "U").toUpperCase()}
