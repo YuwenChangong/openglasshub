@@ -59,6 +59,8 @@ const singleOrientation =
             alt={item.alt_text || "帖子图片"}
             loading="lazy"
             decoding="async"
+            width={item.width ?? undefined}
+            height={item.height ?? undefined}
           />
         ) : item.kind === "video" ? (
           <>

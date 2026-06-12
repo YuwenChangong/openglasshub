@@ -54,7 +54,9 @@ export default function ProfilePostCard({
 }: ProfilePostCardProps) {
   const previewMedia = pickPreviewMedia(mediaResolved);
   const previewImageUrl =
-    previewMedia?.kind === "video" ? previewMedia.previewUrl ?? previewMedia.displayUrl : previewMedia?.displayUrl;
+    previewMedia?.kind === "video"
+      ? previewMedia.previewUrl ?? previewMedia.displayUrl
+      : previewMedia?.previewUrl ?? previewMedia?.displayUrl;
   const snippet = buildProfileSnippet(body);
 
   return (
@@ -76,7 +78,14 @@ export default function ProfilePostCard({
 
       {previewImageUrl ? (
         <a href={`/posts/${id}/`} className="profile-post-card__media" aria-label={`${title} 预览`}>
-          <img src={previewImageUrl} alt="" loading="lazy" />
+          <img
+            src={previewImageUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            width={previewMedia?.width ?? undefined}
+            height={previewMedia?.height ?? undefined}
+          />
         </a>
       ) : null}
 

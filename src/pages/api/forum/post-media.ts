@@ -43,6 +43,7 @@ type MediaPayload =
   | {
       kind: "image";
       storage_path: string;
+      thumbnail_url?: string | null;
       alt_text?: string;
       sort_order?: number;
       width?: number | null;
@@ -56,6 +57,7 @@ type MediaPayload =
       kind: "video";
       storage_path?: string;
       url?: string;
+      thumbnail_url?: string | null;
       alt_text?: string;
       sort_order?: number;
       width?: number | null;
@@ -144,11 +146,20 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
 
     if (item.kind === "image") {
       const storagePath = String(item.storage_path ?? "").trim();
+      const thumbnailPath = String(item.thumbnail_url ?? "").trim();
       if (!storagePath || !storagePathRegex.test(storagePath)) {
         return "Invalid media storage_path";
       }
       if (!storagePath.startsWith(`${userId}/${postId}/`)) {
         return "Media storage_path must stay inside the current user/post folder";
+      }
+      if (thumbnailPath) {
+        if (!storagePathRegex.test(thumbnailPath)) {
+          return "Invalid media thumbnail_url";
+        }
+        if (!thumbnailPath.startsWith(`${userId}/${postId}/`)) {
+          return "Media thumbnail_url must stay inside the current user/post folder";
+        }
       }
       if (!item.mime_type) {
         return "mime_type is required for uploaded media";
@@ -267,7 +278,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           : item.kind === "video" && item.storage_path
             ? item.storage_path.trim()
             : null,
-      thumbnail_url: null,
+      thumbnail_url: item.thumbnail_url?.trim() || null,
       alt_text: item.alt_text?.trim() || null,
       width: normalizePositiveInteger(item.width),
       height: normalizePositiveInteger(item.height),
@@ -295,7 +306,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
             : item.kind === "video" && item.storage_path
               ? item.storage_path.trim()
               : null,
-        thumbnail_url: null,
+        thumbnail_url: item.thumbnail_url?.trim() || null,
         alt_text: item.alt_text?.trim() || null,
         sort_order: Number.isFinite(item.sort_order) ? Number(item.sort_order) : index,
       }));

@@ -30,6 +30,8 @@ type PostWithMedia = {
   post_media?: PostMediaRow[] | null;
 };
 
+const signedPostMediaCache = new WeakMap<SupabaseClient, Map<string, Promise<string>>>();
+
 function sortMediaRows<T extends PostMediaRow>(rows: T[]): T[] {
   return [...rows].sort((left, right) => {
     const leftCover = left.is_cover ? 1 : 0;
@@ -50,6 +52,15 @@ function buildPublicR2Url(baseUrl: string, storagePath: string): string {
   return `${normalizedBase}/${normalizedPath}`;
 }
 
+function getSignedMediaCache(client: SupabaseClient) {
+  let cache = signedPostMediaCache.get(client);
+  if (!cache) {
+    cache = new Map<string, Promise<string>>();
+    signedPostMediaCache.set(client, cache);
+  }
+  return cache;
+}
+
 export async function resolveSignedPostMedia(
   supabase: SupabaseClient,
   mediaRows: PostMediaRow[],
@@ -59,24 +70,41 @@ export async function resolveSignedPostMedia(
   const sortedRows = sortMediaRows(mediaRows);
   const isR2TempMedia = (item: PostMediaRow) =>
     Boolean(item.storage_path && item.storage_path.startsWith("tmp/"));
-  const storagePaths = sortedRows
-    .filter(
-      (item) =>
-        (item.kind === "image" || item.kind === "video") &&
-        item.storage_path &&
-        !isR2TempMedia(item),
-    )
-    .map((item) => item.storage_path as string);
+  const cache = getSignedMediaCache(supabase);
+  const storagePaths = [...new Set(
+    sortedRows
+      .flatMap((item) => {
+        const values: string[] = [];
+        if ((item.kind === "image" || item.kind === "video") && item.storage_path && !isR2TempMedia(item)) {
+          values.push(item.storage_path);
+        }
+        if (item.thumbnail_url && !/^https?:\/\//i.test(item.thumbnail_url) && !item.thumbnail_url.startsWith("tmp/")) {
+          values.push(item.thumbnail_url);
+        }
+        return values;
+      })
+      .filter(Boolean),
+  )];
 
-  const { data: signedUrls } = storagePaths.length
-    ? await supabase.storage.from("post-media").createSignedUrls(storagePaths, expiresIn)
-    : { data: [] as Array<{ signedUrl?: string }> };
+  const uncachedPaths = storagePaths.filter((path) => !cache.has(`${expiresIn}:${path}`));
+  if (uncachedPaths.length > 0) {
+    const { data: signedUrls } = await supabase.storage.from("post-media").createSignedUrls(uncachedPaths, expiresIn);
+    uncachedPaths.forEach((path, index) => {
+      cache.set(`${expiresIn}:${path}`, Promise.resolve(signedUrls?.[index]?.signedUrl ?? ""));
+    });
+  }
 
-  const signedUrlMap = new Map(
-    storagePaths.map((path, index) => [path, signedUrls?.[index]?.signedUrl ?? ""]),
-  );
+  const resolvePath = (path: string | null | undefined) => {
+    const normalizedPath = String(path ?? "").trim();
+    if (!normalizedPath) return Promise.resolve("");
+    if (/^https?:\/\//i.test(normalizedPath)) return Promise.resolve(normalizedPath);
+    if (normalizedPath.startsWith("tmp/")) {
+      return Promise.resolve(r2PublicBaseUrl ? buildPublicR2Url(r2PublicBaseUrl, normalizedPath) : "");
+    }
+    return cache.get(`${expiresIn}:${normalizedPath}`) ?? Promise.resolve("");
+  };
 
-  return sortedRows.map((item) => {
+  return Promise.all(sortedRows.map(async (item) => {
     const isTempR2 = isR2TempMedia(item);
     const fallbackExternalUrl =
       r2PublicBaseUrl && item.storage_path && isTempR2
@@ -85,15 +113,18 @@ export async function resolveSignedPostMedia(
     const signedUrl = isTempR2
       ? fallbackExternalUrl || item.url?.trim() || ""
       : item.storage_path && (item.kind === "image" || item.kind === "video")
-        ? signedUrlMap.get(item.storage_path) || fallbackExternalUrl || item.url?.trim() || ""
+        ? (await resolvePath(item.storage_path)) || fallbackExternalUrl || item.url?.trim() || ""
         : item.url?.trim() ?? "";
+    const thumbnailUrl = item.thumbnail_url?.trim()
+      ? await resolvePath(item.thumbnail_url)
+      : "";
 
     return {
       ...item,
       displayUrl: signedUrl,
-      previewUrl: item.thumbnail_url?.trim() || signedUrl,
+      previewUrl: thumbnailUrl || signedUrl,
     };
-  });
+  }));
 }
 
 export async function buildResolvedPostMediaMap(

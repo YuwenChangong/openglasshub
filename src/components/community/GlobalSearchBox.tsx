@@ -249,7 +249,7 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
               {posts.map((post) => (
                 <a key={post.id} href={`/posts/${post.id}/`} className="global-search-box__item">
                   {post.preview_image_url ? (
-                    <img src={post.preview_image_url} alt="" className="global-search-box__thumb" />
+                    <img src={post.preview_image_url} alt="" className="global-search-box__thumb" loading="lazy" decoding="async" />
                   ) : null}
                   <div className="global-search-box__item-copy">
                     <strong>{post.title}</strong>

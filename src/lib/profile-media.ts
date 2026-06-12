@@ -4,6 +4,7 @@ export const PROFILE_MEDIA_BUCKET = "post-media";
 export const PROFILE_AVATAR_PREFIX = "profile-avatars/";
 export const PROFILE_BANNER_PREFIX = "profile-banners/";
 export const PROFILE_MEDIA_EXPIRES_IN = 60 * 60;
+const profileMediaUrlCache = new WeakMap<SupabaseClient, Map<string, Promise<string | null>>>();
 
 export function isProfileAvatarPath(value?: string | null): value is string {
   return typeof value === "string" && value.startsWith(PROFILE_AVATAR_PREFIX);
@@ -23,16 +24,33 @@ async function createSignedUrl(
   expiresIn: number,
   label: "avatar" | "banner",
 ): Promise<string | null> {
-  const { data, error } = await supabase.storage.from(PROFILE_MEDIA_BUCKET).createSignedUrl(path, expiresIn);
-  if (error || !data?.signedUrl) {
-    console.warn(`[profile-${label}] createSignedUrl failed`, {
-      path,
-      message: error?.message ?? "missing signed url",
-    });
-    return null;
+  let clientCache = profileMediaUrlCache.get(supabase);
+  if (!clientCache) {
+    clientCache = new Map<string, Promise<string | null>>();
+    profileMediaUrlCache.set(supabase, clientCache);
   }
 
-  return data.signedUrl;
+  const cacheKey = `${label}:${expiresIn}:${path}`;
+  const cached = clientCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = (async () => {
+    const { data, error } = await supabase.storage.from(PROFILE_MEDIA_BUCKET).createSignedUrl(path, expiresIn);
+    if (error || !data?.signedUrl) {
+      console.warn(`[profile-${label}] createSignedUrl failed`, {
+        path,
+        message: error?.message ?? "missing signed url",
+      });
+      return null;
+    }
+
+    return data.signedUrl;
+  })();
+
+  clientCache.set(cacheKey, pending);
+  return pending;
 }
 
 export async function resolveProfileAvatarUrl(

@@ -328,22 +328,6 @@ export async function listPublicNewsFeed(
   const page = Math.max(1, Math.trunc(options.page || 1));
   const limit = Math.min(Math.max(Math.trunc(options.limit || 5), 1), 12);
   const filter = options.filter;
-  const rangeFrom = (page - 1) * limit;
-  const rangeTo = rangeFrom + limit - 1;
-
-  let query = client
-    .from("news_articles")
-    .select("*", { count: "exact" })
-    .eq("status", "published")
-    .order("pinned", { ascending: false })
-    .order("published_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .range(rangeFrom, rangeTo);
-
-  if (filter !== "recommended") {
-    query = query.eq("category", filter);
-  }
-
   const featuredQuery = client
     .from("news_articles")
     .select("*")
@@ -375,15 +359,13 @@ export async function listPublicNewsFeed(
     .order("created_at", { ascending: false })
     .limit(5);
 
-  const [mainResult, featuredResult, latestPublishedResult, hotResult] = await Promise.all([
-    query,
+  const [featuredResult, latestPublishedResult, hotResult] = await Promise.all([
     featuredQuery,
     latestPublishedQuery,
     hotQuery,
   ]);
 
   if (
-    isMissingNewsTableError(mainResult.error) ||
     isMissingNewsTableError(featuredResult.error) ||
     isMissingNewsTableError(latestPublishedResult.error) ||
     isMissingNewsTableError(hotResult.error)
@@ -392,6 +374,8 @@ export async function listPublicNewsFeed(
     const featured = [...fallback]
       .filter((item) => item.featured)
       .sort(sortNewsByPublishedTime)[0] ?? [...fallback].sort(sortNewsByPublishedTime)[0] ?? null;
+    const fallbackList = featured ? fallback.filter((item) => item.id !== featured.id) : fallback;
+    const rangeFrom = (page - 1) * limit;
     const fallbackHotBase = [...FALLBACK_NEWS_ARTICLES];
     const allZeroViews = fallbackHotBase.every((item) => (item.view_count ?? 0) === 0);
     const fallbackHot = allZeroViews
@@ -407,27 +391,23 @@ export async function listPublicNewsFeed(
           if (publishedDiff !== 0) return publishedDiff;
           return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
         });
-    const totalPages = Math.max(1, Math.ceil(fallback.length / limit));
+    const totalPages = Math.max(1, Math.ceil(fallbackList.length / limit));
     return {
-      articles: fallback.slice(rangeFrom, rangeFrom + limit),
+      articles: fallbackList.slice(rangeFrom, rangeFrom + limit),
       featuredArticle: featured,
       hotArticles: fallbackHot.slice(0, 5),
-      total: fallback.length,
+      total: fallbackList.length,
       page,
       limit,
       total_pages: totalPages,
-      hasMore: rangeFrom + limit < fallback.length,
+      hasMore: rangeFrom + limit < fallbackList.length,
     };
   }
 
-  if (mainResult.error) throw new Error(mainResult.error.message);
   if (featuredResult.error) throw new Error(featuredResult.error.message);
   if (latestPublishedResult.error) throw new Error(latestPublishedResult.error.message);
   if (hotResult.error) throw new Error(hotResult.error.message);
 
-  const articles = ((mainResult.data as NewsArticleRow[] | null) ?? [])
-    .map(normalizeNewsRow)
-    .filter(Boolean) as NewsArticle[];
   const featuredArticle = ((featuredResult.data as NewsArticleRow[] | null) ?? [])
     .map(normalizeNewsRow)
     .filter(Boolean)[0]
@@ -448,6 +428,45 @@ export async function listPublicNewsFeed(
         return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
       })
     : hotArticles;
+  const rangeFrom = (page - 1) * limit;
+  const rangeTo = rangeFrom + limit - 1;
+  let mainQuery = client
+    .from("news_articles")
+    .select("*", { count: "exact" })
+    .eq("status", "published")
+    .order("pinned", { ascending: false })
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filter !== "recommended") {
+    mainQuery = mainQuery.eq("category", filter);
+  }
+  if (featuredArticle?.id) {
+    mainQuery = mainQuery.neq("id", featuredArticle.id);
+  }
+
+  const mainResult = await mainQuery;
+  if (isMissingNewsTableError(mainResult.error)) {
+    const fallback = fallbackArticlesFor(filter);
+    const fallbackList = featuredArticle ? fallback.filter((item) => item.id !== featuredArticle.id) : fallback;
+    const totalPages = Math.max(1, Math.ceil(fallbackList.length / limit));
+    return {
+      articles: fallbackList.slice(rangeFrom, rangeFrom + limit),
+      featuredArticle,
+      hotArticles: normalizedHotArticles.slice(0, 5),
+      total: fallbackList.length,
+      page,
+      limit,
+      total_pages: totalPages,
+      hasMore: rangeFrom + limit < fallbackList.length,
+    };
+  }
+  if (mainResult.error) throw new Error(mainResult.error.message);
+
+  const articles = ((mainResult.data as NewsArticleRow[] | null) ?? [])
+    .map(normalizeNewsRow)
+    .filter(Boolean) as NewsArticle[];
   const total = Number(mainResult.count ?? articles.length);
   const totalPages = Math.max(1, Math.ceil(total / limit));
 

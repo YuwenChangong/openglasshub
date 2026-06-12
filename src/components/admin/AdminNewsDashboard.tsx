@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AdminApiError, adminFetch } from "../../lib/admin-api-client";
+import { createOptimizedImageVariant } from "../../lib/client-image";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { useAdminSession } from "./useAdminSession";
 import GlassConfirmDialog from "../common/GlassConfirmDialog";
@@ -406,9 +407,16 @@ export default function AdminNewsDashboard() {
       throw new Error("登录状态已失效，请重新登录");
     }
 
-    const objectPath = `${prefix}/${adminSession.me.user_id}/${Date.now()}-${normalizeFileName(file.name)}`;
+    const optimizedFile = /^image\/(jpeg|png|webp)$/i.test(file.type)
+      ? (await createOptimizedImageVariant(file, {
+          maxWidth: prefix === "news-covers" ? 1600 : 1400,
+          quality: prefix === "news-covers" ? 0.82 : 0.8,
+        })).file
+      : file;
+
+    const objectPath = `${prefix}/${adminSession.me.user_id}/${Date.now()}-${normalizeFileName(optimizedFile.name || file.name)}`;
     await uploadToPostMediaWithTus({
-      file,
+      file: optimizedFile,
       objectPath,
       accessToken: adminSession.accessToken,
     });

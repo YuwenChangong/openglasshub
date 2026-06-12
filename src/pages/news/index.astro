@@ -25,9 +25,7 @@ const coverUrlMap = await resolveNewsMediaUrls(
 );
 
 const featuredArticle = page === 1 ? newsFeed.featuredArticle : null;
-const articles = featuredArticle
-  ? newsFeed.articles.filter((article) => article.slug !== featuredArticle.slug)
-  : newsFeed.articles;
+const articles = newsFeed.articles;
 const buildCategoryHref = (nextFilter: string) =>
   nextFilter === "recommended" ? "/news/" : `/news/?category=${encodeURIComponent(nextFilter)}`;
 ---
@@ -63,7 +61,8 @@ const buildCategoryHref = (nextFilter: string) =>
           <div class="news-featured-card__copy">
             <div class="community-inline-meta">
               <span class="community-tag">{NEWS_CATEGORY_LABELS[featuredArticle.category]}</span>
-              {featuredArticle.pinned ? <span class="community-meta">置顶</span> : null}
+              {featuredArticle.pinned ? <span class="news-state-pill">置顶</span> : null}
+              {featuredArticle.featured ? <span class="news-state-pill news-state-pill--featured">精选</span> : null}
               <span class="community-meta">
                 {new Date(featuredArticle.published_at ?? featuredArticle.created_at).toLocaleDateString("zh-CN")}
               </span>
@@ -91,6 +90,8 @@ const buildCategoryHref = (nextFilter: string) =>
             <div class="news-feed-card__copy">
               <div class="community-inline-meta">
                 <span class="community-tag">{NEWS_CATEGORY_LABELS[article.category]}</span>
+                {article.pinned ? <span class="news-state-pill">置顶</span> : null}
+                {article.featured ? <span class="news-state-pill news-state-pill--featured">精选</span> : null}
                 <span class="community-meta">{new Date(article.published_at ?? article.created_at).toLocaleDateString("zh-CN")}</span>
                 {article.source_name ? <span class="community-meta">{article.source_name}</span> : null}
               </div>

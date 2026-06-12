@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
+import { createOptimizedImageVariant } from "../../lib/client-image";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
@@ -15,6 +16,7 @@ interface CircleOption {
 interface LocalMedia {
   id: string;
   file: File;
+  thumbnailFile: File | null;
   previewUrl: string;
   kind: "image" | "video";
   width: number | null;
@@ -401,6 +403,7 @@ export default function CreatePostForm() {
           accepted.push({
             id,
             file,
+            thumbnailFile: null,
             previewUrl,
             kind: "video",
             width: metadata.width,
@@ -411,17 +414,29 @@ export default function CreatePostForm() {
             isCover: false,
           });
         } else {
-          const metadata = await readImageMetadata(file, previewUrl);
+          URL.revokeObjectURL(previewUrl);
+          const optimizedUpload = await createOptimizedImageVariant(file, {
+            maxWidth: 1600,
+            quality: 0.82,
+          });
+          const optimizedThumb = await createOptimizedImageVariant(file, {
+            maxWidth: 480,
+            quality: 0.72,
+            fileName: `${file.name.replace(/\.[a-z0-9]+$/i, "")}-thumb`,
+          });
+          const optimizedPreviewUrl = URL.createObjectURL(optimizedUpload.file);
+          const metadata = await readImageMetadata(optimizedUpload.file, optimizedPreviewUrl);
           accepted.push({
             id,
-            file,
-            previewUrl,
+            file: optimizedUpload.file,
+            thumbnailFile: optimizedThumb.file !== optimizedUpload.file ? optimizedThumb.file : null,
+            previewUrl: optimizedPreviewUrl,
             kind: "image",
-            width: metadata.width,
-            height: metadata.height,
+            width: optimizedUpload.width || metadata.width,
+            height: optimizedUpload.height || metadata.height,
             durationSeconds: null,
-            sizeBytes: file.size,
-            mimeType: file.type,
+            sizeBytes: optimizedUpload.file.size,
+            mimeType: optimizedUpload.mimeType || optimizedUpload.file.type,
             isCover: false,
           });
         }
@@ -521,6 +536,7 @@ export default function CreatePostForm() {
         kind: "image" | "video";
         storage_path?: string;
         url?: string;
+        thumbnail_url?: string;
         alt_text?: string;
         sort_order: number;
         width?: number | null;
@@ -603,6 +619,9 @@ export default function CreatePostForm() {
 
           const fileName = normalizeFileName(item.file.name) || `image-${index + 1}.jpg`;
           const storagePath = `${sessionData.session.user.id}/${createdPostId}/${Date.now()}-${index}-${fileName}`;
+          const thumbnailPath = item.thumbnailFile
+            ? `${sessionData.session.user.id}/${createdPostId}/thumb-${Date.now()}-${index}-${normalizeFileName(item.thumbnailFile.name || fileName)}`
+            : "";
           try {
             const uploadTurnstileToken = await ensureToken({ forceRefresh: true });
             await guardDirectMediaUpload({
@@ -616,15 +635,26 @@ export default function CreatePostForm() {
               objectPath: storagePath,
               accessToken,
             });
+            if (item.thumbnailFile && thumbnailPath) {
+              await uploadToPostMediaWithTus({
+                file: item.thumbnailFile,
+                objectPath: thumbnailPath,
+                accessToken,
+              });
+            }
           } catch (uploadError) {
             const uploadMessage = uploadError instanceof Error ? uploadError.message : "未知错误";
             throw new Error(`图片上传失败：${uploadMessage}`);
           }
 
           uploadedPaths.push(storagePath);
+          if (thumbnailPath) {
+            uploadedPaths.push(thumbnailPath);
+          }
           mediaPayload.push({
             kind: "image",
             storage_path: storagePath,
+            thumbnail_url: thumbnailPath || undefined,
             alt_text: title.trim() || item.file.name,
             sort_order: index,
             width: item.width,
