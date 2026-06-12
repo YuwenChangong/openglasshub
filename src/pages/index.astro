@@ -8,7 +8,7 @@ import PostCard from "../components/community/PostCard.astro";
 import EmptyFeedState from "../components/community/EmptyFeedState.astro";
 import { formatPostTime } from "../lib/format-time";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
-import { curatedNews } from "../lib/news";
+import { listPublicNewsFeed } from "../lib/news";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../lib/forum-media";
 import { buildPostLikeCountMap } from "../lib/post-engagement";
 import { sanitizeBodyForDisplay } from "../lib/post-body";
@@ -52,6 +52,9 @@ const postMediaMap = supabase
   ? await buildResolvedPostMediaMap(supabase, posts, 60 * 60, r2PublicBaseUrl)
   : new Map();
 const likeCountMap = supabase ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
+const homeNewsFeed = supabase
+  ? await listPublicNewsFeed(supabase, { filter: "recommended", page: 1, limit: 3 })
+  : { articles: [], featuredArticle: null, hotArticles: [], latestArticles: [], total: 0, page: 1, limit: 3, hasMore: false };
 
 const postTypeLabels: Record<string, string> = {
   experience: "体验/评测",
@@ -144,10 +147,10 @@ function excerpt(body?: string | null): string {
           <h2>热点</h2>
         </div>
         <div class="community-list">
-          {curatedNews.slice(0, 3).map((item) => (
+          {homeNewsFeed.articles.slice(0, 3).map((item) => (
             <a href={`/news/${item.slug}/`} class="community-list-item">
               <strong>{item.title}</strong>
-              <span>{item.category} · {new Date(item.publishedAt).toLocaleDateString("zh-CN")}</span>
+              <span>{new Date(item.published_at ?? item.created_at).toLocaleDateString("zh-CN")}</span>
             </a>
           ))}
         </div>

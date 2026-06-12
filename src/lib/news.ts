@@ -1,76 +1,445 @@
-export type NewsCategory = "社区观察" | "行业整理" | "项目进展" | "开发者";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export interface NewsEntry {
+export type NewsCategoryKey =
+  | "industry"
+  | "devices"
+  | "ai_glasses"
+  | "ar_glasses"
+  | "developer"
+  | "community"
+  | "openglass";
+
+export type NewsStatus = "draft" | "published" | "archived";
+export type NewsFilterKey = "recommended" | NewsCategoryKey;
+
+export type NewsArticle = {
+  id: string;
   slug: string;
   title: string;
-  category: NewsCategory;
   summary: string;
-  publishedAt: string;
-  coverImageUrl?: string;
-  coverAlt?: string;
-  mediaType: "none" | "image" | "video";
-  mediaUrl?: string;
-  sourceUrl?: string;
-  sourceLabel?: string;
-  body: string[];
-}
+  content: string;
+  cover_image_url: string | null;
+  category: NewsCategoryKey;
+  source_name: string | null;
+  source_url: string | null;
+  status: NewsStatus;
+  author_id: string | null;
+  pinned: boolean;
+  featured: boolean;
+  view_count: number;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
-export const curatedNews: NewsEntry[] = [
+type NewsArticleRow = Partial<NewsArticle> & { id?: string | null; slug?: string | null; title?: string | null };
+
+export const NEWS_CATEGORY_LABELS: Record<NewsCategoryKey, string> = {
+  industry: "行业",
+  devices: "设备",
+  ai_glasses: "AI 眼镜",
+  ar_glasses: "AR 眼镜",
+  developer: "开发者",
+  community: "社区",
+  openglass: "OpenGlass",
+};
+
+export const NEWS_FILTERS: Array<{ key: NewsFilterKey; label: string }> = [
+  { key: "recommended", label: "推荐" },
+  { key: "devices", label: "设备" },
+  { key: "ai_glasses", label: "AI 眼镜" },
+  { key: "ar_glasses", label: "AR 眼镜" },
+  { key: "developer", label: "开发者" },
+  { key: "community", label: "社区" },
+  { key: "openglass", label: "OpenGlass" },
+];
+
+export const FALLBACK_NEWS_ARTICLES: NewsArticle[] = [
   {
+    id: "fallback-community-001",
     slug: "community-discussion-shifts-to-real-usage",
-    title: "管理员精选：中文 AR/AI 眼镜讨论开始回到真实使用问题",
-    category: "社区观察",
-    summary: "从参数表和宣传词回到佩戴体验、兼容性、续航和系统限制，是当前更有价值的讨论方向。",
-    publishedAt: "2026-05-23",
-    mediaType: "none",
-    body: [
-      "过去一段时间里，很多中文讨论仍然停留在参数、宣传视频和品牌口号层面。但真正会影响购买决策和长期使用体验的，通常是更具体的问题，例如佩戴舒适度、外接链路稳定性、语音和输入方式、权限边界，以及是否存在明确的开发入口。",
-      "OpenGlass Hub 会把这类更接近真实体验的内容优先放到社区前台。热点不是越热闹越好，而是要对后来的读者有复用价值。",
-      "如果你已经在使用某款设备，最值得分享的并不是一句“好不好”，而是它在具体场景里做得对或做得不对的地方。"
-    ],
+    title: "社区观察：AR / AI 眼镜讨论开始回到真实使用问题",
+    summary: "从参数表回到佩戴体验、兼容性、续航和系统限制，是当前更有价值的讨论方向。",
+    content:
+      "过去一段时间，很多中文讨论仍停留在参数、宣传视频和品牌口号层面。\n\n但真正会影响购买决策和长期体验的，通常是佩戴舒适度、链路稳定性、输入方式、权限边界，以及是否存在明确的开发入口。\n\nOpenGlass Hub 会把这类更接近真实体验的内容优先放到前台，让“热点”更有复用价值。",
+    cover_image_url: null,
+    category: "community",
+    source_name: "OpenGlass Hub 编辑部",
+    source_url: null,
+    status: "published",
+    author_id: null,
+    pinned: true,
+    featured: true,
+    view_count: 0,
+    published_at: "2026-06-12T08:00:00.000Z",
+    created_at: "2026-06-12T08:00:00.000Z",
+    updated_at: "2026-06-12T08:00:00.000Z",
   },
   {
+    id: "fallback-industry-002",
     slug: "product-watch-focus-on-system-boundaries",
-    title: "编辑精选：看 AR/AI 眼镜，不应只看硬件，也要看系统边界",
-    category: "行业整理",
+    title: "行业整理：看眼镜产品，不应只看硬件，也要看系统边界",
     summary: "很多设备的分野并不只来自显示能力，而来自系统权限、可安装路径和输入方式的约束。",
-    publishedAt: "2026-05-22",
-    mediaType: "none",
-    body: [
-      "同样是“眼镜”，不同产品的实际能力可能完全不同。有些更像显示终端，有些强调拍摄和 AI 入口，有些则试图提供更完整的独立系统体验。",
-      "对用户和开发者来说，真正需要长期追踪的是系统边界：是否能安装第三方应用，是否开放开发接口，是否允许持续调用摄像头或麦克风，输入方式是否足够稳定，这些都会直接影响设备的长期价值。",
-      "因此“热点”内容的重点，不应该是追逐一张参数表，而应该帮助用户更快理解产品分层。"
-    ],
+    content:
+      "同样是“眼镜”，不同产品的实际能力可能完全不同。\n\n对用户和开发者来说，真正需要长期追踪的是系统边界：是否能安装第三方应用，是否开放开发接口，是否允许持续调用摄像头或麦克风，输入方式是否足够稳定。\n\n因此“热点”内容的重点，不应只是追逐一张参数表，而是帮助用户更快理解产品分层。",
+    cover_image_url: null,
+    category: "industry",
+    source_name: "OpenGlass Hub 编辑部",
+    source_url: null,
+    status: "published",
+    author_id: null,
+    pinned: false,
+    featured: true,
+    view_count: 0,
+    published_at: "2026-06-11T06:30:00.000Z",
+    created_at: "2026-06-11T06:30:00.000Z",
+    updated_at: "2026-06-11T06:30:00.000Z",
   },
   {
-    slug: "gaze-launcher-remains-an-early-project",
-    title: "项目更新：Gaze Launcher 仍处于开发和验证阶段",
-    category: "项目进展",
-    summary: "Gaze Launcher 当前仍是一个实验性方向，用于验证更适合眼镜的启动方式与交互路径。",
-    publishedAt: "2026-05-21",
-    sourceLabel: "项目观察",
-    mediaType: "none",
-    body: [
-      "Gaze Launcher 现阶段并不是一个已经成熟、可安装的产品。它更接近一个正在验证中的交互方向：如何让用户在眼镜上用更少步骤完成启动、切换和任务调用。",
-      "这类项目更新仍然会进入“热点”，但它与设备新闻、社区观察不同，不应被包装成已经落地的量产能力。",
-      "后续如果形成更稳定的路线或可演示能力，再进入更完整的产品页和项目日志。"
-    ],
+    id: "fallback-device-003",
+    slug: "device-updates-are-shifting-toward-better-daily-utility",
+    title: "设备动态：新一轮产品更新更强调日常可用性，而不是概念演示",
+    summary: "更轻的机身、更稳的语音链路和更清晰的角色定位，正在成为新一轮设备更新的共同方向。",
+    content:
+      "与早期只强调“能做什么”的展示不同，新一轮产品更新更关注“能否每天使用”。\n\n包括佩戴负担、续航、镜片信息密度、音频私密性，以及和手机系统之间的配合，都会直接影响产品是否能进入日常场景。\n\n对读者来说，这类变化往往比单次发布会上的概念演示更值得追踪。",
+    cover_image_url: null,
+    category: "devices",
+    source_name: "设备追踪",
+    source_url: null,
+    status: "published",
+    author_id: null,
+    pinned: false,
+    featured: false,
+    view_count: 0,
+    published_at: "2026-06-10T05:00:00.000Z",
+    created_at: "2026-06-10T05:00:00.000Z",
+    updated_at: "2026-06-10T05:00:00.000Z",
   },
   {
+    id: "fallback-dev-004",
     slug: "developer-conversations-now-focus-on-permissions-and-input",
-    title: "管理员精选：开发者讨论的重点正在转向权限、输入和媒体能力",
-    category: "开发者",
-    summary: "比起单纯问有没有 SDK，更重要的是搞清楚摄像头、麦克风、安装路径和输入链路是否可用。",
-    publishedAt: "2026-05-20",
-    mediaType: "none",
-    body: [
-      "很多开发者在看 AR/AI 眼镜平台时，第一反应是找 SDK。但真正进入实现阶段后，最先撞到的问题通常不是 SDK 文档，而是权限、安装链路、输入方式和系统限制。",
-      "如果平台不能稳定处理媒体、通知、前后台切换或持续输入，那么很多看起来“能做”的场景最终都落不了地。",
-      "因此 OpenGlass Hub 的开发者相关内容，会优先强调真实可验证的边界，而不是只罗列平台入口。"
-    ],
+    title: "开发者观察：讨论重点正在转向权限、输入和媒体能力",
+    summary: "比起单纯问有没有 SDK，更重要的是搞清楚摄像头、麦克风、安装路径和输入链路是否真正可用。",
+    content:
+      "很多开发者在看 AR / AI 眼镜平台时，第一反应是找 SDK。\n\n但真正进入实现阶段后，最先撞到的问题通常不是文档，而是权限、安装链路、输入方式和系统限制。\n\n如果平台不能稳定处理媒体、通知、前后台切换或持续输入，那么很多看起来“能做”的场景最终都落不了地。",
+    cover_image_url: null,
+    category: "developer",
+    source_name: "开发者观察",
+    source_url: null,
+    status: "published",
+    author_id: null,
+    pinned: false,
+    featured: false,
+    view_count: 0,
+    published_at: "2026-06-09T09:10:00.000Z",
+    created_at: "2026-06-09T09:10:00.000Z",
+    updated_at: "2026-06-09T09:10:00.000Z",
+  },
+  {
+    id: "fallback-openglass-005",
+    slug: "openglass-community-is-prioritizing-verifiable-coverage",
+    title: "OpenGlass 更新：热点页将优先呈现可验证、可复查的信息整理",
+    summary: "对 OpenGlass Hub 来说，热点不只是“快”，还要便于后来者快速建立判断。",
+    content:
+      "热点页的价值不在于把所有消息都堆出来，而在于让后来者能够快速建立判断。\n\n因此 OpenGlass Hub 会把设备更新、开发边界、社区讨论和项目进展整理成更适合阅读的信息流，而不是公告墙。\n\n这也意味着每条内容都需要尽量做到可验证、可复查，而不是只追求情绪化表达。",
+    cover_image_url: null,
+    category: "openglass",
+    source_name: "OpenGlass Hub",
+    source_url: null,
+    status: "published",
+    author_id: null,
+    pinned: false,
+    featured: false,
+    view_count: 0,
+    published_at: "2026-06-08T04:20:00.000Z",
+    created_at: "2026-06-08T04:20:00.000Z",
+    updated_at: "2026-06-08T04:20:00.000Z",
   },
 ];
 
-export function getNewsEntry(slug: string) {
-  return curatedNews.find((entry) => entry.slug === slug);
+type PublicNewsFeedResult = {
+  articles: NewsArticle[];
+  featuredArticle: NewsArticle | null;
+  hotArticles: NewsArticle[];
+  latestArticles: NewsArticle[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+};
+
+function sortPublishedNews(left: NewsArticle, right: NewsArticle) {
+  if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
+  if (left.featured !== right.featured) return left.featured ? -1 : 1;
+  const leftTime = new Date(left.published_at ?? left.created_at).getTime();
+  const rightTime = new Date(right.published_at ?? right.created_at).getTime();
+  return rightTime - leftTime;
+}
+
+function isMissingNewsTableError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("news_articles") && (message.includes("does not exist") || message.includes("schema cache"));
+}
+
+export function isValidNewsSlug(slug: string) {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
+}
+
+export function slugifyNewsTitle(title: string) {
+  const base = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+
+  return base || "news-article";
+}
+
+export function parseNewsFilter(input: string | null | undefined): NewsFilterKey {
+  const value = String(input ?? "").trim().toLowerCase();
+  if (value === "recommended") return "recommended";
+  if (value in NEWS_CATEGORY_LABELS && value !== "industry") return value as NewsCategoryKey;
+  if (value === "industry") return "industry";
+  return "recommended";
+}
+
+export function splitNewsContent(content: string | null | undefined) {
+  return String(content ?? "")
+    .split(/\n\s*\n/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeNewsRow(row: NewsArticleRow): NewsArticle | null {
+  if (!row.id || !row.slug || !row.title) return null;
+
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    summary: String(row.summary ?? "").trim(),
+    content: String(row.content ?? "").trim(),
+    cover_image_url: row.cover_image_url?.trim() || null,
+    category: (row.category as NewsCategoryKey) || "industry",
+    source_name: row.source_name?.trim() || null,
+    source_url: row.source_url?.trim() || null,
+    status: (row.status as NewsStatus) || "draft",
+    author_id: row.author_id ?? null,
+    pinned: row.pinned === true,
+    featured: row.featured === true,
+    view_count: Number.isFinite(Number(row.view_count)) ? Number(row.view_count) : 0,
+    published_at: row.published_at ?? null,
+    created_at: row.created_at ?? new Date().toISOString(),
+    updated_at: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+  };
+}
+
+function fallbackArticlesFor(filter: NewsFilterKey) {
+  const filtered = filter === "recommended"
+    ? FALLBACK_NEWS_ARTICLES
+    : FALLBACK_NEWS_ARTICLES.filter((item) => item.category === filter);
+
+  return [...filtered].sort(sortPublishedNews);
+}
+
+export async function listPublicNewsFeed(
+  client: SupabaseClient,
+  options: { filter: NewsFilterKey; page: number; limit: number },
+): Promise<PublicNewsFeedResult> {
+  const page = Math.max(1, Math.trunc(options.page || 1));
+  const limit = Math.min(Math.max(Math.trunc(options.limit || 12), 1), 24);
+  const filter = options.filter;
+  const rangeFrom = (page - 1) * limit;
+  const rangeTo = rangeFrom + limit - 1;
+
+  let query = client
+    .from("news_articles")
+    .select("*", { count: "exact" })
+    .eq("status", "published")
+    .order("pinned", { ascending: false })
+    .order("featured", { ascending: false })
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filter !== "recommended") {
+    query = query.eq("category", filter);
+  }
+
+  const featuredQuery = client
+    .from("news_articles")
+    .select("*")
+    .eq("status", "published")
+    .eq("featured", true)
+    .order("pinned", { ascending: false })
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(1);
+
+  if (filter !== "recommended") {
+    featuredQuery.eq("category", filter);
+  }
+
+  const hotQuery = client
+    .from("news_articles")
+    .select("*")
+    .eq("status", "published")
+    .order("pinned", { ascending: false })
+    .order("featured", { ascending: false })
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(6);
+
+  const latestQuery = client
+    .from("news_articles")
+    .select("*")
+    .eq("status", "published")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  const [mainResult, featuredResult, hotResult, latestResult] = await Promise.all([
+    query,
+    featuredQuery,
+    hotQuery,
+    latestQuery,
+  ]);
+
+  if (
+    isMissingNewsTableError(mainResult.error) ||
+    isMissingNewsTableError(featuredResult.error) ||
+    isMissingNewsTableError(hotResult.error) ||
+    isMissingNewsTableError(latestResult.error)
+  ) {
+    const fallback = fallbackArticlesFor(filter);
+    const featured = fallback.find((item) => item.featured) ?? fallback[0] ?? null;
+    return {
+      articles: fallback.slice(rangeFrom, rangeFrom + limit),
+      featuredArticle: featured,
+      hotArticles: fallbackArticlesFor("recommended").slice(0, 6),
+      latestArticles: [...FALLBACK_NEWS_ARTICLES].sort((left, right) =>
+        new Date(right.published_at ?? right.created_at).getTime() -
+        new Date(left.published_at ?? left.created_at).getTime(),
+      ).slice(0, 6),
+      total: fallback.length,
+      page,
+      limit,
+      hasMore: rangeFrom + limit < fallback.length,
+    };
+  }
+
+  if (mainResult.error) throw new Error(mainResult.error.message);
+  if (featuredResult.error) throw new Error(featuredResult.error.message);
+  if (hotResult.error) throw new Error(hotResult.error.message);
+  if (latestResult.error) throw new Error(latestResult.error.message);
+
+  const articles = ((mainResult.data as NewsArticleRow[] | null) ?? [])
+    .map(normalizeNewsRow)
+    .filter(Boolean) as NewsArticle[];
+  const featuredArticle = ((featuredResult.data as NewsArticleRow[] | null) ?? [])
+    .map(normalizeNewsRow)
+    .filter(Boolean)[0] ?? null;
+  const hotArticles = ((hotResult.data as NewsArticleRow[] | null) ?? [])
+    .map(normalizeNewsRow)
+    .filter(Boolean) as NewsArticle[];
+  const latestArticles = ((latestResult.data as NewsArticleRow[] | null) ?? [])
+    .map(normalizeNewsRow)
+    .filter(Boolean) as NewsArticle[];
+
+  return {
+    articles,
+    featuredArticle,
+    hotArticles,
+    latestArticles,
+    total: Number(mainResult.count ?? articles.length),
+    page,
+    limit,
+    hasMore: rangeFrom + limit < Number(mainResult.count ?? articles.length),
+  };
+}
+
+export async function getPublicNewsArticleBySlug(client: SupabaseClient, slug: string) {
+  const result = await client
+    .from("news_articles")
+    .select("*")
+    .eq("slug", slug)
+    .eq("status", "published")
+    .maybeSingle();
+
+  if (isMissingNewsTableError(result.error)) {
+    return FALLBACK_NEWS_ARTICLES.find((item) => item.slug === slug) ?? null;
+  }
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  return normalizeNewsRow((result.data as NewsArticleRow | null) ?? null);
+}
+
+export async function listRelatedPublicNews(
+  client: SupabaseClient,
+  options: { category: NewsCategoryKey; excludeSlug: string; limit: number },
+) {
+  const result = await client
+    .from("news_articles")
+    .select("*")
+    .eq("status", "published")
+    .eq("category", options.category)
+    .neq("slug", options.excludeSlug)
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(options.limit);
+
+  if (isMissingNewsTableError(result.error)) {
+    return FALLBACK_NEWS_ARTICLES
+      .filter((item) => item.category === options.category && item.slug !== options.excludeSlug)
+      .slice(0, options.limit);
+  }
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  return ((result.data as NewsArticleRow[] | null) ?? [])
+    .map(normalizeNewsRow)
+    .filter(Boolean) as NewsArticle[];
+}
+
+export async function listAdminNewsArticles(
+  client: SupabaseClient,
+  options: { status?: "all" | NewsStatus; limit?: number },
+) {
+  const limit = Math.min(Math.max(Math.trunc(options.limit ?? 80), 1), 200);
+  let query = client
+    .from("news_articles")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  if (options.status && options.status !== "all") {
+    query = query.eq("status", options.status);
+  }
+
+  const result = await query;
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  return ((result.data as NewsArticleRow[] | null) ?? [])
+    .map(normalizeNewsRow)
+    .filter(Boolean) as NewsArticle[];
+}
+
+export async function getAdminNewsArticleBySlug(client: SupabaseClient, slug: string) {
+  const result = await client
+    .from("news_articles")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  return normalizeNewsRow((result.data as NewsArticleRow | null) ?? null);
 }

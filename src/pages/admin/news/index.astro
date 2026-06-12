@@ -1,0 +1,19 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../../layouts/CommunityLayout.astro";
+import AdminNewsDashboard from "../../../components/admin/AdminNewsDashboard";
+---
+
+<CommunityLayout
+  title="管理员热点发布"
+  description="OpenGlass Hub 管理员热点发布页。"
+  noindex={true}
+  activeSection="news"
+>
+  <section class="community-section" style="padding-top: 1rem;">
+    <h1 class="community-page-title">/admin/news</h1>
+    <p class="community-page-subtitle">管理热点文章、草稿、发布状态和公开信息流布局。</p>
+    <AdminNewsDashboard client:load />
+  </section>
+</CommunityLayout>

@@ -74,6 +74,10 @@ const criticalChecks = [
     ok: /export async function syncBrowserRealtimeAuth/.test(read("src/lib/supabase-browser.ts")),
   },
   {
+    label: "Admin news API requires moderator auth",
+    ok: /requireModerator\(request, env\)/.test(read("src/pages/api/admin/news.ts")),
+  },
+  {
     label: "Forum permission lockdown migration exists",
     ok: fs.existsSync(path.join(migrationsDir, "20260611_forum_permission_lockdown.sql")),
   },

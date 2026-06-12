@@ -1,31 +1,45 @@
 ---
+export const prerender = false;
+
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
-import { curatedNews, getNewsEntry } from "../../lib/news";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import {
+  getPublicNewsArticleBySlug,
+  listRelatedPublicNews,
+  NEWS_CATEGORY_LABELS,
+  splitNewsContent,
+} from "../../lib/news";
 
-export function getStaticPaths() {
-  return curatedNews.map((item) => ({
-    params: { slug: item.slug },
-    props: { item },
-  }));
-}
+const env = Astro.locals.runtime.env as CloudflareEnv;
+const supabase = createSSRClient(env);
+const slug = String(Astro.params.slug ?? "").trim();
+const article = slug ? await getPublicNewsArticleBySlug(supabase, slug) : null;
 
-const item = Astro.props.item ?? getNewsEntry(Astro.params.slug ?? "");
-
-if (!item) {
+if (!article) {
   Astro.response.status = 404;
   Astro.response.statusText = "Not Found";
 }
 
-const publishedDate = item
-  ? new Date(item.publishedAt).toLocaleDateString("zh-CN", {
+const relatedArticles = article
+  ? await listRelatedPublicNews(supabase, {
+      category: article.category,
+      excludeSlug: article.slug,
+      limit: 4,
+    })
+  : [];
+
+const paragraphs = splitNewsContent(article?.content);
+const publishedDate = article
+  ? new Date(article.published_at ?? article.created_at).toLocaleDateString("zh-CN", {
       year: "numeric",
       month: "long",
       day: "numeric",
     })
   : "";
+const discussionHref = article ? `/search/?q=${encodeURIComponent(article.title)}` : "/search/";
 ---
 
-{!item ? (
+{!article ? (
   <CommunityLayout title="热点未找到" noindex={true} activeSection="news">
     <section class="news-empty">
       <strong>热点内容未找到</strong>
@@ -35,139 +49,88 @@ const publishedDate = item
   </CommunityLayout>
 ) : (
   <CommunityLayout
-    title={item.title}
-    description={item.summary}
-    canonical={`https://openglasshub.pages.dev/news/${item.slug}/`}
+    title={article.title}
+    description={article.summary}
+    canonical={`https://openglasshub.pages.dev/news/${article.slug}/`}
     activeSection="news"
   >
-    <article class="news-article-page">
-      <header class="news-article-page__head">
-        <div class="news-article-page__meta">
-          <span class="community-tag">{item.category}</span>
-          <span class="community-meta">{publishedDate}</span>
+    <article class="news-article-layout">
+      <div class="news-article-main">
+        <header class="news-article-page__head">
+          <div class="news-article-page__meta">
+            <span class="community-tag">{NEWS_CATEGORY_LABELS[article.category]}</span>
+            <span class="community-meta">{publishedDate}</span>
+            {article.source_name ? <span class="community-meta">{article.source_name}</span> : null}
+          </div>
+          <h1>{article.title}</h1>
+          {article.summary ? <p class="news-article-page__summary">{article.summary}</p> : null}
+        </header>
+
+        {article.cover_image_url ? (
+          <section class="news-cover">
+            <img src={article.cover_image_url} alt={article.title} loading="eager" />
+          </section>
+        ) : null}
+
+        <div class="news-article-page__body">
+          {paragraphs.map((paragraph) => (
+            <p>{paragraph}</p>
+          ))}
         </div>
-        <h1>{item.title}</h1>
-        <p class="news-article-page__summary">{item.summary}</p>
-      </header>
 
-      {item.mediaType !== "none" && (
-        <section class="news-cover">
-          {item.mediaType === "image" && item.coverImageUrl ? (
-            <img src={item.coverImageUrl} alt={item.coverAlt ?? item.title} loading="eager" />
-          ) : item.mediaType === "video" && item.mediaUrl ? (
-            <a
-              href={item.mediaUrl}
-              target="_blank"
-              rel="noreferrer"
-              class="news-video-card"
-            >
-              <span class="community-tag community-tag--muted">视频</span>
-              <strong>查看相关视频</strong>
-            </a>
-          ) : null}
-        </section>
-      )}
-
-      <div class="news-article-page__body">
-        {item.body.map((paragraph) => (
-          <p>{paragraph}</p>
-        ))}
+        <footer class="news-article-page__footer">
+          <div class="community-inline-meta">
+            <span>发布时间：{publishedDate}</span>
+            {article.source_url ? (
+              <a href={article.source_url} target="_blank" rel="noopener noreferrer" class="community-inline-link">
+                查看来源
+              </a>
+            ) : null}
+          </div>
+          <div class="community-cta-row">
+            <a href="/news/" class="community-button--secondary">返回热点</a>
+            <a href={discussionHref} class="community-button">参与讨论</a>
+          </div>
+        </footer>
       </div>
 
-      <footer class="news-article-page__footer">
-        <div class="community-inline-meta">
-          <span>发布时间：{publishedDate}</span>
-          {item.sourceUrl && (
-            <a href={item.sourceUrl} target="_blank" rel="noreferrer" class="community-inline-link">
-              查看来源
+      <aside class="news-article-sidebar">
+        <section class="community-surface news-side-panel">
+          <div class="community-section-head">
+            <h2>相关文章</h2>
+          </div>
+          <div class="news-side-list">
+            {relatedArticles.map((item) => (
+              <a href={`/news/${item.slug}/`} class="news-side-list__item news-side-list__item--compact">
+                <span class="news-side-list__copy">
+                  <strong>{item.title}</strong>
+                  <small>{NEWS_CATEGORY_LABELS[item.category]}</small>
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <section class="community-surface news-side-panel">
+          <div class="community-section-head">
+            <h2>继续阅读</h2>
+          </div>
+          <div class="news-side-list">
+            <a href={discussionHref} class="news-side-list__item news-side-list__item--compact">
+              <span class="news-side-list__copy">
+                <strong>参与讨论</strong>
+                <small>在社区里继续跟进这条话题</small>
+              </span>
             </a>
-          )}
-        </div>
-        <div class="community-cta-row">
-          <a href="/news/" class="community-button--secondary">返回热点</a>
-          <a href="/feed/" class="community-button">进入社区讨论</a>
-        </div>
-      </footer>
+            <a href="/feed/?sort=hot" class="news-side-list__item news-side-list__item--compact">
+              <span class="news-side-list__copy">
+                <strong>查看热门讨论</strong>
+                <small>回到论坛热门流</small>
+              </span>
+            </a>
+          </div>
+        </section>
+      </aside>
     </article>
   </CommunityLayout>
 )}
-
-<style>
-  .news-article-page {
-    width: min(100%, 760px);
-    margin: 0 auto;
-    padding: 0.35rem 0 1rem;
-  }
-  .news-article-page__head {
-    display: grid;
-    gap: 0.75rem;
-    margin-bottom: 1.2rem;
-  }
-  .news-article-page__meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    align-items: center;
-  }
-  .news-article-page__head h1 {
-    margin: 0;
-    font-size: clamp(2rem, 4vw, 2.8rem);
-    line-height: 1.12;
-    letter-spacing: -0.04em;
-  }
-  .news-article-page__summary {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 1rem;
-    line-height: 1.75;
-  }
-  .news-cover {
-    margin-bottom: 1.4rem;
-  }
-  .news-cover img {
-    display: block;
-    width: 100%;
-    border-radius: 18px;
-    border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.03);
-  }
-  .news-video-card {
-    display: grid;
-    gap: 0.45rem;
-    padding: 1rem 1.05rem;
-    border-radius: 18px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    text-decoration: none;
-    color: var(--text);
-    backdrop-filter: blur(14px) saturate(120%);
-    -webkit-backdrop-filter: blur(14px) saturate(120%);
-    box-shadow: var(--glass-shadow-soft);
-  }
-  .news-video-card strong {
-    font-size: 1rem;
-  }
-  .news-article-page__body {
-    display: grid;
-    gap: 1rem;
-  }
-  .news-article-page__body p {
-    margin: 0;
-    color: var(--text);
-    font-size: 1rem;
-    line-height: 1.75;
-  }
-  .news-article-page__footer {
-    display: grid;
-    gap: 1rem;
-    padding-top: 1.2rem;
-    margin-top: 1.4rem;
-    border-top: 1px solid var(--border);
-  }
-  .news-empty {
-    display: grid;
-    gap: 0.8rem;
-    width: min(100%, 760px);
-    padding: 1rem 0 1.2rem;
-  }
-</style>
