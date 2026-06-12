@@ -34,12 +34,12 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const url = new URL(request.url);
     const category = parseNewsFilter(url.searchParams.get("category"));
     const pageParam = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
-    const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "12", 10);
+    const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "5", 10);
 
     const payload = await listPublicNewsFeed(client, {
       filter: category,
       page: Number.isFinite(pageParam) ? pageParam : 1,
-      limit: Number.isFinite(limitParam) ? limitParam : 12,
+      limit: Number.isFinite(limitParam) ? limitParam : 5,
     });
 
     return json({

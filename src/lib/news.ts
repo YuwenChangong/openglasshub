@@ -161,10 +161,10 @@ type PublicNewsFeedResult = {
   articles: NewsArticle[];
   featuredArticle: NewsArticle | null;
   hotArticles: NewsArticle[];
-  latestArticles: NewsArticle[];
   total: number;
   page: number;
   limit: number;
+  total_pages: number;
   hasMore: boolean;
 };
 
@@ -179,6 +179,11 @@ function sortPublishedNews(left: NewsArticle, right: NewsArticle) {
 function isMissingNewsTableError(error: { message?: string } | null | undefined) {
   const message = error?.message?.toLowerCase() ?? "";
   return message.includes("news_articles") && (message.includes("does not exist") || message.includes("schema cache"));
+}
+
+function isMissingNewsViewRpcError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("increment_news_article_view") && (message.includes("does not exist") || message.includes("schema cache"));
 }
 
 export function isValidNewsSlug(slug: string) {
@@ -249,7 +254,7 @@ export async function listPublicNewsFeed(
   options: { filter: NewsFilterKey; page: number; limit: number },
 ): Promise<PublicNewsFeedResult> {
   const page = Math.max(1, Math.trunc(options.page || 1));
-  const limit = Math.min(Math.max(Math.trunc(options.limit || 12), 1), 24);
+  const limit = Math.min(Math.max(Math.trunc(options.limit || 5), 1), 12);
   const filter = options.filter;
   const rangeFrom = (page - 1) * limit;
   const rangeTo = rangeFrom + limit - 1;
@@ -285,45 +290,48 @@ export async function listPublicNewsFeed(
     .from("news_articles")
     .select("*")
     .eq("status", "published")
-    .order("pinned", { ascending: false })
-    .order("featured", { ascending: false })
-    .order("published_at", { ascending: false, nullsFirst: false })
-    .limit(6);
-
-  const latestQuery = client
-    .from("news_articles")
-    .select("*")
-    .eq("status", "published")
+    .order("view_count", { ascending: false })
     .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
-    .limit(6);
+    .limit(5);
 
-  const [mainResult, featuredResult, hotResult, latestResult] = await Promise.all([
+  const [mainResult, featuredResult, hotResult] = await Promise.all([
     query,
     featuredQuery,
     hotQuery,
-    latestQuery,
   ]);
 
   if (
     isMissingNewsTableError(mainResult.error) ||
     isMissingNewsTableError(featuredResult.error) ||
-    isMissingNewsTableError(hotResult.error) ||
-    isMissingNewsTableError(latestResult.error)
+    isMissingNewsTableError(hotResult.error)
   ) {
     const fallback = fallbackArticlesFor(filter);
     const featured = fallback.find((item) => item.featured) ?? fallback[0] ?? null;
+    const fallbackHotBase = [...FALLBACK_NEWS_ARTICLES];
+    const allZeroViews = fallbackHotBase.every((item) => (item.view_count ?? 0) === 0);
+    const fallbackHot = allZeroViews
+      ? fallbackHotBase.sort((left, right) =>
+          new Date(right.published_at ?? right.created_at).getTime() -
+          new Date(left.published_at ?? left.created_at).getTime(),
+        )
+      : fallbackHotBase.sort((left, right) => {
+          if ((right.view_count ?? 0) !== (left.view_count ?? 0)) return (right.view_count ?? 0) - (left.view_count ?? 0);
+          const publishedDiff =
+            new Date(right.published_at ?? right.created_at).getTime() -
+            new Date(left.published_at ?? left.created_at).getTime();
+          if (publishedDiff !== 0) return publishedDiff;
+          return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+        });
+    const totalPages = Math.max(1, Math.ceil(fallback.length / limit));
     return {
       articles: fallback.slice(rangeFrom, rangeFrom + limit),
       featuredArticle: featured,
-      hotArticles: fallbackArticlesFor("recommended").slice(0, 6),
-      latestArticles: [...FALLBACK_NEWS_ARTICLES].sort((left, right) =>
-        new Date(right.published_at ?? right.created_at).getTime() -
-        new Date(left.published_at ?? left.created_at).getTime(),
-      ).slice(0, 6),
+      hotArticles: fallbackHot.slice(0, 5),
       total: fallback.length,
       page,
       limit,
+      total_pages: totalPages,
       hasMore: rangeFrom + limit < fallback.length,
     };
   }
@@ -331,7 +339,6 @@ export async function listPublicNewsFeed(
   if (mainResult.error) throw new Error(mainResult.error.message);
   if (featuredResult.error) throw new Error(featuredResult.error.message);
   if (hotResult.error) throw new Error(hotResult.error.message);
-  if (latestResult.error) throw new Error(latestResult.error.message);
 
   const articles = ((mainResult.data as NewsArticleRow[] | null) ?? [])
     .map(normalizeNewsRow)
@@ -342,19 +349,28 @@ export async function listPublicNewsFeed(
   const hotArticles = ((hotResult.data as NewsArticleRow[] | null) ?? [])
     .map(normalizeNewsRow)
     .filter(Boolean) as NewsArticle[];
-  const latestArticles = ((latestResult.data as NewsArticleRow[] | null) ?? [])
-    .map(normalizeNewsRow)
-    .filter(Boolean) as NewsArticle[];
+  const allZeroViews = hotArticles.every((item) => (item.view_count ?? 0) === 0);
+  const normalizedHotArticles = allZeroViews
+    ? [...hotArticles].sort((left, right) => {
+        const publishedDiff =
+          new Date(right.published_at ?? right.created_at).getTime() -
+          new Date(left.published_at ?? left.created_at).getTime();
+        if (publishedDiff !== 0) return publishedDiff;
+        return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+      })
+    : hotArticles;
+  const total = Number(mainResult.count ?? articles.length);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return {
     articles,
     featuredArticle,
-    hotArticles,
-    latestArticles,
-    total: Number(mainResult.count ?? articles.length),
+    hotArticles: normalizedHotArticles.slice(0, 5),
+    total,
     page,
     limit,
-    hasMore: rangeFrom + limit < Number(mainResult.count ?? articles.length),
+    total_pages: totalPages,
+    hasMore: rangeFrom + limit < total,
   };
 }
 
@@ -375,6 +391,24 @@ export async function getPublicNewsArticleBySlug(client: SupabaseClient, slug: s
   }
 
   return normalizeNewsRow((result.data as NewsArticleRow | null) ?? null);
+}
+
+export async function incrementPublishedNewsViewCount(client: SupabaseClient, slug: string) {
+  try {
+    const { error } = await client.rpc("increment_news_article_view", { p_slug: slug });
+    if (error) {
+      if (isMissingNewsViewRpcError(error)) return false;
+      console.warn("[news] increment view count failed", error.message);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.toLowerCase().includes("increment_news_article_view")) {
+      return false;
+    }
+    console.warn("[news] increment view count failed", error instanceof Error ? error.message : String(error));
+    return false;
+  }
 }
 
 export async function listRelatedPublicNews(
@@ -407,7 +441,7 @@ export async function listRelatedPublicNews(
 
 export async function listAdminNewsArticles(
   client: SupabaseClient,
-  options: { status?: "all" | NewsStatus; limit?: number },
+  options: { status?: "all" | NewsStatus; category?: "all" | NewsCategoryKey; search?: string; limit?: number },
 ) {
   const limit = Math.min(Math.max(Math.trunc(options.limit ?? 80), 1), 200);
   let query = client
@@ -418,6 +452,13 @@ export async function listAdminNewsArticles(
 
   if (options.status && options.status !== "all") {
     query = query.eq("status", options.status);
+  }
+  if (options.category && options.category !== "all") {
+    query = query.eq("category", options.category);
+  }
+  const search = String(options.search ?? "").trim();
+  if (search) {
+    query = query.or(`title.ilike.%${search}%,slug.ilike.%${search}%`);
   }
 
   const result = await query;

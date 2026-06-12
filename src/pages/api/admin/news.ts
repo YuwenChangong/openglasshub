@@ -131,6 +131,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const auth = await requireModerator(request, env);
     const url = new URL(request.url);
     const status = String(url.searchParams.get("status") ?? "all").trim() as "all" | NewsStatus;
+    const category = String(url.searchParams.get("category") ?? "all").trim() as "all" | NewsCategoryKey;
+    const search = String(url.searchParams.get("search") ?? "").trim();
     const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "80", 10);
     const slug = String(url.searchParams.get("slug") ?? "").trim();
 
@@ -141,6 +143,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     const articles = await listAdminNewsArticles(auth.client, {
       status,
+      category,
+      search,
       limit: Number.isFinite(limitParam) ? limitParam : 80,
     });
 

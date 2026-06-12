@@ -9,8 +9,7 @@ import {
   NEWS_CATEGORY_LABELS,
   parseNewsFilter,
 } from "../../lib/news";
-import { listForumFeed } from "../../lib/forum-feed";
-import { formatPostTime } from "../../lib/format-time";
+import NewsPagination from "../../components/news/NewsPagination";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
@@ -18,21 +17,14 @@ const filter = parseNewsFilter(Astro.url.searchParams.get("category"));
 const pageParam = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);
 const page = Number.isFinite(pageParam) ? Math.max(1, pageParam) : 1;
 
-const [newsFeed, hotDiscussions] = await Promise.all([
-  listPublicNewsFeed(supabase, { filter, page, limit: 12 }),
-  listForumFeed({ client: supabase, sort: "hot", limit: 5, page: 1 }),
-]);
+const newsFeed = await listPublicNewsFeed(supabase, { filter, page, limit: 5 });
 
-const featuredArticle = newsFeed.featuredArticle;
-const articles = newsFeed.articles.filter((article) => article.slug !== featuredArticle?.slug);
+const featuredArticle = page === 1 ? newsFeed.featuredArticle : null;
+const articles = featuredArticle
+  ? newsFeed.articles.filter((article) => article.slug !== featuredArticle.slug)
+  : newsFeed.articles;
 const buildCategoryHref = (nextFilter: string) =>
   nextFilter === "recommended" ? "/news/" : `/news/?category=${encodeURIComponent(nextFilter)}`;
-const buildPageHref = (nextPage: number) => {
-  const base = filter === "recommended" ? "/news/" : `/news/?category=${encodeURIComponent(filter)}`;
-  return nextPage > 1
-    ? `${base}${base.includes("?") ? "&" : "?"}page=${nextPage}`
-    : base;
-};
 ---
 
 <CommunityLayout
@@ -110,18 +102,9 @@ const buildPageHref = (nextPage: number) => {
         </section>
       ) : null}
 
-      <div class="news-feed-pagination">
-        {newsFeed.page > 1 ? (
-          <a href={buildPageHref(newsFeed.page - 1)} class="community-action-button community-action-button--muted">上一页</a>
-        ) : (
-          <span class="community-action-button community-action-button--muted is-disabled" aria-disabled="true">上一页</span>
-        )}
-        {newsFeed.hasMore ? (
-          <a href={buildPageHref(newsFeed.page + 1)} class="community-action-button community-action-button--muted">下一页</a>
-        ) : (
-          <span class="community-action-button community-action-button--muted is-disabled" aria-disabled="true">下一页</span>
-        )}
-      </div>
+      {newsFeed.total > 5 ? (
+        <NewsPagination currentPage={newsFeed.page} totalPages={newsFeed.total_pages} category={filter} client:load />
+      ) : null}
     </div>
 
     <aside class="news-feed-sidebar">
@@ -130,45 +113,12 @@ const buildPageHref = (nextPage: number) => {
           <h2>今日热门</h2>
         </div>
         <div class="news-side-list">
-          {newsFeed.hotArticles.slice(0, 6).map((article, index) => (
+          {newsFeed.hotArticles.slice(0, 5).map((article, index) => (
             <a href={`/news/${article.slug}/`} class="news-side-list__item">
               <span class="news-side-list__rank">{index + 1}</span>
               <span class="news-side-list__copy">
                 <strong>{article.title}</strong>
-                <small>{NEWS_CATEGORY_LABELS[article.category]}</small>
-              </span>
-            </a>
-          ))}
-        </div>
-      </section>
-
-      <section class="community-surface news-side-panel">
-        <div class="community-section-head">
-          <h2>最新发布</h2>
-        </div>
-        <div class="news-side-list">
-          {newsFeed.latestArticles.slice(0, 6).map((article) => (
-            <a href={`/news/${article.slug}/`} class="news-side-list__item news-side-list__item--compact">
-              <span class="news-side-list__copy">
-                <strong>{article.title}</strong>
-                <small>{new Date(article.published_at ?? article.created_at).toLocaleDateString("zh-CN")}</small>
-              </span>
-            </a>
-          ))}
-        </div>
-      </section>
-
-      <section class="community-surface news-side-panel">
-        <div class="community-section-head">
-          <h2>热门讨论</h2>
-          <a href="/feed/?sort=hot" class="community-link">更多</a>
-        </div>
-        <div class="news-side-list">
-          {hotDiscussions.posts.map((post) => (
-            <a href={`/posts/${post.id}/`} class="news-side-list__item news-side-list__item--compact">
-              <span class="news-side-list__copy">
-                <strong>{post.title}</strong>
-                <small>{formatPostTime(post.created_at)}</small>
+                <small>{NEWS_CATEGORY_LABELS[article.category]} · {article.view_count > 0 ? `${article.view_count} 阅读` : "新发布"}</small>
               </span>
             </a>
           ))}

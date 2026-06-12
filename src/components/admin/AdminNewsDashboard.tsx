@@ -88,6 +88,23 @@ const STATUS_OPTIONS: Array<{ value: "all" | NewsStatus; label: string }> = [
   { value: "archived", label: "已归档" },
 ];
 
+const ADMIN_CATEGORY_OPTIONS: Array<{ value: "all" | NewsCategory; label: string }> = [
+  { value: "all", label: "全部分类" },
+  ...CATEGORY_OPTIONS,
+];
+
+function slugifyDraftTitle(title: string) {
+  const nextSlug = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+
+  return nextSlug || "";
+}
+
 function toFormState(article?: AdminNewsArticle | null): FormState {
   if (!article) return { ...EMPTY_FORM };
   return {
@@ -120,6 +137,9 @@ function categoryLabel(category: NewsCategory) {
 export default function AdminNewsDashboard() {
   const adminSession = useAdminSession();
   const [statusFilter, setStatusFilter] = useState<"all" | NewsStatus>("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | NewsCategory>("all");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
   const [articles, setArticles] = useState<AdminNewsArticle[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
@@ -141,7 +161,7 @@ export default function AdminNewsDashboard() {
     setError("");
     try {
       const payload = await adminFetch<AdminNewsPayload>(
-        `/api/admin/news?status=${encodeURIComponent(statusFilter)}&limit=120`,
+        `/api/admin/news?status=${encodeURIComponent(statusFilter)}&category=${encodeURIComponent(categoryFilter)}&search=${encodeURIComponent(searchFilter)}&limit=120`,
         {
           method: "GET",
           session: adminSession.session,
@@ -184,7 +204,7 @@ export default function AdminNewsDashboard() {
   useEffect(() => {
     if (adminSession.state.status !== "ready" || !adminSession.session) return;
     void loadArticles();
-  }, [adminSession.session, adminSession.state.status, statusFilter]);
+  }, [adminSession.session, adminSession.state.status, statusFilter, categoryFilter, searchFilter]);
 
   function startNewArticle() {
     setSelectedId("");
@@ -202,6 +222,11 @@ export default function AdminNewsDashboard() {
 
   function patchForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function applySearchFilter(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSearchFilter(searchDraft.trim());
   }
 
   async function saveArticle(nextStatus?: NewsStatus) {
@@ -289,16 +314,6 @@ export default function AdminNewsDashboard() {
           <p>创建、发布、归档热点内容，公开页只会展示已发布文章。</p>
         </div>
         <div className="community-cta-row">
-          {STATUS_OPTIONS.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              className={statusFilter === item.value ? "community-button" : "community-button--secondary"}
-              onClick={() => setStatusFilter(item.value)}
-            >
-              {item.label}
-            </button>
-          ))}
           <button type="button" className="community-button" onClick={startNewArticle}>
             新建热点
           </button>
@@ -312,8 +327,70 @@ export default function AdminNewsDashboard() {
       {error ? <div className="admin-error">{error}</div> : null}
       {success ? <div className="admin-inline-success">{success}</div> : null}
 
+      <div className="admin-news-toolbar">
+        <div className="admin-news-toolbar__filters">
+          <div className="admin-news-toolbar__group">
+            <span className="admin-news-toolbar__label">状态</span>
+            <div className="admin-news-toolbar__chips">
+              {STATUS_OPTIONS.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  className={statusFilter === item.value ? "community-button" : "community-button--secondary"}
+                  onClick={() => setStatusFilter(item.value)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="community-form-field admin-news-toolbar__select">
+            <span>分类</span>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as "all" | NewsCategory)}>
+              {ADMIN_CATEGORY_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <form className="admin-news-toolbar__search" onSubmit={applySearchFilter}>
+          <label className="community-form-field">
+            <span>搜索</span>
+            <input
+              value={searchDraft}
+              onChange={(event) => setSearchDraft(event.target.value)}
+              placeholder="标题或 slug"
+            />
+          </label>
+          <div className="admin-news-toolbar__search-actions">
+            <button type="submit" className="community-button">筛选</button>
+            <button
+              type="button"
+              className="community-button--secondary"
+              onClick={() => {
+                setSearchDraft("");
+                setSearchFilter("");
+              }}
+            >
+              清空
+            </button>
+          </div>
+        </form>
+      </div>
+
       <div className="admin-news-dashboard__grid">
         <div className="admin-news-dashboard__list">
+          <div className="admin-news-dashboard__list-head">
+            <div>
+              <strong>文章列表</strong>
+              <p>按最近更新时间排序，可按状态、分类、标题或 slug 筛选。</p>
+            </div>
+            <span className="community-tag">{articles.length} 篇</span>
+          </div>
           {loading ? <p className="community-meta">正在加载新闻列表...</p> : null}
           {articles.length === 0 && !loading ? (
             <div className="community-empty">
@@ -330,12 +407,14 @@ export default function AdminNewsDashboard() {
             >
               <div className="admin-news-card__meta">
                 <span className="community-tag">{categoryLabel(article.category)}</span>
-                <span className="community-meta">{statusLabel(article.status)}</span>
+                <span className={`admin-news-status-pill admin-news-status-pill--${article.status}`}>{statusLabel(article.status)}</span>
               </div>
               <strong>{article.title}</strong>
               {article.summary ? <p>{article.summary}</p> : null}
               <div className="community-inline-meta">
                 <span>{article.published_at ? new Date(article.published_at).toLocaleString("zh-CN") : "未发布"}</span>
+                <span>更新于 {new Date(article.updated_at).toLocaleString("zh-CN")}</span>
+                <span>{article.view_count} 阅读</span>
                 {article.featured ? <span>精选</span> : null}
                 {article.pinned ? <span>置顶</span> : null}
               </div>
@@ -350,6 +429,18 @@ export default function AdminNewsDashboard() {
             void saveArticle();
           }}
         >
+          <div className="admin-news-form__head">
+            <div>
+              <strong>{form.id ? "编辑文章" : "新建文章"}</strong>
+              <p>支持草稿、发布、归档和删除。公开页只显示已发布内容。</p>
+            </div>
+            <div className="admin-news-form__head-meta">
+              <span className={`admin-news-status-pill admin-news-status-pill--${form.status}`}>{statusLabel(form.status)}</span>
+              {selectedArticle?.published_at ? <span className="community-meta">发布于 {new Date(selectedArticle.published_at).toLocaleString("zh-CN")}</span> : null}
+              {selectedArticle ? <span className="community-meta">更新于 {new Date(selectedArticle.updated_at).toLocaleString("zh-CN")}</span> : null}
+            </div>
+          </div>
+
           <div className="admin-news-form__grid">
             <label className="community-form-field">
               <span>标题</span>
@@ -359,6 +450,21 @@ export default function AdminNewsDashboard() {
               <span>Slug</span>
               <input value={form.slug} onChange={(event) => patchForm("slug", event.target.value)} placeholder="留空则按标题生成" />
             </label>
+          </div>
+
+          <div className="admin-news-form__helper">
+            <span className="community-meta">
+              {form.slug.trim() ? `当前 slug：${form.slug}` : `建议 slug：${slugifyDraftTitle(form.title) || "输入标题后自动生成"}`}
+            </span>
+            {!form.slug.trim() && form.title.trim() ? (
+              <button
+                type="button"
+                className="community-action-button community-action-button--compact community-action-button--muted"
+                onClick={() => patchForm("slug", slugifyDraftTitle(form.title))}
+              >
+                使用建议 slug
+              </button>
+            ) : null}
           </div>
 
           <div className="admin-news-form__grid">
@@ -382,12 +488,12 @@ export default function AdminNewsDashboard() {
 
           <label className="community-form-field">
             <span>摘要</span>
-            <textarea value={form.summary} onChange={(event) => patchForm("summary", event.target.value)} rows={3} />
+            <textarea value={form.summary} onChange={(event) => patchForm("summary", event.target.value)} rows={4} />
           </label>
 
           <label className="community-form-field">
             <span>正文</span>
-            <textarea value={form.content} onChange={(event) => patchForm("content", event.target.value)} rows={12} />
+            <textarea value={form.content} onChange={(event) => patchForm("content", event.target.value)} rows={18} />
           </label>
 
           <div className="admin-news-form__grid">
@@ -422,10 +528,10 @@ export default function AdminNewsDashboard() {
               {saving ? "保存中..." : form.id ? "保存修改" : "创建新闻"}
             </button>
             <button type="button" className="community-button--secondary" onClick={() => void saveArticle("draft")} disabled={saving}>
-              存为草稿
+              保存草稿
             </button>
             <button type="button" className="community-button--secondary" onClick={() => void saveArticle("published")} disabled={saving}>
-              立即发布
+              发布
             </button>
             <button type="button" className="community-button--secondary" onClick={() => void saveArticle("archived")} disabled={saving || !form.id}>
               归档
