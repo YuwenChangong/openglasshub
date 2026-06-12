@@ -9,6 +9,7 @@ import {
   NEWS_CATEGORY_LABELS,
   parseNewsFilter,
 } from "../../lib/news";
+import { resolveNewsMediaUrls } from "../../lib/news-media";
 import NewsPagination from "../../components/news/NewsPagination";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
@@ -18,6 +19,10 @@ const pageParam = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10)
 const page = Number.isFinite(pageParam) ? Math.max(1, pageParam) : 1;
 
 const newsFeed = await listPublicNewsFeed(supabase, { filter, page, limit: 5 });
+const coverUrlMap = await resolveNewsMediaUrls(
+  supabase,
+  newsFeed.articles.map((article) => article.cover_image_url).concat(newsFeed.featuredArticle?.cover_image_url ?? null),
+);
 
 const featuredArticle = page === 1 ? newsFeed.featuredArticle : null;
 const articles = featuredArticle
@@ -66,9 +71,9 @@ const buildCategoryHref = (nextFilter: string) =>
             <h2>{featuredArticle.title}</h2>
             {featuredArticle.summary ? <p>{featuredArticle.summary}</p> : null}
           </div>
-          {featuredArticle.cover_image_url ? (
+          {featuredArticle.cover_image_url && coverUrlMap.get(featuredArticle.cover_image_url) ? (
             <div class="news-featured-card__media">
-              <img src={featuredArticle.cover_image_url} alt={featuredArticle.title} loading="eager" />
+              <img src={coverUrlMap.get(featuredArticle.cover_image_url)!} alt={featuredArticle.title} loading="eager" />
             </div>
           ) : null}
         </a>
@@ -86,9 +91,9 @@ const buildCategoryHref = (nextFilter: string) =>
               <h3>{article.title}</h3>
               {article.summary ? <p>{article.summary}</p> : null}
             </div>
-            {article.cover_image_url ? (
+            {article.cover_image_url && coverUrlMap.get(article.cover_image_url) ? (
               <div class="news-feed-card__thumb">
-                <img src={article.cover_image_url} alt={article.title} loading="lazy" />
+                <img src={coverUrlMap.get(article.cover_image_url)!} alt={article.title} loading="lazy" />
               </div>
             ) : null}
           </a>

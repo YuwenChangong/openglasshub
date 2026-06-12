@@ -190,16 +190,83 @@ export function isValidNewsSlug(slug: string) {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
 }
 
+function padSlugDatePart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function buildFallbackNewsSlug(seed: string) {
+  const now = new Date();
+  const base =
+    `news-${now.getUTCFullYear()}${padSlugDatePart(now.getUTCMonth() + 1)}${padSlugDatePart(now.getUTCDate())}` +
+    `-${padSlugDatePart(now.getUTCHours())}${padSlugDatePart(now.getUTCMinutes())}`;
+  const suffix = Math.abs(
+    Array.from(seed).reduce((acc, char) => ((acc * 31) + char.charCodeAt(0)) | 0, 0),
+  )
+    .toString(36)
+    .slice(0, 4);
+
+  return suffix ? `${base}-${suffix}` : base;
+}
+
 export function slugifyNewsTitle(title: string) {
   const base = title
     .trim()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 80);
 
-  return base || "news-article";
+  return base || buildFallbackNewsSlug(title);
+}
+
+export function normalizeNewsUrl(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+
+  const candidate = /^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(text) ? `https://${text}` : text;
+
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+export async function buildUniqueNewsSlug(
+  client: SupabaseClient,
+  options: { title: string; preferredSlug?: string | null; excludeId?: string | null },
+) {
+  const preferredSlug = String(options.preferredSlug ?? "").trim().toLowerCase();
+  const baseSlug = preferredSlug || slugifyNewsTitle(options.title);
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const suffix = attempt === 0 ? "" : `-${attempt + 1}`;
+    const nextSlug = `${baseSlug}${suffix}`.slice(0, 96).replace(/-+/g, "-").replace(/^-|-$/g, "");
+    const candidate = nextSlug || buildFallbackNewsSlug(options.title);
+    const query = client
+      .from("news_articles")
+      .select("id")
+      .eq("slug", candidate)
+      .limit(1);
+    const result = options.excludeId ? await query.neq("id", options.excludeId) : await query;
+
+    if (isMissingNewsTableError(result.error)) {
+      return candidate;
+    }
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+    if (!result.data || result.data.length === 0) {
+      return candidate;
+    }
+  }
+
+  throw new Error("NEWS_SLUG_CONFLICT_UNRESOLVED");
 }
 
 export function parseNewsFilter(input: string | null | undefined): NewsFilterKey {

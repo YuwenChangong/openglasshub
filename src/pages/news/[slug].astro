@@ -8,8 +8,9 @@ import {
   incrementPublishedNewsViewCount,
   listRelatedPublicNews,
   NEWS_CATEGORY_LABELS,
-  splitNewsContent,
 } from "../../lib/news";
+import { parseNewsContent, resolveNewsContentBlocks } from "../../lib/news-content";
+import { resolveNewsMediaUrl } from "../../lib/news-media";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
@@ -33,7 +34,8 @@ const relatedArticles = article
     })
   : [];
 
-const paragraphs = splitNewsContent(article?.content);
+const coverUrl = article?.cover_image_url ? await resolveNewsMediaUrl(supabase, article.cover_image_url) : null;
+const contentBlocks = article ? await resolveNewsContentBlocks(supabase, parseNewsContent(article.content)) : [];
 const publishedDate = article
   ? new Date(article.published_at ?? article.created_at).toLocaleDateString("zh-CN", {
       year: "numeric",
@@ -71,16 +73,74 @@ const discussionHref = article ? `/search/?q=${encodeURIComponent(article.title)
           {article.summary ? <p class="news-article-page__summary">{article.summary}</p> : null}
         </header>
 
-        {article.cover_image_url ? (
+        {coverUrl ? (
           <section class="news-cover">
-            <img src={article.cover_image_url} alt={article.title} loading="eager" />
+            <img src={coverUrl} alt={article.title} loading="eager" />
           </section>
         ) : null}
 
         <div class="news-article-page__body">
-          {paragraphs.map((paragraph) => (
-            <p>{paragraph}</p>
-          ))}
+          {contentBlocks.map((block) => {
+            if (block.type === "heading") {
+              const Tag = `h${block.level}` as keyof astroHTML.JSX.IntrinsicElements;
+              return (
+                <Tag class={`news-article-page__heading news-article-page__heading--h${block.level}`}>
+                  {block.segments.map((segment) =>
+                    segment.type === "link" ? (
+                      <a href={segment.href} target={segment.href.startsWith("/") ? undefined : "_blank"} rel={segment.href.startsWith("/") ? undefined : "noopener noreferrer"} class="community-inline-link">
+                        {segment.text}
+                      </a>
+                    ) : (
+                      segment.text
+                    ),
+                  )}
+                </Tag>
+              );
+            }
+
+            if (block.type === "list") {
+              return (
+                <ul class="news-article-page__list">
+                  {block.items.map((item) => (
+                    <li>
+                      {item.map((segment) =>
+                        segment.type === "link" ? (
+                          <a href={segment.href} target={segment.href.startsWith("/") ? undefined : "_blank"} rel={segment.href.startsWith("/") ? undefined : "noopener noreferrer"} class="community-inline-link">
+                            {segment.text}
+                          </a>
+                        ) : (
+                          segment.text
+                        ),
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              );
+            }
+
+            if (block.type === "image") {
+              return (
+                <figure class="news-article-page__image">
+                  <img src={block.src} alt={block.alt} loading="lazy" />
+                  {block.alt ? <figcaption>{block.alt}</figcaption> : null}
+                </figure>
+              );
+            }
+
+            return (
+              <p>
+                {block.segments.map((segment) =>
+                  segment.type === "link" ? (
+                    <a href={segment.href} target={segment.href.startsWith("/") ? undefined : "_blank"} rel={segment.href.startsWith("/") ? undefined : "noopener noreferrer"} class="community-inline-link">
+                      {segment.text}
+                    </a>
+                  ) : (
+                    segment.text
+                  ),
+                )}
+              </p>
+            );
+          })}
         </div>
 
         <footer class="news-article-page__footer">

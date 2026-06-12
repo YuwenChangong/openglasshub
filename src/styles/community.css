@@ -3954,6 +3954,10 @@ body {
   min-width: 0;
 }
 
+.admin-news-dashboard__grid {
+  grid-template-columns: minmax(280px, 0.78fr) minmax(0, 1.22fr);
+}
+
 .news-feed-main {
   display: grid;
   gap: 0.95rem;
@@ -4239,11 +4243,55 @@ body {
   gap: 1rem;
 }
 
+.news-article-page__heading {
+  margin: 0;
+  color: #f4f4f5;
+  line-height: 1.3;
+}
+
+.news-article-page__heading--h1,
+.news-article-page__heading--h2 {
+  font-size: 1.35rem;
+}
+
+.news-article-page__heading--h3 {
+  font-size: 1.1rem;
+}
+
 .news-article-page__body p {
   margin: 0;
   color: #f4f4f5;
   font-size: 1rem;
   line-height: 1.82;
+}
+
+.news-article-page__list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: rgba(244, 244, 245, 0.84);
+  line-height: 1.75;
+}
+
+.news-article-page__image {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.news-article-page__image img {
+  display: block;
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.news-article-page__image figcaption {
+  color: rgba(244, 244, 245, 0.58);
+  font-size: 0.82rem;
+  text-align: center;
 }
 
 .news-article-page__footer {
@@ -4426,10 +4474,51 @@ body {
   flex-wrap: wrap;
 }
 
+.admin-news-form__section {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.admin-news-form__section-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.admin-news-form__section-head strong {
+  color: #f4f4f5;
+  font-size: 0.96rem;
+}
+
+.admin-news-form__section-head p {
+  margin: 0.24rem 0 0;
+  color: rgba(244, 244, 245, 0.64);
+  font-size: 0.82rem;
+}
+
 .admin-news-form__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.8rem;
+}
+
+.admin-news-form__advanced {
+  display: grid;
+  gap: 0.85rem;
+  padding-top: 0.15rem;
+}
+
+.admin-news-form__advanced-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: end;
 }
 
 .admin-news-form__helper {
@@ -4478,6 +4567,78 @@ body {
   font-size: 0.84rem;
 }
 
+.admin-news-form__checks--stacked {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-news-form__checks--stacked label {
+  align-items: start;
+}
+
+.admin-news-form__checks--stacked span {
+  display: grid;
+  gap: 0.14rem;
+}
+
+.admin-news-form__checks--stacked strong {
+  color: #f4f4f5;
+  font-size: 0.88rem;
+}
+
+.admin-news-form__checks--stacked small {
+  color: rgba(244, 244, 245, 0.62);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.admin-news-hidden-input {
+  display: none;
+}
+
+.admin-news-slug-preview {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0.7rem 0.82rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(244, 244, 245, 0.82);
+  font-size: 0.88rem;
+  word-break: break-all;
+}
+
+.admin-news-cover-preview {
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-news-cover-preview img {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+}
+
+.admin-news-inline-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.admin-news-inline-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 900px) {
   .news-feed-layout,
   .news-article-layout,
@@ -4501,6 +4662,10 @@ body {
   .admin-news-form__helper,
   .news-pagination {
     align-items: stretch;
+  }
+
+  .admin-news-form__advanced-row {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -4539,6 +4704,10 @@ body {
 
   .admin-news-toolbar,
   .admin-news-form {
+    padding: 0.9rem;
+  }
+
+  .admin-news-form__section {
     padding: 0.9rem;
   }
 }
