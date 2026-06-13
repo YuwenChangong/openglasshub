@@ -70,13 +70,13 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   .ogh-site-header__inner {
     width: 100%;
     max-width: none;
-    min-height: 64px;
+    min-height: 72px;
     margin: 0;
     padding: 0 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 1.1rem;
   }
   .og-header__brand,
   .ogh-brand {
@@ -91,6 +91,10 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     white-space: nowrap;
     flex-shrink: 0;
   }
+  .og-header__brand:hover,
+  .ogh-brand:hover {
+    opacity: 0.96;
+  }
   .og-header__brand img,
   .ogh-brand img {
     width: 34px;
@@ -103,19 +107,23 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   .ogh-nav {
     display: flex;
     align-items: center;
-    gap: 0.18rem;
+    gap: 0.32rem;
     min-width: 0;
     overflow-x: auto;
     flex: 1;
     justify-content: flex-start;
+    scrollbar-width: none;
+  }
+  .og-header__nav::-webkit-scrollbar {
+    display: none;
   }
   .og-header__link,
   .ogh-nav a {
     display: inline-flex;
     align-items: center;
-    min-height: 40px;
-    padding: 10px 8px;
-    border-radius: 8px;
+    min-height: 42px;
+    padding: 10px 12px;
+    border-radius: 12px;
     color: rgba(245,245,245,0.72);
     text-decoration: none;
     font-size: 0.94rem;
@@ -132,14 +140,14 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   .og-header__link:hover,
   .ogh-nav a:hover {
     color: #fff;
-    background: rgba(255,255,255,0.055);
+    background: rgba(255,255,255,0.065);
   }
   .og-header__link[aria-current="page"],
   .og-header__link.is-active,
   .ogh-nav a[aria-current="page"],
   .ogh-nav a.is-active {
     color: #fff;
-    background: transparent;
+    background: rgba(255,255,255,0.05);
     border: 0;
     box-shadow: none;
   }
@@ -157,8 +165,8 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     background: #2f81f7;
   }
   .og-header__search {
-    flex: 0 1 360px;
-    min-width: 220px;
+    flex: 0 1 380px;
+    min-width: 240px;
   }
   .og-header__auth,
   .ogh-header-actions {
@@ -231,16 +239,19 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   }
   @media (max-width: 1100px) {
     .og-header__search {
-      flex-basis: 300px;
-      min-width: 180px;
+      flex-basis: 320px;
+      min-width: 200px;
     }
   }
   @media (max-width: 900px) {
     .og-header__inner {
       min-height: auto;
-      padding: 0.75rem 0.9rem;
+      padding: 0.8rem 0.9rem 0.9rem;
       align-items: flex-start;
       flex-wrap: wrap;
+    }
+    .og-header__brand {
+      min-height: 42px;
     }
     .og-header__search {
       order: 3;
@@ -250,7 +261,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     .og-header__nav {
       order: 4;
       width: 100%;
-      padding-bottom: 0.2rem;
+      padding-bottom: 0.1rem;
     }
     .og-header__auth {
       margin-left: auto;
