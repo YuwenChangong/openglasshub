@@ -52,11 +52,11 @@ const authorHref = buildProfileHref({ id: authorId, username: authorUsername });
   {media.length > 0 ? <PostMediaPreview media={media} href={postHref} mode="feed" maxItems={4} /> : mediaLabel ? <div class="community-media-placeholder">{mediaLabel}</div> : null}
 
   <div class="community-post-actions">
-    <a class="community-action-button" href={`${postHref}#comments`}>评论{commentCount > 0 ? ` ${commentCount}` : ""}</a>
+    <a class="community-action-button community-action-button--quiet" href={`${postHref}#comments`}>评论{commentCount > 0 ? ` ${commentCount}` : ""}</a>
     <PostSocialActions postId={id} initialLikeCount={likeCount} compact={true} client:visible />
     <SharePostButton postPath={postHref} client:visible />
     <div class="community-post-actions__spacer" />
-    <a class="community-action-button community-action-button--muted" href={postHref}>查看详情</a>
+    <a class="community-post-detail-link" href={postHref}>查看详情</a>
   </div>
   <div class="community-post-divider" aria-hidden="true"></div>
 </article>

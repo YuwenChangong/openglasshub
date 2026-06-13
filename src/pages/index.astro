@@ -79,11 +79,10 @@ const postTypeLabels: Record<string, string> = {
 };
 
 const quickLinks = [
-  { href: "/feed/?sort=recommended", label: "推荐" },
-  { href: "/feed/?sort=latest", label: "最新" },
-  { href: "/feed/?sort=hot", label: "热门" },
+  { href: "/feed/?sort=recommended", label: "推荐讨论" },
   { href: "/circles/", label: "圈子" },
-  { href: "/posts/new/", label: "发帖" },
+  { href: "/news/", label: "热点" },
+  { href: "/devices/", label: "设备库" },
 ] as const;
 
 function excerpt(body?: string | null): string {
@@ -101,13 +100,13 @@ function excerpt(body?: string | null): string {
 >
   <section class="home-intro">
     <div class="home-intro__copy">
-      <h1>AR / AI 眼镜社区：讨论设备、体验、开发和空间计算。</h1>
-      <p>OpenGlass Hub 把帖子、圈子、热点和设备资料收在一起，让真实用户、开发者和早期使用者更快找到值得看的内容。</p>
+      <span class="home-intro__eyebrow">AR / AI 眼镜社区</span>
+      <h1>OpenGlass Hub</h1>
+      <p>讨论设备、体验、开发与空间计算。</p>
     </div>
     <div class="home-intro__actions">
       <a href="/feed/" class="community-button">进入论坛</a>
       <a href="/posts/new/" class="community-button--secondary">发起讨论</a>
-      <a href="/news/" class="community-button--secondary">看热点</a>
     </div>
   </section>
 
@@ -124,7 +123,7 @@ function excerpt(body?: string | null): string {
       <div class="community-stream-head">
         <div>
           <h2>正在讨论</h2>
-          <p>{posts.length > 0 ? `最新公开讨论会优先出现在这里。` : "社区正在启动，公开讨论会先从这里长出来。"}</p>
+          <p>{posts.length > 0 ? `公开讨论会先从这里开始。` : "社区正在启动，公开讨论会先从这里开始。"}</p>
         </div>
         <div class="community-inline-links">
           <a href="/feed/" class="community-inline-link community-inline-link--active">全部讨论</a>
@@ -164,8 +163,23 @@ function excerpt(body?: string | null): string {
 
     <aside class="community-sidebar">
       <section class="community-sidebar-block community-sidebar-block--strong">
-        <AuthCTA next="/" client:only="react" />
-        <SignedOutHeroNote client:only="react" />
+        <div class="home-utility-block">
+          <div class="community-sidebar-head">
+            <h2>开始使用</h2>
+          </div>
+          <AuthCTA next="/" client:only="react" />
+          <SignedOutHeroNote client:only="react" />
+          <div class="community-list home-utility-list">
+            <a href="/devices/" class="community-list-item">
+              <strong>设备库</strong>
+              <span>按品牌和路线查看资料。</span>
+            </a>
+            <a href="/gaze-launcher/" class="community-list-item">
+              <strong>Gaze Launcher</strong>
+              <span>查看产品方向和当前进展。</span>
+            </a>
+          </div>
+        </div>
       </section>
 
       <section class="community-sidebar-block">
@@ -174,7 +188,7 @@ function excerpt(body?: string | null): string {
           <a href="/news/" class="community-link">全部</a>
         </div>
         <div class="community-list">
-          {homeNewsFeed.articles.slice(0, 4).map((item) => (
+          {homeNewsFeed.articles.slice(0, 3).map((item) => (
             <a href={`/news/${item.slug}/`} class="community-list-item">
               <strong>{item.title}</strong>
               <span>{new Date(item.published_at ?? item.created_at).toLocaleDateString("zh-CN")}</span>
@@ -189,28 +203,12 @@ function excerpt(body?: string | null): string {
           <a href="/circles/" class="community-link">全部</a>
         </div>
         <div class="community-list">
-          {homeCircles.slice(0, 6).map((circle) => (
+          {homeCircles.slice(0, 4).map((circle) => (
             <a href={`/circles/${circle.slug}/`} class="community-list-item">
               <strong>{circle.name}</strong>
-              <span>{circle.description || "进入圈子查看当前公开讨论。"}</span>
+              <span>{circle.description || "进入圈子查看公开讨论。"}</span>
             </a>
           ))}
-        </div>
-      </section>
-
-      <section class="community-sidebar-block">
-        <div class="community-sidebar-head">
-          <h2>工具入口</h2>
-        </div>
-        <div class="community-list">
-          <a href="/devices/" class="community-list-item">
-            <strong>设备库</strong>
-            <span>按路线和品牌查看机型资料。</span>
-          </a>
-          <a href="/gaze-launcher/" class="community-list-item">
-            <strong>Gaze Launcher</strong>
-            <span>查看产品方向、边界和当前进展。</span>
-          </a>
         </div>
       </section>
     </aside>
@@ -222,44 +220,52 @@ function excerpt(body?: string | null): string {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
-    gap: 1rem;
-    padding: 0.25rem 0 1rem;
+    gap: 1.25rem;
+    padding: 0.55rem 0 1.3rem;
   }
   .home-intro__copy {
     min-width: 0;
   }
+  .home-intro__eyebrow {
+    display: inline-flex;
+    margin-bottom: 0.55rem;
+    color: var(--text-faint);
+    font-size: 0.8rem;
+    letter-spacing: 0.01em;
+  }
   .home-intro h1 {
     margin: 0;
-    max-width: 18ch;
-    font-size: clamp(1.75rem, 3vw, 2.35rem);
-    line-height: 1.04;
-    letter-spacing: -0.045em;
+    max-width: 12ch;
+    font-size: clamp(2rem, 3.4vw, 2.8rem);
+    line-height: 1.02;
+    letter-spacing: -0.04em;
+    text-wrap: balance;
   }
   .home-intro p {
-    margin: 0.55rem 0 0;
-    max-width: 72ch;
+    margin: 0.75rem 0 0;
+    max-width: 48ch;
     color: var(--text-muted);
-    font-size: 0.94rem;
-    line-height: 1.65;
+    font-size: 1rem;
+    line-height: 1.6;
   }
   .home-intro__actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 0.6rem;
+    gap: 0.7rem;
   }
   .home-channel-bar {
-    margin-bottom: 1rem;
-    padding: 0 0 0.95rem;
+    margin-bottom: 1.1rem;
+    padding: 0 0 1rem;
     border-bottom: 1px solid var(--border);
   }
   .home-channel-bar__links {
-    gap: 0.55rem;
+    gap: 0.5rem;
   }
   .home-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 318px;
-    gap: 1.5rem;
+    grid-template-columns: minmax(0, 1fr) 296px;
+    gap: 1.75rem;
     align-items: start;
   }
   .community-feed-column {
@@ -270,18 +276,26 @@ function excerpt(body?: string | null): string {
     align-items: flex-end;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0 0 0.8rem;
-    margin-bottom: 0.2rem;
+    padding: 0 0 0.95rem;
+    margin-bottom: 0.15rem;
     border-bottom: 1px solid var(--border);
   }
   .community-stream-head h2 {
     margin: 0;
-    font-size: 1.12rem;
+    font-size: 1.04rem;
+    letter-spacing: -0.02em;
   }
   .community-stream-head p {
-    margin: 0.2rem 0 0;
+    margin: 0.28rem 0 0;
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: 0.86rem;
+  }
+  .home-utility-block {
+    display: grid;
+    gap: 0.8rem;
+  }
+  .home-utility-list {
+    padding-top: 0.1rem;
   }
   @media (max-width: 900px) {
     .home-intro,
@@ -298,7 +312,10 @@ function excerpt(body?: string | null): string {
   }
   @media (max-width: 720px) {
     .home-intro h1 {
-      font-size: 1.9rem;
+      font-size: 2.05rem;
+    }
+    .home-intro p {
+      font-size: 0.95rem;
     }
   }
 </style>
