@@ -9,7 +9,11 @@ import {
   listRelatedPublicNews,
   NEWS_CATEGORY_LABELS,
 } from "../../lib/news";
-import { parseNewsContent, resolveNewsContentBlocks } from "../../lib/news-content";
+import {
+  filterDuplicateCoverImageBlocks,
+  parseNewsContent,
+  resolveNewsContentBlocks,
+} from "../../lib/news-content";
 import { resolveNewsMediaUrl } from "../../lib/news-media";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
@@ -35,7 +39,12 @@ const relatedArticles = article
   : [];
 
 const coverUrl = article?.cover_image_url ? await resolveNewsMediaUrl(supabase, article.cover_image_url) : null;
-const contentBlocks = article ? await resolveNewsContentBlocks(supabase, parseNewsContent(article.content)) : [];
+const contentBlocks = article
+  ? filterDuplicateCoverImageBlocks(
+      await resolveNewsContentBlocks(supabase, parseNewsContent(article.content)),
+      article.cover_image_url,
+    )
+  : [];
 const publishedDate = article
   ? new Date(article.published_at ?? article.created_at).toLocaleDateString("zh-CN", {
       year: "numeric",
@@ -75,6 +84,7 @@ const discussionHref = article ? `/search/?q=${encodeURIComponent(article.title)
 
         {coverUrl ? (
           <section class="news-cover">
+            {/* Cover image is rendered separately and duplicate cover images in body are skipped. */}
             <img src={coverUrl} alt={article.title} loading="eager" decoding="async" fetchpriority="high" />
           </section>
         ) : null}

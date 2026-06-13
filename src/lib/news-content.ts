@@ -9,7 +9,7 @@ export type NewsContentBlock =
   | { type: "heading"; level: 1 | 2 | 3; segments: NewsInlineSegment[] }
   | { type: "paragraph"; segments: NewsInlineSegment[] }
   | { type: "list"; items: NewsInlineSegment[][] }
-  | { type: "image"; alt: string; src: string };
+  | { type: "image"; alt: string; src: string; rawSrc: string };
 
 const IMAGE_LINE_PATTERN = /^!\[([^\]]*)\]\(([^)]+)\)$/;
 const LINK_PATTERN = /\[([^\]]+)\]\(([^)]+)\)/g;
@@ -53,6 +53,40 @@ function parseInlineSegments(input: string): NewsInlineSegment[] {
   return segments;
 }
 
+function normalizeComparableUrl(value: string) {
+  const text = value.trim();
+  if (!text) return "";
+
+  if (!/^https?:\/\//i.test(text)) {
+    return text;
+  }
+
+  try {
+    const url = new URL(text);
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return text;
+  }
+}
+
+export function isSameNewsImageSource(left: string | null | undefined, right: string | null | undefined) {
+  const normalizedLeft = normalizeComparableUrl(String(left ?? ""));
+  const normalizedRight = normalizeComparableUrl(String(right ?? ""));
+  if (!normalizedLeft || !normalizedRight) return false;
+  return normalizedLeft === normalizedRight;
+}
+
+export function filterDuplicateCoverImageBlocks(
+  blocks: NewsContentBlock[],
+  coverImageSource: string | null | undefined,
+) {
+  return blocks.filter((block) => {
+    if (block.type !== "image") return true;
+    return !isSameNewsImageSource(block.rawSrc, coverImageSource);
+  });
+}
+
 export function parseNewsContent(content: string | null | undefined): NewsContentBlock[] {
   const lines = String(content ?? "").replace(/\r\n/g, "\n").split("\n");
   const blocks: NewsContentBlock[] = [];
@@ -92,7 +126,7 @@ export function parseNewsContent(content: string | null | undefined): NewsConten
       const alt = imageMatch[1]?.trim() || "图片";
       const src = imageMatch[2]?.trim() || "";
       if (src) {
-        blocks.push({ type: "image", alt, src });
+        blocks.push({ type: "image", alt, src, rawSrc: src });
         continue;
       }
     }
