@@ -105,6 +105,7 @@ Write a reviewed candidate JSON file:
 
 ```bash
 node scripts/curate-device-specs.mjs --commit --input docs/device-sources.json
+node scripts/curate-device-specs.mjs --dry-run --input docs/device-sources.json --draft-dir data/device-mdx-drafts
 ```
 
 ## Flags
@@ -113,6 +114,7 @@ node scripts/curate-device-specs.mjs --commit --input docs/device-sources.json
 - `--commit`
 - `--input`
 - `--output`
+- `--draft-dir`
 - `--source`
 - `--limit`
 - `--verbose`
@@ -167,14 +169,23 @@ This crawler does **not** overwrite those files.
 
 Current implementation writes structured review candidates as JSON instead:
 
-- default commit path: `data/device-candidates.json`
+- default commit path: `src/data/device-spec-candidates.json`
 - ad hoc export path: whatever you pass to `--output`
+
+It can also generate MDX review drafts:
+
+- example draft dir: `data/device-mdx-drafts/`
+
+These drafts are meant for manual review before moving any content into:
+
+- `src/content/docs/devices/`
 
 That keeps the pipeline safe:
 
 1. crawl official facts
 2. inspect JSON candidates
-3. manually update device docs
+3. optionally inspect generated MDX drafts
+4. manually update device docs
 
 ## Image policy
 

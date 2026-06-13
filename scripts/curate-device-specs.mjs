@@ -3,7 +3,7 @@ import path from "node:path";
 
 const USER_AGENT = "OpenGlassHubDeviceSpecBot/0.1 (+https://openglasshub.pages.dev)";
 const DEFAULT_INPUT = "docs/device-sources.json";
-const DEFAULT_COMMIT_OUTPUT = "data/device-candidates.json";
+const DEFAULT_COMMIT_OUTPUT = "src/data/device-spec-candidates.json";
 const DEFAULT_DELAY_MS = 1200;
 const DEFAULT_TIMEOUT_MS = 12000;
 const MAX_RETRIES = 2;
@@ -103,6 +103,7 @@ function parseArgs(argv) {
     commit: false,
     input: DEFAULT_INPUT,
     output: null,
+    draftDir: null,
     source: null,
     limit: null,
     verbose: false,
@@ -127,6 +128,9 @@ function parseArgs(argv) {
         break;
       case "--output":
         options.output = argv[++index] ?? null;
+        break;
+      case "--draft-dir":
+        options.draftDir = argv[++index] ?? null;
         break;
       case "--source":
         options.source = argv[++index] ?? null;
@@ -175,6 +179,7 @@ Options:
   --commit           Write structured candidate JSON. Does not publish anything.
   --input <path>     Source config JSON path. Default: ${DEFAULT_INPUT}
   --output <path>    Output JSON path. Default for --commit: ${DEFAULT_COMMIT_OUTPUT}
+  --draft-dir <dir>  Write MDX draft files for manual review.
   --source <value>   Filter by brand / name / slug substring.
   --limit <n>        Limit number of source URLs to scan.
   --verbose          Print per-source diagnostics.
@@ -613,8 +618,22 @@ function normalizeModelName(raw, fallback) {
     .trim();
 }
 
+function pickModelName(source, ...candidates) {
+  for (const candidate of candidates) {
+    const normalized = normalizeModelName(candidate, source.name);
+    if (!normalized) continue;
+    if (/building augmented reality for everyone|shop$/i.test(normalized)) continue;
+    if (normalized.length < 3) continue;
+    return normalized;
+  }
+  return source.name;
+}
+
 function buildShortDescription(item) {
   const { brand, model_name: modelName, specs } = item;
+  const fullName = modelName.toLowerCase().startsWith(String(brand).toLowerCase())
+    ? modelName
+    : `${brand} ${modelName}`;
   const parts = [];
   const lower = `${specs.display_type ?? ""} ${specs.field_of_view ?? ""} ${specs.camera ?? ""} ${specs.chipset ?? ""}`.toLowerCase();
 
@@ -637,7 +656,7 @@ function buildShortDescription(item) {
     parts.push("适合进一步核对平台兼容性与连接方式");
   }
 
-  const sentence = `${brand} ${modelName} ${parts.join("，")}。`;
+  const sentence = `${fullName} ${parts.join("，")}。`;
   return sentence.replace(/\s+/g, " ").trim();
 }
 
@@ -757,7 +776,7 @@ async function parseSource(source, options) {
 
   const candidate = {
     brand: source.brand,
-    model_name: normalizeModelName(jsonLdProduct?.name || ogTitle || title, source.name),
+    model_name: pickModelName(source, jsonLdProduct?.name, ogTitle, title, source.name),
     product_url: source.url,
     source_url: source.url,
     source_name: `${source.brand} official`,
@@ -788,6 +807,87 @@ function buildOutput(items, skipped, errors) {
     skipped,
     errors,
   };
+}
+
+function yamlEscape(value) {
+  return String(value ?? "").replace(/"/g, '\\"');
+}
+
+function formatSpecValue(value) {
+  return value && value !== "unknown" ? value : "待核实";
+}
+
+function buildDeviceDraftMdx(item) {
+  const specLines = [
+    ["显示类型", item.specs.display_type],
+    ["分辨率", item.specs.resolution],
+    ["刷新率", item.specs.refresh_rate],
+    ["亮度", item.specs.brightness],
+    ["视场角", item.specs.field_of_view],
+    ["芯片 / 平台", item.specs.chipset],
+    ["内存", item.specs.memory],
+    ["存储", item.specs.storage],
+    ["相机", item.specs.camera],
+    ["连接", item.specs.connectivity],
+    ["电池续航", item.specs.battery_life],
+    ["重量", item.specs.weight],
+    ["价格", item.specs.price],
+    ["上市 / 可得性", item.specs.availability],
+  ]
+    .filter(([, value]) => value && value !== "unknown")
+    .map(([label, value]) => `- ${label}: ${value}`);
+
+  const missing = item.missing_fields.length ? item.missing_fields.join(", ") : "无";
+  const imageNote = item.official_image_url
+    ? `- 官方候选图片链接（未下载、未搬运）: ${item.official_image_url}`
+    : "- 官方候选图片链接: 待核实";
+
+  return `---
+title: ${yamlEscape(item.model_name)}
+description: ${yamlEscape(item.short_description)}
+sidebar:
+  label: ${yamlEscape(item.model_name)}
+slug: reference/devices/${item.slug}
+---
+
+## 快速结论
+
+${item.short_description}
+
+## 设备定位
+
+这是一份基于官方公开页面自动整理的设备草稿。重点是帮助 OpenGlass Hub 先建立事实参数框架，再由编辑补充最终判断与对比结论。
+
+## 已抓取参数
+
+${specLines.length ? specLines.join("\n") : "- 目前只抓到有限公开参数，仍需人工补充。"}
+
+## 仍待核实
+
+- confidence: ${item.confidence}
+- missing_fields: ${missing}
+
+## 官方链接
+
+- 官方产品页: ${item.source_url}
+${imageNote}
+
+## 核实状态
+
+本页为自动生成草稿，不直接复制官方营销文案，也不搬运官方图片。正式发布前请人工核对参数、可用地区、价格、兼容性与设备定位。
+`;
+}
+
+async function writeDraftFiles(dirPath, items) {
+  const fullDir = path.resolve(dirPath);
+  await fs.mkdir(fullDir, { recursive: true });
+  const written = [];
+  for (const item of items) {
+    const filePath = path.join(fullDir, `${item.slug}.mdx`);
+    await fs.writeFile(filePath, `${buildDeviceDraftMdx(item)}\n`, "utf8");
+    written.push(filePath);
+  }
+  return written;
 }
 
 async function writeOutputFile(filePath, payload) {
@@ -844,6 +944,7 @@ async function main() {
       if (result.skipped) {
         skipped.push(result.skipped);
       } else if (result.item) {
+        result.item.slug = source.slug;
         items.push(result.item);
       }
     } catch (error) {
@@ -878,6 +979,15 @@ async function main() {
     const written = await writeOutputFile(DEFAULT_COMMIT_OUTPUT, payload);
     console.log("");
     console.log(`Output JSON: ${written}`);
+  }
+
+  if (options.draftDir) {
+    const writtenDrafts = await writeDraftFiles(options.draftDir, items);
+    console.log("");
+    console.log(`Draft MDX files: ${writtenDrafts.length}`);
+    for (const file of writtenDrafts) {
+      console.log(`- ${file}`);
+    }
   }
 }
 

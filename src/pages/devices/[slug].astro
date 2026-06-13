@@ -3,6 +3,7 @@ export const prerender = false;
 
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import { getCollection, render } from "astro:content";
+import deviceSpecCandidates from "../../data/device-spec-candidates.json";
 
 const slug = Astro.params.slug ?? "";
 const docs = await getCollection("docs", ({ slug: s }) => s === `reference/devices/${slug}`);
@@ -13,6 +14,58 @@ if (!entry) {
 }
 
 const { Content } = await render(entry);
+const candidateItems = Array.isArray(deviceSpecCandidates?.items) ? deviceSpecCandidates.items : [];
+const specEntry = candidateItems.find((item) => item?.slug === slug) ?? null;
+
+const specLabels = {
+  display_type: "显示类型",
+  resolution: "分辨率",
+  refresh_rate: "刷新率",
+  brightness: "亮度",
+  field_of_view: "视场角",
+  ppd: "PPD",
+  color_gamut: "色域",
+  waveguide_type: "波导类型",
+  lens_type: "镜片类型",
+  diopter_support: "屈光 / 近视支持",
+  myopia_adjustment: "近视调节",
+  transparency: "透视能力",
+  dimming: "调光",
+  chipset: "芯片 / 平台",
+  memory: "内存",
+  storage: "存储",
+  sensors: "传感器",
+  camera: "相机",
+  microphone: "麦克风",
+  speakers: "扬声器",
+  connectivity: "连接方式",
+  ports: "接口",
+  battery_life: "续航",
+  battery_capacity: "电池容量",
+  charging: "充电",
+  power_source: "供电方式",
+  weight: "重量",
+  dimensions: "尺寸",
+  frame_style: "框型",
+  ip_rating: "防护等级",
+  supported_devices: "兼容设备",
+  os_compatibility: "系统兼容",
+  sdk_availability: "SDK / 开发支持",
+  price: "价格",
+  region: "地区",
+  availability: "可得性",
+  release_year: "发布时间",
+} as const;
+
+const specRows = specEntry
+  ? Object.entries(specLabels)
+      .map(([field, label]) => ({
+        field,
+        label,
+        value: specEntry.specs?.[field] ?? "unknown",
+      }))
+      .filter((item) => item.value && item.value !== "unknown")
+  : [];
 ---
 
 <CommunityLayout
@@ -35,6 +88,48 @@ const { Content } = await render(entry);
 
   <section class="community-grid device-detail-layout">
     <article class="community-surface community-surface--padded detail-main device-detail-main">
+      {specEntry && (
+        <section class="device-spec-snapshot">
+          <div class="device-spec-snapshot__head">
+            <div>
+              <span class="device-detail-hero__eyebrow">官方参数快照</span>
+              <h2>结构化设备参数</h2>
+            </div>
+            <div class="device-spec-snapshot__meta">
+              <span>confidence: {specEntry.confidence}</span>
+              <span>last checked: {specEntry.last_checked_at}</span>
+            </div>
+          </div>
+
+          {specEntry.short_description && <p>{specEntry.short_description}</p>}
+
+          {specRows.length > 0 && (
+            <div class="device-spec-table">
+              {specRows.map((row) => (
+                <div class="device-spec-table__row">
+                  <span>{row.label}</span>
+                  <strong>{row.value}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div class="device-spec-links">
+            <a href={specEntry.source_url} target="_blank" rel="noreferrer">官方产品页</a>
+            {specEntry.official_image_url && (
+              <a href={specEntry.official_image_url} target="_blank" rel="noreferrer">官方图片参考</a>
+            )}
+          </div>
+
+          {specEntry.missing_fields?.length > 0 && (
+            <div class="device-spec-missing">
+              <strong>仍待核实</strong>
+              <span>{specEntry.missing_fields.join("、")}</span>
+            </div>
+          )}
+        </section>
+      )}
+
       <Content />
     </article>
     <aside class="community-sidebar">
@@ -127,6 +222,75 @@ const { Content } = await render(entry);
     color: var(--text);
     border-color: rgba(255, 255, 255, 0.32);
   }
+  .device-spec-snapshot {
+    margin-bottom: 1.4rem;
+    padding: 1rem 1rem 1.1rem;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .device-spec-snapshot__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: start;
+  }
+  .device-spec-snapshot__head h2 {
+    margin: 0;
+    font-size: 1.18rem;
+    letter-spacing: -0.02em;
+  }
+  .device-spec-snapshot__meta {
+    display: grid;
+    gap: 0.22rem;
+    text-align: right;
+    color: var(--text-faint);
+    font-size: 0.84rem;
+  }
+  .device-spec-table {
+    display: grid;
+    gap: 0.55rem;
+    margin-top: 1rem;
+  }
+  .device-spec-table__row {
+    display: grid;
+    grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+    gap: 0.9rem;
+    padding: 0.68rem 0.78rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.028);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .device-spec-table__row span {
+    color: var(--text-faint);
+    font-size: 0.92rem;
+  }
+  .device-spec-table__row strong {
+    color: var(--text);
+    line-height: 1.5;
+    font-size: 0.96rem;
+  }
+  .device-spec-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-top: 1rem;
+  }
+  .device-spec-links a {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.62rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .device-spec-missing {
+    display: grid;
+    gap: 0.32rem;
+    margin-top: 1rem;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+  }
   @media (max-width: 900px) {
     .device-detail-hero {
       grid-template-columns: 1fr;
@@ -136,6 +300,16 @@ const { Content } = await render(entry);
     }
     .device-detail-side {
       position: static;
+    }
+    .device-spec-snapshot__head,
+    .device-spec-table__row {
+      grid-template-columns: 1fr;
+    }
+    .device-spec-snapshot__head {
+      display: grid;
+    }
+    .device-spec-snapshot__meta {
+      text-align: left;
     }
   }
 </style>

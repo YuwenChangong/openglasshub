@@ -7,17 +7,80 @@
     "url": "https://us.shop.xreal.com/products/xreal-one"
   },
   {
+    "brand": "XREAL",
+    "name": "XREAL One Pro",
+    "slug": "xreal-one-pro",
+    "source": "official",
+    "url": "https://www.xreal.com/us/one-pro"
+  },
+  {
+    "brand": "XREAL",
+    "name": "XREAL Air 2 Pro",
+    "slug": "xreal-air-2-pro",
+    "source": "official",
+    "url": "https://us.shop.xreal.com/products/xreal-air-2-pro"
+  },
+  {
+    "brand": "XREAL",
+    "name": "XREAL Air 2 Ultra",
+    "slug": "xreal-air-2-ultra",
+    "source": "official",
+    "url": "https://us.shop.xreal.com/products/xreal-air-2-ultra/"
+  },
+  {
     "brand": "RayNeo",
     "name": "RayNeo X2",
     "slug": "rayneo-x2",
     "source": "official",
-    "url": "https://www.rayneo.com/products/tcl-rayneo-x2"
+    "url": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2"
   },
   {
     "brand": "Rokid",
-    "name": "Rokid AI Glasses Style",
-    "slug": "rokid-ai-glasses-style",
+    "name": "Rokid Glasses",
+    "slug": "rokid-glasses",
     "source": "official",
-    "url": "https://global.rokid.com/products/rokid-ai-glasses-style"
+    "url": "https://global.rokid.com/products/rokid-glasses"
+  },
+  {
+    "brand": "Rokid",
+    "name": "Rokid Max",
+    "slug": "rokid-max",
+    "source": "official",
+    "url": "https://global.rokid.com/products/rokid-max"
+  },
+  {
+    "brand": "VITURE",
+    "name": "VITURE Pro XR Glasses",
+    "slug": "viture-pro",
+    "source": "official",
+    "url": "https://www.viture.com/product/viture-luma-pro-xr-glasses"
+  },
+  {
+    "brand": "Meta / Ray-Ban",
+    "name": "Ray-Ban Meta Smart Glasses",
+    "slug": "ray-ban-meta",
+    "source": "official",
+    "url": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses"
+  },
+  {
+    "brand": "INMO",
+    "name": "INMO Air 2",
+    "slug": "inmo-air-2",
+    "source": "official",
+    "url": "https://www.inmoxr.com/pages/inmo-air2"
+  },
+  {
+    "brand": "Even Realities",
+    "name": "Even Realities G1",
+    "slug": "even-realities-g1",
+    "source": "official",
+    "url": "https://www.evenrealities.com/en-FI/g1"
+  },
+  {
+    "brand": "Brilliant Labs",
+    "name": "Brilliant Labs Frame",
+    "slug": "brilliant-labs-frame",
+    "source": "official",
+    "url": "https://brilliant.xyz/products/frame"
   }
 ]
