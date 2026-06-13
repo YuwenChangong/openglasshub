@@ -14,7 +14,6 @@ import {
   parseNewsContent,
   resolveNewsContentBlocks,
 } from "../../lib/news-content";
-import { resolveNewsMediaUrl } from "../../lib/news-media";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
@@ -38,7 +37,6 @@ const relatedArticles = article
     })
   : [];
 
-const coverUrl = article?.cover_image_url ? await resolveNewsMediaUrl(supabase, article.cover_image_url) : null;
 const contentBlocks = article
   ? filterDuplicateCoverImageBlocks(
       await resolveNewsContentBlocks(supabase, parseNewsContent(article.content)),
@@ -81,13 +79,6 @@ const discussionHref = article ? `/search/?q=${encodeURIComponent(article.title)
           <h1>{article.title}</h1>
           {article.summary ? <p class="news-article-page__summary">{article.summary}</p> : null}
         </header>
-
-        {coverUrl ? (
-          <section class="news-cover">
-            {/* Cover image is rendered separately and duplicate cover images in body are skipped. */}
-            <img src={coverUrl} alt={article.title} loading="eager" decoding="async" fetchpriority="high" />
-          </section>
-        ) : null}
 
         <div class="news-article-page__body">
           {contentBlocks.map((block) => {
