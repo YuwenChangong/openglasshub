@@ -2,29 +2,36 @@
 export const prerender = false;
 
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
-import { getCollection, render } from "astro:content";
 
 const slug = Astro.params.slug ?? "";
-const docs = await getCollection("docs", ({ slug: s }) => s === `reference/guides/${slug}`);
-const entry = docs[0];
+const modules = import.meta.glob("../../content/docs/guides/*.mdx");
+const loadEntry = modules[`../../content/docs/guides/${slug}.mdx`];
 
-if (!entry) {
+if (!loadEntry) {
   return Astro.redirect("/guides/");
 }
 
-const { Content } = await render(entry);
+const entry = (await loadEntry()) as {
+  default: unknown;
+  frontmatter: {
+    title: string;
+    description?: string;
+  };
+};
+
+const Content = entry.default;
 ---
 
 <CommunityLayout
-  title={entry.data.title}
-  description={entry.data.description}
+  title={entry.frontmatter.title}
+  description={entry.frontmatter.description}
   canonical={`https://openglasshub.pages.dev/guides/${slug}/`}
   activeSection="products"
 >
   <section class="community-page-head">
     <div>
-      <h1>{entry.data.title}</h1>
-      {entry.data.description && <p class="community-page-lead">{entry.data.description}</p>}
+      <h1>{entry.frontmatter.title}</h1>
+      {entry.frontmatter.description && <p class="community-page-lead">{entry.frontmatter.description}</p>}
     </div>
   </section>
 

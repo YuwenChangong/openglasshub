@@ -1,92 +1,221 @@
 ---
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import { productLinks } from "../../lib/site-navigation";
-import ProductCard from "../../components/community/ProductCard.astro";
+import { deviceCatalog, routeCatalog } from "../../lib/device-catalog";
+
+const deviceCount = Object.keys(deviceCatalog).length;
 ---
 
 <CommunityLayout
   title="产品"
-  description="汇总设备库、选购指南和开发者资源。"
+  description="查看设备库、选购指南和开发者资源。"
   canonical="https://openglasshub.pages.dev/products/"
   activeSection="products"
 >
-  <section class="community-page-head">
+  <section class="products-head">
     <div>
       <h1>产品</h1>
-      <p class="community-page-lead">看设备、做选购判断、查开发限制。</p>
+      <p>先找设备，再看选购判断和开发限制。</p>
+    </div>
+    <a href="/devices/" class="community-button">进入设备库</a>
+  </section>
+
+  <section class="community-surface products-hero">
+    <div class="products-hero__copy">
+      <span class="products-eyebrow">OpenGlass Hub 产品区</span>
+      <h2>把设备、判断和开发入口放在同一条路径里</h2>
+      <p>这里不做营销式展示，只给你下一步该去看的入口。设备库看机型，选购指南做判断，开发者页看 SDK 和限制。</p>
+    </div>
+    <div class="products-hero__stats">
+      <article>
+        <strong>{deviceCount}</strong>
+        <span>已整理设备</span>
+      </article>
+      <article>
+        <strong>{routeCatalog.length}</strong>
+        <span>路线视角</span>
+      </article>
+      <article>
+        <strong>{productLinks.length}</strong>
+        <span>核心入口</span>
+      </article>
     </div>
   </section>
 
-  <section class="products-page">
-    <div class="community-surface community-surface--primary">
-      <div class="products-intro">
-        <div class="community-inline-meta">
-          <span>设备资料</span>
-          <span>选购判断</span>
-          <span>开发限制</span>
+  <section class="products-grid">
+    {productLinks.map((item) => (
+      <a href={item.href} class="community-surface products-card">
+        <div class="products-card__copy">
+          <h3>{item.label}</h3>
+          <p>{item.description}</p>
         </div>
-      </div>
-      <div class="community-section-head">
-        <div>
-          <h2>从这里开始</h2>
-        </div>
-      </div>
+        <span class="products-card__action">进入</span>
+      </a>
+    ))}
+  </section>
 
-      <div class="products-grid">
-        {productLinks.map((item) => (
-          <ProductCard href={item.href} title={item.label} description={item.description} />
-        ))}
-      </div>
-
-      <div class="products-secondary">
-        <div class="products-secondary__text">
-          <span class="community-meta">补充入口</span>
-          <h3>对比与路线判断</h3>
-          <p>查看选购指南，继续做横向对比和路线判断。</p>
-        </div>
-        <a href="/guides/" class="community-button--secondary">查看指南</a>
-      </div>
-    </div>
+  <section class="products-guide-grid">
+    <article class="community-surface products-guide">
+      <h2>先看设备库</h2>
+      <p>按显示型、AI 眼镜、独立 AR、实验路线先缩小范围，再进入单机页看参数和判断。</p>
+      <a href="/devices/" class="community-link">打开设备库</a>
+    </article>
+    <article class="community-surface products-guide">
+      <h2>再看选购指南</h2>
+      <p>如果你已经有预算、用途或风险边界，就直接去指南页做横向判断，不必把每台设备都读完。</p>
+      <a href="/guides/" class="community-link">查看指南</a>
+    </article>
+    <article class="community-surface products-guide">
+      <h2>开发前看限制</h2>
+      <p>想做开发时，优先看 SDK、系统开放度、是否依赖手机和第三方应用链路。</p>
+      <a href="/developers/" class="community-link">开发者资源</a>
+    </article>
   </section>
 </CommunityLayout>
 
 <style>
-  .products-page {
-    display: block;
+  .products-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 0 1rem;
   }
-  .products-intro {
-    padding: 1rem 1rem 0.15rem;
+  .products-head h1 {
+    margin: 0;
+    font-size: 2rem;
+    letter-spacing: -0.03em;
+  }
+  .products-head p {
+    margin: 0.45rem 0 0;
+    color: var(--text-muted);
+  }
+  .products-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
+    gap: 1.2rem;
+    padding: 1.2rem;
+  }
+  .products-eyebrow {
+    display: inline-flex;
+    margin-bottom: 0.55rem;
+    color: var(--text-faint);
+    font-size: 0.82rem;
+  }
+  .products-hero h2 {
+    margin: 0;
+    max-width: 18ch;
+    font-size: 1.55rem;
+    line-height: 1.18;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+  .products-hero p {
+    margin: 0.7rem 0 0;
+    max-width: 62ch;
+    color: var(--text-muted);
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+  .products-hero__stats {
+    display: grid;
+    gap: 0.75rem;
+    align-content: start;
+  }
+  .products-hero__stats article,
+  .products-guide,
+  .products-card {
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.025);
+  }
+  .products-hero__stats article {
+    display: grid;
+    gap: 0.22rem;
+    padding: 0.95rem 1rem;
+  }
+  .products-hero__stats strong {
+    color: var(--text);
+    font-size: 1.35rem;
+    letter-spacing: -0.02em;
+  }
+  .products-hero__stats span {
+    color: var(--text-muted);
+    font-size: 0.88rem;
   }
   .products-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.8rem;
-    padding: 0.9rem 1rem;
-  }
-  .products-secondary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     gap: 0.9rem;
-    margin: 0 1rem 1rem;
-    padding: 0.9rem 0.95rem;
-    border-top: 1px solid var(--border);
-    background: transparent;
+    margin-top: 1rem;
   }
-  .products-secondary h3 {
-    margin: 0.2rem 0 0.35rem;
+  .products-card {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    text-decoration: none;
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  }
+  .products-card:hover {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.045);
+    transform: translateY(-1px);
+  }
+  .products-card__copy {
+    display: grid;
+    gap: 0.35rem;
+  }
+  .products-card h3 {
+    margin: 0;
     color: var(--text);
     font-size: 1.02rem;
   }
-  .products-secondary p {
+  .products-card p {
     margin: 0;
     color: var(--text-muted);
+    line-height: 1.58;
+  }
+  .products-card__action {
+    color: rgba(242, 244, 245, 0.9);
+    font-size: 0.88rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .products-guide-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem;
+    margin-top: 1rem;
+  }
+  .products-guide {
+    display: grid;
+    gap: 0.55rem;
+    padding: 1rem;
+  }
+  .products-guide h2 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text);
+  }
+  .products-guide p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.6;
   }
   @media (max-width: 900px) {
-    .products-grid {
+    .products-head,
+    .products-hero,
+    .products-grid,
+    .products-guide-grid {
       grid-template-columns: 1fr;
     }
-    .products-secondary {
+    .products-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .products-card {
       align-items: flex-start;
       flex-direction: column;
     }
