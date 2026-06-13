@@ -69,8 +69,11 @@ export const GET: APIRoute = async ({ locals }) => {
   ];
 
   for (const entry of docs) {
-    if (entry.slug.startsWith("reference/devices/")) {
-      const slug = entry.slug.replace("reference/devices/", "");
+    const docSlug = String((entry as { slug?: string | null }).slug ?? "");
+    if (!docSlug) continue;
+
+    if (docSlug.startsWith("reference/devices/")) {
+      const slug = docSlug.replace("reference/devices/", "");
       entries.push({
         loc: absoluteUrl(`/devices/${slug}/`),
         lastmod: normalizeDate(entry.data.lastUpdated?.toISOString?.() ?? undefined),
@@ -79,8 +82,8 @@ export const GET: APIRoute = async ({ locals }) => {
       });
       continue;
     }
-    if (entry.slug.startsWith("reference/guides/")) {
-      const slug = entry.slug.replace("reference/guides/", "");
+    if (docSlug.startsWith("reference/guides/")) {
+      const slug = docSlug.replace("reference/guides/", "");
       entries.push({
         loc: absoluteUrl(`/guides/${slug}/`),
         lastmod: normalizeDate(entry.data.lastUpdated?.toISOString?.() ?? undefined),
