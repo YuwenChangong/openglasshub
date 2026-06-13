@@ -13,6 +13,14 @@ import {
 import { buildProfileHref } from "../../lib/profile-links";
 import ProfilePostCard from "./ProfilePostCard";
 
+function formatProfileTime(value: string) {
+  try {
+    return new Date(value).toLocaleString("zh-CN");
+  } catch {
+    return value;
+  }
+}
+
 type BookmarkRow = {
   created_at: string;
   post_id: string;
@@ -43,6 +51,22 @@ type MyProfilePageProps = {
   initialPageData?: LoadedProfilePage | null;
   initialTab?: OwnTab;
 };
+
+function isKnownTab(value: string | null): value is OwnTab {
+  return value === "posts" || value === "comments" || value === "circles" || value === "liked" || value === "saved";
+}
+
+function readTabFromLocation(): OwnTab | null {
+  if (typeof window === "undefined") return null;
+  const nextTab = new URLSearchParams(window.location.search).get("tab");
+  return isKnownTab(nextTab) ? nextTab : null;
+}
+
+function buildTabHref(baseHref: string, tab: OwnTab): string {
+  if (tab === "posts") return baseHref;
+  const separator = baseHref.includes("?") ? "&" : "?";
+  return `${baseHref}${separator}tab=${encodeURIComponent(tab)}`;
+}
 
 async function loadCollectionPosts(
   supabase: ReturnType<typeof createBrowserSupabaseClient>,
@@ -85,7 +109,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [loading, setLoading] = useState(initialPageData ? false : true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<OwnTab>(initialTab);
+  const [tab, setTab] = useState<OwnTab>(() => readTabFromLocation() ?? initialTab);
   const [pageData, setPageData] = useState<LoadedProfilePage | null>(initialPageData);
   const [likedPosts, setLikedPosts] = useState<CollectionPost[]>([]);
   const [savedPosts, setSavedPosts] = useState<CollectionPost[]>([]);
@@ -205,6 +229,13 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
     }
   }, [tab, viewerIsOwner]);
 
+  useEffect(() => {
+    const nextTab = readTabFromLocation();
+    if (nextTab && nextTab !== tab) {
+      setTab(nextTab);
+    }
+  }, [tab]);
+
   function syncLikeState(postId: string, liked: boolean, likeCount: number, sourcePost?: CollectionPost) {
     const applyLikeCount = (posts: CollectionPost[]) =>
       posts.map((post) => (post.id === postId ? { ...post, likeCount } : post));
@@ -264,6 +295,8 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
 
   const displayName = pageData.profile.display_name || pageData.profile.username || "社区成员";
   const publicHref = buildProfileHref(pageData.profile) ?? "/feed/";
+  const ownerBaseHref = "/me/";
+  const activeBaseHref = viewerIsOwner ? ownerBaseHref : publicHref;
   const visibleTabs = viewerIsOwner
     ? savedPostsAvailable
       ? (["posts", "comments", "circles", "liked", "saved"] as OwnTab[])
@@ -351,14 +384,22 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
       <section className="community-surface community-surface--padded profile-tabs">
         <div className="community-inline-links profile-tabs__links" role="tablist" aria-label="我的动态">
           {visibleTabs.map((item) => (
-            <button
+            <a
               key={item}
-              type="button"
+              href={buildTabHref(activeBaseHref, item)}
+              role="tab"
+              aria-selected={tab === item}
               className={`community-inline-link${tab === item ? " community-inline-link--active" : ""}`}
-              onClick={() => setTab(item)}
+              onClick={(event) => {
+                event.preventDefault();
+                setTab(item);
+                if (typeof window !== "undefined") {
+                  window.history.replaceState({}, "", buildTabHref(activeBaseHref, item));
+                }
+              }}
             >
               {TAB_LABELS[item]}
-            </button>
+            </a>
           ))}
         </div>
       </section>
@@ -384,7 +425,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
                   <a href={comment.postHref} className="community-post-meta__link">
                     {comment.postTitle}
                   </a>
-                  <span>{formatTime(comment.created_at)}</span>
+                  <span>{formatProfileTime(comment.created_at)}</span>
                 </div>
                 <p>{comment.body}</p>
                 <div className="community-post-actions">

@@ -12,6 +12,7 @@ import { listPublicNewsFeed } from "../lib/news";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../lib/forum-media";
 import { buildPostLikeCountMap } from "../lib/post-engagement";
 import { sanitizeBodyForDisplay } from "../lib/post-body";
+import { isPublicVisibleCircle } from "../lib/site-navigation";
 
 type PostRow = {
   id: string;
@@ -32,19 +33,31 @@ const r2PublicBaseUrl = env?.R2_PUBLIC_BASE_URL || "";
 
 let posts: PostRow[] = [];
 let loadError = "";
+let homeCircles: Array<{ slug?: string | null; name?: string | null; description?: string | null; status?: string | null }> = [];
 
 if (supabase) {
-  const postResult = await supabase
-    .from("posts")
-    .select("id,author_id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)")
-    .eq("status", "published")
-    .order("created_at", { ascending: false })
-    .limit(8);
+  const [postResult, circleResult] = await Promise.all([
+    supabase
+      .from("posts")
+      .select("id,author_id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)")
+      .eq("status", "published")
+      .order("created_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("circles")
+      .select("slug,name,description,status")
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
 
   if (postResult.error) {
     loadError = postResult.error.message;
   } else {
     posts = (postResult.data ?? []) as PostRow[];
+  }
+
+  if (!circleResult.error) {
+    homeCircles = (circleResult.data ?? []).filter((circle) => isPublicVisibleCircle(circle));
   }
 }
 
@@ -65,31 +78,12 @@ const postTypeLabels: Record<string, string> = {
   feedback: "反馈",
 };
 
-const homeHighlights = [
-  {
-    href: "/feed/",
-    eyebrow: "社区动态",
-    title: "跟进真实讨论",
-    description: "围绕设备体验、购买判断、开发限制和使用反馈持续更新。",
-  },
-  {
-    href: "/news/",
-    eyebrow: "热点资讯",
-    title: "追踪行业变化",
-    description: "把 AR / AI 眼镜和空间计算的重要动态收进同一个入口。",
-  },
-  {
-    href: "/devices/",
-    eyebrow: "设备资料",
-    title: "先看路线，再看型号",
-    description: "按显示型、AI 眼镜、独立 AR 与实验路线拆解设备差异。",
-  },
-  {
-    href: "/gaze-launcher/",
-    eyebrow: "产品方向",
-    title: "了解 Gaze Launcher",
-    description: "查看当前产品定位、边界和与社区内容的衔接方式。",
-  },
+const quickLinks = [
+  { href: "/feed/?sort=recommended", label: "推荐" },
+  { href: "/feed/?sort=latest", label: "最新" },
+  { href: "/feed/?sort=hot", label: "热门" },
+  { href: "/circles/", label: "圈子" },
+  { href: "/posts/new/", label: "发帖" },
 ] as const;
 
 function excerpt(body?: string | null): string {
@@ -105,50 +99,24 @@ function excerpt(body?: string | null): string {
   canonical="https://openglasshub.pages.dev/"
   activeSection="home"
 >
-  <section class="hero">
-    <div class="hero-copy">
-      <span class="hero-kicker">AR / AI 眼镜社区</span>
-      <h1>OpenGlass Hub</h1>
-      <p class="hero-lead">AR / AI 眼镜玩家、开发者和早期用户的中文社区。</p>
-      <p class="hero-sub">在一个入口里串起讨论、热点、设备资料和 Gaze Launcher 方向，帮助我们更快判断什么值得试、什么只是噪音。</p>
-      <div class="hero-stats" aria-label="社区入口概览">
-        <div class="hero-stat">
-          <strong>{posts.length || "8+"}</strong>
-          <span>公开讨论</span>
-        </div>
-        <div class="hero-stat">
-          <strong>{homeNewsFeed.articles.length || "3+"}</strong>
-          <span>热点更新</span>
-        </div>
-        <div class="hero-stat">
-          <strong>4</strong>
-          <span>核心入口</span>
-        </div>
-      </div>
-      <div class="hero-actions">
-        <a href="/feed/" class="community-button--secondary">浏览讨论</a>
-        <a href="/login/?next=/" class="community-button--secondary">加入社区</a>
-        <a href="/posts/new/" class="community-button">去发帖</a>
-      </div>
+  <section class="home-intro">
+    <div class="home-intro__copy">
+      <h1>AR / AI 眼镜社区：讨论设备、体验、开发和空间计算。</h1>
+      <p>OpenGlass Hub 把帖子、圈子、热点和设备资料收在一起，让真实用户、开发者和早期使用者更快找到值得看的内容。</p>
     </div>
-    <div class="hero-note">
-      <SignedOutHeroNote client:only="react" />
-      <div class="community-inline-links">
-        <a href="/products/" class="community-inline-link">产品入口</a>
-        <a href="/news/" class="community-inline-link">热点</a>
-        <a href="/gaze-launcher/" class="community-inline-link">Gaze Launcher</a>
-      </div>
+    <div class="home-intro__actions">
+      <a href="/feed/" class="community-button">进入论坛</a>
+      <a href="/posts/new/" class="community-button--secondary">发起讨论</a>
+      <a href="/news/" class="community-button--secondary">看热点</a>
     </div>
   </section>
 
-  <section class="home-highlights" aria-label="站点核心入口">
-    {homeHighlights.map((item) => (
-      <a href={item.href} class="home-highlight-card">
-        <span class="home-highlight-card__eyebrow">{item.eyebrow}</span>
-        <strong>{item.title}</strong>
-        <p>{item.description}</p>
-      </a>
-    ))}
+  <section class="home-channel-bar" aria-label="社区入口">
+    <div class="community-inline-links home-channel-bar__links">
+      {quickLinks.map((item) => (
+        <a href={item.href} class="community-inline-link">{item.label}</a>
+      ))}
+    </div>
   </section>
 
   <section class="home-grid">
@@ -156,9 +124,13 @@ function excerpt(body?: string | null): string {
       <div class="community-stream-head">
         <div>
           <h2>正在讨论</h2>
-          <p>{posts.length > 0 ? `已展示 ${posts.length} 条公开讨论。` : "社区正在启动，公开讨论会先从这里长出来。"}</p>
+          <p>{posts.length > 0 ? `最新公开讨论会优先出现在这里。` : "社区正在启动，公开讨论会先从这里长出来。"}</p>
         </div>
-        <a href="/feed/" class="community-link">查看全部</a>
+        <div class="community-inline-links">
+          <a href="/feed/" class="community-inline-link community-inline-link--active">全部讨论</a>
+          <a href="/feed/?sort=latest" class="community-inline-link">最新</a>
+          <a href="/feed/?sort=hot" class="community-inline-link">热门</a>
+        </div>
       </div>
 
       {loadError ? (
@@ -193,14 +165,16 @@ function excerpt(body?: string | null): string {
     <aside class="community-sidebar">
       <section class="community-sidebar-block community-sidebar-block--strong">
         <AuthCTA next="/" client:only="react" />
+        <SignedOutHeroNote client:only="react" />
       </section>
 
       <section class="community-sidebar-block">
         <div class="community-sidebar-head">
           <h2>热点</h2>
+          <a href="/news/" class="community-link">全部</a>
         </div>
         <div class="community-list">
-          {homeNewsFeed.articles.slice(0, 3).map((item) => (
+          {homeNewsFeed.articles.slice(0, 4).map((item) => (
             <a href={`/news/${item.slug}/`} class="community-list-item">
               <strong>{item.title}</strong>
               <span>{new Date(item.published_at ?? item.created_at).toLocaleDateString("zh-CN")}</span>
@@ -208,146 +182,79 @@ function excerpt(body?: string | null): string {
           ))}
         </div>
       </section>
+
+      <section class="community-sidebar-block">
+        <div class="community-sidebar-head">
+          <h2>热门圈子</h2>
+          <a href="/circles/" class="community-link">全部</a>
+        </div>
+        <div class="community-list">
+          {homeCircles.slice(0, 6).map((circle) => (
+            <a href={`/circles/${circle.slug}/`} class="community-list-item">
+              <strong>{circle.name}</strong>
+              <span>{circle.description || "进入圈子查看当前公开讨论。"}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <section class="community-sidebar-block">
+        <div class="community-sidebar-head">
+          <h2>工具入口</h2>
+        </div>
+        <div class="community-list">
+          <a href="/devices/" class="community-list-item">
+            <strong>设备库</strong>
+            <span>按路线和品牌查看机型资料。</span>
+          </a>
+          <a href="/gaze-launcher/" class="community-list-item">
+            <strong>Gaze Launcher</strong>
+            <span>查看产品方向、边界和当前进展。</span>
+          </a>
+        </div>
+      </section>
     </aside>
   </section>
 </CommunityLayout>
 
 <style>
-  .hero {
+  .home-intro {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
-    gap: 1.15rem;
-    padding: 0.2rem 0 1.25rem;
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 1rem;
+    padding: 0.25rem 0 1rem;
   }
-  .hero-copy {
-    display: grid;
-    gap: 0.72rem;
-    padding: 1.35rem 1.4rem;
-    border-radius: 26px;
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    background:
-      radial-gradient(circle at top right, rgba(47, 129, 247, 0.14), transparent 32%),
-      linear-gradient(180deg, rgba(18, 21, 27, 0.96), rgba(10, 12, 16, 0.92));
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  .home-intro__copy {
+    min-width: 0;
   }
-  .hero-kicker {
-    display: inline-flex;
-    align-items: center;
-    width: fit-content;
-    min-height: 28px;
-    padding: 0.3rem 0.75rem;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(244, 244, 245, 0.76);
-    font-size: 0.76rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .hero h1 {
+  .home-intro h1 {
     margin: 0;
-    font-size: clamp(2.45rem, 4vw, 3.35rem);
-    line-height: 0.94;
-    letter-spacing: -0.065em;
-    color: var(--text);
+    max-width: 18ch;
+    font-size: clamp(1.75rem, 3vw, 2.35rem);
+    line-height: 1.04;
+    letter-spacing: -0.045em;
   }
-  .hero-lead {
-    margin: 0;
-    font-size: 1.08rem;
-    color: var(--text);
-    max-width: 42rem;
-  }
-  .hero-sub {
-    margin: 0;
+  .home-intro p {
+    margin: 0.55rem 0 0;
+    max-width: 72ch;
     color: var(--text-muted);
-    font-size: 0.95rem;
-    line-height: 1.72;
-    max-width: 44rem;
+    font-size: 0.94rem;
+    line-height: 1.65;
   }
-  .hero-stats {
+  .home-intro__actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    justify-content: flex-end;
+    gap: 0.6rem;
   }
-  .hero-stat {
-    display: grid;
-    gap: 0.16rem;
-    min-width: 110px;
-    padding: 0.8rem 0.95rem;
-    border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.035);
+  .home-channel-bar {
+    margin-bottom: 1rem;
+    padding: 0 0 0.95rem;
+    border-bottom: 1px solid var(--border);
   }
-  .hero-stat strong {
-    color: var(--text);
-    font-size: 1.05rem;
-    letter-spacing: -0.03em;
-  }
-  .hero-stat span {
-    color: var(--text-muted);
-    font-size: 0.78rem;
-  }
-  .hero-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.65rem;
-  }
-  .hero-note {
-    display: grid;
-    gap: 0.7rem;
-    align-content: start;
-    padding: 1.25rem 1.1rem;
-    border-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(16, 18, 23, 0.92), rgba(10, 12, 16, 0.88));
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
-  }
-  .hero-note strong {
-    color: var(--text);
-    font-size: 0.88rem;
-  }
-  .home-highlights {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.9rem;
-    margin-bottom: 1.35rem;
-  }
-  .home-highlight-card {
-    display: grid;
+  .home-channel-bar__links {
     gap: 0.55rem;
-    padding: 1rem;
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(17, 20, 25, 0.9), rgba(10, 12, 16, 0.86));
-    text-decoration: none;
-    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
-    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
-  }
-  .home-highlight-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.14);
-    background: linear-gradient(180deg, rgba(21, 24, 29, 0.94), rgba(12, 14, 18, 0.9));
-    box-shadow: 0 24px 52px rgba(0, 0, 0, 0.3);
-  }
-  .home-highlight-card__eyebrow {
-    color: rgba(244, 244, 245, 0.52);
-    font-size: 0.74rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .home-highlight-card strong {
-    color: var(--text);
-    font-size: 1rem;
-    letter-spacing: -0.02em;
-  }
-  .home-highlight-card p {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 0.88rem;
-    line-height: 1.6;
   }
   .home-grid {
     display: grid;
@@ -377,34 +284,21 @@ function excerpt(body?: string | null): string {
     font-size: 0.82rem;
   }
   @media (max-width: 900px) {
-    .hero,
-    .home-grid,
-    .home-highlights {
+    .home-intro,
+    .home-grid {
       grid-template-columns: 1fr;
     }
     .community-stream-head {
       align-items: flex-start;
       flex-direction: column;
     }
-    .hero h1 {
-      font-size: 2.5rem;
-    }
-    .hero-copy,
-    .hero-note {
-      padding: 1rem;
+    .home-intro__actions {
+      justify-content: flex-start;
     }
   }
   @media (max-width: 720px) {
-    .hero {
-      gap: 0.95rem;
-      padding-bottom: 1rem;
-    }
-    .hero h1 {
-      font-size: 2.2rem;
-    }
-    .hero-stats {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .home-intro h1 {
+      font-size: 1.9rem;
     }
   }
 </style>

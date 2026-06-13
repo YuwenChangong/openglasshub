@@ -3,10 +3,13 @@ export const prerender = false;
 
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import MyProfilePage from "../../components/profile/MyProfilePage";
+import { getRequestedProfileTab } from "../../lib/profile-data";
+
+const tab = getRequestedProfileTab(Astro.url);
 ---
 
 <CommunityLayout title="我的主页" activeSection="forum" noindex={true}>
   <main class="community-main community-main--narrow">
-    <MyProfilePage client:load />
+    <MyProfilePage client:load initialTab={tab} />
   </main>
 </CommunityLayout>

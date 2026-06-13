@@ -52,25 +52,17 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     top: 0;
     z-index: 100;
     width: 100%;
-    background:
-      linear-gradient(
-        180deg,
-        var(--ogh-header-top, rgba(255,255,255,0.055)),
-        var(--ogh-header-bottom, rgba(255,255,255,0.028))
-      ),
-      var(--ogh-header-base, rgba(0,0,0,0.72));
-    backdrop-filter: blur(18px) saturate(135%);
-    -webkit-backdrop-filter: blur(18px) saturate(135%);
-    border-bottom: 1px solid var(--ogh-header-border, rgba(255,255,255,0.105));
-    box-shadow:
-      inset 0 1px 0 var(--ogh-header-highlight, rgba(255,255,255,0.07)),
-      0 10px 30px var(--ogh-header-shadow, rgba(0,0,0,0.35));
+    background: rgba(7, 9, 12, 0.92);
+    backdrop-filter: blur(14px) saturate(118%);
+    -webkit-backdrop-filter: blur(14px) saturate(118%);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.22);
   }
   .og-header__inner,
   .ogh-site-header__inner {
     width: 100%;
     max-width: none;
-    min-height: 72px;
+    min-height: 68px;
     margin: 0;
     padding: 0 24px;
     display: flex;
@@ -85,8 +77,8 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     gap: 12px;
     text-decoration: none;
     color: #f5f5f5;
-    font-weight: 800;
-    font-size: 1.08rem;
+    font-weight: 760;
+    font-size: 1.02rem;
     letter-spacing: -0.02em;
     white-space: nowrap;
     flex-shrink: 0;
@@ -107,7 +99,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   .ogh-nav {
     display: flex;
     align-items: center;
-    gap: 0.32rem;
+    gap: 0.22rem;
     min-width: 0;
     overflow-x: auto;
     flex: 1;
@@ -121,9 +113,9 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   .ogh-nav a {
     display: inline-flex;
     align-items: center;
-    min-height: 42px;
-    padding: 10px 12px;
-    border-radius: 12px;
+    min-height: 38px;
+    padding: 10px 10px;
+    border-radius: 10px;
     color: rgba(245,245,245,0.72);
     text-decoration: none;
     font-size: 0.94rem;
@@ -140,14 +132,14 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   .og-header__link:hover,
   .ogh-nav a:hover {
     color: #fff;
-    background: rgba(255,255,255,0.065);
+    background: rgba(255,255,255,0.05);
   }
   .og-header__link[aria-current="page"],
   .og-header__link.is-active,
   .ogh-nav a[aria-current="page"],
   .ogh-nav a.is-active {
     color: #fff;
-    background: rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.035);
     border: 0;
     box-shadow: none;
   }
@@ -162,11 +154,11 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     bottom: 4px;
     height: 2px;
     border-radius: 999px;
-    background: #2f81f7;
+    background: rgba(84, 146, 242, 0.92);
   }
   .og-header__search {
-    flex: 0 1 380px;
-    min-width: 240px;
+    flex: 0 1 340px;
+    min-width: 220px;
   }
   .og-header__auth,
   .ogh-header-actions {

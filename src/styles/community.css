@@ -5304,3 +5304,242 @@ textarea:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
+/* RC-5B forum-first overrides */
+:root {
+  --radius-panel: 16px;
+  --radius-card: 14px;
+  --glass-shadow: 0 16px 32px rgba(0, 0, 0, 0.26);
+  --glass-shadow-soft: 0 12px 24px rgba(0, 0, 0, 0.18);
+  --glass-hover-shadow: 0 18px 34px rgba(0, 0, 0, 0.24);
+}
+
+body {
+  background:
+    radial-gradient(circle at top center, rgba(255, 255, 255, 0.022), transparent 28%),
+    linear-gradient(180deg, #06080b, #020304 68%);
+}
+
+.community-shell {
+  width: min(1180px, calc(100% - 2rem));
+}
+
+.community-surface,
+.community-sidebar-block,
+.auth-card,
+.post-composer,
+.admin-news-form,
+.admin-news-toolbar {
+  backdrop-filter: blur(10px) saturate(112%);
+  -webkit-backdrop-filter: blur(10px) saturate(112%);
+}
+
+.community-surface,
+.community-sidebar-block {
+  background: linear-gradient(180deg, rgba(15, 17, 21, 0.9), rgba(10, 12, 15, 0.88));
+}
+
+.community-post-card,
+.profile-post-card,
+.news-feed-card,
+.community-news-card,
+.community-product-card,
+.community-circle-card {
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.community-post-card {
+  gap: 0.72rem;
+  background: rgba(14, 16, 20, 0.96);
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+.community-post-card:hover,
+.profile-post-card:hover {
+  background: rgba(17, 19, 24, 0.98);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+  transform: none;
+}
+
+.community-post-title-link h3,
+.profile-post-card .community-post-meta__link {
+  text-wrap: balance;
+}
+
+.community-post-title-link h3 {
+  font-size: 1.08rem;
+  line-height: 1.4;
+}
+
+.community-post-excerpt {
+  font-size: 0.9rem;
+  line-height: 1.62;
+}
+
+.community-post-meta,
+.community-meta,
+.forum-meta {
+  color: rgba(244, 244, 245, 0.54);
+}
+
+.community-post-meta__link {
+  border-bottom: 0;
+  color: rgba(244, 244, 245, 0.82);
+}
+
+.community-post-actions {
+  gap: 0.55rem;
+}
+
+.community-action-button,
+.community-action,
+.community-action--muted {
+  min-height: 34px;
+  padding: 0.34rem 0.7rem;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.community-action-button--muted,
+.community-action--muted {
+  color: rgba(244, 244, 245, 0.62);
+}
+
+.community-button,
+.community-button--secondary {
+  min-height: 40px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.community-button--secondary,
+.community-action-button,
+.community-action,
+.community-action--muted,
+.community-inline-link,
+.forum-tabs-row__tabs a {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.community-inline-link {
+  min-height: 32px;
+  padding: 0.34rem 0.68rem;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.community-inline-link--active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.community-sidebar {
+  gap: 0.85rem;
+}
+
+.community-sidebar-block {
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+.community-list {
+  padding-top: 0;
+}
+
+.community-list-item {
+  gap: 0.28rem;
+  padding: 0.88rem 0.1rem;
+}
+
+.community-list-item:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.community-empty {
+  box-shadow: none;
+}
+
+.forum-tabs-row__tabs {
+  border-radius: 14px;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.forum-tabs-row__tabs a {
+  min-height: 36px;
+  border-radius: 10px;
+}
+
+.forum-tabs-row__tabs a.is-active {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.profile-tabs__links {
+  gap: 0.45rem;
+}
+
+.profile-comment-card p,
+.profile-circle-card p {
+  margin: 0;
+  color: rgba(244, 244, 245, 0.74);
+  line-height: 1.6;
+}
+
+.profile-post-card__metrics {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  color: rgba(244, 244, 245, 0.56);
+  font-size: 0.8rem;
+}
+
+.profile-post-card__media {
+  display: block;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.profile-post-card__media img {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+}
+
+.global-search-box__form {
+  gap: 0.5rem;
+}
+
+.global-search-box--compact .global-search-box__input {
+  min-height: 38px;
+  border-radius: 12px;
+}
+
+.global-search-box__button {
+  min-width: 4.8rem;
+}
+
+.news-feed-card,
+.news-featured-card {
+  box-shadow: none;
+}
+
+.news-featured-card {
+  border-radius: 18px;
+}
+
+@media (max-width: 720px) {
+  .community-post-actions {
+    gap: 0.45rem;
+  }
+
+  .community-action-button,
+  .community-button,
+  .community-button--secondary {
+    width: auto;
+  }
+}
