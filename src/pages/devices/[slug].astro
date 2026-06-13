@@ -9,7 +9,7 @@ const modules = import.meta.glob("../../content/docs/devices/*.mdx");
 const loadEntry = modules[`../../content/docs/devices/${slug}.mdx`];
 
 if (!loadEntry) {
-  return Astro.redirect("/devices/");
+  return Astro.redirect("/products/");
 }
 
 const entry = (await loadEntry()) as {
@@ -17,7 +17,6 @@ const entry = (await loadEntry()) as {
   frontmatter: {
     title: string;
     description?: string;
-    slug?: string;
   };
 };
 
@@ -25,7 +24,7 @@ const Content = entry.default;
 const device = getDeviceBySlug(slug);
 
 if (!device) {
-  return Astro.redirect("/devices/");
+  return Astro.redirect("/products/");
 }
 ---
 
@@ -35,255 +34,163 @@ if (!device) {
   canonical={`https://openglasshub.pages.dev/devices/${slug}/`}
   activeSection="products"
 >
-  <section class="device-page-head">
-    <div class="device-page-head__copy">
-      <a href="/devices/" class="device-page-head__back">设备库</a>
-      <div class="device-page-head__badges">
-        <span>{device.routeLabel}</span>
-        <span>{device.brandLabel}</span>
-        {device.lastCheckedLabel && <span>更新 {device.lastCheckedLabel}</span>}
-      </div>
+  <section class="device-detail-head">
+    <div class="device-detail-head__copy">
+      <a href={`/products/${device.brandKey}/`} class="device-detail-head__back">{device.brandLabel}</a>
       <h1>{entry.frontmatter.title}</h1>
-      <p>{entry.frontmatter.description}</p>
+      {entry.frontmatter.description && <p>{entry.frontmatter.description}</p>}
     </div>
-
-    <div class="device-page-head__actions">
-      <a href={device.sourceUrl} target="_blank" rel="noreferrer" class="community-button--secondary">官方参考</a>
-      <a href="/guides/" class="community-button">看选购指南</a>
-    </div>
+    <a href={device.sourceUrl} target="_blank" rel="noreferrer" class="community-button--secondary">官方参考</a>
   </section>
 
-  <section class="device-page-layout">
-    <aside class="community-surface device-sidebar">
-      <section class="device-sidebar__section">
-        <span class="device-sidebar__label">快速判断</span>
-        <p class="device-sidebar__summary">{device.summary}</p>
-      </section>
+  {device.previewSpecs.length > 0 && (
+    <section class="device-key-specs">
+      {device.previewSpecs.map((spec) => (
+        <article class="community-surface device-key-spec">
+          <span>{spec.label}</span>
+          <strong>{spec.value}</strong>
+        </article>
+      ))}
+    </section>
+  )}
 
-      <section class="device-sidebar__section">
-        <div class="device-sidebar__fact">
-          <strong>更适合</strong>
-          <span>{device.fit}</span>
-        </div>
-        <div class="device-sidebar__fact">
-          <strong>不太适合</strong>
-          <span>{device.avoid}</span>
-        </div>
-      </section>
-
-      <section class="device-sidebar__section">
-        <div class="device-sidebar__fact">
-          <strong>已整理参数</strong>
-          <span>{device.knownSpecCount} 项</span>
-        </div>
-        <div class="device-sidebar__fact">
-          <strong>数据完整度</strong>
-          <span>{device.confidenceLabel ?? "待补充"}</span>
-        </div>
-        {device.snapshot?.official_image_url && (
-          <a href={device.snapshot.official_image_url} target="_blank" rel="noreferrer" class="community-link">
-            查看官方图片参考
-          </a>
-        )}
-      </section>
-    </aside>
-
-    <div class="device-page-main">
-      {device.specGroups.length > 0 && (
-        <section class="community-surface device-spec-panel">
-          <div class="device-spec-panel__head">
-            <div>
-              <span class="device-panel-label">参数总览</span>
-              <h2>当前已整理的官方参数</h2>
-            </div>
-            {device.snapshot?.short_description && <p>{device.snapshot.short_description}</p>}
-          </div>
-
-          <div class="device-spec-groups">
-            {device.specGroups.map((group) => (
-              <section class="device-spec-group">
-                <h3>{group.label}</h3>
-                <dl>
-                  {group.items.map((item) => (
-                    <div class="device-spec-row">
-                      <dt>{item.label}</dt>
-                      <dd>{item.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            ))}
-          </div>
-
-          {device.missingFields.length > 0 && (
-            <div class="device-spec-missing">
-              <strong>仍待核实</strong>
-              <p>{device.missingFields.join("、")}</p>
-            </div>
-          )}
-        </section>
-      )}
-
-      <article class="community-surface device-prose">
-        <div class="device-prose__head">
-          <span class="device-panel-label">详细说明</span>
-          <h2>设备定位与使用判断</h2>
-          <p>下面保留原有设备介绍内容，用来解释它适合谁、边界在哪里，以及哪些信息仍需要继续核实。</p>
-        </div>
-        <Content />
-      </article>
-    </div>
+  <section class="device-fit-grid">
+    <article class="community-surface device-fit-card">
+      <h2>适合</h2>
+      <p>{device.fit}</p>
+    </article>
+    <article class="community-surface device-fit-card">
+      <h2>不太适合</h2>
+      <p>{device.avoid}</p>
+    </article>
   </section>
+
+  {device.specGroups.length > 0 && (
+    <section class="community-surface device-spec-panel">
+      <h2>参数</h2>
+      <div class="device-spec-groups">
+        {device.specGroups.map((group) => (
+          <section class="device-spec-group">
+            <h3>{group.label}</h3>
+            <dl>
+              {group.items.map((item) => (
+                <div class="device-spec-row">
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <article class="community-surface device-intro">
+    <h2>介绍</h2>
+    <Content />
+  </article>
 </CommunityLayout>
 
 <style>
-  .device-page-head {
+  .device-detail-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.8rem 0 1rem;
+    padding: 0.85rem 0 1rem;
   }
-  .device-page-head__copy {
+  .device-detail-head__copy {
     display: grid;
-    gap: 0.55rem;
+    gap: 0.5rem;
     min-width: 0;
   }
-  .device-page-head__back {
+  .device-detail-head__back {
     width: fit-content;
     color: var(--text-faint);
     font-size: 0.84rem;
     text-decoration: none;
   }
-  .device-page-head__back:hover {
+  .device-detail-head__back:hover {
     color: var(--text);
   }
-  .device-page-head__badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-  }
-  .device-page-head__badges span {
-    display: inline-flex;
-    align-items: center;
-    min-height: 24px;
-    padding: 0.1rem 0.45rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.035);
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    color: rgba(242, 244, 245, 0.72);
-    font-size: 0.74rem;
-    font-weight: 600;
-  }
-  .device-page-head h1 {
+  .device-detail-head h1 {
     margin: 0;
-    max-width: 18ch;
-    font-size: 2rem;
-    line-height: 1.05;
+    color: var(--text);
+    font-size: 2.1rem;
+    line-height: 1.04;
     letter-spacing: -0.03em;
     text-wrap: balance;
   }
-  .device-page-head p {
+  .device-detail-head p {
     margin: 0;
-    max-width: 62ch;
-    color: var(--text-muted);
-    line-height: 1.65;
-    text-wrap: pretty;
-  }
-  .device-page-head__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.7rem;
-    justify-content: flex-end;
-  }
-  .device-page-layout {
-    display: grid;
-    grid-template-columns: 300px minmax(0, 1fr);
-    gap: 1rem;
-    align-items: start;
-  }
-  .device-sidebar {
-    position: sticky;
-    top: 88px;
-    display: grid;
-    gap: 0.9rem;
-    padding: 1rem;
-  }
-  .device-sidebar__section {
-    display: grid;
-    gap: 0.7rem;
-  }
-  .device-sidebar__label,
-  .device-panel-label {
-    color: var(--text-faint);
-    font-size: 0.82rem;
-  }
-  .device-sidebar__summary {
-    margin: 0;
-    color: rgba(242, 244, 245, 0.92);
-    line-height: 1.62;
-  }
-  .device-sidebar__fact {
-    display: grid;
-    gap: 0.24rem;
-    padding: 0.8rem 0.85rem;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.025);
-  }
-  .device-sidebar__fact strong {
-    color: var(--text);
-    font-size: 0.86rem;
-  }
-  .device-sidebar__fact span {
-    color: var(--text-muted);
-    line-height: 1.58;
-    font-size: 0.88rem;
-  }
-  .device-page-main {
-    display: grid;
-    gap: 1rem;
-  }
-  .device-spec-panel,
-  .device-prose {
-    padding: 1rem;
-  }
-  .device-spec-panel__head {
-    display: grid;
-    gap: 0.45rem;
-    padding-bottom: 0.9rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  }
-  .device-spec-panel__head h2,
-  .device-prose__head h2 {
-    margin: 0.18rem 0 0;
-    font-size: 1.3rem;
-    letter-spacing: -0.02em;
-    color: var(--text);
-  }
-  .device-spec-panel__head p,
-  .device-prose__head p {
-    margin: 0;
+    max-width: 60ch;
     color: var(--text-muted);
     line-height: 1.62;
   }
-  .device-spec-groups {
+  .device-key-specs,
+  .device-fit-grid {
     display: grid;
-    gap: 0.9rem;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.8rem;
     margin-top: 1rem;
   }
+  .device-key-spec,
+  .device-fit-card,
   .device-spec-group {
-    display: grid;
-    gap: 0.65rem;
-    padding: 0.95rem;
     border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.025);
   }
+  .device-key-spec {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.9rem;
+  }
+  .device-key-spec span,
+  .device-spec-row dt {
+    color: var(--text-faint);
+    font-size: 0.8rem;
+  }
+  .device-key-spec strong {
+    color: var(--text);
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  .device-fit-card {
+    padding: 0.95rem 1rem;
+  }
+  .device-fit-card h2,
+  .device-spec-panel h2,
+  .device-intro h2 {
+    margin: 0 0 0.45rem;
+    color: var(--text);
+    font-size: 1.15rem;
+    letter-spacing: -0.02em;
+  }
+  .device-fit-card p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .device-spec-panel,
+  .device-intro {
+    margin-top: 1rem;
+    padding: 1rem;
+  }
+  .device-spec-groups {
+    display: grid;
+    gap: 0.8rem;
+  }
+  .device-spec-group {
+    display: grid;
+    gap: 0.65rem;
+    padding: 0.9rem;
+  }
   .device-spec-group h3 {
     margin: 0;
-    font-size: 0.96rem;
     color: var(--text);
+    font-size: 0.95rem;
   }
   .device-spec-group dl {
     display: grid;
@@ -295,90 +202,48 @@ if (!device) {
     grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
     gap: 0.9rem;
   }
-  .device-spec-row dt {
-    color: var(--text-faint);
-    font-size: 0.84rem;
-  }
   .device-spec-row dd {
     margin: 0;
-    color: rgba(242, 244, 245, 0.9);
-    line-height: 1.55;
+    color: rgba(242, 244, 245, 0.92);
     font-size: 0.92rem;
+    line-height: 1.5;
   }
-  .device-spec-missing {
-    display: grid;
-    gap: 0.28rem;
-    margin-top: 1rem;
-    padding-top: 0.9rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-  }
-  .device-spec-missing strong {
+  .device-intro :global(h2) {
+    margin: 1.35rem 0 0.6rem;
     color: var(--text);
-    font-size: 0.9rem;
-  }
-  .device-spec-missing p {
-    margin: 0;
-    color: var(--text-muted);
-    line-height: 1.6;
-  }
-  .device-prose {
-    display: grid;
-    gap: 1rem;
-  }
-  .device-prose__head {
-    display: grid;
-    gap: 0.45rem;
-    padding-bottom: 0.8rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  }
-  .device-prose :global(h2) {
-    margin: 1.5rem 0 0.6rem;
-    color: var(--text);
-    font-size: 1.18rem;
+    font-size: 1.08rem;
     letter-spacing: -0.02em;
   }
-  .device-prose :global(h3) {
+  .device-intro :global(h3) {
     margin: 1rem 0 0.45rem;
     color: var(--text);
-    font-size: 1rem;
+    font-size: 0.98rem;
   }
-  .device-prose :global(p),
-  .device-prose :global(li) {
+  .device-intro :global(p),
+  .device-intro :global(li) {
     color: var(--text-muted);
-    line-height: 1.7;
+    line-height: 1.68;
     text-wrap: pretty;
   }
-  .device-prose :global(ul) {
+  .device-intro :global(ul) {
     padding-left: 1.1rem;
   }
-  .device-prose :global(a) {
+  .device-intro :global(a) {
     color: rgba(242, 244, 245, 0.82);
     text-decoration: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.14);
   }
-  .device-prose :global(a:hover) {
+  .device-intro :global(a:hover) {
     color: var(--text);
-    border-color: rgba(255, 255, 255, 0.28);
-  }
-  @media (max-width: 980px) {
-    .device-page-layout {
-      grid-template-columns: 1fr;
-    }
-    .device-sidebar {
-      position: static;
-      order: 2;
-    }
+    border-color: rgba(255, 255, 255, 0.26);
   }
   @media (max-width: 720px) {
-    .device-page-head {
+    .device-detail-head {
       flex-direction: column;
-    }
-    .device-page-head__actions {
-      justify-content: flex-start;
     }
     .device-spec-row {
       grid-template-columns: 1fr;
-      gap: 0.2rem;
+      gap: 0.18rem;
     }
   }
 </style>

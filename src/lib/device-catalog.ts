@@ -298,6 +298,7 @@ export const deviceCatalog = {
 
 export type DeviceKey = keyof typeof deviceCatalog;
 export type DeviceCatalogEntry = (typeof deviceCatalog)[DeviceKey];
+export type BrandKey = (typeof brandCatalog)[number]["key"];
 
 const snapshotItems = Array.isArray(deviceSpecCandidates?.items) ? deviceSpecCandidates.items : [];
 const snapshotMap = new Map<string, DeviceSnapshot>(
@@ -463,10 +464,19 @@ export function getVisibleDevices(options: { brandKey?: string | null; routeKey?
     .filter(Boolean);
 }
 
+export function getBrandByKey(brandKey: string | null | undefined) {
+  if (!brandKey) return null;
+  return brandCatalog.find((brand) => brand.key === brandKey) ?? null;
+}
+
 export function getBrandCount(brandKey: string) {
   return Object.values(deviceCatalog).filter((device) => device.brandKey === brandKey).length;
 }
 
 export function getRouteCount(routeKey: string) {
   return Object.values(deviceCatalog).filter((device) => device.routeKey === routeKey).length;
+}
+
+export function getDevicesByBrand(brandKey: string) {
+  return getVisibleDevices({ brandKey, routeKey: null });
 }

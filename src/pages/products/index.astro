@@ -1,223 +1,68 @@
 ---
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
-import { productLinks } from "../../lib/site-navigation";
-import { deviceCatalog, routeCatalog } from "../../lib/device-catalog";
-
-const deviceCount = Object.keys(deviceCatalog).length;
+import { brandCatalog, getBrandCount } from "../../lib/device-catalog";
 ---
 
 <CommunityLayout
   title="产品"
-  description="查看设备库、选购指南和开发者资源。"
+  description="按品牌查看 AR / AI 眼镜产品。"
   canonical="https://openglasshub.pages.dev/products/"
   activeSection="products"
 >
-  <section class="products-head">
-    <div>
-      <h1>产品</h1>
-      <p>先找设备，再看选购判断和开发限制。</p>
-    </div>
-    <a href="/devices/" class="community-button">进入设备库</a>
+  <section class="products-page-head">
+    <h1>产品</h1>
   </section>
 
-  <section class="community-surface products-hero">
-    <div class="products-hero__copy">
-      <span class="products-eyebrow">OpenGlass Hub 产品区</span>
-      <h2>把设备、判断和开发入口放在同一条路径里</h2>
-      <p>这里不做营销式展示，只给你下一步该去看的入口。设备库看机型，选购指南做判断，开发者页看 SDK 和限制。</p>
-    </div>
-    <div class="products-hero__stats">
-      <article>
-        <strong>{deviceCount}</strong>
-        <span>已整理设备</span>
-      </article>
-      <article>
-        <strong>{routeCatalog.length}</strong>
-        <span>路线视角</span>
-      </article>
-      <article>
-        <strong>{productLinks.length}</strong>
-        <span>核心入口</span>
-      </article>
-    </div>
-  </section>
-
-  <section class="products-grid">
-    {productLinks.map((item) => (
-      <a href={item.href} class="community-surface products-card">
-        <div class="products-card__copy">
-          <h3>{item.label}</h3>
-          <p>{item.description}</p>
-        </div>
-        <span class="products-card__action">进入</span>
+  <section class="products-brand-grid">
+    {brandCatalog.map((brand) => (
+      <a href={`/products/${brand.key}/`} class="community-surface brand-tile">
+        <h2>{brand.label}</h2>
+        <span>{getBrandCount(brand.key)} 款</span>
       </a>
     ))}
-  </section>
-
-  <section class="products-guide-grid">
-    <article class="community-surface products-guide">
-      <h2>先看设备库</h2>
-      <p>按显示型、AI 眼镜、独立 AR、实验路线先缩小范围，再进入单机页看参数和判断。</p>
-      <a href="/devices/" class="community-link">打开设备库</a>
-    </article>
-    <article class="community-surface products-guide">
-      <h2>再看选购指南</h2>
-      <p>如果你已经有预算、用途或风险边界，就直接去指南页做横向判断，不必把每台设备都读完。</p>
-      <a href="/guides/" class="community-link">查看指南</a>
-    </article>
-    <article class="community-surface products-guide">
-      <h2>开发前看限制</h2>
-      <p>想做开发时，优先看 SDK、系统开放度、是否依赖手机和第三方应用链路。</p>
-      <a href="/developers/" class="community-link">开发者资源</a>
-    </article>
   </section>
 </CommunityLayout>
 
 <style>
-  .products-head {
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.8rem 0 1rem;
+  .products-page-head {
+    padding: 0.85rem 0 1rem;
   }
-  .products-head h1 {
+  .products-page-head h1 {
     margin: 0;
+    color: var(--text);
     font-size: 2rem;
     letter-spacing: -0.03em;
   }
-  .products-head p {
-    margin: 0.45rem 0 0;
-    color: var(--text-muted);
-  }
-  .products-hero {
+  .products-brand-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
-    gap: 1.2rem;
-    padding: 1.2rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.9rem;
   }
-  .products-eyebrow {
-    display: inline-flex;
-    margin-bottom: 0.55rem;
-    color: var(--text-faint);
-    font-size: 0.82rem;
-  }
-  .products-hero h2 {
-    margin: 0;
-    max-width: 18ch;
-    font-size: 1.55rem;
-    line-height: 1.18;
-    letter-spacing: -0.025em;
-    text-wrap: balance;
-  }
-  .products-hero p {
-    margin: 0.7rem 0 0;
-    max-width: 62ch;
-    color: var(--text-muted);
-    line-height: 1.65;
-    text-wrap: pretty;
-  }
-  .products-hero__stats {
+  .brand-tile {
     display: grid;
-    gap: 0.75rem;
-    align-content: start;
-  }
-  .products-hero__stats article,
-  .products-guide,
-  .products-card {
+    gap: 0.5rem;
+    padding: 1rem;
+    text-decoration: none;
     border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.025);
-  }
-  .products-hero__stats article {
-    display: grid;
-    gap: 0.22rem;
-    padding: 0.95rem 1rem;
-  }
-  .products-hero__stats strong {
-    color: var(--text);
-    font-size: 1.35rem;
-    letter-spacing: -0.02em;
-  }
-  .products-hero__stats span {
-    color: var(--text-muted);
-    font-size: 0.88rem;
-  }
-  .products-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.9rem;
-    margin-top: 1rem;
-  }
-  .products-card {
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem;
-    text-decoration: none;
     transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
   }
-  .products-card:hover {
+  .brand-tile:hover {
     border-color: rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.045);
+    background: rgba(255, 255, 255, 0.04);
     transform: translateY(-1px);
   }
-  .products-card__copy {
-    display: grid;
-    gap: 0.35rem;
-  }
-  .products-card h3 {
+  .brand-tile h2 {
     margin: 0;
     color: var(--text);
-    font-size: 1.02rem;
+    font-size: 1.15rem;
+    letter-spacing: -0.02em;
   }
-  .products-card p {
-    margin: 0;
-    color: var(--text-muted);
-    line-height: 1.58;
-  }
-  .products-card__action {
-    color: rgba(242, 244, 245, 0.9);
-    font-size: 0.88rem;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-  .products-guide-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.9rem;
-    margin-top: 1rem;
-  }
-  .products-guide {
-    display: grid;
-    gap: 0.55rem;
-    padding: 1rem;
-  }
-  .products-guide h2 {
-    margin: 0;
-    font-size: 1rem;
-    color: var(--text);
-  }
-  .products-guide p {
-    margin: 0;
-    color: var(--text-muted);
-    line-height: 1.6;
-  }
-  @media (max-width: 900px) {
-    .products-head,
-    .products-hero,
-    .products-grid,
-    .products-guide-grid {
-      grid-template-columns: 1fr;
-    }
-    .products-head {
-      align-items: flex-start;
-      flex-direction: column;
-    }
-    .products-card {
-      align-items: flex-start;
-      flex-direction: column;
-    }
+  .brand-tile span,
+  .product-device-card__head span,
+  .product-device-card__spec span {
+    color: var(--text-faint);
+    font-size: 0.8rem;
   }
 </style>

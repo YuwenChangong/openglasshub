@@ -1,0 +1,167 @@
+---
+export const prerender = true;
+
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import { brandCatalog, getBrandByKey, getDevicesByBrand } from "../../lib/device-catalog";
+
+export function getStaticPaths() {
+  return brandCatalog.map((brand) => ({
+    params: { brand: brand.key },
+  }));
+}
+
+const brandKey = Astro.params.brand?.trim().toLowerCase() ?? "";
+const brand = getBrandByKey(brandKey);
+
+if (!brand) {
+  return Astro.redirect("/products/");
+}
+
+const devices = getDevicesByBrand(brand.key);
+---
+
+<CommunityLayout
+  title={`${brand.label} | 产品`}
+  description={`查看 ${brand.label} 的产品参数与介绍。`}
+  canonical={`https://openglasshub.pages.dev/products/${brand.key}/`}
+  activeSection="products"
+>
+  <section class="products-brand-strip">
+    {brandCatalog.map((item) => (
+      <a
+        href={`/products/${item.key}/`}
+        class:list={["community-inline-link", "products-brand-strip__link", { "community-inline-link--active": item.key === brand.key }]}
+      >
+        {item.label}
+      </a>
+    ))}
+  </section>
+
+  <section class="products-brand-head">
+    <h1>{brand.label}</h1>
+    <a href="/products/" class="community-link">全部品牌</a>
+  </section>
+
+  <section class="products-device-grid">
+    {devices.map((device) => (
+      <a href={`/devices/${device.slug}/`} class="community-surface product-device-card">
+        <div class="product-device-card__head">
+          <h2>{device.title}</h2>
+          {device.lastCheckedLabel && <span>{device.lastCheckedLabel}</span>}
+        </div>
+
+        {device.previewSpecs.length > 0 && (
+          <div class="product-device-card__specs">
+            {device.previewSpecs.map((spec) => (
+              <article class="product-device-card__spec">
+                <span>{spec.label}</span>
+                <strong>{spec.value}</strong>
+              </article>
+            ))}
+          </div>
+        )}
+
+        <p>{device.short}</p>
+      </a>
+    ))}
+  </section>
+</CommunityLayout>
+
+<style>
+  .products-brand-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin: 0.85rem 0 1rem;
+  }
+  .products-brand-strip__link {
+    min-height: 36px;
+  }
+  .products-brand-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.95rem;
+  }
+  .products-brand-head h1 {
+    margin: 0;
+    color: var(--text);
+    font-size: 2rem;
+    letter-spacing: -0.03em;
+  }
+  .products-device-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0.9rem;
+  }
+  .product-device-card {
+    display: grid;
+    gap: 0.65rem;
+    padding: 1rem;
+    text-decoration: none;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.025);
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  }
+  .product-device-card:hover {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+    transform: translateY(-1px);
+  }
+  .product-device-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .product-device-card__head h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.08rem;
+    line-height: 1.38;
+    letter-spacing: -0.02em;
+  }
+  .product-device-card__head span,
+  .product-device-card__spec span {
+    color: var(--text-faint);
+    font-size: 0.8rem;
+  }
+  .product-device-card__specs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+  .product-device-card__spec {
+    display: grid;
+    gap: 0.18rem;
+    padding: 0.7rem 0.75rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .product-device-card__spec strong {
+    color: var(--text);
+    font-size: 0.92rem;
+    line-height: 1.35;
+  }
+  .product-device-card p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.58;
+  }
+  @media (max-width: 720px) {
+    .products-brand-head,
+    .product-device-card__head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .products-brand-head h1 {
+      font-size: 1.65rem;
+    }
+    .product-device-card__specs {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
