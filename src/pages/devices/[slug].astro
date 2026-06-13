@@ -21,19 +21,24 @@ const { Content } = await render(entry);
   canonical={`https://openglasshub.pages.dev/devices/${slug}/`}
   activeSection="products"
 >
-  <section class="community-page-head">
+  <section class="device-detail-hero">
     <div>
+      <span class="device-detail-hero__eyebrow">设备档案</span>
       <h1>{entry.data.title}</h1>
       {entry.data.description && <p class="community-page-lead">{entry.data.description}</p>}
     </div>
+    <div class="device-detail-hero__actions">
+      <a href="/devices/" class="community-button--secondary">返回设备库</a>
+      <a href="/feed/" class="community-button">进入论坛讨论</a>
+    </div>
   </section>
 
-  <section class="community-grid">
-    <article class="community-surface community-surface--padded detail-main">
+  <section class="community-grid device-detail-layout">
+    <article class="community-surface community-surface--padded detail-main device-detail-main">
       <Content />
     </article>
     <aside class="community-sidebar">
-      <section class="community-surface community-surface--padded">
+      <section class="community-surface community-surface--padded device-detail-side">
         <div class="community-page-lead" style="margin-bottom: 0.4rem;">继续浏览</div>
         <div class="community-list" style="padding: 0;">
           <a class="community-list-item community-link-row" href="/devices/">
@@ -55,24 +60,61 @@ const { Content } = await render(entry);
 </CommunityLayout>
 
 <style>
+  .device-detail-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 1.2rem;
+    padding: 1rem 0 1.6rem;
+  }
+  .device-detail-hero__eyebrow {
+    display: inline-flex;
+    margin-bottom: 0.55rem;
+    color: var(--text-faint);
+    font-size: 0.84rem;
+  }
+  .device-detail-hero h1 {
+    margin: 0;
+    font-size: clamp(2.6rem, 4.8vw, 3.5rem);
+    line-height: 0.98;
+    letter-spacing: -0.05em;
+  }
+  .device-detail-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    justify-content: flex-end;
+  }
+  .device-detail-layout {
+    align-items: start;
+  }
+  .device-detail-main {
+    padding: 1.5rem 1.6rem;
+  }
+  .device-detail-side {
+    position: sticky;
+    top: 92px;
+  }
   .detail-main :global(h2) {
-    margin: 1.3rem 0 0.6rem;
-    font-size: 1.12rem;
+    margin: 1.8rem 0 0.7rem;
+    font-size: 1.55rem;
+    letter-spacing: -0.03em;
     color: var(--text);
   }
   .detail-main :global(h3) {
-    margin: 1rem 0 0.45rem;
-    font-size: 0.98rem;
+    margin: 1.15rem 0 0.45rem;
+    font-size: 1.08rem;
     color: var(--text);
   }
   .detail-main :global(p),
   .detail-main :global(li) {
     color: var(--text-muted);
     line-height: 1.7;
+    font-size: 1rem;
   }
   .detail-main :global(ul) {
-    margin: 0.5rem 0 0;
-    padding-left: 1.1rem;
+    margin: 0.55rem 0 0;
+    padding-left: 1.2rem;
   }
   .detail-main :global(a) {
     color: rgba(242, 244, 245, 0.78);
@@ -84,5 +126,16 @@ const { Content } = await render(entry);
   .detail-main :global(a:hover) {
     color: var(--text);
     border-color: rgba(255, 255, 255, 0.32);
+  }
+  @media (max-width: 900px) {
+    .device-detail-hero {
+      grid-template-columns: 1fr;
+    }
+    .device-detail-hero__actions {
+      justify-content: flex-start;
+    }
+    .device-detail-side {
+      position: static;
+    }
   }
 </style>

@@ -35,6 +35,25 @@ const nextSteps = [
   "语音 / 按键 / 手机端协同测试",
   "论坛收集用户反馈",
 ] as const;
+
+const coreAreas = [
+  {
+    title: "Home",
+    text: "主界面优先展示常用入口、最近任务和当前状态，不把第一屏做成图标墙。",
+  },
+  {
+    title: "App Library",
+    text: "把翻译、导航、笔记、设置等入口整理成更适合眼镜理解和查找的结构。",
+  },
+  {
+    title: "Navi AI Assistant",
+    text: "作为任务入口被调用，重点是看见内容后下一步做什么，而不是先寻找独立应用。",
+  },
+  {
+    title: "手机端管理",
+    text: "账号、设置、历史记录、复杂输入和远程控制更适合放在手机端完成，眼镜端保持轻量。",
+  },
+] as const;
 ---
 
 <CommunityLayout
@@ -46,20 +65,18 @@ const nextSteps = [
   <section class="launcher-page">
     <main class="launcher-main">
       <section class="launcher-hero">
-        <div class="launcher-status">开发中 / 实验性</div>
+        <div class="launcher-status">实验性项目</div>
         <h1>Gaze Launcher</h1>
-        <p class="launcher-subtitle">面向 AR / AI 眼镜的 AI-first 智能启动器</p>
-        <p class="community-page-lead launcher-lead">当前仍是实验性项目，聚焦产品方向和下一步验证重点。</p>
-        <div class="community-cta-row">
+        <p class="launcher-subtitle">一个面向 AR / AI 眼镜的 AI-first 启动层，目标不是复制手机桌面，而是让用户先面对当前任务。</p>
+        <div class="community-cta-row launcher-hero__actions">
           <a href="#progress" class="community-button">查看当前进展</a>
           <a href="/feed/" class="community-button--secondary">进入论坛讨论</a>
-          <a href="#boundaries" class="community-button--secondary">查看边界说明</a>
         </div>
       </section>
 
-      <section class="launcher-block" id="details">
+      <section class="launcher-block launcher-block--intro" id="details">
         <div class="launcher-block__head">
-          <h2>为什么需要 Gaze Launcher</h2>
+          <h2>What it is</h2>
         </div>
         <div class="launcher-copy">
           <p>智能眼镜不应该照搬手机桌面逻辑。手机上的常见路径是先找应用、再进入功能、最后手动完成任务，但眼镜更适合快速、轻量、少打扰的任务流。</p>
@@ -69,41 +86,29 @@ const nextSteps = [
 
       <section class="launcher-block">
         <div class="launcher-block__head">
-          <h2>核心结构</h2>
+          <h2>Core areas</h2>
         </div>
-        <div class="community-list launcher-structure">
-          <article class="community-list-item">
-            <strong>Home</strong>
-            <p>主界面优先展示常用入口、最近任务和当前状态，不把第一屏做成图标墙。</p>
-          </article>
-          <article class="community-list-item">
-            <strong>App Library</strong>
-            <p>把翻译、导航、笔记、设置等入口整理成更适合眼镜理解和查找的结构。</p>
-          </article>
-          <article class="community-list-item">
-            <strong>Navi AI Assistant</strong>
-            <p>作为任务入口被调用，重点是“看见内容后下一步做什么”，而不是先寻找独立应用。</p>
-          </article>
-          <article class="community-list-item">
-            <strong>手机端管理</strong>
-            <p>账号、设置、历史记录、复杂输入和远程控制更适合放在手机端完成，眼镜端保持轻量。</p>
-          </article>
-          <article class="community-list-item">
-            <strong>确认层</strong>
-            <p>语音、按键、触控和可能的其它输入方式都应建立在显式触发和确认之上，而不是自动执行。</p>
-          </article>
+        <div class="launcher-core-grid">
+          {coreAreas.map((item) => (
+            <article class="launcher-core-card">
+              <strong>{item.title}</strong>
+              <p>{item.text}</p>
+            </article>
+          ))}
         </div>
       </section>
 
       <section class="launcher-block" id="progress">
         <div class="launcher-block__head">
-          <h2>当前已明确的方向</h2>
+          <h2>Current progress</h2>
         </div>
-        <div class="community-table">
+        <div class="launcher-progress-grid">
           {directionRows.map((row) => (
-            <article class="community-table-row">
-              <strong>{row.item}</strong>
-              <span>{row.status}</span>
+            <article class="launcher-progress-card">
+              <div class="launcher-progress-card__top">
+                <strong>{row.item}</strong>
+                <span>{row.status}</span>
+              </div>
               <p>{row.note}</p>
             </article>
           ))}
@@ -112,9 +117,9 @@ const nextSteps = [
 
       <section class="launcher-block" id="boundaries">
         <div class="launcher-block__head">
-          <h2>当前边界</h2>
+          <h2>Boundaries</h2>
         </div>
-        <div class="community-list launcher-boundaries">
+        <div class="launcher-boundaries-grid">
           <article class="community-list-item">
             <strong>项目阶段</strong>
             <p>当前仍在开发和验证中，重点是梳理更适合眼镜的启动方式与交互路径。</p>
@@ -136,11 +141,11 @@ const nextSteps = [
 
       <section class="launcher-block">
         <div class="launcher-block__head">
-          <h2>下一步</h2>
+          <h2>Next</h2>
         </div>
-        <div class="community-list">
+        <div class="launcher-next-grid">
           {nextSteps.map((item) => (
-            <article class="community-list-item">
+            <article class="launcher-next-card">
               <strong>{item}</strong>
             </article>
           ))}
@@ -149,10 +154,10 @@ const nextSteps = [
     </main>
 
     <aside class="launcher-side">
-      <section class="community-surface community-surface--padded community-surface--primary">
+      <section class="community-surface community-surface--padded community-surface--primary launcher-side-panel">
         <div class="community-meta" style="margin-bottom: 0.35rem;">当前状态</div>
-        <h2>实验性项目</h2>
-        <p>这里集中整理产品方向、结构拆分和验证重点。</p>
+        <h2>产品方向整理中</h2>
+        <p>这里集中整理结构、边界和下一步验证重点。</p>
         <div class="community-list" style="padding: 0.7rem 0 0;">
           <a class="community-list-item community-link-row" href="#details">
             <strong>查看完整说明</strong>
@@ -175,80 +180,135 @@ const nextSteps = [
 <style>
   .launcher-page {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 1.1rem;
+    grid-template-columns: minmax(0, 1fr) 310px;
+    gap: 1.6rem;
     align-items: start;
   }
   .launcher-main {
     display: grid;
-    gap: 1.15rem;
+    gap: 1.25rem;
   }
   .launcher-hero {
     display: grid;
-    gap: 0.6rem;
+    gap: 0.95rem;
+    padding: 1rem 0 1.8rem;
   }
   .launcher-status {
-    color: var(--text-muted);
-    font-size: 0.8rem;
+    color: var(--text-faint);
+    font-size: 0.85rem;
     font-weight: 600;
   }
   .launcher-hero h1 {
     margin: 0;
-    font-size: clamp(2.1rem, 4vw, 2.9rem);
-    line-height: 0.98;
+    font-size: clamp(2.8rem, 5vw, 3.7rem);
+    line-height: 0.95;
     letter-spacing: -0.05em;
   }
   .launcher-subtitle {
     margin: 0;
-    color: var(--text);
-    font-size: 1rem;
+    color: var(--text-muted);
+    font-size: 1.08rem;
+    line-height: 1.65;
+    max-width: 38ch;
   }
-  .launcher-lead {
-    max-width: 760px;
+  .launcher-hero__actions {
+    margin-top: 0.2rem;
   }
   .launcher-block {
     display: grid;
-    gap: 0.75rem;
+    gap: 0.95rem;
+    padding: 1.35rem;
+    border-radius: 24px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.025);
   }
   .launcher-block__head {
-    padding-bottom: 0.7rem;
+    padding-bottom: 0.8rem;
     border-bottom: 1px solid var(--border);
   }
   .launcher-block__head h2 {
     margin: 0;
-    font-size: 1.05rem;
+    font-size: 1.35rem;
+    letter-spacing: -0.03em;
     color: var(--text);
   }
   .launcher-copy {
     display: grid;
-    gap: 0.75rem;
+    gap: 0.9rem;
   }
   .launcher-copy p {
     margin: 0;
     color: var(--text-muted);
-    line-height: 1.7;
+    line-height: 1.75;
+    font-size: 1rem;
   }
-  .launcher-structure,
-  .launcher-boundaries {
-    padding-top: 0.1rem;
+  .launcher-core-grid,
+  .launcher-progress-grid,
+  .launcher-boundaries-grid,
+  .launcher-next-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+  .launcher-core-card,
+  .launcher-progress-card,
+  .launcher-next-card {
+    display: grid;
+    gap: 0.55rem;
+    padding: 1rem 1.05rem;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .launcher-core-card strong,
+  .launcher-progress-card strong,
+  .launcher-next-card strong {
+    font-size: 1rem;
+    color: var(--text);
+  }
+  .launcher-core-card p,
+  .launcher-progress-card p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+  .launcher-progress-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+  }
+  .launcher-progress-card__top span {
+    color: var(--text-faint);
+    font-size: 0.82rem;
+    white-space: nowrap;
   }
   .launcher-side {
     position: sticky;
     top: 92px;
   }
+  .launcher-side-panel {
+    padding: 1.2rem 1.2rem 1rem;
+  }
   .launcher-side h2 {
     margin: 0;
     color: var(--text);
-    font-size: 1rem;
+    font-size: 1.05rem;
   }
   .launcher-side p {
     margin: 0;
     color: var(--text-muted);
     line-height: 1.6;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
   }
   @media (max-width: 900px) {
     .launcher-page {
+      grid-template-columns: 1fr;
+    }
+    .launcher-core-grid,
+    .launcher-progress-grid,
+    .launcher-boundaries-grid,
+    .launcher-next-grid {
       grid-template-columns: 1fr;
     }
     .launcher-side {

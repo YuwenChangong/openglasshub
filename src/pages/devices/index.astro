@@ -258,71 +258,76 @@ const visibleDevicesDescription = selectedBrand
   canonical="https://openglasshub.pages.dev/devices/"
   activeSection="products"
 >
-  <section class="community-page-head">
-    <div>
-      <span class="devices-kicker">设备发现</span>
+  <section class="devices-hero">
+    <div class="devices-hero__copy">
+      <span class="devices-kicker">OpenGlass Hub 产品索引</span>
       <h1>设备库</h1>
-      <p class="community-page-lead">按品牌、形态和使用场景查看 AR / AI 眼镜资料。当前以公开资料整理为主，待核实内容会明确标注。</p>
+      <p>按路线、品牌和使用场景先判断方向，再决定要不要继续看单机细节。</p>
+    </div>
+    <div class="devices-hero__actions">
+      {routeCatalog.map((route) => (
+        <a
+          href={buildQueryHref({ route: route.key, device: route.devices[0] }, "#device-detail")}
+          class:list={["community-inline-link", { "community-inline-link--active": !selectedBrand && selectedRoute.key === route.key }]}
+        >
+          {route.label}
+        </a>
+      ))}
     </div>
   </section>
 
-  <section class="devices-layout">
-    <div class="community-surface community-surface--primary">
-      <div class="devices-intro">
-        <div class="devices-intro__copy">
-          <strong>从路线开始，不从参数表开始。</strong>
-          <p>先判断它是显示型、AI 眼镜，还是更接近独立 AR，再决定要不要继续看单机细节。</p>
+  <section class="devices-showcase">
+    <div class="devices-showcase__main">
+      <section class="community-surface devices-panel devices-panel--hero">
+        <div class="devices-intro">
+          <div class="devices-intro__copy">
+            <strong>{selectedRoute.title}</strong>
+            <p>{selectedRoute.description}</p>
+          </div>
+          {(selectedBrand || selectedRouteKey !== "display") && (
+            <a href="/devices/" class="community-link">查看默认视图</a>
+          )}
         </div>
-        <div class="community-inline-links">
-          {routeCatalog.map((route) => (
+
+        <div class="devices-grid-head">
+          <div>
+            <h2 id="brand-results">{visibleDevicesHeading}</h2>
+            <p>{visibleDevicesDescription}</p>
+          </div>
+        </div>
+
+        <div class="devices-grid">
+          {visibleDevices.map((item) => (
             <a
-              href={buildQueryHref({ route: route.key, device: route.devices[0] }, "#device-detail")}
-              class:list={["community-inline-link", { "community-inline-link--active": !selectedBrand && selectedRoute.key === route.key }]}
+              href={buildQueryHref(
+                {
+                  brand: selectedBrand?.key,
+                  route: selectedRoute.key,
+                  device: item.slug,
+                },
+                "#device-detail",
+              )}
+              class="devices-card"
             >
-              {route.label}
+              <span class="devices-card__label">{selectedRoute.label}</span>
+              <h3>{item.title}</h3>
+              <p>{item.short}</p>
+              <span class="devices-card__link">查看说明</span>
             </a>
           ))}
         </div>
-      </div>
-      <div class="community-section-head">
-        <div>
-          <h2 id="brand-results">{visibleDevicesHeading}</h2>
-          <p>{visibleDevicesDescription}</p>
-        </div>
-        {(selectedBrand || selectedRouteKey !== "display") && (
-          <a href="/devices/" class="community-action-button community-action-button--muted">查看默认视图</a>
-        )}
-      </div>
-      <div class="devices-grid">
-        {visibleDevices.map((item) => (
-          <a
-            href={buildQueryHref(
-              {
-                brand: selectedBrand?.key,
-                route: selectedRoute.key,
-                device: item.slug,
-              },
-              "#device-detail",
-            )}
-            class="community-product-card"
-          >
-            <span class="community-meta">重点设备</span>
-            <h3>{item.title}</h3>
-            <p>{item.short}</p>
-            <div class="community-post-actions" style="padding-top: 0.35rem;">
-              <span class="community-action">查看说明</span>
-            </div>
-          </a>
-        ))}
-      </div>
+      </section>
 
       {selectedDevice && (
-        <section class="device-detail-panel" id="device-detail">
-          <div>
-            <span class="community-meta">产品说明</span>
-            <h2>{selectedDevice.title}</h2>
-            <p>{selectedDevice.summary}</p>
+        <section class="community-surface devices-panel device-detail-panel" id="device-detail">
+          <div class="device-detail-panel__head">
+            <div>
+              <span class="community-meta">当前设备</span>
+              <h2>{selectedDevice.title}</h2>
+            </div>
+            <a href={`/devices/${selectedDevice.slug}/`} class="community-button">查看完整设备页</a>
           </div>
+          <p class="device-detail-panel__summary">{selectedDevice.summary}</p>
           <div class="device-detail-panel__grid">
             <article class="community-field-note">
               <strong>更适合</strong>
@@ -333,103 +338,210 @@ const visibleDevicesDescription = selectedBrand
               <span>{selectedDevice.avoid}</span>
             </article>
           </div>
-          <div class="community-cta-row">
-            <a href={`/devices/${selectedDevice.slug}/`} class="community-action-button community-action-button--primary">查看完整设备页</a>
-            <a href={selectedDevice.sourceUrl} target="_blank" rel="noreferrer" class="community-action-button community-action-button--muted">官方参考：{selectedDevice.sourceLabel}</a>
-          </div>
+          <a href={selectedDevice.sourceUrl} target="_blank" rel="noreferrer" class="community-link device-detail-panel__source">官方参考：{selectedDevice.sourceLabel}</a>
         </section>
       )}
     </div>
 
-    <div class="community-grid" style="margin-top: 1rem;">
-      <section class="community-surface community-surface--primary">
-        <div class="community-section-head">
-          <div>
-            <h2>品牌入口</h2>
-            <p>按品牌先找方向，再决定要不要继续看单机详情。</p>
-          </div>
+    <aside class="devices-rail">
+      <section class="community-surface devices-panel">
+        <div class="devices-rail__head">
+          <h2>品牌入口</h2>
+          <p>按品牌缩小范围。</p>
         </div>
-        <div class="community-list">
+        <div class="community-list devices-brand-list">
           {brandLinks.map((item) => (
             <a class:list={["community-list-item", "community-link-row", { "community-list-item--active": selectedBrand?.key === item.key }]} href={item.href}>
               <strong>{item.label}</strong>
-              <span>查看该品牌相关机型</span>
+              <span>查看相关机型</span>
             </a>
           ))}
         </div>
       </section>
 
-      <aside class="community-sidebar">
-        <section class="community-surface community-surface--padded community-surface--primary">
-          <div class="community-page-lead" style="margin-bottom: 0.35rem;">当前路线关注点</div>
-          <div class="devices-scenarios">
-            {selectedRoute.notes.map((item) => (
-              <article class="community-field-note">
-                <strong>{selectedRoute.label}</strong>
-                <span>{item}</span>
-              </article>
-            ))}
-          </div>
-        </section>
-      </aside>
-    </div>
+      <section class="community-surface devices-panel">
+        <div class="devices-rail__head">
+          <h2>当前路线关注点</h2>
+          <p>{selectedRoute.label}</p>
+        </div>
+        <div class="devices-scenarios">
+          {selectedRoute.notes.map((item) => (
+            <article class="community-field-note">
+              <strong>{selectedRoute.label}</strong>
+              <span>{item}</span>
+            </article>
+          ))}
+        </div>
+      </section>
+    </aside>
   </section>
 </CommunityLayout>
 
 <style>
+  .devices-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 1.4rem;
+    padding: 1rem 0 1.8rem;
+  }
   .devices-kicker {
     display: inline-flex;
-    margin-bottom: 0.45rem;
-    color: var(--accent-hover);
-    font-size: 0.74rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    margin-bottom: 0.55rem;
+    color: var(--text-faint);
+    font-size: 0.84rem;
+  }
+  .devices-hero h1 {
+    margin: 0;
+    font-size: clamp(2.8rem, 5vw, 3.6rem);
+    line-height: 0.96;
+    letter-spacing: -0.05em;
+  }
+  .devices-hero p {
+    margin: 0.8rem 0 0;
+    max-width: 36ch;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    line-height: 1.65;
+  }
+  .devices-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+  .devices-showcase {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 1.6rem;
+    align-items: start;
+  }
+  .devices-showcase__main {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .devices-panel {
+    padding: 1.35rem;
+  }
+  .devices-panel--hero {
+    padding-bottom: 1.1rem;
   }
   .devices-intro {
-    display: grid;
-    gap: 0.6rem;
-    padding: 1rem 1rem 0.15rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1.1rem;
+    margin-bottom: 1.1rem;
+    border-bottom: 1px solid var(--border);
   }
   .devices-intro__copy {
     display: grid;
-    gap: 0.25rem;
+    gap: 0.4rem;
   }
   .devices-intro__copy strong {
     color: var(--text);
-    font-size: 1rem;
+    font-size: 1.2rem;
+    letter-spacing: -0.03em;
   }
   .devices-intro__copy p {
     margin: 0;
+    color: var(--text-muted);
+    line-height: 1.65;
+    font-size: 0.98rem;
+  }
+  .devices-grid-head {
+    margin-bottom: 1rem;
+  }
+  .devices-grid-head h2 {
+    margin: 0;
+    font-size: 1.4rem;
+    letter-spacing: -0.03em;
+  }
+  .devices-grid-head p {
+    margin: 0.45rem 0 0;
     color: var(--text-muted);
     line-height: 1.6;
   }
   .devices-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.8rem;
-    padding: 0.9rem 1rem 1rem;
+    gap: 0.95rem;
   }
-  .device-detail-panel {
+  .devices-card {
     display: grid;
-    gap: 0.75rem;
-    padding: 0 1rem 1rem;
-    border-top: 1px solid var(--border);
+    gap: 0.7rem;
+    padding: 1.1rem 1.15rem;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+    text-decoration: none;
   }
-  .device-detail-panel h2 {
-    margin: 0.16rem 0 0.25rem;
-    color: var(--text);
-    font-size: 1.1rem;
+  .devices-card__label {
+    color: var(--text-faint);
+    font-size: 0.8rem;
   }
-  .device-detail-panel p {
+  .devices-card h3 {
+    margin: 0;
+    font-size: 1.08rem;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+  }
+  .devices-card p {
     margin: 0;
     color: var(--text-muted);
     line-height: 1.65;
   }
+  .devices-card__link {
+    color: var(--text);
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
+  .device-detail-panel {
+    display: grid;
+    gap: 0.95rem;
+  }
+  .device-detail-panel__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .device-detail-panel h2 {
+    margin: 0.2rem 0 0;
+    color: var(--text);
+    font-size: 1.55rem;
+    letter-spacing: -0.03em;
+  }
+  .device-detail-panel__summary {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.65;
+    font-size: 1rem;
+  }
   .device-detail-panel__grid {
     display: grid;
-    gap: 0.7rem;
+    gap: 0.85rem;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .device-detail-panel__source {
+    width: fit-content;
+  }
+  .devices-rail {
+    display: grid;
+    gap: 1rem;
+  }
+  .devices-rail__head {
+    margin-bottom: 0.85rem;
+  }
+  .devices-rail__head h2 {
+    margin: 0;
+    font-size: 1rem;
+  }
+  .devices-rail__head p {
+    margin: 0.35rem 0 0;
+    color: var(--text-muted);
   }
   .community-link-row {
     text-decoration: none;
@@ -445,11 +557,23 @@ const visibleDevicesDescription = selectedBrand
   }
   .devices-scenarios {
     display: grid;
+    gap: 0.8rem;
   }
   @media (max-width: 900px) {
+    .devices-hero,
+    .devices-showcase,
+    .device-detail-panel__head {
+      grid-template-columns: 1fr;
+    }
     .devices-grid,
     .device-detail-panel__grid {
       grid-template-columns: 1fr;
+    }
+    .devices-intro {
+      flex-direction: column;
+    }
+    .devices-hero__actions {
+      justify-content: flex-start;
     }
   }
 </style>

@@ -100,9 +100,9 @@ function excerpt(body?: string | null): string {
 >
   <section class="home-intro">
     <div class="home-intro__copy">
-      <span class="home-intro__eyebrow">AR / AI 眼镜社区</span>
       <h1>OpenGlass Hub</h1>
-      <p>讨论设备、体验、开发与空间计算。</p>
+      <p>AR / AI 眼镜社区：讨论设备、体验、开发与空间计算。</p>
+      <small>For builders, early users, and people deciding what matters before they buy.</small>
     </div>
     <div class="home-intro__actions">
       <a href="/feed/" class="community-button">进入论坛</a>
@@ -165,7 +165,7 @@ function excerpt(body?: string | null): string {
       <section class="community-sidebar-block community-sidebar-block--strong">
         <div class="home-utility-block">
           <div class="community-sidebar-head">
-            <h2>开始使用</h2>
+            <h2>工具入口</h2>
           </div>
           <AuthCTA next="/" client:only="react" />
           <SignedOutHeroNote client:only="react" />
@@ -220,32 +220,32 @@ function excerpt(body?: string | null): string {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
-    gap: 1.25rem;
-    padding: 0.55rem 0 1.3rem;
+    gap: 1.4rem;
+    padding: 1.1rem 0 2.2rem;
   }
   .home-intro__copy {
     min-width: 0;
   }
-  .home-intro__eyebrow {
-    display: inline-flex;
-    margin-bottom: 0.55rem;
-    color: var(--text-faint);
-    font-size: 0.8rem;
-    letter-spacing: 0.01em;
-  }
   .home-intro h1 {
     margin: 0;
-    max-width: 12ch;
-    font-size: clamp(2rem, 3.4vw, 2.8rem);
-    line-height: 1.02;
-    letter-spacing: -0.04em;
+    max-width: 11ch;
+    font-size: clamp(2.8rem, 5vw, 3.5rem);
+    line-height: 0.96;
+    letter-spacing: -0.05em;
     text-wrap: balance;
   }
   .home-intro p {
-    margin: 0.75rem 0 0;
-    max-width: 48ch;
+    margin: 0.9rem 0 0;
+    max-width: 32ch;
     color: var(--text-muted);
-    font-size: 1rem;
+    font-size: 1.06rem;
+    line-height: 1.6;
+  }
+  .home-intro small {
+    display: block;
+    margin-top: 0.7rem;
+    color: var(--text-faint);
+    font-size: 0.92rem;
     line-height: 1.6;
   }
   .home-intro__actions {
@@ -255,8 +255,8 @@ function excerpt(body?: string | null): string {
     gap: 0.7rem;
   }
   .home-channel-bar {
-    margin-bottom: 1.1rem;
-    padding: 0 0 1rem;
+    margin-bottom: 1.35rem;
+    padding: 0 0 1.1rem;
     border-bottom: 1px solid var(--border);
   }
   .home-channel-bar__links {
@@ -264,8 +264,8 @@ function excerpt(body?: string | null): string {
   }
   .home-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 296px;
-    gap: 1.75rem;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 2rem;
     align-items: start;
   }
   .community-feed-column {
@@ -276,19 +276,19 @@ function excerpt(body?: string | null): string {
     align-items: flex-end;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0 0 0.95rem;
+    padding: 0 0 1rem;
     margin-bottom: 0.15rem;
     border-bottom: 1px solid var(--border);
   }
   .community-stream-head h2 {
     margin: 0;
-    font-size: 1.04rem;
+    font-size: 1.2rem;
     letter-spacing: -0.02em;
   }
   .community-stream-head p {
     margin: 0.28rem 0 0;
     color: var(--text-muted);
-    font-size: 0.86rem;
+    font-size: 0.95rem;
   }
   .home-utility-block {
     display: grid;
@@ -312,10 +312,10 @@ function excerpt(body?: string | null): string {
   }
   @media (max-width: 720px) {
     .home-intro h1 {
-      font-size: 2.05rem;
+      font-size: 2.35rem;
     }
     .home-intro p {
-      font-size: 0.95rem;
+      font-size: 1rem;
     }
   }
 </style>

@@ -100,7 +100,7 @@ const buildFeedHref = (nextSort: string, nextPage = 1) =>
       </div>
 
       <div class="community-feed-meta">
-        <span class="community-meta">当前模式：{currentMeta.title}</span>
+        <span class="community-meta">{currentMeta.title}</span>
         <span class="community-meta">第 {feed.page} 页</span>
       </div>
 
@@ -174,25 +174,26 @@ const buildFeedHref = (nextSort: string, nextPage = 1) =>
     align-items: flex-end;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0 0 0.8rem;
-    margin-bottom: 0.2rem;
+    padding: 0 0 1rem;
+    margin-bottom: 0.15rem;
     border-bottom: 1px solid var(--border);
   }
   .community-stream-head h2 {
     margin: 0;
-    font-size: 1.12rem;
+    font-size: 1.22rem;
+    letter-spacing: -0.03em;
   }
   .community-stream-head p {
-    margin: 0.2rem 0 0;
+    margin: 0.25rem 0 0;
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: 0.95rem;
   }
   .feed-head-actions {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 0.5rem;
+    gap: 0.45rem;
   }
   .community-feed-meta,
   .community-feed-pagination {
@@ -202,11 +203,11 @@ const buildFeedHref = (nextSort: string, nextPage = 1) =>
     flex-wrap: wrap;
   }
   .community-feed-meta {
-    margin: 0 0 0.8rem;
+    margin: 0 0 1rem;
   }
   .community-feed-pagination {
     justify-content: space-between;
-    margin-top: 1rem;
+    margin-top: 1.2rem;
   }
   .is-disabled {
     pointer-events: none;
