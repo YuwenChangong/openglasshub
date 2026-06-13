@@ -1,0 +1,23 @@
+[
+  {
+    "brand": "XREAL",
+    "name": "XREAL One",
+    "slug": "xreal-one",
+    "source": "official",
+    "url": "https://us.shop.xreal.com/products/xreal-one"
+  },
+  {
+    "brand": "RayNeo",
+    "name": "RayNeo X2",
+    "slug": "rayneo-x2",
+    "source": "official",
+    "url": "https://www.rayneo.com/products/tcl-rayneo-x2"
+  },
+  {
+    "brand": "Rokid",
+    "name": "Rokid AI Glasses Style",
+    "slug": "rokid-ai-glasses-style",
+    "source": "official",
+    "url": "https://global.rokid.com/products/rokid-ai-glasses-style"
+  }
+]
