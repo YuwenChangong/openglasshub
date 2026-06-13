@@ -6232,31 +6232,33 @@ body {
 
 .news-featured-card {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
-  gap: 1.3rem;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 1rem;
   align-items: center;
-  padding: 1.4rem;
+  padding: 1.2rem;
   margin-bottom: 1rem;
-  border-radius: 28px;
+  border-radius: 22px;
   text-decoration: none;
 }
 
 .news-featured-card__copy h2 {
-  margin: 0.75rem 0 0;
-  font-size: clamp(1.9rem, 3vw, 2.4rem);
-  line-height: 1.08;
-  letter-spacing: -0.04em;
+  margin: 0.6rem 0 0;
+  font-size: 1.16rem;
+  line-height: 1.38;
+  letter-spacing: -0.02em;
 }
 
 .news-featured-card__copy p {
-  margin: 0.8rem 0 0;
+  margin: 0.55rem 0 0;
   color: var(--text-muted);
-  font-size: 1rem;
-  line-height: 1.68;
+  font-size: 0.98rem;
+  line-height: 1.66;
 }
 
 .news-featured-card__media img {
-  aspect-ratio: 16 / 10;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
 }
 
 .news-feed-list {
