@@ -7,10 +7,12 @@ export interface Props {
   description?: string;
   noindex?: boolean;
   canonical?: string;
+  ogImage?: string;
+  ogType?: "website" | "article" | "profile";
   activeTab?: "feed" | "circles" | "new-post";
 }
 
-const { title, description, noindex, canonical, activeTab } = Astro.props;
+const { title, description, noindex, canonical, ogImage, ogType, activeTab } = Astro.props;
 ---
 
 <CommunityLayout
@@ -18,6 +20,8 @@ const { title, description, noindex, canonical, activeTab } = Astro.props;
   description={description}
   noindex={noindex}
   canonical={canonical}
+  ogImage={ogImage}
+  ogType={ogType}
   activeSection="forum"
   pageClass="forum-main"
 >

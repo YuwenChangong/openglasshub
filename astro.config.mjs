@@ -22,6 +22,7 @@ export default defineConfig({
   integrations: [
     react(),
     starlight({
+      disable404Route: true,
       title: 'OpenGlass Hub',
       description: 'AR/AI 眼镜知识库、选购指南与开发者资源',
       components: {
