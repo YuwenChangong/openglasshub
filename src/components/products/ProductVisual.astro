@@ -110,19 +110,21 @@ const hasImage = Boolean(imageUrl);
   }
 
   .product-visual img {
-    width: 78%;
-    height: 78%;
+    width: auto;
+    height: auto;
+    max-width: 88%;
+    max-height: 84%;
     margin: auto;
     filter: drop-shadow(0 16px 30px rgba(0, 0, 0, 0.16));
   }
 
   .product-visual--hero img {
-    width: 72%;
-    height: 72%;
+    max-width: 82%;
+    max-height: 78%;
   }
 
   .product-visual--light .product-visual__image-shell {
-    background: linear-gradient(180deg, #eff2f6 0%, #e2e7ee 100%);
+    background: linear-gradient(180deg, #f3f5f8 0%, #e7ebf1 100%);
   }
 
   .product-visual--dark .product-visual__image-shell {
@@ -239,5 +241,22 @@ const hasImage = Boolean(imageUrl);
     font-weight: 600;
     text-align: right;
     max-width: 50%;
+  }
+
+  @media (max-width: 720px) {
+    .product-visual__image-shell,
+    .product-visual__placeholder {
+      inset: 0.7rem;
+    }
+
+    .product-visual img {
+      max-width: 90%;
+      max-height: 82%;
+    }
+
+    .product-visual--hero img {
+      max-width: 86%;
+      max-height: 76%;
+    }
   }
 </style>

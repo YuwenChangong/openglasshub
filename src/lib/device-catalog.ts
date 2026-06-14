@@ -69,6 +69,7 @@ type ProductAssetManifest = {
     brandSlug: string;
     brandName: string;
     officialWebsiteUrl: string;
+    assetExceptionReason?: string | null;
     logo: {
       assetStatus: AssetStatus;
       logoImageUrl?: string | null;
@@ -81,6 +82,7 @@ type ProductAssetManifest = {
     slug: string;
     brandSlug: string;
     name: string;
+    assetExceptionReason?: string | null;
     officialProductUrl?: string | null;
     buyUrl?: string | null;
     sourceUrl?: string | null;
@@ -307,11 +309,11 @@ export const brandCatalog = [
     shortIntro: "代表无显示 AI 眼镜路线。",
     positioning: "无显示智能眼镜。",
     websiteUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
-    brandLogo: buildBrandLogo("meta", "META × RAY-BAN", "Meta Ray-Ban logo"),
+    brandLogo: buildBrandLogo("meta", "Meta", "Meta logo"),
     logoAssetStatus: getBrandAsset("meta")?.logo.assetStatus,
     logoSourceUrl: getBrandAsset("meta")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
-    brandMarkText: "META",
+    brandMarkText: "Meta",
     brandTone: "meta",
     featuredProducts: ["ray-ban-meta"],
   },
@@ -323,11 +325,11 @@ export const brandCatalog = [
     shortIntro: "更偏开放实验与开发探索。",
     positioning: "实验型设备。",
     websiteUrl: "https://brilliant.xyz/products/frame",
-    brandLogo: buildBrandLogo("brilliant-labs", "FRAME", "Brilliant Labs logo"),
+    brandLogo: buildBrandLogo("brilliant-labs", "Brilliant Labs", "Brilliant Labs logo"),
     logoAssetStatus: getBrandAsset("brilliant-labs")?.logo.assetStatus,
     logoSourceUrl: getBrandAsset("brilliant-labs")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
-    brandMarkText: "FRAME",
+    brandMarkText: "Brilliant Labs",
     brandTone: "frame",
     featuredProducts: ["brilliant-labs-frame"],
   },
@@ -339,11 +341,11 @@ export const brandCatalog = [
     shortIntro: "强调低干扰信息显示与日常佩戴。",
     positioning: "提示式智能眼镜。",
     websiteUrl: "https://www.evenrealities.com/en-FI/g1",
-    brandLogo: buildBrandLogo("even-realities", "G1", "Even Realities logo"),
+    brandLogo: buildBrandLogo("even-realities", "Even Realities", "Even Realities logo"),
     logoAssetStatus: getBrandAsset("even-realities")?.logo.assetStatus,
     logoSourceUrl: getBrandAsset("even-realities")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
-    brandMarkText: "G1",
+    brandMarkText: "Even Realities",
     brandTone: "g1",
     featuredProducts: ["even-realities-g1"],
   },
@@ -355,11 +357,11 @@ export const brandCatalog = [
     shortIntro: "代表高端独立空间计算路线。",
     positioning: "独立空间计算头显。",
     websiteUrl: "https://www.apple.com/apple-vision-pro/",
-    brandLogo: buildBrandLogo("apple", "Vision", "Apple Vision wordmark"),
+    brandLogo: buildBrandLogo("apple", "Apple Vision", "Apple Vision wordmark"),
     logoAssetStatus: getBrandAsset("apple")?.logo.assetStatus,
     logoSourceUrl: getBrandAsset("apple")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
-    brandMarkText: "Vision",
+    brandMarkText: "Apple Vision",
     brandTone: "vision",
     featuredProducts: ["apple-vision-pro"],
   },
@@ -373,7 +375,7 @@ const deviceCatalog = {
     name: "XREAL One",
     shortDescription: "更偏高阶显示路线，重点在空间显示控制和日常外接体验。",
     longDescription: "XREAL One 更适合作为高阶显示眼镜来理解，它依然围绕外接设备工作，但比传统观影眼镜更强调空间显示稳定性和眼镜本体参与度。",
-    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
+    media: { imageBackground: "transparent", imageFit: "cover", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "XREAL One 产品视觉",
     buyUrl: "https://us.shop.xreal.com/products/xreal-one",
     sourceUrl: "https://us.shop.xreal.com/products/xreal-one",
@@ -849,9 +851,9 @@ export function getDeviceBySlug(slug: string) {
     placeholderType: base.media?.placeholderType ?? "wordmark",
   };
   const previewSpecs = pickSpecs(mergedSpecs, ["display_type", "resolution", "refresh_rate", "brightness", "field_of_view", "camera", "weight", "price", "chipset"]).slice(0, 5);
-  const officialProductUrl = productAsset?.officialProductUrl ?? base.officialProductUrl ?? base.productUrl ?? null;
-  const buyUrl = productAsset?.buyUrl ?? base.buyUrl ?? null;
-  const sourceUrl = productAsset?.sourceUrl ?? base.sourceUrl ?? null;
+  const officialProductUrl = productAsset ? (productAsset.officialProductUrl ?? null) : base.officialProductUrl ?? base.productUrl ?? null;
+  const buyUrl = productAsset ? (productAsset.buyUrl ?? null) : base.buyUrl ?? null;
+  const sourceUrl = productAsset ? (productAsset.sourceUrl ?? null) : base.sourceUrl ?? null;
   const externalLinks = buildExternalLinks({ officialProductUrl, buyUrl, sourceUrl });
 
   return {

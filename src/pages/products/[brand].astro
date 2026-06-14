@@ -32,7 +32,7 @@ const devices = getDevicesByBrand(brand.key);
     <div class="products-brand-head__copy">
       <BrandMark logo={brand.brandLogo} tone="accent" brandKey={brand.key} />
       <div>
-        {brand.displayName !== brand.brandMarkText ? <h1>{brand.displayName}</h1> : <h1 class="products-brand-head__sr-only">{brand.displayName}</h1>}
+        <h1>{brand.displayName}</h1>
         <p>{brand.shortIntro}</p>
       </div>
     </div>
@@ -105,17 +105,6 @@ const devices = getDevicesByBrand(brand.key);
     color: var(--text);
     font-size: 2rem;
     letter-spacing: -0.03em;
-  }
-  .products-brand-head__sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
   .products-brand-head p {
     margin: 0;

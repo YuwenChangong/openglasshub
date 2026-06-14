@@ -60,9 +60,14 @@ const resolvedText = logo?.text ?? text ?? "";
 
   .brand-mark img {
     display: block;
-    max-width: 100%;
+    width: auto;
+    max-width: min(100%, 12rem);
     max-height: 2rem;
     object-fit: contain;
+  }
+
+  .brand-mark--compact img {
+    max-height: 1.35rem;
   }
 
   .brand-mark__fallback {
@@ -91,6 +96,16 @@ const resolvedText = logo?.text ?? text ?? "";
   .brand-mark[data-brand="xreal"] {
     font-weight: 820;
     letter-spacing: -0.052em;
+  }
+
+  .brand-mark[data-brand="rayneo"] img {
+    filter: brightness(0) invert(1);
+    max-height: 2.15rem;
+  }
+
+  .brand-mark[data-brand="inmo"] img {
+    filter: brightness(0) invert(1);
+    max-height: 2.1rem;
   }
 
   .brand-mark[data-brand="rayneo"] {

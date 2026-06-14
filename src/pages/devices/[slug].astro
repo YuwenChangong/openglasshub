@@ -58,7 +58,6 @@ const heroLinks = device.externalLinks.slice(0, 2);
       {entry.frontmatter.description && <p>{entry.frontmatter.description}</p>}
       <div class="device-detail-head__meta">
         <span>{device.routeLabel}</span>
-        <span>{device.completenessLabel}{device.completenessPercent ? ` · ${device.completenessPercent}` : ""}</span>
         {device.lastCheckedLabel && <span>更新 {device.lastCheckedLabel}</span>}
       </div>
       {heroLinks.length > 0 && (
@@ -147,7 +146,6 @@ const heroLinks = device.externalLinks.slice(0, 2);
     </div>
     <div class="device-source-panel__meta">
       {device.lastCheckedLabel && <span>最后核对 {device.lastCheckedLabel}</span>}
-      <span>{device.completenessLabel}</span>
     </div>
   </section>
 

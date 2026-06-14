@@ -24,7 +24,7 @@ const brands = getBrandSummaries();
           <BrandMark logo={brand.brandLogo} tone="accent" brandKey={brand.key} />
           <span>{brand.productCount} 款</span>
         </div>
-        {brand.displayName !== brand.brandMarkText && <h2>{brand.displayName}</h2>}
+        <h2>{brand.displayName}</h2>
         <div class="brand-tile__products">
           {brand.representativeNames.map((name) => (
             <span>{name}</span>
