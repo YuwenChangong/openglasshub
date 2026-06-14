@@ -1,0 +1,45 @@
+---
+interface Props {
+  text: string;
+  tone?: "default" | "accent" | "neutral";
+  compact?: boolean;
+}
+
+const { text, tone = "default", compact = false } = Astro.props;
+---
+
+<span class:list={["brand-mark", `brand-mark--${tone}`, { "brand-mark--compact": compact }]}>{text}</span>
+
+<style>
+  .brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.6rem;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(180deg, rgba(19, 22, 27, 0.94), rgba(10, 12, 15, 0.98));
+    color: rgba(245, 245, 245, 0.92);
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  .brand-mark--accent {
+    background: linear-gradient(180deg, rgba(32, 41, 54, 0.98), rgba(14, 18, 24, 0.98));
+    border-color: rgba(108, 152, 255, 0.2);
+    color: #f7f8fb;
+  }
+
+  .brand-mark--neutral {
+    background: linear-gradient(180deg, rgba(17, 19, 22, 0.96), rgba(10, 12, 14, 0.98));
+  }
+
+  .brand-mark--compact {
+    min-height: 2rem;
+    padding: 0.3rem 0.62rem;
+    font-size: 0.84rem;
+  }
+</style>

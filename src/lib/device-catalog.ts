@@ -42,263 +42,61 @@ export const deviceSpecLabels = {
 
 type DeviceSpecField = keyof typeof deviceSpecLabels;
 type DeviceSpecs = Partial<Record<DeviceSpecField, string>>;
+type DeviceCategory = "display_glasses" | "ai_glasses" | "standalone_xr" | "developer_device";
+type BrandMarkType = "wordmark" | "monogram";
 
 type DeviceSnapshot = {
   brand?: string;
   model_name?: string;
   source_url?: string;
   product_url?: string;
+  source_name?: string;
   last_checked_at?: string;
   short_description?: string;
   official_image_url?: string | null;
   confidence?: number;
   missing_fields?: string[];
   specs?: DeviceSpecs;
+  slug?: string;
 };
 
-type DeviceBase = {
+type BrandDefinition = {
+  key: string;
   slug: string;
-  title: string;
-  brandKey: string;
-  brandLabel: string;
-  routeKey: string;
-  routeLabel: string;
-  short: string;
-  summary: string;
-  fit: string;
-  avoid: string;
-  sourceLabel: string;
-  sourceUrl: string;
+  name: string;
+  displayName: string;
+  shortIntro: string;
+  positioning: string;
+  websiteUrl: string;
+  brandMarkType: BrandMarkType;
+  brandMarkText: string;
+  featuredProducts: string[];
 };
 
-export const routeCatalog = [
-  {
-    key: "display",
-    label: "显示型",
-    title: "显示型路线",
-    description: "更适合观影、掌机、PC 第二屏和便携大屏。重点看显示、连接和佩戴稳定性。",
-    notes: [
-      "先确认接口是否支持视频输出与供电。",
-      "真正值得比较的是清晰度、亮度、舒适度和长时间使用稳定性。",
-    ],
-  },
-  {
-    key: "ai",
-    label: "AI 眼镜",
-    title: "AI 眼镜路线",
-    description: "更适合语音入口、拍摄记录、翻译、导航和轻量 AI 助手。",
-    notes: [
-      "先看有没有显示能力，再判断日常入口价值。",
-      "不要直接拿来和显示型 AR 眼镜做大屏对比。",
-    ],
-  },
-  {
-    key: "standalone",
-    label: "独立 AR",
-    title: "独立 AR / 系统型路线",
-    description: "更接近系统化体验，适合研究导航、翻译、系统交互与输入方式。",
-    notes: [
-      "重点看输入方式与系统能力是否真实落地。",
-      "要特别关注生态成熟度和对配套 App 的依赖程度。",
-    ],
-  },
-  {
-    key: "experimental",
-    label: "实验路线",
-    title: "开放实验 / 开发路线",
-    description: "更适合研发验证，重点是 SDK、输入与系统边界，而不是消费级完成度。",
-    notes: [
-      "优先确认 SDK、权限、安装路径和调试链路。",
-      "这类设备更适合做实验样本，不适合直接当成熟消费产品判断。",
-    ],
-  },
-] as const;
-
-export const brandCatalog = [
-  { key: "xreal", label: "XREAL" },
-  { key: "rokid", label: "Rokid" },
-  { key: "rayneo", label: "RayNeo" },
-  { key: "inmo", label: "INMO" },
-  { key: "viture", label: "VITURE" },
-  { key: "meta", label: "Meta AI Glasses" },
-  { key: "brilliant-labs", label: "Brilliant Labs" },
-  { key: "even-realities", label: "Even Realities" },
-] as const;
-
-export const deviceCatalog = {
-  "xreal-one": {
-    slug: "xreal-one",
-    title: "XREAL One",
-    brandKey: "xreal",
-    brandLabel: "XREAL",
-    routeKey: "display",
-    routeLabel: "显示型",
-    short: "偏显示体验与空间显示路线，适合先判断大屏、连接体验和进阶显示需求。",
-    summary: "XREAL One 更适合作为显示型路线入口，核心看点是显示、连接和佩戴连续性，不是把它当独立系统。",
-    fit: "看电影、掌机、PC 第二屏，重视显示稳定性。",
-    avoid: "希望脱离手机或电脑独立运行完整应用。",
-    sourceLabel: "XREAL One 系列连接说明",
-    sourceUrl: "https://tutorials.xreal.com/docs/glasses/one-series/first-use/connect-device/",
-  },
-  "xreal-one-pro": {
-    slug: "xreal-one-pro",
-    title: "XREAL One Pro",
-    brandKey: "xreal",
-    brandLabel: "XREAL",
-    routeKey: "display",
-    routeLabel: "显示型",
-    short: "继续看显示质量、佩戴舒适度和更进阶的空间显示边界。",
-    summary: "One Pro 依旧属于显示型路线，重点在显示体验升级与佩戴优化。",
-    fit: "追求更高显示体验，同路线升级。",
-    avoid: "把它当独立 AR 系统替代。",
-    sourceLabel: "XREAL One 系列连接说明",
-    sourceUrl: "https://tutorials.xreal.com/docs/glasses/one-series/first-use/connect-device/",
-  },
-  "xreal-air-2-pro": {
-    slug: "xreal-air-2-pro",
-    title: "XREAL Air 2 Pro",
-    brandKey: "xreal",
-    brandLabel: "XREAL",
-    routeKey: "display",
-    routeLabel: "显示型",
-    short: "适合对比上一代主流显示型眼镜的佩戴与日常连接体验。",
-    summary: "Air 2 Pro 适合做显示型路线对照机型，用来核对日常连接、佩戴舒适度和显示效果。",
-    fit: "显示型路线对比，日常便携观影。",
-    avoid: "需要独立系统或复杂本机应用生态。",
-    sourceLabel: "XREAL 官网",
-    sourceUrl: "https://www.xreal.com/",
-  },
-  "xreal-air-2-ultra": {
-    slug: "xreal-air-2-ultra",
-    title: "XREAL Air 2 Ultra",
-    brandKey: "xreal",
-    brandLabel: "XREAL",
-    routeKey: "experimental",
-    routeLabel: "实验路线",
-    short: "更偏开发与空间计算实验路线，先核对 SDK 和输入边界。",
-    summary: "Air 2 Ultra 更适合开发和空间计算实验，不该按纯消费观影逻辑判断。",
-    fit: "开发验证，空间计算实验。",
-    avoid: "只想开箱即用的稳定消费体验。",
-    sourceLabel: "XREAL 官网",
-    sourceUrl: "https://www.xreal.com/",
-  },
-  "rokid-max": {
-    slug: "rokid-max",
-    title: "Rokid Max",
-    brandKey: "rokid",
-    brandLabel: "Rokid",
-    routeKey: "display",
-    routeLabel: "显示型",
-    short: "偏显示路线，适合判断大屏观影和连接体验。",
-    summary: "Rokid Max 是典型显示型眼镜路线，关键是显示参数、连接方式和长时间佩戴稳定性。",
-    fit: "观影、大屏、游戏外接显示。",
-    avoid: "把它当无手机依赖的独立系统。",
-    sourceLabel: "Rokid Max 官方页",
-    sourceUrl: "https://max.rokid.com/product/index.html",
-  },
-  "rokid-glasses": {
-    slug: "rokid-glasses",
-    title: "Rokid Glasses",
-    brandKey: "rokid",
-    brandLabel: "Rokid",
-    routeKey: "ai",
-    routeLabel: "AI 眼镜",
-    short: "偏 AI 眼镜日常入口，适合比较看屏和智能入口的差异。",
-    summary: "Rokid Glasses 更偏 AI 眼镜入口，关注点应是语音、拍摄、翻译和日常交互边界。",
-    fit: "语音、拍摄、轻 AI 助手入口。",
-    avoid: "期待显示型大屏体验。",
-    sourceLabel: "Rokid AI Glasses 官方页",
-    sourceUrl: "https://global.rokid.com/products/rokid-ai-glasses-style",
-  },
-  "rayneo-x2": {
-    slug: "rayneo-x2",
-    title: "RayNeo X2",
-    brandKey: "rayneo",
-    brandLabel: "RayNeo",
-    routeKey: "standalone",
-    routeLabel: "独立 AR",
-    short: "更接近独立 AR 与轻量系统路线，适合研究导航、翻译和系统边界。",
-    summary: "RayNeo X2 更接近独立 AR 路线，核心在系统能力与输入边界，而非大屏显示。",
-    fit: "独立 AR 方向研究，导航和翻译等系统能力验证。",
-    avoid: "只看显示效果，只要低门槛上手。",
-    sourceLabel: "RayNeo X2 官方页",
-    sourceUrl: "https://www.rayneo.com/products/tcl-rayneo-x2",
-  },
-  "inmo-air-2": {
-    slug: "inmo-air-2",
-    title: "INMO Air 2",
-    brandKey: "inmo",
-    brandLabel: "INMO",
-    routeKey: "standalone",
-    routeLabel: "独立 AR",
-    short: "关注轻量 AR 佩戴、显示入口与日常系统边界。",
-    summary: "INMO Air 2 适合做轻量 AR 路线观察，关注点应放在输入能力、佩戴和系统边界。",
-    fit: "轻量 AR 场景与系统边界验证。",
-    avoid: "把它当成熟消费显示设备。",
-    sourceLabel: "INMO 官方",
-    sourceUrl: "https://inmoglobal.com/",
-  },
-  "viture-pro": {
-    slug: "viture-pro",
-    title: "VITURE Pro",
-    brandKey: "viture",
-    brandLabel: "VITURE",
-    routeKey: "display",
-    routeLabel: "显示型",
-    short: "适合对比显示型路线里的便携观影与连接体验。",
-    summary: "VITURE Pro 更偏显示型路线，适合和 XREAL、Rokid Max 做显示和连接路径对比。",
-    fit: "显示型路线对比，便携观影。",
-    avoid: "把它当独立 AI 或 AR 系统。",
-    sourceLabel: "VITURE 官方",
-    sourceUrl: "https://www.viture.com/",
-  },
-  "ray-ban-meta": {
-    slug: "ray-ban-meta",
-    title: "Ray-Ban Meta",
-    brandKey: "meta",
-    brandLabel: "Meta AI Glasses",
-    routeKey: "ai",
-    routeLabel: "AI 眼镜",
-    short: "更偏无显示智能眼镜路线，重点看语音入口、拍摄与日常佩戴。",
-    summary: "Ray-Ban Meta 是无显示智能眼镜路线，核心价值在语音和拍摄入口，而非大屏显示。",
-    fit: "拍摄、语音交互、日常佩戴。",
-    avoid: "期待 AR 大屏或空间显示体验。",
-    sourceLabel: "Ray-Ban Meta 官方页",
-    sourceUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
-  },
-  "brilliant-labs-frame": {
-    slug: "brilliant-labs-frame",
-    title: "Brilliant Labs Frame",
-    brandKey: "brilliant-labs",
-    brandLabel: "Brilliant Labs",
-    routeKey: "experimental",
-    routeLabel: "实验路线",
-    short: "开放实验方向，适合观察 AI 入口与硬件实验边界。",
-    summary: "Frame 更适合实验和开发探索，重心在开放性与验证价值，而不是消费级完成度。",
-    fit: "实验验证，开发探索。",
-    avoid: "直接当成熟消费产品。",
-    sourceLabel: "Brilliant Frame 硬件文档",
-    sourceUrl: "https://docs.brilliant.xyz/frame/hardware/",
-  },
-  "even-realities-g1": {
-    slug: "even-realities-g1",
-    title: "Even Realities G1",
-    brandKey: "even-realities",
-    brandLabel: "Even Realities",
-    routeKey: "ai",
-    routeLabel: "AI 眼镜",
-    short: "更偏低干扰提示与日常佩戴，适合看轻量信息入口路线。",
-    summary: "G1 更适合作为轻量提示型智能眼镜样本，不该按大屏 AR 路线判断。",
-    fit: "日常佩戴、低干扰通知、轻量信息入口。",
-    avoid: "期待沉浸式显示或开放 AR 平台。",
-    sourceLabel: "Even Realities 官方页",
-    sourceUrl: "https://www.evenrealities.com/en-FI/g1",
-  },
-} satisfies Record<string, DeviceBase>;
-
-export type DeviceKey = keyof typeof deviceCatalog;
-export type DeviceCatalogEntry = (typeof deviceCatalog)[DeviceKey];
-export type BrandKey = (typeof brandCatalog)[number]["key"];
+type DeviceDefinition = {
+  slug: string;
+  brandKey: string;
+  brandName: string;
+  name: string;
+  shortDescription: string;
+  longDescription: string;
+  productImageUrl?: string | null;
+  officialImageUrl?: string | null;
+  imageAlt: string;
+  productUrl: string;
+  sourceUrl: string;
+  sourceName: string;
+  lastCheckedAt?: string | null;
+  category: DeviceCategory;
+  routeLabel: string;
+  routeDescription: string;
+  bestFor: string[];
+  notIdealFor: string[];
+  keySpecs?: DeviceSpecs;
+  fullSpecs?: Partial<Record<"display" | "optics" | "hardware" | "battery" | "physical" | "compatibility" | "market", DeviceSpecs>>;
+  pendingFields?: string[];
+  manualCompleteness?: number | null;
+};
 
 const snapshotItems = Array.isArray(deviceSpecCandidates?.items) ? deviceSpecCandidates.items : [];
 const snapshotMap = new Map<string, DeviceSnapshot>(
@@ -307,70 +105,442 @@ const snapshotMap = new Map<string, DeviceSnapshot>(
     .map((item) => [String(item.slug), item as DeviceSnapshot]),
 );
 
-export const specGroups = [
+const manualSpecGroups = {
+  display: "显示",
+  optics: "光学",
+  hardware: "硬件",
+  battery: "续航与供电",
+  physical: "机身与佩戴",
+  compatibility: "兼容性",
+  market: "发售与市场",
+} as const;
+
+export const routeCatalog = [
+  { key: "display_glasses", label: "显示眼镜", description: "强调大屏观影、游戏和第二屏体验。" },
+  { key: "ai_glasses", label: "AI 眼镜", description: "强调语音、拍摄、提示与轻量交互入口。" },
+  { key: "standalone_xr", label: "独立 XR", description: "更接近完整系统，强调空间计算与独立交互。" },
+  { key: "developer_device", label: "开发设备", description: "更适合研究 SDK、传感器和输入边界。" },
+] as const;
+
+export const brandCatalog = [
   {
-    key: "display",
-    label: "显示与佩戴",
-    fields: [
-      "display_type",
-      "resolution",
-      "refresh_rate",
-      "brightness",
-      "field_of_view",
-      "ppd",
-      "color_gamut",
-      "waveguide_type",
-      "lens_type",
-      "diopter_support",
-      "myopia_adjustment",
-      "transparency",
-      "dimming",
-      "weight",
-      "dimensions",
-      "frame_style",
-      "ip_rating",
-    ] as const,
+    key: "xreal",
+    slug: "xreal",
+    name: "XREAL",
+    displayName: "XREAL",
+    shortIntro: "显示路线最完整的品牌之一，覆盖日常观影到空间显示探索。",
+    positioning: "偏显示体验与空间显示增强。",
+    websiteUrl: "https://www.xreal.com/",
+    brandMarkType: "wordmark",
+    brandMarkText: "XREAL",
+    featuredProducts: ["xreal-one", "xreal-one-pro", "xreal-air-2-pro"],
   },
   {
-    key: "system",
-    label: "系统与交互",
-    fields: [
-      "chipset",
-      "memory",
-      "storage",
-      "sensors",
-      "camera",
-      "microphone",
-      "speakers",
-      "sdk_availability",
-      "supported_devices",
-      "os_compatibility",
-    ] as const,
+    key: "rayneo",
+    slug: "rayneo",
+    name: "RayNeo",
+    displayName: "RayNeo",
+    shortIntro: "同时覆盖显示眼镜和独立 XR 路线，产品跨度较大。",
+    positioning: "从便携显示到更完整 XR 系统。",
+    websiteUrl: "https://www.rayneo.com/",
+    brandMarkType: "wordmark",
+    brandMarkText: "RayNeo",
+    featuredProducts: ["rayneo-x2"],
   },
   {
-    key: "power",
-    label: "连接与供电",
-    fields: [
-      "connectivity",
-      "ports",
-      "battery_life",
-      "battery_capacity",
-      "charging",
-      "power_source",
-    ] as const,
+    key: "rokid",
+    slug: "rokid",
+    name: "Rokid",
+    displayName: "Rokid",
+    shortIntro: "同时做显示眼镜和 AI 入口，适合横向比较不同路线。",
+    positioning: "显示 + AI 双路线。",
+    websiteUrl: "https://global.rokid.com/",
+    brandMarkType: "wordmark",
+    brandMarkText: "Rokid",
+    featuredProducts: ["rokid-max", "rokid-glasses"],
   },
   {
-    key: "market",
-    label: "购买与可得性",
-    fields: ["price", "region", "availability", "release_year"] as const,
+    key: "viture",
+    slug: "viture",
+    name: "VITURE",
+    displayName: "VITURE",
+    shortIntro: "主打显示型 XR 眼镜，强调便携娱乐和外接生态。",
+    positioning: "显示型 XR 眼镜。",
+    websiteUrl: "https://www.viture.com/",
+    brandMarkType: "wordmark",
+    brandMarkText: "VITURE",
+    featuredProducts: ["viture-pro"],
   },
+  {
+    key: "inmo",
+    slug: "inmo",
+    name: "INMO",
+    displayName: "INMO",
+    shortIntro: "更偏轻量 AR 与提示式交互，适合观察日常佩戴路线。",
+    positioning: "轻量 AR 与日常信息入口。",
+    websiteUrl: "https://www.inmoglobal.com/",
+    brandMarkType: "wordmark",
+    brandMarkText: "INMO",
+    featuredProducts: ["inmo-air-2"],
+  },
+  {
+    key: "meta",
+    slug: "meta",
+    name: "Meta AI Glasses",
+    displayName: "Meta AI Glasses",
+    shortIntro: "代表无显示 AI 眼镜路线，重点在拍摄、音频和语音入口。",
+    positioning: "无显示智能眼镜。",
+    websiteUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+    brandMarkType: "wordmark",
+    brandMarkText: "META",
+    featuredProducts: ["ray-ban-meta"],
+  },
+  {
+    key: "brilliant-labs",
+    slug: "brilliant-labs",
+    name: "Brilliant Labs",
+    displayName: "Brilliant Labs",
+    shortIntro: "更偏开放实验与开发探索，不以成熟消费体验为核心。",
+    positioning: "实验型 AI 穿戴设备。",
+    websiteUrl: "https://brilliant.xyz/products/frame",
+    brandMarkType: "wordmark",
+    brandMarkText: "FRAME",
+    featuredProducts: ["brilliant-labs-frame"],
+  },
+  {
+    key: "even-realities",
+    slug: "even-realities",
+    name: "Even Realities",
+    displayName: "Even Realities",
+    shortIntro: "强调低干扰信息显示与日常佩戴，不走大屏路线。",
+    positioning: "轻量提示式智能眼镜。",
+    websiteUrl: "https://www.evenrealities.com/en-FI/g1",
+    brandMarkType: "wordmark",
+    brandMarkText: "G1",
+    featuredProducts: ["even-realities-g1"],
+  },
+  {
+    key: "apple",
+    slug: "apple",
+    name: "Apple",
+    displayName: "Apple Vision",
+    shortIntro: "代表高端独立空间计算路线，适合研究完整系统级体验。",
+    positioning: "独立空间计算头显。",
+    websiteUrl: "https://www.apple.com/apple-vision-pro/",
+    brandMarkType: "wordmark",
+    brandMarkText: "Vision",
+    featuredProducts: ["apple-vision-pro"],
+  },
+] as const satisfies readonly BrandDefinition[];
+
+const deviceCatalog = {
+  "xreal-one": {
+    slug: "xreal-one",
+    brandKey: "xreal",
+    brandName: "XREAL",
+    name: "XREAL One",
+    shortDescription: "面向显示型眼镜进阶用户，重点在更强的空间显示控制和日常外接体验。",
+    longDescription: "XREAL One 更适合作为高阶显示眼镜来理解，它依然围绕外接设备工作，但比传统观影眼镜更强调空间显示稳定性和眼镜本体参与度。",
+    imageAlt: "XREAL One 产品视觉",
+    productUrl: "https://us.shop.xreal.com/products/xreal-one",
+    sourceUrl: "https://us.shop.xreal.com/products/xreal-one",
+    sourceName: "XREAL official",
+    category: "display_glasses",
+    routeLabel: "显示眼镜",
+    routeDescription: "更适合观影、游戏、移动第二屏和显示链路研究。",
+    bestFor: ["观影与掌机大屏", "便携第二屏", "关注空间显示增强"],
+    notIdealFor: ["期待完整独立系统", "想直接装普通应用"],
+    keySpecs: { refresh_rate: "120Hz", brightness: "600 nits", field_of_view: "50°", price: "USD 399" },
+    fullSpecs: {
+      display: { refresh_rate: "120Hz", brightness: "600 nits", field_of_view: "50°" },
+      market: { price: "USD 399", availability: "在售" },
+    },
+  },
+  "xreal-one-pro": {
+    slug: "xreal-one-pro",
+    brandKey: "xreal",
+    brandName: "XREAL",
+    name: "XREAL One Pro",
+    shortDescription: "同路线的更高阶版本，更适合关注视场角和显示边界的用户。",
+    longDescription: "XREAL One Pro 仍然属于显示型路线，但更偏向给已经理解这类产品的人做升级选择，核心看点是更开阔的视场和更完整的显示体验。",
+    imageAlt: "XREAL One Pro 产品视觉",
+    productUrl: "https://www.xreal.com/us/one-pro",
+    sourceUrl: "https://www.xreal.com/us/one-pro",
+    sourceName: "XREAL official",
+    category: "display_glasses",
+    routeLabel: "显示眼镜",
+    routeDescription: "以显示体验升级为主，而不是独立系统替代。",
+    bestFor: ["想升级视场角", "继续走显示眼镜路线", "对空间显示更敏感"],
+    notIdealFor: ["期待本机应用生态", "需要明确开发接口"],
+    keySpecs: { refresh_rate: "120Hz", field_of_view: "57°" },
+    fullSpecs: {
+      display: { refresh_rate: "120Hz", field_of_view: "57°" },
+    },
+  },
+  "xreal-air-2-pro": {
+    slug: "xreal-air-2-pro",
+    brandKey: "xreal",
+    brandName: "XREAL",
+    name: "XREAL Air 2 Pro",
+    shortDescription: "成熟度较高的显示型产品，适合和 VITURE、Rokid Max 做横向对比。",
+    longDescription: "XREAL Air 2 Pro 更适合当作成熟显示眼镜的参考样本，核心看连接便利性、日常佩戴和显示效果是否满足便携娱乐需求。",
+    imageAlt: "XREAL Air 2 Pro 产品视觉",
+    productUrl: "https://us.shop.xreal.com/products/xreal-air-2-pro",
+    sourceUrl: "https://us.shop.xreal.com/products/xreal-air-2-pro",
+    sourceName: "XREAL official",
+    category: "display_glasses",
+    routeLabel: "显示眼镜",
+    routeDescription: "偏日常便携观影和轻办公外接。",
+    bestFor: ["观影与游戏", "轻办公第二屏", "对比主流显示眼镜"],
+    notIdealFor: ["期待独立 AR 系统", "依赖机身摄像与感知能力"],
+    keySpecs: { refresh_rate: "120Hz", brightness: "500 nits", field_of_view: "46°", price: "USD 249" },
+    fullSpecs: {
+      display: { refresh_rate: "120Hz", brightness: "500 nits", field_of_view: "46°" },
+      market: { price: "USD 249", availability: "在售" },
+    },
+    pendingFields: ["重量", "兼容设备细项"],
+  },
+  "xreal-air-2-ultra": {
+    slug: "xreal-air-2-ultra",
+    brandKey: "xreal",
+    brandName: "XREAL",
+    name: "XREAL Air 2 Ultra",
+    shortDescription: "更接近开发与空间计算实验路线，不应只按消费观影逻辑判断。",
+    longDescription: "Air 2 Ultra 的价值更偏向开发和空间交互实验，适合研究 SDK、感知边界和空间计算体验，而不是把它视作普通显示眼镜升级款。",
+    imageAlt: "XREAL Air 2 Ultra 产品视觉",
+    productUrl: "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+    sourceUrl: "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+    sourceName: "XREAL official",
+    category: "developer_device",
+    routeLabel: "开发设备",
+    routeDescription: "重在开发与实验，不是纯消费级显示设备。",
+    bestFor: ["空间计算实验", "开发验证", "研究传感与输入"],
+    notIdealFor: ["只想观影", "期待低门槛开箱即用"],
+    keySpecs: { refresh_rate: "120Hz" },
+    fullSpecs: {
+      display: { refresh_rate: "120Hz" },
+    },
+  },
+  "rayneo-x2": {
+    slug: "rayneo-x2",
+    brandKey: "rayneo",
+    brandName: "RayNeo",
+    name: "RayNeo X2",
+    shortDescription: "更接近独立 XR 系统，适合观察导航、翻译和系统交互路线。",
+    longDescription: "RayNeo X2 是更接近完整独立 XR 路线的样本，核心不在大屏观影，而在系统级交互、轻导航和信息叠加的实际可用性。",
+    imageAlt: "RayNeo X2 产品视觉",
+    productUrl: "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+    sourceUrl: "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+    sourceName: "RayNeo official",
+    category: "standalone_xr",
+    routeLabel: "独立 XR",
+    routeDescription: "强调系统级体验，而不是外接大屏。",
+    bestFor: ["观察独立 XR 交互", "导航与翻译场景", "系统级样本研究"],
+    notIdealFor: ["只想看大屏", "期望低成本娱乐设备"],
+    keySpecs: { camera: "16MP", battery_life: "3h", storage: "128GB", memory: "6GB" },
+    fullSpecs: {
+      hardware: { camera: "16MP", memory: "6GB", storage: "128GB" },
+      battery: { battery_life: "3h" },
+    },
+  },
+  "rokid-max": {
+    slug: "rokid-max",
+    brandKey: "rokid",
+    brandName: "Rokid",
+    name: "Rokid Max",
+    shortDescription: "典型显示型眼镜路线，适合做大屏娱乐与连接体验对照。",
+    longDescription: "Rokid Max 适合当作主流显示眼镜的代表样本，重点看清晰度、声音、连接便利性和长时间佩戴舒适度。",
+    imageAlt: "Rokid Max 产品视觉",
+    productUrl: "https://global.rokid.com/products/rokid-max",
+    sourceUrl: "https://global.rokid.com/products/rokid-max",
+    sourceName: "Rokid official",
+    category: "display_glasses",
+    routeLabel: "显示眼镜",
+    routeDescription: "观影、大屏和游戏外接路线。",
+    bestFor: ["便携观影", "掌机/主机外接", "对比显示眼镜体验"],
+    notIdealFor: ["需要独立系统", "想用眼镜端运行应用"],
+    keySpecs: { battery_life: "5h" },
+    fullSpecs: {
+      battery: { battery_life: "5h" },
+    },
+    pendingFields: ["亮度", "视场角", "重量"],
+  },
+  "rokid-glasses": {
+    slug: "rokid-glasses",
+    brandKey: "rokid",
+    brandName: "Rokid",
+    name: "Rokid Glasses",
+    shortDescription: "更偏 AI 眼镜入口，适合看语音、拍摄与轻量信息入口是否成立。",
+    longDescription: "Rokid Glasses 与显示型路线不同，核心不是大屏，而是日常佩戴下的语音、提示与轻量摄像入口。",
+    imageAlt: "Rokid Glasses 产品视觉",
+    productUrl: "https://global.rokid.com/products/rokid-glasses",
+    sourceUrl: "https://global.rokid.com/products/rokid-glasses",
+    sourceName: "Rokid official",
+    category: "ai_glasses",
+    routeLabel: "AI 眼镜",
+    routeDescription: "更偏无感佩戴和信息入口。",
+    bestFor: ["语音入口", "轻量拍摄", "研究 AI 穿戴入口"],
+    notIdealFor: ["期待大屏显示", "想做空间界面开发"],
+    keySpecs: { resolution: "3024×4032", brightness: "1500 nits", field_of_view: "30°", camera: "12MP" },
+    fullSpecs: {
+      display: { resolution: "3024×4032", brightness: "1500 nits", field_of_view: "30°" },
+      hardware: { camera: "12MP" },
+    },
+  },
+  "viture-pro": {
+    slug: "viture-pro",
+    brandKey: "viture",
+    brandName: "VITURE",
+    name: "VITURE Pro",
+    shortDescription: "显示型 XR 眼镜，适合和 XREAL、Rokid 比较便携显示路线。",
+    longDescription: "VITURE Pro 仍属于显示型眼镜路线，重点是画面、连接生态和便携娱乐体验是否稳定成熟。",
+    imageAlt: "VITURE Pro 产品视觉",
+    productUrl: "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+    sourceUrl: "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+    sourceName: "VITURE official",
+    category: "display_glasses",
+    routeLabel: "显示眼镜",
+    routeDescription: "偏便携娱乐和外接显示生态。",
+    bestFor: ["便携观影", "对比显示路线", "外接娱乐设备"],
+    notIdealFor: ["期待独立 AI/AR 系统", "优先开发开放平台"],
+  },
+  "inmo-air-2": {
+    slug: "inmo-air-2",
+    brandKey: "inmo",
+    brandName: "INMO",
+    name: "INMO Air 2",
+    shortDescription: "更偏轻量 AR 与提示式体验，适合观察日常佩戴路线。",
+    longDescription: "INMO Air 2 更适合被看作轻量 AR 和日常提示路线的样本，重点在佩戴形态、输入边界和低干扰信息呈现。",
+    imageAlt: "INMO Air 2 产品视觉",
+    productUrl: "https://www.inmoxr.com/pages/inmo-air2",
+    sourceUrl: "https://www.inmoxr.com/pages/inmo-air2",
+    sourceName: "INMO official",
+    category: "standalone_xr",
+    routeLabel: "独立 XR",
+    routeDescription: "强调轻量 AR 而不是纯显示大屏。",
+    bestFor: ["研究提示式 AR", "日常佩戴尝试", "观察轻量系统边界"],
+    notIdealFor: ["追求沉浸大屏", "把它当成熟消费平台"],
+  },
+  "ray-ban-meta": {
+    slug: "ray-ban-meta",
+    brandKey: "meta",
+    brandName: "Meta AI Glasses",
+    name: "Ray-Ban Meta",
+    shortDescription: "无显示智能眼镜代表样本，重点在拍摄、音频和语音入口。",
+    longDescription: "Ray-Ban Meta 的研究价值在于它说明智能眼镜并不一定从显示开始，而是先从拍摄、音频和 AI 助手切入高频日常使用。",
+    imageAlt: "Ray-Ban Meta 产品视觉",
+    productUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+    sourceUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+    sourceName: "Ray-Ban official",
+    category: "ai_glasses",
+    routeLabel: "AI 眼镜",
+    routeDescription: "无显示、重拍摄和语音入口。",
+    bestFor: ["第一视角拍摄", "音频交互", "轻量 AI 穿戴研究"],
+    notIdealFor: ["期待显示大屏", "想做波导或空间界面开发"],
+  },
+  "brilliant-labs-frame": {
+    slug: "brilliant-labs-frame",
+    brandKey: "brilliant-labs",
+    brandName: "Brilliant Labs",
+    name: "Brilliant Labs Frame",
+    shortDescription: "更偏开放实验与硬件探索，适合开发和原型研究。",
+    longDescription: "Frame 更像一个开放实验设备，而不是成熟消费眼镜。它的价值在于让你观察 AI 穿戴的开放边界，而不是直接提供完整消费体验。",
+    imageAlt: "Brilliant Labs Frame 产品视觉",
+    productUrl: "https://brilliant.xyz/products/frame",
+    sourceUrl: "https://docs.brilliant.xyz/frame/hardware/",
+    sourceName: "Brilliant Labs docs",
+    category: "developer_device",
+    routeLabel: "开发设备",
+    routeDescription: "强调开放实验，而不是消费级完成度。",
+    bestFor: ["开发探索", "原型验证", "研究开放硬件方向"],
+    notIdealFor: ["直接消费使用", "期待成熟娱乐体验"],
+  },
+  "even-realities-g1": {
+    slug: "even-realities-g1",
+    brandKey: "even-realities",
+    brandName: "Even Realities",
+    name: "Even Realities G1",
+    shortDescription: "低干扰提示型智能眼镜，更适合看通知、翻译和轻量信息入口。",
+    longDescription: "G1 更适合被看作低干扰信息提示路线的产品，它不是沉浸式 AR 大屏，而是更接近日常佩戴和轻量信息增强。",
+    imageAlt: "Even Realities G1 产品视觉",
+    productUrl: "https://www.evenrealities.com/en-FI/g1",
+    sourceUrl: "https://www.evenrealities.com/en-FI/g1",
+    sourceName: "Even Realities official",
+    category: "ai_glasses",
+    routeLabel: "AI 眼镜",
+    routeDescription: "更偏提示型智能眼镜，不走大屏路线。",
+    bestFor: ["通知与轻量信息", "低干扰佩戴", "提示式眼镜观察"],
+    notIdealFor: ["期待沉浸式显示", "需要开放 XR 平台"],
+  },
+  "apple-vision-pro": {
+    slug: "apple-vision-pro",
+    brandKey: "apple",
+    brandName: "Apple",
+    name: "Apple Vision Pro",
+    shortDescription: "高端独立空间计算头显，适合研究完整系统级体验与交互方式。",
+    longDescription: "Apple Vision Pro 更接近完整的独立空间计算系统。它不属于轻量眼镜路线，适合观察系统级交互、内容形态与高端硬件集成方式。",
+    imageAlt: "Apple Vision Pro 产品视觉",
+    productUrl: "https://www.apple.com/apple-vision-pro/",
+    sourceUrl: "https://support.apple.com/en-us/125436",
+    sourceName: "Apple official",
+    category: "standalone_xr",
+    routeLabel: "独立 XR",
+    routeDescription: "完整独立系统和高端空间计算路线。",
+    bestFor: ["系统级空间计算研究", "高端 XR 体验", "观察完整交互范式"],
+    notIdealFor: ["轻量佩戴", "便携显示替代", "低预算试水"],
+    keySpecs: { display_type: "Micro‑OLED", resolution: "23 million pixels", refresh_rate: "90/96/100/120Hz", chipset: "Apple M5 + R1" },
+    fullSpecs: {
+      display: { display_type: "Micro‑OLED", resolution: "23 million pixels", refresh_rate: "90/96/100/120Hz", color_gamut: "92% DCI‑P3" },
+      hardware: { chipset: "Apple M5 + R1", camera: "6.5 stereo MP", sensors: "12 cameras + LiDAR + IMUs", storage: "256GB / 512GB / 1TB" },
+    },
+    manualCompleteness: 0.62,
+  },
+} satisfies Record<string, DeviceDefinition>;
+
+export type DeviceKey = keyof typeof deviceCatalog;
+export type DeviceCatalogEntry = (typeof deviceCatalog)[DeviceKey];
+export type BrandKey = (typeof brandCatalog)[number]["key"];
+
+const specGroupOrder = [
+  { key: "display", label: manualSpecGroups.display, fields: ["display_type", "resolution", "refresh_rate", "brightness", "field_of_view", "ppd", "color_gamut"] as DeviceSpecField[] },
+  { key: "optics", label: manualSpecGroups.optics, fields: ["waveguide_type", "lens_type", "diopter_support", "myopia_adjustment", "transparency", "dimming"] as DeviceSpecField[] },
+  { key: "hardware", label: manualSpecGroups.hardware, fields: ["chipset", "memory", "storage", "sensors", "camera", "microphone", "speakers", "sdk_availability"] as DeviceSpecField[] },
+  { key: "battery", label: manualSpecGroups.battery, fields: ["battery_life", "battery_capacity", "charging", "power_source"] as DeviceSpecField[] },
+  { key: "physical", label: manualSpecGroups.physical, fields: ["weight", "dimensions", "frame_style", "ip_rating"] as DeviceSpecField[] },
+  { key: "compatibility", label: manualSpecGroups.compatibility, fields: ["connectivity", "ports", "supported_devices", "os_compatibility"] as DeviceSpecField[] },
+  { key: "market", label: manualSpecGroups.market, fields: ["price", "region", "availability", "release_year"] as DeviceSpecField[] },
 ] as const;
 
 function normalizeValue(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
-  if (!trimmed || trimmed.toLowerCase() === "unknown") return null;
+  if (!trimmed || trimmed.toLowerCase() === "unknown" || trimmed.toLowerCase() === "mentioned") return null;
+  if (trimmed.includes("choose your lens options")) return null;
+  if (trimmed === "Wifi 6G | Wifi 8G") return null;
+  if (trimmed === "5g") return null;
+  if (trimmed.length > 90) return null;
   return trimmed;
+}
+
+function mergeSpecs(primary?: DeviceSpecs, fallback?: DeviceSpecs) {
+  const merged: DeviceSpecs = {};
+  for (const field of Object.keys(deviceSpecLabels) as DeviceSpecField[]) {
+    const manualValue = normalizeValue(primary?.[field]);
+    const fallbackValue = normalizeValue(fallback?.[field]);
+    if (manualValue) merged[field] = manualValue;
+    else if (fallbackValue) merged[field] = fallbackValue;
+  }
+  return merged;
+}
+
+function pickSpecs(specs: DeviceSpecs, fields: DeviceSpecField[]) {
+  const items = fields
+    .map((field) => {
+      const value = normalizeValue(specs[field]);
+      return value ? { field, label: deviceSpecLabels[field], value } : null;
+    })
+    .filter(Boolean) as Array<{ field: DeviceSpecField; label: string; value: string }>;
+  return items;
 }
 
 export function formatSnapshotDate(value?: string | null) {
@@ -380,88 +550,20 @@ export function formatSnapshotDate(value?: string | null) {
   return date.toISOString().slice(0, 10);
 }
 
-export function formatConfidence(value?: number | null) {
+function formatCompleteness(value?: number | null) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "待补充";
+  if (value >= 0.7) return "较完整";
+  if (value >= 0.35) return "部分已确认";
+  return "待补充";
+}
+
+function formatPercent(value?: number | null) {
   if (typeof value !== "number" || Number.isNaN(value)) return null;
   return `${Math.round(value * 100)}%`;
 }
 
 export function getDeviceSnapshot(slug: string) {
   return snapshotMap.get(slug) ?? null;
-}
-
-export function getKnownSpecs(slug: string) {
-  const snapshot = getDeviceSnapshot(slug);
-  if (!snapshot?.specs) return [] as Array<{ field: DeviceSpecField; label: string; value: string }>;
-
-  return Object.entries(deviceSpecLabels)
-    .map(([field, label]) => {
-      const value = normalizeValue(snapshot.specs?.[field as DeviceSpecField]);
-      return value ? { field: field as DeviceSpecField, label, value } : null;
-    })
-    .filter(Boolean) as Array<{ field: DeviceSpecField; label: string; value: string }>;
-}
-
-export function getSpecGroups(slug: string) {
-  const specs = getKnownSpecs(slug);
-  return specGroups
-    .map((group) => ({
-      ...group,
-      items: group.fields
-        .map((field) => specs.find((item) => item.field === field))
-        .filter(Boolean) as Array<{ field: DeviceSpecField; label: string; value: string }>,
-    }))
-    .filter((group) => group.items.length > 0);
-}
-
-export function getPreviewSpecs(slug: string) {
-  const order: DeviceSpecField[] = [
-    "display_type",
-    "resolution",
-    "refresh_rate",
-    "brightness",
-    "field_of_view",
-    "camera",
-    "battery_life",
-    "weight",
-    "price",
-  ];
-  const knownSpecs = getKnownSpecs(slug);
-  return order
-    .map((field) => knownSpecs.find((item) => item.field === field))
-    .filter(Boolean)
-    .slice(0, 4) as Array<{ field: DeviceSpecField; label: string; value: string }>;
-}
-
-export function getDeviceBySlug(slug: string) {
-  if (!slug || !(slug in deviceCatalog)) return null;
-  const base = deviceCatalog[slug as DeviceKey];
-  const snapshot = getDeviceSnapshot(slug);
-  return {
-    ...base,
-    snapshot,
-    knownSpecs: getKnownSpecs(slug),
-    specGroups: getSpecGroups(slug),
-    previewSpecs: getPreviewSpecs(slug),
-    knownSpecCount: getKnownSpecs(slug).length,
-    lastCheckedLabel: formatSnapshotDate(snapshot?.last_checked_at),
-    confidence: typeof snapshot?.confidence === "number" ? snapshot.confidence : null,
-    confidenceLabel: formatConfidence(snapshot?.confidence),
-    missingFields:
-      snapshot?.missing_fields
-        ?.map((field) => deviceSpecLabels[field as DeviceSpecField] ?? field)
-        .filter(Boolean) ?? [],
-  };
-}
-
-export function getVisibleDevices(options: { brandKey?: string | null; routeKey?: string | null }) {
-  return Object.values(deviceCatalog)
-    .filter((device) => {
-      if (options.brandKey && device.brandKey !== options.brandKey) return false;
-      if (options.routeKey && device.routeKey !== options.routeKey) return false;
-      return true;
-    })
-    .map((device) => getDeviceBySlug(device.slug))
-    .filter(Boolean);
 }
 
 export function getBrandByKey(brandKey: string | null | undefined) {
@@ -473,10 +575,88 @@ export function getBrandCount(brandKey: string) {
   return Object.values(deviceCatalog).filter((device) => device.brandKey === brandKey).length;
 }
 
-export function getRouteCount(routeKey: string) {
-  return Object.values(deviceCatalog).filter((device) => device.routeKey === routeKey).length;
+export function getBrandProducts(brandKey: string) {
+  return Object.values(deviceCatalog)
+    .filter((device) => device.brandKey === brandKey)
+    .map((device) => getDeviceBySlug(device.slug))
+    .filter(Boolean);
 }
 
 export function getDevicesByBrand(brandKey: string) {
-  return getVisibleDevices({ brandKey, routeKey: null });
+  return getBrandProducts(brandKey);
+}
+
+export function getAllDevices() {
+  return Object.values(deviceCatalog)
+    .map((device) => getDeviceBySlug(device.slug))
+    .filter(Boolean);
+}
+
+export function getBrandSummaries() {
+  return brandCatalog.map((brand) => {
+    const products = getBrandProducts(brand.key);
+    return {
+      ...brand,
+      productCount: products.length,
+      featuredProducts: products.filter((device) => brand.featuredProducts.includes(device.slug)).slice(0, 3),
+      representativeNames: products
+        .filter((device) => brand.featuredProducts.includes(device.slug))
+        .map((device) => device.name)
+        .slice(0, 3),
+    };
+  });
+}
+
+export function getDeviceBySlug(slug: string) {
+  if (!slug || !(slug in deviceCatalog)) return null;
+  const base = deviceCatalog[slug as DeviceKey];
+  const snapshot = getDeviceSnapshot(slug);
+  const mergedSpecs = mergeSpecs(base.keySpecs, snapshot?.specs);
+  const groupedSpecs = specGroupOrder
+    .map((group) => {
+      const manualGroup = base.fullSpecs?.[group.key as keyof NonNullable<typeof base.fullSpecs>] ?? {};
+      const groupSpecs = mergeSpecs(manualGroup, snapshot?.specs);
+      const items = pickSpecs(groupSpecs, group.fields);
+      return items.length ? { key: group.key, label: group.label, items } : null;
+    })
+    .filter(Boolean) as Array<{ key: string; label: string; items: Array<{ field: DeviceSpecField; label: string; value: string }> }>;
+
+  const completeness =
+    typeof base.manualCompleteness === "number"
+      ? base.manualCompleteness
+      : typeof snapshot?.confidence === "number"
+        ? snapshot.confidence
+        : groupedSpecs.length > 0
+          ? Math.min(0.68, groupedSpecs.reduce((sum, group) => sum + group.items.length, 0) / 24)
+          : 0.2;
+
+  const missingFields = Array.from(
+    new Set([
+      ...(base.pendingFields ?? []),
+      ...((snapshot?.missing_fields ?? [])
+        .map((field) => deviceSpecLabels[field as DeviceSpecField] ?? null)
+        .filter(Boolean) as string[]),
+    ]),
+  );
+
+  const previewSpecs = pickSpecs(mergedSpecs, ["display_type", "resolution", "refresh_rate", "brightness", "field_of_view", "camera", "weight", "price", "chipset"]).slice(0, 5);
+
+  return {
+    ...base,
+    title: base.name,
+    brandLabel: base.brandName,
+    snapshot,
+    productImageUrl: base.productImageUrl ?? snapshot?.official_image_url ?? null,
+    officialImageUrl: base.officialImageUrl ?? snapshot?.official_image_url ?? null,
+    previewSpecs,
+    specGroups: groupedSpecs,
+    keySpecs: previewSpecs,
+    knownSpecCount: groupedSpecs.reduce((sum, group) => sum + group.items.length, 0),
+    lastCheckedLabel: formatSnapshotDate(base.lastCheckedAt ?? snapshot?.last_checked_at),
+    completeness,
+    completenessLabel: formatCompleteness(completeness),
+    completenessPercent: formatPercent(completeness),
+    missingFields,
+    pendingSpecLabels: missingFields.slice(0, 8),
+  };
 }

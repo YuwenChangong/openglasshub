@@ -2,6 +2,8 @@
 export const prerender = false;
 
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import BrandMark from "../../components/products/BrandMark.astro";
+import ProductVisual from "../../components/products/ProductVisual.astro";
 import { getDeviceBySlug } from "../../lib/device-catalog";
 
 const slug = Astro.params.slug ?? "";
@@ -35,12 +37,24 @@ if (!device) {
   activeSection="products"
 >
   <section class="device-detail-head">
+    <div class="device-detail-head__visual">
+      <ProductVisual imageUrl={device.productImageUrl ?? device.officialImageUrl} alt={device.imageAlt} brandMark={device.brandLabel} title={device.title} variant="hero" />
+    </div>
     <div class="device-detail-head__copy">
-      <a href={`/products/${device.brandKey}/`} class="device-detail-head__back">{device.brandLabel}</a>
+      <a href={`/products/${device.brandKey}/`} class="device-detail-head__back">返回 {device.brandLabel}</a>
+      <BrandMark text={device.brandLabel} compact={true} />
       <h1>{entry.frontmatter.title}</h1>
       {entry.frontmatter.description && <p>{entry.frontmatter.description}</p>}
+      <div class="device-detail-head__meta">
+        <span>{device.routeLabel}</span>
+        <span>{device.completenessLabel}{device.completenessPercent ? ` · ${device.completenessPercent}` : ""}</span>
+        {device.lastCheckedLabel && <span>更新 {device.lastCheckedLabel}</span>}
+      </div>
+      <div class="device-detail-head__actions">
+        <a href={device.sourceUrl} target="_blank" rel="noreferrer" class="community-button--secondary">官方参考</a>
+        <a href={device.productUrl} target="_blank" rel="noreferrer" class="community-link">产品页</a>
+      </div>
     </div>
-    <a href={device.sourceUrl} target="_blank" rel="noreferrer" class="community-button--secondary">官方参考</a>
   </section>
 
   {device.previewSpecs.length > 0 && (
@@ -57,16 +71,35 @@ if (!device) {
   <section class="device-fit-grid">
     <article class="community-surface device-fit-card">
       <h2>适合</h2>
-      <p>{device.fit}</p>
+      <ul>
+        {device.bestFor.map((item) => (
+          <li>{item}</li>
+        ))}
+      </ul>
     </article>
     <article class="community-surface device-fit-card">
       <h2>不太适合</h2>
-      <p>{device.avoid}</p>
+      <ul>
+        {device.notIdealFor.map((item) => (
+          <li>{item}</li>
+        ))}
+      </ul>
     </article>
   </section>
 
+  {device.missingFields.length > 0 && (
+    <section class="device-pending-panel">
+      <h2>待补充参数</h2>
+      <div class="device-pending-panel__list">
+        {device.pendingSpecLabels.map((item) => (
+          <span>{item}</span>
+        ))}
+      </div>
+    </section>
+  )}
+
   {device.specGroups.length > 0 && (
-    <section class="community-surface device-spec-panel">
+    <section class="device-spec-panel">
       <h2>参数</h2>
       <div class="device-spec-groups">
         {device.specGroups.map((group) => (
@@ -86,23 +119,39 @@ if (!device) {
     </section>
   )}
 
-  <article class="community-surface device-intro">
+  <section class="device-source-panel">
+    <div>
+      <h2>来源</h2>
+      <p>{device.sourceName}</p>
+    </div>
+    <div class="device-source-panel__meta">
+      {device.lastCheckedLabel && <span>最后核对 {device.lastCheckedLabel}</span>}
+      <span>{device.completenessLabel}</span>
+      <a href={device.sourceUrl} target="_blank" rel="noreferrer" class="community-link">查看来源</a>
+    </div>
+  </section>
+
+  <article class="device-intro">
     <h2>介绍</h2>
+    <p class="device-intro__lead">{device.longDescription}</p>
     <Content />
   </article>
 </CommunityLayout>
 
 <style>
   .device-detail-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
     gap: 1rem;
-    padding: 0.85rem 0 1rem;
+    padding: 0.95rem 0 1.2rem;
+  }
+  .device-detail-head__visual {
+    min-width: 0;
   }
   .device-detail-head__copy {
     display: grid;
-    gap: 0.5rem;
+    align-content: start;
+    gap: 0.62rem;
     min-width: 0;
   }
   .device-detail-head__back {
@@ -128,6 +177,23 @@ if (!device) {
     color: var(--text-muted);
     line-height: 1.62;
   }
+  .device-detail-head__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+  .device-detail-head__meta span,
+  .device-source-panel p,
+  .device-source-panel__meta span {
+    color: rgba(245, 245, 245, 0.64);
+    font-size: 0.84rem;
+  }
+  .device-detail-head__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.7rem;
+  }
   .device-key-specs,
   .device-fit-grid {
     display: grid;
@@ -138,9 +204,10 @@ if (!device) {
   .device-key-spec,
   .device-fit-card,
   .device-spec-group {
-    border-radius: 14px;
+    border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.025);
+    background: linear-gradient(180deg, rgba(15, 18, 22, 0.98), rgba(9, 11, 14, 1));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
   .device-key-spec {
     display: grid;
@@ -168,15 +235,53 @@ if (!device) {
     font-size: 1.15rem;
     letter-spacing: -0.02em;
   }
-  .device-fit-card p {
+  .device-fit-card ul {
+    display: grid;
+    gap: 0.42rem;
     margin: 0;
+    padding-left: 1.1rem;
     color: var(--text-muted);
     line-height: 1.6;
   }
-  .device-spec-panel,
-  .device-intro {
+  .device-pending-panel {
+    display: grid;
+    gap: 0.65rem;
     margin-top: 1rem;
     padding: 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(14, 17, 21, 0.98), rgba(9, 11, 14, 1));
+  }
+  .device-pending-panel h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.05rem;
+  }
+  .device-pending-panel__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  .device-pending-panel__list span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.85rem;
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: rgba(245, 245, 245, 0.68);
+    font-size: 0.78rem;
+  }
+  .device-spec-panel,
+  .device-intro,
+  .device-source-panel {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(15, 18, 22, 0.98), rgba(9, 11, 14, 1));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
   .device-spec-groups {
     display: grid;
@@ -208,11 +313,30 @@ if (!device) {
     font-size: 0.92rem;
     line-height: 1.5;
   }
+  .device-source-panel,
+  .device-source-panel__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .device-source-panel h2 {
+    margin: 0 0 0.2rem;
+    color: var(--text);
+    font-size: 1rem;
+  }
   .device-intro :global(h2) {
     margin: 1.35rem 0 0.6rem;
     color: var(--text);
     font-size: 1.08rem;
     letter-spacing: -0.02em;
+  }
+  .device-intro__lead {
+    margin: 0;
+    color: rgba(245, 245, 245, 0.82);
+    line-height: 1.68;
+    max-width: 68ch;
   }
   .device-intro :global(h3) {
     margin: 1rem 0 0.45rem;
@@ -239,11 +363,16 @@ if (!device) {
   }
   @media (max-width: 720px) {
     .device-detail-head {
-      flex-direction: column;
+      grid-template-columns: 1fr;
     }
     .device-spec-row {
       grid-template-columns: 1fr;
       gap: 0.18rem;
+    }
+    .device-source-panel,
+    .device-source-panel__meta {
+      align-items: flex-start;
+      flex-direction: column;
     }
   }
 </style>
