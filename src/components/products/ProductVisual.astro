@@ -8,11 +8,13 @@ interface Props {
 }
 
 const { imageUrl = null, alt, brandMark, title, variant = "card" } = Astro.props;
+const hasImage = Boolean(imageUrl);
 ---
 
-<div class:list={["product-visual", `product-visual--${variant}`]}>
+<div class:list={["product-visual", `product-visual--${variant}`, { "product-visual--with-image": hasImage, "product-visual--placeholder": !hasImage }]}>
   <span class="product-visual__glow product-visual__glow--top" aria-hidden="true"></span>
   <span class="product-visual__glow product-visual__glow--floor" aria-hidden="true"></span>
+  <span class="product-visual__mat" aria-hidden="true"></span>
   <div class="product-visual__placeholder" aria-hidden="true">
     <span class="product-visual__brand">{brandMark}</span>
     <span class="product-visual__shape product-visual__shape--left"></span>
@@ -30,18 +32,18 @@ const { imageUrl = null, alt, brandMark, title, variant = "card" } = Astro.props
     position: relative;
     overflow: hidden;
     border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     background:
-      radial-gradient(circle at 50% 18%, rgba(120, 149, 198, 0.24), transparent 38%),
-      radial-gradient(circle at 50% 78%, rgba(76, 96, 138, 0.18), transparent 34%),
+      radial-gradient(circle at 50% 14%, rgba(132, 146, 178, 0.18), transparent 36%),
+      radial-gradient(circle at 50% 78%, rgba(92, 103, 132, 0.12), transparent 32%),
       linear-gradient(180deg, rgba(13, 16, 20, 0.98), rgba(6, 8, 11, 1));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     min-width: 0;
     isolation: isolate;
   }
 
   .product-visual--card {
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 4 / 3;
   }
 
   .product-visual--hero {
@@ -58,15 +60,18 @@ const { imageUrl = null, alt, brandMark, title, variant = "card" } = Astro.props
   .product-visual img {
     position: absolute;
     inset: 0;
-    z-index: 2;
+    z-index: 3;
     object-fit: contain;
-    padding: clamp(0.85rem, 2.2vw, 1.5rem);
-    filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.34)) brightness(1.16) contrast(1.08) saturate(1.04);
+    width: 82%;
+    height: 82%;
+    margin: auto;
+    padding: 0;
+    filter: drop-shadow(0 20px 36px rgba(0, 0, 0, 0.24)) brightness(1.1) contrast(1.03) saturate(1.01);
   }
 
   .product-visual__placeholder {
     position: relative;
-    z-index: 1;
+    z-index: 2;
   }
 
   .product-visual__glow {
@@ -77,31 +82,58 @@ const { imageUrl = null, alt, brandMark, title, variant = "card" } = Astro.props
   }
 
   .product-visual__glow--top {
-    top: -8%;
-    left: 12%;
-    width: 76%;
-    height: 50%;
+    top: 0;
+    left: 20%;
+    width: 60%;
+    height: 38%;
     border-radius: 999px;
-    background: radial-gradient(circle, rgba(162, 192, 255, 0.16), rgba(162, 192, 255, 0.04) 42%, transparent 72%);
+    background: radial-gradient(circle, rgba(208, 216, 235, 0.18), rgba(208, 216, 235, 0.05) 44%, transparent 74%);
     filter: blur(24px);
   }
 
   .product-visual__glow--floor {
-    left: 16%;
-    right: 16%;
-    bottom: 8%;
-    height: 16%;
+    left: 22%;
+    right: 22%;
+    bottom: 10%;
+    height: 12%;
     border-radius: 999px;
-    background: radial-gradient(circle, rgba(136, 156, 198, 0.22), rgba(136, 156, 198, 0.05) 46%, transparent 74%);
+    background: radial-gradient(circle, rgba(176, 186, 210, 0.16), rgba(176, 186, 210, 0.03) 46%, transparent 74%);
     filter: blur(20px);
+  }
+
+  .product-visual__mat {
+    position: absolute;
+    inset: 12% 18%;
+    z-index: 1;
+    border-radius: 22px;
+    background:
+      linear-gradient(180deg, rgba(242, 244, 248, 0.98), rgba(221, 226, 236, 0.92));
+    opacity: 0.2;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+
+  .product-visual--placeholder .product-visual__mat {
+    inset: 11% 14%;
+    opacity: 0.26;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.05),
+      0 26px 60px rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .product-visual--with-image .product-visual__mat {
+    opacity: 0.22;
   }
 
   .product-visual__brand {
     position: absolute;
     top: 1rem;
     left: 1rem;
-    color: rgba(245, 245, 245, 0.34);
-    font-size: 0.76rem;
+    z-index: 4;
+    color: rgba(245, 245, 245, 0.32);
+    font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.02em;
   }
@@ -110,9 +142,9 @@ const { imageUrl = null, alt, brandMark, title, variant = "card" } = Astro.props
     position: absolute;
     top: 50%;
     height: clamp(3rem, 13%, 4rem);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.024));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
     transform: translateY(-50%);
   }
 
@@ -144,8 +176,8 @@ const { imageUrl = null, alt, brandMark, title, variant = "card" } = Astro.props
     position: absolute;
     right: 1rem;
     bottom: 0.9rem;
-    z-index: 3;
-    color: rgba(245, 245, 245, 0.34);
+    z-index: 4;
+    color: rgba(245, 245, 245, 0.36);
     font-size: 0.74rem;
     font-weight: 600;
     text-align: right;

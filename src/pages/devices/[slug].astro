@@ -59,7 +59,7 @@ if (!device) {
 
   {device.previewSpecs.length > 0 && (
     <section class="device-key-specs">
-      {device.previewSpecs.map((spec) => (
+      {device.previewSpecs.slice(0, 6).map((spec) => (
         <article class="community-surface device-key-spec">
           <span>{spec.label}</span>
           <strong>{spec.value}</strong>
@@ -72,7 +72,7 @@ if (!device) {
     <article class="community-surface device-fit-card">
       <h2>适合</h2>
       <ul>
-        {device.bestFor.map((item) => (
+        {device.bestFor.slice(0, 3).map((item) => (
           <li>{item}</li>
         ))}
       </ul>
@@ -80,7 +80,7 @@ if (!device) {
     <article class="community-surface device-fit-card">
       <h2>不太适合</h2>
       <ul>
-        {device.notIdealFor.map((item) => (
+        {device.notIdealFor.slice(0, 3).map((item) => (
           <li>{item}</li>
         ))}
       </ul>
@@ -133,7 +133,6 @@ if (!device) {
 
   <article class="device-intro">
     <h2>介绍</h2>
-    <p class="device-intro__lead">{device.longDescription}</p>
     <Content />
   </article>
 </CommunityLayout>
@@ -143,7 +142,7 @@ if (!device) {
     display: grid;
     grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
     gap: 1rem;
-    padding: 0.95rem 0 1.2rem;
+    padding: 0.95rem 0 1rem;
   }
   .device-detail-head__visual {
     min-width: 0;
@@ -205,14 +204,13 @@ if (!device) {
   .device-fit-card,
   .device-spec-group {
     border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(15, 18, 22, 0.98), rgba(9, 11, 14, 1));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: linear-gradient(180deg, rgba(13, 16, 20, 0.96), rgba(9, 11, 14, 0.98));
   }
   .device-key-spec {
     display: grid;
     gap: 0.2rem;
-    padding: 0.9rem;
+    padding: 0.8rem;
   }
   .device-key-spec span,
   .device-spec-row dt {
@@ -225,7 +223,7 @@ if (!device) {
     line-height: 1.35;
   }
   .device-fit-card {
-    padding: 0.95rem 1rem;
+    padding: 0.85rem 0.95rem;
   }
   .device-fit-card h2,
   .device-spec-panel h2,
@@ -247,10 +245,10 @@ if (!device) {
     display: grid;
     gap: 0.65rem;
     margin-top: 1rem;
-    padding: 1rem;
+    padding: 0.9rem 1rem;
     border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(14, 17, 21, 0.98), rgba(9, 11, 14, 1));
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: linear-gradient(180deg, rgba(13, 16, 20, 0.96), rgba(9, 11, 14, 0.98));
   }
   .device-pending-panel h2 {
     margin: 0;
@@ -266,22 +264,21 @@ if (!device) {
     display: inline-flex;
     align-items: center;
     min-height: 1.85rem;
-    padding: 0.18rem 0.55rem;
+    padding: 0.14rem 0.48rem;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    color: rgba(245, 245, 245, 0.68);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: rgba(245, 245, 245, 0.62);
     font-size: 0.78rem;
   }
   .device-spec-panel,
   .device-intro,
   .device-source-panel {
     margin-top: 1rem;
-    padding: 1rem;
+    padding: 0.95rem 1rem;
     border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(15, 18, 22, 0.98), rgba(9, 11, 14, 1));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: linear-gradient(180deg, rgba(13, 16, 20, 0.96), rgba(9, 11, 14, 0.98));
   }
   .device-spec-groups {
     display: grid;
@@ -290,8 +287,14 @@ if (!device) {
   .device-spec-group {
     display: grid;
     gap: 0.65rem;
-    padding: 0.9rem;
+    padding: 0.75rem 0;
+    border-radius: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
+  .device-spec-group:last-child { border-bottom: 0; }
   .device-spec-group h3 {
     margin: 0;
     color: var(--text);
@@ -331,12 +334,6 @@ if (!device) {
     color: var(--text);
     font-size: 1.08rem;
     letter-spacing: -0.02em;
-  }
-  .device-intro__lead {
-    margin: 0;
-    color: rgba(245, 245, 245, 0.82);
-    line-height: 1.68;
-    max-width: 68ch;
   }
   .device-intro :global(h3) {
     margin: 1rem 0 0.45rem;

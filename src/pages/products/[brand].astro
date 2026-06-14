@@ -28,29 +28,18 @@ const devices = getDevicesByBrand(brand.key);
   canonical={`https://openglasshub.pages.dev/products/${brand.key}/`}
   activeSection="products"
 >
-  <section class="products-brand-strip">
-    {brandCatalog.map((item) => (
-      <a
-        href={`/products/${item.key}/`}
-        class:list={["community-inline-link", "products-brand-strip__link", { "community-inline-link--active": item.key === brand.key }]}
-      >
-        {item.displayName}
-      </a>
-    ))}
-  </section>
-
   <section class="products-brand-head">
     <div class="products-brand-head__copy">
-      <BrandMark text={brand.brandMarkText} tone="accent" />
+      {brand.displayName !== brand.brandMarkText && <BrandMark text={brand.brandMarkText} tone="accent" />}
       <div>
         <h1>{brand.displayName}</h1>
         <p>{brand.shortIntro}</p>
       </div>
     </div>
     <div class="products-brand-head__meta">
+      <a href="/products/" class="community-link">全部品牌</a>
       <span>{devices.length} 款产品</span>
       <a href={brand.websiteUrl} target="_blank" rel="noreferrer" class="community-link">官网</a>
-      <a href="/products/" class="community-link">全部品牌</a>
     </div>
   </section>
 
@@ -64,11 +53,9 @@ const devices = getDevicesByBrand(brand.key);
           <span>{device.routeLabel}</span>
         </div>
 
-        <p class="product-device-card__summary">{device.shortDescription}</p>
-
         {device.previewSpecs.length > 0 && (
           <div class="product-device-card__specs">
-            {device.previewSpecs.map((spec) => (
+            {device.previewSpecs.slice(0, 4).map((spec) => (
               <article class="product-device-card__spec">
                 <span>{spec.label}</span>
                 <strong>{spec.value}</strong>
@@ -78,14 +65,9 @@ const devices = getDevicesByBrand(brand.key);
         )}
 
         <div class="product-device-card__foot">
-          <div class="product-device-card__fit">
-            {device.bestFor.slice(0, 2).map((item) => (
-              <span>{item}</span>
-            ))}
-          </div>
           <div class="product-device-card__state">
             <strong>{device.completenessLabel}</strong>
-            {device.lastCheckedLabel && <span>{device.lastCheckedLabel}</span>}
+            <span>查看详情</span>
           </div>
         </div>
       </a>
@@ -94,26 +76,17 @@ const devices = getDevicesByBrand(brand.key);
 </CommunityLayout>
 
 <style>
-  .products-brand-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.55rem;
-    margin: 0.85rem 0 1rem;
-  }
-  .products-brand-strip__link {
-    min-height: 36px;
-  }
   .products-brand-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 1.2rem;
-    margin-bottom: 1rem;
+    gap: 1rem;
+    margin: 0.95rem 0 1rem;
   }
   .products-brand-head__copy {
     display: flex;
     align-items: flex-start;
-    gap: 0.9rem;
+    gap: 0.8rem;
   }
   .products-brand-head__copy > div {
     display: grid;
@@ -127,9 +100,9 @@ const devices = getDevicesByBrand(brand.key);
   }
   .products-brand-head p {
     margin: 0;
-    max-width: 42rem;
+    max-width: 34rem;
     color: rgba(245, 245, 245, 0.68);
-    line-height: 1.6;
+    line-height: 1.55;
   }
   .products-brand-head__meta {
     display: flex;
@@ -145,24 +118,22 @@ const devices = getDevicesByBrand(brand.key);
   .products-device-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1rem;
+    gap: 0.95rem;
   }
   .product-device-card {
     display: grid;
-    gap: 0.85rem;
-    padding: 1rem;
+    gap: 0.7rem;
+    padding: 0.85rem;
     text-decoration: none;
     border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(15, 18, 22, 0.98), rgba(9, 11, 14, 1));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: linear-gradient(180deg, rgba(13, 16, 20, 0.96), rgba(9, 11, 14, 0.98));
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
   }
   .product-device-card:hover {
-    border-color: rgba(255, 255, 255, 0.14);
-    background: linear-gradient(180deg, rgba(18, 22, 27, 0.99), rgba(10, 12, 15, 1));
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.1);
+    background: linear-gradient(180deg, rgba(15, 18, 22, 0.98), rgba(10, 12, 15, 1));
+    transform: translateY(-1px);
   }
   .product-device-card__head {
     display: flex;
@@ -177,11 +148,6 @@ const devices = getDevicesByBrand(brand.key);
     line-height: 1.38;
     letter-spacing: -0.02em;
   }
-  .product-device-card__summary {
-    margin: 0;
-    color: rgba(245, 245, 245, 0.68);
-    line-height: 1.6;
-  }
   .product-device-card__head span,
   .product-device-card__spec span {
     color: var(--text-faint);
@@ -190,15 +156,15 @@ const devices = getDevicesByBrand(brand.key);
   .product-device-card__specs {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.55rem;
+    gap: 0.45rem;
   }
   .product-device-card__spec {
     display: grid;
     gap: 0.18rem;
-    padding: 0.7rem 0.75rem;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 0.55rem 0.62rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.022);
+    border: 1px solid rgba(255, 255, 255, 0.045);
   }
   .product-device-card__spec strong {
     color: var(--text);
@@ -210,23 +176,7 @@ const devices = getDevicesByBrand(brand.key);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-  }
-  .product-device-card__fit {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-  .product-device-card__fit span {
-    display: inline-flex;
-    align-items: center;
-    min-height: 1.7rem;
-    padding: 0.14rem 0.48rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    color: rgba(245, 245, 245, 0.68);
-    font-size: 0.76rem;
+    gap: 0.55rem;
   }
   .product-device-card__state {
     justify-content: space-between;
