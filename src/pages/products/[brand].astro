@@ -30,7 +30,7 @@ const devices = getDevicesByBrand(brand.key);
 >
   <section class="products-brand-head">
     <div class="products-brand-head__copy">
-      <BrandMark text={brand.brandMarkText} tone="accent" brandKey={brand.key} />
+      <BrandMark logo={brand.brandLogo} tone="accent" brandKey={brand.key} />
       <div>
         {brand.displayName !== brand.brandMarkText ? <h1>{brand.displayName}</h1> : <h1 class="products-brand-head__sr-only">{brand.displayName}</h1>}
         <p>{brand.shortIntro}</p>
@@ -44,7 +44,15 @@ const devices = getDevicesByBrand(brand.key);
   <section class="products-device-grid">
     {devices.map((device) => (
       <a href={`/devices/${device.slug}/`} class="product-device-card">
-        <ProductVisual imageUrl={device.productImageUrl ?? device.officialImageUrl} alt={device.imageAlt} brandMark={brand.brandMarkText} title={device.name} />
+        <ProductVisual
+          imageUrl={device.media.imageUrl}
+          alt={device.media.imageAlt}
+          brandMark={brand.brandMarkText}
+          title={device.name}
+          imageBackground={device.media.imageBackground}
+          imageFit={device.media.imageFit}
+          placeholderType={device.media.placeholderType}
+        />
 
         <div class="product-device-card__head">
           <h2>{device.title}</h2>
@@ -53,7 +61,7 @@ const devices = getDevicesByBrand(brand.key);
 
         {device.previewSpecs.length > 0 && (
           <div class="product-device-card__specs">
-            {device.previewSpecs.slice(0, 4).map((spec) => (
+            {device.previewSpecs.slice(0, 3).map((spec) => (
               <article class="product-device-card__spec">
                 <span>{spec.label}</span>
                 <strong>{spec.value}</strong>
@@ -64,7 +72,7 @@ const devices = getDevicesByBrand(brand.key);
 
         <div class="product-device-card__foot">
           <div class="product-device-card__state">
-            <strong>{device.completenessLabel}</strong>
+            <strong>{device.completenessPercent ?? device.completenessLabel}</strong>
             <span>查看详情</span>
           </div>
         </div>

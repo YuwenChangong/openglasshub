@@ -21,7 +21,7 @@ const brands = getBrandSummaries();
     {brands.map((brand) => (
       <a href={`/products/${brand.key}/`} class="brand-tile">
         <div class="brand-tile__top">
-          <BrandMark text={brand.brandMarkText} tone="accent" brandKey={brand.key} />
+          <BrandMark logo={brand.brandLogo} tone="accent" brandKey={brand.key} />
           <span>{brand.productCount} 款</span>
         </div>
         {brand.displayName !== brand.brandMarkText && <h2>{brand.displayName}</h2>}

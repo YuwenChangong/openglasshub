@@ -40,11 +40,20 @@ const heroLinks = device.externalLinks.slice(0, 2);
 >
   <section class="device-detail-head">
     <div class="device-detail-head__visual">
-      <ProductVisual imageUrl={device.productImageUrl ?? device.officialImageUrl} alt={device.imageAlt} brandMark={device.brandMarkText} title={device.title} variant="hero" />
+      <ProductVisual
+        imageUrl={device.media.imageUrl}
+        alt={device.media.imageAlt}
+        brandMark={device.brandMarkText}
+        title={device.title}
+        variant="hero"
+        imageBackground={device.media.imageBackground}
+        imageFit={device.media.imageFit}
+        placeholderType={device.media.placeholderType}
+      />
     </div>
     <div class="device-detail-head__copy">
       <a href={`/products/${device.brandKey}/`} class="device-detail-head__back">返回 {device.brandLabel}</a>
-      <BrandMark text={device.brandMarkText} compact={true} brandKey={device.brandKey} />
+      <BrandMark logo={device.brandLogo} compact={true} brandKey={device.brandKey} />
       <h1>{entry.frontmatter.title}</h1>
       {entry.frontmatter.description && <p>{entry.frontmatter.description}</p>}
       <div class="device-detail-head__meta">

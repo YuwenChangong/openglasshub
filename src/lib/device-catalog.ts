@@ -45,6 +45,22 @@ type DeviceSpecs = Partial<Record<DeviceSpecField, string>>;
 type DeviceCategory = "display_glasses" | "ai_glasses" | "standalone_xr" | "developer_device";
 type BrandMarkType = "wordmark" | "monogram";
 type BrandTone = "xreal" | "rayneo" | "rokid" | "viture" | "inmo" | "meta" | "frame" | "g1" | "vision";
+type BrandLogo = {
+  type: "image" | "wordmark";
+  src?: string;
+  text: string;
+  alt: string;
+  licenseNote?: string;
+};
+type ProductPlaceholderType = "glasses" | "headset" | "frame" | "wordmark";
+type ProductMedia = {
+  imageUrl?: string | null;
+  imageAlt: string;
+  imageBackground: "light" | "dark" | "transparent";
+  imageFit: "contain" | "cover";
+  hasConfirmedImage: boolean;
+  placeholderType: ProductPlaceholderType;
+};
 
 type DeviceSnapshot = {
   brand?: string;
@@ -69,6 +85,7 @@ type BrandDefinition = {
   shortIntro: string;
   positioning: string;
   websiteUrl: string;
+  brandLogo: BrandLogo;
   brandMarkType: BrandMarkType;
   brandMarkText: string;
   brandTone: BrandTone;
@@ -83,6 +100,7 @@ type DeviceDefinition = {
   name: string;
   shortDescription: string;
   longDescription: string;
+  media?: Partial<ProductMedia>;
   productImageUrl?: string | null;
   officialImageUrl?: string | null;
   imageAlt: string;
@@ -136,6 +154,7 @@ export const brandCatalog = [
     shortIntro: "显示路线完整，适合先看日常观影到空间显示增强。",
     positioning: "显示与空间显示增强。",
     websiteUrl: "https://www.xreal.com/",
+    brandLogo: { type: "wordmark", text: "XREAL", alt: "XREAL wordmark", licenseNote: "Typographic fallback, not official logo asset." },
     brandMarkType: "wordmark",
     brandMarkText: "XREAL",
     brandTone: "xreal",
@@ -149,6 +168,7 @@ export const brandCatalog = [
     shortIntro: "同时覆盖显示眼镜和独立 XR 路线。",
     positioning: "显示到独立 XR。",
     websiteUrl: "https://www.rayneo.com/",
+    brandLogo: { type: "wordmark", text: "RayNeo", alt: "RayNeo wordmark", licenseNote: "Typographic fallback, not official logo asset." },
     brandMarkType: "wordmark",
     brandMarkText: "RayNeo",
     brandTone: "rayneo",
@@ -162,6 +182,7 @@ export const brandCatalog = [
     shortIntro: "同时做显示眼镜和 AI 入口。",
     positioning: "显示 + AI。",
     websiteUrl: "https://global.rokid.com/",
+    brandLogo: { type: "wordmark", text: "Rokid", alt: "Rokid wordmark", licenseNote: "Typographic fallback, not official logo asset." },
     brandMarkType: "wordmark",
     brandMarkText: "Rokid",
     brandTone: "rokid",
@@ -175,6 +196,7 @@ export const brandCatalog = [
     shortIntro: "主打显示型 XR 眼镜。",
     positioning: "便携显示。",
     websiteUrl: "https://www.viture.com/",
+    brandLogo: { type: "wordmark", text: "VITURE", alt: "VITURE wordmark", licenseNote: "Typographic fallback, not official logo asset." },
     brandMarkType: "wordmark",
     brandMarkText: "VITURE",
     brandTone: "viture",
@@ -188,6 +210,7 @@ export const brandCatalog = [
     shortIntro: "更偏轻量 AR 与提示式交互。",
     positioning: "轻量 AR。",
     websiteUrl: "https://www.inmoglobal.com/",
+    brandLogo: { type: "wordmark", text: "INMO", alt: "INMO wordmark", licenseNote: "Typographic fallback, not official logo asset." },
     brandMarkType: "wordmark",
     brandMarkText: "INMO",
     brandTone: "inmo",
@@ -201,6 +224,7 @@ export const brandCatalog = [
     shortIntro: "代表无显示 AI 眼镜路线。",
     positioning: "无显示智能眼镜。",
     websiteUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+    brandLogo: { type: "wordmark", text: "META", alt: "META wordmark", licenseNote: "Typographic fallback, not official logo asset." },
     brandMarkType: "wordmark",
     brandMarkText: "META",
     brandTone: "meta",
@@ -214,6 +238,7 @@ export const brandCatalog = [
     shortIntro: "更偏开放实验与开发探索。",
     positioning: "实验型设备。",
     websiteUrl: "https://brilliant.xyz/products/frame",
+    brandLogo: { type: "wordmark", text: "FRAME", alt: "FRAME wordmark", licenseNote: "Typographic fallback, not official logo asset." },
     brandMarkType: "wordmark",
     brandMarkText: "FRAME",
     brandTone: "frame",
@@ -227,6 +252,7 @@ export const brandCatalog = [
     shortIntro: "强调低干扰信息显示与日常佩戴。",
     positioning: "提示式智能眼镜。",
     websiteUrl: "https://www.evenrealities.com/en-FI/g1",
+    brandLogo: { type: "wordmark", text: "G1", alt: "G1 wordmark", licenseNote: "Typographic fallback, not official logo asset." },
     brandMarkType: "wordmark",
     brandMarkText: "G1",
     brandTone: "g1",
@@ -240,6 +266,7 @@ export const brandCatalog = [
     shortIntro: "代表高端独立空间计算路线。",
     positioning: "独立空间计算头显。",
     websiteUrl: "https://www.apple.com/apple-vision-pro/",
+    brandLogo: { type: "wordmark", text: "Vision", alt: "Vision wordmark", licenseNote: "Typographic fallback, not official logo asset." },
     brandMarkType: "wordmark",
     brandMarkText: "Vision",
     brandTone: "vision",
@@ -255,8 +282,9 @@ const deviceCatalog = {
     name: "XREAL One",
     shortDescription: "更偏高阶显示路线，重点在空间显示控制和日常外接体验。",
     longDescription: "XREAL One 更适合作为高阶显示眼镜来理解，它依然围绕外接设备工作，但比传统观影眼镜更强调空间显示稳定性和眼镜本体参与度。",
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "XREAL One 产品视觉",
-    officialProductUrl: "https://us.shop.xreal.com/products/xreal-one",
+    buyUrl: "https://us.shop.xreal.com/products/xreal-one",
     sourceUrl: "https://us.shop.xreal.com/products/xreal-one",
     sourceName: "XREAL official",
     category: "display_glasses",
@@ -277,6 +305,7 @@ const deviceCatalog = {
     name: "XREAL One Pro",
     shortDescription: "同路线更高阶，适合关注视场角和显示边界。",
     longDescription: "XREAL One Pro 仍然属于显示型路线，但更偏向给已经理解这类产品的人做升级选择，核心看点是更开阔的视场和更完整的显示体验。",
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "XREAL One Pro 产品视觉",
     officialProductUrl: "https://www.xreal.com/us/one-pro",
     sourceUrl: "https://www.xreal.com/us/one-pro",
@@ -298,8 +327,9 @@ const deviceCatalog = {
     name: "XREAL Air 2 Pro",
     shortDescription: "成熟度较高的显示型产品，适合做主流路线对比。",
     longDescription: "XREAL Air 2 Pro 更适合当作成熟显示眼镜的参考样本，核心看连接便利性、日常佩戴和显示效果是否满足便携娱乐需求。",
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "XREAL Air 2 Pro 产品视觉",
-    officialProductUrl: "https://us.shop.xreal.com/products/xreal-air-2-pro",
+    buyUrl: "https://us.shop.xreal.com/products/xreal-air-2-pro",
     sourceUrl: "https://us.shop.xreal.com/products/xreal-air-2-pro",
     sourceName: "XREAL official",
     category: "display_glasses",
@@ -321,8 +351,9 @@ const deviceCatalog = {
     name: "XREAL Air 2 Ultra",
     shortDescription: "更接近开发与空间计算实验路线。",
     longDescription: "Air 2 Ultra 的价值更偏向开发和空间交互实验，适合研究 SDK、感知边界和空间计算体验，而不是把它视作普通显示眼镜升级款。",
+    media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "XREAL Air 2 Ultra 产品视觉",
-    officialProductUrl: "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+    buyUrl: "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
     sourceUrl: "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
     sourceName: "XREAL official",
     category: "developer_device",
@@ -342,6 +373,7 @@ const deviceCatalog = {
     name: "RayNeo X2",
     shortDescription: "更接近独立 XR 系统，适合看系统交互路线。",
     longDescription: "RayNeo X2 是更接近完整独立 XR 路线的样本，核心不在大屏观影，而在系统级交互、轻导航和信息叠加的实际可用性。",
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "RayNeo X2 产品视觉",
     officialProductUrl: "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
     sourceUrl: "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
@@ -364,6 +396,7 @@ const deviceCatalog = {
     name: "Rokid Max",
     shortDescription: "典型显示型眼镜路线，适合做大屏娱乐对照。",
     longDescription: "Rokid Max 适合当作主流显示眼镜的代表样本，重点看清晰度、声音、连接便利性和长时间佩戴舒适度。",
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "Rokid Max 产品视觉",
     officialProductUrl: "https://global.rokid.com/products/rokid-max",
     sourceUrl: "https://global.rokid.com/products/rokid-max",
@@ -386,6 +419,7 @@ const deviceCatalog = {
     name: "Rokid Glasses",
     shortDescription: "更偏 AI 眼镜入口，适合看语音和轻量信息入口。",
     longDescription: "Rokid Glasses 与显示型路线不同，核心不是大屏，而是日常佩戴下的语音、提示与轻量摄像入口。",
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "Rokid Glasses 产品视觉",
     officialProductUrl: "https://global.rokid.com/products/rokid-glasses",
     sourceUrl: "https://global.rokid.com/products/rokid-glasses",
@@ -408,6 +442,7 @@ const deviceCatalog = {
     name: "VITURE Pro",
     shortDescription: "显示型 XR 眼镜，适合比较便携显示路线。",
     longDescription: "VITURE Pro 仍属于显示型眼镜路线，重点是画面、连接生态和便携娱乐体验是否稳定成熟。",
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "VITURE Pro 产品视觉",
     officialProductUrl: "https://www.viture.com/product/viture-luma-pro-xr-glasses",
     sourceUrl: "https://www.viture.com/product/viture-luma-pro-xr-glasses",
@@ -425,6 +460,7 @@ const deviceCatalog = {
     name: "INMO Air 2",
     shortDescription: "更偏轻量 AR 与提示式体验。",
     longDescription: "INMO Air 2 更适合被看作轻量 AR 和日常提示路线的样本，重点在佩戴形态、输入边界和低干扰信息呈现。",
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "INMO Air 2 产品视觉",
     officialProductUrl: "https://www.inmoxr.com/pages/inmo-air2",
     sourceUrl: "https://www.inmoxr.com/pages/inmo-air2",
@@ -442,6 +478,7 @@ const deviceCatalog = {
     name: "Ray-Ban Meta",
     shortDescription: "无显示智能眼镜代表样本，重点在拍摄和语音入口。",
     longDescription: "Ray-Ban Meta 的研究价值在于它说明智能眼镜并不一定从显示开始，而是先从拍摄、音频和 AI 助手切入高频日常使用。",
+    media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "Ray-Ban Meta 产品视觉",
     officialProductUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
     sourceUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
@@ -459,6 +496,7 @@ const deviceCatalog = {
     name: "Brilliant Labs Frame",
     shortDescription: "更偏开放实验与硬件探索。",
     longDescription: "Frame 更像一个开放实验设备，而不是成熟消费眼镜。它的价值在于让你观察 AI 穿戴的开放边界，而不是直接提供完整消费体验。",
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "frame" },
     imageAlt: "Brilliant Labs Frame 产品视觉",
     officialProductUrl: "https://brilliant.xyz/products/frame",
     sourceUrl: "https://docs.brilliant.xyz/frame/hardware/",
@@ -476,6 +514,7 @@ const deviceCatalog = {
     name: "Even Realities G1",
     shortDescription: "低干扰提示型智能眼镜，适合看通知与轻量信息入口。",
     longDescription: "G1 更适合被看作低干扰信息提示路线的产品，它不是沉浸式 AR 大屏，而是更接近日常佩戴和轻量信息增强。",
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "Even Realities G1 产品视觉",
     officialProductUrl: "https://www.evenrealities.com/en-FI/g1",
     sourceUrl: "https://www.evenrealities.com/en-FI/g1",
@@ -493,6 +532,13 @@ const deviceCatalog = {
     name: "Apple Vision Pro",
     shortDescription: "高端独立空间计算头显，适合研究完整系统级体验。",
     longDescription: "Apple Vision Pro 更接近完整的独立空间计算系统。它不属于轻量眼镜路线，适合观察系统级交互、内容形态与高端硬件集成方式。",
+    media: {
+      imageUrl: "https://www.apple.com/v/apple-vision-pro/k/images/meta/apple-vision-pro-us__f28gp8ey4vam_og.png?202606041907",
+      imageBackground: "light",
+      imageFit: "contain",
+      hasConfirmedImage: true,
+      placeholderType: "headset",
+    },
     imageAlt: "Apple Vision Pro 产品视觉",
     officialProductUrl: "https://www.apple.com/apple-vision-pro/",
     sourceUrl: "https://support.apple.com/en-us/125436",
@@ -648,6 +694,7 @@ export function getBrandSummaries() {
     const products = getBrandProducts(brand.key);
     return {
       ...brand,
+      brandLogo: brand.brandLogo,
       productCount: products.length,
       featuredProducts: products.filter((device) => brand.featuredProducts.includes(device.slug)).slice(0, 3),
       representativeNames: products
@@ -691,8 +738,17 @@ export function getDeviceBySlug(slug: string) {
     ]),
   );
 
+  const resolvedImageUrl = base.media?.imageUrl ?? base.productImageUrl ?? base.officialImageUrl ?? snapshot?.official_image_url ?? null;
+  const media: ProductMedia = {
+    imageUrl: resolvedImageUrl,
+    imageAlt: base.media?.imageAlt ?? base.imageAlt,
+    imageBackground: base.media?.imageBackground ?? "light",
+    imageFit: base.media?.imageFit ?? "contain",
+    hasConfirmedImage: Boolean(base.media?.hasConfirmedImage && resolvedImageUrl),
+    placeholderType: base.media?.placeholderType ?? "wordmark",
+  };
   const previewSpecs = pickSpecs(mergedSpecs, ["display_type", "resolution", "refresh_rate", "brightness", "field_of_view", "camera", "weight", "price", "chipset"]).slice(0, 5);
-  const officialProductUrl = base.officialProductUrl ?? base.productUrl ?? brand?.websiteUrl ?? null;
+  const officialProductUrl = base.officialProductUrl ?? base.productUrl ?? null;
   const buyUrl = base.buyUrl ?? null;
   const sourceUrl = base.sourceUrl ?? null;
   const externalLinks = buildExternalLinks({ officialProductUrl, buyUrl, sourceUrl });
@@ -703,10 +759,12 @@ export function getDeviceBySlug(slug: string) {
     brandLabel: base.brandName,
     brandTone: brand?.brandTone ?? "xreal",
     brandMarkText: brand?.brandMarkText ?? base.brandName,
+    brandLogo: brand?.brandLogo ?? { type: "wordmark", text: base.brandName, alt: `${base.brandName} wordmark` },
     brandWebsiteUrl: brand?.websiteUrl ?? null,
     snapshot,
-    productImageUrl: base.productImageUrl ?? snapshot?.official_image_url ?? null,
-    officialImageUrl: base.officialImageUrl ?? snapshot?.official_image_url ?? null,
+    media,
+    productImageUrl: resolvedImageUrl,
+    officialImageUrl: resolvedImageUrl,
     officialProductUrl,
     buyUrl,
     sourceUrl,

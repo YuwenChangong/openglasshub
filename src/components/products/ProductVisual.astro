@@ -5,35 +5,55 @@ interface Props {
   brandMark: string;
   title: string;
   variant?: "card" | "hero";
+  imageBackground?: "light" | "dark" | "transparent";
+  imageFit?: "contain" | "cover";
+  placeholderType?: "glasses" | "headset" | "frame" | "wordmark";
 }
 
-const { imageUrl = null, alt, brandMark, title, variant = "card" } = Astro.props;
+const {
+  imageUrl = null,
+  alt,
+  brandMark,
+  title,
+  variant = "card",
+  imageBackground = "light",
+  imageFit = "contain",
+  placeholderType = "glasses",
+} = Astro.props;
 const hasImage = Boolean(imageUrl);
 ---
 
-<div class:list={["product-visual", `product-visual--${variant}`, { "product-visual--with-image": hasImage, "product-visual--placeholder": !hasImage }]}>
-  <span class="product-visual__glow product-visual__glow--top" aria-hidden="true"></span>
-  <span class="product-visual__glow product-visual__glow--floor" aria-hidden="true"></span>
+<div
+  class:list={[
+    "product-visual",
+    `product-visual--${variant}`,
+    `product-visual--${imageBackground}`,
+    `product-visual--${placeholderType}`,
+    { "product-visual--with-image": hasImage, "product-visual--placeholder": !hasImage },
+  ]}
+>
   <div class="product-visual__stage" aria-hidden="true">
-    <span class="product-visual__mat" aria-hidden="true"></span>
+    {imageUrl ? (
+      <div class="product-visual__image-shell">
+        <img
+          src={imageUrl}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          referrerpolicy="no-referrer"
+          style={`object-fit:${imageFit};`}
+          onerror="const root=this.closest('.product-visual'); if(root){root.classList.remove('product-visual--with-image'); root.classList.add('product-visual--placeholder','product-visual--image-error');} this.remove();"
+        />
+      </div>
+    ) : null}
     <div class="product-visual__placeholder" aria-hidden="true">
       <span class="product-visual__brand">{brandMark}</span>
-      <span class="product-visual__shape product-visual__shape--left"></span>
-      <span class="product-visual__shape product-visual__shape--bridge"></span>
-      <span class="product-visual__shape product-visual__shape--right"></span>
+      <span class="product-visual__outline product-visual__outline--glasses"></span>
+      <span class="product-visual__outline product-visual__outline--headset"></span>
+      <span class="product-visual__outline product-visual__outline--frame"></span>
+      <span class="product-visual__title">{title}</span>
     </div>
   </div>
-  {imageUrl ? (
-    <img
-      src={imageUrl}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      referrerpolicy="no-referrer"
-      onerror="const root=this.closest('.product-visual'); if(root){root.classList.remove('product-visual--with-image'); root.classList.add('product-visual--placeholder','product-visual--image-error');} this.remove();"
-    />
-  ) : null}
-  <span class="product-visual__title">{title}</span>
 </div>
 
 <style>
@@ -41,12 +61,9 @@ const hasImage = Boolean(imageUrl);
     position: relative;
     overflow: hidden;
     border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background:
-      radial-gradient(circle at 50% 14%, rgba(132, 146, 178, 0.18), transparent 36%),
-      radial-gradient(circle at 50% 78%, rgba(92, 103, 132, 0.12), transparent 32%),
-      linear-gradient(180deg, rgba(13, 16, 20, 0.98), rgba(6, 8, 11, 1));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    background: linear-gradient(180deg, rgba(11, 14, 18, 0.96), rgba(7, 9, 12, 0.98));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
     min-width: 0;
     isolation: isolate;
   }
@@ -61,151 +78,166 @@ const hasImage = Boolean(imageUrl);
 
   .product-visual img,
   .product-visual__placeholder {
-    width: 100%;
-    height: 100%;
     display: block;
   }
 
   .product-visual__stage {
-    position: absolute;
+    position: relative;
     inset: 0;
-    z-index: 1;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(9, 11, 14, 0.98), rgba(6, 8, 10, 0.98));
+  }
+
+  .product-visual__image-shell,
+  .product-visual__placeholder {
+    position: absolute;
+    inset: 0.9rem;
+    border-radius: 16px;
+  }
+
+  .product-visual__image-shell {
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 18px 36px rgba(0, 0, 0, 0.18);
+    z-index: 2;
   }
 
   .product-visual img {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    object-fit: contain;
-    width: 82%;
-    height: 82%;
+    width: 78%;
+    height: 78%;
     margin: auto;
-    padding: 0;
-    filter: drop-shadow(0 22px 40px rgba(0, 0, 0, 0.22)) brightness(1.04) contrast(1.01) saturate(1.01);
+    filter: drop-shadow(0 16px 30px rgba(0, 0, 0, 0.16));
+  }
+
+  .product-visual--hero img {
+    width: 72%;
+    height: 72%;
+  }
+
+  .product-visual--light .product-visual__image-shell {
+    background: linear-gradient(180deg, #eff2f6 0%, #e2e7ee 100%);
+  }
+
+  .product-visual--dark .product-visual__image-shell {
+    background: linear-gradient(180deg, rgba(66, 71, 81, 0.96), rgba(39, 44, 52, 0.94));
+  }
+
+  .product-visual--transparent .product-visual__image-shell {
+    background: linear-gradient(180deg, rgba(24, 28, 34, 0.88), rgba(16, 19, 24, 0.9));
   }
 
   .product-visual__placeholder {
-    position: relative;
-    z-index: 2;
-    transition: opacity 180ms ease, transform 180ms ease;
+    z-index: 1;
+    background: linear-gradient(180deg, rgba(10, 12, 15, 0.94), rgba(7, 9, 12, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
   .product-visual--with-image .product-visual__placeholder {
     opacity: 0;
-    transform: scale(0.985);
-  }
-
-  .product-visual__glow {
-    position: absolute;
-    inset: auto;
     pointer-events: none;
-    z-index: 0;
-  }
-
-  .product-visual__glow--top {
-    top: 0;
-    left: 20%;
-    width: 60%;
-    height: 38%;
-    border-radius: 999px;
-    background: radial-gradient(circle, rgba(208, 216, 235, 0.18), rgba(208, 216, 235, 0.05) 44%, transparent 74%);
-    filter: blur(24px);
-  }
-
-  .product-visual__glow--floor {
-    left: 22%;
-    right: 22%;
-    bottom: 10%;
-    height: 12%;
-    border-radius: 999px;
-    background: radial-gradient(circle, rgba(176, 186, 210, 0.16), rgba(176, 186, 210, 0.03) 46%, transparent 74%);
-    filter: blur(20px);
-  }
-
-  .product-visual__mat {
-    position: absolute;
-    inset: 14% 17%;
-    z-index: 1;
-    border-radius: 24px;
-    background: linear-gradient(180deg, rgba(243, 245, 248, 0.98), rgba(223, 228, 236, 0.94));
-    opacity: 0.18;
-    box-shadow:
-      0 18px 44px rgba(0, 0, 0, 0.14),
-      0 0 0 1px rgba(255, 255, 255, 0.06),
-      inset 0 1px 0 rgba(255, 255, 255, 0.62);
-  }
-
-  .product-visual--placeholder .product-visual__mat {
-    inset: 16% 18%;
-    opacity: 0.16;
-    box-shadow:
-      0 18px 50px rgba(0, 0, 0, 0.15),
-      0 0 0 1px rgba(255, 255, 255, 0.035),
-      inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  }
-
-  .product-visual--with-image .product-visual__mat {
-    opacity: 0.92;
   }
 
   .product-visual__brand {
     position: absolute;
-    top: 1rem;
-    left: 1rem;
-    z-index: 4;
-    color: rgba(245, 245, 245, 0.3);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
+    top: 1.05rem;
+    left: 1.05rem;
+    z-index: 3;
+    color: rgba(244, 244, 245, 0.46);
+    font-size: 0.78rem;
+    font-weight: 780;
+    letter-spacing: -0.03em;
   }
 
-  .product-visual__shape {
+  .product-visual__outline {
     position: absolute;
-    top: 50%;
-    height: clamp(3rem, 13%, 4rem);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    inset: 0;
+    opacity: 0;
+  }
+
+  .product-visual--glasses .product-visual__outline--glasses,
+  .product-visual--frame .product-visual__outline--frame,
+  .product-visual--headset .product-visual__outline--headset,
+  .product-visual--wordmark .product-visual__outline--frame {
+    opacity: 1;
+  }
+
+  .product-visual__outline--glasses::before,
+  .product-visual__outline--glasses::after,
+  .product-visual__outline--headset::before,
+  .product-visual__outline--headset::after,
+  .product-visual__outline--frame::before,
+  .product-visual__outline--frame::after {
+    content: "";
+    position: absolute;
+  }
+
+  .product-visual__outline--glasses::before,
+  .product-visual__outline--glasses::after,
+  .product-visual__outline--frame::before,
+  .product-visual__outline--frame::after {
+    top: 48%;
+    width: 26%;
+    height: 18%;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
     transform: translateY(-50%);
   }
 
-  .product-visual__shape--left,
-  .product-visual__shape--right {
-    width: clamp(4.6rem, 24%, 7.5rem);
-    border-radius: 999px;
+  .product-visual__outline--glasses::before,
+  .product-visual__outline--frame::before {
+    left: 14%;
   }
 
-  .product-visual__shape--left {
-    left: clamp(1rem, 10%, 4rem);
+  .product-visual__outline--glasses::after,
+  .product-visual__outline--frame::after {
+    right: 14%;
   }
 
-  .product-visual__shape--right {
-    right: clamp(1rem, 10%, 4rem);
+  .product-visual--frame .product-visual__outline--frame::before,
+  .product-visual--frame .product-visual__outline--frame::after {
+    width: 22%;
+    height: 14%;
   }
 
-  .product-visual__shape--bridge {
+  .product-visual__outline--headset::before {
+    top: 18%;
+    left: 15%;
+    right: 15%;
+    bottom: 18%;
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(115, 121, 134, 0.62), rgba(56, 61, 72, 0.72));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 14px 28px rgba(0, 0, 0, 0.2);
+  }
+
+  .product-visual__outline--headset::after {
     left: 50%;
-    width: clamp(1rem, 6%, 1.5rem);
+    top: 48%;
+    width: 1.25rem;
     height: 1px;
     transform: translate(-50%, -50%);
-    background: rgba(255, 255, 255, 0.22);
-    border: 0;
-    box-shadow: none;
+    background: rgba(255, 255, 255, 0.18);
   }
 
   .product-visual__title {
     position: absolute;
     right: 1rem;
     bottom: 0.9rem;
-    z-index: 4;
-    color: rgba(245, 245, 245, 0.3);
+    z-index: 3;
+    color: rgba(245, 245, 245, 0.34);
     font-size: 0.74rem;
     font-weight: 600;
     text-align: right;
     max-width: 50%;
-  }
-
-  .product-visual--with-image .product-visual__title {
-    color: rgba(245, 245, 245, 0.22);
   }
 </style>
