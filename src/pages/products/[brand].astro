@@ -30,16 +30,14 @@ const devices = getDevicesByBrand(brand.key);
 >
   <section class="products-brand-head">
     <div class="products-brand-head__copy">
-      {brand.displayName !== brand.brandMarkText && <BrandMark text={brand.brandMarkText} tone="accent" />}
+      <BrandMark text={brand.brandMarkText} tone="accent" brandKey={brand.key} />
       <div>
-        <h1>{brand.displayName}</h1>
+        {brand.displayName !== brand.brandMarkText ? <h1>{brand.displayName}</h1> : <h1 class="products-brand-head__sr-only">{brand.displayName}</h1>}
         <p>{brand.shortIntro}</p>
       </div>
     </div>
     <div class="products-brand-head__meta">
-      <a href="/products/" class="community-link">全部品牌</a>
-      <span>{devices.length} 款产品</span>
-      <a href={brand.websiteUrl} target="_blank" rel="noreferrer" class="community-link">官网</a>
+      <a href={brand.websiteUrl} target="_blank" rel="noopener noreferrer" class="community-link">官网</a>
     </div>
   </section>
 
@@ -88,6 +86,9 @@ const devices = getDevicesByBrand(brand.key);
     align-items: flex-start;
     gap: 0.8rem;
   }
+  .products-brand-head__copy :global(.brand-mark) {
+    font-size: 1.5rem;
+  }
   .products-brand-head__copy > div {
     display: grid;
     gap: 0.35rem;
@@ -98,22 +99,27 @@ const devices = getDevicesByBrand(brand.key);
     font-size: 2rem;
     letter-spacing: -0.03em;
   }
+  .products-brand-head__sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
   .products-brand-head p {
     margin: 0;
-    max-width: 34rem;
+    max-width: 30rem;
     color: rgba(245, 245, 245, 0.68);
     line-height: 1.55;
   }
   .products-brand-head__meta {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
-    gap: 0.7rem;
-  }
-  .products-brand-head__meta span {
-    color: rgba(245, 245, 245, 0.62);
-    font-size: 0.86rem;
   }
   .products-device-grid {
     display: grid;

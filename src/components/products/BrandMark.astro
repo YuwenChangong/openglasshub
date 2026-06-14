@@ -3,12 +3,18 @@ interface Props {
   text: string;
   tone?: "default" | "accent" | "neutral";
   compact?: boolean;
+  brandKey?: string;
 }
 
-const { text, tone = "default", compact = false } = Astro.props;
+const { text, tone = "default", compact = false, brandKey = "" } = Astro.props;
 ---
 
-<span class:list={["brand-mark", `brand-mark--${tone}`, { "brand-mark--compact": compact }]}>{text}</span>
+<span
+  class:list={["brand-mark", `brand-mark--${tone}`, { "brand-mark--compact": compact }]}
+  data-brand={brandKey}
+>
+  {text}
+</span>
 
 <style>
   .brand-mark {
@@ -21,13 +27,13 @@ const { text, tone = "default", compact = false } = Astro.props;
     border: 0;
     background: transparent;
     color: rgba(246, 247, 249, 0.96);
-    font-size: 1.16rem;
-    font-weight: 800;
-    letter-spacing: -0.045em;
+    font-size: 1.2rem;
+    font-weight: 780;
+    letter-spacing: -0.038em;
     line-height: 1;
     white-space: nowrap;
     text-transform: none;
-    text-shadow: 0 0 18px rgba(255, 255, 255, 0.03);
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.025);
   }
 
   .brand-mark--accent {
@@ -42,5 +48,43 @@ const { text, tone = "default", compact = false } = Astro.props;
     min-height: 1.4rem;
     font-size: 0.88rem;
     letter-spacing: -0.03em;
+  }
+
+  .brand-mark[data-brand="xreal"] {
+    font-weight: 820;
+    letter-spacing: -0.052em;
+  }
+
+  .brand-mark[data-brand="rayneo"] {
+    font-weight: 760;
+    letter-spacing: -0.05em;
+  }
+
+  .brand-mark[data-brand="rokid"] {
+    font-weight: 760;
+    letter-spacing: -0.04em;
+  }
+
+  .brand-mark[data-brand="viture"],
+  .brand-mark[data-brand="inmo"],
+  .brand-mark[data-brand="meta"],
+  .brand-mark[data-brand="frame"] {
+    text-transform: uppercase;
+    letter-spacing: -0.028em;
+  }
+
+  .brand-mark[data-brand="viture"] {
+    letter-spacing: 0.01em;
+    font-weight: 760;
+  }
+
+  .brand-mark[data-brand="g1"] {
+    letter-spacing: -0.055em;
+    font-weight: 820;
+  }
+
+  .brand-mark[data-brand="vision"] {
+    font-weight: 700;
+    letter-spacing: -0.045em;
   }
 </style>

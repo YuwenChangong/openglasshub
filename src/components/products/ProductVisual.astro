@@ -14,15 +14,24 @@ const hasImage = Boolean(imageUrl);
 <div class:list={["product-visual", `product-visual--${variant}`, { "product-visual--with-image": hasImage, "product-visual--placeholder": !hasImage }]}>
   <span class="product-visual__glow product-visual__glow--top" aria-hidden="true"></span>
   <span class="product-visual__glow product-visual__glow--floor" aria-hidden="true"></span>
-  <span class="product-visual__mat" aria-hidden="true"></span>
-  <div class="product-visual__placeholder" aria-hidden="true">
-    <span class="product-visual__brand">{brandMark}</span>
-    <span class="product-visual__shape product-visual__shape--left"></span>
-    <span class="product-visual__shape product-visual__shape--bridge"></span>
-    <span class="product-visual__shape product-visual__shape--right"></span>
+  <div class="product-visual__stage" aria-hidden="true">
+    <span class="product-visual__mat" aria-hidden="true"></span>
+    <div class="product-visual__placeholder" aria-hidden="true">
+      <span class="product-visual__brand">{brandMark}</span>
+      <span class="product-visual__shape product-visual__shape--left"></span>
+      <span class="product-visual__shape product-visual__shape--bridge"></span>
+      <span class="product-visual__shape product-visual__shape--right"></span>
+    </div>
   </div>
   {imageUrl ? (
-    <img src={imageUrl} alt={alt} loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.opacity='0'" />
+    <img
+      src={imageUrl}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      referrerpolicy="no-referrer"
+      onerror="const root=this.closest('.product-visual'); if(root){root.classList.remove('product-visual--with-image'); root.classList.add('product-visual--placeholder','product-visual--image-error');} this.remove();"
+    />
   ) : null}
   <span class="product-visual__title">{title}</span>
 </div>
@@ -57,6 +66,12 @@ const hasImage = Boolean(imageUrl);
     display: block;
   }
 
+  .product-visual__stage {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
   .product-visual img {
     position: absolute;
     inset: 0;
@@ -66,12 +81,18 @@ const hasImage = Boolean(imageUrl);
     height: 82%;
     margin: auto;
     padding: 0;
-    filter: drop-shadow(0 20px 36px rgba(0, 0, 0, 0.24)) brightness(1.1) contrast(1.03) saturate(1.01);
+    filter: drop-shadow(0 22px 40px rgba(0, 0, 0, 0.22)) brightness(1.04) contrast(1.01) saturate(1.01);
   }
 
   .product-visual__placeholder {
     position: relative;
     z-index: 2;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .product-visual--with-image .product-visual__placeholder {
+    opacity: 0;
+    transform: scale(0.985);
   }
 
   .product-visual__glow {
@@ -103,28 +124,28 @@ const hasImage = Boolean(imageUrl);
 
   .product-visual__mat {
     position: absolute;
-    inset: 12% 18%;
+    inset: 14% 17%;
     z-index: 1;
-    border-radius: 22px;
-    background:
-      linear-gradient(180deg, rgba(242, 244, 248, 0.98), rgba(221, 226, 236, 0.92));
-    opacity: 0.2;
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(243, 245, 248, 0.98), rgba(223, 228, 236, 0.94));
+    opacity: 0.18;
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.04),
-      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+      0 18px 44px rgba(0, 0, 0, 0.14),
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.62);
   }
 
   .product-visual--placeholder .product-visual__mat {
-    inset: 11% 14%;
-    opacity: 0.26;
+    inset: 16% 18%;
+    opacity: 0.16;
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.05),
-      0 26px 60px rgba(0, 0, 0, 0.18),
-      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      0 18px 50px rgba(0, 0, 0, 0.15),
+      0 0 0 1px rgba(255, 255, 255, 0.035),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
   .product-visual--with-image .product-visual__mat {
-    opacity: 0.22;
+    opacity: 0.92;
   }
 
   .product-visual__brand {
@@ -132,7 +153,7 @@ const hasImage = Boolean(imageUrl);
     top: 1rem;
     left: 1rem;
     z-index: 4;
-    color: rgba(245, 245, 245, 0.32);
+    color: rgba(245, 245, 245, 0.3);
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -142,8 +163,8 @@ const hasImage = Boolean(imageUrl);
     position: absolute;
     top: 50%;
     height: clamp(3rem, 13%, 4rem);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.024));
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
     transform: translateY(-50%);
   }
@@ -177,10 +198,14 @@ const hasImage = Boolean(imageUrl);
     right: 1rem;
     bottom: 0.9rem;
     z-index: 4;
-    color: rgba(245, 245, 245, 0.36);
+    color: rgba(245, 245, 245, 0.3);
     font-size: 0.74rem;
     font-weight: 600;
     text-align: right;
     max-width: 50%;
+  }
+
+  .product-visual--with-image .product-visual__title {
+    color: rgba(245, 245, 245, 0.22);
   }
 </style>

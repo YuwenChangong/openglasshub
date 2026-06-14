@@ -28,6 +28,8 @@ const device = getDeviceBySlug(slug);
 if (!device) {
   return Astro.redirect("/products/");
 }
+
+const heroLinks = device.externalLinks.slice(0, 2);
 ---
 
 <CommunityLayout
@@ -38,11 +40,11 @@ if (!device) {
 >
   <section class="device-detail-head">
     <div class="device-detail-head__visual">
-      <ProductVisual imageUrl={device.productImageUrl ?? device.officialImageUrl} alt={device.imageAlt} brandMark={device.brandLabel} title={device.title} variant="hero" />
+      <ProductVisual imageUrl={device.productImageUrl ?? device.officialImageUrl} alt={device.imageAlt} brandMark={device.brandMarkText} title={device.title} variant="hero" />
     </div>
     <div class="device-detail-head__copy">
       <a href={`/products/${device.brandKey}/`} class="device-detail-head__back">返回 {device.brandLabel}</a>
-      <BrandMark text={device.brandLabel} compact={true} />
+      <BrandMark text={device.brandMarkText} compact={true} brandKey={device.brandKey} />
       <h1>{entry.frontmatter.title}</h1>
       {entry.frontmatter.description && <p>{entry.frontmatter.description}</p>}
       <div class="device-detail-head__meta">
@@ -50,10 +52,20 @@ if (!device) {
         <span>{device.completenessLabel}{device.completenessPercent ? ` · ${device.completenessPercent}` : ""}</span>
         {device.lastCheckedLabel && <span>更新 {device.lastCheckedLabel}</span>}
       </div>
-      <div class="device-detail-head__actions">
-        <a href={device.sourceUrl} target="_blank" rel="noreferrer" class="community-button--secondary">官方参考</a>
-        <a href={device.productUrl} target="_blank" rel="noreferrer" class="community-link">产品页</a>
-      </div>
+      {heroLinks.length > 0 && (
+        <div class="device-detail-head__actions">
+          {heroLinks.map((link, index) => (
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class={index === 0 ? "community-button--secondary" : "community-link"}
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   </section>
 
@@ -127,7 +139,6 @@ if (!device) {
     <div class="device-source-panel__meta">
       {device.lastCheckedLabel && <span>最后核对 {device.lastCheckedLabel}</span>}
       <span>{device.completenessLabel}</span>
-      <a href={device.sourceUrl} target="_blank" rel="noreferrer" class="community-link">查看来源</a>
     </div>
   </section>
 

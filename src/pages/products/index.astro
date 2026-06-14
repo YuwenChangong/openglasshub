@@ -21,7 +21,7 @@ const brands = getBrandSummaries();
     {brands.map((brand) => (
       <a href={`/products/${brand.key}/`} class="brand-tile">
         <div class="brand-tile__top">
-          <BrandMark text={brand.brandMarkText} tone="accent" />
+          <BrandMark text={brand.brandMarkText} tone="accent" brandKey={brand.key} />
           <span>{brand.productCount} 款</span>
         </div>
         {brand.displayName !== brand.brandMarkText && <h2>{brand.displayName}</h2>}
@@ -62,7 +62,7 @@ const brands = getBrandSummaries();
   .brand-tile {
     display: grid;
     align-content: start;
-    gap: 0.9rem;
+    gap: 0.82rem;
     padding: 1.15rem;
     text-decoration: none;
     border-radius: 18px;
@@ -80,6 +80,9 @@ const brands = getBrandSummaries();
     align-items: center;
     justify-content: space-between;
     gap: 0.8rem;
+  }
+  .brand-tile__top :global(.brand-mark) {
+    font-size: 1.52rem;
   }
   .brand-tile__top span,
   .brand-tile__cta {
