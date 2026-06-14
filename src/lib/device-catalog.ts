@@ -1,4 +1,5 @@
 import deviceSpecCandidates from "../data/device-spec-candidates.json";
+import productAssetSources from "../../docs/product-asset-sources.json";
 
 export const deviceSpecLabels = {
   display_type: "显示类型",
@@ -52,6 +53,7 @@ type BrandLogo = {
   alt: string;
   licenseNote?: string;
 };
+type AssetStatus = "official" | "official-cdn" | "press-kit" | "unverified" | "fallback-wordmark" | "placeholder";
 type ProductPlaceholderType = "glasses" | "headset" | "frame" | "wordmark";
 type ProductMedia = {
   imageUrl?: string | null;
@@ -60,6 +62,37 @@ type ProductMedia = {
   imageFit: "contain" | "cover";
   hasConfirmedImage: boolean;
   placeholderType: ProductPlaceholderType;
+};
+type ProductAssetManifest = {
+  generated_at: string;
+  brands: Array<{
+    brandSlug: string;
+    brandName: string;
+    officialWebsiteUrl: string;
+    logo: {
+      assetStatus: AssetStatus;
+      logoImageUrl?: string | null;
+      sourceUrl?: string | null;
+      licenseNote?: string | null;
+      useInUi: boolean;
+    };
+  }>;
+  products: Array<{
+    slug: string;
+    brandSlug: string;
+    name: string;
+    officialProductUrl?: string | null;
+    buyUrl?: string | null;
+    sourceUrl?: string | null;
+    image: {
+      assetStatus: AssetStatus;
+      imageUrl?: string | null;
+      sourceUrl?: string | null;
+      licenseNote?: string | null;
+      useInUi: boolean;
+    };
+    specSources?: Array<{ url: string; type: string }>;
+  }>;
 };
 
 type DeviceSnapshot = {
@@ -86,6 +119,8 @@ type BrandDefinition = {
   positioning: string;
   websiteUrl: string;
   brandLogo: BrandLogo;
+  logoAssetStatus?: AssetStatus;
+  logoSourceUrl?: string | null;
   brandMarkType: BrandMarkType;
   brandMarkText: string;
   brandTone: BrandTone;
@@ -101,6 +136,8 @@ type DeviceDefinition = {
   shortDescription: string;
   longDescription: string;
   media?: Partial<ProductMedia>;
+  imageAssetStatus?: AssetStatus;
+  imageSourceUrl?: string | null;
   productImageUrl?: string | null;
   officialImageUrl?: string | null;
   imageAlt: string;
@@ -127,6 +164,9 @@ const snapshotMap = new Map<string, DeviceSnapshot>(
     .filter((item) => item && typeof item.slug === "string")
     .map((item) => [String(item.slug), item as DeviceSnapshot]),
 );
+const productAssetManifest = productAssetSources as ProductAssetManifest;
+const brandAssetMap = new Map(productAssetManifest.brands.map((brand) => [brand.brandSlug, brand]));
+const productAssetMap = new Map(productAssetManifest.products.map((product) => [product.slug, product]));
 
 const manualSpecGroups = {
   display: "显示",
@@ -137,6 +177,39 @@ const manualSpecGroups = {
   compatibility: "兼容性",
   market: "发售与市场",
 } as const;
+
+function forceHttps(value?: string | null) {
+  if (!value) return null;
+  return value.replace(/^http:\/\//i, "https://");
+}
+
+function getBrandAsset(brandSlug: string) {
+  return brandAssetMap.get(brandSlug) ?? null;
+}
+
+function getProductAsset(slug: string) {
+  return productAssetMap.get(slug) ?? null;
+}
+
+function buildBrandLogo(brandSlug: string, text: string, alt: string): BrandLogo {
+  const asset = getBrandAsset(brandSlug)?.logo;
+  if (asset?.useInUi && asset.logoImageUrl) {
+    return {
+      type: "image",
+      src: forceHttps(asset.logoImageUrl) ?? undefined,
+      text,
+      alt,
+      licenseNote: asset.licenseNote ?? undefined,
+    };
+  }
+
+  return {
+    type: "wordmark",
+    text,
+    alt,
+    licenseNote: asset?.licenseNote ?? "Typographic fallback, not official logo asset.",
+  };
+}
 
 export const routeCatalog = [
   { key: "display_glasses", label: "显示眼镜", description: "强调大屏观影、游戏和第二屏体验。" },
@@ -154,7 +227,9 @@ export const brandCatalog = [
     shortIntro: "显示路线完整，适合先看日常观影到空间显示增强。",
     positioning: "显示与空间显示增强。",
     websiteUrl: "https://www.xreal.com/",
-    brandLogo: { type: "wordmark", text: "XREAL", alt: "XREAL wordmark", licenseNote: "Typographic fallback, not official logo asset." },
+    brandLogo: buildBrandLogo("xreal", "XREAL", "XREAL logo"),
+    logoAssetStatus: getBrandAsset("xreal")?.logo.assetStatus,
+    logoSourceUrl: getBrandAsset("xreal")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "XREAL",
     brandTone: "xreal",
@@ -168,7 +243,9 @@ export const brandCatalog = [
     shortIntro: "同时覆盖显示眼镜和独立 XR 路线。",
     positioning: "显示到独立 XR。",
     websiteUrl: "https://www.rayneo.com/",
-    brandLogo: { type: "wordmark", text: "RayNeo", alt: "RayNeo wordmark", licenseNote: "Typographic fallback, not official logo asset." },
+    brandLogo: buildBrandLogo("rayneo", "RayNeo", "RayNeo logo"),
+    logoAssetStatus: getBrandAsset("rayneo")?.logo.assetStatus,
+    logoSourceUrl: getBrandAsset("rayneo")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "RayNeo",
     brandTone: "rayneo",
@@ -182,7 +259,9 @@ export const brandCatalog = [
     shortIntro: "同时做显示眼镜和 AI 入口。",
     positioning: "显示 + AI。",
     websiteUrl: "https://global.rokid.com/",
-    brandLogo: { type: "wordmark", text: "Rokid", alt: "Rokid wordmark", licenseNote: "Typographic fallback, not official logo asset." },
+    brandLogo: buildBrandLogo("rokid", "Rokid", "Rokid logo"),
+    logoAssetStatus: getBrandAsset("rokid")?.logo.assetStatus,
+    logoSourceUrl: getBrandAsset("rokid")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "Rokid",
     brandTone: "rokid",
@@ -196,7 +275,9 @@ export const brandCatalog = [
     shortIntro: "主打显示型 XR 眼镜。",
     positioning: "便携显示。",
     websiteUrl: "https://www.viture.com/",
-    brandLogo: { type: "wordmark", text: "VITURE", alt: "VITURE wordmark", licenseNote: "Typographic fallback, not official logo asset." },
+    brandLogo: buildBrandLogo("viture", "VITURE", "VITURE logo"),
+    logoAssetStatus: getBrandAsset("viture")?.logo.assetStatus,
+    logoSourceUrl: getBrandAsset("viture")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "VITURE",
     brandTone: "viture",
@@ -210,7 +291,9 @@ export const brandCatalog = [
     shortIntro: "更偏轻量 AR 与提示式交互。",
     positioning: "轻量 AR。",
     websiteUrl: "https://www.inmoglobal.com/",
-    brandLogo: { type: "wordmark", text: "INMO", alt: "INMO wordmark", licenseNote: "Typographic fallback, not official logo asset." },
+    brandLogo: buildBrandLogo("inmo", "INMO", "INMO logo"),
+    logoAssetStatus: getBrandAsset("inmo")?.logo.assetStatus,
+    logoSourceUrl: getBrandAsset("inmo")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "INMO",
     brandTone: "inmo",
@@ -224,7 +307,9 @@ export const brandCatalog = [
     shortIntro: "代表无显示 AI 眼镜路线。",
     positioning: "无显示智能眼镜。",
     websiteUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
-    brandLogo: { type: "wordmark", text: "META", alt: "META wordmark", licenseNote: "Typographic fallback, not official logo asset." },
+    brandLogo: buildBrandLogo("meta", "META × RAY-BAN", "Meta Ray-Ban logo"),
+    logoAssetStatus: getBrandAsset("meta")?.logo.assetStatus,
+    logoSourceUrl: getBrandAsset("meta")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "META",
     brandTone: "meta",
@@ -238,7 +323,9 @@ export const brandCatalog = [
     shortIntro: "更偏开放实验与开发探索。",
     positioning: "实验型设备。",
     websiteUrl: "https://brilliant.xyz/products/frame",
-    brandLogo: { type: "wordmark", text: "FRAME", alt: "FRAME wordmark", licenseNote: "Typographic fallback, not official logo asset." },
+    brandLogo: buildBrandLogo("brilliant-labs", "FRAME", "Brilliant Labs logo"),
+    logoAssetStatus: getBrandAsset("brilliant-labs")?.logo.assetStatus,
+    logoSourceUrl: getBrandAsset("brilliant-labs")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "FRAME",
     brandTone: "frame",
@@ -252,7 +339,9 @@ export const brandCatalog = [
     shortIntro: "强调低干扰信息显示与日常佩戴。",
     positioning: "提示式智能眼镜。",
     websiteUrl: "https://www.evenrealities.com/en-FI/g1",
-    brandLogo: { type: "wordmark", text: "G1", alt: "G1 wordmark", licenseNote: "Typographic fallback, not official logo asset." },
+    brandLogo: buildBrandLogo("even-realities", "G1", "Even Realities logo"),
+    logoAssetStatus: getBrandAsset("even-realities")?.logo.assetStatus,
+    logoSourceUrl: getBrandAsset("even-realities")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "G1",
     brandTone: "g1",
@@ -266,7 +355,9 @@ export const brandCatalog = [
     shortIntro: "代表高端独立空间计算路线。",
     positioning: "独立空间计算头显。",
     websiteUrl: "https://www.apple.com/apple-vision-pro/",
-    brandLogo: { type: "wordmark", text: "Vision", alt: "Vision wordmark", licenseNote: "Typographic fallback, not official logo asset." },
+    brandLogo: buildBrandLogo("apple", "Vision", "Apple Vision wordmark"),
+    logoAssetStatus: getBrandAsset("apple")?.logo.assetStatus,
+    logoSourceUrl: getBrandAsset("apple")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "Vision",
     brandTone: "vision",
@@ -695,6 +786,8 @@ export function getBrandSummaries() {
     return {
       ...brand,
       brandLogo: brand.brandLogo,
+      logoAssetStatus: brand.logoAssetStatus,
+      logoSourceUrl: brand.logoSourceUrl,
       productCount: products.length,
       featuredProducts: products.filter((device) => brand.featuredProducts.includes(device.slug)).slice(0, 3),
       representativeNames: products
@@ -709,6 +802,7 @@ export function getDeviceBySlug(slug: string) {
   if (!slug || !(slug in deviceCatalog)) return null;
   const base = deviceCatalog[slug as DeviceKey];
   const brand = getBrandByKey(base.brandKey);
+  const productAsset = getProductAsset(slug);
   const snapshot = getDeviceSnapshot(slug);
   const mergedSpecs = mergeSpecs(base.keySpecs, snapshot?.specs);
   const groupedSpecs = specGroupOrder
@@ -738,19 +832,26 @@ export function getDeviceBySlug(slug: string) {
     ]),
   );
 
-  const resolvedImageUrl = base.media?.imageUrl ?? base.productImageUrl ?? base.officialImageUrl ?? snapshot?.official_image_url ?? null;
+  const manifestImageUrl = productAsset?.image?.useInUi ? forceHttps(productAsset.image.imageUrl ?? null) : null;
+  const resolvedImageUrl =
+    manifestImageUrl ??
+    forceHttps(base.media?.imageUrl ?? null) ??
+    forceHttps(base.productImageUrl ?? null) ??
+    forceHttps(base.officialImageUrl ?? null) ??
+    forceHttps(snapshot?.official_image_url ?? null) ??
+    null;
   const media: ProductMedia = {
     imageUrl: resolvedImageUrl,
     imageAlt: base.media?.imageAlt ?? base.imageAlt,
     imageBackground: base.media?.imageBackground ?? "light",
     imageFit: base.media?.imageFit ?? "contain",
-    hasConfirmedImage: Boolean(base.media?.hasConfirmedImage && resolvedImageUrl),
+    hasConfirmedImage: Boolean((productAsset?.image?.useInUi || base.media?.hasConfirmedImage) && resolvedImageUrl),
     placeholderType: base.media?.placeholderType ?? "wordmark",
   };
   const previewSpecs = pickSpecs(mergedSpecs, ["display_type", "resolution", "refresh_rate", "brightness", "field_of_view", "camera", "weight", "price", "chipset"]).slice(0, 5);
-  const officialProductUrl = base.officialProductUrl ?? base.productUrl ?? null;
-  const buyUrl = base.buyUrl ?? null;
-  const sourceUrl = base.sourceUrl ?? null;
+  const officialProductUrl = productAsset?.officialProductUrl ?? base.officialProductUrl ?? base.productUrl ?? null;
+  const buyUrl = productAsset?.buyUrl ?? base.buyUrl ?? null;
+  const sourceUrl = productAsset?.sourceUrl ?? base.sourceUrl ?? null;
   const externalLinks = buildExternalLinks({ officialProductUrl, buyUrl, sourceUrl });
 
   return {
@@ -765,6 +866,8 @@ export function getDeviceBySlug(slug: string) {
     media,
     productImageUrl: resolvedImageUrl,
     officialImageUrl: resolvedImageUrl,
+    imageAssetStatus: productAsset?.image?.assetStatus ?? (resolvedImageUrl ? "unverified" : "placeholder"),
+    imageSourceUrl: productAsset?.image?.sourceUrl ?? null,
     officialProductUrl,
     buyUrl,
     sourceUrl,

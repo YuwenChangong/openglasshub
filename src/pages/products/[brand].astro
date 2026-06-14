@@ -72,7 +72,6 @@ const devices = getDevicesByBrand(brand.key);
 
         <div class="product-device-card__foot">
           <div class="product-device-card__state">
-            <strong>{device.completenessPercent ?? device.completenessLabel}</strong>
             <span>查看详情</span>
           </div>
         </div>
@@ -195,7 +194,6 @@ const devices = getDevicesByBrand(brand.key);
   .product-device-card__state {
     justify-content: space-between;
   }
-  .product-device-card__state strong,
   .product-device-card__state span {
     color: rgba(245, 245, 245, 0.66);
     font-size: 0.8rem;

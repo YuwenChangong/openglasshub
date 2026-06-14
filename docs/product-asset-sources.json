@@ -1,0 +1,400 @@
+{
+  "generated_at": "2026-06-14T16:20:00+12:00",
+  "brands": [
+    {
+      "brandSlug": "xreal",
+      "brandName": "XREAL",
+      "officialWebsiteUrl": "https://www.xreal.com/",
+      "logo": {
+        "assetStatus": "fallback-wordmark",
+        "logoImageUrl": null,
+        "sourceUrl": "https://us.shop.xreal.com/products/xreal-one",
+        "licenseNote": "Official store mark includes the shop label, so UI falls back to a typographic wordmark.",
+        "useInUi": false
+      }
+    },
+    {
+      "brandSlug": "rayneo",
+      "brandName": "RayNeo",
+      "officialWebsiteUrl": "https://www.rayneo.com/",
+      "logo": {
+        "assetStatus": "fallback-wordmark",
+        "logoImageUrl": null,
+        "sourceUrl": "https://www.rayneo.com/",
+        "licenseNote": "No confidently reusable official remote logo URL confirmed.",
+        "useInUi": false
+      }
+    },
+    {
+      "brandSlug": "rokid",
+      "brandName": "Rokid",
+      "officialWebsiteUrl": "https://global.rokid.com/",
+      "logo": {
+        "assetStatus": "fallback-wordmark",
+        "logoImageUrl": null,
+        "sourceUrl": "https://global.rokid.com/",
+        "licenseNote": "No confidently reusable official remote logo URL confirmed.",
+        "useInUi": false
+      }
+    },
+    {
+      "brandSlug": "viture",
+      "brandName": "VITURE",
+      "officialWebsiteUrl": "https://www.viture.com/",
+      "logo": {
+        "assetStatus": "fallback-wordmark",
+        "logoImageUrl": null,
+        "sourceUrl": "https://www.viture.com/",
+        "licenseNote": "No confidently reusable official remote logo URL confirmed.",
+        "useInUi": false
+      }
+    },
+    {
+      "brandSlug": "inmo",
+      "brandName": "INMO",
+      "officialWebsiteUrl": "https://www.inmoxr.com/",
+      "logo": {
+        "assetStatus": "fallback-wordmark",
+        "logoImageUrl": null,
+        "sourceUrl": "https://www.inmoxr.com/",
+        "licenseNote": "No confidently reusable official remote logo URL confirmed.",
+        "useInUi": false
+      }
+    },
+    {
+      "brandSlug": "meta",
+      "brandName": "Meta Ray-Ban",
+      "officialWebsiteUrl": "https://www.ray-ban.com/",
+      "logo": {
+        "assetStatus": "fallback-wordmark",
+        "logoImageUrl": null,
+        "sourceUrl": "https://www.ray-ban.com/",
+        "licenseNote": "No confidently reusable official remote logo URL confirmed.",
+        "useInUi": false
+      }
+    },
+    {
+      "brandSlug": "brilliant-labs",
+      "brandName": "Brilliant Labs",
+      "officialWebsiteUrl": "https://brilliant.xyz/",
+      "logo": {
+        "assetStatus": "official",
+        "logoImageUrl": "https://brilliant.xyz/cdn/shop/files/BrilliantLabs_logo_v0120_fd00ce58-e85e-4c9b-a80e-a9c57955d1b7.png?v=1752767272",
+        "sourceUrl": "https://brilliant.xyz/",
+        "licenseNote": "Official remote logo referenced from the official Brilliant Labs site.",
+        "useInUi": true
+      }
+    },
+    {
+      "brandSlug": "even-realities",
+      "brandName": "Even Realities",
+      "officialWebsiteUrl": "https://www.evenrealities.com/",
+      "logo": {
+        "assetStatus": "official-cdn",
+        "logoImageUrl": "https://cdn.sanity.io/images/wfyhg2qw/production/db0241cac62d1dd68e281beea3ae4a19afd4899d-604x340.png",
+        "sourceUrl": "https://www.evenrealities.com/",
+        "licenseNote": "Official remote logo referenced from the official Even Realities site.",
+        "useInUi": true
+      }
+    },
+    {
+      "brandSlug": "apple",
+      "brandName": "Apple Vision",
+      "officialWebsiteUrl": "https://www.apple.com/apple-vision-pro/",
+      "logo": {
+        "assetStatus": "fallback-wordmark",
+        "logoImageUrl": null,
+        "sourceUrl": "https://www.apple.com/apple-vision-pro/",
+        "licenseNote": "No confidently reusable official remote logo URL confirmed.",
+        "useInUi": false
+      }
+    }
+  ],
+  "products": [
+    {
+      "slug": "xreal-one",
+      "brandSlug": "xreal",
+      "name": "XREAL One",
+      "officialProductUrl": "https://us.shop.xreal.com/products/xreal-one",
+      "buyUrl": "https://us.shop.xreal.com/products/xreal-one",
+      "sourceUrl": "https://us.shop.xreal.com/products/xreal-one",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://us.shop.xreal.com/cdn/shop/files/XREAL_One_AR_Glasses.jpg?v=1755511322",
+        "sourceUrl": "https://us.shop.xreal.com/products/xreal-one",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://us.shop.xreal.com/products/xreal-one",
+          "type": "official-store"
+        }
+      ]
+    },
+    {
+      "slug": "xreal-one-pro",
+      "brandSlug": "xreal",
+      "name": "XREAL One Pro",
+      "officialProductUrl": "https://www.xreal.com/us/one-pro",
+      "buyUrl": null,
+      "sourceUrl": "https://www.xreal.com/us/one-pro",
+      "image": {
+        "assetStatus": "official",
+        "imageUrl": "https://resource.xreal.com/www-xreal-com/images/onepro/OnePro_Desktop.webp",
+        "sourceUrl": "https://www.xreal.com/us/one-pro",
+        "licenseNote": "Official remote product image referenced from the XREAL product page.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://www.xreal.com/us/one-pro",
+          "type": "official-product-page"
+        }
+      ]
+    },
+    {
+      "slug": "xreal-air-2-pro",
+      "brandSlug": "xreal",
+      "name": "XREAL Air 2 Pro",
+      "officialProductUrl": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+      "buyUrl": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+      "sourceUrl": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://us.shop.xreal.com/cdn/shop/files/preview_images/P.jpg?v=1722059551",
+        "sourceUrl": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+          "type": "official-store"
+        }
+      ]
+    },
+    {
+      "slug": "xreal-air-2-ultra",
+      "brandSlug": "xreal",
+      "name": "XREAL Air 2 Ultra",
+      "officialProductUrl": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+      "buyUrl": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+      "sourceUrl": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+      "image": {
+        "assetStatus": "placeholder",
+        "imageUrl": null,
+        "sourceUrl": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+        "licenseNote": "No confirmed official remote product image was safely extracted for reuse.",
+        "useInUi": false
+      },
+      "specSources": [
+        {
+          "url": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+          "type": "official-store"
+        }
+      ]
+    },
+    {
+      "slug": "rayneo-x2",
+      "brandSlug": "rayneo",
+      "name": "RayNeo X2",
+      "officialProductUrl": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+      "buyUrl": null,
+      "sourceUrl": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://www.rayneo.com/cdn/shop/files/X2.png?v=1774235536",
+        "sourceUrl": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+          "type": "official-product-page"
+        }
+      ]
+    },
+    {
+      "slug": "rokid-max",
+      "brandSlug": "rokid",
+      "name": "Rokid Max",
+      "officialProductUrl": "https://global.rokid.com/products/rokid-max",
+      "buyUrl": null,
+      "sourceUrl": "https://global.rokid.com/products/rokid-max",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://global.rokid.com/cdn/shop/products/Max_01.jpg?v=1767063777",
+        "sourceUrl": "https://global.rokid.com/products/rokid-max",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://global.rokid.com/products/rokid-max",
+          "type": "official-product-page"
+        }
+      ]
+    },
+    {
+      "slug": "rokid-glasses",
+      "brandSlug": "rokid",
+      "name": "Rokid Glasses",
+      "officialProductUrl": "https://global.rokid.com/products/rokid-glasses",
+      "buyUrl": null,
+      "sourceUrl": "https://global.rokid.com/products/rokid-glasses",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://global.rokid.com/cdn/shop/files/111GLasses.jpg?v=1781078180",
+        "sourceUrl": "https://global.rokid.com/products/rokid-glasses",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://global.rokid.com/products/rokid-glasses",
+          "type": "official-product-page"
+        }
+      ]
+    },
+    {
+      "slug": "viture-pro",
+      "brandSlug": "viture",
+      "name": "VITURE Pro",
+      "officialProductUrl": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+      "buyUrl": null,
+      "sourceUrl": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://cdn.shopify.com/s/files/1/0651/3675/4763/files/P6_01.jpg?v=1769712788",
+        "sourceUrl": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+          "type": "official-product-page"
+        }
+      ]
+    },
+    {
+      "slug": "inmo-air-2",
+      "brandSlug": "inmo",
+      "name": "INMO Air 2",
+      "officialProductUrl": "https://www.inmoxr.com/pages/inmo-air2",
+      "buyUrl": null,
+      "sourceUrl": "https://www.inmoxr.com/pages/inmo-air2",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://www.inmoxr.com/cdn/shop/files/logo-1200x628.jpg?v=1742379320",
+        "sourceUrl": "https://www.inmoxr.com/pages/inmo-air2",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://www.inmoxr.com/pages/inmo-air2",
+          "type": "official-product-page"
+        }
+      ]
+    },
+    {
+      "slug": "ray-ban-meta",
+      "brandSlug": "meta",
+      "name": "Ray-Ban Meta",
+      "officialProductUrl": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+      "buyUrl": null,
+      "sourceUrl": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+      "image": {
+        "assetStatus": "press-kit",
+        "imageUrl": "https://about.fb.com/wp-content/uploads/2023/09/Meta-Smart-Glasses_Social-Share.jpg?w=1200",
+        "sourceUrl": "https://about.fb.com/news/2023/09/new-ray-ban-meta-smart-glasses/",
+        "licenseNote": "Official Meta news/press image used because the product page did not expose a stable direct product image URL.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+          "type": "official-product-page"
+        },
+        {
+          "url": "https://about.fb.com/news/2023/09/new-ray-ban-meta-smart-glasses/",
+          "type": "press-kit"
+        }
+      ]
+    },
+    {
+      "slug": "brilliant-labs-frame",
+      "brandSlug": "brilliant-labs",
+      "name": "Brilliant Labs Frame",
+      "officialProductUrl": "https://brilliant.xyz/products/frame",
+      "buyUrl": null,
+      "sourceUrl": "https://docs.brilliant.xyz/frame/hardware/",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://brilliant.xyz/cdn/shop/files/Halo_16_9e6dbe16-f264-4d22-bca1-175227d4ade6.png?v=1753981531",
+        "sourceUrl": "https://brilliant.xyz/products/frame",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://brilliant.xyz/products/frame",
+          "type": "official-product-page"
+        },
+        {
+          "url": "https://docs.brilliant.xyz/frame/hardware/",
+          "type": "official-support"
+        }
+      ]
+    },
+    {
+      "slug": "even-realities-g1",
+      "brandSlug": "even-realities",
+      "name": "Even Realities G1",
+      "officialProductUrl": "https://www.evenrealities.com/en-FI/g1",
+      "buyUrl": null,
+      "sourceUrl": "https://www.evenrealities.com/en-FI/g1",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://cdn.sanity.io/images/wfyhg2qw/production/5467c59fc9e94a4637c5be4b9c01333aae9838f0-1200x630.jpg",
+        "sourceUrl": "https://www.evenrealities.com/en-FI/g1",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://www.evenrealities.com/en-FI/g1",
+          "type": "official-product-page"
+        }
+      ]
+    },
+    {
+      "slug": "apple-vision-pro",
+      "brandSlug": "apple",
+      "name": "Apple Vision Pro",
+      "officialProductUrl": "https://www.apple.com/apple-vision-pro/",
+      "buyUrl": null,
+      "sourceUrl": "https://support.apple.com/en-us/125436",
+      "image": {
+        "assetStatus": "official",
+        "imageUrl": "https://www.apple.com/v/apple-vision-pro/k/images/meta/apple-vision-pro-us__f28gp8ey4vam_og.png?202606041907",
+        "sourceUrl": "https://www.apple.com/apple-vision-pro/",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": true
+      },
+      "specSources": [
+        {
+          "url": "https://www.apple.com/apple-vision-pro/",
+          "type": "official-product-page"
+        },
+        {
+          "url": "https://support.apple.com/en-us/125436",
+          "type": "official-support"
+        }
+      ]
+    }
+  ]
+}

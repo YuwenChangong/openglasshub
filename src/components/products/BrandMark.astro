@@ -18,7 +18,15 @@ const resolvedText = logo?.text ?? text ?? "";
 
 {logo?.type === "image" && logo.src ? (
   <span class:list={["brand-mark", `brand-mark--${tone}`, { "brand-mark--compact": compact, "brand-mark--image": true }]} data-brand={brandKey}>
-    <img src={logo.src} alt={logo.alt} loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+    <img
+      src={logo.src}
+      alt={logo.alt}
+      loading="lazy"
+      decoding="async"
+      referrerpolicy="no-referrer"
+      onerror="const root=this.closest('.brand-mark'); if(root){root.classList.add('brand-mark--fallback');} this.remove();"
+    />
+    <span class="brand-mark__fallback" aria-hidden="true">{resolvedText}</span>
   </span>
 ) : (
   <span
@@ -55,6 +63,15 @@ const resolvedText = logo?.text ?? text ?? "";
     max-width: 100%;
     max-height: 2rem;
     object-fit: contain;
+  }
+
+  .brand-mark__fallback {
+    display: none;
+  }
+
+  .brand-mark--fallback .brand-mark__fallback {
+    display: inline-flex;
+    align-items: center;
   }
 
   .brand-mark--accent {
