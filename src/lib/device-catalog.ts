@@ -23,8 +23,11 @@ export const deviceSpecLabels = {
   camera: "相机",
   microphone: "麦克风",
   speakers: "扬声器",
+  platform: "平台 / 系统",
   connectivity: "连接方式",
   ports: "接口",
+  required_host: "主机依赖",
+  input_controls: "输入方式",
   battery_life: "续航",
   battery_capacity: "电池容量",
   charging: "充电",
@@ -45,6 +48,18 @@ export const deviceSpecLabels = {
 type DeviceSpecField = keyof typeof deviceSpecLabels;
 type DeviceSpecs = Partial<Record<DeviceSpecField, string>>;
 type DeviceCategory = "display_glasses" | "ai_glasses" | "standalone_xr" | "developer_device";
+type SpecGroupKey =
+  | "display"
+  | "hardware"
+  | "cameraSensors"
+  | "audio"
+  | "connectivity"
+  | "batteryBody"
+  | "market"
+  | "optics"
+  | "battery"
+  | "physical"
+  | "compatibility";
 type BrandMarkType = "wordmark" | "monogram";
 type BrandTone = "xreal" | "rayneo" | "rokid" | "viture" | "inmo" | "meta" | "frame" | "g1" | "vision";
 type BrandLogo = {
@@ -120,9 +135,27 @@ type ProductDataSourceManifest = {
       fields?: string[];
       review?: "official" | "needsReview";
     }>;
+    officialFields?: string[];
+    vr52Fields?: string[];
+    uiOmittedFields?: string[];
     notes?: string[];
     missingFields?: string[];
     needsReviewFields?: string[];
+    publicData?: {
+      shortSummary?: string;
+      longSummary?: string;
+      positioning?: string;
+      keyLimitations?: string[];
+      bestFor?: string[];
+      notIdealFor?: string[];
+      supportUrl?: string | null;
+      buyUrl?: string | null;
+      sourceUrl?: string | null;
+      releaseYear?: string | null;
+      availability?: string | null;
+      keySpecs?: DeviceSpecs;
+      fullSpecs?: Partial<Record<SpecGroupKey, DeviceSpecs>>;
+    };
   }>;
 };
 
@@ -191,7 +224,7 @@ type DeviceDefinition = {
   notIdealFor: string[];
   keyLimitations?: string[];
   keySpecs?: DeviceSpecs;
-  fullSpecs?: Partial<Record<"display" | "optics" | "hardware" | "battery" | "physical" | "compatibility" | "market", DeviceSpecs>>;
+  fullSpecs?: Partial<Record<SpecGroupKey, DeviceSpecs>>;
   pendingFields?: string[];
   needsReviewFields?: string[];
   manualCompleteness?: number | null;
@@ -211,11 +244,11 @@ const productDataMap = new Map(productDataManifest.products.map((product) => [pr
 
 const manualSpecGroups = {
   display: "显示",
-  optics: "光学",
   hardware: "硬件",
-  battery: "续航与供电",
-  physical: "机身与佩戴",
-  compatibility: "兼容性",
+  cameraSensors: "相机与传感器",
+  audio: "音频与麦克风",
+  connectivity: "连接与兼容",
+  batteryBody: "电池与机身",
   market: "发售与市场",
 } as const;
 
@@ -754,12 +787,16 @@ export type DeviceCatalogEntry = (typeof deviceCatalog)[DeviceKey];
 export type BrandKey = (typeof brandCatalog)[number]["key"];
 
 const specGroupOrder = [
-  { key: "display", label: manualSpecGroups.display, fields: ["display_type", "resolution", "refresh_rate", "brightness", "field_of_view", "ppd", "color_gamut"] as DeviceSpecField[] },
-  { key: "optics", label: manualSpecGroups.optics, fields: ["waveguide_type", "lens_type", "diopter_support", "myopia_adjustment", "transparency", "dimming"] as DeviceSpecField[] },
-  { key: "hardware", label: manualSpecGroups.hardware, fields: ["chipset", "memory", "storage", "sensors", "camera", "microphone", "speakers", "sdk_availability"] as DeviceSpecField[] },
-  { key: "battery", label: manualSpecGroups.battery, fields: ["battery_life", "battery_capacity", "charging", "power_source"] as DeviceSpecField[] },
-  { key: "physical", label: manualSpecGroups.physical, fields: ["weight", "dimensions", "frame_style", "ip_rating"] as DeviceSpecField[] },
-  { key: "compatibility", label: manualSpecGroups.compatibility, fields: ["connectivity", "ports", "supported_devices", "os_compatibility"] as DeviceSpecField[] },
+  {
+    key: "display",
+    label: manualSpecGroups.display,
+    fields: ["display_type", "resolution", "refresh_rate", "brightness", "field_of_view", "ppd", "color_gamut", "dimming", "diopter_support", "myopia_adjustment"] as DeviceSpecField[],
+  },
+  { key: "hardware", label: manualSpecGroups.hardware, fields: ["chipset", "memory", "storage", "platform", "sdk_availability"] as DeviceSpecField[] },
+  { key: "cameraSensors", label: manualSpecGroups.cameraSensors, fields: ["camera", "sensors"] as DeviceSpecField[] },
+  { key: "audio", label: manualSpecGroups.audio, fields: ["speakers", "microphone"] as DeviceSpecField[] },
+  { key: "connectivity", label: manualSpecGroups.connectivity, fields: ["connectivity", "ports", "supported_devices", "os_compatibility", "required_host", "input_controls"] as DeviceSpecField[] },
+  { key: "batteryBody", label: manualSpecGroups.batteryBody, fields: ["battery_life", "battery_capacity", "charging", "power_source", "weight", "dimensions", "frame_style", "ip_rating"] as DeviceSpecField[] },
   { key: "market", label: manualSpecGroups.market, fields: ["price", "region", "availability", "release_year"] as DeviceSpecField[] },
 ] as const;
 
@@ -979,13 +1016,15 @@ export function getDeviceBySlug(slug: string) {
   const brand = getBrandByKey(base.brandKey);
   const productAsset = getProductAsset(slug);
   const productData = getProductDataEntry(slug);
+  const publicData = productData?.publicData;
   const snapshot = getDeviceSnapshot(slug);
-  const mergedSpecs = mergeSpecs(base.keySpecs, snapshot?.specs);
+  const mergedPreviewSpecSource = mergeSpecs(publicData?.keySpecs, mergeSpecs(base.keySpecs, snapshot?.specs));
   const groupedSpecs = specGroupOrder
     .map((group) => {
-      const manualGroup = base.fullSpecs?.[group.key as keyof NonNullable<typeof base.fullSpecs>] ?? {};
+      const baseGroup = base.fullSpecs?.[group.key as keyof NonNullable<typeof base.fullSpecs>] ?? {};
+      const publicGroup = publicData?.fullSpecs?.[group.key] ?? {};
       const snapshotGroup = pickSpecSubset(snapshot?.specs, group.fields);
-      const groupSpecs = mergeSpecs(manualGroup, snapshotGroup);
+      const groupSpecs = mergeSpecs(publicGroup, mergeSpecs(baseGroup, snapshotGroup));
       const items = pickSpecs(groupSpecs, group.fields);
       return items.length ? { key: group.key, label: group.label, items } : null;
     })
@@ -1019,33 +1058,30 @@ export function getDeviceBySlug(slug: string) {
     hasConfirmedImage: false,
     placeholderType: base.media?.placeholderType ?? "wordmark",
   };
-  const previewSpecFields = base.keySpecs ? (Object.keys(base.keySpecs) as DeviceSpecField[]) : [];
-  const previewSpecs = previewSpecFields.length > 0 ? pickSpecs(mergeSpecs(base.keySpecs, snapshot?.specs), previewSpecFields).slice(0, 5) : [];
+  const previewSpecFields = mergedPreviewSpecSource ? (Object.keys(mergedPreviewSpecSource) as DeviceSpecField[]) : [];
+  const previewSpecs = previewSpecFields.length > 0 ? pickSpecs(mergedPreviewSpecSource, previewSpecFields).slice(0, 5) : [];
   const flattenedSpecs = groupedSpecs.flatMap((group) => group.items);
   const quickSpecs = buildQuickSpecs(flattenedSpecs, 6);
   const cardSpecs = buildQuickSpecs(previewSpecs.length > 0 ? previewSpecs : flattenedSpecs, 4);
   const cardMedia: ProductMedia = { ...media, imageUrl: null, imageBackground: "dark", imageFit: "contain" };
   const detailMedia: ProductMedia = { ...media, imageUrl: null, imageBackground: "dark", imageFit: "contain" };
-  const officialProductUrl = productAsset ? (productAsset.officialProductUrl ?? null) : base.officialProductUrl ?? base.productUrl ?? null;
-  const buyUrl = productAsset ? (productAsset.buyUrl ?? null) : base.buyUrl ?? null;
-  const supportUrl = base.supportUrl ?? null;
-  const sourceUrl = productAsset ? (productAsset.sourceUrl ?? null) : base.sourceUrl ?? null;
+  const officialProductUrl = base.officialProductUrl ?? base.productUrl ?? productAsset?.officialProductUrl ?? null;
+  const buyUrl = publicData?.buyUrl ?? base.buyUrl ?? productAsset?.buyUrl ?? null;
+  const supportUrl = publicData?.supportUrl ?? base.supportUrl ?? null;
+  const sourceUrl = publicData?.sourceUrl ?? base.sourceUrl ?? productAsset?.sourceUrl ?? null;
   const externalLinks = buildExternalLinks({ officialProductUrl, buyUrl, supportUrl, sourceUrl });
   const typeLabel = base.typeLabel ?? base.routeLabel;
-  const infoStatusLabel = buildInfoState({
-    category: base.category,
-    previewSpecs,
-    missingFields,
-    explicitStatus: base.statusLabel,
-  });
-  const positioning = base.positioning ?? base.routeDescription;
-  const detailSummary = [base.shortDescription, base.longDescription].filter(Boolean);
-  const keyLimitations = base.keyLimitations ?? base.notIdealFor;
+  const infoStatusLabel = null;
+  const positioning = publicData?.positioning ?? base.positioning ?? base.routeDescription;
+  const detailSummary = [publicData?.shortSummary ?? base.shortDescription, publicData?.longSummary ?? base.longDescription].filter(Boolean);
+  const keyLimitations = publicData?.keyLimitations ?? base.keyLimitations ?? base.notIdealFor;
   const sourceNotes = productData?.notes ?? [];
   const needsReviewFields = Array.from(new Set([...(base.needsReviewFields ?? []), ...(productData?.needsReviewFields ?? [])]));
 
   return {
     ...base,
+    shortDescription: publicData?.shortSummary ?? base.shortDescription,
+    longDescription: publicData?.longSummary ?? base.longDescription,
     title: base.name,
     brandLabel: base.brandName,
     brandTone: brand?.brandTone ?? "xreal",
@@ -1085,7 +1121,11 @@ export function getDeviceBySlug(slug: string) {
     positioning,
     detailSummary,
     keyLimitations,
-    dataStatusLabel: missingFields.length > 0 ? "部分待确认" : "资料完整",
+    releaseYear: publicData?.releaseYear ?? base.releaseYear ?? null,
+    availability: publicData?.availability ?? base.availability ?? null,
+    bestFor: publicData?.bestFor ?? base.bestFor,
+    notIdealFor: publicData?.notIdealFor ?? base.notIdealFor,
+    dataStatusLabel: null,
     pendingSpecLabels: missingFields.slice(0, 8),
   };
 }

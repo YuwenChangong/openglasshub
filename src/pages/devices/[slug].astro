@@ -28,6 +28,16 @@ if (!device) {
 }
 
 const heroLinks = device.externalLinks.slice(0, 3);
+const specItems = device.specGroups.flatMap((group) => group.items);
+const getSpecValue = (field: string) => specItems.find((item) => item.field === field)?.value ?? null;
+const basicInfoItems = [
+  { label: "类型", value: device.typeLabel },
+  { label: "发布时间", value: device.releaseYear ?? getSpecValue("release_year") },
+  { label: "可得性", value: device.availability ?? getSpecValue("availability") },
+  { label: "平台 / 系统", value: getSpecValue("platform") },
+  { label: "主机依赖", value: getSpecValue("required_host") },
+  { label: "输入方式", value: getSpecValue("input_controls") },
+].filter((item) => item.value);
 ---
 
 <CommunityLayout
@@ -43,7 +53,7 @@ const heroLinks = device.externalLinks.slice(0, 3);
         title={device.title}
         categoryLabel={device.typeLabel}
         variant="hero"
-        statusLabel={device.infoStatusLabel}
+        statusLabel={null}
         highlights={device.previewSpecs}
         placeholderType={device.detailMedia.placeholderType}
       />
@@ -55,8 +65,8 @@ const heroLinks = device.externalLinks.slice(0, 3);
       <p>{device.positioning}</p>
       <div class="device-detail-head__meta">
         <span>{device.typeLabel}</span>
-        <span>{device.completenessLabel}</span>
-        {device.lastCheckedLabel && <span>更新 {device.lastCheckedLabel}</span>}
+        {device.releaseYear && <span>{device.releaseYear}</span>}
+        {device.availability && <span>{device.availability}</span>}
       </div>
       {heroLinks.length > 0 && (
         <div class="device-detail-head__actions">
@@ -75,6 +85,17 @@ const heroLinks = device.externalLinks.slice(0, 3);
     </div>
   </section>
 
+  {basicInfoItems.length > 0 && (
+    <section class="device-key-specs">
+      {basicInfoItems.map((item) => (
+        <article class="community-surface device-key-spec">
+          <span>{item.label}</span>
+          <strong>{item.value}</strong>
+        </article>
+      ))}
+    </section>
+  )}
+
   {device.quickSpecs.length > 0 && (
     <section class="device-key-specs">
       {device.quickSpecs.slice(0, 6).map((spec) => (
@@ -89,10 +110,9 @@ const heroLinks = device.externalLinks.slice(0, 3);
   <section class="device-brief-panel">
     <div class="device-brief-panel__head">
       <h2>产品简介</h2>
-      <span>{device.dataStatusLabel}</span>
     </div>
     <div class="device-brief-panel__body">
-      {device.detailSummary.slice(0, 2).map((paragraph) => (
+      {device.detailSummary.slice(0, 4).map((paragraph) => (
         <p>{paragraph}</p>
       ))}
       {device.keyLimitations.length > 0 && (
@@ -124,17 +144,6 @@ const heroLinks = device.externalLinks.slice(0, 3);
     </article>
   </section>
 
-  {device.missingFields.length > 0 && (
-    <section class="device-pending-panel">
-      <h2>待补充参数</h2>
-      <div class="device-pending-panel__list">
-        {device.pendingSpecLabels.map((item) => (
-          <span>{item}</span>
-        ))}
-      </div>
-    </section>
-  )}
-
   {device.specGroups.length > 0 && (
     <section class="device-spec-panel">
       <h2>参数</h2>
@@ -158,8 +167,7 @@ const heroLinks = device.externalLinks.slice(0, 3);
 
   <section class="device-source-panel">
     <div class="device-source-panel__block">
-      <h2>来源与状态</h2>
-      <p>{device.sourceName}</p>
+      <h2>资料来源</h2>
       {device.externalLinks.length > 0 && (
         <div class="device-source-panel__links">
           {device.externalLinks.map((link) => (
@@ -169,19 +177,6 @@ const heroLinks = device.externalLinks.slice(0, 3);
           ))}
         </div>
       )}
-      {device.sourceNotes.length > 0 && (
-        <ul class="device-source-panel__notes">
-          {device.sourceNotes.slice(0, 3).map((note) => (
-            <li>{note}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-    <div class="device-source-panel__block device-source-panel__meta">
-      <span>资料状态：{device.completenessLabel}</span>
-      <span>已确认参数：{device.knownSpecCount}</span>
-      {device.needsReviewFields.length > 0 && <span>待复核字段：{device.needsReviewFields.join("、")}</span>}
-      {device.lastCheckedLabel && <span>最后核对 {device.lastCheckedLabel}</span>}
     </div>
   </section>
 

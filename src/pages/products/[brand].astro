@@ -48,7 +48,7 @@ const devices = getDevicesByBrand(brand.key);
           brandMark={brand.brandMarkText}
           title={device.name}
           categoryLabel={device.typeLabel}
-          statusLabel={device.infoStatusLabel}
+          statusLabel={null}
           highlights={device.previewSpecs}
           placeholderType={device.cardMedia.placeholderType}
         />
@@ -59,15 +59,12 @@ const devices = getDevicesByBrand(brand.key);
         </div>
 
         <div class="product-device-card__specs">
-          {Array.from({ length: 4 }).map((_, index) => {
-            const spec = device.cardSpecs[index];
-            return (
-              <article class:list={["product-device-card__spec", { "product-device-card__spec--empty": !spec }]}>
-                <span>{spec?.label ?? "资料状态"}</span>
-                <strong>{spec?.value ?? "待确认"}</strong>
-              </article>
-            );
-          })}
+          {device.cardSpecs.slice(0, 4).map((spec) => (
+            <article class="product-device-card__spec">
+              <span>{spec.label}</span>
+              <strong>{spec.value}</strong>
+            </article>
+          ))}
         </div>
 
         <div class="product-device-card__foot">

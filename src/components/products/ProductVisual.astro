@@ -45,8 +45,8 @@ const visibleHighlights = highlights.slice(0, variant === "hero" ? 3 : 2);
       <span class="product-visual__horizon"></span>
     </div>
 
-    <div class="product-visual__bottom">
-      {visibleHighlights.length > 0 ? (
+    {visibleHighlights.length > 0 && (
+      <div class="product-visual__bottom">
         <div class="product-visual__highlights">
           {visibleHighlights.map((item) => (
             <article>
@@ -55,10 +55,8 @@ const visibleHighlights = highlights.slice(0, variant === "hero" ? 3 : 2);
             </article>
           ))}
         </div>
-      ) : (
-        <span class="product-visual__pending">参数待确认</span>
-      )}
-    </div>
+      </div>
+    )}
   </div>
 </div>
 
@@ -143,8 +141,7 @@ const visibleHighlights = highlights.slice(0, variant === "hero" ? 3 : 2);
   .product-visual__brand,
   .product-visual__type,
   .product-visual__status,
-  .product-visual__highlights span,
-  .product-visual__pending {
+  .product-visual__highlights span {
     font-size: 0.74rem;
     line-height: 1.2;
   }

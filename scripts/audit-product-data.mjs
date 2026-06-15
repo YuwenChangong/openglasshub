@@ -18,6 +18,17 @@ const REQUIRED_SLUGS = [
 ];
 
 const DIRTY_PATTERNS = [/^000$/i, /^5g$/i, /^8g$/i, /^wifi 6g$/i, /^wifi 8g$/i, /^wifi 6g \| wifi 8g$/i];
+const FORBIDDEN_UI_STRINGS = [
+  "参数待确认",
+  "资料状态",
+  "部分待确认",
+  "已确认参数",
+  "最后核对",
+  "needs review",
+  "missing fields",
+  "confirmed fields",
+  "data status",
+];
 
 function parseArgs(argv) {
   return {
@@ -52,6 +63,9 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const sourceLedger = await loadJson("docs/product-data-sources.json");
   const deviceCatalogSource = await loadText("src/lib/device-catalog.ts");
+  const productVisualSource = await loadText("src/components/products/ProductVisual.astro");
+  const productBrandPageSource = await loadText("src/pages/products/[brand].astro");
+  const productDetailPageSource = await loadText("src/pages/devices/[slug].astro");
 
   const errors = [];
   const warnings = [];
@@ -61,6 +75,12 @@ async function main() {
   for (const slug of REQUIRED_SLUGS) {
     if (!slugSet.has(slug)) fail(errors, `missing source ledger entry: ${slug}`);
     if (!deviceCatalogSource.includes(`"${slug}"`)) fail(errors, `missing device-catalog entry: ${slug}`);
+  }
+
+  for (const forbidden of FORBIDDEN_UI_STRINGS) {
+    if (productVisualSource.toLowerCase().includes(forbidden.toLowerCase())) fail(errors, `ProductVisual contains forbidden UI copy: ${forbidden}`);
+    if (productBrandPageSource.toLowerCase().includes(forbidden.toLowerCase())) fail(errors, `products/[brand] contains forbidden UI copy: ${forbidden}`);
+    if (productDetailPageSource.toLowerCase().includes(forbidden.toLowerCase())) fail(errors, `devices/[slug] contains forbidden UI copy: ${forbidden}`);
   }
 
   for (const product of products) {
@@ -74,10 +94,13 @@ async function main() {
     if (!product.coverage?.sourceUrl) fail(errors, `${label}: coverage.sourceUrl missing`);
     if (!Array.isArray(product.sources) || product.sources.length === 0) fail(errors, `${label}: no sources listed`);
     if (!Array.isArray(product.missingFields)) fail(errors, `${label}: missingFields missing`);
+    if (!product.publicData?.shortSummary) fail(errors, `${label}: publicData.shortSummary missing`);
+    if (!product.publicData?.sourceUrl && !product.sources?.[0]?.url) fail(errors, `${label}: publicData.sourceUrl missing`);
 
     const officialSource = (product.sources ?? []).find((source) => String(source.review) === "official");
     if (!officialSource) fail(errors, `${label}: no official source recorded`);
 
+    const visibleStrings = collectStrings(product.publicData ?? {});
     const strings = collectStrings(product);
     for (const text of strings) {
       const trimmed = text.trim();
@@ -86,6 +109,30 @@ async function main() {
       }
       if (/^\d+$/.test(trimmed) && trimmed.length <= 3) {
         warnings.push(`${label}: isolated number in source ledger -> ${trimmed}`);
+      }
+    }
+
+    for (const text of visibleStrings) {
+      const trimmed = text.trim();
+      if (FORBIDDEN_UI_STRINGS.some((item) => trimmed.toLowerCase().includes(item.toLowerCase()))) {
+        fail(errors, `${label}: forbidden UI string leaked into publicData -> ${trimmed}`);
+      }
+      if (/待确认/.test(trimmed) && !/不适合|限制/.test(trimmed)) {
+        fail(errors, `${label}: publicData contains 待确认 copy -> ${trimmed}`);
+      }
+      if (/wi-?fi\s*6\s*b/i.test(trimmed)) {
+        fail(errors, `${label}: publicData contains dirty Wi-Fi 6 B -> ${trimmed}`);
+      }
+    }
+
+    const keySpecs = product.publicData?.keySpecs ? Object.values(product.publicData.keySpecs) : [];
+    if (keySpecs.some((value) => String(value).includes("待确认"))) {
+      fail(errors, `${label}: keySpecs contains 待确认`);
+    }
+    const batteryLifeValues = collectStrings(product.publicData?.fullSpecs?.batteryBody ?? {});
+    for (const value of batteryLifeValues) {
+      if (/^\d+$/.test(value.trim())) {
+        fail(errors, `${label}: battery/body spec contains isolated number -> ${value.trim()}`);
       }
     }
   }
