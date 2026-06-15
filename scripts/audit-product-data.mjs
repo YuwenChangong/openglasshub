@@ -4,18 +4,31 @@ import path from "node:path";
 const REQUIRED_SLUGS = [
   "xreal-one",
   "xreal-one-pro",
+  "xreal-air",
+  "xreal-air-2",
   "xreal-air-2-pro",
   "xreal-air-2-ultra",
+  "rayneo-air-2",
+  "rayneo-air-2s",
+  "rayneo-air-3s",
+  "rayneo-air-4-pro",
   "rayneo-x2",
+  "rayneo-x3-pro",
+  "rokid-air",
+  "rokid-ar-lite",
   "rokid-max",
   "rokid-glasses",
+  "viture-one",
+  "viture-one-lite",
   "viture-pro",
   "inmo-air-2",
+  "inmo-go3",
   "ray-ban-meta",
   "brilliant-labs-frame",
   "even-realities-g1",
   "apple-vision-pro",
 ];
+const MIN_PRODUCT_COUNT = 25;
 
 const DIRTY_PATTERNS = [/^000$/i, /^5g$/i, /^8g$/i, /^wifi 6g$/i, /^wifi 8g$/i, /^wifi 6g \| wifi 8g$/i];
 const FORBIDDEN_UI_STRINGS = [
@@ -24,6 +37,7 @@ const FORBIDDEN_UI_STRINGS = [
   "部分待确认",
   "已确认参数",
   "最后核对",
+  "参数来源",
   "needs review",
   "missing fields",
   "confirmed fields",
@@ -72,9 +86,18 @@ async function main() {
   const products = Array.isArray(sourceLedger.products) ? sourceLedger.products : [];
   const slugSet = new Set(products.map((entry) => entry.slug));
 
+  if (products.length < MIN_PRODUCT_COUNT) fail(errors, `product count below minimum: ${products.length} < ${MIN_PRODUCT_COUNT}`);
+  if (slugSet.size !== products.length) fail(errors, "duplicate slugs found in source ledger");
+
   for (const slug of REQUIRED_SLUGS) {
     if (!slugSet.has(slug)) fail(errors, `missing source ledger entry: ${slug}`);
     if (!deviceCatalogSource.includes(`"${slug}"`)) fail(errors, `missing device-catalog entry: ${slug}`);
+    const mdxPath = path.resolve(process.cwd(), "src/content/docs/devices", `${slug}.mdx`);
+    try {
+      await fs.access(mdxPath);
+    } catch {
+      fail(errors, `missing device content doc: ${slug}.mdx`);
+    }
   }
 
   for (const forbidden of FORBIDDEN_UI_STRINGS) {
@@ -85,6 +108,8 @@ async function main() {
 
   for (const product of products) {
     const label = product.slug ?? product.name ?? "unknown";
+    if (!product.slug) fail(errors, `${label}: slug missing`);
+    if (!product.name) fail(errors, `${label}: name missing`);
     if (!product.coverage?.category) fail(errors, `${label}: coverage.category missing`);
     if (!product.coverage?.status) fail(errors, `${label}: coverage.status missing`);
     if (!product.coverage?.positioning) fail(errors, `${label}: coverage.positioning missing`);
@@ -96,6 +121,9 @@ async function main() {
     if (!Array.isArray(product.missingFields)) fail(errors, `${label}: missingFields missing`);
     if (!product.publicData?.shortSummary) fail(errors, `${label}: publicData.shortSummary missing`);
     if (!product.publicData?.sourceUrl && !product.sources?.[0]?.url) fail(errors, `${label}: publicData.sourceUrl missing`);
+    if (!product.publicData?.positioning) fail(errors, `${label}: publicData.positioning missing`);
+    if (!product.publicData?.bestFor?.length) fail(errors, `${label}: publicData.bestFor missing`);
+    if (!product.publicData?.notIdealFor?.length) fail(errors, `${label}: publicData.notIdealFor missing`);
 
     const officialSource = (product.sources ?? []).find((source) => String(source.review) === "official");
     if (!officialSource) fail(errors, `${label}: no official source recorded`);

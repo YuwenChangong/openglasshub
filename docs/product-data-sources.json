@@ -1,6 +1,2492 @@
 {
-  "generated_at": "2026-06-15T22:30:00+12:00",
+  "generated_at": "2026-06-15T23:20:00+12:00",
   "products": [
+    {
+      "slug": "apple-vision-pro",
+      "name": "Apple Vision Pro",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.apple.com/apple-vision-pro/",
+          "fields": [
+            "product-positioning",
+            "availability",
+            "price"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://support.apple.com/en-us/125436",
+          "fields": [
+            "display_type",
+            "resolution",
+            "refresh_rate",
+            "color_gamut",
+            "chipset",
+            "storage",
+            "sensors",
+            "camera",
+            "battery_life",
+            "power_source"
+          ],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "product-positioning",
+        "availability",
+        "price",
+        "display_type",
+        "resolution",
+        "refresh_rate",
+        "color_gamut",
+        "chipset",
+        "storage",
+        "sensors",
+        "camera",
+        "battery_life",
+        "power_source"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "weight"
+      ],
+      "notes": [
+        "Apple 的技术参数优先采用 support 规格页，而不是营销文案。"
+      ],
+      "missingFields": [
+        "weight"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "Apple Vision Pro 是一款高端独立空间计算头显，适合研究完整系统级体验、内容形态和空间交互。它不属于轻量眼镜路线，而是完整头显形态。",
+        "longSummary": "这类产品的核心不只是显示，而是完整系统、传感器融合、眼手语音输入和高端内容生态。",
+        "positioning": "完整独立系统和高端空间计算路线。",
+        "bestFor": [
+          "系统级空间计算研究",
+          "高端 XR 体验",
+          "观察完整交互范式"
+        ],
+        "notIdealFor": [
+          "轻量佩戴",
+          "便携显示替代",
+          "低预算试水"
+        ],
+        "keyLimitations": [
+          "佩戴体积和预算门槛都更高。",
+          "核心体验依赖 Apple 生态。"
+        ],
+        "supportUrl": "https://support.apple.com/en-us/125436",
+        "releaseYear": "2024",
+        "availability": "在售",
+        "keySpecs": {
+          "display_type": "Micro‑OLED",
+          "resolution": "23 million pixels",
+          "refresh_rate": "90/96/100/120Hz",
+          "chipset": "Apple M2 + R1"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "Micro‑OLED",
+            "resolution": "23 million pixels",
+            "refresh_rate": "90/96/100/120Hz",
+            "color_gamut": "92% DCI‑P3"
+          },
+          "hardware": {
+            "chipset": "Apple M2 + R1",
+            "storage": "256GB / 512GB / 1TB",
+            "platform": "visionOS"
+          },
+          "cameraSensors": {
+            "camera": "6.5 stereo MP",
+            "sensors": "12 cameras + LiDAR + IMUs"
+          },
+          "connectivity": {
+            "supported_devices": "iPhone / Mac 生态",
+            "input_controls": "眼动、手势、语音"
+          },
+          "batteryBody": {
+            "battery_life": "最长约 2 小时",
+            "power_source": "外置电池或接电使用"
+          },
+          "market": {
+            "price": "USD 3499",
+            "availability": "在售",
+            "release_year": "2024"
+          }
+        }
+      }
+    },
+    {
+      "slug": "brilliant-labs-frame",
+      "name": "Brilliant Labs Frame",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://brilliant.xyz/products/frame",
+          "fields": [
+            "product-positioning",
+            "price"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://docs.brilliant.xyz/frame/hardware/",
+          "fields": [
+            "connectivity",
+            "battery_life",
+            "sdk_availability"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "vr52-reference",
+          "url": "https://www.vr52.com/headset/brilliantlabsframe",
+          "fields": [
+            "resolution",
+            "weight",
+            "release_year"
+          ],
+          "review": "needsReview"
+        }
+      ],
+      "officialFields": [
+        "product-positioning",
+        "price",
+        "connectivity",
+        "battery_life",
+        "sdk_availability"
+      ],
+      "vr52Fields": [
+        "resolution",
+        "weight",
+        "release_year"
+      ],
+      "uiOmittedFields": [
+        "availability"
+      ],
+      "notes": [
+        "Frame 的开放平台、连接方式和续航优先使用官方 docs。",
+        "分辨率、重量和发布时间参考 VR52 条目。"
+      ],
+      "missingFields": [
+        "availability"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "Brilliant Labs Frame 是一款偏实验和开发的 AI 眼镜，用于快速原型、接口实验和轻量穿戴交互，不是面向大众娱乐消费的完整 XR 平台。",
+        "longSummary": "它更像开放实验设备，而不是成熟消费眼镜。重点在 Noa 平台、官方文档和开发边界。",
+        "positioning": "开放实验和快速原型优先的开发设备。",
+        "bestFor": [
+          "开发探索",
+          "原型验证",
+          "研究开放硬件方向"
+        ],
+        "notIdealFor": [
+          "直接消费使用",
+          "期待成熟娱乐体验",
+          "需要完整双眼显示"
+        ],
+        "keyLimitations": [
+          "更强调实验性而非消费完成度。",
+          "单眼小显示不适合观影。"
+        ],
+        "supportUrl": "https://docs.brilliant.xyz/frame/hardware/",
+        "sourceUrl": "https://www.vr52.com/headset/brilliantlabsframe",
+        "releaseYear": "2024",
+        "keySpecs": {
+          "resolution": "640 × 400",
+          "weight": "40g",
+          "battery_life": "最长约 14 小时",
+          "connectivity": "Wi‑Fi / Bluetooth 5.3"
+        },
+        "fullSpecs": {
+          "display": {
+            "resolution": "640 × 400"
+          },
+          "hardware": {
+            "platform": "Noa",
+            "sdk_availability": "官方文档可用"
+          },
+          "connectivity": {
+            "connectivity": "Wi‑Fi / Bluetooth 5.3",
+            "required_host": "可独立完成基础功能"
+          },
+          "batteryBody": {
+            "battery_life": "最长约 14 小时",
+            "weight": "40g"
+          },
+          "market": {
+            "price": "USD 349",
+            "release_year": "2024"
+          }
+        }
+      }
+    },
+    {
+      "slug": "even-realities-g1",
+      "name": "Even Realities G1",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.evenrealities.com/en-FI/g1",
+          "fields": [
+            "brightness",
+            "field_of_view",
+            "refresh_rate",
+            "product-positioning"
+          ],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "brightness",
+        "field_of_view",
+        "refresh_rate",
+        "product-positioning"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "resolution",
+        "weight",
+        "price",
+        "supported_devices",
+        "availability"
+      ],
+      "notes": [
+        "当前可确认字段以 Even Realities 官方页面为准。"
+      ],
+      "missingFields": [
+        "resolution",
+        "weight",
+        "price",
+        "supported_devices",
+        "availability"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "Even Realities G1 是一款偏低干扰信息提示的智能眼镜，核心是通知、轻量信息和日常佩戴，而不是沉浸式 AR 大屏。",
+        "longSummary": "它更适合被看作提示型智能眼镜：重点是把短信息放到视线里，而不是提供完整的空间计算体验。",
+        "positioning": "低干扰信息提示优先，不走大屏路线。",
+        "bestFor": [
+          "通知与轻量信息",
+          "低干扰佩戴",
+          "提示式眼镜观察"
+        ],
+        "notIdealFor": [
+          "期待沉浸式显示",
+          "需要开放 XR 平台",
+          "把它当观影设备"
+        ],
+        "keyLimitations": [
+          "公开硬件细节相对有限。",
+          "定位更偏提示，而不是完整 AR。"
+        ],
+        "keySpecs": {
+          "brightness": "1000 nits",
+          "field_of_view": "25°",
+          "refresh_rate": "20Hz",
+          "display_type": "轻量提示显示"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "轻量提示显示",
+            "brightness": "1000 nits",
+            "field_of_view": "25°",
+            "refresh_rate": "20Hz"
+          },
+          "hardware": {
+            "platform": "提示式智能眼镜"
+          },
+          "market": {}
+        }
+      }
+    },
+    {
+      "slug": "inmo-air-2",
+      "name": "INMO Air 2",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.inmoxr.com/pages/inmo-air2",
+          "fields": [
+            "product-positioning"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "vr52-reference",
+          "url": "https://www.vr52.com/headset/inmoair2",
+          "fields": [
+            "platform",
+            "resolution",
+            "refresh_rate",
+            "price",
+            "release_year",
+            "connectivity"
+          ],
+          "review": "needsReview"
+        }
+      ],
+      "officialFields": [
+        "product-positioning"
+      ],
+      "vr52Fields": [
+        "platform",
+        "resolution",
+        "refresh_rate",
+        "price",
+        "release_year",
+        "connectivity"
+      ],
+      "uiOmittedFields": [
+        "weight",
+        "battery_life",
+        "chipset"
+      ],
+      "notes": [
+        "产品定位采用 INMO 官方页面。",
+        "平台、显示和市场字段参考 VR52 条目。"
+      ],
+      "missingFields": [
+        "weight",
+        "battery_life",
+        "chipset"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "INMO Air 2 是一款更偏轻量 AR 和提示式信息体验的设备，定位不是外接观影大屏，而是把基础应用和信息提示放到眼前。",
+        "longSummary": "它更接近独立轻量 AR 路线，适合观察日常佩戴、控制器交互和低干扰信息呈现。",
+        "positioning": "轻量 AR 与提示式信息体验优先。",
+        "bestFor": [
+          "研究轻量 AR",
+          "观察独立系统边界",
+          "提示式信息呈现"
+        ],
+        "notIdealFor": [
+          "追求沉浸大屏",
+          "把它当成熟娱乐设备",
+          "需要完整 PC 级计算能力"
+        ],
+        "keyLimitations": [
+          "公开硬件细节仍有限。",
+          "显示与平台定位比绝对规格更重要。"
+        ],
+        "sourceUrl": "https://www.vr52.com/headset/inmoair2",
+        "releaseYear": "2023",
+        "keySpecs": {
+          "resolution": "640 × 400 / eye",
+          "refresh_rate": "60Hz",
+          "platform": "INMOVERSE",
+          "price": "USD 550"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "Micro‑OLED",
+            "resolution": "640 × 400 / eye",
+            "refresh_rate": "60Hz"
+          },
+          "hardware": {
+            "platform": "INMOVERSE"
+          },
+          "connectivity": {
+            "connectivity": "Wi‑Fi / Bluetooth",
+            "required_host": "可独立运行",
+            "input_controls": "控制器 / 基础交互"
+          },
+          "market": {
+            "price": "USD 550",
+            "release_year": "2023"
+          }
+        }
+      }
+    },
+    {
+      "slug": "inmo-go3",
+      "name": "INMO GO3",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.inmoxr.com/pages/inmo-go3-ai-glasses",
+          "fields": [
+            "resolution",
+            "brightness",
+            "field_of_view",
+            "storage",
+            "battery_capacity",
+            "weight"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://www.inmoxr.com/collections/go",
+          "fields": [],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "resolution",
+        "brightness",
+        "field_of_view",
+        "storage",
+        "battery_capacity",
+        "weight"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [],
+      "notes": [
+        "规格来自 INMO GO3 官方规格页。"
+      ],
+      "missingFields": [],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "INMO GO3 更偏实时字幕、翻译和全天佩戴的 AI 眼镜路线，采用轻量双目 Micro‑LED + 波导显示，而不是大屏观影。",
+        "longSummary": "它把重点放在低干扰提示、语言沟通和随身助理场景，系统和交互也更像轻量终端，而不是娱乐大屏。",
+        "positioning": "翻译和随身提示导向的 AI 眼镜。",
+        "keyLimitations": [
+          "不是影院型显示眼镜。",
+          "主要价值在提示和翻译，不在大屏娱乐。"
+        ],
+        "bestFor": [
+          "实时字幕与翻译",
+          "低干扰提示",
+          "全天候轻量佩戴"
+        ],
+        "notIdealFor": [
+          "期待沉浸大屏",
+          "主要看电影打游戏",
+          "需要开放 XR 开发平台"
+        ],
+        "supportUrl": "https://www.inmoxr.com/collections/go",
+        "buyUrl": "https://www.inmoxr.com/pages/inmo-go3-ai-glasses",
+        "sourceUrl": "https://www.inmoxr.com/pages/inmo-go3-ai-glasses",
+        "releaseYear": "2025",
+        "availability": "在售",
+        "keySpecs": {
+          "resolution": "640 × 480",
+          "brightness": "1500 nits",
+          "field_of_view": "30°",
+          "weight": "≈58g"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "双目 Green Micro LED + 衍射光波导",
+            "resolution": "640 × 480",
+            "brightness": "1500 nits",
+            "field_of_view": "30°"
+          },
+          "hardware": {
+            "chipset": "Dual-core CPU",
+            "storage": "256MB + 64GB",
+            "platform": "RTOS"
+          },
+          "audio": {
+            "microphone": "4 麦克风",
+            "speakers": "2 扬声器"
+          },
+          "connectivity": {
+            "input_controls": "触控、实体按键、Ring Control、App Control"
+          },
+          "batteryBody": {
+            "battery_capacity": "270mAh",
+            "weight": "≈58g"
+          },
+          "market": {
+            "availability": "在售",
+            "release_year": "2025"
+          }
+        }
+      }
+    },
+    {
+      "slug": "ray-ban-meta",
+      "name": "Ray-Ban Meta",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+          "fields": [
+            "camera",
+            "storage",
+            "product-positioning"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-press",
+          "url": "https://about.fb.com/news/2023/09/new-ray-ban-meta-smart-glasses/",
+          "fields": [
+            "battery_life",
+            "microphone",
+            "audio"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://www.meta.com/smart-glasses/",
+          "fields": [
+            "platform",
+            "availability"
+          ],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "camera",
+        "storage",
+        "battery_life",
+        "microphone",
+        "audio",
+        "platform",
+        "availability"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "display_type",
+        "resolution"
+      ],
+      "notes": [
+        "Ray-Ban 官方页负责确认产品定位和相机 / 存储。",
+        "Meta 官方新闻和产品页补充电池、麦克风和平台信息。"
+      ],
+      "missingFields": [
+        "display_type",
+        "resolution"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "Ray-Ban Meta 是一款无显示 AI 眼镜，重点是第一视角拍摄、音频和语音助理，而不是画面显示。它更接近日常穿戴设备，不是 XR 大屏产品。",
+        "longSummary": "这条路线说明智能眼镜并不一定从显示开始，而是先从拍摄、音频和 AI 助手切入高频日常使用。",
+        "positioning": "无显示、重拍摄和语音入口的 AI 眼镜。",
+        "bestFor": [
+          "第一视角拍摄",
+          "音频交互",
+          "轻量 AI 穿戴研究"
+        ],
+        "notIdealFor": [
+          "期待显示大屏",
+          "想做波导或空间界面开发",
+          "需要完整独立计算"
+        ],
+        "keyLimitations": [
+          "没有显示模组。",
+          "很多 AI 能力依赖联网和手机配合。"
+        ],
+        "supportUrl": "https://www.meta.com/smart-glasses/",
+        "releaseYear": "2023",
+        "availability": "在售",
+        "keySpecs": {
+          "camera": "12MP",
+          "storage": "32GB",
+          "battery_life": "最长约 4 小时",
+          "microphone": "5 麦克风"
+        },
+        "fullSpecs": {
+          "hardware": {
+            "storage": "32GB",
+            "platform": "Meta AI"
+          },
+          "cameraSensors": {
+            "camera": "12MP"
+          },
+          "audio": {
+            "speakers": "开放式扬声器",
+            "microphone": "5 麦克风阵列"
+          },
+          "connectivity": {
+            "connectivity": "Wi‑Fi 6 / Bluetooth 5.2",
+            "supported_devices": "iPhone / Android",
+            "input_controls": "语音、触控、拍摄按键"
+          },
+          "batteryBody": {
+            "battery_life": "最长约 4 小时（充电盒约 36 小时）",
+            "charging": "随附充电盒"
+          },
+          "market": {
+            "availability": "在售",
+            "release_year": "2023"
+          }
+        }
+      }
+    },
+    {
+      "slug": "rayneo-air-2",
+      "name": "RayNeo Air 2",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.rayneo.com/products/rayneo-air-2-xr-glasses",
+          "fields": [
+            "resolution",
+            "refresh_rate",
+            "brightness",
+            "supported_devices",
+            "price"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://www.rayneo.com/pages/faq-air-2",
+          "fields": [],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "resolution",
+        "refresh_rate",
+        "brightness",
+        "supported_devices",
+        "price"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "weight",
+        "field_of_view"
+      ],
+      "notes": [
+        "显示、刷新率与兼容性来自 RayNeo 官方产品页。"
+      ],
+      "missingFields": [
+        "weight",
+        "field_of_view"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "RayNeo Air 2 是一款外接显示眼镜，主打 1080p Micro‑OLED 屏幕、120Hz 刷新率和广泛的设备兼容性。它更像私人大屏，而不是独立 AR 系统。",
+        "longSummary": "这款产品强调连接 iPhone、掌机、MacBook 与游戏主机的即插即用体验。它适合看视频、玩游戏和做轻办公，但核心仍是显示终端。",
+        "positioning": "RayNeo 入门到主流段的显示眼镜。",
+        "keyLimitations": [
+          "需要 DP 输出或转接器。",
+          "不提供独立应用平台。"
+        ],
+        "bestFor": [
+          "掌机与主机游戏",
+          "便携观影",
+          "跨设备第二屏"
+        ],
+        "notIdealFor": [
+          "期待独立系统",
+          "需要原生空间感知",
+          "只想用无线投屏"
+        ],
+        "supportUrl": "https://www.rayneo.com/pages/faq-air-2",
+        "buyUrl": "https://www.rayneo.com/products/rayneo-air-2-xr-glasses",
+        "sourceUrl": "https://www.rayneo.com/products/rayneo-air-2-xr-glasses",
+        "releaseYear": "2024",
+        "availability": "在售",
+        "keySpecs": {
+          "resolution": "1080P",
+          "refresh_rate": "120Hz",
+          "brightness": "600 nits",
+          "display_type": "Micro‑OLED"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "Micro‑OLED",
+            "resolution": "1080P",
+            "refresh_rate": "120Hz",
+            "brightness": "600 nits"
+          },
+          "connectivity": {
+            "supported_devices": "iPhone、Switch、Steam Deck、PS5、Xbox、MacBook",
+            "required_host": "USB‑C DP 输出或 HDMI 转接",
+            "ports": "USB‑C"
+          },
+          "market": {
+            "price": "USD 149",
+            "availability": "在售",
+            "release_year": "2024"
+          }
+        }
+      }
+    },
+    {
+      "slug": "rayneo-air-2s",
+      "name": "RayNeo Air 2s",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://eu.rayneo.com/products/rayneo-air_2s",
+          "fields": [
+            "resolution",
+            "refresh_rate",
+            "brightness",
+            "weight",
+            "supported_devices",
+            "price"
+          ],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "resolution",
+        "refresh_rate",
+        "brightness",
+        "weight",
+        "supported_devices",
+        "price"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "field_of_view"
+      ],
+      "notes": [
+        "主要规格来自 RayNeo Air 2s 官方销售页。"
+      ],
+      "missingFields": [
+        "field_of_view"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "RayNeo Air 2s 延续显示眼镜路线，重点是 120Hz 刷新率、600 nits 亮度和更均衡的声音与佩戴调节。",
+        "longSummary": "相比 Air 2，它更强调长时间使用时的舒适度与音频表现，依然主要服务于手机、掌机和主机的大屏输出场景。",
+        "positioning": "强调佩戴与音频升级的显示眼镜。",
+        "keyLimitations": [
+          "依赖外部设备供内容与算力。",
+          "核心升级仍在显示与音频层。"
+        ],
+        "bestFor": [
+          "观影与游戏",
+          "想要更稳妥的佩戴调节",
+          "跨设备显示"
+        ],
+        "notIdealFor": [
+          "需要独立计算平台",
+          "需要本机相机",
+          "只接受无线方案"
+        ],
+        "supportUrl": "https://eu.rayneo.com/products/rayneo-air_2s",
+        "buyUrl": "https://eu.rayneo.com/products/rayneo-air_2s",
+        "sourceUrl": "https://eu.rayneo.com/products/rayneo-air_2s",
+        "releaseYear": "2024",
+        "availability": "在售",
+        "keySpecs": {
+          "resolution": "1080P",
+          "refresh_rate": "120Hz",
+          "brightness": "600 nits",
+          "weight": "76g"
+        },
+        "fullSpecs": {
+          "display": {
+            "resolution": "1080P",
+            "refresh_rate": "120Hz",
+            "brightness": "600 nits"
+          },
+          "audio": {
+            "speakers": "3D Surround"
+          },
+          "connectivity": {
+            "supported_devices": "iPhone、Android、PC、Switch、PS5",
+            "ports": "USB‑C / HDMI 转接",
+            "required_host": "支持 DP 输出或适配器"
+          },
+          "batteryBody": {
+            "weight": "76g"
+          },
+          "market": {
+            "price": "€199.99",
+            "availability": "在售",
+            "release_year": "2024"
+          }
+        }
+      }
+    },
+    {
+      "slug": "rayneo-air-3s",
+      "name": "RayNeo Air 3s",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://eu.rayneo.com/products/rayneo-air-3s-xr-glasses",
+          "fields": [
+            "resolution",
+            "refresh_rate",
+            "brightness",
+            "weight",
+            "color_gamut",
+            "price"
+          ],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "resolution",
+        "refresh_rate",
+        "brightness",
+        "weight",
+        "color_gamut",
+        "price"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [],
+      "notes": [
+        "规格来自 RayNeo Air 3s 官方产品页。"
+      ],
+      "missingFields": [],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "RayNeo Air 3s 是更偏影音体验的一代显示眼镜，重点在 HueView Micro‑OLED、120Hz、650 nits 和更成熟的眼部舒适设计。",
+        "longSummary": "它仍是外接显示路线，但在色彩、亮度、音频和护眼能力上更完整，适合作为私人影院或掌机大屏来理解。",
+        "positioning": "高色域、高舒适度的显示眼镜。",
+        "keyLimitations": [
+          "依赖外部设备输出内容。",
+          "主要优势在影音体验，不是开放 XR 平台。"
+        ],
+        "bestFor": [
+          "电影与串流",
+          "掌机大屏",
+          "更在意色彩与舒适度"
+        ],
+        "notIdealFor": [
+          "需要独立系统",
+          "需要拍摄和传感",
+          "想极简低价试水"
+        ],
+        "supportUrl": "https://eu.rayneo.com/products/rayneo-air-3s-xr-glasses",
+        "buyUrl": "https://eu.rayneo.com/products/rayneo-air-3s-xr-glasses",
+        "sourceUrl": "https://eu.rayneo.com/products/rayneo-air-3s-xr-glasses",
+        "releaseYear": "2025",
+        "availability": "在售",
+        "keySpecs": {
+          "resolution": "1080P",
+          "refresh_rate": "120Hz",
+          "brightness": "650 nits",
+          "weight": "76g"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "HueView Micro‑OLED",
+            "resolution": "1080P",
+            "refresh_rate": "120Hz",
+            "brightness": "650 nits",
+            "field_of_view": "46°",
+            "color_gamut": "98% DCI‑P3"
+          },
+          "audio": {
+            "speakers": "四扬声器 / 3D Surround"
+          },
+          "connectivity": {
+            "supported_devices": "iPhone、Android、PC、Switch、PS5",
+            "ports": "USB‑C / HDMI 转接",
+            "required_host": "支持 DP 输出或适配器"
+          },
+          "batteryBody": {
+            "weight": "76g"
+          },
+          "market": {
+            "price": "€299.00",
+            "availability": "在售",
+            "release_year": "2025"
+          }
+        }
+      }
+    },
+    {
+      "slug": "rayneo-air-4-pro",
+      "name": "RayNeo Air 4 Pro",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.rayneo.com/products/rayneo-air-4-pro-ar-glasses",
+          "fields": [
+            "brightness",
+            "refresh_rate",
+            "display_type",
+            "weight",
+            "price"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://eu.rayneo.com/products/rayneo-air-4-pro-ar-glasses",
+          "fields": [],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "brightness",
+        "refresh_rate",
+        "display_type",
+        "weight",
+        "price"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "resolution",
+        "field_of_view"
+      ],
+      "notes": [
+        "显示、亮度与重量来自 RayNeo Air 4 Pro 官方产品页。"
+      ],
+      "missingFields": [
+        "resolution",
+        "field_of_view"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "RayNeo Air 4 Pro 是当前更高阶的显示眼镜，主打 HDR10、1200 nits 峰值亮度、120Hz 和 B&O 调音的四扬声器。",
+        "longSummary": "它继续服务于观影、游戏和移动大屏，但画质、色彩和声音都明显拉高，更像是显示眼镜路线里的旗舰方案。",
+        "positioning": "RayNeo 当前高阶显示眼镜。",
+        "keyLimitations": [
+          "仍然需要外部设备输出。",
+          "提升主要集中在显示与音频，不是空间计算平台。"
+        ],
+        "bestFor": [
+          "HDR 观影",
+          "高规格掌机与主机体验",
+          "想要旗舰显示效果"
+        ],
+        "notIdealFor": [
+          "想低成本试水",
+          "需要独立系统",
+          "需要真实世界拍摄能力"
+        ],
+        "supportUrl": "https://eu.rayneo.com/products/rayneo-air-4-pro-ar-glasses",
+        "buyUrl": "https://www.rayneo.com/products/rayneo-air-4-pro-ar-glasses",
+        "sourceUrl": "https://www.rayneo.com/products/rayneo-air-4-pro-ar-glasses",
+        "releaseYear": "2026",
+        "availability": "在售",
+        "keySpecs": {
+          "brightness": "1200 nits",
+          "refresh_rate": "120Hz",
+          "display_type": "0.6\" SeeYa Micro‑OLED",
+          "weight": "76g"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "0.6\" SeeYa Micro‑OLED",
+            "brightness": "1200 nits",
+            "refresh_rate": "120Hz",
+            "color_gamut": "98% DCI‑P3"
+          },
+          "audio": {
+            "speakers": "四扬声器 / Bang & Olufsen 调音"
+          },
+          "connectivity": {
+            "supported_devices": "手机、Mac、掌机、Switch 2、PS5",
+            "required_host": "USB‑C DP 输出",
+            "ports": "USB‑C"
+          },
+          "batteryBody": {
+            "weight": "76g"
+          },
+          "market": {
+            "price": "USD 299",
+            "availability": "在售",
+            "release_year": "2026"
+          }
+        }
+      }
+    },
+    {
+      "slug": "rayneo-x2",
+      "name": "RayNeo X2",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+          "fields": [
+            "chipset",
+            "memory",
+            "storage",
+            "camera",
+            "battery_capacity",
+            "connectivity"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "vr52-reference",
+          "url": "https://www.vr52.com/headset/tclrayneox2",
+          "fields": [
+            "brightness",
+            "release_year",
+            "category"
+          ],
+          "review": "needsReview"
+        }
+      ],
+      "officialFields": [
+        "chipset",
+        "memory",
+        "storage",
+        "camera",
+        "battery_capacity",
+        "connectivity"
+      ],
+      "vr52Fields": [
+        "brightness",
+        "release_year",
+        "category"
+      ],
+      "uiOmittedFields": [
+        "weight",
+        "price"
+      ],
+      "notes": [
+        "芯片、内存、存储、相机和电池容量优先采用官方产品页。",
+        "亮度和发布时间参考 VR52 条目。"
+      ],
+      "missingFields": [
+        "weight",
+        "price"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "RayNeo X2 是一款带独立计算能力的 AR 眼镜，重点是翻译、导航、拍摄和提示式信息叠加，不是传统外接大屏显示眼镜。",
+        "longSummary": "它更接近独立系统路线，价值在于系统级交互、轻导航和信息提示，而不是观影或第二屏。",
+        "positioning": "强调独立系统与轻量信息叠加的 RayNeo 路线。",
+        "bestFor": [
+          "观察独立 AR 交互",
+          "导航与翻译场景",
+          "系统级样本研究"
+        ],
+        "notIdealFor": [
+          "只想看大屏",
+          "期望低成本娱乐设备",
+          "需要轻量显示眼镜"
+        ],
+        "keyLimitations": [
+          "当前公开资料对重量和价格仍不稳定。",
+          "不是传统第二屏产品。"
+        ],
+        "sourceUrl": "https://www.vr52.com/headset/tclrayneox2",
+        "releaseYear": "2023",
+        "availability": "未上市",
+        "keySpecs": {
+          "chipset": "Snapdragon XR2",
+          "memory": "6GB",
+          "storage": "128GB",
+          "camera": "16MP"
+        },
+        "fullSpecs": {
+          "display": {
+            "brightness": "1000 nits"
+          },
+          "hardware": {
+            "chipset": "Snapdragon XR2",
+            "memory": "6GB",
+            "storage": "128GB",
+            "platform": "独立系统"
+          },
+          "cameraSensors": {
+            "camera": "16MP"
+          },
+          "connectivity": {
+            "connectivity": "Wi‑Fi / Bluetooth 5.2",
+            "required_host": "无需外接主机"
+          },
+          "batteryBody": {
+            "battery_life": "24 小时",
+            "battery_capacity": "590mAh",
+            "frame_style": "眼镜式镜框"
+          },
+          "market": {
+            "availability": "未上市",
+            "release_year": "2023"
+          }
+        }
+      }
+    },
+    {
+      "slug": "rayneo-x3-pro",
+      "name": "RayNeo X3 Pro",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://eu.rayneo.com/products/x3-pro-ai-display-glasses",
+          "fields": [
+            "display_type",
+            "chipset",
+            "weight",
+            "price",
+            "sensors"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-reference",
+          "url": "https://www.rayneo.com/pages/x3-pro-launch",
+          "fields": [],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "display_type",
+        "chipset",
+        "weight",
+        "price",
+        "sensors"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "exact_resolution"
+      ],
+      "notes": [
+        "主要信息来自 X3 Pro 官方发布页与欧洲销售页。"
+      ],
+      "missingFields": [
+        "exact_resolution"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "RayNeo X3 Pro 是更偏独立计算和 AI 助手路线的双目 AR 眼镜，重点不再是私人大屏，而是常显信息、空间定位和本机计算。",
+        "longSummary": "它采用双目全彩 MicroLED、Snapdragon AR1 和 6DoF + SLAM，方向更接近下一代 AI+AR 智能眼镜。和 Air 系列相比，它更像一台头戴式计算机。",
+        "positioning": "RayNeo 面向 AI+AR 的独立眼镜路线。",
+        "keyLimitations": [
+          "平台仍属早期形态。",
+          "相比纯显示眼镜，内容生态与成本门槛更高。"
+        ],
+        "bestFor": [
+          "关注 AI+AR 形态",
+          "想研究独立交互",
+          "需要更轻量的常显信息"
+        ],
+        "notIdealFor": [
+          "只想看大屏电影",
+          "想要低价显示外设",
+          "接受度对早期平台较低"
+        ],
+        "supportUrl": "https://eu.rayneo.com/products/x3-pro-ai-display-glasses",
+        "buyUrl": "https://eu.rayneo.com/products/x3-pro-ai-display-glasses",
+        "sourceUrl": "https://www.rayneo.com/pages/x3-pro-launch",
+        "releaseYear": "2025",
+        "availability": "在售",
+        "keySpecs": {
+          "display_type": "Full-color MicroLED",
+          "chipset": "Snapdragon AR1 Gen 1",
+          "weight": "76g",
+          "sensors": "6DoF + SLAM"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "双目全彩 MicroLED",
+            "brightness": "43-inch transparent display"
+          },
+          "hardware": {
+            "chipset": "Snapdragon AR1 Gen 1",
+            "platform": "AI + AR OS"
+          },
+          "cameraSensors": {
+            "sensors": "6DoF + SLAM"
+          },
+          "connectivity": {
+            "input_controls": "语音、触控、空间交互"
+          },
+          "batteryBody": {
+            "weight": "76g"
+          },
+          "market": {
+            "price": "USD 1099",
+            "availability": "在售",
+            "release_year": "2025"
+          }
+        }
+      }
+    },
+    {
+      "slug": "rokid-air",
+      "name": "Rokid Air",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://air.rokid.com/",
+          "fields": [
+            "officialProductUrl",
+            "supportUrl"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://air.rokid.com/product",
+          "fields": [],
+          "review": "official"
+        },
+        {
+          "type": "vr52-reference",
+          "url": "https://www.vr52.com/headset/rokidair",
+          "fields": [
+            "resolution",
+            "refresh_rate",
+            "field_of_view",
+            "price",
+            "release_year"
+          ],
+          "review": "needsReview"
+        }
+      ],
+      "officialFields": [
+        "officialProductUrl",
+        "supportUrl"
+      ],
+      "vr52Fields": [
+        "resolution",
+        "refresh_rate",
+        "field_of_view",
+        "price",
+        "release_year"
+      ],
+      "uiOmittedFields": [
+        "weight"
+      ],
+      "notes": [
+        "发布时间与核心显示参数参考 VR52，产品定位与官方介绍来自 Rokid 官网。"
+      ],
+      "missingFields": [
+        "weight"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "Rokid Air 是 Rokid 早期面向消费市场的显示眼镜，重点在手机外接观影和轻量信息查看，不是独立系统设备。",
+        "longSummary": "它是 Rokid 后续 Max 系列之前的重要起点，帮助理解品牌从早期 AR 眼镜向更成熟显示眼镜演进的路径。",
+        "positioning": "Rokid 早期消费级显示眼镜。",
+        "keyLimitations": [
+          "属于较早期型号。",
+          "显示与佩戴规格已落后于新款。"
+        ],
+        "bestFor": [
+          "了解 Rokid 早期产品路线",
+          "轻量观影",
+          "对比新旧显示眼镜差异"
+        ],
+        "notIdealFor": [
+          "期待最新画质",
+          "需要独立应用生态",
+          "想要更强舒适度"
+        ],
+        "supportUrl": "https://air.rokid.com/product",
+        "buyUrl": null,
+        "sourceUrl": "https://www.vr52.com/headset/rokidair",
+        "releaseYear": "2021",
+        "availability": "旧款",
+        "keySpecs": {
+          "resolution": "1920 × 1080 / eye",
+          "refresh_rate": "60Hz",
+          "field_of_view": "43°",
+          "release_year": "2021"
+        },
+        "fullSpecs": {
+          "display": {
+            "resolution": "1920 × 1080 / eye",
+            "refresh_rate": "60Hz",
+            "field_of_view": "43°"
+          },
+          "connectivity": {
+            "ports": "USB‑C",
+            "required_host": "需要连接手机或电脑"
+          },
+          "market": {
+            "price": "USD 499",
+            "availability": "旧款",
+            "release_year": "2021"
+          }
+        }
+      }
+    },
+    {
+      "slug": "rokid-ar-lite",
+      "name": "Rokid AR Lite",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://arlite.rokid.com/",
+          "fields": [
+            "chipset",
+            "memory",
+            "storage",
+            "battery_capacity",
+            "connectivity"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://global.rokid.com/blogs/max-2/what-comes-with-the-rokid-ar-lite",
+          "fields": [],
+          "review": "official"
+        },
+        {
+          "type": "official-reference",
+          "url": "https://arlite.rokid.com/profile",
+          "fields": [],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "chipset",
+        "memory",
+        "storage",
+        "battery_capacity",
+        "connectivity"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "price",
+        "weight"
+      ],
+      "notes": [
+        "规格来自 Rokid AR Lite 官方 profile 页面。"
+      ],
+      "missingFields": [
+        "price",
+        "weight"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "Rokid AR Lite 不是单独一副眼镜，而是 Max 2 + Station 2 组成的空间计算套装，目标是把大屏显示推进到多窗口和空间交互。",
+        "longSummary": "它比普通显示眼镜更接近完整系统体验，但核心依旧建立在眼镜与主机协同上，而不是单镜腿里塞进全部计算。",
+        "positioning": "Rokid 面向空间计算的组合式套装。",
+        "keyLimitations": [
+          "它是套装，不是单一眼镜。",
+          "Station 2 是体验成立的关键部分。"
+        ],
+        "bestFor": [
+          "多窗口空间显示",
+          "想研究眼镜+主机协同",
+          "关注空间视频与空间浏览"
+        ],
+        "notIdealFor": [
+          "只想买一副简单显示眼镜",
+          "只想要轻量佩戴",
+          "期待纯眼镜端完整系统"
+        ],
+        "supportUrl": "https://global.rokid.com/blogs/max-2/what-comes-with-the-rokid-ar-lite",
+        "buyUrl": "https://arlite.rokid.com/",
+        "sourceUrl": "https://arlite.rokid.com/profile",
+        "releaseYear": "2024",
+        "availability": "在售",
+        "keySpecs": {
+          "chipset": "Snapdragon 6 Gen 1",
+          "memory": "8GB",
+          "storage": "128GB",
+          "battery_capacity": "5000mAh"
+        },
+        "fullSpecs": {
+          "hardware": {
+            "chipset": "Snapdragon 6 Gen 1",
+            "memory": "8GB",
+            "storage": "128GB"
+          },
+          "cameraSensors": {
+            "sensors": "9-axis IMU"
+          },
+          "connectivity": {
+            "connectivity": "Wi‑Fi 6 / Bluetooth 5.2",
+            "input_controls": "触控板、主页键、菜单键、音量键"
+          },
+          "batteryBody": {
+            "battery_capacity": "5000mAh",
+            "charging": "18W 快充"
+          },
+          "market": {
+            "availability": "在售",
+            "release_year": "2024"
+          }
+        }
+      }
+    },
+    {
+      "slug": "rokid-glasses",
+      "name": "Rokid Glasses",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://global.rokid.com/products/rokid-glasses",
+          "fields": [
+            "chipset",
+            "camera",
+            "memory",
+            "storage",
+            "battery_capacity",
+            "weight",
+            "connectivity"
+          ],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "chipset",
+        "camera",
+        "memory",
+        "storage",
+        "battery_capacity",
+        "weight",
+        "connectivity"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "display_type",
+        "resolution",
+        "battery_life"
+      ],
+      "notes": [
+        "当前可见字段以 Rokid 官方产品页可读硬件信息为准。",
+        "显示规格和续航时长没有在前台展示。"
+      ],
+      "missingFields": [
+        "display_type",
+        "resolution",
+        "battery_life"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "Rokid Glasses 更偏 AI 眼镜路线，重点是拍摄、语音和轻量信息入口，不是以大屏显示为核心的观影设备。",
+        "longSummary": "它更适合被看作日常佩戴的 AI 硬件入口，核心不在显示，而在语音、拍摄和轻量提示。",
+        "positioning": "更偏无感佩戴和信息入口的 AI 眼镜。",
+        "bestFor": [
+          "语音入口",
+          "轻量拍摄",
+          "研究 AI 穿戴入口"
+        ],
+        "notIdealFor": [
+          "期待大屏显示",
+          "想做空间界面开发",
+          "依赖长时续航"
+        ],
+        "keyLimitations": [
+          "当前公开显示参数有限。",
+          "更适合 AI 入口，而不是观影或空间显示。"
+        ],
+        "availability": "在售",
+        "keySpecs": {
+          "chipset": "Snapdragon AR1 Gen 1",
+          "camera": "12MP",
+          "storage": "32GB",
+          "weight": "49g"
+        },
+        "fullSpecs": {
+          "hardware": {
+            "chipset": "Snapdragon AR1 Gen 1",
+            "memory": "2GB",
+            "storage": "32GB"
+          },
+          "cameraSensors": {
+            "camera": "12MP"
+          },
+          "connectivity": {
+            "connectivity": "Wi‑Fi 6 / Bluetooth",
+            "required_host": "可独立完成基础 AI 功能"
+          },
+          "batteryBody": {
+            "battery_capacity": "210mAh",
+            "weight": "49g"
+          },
+          "market": {
+            "availability": "在售"
+          }
+        }
+      }
+    },
+    {
+      "slug": "rokid-max",
+      "name": "Rokid Max",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://global.rokid.com/products/rokid-max",
+          "fields": [
+            "resolution",
+            "refresh_rate",
+            "field_of_view",
+            "product-positioning"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "vr52-reference",
+          "url": "https://www.vr52.com/headset/rokidmax",
+          "fields": [
+            "brightness",
+            "weight",
+            "price",
+            "release_year",
+            "ports"
+          ],
+          "review": "needsReview"
+        }
+      ],
+      "officialFields": [
+        "resolution",
+        "refresh_rate",
+        "field_of_view",
+        "product-positioning"
+      ],
+      "vr52Fields": [
+        "brightness",
+        "weight",
+        "price",
+        "release_year",
+        "ports"
+      ],
+      "uiOmittedFields": [
+        "battery_life",
+        "battery_capacity"
+      ],
+      "notes": [
+        "分辨率、刷新率和视场角使用 Rokid 官方公开页。",
+        "亮度、重量、价格和发布时间参考 VR52 条目。"
+      ],
+      "missingFields": [
+        "battery_life",
+        "battery_capacity"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "Rokid Max 是一款外接式显示眼镜，主要用于观影、游戏和大屏外接。它不提供独立系统，核心是把兼容主机的画面搬到眼前。",
+        "longSummary": "这款产品适合作为主流显示眼镜样本，重点看画面、佩戴、连接方式和移动娱乐场景。",
+        "positioning": "观影、大屏和游戏外接路线。",
+        "bestFor": [
+          "便携观影",
+          "掌机 / 主机外接",
+          "对比显示眼镜体验"
+        ],
+        "notIdealFor": [
+          "需要独立系统",
+          "想在眼镜端运行应用",
+          "追求纯无线使用"
+        ],
+        "keyLimitations": [
+          "核心体验依赖外部主机。",
+          "无线能力主要依赖额外配件。"
+        ],
+        "sourceUrl": "https://www.vr52.com/headset/rokidmax",
+        "releaseYear": "2023",
+        "keySpecs": {
+          "resolution": "1920 × 1080 / eye",
+          "refresh_rate": "120Hz",
+          "brightness": "600 nits",
+          "field_of_view": "50°"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "Micro‑OLED",
+            "resolution": "1920 × 1080 / eye",
+            "refresh_rate": "120Hz",
+            "brightness": "600 nits",
+            "field_of_view": "50°"
+          },
+          "connectivity": {
+            "ports": "USB‑C",
+            "required_host": "需要支持视频输出的外部设备"
+          },
+          "batteryBody": {
+            "weight": "75g",
+            "frame_style": "眼镜式镜框"
+          },
+          "market": {
+            "price": "USD 439",
+            "release_year": "2023"
+          }
+        }
+      }
+    },
+    {
+      "slug": "viture-one",
+      "name": "VITURE One",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.viture.com/",
+          "fields": [
+            "supportUrl"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://www.viture.com/release-updates/xr-glasses",
+          "fields": [],
+          "review": "official"
+        },
+        {
+          "type": "vr52-reference",
+          "url": "https://www.vr52.com/headset/vitureone",
+          "fields": [
+            "resolution",
+            "refresh_rate",
+            "field_of_view",
+            "price",
+            "release_year"
+          ],
+          "review": "needsReview"
+        }
+      ],
+      "officialFields": [
+        "supportUrl"
+      ],
+      "vr52Fields": [
+        "resolution",
+        "refresh_rate",
+        "field_of_view",
+        "price",
+        "release_year"
+      ],
+      "uiOmittedFields": [
+        "weight"
+      ],
+      "notes": [
+        "发布时间和分辨率等核心规格参考 VR52，定位与连接特征结合官方资料整理。"
+      ],
+      "missingFields": [
+        "weight"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "VITURE One 是 VITURE 早期 XR 显示眼镜，核心是把手机、掌机和电脑的画面变成随身私人屏幕。它仍然是外接显示路线。",
+        "longSummary": "这代产品已经体现出 VITURE 的连接和交互思路，比如磁吸连接与 3DoF 支持。相比后续型号，它更适合被看作品牌路线的起点。",
+        "positioning": "VITURE 早期显示眼镜。",
+        "keyLimitations": [
+          "属于较早期一代。",
+          "显示与连接设计已被后续型号更新。"
+        ],
+        "bestFor": [
+          "了解 VITURE 生态起点",
+          "便携观影",
+          "外接掌机大屏"
+        ],
+        "notIdealFor": [
+          "期待最新亮度与刷新率",
+          "需要独立系统",
+          "只接受极简 USB-C 直连"
+        ],
+        "supportUrl": "https://www.viture.com/release-updates/xr-glasses",
+        "buyUrl": null,
+        "sourceUrl": "https://www.vr52.com/headset/vitureone",
+        "releaseYear": "2022",
+        "availability": "旧款",
+        "keySpecs": {
+          "resolution": "1920 × 1080 / eye",
+          "refresh_rate": "60Hz",
+          "field_of_view": "43°",
+          "release_year": "2022"
+        },
+        "fullSpecs": {
+          "display": {
+            "resolution": "1920 × 1080 / eye",
+            "refresh_rate": "60Hz",
+            "field_of_view": "43°"
+          },
+          "connectivity": {
+            "ports": "磁吸连接",
+            "required_host": "手机、掌机或电脑"
+          },
+          "market": {
+            "price": "USD 479",
+            "availability": "旧款",
+            "release_year": "2022"
+          }
+        }
+      }
+    },
+    {
+      "slug": "viture-one-lite",
+      "name": "VITURE One Lite",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.viture.com/blog/2024-in-review-vitures-greatest-year-yet",
+          "fields": [
+            "release_year",
+            "ports",
+            "refresh_rate"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://www.viture.com/release-updates/xr-glasses",
+          "fields": [],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "release_year",
+        "ports",
+        "refresh_rate"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "price",
+        "brightness",
+        "weight"
+      ],
+      "notes": [
+        "主要依据 VITURE 官方年度回顾与固件更新页面。"
+      ],
+      "missingFields": [
+        "price",
+        "brightness",
+        "weight"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "VITURE One Lite 是更低门槛的 XR 显示眼镜版本，保留大多数 One 系列核心体验，但把连接改成标准 USB‑C，并取消电致变色镜片。",
+        "longSummary": "它更适合把 VITURE 生态当作入门方案来理解：保留大屏体验和 120Hz Full HD 虚拟屏，但减少了一些更精致的硬件特性。",
+        "positioning": "VITURE 面向入门用户的显示眼镜。",
+        "keyLimitations": [
+          "部分高级硬件特性被精简。",
+          "仍然是外接显示眼镜，不是独立系统。"
+        ],
+        "bestFor": [
+          "预算更敏感",
+          "想体验 VITURE 生态",
+          "需要标准 USB‑C 连接"
+        ],
+        "notIdealFor": [
+          "想要完整 One 系列特性",
+          "需要电致变色镜片",
+          "需要更高端影音体验"
+        ],
+        "supportUrl": "https://www.viture.com/release-updates/xr-glasses",
+        "buyUrl": null,
+        "sourceUrl": "https://www.viture.com/blog/2024-in-review-vitures-greatest-year-yet",
+        "releaseYear": "2024",
+        "availability": "在售",
+        "keySpecs": {
+          "resolution": "Full HD virtual display",
+          "refresh_rate": "120Hz",
+          "ports": "USB‑C",
+          "release_year": "2024"
+        },
+        "fullSpecs": {
+          "display": {
+            "resolution": "Full HD virtual display",
+            "refresh_rate": "120Hz"
+          },
+          "connectivity": {
+            "ports": "USB‑C",
+            "required_host": "兼容 USB‑C 视频输出设备"
+          },
+          "market": {
+            "availability": "在售",
+            "release_year": "2024"
+          }
+        }
+      }
+    },
+    {
+      "slug": "viture-pro",
+      "name": "VITURE Pro",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+          "fields": [
+            "refresh_rate",
+            "brightness",
+            "field_of_view",
+            "diopter_support",
+            "speakers",
+            "price"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "vr52-reference",
+          "url": "https://www.vr52.com/headset/viturepro",
+          "fields": [
+            "resolution",
+            "weight",
+            "release_year",
+            "ports"
+          ],
+          "review": "needsReview"
+        }
+      ],
+      "officialFields": [
+        "refresh_rate",
+        "brightness",
+        "field_of_view",
+        "diopter_support",
+        "speakers",
+        "price"
+      ],
+      "vr52Fields": [
+        "resolution",
+        "weight",
+        "release_year",
+        "ports"
+      ],
+      "uiOmittedFields": [
+        "chipset"
+      ],
+      "notes": [
+        "VITURE 官网用于确认显示、近视调节和音频定位。",
+        "分辨率、重量和发布时间参考 VR52 条目。"
+      ],
+      "missingFields": [
+        "chipset"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "VITURE Pro 是一款外接式显示眼镜，主要用于便携观影、游戏和第二屏。它不是独立计算设备，内容和交互仍由外部主机提供。",
+        "longSummary": "这代产品把亮度、近视调节和生态配件做得更完整，适合关注移动娱乐与显示体验的人。",
+        "positioning": "偏便携娱乐和外接显示生态。",
+        "bestFor": [
+          "便携观影",
+          "对比显示路线",
+          "外接娱乐设备"
+        ],
+        "notIdealFor": [
+          "期待独立 AI / AR 系统",
+          "优先开发开放平台",
+          "只想要纯无线眼镜"
+        ],
+        "keyLimitations": [
+          "核心体验依赖外部主机。",
+          "无线视频与联网能力依赖颈带或移动底座。"
+        ],
+        "sourceUrl": "https://www.vr52.com/headset/viturepro",
+        "releaseYear": "2024",
+        "availability": "在售",
+        "keySpecs": {
+          "resolution": "1920 × 1080 / eye",
+          "refresh_rate": "120Hz",
+          "brightness": "4000 nits",
+          "field_of_view": "52°"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "Micro‑OLED",
+            "resolution": "1920 × 1080 / eye",
+            "refresh_rate": "120Hz",
+            "brightness": "4000 nits（感知亮度）",
+            "field_of_view": "52°",
+            "diopter_support": "支持近视调节"
+          },
+          "audio": {
+            "speakers": "内置空间音频",
+            "microphone": "需配合颈带或移动底座"
+          },
+          "connectivity": {
+            "ports": "USB‑C",
+            "connectivity": "支持无线转播（需配件）",
+            "required_host": "手机、PC、掌机或移动底座"
+          },
+          "batteryBody": {
+            "weight": "77g"
+          },
+          "market": {
+            "price": "USD 459",
+            "availability": "在售",
+            "release_year": "2024"
+          }
+        }
+      }
+    },
+    {
+      "slug": "xreal-air",
+      "name": "XREAL Air",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://www.xreal.com/about",
+          "fields": [
+            "supportUrl"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "official-support",
+          "url": "https://docs.xreal.com/2.4.1/Release%20Note/NRSDK%201.8.0",
+          "fields": [],
+          "review": "official"
+        },
+        {
+          "type": "vr52-reference",
+          "url": "https://www.vr52.com/headset/nrealair",
+          "fields": [
+            "resolution",
+            "refresh_rate",
+            "field_of_view",
+            "release_year"
+          ],
+          "review": "needsReview"
+        }
+      ],
+      "officialFields": [
+        "supportUrl"
+      ],
+      "vr52Fields": [
+        "resolution",
+        "refresh_rate",
+        "field_of_view",
+        "release_year"
+      ],
+      "uiOmittedFields": [
+        "price",
+        "weight"
+      ],
+      "notes": [
+        "发布时间、分辨率与视场角参考 VR52。",
+        "开发者与兼容说明参考 XREAL 官方开发文档。"
+      ],
+      "missingFields": [
+        "price",
+        "weight"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "XREAL Air 是 XREAL 早期主流显示眼镜，定位是连接手机、掌机和电脑使用的便携大屏。它不提供独立系统，重点是轻量观影、游戏和第二屏。",
+        "longSummary": "这代产品奠定了后续 XREAL 显示眼镜路线：外接设备供内容与算力，眼镜负责把屏幕体验做得更贴近日常佩戴。对比新型号，它更适合拿来理解消费级显示眼镜的起点。",
+        "positioning": "XREAL 早期消费级显示眼镜。",
+        "keyLimitations": [
+          "需要支持视频输出的外部设备。",
+          "属于早期产品，当前不是品牌主推型号。"
+        ],
+        "bestFor": [
+          "轻量观影",
+          "掌机与电脑第二屏",
+          "了解显示眼镜起点"
+        ],
+        "notIdealFor": [
+          "期待独立系统",
+          "依赖本机感知与拍摄",
+          "需要最新舒适度设计"
+        ],
+        "supportUrl": "https://docs.xreal.com/2.4.1/Release%20Note/NRSDK%201.8.0",
+        "buyUrl": null,
+        "sourceUrl": "https://www.vr52.com/headset/nrealair",
+        "releaseYear": "2022",
+        "availability": "旧款",
+        "keySpecs": {
+          "resolution": "1920 × 1080 / eye",
+          "refresh_rate": "60Hz",
+          "field_of_view": "46°",
+          "release_year": "2022"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "Micro‑OLED",
+            "resolution": "1920 × 1080 / eye",
+            "refresh_rate": "60Hz",
+            "field_of_view": "46°"
+          },
+          "connectivity": {
+            "ports": "USB‑C",
+            "required_host": "需要支持视频输出的手机、掌机或电脑",
+            "supported_devices": "Android、PC、掌机"
+          },
+          "market": {
+            "availability": "旧款",
+            "release_year": "2022"
+          }
+        }
+      }
+    },
+    {
+      "slug": "xreal-air-2",
+      "name": "XREAL Air 2",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-product",
+          "url": "https://us.shop.xreal.com/products/xreal-air-2",
+          "fields": [
+            "resolution",
+            "refresh_rate",
+            "brightness",
+            "field_of_view",
+            "display_type",
+            "price"
+          ],
+          "review": "official"
+        }
+      ],
+      "officialFields": [
+        "resolution",
+        "refresh_rate",
+        "brightness",
+        "field_of_view",
+        "display_type",
+        "price"
+      ],
+      "vr52Fields": [],
+      "uiOmittedFields": [
+        "weight"
+      ],
+      "notes": [
+        "主要规格来自 XREAL 官方商店页面。"
+      ],
+      "missingFields": [
+        "weight"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "XREAL Air 2 是更成熟的一代显示眼镜，继续围绕手机、掌机和电脑外接使用，重点是减重、画质和日常佩戴体验。",
+        "longSummary": "它延续 XREAL 的显示型路线，不尝试变成独立系统。相比早期型号，Air 2 更适合把它当作长期携带的大屏外设，而不是一次性尝鲜设备。",
+        "positioning": "日常便携观影与第二屏显示眼镜。",
+        "keyLimitations": [
+          "内容与算力仍依赖外部设备。",
+          "不提供独立相机或本机应用生态。"
+        ],
+        "bestFor": [
+          "便携观影",
+          "掌机/电脑第二屏",
+          "想要轻量显示眼镜"
+        ],
+        "notIdealFor": [
+          "期待独立应用生态",
+          "需要摄像头和空间感知",
+          "希望完全无线"
+        ],
+        "supportUrl": "https://us.shop.xreal.com/products/xreal-air-2",
+        "buyUrl": "https://us.shop.xreal.com/products/xreal-air-2",
+        "sourceUrl": "https://us.shop.xreal.com/products/xreal-air-2",
+        "releaseYear": "2023",
+        "availability": "在售",
+        "keySpecs": {
+          "resolution": "1920 × 1080 / eye",
+          "refresh_rate": "120Hz",
+          "brightness": "500 nits",
+          "field_of_view": "46°"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "Sony 0.55\" Micro‑OLED",
+            "resolution": "1920 × 1080 / eye",
+            "refresh_rate": "120Hz",
+            "brightness": "500 nits",
+            "field_of_view": "46°"
+          },
+          "audio": {
+            "speakers": "2 内置立体声扬声器"
+          },
+          "connectivity": {
+            "ports": "USB‑C DisplayPort Alt Mode",
+            "required_host": "需要支持视频输出的外部设备"
+          },
+          "market": {
+            "price": "USD 199",
+            "availability": "在售",
+            "release_year": "2023"
+          }
+        }
+      }
+    },
+    {
+      "slug": "xreal-air-2-pro",
+      "name": "XREAL Air 2 Pro",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-store",
+          "url": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+          "fields": [
+            "display_type",
+            "resolution",
+            "refresh_rate",
+            "brightness",
+            "field_of_view",
+            "price",
+            "availability"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "vr52-reference",
+          "url": "https://www.vr52.com/headset/xrealair2pro",
+          "fields": [
+            "weight",
+            "release_year",
+            "dimming"
+          ],
+          "review": "needsReview"
+        }
+      ],
+      "officialFields": [
+        "display_type",
+        "resolution",
+        "refresh_rate",
+        "brightness",
+        "field_of_view",
+        "price",
+        "availability"
+      ],
+      "vr52Fields": [
+        "weight",
+        "release_year"
+      ],
+      "uiOmittedFields": [
+        "supported_devices",
+        "audio"
+      ],
+      "notes": [
+        "显示规格、价格与在售状态优先用官方商店页。",
+        "重量和发布时间参考 VR52 条目。"
+      ],
+      "missingFields": [
+        "supported_devices",
+        "audio"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "XREAL Air 2 Pro 是一款外接式显示眼镜，主要用于便携观影、游戏和第二屏。它不提供独立应用平台，核心仍是把手机、电脑或掌机的内容搬到眼前。",
+        "longSummary": "这代产品的重点是轻量佩戴、1080p 显示和电致变色调光，适合把它当成成熟显示眼镜的代表样本。",
+        "positioning": "偏日常便携观影、游戏和轻办公外接。",
+        "bestFor": [
+          "观影与游戏",
+          "轻办公第二屏",
+          "对比主流显示眼镜"
+        ],
+        "notIdealFor": [
+          "期待独立 AR 系统",
+          "依赖机身摄像与感知能力",
+          "希望完全无线使用"
+        ],
+        "keyLimitations": [
+          "核心体验仍依赖外部设备。",
+          "兼容设备细项以官方兼容列表为准。"
+        ],
+        "buyUrl": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+        "sourceUrl": "https://www.vr52.com/headset/xrealair2pro",
+        "releaseYear": "2023",
+        "availability": "在售",
+        "keySpecs": {
+          "resolution": "1920 × 1080 / eye",
+          "refresh_rate": "120Hz",
+          "brightness": "500 nits",
+          "field_of_view": "46°"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "Micro‑OLED",
+            "resolution": "1920 × 1080 / eye",
+            "refresh_rate": "120Hz",
+            "brightness": "500 nits",
+            "field_of_view": "46°",
+            "dimming": "电致变色调光"
+          },
+          "connectivity": {
+            "ports": "USB‑C",
+            "required_host": "需要支持视频输出的外部设备"
+          },
+          "batteryBody": {
+            "weight": "72g"
+          },
+          "market": {
+            "price": "USD 249",
+            "availability": "在售",
+            "release_year": "2023"
+          }
+        }
+      }
+    },
+    {
+      "slug": "xreal-air-2-ultra",
+      "name": "XREAL Air 2 Ultra",
+      "coverage": {
+        "category": true,
+        "status": true,
+        "positioning": true,
+        "shortSummary": true,
+        "bestFor": true,
+        "notIdealFor": true,
+        "sourceUrl": true
+      },
+      "sources": [
+        {
+          "type": "official-store",
+          "url": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+          "fields": [
+            "product-positioning"
+          ],
+          "review": "official"
+        },
+        {
+          "type": "vr52-reference",
+          "url": "https://www.vr52.com/headset/xrealair2ultra",
+          "fields": [
+            "resolution",
+            "refresh_rate",
+            "brightness",
+            "field_of_view",
+            "weight",
+            "price",
+            "release_year",
+            "ports"
+          ],
+          "review": "needsReview"
+        }
+      ],
+      "officialFields": [
+        "product-positioning"
+      ],
+      "vr52Fields": [
+        "resolution",
+        "refresh_rate",
+        "brightness",
+        "field_of_view",
+        "weight",
+        "price",
+        "release_year",
+        "ports"
+      ],
+      "uiOmittedFields": [
+        "availability"
+      ],
+      "notes": [
+        "开发设备定位采用官方页。",
+        "显示、重量和价格信息参考 VR52 条目。"
+      ],
+      "missingFields": [
+        "availability"
+      ],
+      "needsReviewFields": [],
+      "publicData": {
+        "shortSummary": "XREAL Air 2 Ultra 更接近开发和空间计算实验设备，重点在 6DoF、手势和空间交互验证，而不是普通观影路线。它仍需要外部主机供电和提供内容。",
+        "longSummary": "这款产品的价值在于开发和实验，适合研究传感器、空间输入和 SDK 边界，不适合把它当作单纯的观影升级款。",
+        "positioning": "开发和空间交互实验优先的 XREAL 机型。",
+        "bestFor": [
+          "空间计算实验",
+          "开发验证",
+          "研究传感与输入"
+        ],
+        "notIdealFor": [
+          "只想观影",
+          "期待低门槛开箱即用",
+          "需要成熟消费生态"
+        ],
+        "keyLimitations": [
+          "重点是开发与实验。",
+          "很多体验仍建立在外部主机和开发环境之上。"
+        ],
+        "buyUrl": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+        "sourceUrl": "https://www.vr52.com/headset/xrealair2ultra",
+        "releaseYear": "2024",
+        "keySpecs": {
+          "resolution": "1920 × 1080 / eye",
+          "refresh_rate": "120Hz",
+          "field_of_view": "52°",
+          "weight": "80g"
+        },
+        "fullSpecs": {
+          "display": {
+            "display_type": "Micro‑OLED",
+            "resolution": "1920 × 1080 / eye",
+            "refresh_rate": "120Hz",
+            "brightness": "500 nits",
+            "field_of_view": "52°"
+          },
+          "connectivity": {
+            "ports": "USB‑C",
+            "required_host": "手机、PC 或平板供电",
+            "platform": "Nebula"
+          },
+          "batteryBody": {
+            "weight": "80g",
+            "power_source": "外部设备供电"
+          },
+          "market": {
+            "price": "USD 699",
+            "release_year": "2024"
+          }
+        }
+      }
+    },
     {
       "slug": "xreal-one",
       "name": "XREAL One",
@@ -235,1244 +2721,6 @@
           },
           "market": {
             "price": "USD 599"
-          }
-        }
-      }
-    },
-    {
-      "slug": "xreal-air-2-pro",
-      "name": "XREAL Air 2 Pro",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-store",
-          "url": "https://us.shop.xreal.com/products/xreal-air-2-pro",
-          "fields": [
-            "display_type",
-            "resolution",
-            "refresh_rate",
-            "brightness",
-            "field_of_view",
-            "price",
-            "availability"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "vr52-reference",
-          "url": "https://www.vr52.com/headset/xrealair2pro",
-          "fields": [
-            "weight",
-            "release_year",
-            "dimming"
-          ],
-          "review": "needsReview"
-        }
-      ],
-      "officialFields": [
-        "display_type",
-        "resolution",
-        "refresh_rate",
-        "brightness",
-        "field_of_view",
-        "price",
-        "availability"
-      ],
-      "vr52Fields": [
-        "weight",
-        "release_year"
-      ],
-      "uiOmittedFields": [
-        "supported_devices",
-        "audio"
-      ],
-      "notes": [
-        "显示规格、价格与在售状态优先用官方商店页。",
-        "重量和发布时间参考 VR52 条目。"
-      ],
-      "missingFields": [
-        "supported_devices",
-        "audio"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "XREAL Air 2 Pro 是一款外接式显示眼镜，主要用于便携观影、游戏和第二屏。它不提供独立应用平台，核心仍是把手机、电脑或掌机的内容搬到眼前。",
-        "longSummary": "这代产品的重点是轻量佩戴、1080p 显示和电致变色调光，适合把它当成成熟显示眼镜的代表样本。",
-        "positioning": "偏日常便携观影、游戏和轻办公外接。",
-        "bestFor": [
-          "观影与游戏",
-          "轻办公第二屏",
-          "对比主流显示眼镜"
-        ],
-        "notIdealFor": [
-          "期待独立 AR 系统",
-          "依赖机身摄像与感知能力",
-          "希望完全无线使用"
-        ],
-        "keyLimitations": [
-          "核心体验仍依赖外部设备。",
-          "兼容设备细项以官方兼容列表为准。"
-        ],
-        "buyUrl": "https://us.shop.xreal.com/products/xreal-air-2-pro",
-        "sourceUrl": "https://www.vr52.com/headset/xrealair2pro",
-        "releaseYear": "2023",
-        "availability": "在售",
-        "keySpecs": {
-          "resolution": "1920 × 1080 / eye",
-          "refresh_rate": "120Hz",
-          "brightness": "500 nits",
-          "field_of_view": "46°"
-        },
-        "fullSpecs": {
-          "display": {
-            "display_type": "Micro‑OLED",
-            "resolution": "1920 × 1080 / eye",
-            "refresh_rate": "120Hz",
-            "brightness": "500 nits",
-            "field_of_view": "46°",
-            "dimming": "电致变色调光"
-          },
-          "connectivity": {
-            "ports": "USB‑C",
-            "required_host": "需要支持视频输出的外部设备"
-          },
-          "batteryBody": {
-            "weight": "72g"
-          },
-          "market": {
-            "price": "USD 249",
-            "availability": "在售",
-            "release_year": "2023"
-          }
-        }
-      }
-    },
-    {
-      "slug": "xreal-air-2-ultra",
-      "name": "XREAL Air 2 Ultra",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-store",
-          "url": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
-          "fields": [
-            "product-positioning"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "vr52-reference",
-          "url": "https://www.vr52.com/headset/xrealair2ultra",
-          "fields": [
-            "resolution",
-            "refresh_rate",
-            "brightness",
-            "field_of_view",
-            "weight",
-            "price",
-            "release_year",
-            "ports"
-          ],
-          "review": "needsReview"
-        }
-      ],
-      "officialFields": [
-        "product-positioning"
-      ],
-      "vr52Fields": [
-        "resolution",
-        "refresh_rate",
-        "brightness",
-        "field_of_view",
-        "weight",
-        "price",
-        "release_year",
-        "ports"
-      ],
-      "uiOmittedFields": [
-        "availability"
-      ],
-      "notes": [
-        "开发设备定位采用官方页。",
-        "显示、重量和价格信息参考 VR52 条目。"
-      ],
-      "missingFields": [
-        "availability"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "XREAL Air 2 Ultra 更接近开发和空间计算实验设备，重点在 6DoF、手势和空间交互验证，而不是普通观影路线。它仍需要外部主机供电和提供内容。",
-        "longSummary": "这款产品的价值在于开发和实验，适合研究传感器、空间输入和 SDK 边界，不适合把它当作单纯的观影升级款。",
-        "positioning": "开发和空间交互实验优先的 XREAL 机型。",
-        "bestFor": [
-          "空间计算实验",
-          "开发验证",
-          "研究传感与输入"
-        ],
-        "notIdealFor": [
-          "只想观影",
-          "期待低门槛开箱即用",
-          "需要成熟消费生态"
-        ],
-        "keyLimitations": [
-          "重点是开发与实验。",
-          "很多体验仍建立在外部主机和开发环境之上。"
-        ],
-        "buyUrl": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
-        "sourceUrl": "https://www.vr52.com/headset/xrealair2ultra",
-        "releaseYear": "2024",
-        "keySpecs": {
-          "resolution": "1920 × 1080 / eye",
-          "refresh_rate": "120Hz",
-          "field_of_view": "52°",
-          "weight": "80g"
-        },
-        "fullSpecs": {
-          "display": {
-            "display_type": "Micro‑OLED",
-            "resolution": "1920 × 1080 / eye",
-            "refresh_rate": "120Hz",
-            "brightness": "500 nits",
-            "field_of_view": "52°"
-          },
-          "connectivity": {
-            "ports": "USB‑C",
-            "required_host": "手机、PC 或平板供电",
-            "platform": "Nebula"
-          },
-          "batteryBody": {
-            "weight": "80g",
-            "power_source": "外部设备供电"
-          },
-          "market": {
-            "price": "USD 699",
-            "release_year": "2024"
-          }
-        }
-      }
-    },
-    {
-      "slug": "rayneo-x2",
-      "name": "RayNeo X2",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-product",
-          "url": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
-          "fields": [
-            "chipset",
-            "memory",
-            "storage",
-            "camera",
-            "battery_capacity",
-            "connectivity"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "vr52-reference",
-          "url": "https://www.vr52.com/headset/tclrayneox2",
-          "fields": [
-            "brightness",
-            "release_year",
-            "category"
-          ],
-          "review": "needsReview"
-        }
-      ],
-      "officialFields": [
-        "chipset",
-        "memory",
-        "storage",
-        "camera",
-        "battery_capacity",
-        "connectivity"
-      ],
-      "vr52Fields": [
-        "brightness",
-        "release_year",
-        "category"
-      ],
-      "uiOmittedFields": [
-        "weight",
-        "price"
-      ],
-      "notes": [
-        "芯片、内存、存储、相机和电池容量优先采用官方产品页。",
-        "亮度和发布时间参考 VR52 条目。"
-      ],
-      "missingFields": [
-        "weight",
-        "price"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "RayNeo X2 是一款带独立计算能力的 AR 眼镜，重点是翻译、导航、拍摄和提示式信息叠加，不是传统外接大屏显示眼镜。",
-        "longSummary": "它更接近独立系统路线，价值在于系统级交互、轻导航和信息提示，而不是观影或第二屏。",
-        "positioning": "强调独立系统与轻量信息叠加的 RayNeo 路线。",
-        "bestFor": [
-          "观察独立 AR 交互",
-          "导航与翻译场景",
-          "系统级样本研究"
-        ],
-        "notIdealFor": [
-          "只想看大屏",
-          "期望低成本娱乐设备",
-          "需要轻量显示眼镜"
-        ],
-        "keyLimitations": [
-          "当前公开资料对重量和价格仍不稳定。",
-          "不是传统第二屏产品。"
-        ],
-        "sourceUrl": "https://www.vr52.com/headset/tclrayneox2",
-        "releaseYear": "2023",
-        "availability": "未上市",
-        "keySpecs": {
-          "chipset": "Snapdragon XR2",
-          "memory": "6GB",
-          "storage": "128GB",
-          "camera": "16MP"
-        },
-        "fullSpecs": {
-          "display": {
-            "brightness": "1000 nits"
-          },
-          "hardware": {
-            "chipset": "Snapdragon XR2",
-            "memory": "6GB",
-            "storage": "128GB",
-            "platform": "独立系统"
-          },
-          "cameraSensors": {
-            "camera": "16MP"
-          },
-          "connectivity": {
-            "connectivity": "Wi‑Fi / Bluetooth 5.2",
-            "required_host": "无需外接主机"
-          },
-          "batteryBody": {
-            "battery_life": "24 小时",
-            "battery_capacity": "590mAh",
-            "frame_style": "眼镜式镜框"
-          },
-          "market": {
-            "availability": "未上市",
-            "release_year": "2023"
-          }
-        }
-      }
-    },
-    {
-      "slug": "rokid-max",
-      "name": "Rokid Max",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-product",
-          "url": "https://global.rokid.com/products/rokid-max",
-          "fields": [
-            "resolution",
-            "refresh_rate",
-            "field_of_view",
-            "product-positioning"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "vr52-reference",
-          "url": "https://www.vr52.com/headset/rokidmax",
-          "fields": [
-            "brightness",
-            "weight",
-            "price",
-            "release_year",
-            "ports"
-          ],
-          "review": "needsReview"
-        }
-      ],
-      "officialFields": [
-        "resolution",
-        "refresh_rate",
-        "field_of_view",
-        "product-positioning"
-      ],
-      "vr52Fields": [
-        "brightness",
-        "weight",
-        "price",
-        "release_year",
-        "ports"
-      ],
-      "uiOmittedFields": [
-        "battery_life",
-        "battery_capacity"
-      ],
-      "notes": [
-        "分辨率、刷新率和视场角使用 Rokid 官方公开页。",
-        "亮度、重量、价格和发布时间参考 VR52 条目。"
-      ],
-      "missingFields": [
-        "battery_life",
-        "battery_capacity"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "Rokid Max 是一款外接式显示眼镜，主要用于观影、游戏和大屏外接。它不提供独立系统，核心是把兼容主机的画面搬到眼前。",
-        "longSummary": "这款产品适合作为主流显示眼镜样本，重点看画面、佩戴、连接方式和移动娱乐场景。",
-        "positioning": "观影、大屏和游戏外接路线。",
-        "bestFor": [
-          "便携观影",
-          "掌机 / 主机外接",
-          "对比显示眼镜体验"
-        ],
-        "notIdealFor": [
-          "需要独立系统",
-          "想在眼镜端运行应用",
-          "追求纯无线使用"
-        ],
-        "keyLimitations": [
-          "核心体验依赖外部主机。",
-          "无线能力主要依赖额外配件。"
-        ],
-        "sourceUrl": "https://www.vr52.com/headset/rokidmax",
-        "releaseYear": "2023",
-        "keySpecs": {
-          "resolution": "1920 × 1080 / eye",
-          "refresh_rate": "120Hz",
-          "brightness": "600 nits",
-          "field_of_view": "50°"
-        },
-        "fullSpecs": {
-          "display": {
-            "display_type": "Micro‑OLED",
-            "resolution": "1920 × 1080 / eye",
-            "refresh_rate": "120Hz",
-            "brightness": "600 nits",
-            "field_of_view": "50°"
-          },
-          "connectivity": {
-            "ports": "USB‑C",
-            "required_host": "需要支持视频输出的外部设备"
-          },
-          "batteryBody": {
-            "weight": "75g",
-            "frame_style": "眼镜式镜框"
-          },
-          "market": {
-            "price": "USD 439",
-            "release_year": "2023"
-          }
-        }
-      }
-    },
-    {
-      "slug": "rokid-glasses",
-      "name": "Rokid Glasses",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-product",
-          "url": "https://global.rokid.com/products/rokid-glasses",
-          "fields": [
-            "chipset",
-            "camera",
-            "memory",
-            "storage",
-            "battery_capacity",
-            "weight",
-            "connectivity"
-          ],
-          "review": "official"
-        }
-      ],
-      "officialFields": [
-        "chipset",
-        "camera",
-        "memory",
-        "storage",
-        "battery_capacity",
-        "weight",
-        "connectivity"
-      ],
-      "vr52Fields": [],
-      "uiOmittedFields": [
-        "display_type",
-        "resolution",
-        "battery_life"
-      ],
-      "notes": [
-        "当前可见字段以 Rokid 官方产品页可读硬件信息为准。",
-        "显示规格和续航时长没有在前台展示。"
-      ],
-      "missingFields": [
-        "display_type",
-        "resolution",
-        "battery_life"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "Rokid Glasses 更偏 AI 眼镜路线，重点是拍摄、语音和轻量信息入口，不是以大屏显示为核心的观影设备。",
-        "longSummary": "它更适合被看作日常佩戴的 AI 硬件入口，核心不在显示，而在语音、拍摄和轻量提示。",
-        "positioning": "更偏无感佩戴和信息入口的 AI 眼镜。",
-        "bestFor": [
-          "语音入口",
-          "轻量拍摄",
-          "研究 AI 穿戴入口"
-        ],
-        "notIdealFor": [
-          "期待大屏显示",
-          "想做空间界面开发",
-          "依赖长时续航"
-        ],
-        "keyLimitations": [
-          "当前公开显示参数有限。",
-          "更适合 AI 入口，而不是观影或空间显示。"
-        ],
-        "availability": "在售",
-        "keySpecs": {
-          "chipset": "Snapdragon AR1 Gen 1",
-          "camera": "12MP",
-          "storage": "32GB",
-          "weight": "49g"
-        },
-        "fullSpecs": {
-          "hardware": {
-            "chipset": "Snapdragon AR1 Gen 1",
-            "memory": "2GB",
-            "storage": "32GB"
-          },
-          "cameraSensors": {
-            "camera": "12MP"
-          },
-          "connectivity": {
-            "connectivity": "Wi‑Fi 6 / Bluetooth",
-            "required_host": "可独立完成基础 AI 功能"
-          },
-          "batteryBody": {
-            "battery_capacity": "210mAh",
-            "weight": "49g"
-          },
-          "market": {
-            "availability": "在售"
-          }
-        }
-      }
-    },
-    {
-      "slug": "viture-pro",
-      "name": "VITURE Pro",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-product",
-          "url": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
-          "fields": [
-            "refresh_rate",
-            "brightness",
-            "field_of_view",
-            "diopter_support",
-            "speakers",
-            "price"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "vr52-reference",
-          "url": "https://www.vr52.com/headset/viturepro",
-          "fields": [
-            "resolution",
-            "weight",
-            "release_year",
-            "ports"
-          ],
-          "review": "needsReview"
-        }
-      ],
-      "officialFields": [
-        "refresh_rate",
-        "brightness",
-        "field_of_view",
-        "diopter_support",
-        "speakers",
-        "price"
-      ],
-      "vr52Fields": [
-        "resolution",
-        "weight",
-        "release_year",
-        "ports"
-      ],
-      "uiOmittedFields": [
-        "chipset"
-      ],
-      "notes": [
-        "VITURE 官网用于确认显示、近视调节和音频定位。",
-        "分辨率、重量和发布时间参考 VR52 条目。"
-      ],
-      "missingFields": [
-        "chipset"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "VITURE Pro 是一款外接式显示眼镜，主要用于便携观影、游戏和第二屏。它不是独立计算设备，内容和交互仍由外部主机提供。",
-        "longSummary": "这代产品把亮度、近视调节和生态配件做得更完整，适合关注移动娱乐与显示体验的人。",
-        "positioning": "偏便携娱乐和外接显示生态。",
-        "bestFor": [
-          "便携观影",
-          "对比显示路线",
-          "外接娱乐设备"
-        ],
-        "notIdealFor": [
-          "期待独立 AI / AR 系统",
-          "优先开发开放平台",
-          "只想要纯无线眼镜"
-        ],
-        "keyLimitations": [
-          "核心体验依赖外部主机。",
-          "无线视频与联网能力依赖颈带或移动底座。"
-        ],
-        "sourceUrl": "https://www.vr52.com/headset/viturepro",
-        "releaseYear": "2024",
-        "availability": "在售",
-        "keySpecs": {
-          "resolution": "1920 × 1080 / eye",
-          "refresh_rate": "120Hz",
-          "brightness": "4000 nits",
-          "field_of_view": "52°"
-        },
-        "fullSpecs": {
-          "display": {
-            "display_type": "Micro‑OLED",
-            "resolution": "1920 × 1080 / eye",
-            "refresh_rate": "120Hz",
-            "brightness": "4000 nits（感知亮度）",
-            "field_of_view": "52°",
-            "diopter_support": "支持近视调节"
-          },
-          "audio": {
-            "speakers": "内置空间音频",
-            "microphone": "需配合颈带或移动底座"
-          },
-          "connectivity": {
-            "ports": "USB‑C",
-            "connectivity": "支持无线转播（需配件）",
-            "required_host": "手机、PC、掌机或移动底座"
-          },
-          "batteryBody": {
-            "weight": "77g"
-          },
-          "market": {
-            "price": "USD 459",
-            "availability": "在售",
-            "release_year": "2024"
-          }
-        }
-      }
-    },
-    {
-      "slug": "inmo-air-2",
-      "name": "INMO Air 2",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-product",
-          "url": "https://www.inmoxr.com/pages/inmo-air2",
-          "fields": [
-            "product-positioning"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "vr52-reference",
-          "url": "https://www.vr52.com/headset/inmoair2",
-          "fields": [
-            "platform",
-            "resolution",
-            "refresh_rate",
-            "price",
-            "release_year",
-            "connectivity"
-          ],
-          "review": "needsReview"
-        }
-      ],
-      "officialFields": [
-        "product-positioning"
-      ],
-      "vr52Fields": [
-        "platform",
-        "resolution",
-        "refresh_rate",
-        "price",
-        "release_year",
-        "connectivity"
-      ],
-      "uiOmittedFields": [
-        "weight",
-        "battery_life",
-        "chipset"
-      ],
-      "notes": [
-        "产品定位采用 INMO 官方页面。",
-        "平台、显示和市场字段参考 VR52 条目。"
-      ],
-      "missingFields": [
-        "weight",
-        "battery_life",
-        "chipset"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "INMO Air 2 是一款更偏轻量 AR 和提示式信息体验的设备，定位不是外接观影大屏，而是把基础应用和信息提示放到眼前。",
-        "longSummary": "它更接近独立轻量 AR 路线，适合观察日常佩戴、控制器交互和低干扰信息呈现。",
-        "positioning": "轻量 AR 与提示式信息体验优先。",
-        "bestFor": [
-          "研究轻量 AR",
-          "观察独立系统边界",
-          "提示式信息呈现"
-        ],
-        "notIdealFor": [
-          "追求沉浸大屏",
-          "把它当成熟娱乐设备",
-          "需要完整 PC 级计算能力"
-        ],
-        "keyLimitations": [
-          "公开硬件细节仍有限。",
-          "显示与平台定位比绝对规格更重要。"
-        ],
-        "sourceUrl": "https://www.vr52.com/headset/inmoair2",
-        "releaseYear": "2023",
-        "keySpecs": {
-          "resolution": "640 × 400 / eye",
-          "refresh_rate": "60Hz",
-          "platform": "INMOVERSE",
-          "price": "USD 550"
-        },
-        "fullSpecs": {
-          "display": {
-            "display_type": "Micro‑OLED",
-            "resolution": "640 × 400 / eye",
-            "refresh_rate": "60Hz"
-          },
-          "hardware": {
-            "platform": "INMOVERSE"
-          },
-          "connectivity": {
-            "connectivity": "Wi‑Fi / Bluetooth",
-            "required_host": "可独立运行",
-            "input_controls": "控制器 / 基础交互"
-          },
-          "market": {
-            "price": "USD 550",
-            "release_year": "2023"
-          }
-        }
-      }
-    },
-    {
-      "slug": "ray-ban-meta",
-      "name": "Ray-Ban Meta",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-product",
-          "url": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
-          "fields": [
-            "camera",
-            "storage",
-            "product-positioning"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "official-press",
-          "url": "https://about.fb.com/news/2023/09/new-ray-ban-meta-smart-glasses/",
-          "fields": [
-            "battery_life",
-            "microphone",
-            "audio"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "official-support",
-          "url": "https://www.meta.com/smart-glasses/",
-          "fields": [
-            "platform",
-            "availability"
-          ],
-          "review": "official"
-        }
-      ],
-      "officialFields": [
-        "camera",
-        "storage",
-        "battery_life",
-        "microphone",
-        "audio",
-        "platform",
-        "availability"
-      ],
-      "vr52Fields": [],
-      "uiOmittedFields": [
-        "display_type",
-        "resolution"
-      ],
-      "notes": [
-        "Ray-Ban 官方页负责确认产品定位和相机 / 存储。",
-        "Meta 官方新闻和产品页补充电池、麦克风和平台信息。"
-      ],
-      "missingFields": [
-        "display_type",
-        "resolution"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "Ray-Ban Meta 是一款无显示 AI 眼镜，重点是第一视角拍摄、音频和语音助理，而不是画面显示。它更接近日常穿戴设备，不是 XR 大屏产品。",
-        "longSummary": "这条路线说明智能眼镜并不一定从显示开始，而是先从拍摄、音频和 AI 助手切入高频日常使用。",
-        "positioning": "无显示、重拍摄和语音入口的 AI 眼镜。",
-        "bestFor": [
-          "第一视角拍摄",
-          "音频交互",
-          "轻量 AI 穿戴研究"
-        ],
-        "notIdealFor": [
-          "期待显示大屏",
-          "想做波导或空间界面开发",
-          "需要完整独立计算"
-        ],
-        "keyLimitations": [
-          "没有显示模组。",
-          "很多 AI 能力依赖联网和手机配合。"
-        ],
-        "supportUrl": "https://www.meta.com/smart-glasses/",
-        "releaseYear": "2023",
-        "availability": "在售",
-        "keySpecs": {
-          "camera": "12MP",
-          "storage": "32GB",
-          "battery_life": "最长约 4 小时",
-          "microphone": "5 麦克风"
-        },
-        "fullSpecs": {
-          "hardware": {
-            "storage": "32GB",
-            "platform": "Meta AI"
-          },
-          "cameraSensors": {
-            "camera": "12MP"
-          },
-          "audio": {
-            "speakers": "开放式扬声器",
-            "microphone": "5 麦克风阵列"
-          },
-          "connectivity": {
-            "connectivity": "Wi‑Fi 6 / Bluetooth 5.2",
-            "supported_devices": "iPhone / Android",
-            "input_controls": "语音、触控、拍摄按键"
-          },
-          "batteryBody": {
-            "battery_life": "最长约 4 小时（充电盒约 36 小时）",
-            "charging": "随附充电盒"
-          },
-          "market": {
-            "availability": "在售",
-            "release_year": "2023"
-          }
-        }
-      }
-    },
-    {
-      "slug": "brilliant-labs-frame",
-      "name": "Brilliant Labs Frame",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-product",
-          "url": "https://brilliant.xyz/products/frame",
-          "fields": [
-            "product-positioning",
-            "price"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "official-support",
-          "url": "https://docs.brilliant.xyz/frame/hardware/",
-          "fields": [
-            "connectivity",
-            "battery_life",
-            "sdk_availability"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "vr52-reference",
-          "url": "https://www.vr52.com/headset/brilliantlabsframe",
-          "fields": [
-            "resolution",
-            "weight",
-            "release_year"
-          ],
-          "review": "needsReview"
-        }
-      ],
-      "officialFields": [
-        "product-positioning",
-        "price",
-        "connectivity",
-        "battery_life",
-        "sdk_availability"
-      ],
-      "vr52Fields": [
-        "resolution",
-        "weight",
-        "release_year"
-      ],
-      "uiOmittedFields": [
-        "availability"
-      ],
-      "notes": [
-        "Frame 的开放平台、连接方式和续航优先使用官方 docs。",
-        "分辨率、重量和发布时间参考 VR52 条目。"
-      ],
-      "missingFields": [
-        "availability"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "Brilliant Labs Frame 是一款偏实验和开发的 AI 眼镜，用于快速原型、接口实验和轻量穿戴交互，不是面向大众娱乐消费的完整 XR 平台。",
-        "longSummary": "它更像开放实验设备，而不是成熟消费眼镜。重点在 Noa 平台、官方文档和开发边界。",
-        "positioning": "开放实验和快速原型优先的开发设备。",
-        "bestFor": [
-          "开发探索",
-          "原型验证",
-          "研究开放硬件方向"
-        ],
-        "notIdealFor": [
-          "直接消费使用",
-          "期待成熟娱乐体验",
-          "需要完整双眼显示"
-        ],
-        "keyLimitations": [
-          "更强调实验性而非消费完成度。",
-          "单眼小显示不适合观影。"
-        ],
-        "supportUrl": "https://docs.brilliant.xyz/frame/hardware/",
-        "sourceUrl": "https://www.vr52.com/headset/brilliantlabsframe",
-        "releaseYear": "2024",
-        "keySpecs": {
-          "resolution": "640 × 400",
-          "weight": "40g",
-          "battery_life": "最长约 14 小时",
-          "connectivity": "Wi‑Fi / Bluetooth 5.3"
-        },
-        "fullSpecs": {
-          "display": {
-            "resolution": "640 × 400"
-          },
-          "hardware": {
-            "platform": "Noa",
-            "sdk_availability": "官方文档可用"
-          },
-          "connectivity": {
-            "connectivity": "Wi‑Fi / Bluetooth 5.3",
-            "required_host": "可独立完成基础功能"
-          },
-          "batteryBody": {
-            "battery_life": "最长约 14 小时",
-            "weight": "40g"
-          },
-          "market": {
-            "price": "USD 349",
-            "release_year": "2024"
-          }
-        }
-      }
-    },
-    {
-      "slug": "even-realities-g1",
-      "name": "Even Realities G1",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-product",
-          "url": "https://www.evenrealities.com/en-FI/g1",
-          "fields": [
-            "brightness",
-            "field_of_view",
-            "refresh_rate",
-            "product-positioning"
-          ],
-          "review": "official"
-        }
-      ],
-      "officialFields": [
-        "brightness",
-        "field_of_view",
-        "refresh_rate",
-        "product-positioning"
-      ],
-      "vr52Fields": [],
-      "uiOmittedFields": [
-        "resolution",
-        "weight",
-        "price",
-        "supported_devices",
-        "availability"
-      ],
-      "notes": [
-        "当前可确认字段以 Even Realities 官方页面为准。"
-      ],
-      "missingFields": [
-        "resolution",
-        "weight",
-        "price",
-        "supported_devices",
-        "availability"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "Even Realities G1 是一款偏低干扰信息提示的智能眼镜，核心是通知、轻量信息和日常佩戴，而不是沉浸式 AR 大屏。",
-        "longSummary": "它更适合被看作提示型智能眼镜：重点是把短信息放到视线里，而不是提供完整的空间计算体验。",
-        "positioning": "低干扰信息提示优先，不走大屏路线。",
-        "bestFor": [
-          "通知与轻量信息",
-          "低干扰佩戴",
-          "提示式眼镜观察"
-        ],
-        "notIdealFor": [
-          "期待沉浸式显示",
-          "需要开放 XR 平台",
-          "把它当观影设备"
-        ],
-        "keyLimitations": [
-          "公开硬件细节相对有限。",
-          "定位更偏提示，而不是完整 AR。"
-        ],
-        "keySpecs": {
-          "brightness": "1000 nits",
-          "field_of_view": "25°",
-          "refresh_rate": "20Hz",
-          "display_type": "轻量提示显示"
-        },
-        "fullSpecs": {
-          "display": {
-            "display_type": "轻量提示显示",
-            "brightness": "1000 nits",
-            "field_of_view": "25°",
-            "refresh_rate": "20Hz"
-          },
-          "hardware": {
-            "platform": "提示式智能眼镜"
-          },
-          "market": {}
-        }
-      }
-    },
-    {
-      "slug": "apple-vision-pro",
-      "name": "Apple Vision Pro",
-      "coverage": {
-        "category": true,
-        "status": true,
-        "positioning": true,
-        "shortSummary": true,
-        "bestFor": true,
-        "notIdealFor": true,
-        "sourceUrl": true
-      },
-      "sources": [
-        {
-          "type": "official-product",
-          "url": "https://www.apple.com/apple-vision-pro/",
-          "fields": [
-            "product-positioning",
-            "availability",
-            "price"
-          ],
-          "review": "official"
-        },
-        {
-          "type": "official-support",
-          "url": "https://support.apple.com/en-us/125436",
-          "fields": [
-            "display_type",
-            "resolution",
-            "refresh_rate",
-            "color_gamut",
-            "chipset",
-            "storage",
-            "sensors",
-            "camera",
-            "battery_life",
-            "power_source"
-          ],
-          "review": "official"
-        }
-      ],
-      "officialFields": [
-        "product-positioning",
-        "availability",
-        "price",
-        "display_type",
-        "resolution",
-        "refresh_rate",
-        "color_gamut",
-        "chipset",
-        "storage",
-        "sensors",
-        "camera",
-        "battery_life",
-        "power_source"
-      ],
-      "vr52Fields": [],
-      "uiOmittedFields": [
-        "weight"
-      ],
-      "notes": [
-        "Apple 的技术参数优先采用 support 规格页，而不是营销文案。"
-      ],
-      "missingFields": [
-        "weight"
-      ],
-      "needsReviewFields": [],
-      "publicData": {
-        "shortSummary": "Apple Vision Pro 是一款高端独立空间计算头显，适合研究完整系统级体验、内容形态和空间交互。它不属于轻量眼镜路线，而是完整头显形态。",
-        "longSummary": "这类产品的核心不只是显示，而是完整系统、传感器融合、眼手语音输入和高端内容生态。",
-        "positioning": "完整独立系统和高端空间计算路线。",
-        "bestFor": [
-          "系统级空间计算研究",
-          "高端 XR 体验",
-          "观察完整交互范式"
-        ],
-        "notIdealFor": [
-          "轻量佩戴",
-          "便携显示替代",
-          "低预算试水"
-        ],
-        "keyLimitations": [
-          "佩戴体积和预算门槛都更高。",
-          "核心体验依赖 Apple 生态。"
-        ],
-        "supportUrl": "https://support.apple.com/en-us/125436",
-        "releaseYear": "2024",
-        "availability": "在售",
-        "keySpecs": {
-          "display_type": "Micro‑OLED",
-          "resolution": "23 million pixels",
-          "refresh_rate": "90/96/100/120Hz",
-          "chipset": "Apple M2 + R1"
-        },
-        "fullSpecs": {
-          "display": {
-            "display_type": "Micro‑OLED",
-            "resolution": "23 million pixels",
-            "refresh_rate": "90/96/100/120Hz",
-            "color_gamut": "92% DCI‑P3"
-          },
-          "hardware": {
-            "chipset": "Apple M2 + R1",
-            "storage": "256GB / 512GB / 1TB",
-            "platform": "visionOS"
-          },
-          "cameraSensors": {
-            "camera": "6.5 stereo MP",
-            "sensors": "12 cameras + LiDAR + IMUs"
-          },
-          "connectivity": {
-            "supported_devices": "iPhone / Mac 生态",
-            "input_controls": "眼动、手势、语音"
-          },
-          "batteryBody": {
-            "battery_life": "最长约 2 小时",
-            "power_source": "外置电池或接电使用"
-          },
-          "market": {
-            "price": "USD 3499",
-            "availability": "在售",
-            "release_year": "2024"
           }
         }
       }
