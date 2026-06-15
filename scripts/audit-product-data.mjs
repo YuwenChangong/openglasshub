@@ -29,8 +29,7 @@ const REQUIRED_SLUGS = [
   "apple-vision-pro",
 ];
 const MIN_PRODUCT_COUNT = 25;
-
-const DIRTY_PATTERNS = [/^000$/i, /^5g$/i, /^8g$/i, /^wifi 6g$/i, /^wifi 8g$/i, /^wifi 6g \| wifi 8g$/i];
+const DIRTY_PATTERNS = [/^000$/i, /^5g$/i, /^8g$/i, /^wifi 6g$/i, /^wifi 8g$/i, /^wifi 6g \| wifi 8g$/i, /^wi-?fi\s*6\s*b$/i];
 const FORBIDDEN_UI_STRINGS = [
   "参数待确认",
   "资料状态",
@@ -38,10 +37,27 @@ const FORBIDDEN_UI_STRINGS = [
   "已确认参数",
   "最后核对",
   "参数来源",
+  "资料来源",
   "needs review",
   "missing fields",
   "confirmed fields",
   "data status",
+  "sourceurl",
+  "sourcenotes",
+  "lastchecked",
+  "needsreviewfields",
+  "missingfields",
+  "confirmedfields",
+];
+const FORBIDDEN_PUBLIC_FIELDS = [
+  'sourceUrl',
+  'sourceNotes',
+  'lastChecked',
+  'missingFields',
+  'needsReviewFields',
+  'confirmedFields',
+  'supportUrl',
+  'sourceLedger',
 ];
 
 function parseArgs(argv) {
@@ -75,7 +91,8 @@ function fail(list, message) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const sourceLedger = await loadJson("docs/product-data-sources.json");
+  const sourceLedger = await loadJson("internal/product-data-sources.json");
+  const publicManifest = await loadJson("src/data/product-public-data.json");
   const deviceCatalogSource = await loadText("src/lib/device-catalog.ts");
   const productVisualSource = await loadText("src/components/products/ProductVisual.astro");
   const productBrandPageSource = await loadText("src/pages/products/[brand].astro");
@@ -83,14 +100,18 @@ async function main() {
 
   const errors = [];
   const warnings = [];
-  const products = Array.isArray(sourceLedger.products) ? sourceLedger.products : [];
-  const slugSet = new Set(products.map((entry) => entry.slug));
+  const ledgerProducts = Array.isArray(sourceLedger.products) ? sourceLedger.products : [];
+  const publicProducts = Array.isArray(publicManifest.products) ? publicManifest.products : [];
+  const slugSet = new Set(ledgerProducts.map((entry) => entry.slug));
+  const publicSlugSet = new Set(publicProducts.map((entry) => entry.slug));
 
-  if (products.length < MIN_PRODUCT_COUNT) fail(errors, `product count below minimum: ${products.length} < ${MIN_PRODUCT_COUNT}`);
-  if (slugSet.size !== products.length) fail(errors, "duplicate slugs found in source ledger");
+  if (ledgerProducts.length < MIN_PRODUCT_COUNT) fail(errors, `product count below minimum: ${ledgerProducts.length} < ${MIN_PRODUCT_COUNT}`);
+  if (slugSet.size !== ledgerProducts.length) fail(errors, "duplicate slugs found in source ledger");
+  if (publicProducts.length < MIN_PRODUCT_COUNT) fail(errors, `public product count below minimum: ${publicProducts.length} < ${MIN_PRODUCT_COUNT}`);
 
   for (const slug of REQUIRED_SLUGS) {
     if (!slugSet.has(slug)) fail(errors, `missing source ledger entry: ${slug}`);
+    if (!publicSlugSet.has(slug)) fail(errors, `missing public data entry: ${slug}`);
     if (!deviceCatalogSource.includes(`"${slug}"`)) fail(errors, `missing device-catalog entry: ${slug}`);
     const mdxPath = path.resolve(process.cwd(), "src/content/docs/devices", `${slug}.mdx`);
     try {
@@ -106,7 +127,14 @@ async function main() {
     if (productDetailPageSource.toLowerCase().includes(forbidden.toLowerCase())) fail(errors, `devices/[slug] contains forbidden UI copy: ${forbidden}`);
   }
 
-  for (const product of products) {
+  for (const field of FORBIDDEN_PUBLIC_FIELDS) {
+    const lower = field.toLowerCase();
+    if (deviceCatalogSource.toLowerCase().includes(lower)) fail(errors, `device-catalog exposes forbidden field name: ${field}`);
+    const publicText = JSON.stringify(publicManifest).toLowerCase();
+    if (publicText.includes(lower)) fail(errors, `public manifest leaks forbidden field: ${field}`);
+  }
+
+  for (const product of ledgerProducts) {
     const label = product.slug ?? product.name ?? "unknown";
     if (!product.slug) fail(errors, `${label}: slug missing`);
     if (!product.name) fail(errors, `${label}: name missing`);
@@ -116,19 +144,10 @@ async function main() {
     if (!product.coverage?.shortSummary) fail(errors, `${label}: coverage.shortSummary missing`);
     if (!product.coverage?.bestFor) fail(errors, `${label}: coverage.bestFor missing`);
     if (!product.coverage?.notIdealFor) fail(errors, `${label}: coverage.notIdealFor missing`);
-    if (!product.coverage?.sourceUrl) fail(errors, `${label}: coverage.sourceUrl missing`);
     if (!Array.isArray(product.sources) || product.sources.length === 0) fail(errors, `${label}: no sources listed`);
-    if (!Array.isArray(product.missingFields)) fail(errors, `${label}: missingFields missing`);
-    if (!product.publicData?.shortSummary) fail(errors, `${label}: publicData.shortSummary missing`);
-    if (!product.publicData?.sourceUrl && !product.sources?.[0]?.url) fail(errors, `${label}: publicData.sourceUrl missing`);
-    if (!product.publicData?.positioning) fail(errors, `${label}: publicData.positioning missing`);
-    if (!product.publicData?.bestFor?.length) fail(errors, `${label}: publicData.bestFor missing`);
-    if (!product.publicData?.notIdealFor?.length) fail(errors, `${label}: publicData.notIdealFor missing`);
-
     const officialSource = (product.sources ?? []).find((source) => String(source.review) === "official");
     if (!officialSource) fail(errors, `${label}: no official source recorded`);
 
-    const visibleStrings = collectStrings(product.publicData ?? {});
     const strings = collectStrings(product);
     for (const text of strings) {
       const trimmed = text.trim();
@@ -139,7 +158,16 @@ async function main() {
         warnings.push(`${label}: isolated number in source ledger -> ${trimmed}`);
       }
     }
+  }
 
+  for (const product of publicProducts) {
+    const label = product.slug ?? product.name ?? "unknown";
+    if (!product.publicData?.shortSummary) fail(errors, `${label}: publicData.shortSummary missing`);
+    if (!product.publicData?.positioning) fail(errors, `${label}: publicData.positioning missing`);
+    if (!product.publicData?.bestFor?.length) fail(errors, `${label}: publicData.bestFor missing`);
+    if (!product.publicData?.notIdealFor?.length) fail(errors, `${label}: publicData.notIdealFor missing`);
+
+    const visibleStrings = collectStrings(product.publicData ?? {});
     for (const text of visibleStrings) {
       const trimmed = text.trim();
       if (FORBIDDEN_UI_STRINGS.some((item) => trimmed.toLowerCase().includes(item.toLowerCase()))) {
@@ -148,15 +176,11 @@ async function main() {
       if (/待确认/.test(trimmed) && !/不适合|限制/.test(trimmed)) {
         fail(errors, `${label}: publicData contains 待确认 copy -> ${trimmed}`);
       }
-      if (/wi-?fi\s*6\s*b/i.test(trimmed)) {
-        fail(errors, `${label}: publicData contains dirty Wi-Fi 6 B -> ${trimmed}`);
+      if (DIRTY_PATTERNS.some((pattern) => pattern.test(trimmed))) {
+        fail(errors, `${label}: dirty public value -> ${trimmed}`);
       }
     }
 
-    const keySpecs = product.publicData?.keySpecs ? Object.values(product.publicData.keySpecs) : [];
-    if (keySpecs.some((value) => String(value).includes("待确认"))) {
-      fail(errors, `${label}: keySpecs contains 待确认`);
-    }
     const batteryLifeValues = collectStrings(product.publicData?.fullSpecs?.batteryBody ?? {});
     for (const value of batteryLifeValues) {
       if (/^\d+$/.test(value.trim())) {
@@ -165,14 +189,15 @@ async function main() {
     }
   }
 
-  console.log(`source ledger entries: ${products.length}`);
+  console.log(`internal source ledger entries: ${ledgerProducts.length}`);
+  console.log(`public product entries: ${publicProducts.length}`);
   console.log(`required products: ${REQUIRED_SLUGS.length}`);
   console.log(`errors: ${errors.length}`);
   console.log(`warnings: ${warnings.length}`);
 
   if (args.verbose) {
-    for (const product of products) {
-      console.log(`- ${product.slug}: sources=${product.sources.length} missing=${(product.missingFields ?? []).join(", ") || "none"} review=${(product.needsReviewFields ?? []).join(", ") || "none"}`);
+    for (const product of ledgerProducts) {
+      console.log(`- ${product.slug}: sources=${product.sources.length} official=${product.sources.some((source) => String(source.review) === "official") ? "yes" : "no"}`);
     }
     if (warnings.length > 0) {
       console.log("\nwarnings:");

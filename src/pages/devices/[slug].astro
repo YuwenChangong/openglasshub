@@ -165,21 +165,6 @@ const basicInfoItems = [
     </section>
   )}
 
-  <section class="device-source-panel">
-    <div class="device-source-panel__block">
-      <h2>资料来源</h2>
-      {device.externalLinks.length > 0 && (
-        <div class="device-source-panel__links">
-          {device.externalLinks.map((link) => (
-            <a href={link.url} target="_blank" rel="noopener noreferrer" class="community-link">
-              {link.label}
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  </section>
-
 </CommunityLayout>
 
 <style>

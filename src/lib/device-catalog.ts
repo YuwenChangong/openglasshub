@@ -1,6 +1,4 @@
-import deviceSpecCandidates from "../data/device-spec-candidates.json";
-import productAssetSources from "../../docs/product-asset-sources.json";
-import productDataSources from "../../docs/product-data-sources.json";
+import productPublicData from "../data/product-public-data.json";
 
 export const deviceSpecLabels = {
   display_type: "显示类型",
@@ -69,8 +67,6 @@ type BrandLogo = {
   alt: string;
   licenseNote?: string;
 };
-type AssetStatus = "official" | "official-cdn" | "press-kit" | "unverified" | "fallback-wordmark" | "placeholder";
-type AssetQaStatus = "usable" | "lifestyle-only" | "placeholder" | "wrong-removed" | "needs-review";
 type ProductPlaceholderType = "glasses" | "headset" | "frame" | "wordmark";
 type ProductMedia = {
   imageUrl?: string | null;
@@ -80,98 +76,24 @@ type ProductMedia = {
   hasConfirmedImage: boolean;
   placeholderType: ProductPlaceholderType;
 };
-type ProductAssetManifest = {
-  generated_at: string;
-  brands: Array<{
-    brandSlug: string;
-    brandName: string;
-    officialWebsiteUrl: string;
-    assetExceptionReason?: string | null;
-    logo: {
-      assetStatus: AssetStatus;
-      logoImageUrl?: string | null;
-      sourceUrl?: string | null;
-      licenseNote?: string | null;
-      useInUi: boolean;
-    };
-  }>;
-  products: Array<{
-    slug: string;
-    brandSlug: string;
-    name: string;
-    assetExceptionReason?: string | null;
-    assetQaStatus?: AssetQaStatus;
-    officialProductUrl?: string | null;
-    buyUrl?: string | null;
-    sourceUrl?: string | null;
-    image: {
-      assetStatus: AssetStatus;
-      imageUrl?: string | null;
-      sourceUrl?: string | null;
-      licenseNote?: string | null;
-      useInUi: boolean;
-    };
-    specSources?: Array<{ url: string; type: string }>;
-  }>;
-};
-
-type ProductDataSourceManifest = {
+type ProductPublicDataManifest = {
   generated_at: string;
   products: Array<{
     slug: string;
     name: string;
-    coverage?: {
-      category?: boolean;
-      status?: boolean;
-      positioning?: boolean;
-      shortSummary?: boolean;
-      bestFor?: boolean;
-      notIdealFor?: boolean;
-      sourceUrl?: boolean;
-    };
-    sources: Array<{
-      type: string;
-      url: string;
-      fields?: string[];
-      review?: "official" | "needsReview";
-    }>;
-    officialFields?: string[];
-    vr52Fields?: string[];
-    uiOmittedFields?: string[];
-    notes?: string[];
-    missingFields?: string[];
-    needsReviewFields?: string[];
     publicData?: {
-      shortSummary?: string;
-      longSummary?: string;
-      positioning?: string;
+      shortSummary?: string | null;
+      longSummary?: string | null;
+      positioning?: string | null;
       keyLimitations?: string[];
       bestFor?: string[];
       notIdealFor?: string[];
-      supportUrl?: string | null;
-      buyUrl?: string | null;
-      sourceUrl?: string | null;
       releaseYear?: string | null;
       availability?: string | null;
       keySpecs?: DeviceSpecs;
       fullSpecs?: Partial<Record<SpecGroupKey, DeviceSpecs>>;
     };
   }>;
-};
-
-type DeviceSnapshot = {
-  brand?: string;
-  model_name?: string;
-  source_url?: string;
-  product_url?: string;
-  source_name?: string;
-  last_checked_at?: string;
-  short_description?: string;
-  official_image_url?: string | null;
-  confidence?: number;
-  missing_fields?: string[];
-  specs?: DeviceSpecs;
-  slug?: string;
 };
 
 type BrandDefinition = {
@@ -183,12 +105,9 @@ type BrandDefinition = {
   positioning: string;
   websiteUrl: string;
   brandLogo: BrandLogo;
-  logoAssetStatus?: AssetStatus;
-  logoSourceUrl?: string | null;
   brandMarkType: BrandMarkType;
   brandMarkText: string;
   brandTone: BrandTone;
-  logoImageUrl?: string | null;
   featuredProducts: string[];
 };
 
@@ -200,23 +119,17 @@ type DeviceDefinition = {
   shortDescription: string;
   longDescription: string;
   positioning?: string;
-  supportUrl?: string | null;
   releaseYear?: string | null;
   availability?: string | null;
   typeLabel?: string;
   statusLabel?: string;
   media?: Partial<ProductMedia>;
-  imageAssetStatus?: AssetStatus;
-  imageSourceUrl?: string | null;
   productImageUrl?: string | null;
   officialImageUrl?: string | null;
   imageAlt: string;
   productUrl?: string | null;
   officialProductUrl?: string | null;
   buyUrl?: string | null;
-  sourceUrl: string;
-  sourceName: string;
-  lastCheckedAt?: string | null;
   category: DeviceCategory;
   routeLabel: string;
   routeDescription: string;
@@ -225,22 +138,9 @@ type DeviceDefinition = {
   keyLimitations?: string[];
   keySpecs?: DeviceSpecs;
   fullSpecs?: Partial<Record<SpecGroupKey, DeviceSpecs>>;
-  pendingFields?: string[];
-  needsReviewFields?: string[];
-  manualCompleteness?: number | null;
 };
-
-const snapshotItems = Array.isArray(deviceSpecCandidates?.items) ? deviceSpecCandidates.items : [];
-const snapshotMap = new Map<string, DeviceSnapshot>(
-  snapshotItems
-    .filter((item) => item && typeof item.slug === "string")
-    .map((item) => [String(item.slug), item as DeviceSnapshot]),
-);
-const productAssetManifest = productAssetSources as ProductAssetManifest;
-const productDataManifest = productDataSources as ProductDataSourceManifest;
-const brandAssetMap = new Map(productAssetManifest.brands.map((brand) => [brand.brandSlug, brand]));
-const productAssetMap = new Map(productAssetManifest.products.map((product) => [product.slug, product]));
-const productDataMap = new Map(productDataManifest.products.map((product) => [product.slug, product]));
+const productPublicManifest = productPublicData as ProductPublicDataManifest;
+const productPublicMap = new Map(productPublicManifest.products.map((product) => [product.slug, product]));
 
 const manualSpecGroups = {
   display: "显示",
@@ -252,30 +152,12 @@ const manualSpecGroups = {
   market: "发售与市场",
 } as const;
 
-function forceHttps(value?: string | null) {
-  if (!value) return null;
-  return value.replace(/^http:\/\//i, "https://");
-}
-
-function getBrandAsset(brandSlug: string) {
-  return brandAssetMap.get(brandSlug) ?? null;
-}
-
-function getProductAsset(slug: string) {
-  return productAssetMap.get(slug) ?? null;
-}
-
-function getProductDataEntry(slug: string) {
-  return productDataMap.get(slug) ?? null;
-}
-
 function buildBrandLogo(brandSlug: string, text: string, alt: string): BrandLogo {
-  const asset = getBrandAsset(brandSlug)?.logo;
   return {
     type: "wordmark",
     text,
     alt,
-    licenseNote: asset?.licenseNote ?? "Typographic fallback, not official logo asset.",
+    licenseNote: "Typographic fallback, not official logo asset.",
   };
 }
 
@@ -296,8 +178,6 @@ export const brandCatalog = [
     positioning: "显示与空间显示增强。",
     websiteUrl: "https://www.xreal.com/",
     brandLogo: buildBrandLogo("xreal", "XREAL", "XREAL logo"),
-    logoAssetStatus: getBrandAsset("xreal")?.logo.assetStatus,
-    logoSourceUrl: getBrandAsset("xreal")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "XREAL",
     brandTone: "xreal",
@@ -312,8 +192,6 @@ export const brandCatalog = [
     positioning: "显示到独立 XR。",
     websiteUrl: "https://www.rayneo.com/",
     brandLogo: buildBrandLogo("rayneo", "RayNeo", "RayNeo logo"),
-    logoAssetStatus: getBrandAsset("rayneo")?.logo.assetStatus,
-    logoSourceUrl: getBrandAsset("rayneo")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "RayNeo",
     brandTone: "rayneo",
@@ -328,8 +206,6 @@ export const brandCatalog = [
     positioning: "显示 + AI。",
     websiteUrl: "https://global.rokid.com/",
     brandLogo: buildBrandLogo("rokid", "Rokid", "Rokid logo"),
-    logoAssetStatus: getBrandAsset("rokid")?.logo.assetStatus,
-    logoSourceUrl: getBrandAsset("rokid")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "Rokid",
     brandTone: "rokid",
@@ -344,8 +220,6 @@ export const brandCatalog = [
     positioning: "便携显示。",
     websiteUrl: "https://www.viture.com/",
     brandLogo: buildBrandLogo("viture", "VITURE", "VITURE logo"),
-    logoAssetStatus: getBrandAsset("viture")?.logo.assetStatus,
-    logoSourceUrl: getBrandAsset("viture")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "VITURE",
     brandTone: "viture",
@@ -360,8 +234,6 @@ export const brandCatalog = [
     positioning: "轻量 AR。",
     websiteUrl: "https://www.inmoglobal.com/",
     brandLogo: buildBrandLogo("inmo", "INMO", "INMO logo"),
-    logoAssetStatus: getBrandAsset("inmo")?.logo.assetStatus,
-    logoSourceUrl: getBrandAsset("inmo")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "INMO",
     brandTone: "inmo",
@@ -376,8 +248,6 @@ export const brandCatalog = [
     positioning: "无显示智能眼镜。",
     websiteUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
     brandLogo: buildBrandLogo("meta", "META × RAY-BAN", "META × RAY-BAN"),
-    logoAssetStatus: getBrandAsset("meta")?.logo.assetStatus,
-    logoSourceUrl: getBrandAsset("meta")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "META × RAY-BAN",
     brandTone: "meta",
@@ -392,8 +262,6 @@ export const brandCatalog = [
     positioning: "实验型设备。",
     websiteUrl: "https://brilliant.xyz/products/frame",
     brandLogo: buildBrandLogo("brilliant-labs", "Brilliant Labs", "Brilliant Labs logo"),
-    logoAssetStatus: getBrandAsset("brilliant-labs")?.logo.assetStatus,
-    logoSourceUrl: getBrandAsset("brilliant-labs")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "Brilliant Labs",
     brandTone: "frame",
@@ -408,8 +276,6 @@ export const brandCatalog = [
     positioning: "提示式智能眼镜。",
     websiteUrl: "https://www.evenrealities.com/en-FI/g1",
     brandLogo: buildBrandLogo("even-realities", "Even Realities", "Even Realities logo"),
-    logoAssetStatus: getBrandAsset("even-realities")?.logo.assetStatus,
-    logoSourceUrl: getBrandAsset("even-realities")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "Even Realities",
     brandTone: "g1",
@@ -424,8 +290,6 @@ export const brandCatalog = [
     positioning: "独立空间计算头显。",
     websiteUrl: "https://www.apple.com/apple-vision-pro/",
     brandLogo: buildBrandLogo("apple", "Apple Vision", "Apple Vision wordmark"),
-    logoAssetStatus: getBrandAsset("apple")?.logo.assetStatus,
-    logoSourceUrl: getBrandAsset("apple")?.logo.sourceUrl ?? null,
     brandMarkType: "wordmark",
     brandMarkText: "Apple Vision",
     brandTone: "vision",
@@ -445,8 +309,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "XREAL One 产品视觉",
     buyUrl: "https://us.shop.xreal.com/products/xreal-one",
-    sourceUrl: "https://us.shop.xreal.com/products/xreal-one",
-    sourceName: "XREAL official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "更适合观影、游戏、移动第二屏和显示链路研究。",
@@ -457,8 +319,6 @@ const deviceCatalog = {
       display: { refresh_rate: "120Hz", brightness: "600 nits", field_of_view: "50°" },
       market: { price: "USD 399", availability: "在售" },
     },
-    pendingFields: ["分辨率", "重量", "兼容设备"],
-    manualCompleteness: 0.52,
   },
   "xreal-one-pro": {
     slug: "xreal-one-pro",
@@ -471,8 +331,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "XREAL One Pro 产品视觉",
     officialProductUrl: "https://www.xreal.com/us/one-pro",
-    sourceUrl: "https://www.xreal.com/us/one-pro",
-    sourceName: "XREAL official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "以显示体验升级为主，而不是独立系统替代。",
@@ -482,8 +340,6 @@ const deviceCatalog = {
     fullSpecs: {
       display: { refresh_rate: "120Hz", field_of_view: "57°" },
     },
-    pendingFields: ["分辨率", "亮度", "重量", "价格"],
-    manualCompleteness: 0.34,
   },
   "xreal-air-2-pro": {
     slug: "xreal-air-2-pro",
@@ -496,8 +352,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "XREAL Air 2 Pro 产品视觉",
     buyUrl: "https://us.shop.xreal.com/products/xreal-air-2-pro",
-    sourceUrl: "https://us.shop.xreal.com/products/xreal-air-2-pro",
-    sourceName: "XREAL official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "偏日常便携观影和轻办公外接。",
@@ -509,8 +363,6 @@ const deviceCatalog = {
       optics: { dimming: "电致变色调光" },
       market: { price: "USD 249", availability: "在售" },
     },
-    pendingFields: ["重量", "兼容设备细项", "音频参数"],
-    manualCompleteness: 0.62,
   },
   "xreal-air-2-ultra": {
     slug: "xreal-air-2-ultra",
@@ -524,8 +376,6 @@ const deviceCatalog = {
     media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "XREAL Air 2 Ultra 产品视觉",
     buyUrl: "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
-    sourceUrl: "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
-    sourceName: "XREAL official",
     category: "developer_device",
     routeLabel: "开发设备",
     routeDescription: "重在开发与实验，不是纯消费级显示设备。",
@@ -535,8 +385,6 @@ const deviceCatalog = {
     fullSpecs: {
       display: { refresh_rate: "120Hz", field_of_view: "52°" },
     },
-    pendingFields: ["分辨率", "亮度", "重量", "价格"],
-    manualCompleteness: 0.38,
   },
   "xreal-air": {
     slug: "xreal-air",
@@ -549,9 +397,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "XREAL Air 产品视觉",
     officialProductUrl: "https://www.xreal.com/about",
-    supportUrl: "https://docs.xreal.com/2.4.1/Release%20Note/NRSDK%201.8.0",
-    sourceUrl: "https://www.vr52.com/headset/nrealair",
-    sourceName: "XREAL + VR52",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "XREAL 早期消费级显示眼镜。",
@@ -564,8 +409,6 @@ const deviceCatalog = {
       connectivity: { ports: "USB‑C", required_host: "需要支持视频输出的手机、掌机或电脑", supported_devices: "Android、PC、掌机" },
       market: { availability: "旧款", release_year: "2022" },
     },
-    pendingFields: ["价格", "重量"],
-    manualCompleteness: 0.68,
   },
   "xreal-air-2": {
     slug: "xreal-air-2",
@@ -578,10 +421,7 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "XREAL Air 2 产品视觉",
     officialProductUrl: "https://us.shop.xreal.com/products/xreal-air-2",
-    supportUrl: "https://us.shop.xreal.com/products/xreal-air-2",
     buyUrl: "https://us.shop.xreal.com/products/xreal-air-2",
-    sourceUrl: "https://us.shop.xreal.com/products/xreal-air-2",
-    sourceName: "XREAL official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "日常便携观影与第二屏显示眼镜。",
@@ -595,8 +435,6 @@ const deviceCatalog = {
       connectivity: { ports: "USB‑C DisplayPort Alt Mode", required_host: "需要支持视频输出的外部设备" },
       market: { price: "USD 199", availability: "在售", release_year: "2023" },
     },
-    pendingFields: ["重量"],
-    manualCompleteness: 0.68,
   },
   "rayneo-x2": {
     slug: "rayneo-x2",
@@ -609,8 +447,6 @@ const deviceCatalog = {
     media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "RayNeo X2 产品视觉",
     officialProductUrl: "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
-    sourceUrl: "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
-    sourceName: "RayNeo official",
     category: "standalone_xr",
     routeLabel: "独立 XR",
     routeDescription: "强调系统级体验，而不是外接大屏。",
@@ -622,8 +458,6 @@ const deviceCatalog = {
       battery: { battery_capacity: "590mAh" },
       compatibility: { connectivity: "Wi‑Fi 5 / Bluetooth 5.2" },
     },
-    pendingFields: ["分辨率", "亮度", "视场角", "重量"],
-    manualCompleteness: 0.48,
   },
   "rayneo-air-2": {
     slug: "rayneo-air-2",
@@ -636,10 +470,7 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "RayNeo Air 2 产品视觉",
     officialProductUrl: "https://www.rayneo.com/products/rayneo-air-2-xr-glasses",
-    supportUrl: "https://www.rayneo.com/pages/faq-air-2",
     buyUrl: "https://www.rayneo.com/products/rayneo-air-2-xr-glasses",
-    sourceUrl: "https://www.rayneo.com/products/rayneo-air-2-xr-glasses",
-    sourceName: "RayNeo official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "RayNeo 入门到主流段的显示眼镜。",
@@ -652,8 +483,6 @@ const deviceCatalog = {
       connectivity: { supported_devices: "iPhone、Switch、Steam Deck、PS5、Xbox、MacBook", required_host: "USB‑C DP 输出或 HDMI 转接", ports: "USB‑C" },
       market: { price: "USD 149", availability: "在售", release_year: "2024" },
     },
-    pendingFields: ["重量", "视场角"],
-    manualCompleteness: 0.68,
   },
   "rayneo-air-2s": {
     slug: "rayneo-air-2s",
@@ -666,10 +495,7 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "RayNeo Air 2s 产品视觉",
     officialProductUrl: "https://eu.rayneo.com/products/rayneo-air_2s",
-    supportUrl: "https://eu.rayneo.com/products/rayneo-air_2s",
     buyUrl: "https://eu.rayneo.com/products/rayneo-air_2s",
-    sourceUrl: "https://eu.rayneo.com/products/rayneo-air_2s",
-    sourceName: "RayNeo official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "强调佩戴与音频升级的显示眼镜。",
@@ -684,8 +510,6 @@ const deviceCatalog = {
       batteryBody: { weight: "76g" },
       market: { price: "€199.99", availability: "在售", release_year: "2024" },
     },
-    pendingFields: ["视场角"],
-    manualCompleteness: 0.68,
   },
   "rayneo-air-3s": {
     slug: "rayneo-air-3s",
@@ -698,10 +522,7 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "RayNeo Air 3s 产品视觉",
     officialProductUrl: "https://eu.rayneo.com/products/rayneo-air-3s-xr-glasses",
-    supportUrl: "https://eu.rayneo.com/products/rayneo-air-3s-xr-glasses",
     buyUrl: "https://eu.rayneo.com/products/rayneo-air-3s-xr-glasses",
-    sourceUrl: "https://eu.rayneo.com/products/rayneo-air-3s-xr-glasses",
-    sourceName: "RayNeo official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "高色域、高舒适度的显示眼镜。",
@@ -716,8 +537,6 @@ const deviceCatalog = {
       batteryBody: { weight: "76g" },
       market: { price: "€299.00", availability: "在售", release_year: "2025" },
     },
-    pendingFields: [],
-    manualCompleteness: 0.68,
   },
   "rayneo-air-4-pro": {
     slug: "rayneo-air-4-pro",
@@ -730,10 +549,7 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "RayNeo Air 4 Pro 产品视觉",
     officialProductUrl: "https://www.rayneo.com/products/rayneo-air-4-pro-ar-glasses",
-    supportUrl: "https://eu.rayneo.com/products/rayneo-air-4-pro-ar-glasses",
     buyUrl: "https://www.rayneo.com/products/rayneo-air-4-pro-ar-glasses",
-    sourceUrl: "https://www.rayneo.com/products/rayneo-air-4-pro-ar-glasses",
-    sourceName: "RayNeo official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "RayNeo 当前高阶显示眼镜。",
@@ -748,8 +564,6 @@ const deviceCatalog = {
       batteryBody: { weight: "76g" },
       market: { price: "USD 299", availability: "在售", release_year: "2026" },
     },
-    pendingFields: ["分辨率", "视场角"],
-    manualCompleteness: 0.68,
   },
   "rayneo-x3-pro": {
     slug: "rayneo-x3-pro",
@@ -762,10 +576,7 @@ const deviceCatalog = {
     media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "RayNeo X3 Pro 产品视觉",
     officialProductUrl: "https://eu.rayneo.com/products/x3-pro-ai-display-glasses",
-    supportUrl: "https://eu.rayneo.com/products/x3-pro-ai-display-glasses",
     buyUrl: "https://eu.rayneo.com/products/x3-pro-ai-display-glasses",
-    sourceUrl: "https://www.rayneo.com/pages/x3-pro-launch",
-    sourceName: "RayNeo official",
     category: "standalone_xr",
     routeLabel: "独立 XR",
     routeDescription: "RayNeo 面向 AI+AR 的独立眼镜路线。",
@@ -781,8 +592,6 @@ const deviceCatalog = {
       batteryBody: { weight: "76g" },
       market: { price: "USD 1099", availability: "在售", release_year: "2025" },
     },
-    pendingFields: ["exact_resolution"],
-    manualCompleteness: 0.68,
   },
   "rokid-max": {
     slug: "rokid-max",
@@ -795,8 +604,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "Rokid Max 产品视觉",
     officialProductUrl: "https://global.rokid.com/products/rokid-max",
-    sourceUrl: "https://global.rokid.com/products/rokid-max",
-    sourceName: "Rokid official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "观影、大屏和游戏外接路线。",
@@ -806,8 +613,6 @@ const deviceCatalog = {
     fullSpecs: {
       display: { resolution: "1920 × 1080 / eye", refresh_rate: "120Hz", field_of_view: "50°" },
     },
-    pendingFields: ["亮度", "重量", "价格"],
-    manualCompleteness: 0.46,
   },
   "rokid-air": {
     slug: "rokid-air",
@@ -820,9 +625,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "Rokid Air 产品视觉",
     officialProductUrl: "https://air.rokid.com/",
-    supportUrl: "https://air.rokid.com/product",
-    sourceUrl: "https://www.vr52.com/headset/rokidair",
-    sourceName: "Rokid + VR52",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "Rokid 早期消费级显示眼镜。",
@@ -835,8 +637,6 @@ const deviceCatalog = {
       connectivity: { ports: "USB‑C", required_host: "需要连接手机或电脑" },
       market: { price: "USD 499", availability: "旧款", release_year: "2021" },
     },
-    pendingFields: ["重量"],
-    manualCompleteness: 0.68,
   },
   "rokid-ar-lite": {
     slug: "rokid-ar-lite",
@@ -849,10 +649,7 @@ const deviceCatalog = {
     media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "Rokid AR Lite 产品视觉",
     officialProductUrl: "https://arlite.rokid.com/",
-    supportUrl: "https://global.rokid.com/blogs/max-2/what-comes-with-the-rokid-ar-lite",
     buyUrl: "https://arlite.rokid.com/",
-    sourceUrl: "https://arlite.rokid.com/profile",
-    sourceName: "Rokid official",
     category: "standalone_xr",
     routeLabel: "独立 XR",
     routeDescription: "Rokid 面向空间计算的组合式套装。",
@@ -867,8 +664,6 @@ const deviceCatalog = {
       batteryBody: { battery_capacity: "5000mAh", charging: "18W 快充" },
       market: { availability: "在售", release_year: "2024" },
     },
-    pendingFields: ["价格", "重量"],
-    manualCompleteness: 0.68,
   },
   "rokid-glasses": {
     slug: "rokid-glasses",
@@ -881,8 +676,6 @@ const deviceCatalog = {
     media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "Rokid Glasses 产品视觉",
     officialProductUrl: "https://global.rokid.com/products/rokid-glasses",
-    sourceUrl: "https://global.rokid.com/products/rokid-glasses",
-    sourceName: "Rokid official",
     category: "ai_glasses",
     routeLabel: "AI 眼镜",
     routeDescription: "更偏无感佩戴和信息入口。",
@@ -894,8 +687,6 @@ const deviceCatalog = {
       battery: { battery_capacity: "210mAh" },
       physical: { weight: "49g" },
     },
-    pendingFields: ["显示参数", "续航", "兼容设备"],
-    manualCompleteness: 0.54,
   },
   "viture-pro": {
     slug: "viture-pro",
@@ -908,8 +699,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "VITURE Pro 产品视觉",
     officialProductUrl: "https://www.viture.com/product/viture-luma-pro-xr-glasses",
-    sourceUrl: "https://www.viture.com/product/viture-luma-pro-xr-glasses",
-    sourceName: "VITURE official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "偏便携娱乐和外接显示生态。",
@@ -921,8 +710,6 @@ const deviceCatalog = {
       optics: { diopter_support: "支持近视调节" },
       hardware: { speakers: "内置空间音频" },
     },
-    pendingFields: ["分辨率", "重量", "芯片"],
-    manualCompleteness: 0.5,
   },
   "viture-one": {
     slug: "viture-one",
@@ -935,9 +722,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "VITURE One 产品视觉",
     officialProductUrl: "https://www.viture.com/",
-    supportUrl: "https://www.viture.com/release-updates/xr-glasses",
-    sourceUrl: "https://www.vr52.com/headset/vitureone",
-    sourceName: "VITURE + VR52",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "VITURE 早期显示眼镜。",
@@ -950,8 +734,6 @@ const deviceCatalog = {
       connectivity: { ports: "磁吸连接", required_host: "手机、掌机或电脑" },
       market: { price: "USD 479", availability: "旧款", release_year: "2022" },
     },
-    pendingFields: ["重量"],
-    manualCompleteness: 0.68,
   },
   "viture-one-lite": {
     slug: "viture-one-lite",
@@ -964,9 +746,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "VITURE One Lite 产品视觉",
     officialProductUrl: "https://www.viture.com/blog/2024-in-review-vitures-greatest-year-yet",
-    supportUrl: "https://www.viture.com/release-updates/xr-glasses",
-    sourceUrl: "https://www.viture.com/blog/2024-in-review-vitures-greatest-year-yet",
-    sourceName: "VITURE official",
     category: "display_glasses",
     routeLabel: "显示眼镜",
     routeDescription: "VITURE 面向入门用户的显示眼镜。",
@@ -979,8 +758,6 @@ const deviceCatalog = {
       connectivity: { ports: "USB‑C", required_host: "兼容 USB‑C 视频输出设备" },
       market: { availability: "在售", release_year: "2024" },
     },
-    pendingFields: ["价格", "亮度", "重量"],
-    manualCompleteness: 0.68,
   },
   "inmo-air-2": {
     slug: "inmo-air-2",
@@ -994,8 +771,6 @@ const deviceCatalog = {
     media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "INMO Air 2 产品视觉",
     officialProductUrl: "https://www.inmoxr.com/pages/inmo-air2",
-    sourceUrl: "https://www.inmoxr.com/pages/inmo-air2",
-    sourceName: "INMO official",
     category: "standalone_xr",
     routeLabel: "独立 XR",
     routeDescription: "强调轻量 AR 而不是纯显示大屏。",
@@ -1005,8 +780,6 @@ const deviceCatalog = {
     fullSpecs: {
       compatibility: { connectivity: "Bluetooth 5.0" },
     },
-    pendingFields: ["显示参数", "重量", "续航", "芯片", "价格"],
-    manualCompleteness: 0.22,
   },
   "inmo-go3": {
     slug: "inmo-go3",
@@ -1019,10 +792,7 @@ const deviceCatalog = {
     media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "INMO GO3 产品视觉",
     officialProductUrl: "https://www.inmoxr.com/pages/inmo-go3-ai-glasses",
-    supportUrl: "https://www.inmoxr.com/collections/go",
     buyUrl: "https://www.inmoxr.com/pages/inmo-go3-ai-glasses",
-    sourceUrl: "https://www.inmoxr.com/pages/inmo-go3-ai-glasses",
-    sourceName: "INMO official",
     category: "ai_glasses",
     routeLabel: "AI 眼镜",
     routeDescription: "翻译和随身提示导向的 AI 眼镜。",
@@ -1038,8 +808,6 @@ const deviceCatalog = {
       batteryBody: { battery_capacity: "270mAh", weight: "≈58g" },
       market: { availability: "在售", release_year: "2025" },
     },
-    pendingFields: [],
-    manualCompleteness: 0.68,
   },
   "ray-ban-meta": {
     slug: "ray-ban-meta",
@@ -1052,8 +820,6 @@ const deviceCatalog = {
     media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "Ray-Ban Meta 产品视觉",
     officialProductUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
-    sourceUrl: "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
-    sourceName: "Ray-Ban official",
     category: "ai_glasses",
     routeLabel: "AI 眼镜",
     routeDescription: "无显示、重拍摄和语音入口。",
@@ -1064,8 +830,6 @@ const deviceCatalog = {
       hardware: { camera: "12MP", storage: "32GB", microphone: "5 麦克风", speakers: "开放式扬声器" },
       battery: { battery_life: "最长约 4 小时" },
     },
-    pendingFields: ["重量", "芯片", "价格"],
-    manualCompleteness: 0.58,
   },
   "brilliant-labs-frame": {
     slug: "brilliant-labs-frame",
@@ -1079,8 +843,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "frame" },
     imageAlt: "Brilliant Labs Frame 产品视觉",
     officialProductUrl: "https://brilliant.xyz/products/frame",
-    sourceUrl: "https://docs.brilliant.xyz/frame/hardware/",
-    sourceName: "Brilliant Labs docs",
     category: "developer_device",
     routeLabel: "开发设备",
     routeDescription: "强调开放实验，而不是消费级完成度。",
@@ -1092,8 +854,6 @@ const deviceCatalog = {
       battery: { battery_life: "最长约 14 小时" },
       compatibility: { connectivity: "Bluetooth 5.3" },
     },
-    pendingFields: ["分辨率", "重量", "价格"],
-    manualCompleteness: 0.43,
   },
   "even-realities-g1": {
     slug: "even-realities-g1",
@@ -1106,8 +866,6 @@ const deviceCatalog = {
     media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "Even Realities G1 产品视觉",
     officialProductUrl: "https://www.evenrealities.com/en-FI/g1",
-    sourceUrl: "https://www.evenrealities.com/en-FI/g1",
-    sourceName: "Even Realities official",
     category: "ai_glasses",
     routeLabel: "AI 眼镜",
     routeDescription: "更偏提示型智能眼镜，不走大屏路线。",
@@ -1117,8 +875,6 @@ const deviceCatalog = {
     fullSpecs: {
       display: { brightness: "1000 nits", field_of_view: "25°", refresh_rate: "20Hz" },
     },
-    pendingFields: ["分辨率", "重量", "价格", "兼容设备"],
-    manualCompleteness: 0.36,
   },
   "apple-vision-pro": {
     slug: "apple-vision-pro",
@@ -1137,8 +893,6 @@ const deviceCatalog = {
     },
     imageAlt: "Apple Vision Pro 产品视觉",
     officialProductUrl: "https://www.apple.com/apple-vision-pro/",
-    sourceUrl: "https://support.apple.com/en-us/125436",
-    sourceName: "Apple official",
     category: "standalone_xr",
     routeLabel: "独立 XR",
     routeDescription: "完整独立系统和高端空间计算路线。",
@@ -1149,7 +903,6 @@ const deviceCatalog = {
       display: { display_type: "Micro‑OLED", resolution: "23 million pixels", refresh_rate: "90/96/100/120Hz", color_gamut: "92% DCI‑P3" },
       hardware: { chipset: "Apple M2 + R1", camera: "6.5 stereo MP", sensors: "12 cameras + LiDAR + IMUs", storage: "256GB / 512GB / 1TB" },
     },
-    manualCompleteness: 0.62,
   },
 } satisfies Record<string, DeviceDefinition>;
 
@@ -1250,25 +1003,6 @@ function pickSpecSubset(specs: DeviceSpecs | undefined, fields: readonly DeviceS
   return subset;
 }
 
-export function formatSnapshotDate(value?: string | null) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toISOString().slice(0, 10);
-}
-
-function formatCompleteness(value?: number | null) {
-  if (typeof value !== "number" || Number.isNaN(value)) return "资料待补充";
-  if (value >= 0.7) return "资料完整";
-  if (value >= 0.35) return "部分待确认";
-  return "资料待补充";
-}
-
-function formatPercent(value?: number | null) {
-  if (typeof value !== "number" || Number.isNaN(value)) return null;
-  return `${Math.round(value * 100)}%`;
-}
-
 function normalizeUrl(value?: string | null) {
   if (!value) return null;
   try {
@@ -1281,19 +1015,19 @@ function normalizeUrl(value?: string | null) {
 }
 
 function buildExternalLinks({
+  officialWebsiteUrl,
   officialProductUrl,
   buyUrl,
-  supportUrl,
 }: {
+  officialWebsiteUrl?: string | null;
   officialProductUrl?: string | null;
   buyUrl?: string | null;
-  supportUrl?: string | null;
 }) {
   const seen = new Set<string>();
-  const links = [
-    { label: "官网产品页", url: officialProductUrl ?? null },
-    { label: "购买页面", url: buyUrl ?? null },
-    { label: "支持 / 规格", url: supportUrl ?? null },
+  return [
+    { label: "官网", url: officialWebsiteUrl ?? null },
+    { label: "官方产品页", url: officialProductUrl ?? null },
+    { label: "购买", url: buyUrl ?? null },
   ]
     .map((item) => {
       const normalized = normalizeUrl(item.url);
@@ -1302,36 +1036,12 @@ function buildExternalLinks({
       return { ...item, url: item.url as string };
     })
     .filter(Boolean) as Array<{ label: string; url: string }>;
-
-  return links;
 }
 
 function buildQuickSpecs(items: Array<{ field: DeviceSpecField; label: string; value: string }>, limit: number) {
   return items
     .filter((item, index, array) => array.findIndex((entry) => entry.field === item.field) === index)
     .slice(0, limit);
-}
-
-function buildInfoState({
-  category,
-  previewSpecs,
-  missingFields,
-  explicitStatus,
-}: {
-  category: DeviceCategory;
-  previewSpecs: Array<{ field: DeviceSpecField; label: string; value: string }>;
-  missingFields: string[];
-  explicitStatus?: string;
-}) {
-  if (explicitStatus) return explicitStatus;
-  if (category === "developer_device") return "开发设备";
-  if (previewSpecs.length === 0) return "资料待补充";
-  if (missingFields.length > 0) return "参数待确认";
-  return "参数完整";
-}
-
-export function getDeviceSnapshot(slug: string) {
-  return snapshotMap.get(slug) ?? null;
 }
 
 export function getBrandByKey(brandKey: string | null | undefined) {
@@ -1366,8 +1076,6 @@ export function getBrandSummaries() {
     return {
       ...brand,
       brandLogo: brand.brandLogo,
-      logoAssetStatus: brand.logoAssetStatus,
-      logoSourceUrl: brand.logoSourceUrl,
       productCount: products.length,
       featuredProducts: products.filter((device) => brand.featuredProducts.includes(device.slug)).slice(0, 3),
       representativeNames: products
@@ -1382,50 +1090,27 @@ export function getDeviceBySlug(slug: string) {
   if (!slug || !(slug in deviceCatalog)) return null;
   const base = deviceCatalog[slug as DeviceKey];
   const brand = getBrandByKey(base.brandKey);
-  const productAsset = getProductAsset(slug);
-  const productData = getProductDataEntry(slug);
-  const publicData = productData?.publicData;
-  const snapshot = getDeviceSnapshot(slug);
-  const mergedPreviewSpecSource = mergeSpecs(publicData?.keySpecs, mergeSpecs(base.keySpecs, snapshot?.specs));
+  const publicData = productPublicMap.get(slug)?.publicData;
+  const mergedPreviewSpecSource = mergeSpecs(publicData?.keySpecs, base.keySpecs);
   const groupedSpecs = specGroupOrder
     .map((group) => {
       const baseGroup = base.fullSpecs?.[group.key as keyof NonNullable<typeof base.fullSpecs>] ?? {};
       const publicGroup = publicData?.fullSpecs?.[group.key] ?? {};
-      const snapshotGroup = pickSpecSubset(snapshot?.specs, group.fields);
-      const groupSpecs = mergeSpecs(publicGroup, mergeSpecs(baseGroup, snapshotGroup));
+      const groupSpecs = mergeSpecs(publicGroup, baseGroup);
       const items = pickSpecs(groupSpecs, group.fields);
       return items.length ? { key: group.key, label: group.label, items } : null;
     })
     .filter(Boolean) as Array<{ key: string; label: string; items: Array<{ field: DeviceSpecField; label: string; value: string }> }>;
 
-  const completeness =
-    typeof base.manualCompleteness === "number"
-      ? base.manualCompleteness
-      : typeof snapshot?.confidence === "number"
-        ? snapshot.confidence
-        : groupedSpecs.length > 0
-          ? Math.min(0.68, groupedSpecs.reduce((sum, group) => sum + group.items.length, 0) / 24)
-          : 0.2;
-
-  const missingFields = Array.from(
-    new Set([
-      ...(base.pendingFields ?? []),
-      ...((snapshot?.missing_fields ?? [])
-        .map((field) => deviceSpecLabels[field as DeviceSpecField] ?? null)
-        .filter(Boolean) as string[]),
-    ]),
-  );
-
-  const assetQaStatus = productAsset?.assetQaStatus ?? "needs-review";
-  const resolvedImageUrl = null;
   const media: ProductMedia = {
-    imageUrl: resolvedImageUrl,
+    imageUrl: null,
     imageAlt: base.media?.imageAlt ?? base.imageAlt,
     imageBackground: base.media?.imageBackground ?? "dark",
     imageFit: base.media?.imageFit ?? "contain",
     hasConfirmedImage: false,
     placeholderType: base.media?.placeholderType ?? "wordmark",
   };
+
   const previewSpecFields = mergedPreviewSpecSource ? (Object.keys(mergedPreviewSpecSource) as DeviceSpecField[]) : [];
   const previewSpecs = previewSpecFields.length > 0 ? pickSpecs(mergedPreviewSpecSource, previewSpecFields).slice(0, 5) : [];
   const flattenedSpecs = groupedSpecs.flatMap((group) => group.items);
@@ -1433,18 +1118,14 @@ export function getDeviceBySlug(slug: string) {
   const cardSpecs = buildQuickSpecs(previewSpecs.length > 0 ? previewSpecs : flattenedSpecs, 4);
   const cardMedia: ProductMedia = { ...media, imageUrl: null, imageBackground: "dark", imageFit: "contain" };
   const detailMedia: ProductMedia = { ...media, imageUrl: null, imageBackground: "dark", imageFit: "contain" };
-  const officialProductUrl = base.officialProductUrl ?? base.productUrl ?? productAsset?.officialProductUrl ?? null;
-  const buyUrl = publicData?.buyUrl ?? base.buyUrl ?? productAsset?.buyUrl ?? null;
-  const supportUrl = publicData?.supportUrl ?? base.supportUrl ?? null;
-  const sourceUrl = publicData?.sourceUrl ?? base.sourceUrl ?? productAsset?.sourceUrl ?? null;
-  const externalLinks = buildExternalLinks({ officialProductUrl, buyUrl, supportUrl });
+  const officialProductUrl = base.officialProductUrl ?? base.productUrl ?? null;
+  const buyUrl = base.buyUrl ?? null;
+  const officialWebsiteUrl = brand?.websiteUrl ?? null;
+  const externalLinks = buildExternalLinks({ officialWebsiteUrl, officialProductUrl, buyUrl });
   const typeLabel = base.typeLabel ?? base.routeLabel;
-  const infoStatusLabel = null;
   const positioning = publicData?.positioning ?? base.positioning ?? base.routeDescription;
   const detailSummary = [publicData?.shortSummary ?? base.shortDescription, publicData?.longSummary ?? base.longDescription].filter(Boolean);
   const keyLimitations = publicData?.keyLimitations ?? base.keyLimitations ?? base.notIdealFor;
-  const sourceNotes = productData?.notes ?? [];
-  const needsReviewFields = Array.from(new Set([...(base.needsReviewFields ?? []), ...(productData?.needsReviewFields ?? [])]));
 
   return {
     ...base,
@@ -1455,22 +1136,16 @@ export function getDeviceBySlug(slug: string) {
     brandTone: brand?.brandTone ?? "xreal",
     brandMarkText: brand?.brandMarkText ?? base.brandName,
     brandLogo: brand?.brandLogo ?? { type: "wordmark", text: base.brandName, alt: `${base.brandName} wordmark` },
-    brandWebsiteUrl: brand?.websiteUrl ?? null,
+    brandWebsiteUrl: officialWebsiteUrl,
     typeLabel,
-    infoStatusLabel,
-    snapshot,
+    infoStatusLabel: null,
     media,
     cardMedia,
     detailMedia,
-    productImageUrl: resolvedImageUrl,
-    officialImageUrl: resolvedImageUrl,
-    imageAssetStatus: productAsset?.image?.assetStatus ?? "placeholder",
-    assetQaStatus,
-    imageSourceUrl: productAsset?.image?.sourceUrl ?? null,
+    productImageUrl: null,
+    officialImageUrl: null,
     officialProductUrl,
     buyUrl,
-    supportUrl,
-    sourceUrl,
     externalLinks,
     quickSpecs,
     cardSpecs,
@@ -1478,14 +1153,6 @@ export function getDeviceBySlug(slug: string) {
     specGroups: groupedSpecs,
     keySpecs: previewSpecs,
     knownSpecCount: groupedSpecs.reduce((sum, group) => sum + group.items.length, 0),
-    lastCheckedLabel: formatSnapshotDate(base.lastCheckedAt ?? snapshot?.last_checked_at),
-    completeness,
-    completenessLabel: formatCompleteness(completeness),
-    completenessPercent: formatPercent(completeness),
-    missingFields,
-    needsReviewFields,
-    sourceNotes,
-    sourceLedgerEntry: productData,
     positioning,
     detailSummary,
     keyLimitations,
@@ -1493,7 +1160,5 @@ export function getDeviceBySlug(slug: string) {
     availability: publicData?.availability ?? base.availability ?? null,
     bestFor: publicData?.bestFor ?? base.bestFor,
     notIdealFor: publicData?.notIdealFor ?? base.notIdealFor,
-    dataStatusLabel: null,
-    pendingSpecLabels: missingFields.slice(0, 8),
   };
 }
