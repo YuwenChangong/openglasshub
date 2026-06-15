@@ -18,6 +18,7 @@ import {
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
 import { getRequestIp } from "../../../lib/request-ip";
 import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
+import { mergeModerationResults, moderateContent } from "../../../lib/moderation/moderate-content.server";
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { validateTurnstileToken } from "../../../lib/server/turnstile";
@@ -276,6 +277,29 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const normalizedBody = body || (hasMedia ? MEDIA_ONLY_SENTINEL : "");
     const type = String(payload.type ?? "").trim();
 
+    const moderation = mergeModerationResults([
+      await moderateContent(env, {
+        contentType: "post_title",
+        userId: authData.user.id,
+        text: title,
+      }),
+      await moderateContent(env, {
+        contentType: "post_body",
+        userId: authData.user.id,
+        text: body,
+      }),
+    ]);
+
+    if (moderation.decision === "reject") {
+      return json(
+        {
+          error: "This post could not be published because it may violate community rules.",
+          code: "CONTENT_REJECTED",
+        },
+        403,
+      );
+    }
+
     // Verify profile exists
     const { data: profile, error: profileError } = await userClient
       .from("profiles")
@@ -321,8 +345,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         type,
         title,
         body: normalizedBody,
-        // MVP policy: publish immediately until moderation tooling is available.
-        status: "published",
+        status: moderation.decision === "review" ? "pending" : "published",
+        moderation_status: moderation.decision === "review" ? "pending_review" : "published",
+        moderation_reason: moderation.reason,
+        moderation_score: moderation.score,
+        moderated_at: new Date().toISOString(),
+        moderated_by: null,
+        moderation_provider: moderation.provider,
       })
       .select("id,author_id,circle_id,type,title,status,created_at")
       .single();
@@ -333,7 +362,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: insertError.message }, 500);
     }
 
-    return json({ post: inserted }, 201);
+    const pendingReview = moderation.decision === "review";
+    return json(
+      {
+        post: inserted,
+        pending_review: pendingReview,
+        message: pendingReview
+          ? "Your post was submitted and is waiting for review."
+          : "Post published.",
+      },
+      pendingReview ? 202 : 201,
+    );
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },

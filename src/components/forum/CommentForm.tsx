@@ -38,6 +38,7 @@ export default function CommentForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("评论发布成功。");
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export default function CommentForm({
     setLoading(true);
     setError("");
     setSuccess(false);
+    setSuccessMessage("评论发布成功。");
 
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -89,7 +91,7 @@ export default function CommentForm({
       });
 
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; code?: string; comment?: Record<string, unknown> }
+        | { error?: string; code?: string; comment?: Record<string, unknown>; pending_review?: boolean; message?: string }
         | null;
 
       if (!response.ok) {
@@ -100,6 +102,11 @@ export default function CommentForm({
 
       setBody("");
       setSuccess(true);
+      setSuccessMessage(
+        payload?.pending_review
+          ? "评论已提交，正在等待审核。"
+          : "评论发布成功。",
+      );
       resetToken();
       onCommentCreated?.(payload?.comment ?? { id: "", post_id: postId, body: body.trim() });
     } catch (submitError) {
@@ -108,6 +115,8 @@ export default function CommentForm({
         setError("请先完成安全验证后再评论。");
       } else if (/TURNSTILE_INVALID/i.test(message)) {
         setError("评论验证失败，请刷新页面后重试。");
+      } else if (/CONTENT_REJECTED/i.test(message)) {
+        setError("这条评论可能违反社区规则，暂时无法发布。");
       } else if (/RATE_LIMITED/i.test(message)) {
         setError("评论过于频繁，请稍后再试。");
       } else {
@@ -186,7 +195,7 @@ export default function CommentForm({
           </div>
         </form>
         {error && <div className="comment-inline-error">{error}</div>}
-        {success && <div className="comment-inline-success">评论发布成功。</div>}
+        {success && <div className="comment-inline-success">{successMessage}</div>}
         {turnstileError && <div className="comment-inline-error">{turnstileError}</div>}
         {!turnstileReady && siteKeyEnabled && <div className="community-meta">正在初始化评论验证…</div>}
         <div ref={containerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />

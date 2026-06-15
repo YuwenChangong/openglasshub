@@ -9,8 +9,10 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
+    "test": "node --experimental-strip-types scripts/test-moderation.mjs",
     "test:profile-audit": "node scripts/verify-profile-system.cjs",
-    "test:forum-permissions": "node scripts/verify-forum-permissions.cjs"
+    "test:forum-permissions": "node scripts/verify-forum-permissions.cjs",
+    "test:moderation-audit": "node scripts/audit-moderation.mjs --strict --verbose"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.6.13",

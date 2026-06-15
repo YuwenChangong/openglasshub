@@ -120,6 +120,9 @@ function readVideoMetadata(
 
 function mapAuthError(errorMessage: string): string {
   if (/RATE_LIMITED/i.test(errorMessage)) return "操作过于频繁，请稍后再试。";
+  if (/CONTENT_REJECTED/i.test(errorMessage)) {
+    return "这篇帖子可能违反社区规则，暂时无法发布。";
+  }
   if (/INVALID_POST_BODY/i.test(errorMessage)) return "正文至少需要 1 个字符，且不能超过 50000 个字符。";
   if (/TURNSTILE_REQUIRED/i.test(errorMessage)) return "请先完成安全验证后再提交。";
   if (/TURNSTILE_INVALID/i.test(errorMessage)) return "安全验证失败，请刷新页面后重试。";

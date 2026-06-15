@@ -13,6 +13,7 @@
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getRequestIp } from "../../../lib/request-ip";
+import { moderateContent } from "../../../lib/moderation/moderate-content.server";
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { validateTurnstileToken } from "../../../lib/server/turnstile";
@@ -149,14 +150,21 @@ export const GET: APIRoute = async ({ request, locals }) => {
     }
 
     const token = getBearerToken(request);
-    const client = createAnonClient(env);
+    let client = createAnonClient(env);
+    if (token) {
+      const candidate = createUserClient(env, token);
+      const { data: authData } = await candidate.auth.getUser(token).catch(() => ({ data: { user: null } }));
+      if (authData?.user) {
+        client = candidate;
+      }
+    }
 
     // Fetch comments (published + deleted placeholders for those with replies)
     const { data: allComments, error: commentsError } = await client
       .from("comments")
       .select("id, post_id, author_id, parent_id, body, status, created_at, updated_at")
       .eq("post_id", postId)
-      .in("status", ["published", "deleted"])
+      .in("status", ["published", "deleted", "pending"])
       .order("created_at", { ascending: true });
 
     if (commentsError) {
@@ -168,6 +176,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     // Separate published and deleted
     const publishedComments = rows.filter((c) => c.status === "published");
+    const pendingComments = rows.filter((c) => c.status === "pending");
     const deletedComments = rows.filter((c) => c.status === "deleted");
 
     // A deleted comment is only kept if it has child replies among published comments
@@ -177,7 +186,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const deletedIds = new Set(deletedWithReplies.map((c) => c.id));
 
     // Final comment set: all published + deleted placeholders with replies
-    const visibleComments = [...publishedComments, ...deletedWithReplies];
+    const visibleComments = [...publishedComments, ...pendingComments, ...deletedWithReplies];
 
     if (visibleComments.length === 0) {
       return json({ comments: [], total: 0 });
@@ -345,6 +354,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "body must be 1-5000 characters" }, 400);
     }
 
+    const moderation = await moderateContent(env, {
+      contentType: "comment_body",
+      userId: authData.user.id,
+      text: body,
+    });
+
+    if (moderation.decision === "reject") {
+      return json(
+        {
+          error: "This comment could not be published because it may violate community rules.",
+          code: "CONTENT_REJECTED",
+        },
+        403,
+      );
+    }
+
     const turnstile = await validateTurnstileToken({
       env,
       token: turnstileToken,
@@ -416,7 +441,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       post_id: postId,
       author_id: authData.user.id,
       body,
-      status: "published",
+      status: moderation.decision === "review" ? "pending" : "published",
+      moderation_status: moderation.decision === "review" ? "pending_review" : "published",
+      moderation_reason: moderation.reason,
+      moderation_score: moderation.score,
+      moderated_at: new Date().toISOString(),
+      moderated_by: null,
+      moderation_provider: moderation.provider,
     };
     if (parentId) insertPayload.parent_id = parentId;
 
@@ -444,7 +475,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       can_delete: true,
     };
 
-    return json({ comment: enriched }, 201);
+    const pendingReview = moderation.decision === "review";
+    return json(
+      {
+        comment: enriched,
+        pending_review: pendingReview,
+        message: pendingReview
+          ? "Your comment was submitted and is waiting for review."
+          : "Comment published.",
+      },
+      pendingReview ? 202 : 201,
+    );
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },

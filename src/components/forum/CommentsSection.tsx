@@ -384,6 +384,9 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
               {isPostAuthor && !isDeleted ? (
                 <span className="comment-staff-badge">作者</span>
               ) : null}
+              {comment.status === "pending" ? (
+                <span className="comment-staff-badge">待审核</span>
+              ) : null}
               <span className="comment-time">{formatDate(comment.created_at)}</span>
               {comment.updated_at && comment.updated_at !== comment.created_at && !isDeleted ? (
                 <span className="comment-time">已编辑</span>
