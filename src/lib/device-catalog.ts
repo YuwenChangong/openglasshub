@@ -54,6 +54,7 @@ type BrandLogo = {
   licenseNote?: string;
 };
 type AssetStatus = "official" | "official-cdn" | "press-kit" | "unverified" | "fallback-wordmark" | "placeholder";
+type AssetQaStatus = "usable" | "lifestyle-only" | "placeholder" | "wrong-removed" | "needs-review";
 type ProductPlaceholderType = "glasses" | "headset" | "frame" | "wordmark";
 type ProductMedia = {
   imageUrl?: string | null;
@@ -83,6 +84,7 @@ type ProductAssetManifest = {
     brandSlug: string;
     name: string;
     assetExceptionReason?: string | null;
+    assetQaStatus?: AssetQaStatus;
     officialProductUrl?: string | null;
     buyUrl?: string | null;
     sourceUrl?: string | null;
@@ -375,7 +377,7 @@ const deviceCatalog = {
     name: "XREAL One",
     shortDescription: "更偏高阶显示路线，重点在空间显示控制和日常外接体验。",
     longDescription: "XREAL One 更适合作为高阶显示眼镜来理解，它依然围绕外接设备工作，但比传统观影眼镜更强调空间显示稳定性和眼镜本体参与度。",
-    media: { imageBackground: "transparent", imageFit: "cover", hasConfirmedImage: true, placeholderType: "glasses" },
+    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
     imageAlt: "XREAL One 产品视觉",
     buyUrl: "https://us.shop.xreal.com/products/xreal-one",
     sourceUrl: "https://us.shop.xreal.com/products/xreal-one",
@@ -466,7 +468,7 @@ const deviceCatalog = {
     name: "RayNeo X2",
     shortDescription: "更接近独立 XR 系统，适合看系统交互路线。",
     longDescription: "RayNeo X2 是更接近完整独立 XR 路线的样本，核心不在大屏观影，而在系统级交互、轻导航和信息叠加的实际可用性。",
-    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
+    media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "RayNeo X2 产品视觉",
     officialProductUrl: "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
     sourceUrl: "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
@@ -512,7 +514,7 @@ const deviceCatalog = {
     name: "Rokid Glasses",
     shortDescription: "更偏 AI 眼镜入口，适合看语音和轻量信息入口。",
     longDescription: "Rokid Glasses 与显示型路线不同，核心不是大屏，而是日常佩戴下的语音、提示与轻量摄像入口。",
-    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
+    media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "Rokid Glasses 产品视觉",
     officialProductUrl: "https://global.rokid.com/products/rokid-glasses",
     sourceUrl: "https://global.rokid.com/products/rokid-glasses",
@@ -522,11 +524,11 @@ const deviceCatalog = {
     routeDescription: "更偏无感佩戴和信息入口。",
     bestFor: ["语音入口", "轻量拍摄", "研究 AI 穿戴入口"],
     notIdealFor: ["期待大屏显示", "想做空间界面开发"],
-    keySpecs: { resolution: "3024×4032", brightness: "1500 nits", field_of_view: "30°", camera: "12MP" },
+    keySpecs: { camera: "12MP" },
     fullSpecs: {
-      display: { resolution: "3024×4032", brightness: "1500 nits", field_of_view: "30°" },
       hardware: { camera: "12MP" },
     },
+    pendingFields: ["显示参数", "亮度", "视场角", "重量"],
   },
   "viture-pro": {
     slug: "viture-pro",
@@ -553,7 +555,7 @@ const deviceCatalog = {
     name: "INMO Air 2",
     shortDescription: "更偏轻量 AR 与提示式体验。",
     longDescription: "INMO Air 2 更适合被看作轻量 AR 和日常提示路线的样本，重点在佩戴形态、输入边界和低干扰信息呈现。",
-    media: { imageBackground: "light", imageFit: "contain", hasConfirmedImage: true, placeholderType: "glasses" },
+    media: { imageBackground: "dark", imageFit: "contain", hasConfirmedImage: false, placeholderType: "glasses" },
     imageAlt: "INMO Air 2 产品视觉",
     officialProductUrl: "https://www.inmoxr.com/pages/inmo-air2",
     sourceUrl: "https://www.inmoxr.com/pages/inmo-air2",
@@ -668,10 +670,24 @@ function normalizeValue(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed || trimmed.toLowerCase() === "unknown" || trimmed.toLowerCase() === "mentioned") return null;
+  if (/^0+$/.test(trimmed)) return null;
   if (trimmed.includes("choose your lens options")) return null;
   if (trimmed === "Wifi 6G | Wifi 8G") return null;
   if (trimmed === "5g") return null;
   if (trimmed.length > 90) return null;
+  return trimmed;
+}
+
+function sanitizeSpecValue(field: DeviceSpecField, value: string | null) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (/^0+$/.test(trimmed)) return null;
+  if (field === "brightness" && /^0+\s*(nits)?$/i.test(trimmed)) return null;
+  if (field === "weight" && /^([0-9]+)\s*g$/i.test(trimmed)) {
+    const grams = Number(trimmed.replace(/[^\d.]/g, ""));
+    if (Number.isFinite(grams) && grams > 0 && grams < 12) return null;
+  }
+  if (field === "connectivity" && /wifi 6g \| wifi 8g/i.test(trimmed)) return null;
   return trimmed;
 }
 
@@ -680,8 +696,10 @@ function mergeSpecs(primary?: DeviceSpecs, fallback?: DeviceSpecs) {
   for (const field of Object.keys(deviceSpecLabels) as DeviceSpecField[]) {
     const manualValue = normalizeValue(primary?.[field]);
     const fallbackValue = normalizeValue(fallback?.[field]);
-    if (manualValue) merged[field] = manualValue;
-    else if (fallbackValue) merged[field] = fallbackValue;
+    const resolvedManual = sanitizeSpecValue(field, manualValue);
+    const resolvedFallback = sanitizeSpecValue(field, fallbackValue);
+    if (resolvedManual) merged[field] = resolvedManual;
+    else if (resolvedFallback) merged[field] = resolvedFallback;
   }
   return merged;
 }
@@ -810,7 +828,7 @@ export function getDeviceBySlug(slug: string) {
   const groupedSpecs = specGroupOrder
     .map((group) => {
       const manualGroup = base.fullSpecs?.[group.key as keyof NonNullable<typeof base.fullSpecs>] ?? {};
-      const groupSpecs = mergeSpecs(manualGroup, snapshot?.specs);
+      const groupSpecs = mergeSpecs(manualGroup, undefined);
       const items = pickSpecs(groupSpecs, group.fields);
       return items.length ? { key: group.key, label: group.label, items } : null;
     })
@@ -835,6 +853,7 @@ export function getDeviceBySlug(slug: string) {
   );
 
   const manifestImageUrl = productAsset?.image?.useInUi ? forceHttps(productAsset.image.imageUrl ?? null) : null;
+  const assetQaStatus = productAsset?.assetQaStatus ?? (manifestImageUrl ? "needs-review" : "placeholder");
   const resolvedImageUrl =
     manifestImageUrl ??
     forceHttps(base.media?.imageUrl ?? null) ??
@@ -850,7 +869,22 @@ export function getDeviceBySlug(slug: string) {
     hasConfirmedImage: Boolean((productAsset?.image?.useInUi || base.media?.hasConfirmedImage) && resolvedImageUrl),
     placeholderType: base.media?.placeholderType ?? "wordmark",
   };
-  const previewSpecs = pickSpecs(mergedSpecs, ["display_type", "resolution", "refresh_rate", "brightness", "field_of_view", "camera", "weight", "price", "chipset"]).slice(0, 5);
+  const previewSpecFields = base.keySpecs ? (Object.keys(base.keySpecs) as DeviceSpecField[]) : [];
+  const previewSpecs = previewSpecFields.length > 0 ? pickSpecs(mergeSpecs(base.keySpecs, undefined), previewSpecFields).slice(0, 5) : [];
+  const cardMedia: ProductMedia = {
+    ...media,
+    imageUrl: assetQaStatus === "usable" ? resolvedImageUrl : null,
+    imageBackground: assetQaStatus === "usable" ? media.imageBackground : "dark",
+    imageFit: assetQaStatus === "usable" ? media.imageFit : "contain",
+  };
+  const detailMedia: ProductMedia = {
+    ...media,
+    imageUrl: assetQaStatus === "usable" || assetQaStatus === "lifestyle-only" ? resolvedImageUrl : null,
+    imageBackground:
+      assetQaStatus === "lifestyle-only" ? "dark" : media.imageBackground,
+    imageFit:
+      assetQaStatus === "lifestyle-only" ? "contain" : media.imageFit,
+  };
   const officialProductUrl = productAsset ? (productAsset.officialProductUrl ?? null) : base.officialProductUrl ?? base.productUrl ?? null;
   const buyUrl = productAsset ? (productAsset.buyUrl ?? null) : base.buyUrl ?? null;
   const sourceUrl = productAsset ? (productAsset.sourceUrl ?? null) : base.sourceUrl ?? null;
@@ -866,9 +900,12 @@ export function getDeviceBySlug(slug: string) {
     brandWebsiteUrl: brand?.websiteUrl ?? null,
     snapshot,
     media,
+    cardMedia,
+    detailMedia,
     productImageUrl: resolvedImageUrl,
     officialImageUrl: resolvedImageUrl,
     imageAssetStatus: productAsset?.image?.assetStatus ?? (resolvedImageUrl ? "unverified" : "placeholder"),
+    assetQaStatus,
     imageSourceUrl: productAsset?.image?.sourceUrl ?? null,
     officialProductUrl,
     buyUrl,

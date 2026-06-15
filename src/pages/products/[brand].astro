@@ -32,7 +32,7 @@ const devices = getDevicesByBrand(brand.key);
     <div class="products-brand-head__copy">
       <BrandMark logo={brand.brandLogo} tone="accent" brandKey={brand.key} />
       <div>
-        <h1>{brand.displayName}</h1>
+        <h1 class="products-brand-head__sr-only">{brand.displayName} 产品</h1>
         <p>{brand.shortIntro}</p>
       </div>
     </div>
@@ -45,13 +45,13 @@ const devices = getDevicesByBrand(brand.key);
     {devices.map((device) => (
       <a href={`/devices/${device.slug}/`} class="product-device-card">
         <ProductVisual
-          imageUrl={device.media.imageUrl}
-          alt={device.media.imageAlt}
+          imageUrl={device.cardMedia.imageUrl}
+          alt={device.cardMedia.imageAlt}
           brandMark={brand.brandMarkText}
           title={device.name}
-          imageBackground={device.media.imageBackground}
-          imageFit={device.media.imageFit}
-          placeholderType={device.media.placeholderType}
+          imageBackground={device.cardMedia.imageBackground}
+          imageFit={device.cardMedia.imageFit}
+          placeholderType={device.cardMedia.placeholderType}
         />
 
         <div class="product-device-card__head">
@@ -100,11 +100,16 @@ const devices = getDevicesByBrand(brand.key);
     display: grid;
     gap: 0.35rem;
   }
-  .products-brand-head h1 {
-    margin: 0;
-    color: var(--text);
-    font-size: 2rem;
-    letter-spacing: -0.03em;
+  .products-brand-head__sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
   .products-brand-head p {
     margin: 0;

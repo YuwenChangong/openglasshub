@@ -129,6 +129,7 @@
         "licenseNote": "Official remote product image referenced from official page metadata.",
         "useInUi": true
       },
+      "assetQaStatus": "usable",
       "specSources": [
         {
           "url": "https://us.shop.xreal.com/products/xreal-one",
@@ -144,12 +145,14 @@
       "buyUrl": null,
       "sourceUrl": "https://www.xreal.com/us/one-pro",
       "image": {
-        "assetStatus": "official",
-        "imageUrl": "https://resource.xreal.com/www-xreal-com/images/onepro/OnePro_Desktop.webp",
+        "assetStatus": "placeholder",
+        "imageUrl": null,
         "sourceUrl": "https://www.xreal.com/us/one-pro",
-        "licenseNote": "Official remote product image referenced from the XREAL product page.",
-        "useInUi": true
+        "licenseNote": "Approval sheet rejected the current lifestyle image, so the product falls back to placeholder until a clean approved render exists.",
+        "useInUi": false
       },
+      "assetQaStatus": "wrong-removed",
+      "assetExceptionReason": "Approval sheet rejected the current lifestyle image for both card and detail usage.",
       "specSources": [
         {
           "url": "https://www.xreal.com/us/one-pro",
@@ -171,6 +174,7 @@
         "licenseNote": "Official front product image referenced from the XREAL Shopify product gallery.",
         "useInUi": true
       },
+      "assetQaStatus": "usable",
       "specSources": [
         {
           "url": "https://us.shop.xreal.com/products/xreal-air-2-pro",
@@ -192,6 +196,7 @@
         "licenseNote": "No confirmed clean official product render was safely extracted for reuse without mixing unrelated accessory or phone imagery.",
         "useInUi": false
       },
+      "assetQaStatus": "placeholder",
       "assetExceptionReason": "Official sources surfaced unrelated or misleading promo assets, so the UI keeps a placeholder until a clean Ultra render is confirmed.",
       "specSources": [
         {
@@ -208,12 +213,14 @@
       "buyUrl": null,
       "sourceUrl": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
       "image": {
-        "assetStatus": "official-cdn",
-        "imageUrl": "https://cdn.shopify.com/s/files/1/0688/8642/9983/files/2_a687e2f8-fdae-4c59-957f-7012098b594a.jpg?v=1774235512",
+        "assetStatus": "placeholder",
+        "imageUrl": null,
         "sourceUrl": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
-        "licenseNote": "Official RayNeo gallery image referenced from the product page to avoid the larger Olympic partner mark embedded in another official render.",
-        "useInUi": true
+        "licenseNote": "Reviewed official RayNeo assets remain lifestyle-heavy or branded promo visuals, so the UI falls back to a placeholder for now.",
+        "useInUi": false
       },
+      "assetQaStatus": "placeholder",
+      "assetExceptionReason": "No clean official product render was confirmed that works for a product library card or detail visual.",
       "specSources": [
         {
           "url": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
@@ -235,6 +242,7 @@
         "licenseNote": "Official remote product image referenced from official page metadata.",
         "useInUi": true
       },
+      "assetQaStatus": "usable",
       "specSources": [
         {
           "url": "https://global.rokid.com/products/rokid-max",
@@ -250,12 +258,14 @@
       "buyUrl": null,
       "sourceUrl": "https://global.rokid.com/products/rokid-glasses",
       "image": {
-        "assetStatus": "official-cdn",
-        "imageUrl": "https://cdn.shopify.com/s/files/1/0628/5636/4211/files/005.png?v=1777113204",
+        "assetStatus": "placeholder",
+        "imageUrl": null,
         "sourceUrl": "https://global.rokid.com/products/rokid-glasses",
-        "licenseNote": "Official product render referenced from the Rokid Shopify product gallery.",
-        "useInUi": true
+        "licenseNote": "Reviewed official candidates carry oversized award overlays, so the UI uses a placeholder until a cleaner product render is available.",
+        "useInUi": false
       },
+      "assetQaStatus": "wrong-removed",
+      "assetExceptionReason": "Official gallery images are product-correct but visually unsuitable because of the large award badge treatment.",
       "specSources": [
         {
           "url": "https://global.rokid.com/products/rokid-glasses",
@@ -277,6 +287,7 @@
         "licenseNote": "Official remote product image referenced from official page metadata.",
         "useInUi": true
       },
+      "assetQaStatus": "usable",
       "specSources": [
         {
           "url": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
@@ -292,12 +303,14 @@
       "buyUrl": null,
       "sourceUrl": "https://www.inmoxr.com/pages/inmo-air2",
       "image": {
-        "assetStatus": "official-cdn",
-        "imageUrl": "https://www.inmoxr.com/cdn/shop/files/4_1.png?v=1690358149&width=2048",
+        "assetStatus": "placeholder",
+        "imageUrl": null,
         "sourceUrl": "https://www.inmoxr.com/pages/inmo-air2",
-        "licenseNote": "Official INMO Air 2 product render referenced from the official page asset set.",
-        "useInUi": true
+        "licenseNote": "Reviewed official INMO Air 2 page assets are lifestyle/portrait-oriented and do not hold up as a clean product catalog visual.",
+        "useInUi": false
       },
+      "assetQaStatus": "placeholder",
+      "assetExceptionReason": "No verified clean official INMO Air 2 product render was confirmed in this QA round.",
       "specSources": [
         {
           "url": "https://www.inmoxr.com/pages/inmo-air2",
@@ -313,12 +326,14 @@
       "buyUrl": null,
       "sourceUrl": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
       "image": {
-        "assetStatus": "press-kit",
-        "imageUrl": "https://about.fb.com/wp-content/uploads/2023/09/Meta-Smart-Glasses_Social-Share.jpg?w=1200",
+        "assetStatus": "placeholder",
+        "imageUrl": null,
         "sourceUrl": "https://about.fb.com/news/2023/09/new-ray-ban-meta-smart-glasses/",
-        "licenseNote": "Official Meta news/press image used because the product page did not expose a stable direct product image URL.",
-        "useInUi": true
+        "licenseNote": "Approval sheet rejected the current lifestyle image, so the UI falls back to placeholder.",
+        "useInUi": false
       },
+      "assetQaStatus": "wrong-removed",
+      "assetExceptionReason": "Approval sheet rejected the current lifestyle image for both card and detail usage.",
       "specSources": [
         {
           "url": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
@@ -344,6 +359,7 @@
         "licenseNote": "Official remote product image referenced from official page metadata.",
         "useInUi": true
       },
+      "assetQaStatus": "usable",
       "specSources": [
         {
           "url": "https://brilliant.xyz/products/frame",
@@ -369,6 +385,7 @@
         "licenseNote": "Official remote product image referenced from official page metadata.",
         "useInUi": true
       },
+      "assetQaStatus": "usable",
       "specSources": [
         {
           "url": "https://www.evenrealities.com/en-FI/g1",
@@ -390,6 +407,7 @@
         "licenseNote": "Official remote product image referenced from official page metadata.",
         "useInUi": true
       },
+      "assetQaStatus": "usable",
       "specSources": [
         {
           "url": "https://www.apple.com/apple-vision-pro/",

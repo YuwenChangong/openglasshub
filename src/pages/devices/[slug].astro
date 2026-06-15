@@ -15,14 +15,12 @@ if (!loadEntry) {
 }
 
 const entry = (await loadEntry()) as {
-  default: unknown;
   frontmatter: {
     title: string;
     description?: string;
   };
 };
 
-const Content = entry.default;
 const device = getDeviceBySlug(slug);
 
 if (!device) {
@@ -41,14 +39,14 @@ const heroLinks = device.externalLinks.slice(0, 2);
   <section class="device-detail-head">
     <div class="device-detail-head__visual">
       <ProductVisual
-        imageUrl={device.media.imageUrl}
-        alt={device.media.imageAlt}
+        imageUrl={device.detailMedia.imageUrl}
+        alt={device.detailMedia.imageAlt}
         brandMark={device.brandMarkText}
         title={device.title}
         variant="hero"
-        imageBackground={device.media.imageBackground}
-        imageFit={device.media.imageFit}
-        placeholderType={device.media.placeholderType}
+        imageBackground={device.detailMedia.imageBackground}
+        imageFit={device.detailMedia.imageFit}
+        placeholderType={device.detailMedia.placeholderType}
       />
     </div>
     <div class="device-detail-head__copy">
@@ -149,10 +147,6 @@ const heroLinks = device.externalLinks.slice(0, 2);
     </div>
   </section>
 
-  <article class="device-intro">
-    <h2>介绍</h2>
-    <Content />
-  </article>
 </CommunityLayout>
 
 <style>
@@ -244,8 +238,7 @@ const heroLinks = device.externalLinks.slice(0, 2);
     padding: 0.85rem 0.95rem;
   }
   .device-fit-card h2,
-  .device-spec-panel h2,
-  .device-intro h2 {
+  .device-spec-panel h2 {
     margin: 0 0 0.45rem;
     color: var(--text);
     font-size: 1.15rem;
@@ -290,7 +283,6 @@ const heroLinks = device.externalLinks.slice(0, 2);
     font-size: 0.78rem;
   }
   .device-spec-panel,
-  .device-intro,
   .device-source-panel {
     margin-top: 1rem;
     padding: 0.95rem 1rem;
@@ -346,35 +338,6 @@ const heroLinks = device.externalLinks.slice(0, 2);
     margin: 0 0 0.2rem;
     color: var(--text);
     font-size: 1rem;
-  }
-  .device-intro :global(h2) {
-    margin: 1.35rem 0 0.6rem;
-    color: var(--text);
-    font-size: 1.08rem;
-    letter-spacing: -0.02em;
-  }
-  .device-intro :global(h3) {
-    margin: 1rem 0 0.45rem;
-    color: var(--text);
-    font-size: 0.98rem;
-  }
-  .device-intro :global(p),
-  .device-intro :global(li) {
-    color: var(--text-muted);
-    line-height: 1.68;
-    text-wrap: pretty;
-  }
-  .device-intro :global(ul) {
-    padding-left: 1.1rem;
-  }
-  .device-intro :global(a) {
-    color: rgba(242, 244, 245, 0.82);
-    text-decoration: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-  }
-  .device-intro :global(a:hover) {
-    color: var(--text);
-    border-color: rgba(255, 255, 255, 0.26);
   }
   @media (max-width: 720px) {
     .device-detail-head {

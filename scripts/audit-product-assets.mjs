@@ -40,6 +40,17 @@ async function loadManifest(inputPath) {
   return JSON.parse(raw);
 }
 
+async function loadSnapshotSpecs() {
+  try {
+    const absolutePath = path.resolve(process.cwd(), "src/data/device-spec-candidates.json");
+    const raw = await fs.readFile(absolutePath, "utf8");
+    const parsed = JSON.parse(raw);
+    return new Map((parsed.items ?? []).map((item) => [item.slug, item]));
+  } catch {
+    return new Map();
+  }
+}
+
 async function probeLink(url) {
   if (!url) return { ok: false, status: 0, url, error: "missing" };
   const headers = { "user-agent": "Mozilla/5.0 OpenGlassHubAssetAudit/2.0" };
@@ -227,8 +238,27 @@ function evaluateProductImage(entry, probe) {
   if (dims && (dims.width < 300 || dims.height < 180)) issues.push("image too small");
   if (ratio && ratio > 6) issues.push("image ratio too wide");
   if (ratio && ratio < 0.2) issues.push("image ratio too tall");
-  if (/logo|favicon|brand/.test(haystack)) issues.push("looks like logo asset");
+  if (/logo|favicon|brand-only|wordmark/.test(haystack)) issues.push("looks like logo asset");
   if (/award|winner|olympic|partner/.test(haystack)) issues.push("contains promo badge text in asset path");
+  if (probe?.contentType?.includes("svg")) issues.push("svg image is unlikely to be a product render");
+  return issues;
+}
+
+function evaluateSpecRisk(snapshotEntry) {
+  const issues = [];
+  const specs = snapshotEntry?.specs ?? {};
+  for (const [field, value] of Object.entries(specs)) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (/^0+$/.test(trimmed)) issues.push(`suspicious spec ${field}=${trimmed}`);
+    if (/^unknown$/i.test(trimmed)) continue;
+    if (field === "weight" && /^([0-9]+)\s*g$/i.test(trimmed)) {
+      const grams = Number(trimmed.replace(/[^\d.]/g, ""));
+      if (Number.isFinite(grams) && grams > 0 && grams < 12) issues.push(`suspicious spec ${field}=${trimmed}`);
+    }
+    if (field === "brightness" && /^0+\s*(nits)?$/i.test(trimmed)) issues.push(`suspicious spec ${field}=${trimmed}`);
+    if (field === "connectivity" && /wifi 6g \| wifi 8g/i.test(trimmed)) issues.push(`suspicious spec ${field}=${trimmed}`);
+  }
   return issues;
 }
 
@@ -239,11 +269,13 @@ function formatIssueList(issues) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const manifest = await loadManifest(args.input);
+  const snapshotMap = await loadSnapshotSpecs();
 
   const brandResults = [];
   const productResults = [];
   const brokenAssets = [];
   const warnings = [];
+  const advisoryNotes = [];
 
   for (const brand of manifest.brands ?? []) {
     const logoUrl = normalizeUrl(brand.logo?.logoImageUrl);
@@ -265,6 +297,11 @@ async function main() {
     const sourceResult = product.sourceUrl ? await probeLink(normalizeUrl(product.sourceUrl)) : null;
     const imageProbe = product.image?.useInUi ? await probeImage(imageUrl) : null;
     const issues = evaluateProductImage(product, imageProbe);
+    const logoUrl = normalizeUrl(manifest.brands?.find((brand) => brand.brandSlug === product.brandSlug)?.logo?.logoImageUrl);
+    const snapshotIssues = evaluateSpecRisk(snapshotMap.get(product.slug));
+    if (logoUrl && imageUrl && (logoUrl === imageUrl || imageUrl.includes("logo") || imageUrl.includes("brand"))) {
+      issues.push("logo-as-product-image risk");
+    }
 
     if (!officialProductResult.ok && product.officialProductUrl) {
       brokenAssets.push({ kind: "official-product-url", slug: product.slug, url: product.officialProductUrl, error: officialProductResult.error, status: officialProductResult.status });
@@ -281,6 +318,9 @@ async function main() {
     if (issues.length > 0 && !product.assetExceptionReason) {
       warnings.push({ kind: "product-image", slug: product.slug, issues });
     }
+    if (snapshotIssues.length > 0) {
+      advisoryNotes.push({ kind: "snapshot-spec", slug: product.slug, issues: snapshotIssues });
+    }
 
     productResults.push({
       product,
@@ -290,12 +330,13 @@ async function main() {
       sourceResult,
       imageProbe,
       issues,
+      snapshotIssues,
     });
   }
 
   const brandsWithUsableLogo = brandResults.filter((entry) => entry.brand.logo?.useInUi && entry.logoProbe?.ok).length;
   const brandsFallbackWordmark = brandResults.filter((entry) => !entry.brand.logo?.useInUi || entry.brand.logo?.assetStatus === "fallback-wordmark").length;
-  const productsWithUsableImage = productResults.filter((entry) => entry.product.image?.useInUi && entry.imageProbe?.ok).length;
+  const productsWithUsableImage = productResults.filter((entry) => entry.product.image?.useInUi && entry.imageProbe?.ok && entry.product.assetQaStatus === "usable").length;
   const productsPlaceholder = productResults.filter((entry) => !entry.product.image?.useInUi || entry.product.image?.assetStatus === "placeholder").length;
 
   const duplicateAssetUrls = collectDuplicates([
@@ -318,6 +359,7 @@ async function main() {
   console.log(`products placeholder: ${productsPlaceholder}`);
   console.log(`broken assets: ${brokenAssets.length}`);
   console.log(`warnings: ${warnings.length}`);
+  console.log(`advisory notes: ${advisoryNotes.length}`);
   console.log(`duplicated asset urls: ${duplicateAssetUrls.length}`);
   console.log(`duplicated links: ${duplicateLinks.length}`);
 
@@ -333,13 +375,20 @@ async function main() {
     for (const entry of productResults) {
       const dims = entry.imageProbe?.dimensions ? `${entry.imageProbe.dimensions.width}x${entry.imageProbe.dimensions.height}` : "n/a";
       const probeSummary = entry.imageProbe ? `${entry.imageProbe.status} ${entry.imageProbe.contentType ?? ""} ${dims}`.trim() : "not-probed";
-      console.log(`- ${entry.product.slug}: ${entry.product.image?.assetStatus ?? "unknown"} (${probeSummary}) issues=${formatIssueList(entry.issues)}`);
+      console.log(`- ${entry.product.slug}: ${entry.product.image?.assetStatus ?? "unknown"} qa=${entry.product.assetQaStatus ?? "n/a"} (${probeSummary}) issues=${formatIssueList(entry.issues)} advisory=${formatIssueList(entry.snapshotIssues ?? [])}`);
     }
 
     if (warnings.length > 0) {
       console.log("\nwarnings:");
       for (const warning of warnings) {
         console.log(`- ${warning.kind} ${warning.slug}: ${warning.issues.join(", ")}`);
+      }
+    }
+
+    if (advisoryNotes.length > 0) {
+      console.log("\nadvisory notes:");
+      for (const note of advisoryNotes) {
+        console.log(`- ${note.kind} ${note.slug}: ${note.issues.join(", ")}`);
       }
     }
 
@@ -368,14 +417,23 @@ async function main() {
   if (args.strict) {
     const strictFailures = [];
     if (brandsWithUsableLogo < 6) strictFailures.push(`logo coverage too low: ${brandsWithUsableLogo}/6 required`);
-    if (productsWithUsableImage < 12) strictFailures.push(`product image coverage too low: ${productsWithUsableImage}/12 required`);
+    if (productsWithUsableImage < 8) strictFailures.push(`usable clean product image coverage too low: ${productsWithUsableImage}/8 required`);
     if (brokenAssets.length > 0) strictFailures.push(`broken assets detected: ${brokenAssets.length}`);
     if (duplicateAssetUrls.length > 0) strictFailures.push(`duplicated asset urls detected: ${duplicateAssetUrls.length}`);
 
-    const blockingWarnings = warnings.filter((warning) =>
-      warning.issues.some((issue) => issue === "image unavailable" || issue === "logo unavailable" || issue === "looks like logo asset"),
+    const blockingWarnings = productResults.filter((entry) =>
+      entry.issues.some((issue) =>
+        issue === "image unavailable" ||
+        issue === "logo unavailable" ||
+        issue === "looks like logo asset" ||
+        issue === "logo-as-product-image risk"
+      ),
     );
     if (blockingWarnings.length > 0) strictFailures.push(`blocking asset heuristics detected: ${blockingWarnings.length}`);
+    const wrongImagesStillInUi = productResults.filter(
+      (entry) => entry.product.assetQaStatus === "wrong-removed" && entry.product.image?.useInUi,
+    );
+    if (wrongImagesStillInUi.length > 0) strictFailures.push(`wrong image entries still enabled in UI: ${wrongImagesStillInUi.length}`);
 
     if (strictFailures.length > 0) {
       console.error("\nSTRICT AUDIT FAILED");
