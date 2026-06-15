@@ -27,12 +27,12 @@ if (!device) {
   return Astro.redirect("/products/");
 }
 
-const heroLinks = device.externalLinks.slice(0, 2);
+const heroLinks = device.externalLinks.slice(0, 3);
 ---
 
 <CommunityLayout
   title={entry.frontmatter.title}
-  description={entry.frontmatter.description}
+  description={device.shortDescription}
   canonical={`https://openglasshub.pages.dev/devices/${slug}/`}
   activeSection="products"
 >
@@ -52,10 +52,10 @@ const heroLinks = device.externalLinks.slice(0, 2);
       <a href={`/products/${device.brandKey}/`} class="device-detail-head__back">返回 {device.brandLabel}</a>
       <BrandMark logo={device.brandLogo} compact={true} brandKey={device.brandKey} />
       <h1>{entry.frontmatter.title}</h1>
-      <p>{device.shortDescription}</p>
+      <p>{device.positioning}</p>
       <div class="device-detail-head__meta">
         <span>{device.typeLabel}</span>
-        <span>{device.infoStatusLabel}</span>
+        <span>{device.completenessLabel}</span>
         {device.lastCheckedLabel && <span>更新 {device.lastCheckedLabel}</span>}
       </div>
       {heroLinks.length > 0 && (
@@ -75,9 +75,9 @@ const heroLinks = device.externalLinks.slice(0, 2);
     </div>
   </section>
 
-  {device.previewSpecs.length > 0 && (
+  {device.quickSpecs.length > 0 && (
     <section class="device-key-specs">
-      {device.previewSpecs.slice(0, 6).map((spec) => (
+      {device.quickSpecs.slice(0, 6).map((spec) => (
         <article class="community-surface device-key-spec">
           <span>{spec.label}</span>
           <strong>{spec.value}</strong>
@@ -85,6 +85,25 @@ const heroLinks = device.externalLinks.slice(0, 2);
       ))}
     </section>
   )}
+
+  <section class="device-brief-panel">
+    <div class="device-brief-panel__head">
+      <h2>产品简介</h2>
+      <span>{device.dataStatusLabel}</span>
+    </div>
+    <div class="device-brief-panel__body">
+      {device.detailSummary.slice(0, 2).map((paragraph) => (
+        <p>{paragraph}</p>
+      ))}
+      {device.keyLimitations.length > 0 && (
+        <ul>
+          {device.keyLimitations.slice(0, 3).map((item) => (
+            <li>{item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </section>
 
   <section class="device-fit-grid">
     <article class="community-surface device-fit-card">
@@ -138,11 +157,30 @@ const heroLinks = device.externalLinks.slice(0, 2);
   )}
 
   <section class="device-source-panel">
-    <div>
-      <h2>来源</h2>
+    <div class="device-source-panel__block">
+      <h2>来源与状态</h2>
       <p>{device.sourceName}</p>
+      {device.externalLinks.length > 0 && (
+        <div class="device-source-panel__links">
+          {device.externalLinks.map((link) => (
+            <a href={link.url} target="_blank" rel="noopener noreferrer" class="community-link">
+              {link.label}
+            </a>
+          ))}
+        </div>
+      )}
+      {device.sourceNotes.length > 0 && (
+        <ul class="device-source-panel__notes">
+          {device.sourceNotes.slice(0, 3).map((note) => (
+            <li>{note}</li>
+          ))}
+        </ul>
+      )}
     </div>
-    <div class="device-source-panel__meta">
+    <div class="device-source-panel__block device-source-panel__meta">
+      <span>资料状态：{device.completenessLabel}</span>
+      <span>已确认参数：{device.knownSpecCount}</span>
+      {device.needsReviewFields.length > 0 && <span>待复核字段：{device.needsReviewFields.join("、")}</span>}
       {device.lastCheckedLabel && <span>最后核对 {device.lastCheckedLabel}</span>}
     </div>
   </section>
@@ -153,16 +191,19 @@ const heroLinks = device.externalLinks.slice(0, 2);
   .device-detail-head {
     display: grid;
     grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
-    gap: 1rem;
+    gap: 1.2rem;
     padding: 0.95rem 0 1rem;
   }
   .device-detail-head__visual {
     min-width: 0;
   }
+  .device-detail-head__visual :global(.product-visual) {
+    min-height: 380px;
+  }
   .device-detail-head__copy {
     display: grid;
     align-content: start;
-    gap: 0.62rem;
+    gap: 0.72rem;
     min-width: 0;
   }
   .device-detail-head__back {
@@ -177,16 +218,16 @@ const heroLinks = device.externalLinks.slice(0, 2);
   .device-detail-head h1 {
     margin: 0;
     color: var(--text);
-    font-size: 2.1rem;
-    line-height: 1.04;
+    font-size: 2.45rem;
+    line-height: 0.98;
     letter-spacing: -0.03em;
     text-wrap: balance;
   }
   .device-detail-head p {
     margin: 0;
-    max-width: 60ch;
+    max-width: 34rem;
     color: var(--text-muted);
-    line-height: 1.62;
+    line-height: 1.66;
   }
   .device-detail-head__meta {
     display: flex;
@@ -212,12 +253,50 @@ const heroLinks = device.externalLinks.slice(0, 2);
     gap: 0.8rem;
     margin-top: 1rem;
   }
+  .device-brief-panel,
   .device-key-spec,
   .device-fit-card,
   .device-spec-group {
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.06);
     background: linear-gradient(180deg, rgba(13, 16, 20, 0.96), rgba(9, 11, 14, 0.98));
+  }
+  .device-brief-panel {
+    display: grid;
+    gap: 0.85rem;
+    margin-top: 1rem;
+    padding: 1rem 1.05rem;
+  }
+  .device-brief-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+  .device-brief-panel__head h2 {
+    margin: 0;
+    font-size: 1.12rem;
+  }
+  .device-brief-panel__head span {
+    color: rgba(245, 245, 245, 0.62);
+    font-size: 0.82rem;
+  }
+  .device-brief-panel__body {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .device-brief-panel__body p {
+    margin: 0;
+    color: rgba(245, 245, 245, 0.76);
+    line-height: 1.72;
+  }
+  .device-brief-panel__body ul {
+    display: grid;
+    gap: 0.42rem;
+    margin: 0;
+    padding-left: 1.1rem;
+    color: rgba(245, 245, 245, 0.62);
   }
   .device-key-spec {
     display: grid;
@@ -330,9 +409,28 @@ const heroLinks = device.externalLinks.slice(0, 2);
   .device-source-panel__meta {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
+  }
+  .device-source-panel__block {
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+  .device-source-panel__notes {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0.2rem 0 0;
+    padding-left: 1rem;
+    color: rgba(245, 245, 245, 0.6);
+    font-size: 0.84rem;
+    line-height: 1.6;
+  }
+  .device-source-panel__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
   }
   .device-source-panel h2 {
     margin: 0 0 0.2rem;

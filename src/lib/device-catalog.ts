@@ -1,5 +1,6 @@
 import deviceSpecCandidates from "../data/device-spec-candidates.json";
 import productAssetSources from "../../docs/product-asset-sources.json";
+import productDataSources from "../../docs/product-data-sources.json";
 
 export const deviceSpecLabels = {
   display_type: "显示类型",
@@ -99,6 +100,32 @@ type ProductAssetManifest = {
   }>;
 };
 
+type ProductDataSourceManifest = {
+  generated_at: string;
+  products: Array<{
+    slug: string;
+    name: string;
+    coverage?: {
+      category?: boolean;
+      status?: boolean;
+      positioning?: boolean;
+      shortSummary?: boolean;
+      bestFor?: boolean;
+      notIdealFor?: boolean;
+      sourceUrl?: boolean;
+    };
+    sources: Array<{
+      type: string;
+      url: string;
+      fields?: string[];
+      review?: "official" | "needsReview";
+    }>;
+    notes?: string[];
+    missingFields?: string[];
+    needsReviewFields?: string[];
+  }>;
+};
+
 type DeviceSnapshot = {
   brand?: string;
   model_name?: string;
@@ -139,6 +166,10 @@ type DeviceDefinition = {
   name: string;
   shortDescription: string;
   longDescription: string;
+  positioning?: string;
+  supportUrl?: string | null;
+  releaseYear?: string | null;
+  availability?: string | null;
   typeLabel?: string;
   statusLabel?: string;
   media?: Partial<ProductMedia>;
@@ -158,9 +189,11 @@ type DeviceDefinition = {
   routeDescription: string;
   bestFor: string[];
   notIdealFor: string[];
+  keyLimitations?: string[];
   keySpecs?: DeviceSpecs;
   fullSpecs?: Partial<Record<"display" | "optics" | "hardware" | "battery" | "physical" | "compatibility" | "market", DeviceSpecs>>;
   pendingFields?: string[];
+  needsReviewFields?: string[];
   manualCompleteness?: number | null;
 };
 
@@ -171,8 +204,10 @@ const snapshotMap = new Map<string, DeviceSnapshot>(
     .map((item) => [String(item.slug), item as DeviceSnapshot]),
 );
 const productAssetManifest = productAssetSources as ProductAssetManifest;
+const productDataManifest = productDataSources as ProductDataSourceManifest;
 const brandAssetMap = new Map(productAssetManifest.brands.map((brand) => [brand.brandSlug, brand]));
 const productAssetMap = new Map(productAssetManifest.products.map((product) => [product.slug, product]));
+const productDataMap = new Map(productDataManifest.products.map((product) => [product.slug, product]));
 
 const manualSpecGroups = {
   display: "显示",
@@ -195,6 +230,10 @@ function getBrandAsset(brandSlug: string) {
 
 function getProductAsset(slug: string) {
   return productAssetMap.get(slug) ?? null;
+}
+
+function getProductDataEntry(slug: string) {
+  return productDataMap.get(slug) ?? null;
 }
 
 function buildBrandLogo(brandSlug: string, text: string, alt: string): BrandLogo {
@@ -701,10 +740,10 @@ const deviceCatalog = {
     routeDescription: "完整独立系统和高端空间计算路线。",
     bestFor: ["系统级空间计算研究", "高端 XR 体验", "观察完整交互范式"],
     notIdealFor: ["轻量佩戴", "便携显示替代", "低预算试水"],
-    keySpecs: { display_type: "Micro‑OLED", resolution: "23 million pixels", refresh_rate: "90/96/100/120Hz", chipset: "Apple M5 + R1" },
+    keySpecs: { display_type: "Micro‑OLED", resolution: "23 million pixels", refresh_rate: "90/96/100/120Hz", chipset: "Apple M2 + R1" },
     fullSpecs: {
       display: { display_type: "Micro‑OLED", resolution: "23 million pixels", refresh_rate: "90/96/100/120Hz", color_gamut: "92% DCI‑P3" },
-      hardware: { chipset: "Apple M5 + R1", camera: "6.5 stereo MP", sensors: "12 cameras + LiDAR + IMUs", storage: "256GB / 512GB / 1TB" },
+      hardware: { chipset: "Apple M2 + R1", camera: "6.5 stereo MP", sensors: "12 cameras + LiDAR + IMUs", storage: "256GB / 512GB / 1TB" },
     },
     manualCompleteness: 0.62,
   },
@@ -732,20 +771,43 @@ function normalizeValue(value: unknown) {
   if (trimmed.includes("choose your lens options")) return null;
   if (trimmed === "Wifi 6G | Wifi 8G") return null;
   if (trimmed === "5g") return null;
+  if (trimmed === "8g") return null;
   if (trimmed.length > 90) return null;
   return trimmed;
 }
 
 function sanitizeSpecValue(field: DeviceSpecField, value: string | null) {
   if (!value) return null;
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(/\s+/g, " ");
   if (/^0+$/.test(trimmed)) return null;
   if (field === "brightness" && /^0+\s*(nits)?$/i.test(trimmed)) return null;
+  if (/selling countries|need help|share on facebook|share on x|pin on pinterest/i.test(trimmed)) return null;
   if (field === "weight" && /^([0-9]+)\s*g$/i.test(trimmed)) {
     const grams = Number(trimmed.replace(/[^\d.]/g, ""));
     if (Number.isFinite(grams) && grams > 0 && grams < 12) return null;
   }
   if (field === "connectivity" && /wifi 6g \| wifi 8g/i.test(trimmed)) return null;
+  if (field === "resolution" && /^[0-9]+\*[0-9]+$/i.test(trimmed)) return trimmed.replace("*", " × ");
+  if (field === "refresh_rate" && /^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}Hz`;
+  if (field === "brightness" && /^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed} nits`;
+  if (field === "field_of_view" && /^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}°`;
+  if (field === "battery_capacity" && /^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}mAh`;
+  if (field === "battery_life" && /^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed} 小时`;
+  if (field === "memory" && /^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}GB`;
+  if (field === "storage" && /^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}GB`;
+  if (field === "camera" && /^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}MP`;
+  if (field === "weight" && /^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}g`;
+  if (field === "release_year" && /^20\d{2}$/.test(trimmed)) return trimmed;
+  if (field === "availability" && /^instock$/i.test(trimmed)) return "在售";
+  if (field === "availability" && /^out of stock$/i.test(trimmed)) return "缺货";
+  if (field === "connectivity") {
+    if (/^bluetooth\s*5(\.\d+)?$/i.test(trimmed)) return trimmed.replace(/bluetooth/i, "Bluetooth");
+    if (/^wi-?fi\s*5(\.0)?\s*\/\s*bluetooth\s*5\.2$/i.test(trimmed)) return "Wi‑Fi 5 / Bluetooth 5.2";
+    if (/^wi-?fi\s*6\s*\/\s*bluetooth\s*5\.2$/i.test(trimmed)) return "Wi‑Fi 6 / Bluetooth 5.2";
+    if (/^wi-?fi\s*6\s*b$/i.test(trimmed)) return "Wi‑Fi 6 / Bluetooth";
+  }
+  if (field === "speakers" && /aac 0920/i.test(trimmed)) return null;
+  if (field === "chipset" && /snapdragonprocessor/i.test(trimmed)) return null;
   return trimmed;
 }
 
@@ -772,6 +834,14 @@ function pickSpecs(specs: DeviceSpecs, fields: DeviceSpecField[]) {
   return items;
 }
 
+function pickSpecSubset(specs: DeviceSpecs | undefined, fields: readonly DeviceSpecField[]) {
+  const subset: DeviceSpecs = {};
+  for (const field of fields) {
+    if (specs?.[field]) subset[field] = specs[field];
+  }
+  return subset;
+}
+
 export function formatSnapshotDate(value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
@@ -780,10 +850,10 @@ export function formatSnapshotDate(value?: string | null) {
 }
 
 function formatCompleteness(value?: number | null) {
-  if (typeof value !== "number" || Number.isNaN(value)) return "待补充";
-  if (value >= 0.7) return "较完整";
-  if (value >= 0.35) return "部分已确认";
-  return "待补充";
+  if (typeof value !== "number" || Number.isNaN(value)) return "资料待补充";
+  if (value >= 0.7) return "资料完整";
+  if (value >= 0.35) return "部分待确认";
+  return "资料待补充";
 }
 
 function formatPercent(value?: number | null) {
@@ -805,16 +875,19 @@ function normalizeUrl(value?: string | null) {
 function buildExternalLinks({
   officialProductUrl,
   buyUrl,
+  supportUrl,
   sourceUrl,
 }: {
   officialProductUrl?: string | null;
   buyUrl?: string | null;
+  supportUrl?: string | null;
   sourceUrl?: string | null;
 }) {
   const seen = new Set<string>();
   const links = [
     { label: "官网产品页", url: officialProductUrl ?? null },
     { label: "购买页面", url: buyUrl ?? null },
+    { label: "支持 / 规格", url: supportUrl ?? null },
     { label: "参数来源", url: sourceUrl ?? null },
   ]
     .map((item) => {
@@ -826,6 +899,12 @@ function buildExternalLinks({
     .filter(Boolean) as Array<{ label: string; url: string }>;
 
   return links;
+}
+
+function buildQuickSpecs(items: Array<{ field: DeviceSpecField; label: string; value: string }>, limit: number) {
+  return items
+    .filter((item, index, array) => array.findIndex((entry) => entry.field === item.field) === index)
+    .slice(0, limit);
 }
 
 function buildInfoState({
@@ -899,12 +978,14 @@ export function getDeviceBySlug(slug: string) {
   const base = deviceCatalog[slug as DeviceKey];
   const brand = getBrandByKey(base.brandKey);
   const productAsset = getProductAsset(slug);
+  const productData = getProductDataEntry(slug);
   const snapshot = getDeviceSnapshot(slug);
   const mergedSpecs = mergeSpecs(base.keySpecs, snapshot?.specs);
   const groupedSpecs = specGroupOrder
     .map((group) => {
       const manualGroup = base.fullSpecs?.[group.key as keyof NonNullable<typeof base.fullSpecs>] ?? {};
-      const groupSpecs = mergeSpecs(manualGroup, undefined);
+      const snapshotGroup = pickSpecSubset(snapshot?.specs, group.fields);
+      const groupSpecs = mergeSpecs(manualGroup, snapshotGroup);
       const items = pickSpecs(groupSpecs, group.fields);
       return items.length ? { key: group.key, label: group.label, items } : null;
     })
@@ -939,13 +1020,17 @@ export function getDeviceBySlug(slug: string) {
     placeholderType: base.media?.placeholderType ?? "wordmark",
   };
   const previewSpecFields = base.keySpecs ? (Object.keys(base.keySpecs) as DeviceSpecField[]) : [];
-  const previewSpecs = previewSpecFields.length > 0 ? pickSpecs(mergeSpecs(base.keySpecs, undefined), previewSpecFields).slice(0, 5) : [];
+  const previewSpecs = previewSpecFields.length > 0 ? pickSpecs(mergeSpecs(base.keySpecs, snapshot?.specs), previewSpecFields).slice(0, 5) : [];
+  const flattenedSpecs = groupedSpecs.flatMap((group) => group.items);
+  const quickSpecs = buildQuickSpecs(flattenedSpecs, 6);
+  const cardSpecs = buildQuickSpecs(previewSpecs.length > 0 ? previewSpecs : flattenedSpecs, 4);
   const cardMedia: ProductMedia = { ...media, imageUrl: null, imageBackground: "dark", imageFit: "contain" };
   const detailMedia: ProductMedia = { ...media, imageUrl: null, imageBackground: "dark", imageFit: "contain" };
   const officialProductUrl = productAsset ? (productAsset.officialProductUrl ?? null) : base.officialProductUrl ?? base.productUrl ?? null;
   const buyUrl = productAsset ? (productAsset.buyUrl ?? null) : base.buyUrl ?? null;
+  const supportUrl = base.supportUrl ?? null;
   const sourceUrl = productAsset ? (productAsset.sourceUrl ?? null) : base.sourceUrl ?? null;
-  const externalLinks = buildExternalLinks({ officialProductUrl, buyUrl, sourceUrl });
+  const externalLinks = buildExternalLinks({ officialProductUrl, buyUrl, supportUrl, sourceUrl });
   const typeLabel = base.typeLabel ?? base.routeLabel;
   const infoStatusLabel = buildInfoState({
     category: base.category,
@@ -953,6 +1038,11 @@ export function getDeviceBySlug(slug: string) {
     missingFields,
     explicitStatus: base.statusLabel,
   });
+  const positioning = base.positioning ?? base.routeDescription;
+  const detailSummary = [base.shortDescription, base.longDescription].filter(Boolean);
+  const keyLimitations = base.keyLimitations ?? base.notIdealFor;
+  const sourceNotes = productData?.notes ?? [];
+  const needsReviewFields = Array.from(new Set([...(base.needsReviewFields ?? []), ...(productData?.needsReviewFields ?? [])]));
 
   return {
     ...base,
@@ -975,8 +1065,11 @@ export function getDeviceBySlug(slug: string) {
     imageSourceUrl: productAsset?.image?.sourceUrl ?? null,
     officialProductUrl,
     buyUrl,
+    supportUrl,
     sourceUrl,
     externalLinks,
+    quickSpecs,
+    cardSpecs,
     previewSpecs,
     specGroups: groupedSpecs,
     keySpecs: previewSpecs,
@@ -986,6 +1079,13 @@ export function getDeviceBySlug(slug: string) {
     completenessLabel: formatCompleteness(completeness),
     completenessPercent: formatPercent(completeness),
     missingFields,
+    needsReviewFields,
+    sourceNotes,
+    sourceLedgerEntry: productData,
+    positioning,
+    detailSummary,
+    keyLimitations,
+    dataStatusLabel: missingFields.length > 0 ? "部分待确认" : "资料完整",
     pendingSpecLabels: missingFields.slice(0, 8),
   };
 }

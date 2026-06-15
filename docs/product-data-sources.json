@@ -1,124 +1,163 @@
 {
-  "generated_at": "2026-06-15T17:00:00+12:00",
+  "generated_at": "2026-06-15T20:10:00+12:00",
   "products": [
     {
       "slug": "xreal-one",
       "name": "XREAL One",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-store", "url": "https://us.shop.xreal.com/products/xreal-one" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-store", "url": "https://us.shop.xreal.com/products/xreal-one", "fields": ["refresh_rate", "brightness", "field_of_view", "price", "availability"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Refresh rate, brightness, field of view and current store price use the official store page.", "Other values stay as 未公开 or 待确认 unless the official page states them clearly."]
+      "notes": ["当前展示字段优先使用 XREAL 官方商店页。", "分辨率、重量和兼容设备细项未在当前官方页清晰公开。"],
+      "missingFields": ["resolution", "weight", "supported_devices", "os_compatibility"],
+      "needsReviewFields": []
     },
     {
       "slug": "xreal-one-pro",
       "name": "XREAL One Pro",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-product", "url": "https://www.xreal.com/us/one-pro" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-product", "url": "https://www.xreal.com/us/one-pro", "fields": ["refresh_rate", "field_of_view", "product-positioning"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Field of view and refresh rate use the official product page.", "Price and several hardware fields remain 待确认 because the official page does not expose them clearly in the current crawl."]
+      "notes": ["当前公开页明确强调视场角和显示升级。", "分辨率、亮度、重量和价格仍保留待确认。"],
+      "missingFields": ["resolution", "brightness", "weight", "price", "availability"],
+      "needsReviewFields": []
     },
     {
       "slug": "xreal-air-2-pro",
       "name": "XREAL Air 2 Pro",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-store", "url": "https://us.shop.xreal.com/products/xreal-air-2-pro" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-store", "url": "https://us.shop.xreal.com/products/xreal-air-2-pro", "fields": ["display_type", "resolution", "refresh_rate", "brightness", "field_of_view", "price", "availability"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Resolution, refresh rate, brightness, field of view and current store price are mapped from the official store page.", "Weight uses the commonly cited official value, not the dirty 5g scrape residue."]
+      "notes": ["当前参数页足以支持显示规格、价格和在售状态。", "重量、音频和兼容设备细项仍未稳定公开。"],
+      "missingFields": ["weight", "supported_devices", "speakers", "microphone"],
+      "needsReviewFields": []
     },
     {
       "slug": "xreal-air-2-ultra",
       "name": "XREAL Air 2 Ultra",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-store", "url": "https://us.shop.xreal.com/products/xreal-air-2-ultra/" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-store", "url": "https://us.shop.xreal.com/products/xreal-air-2-ultra/", "fields": ["refresh_rate", "field_of_view", "developer-positioning"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Only facts that are visible in official materials are surfaced.", "Anything not clearly stated stays 未公开 or 待确认."]
+      "notes": ["资料页重点保留开发设备定位和已确认视场角。", "分辨率、亮度、重量和价格继续低调标注待确认。"],
+      "missingFields": ["resolution", "brightness", "weight", "price", "availability"],
+      "needsReviewFields": []
     },
     {
       "slug": "rayneo-x2",
       "name": "RayNeo X2",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-product", "url": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-product", "url": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2", "fields": ["chipset", "memory", "storage", "camera", "battery_capacity", "connectivity"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Platform, memory, storage, camera and nominal battery values are taken from current official product information.", "Dirty brightness and malformed strings are intentionally excluded."]
+      "notes": ["系统级 XR 定位、芯片、存储和电池容量采用当前官方产品页。", "亮度、重量和部分显示参数未用第三方猜测值补齐。"],
+      "missingFields": ["resolution", "brightness", "field_of_view", "weight", "release_year"],
+      "needsReviewFields": []
     },
     {
       "slug": "rokid-max",
       "name": "Rokid Max",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-product", "url": "https://global.rokid.com/products/rokid-max" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-product", "url": "https://global.rokid.com/products/rokid-max", "fields": ["resolution", "refresh_rate", "field_of_view", "product-positioning"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Only clearly stated official facts are surfaced.", "If a field is not visible in the current official page, it stays 未公开."]
+      "notes": ["主卡和详情页只保留当前可确认的显示规格。", "亮度、重量和价格在当前可见官方页没有稳定字段。"],
+      "missingFields": ["brightness", "weight", "price", "availability"],
+      "needsReviewFields": []
     },
     {
       "slug": "rokid-glasses",
       "name": "Rokid Glasses",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-product", "url": "https://global.rokid.com/products/rokid-glasses" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-product", "url": "https://global.rokid.com/products/rokid-glasses", "fields": ["chipset", "camera", "memory", "storage", "battery_capacity", "weight"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Camera, memory, battery and weight use the current official page.", "Malformed display and connectivity scrape fragments are excluded."]
+      "notes": ["主资料页保留 AI 眼镜定位和官方可读的硬件信息。", "显示规格、续航时长和兼容设备仍待确认。"],
+      "missingFields": ["display_type", "resolution", "battery_life", "supported_devices", "availability"],
+      "needsReviewFields": []
     },
     {
       "slug": "viture-pro",
       "name": "VITURE Pro",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-product", "url": "https://www.viture.com/product/viture-luma-pro-xr-glasses" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-product", "url": "https://www.viture.com/product/viture-luma-pro-xr-glasses", "fields": ["refresh_rate", "brightness", "field_of_view", "diopter_support", "speakers", "price"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Current store price uses the official product page locale visible during audit.", "Weight does not use the dirty 8g scrape value."]
+      "notes": ["当前页面更适合确认显示、近视调节和价格区间。", "分辨率、重量和芯片仍不做猜测填充。"],
+      "missingFields": ["resolution", "weight", "chipset", "availability"],
+      "needsReviewFields": []
     },
     {
       "slug": "inmo-air-2",
       "name": "INMO Air 2",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-product", "url": "https://www.inmoxr.com/pages/inmo-air2" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-product", "url": "https://www.inmoxr.com/pages/inmo-air2", "fields": ["connectivity", "product-positioning"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Official INMO page exposes limited structured specs in the current crawl.", "Most hardware fields remain 待确认 rather than guessed."]
+      "notes": ["INMO 当前公开结构化参数较少，资料页以定位与连接方式为主。", "大部分显示和硬件字段继续标记待确认。"],
+      "missingFields": ["display_type", "resolution", "refresh_rate", "brightness", "weight", "battery_life", "chipset", "price"],
+      "needsReviewFields": ["category"]
     },
     {
       "slug": "ray-ban-meta",
       "name": "Ray-Ban Meta",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-product", "url": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses" },
-        { "type": "official-press", "url": "https://about.fb.com/news/2023/09/new-ray-ban-meta-smart-glasses/" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-product", "url": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses", "fields": ["camera", "storage", "product-positioning"], "review": "official" },
+        { "type": "official-press", "url": "https://about.fb.com/news/2023/09/new-ray-ban-meta-smart-glasses/", "fields": ["battery_life", "microphone", "audio"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["When the product page is hard to crawl, official Meta press information is used as a supporting fact source.", "No third-party product image or copy is reused."]
+      "notes": ["无显示路线、拍摄和语音定位优先使用官方页。", "芯片、重量和价格未在当前资料库中强行补齐。"],
+      "missingFields": ["weight", "chipset", "price", "availability"],
+      "needsReviewFields": []
     },
     {
       "slug": "brilliant-labs-frame",
       "name": "Brilliant Labs Frame",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-product", "url": "https://brilliant.xyz/products/frame" },
-        { "type": "official-support", "url": "https://docs.brilliant.xyz/frame/hardware/" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-product", "url": "https://brilliant.xyz/products/frame", "fields": ["product-positioning"], "review": "official" },
+        { "type": "official-support", "url": "https://docs.brilliant.xyz/frame/hardware/", "fields": ["connectivity", "battery_life", "sdk_availability"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Hardware facts prefer the official docs site where it is clearer than the storefront.", "Unknown fields stay 未公开."]
+      "notes": ["Frame 的硬件字段优先使用官方 docs，而不是商店页。", "分辨率、重量和价格继续保守留空。"],
+      "missingFields": ["resolution", "weight", "price", "availability"],
+      "needsReviewFields": []
     },
     {
       "slug": "even-realities-g1",
       "name": "Even Realities G1",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-product", "url": "https://www.evenrealities.com/en-FI/g1" },
-        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+        { "type": "official-product", "url": "https://www.evenrealities.com/en-FI/g1", "fields": ["brightness", "field_of_view", "refresh_rate", "product-positioning"], "review": "official" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar", "fields": ["device-listing"], "review": "needsReview" }
       ],
-      "notes": ["Current public page exposes limited structured fields, so several values remain 待确认.", "Battery and display-side facts use only what is visible in official materials."]
+      "notes": ["当前官方页仍以定位和有限显示参数为主。", "分辨率、重量、价格和兼容设备未用外部估值代替。"],
+      "missingFields": ["resolution", "weight", "price", "supported_devices", "availability"],
+      "needsReviewFields": []
     },
     {
       "slug": "apple-vision-pro",
       "name": "Apple Vision Pro",
+      "coverage": { "category": true, "status": true, "positioning": true, "shortSummary": true, "bestFor": true, "notIdealFor": true, "sourceUrl": true },
       "sources": [
-        { "type": "official-product", "url": "https://www.apple.com/apple-vision-pro/" },
-        { "type": "official-support", "url": "https://support.apple.com/en-us/125436" }
+        { "type": "official-product", "url": "https://www.apple.com/apple-vision-pro/", "fields": ["product-positioning", "availability"], "review": "official" },
+        { "type": "official-support", "url": "https://support.apple.com/en-us/125436", "fields": ["display_type", "resolution", "refresh_rate", "color_gamut", "chipset", "storage", "sensors", "camera"], "review": "official" }
       ],
-      "notes": ["Specs prefer the Apple support/spec page over marketing copy.", "Only current official values are surfaced."]
+      "notes": ["Apple 详情页优先用 support 技术规格，而不是营销文案。", "当前版本不展示任何 Apple 官方图片，只保留事实字段。"],
+      "missingFields": ["weight", "battery_life", "price"],
+      "needsReviewFields": []
     }
   ]
 }
