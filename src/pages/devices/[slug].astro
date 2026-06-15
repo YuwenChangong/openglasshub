@@ -39,13 +39,12 @@ const heroLinks = device.externalLinks.slice(0, 2);
   <section class="device-detail-head">
     <div class="device-detail-head__visual">
       <ProductVisual
-        imageUrl={device.detailMedia.imageUrl}
-        alt={device.detailMedia.imageAlt}
         brandMark={device.brandMarkText}
         title={device.title}
+        categoryLabel={device.typeLabel}
         variant="hero"
-        imageBackground={device.detailMedia.imageBackground}
-        imageFit={device.detailMedia.imageFit}
+        statusLabel={device.infoStatusLabel}
+        highlights={device.previewSpecs}
         placeholderType={device.detailMedia.placeholderType}
       />
     </div>
@@ -53,9 +52,10 @@ const heroLinks = device.externalLinks.slice(0, 2);
       <a href={`/products/${device.brandKey}/`} class="device-detail-head__back">返回 {device.brandLabel}</a>
       <BrandMark logo={device.brandLogo} compact={true} brandKey={device.brandKey} />
       <h1>{entry.frontmatter.title}</h1>
-      {entry.frontmatter.description && <p>{entry.frontmatter.description}</p>}
+      <p>{device.shortDescription}</p>
       <div class="device-detail-head__meta">
-        <span>{device.routeLabel}</span>
+        <span>{device.typeLabel}</span>
+        <span>{device.infoStatusLabel}</span>
         {device.lastCheckedLabel && <span>更新 {device.lastCheckedLabel}</span>}
       </div>
       {heroLinks.length > 0 && (

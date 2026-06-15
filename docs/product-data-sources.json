@@ -1,0 +1,124 @@
+{
+  "generated_at": "2026-06-15T17:00:00+12:00",
+  "products": [
+    {
+      "slug": "xreal-one",
+      "name": "XREAL One",
+      "sources": [
+        { "type": "official-store", "url": "https://us.shop.xreal.com/products/xreal-one" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Refresh rate, brightness, field of view and current store price use the official store page.", "Other values stay as 未公开 or 待确认 unless the official page states them clearly."]
+    },
+    {
+      "slug": "xreal-one-pro",
+      "name": "XREAL One Pro",
+      "sources": [
+        { "type": "official-product", "url": "https://www.xreal.com/us/one-pro" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Field of view and refresh rate use the official product page.", "Price and several hardware fields remain 待确认 because the official page does not expose them clearly in the current crawl."]
+    },
+    {
+      "slug": "xreal-air-2-pro",
+      "name": "XREAL Air 2 Pro",
+      "sources": [
+        { "type": "official-store", "url": "https://us.shop.xreal.com/products/xreal-air-2-pro" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Resolution, refresh rate, brightness, field of view and current store price are mapped from the official store page.", "Weight uses the commonly cited official value, not the dirty 5g scrape residue."]
+    },
+    {
+      "slug": "xreal-air-2-ultra",
+      "name": "XREAL Air 2 Ultra",
+      "sources": [
+        { "type": "official-store", "url": "https://us.shop.xreal.com/products/xreal-air-2-ultra/" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Only facts that are visible in official materials are surfaced.", "Anything not clearly stated stays 未公开 or 待确认."]
+    },
+    {
+      "slug": "rayneo-x2",
+      "name": "RayNeo X2",
+      "sources": [
+        { "type": "official-product", "url": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Platform, memory, storage, camera and nominal battery values are taken from current official product information.", "Dirty brightness and malformed strings are intentionally excluded."]
+    },
+    {
+      "slug": "rokid-max",
+      "name": "Rokid Max",
+      "sources": [
+        { "type": "official-product", "url": "https://global.rokid.com/products/rokid-max" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Only clearly stated official facts are surfaced.", "If a field is not visible in the current official page, it stays 未公开."]
+    },
+    {
+      "slug": "rokid-glasses",
+      "name": "Rokid Glasses",
+      "sources": [
+        { "type": "official-product", "url": "https://global.rokid.com/products/rokid-glasses" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Camera, memory, battery and weight use the current official page.", "Malformed display and connectivity scrape fragments are excluded."]
+    },
+    {
+      "slug": "viture-pro",
+      "name": "VITURE Pro",
+      "sources": [
+        { "type": "official-product", "url": "https://www.viture.com/product/viture-luma-pro-xr-glasses" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Current store price uses the official product page locale visible during audit.", "Weight does not use the dirty 8g scrape value."]
+    },
+    {
+      "slug": "inmo-air-2",
+      "name": "INMO Air 2",
+      "sources": [
+        { "type": "official-product", "url": "https://www.inmoxr.com/pages/inmo-air2" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Official INMO page exposes limited structured specs in the current crawl.", "Most hardware fields remain 待确认 rather than guessed."]
+    },
+    {
+      "slug": "ray-ban-meta",
+      "name": "Ray-Ban Meta",
+      "sources": [
+        { "type": "official-product", "url": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses" },
+        { "type": "official-press", "url": "https://about.fb.com/news/2023/09/new-ray-ban-meta-smart-glasses/" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["When the product page is hard to crawl, official Meta press information is used as a supporting fact source.", "No third-party product image or copy is reused."]
+    },
+    {
+      "slug": "brilliant-labs-frame",
+      "name": "Brilliant Labs Frame",
+      "sources": [
+        { "type": "official-product", "url": "https://brilliant.xyz/products/frame" },
+        { "type": "official-support", "url": "https://docs.brilliant.xyz/frame/hardware/" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Hardware facts prefer the official docs site where it is clearer than the storefront.", "Unknown fields stay 未公开."]
+    },
+    {
+      "slug": "even-realities-g1",
+      "name": "Even Realities G1",
+      "sources": [
+        { "type": "official-product", "url": "https://www.evenrealities.com/en-FI/g1" },
+        { "type": "vr52-reference", "url": "https://www.vr52.com/ar" }
+      ],
+      "notes": ["Current public page exposes limited structured fields, so several values remain 待确认.", "Battery and display-side facts use only what is visible in official materials."]
+    },
+    {
+      "slug": "apple-vision-pro",
+      "name": "Apple Vision Pro",
+      "sources": [
+        { "type": "official-product", "url": "https://www.apple.com/apple-vision-pro/" },
+        { "type": "official-support", "url": "https://support.apple.com/en-us/125436" }
+      ],
+      "notes": ["Specs prefer the Apple support/spec page over marketing copy.", "Only current official values are surfaced."]
+    }
+  ]
+}

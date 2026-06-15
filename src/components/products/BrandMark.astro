@@ -13,30 +13,16 @@ interface Props {
 }
 
 const { text, logo, tone = "default", compact = false, brandKey = "" } = Astro.props;
-const resolvedText = logo?.text ?? text ?? "";
+const resolvedText = (logo?.text ?? text ?? "").trim();
 ---
 
-{logo?.type === "image" && logo.src ? (
-  <span class:list={["brand-mark", `brand-mark--${tone}`, { "brand-mark--compact": compact, "brand-mark--image": true }]} data-brand={brandKey}>
-    <img
-      src={logo.src}
-      alt={logo.alt}
-      loading="lazy"
-      decoding="async"
-      referrerpolicy="no-referrer"
-      onerror="const root=this.closest('.brand-mark'); if(root){root.classList.add('brand-mark--fallback');} this.remove();"
-    />
-    <span class="brand-mark__fallback" aria-hidden="true">{resolvedText}</span>
-  </span>
-) : (
-  <span
-    class:list={["brand-mark", `brand-mark--${tone}`, { "brand-mark--compact": compact, "brand-mark--wordmark": true }]}
-    data-brand={brandKey}
-    aria-label={logo?.alt ?? resolvedText}
-  >
-    {resolvedText}
-  </span>
-)}
+<span
+  class:list={["brand-mark", `brand-mark--${tone}`, { "brand-mark--compact": compact }]}
+  data-brand={brandKey}
+  aria-label={logo?.alt ?? resolvedText}
+>
+  {resolvedText}
+</span>
 
 <style>
   .brand-mark {
@@ -45,38 +31,13 @@ const resolvedText = logo?.text ?? text ?? "";
     justify-content: flex-start;
     width: fit-content;
     min-height: 2rem;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: rgba(246, 247, 249, 0.96);
-    font-size: 1.2rem;
-    font-weight: 780;
-    letter-spacing: -0.038em;
+    color: rgba(247, 247, 248, 0.96);
+    font-size: 1.22rem;
+    font-weight: 760;
+    letter-spacing: -0.035em;
     line-height: 1;
     white-space: nowrap;
     text-transform: none;
-    text-shadow: 0 0 20px rgba(255, 255, 255, 0.025);
-  }
-
-  .brand-mark img {
-    display: block;
-    width: auto;
-    max-width: min(100%, 12rem);
-    max-height: 2rem;
-    object-fit: contain;
-  }
-
-  .brand-mark--compact img {
-    max-height: 1.35rem;
-  }
-
-  .brand-mark__fallback {
-    display: none;
-  }
-
-  .brand-mark--fallback .brand-mark__fallback {
-    display: inline-flex;
-    align-items: center;
   }
 
   .brand-mark--accent {
@@ -84,13 +45,13 @@ const resolvedText = logo?.text ?? text ?? "";
   }
 
   .brand-mark--neutral {
-    color: rgba(245, 245, 245, 0.9);
+    color: rgba(245, 245, 245, 0.88);
   }
 
   .brand-mark--compact {
-    min-height: 1.4rem;
-    font-size: 0.88rem;
-    letter-spacing: -0.03em;
+    min-height: 1.3rem;
+    font-size: 0.92rem;
+    letter-spacing: -0.025em;
   }
 
   .brand-mark[data-brand="xreal"] {
@@ -98,46 +59,40 @@ const resolvedText = logo?.text ?? text ?? "";
     letter-spacing: -0.052em;
   }
 
-  .brand-mark[data-brand="rayneo"] img {
-    filter: brightness(0) invert(1);
-    max-height: 2.15rem;
-  }
-
-  .brand-mark[data-brand="inmo"] img {
-    filter: brightness(0) invert(1);
-    max-height: 2.1rem;
-  }
-
   .brand-mark[data-brand="rayneo"] {
-    font-weight: 760;
-    letter-spacing: -0.05em;
+    font-weight: 740;
+    letter-spacing: -0.045em;
   }
 
   .brand-mark[data-brand="rokid"] {
     font-weight: 760;
-    letter-spacing: -0.04em;
+    letter-spacing: -0.05em;
   }
 
   .brand-mark[data-brand="viture"],
-  .brand-mark[data-brand="inmo"],
-  .brand-mark[data-brand="meta"],
-  .brand-mark[data-brand="frame"] {
+  .brand-mark[data-brand="inmo"] {
     text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-weight: 720;
+  }
+
+  .brand-mark[data-brand="meta"] {
+    letter-spacing: -0.022em;
+    font-weight: 720;
+  }
+
+  .brand-mark[data-brand="brilliant-labs"] {
+    font-weight: 700;
     letter-spacing: -0.028em;
   }
 
-  .brand-mark[data-brand="viture"] {
-    letter-spacing: 0.01em;
-    font-weight: 760;
+  .brand-mark[data-brand="even-realities"] {
+    font-weight: 650;
+    letter-spacing: -0.03em;
   }
 
-  .brand-mark[data-brand="g1"] {
-    letter-spacing: -0.055em;
-    font-weight: 820;
-  }
-
-  .brand-mark[data-brand="vision"] {
+  .brand-mark[data-brand="apple"] {
     font-weight: 700;
-    letter-spacing: -0.045em;
+    letter-spacing: -0.04em;
   }
 </style>
