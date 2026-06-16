@@ -1,0 +1,162 @@
+﻿---
+export const prerender = false;
+
+import ForumLayout from "../../layouts/ForumLayout.astro";
+import PostCard from "../../components/community/PostCard.astro";
+import CircleCard from "../../components/community/CircleCard.astro";
+import { buildCircleImageMap } from "../../lib/circle-images";
+import { FORUM_SEARCH_LIMITS, runForumSearch } from "../../lib/forum-search";
+import { formatPostTime } from "../../lib/format-time";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import type { ForumSearchType } from "../../lib/search-types";
+
+const env = Astro.locals.runtime.env as CloudflareEnv;
+const supabase = createSSRClient(env);
+const rawQuery = String(Astro.url.searchParams.get("q") ?? "");
+const circleSlug = String(Astro.url.searchParams.get("circle") ?? "").trim() || null;
+const searchType = (() => {
+  if (circleSlug) return "posts";
+  const raw = Astro.url.searchParams.get("type");
+  return raw === "posts" || raw === "circles" || raw === "all" ? raw : "all";
+})() as ForumSearchType;
+
+const hasQuery = rawQuery.trim().length > 0;
+const invalidQuery = hasQuery && rawQuery.trim().length < FORUM_SEARCH_LIMITS.minQueryLength;
+
+const searchResult = !hasQuery || invalidQuery
+  ? null
+  : await runForumSearch(supabase, {
+      query: rawQuery,
+      type: searchType,
+      circleSlug,
+      r2PublicBaseUrl: env.R2_PUBLIC_BASE_URL,
+    });
+
+const posts = searchResult?.ok ? searchResult.results.posts : [];
+const circles = !circleSlug && searchResult?.ok ? searchResult.results.circles : [];
+const circleImageMap = circles.length > 0 ? await buildCircleImageMap(supabase, circles) : new Map();
+const showPostsSection = posts.length > 0;
+const showCirclesSection = circles.length > 0;
+const hasAnyResults = showPostsSection || showCirclesSection;
+
+function searchHref(nextType: ForumSearchType) {
+  const params = new URLSearchParams();
+  if (rawQuery.trim()) params.set("q", rawQuery.trim());
+  if (circleSlug) params.set("circle", circleSlug);
+  if (nextType !== "all") params.set("type", nextType);
+  return `/search/${params.toString() ? `?${params.toString()}` : ""}`;
+}
+
+const postTypeLabels: Record<string, string> = {
+  experience: "体验",
+  question: "提问",
+  review: "评测",
+  dev: "开发",
+  news: "资讯",
+  feedback: "反馈",
+};
+---
+
+<ForumLayout
+  title="搜索"
+  description="搜索 OpenGlass Hub 论坛内容。"
+  noindex={true}
+>
+  <section class="search-page-head">
+    <h1>搜索</h1>
+  </section>
+
+  <section class="community-surface community-surface--padded search-panel">
+    <form method="get" action="/search/" class="search-form">
+      <div class="search-form__row">
+        <input
+          class="community-input search-form__input"
+          type="search"
+          name="q"
+          value={rawQuery}
+          minlength={FORUM_SEARCH_LIMITS.minQueryLength}
+          maxlength={FORUM_SEARCH_LIMITS.maxQueryLength}
+          placeholder="搜索"
+          aria-label="搜索内容"
+        />
+        <button type="submit" class="community-action-button community-action-button--primary">搜索</button>
+      </div>
+      {circleSlug ? <input type="hidden" name="circle" value={circleSlug} /> : null}
+      <input type="hidden" name="type" value={searchType} />
+    </form>
+
+    {!circleSlug ? (
+      <div class="search-filter-row" role="tablist" aria-label="搜索类型">
+        <a href={searchHref("all")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "all" }]} role="tab" aria-selected={searchType === "all"}>全部</a>
+        <a href={searchHref("posts")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "posts" }]} role="tab" aria-selected={searchType === "posts"}>帖子</a>
+        <a href={searchHref("circles")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "circles" }]} role="tab" aria-selected={searchType === "circles"}>圈子</a>
+      </div>
+    ) : null}
+  </section>
+
+  {invalidQuery ? (
+    <section class="community-empty search-empty">
+      <strong>请输入至少 2 个字符</strong>
+    </section>
+  ) : searchResult && !searchResult.ok ? (
+    <section class="community-empty search-empty">
+      <strong>{searchResult.error === "INVALID_QUERY" ? "请输入至少 2 个字符" : "搜索失败，请稍后重试"}</strong>
+    </section>
+  ) : hasQuery ? (
+    hasAnyResults ? (
+      <section class="search-results">
+        {showPostsSection ? (
+          <section class="search-group">
+            <div class="community-stream-head search-group__head">
+              <h2>帖子</h2>
+              <span class="community-meta">{posts.length}</span>
+            </div>
+            <div class="community-feed-list">
+              {posts.map((post) => (
+                <PostCard
+                  id={post.id}
+                  title={post.title}
+                  excerpt={post.excerpt}
+                  circleName={post.circle?.name ?? undefined}
+                  circleSlug={post.circle?.slug ?? undefined}
+                  typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
+                  authorName={post.author?.display_name || post.author?.username || undefined}
+                  authorId={post.author?.id ?? undefined}
+                  authorUsername={post.author?.username ?? undefined}
+                  timestamp={formatPostTime(post.created_at)}
+                  media={post.preview_image_url ? [{ id: `search-${post.id}`, kind: "image", displayUrl: post.preview_image_url, previewUrl: post.preview_image_url }] : []}
+                  likeCount={0}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {showCirclesSection ? (
+          <section class="search-group">
+            <div class="community-stream-head search-group__head">
+              <h2>圈子</h2>
+              <span class="community-meta">{circles.length}</span>
+            </div>
+            <div class="search-circle-grid">
+              {circles.map((circle) => (
+                <CircleCard
+                  id={circle.id}
+                  name={circle.name}
+                  slug={circle.slug}
+                  description={circle.description || undefined}
+                  latestNote={circle.created_at ? `创建于 ${new Date(circle.created_at).toLocaleDateString("zh-CN")}` : undefined}
+                  imageUrl={circleImageMap.get(circle.id)}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </section>
+    ) : (
+      <section class="community-empty search-empty">
+        <strong>没有找到相关内容</strong>
+      </section>
+    )
+  ) : null}
+</ForumLayout>

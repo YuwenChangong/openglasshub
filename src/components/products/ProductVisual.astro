@@ -1,0 +1,329 @@
+---
+interface Props {
+  brandMark: string;
+  title: string;
+  categoryLabel: string;
+  variant?: "card" | "hero";
+  statusLabel?: string | null;
+  highlights?: Array<{ label: string; value: string }>;
+  placeholderType?: "glasses" | "headset" | "frame" | "wordmark";
+}
+
+const {
+  brandMark,
+  title,
+  categoryLabel,
+  variant = "card",
+  statusLabel = null,
+  highlights = [],
+  placeholderType = "glasses",
+} = Astro.props;
+
+const visibleHighlights = highlights.slice(0, variant === "hero" ? 3 : 2);
+---
+
+<div class:list={["product-visual", `product-visual--${variant}`, `product-visual--${placeholderType}`]}>
+  <div class="product-visual__shell">
+    <div class="product-visual__ambient" aria-hidden="true"></div>
+    <div class="product-visual__frame product-visual__frame--outer" aria-hidden="true"></div>
+    <div class="product-visual__frame product-visual__frame--inner" aria-hidden="true"></div>
+    <div class="product-visual__topline">
+      <span class="product-visual__brand">{brandMark}</span>
+      <span class="product-visual__type">{categoryLabel}</span>
+    </div>
+
+    <div class="product-visual__copy">
+      <p class="product-visual__title">{title}</p>
+      {statusLabel && <span class="product-visual__status">{statusLabel}</span>}
+    </div>
+
+    <div class="product-visual__stage" aria-hidden="true">
+      <span class="product-visual__orb product-visual__orb--primary"></span>
+      <span class="product-visual__orb product-visual__orb--secondary"></span>
+      <span class="product-visual__line product-visual__line--left"></span>
+      <span class="product-visual__line product-visual__line--right"></span>
+      <span class="product-visual__horizon"></span>
+    </div>
+
+    {visibleHighlights.length > 0 && (
+      <div class="product-visual__bottom">
+        <div class="product-visual__highlights">
+          {visibleHighlights.map((item) => (
+            <article>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </article>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+</div>
+
+<style>
+  .product-visual {
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+    min-height: 100%;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+      radial-gradient(circle at 20% 0%, rgba(166, 182, 212, 0.18), transparent 36%),
+      linear-gradient(180deg, rgba(19, 22, 29, 0.98), rgba(10, 12, 16, 1));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    isolation: isolate;
+  }
+
+  .product-visual--card {
+    min-height: 214px;
+  }
+
+  .product-visual--hero {
+    min-height: 360px;
+  }
+
+  .product-visual__shell {
+    position: relative;
+    min-height: inherit;
+    height: 100%;
+    inset: 0;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: 0.88rem;
+    padding: 1rem;
+    border-radius: 20px;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.035), transparent 34%),
+      linear-gradient(180deg, rgba(23, 27, 34, 0.98), rgba(12, 15, 19, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .product-visual__ambient,
+  .product-visual__frame,
+  .product-visual__stage,
+  .product-visual__orb,
+  .product-visual__line,
+  .product-visual__horizon {
+    pointer-events: none;
+  }
+
+  .product-visual__ambient {
+    position: absolute;
+    inset: auto auto 6% 50%;
+    width: 78%;
+    height: 58%;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle, rgba(126, 150, 190, 0.2), rgba(126, 150, 190, 0.03) 48%, transparent 72%);
+    filter: blur(20px);
+    opacity: 0.8;
+  }
+
+  .product-visual__frame {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+
+  .product-visual__frame--outer {
+    inset: 0.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .product-visual__frame--inner {
+    inset: 0.78rem;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+  }
+
+  .product-visual__brand,
+  .product-visual__type,
+  .product-visual__status,
+  .product-visual__highlights span {
+    font-size: 0.74rem;
+    line-height: 1.2;
+  }
+
+  .product-visual__topline {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+  }
+
+  .product-visual__brand {
+    color: rgba(244, 244, 245, 0.78);
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+
+  .product-visual__copy {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 0.48rem;
+    align-content: start;
+    max-width: 28rem;
+  }
+
+  .product-visual__type {
+    width: fit-content;
+    padding: 0.26rem 0.54rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(244, 244, 245, 0.58);
+  }
+
+  .product-visual__title {
+    margin: 0;
+    color: #f5f5f7;
+    font-size: 1.52rem;
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+  }
+
+  .product-visual--hero .product-visual__title {
+    max-width: 12ch;
+    font-size: 2.55rem;
+  }
+
+  .product-visual__status {
+    display: inline-flex;
+    width: fit-content;
+    min-height: 1.85rem;
+    align-items: center;
+    padding: 0.18rem 0.52rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(244, 244, 245, 0.78);
+  }
+
+  .product-visual__stage {
+    position: relative;
+    z-index: 0;
+    min-height: 56px;
+  }
+
+  .product-visual__orb {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(2px);
+  }
+
+  .product-visual__orb--primary {
+    left: 8%;
+    right: 8%;
+    bottom: 0.25rem;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(193, 210, 255, 0.54), transparent);
+    opacity: 0.8;
+  }
+
+  .product-visual__orb--secondary {
+    left: 50%;
+    bottom: 0.85rem;
+    width: 42%;
+    height: 42%;
+    transform: translateX(-50%);
+    background: radial-gradient(circle, rgba(208, 221, 255, 0.12), transparent 72%);
+  }
+
+  .product-visual__line {
+    position: absolute;
+    bottom: 0.8rem;
+    width: 18%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12));
+  }
+
+  .product-visual__line--left {
+    left: 0;
+  }
+
+  .product-visual__line--right {
+    right: 0;
+    transform: scaleX(-1);
+  }
+
+  .product-visual__horizon {
+    position: absolute;
+    left: 50%;
+    right: auto;
+    bottom: 0.4rem;
+    width: 56%;
+    height: 64px;
+    transform: translateX(-50%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 0;
+    border-radius: 999px 999px 0 0;
+    opacity: 0.7;
+  }
+
+  .product-visual__bottom {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .product-visual__highlights {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .product-visual__highlights article {
+    display: grid;
+    gap: 0.18rem;
+    min-height: 3.35rem;
+    align-content: start;
+    padding: 0.58rem 0.62rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .product-visual__highlights span {
+    color: rgba(244, 244, 245, 0.48);
+  }
+
+  .product-visual__highlights strong {
+    color: rgba(245, 245, 247, 0.92);
+    font-size: 0.9rem;
+    line-height: 1.3;
+  }
+
+  .product-visual__pending {
+    display: inline-flex;
+    width: fit-content;
+    min-height: 1.95rem;
+    align-items: center;
+    padding: 0.22rem 0.58rem;
+    border-radius: 999px;
+    color: rgba(244, 244, 245, 0.56);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  @media (max-width: 720px) {
+    .product-visual__shell {
+      padding: 0.9rem;
+    }
+
+    .product-visual--hero .product-visual__title {
+      max-width: none;
+      font-size: 1.95rem;
+    }
+
+    .product-visual__highlights {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+</style>

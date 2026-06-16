@@ -1,0 +1,44 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import MyProfilePage from "../../components/profile/MyProfilePage";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import {
+  getProfileById,
+  getRequestedProfileTab,
+  loadProfilePageData,
+} from "../../lib/profile-data";
+import { buildProfileHref } from "../../lib/profile-links";
+
+const env = Astro.locals.runtime.env as CloudflareEnv & { R2_PUBLIC_BASE_URL?: string };
+const supabase = createSSRClient(env);
+const id = Astro.params.id?.trim() ?? "";
+const tab = getRequestedProfileTab(Astro.url);
+
+const profile = id ? await getProfileById(supabase, id) : null;
+if (profile?.username) {
+  return Astro.redirect(`/u/${encodeURIComponent(profile.username)}/${Astro.url.search}`);
+}
+
+const pageData = profile ? await loadProfilePageData(supabase, profile, env.R2_PUBLIC_BASE_URL) : null;
+const displayName = pageData?.profile.display_name || pageData?.profile.username || "社区成员";
+const canonicalProfileHref = pageData ? buildProfileHref(pageData.profile) : null;
+---
+
+<CommunityLayout
+  title={pageData ? displayName : "用户未找到"}
+  activeSection="forum"
+  canonical={canonicalProfileHref ? `https://openglasshub.pages.dev${canonicalProfileHref}` : undefined}
+  noindex={true}
+>
+  {!pageData ? (
+    <section class="community-surface community-surface--padded profile-shell">
+      <h1>用户未找到</h1>
+      <p class="community-meta">该用户不存在，或用户链接无效。</p>
+      <a href="/feed/" class="community-action-button community-action-button--muted">返回论坛</a>
+    </section>
+  ) : (
+    <MyProfilePage client:load profileId={pageData.profile.id} initialPageData={pageData} initialTab={tab} />
+  )}
+</CommunityLayout>

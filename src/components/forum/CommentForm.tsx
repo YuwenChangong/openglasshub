@@ -1,82 +1,46 @@
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { buildLoginHref } from "../../lib/auth-redirect";
+import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { useInvisibleTurnstile } from "./useInvisibleTurnstile";
 
 interface CommentFormProps {
   postId: string;
-  onCommentCreated?: () => void;
+  parentId?: string | null;
+  placeholder?: string;
+  onCommentCreated?: (comment: unknown) => void;
+  loginHref?: string;
+  inline?: boolean;
+  onCancel?: () => void;
 }
 
-const wrapperStyle: React.CSSProperties = {
-  maxWidth: "760px",
-  margin: "1.5rem 0",
-  padding: "1.25rem",
-  border: "1px solid #2a2e45",
-  borderRadius: "0.75rem",
-  background: "#111527",
-};
-
-const textareaStyle: React.CSSProperties = {
-  width: "100%",
-  background: "#0a0d1a",
-  border: "1px solid #2a2e45",
-  borderRadius: "0.5rem",
-  color: "#e8edf8",
-  padding: "0.75rem",
-  minHeight: "80px",
-  resize: "vertical",
-  fontFamily: "inherit",
-  fontSize: "0.95rem",
-};
-
-const buttonStyle: React.CSSProperties = {
-  borderRadius: "0.5rem",
-  border: "1px solid #6366f1",
-  background: "#6366f1",
-  color: "#fff",
-  fontWeight: 600,
-  padding: "0.5rem 1.25rem",
-  cursor: "pointer",
-  fontSize: "0.9rem",
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  ...buttonStyle,
-  border: "1px solid #2a2e45",
-  background: "transparent",
-  color: "#a0a8c0",
-};
-
-const messageStyle: React.CSSProperties = {
-  border: "1px solid #2a2e45",
-  borderRadius: "0.5rem",
-  padding: "0.75rem",
-  fontSize: "0.9rem",
-  marginTop: "0.75rem",
-};
-
-const loginBoxStyle: React.CSSProperties = {
-  ...wrapperStyle,
-  textAlign: "center" as const,
-};
-
-export default function CommentForm({ postId, onCommentCreated }: CommentFormProps) {
-  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey, {
-      auth: { persistSession: true, autoRefreshToken: true },
-    });
-  }, [supabaseAnonKey, supabaseUrl]);
+export default function CommentForm({
+  postId,
+  parentId,
+  placeholder,
+  onCommentCreated,
+  loginHref,
+  inline,
+  onCancel,
+}: CommentFormProps) {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const resolvedLoginHref = loginHref ?? buildLoginHref(`/posts/${postId}/#comments`);
+  const resolvedPlaceholder = placeholder ?? "写下你的想法...";
+  const {
+    siteKeyEnabled,
+    ready: turnstileReady,
+    error: turnstileError,
+    containerRef,
+    ensureToken,
+    resetToken,
+  } = useInvisibleTurnstile("评论验证失败，请刷新后重试。");
 
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("评论发布成功。");
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
-  // Check session on mount (useEffect for side-effects, not useMemo)
   useEffect(() => {
     if (!supabase) return;
     let cancelled = false;
@@ -88,7 +52,6 @@ export default function CommentForm({ postId, onCommentCreated }: CommentFormPro
     };
   }, [supabase]);
 
-  // Reset success state when body changes
   const handleBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setBody(e.target.value);
     if (success) setSuccess(false);
@@ -102,6 +65,7 @@ export default function CommentForm({ postId, onCommentCreated }: CommentFormPro
     setLoading(true);
     setError("");
     setSuccess(false);
+    setSuccessMessage("评论发布成功。");
 
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -109,28 +73,56 @@ export default function CommentForm({ postId, onCommentCreated }: CommentFormPro
         throw new Error("请先登录后再评论");
       }
 
+      const turnstileToken = await ensureToken({ forceRefresh: true });
+      const reqBody: Record<string, unknown> = {
+        post_id: postId,
+        body: body.trim(),
+        turnstile_token: turnstileToken || undefined,
+      };
+      if (parentId) reqBody.parent_id = parentId;
+
       const response = await fetch("/api/forum/comments", {
         method: "POST",
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${sessionData.session.access_token}`,
         },
-        body: JSON.stringify({ post_id: postId, body: body.trim() }),
+        body: JSON.stringify(reqBody),
       });
 
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; comment?: { id: string } }
+        | { error?: string; code?: string; comment?: Record<string, unknown>; pending_review?: boolean; message?: string }
         | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? `请求失败 (${response.status})`);
+        throw new Error(
+          payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `请求失败 (${response.status})`,
+        );
       }
 
       setBody("");
       setSuccess(true);
-      onCommentCreated?.();
+      setSuccessMessage(
+        payload?.pending_review
+          ? "评论已提交，正在等待审核。"
+          : "评论发布成功。",
+      );
+      resetToken();
+      onCommentCreated?.(payload?.comment ?? { id: "", post_id: postId, body: body.trim() });
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "提交失败");
+      const message = submitError instanceof Error ? submitError.message : "提交失败";
+      if (/TURNSTILE_REQUIRED/i.test(message)) {
+        setError("请先完成安全验证后再评论。");
+      } else if (/TURNSTILE_INVALID/i.test(message)) {
+        setError("评论验证失败，请刷新页面后重试。");
+      } else if (/CONTENT_REJECTED/i.test(message)) {
+        setError("这条评论可能违反社区规则，暂时无法发布。");
+      } else if (/RATE_LIMITED/i.test(message)) {
+        setError("评论过于频繁，请稍后再试。");
+      } else {
+        setError(message);
+      }
+      resetToken();
     } finally {
       setLoading(false);
     }
@@ -138,66 +130,76 @@ export default function CommentForm({ postId, onCommentCreated }: CommentFormPro
 
   if (!supabase) {
     return (
-      <section style={loginBoxStyle}>
-        <p style={{ color: "#5a6480" }}>评论功能未配置</p>
+      <section className="comment-shell">
+        <div className="glass-panel comment-panel comment-panel__login">
+          <p className="community-meta">评论功能未配置</p>
+        </div>
       </section>
     );
   }
 
   if (isLoggedIn === false) {
+    if (inline) return null;
     return (
-      <section style={loginBoxStyle}>
-        <p style={{ color: "#a0a8c0", marginBottom: "0.75rem" }}>
-          登录后即可发表评论
-        </p>
-        <a href="/forum/" style={buttonStyle}>
-          前往登录
-        </a>
+      <section className="comment-shell">
+        <div className="glass-panel comment-panel comment-panel__login">
+          <p className="community-meta" style={{ margin: "0 0 0.75rem" }}>
+            登录后即可发表评论
+          </p>
+          <a href={resolvedLoginHref} className="community-button">
+            前往登录
+          </a>
+        </div>
       </section>
     );
   }
 
+  const panelClass = inline
+    ? "glass-card comment-panel comment-panel--inline comment-reply-form__panel"
+    : "glass-panel comment-panel";
+  const shellTag = inline ? "div" : "section";
+  const Shell = shellTag as keyof JSX.IntrinsicElements;
+
   return (
-    <section style={wrapperStyle}>
-      <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", color: "#e8edf8" }}>
-        💬 发表评论
-      </h3>
-      <form onSubmit={handleSubmit}>
-        <textarea
-          style={textareaStyle}
-          value={body}
-          onChange={handleBodyChange}
-          placeholder="写下你的想法..."
-          minLength={1}
-          maxLength={5000}
-          required
-        />
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: "0.75rem",
-          }}
-        >
-          <span style={{ fontSize: "0.8rem", color: "#5a6480" }}>
-            {body.length}/5000
-          </span>
-          <button type="submit" style={buttonStyle} disabled={loading || !body.trim()}>
-            {loading ? "提交中..." : "发布评论"}
-          </button>
-        </div>
-      </form>
-      {error && (
-        <div style={{ ...messageStyle, borderColor: "#ef4444", color: "#fca5a5" }}>
-          ❌ {error}
-        </div>
-      )}
-      {success && (
-        <div style={{ ...messageStyle, borderColor: "#22c55e", color: "#86efac" }}>
-          ✅ 评论发布成功！
-        </div>
-      )}
-    </section>
+    <Shell className={inline ? "comment-reply-form" : "comment-shell"}>
+      <div className={panelClass}>
+        {!inline && <h3 className="comment-panel__title">发表评论</h3>}
+        <form onSubmit={handleSubmit} className="comment-form">
+          <textarea
+            className="glass-textarea"
+            value={body}
+            onChange={handleBodyChange}
+            placeholder={resolvedPlaceholder}
+            minLength={1}
+            maxLength={5000}
+            required
+            rows={inline ? 3 : undefined}
+          />
+          <div className="comment-form__footer">
+            <span className="community-meta">{body.length}/5000</span>
+            <div className="comment-form__actions">
+              {inline && onCancel ? (
+                <button
+                  type="button"
+                  className="community-action-button community-action-button--muted"
+                  onClick={onCancel}
+                  disabled={loading}
+                >
+                  取消回复
+                </button>
+              ) : null}
+              <button type="submit" className="community-button" disabled={loading || !body.trim()}>
+                {loading ? "提交中..." : parentId ? "发布回复" : "发布评论"}
+              </button>
+            </div>
+          </div>
+        </form>
+        {error && <div className="comment-inline-error">{error}</div>}
+        {success && <div className="comment-inline-success">{successMessage}</div>}
+        {turnstileError && <div className="comment-inline-error">{turnstileError}</div>}
+        {!turnstileReady && siteKeyEnabled && <div className="community-meta">正在初始化评论验证…</div>}
+        <div ref={containerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />
+      </div>
+    </Shell>
   );
 }

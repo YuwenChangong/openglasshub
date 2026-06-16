@@ -3,50 +3,72 @@ export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import CircleCard from "../../components/community/CircleCard.astro";
+import { isPublicVisibleCircle } from "../../lib/site-navigation";
+import { buildCircleImageMap } from "../../lib/circle-images";
+import { fetchCirclesWithFallback } from "../../lib/circle-data";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
 
-const { data: circles, error } = await supabase
-  .from("circles")
-  .select("id, name, slug, description, created_at")
-  .order("name", { ascending: true });
+const { circles, error } = await fetchCirclesWithFallback(supabase);
+const visibleCircles = circles.filter((circle) => isPublicVisibleCircle(circle));
+const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
 ---
 
 <ForumLayout
   title="圈子"
   description="OpenGlass Hub 论坛圈子。按话题分类的 AR/AI 眼镜社区讨论。"
   canonical="https://openglasshub.pages.dev/circles/"
+  activeTab="circles"
 >
   <h1>圈子</h1>
-  <p style="color: #8892b0; margin-top: -0.5rem;">按话题分类浏览社区讨论</p>
 
-  <div style="margin-bottom: 1.5rem;">
-    <a href="/feed/" class="btn-primary">← 返回动态</a>
+  <div class="community-cta-row" style="margin: 1.1rem 0 1.5rem;">
+    <a href="/feed/" class="community-action-button">返回动态</a>
+    <a href="/circles/new/" class="community-action-button community-action-button--primary">创建圈子</a>
   </div>
 
   {error ? (
-    <div class="empty-state">
-      <p>⚠️ 加载圈子时出错，请稍后重试。</p>
-      <p class="meta">{error.message}</p>
+    <div class="forum-empty">
+      <strong>加载圈子失败</strong>
+      <p>{error.message}</p>
     </div>
-  ) : !circles || circles.length === 0 ? (
-    <div class="empty-state">
-      <p style="font-size: 2rem; margin-bottom: 0.5rem;">⭕</p>
-      <p>暂时还没有圈子</p>
-      <p class="meta">圈子将会在社区活跃后开放。</p>
+  ) : visibleCircles.length === 0 ? (
+    <div class="forum-empty">
+      <strong>暂时还没有公开圈子</strong>
     </div>
   ) : (
-    <div style="display: grid; gap: 1rem;">
-      {circles.map((circle) => (
-        <a href={`/circles/${circle.slug}/`} class="card" style="text-decoration: none; display: block;">
-          <h3 style="margin: 0 0 0.5rem 0; color: #e8edf8; font-size: 1.15rem;">{circle.name}</h3>
-          {circle.description && (
-            <p style="color: #8892b0; margin: 0 0 0.5rem 0; font-size: 0.9rem;">{circle.description}</p>
-          )}
-          <span class="meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
-        </a>
+    <section class="circle-grid">
+      {visibleCircles.map((circle) => (
+        <CircleCard
+          id={circle.id}
+          name={circle.name}
+          slug={circle.slug}
+          description={circle.description || undefined}
+          latestNote={`创建于 ${new Date(circle.created_at).toLocaleDateString("zh-CN")}`}
+          imageUrl={circleImageMap.get(circle.id)}
+        />
       ))}
-    </div>
+    </section>
   )}
 </ForumLayout>
+
+<style>
+.circle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+:global(.community-circle-card) {
+  background: linear-gradient(180deg, rgba(36, 41, 40, 0.97), rgba(24, 28, 27, 0.95));
+}
+
+@media (max-width: 900px) {
+  .circle-grid {
+    grid-template-columns: 1fr;
+    }
+  }
+</style>
+

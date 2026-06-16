@@ -1,8 +1,18 @@
----
+﻿---
 export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import PostCard from "../../components/community/PostCard.astro";
+import GlobalSearchBox from "../../components/community/GlobalSearchBox";
+import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
+import { buildPostLikeCountMap } from "../../lib/post-engagement";
+import { buildCircleImageMap } from "../../lib/circle-images";
+import { fetchCircleBySlugWithFallback } from "../../lib/circle-data";
+import CircleManageEntry from "../../components/forum/CircleManageEntry";
+import { formatPostTime } from "../../lib/format-time";
+import { sanitizeBodyForDisplay } from "../../lib/post-body";
+import { isPublicVisibleCircle } from "../../lib/site-navigation";
 
 const { slug } = Astro.params;
 
@@ -12,14 +22,12 @@ if (!slug) {
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
+const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
 
-const { data: circle, error: circleError } = await supabase
-  .from("circles")
-  .select("id, name, slug, description, created_at")
-  .eq("slug", slug)
-  .single();
+const { circle, error: circleError } = await fetchCircleBySlugWithFallback(supabase, slug);
+const publicCircle = circle && isPublicVisibleCircle(circle) ? circle : null;
 
-if (circleError || !circle) {
+if (circleError || !publicCircle) {
   Astro.response.status = 404;
   Astro.response.statusText = "Not Found";
 }
@@ -27,11 +35,11 @@ if (circleError || !circle) {
 let posts: any[] = [];
 let postsError: any = null;
 
-if (circle) {
+if (publicCircle) {
   const result = await supabase
     .from("posts")
-    .select("id, title, type, created_at, profiles:author_id(display_name)")
-    .eq("circle_id", circle.id)
+    .select("id, author_id, title, body, type, created_at, profiles:author_id(display_name,username), post_media(*)")
+    .eq("circle_id", publicCircle.id)
     .eq("status", "published")
     .order("created_at", { ascending: false })
     .limit(50);
@@ -40,9 +48,15 @@ if (circle) {
   postsError = result.error;
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
-}
+const postMediaMap = publicCircle
+  ? await buildResolvedPostMediaMap(
+      supabase,
+      posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>,
+      60 * 60,
+      r2PublicBaseUrl,
+    )
+  : new Map();
+const likeCountMap = publicCircle ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
 
 const postTypeLabels: Record<string, string> = {
   experience: "体验",
@@ -53,83 +67,151 @@ const postTypeLabels: Record<string, string> = {
   feedback: "反馈",
 };
 
-const canonicalUrl = circle ? `https://openglasshub.pages.dev/circles/${circle.slug}/` : undefined;
+const canonicalUrl = publicCircle ? `https://openglasshub.pages.dev/circles/${publicCircle.slug}/` : undefined;
+const circleImageMap = publicCircle ? await buildCircleImageMap(supabase, [publicCircle]) : new Map();
+const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
 ---
 
-{!circle ? (
+{!publicCircle ? (
   <ForumLayout title="圈子未找到" noindex={true}>
-    <div class="empty-state">
-      <p style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</p>
-      <p>圈子未找到</p>
-      <p class="meta">该圈子可能不存在。</p>
-      <a href="/circles/" class="btn-primary" style="margin-top: 1rem;">返回圈子列表</a>
+    <div class="forum-empty">
+      <strong>圈子未找到</strong>
+      <p>该圈子可能不存在，或者当前还没有公开显示。</p>
+      <a href="/circles/" class="community-action-button">返回圈子列表</a>
     </div>
   </ForumLayout>
 ) : (
   <ForumLayout
-    title={circle.name}
-    description={circle.description || `${circle.name} — OpenGlass Hub 论坛圈子`}
+    title={publicCircle.name}
+    description={publicCircle.description || `${publicCircle.name} · OpenGlass Hub 论坛圈子`}
     canonical={canonicalUrl}
+    activeTab="circles"
   >
-    <nav class="breadcrumb">
+    <nav class="community-breadcrumb" aria-label="面包屑">
       <a href="/">首页</a>
-      <span>/</span>
-      <a href="/feed/">动态</a>
-      <span>/</span>
+      <span class="community-breadcrumb__sep">/</span>
+      <a href="/feed/">论坛</a>
+      <span class="community-breadcrumb__sep">/</span>
       <a href="/circles/">圈子</a>
-      <span>/</span>
-      <span style="color: #e8edf8;">{circle.name}</span>
+      <span class="community-breadcrumb__sep">/</span>
+      <span class="community-breadcrumb__current">{publicCircle.name}</span>
     </nav>
 
-    <header style="margin-bottom: 2rem;">
-      <h1 style="margin: 0 0 0.5rem 0; font-size: 1.75rem;">{circle.name}</h1>
-      {circle.description && (
-        <p style="color: #8892b0; margin: 0 0 0.5rem 0; font-size: 1rem;">{circle.description}</p>
-      )}
-      <span class="meta">创建于 {new Date(circle.created_at).toLocaleDateString("zh-CN")}</span>
+    <header style="margin-bottom: 1.4rem;">
+      {circleImageUrl ? (
+        <div class="circle-detail-cover">
+          <img src={circleImageUrl} alt={`${publicCircle.name} 圈子封面`} />
+        </div>
+      ) : null}
+      <h1 style="margin: 0 0 0.5rem 0; font-size: 1.75rem;">{publicCircle.name}</h1>
+      {publicCircle.description ? (
+        <p style="color: var(--text-muted); margin: 0 0 0.5rem 0; font-size: 1rem;">{publicCircle.description}</p>
+      ) : null}
+      <span class="forum-meta">创建于 {new Date(publicCircle.created_at).toLocaleDateString("zh-CN")}</span>
+      <div class="community-inline-links" style="margin-top: 0.8rem;">
+        <CircleManageEntry circleSlug={publicCircle.slug} ownerId={publicCircle.owner_id ?? null} client:load />
+      </div>
     </header>
 
-    <h2>圈子帖子</h2>
+    <div class="circle-stream-head">
+      <div>
+        <h2>圈子帖子</h2>
+      </div>
+      <div class="community-inline-links">
+        <a href="/posts/new/" class="community-action-button community-action-button--primary">发帖</a>
+        <a href="/feed/" class="community-action-button community-action-button--muted">全部动态</a>
+      </div>
+    </div>
+
+    <div class="circle-search-box-wrap">
+      <GlobalSearchBox circleSlug={publicCircle.slug} compact={true} client:load />
+    </div>
 
     {postsError ? (
-      <div class="empty-state">
-        <p>⚠️ 加载帖子时出错，请稍后重试。</p>
-        <p class="meta">{postsError.message}</p>
+      <div class="forum-empty">
+        <strong>加载帖子失败</strong>
+        <p>{postsError.message}</p>
       </div>
     ) : posts.length === 0 ? (
-      <div class="empty-state">
-        <p style="font-size: 2rem; margin-bottom: 0.5rem;">📝</p>
-        <p>该圈子暂无帖子</p>
-        <p class="meta">成为第一个在「{circle.name}」发帖的人吧！</p>
-        <a href="/forum/" class="btn-primary" style="margin-top: 1rem;">写第一篇帖子</a>
+      <div class="forum-empty">
+        <strong>该圈子还没有公开帖子</strong>
       </div>
     ) : (
-      <div style="display: grid; gap: 1rem;">
+      <div class="circle-post-stream">
         {posts.map((post) => (
-          <article class="card" style="padding: 1rem 1.5rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
-              {post.type && (
-                <span class="tag tag-purple">{postTypeLabels[post.type] || post.type}</span>
-              )}
-              <span class="meta">{formatDate(post.created_at)}</span>
-            </div>
-            <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">
-              <a href={`/posts/${post.id}/`} style="color: #e8edf8; text-decoration: none;">
-                {post.title}
-              </a>
-            </h3>
-            <div class="meta" style="display: flex; gap: 1rem;">
-              <span>by {post.profiles?.display_name || "匿名"}</span>
-            </div>
-          </article>
+          <PostCard
+            id={post.id}
+            title={post.title}
+            excerpt={sanitizeBodyForDisplay(post.body).replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110)}
+            circleName={publicCircle.name}
+            circleSlug={publicCircle.slug}
+            typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
+            authorName={post.profiles?.display_name || post.profiles?.username || undefined}
+            authorId={post.author_id}
+            authorUsername={post.profiles?.username || undefined}
+            timestamp={formatPostTime(post.created_at)}
+            media={postMediaMap.get(post.id) ?? []}
+            likeCount={likeCountMap.get(post.id) ?? 0}
+          />
         ))}
       </div>
     )}
 
-    <div class="footer" style="margin-top: 2rem;">
-      <a href="/circles/">← 返回圈子列表</a>
-      {" · "}
-      <a href="/feed/">查看全部动态</a>
+    <div class="community-cta-row footer-actions" style="margin-top: 2rem;">
+      <a href="/circles/" class="community-action-button community-action-button--muted">返回圈子列表</a>
+      <a href="/feed/" class="community-action-button community-action-button--muted">查看全部动态</a>
     </div>
   </ForumLayout>
 )}
+
+<style>
+  .circle-detail-cover {
+    width: 100%;
+    max-width: 560px;
+    margin: 0 0 1rem;
+    overflow: hidden;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .circle-detail-cover img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+  }
+  .circle-stream-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.8rem;
+    margin-bottom: 0.3rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .circle-stream-head h2 {
+    margin: 0;
+    font-size: 1.08rem;
+  }
+  .circle-search-box-wrap {
+    margin: 1rem 0 1.5rem;
+    max-width: 28rem;
+  }
+  .circle-post-stream {
+    display: grid;
+    gap: 0.2rem;
+  }
+  .footer-actions {
+    gap: 0.6rem;
+  }
+  @media (max-width: 900px) {
+    .circle-stream-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .circle-search-box-wrap {
+      max-width: 100%;
+    }
+  }
+</style>

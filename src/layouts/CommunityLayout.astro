@@ -1,0 +1,90 @@
+---
+import CommunityHeader from "../components/community/CommunityHeader.astro";
+import "../styles/community.css";
+
+export interface Props {
+  title: string;
+  description?: string;
+  noindex?: boolean;
+  canonical?: string;
+  ogImage?: string;
+  ogType?: "website" | "article" | "profile";
+  twitterCard?: "summary" | "summary_large_image";
+  activeSection?: "home" | "forum" | "news" | "products" | "launcher";
+  pageClass?: string;
+}
+
+const {
+  title,
+  description,
+  noindex,
+  canonical,
+  ogImage,
+  ogType = "website",
+  twitterCard = "summary_large_image",
+  activeSection,
+  pageClass = "",
+} = Astro.props;
+const siteName = "OpenGlass Hub";
+const baseUrl = Astro.site?.toString() ?? "https://openglasshub.pages.dev";
+const fullTitle = `${title} | ${siteName}`;
+const canonicalHref = canonical ? new URL(canonical, baseUrl).toString() : undefined;
+const ogImageHref = new URL(ogImage ?? "/brand/logo.jpg", baseUrl).toString();
+const robotsContent = noindex ? "noindex,nofollow" : "index,follow,max-image-preview:large";
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <meta name="robots" content={robotsContent} />
+    {canonicalHref && <link rel="canonical" href={canonicalHref} />}
+    <meta property="og:title" content={fullTitle} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content={ogImageHref} />
+    {canonicalHref && <meta property="og:url" content={canonicalHref} />}
+    <meta name="twitter:card" content={twitterCard} />
+    <meta name="twitter:title" content={fullTitle} />
+    {description && <meta name="twitter:description" content={description} />}
+    <meta name="twitter:image" content={ogImageHref} />
+    <meta name="theme-color" content="#0b0f10" />
+    <link rel="icon" type="image/x-icon" href="/gaze-icon-v6.ico" />
+    <link rel="icon" type="image/svg+xml" href="/gaze-icon-v6.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/gaze-icon-32-v6.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v6.png" />
+  </head>
+  <body>
+    <CommunityHeader currentPath={Astro.url.pathname} currentSection={activeSection} next={Astro.url.pathname} />
+    <slot name="belowHeader" />
+    <main class:list={["community-shell", pageClass]}>
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style>
+  :root { color-scheme: dark; }
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  *,
+  *::before,
+  *::after { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #0b0f10;
+    color: #f2f4f5;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+    line-height: 1.65;
+    overflow-x: hidden;
+  }
+  a { color: inherit; }
+</style>

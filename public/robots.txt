@@ -1,4 +1,16 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auth/callback/
+Disallow: /auth/reset-password/
+Disallow: /login/
+Disallow: /me/
+Disallow: /notifications/
+Disallow: /posts/new/
+Disallow: /circles/new/
+Disallow: /search/
+Disallow: /users/
 
+Sitemap: https://openglasshub.pages.dev/sitemap.xml
 Sitemap: https://openglasshub.pages.dev/sitemap-index.xml

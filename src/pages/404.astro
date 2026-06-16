@@ -1,0 +1,56 @@
+---
+import CommunityLayout from "../layouts/CommunityLayout.astro";
+---
+
+<CommunityLayout
+  title="页面未找到"
+  description="你访问的页面不存在，或当前预览环境还没有这条内容。"
+  noindex={true}
+  activeSection="home"
+>
+  <section class="not-found-page community-surface community-surface--padded">
+    <p class="not-found-page__eyebrow">404</p>
+    <h1>页面未找到</h1>
+    <p class="not-found-page__lead">链接可能已失效、内容尚未发布，或者你访问的是预览环境里不存在的地址。</p>
+    <div class="not-found-page__actions">
+      <a href="/" class="community-button">返回首页</a>
+      <a href="/feed/" class="community-button--secondary">查看论坛</a>
+      <a href="/news/" class="community-button--secondary">查看热点</a>
+      <a href="/search/" class="community-button--secondary">进入搜索</a>
+    </div>
+  </section>
+</CommunityLayout>
+
+<style>
+  .not-found-page {
+    width: min(100%, 760px);
+    margin: 3.5rem auto 0;
+    display: grid;
+    gap: 0.9rem;
+    text-align: center;
+  }
+  .not-found-page__eyebrow {
+    margin: 0;
+    color: rgba(242, 244, 245, 0.54);
+    font-size: 0.78rem;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+  }
+  .not-found-page h1 {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    letter-spacing: -0.05em;
+  }
+  .not-found-page__lead {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.98rem;
+  }
+  .not-found-page__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.65rem;
+    margin-top: 0.35rem;
+  }
+</style>

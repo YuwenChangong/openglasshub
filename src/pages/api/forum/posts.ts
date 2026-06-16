@@ -12,6 +12,17 @@
 
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  safeIncrementPostViewCount,
+} from "../../../lib/post-engagement";
+import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
+import { getRequestIp } from "../../../lib/request-ip";
+import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
+import { mergeModerationResults, moderateContent } from "../../../lib/moderation/moderate-content.server";
+import { isModeratorRole } from "../../../lib/server/admin-auth";
+import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { validateTurnstileToken } from "../../../lib/server/turnstile";
+import { listForumFeed, parseFeedSort } from "../../../lib/forum-feed";
 
 export const prerender = false;
 
@@ -61,31 +72,59 @@ function createUserClient(
   });
 }
 
+function isMissingCircleStatusError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("status") && message.includes("does not exist");
+}
+
+async function loadViewerRole(client: SupabaseClient, userId: string): Promise<string | null> {
+  const { data, error } = await client
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as { role?: string | null } | null)?.role ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
 
 const ALLOWED_TYPES = new Set(["experience", "question", "review", "dev", "news", "feedback"]);
 
-function validatePayload(payload: Record<string, unknown>): string | null {
+function validatePayload(payload: Record<string, unknown>): { code: string; message: string } | null {
   const circleSlug = String(payload.circle_slug ?? "").trim();
   const title = String(payload.title ?? "").trim();
   const body = String(payload.body ?? "").trim();
+  const hasMedia = payload.has_media === true;
   const type = String(payload.type ?? "").trim();
 
-  if (!circleSlug || !title || !body || !type) {
-    return "circle_slug, title, body, type are required";
+  if (!circleSlug || !title || !type) {
+    return { code: "INVALID_POST_PAYLOAD", message: "circle_slug, title, type are required" };
   }
   if (title.length < 3 || title.length > 180) {
-    return "title must be 3-180 characters";
+    return { code: "INVALID_POST_TITLE", message: "title must be 3-180 characters" };
   }
-  if (body.length < 10 || body.length > 20000) {
-    return "body must be 10-20000 characters";
+  if (body.length > 50000) {
+    return { code: "INVALID_POST_BODY", message: "body must be <=50000 characters" };
+  }
+  if (!body && !hasMedia) {
+    return { code: "INVALID_POST_BODY", message: "body or media is required" };
   }
   if (!ALLOWED_TYPES.has(type)) {
-    return "Invalid post type";
+    return { code: "INVALID_POST_TYPE", message: "Invalid post type" };
   }
   return null;
+}
+
+function isPostBodyConstraintError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("posts_body_check") || (message.includes("body") && message.includes("check constraint"));
 }
 
 // ---------------------------------------------------------------------------
@@ -100,42 +139,72 @@ export const GET: APIRoute = async ({ request, locals }) => {
     }
 
     const url = new URL(request.url);
+    if (url.searchParams.get("moderation_check") === "1") {
+      const token = getBearerToken(request);
+      if (!token) {
+        return json({ error: "Missing bearer token" }, 401);
+      }
+      const userClient = createUserClient(env, token);
+      const { data: authData, error: authError } = await userClient.auth.getUser(token);
+      if (authError || !authData.user) {
+        return json({ error: "Invalid auth token" }, 401);
+      }
+      return json({
+        configured: true,
+        can_moderate: isModeratorRole(await loadViewerRole(userClient, authData.user.id)),
+      });
+    }
+
+    const ownershipCheckId = String(url.searchParams.get("ownership_check") ?? "").trim();
+    if (ownershipCheckId) {
+      const token = getBearerToken(request);
+      if (!token) {
+        return json({ error: "Missing bearer token" }, 401);
+      }
+      const userClient = createUserClient(env, token);
+      const { data: authData, error: authError } = await userClient.auth.getUser(token);
+      if (authError || !authData.user) {
+        return json({ error: "Invalid auth token" }, 401);
+      }
+      const { data: post, error: postError } = await userClient
+        .from("posts")
+        .select("id,author_id")
+        .eq("id", ownershipCheckId)
+        .maybeSingle();
+      if (postError) {
+        return json({ error: postError.message }, 500);
+      }
+      if (!post) {
+        return json({ exists: false, is_author: false }, 200);
+      }
+      return json({ exists: true, is_author: post.author_id === authData.user.id }, 200);
+    }
+
     const circleSlug = url.searchParams.get("circle");
+    const sort = parseFeedSort(url.searchParams.get("sort"));
     const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 20;
+    const pageParam = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
+    const page = Number.isFinite(pageParam) ? Math.max(1, pageParam) : 1;
+    const incrementView = url.searchParams.get("increment_view") === "1";
+    const incrementPostId = String(url.searchParams.get("id") ?? "").trim();
 
     const client = createAnonClient(env);
 
-    let query = client
-      .from("posts")
-      .select(
-        "id,title,type,status,created_at,last_activity_at,circle_id,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name)",
-      )
-      .eq("status", "published")
-      .order("last_activity_at", { ascending: false })
-      .limit(limit);
-
-    if (circleSlug) {
-      const { data: circle, error: circleError } = await client
-        .from("circles")
-        .select("id")
-        .eq("slug", circleSlug)
-        .maybeSingle();
-      if (circleError) {
-        return json({ error: circleError.message }, 500);
-      }
-      if (!circle) {
-        return json({ posts: [], total: 0 }, 200);
-      }
-      query = query.eq("circle_id", circle.id);
+    if (incrementView && incrementPostId) {
+      const result = await safeIncrementPostViewCount(client, incrementPostId);
+      return json(result.ok ? { ok: true } : { ok: false }, 200);
     }
 
-    const { data, error } = await query;
-    if (error) {
-      return json({ error: error.message }, 500);
-    }
+    const feed = await listForumFeed({
+      client,
+      sort,
+      limit,
+      page,
+      circleSlug,
+    });
 
-    return json({ posts: data ?? [], total: data?.length ?? 0 });
+    return json(feed);
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },
@@ -173,13 +242,63 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const validationError = validatePayload(payload);
     if (validationError) {
-      return json({ error: validationError }, 400);
+      return json({ error: validationError.message, code: validationError.code }, 400);
+    }
+    const turnstileToken = String(payload.turnstile_token ?? "").trim();
+    const turnstile = await validateTurnstileToken({
+      env,
+      token: turnstileToken,
+      remoteIp: getRequestIp(request),
+    });
+    if (!turnstile.ok) {
+      return json({ error: turnstile.message ?? "Turnstile verification failed", code: turnstile.code }, 403);
+    }
+    const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
+    const ipHash = await hashRateLimitIp(getRequestIp(request), rateSalt);
+    const rateLimit = await enforceUserRateLimit({
+      client: userClient,
+      userId: authData.user.id,
+      ipHash,
+      purpose: "post_create",
+      maxAttempts: 10,
+      windowMs: 60 * 60 * 1000,
+      bytes: 0,
+    });
+    if (!rateLimit.allowed) {
+      if (rateLimit.reason === "RATE_LIMITED") {
+        return json({ error: "Too many posts created", code: "RATE_LIMITED" }, 429);
+      }
     }
 
     const circleSlug = String(payload.circle_slug ?? "").trim();
     const title = String(payload.title ?? "").trim();
     const body = String(payload.body ?? "").trim();
+    const hasMedia = payload.has_media === true;
+    const normalizedBody = body || (hasMedia ? MEDIA_ONLY_SENTINEL : "");
     const type = String(payload.type ?? "").trim();
+
+    const moderation = mergeModerationResults([
+      await moderateContent(env, {
+        contentType: "post_title",
+        userId: authData.user.id,
+        text: title,
+      }),
+      await moderateContent(env, {
+        contentType: "post_body",
+        userId: authData.user.id,
+        text: body,
+      }),
+    ]);
+
+    if (moderation.decision === "reject") {
+      return json(
+        {
+          error: "This post could not be published because it may violate community rules.",
+          code: "CONTENT_REJECTED",
+        },
+        403,
+      );
+    }
 
     // Verify profile exists
     const { data: profile, error: profileError } = await userClient
@@ -195,16 +314,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Resolve circle
-    const { data: circle, error: circleError } = await userClient
+    let { data: circle, error: circleError } = await userClient
       .from("circles")
       .select("id")
       .eq("slug", circleSlug)
+      .eq("status", "active")
       .maybeSingle();
+    if (circleError && isMissingCircleStatusError(circleError)) {
+      const fallback = await userClient
+        .from("circles")
+        .select("id")
+        .eq("slug", circleSlug)
+        .maybeSingle();
+      circle = fallback.data;
+      circleError = fallback.error;
+    }
     if (circleError) {
       return json({ error: circleError.message }, 500);
     }
     if (!circle) {
-      return json({ error: "Circle not found" }, 404);
+      return json({ error: "Circle not found or deleted" }, 404);
     }
 
     // Insert post (RLS enforces ownership)
@@ -215,16 +344,230 @@ export const POST: APIRoute = async ({ request, locals }) => {
         circle_id: circle.id,
         type,
         title,
-        body,
-        status: "pending",
+        body: normalizedBody,
+        status: moderation.decision === "review" ? "pending" : "published",
+        moderation_status: moderation.decision === "review" ? "pending_review" : "published",
+        moderation_reason: moderation.reason,
+        moderation_score: moderation.score,
+        moderated_at: new Date().toISOString(),
+        moderated_by: null,
+        moderation_provider: moderation.provider,
       })
       .select("id,author_id,circle_id,type,title,status,created_at")
       .single();
     if (insertError) {
+      if (isPostBodyConstraintError(insertError)) {
+        return json({ error: "Post body is invalid", code: "INVALID_POST_BODY" }, 400);
+      }
       return json({ error: insertError.message }, 500);
     }
 
-    return json({ post: inserted }, 201);
+    const pendingReview = moderation.decision === "review";
+    return json(
+      {
+        post: inserted,
+        pending_review: pendingReview,
+        message: pendingReview
+          ? "Your post was submitted and is waiting for review."
+          : "Post published.",
+      },
+      pendingReview ? 202 : 201,
+    );
+  } catch (err) {
+    return json(
+      { error: err instanceof Error ? err.message : "Unexpected server error" },
+      500,
+    );
+  }
+};
+
+// ---------------------------------------------------------------------------
+// DELETE — remove a post owned by current user (soft delete preferred)
+// ---------------------------------------------------------------------------
+
+export const DELETE: APIRoute = async ({ request, locals }) => {
+  try {
+    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    if (!env) {
+      return json({ error: "Runtime environment not available" }, 500);
+    }
+
+    const token = getBearerToken(request);
+    if (!token) {
+      return json({ error: "Missing bearer token" }, 401);
+    }
+
+    const userClient = createUserClient(env, token);
+    const { data: authData, error: authError } = await userClient.auth.getUser(token);
+    if (authError || !authData.user) {
+      return json({ error: "Invalid auth token" }, 401);
+    }
+    const viewerRole = await loadViewerRole(userClient, authData.user.id);
+    const isStaff = isModeratorRole(viewerRole);
+
+    const url = new URL(request.url);
+    const postId = String(url.searchParams.get("id") ?? url.searchParams.get("post_id") ?? "").trim();
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(postId)) {
+      return json({ error: "Invalid post_id format" }, 400);
+    }
+
+    const { data: post, error: postError } = await userClient
+      .from("posts")
+      .select("id, author_id, status")
+      .eq("id", postId)
+      .maybeSingle();
+    if (postError) {
+      return json({ error: postError.message }, 500);
+    }
+    if (!post) {
+      return json({ error: "Post not found" }, 404);
+    }
+    if (post.author_id !== authData.user.id && !isStaff) {
+      return json({ error: "Cannot delete a post you do not own" }, 403);
+    }
+    if (post.status === "deleted") {
+      return json({
+        ok: true,
+        status: "deleted",
+        post: { id: postId, status: "deleted" },
+        cleanup: {
+          ok: true,
+          warnings: [],
+          errors: [],
+          deletedObjects: [],
+          deletedRows: 0,
+        },
+        message: "已删除",
+      });
+    }
+
+    let mediaQuery = userClient
+      .from("post_media")
+      .select("id,kind,storage_path,url")
+      .eq("post_id", postId);
+    if (!isStaff) {
+      mediaQuery = mediaQuery.eq("user_id", authData.user.id);
+    }
+
+    const { data: mediaRows, error: mediaQueryError } = await mediaQuery;
+    if (mediaQueryError) {
+      return json({ error: mediaQueryError.message }, 500);
+    }
+
+    let updateQuery = userClient
+      .from("posts")
+      .update({ status: "deleted" })
+      .eq("id", postId);
+    if (!isStaff) {
+      updateQuery = updateQuery.eq("author_id", authData.user.id);
+    }
+
+    const { data: updated, error: updateError } = await updateQuery
+      .select("id,status")
+      .single();
+    if (updateError) {
+      // Backward compatibility: old RLS policies may not allow authors to set deleted.
+      let hardDeleteQuery = userClient
+        .from("posts")
+        .delete()
+        .eq("id", postId);
+      if (!isStaff) {
+        hardDeleteQuery = hardDeleteQuery.eq("author_id", authData.user.id);
+      }
+      const { error: hardDeleteError } = await hardDeleteQuery;
+      if (hardDeleteError) {
+        return json({ error: updateError.message }, 500);
+      }
+      return json({
+        ok: true,
+        post: { id: postId, status: "deleted" },
+        mode: "hard_delete_fallback",
+        cleanup: {
+          ok: true,
+          warnings: [],
+          errors: [],
+          deletedObjects: [],
+          deletedRows: 0,
+        },
+      });
+    }
+
+    const cleanup = await deletePostMediaObjects({
+      env: env as Record<string, string | undefined>,
+      client: userClient,
+      mediaRows: mediaRows ?? [],
+      deleteRows: true,
+    });
+
+    return json({
+      ok: true,
+      status: "deleted",
+      post: updated,
+      cleanup: {
+        ok: cleanup.ok,
+        warnings: cleanup.warnings,
+        errors: cleanup.errors,
+        deletedObjects: cleanup.deletedObjects,
+        deletedRows: cleanup.deletedRows,
+      },
+      message: cleanup.ok ? "已删除并清理媒体" : "已删除，部分媒体清理需要后续重试",
+    });
+  } catch (err) {
+    return json(
+      { error: err instanceof Error ? err.message : "Unexpected server error" },
+      500,
+    );
+  }
+};
+
+export const PATCH: APIRoute = async ({ request, locals }) => {
+  try {
+    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    if (!env) {
+      return json({ error: "Runtime environment not available" }, 500);
+    }
+
+    const token = getBearerToken(request);
+    if (!token) {
+      return json({ error: "Missing bearer token" }, 401);
+    }
+
+    const userClient = createUserClient(env, token);
+    const { data: authData, error: authError } = await userClient.auth.getUser(token);
+    if (authError || !authData.user) {
+      return json({ error: "Invalid auth token" }, 401);
+    }
+    const viewerRole = await loadViewerRole(userClient, authData.user.id);
+
+    const payload = (await request.json().catch(() => null)) as
+      | { id?: string; status?: string }
+      | null;
+    const postId = String(payload?.id ?? "").trim();
+    const nextStatus = String(payload?.status ?? "").trim();
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(postId)) {
+      return json({ error: "Invalid post id" }, 400);
+    }
+    if (nextStatus !== "hidden") {
+      return json({ error: "Only hidden status is supported in this endpoint" }, 400);
+    }
+
+    if (!isModeratorRole(viewerRole)) {
+      return json({ error: "Forbidden" }, 403);
+    }
+
+    const { data: updated, error: updateError } = await userClient
+      .from("posts")
+      .update({ status: "hidden" })
+      .eq("id", postId)
+      .select("id,status")
+      .single();
+    if (updateError) {
+      return json({ error: updateError.message }, 500);
+    }
+
+    return json({ post: updated });
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },

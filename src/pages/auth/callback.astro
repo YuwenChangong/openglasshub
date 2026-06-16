@@ -1,0 +1,26 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import AuthCallback from "../../components/auth/AuthCallback";
+
+const next = Astro.url.searchParams.get("next") ?? "/";
+---
+
+<CommunityLayout
+  title="登录确认"
+  description="处理 OpenGlass Hub 的邮箱确认与登录回调。"
+  canonical="https://openglasshub.pages.dev/auth/callback/"
+  noindex={true}
+>
+  <section class="auth-callback-page">
+    <AuthCallback next={next} client:only="react" />
+  </section>
+</CommunityLayout>
+
+<style>
+  .auth-callback-page {
+    width: min(100%, 480px);
+    margin: 2rem auto 0;
+  }
+</style>

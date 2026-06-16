@@ -1,0 +1,321 @@
+﻿---
+export const prerender = false;
+
+import CommunityLayout from "../layouts/CommunityLayout.astro";
+import AuthCTA from "../components/auth/AuthCTA";
+import SignedOutHeroNote from "../components/auth/SignedOutHeroNote";
+import PostCard from "../components/community/PostCard.astro";
+import EmptyFeedState from "../components/community/EmptyFeedState.astro";
+import { formatPostTime } from "../lib/format-time";
+import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
+import { listPublicNewsFeed } from "../lib/news";
+import { buildResolvedPostMediaMap, type PostMediaRow } from "../lib/forum-media";
+import { buildPostLikeCountMap } from "../lib/post-engagement";
+import { sanitizeBodyForDisplay } from "../lib/post-body";
+import { isPublicVisibleCircle } from "../lib/site-navigation";
+
+type PostRow = {
+  id: string;
+  author_id: string;
+  title: string;
+  body?: string | null;
+  type?: string | null;
+  created_at: string;
+  last_activity_at?: string | null;
+  profiles?: { display_name?: string | null; username?: string | null } | null;
+  circles?: { slug?: string | null; name?: string | null } | null;
+  post_media?: PostMediaRow[] | null;
+};
+
+const env = (Astro.locals as { runtime?: { env?: CloudflareEnv } }).runtime?.env;
+const supabase = env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY ? createSSRClient(env) : null;
+const r2PublicBaseUrl = env?.R2_PUBLIC_BASE_URL || "";
+
+let posts: PostRow[] = [];
+let loadError = "";
+let homeCircles: Array<{ slug?: string | null; name?: string | null; description?: string | null; status?: string | null }> = [];
+
+if (supabase) {
+  const [postResult, circleResult] = await Promise.all([
+    supabase
+      .from("posts")
+      .select("id,author_id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)")
+      .eq("status", "published")
+      .order("created_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("circles")
+      .select("slug,name,description,status")
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
+
+  if (postResult.error) {
+    loadError = postResult.error.message;
+  } else {
+    posts = (postResult.data ?? []) as PostRow[];
+  }
+
+  if (!circleResult.error) {
+    homeCircles = (circleResult.data ?? []).filter((circle) => isPublicVisibleCircle(circle));
+  }
+}
+
+const postMediaMap = supabase
+  ? await buildResolvedPostMediaMap(supabase, posts, 60 * 60, r2PublicBaseUrl)
+  : new Map();
+const likeCountMap = supabase ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
+const homeNewsFeed = supabase
+  ? await listPublicNewsFeed(supabase, { filter: "recommended", page: 1, limit: 3 })
+  : { articles: [], featuredArticle: null, hotArticles: [], latestArticles: [], total: 0, page: 1, limit: 3, hasMore: false };
+
+const postTypeLabels: Record<string, string> = {
+  experience: "体验/评测",
+  question: "求助",
+  review: "评测",
+  dev: "开发",
+  news: "资讯",
+  feedback: "反馈",
+};
+
+const quickLinks = [
+  { href: "/feed/?sort=recommended", label: "推荐讨论" },
+  { href: "/circles/", label: "圈子" },
+  { href: "/news/", label: "热点" },
+  { href: "/devices/", label: "设备库" },
+] as const;
+
+function excerpt(body?: string | null): string {
+  const sanitized = sanitizeBodyForDisplay(body);
+  if (!sanitized) return "";
+  return sanitized.replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110);
+}
+---
+
+<CommunityLayout
+  title="OpenGlass Hub"
+  description="AR/AI 眼镜玩家、开发者和早期用户的中文社区。"
+  canonical="https://openglasshub.pages.dev/"
+  activeSection="home"
+>
+  <section class="home-intro">
+    <div class="home-intro__copy">
+      <h1>OpenGlass Hub</h1>
+      <p>AR / AI 眼镜社区：讨论设备、体验、开发与空间计算。</p>
+      <small>For builders, early users, and people deciding what matters before they buy.</small>
+    </div>
+    <div class="home-intro__actions">
+      <a href="/feed/" class="community-button">进入论坛</a>
+      <a href="/posts/new/" class="community-button--secondary">发起讨论</a>
+    </div>
+  </section>
+
+  <section class="home-channel-bar" aria-label="社区入口">
+    <div class="community-inline-links home-channel-bar__links">
+      {quickLinks.map((item) => (
+        <a href={item.href} class="community-inline-link">{item.label}</a>
+      ))}
+    </div>
+  </section>
+
+  <section class="home-grid">
+    <div class="community-feed-column">
+      <div class="community-stream-head">
+        <div>
+          <h2>正在讨论</h2>
+          <p>{posts.length > 0 ? `公开讨论会先从这里开始。` : "社区正在启动，公开讨论会先从这里开始。"}</p>
+        </div>
+        <div class="community-inline-links">
+          <a href="/feed/" class="community-inline-link community-inline-link--active">全部讨论</a>
+          <a href="/feed/?sort=latest" class="community-inline-link">最新</a>
+          <a href="/feed/?sort=hot" class="community-inline-link">热门</a>
+        </div>
+      </div>
+
+      {loadError ? (
+        <div class="community-empty">
+          <strong>讨论加载失败</strong>
+          <p>{loadError}</p>
+        </div>
+      ) : posts.length === 0 ? (
+        <EmptyFeedState />
+      ) : (
+        <div class="community-feed-list">
+          {posts.map((post) => (
+            <PostCard
+              id={post.id}
+              title={post.title}
+              excerpt={excerpt(post.body)}
+              circleName={post.circles?.name ?? undefined}
+              circleSlug={post.circles?.slug ?? undefined}
+              typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
+              authorName={post.profiles?.display_name || post.profiles?.username || undefined}
+              authorId={post.author_id}
+              authorUsername={post.profiles?.username || undefined}
+              timestamp={formatPostTime(post.created_at)}
+              media={postMediaMap.get(post.id) ?? []}
+              likeCount={likeCountMap.get(post.id) ?? 0}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+
+    <aside class="community-sidebar">
+      <section class="community-sidebar-block community-sidebar-block--strong">
+        <div class="home-utility-block">
+          <div class="community-sidebar-head">
+            <h2>工具入口</h2>
+          </div>
+          <AuthCTA next="/" client:only="react" />
+          <SignedOutHeroNote client:only="react" />
+          <div class="community-list home-utility-list">
+            <a href="/devices/" class="community-list-item">
+              <strong>设备库</strong>
+              <span>按品牌和路线查看资料。</span>
+            </a>
+            <a href="/gaze-launcher/" class="community-list-item">
+              <strong>Gaze Launcher</strong>
+              <span>查看产品方向和当前进展。</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="community-sidebar-block">
+        <div class="community-sidebar-head">
+          <h2>热点</h2>
+          <a href="/news/" class="community-link">全部</a>
+        </div>
+        <div class="community-list">
+          {homeNewsFeed.articles.slice(0, 3).map((item) => (
+            <a href={`/news/${item.slug}/`} class="community-list-item">
+              <strong>{item.title}</strong>
+              <span>{new Date(item.published_at ?? item.created_at).toLocaleDateString("zh-CN")}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <section class="community-sidebar-block">
+        <div class="community-sidebar-head">
+          <h2>热门圈子</h2>
+          <a href="/circles/" class="community-link">全部</a>
+        </div>
+        <div class="community-list">
+          {homeCircles.slice(0, 4).map((circle) => (
+            <a href={`/circles/${circle.slug}/`} class="community-list-item">
+              <strong>{circle.name}</strong>
+              <span>{circle.description || "进入圈子查看公开讨论。"}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    </aside>
+  </section>
+</CommunityLayout>
+
+<style>
+  .home-intro {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 1.4rem;
+    padding: 1.1rem 0 2.2rem;
+  }
+  .home-intro__copy {
+    min-width: 0;
+  }
+  .home-intro h1 {
+    margin: 0;
+    max-width: 11ch;
+    font-size: clamp(2.8rem, 5vw, 3.5rem);
+    line-height: 0.96;
+    letter-spacing: -0.05em;
+    text-wrap: balance;
+  }
+  .home-intro p {
+    margin: 0.9rem 0 0;
+    max-width: 32ch;
+    color: var(--text-muted);
+    font-size: 1.06rem;
+    line-height: 1.6;
+  }
+  .home-intro small {
+    display: block;
+    margin-top: 0.7rem;
+    color: var(--text-faint);
+    font-size: 0.92rem;
+    line-height: 1.6;
+  }
+  .home-intro__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.7rem;
+  }
+  .home-channel-bar {
+    margin-bottom: 1.35rem;
+    padding: 0 0 1.1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .home-channel-bar__links {
+    gap: 0.5rem;
+  }
+  .home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 2rem;
+    align-items: start;
+  }
+  .community-feed-column {
+    min-width: 0;
+  }
+  .community-stream-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 0 1rem;
+    margin-bottom: 0.15rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .community-stream-head h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    letter-spacing: -0.02em;
+  }
+  .community-stream-head p {
+    margin: 0.28rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+  }
+  .home-utility-block {
+    display: grid;
+    gap: 0.8rem;
+  }
+  .home-utility-list {
+    padding-top: 0.1rem;
+  }
+  @media (max-width: 900px) {
+    .home-intro,
+    .home-grid {
+      grid-template-columns: 1fr;
+    }
+    .community-stream-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .home-intro__actions {
+      justify-content: flex-start;
+    }
+  }
+  @media (max-width: 720px) {
+    .home-intro h1 {
+      font-size: 2.35rem;
+    }
+    .home-intro p {
+      font-size: 1rem;
+    }
+  }
+</style>

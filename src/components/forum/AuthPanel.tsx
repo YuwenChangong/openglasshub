@@ -1,67 +1,38 @@
-import { useMemo, useState } from "react";
-import { createClient, type User } from "@supabase/supabase-js";
+import { useEffect, useMemo, useState } from "react";
+import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
+import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 
 type Mode = "login" | "signup";
 
-const wrapperStyle: React.CSSProperties = {
-  maxWidth: "760px",
-  margin: "2rem auto",
-  padding: "1.5rem",
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.75rem",
-  background: "var(--sl-color-bg-nav)",
-};
+interface AuthPanelProps {
+  next?: string;
+}
 
-const stackStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "0.75rem",
-};
+type ResendResponse =
+  | { ok: true; message?: string }
+  | { ok: false; error?: string };
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  background: "var(--sl-color-black)",
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.5rem",
-  color: "var(--sl-color-white)",
-  padding: "0.625rem 0.75rem",
-};
+const RESEND_COOLDOWN_MS = 60_000;
+const RESEND_COOLDOWN_STORAGE_KEY = "auth-resend-confirmation-cooldown-until";
 
-const buttonStyle: React.CSSProperties = {
-  borderRadius: "0.5rem",
-  border: "1px solid var(--sl-color-accent)",
-  background: "var(--sl-color-accent)",
-  color: "var(--sl-color-white)",
-  fontWeight: 600,
-  padding: "0.625rem 0.875rem",
-  cursor: "pointer",
-};
+function mapAuthError(errorMessage: string): string {
+  if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
+  if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
+  if (/User already registered/i.test(errorMessage)) {
+    return "如果账号已存在，请直接登录；如果账号尚未完成验证，可以重新发送验证邮件。";
+  }
+  if (/Password should be at least/i.test(errorMessage)) return "密码长度至少为 8 位。";
+  return errorMessage;
+}
 
-const secondaryButtonStyle: React.CSSProperties = {
-  ...buttonStyle,
-  border: "1px solid var(--sl-color-gray-5)",
-  background: "transparent",
-};
-
-const messageStyle: React.CSSProperties = {
-  border: "1px solid var(--sl-color-gray-5)",
-  borderRadius: "0.5rem",
-  padding: "0.75rem",
-  fontSize: "0.95rem",
-};
-
-export default function AuthPanel() {
-  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    });
-  }, [supabaseAnonKey, supabaseUrl]);
+export default function AuthPanel({ next }: AuthPanelProps) {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const safeNext = useMemo(() => {
+    if (next) return getSafeNext(next);
+    if (typeof window === "undefined") return "/";
+    return getSafeNext(new URLSearchParams(window.location.search).get("next"));
+  }, [next]);
 
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -69,29 +40,64 @@ export default function AuthPanel() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [postCircleSlug, setPostCircleSlug] = useState("xreal");
-  const [postType, setPostType] = useState("question");
-  const [postTitle, setPostTitle] = useState("");
-  const [postBody, setPostBody] = useState("");
-  const [postSubmitting, setPostSubmitting] = useState(false);
-  const [postMessage, setPostMessage] = useState("");
-  const [postError, setPostError] = useState("");
+  const [sendingReset, setSendingReset] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resendCooldownUntil, setResendCooldownUntil] = useState(0);
+  const [cooldownNow, setCooldownNow] = useState(() => Date.now());
+  const { status, user } = useBrowserAuthState(supabase);
 
-  async function refreshSession() {
-    if (!supabase) return;
-    const { data, error: sessionError } = await supabase.auth.getUser();
-    if (sessionError) {
-      setError(sessionError.message);
-      setUser(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedValue = window.localStorage.getItem(RESEND_COOLDOWN_STORAGE_KEY);
+    const parsed = Number(storedValue ?? "0");
+    if (Number.isFinite(parsed) && parsed > Date.now()) {
+      setResendCooldownUntil(parsed);
+      setCooldownNow(Date.now());
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!resendCooldownUntil || resendCooldownUntil <= Date.now()) {
+      if (resendCooldownUntil && typeof window !== "undefined") {
+        window.localStorage.removeItem(RESEND_COOLDOWN_STORAGE_KEY);
+      }
       return;
     }
-    setUser(data.user ?? null);
+
+    setCooldownNow(Date.now());
+    const timer = window.setInterval(() => {
+      const nextNow = Date.now();
+      setCooldownNow(nextNow);
+      if (nextNow >= resendCooldownUntil) {
+        setResendCooldownUntil(0);
+        window.localStorage.removeItem(RESEND_COOLDOWN_STORAGE_KEY);
+        window.clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [resendCooldownUntil]);
+
+  const resendCooldownSeconds = resendCooldownUntil > cooldownNow
+    ? Math.max(1, Math.ceil((resendCooldownUntil - cooldownNow) / 1000))
+    : 0;
+
+  function startResendCooldown() {
+    const now = Date.now();
+    const until = now + RESEND_COOLDOWN_MS;
+    setCooldownNow(now);
+    setResendCooldownUntil(until);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(RESEND_COOLDOWN_STORAGE_KEY, String(until));
+    }
   }
 
   async function handleAuthSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!supabase) return;
+
     setLoading(true);
     setError("");
     setMessage("");
@@ -103,27 +109,103 @@ export default function AuthPanel() {
           password,
         });
         if (signInError) throw signInError;
-        setMessage("登录成功。");
-      } else {
-        const emailRedirectTo =
-          typeof window !== "undefined"
-            ? `${window.location.origin}/forum/`
-            : undefined;
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo,
-          },
-        });
-        if (signUpError) throw signUpError;
-        setMessage("注册请求已提交。若开启邮箱确认，请先完成验证。");
+        window.location.assign(safeNext);
+        return;
       }
-      await refreshSession();
+
+      const emailRedirectTo =
+        typeof window !== "undefined"
+          ? buildAuthCallbackRedirect(window.location.origin, safeNext)
+          : undefined;
+
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo,
+        },
+      });
+      if (signUpError) throw signUpError;
+
+      setPendingVerificationEmail(email.trim());
+      setMessage("验证邮件已发送。请先完成邮箱验证，再返回站内继续。");
     } catch (authError) {
-      setError(authError instanceof Error ? authError.message : "请求失败。");
+      const rawMessage = authError instanceof Error ? authError.message : "请求失败。";
+      if (/Email not confirmed/i.test(rawMessage)) {
+        setPendingVerificationEmail(email.trim());
+      }
+      setError(mapAuthError(rawMessage));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResendConfirmation() {
+    if (!pendingVerificationEmail || resendCooldownSeconds > 0) return;
+
+    setResending(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/auth/resend-confirmation", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          email: pendingVerificationEmail,
+          next: safeNext,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as ResendResponse | null;
+
+      if (response.status === 429 || payload?.error === "VERIFICATION_EMAIL_RATE_LIMITED") {
+        setError("今天发送次数已达上限，请明天再试。");
+        return;
+      }
+
+      if (!response.ok || !payload || payload.ok !== true) {
+        throw new Error("RESEND_CONFIRMATION_FAILED");
+      }
+
+      startResendCooldown();
+      setMessage(payload.message || "如果该邮箱可用，我们会发送验证邮件。");
+    } catch {
+      setError("暂时无法重新发送验证邮件，请稍后再试。");
+    } finally {
+      setResending(false);
+    }
+  }
+
+  async function handleResetPasswordEmail(event: React.FormEvent) {
+    event.preventDefault();
+    if (!supabase) return;
+
+    setSendingReset(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const redirectTo =
+        typeof window !== "undefined"
+          ? buildResetPasswordRedirect(window.location.origin)
+          : undefined;
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo,
+      });
+
+      if (resetError) {
+        throw resetError;
+      }
+
+      setMessage("如果该邮箱存在对应账号，我们会发送重置密码邮件。请检查邮箱并打开重置链接。");
+    } catch {
+      setError("暂时无法发送重置邮件，请稍后再试。");
+    } finally {
+      setSendingReset(false);
     }
   }
 
@@ -134,198 +216,181 @@ export default function AuthPanel() {
     setMessage("");
     const { error: signOutError } = await supabase.auth.signOut();
     if (signOutError) {
-      setError(signOutError.message);
-    } else {
-      setUser(null);
-      setMessage("已退出登录。");
+      setError(mapAuthError(signOutError.message));
+      setLoading(false);
+      return;
     }
-    setLoading(false);
-  }
-
-  async function handleCreatePost(event: React.FormEvent) {
-    event.preventDefault();
-    if (!supabase || !user) return;
-
-    setPostSubmitting(true);
-    setPostError("");
-    setPostMessage("");
-
-    try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !sessionData.session?.access_token) {
-        throw new Error("Auth session missing!");
-      }
-
-      const response = await fetch("/api/forum/posts", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${sessionData.session.access_token}`,
-        },
-        body: JSON.stringify({
-          circle_slug: postCircleSlug.trim(),
-          type: postType.trim(),
-          title: postTitle.trim(),
-          body: postBody.trim(),
-        }),
-      });
-
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; post?: { id: string; status: string } }
-        | null;
-
-      if (!response.ok) {
-        throw new Error(payload?.error ?? `Request failed with status ${response.status}`);
-      }
-
-      setPostMessage(
-        `帖子提交成功，状态：${payload?.post?.status ?? "pending"}，ID：${payload?.post?.id ?? "-"}`,
-      );
-      setPostTitle("");
-      setPostBody("");
-    } catch (submitError) {
-      setPostError(submitError instanceof Error ? submitError.message : "提交失败。");
-    } finally {
-      setPostSubmitting(false);
-    }
+    window.location.reload();
   }
 
   if (!supabase) {
     return (
-      <section style={wrapperStyle}>
-        <h2>Forum Auth 未配置</h2>
-        <p>缺少 PUBLIC_SUPABASE_URL 或 PUBLIC_SUPABASE_ANON_KEY。</p>
+      <section className="auth-card">
+        <div className="auth-alert auth-alert--error">登录暂不可用，缺少必要的 Supabase 公共环境变量。</div>
       </section>
     );
   }
 
   return (
-    <section style={wrapperStyle}>
-      <h2>Forum Auth</h2>
-      <p>当前阶段只开放基础认证与会话门控。发帖接口在下一阶段接入。</p>
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-        <button
-          type="button"
-          onClick={() => setMode("login")}
-          style={mode === "login" ? buttonStyle : secondaryButtonStyle}
-        >
-          登录
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("signup")}
-          style={mode === "signup" ? buttonStyle : secondaryButtonStyle}
-        >
-          注册
-        </button>
-        <button type="button" onClick={refreshSession} style={secondaryButtonStyle}>
-          刷新会话
-        </button>
+    <section className="auth-card">
+      <div className="auth-card__top">
+        <div className="auth-switch" role="tablist" aria-label="登录注册切换">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "login"}
+            className={mode === "login" ? "is-active" : ""}
+            onClick={() => setMode("login")}
+          >
+            登录
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "signup"}
+            className={mode === "signup" ? "is-active" : ""}
+            onClick={() => setMode("signup")}
+          >
+            注册
+          </button>
+        </div>
       </div>
 
-      <form onSubmit={handleAuthSubmit} style={stackStyle}>
-        <label>
-          邮箱
-          <input
-            style={inputStyle}
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          密码
-          <input
-            style={inputStyle}
-            type="password"
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            minLength={8}
-            required
-          />
-        </label>
-        <button style={buttonStyle} type="submit" disabled={loading}>
-          {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
-        </button>
-      </form>
-
-      <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
-        {error ? <div style={messageStyle}>错误：{error}</div> : null}
-        {message ? <div style={messageStyle}>{message}</div> : null}
-      </div>
-
-      <div style={{ marginTop: "1rem", ...messageStyle }}>
-        {user ? (
-          <>
-            <p>
-              当前用户：<strong>{user.email}</strong>
-            </p>
-            <p>用户 ID：{user.id}</p>
-            <button type="button" style={secondaryButtonStyle} onClick={handleSignOut}>
-              退出登录
+      {status === "checking" ? (
+        <div className="auth-alert">正在检查当前登录状态...</div>
+      ) : status === "signed_in" && user ? (
+        <div className="auth-user-state">
+          <div className="auth-alert auth-alert--success">当前已登录。</div>
+          <div className="community-cta-row">
+            <a href="/me/" className="community-button--secondary auth-button">
+              我的主页
+            </a>
+            <a href="/me/edit/" className="community-button--secondary auth-button">
+              编辑资料
+            </a>
+            <a href={safeNext} className="community-button">
+              继续前往
+            </a>
+            <button
+              type="button"
+              className="community-button--secondary auth-button"
+              onClick={handleSignOut}
+              disabled={loading}
+            >
+              {loading ? "处理中..." : "退出登录"}
             </button>
-            <p style={{ marginTop: "0.75rem" }}>你已通过最小门控，可进入下一阶段发帖 API 测试。</p>
-            <form onSubmit={handleCreatePost} style={{ ...stackStyle, marginTop: "1rem" }}>
-              <h3 style={{ margin: 0 }}>最小发帖测试（Phase 3.2）</h3>
-              <label>
-                Circle Slug
-                <input
-                  style={inputStyle}
-                  value={postCircleSlug}
-                  onChange={(event) => setPostCircleSlug(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                类型
-                <select
-                  style={inputStyle}
-                  value={postType}
-                  onChange={(event) => setPostType(event.target.value)}
-                >
-                  <option value="experience">experience</option>
-                  <option value="question">question</option>
-                  <option value="review">review</option>
-                  <option value="dev">dev</option>
-                  <option value="news">news</option>
-                  <option value="feedback">feedback</option>
-                </select>
-              </label>
-              <label>
-                标题
-                <input
-                  style={inputStyle}
-                  value={postTitle}
-                  onChange={(event) => setPostTitle(event.target.value)}
-                  minLength={3}
-                  maxLength={180}
-                  required
-                />
-              </label>
-              <label>
-                内容
-                <textarea
-                  style={{ ...inputStyle, minHeight: "120px", resize: "vertical" }}
-                  value={postBody}
-                  onChange={(event) => setPostBody(event.target.value)}
-                  minLength={10}
-                  maxLength={20000}
-                  required
-                />
-              </label>
-              <button type="submit" style={buttonStyle} disabled={postSubmitting}>
-                {postSubmitting ? "提交中..." : "提交帖子（应为 pending）"}
+          </div>
+        </div>
+      ) : forgotMode ? (
+        <form onSubmit={handleResetPasswordEmail} className="auth-form">
+          <label>
+            <span className="auth-label">邮箱</span>
+            <input
+              className="community-input"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </label>
+          <div className="community-cta-row">
+            <button className="community-button auth-button" type="submit" disabled={sendingReset}>
+              {sendingReset ? "发送中..." : "发送重置邮件"}
+            </button>
+            <button
+              type="button"
+              className="community-button--secondary auth-button"
+              onClick={() => {
+                setForgotMode(false);
+                setError("");
+                setMessage("");
+              }}
+              disabled={sendingReset}
+            >
+              返回登录
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form onSubmit={handleAuthSubmit} className="auth-form">
+          <label>
+            <span className="auth-label">邮箱</span>
+            <input
+              className="community-input"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            <span className="auth-label">密码</span>
+            <input
+              className="community-input"
+              type="password"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={8}
+              required
+            />
+          </label>
+          <div className="community-cta-row">
+            <button className="community-button auth-button" type="submit" disabled={loading}>
+              {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
+            </button>
+            <button
+              type="button"
+              className="community-button--secondary auth-button"
+              onClick={() => setMode(mode === "login" ? "signup" : "login")}
+              disabled={loading}
+            >
+              {mode === "login" ? "切换到注册" : "切换到登录"}
+            </button>
+          </div>
+          {mode === "login" ? (
+            <button
+              type="button"
+              className="auth-forgot-link"
+              onClick={() => {
+                setForgotMode(true);
+                setError("");
+                setMessage("");
+              }}
+            >
+              忘记密码？
+            </button>
+          ) : null}
+        </form>
+      )}
+
+      <div className="auth-feedback">
+        {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
+        {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
+        {pendingVerificationEmail ? (
+          <div className="auth-resend">
+            <div className="auth-resend__copy">
+              <span className="auth-resend__note">已发送，请检查邮箱或垃圾箱。</span>
+              <span className="auth-resend__hint">如果没有收到邮件，请检查垃圾箱，或稍后重新发送。</span>
+            </div>
+            <div className="auth-resend__actions">
+              <button
+                type="button"
+                className="community-button--secondary auth-button"
+                onClick={handleResendConfirmation}
+                disabled={resending || resendCooldownSeconds > 0}
+              >
+                {resending
+                  ? "发送中..."
+                  : resendCooldownSeconds > 0
+                    ? `${resendCooldownSeconds} 秒后可重新发送`
+                    : "重新发送验证邮件"}
               </button>
-              {postError ? <div style={messageStyle}>错误：{postError}</div> : null}
-              {postMessage ? <div style={messageStyle}>{postMessage}</div> : null}
-            </form>
-          </>
-        ) : (
-          <p>未登录。未登录用户在 Forum Phase 3 不能发帖或评论。</p>
-        )}
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );

@@ -8,16 +8,24 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "node --experimental-strip-types scripts/test-moderation.mjs",
+    "test:profile-audit": "node scripts/verify-profile-system.cjs",
+    "test:forum-permissions": "node scripts/verify-forum-permissions.cjs",
+    "test:moderation-audit": "node scripts/audit-moderation.mjs --strict --verbose"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.6.13",
     "@astrojs/react": "^4.4.0",
     "@astrojs/starlight": "^0.33.2",
+    "@aws-sdk/client-s3": "^3.1057.0",
+    "@aws-sdk/s3-request-presigner": "^3.1057.0",
     "@supabase/supabase-js": "^2.49.8",
     "astro": "^5.7.10",
+    "aws4fetch": "^1.0.20",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "tus-js-client": "^4.3.1"
   }
 }

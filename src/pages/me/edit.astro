@@ -1,0 +1,12 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import EditProfileForm from "../../components/profile/EditProfileForm";
+---
+
+<CommunityLayout title="编辑资料" activeSection="forum" noindex={true}>
+  <main class="community-main community-main--narrow">
+    <EditProfileForm client:load />
+  </main>
+</CommunityLayout>

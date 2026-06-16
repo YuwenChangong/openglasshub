@@ -1,0 +1,238 @@
+---
+export const prerender = true;
+
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import BrandMark from "../../components/products/BrandMark.astro";
+import ProductVisual from "../../components/products/ProductVisual.astro";
+import { brandCatalog, getBrandByKey, getDevicesByBrand } from "../../lib/device-catalog";
+
+export function getStaticPaths() {
+  return brandCatalog.map((brand) => ({
+    params: { brand: brand.key },
+  }));
+}
+
+const brandKey = Astro.params.brand?.trim().toLowerCase() ?? "";
+const brand = getBrandByKey(brandKey);
+
+if (!brand) {
+  return Astro.redirect("/products/");
+}
+
+const devices = getDevicesByBrand(brand.key);
+---
+
+<CommunityLayout
+  title={`${brand.displayName} | 产品`}
+  description={`查看 ${brand.displayName} 的产品参数与介绍。`}
+  canonical={`https://openglasshub.pages.dev/products/${brand.key}/`}
+  activeSection="products"
+>
+  <section class="products-brand-head">
+    <div class="products-brand-head__copy">
+      <BrandMark logo={brand.brandLogo} tone="accent" brandKey={brand.key} />
+      <div>
+        <h1 class="products-brand-head__sr-only">{brand.displayName} 产品</h1>
+        <p>{brand.shortIntro}</p>
+      </div>
+    </div>
+    <div class="products-brand-head__meta">
+      <a href={brand.websiteUrl} target="_blank" rel="noopener noreferrer" class="community-link">官网</a>
+    </div>
+  </section>
+
+  <section class="products-device-grid">
+    {devices.map((device) => (
+      <a href={`/devices/${device.slug}/`} class="product-device-card">
+        <ProductVisual
+          brandMark={brand.brandMarkText}
+          title={device.name}
+          categoryLabel={device.typeLabel}
+          statusLabel={null}
+          highlights={device.previewSpecs}
+          placeholderType={device.cardMedia.placeholderType}
+        />
+
+        <div class="product-device-card__head">
+          <h2>{device.title}</h2>
+          <span>{device.typeLabel}</span>
+        </div>
+
+        <div class="product-device-card__specs">
+          {device.cardSpecs.slice(0, 4).map((spec) => (
+            <article class="product-device-card__spec">
+              <span>{spec.label}</span>
+              <strong>{spec.value}</strong>
+            </article>
+          ))}
+        </div>
+
+        <div class="product-device-card__foot">
+          <div class="product-device-card__state">
+            <span>查看详情</span>
+          </div>
+        </div>
+      </a>
+    ))}
+  </section>
+</CommunityLayout>
+
+<style>
+  .products-brand-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0.95rem 0 1.25rem;
+  }
+  .products-brand-head__copy {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.95rem;
+  }
+  .products-brand-head__copy :global(.brand-mark) {
+    font-size: 1.55rem;
+  }
+  .products-brand-head__copy > div {
+    display: grid;
+    gap: 0.42rem;
+  }
+  .products-brand-head__sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .products-brand-head p {
+    margin: 0;
+    max-width: 40rem;
+    color: rgba(245, 245, 245, 0.68);
+    line-height: 1.62;
+  }
+  .products-brand-head__meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .products-device-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 340px));
+    justify-content: start;
+    gap: 1rem;
+  }
+  .product-device-card {
+    display: grid;
+    grid-template-rows: 214px auto auto 1fr auto;
+    gap: 0.82rem;
+    height: 500px;
+    padding: 0.9rem;
+    text-decoration: none;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: linear-gradient(180deg, rgba(16, 19, 24, 0.98), rgba(10, 12, 16, 1));
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  }
+  .product-device-card:hover {
+    border-color: rgba(255, 255, 255, 0.11);
+    background: linear-gradient(180deg, rgba(18, 22, 27, 1), rgba(11, 13, 17, 1));
+    transform: translateY(-1px);
+  }
+  .product-device-card :global(.product-visual) {
+    min-height: 214px;
+    height: 214px;
+  }
+  .product-device-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .product-device-card__head h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.08rem;
+    line-height: 1.32;
+    letter-spacing: -0.02em;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .product-device-card__head span,
+  .product-device-card__spec span {
+    color: var(--text-faint);
+    font-size: 0.8rem;
+  }
+  .product-device-card__specs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    align-content: start;
+  }
+  .product-device-card__spec {
+    display: grid;
+    gap: 0.18rem;
+    min-height: 4rem;
+    align-content: start;
+    padding: 0.62rem 0.68rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .product-device-card__spec strong {
+    color: var(--text);
+    font-size: 0.92rem;
+    line-height: 1.3;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .product-device-card__spec--empty strong {
+    color: rgba(245, 245, 245, 0.58);
+  }
+  .product-device-card__foot,
+  .product-device-card__state {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+  }
+  .product-device-card__state {
+    justify-content: space-between;
+  }
+  .product-device-card__state span {
+    color: rgba(245, 245, 245, 0.74);
+    font-size: 0.83rem;
+    font-weight: 600;
+  }
+  @media (max-width: 720px) {
+    .products-brand-head,
+    .product-device-card__head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .products-brand-head__copy {
+      flex-direction: column;
+    }
+    .products-brand-head h1 {
+      font-size: 1.65rem;
+    }
+    .products-device-grid {
+      grid-template-columns: 1fr;
+    }
+    .product-device-card {
+      height: 500px;
+    }
+    .product-device-card__foot,
+    .product-device-card__state {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+</style>

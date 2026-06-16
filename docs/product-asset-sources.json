@@ -1,0 +1,467 @@
+{
+  "generated_at": "2026-06-14T17:45:00+12:00",
+  "brands": [
+    {
+      "brandSlug": "xreal",
+      "brandName": "XREAL",
+      "officialWebsiteUrl": "https://www.xreal.com/",
+      "logo": {
+        "assetStatus": "official-cdn",
+        "logoImageUrl": "https://us.shop.xreal.com/cdn/shop/files/xreal_logo.svg?v=1718710823",
+        "sourceUrl": "https://us.shop.xreal.com/",
+        "licenseNote": "Official XREAL store logo asset referenced from the official storefront.",
+        "useInUi": false
+      },
+      "logoUseInUi": false,
+      "logoMode": "wordmark"
+    },
+    {
+      "brandSlug": "rayneo",
+      "brandName": "RayNeo",
+      "officialWebsiteUrl": "https://www.rayneo.com/",
+      "logo": {
+        "assetStatus": "official-cdn",
+        "logoImageUrl": "https://www.rayneo.com/cdn/shop/files/02_1e676fb1-fdad-44c7-ac64-e78a66b529a2.png?v=1752223320",
+        "sourceUrl": "https://www.rayneo.com/",
+        "licenseNote": "Official RayNeo homepage logo image, rendered as an inverted mark on dark UI.",
+        "useInUi": false
+      },
+      "assetExceptionReason": null,
+      "logoUseInUi": false,
+      "logoMode": "wordmark"
+    },
+    {
+      "brandSlug": "rokid",
+      "brandName": "Rokid",
+      "officialWebsiteUrl": "https://global.rokid.com/",
+      "logo": {
+        "assetStatus": "official-cdn",
+        "logoImageUrl": "https://global.rokid.com/cdn/shop/files/Rokid_logo_RGB-White-1024px_d48c5472-2c7d-4920-9327-d53b6d47e436.png?v=1658462832&width=1296",
+        "sourceUrl": "https://global.rokid.com/",
+        "licenseNote": "Official Rokid white logo referenced from the official global site.",
+        "useInUi": false
+      },
+      "logoUseInUi": false,
+      "logoMode": "wordmark"
+    },
+    {
+      "brandSlug": "viture",
+      "brandName": "VITURE",
+      "officialWebsiteUrl": "https://www.viture.com/",
+      "logo": {
+        "assetStatus": "fallback-wordmark",
+        "logoImageUrl": null,
+        "sourceUrl": "https://www.viture.com/",
+        "licenseNote": "The official homepage currently exposes a monogram as inline SVG and a separate company-logo strip asset, so the UI uses a typographic fallback instead of a mismatched external image.",
+        "useInUi": false
+      },
+      "assetExceptionReason": "No clean standalone remote VITURE wordmark image was exposed on the current official site; the previous company-logo strip was incorrect for UI use.",
+      "logoUseInUi": false,
+      "logoMode": "wordmark"
+    },
+    {
+      "brandSlug": "inmo",
+      "brandName": "INMO",
+      "officialWebsiteUrl": "https://www.inmoxr.com/",
+      "logo": {
+        "assetStatus": "official-cdn",
+        "logoImageUrl": "https://www.inmoxr.com/cdn/shop/files/INMO_LOGO-Black.png?v=1739514431&width=4229",
+        "sourceUrl": "https://www.inmoxr.com/",
+        "licenseNote": "Official INMO logo asset referenced from the official storefront.",
+        "useInUi": false
+      },
+      "logoUseInUi": false,
+      "logoMode": "wordmark"
+    },
+    {
+      "brandSlug": "meta",
+      "brandName": "Meta Ray-Ban",
+      "officialWebsiteUrl": "https://www.ray-ban.com/",
+      "logo": {
+        "assetStatus": "fallback-wordmark",
+        "logoImageUrl": null,
+        "sourceUrl": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+        "licenseNote": "Ray-Ban Meta is a co-branded product and no single official lockup was confirmed that fits the current dark UI cleanly.",
+        "useInUi": false
+      },
+      "assetExceptionReason": "Using typographic fallback avoids mixing Meta-only and Ray-Ban-only marks for a co-branded product family.",
+      "logoUseInUi": false,
+      "logoMode": "wordmark"
+    },
+    {
+      "brandSlug": "brilliant-labs",
+      "brandName": "Brilliant Labs",
+      "officialWebsiteUrl": "https://brilliant.xyz/",
+      "logo": {
+        "assetStatus": "official",
+        "logoImageUrl": "https://brilliant.xyz/cdn/shop/files/BrilliantLabs_logo_v0120_fd00ce58-e85e-4c9b-a80e-a9c57955d1b7.png?v=1752767272",
+        "sourceUrl": "https://brilliant.xyz/",
+        "licenseNote": "Official remote logo referenced from the official Brilliant Labs site.",
+        "useInUi": false
+      },
+      "logoUseInUi": false,
+      "logoMode": "wordmark"
+    },
+    {
+      "brandSlug": "even-realities",
+      "brandName": "Even Realities",
+      "officialWebsiteUrl": "https://www.evenrealities.com/",
+      "logo": {
+        "assetStatus": "official-cdn",
+        "logoImageUrl": "https://cdn.sanity.io/images/wfyhg2qw/production/db0241cac62d1dd68e281beea3ae4a19afd4899d-604x340.png",
+        "sourceUrl": "https://www.evenrealities.com/",
+        "licenseNote": "Official remote logo referenced from the official Even Realities site.",
+        "useInUi": false
+      },
+      "logoUseInUi": false,
+      "logoMode": "wordmark"
+    },
+    {
+      "brandSlug": "apple",
+      "brandName": "Apple Vision",
+      "officialWebsiteUrl": "https://www.apple.com/apple-vision-pro/",
+      "logo": {
+        "assetStatus": "fallback-wordmark",
+        "logoImageUrl": null,
+        "sourceUrl": "https://www.apple.com/apple-vision-pro/",
+        "licenseNote": "Apple Vision pages expose product imagery but not a clean remote lockup suited to the current dark card treatment.",
+        "useInUi": false
+      },
+      "assetExceptionReason": "Wordmark fallback keeps the Apple Vision card cleaner than the available square Apple knowledge-graph badge.",
+      "logoUseInUi": false,
+      "logoMode": "wordmark"
+    }
+  ],
+  "products": [
+    {
+      "slug": "xreal-one",
+      "brandSlug": "xreal",
+      "name": "XREAL One",
+      "officialProductUrl": null,
+      "buyUrl": "https://us.shop.xreal.com/products/xreal-one",
+      "sourceUrl": "https://us.shop.xreal.com/products/xreal-one",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://us.shop.xreal.com/cdn/shop/files/XREAL_One_AR_Glasses.jpg?v=1755511322",
+        "sourceUrl": "https://us.shop.xreal.com/products/xreal-one",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": false
+      },
+      "assetQaStatus": "usable",
+      "specSources": [
+        {
+          "url": "https://us.shop.xreal.com/products/xreal-one",
+          "type": "official-store"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "xreal-one-pro",
+      "brandSlug": "xreal",
+      "name": "XREAL One Pro",
+      "officialProductUrl": "https://www.xreal.com/us/one-pro",
+      "buyUrl": null,
+      "sourceUrl": "https://www.xreal.com/us/one-pro",
+      "image": {
+        "assetStatus": "placeholder",
+        "imageUrl": null,
+        "sourceUrl": "https://www.xreal.com/us/one-pro",
+        "licenseNote": "Approval sheet rejected the current lifestyle image, so the product falls back to placeholder until a clean approved render exists.",
+        "useInUi": false
+      },
+      "assetQaStatus": "wrong-removed",
+      "assetExceptionReason": "Approval sheet rejected the current lifestyle image for both card and detail usage.",
+      "specSources": [
+        {
+          "url": "https://www.xreal.com/us/one-pro",
+          "type": "official-product-page"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "xreal-air-2-pro",
+      "brandSlug": "xreal",
+      "name": "XREAL Air 2 Pro",
+      "officialProductUrl": null,
+      "buyUrl": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+      "sourceUrl": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://cdn.shopify.com/s/files/1/0832/4671/1067/products/P55E_Front.1.png?v=1722060788",
+        "sourceUrl": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+        "licenseNote": "Official front product image referenced from the XREAL Shopify product gallery.",
+        "useInUi": false
+      },
+      "assetQaStatus": "usable",
+      "specSources": [
+        {
+          "url": "https://us.shop.xreal.com/products/xreal-air-2-pro",
+          "type": "official-store"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "xreal-air-2-ultra",
+      "brandSlug": "xreal",
+      "name": "XREAL Air 2 Ultra",
+      "officialProductUrl": null,
+      "buyUrl": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+      "sourceUrl": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+      "image": {
+        "assetStatus": "placeholder",
+        "imageUrl": null,
+        "sourceUrl": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+        "licenseNote": "No confirmed clean official product render was safely extracted for reuse without mixing unrelated accessory or phone imagery.",
+        "useInUi": false
+      },
+      "assetQaStatus": "placeholder",
+      "assetExceptionReason": "Official sources surfaced unrelated or misleading promo assets, so the UI keeps a placeholder until a clean Ultra render is confirmed.",
+      "specSources": [
+        {
+          "url": "https://us.shop.xreal.com/products/xreal-air-2-ultra/",
+          "type": "official-store"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "rayneo-x2",
+      "brandSlug": "rayneo",
+      "name": "RayNeo X2",
+      "officialProductUrl": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+      "buyUrl": null,
+      "sourceUrl": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+      "image": {
+        "assetStatus": "placeholder",
+        "imageUrl": null,
+        "sourceUrl": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+        "licenseNote": "Reviewed official RayNeo assets remain lifestyle-heavy or branded promo visuals, so the UI falls back to a placeholder for now.",
+        "useInUi": false
+      },
+      "assetQaStatus": "placeholder",
+      "assetExceptionReason": "No clean official product render was confirmed that works for a product library card or detail visual.",
+      "specSources": [
+        {
+          "url": "https://www.rayneo.com/en-ca/products/tcl-rayneo-x2",
+          "type": "official-product-page"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "rokid-max",
+      "brandSlug": "rokid",
+      "name": "Rokid Max",
+      "officialProductUrl": "https://global.rokid.com/products/rokid-max",
+      "buyUrl": null,
+      "sourceUrl": "https://global.rokid.com/products/rokid-max",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://global.rokid.com/cdn/shop/products/Max_01.jpg?v=1767063777",
+        "sourceUrl": "https://global.rokid.com/products/rokid-max",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": false
+      },
+      "assetQaStatus": "usable",
+      "specSources": [
+        {
+          "url": "https://global.rokid.com/products/rokid-max",
+          "type": "official-product-page"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "rokid-glasses",
+      "brandSlug": "rokid",
+      "name": "Rokid Glasses",
+      "officialProductUrl": "https://global.rokid.com/products/rokid-glasses",
+      "buyUrl": null,
+      "sourceUrl": "https://global.rokid.com/products/rokid-glasses",
+      "image": {
+        "assetStatus": "placeholder",
+        "imageUrl": null,
+        "sourceUrl": "https://global.rokid.com/products/rokid-glasses",
+        "licenseNote": "Reviewed official candidates carry oversized award overlays, so the UI uses a placeholder until a cleaner product render is available.",
+        "useInUi": false
+      },
+      "assetQaStatus": "wrong-removed",
+      "assetExceptionReason": "Official gallery images are product-correct but visually unsuitable because of the large award badge treatment.",
+      "specSources": [
+        {
+          "url": "https://global.rokid.com/products/rokid-glasses",
+          "type": "official-product-page"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "viture-pro",
+      "brandSlug": "viture",
+      "name": "VITURE Pro",
+      "officialProductUrl": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+      "buyUrl": null,
+      "sourceUrl": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://cdn.shopify.com/s/files/1/0651/3675/4763/files/P6_01.jpg?v=1769712788",
+        "sourceUrl": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": false
+      },
+      "assetQaStatus": "usable",
+      "specSources": [
+        {
+          "url": "https://www.viture.com/product/viture-luma-pro-xr-glasses",
+          "type": "official-product-page"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "inmo-air-2",
+      "brandSlug": "inmo",
+      "name": "INMO Air 2",
+      "officialProductUrl": "https://www.inmoxr.com/pages/inmo-air2",
+      "buyUrl": null,
+      "sourceUrl": "https://www.inmoxr.com/pages/inmo-air2",
+      "image": {
+        "assetStatus": "placeholder",
+        "imageUrl": null,
+        "sourceUrl": "https://www.inmoxr.com/pages/inmo-air2",
+        "licenseNote": "Reviewed official INMO Air 2 page assets are lifestyle/portrait-oriented and do not hold up as a clean product catalog visual.",
+        "useInUi": false
+      },
+      "assetQaStatus": "placeholder",
+      "assetExceptionReason": "No verified clean official INMO Air 2 product render was confirmed in this QA round.",
+      "specSources": [
+        {
+          "url": "https://www.inmoxr.com/pages/inmo-air2",
+          "type": "official-product-page"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "ray-ban-meta",
+      "brandSlug": "meta",
+      "name": "Ray-Ban Meta",
+      "officialProductUrl": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+      "buyUrl": null,
+      "sourceUrl": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+      "image": {
+        "assetStatus": "placeholder",
+        "imageUrl": null,
+        "sourceUrl": "https://about.fb.com/news/2023/09/new-ray-ban-meta-smart-glasses/",
+        "licenseNote": "Approval sheet rejected the current lifestyle image, so the UI falls back to placeholder.",
+        "useInUi": false
+      },
+      "assetQaStatus": "wrong-removed",
+      "assetExceptionReason": "Approval sheet rejected the current lifestyle image for both card and detail usage.",
+      "specSources": [
+        {
+          "url": "https://www.ray-ban.com/usa/ray-ban-meta-ai-glasses",
+          "type": "official-product-page"
+        },
+        {
+          "url": "https://about.fb.com/news/2023/09/new-ray-ban-meta-smart-glasses/",
+          "type": "press-kit"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "brilliant-labs-frame",
+      "brandSlug": "brilliant-labs",
+      "name": "Brilliant Labs Frame",
+      "officialProductUrl": "https://brilliant.xyz/products/frame",
+      "buyUrl": null,
+      "sourceUrl": "https://docs.brilliant.xyz/frame/hardware/",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://brilliant.xyz/cdn/shop/files/Halo_16_9e6dbe16-f264-4d22-bca1-175227d4ade6.png?v=1753981531",
+        "sourceUrl": "https://brilliant.xyz/products/frame",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": false
+      },
+      "assetQaStatus": "usable",
+      "specSources": [
+        {
+          "url": "https://brilliant.xyz/products/frame",
+          "type": "official-product-page"
+        },
+        {
+          "url": "https://docs.brilliant.xyz/frame/hardware/",
+          "type": "official-support"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "even-realities-g1",
+      "brandSlug": "even-realities",
+      "name": "Even Realities G1",
+      "officialProductUrl": "https://www.evenrealities.com/en-FI/g1",
+      "buyUrl": null,
+      "sourceUrl": "https://www.evenrealities.com/en-FI/g1",
+      "image": {
+        "assetStatus": "official-cdn",
+        "imageUrl": "https://cdn.sanity.io/images/wfyhg2qw/production/5467c59fc9e94a4637c5be4b9c01333aae9838f0-1200x630.jpg",
+        "sourceUrl": "https://www.evenrealities.com/en-FI/g1",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": false
+      },
+      "assetQaStatus": "usable",
+      "specSources": [
+        {
+          "url": "https://www.evenrealities.com/en-FI/g1",
+          "type": "official-product-page"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    },
+    {
+      "slug": "apple-vision-pro",
+      "brandSlug": "apple",
+      "name": "Apple Vision Pro",
+      "officialProductUrl": "https://www.apple.com/apple-vision-pro/",
+      "buyUrl": null,
+      "sourceUrl": "https://support.apple.com/en-us/125436",
+      "image": {
+        "assetStatus": "official",
+        "imageUrl": "https://www.apple.com/v/apple-vision-pro/k/images/meta/apple-vision-pro-us__f28gp8ey4vam_og.png?202606041907",
+        "sourceUrl": "https://www.apple.com/apple-vision-pro/",
+        "licenseNote": "Official remote product image referenced from official page metadata.",
+        "useInUi": false
+      },
+      "assetQaStatus": "usable",
+      "specSources": [
+        {
+          "url": "https://www.apple.com/apple-vision-pro/",
+          "type": "official-product-page"
+        },
+        {
+          "url": "https://support.apple.com/en-us/125436",
+          "type": "official-support"
+        }
+      ],
+      "imageUseInUi": false,
+      "visualMode": "name-card"
+    }
+  ]
+}

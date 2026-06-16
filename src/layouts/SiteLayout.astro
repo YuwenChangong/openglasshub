@@ -1,0 +1,9 @@
+---
+import CommunityLayout from "./CommunityLayout.astro";
+const props = Astro.props;
+---
+
+<CommunityLayout {...props}>
+  <slot name="belowHeader" slot="belowHeader" />
+  <slot />
+</CommunityLayout>

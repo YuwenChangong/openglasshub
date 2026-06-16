@@ -6,6 +6,14 @@ import cloudflare from '@astrojs/cloudflare';
 export default defineConfig({
   site: 'https://openglasshub.pages.dev',
   output: 'static',
+  redirects: {
+    '/gaze-os': '/gaze-launcher/',
+    '/reference/guides-docs': '/guides/',
+    '/reference/devices-docs': '/devices/',
+    '/reference/developers-docs': '/developers/',
+    '/reference/gaze-launcher-docs': '/gaze-launcher/',
+    '/community': '/feed/',
+  },
   adapter: cloudflare({
     platformProxy: {
       enabled: true,
@@ -14,8 +22,12 @@ export default defineConfig({
   integrations: [
     react(),
     starlight({
+      disable404Route: true,
       title: 'OpenGlass Hub',
       description: 'AR/AI 眼镜知识库、选购指南与开发者资源',
+      components: {
+        Header: './src/components/starlight/Header.astro',
+      },
       defaultLocale: 'root',
       locales: {
         root: {
@@ -25,7 +37,7 @@ export default defineConfig({
       },
       favicon: '/gaze-icon-v6.ico',
       logo: {
-        src: './public/brand/logo-navbar.svg',
+      src: './public/brand/openglass-nav-logo.png',
         alt: 'OpenGlass Hub',
         replacesTitle: false,
       },
@@ -91,11 +103,7 @@ export default defineConfig({
         },
         {
           label: 'Gaze Launcher',
-          link: '/gaze-os',
-        },
-        {
-          label: '社区',
-          link: '/community',
+          link: '/gaze-launcher',
         },
         {
           label: '关于',

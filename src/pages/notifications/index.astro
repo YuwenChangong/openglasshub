@@ -1,0 +1,15 @@
+---
+export const prerender = false;
+
+import ForumLayout from "../../layouts/ForumLayout.astro";
+import NotificationsPage from "../../components/notifications/NotificationsPage";
+---
+
+<ForumLayout title="通知" description="查看你的互动通知。" noindex={true} activeTab="feed">
+  <section class="notifications-shell">
+    <header class="notifications-shell__head">
+      <h1>通知</h1>
+    </header>
+    <NotificationsPage client:load />
+  </section>
+</ForumLayout>

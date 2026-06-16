@@ -1,0 +1,7 @@
+---
+import SiteHeader from "../site/SiteHeader.astro";
+
+const { currentPath = Astro.url.pathname, currentSection, next = currentPath } = Astro.props;
+---
+
+<SiteHeader currentPath={currentPath} currentSection={currentSection} next={next} />

@@ -1,0 +1,27 @@
+---
+export const prerender = false;
+import ForumLayout from "../../../layouts/ForumLayout.astro";
+import CircleOwnerDashboard from "../../../components/forum/CircleOwnerDashboard";
+
+const slug = String(Astro.params.slug ?? "").trim().toLowerCase();
+
+if (!slug) {
+  return Astro.redirect("/circles/");
+}
+---
+
+<ForumLayout title="管理圈子" noindex={true} activeTab="circles">
+  <nav class="community-breadcrumb" aria-label="面包屑">
+    <a href="/">首页</a>
+    <span class="community-breadcrumb__sep">/</span>
+    <a href="/feed/">论坛</a>
+    <span class="community-breadcrumb__sep">/</span>
+    <a href="/circles/">圈子</a>
+    <span class="community-breadcrumb__sep">/</span>
+    <a href={`/circles/${slug}/`}>详情</a>
+    <span class="community-breadcrumb__sep">/</span>
+    <span class="community-breadcrumb__current">管理</span>
+  </nav>
+
+  <CircleOwnerDashboard circleSlug={slug} client:load />
+</ForumLayout>

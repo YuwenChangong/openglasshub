@@ -1,0 +1,62 @@
+---
+import type { ResolvedPostMedia } from "../../lib/forum-media";
+import PostMediaPreview from "./PostMediaPreview.astro";
+import PostSocialActions from "../forum/PostSocialActions";
+import SharePostButton from "../forum/SharePostButton";
+import { sanitizeBodyForDisplay } from "../../lib/post-body";
+import { buildProfileHref } from "../../lib/profile-links";
+
+interface Props {
+  id: string;
+  title: string;
+  excerpt?: string;
+  circleName?: string;
+  circleSlug?: string;
+  typeLabel?: string;
+  authorName?: string;
+  authorId?: string;
+  authorUsername?: string;
+  timestamp: string;
+  mediaLabel?: string;
+  media?: ResolvedPostMedia[];
+  likeCount?: number;
+  commentCount?: number;
+}
+
+const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, authorId, authorUsername, timestamp, mediaLabel, media = [], likeCount = 0, commentCount = 0 } = Astro.props;
+const fallbackAuthorId = authorId?.trim();
+const displayName = authorName?.trim() || (fallbackAuthorId ? `${fallbackAuthorId.slice(0, 6)}…${fallbackAuthorId.slice(-4)}` : "社区成员");
+const postHref = `/posts/${id}/`;
+const displayExcerpt = sanitizeBodyForDisplay(excerpt ?? "");
+const authorHref = buildProfileHref({ id: authorId, username: authorUsername });
+---
+
+<article class="community-post-card">
+  <div class="community-post-meta-row">
+    <div class="community-post-meta">
+      {circleName && circleSlug && <a href={`/circles/${circleSlug}/`} class="community-post-meta__link">{circleName}</a>}
+      {authorHref ? <a href={authorHref} class="community-post-meta__link">{displayName}</a> : <span>{displayName}</span>}
+      <span>{timestamp}</span>
+      {typeLabel && <span>{typeLabel}</span>}
+    </div>
+  </div>
+
+  <a href={postHref} class="community-post-title-link">
+    <h3>{title}</h3>
+  </a>
+
+  {displayExcerpt && (
+    <p class="community-post-excerpt">{displayExcerpt}</p>
+  )}
+
+  {media.length > 0 ? <PostMediaPreview media={media} href={postHref} mode="feed" maxItems={4} /> : mediaLabel ? <div class="community-media-placeholder">{mediaLabel}</div> : null}
+
+  <div class="community-post-actions">
+    <a class="community-action-button community-action-button--quiet" href={`${postHref}#comments`}>评论{commentCount > 0 ? ` ${commentCount}` : ""}</a>
+    <PostSocialActions postId={id} initialLikeCount={likeCount} compact={true} client:visible />
+    <SharePostButton postPath={postHref} client:visible />
+    <div class="community-post-actions__spacer" />
+    <a class="community-post-detail-link" href={postHref}>查看详情</a>
+  </div>
+  <div class="community-post-divider" aria-hidden="true"></div>
+</article>

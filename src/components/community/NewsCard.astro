@@ -1,0 +1,31 @@
+---
+interface Props {
+  title: string;
+  summary: string;
+  category: string;
+  href: string;
+  date: string;
+  pinned?: boolean;
+  featured?: boolean;
+  coverImageUrl?: string;
+  coverAlt?: string;
+}
+
+const { title, summary, category, href, date, pinned = false, featured = false, coverImageUrl, coverAlt = title } = Astro.props;
+---
+
+<a href={href} class="community-news-card">
+  <div class="community-news-top">
+    <span class="community-tag">{category}</span>
+    {pinned ? <span class="news-state-pill">置顶</span> : null}
+    {featured ? <span class="news-state-pill news-state-pill--featured">精选</span> : null}
+    <span class="community-meta">{date}</span>
+  </div>
+  {coverImageUrl && (
+    <div class="community-news-cover">
+      <img src={coverImageUrl} alt={coverAlt} loading="lazy" decoding="async" />
+    </div>
+  )}
+  <h3>{title}</h3>
+  <p>{summary}</p>
+</a>

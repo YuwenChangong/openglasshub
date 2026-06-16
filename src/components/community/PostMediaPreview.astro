@@ -1,0 +1,87 @@
+---
+import type { ResolvedPostMedia } from "../../lib/forum-media";
+
+interface Props {
+  media?: ResolvedPostMedia[];
+  href: string;
+  mode?: "feed" | "compact";
+  maxItems?: number;
+}
+
+const { media = [], href, mode = "feed", maxItems = 4 } = Astro.props;
+const items = media.filter((item) => item.displayUrl).slice(0, maxItems);
+const totalCount = media.filter((item) => item.displayUrl).length;
+const visibleCount = items.length;
+const extraCount = Math.max(totalCount - visibleCount, 0);
+const layout =
+  visibleCount <= 1 ? "single" : visibleCount === 2 ? "double" : visibleCount === 3 ? "triple" : "quad";
+const singleItem = items[0];
+const singleRatio =
+  visibleCount === 1 && singleItem?.width && singleItem?.height
+    ? singleItem.width / singleItem.height
+    : null;
+const singleOrientation =
+  visibleCount === 1 && singleItem?.width && singleItem?.height
+    ? singleItem.height > singleItem.width
+      ? "portrait"
+      : "landscape"
+    : "landscape";
+---
+
+{visibleCount > 0 && (
+  <div
+    class:list={[
+      "community-post-media-preview",
+      `community-post-media-preview--${layout}`,
+      `community-post-media-preview--${mode}`,
+      {
+        "community-post-media-preview--portrait": visibleCount === 1 && singleOrientation === "portrait",
+        "community-post-media-preview--landscape": visibleCount === 1 && singleOrientation === "landscape",
+        "community-post-media-preview--single-wide": visibleCount === 1 && (singleRatio ?? 0) > 2.2,
+        "community-post-media-preview--single-balanced": visibleCount === 1 && (singleRatio ?? 0) >= 1.2 && (singleRatio ?? 0) <= 2.2,
+      },
+    ]}
+  >
+    {items.map((item, index) => (
+      <a
+        href={href}
+        class:list={[
+          "community-post-media-preview__item",
+          {
+            "community-post-media-preview__item--lead": visibleCount === 3 && index === 0,
+            "community-post-media-preview__item--single": visibleCount === 1,
+          },
+        ]}
+      >
+        {item.kind === "image" ? (
+          <img
+            src={item.previewUrl || item.displayUrl}
+            alt={item.alt_text || "帖子图片"}
+            loading="lazy"
+            decoding="async"
+            width={item.width ?? undefined}
+            height={item.height ?? undefined}
+          />
+        ) : item.kind === "video" ? (
+          <>
+            <video
+              src={item.previewUrl || item.displayUrl}
+              muted
+              playsinline
+              preload="none"
+            />
+            <span class="community-post-media-preview__badge">视频</span>
+          </>
+        ) : (
+          <div class="community-post-media-preview__external">
+            <span class="community-post-media-preview__badge">视频链接</span>
+            <strong>{item.alt_text || "打开视频链接"}</strong>
+          </div>
+        )}
+        {index === visibleCount - 1 && extraCount > 0 && (
+          <span class="community-post-media-preview__more">+{extraCount}</span>
+        )}
+      </a>
+    ))}
+  </div>
+)}

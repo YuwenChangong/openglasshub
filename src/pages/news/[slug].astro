@@ -1,0 +1,203 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import {
+  getPublicNewsArticleBySlug,
+  incrementPublishedNewsViewCount,
+  listRelatedPublicNews,
+  NEWS_CATEGORY_LABELS,
+} from "../../lib/news";
+import {
+  filterDuplicateCoverImageBlocks,
+  parseNewsContent,
+  resolveNewsContentBlocks,
+} from "../../lib/news-content";
+
+const env = Astro.locals.runtime.env as CloudflareEnv;
+const supabase = createSSRClient(env);
+const slug = String(Astro.params.slug ?? "").trim();
+const article = slug ? await getPublicNewsArticleBySlug(supabase, slug) : null;
+
+if (article) {
+  await incrementPublishedNewsViewCount(supabase, article.slug);
+}
+
+if (!article) {
+  Astro.response.status = 404;
+  Astro.response.statusText = "Not Found";
+}
+
+const relatedArticles = article
+  ? await listRelatedPublicNews(supabase, {
+      category: article.category,
+      excludeSlug: article.slug,
+      limit: 4,
+    })
+  : [];
+
+const contentBlocks = article
+  ? filterDuplicateCoverImageBlocks(
+      await resolveNewsContentBlocks(supabase, parseNewsContent(article.content)),
+      article.cover_image_url,
+    )
+  : [];
+const publishedDate = article
+  ? new Date(article.published_at ?? article.created_at).toLocaleDateString("zh-CN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  : "";
+const discussionHref = article ? `/search/?q=${encodeURIComponent(article.title)}` : "/search/";
+---
+
+{!article ? (
+  <CommunityLayout title="热点未找到" noindex={true} activeSection="news">
+    <section class="news-empty">
+      <strong>热点内容未找到</strong>
+      <p>该条目可能不存在，或当前还没有发布到公开热点页。</p>
+      <a href="/news/" class="community-button--secondary">返回热点列表</a>
+    </section>
+  </CommunityLayout>
+) : (
+  <CommunityLayout
+    title={article.title}
+    description={article.summary}
+    canonical={`https://openglasshub.pages.dev/news/${article.slug}/`}
+    ogType="article"
+    activeSection="news"
+  >
+    <article class="news-article-layout">
+      <div class="news-article-main">
+        <header class="news-article-page__head">
+          <div class="news-article-page__meta">
+            <span class="community-meta">{NEWS_CATEGORY_LABELS[article.category]}</span>
+            <span class="community-meta">{publishedDate}</span>
+            {article.source_name ? <span class="community-meta">{article.source_name}</span> : null}
+          </div>
+          <h1>{article.title}</h1>
+          {article.summary ? <p class="news-article-page__summary">{article.summary}</p> : null}
+        </header>
+
+        <div class="news-article-page__body">
+          {contentBlocks.map((block) => {
+            if (block.type === "heading") {
+              const Tag = `h${block.level}` as keyof astroHTML.JSX.IntrinsicElements;
+              return (
+                <Tag class={`news-article-page__heading news-article-page__heading--h${block.level}`}>
+                  {block.segments.map((segment) =>
+                    segment.type === "link" ? (
+                      <a href={segment.href} target={segment.href.startsWith("/") ? undefined : "_blank"} rel={segment.href.startsWith("/") ? undefined : "noopener noreferrer"} class="community-inline-link">
+                        {segment.text}
+                      </a>
+                    ) : (
+                      segment.text
+                    ),
+                  )}
+                </Tag>
+              );
+            }
+
+            if (block.type === "list") {
+              return (
+                <ul class="news-article-page__list">
+                  {block.items.map((item) => (
+                    <li>
+                      {item.map((segment) =>
+                        segment.type === "link" ? (
+                          <a href={segment.href} target={segment.href.startsWith("/") ? undefined : "_blank"} rel={segment.href.startsWith("/") ? undefined : "noopener noreferrer"} class="community-inline-link">
+                            {segment.text}
+                          </a>
+                        ) : (
+                          segment.text
+                        ),
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              );
+            }
+
+            if (block.type === "image") {
+              return (
+                <figure class="news-article-page__image">
+                  <img src={block.src} alt={block.alt} loading="lazy" decoding="async" />
+                  {block.alt ? <figcaption>{block.alt}</figcaption> : null}
+                </figure>
+              );
+            }
+
+            return (
+              <p>
+                {block.segments.map((segment) =>
+                  segment.type === "link" ? (
+                    <a href={segment.href} target={segment.href.startsWith("/") ? undefined : "_blank"} rel={segment.href.startsWith("/") ? undefined : "noopener noreferrer"} class="community-inline-link">
+                      {segment.text}
+                    </a>
+                  ) : (
+                    segment.text
+                  ),
+                )}
+              </p>
+            );
+          })}
+        </div>
+
+        <footer class="news-article-page__footer">
+          <div class="community-inline-meta">
+            <span>发布时间：{publishedDate}</span>
+            {article.source_url ? (
+              <a href={article.source_url} target="_blank" rel="noopener noreferrer" class="community-inline-link">
+                查看来源
+              </a>
+            ) : null}
+          </div>
+          <div class="community-cta-row">
+            <a href="/news/" class="community-button--secondary">返回热点</a>
+            <a href={discussionHref} class="community-button">参与讨论</a>
+          </div>
+        </footer>
+      </div>
+
+      <aside class="news-article-sidebar">
+        <section class="community-surface news-side-panel">
+          <div class="community-section-head">
+            <h2>相关文章</h2>
+          </div>
+          <div class="news-side-list">
+            {relatedArticles.map((item) => (
+              <a href={`/news/${item.slug}/`} class="news-side-list__item news-side-list__item--compact">
+                <span class="news-side-list__copy">
+                  <strong>{item.title}</strong>
+                  <small>{NEWS_CATEGORY_LABELS[item.category]}</small>
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <section class="community-surface news-side-panel">
+          <div class="community-section-head">
+            <h2>继续阅读</h2>
+          </div>
+          <div class="news-side-list">
+            <a href={discussionHref} class="news-side-list__item news-side-list__item--compact">
+              <span class="news-side-list__copy">
+                <strong>参与讨论</strong>
+                <small>在社区里继续跟进这条话题</small>
+              </span>
+            </a>
+            <a href="/feed/?sort=hot" class="news-side-list__item news-side-list__item--compact">
+              <span class="news-side-list__copy">
+                <strong>查看热门讨论</strong>
+                <small>回到论坛热门流</small>
+              </span>
+            </a>
+          </div>
+        </section>
+      </aside>
+    </article>
+  </CommunityLayout>
+)}

@@ -2,21 +2,52 @@
 export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
+import FeedSidebarAuthHint from "../../components/auth/FeedSidebarAuthHint";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import PostCard from "../../components/community/PostCard.astro";
+import EmptyFeedState from "../../components/community/EmptyFeedState.astro";
+import { formatPostTime } from "../../lib/format-time";
+import { isPublicVisibleCircle } from "../../lib/site-navigation";
+import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
+import { sanitizeBodyForDisplay } from "../../lib/post-body";
+import { listForumFeed, parseFeedSort } from "../../lib/forum-feed";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
+const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
+const sort = parseFeedSort(Astro.url.searchParams.get("sort"));
+const pageParam = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);
+const page = Number.isFinite(pageParam) ? Math.max(1, pageParam) : 1;
+const feedLimit = 20;
 
-const { data: posts, error } = await supabase
-  .from("posts")
-  .select("id, title, type, created_at, profiles:author_id(display_name), circles:circle_id(slug, name)")
-  .eq("status", "published")
-  .order("created_at", { ascending: false })
-  .limit(50);
+const [feed, { data: circles, error: circlesError }] = await Promise.all([
+  listForumFeed({
+    client: supabase,
+    sort,
+    limit: feedLimit,
+    page,
+  }),
+  supabase
+    .from("circles")
+    .select("slug, name, description, status")
+    .order("name", { ascending: true }),
+]);
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+if (circlesError) {
+  console.warn("[feed] failed to load sidebar circles", circlesError.message);
 }
+
+const posts = feed.posts;
+const postMediaMap = posts.length > 0
+  ? await buildResolvedPostMediaMap(
+      supabase,
+      posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>,
+      60 * 60,
+      r2PublicBaseUrl,
+    )
+  : new Map();
+
+const visibleCircles = (circles ?? []).filter((circle) => isPublicVisibleCircle(circle)).slice(0, 5);
 
 const postTypeLabels: Record<string, string> = {
   experience: "体验",
@@ -26,58 +57,172 @@ const postTypeLabels: Record<string, string> = {
   news: "资讯",
   feedback: "反馈",
 };
+
+const sortMeta = {
+  recommended: {
+    title: "推荐",
+    description: "按新鲜度、讨论度和收藏表现综合排序。",
+  },
+  latest: {
+    title: "最新",
+    description: "按发布时间倒序查看最新公开帖子。",
+  },
+  hot: {
+    title: "热门",
+    description: "聚焦近两周互动更高的公开帖子。",
+  },
+} as const;
+
+const currentMeta = sortMeta[sort];
+const buildFeedHref = (nextSort: string, nextPage = 1) =>
+  nextPage > 1 ? `/feed/?sort=${nextSort}&page=${nextPage}` : `/feed/?sort=${nextSort}`;
 ---
 
 <ForumLayout
   title="帖子动态"
-  description="OpenGlass Hub 论坛最新公开帖子。AR/AI 眼镜社区讨论动态。"
+  description="OpenGlass Hub 论坛公开帖子动态，支持推荐、最新与热门排序。"
   canonical="https://openglasshub.pages.dev/feed/"
+  activeTab="feed"
 >
-  <h1>帖子动态</h1>
-  <p style="color: #8892b0; margin-top: -0.5rem;">社区最新公开讨论</p>
+  <section class="community-grid">
+    <div class="community-feed-column">
+      <div class="community-stream-head">
+        <div>
+          <h2>帖子动态</h2>
+          <p>{currentMeta.description}</p>
+        </div>
+        <div class="feed-head-actions community-inline-links">
+          <a href={buildFeedHref("recommended")} class={`community-inline-link${sort === "recommended" ? " community-inline-link--active" : ""}`}>推荐</a>
+          <a href={buildFeedHref("latest")} class={`community-inline-link${sort === "latest" ? " community-inline-link--active" : ""}`}>最新</a>
+          <a href={buildFeedHref("hot")} class={`community-inline-link${sort === "hot" ? " community-inline-link--active" : ""}`}>热门</a>
+          <a href="/posts/new/" class="community-inline-link">发帖</a>
+        </div>
+      </div>
 
-  <div style="margin-bottom: 1.5rem;">
-    <a href="/forum/" class="btn-primary">✍️ 发帖</a>
-    <a href="/circles/" class="btn-primary" style="margin-left: 0.5rem; background: #a78bfa; color: #0b0e16;">圈子</a>
-  </div>
+      <div class="community-feed-meta">
+        <span class="community-meta">{currentMeta.title}</span>
+        <span class="community-meta">第 {feed.page} 页</span>
+      </div>
 
-  {error ? (
-    <div class="empty-state">
-      <p>⚠️ 加载帖子时出错，请稍后重试。</p>
-      <p class="meta">{error.message}</p>
+      {!posts || posts.length === 0 ? (
+        <EmptyFeedState />
+      ) : (
+        <div class="community-feed-list">
+          {posts.map((post) => (
+            <PostCard
+              id={post.id}
+              title={post.title}
+              excerpt={sanitizeBodyForDisplay(post.body).replace(/[#*_`>\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)}
+              circleName={post.circles?.name ?? undefined}
+              circleSlug={post.circles?.slug ?? undefined}
+              typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
+              authorName={post.profiles?.display_name || post.profiles?.username || undefined}
+              authorId={post.author_id}
+              authorUsername={post.profiles?.username || undefined}
+              timestamp={formatPostTime(post.created_at)}
+              media={postMediaMap.get(post.id) ?? []}
+              likeCount={post.like_count ?? 0}
+              commentCount={post.comment_count ?? 0}
+            />
+          ))}
+        </div>
+      )}
+
+      {posts.length > 0 ? (
+        <div class="community-feed-pagination">
+          {page > 1 ? (
+            <a href={buildFeedHref(sort, page - 1)} class="community-action-button community-action-button--muted">上一页</a>
+          ) : (
+            <span class="community-action-button community-action-button--muted is-disabled" aria-disabled="true">上一页</span>
+          )}
+          {feed.has_more ? (
+            <a href={buildFeedHref(sort, page + 1)} class="community-action-button community-action-button--muted">下一页</a>
+          ) : (
+            <span class="community-action-button community-action-button--muted is-disabled" aria-disabled="true">下一页</span>
+          )}
+        </div>
+      ) : null}
     </div>
-  ) : !posts || posts.length === 0 ? (
-    <div class="empty-state">
-      <p style="font-size: 2rem; margin-bottom: 0.5rem;">🌱</p>
-      <p>暂时还没有帖子</p>
-      <p class="meta">成为第一个发帖的人吧！</p>
-      <a href="/forum/" class="btn-primary" style="margin-top: 1rem;">写第一篇帖子</a>
-    </div>
-  ) : (
-    <div style="display: grid; gap: 1rem;">
-      {posts.map((post) => (
-        <article class="card" style="padding: 1rem 1.5rem;">
-          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
-            {post.type && (
-              <span class="tag tag-purple">{postTypeLabels[post.type] || post.type}</span>
-            )}
-            {post.circles && (
-              <a href={`/circles/${post.circles.slug}/`} class="tag tag-blue" style="text-decoration: none;">
-                {post.circles.name}
-              </a>
-            )}
-            <span class="meta">{formatDate(post.created_at)}</span>
-          </div>
-          <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">
-            <a href={`/posts/${post.id}/`} style="color: #e8edf8; text-decoration: none;">
-              {post.title}
+
+    <aside class="community-sidebar">
+      <FeedSidebarAuthHint client:only="react" />
+
+      <section class="community-sidebar-block">
+        <div class="community-sidebar-head">
+          <h2>圈子推荐</h2>
+          <a href="/circles/" class="community-link">全部</a>
+        </div>
+        <div class="community-list">
+          {visibleCircles.map((circle) => (
+            <a href={`/circles/${circle.slug}/`} class="community-list-item">
+              <strong>{circle.name}</strong>
+              <span>{circle.description || "进入圈子查看当前公开讨论。"}</span>
             </a>
-          </h3>
-          <div class="meta" style="display: flex; gap: 1rem;">
-            <span>by {post.profiles?.display_name || "匿名"}</span>
-          </div>
-        </article>
-      ))}
-    </div>
-  )}
+          ))}
+        </div>
+      </section>
+    </aside>
+  </section>
 </ForumLayout>
+
+<style>
+  .community-feed-column {
+    min-width: 0;
+  }
+  .community-stream-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 0 1rem;
+    margin-bottom: 0.15rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .community-stream-head h2 {
+    margin: 0;
+    font-size: 1.22rem;
+    letter-spacing: -0.03em;
+  }
+  .community-stream-head p {
+    margin: 0.25rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+  }
+  .feed-head-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.45rem;
+  }
+  .community-feed-meta,
+  .community-feed-pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .community-feed-meta {
+    margin: 0 0 1rem;
+  }
+  .community-feed-pagination {
+    justify-content: space-between;
+    margin-top: 1.2rem;
+  }
+  .is-disabled {
+    pointer-events: none;
+    opacity: 0.5;
+  }
+  @media (max-width: 900px) {
+    .community-stream-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .feed-head-actions {
+      justify-content: flex-start;
+    }
+    .community-feed-pagination {
+      justify-content: flex-start;
+    }
+  }
+</style>

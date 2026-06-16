@@ -34,6 +34,8 @@ function getBearerToken(request: Request): string | null {
   return token.trim();
 }
 
+const MEDIA_ONLY_SENTINEL = "\u2063\u2063\u2063\u2063\u2063\u2063\u2063\u2063\u2063\u2063\u2063\u2063";
+
 export async function onRequestGet({ env, request }: PagesContext): Promise<Response> {
   try {
     const url = new URL(request.url);
@@ -94,7 +96,7 @@ export async function onRequestPost({ env, request }: PagesContext): Promise<Res
     }
 
     const payload = (await request.json().catch(() => null)) as
-      | { circle_slug?: string; title?: string; body?: string; type?: string }
+      | { circle_slug?: string; title?: string; body?: string; type?: string; has_media?: boolean }
       | null;
 
     if (!payload) {
@@ -106,16 +108,21 @@ export async function onRequestPost({ env, request }: PagesContext): Promise<Res
     const body = (payload.body ?? "").trim();
     const type = (payload.type ?? "").trim();
 
-    if (!circleSlug || !title || !body || !type) {
-      return json({ error: "circle_slug, title, body, type are required" }, 400);
+    if (!circleSlug || !title || !type) {
+      return json({ error: "circle_slug, title, type are required" }, 400);
     }
 
     if (title.length < 3 || title.length > 180) {
       return json({ error: "title must be 3-180 characters" }, 400);
     }
-    if (body.length < 10 || body.length > 20000) {
-      return json({ error: "body must be 10-20000 characters" }, 400);
+    if (body.length > 20000) {
+      return json({ error: "body must be <=20000 characters" }, 400);
     }
+    const hasMedia = payload.has_media === true;
+    if (!body && !hasMedia) {
+      return json({ error: "body or media is required" }, 400);
+    }
+    const normalizedBody = body || (hasMedia ? MEDIA_ONLY_SENTINEL : "");
 
     const allowedTypes = new Set(["experience", "question", "review", "dev", "news", "feedback"]);
     if (!allowedTypes.has(type)) {
@@ -153,8 +160,8 @@ export async function onRequestPost({ env, request }: PagesContext): Promise<Res
         circle_id: circle.id,
         type,
         title,
-        body,
-        status: "pending",
+        body: normalizedBody,
+        status: "published",
       })
       .select("id,author_id,circle_id,type,title,status,created_at")
       .single();
