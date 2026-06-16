@@ -31,25 +31,25 @@ alter table public.comments
 
 update public.posts
 set moderation_status = case
-  when status = 'pending' then 'pending_review'
-  when status = 'hidden' then 'hidden_by_admin'
+  when status::text = 'pending' then 'pending_review'
+  when status::text = 'hidden' then 'hidden_by_admin'
   else 'published'
 end
 where moderation_status is distinct from case
-  when status = 'pending' then 'pending_review'
-  when status = 'hidden' then 'hidden_by_admin'
+  when status::text = 'pending' then 'pending_review'
+  when status::text = 'hidden' then 'hidden_by_admin'
   else 'published'
 end;
 
 update public.comments
 set moderation_status = case
-  when status = 'pending' then 'pending_review'
-  when status = 'hidden' then 'hidden_by_admin'
+  when status::text = 'pending' then 'pending_review'
+  when status::text = 'hidden' then 'hidden_by_admin'
   else 'published'
 end
 where moderation_status is distinct from case
-  when status = 'pending' then 'pending_review'
-  when status = 'hidden' then 'hidden_by_admin'
+  when status::text = 'pending' then 'pending_review'
+  when status::text = 'hidden' then 'hidden_by_admin'
   else 'published'
 end;
 
@@ -85,7 +85,7 @@ for insert
 to authenticated
 with check (
   author_id = auth.uid()
-  and status in ('published', 'pending')
+  and status::text in ('published', 'pending')
 );
 
 drop policy if exists "comments_update_self_or_staff" on public.comments;
@@ -100,7 +100,7 @@ using (
 with check (
   (
     author_id = auth.uid()
-    and status in ('pending', 'published', 'deleted')
+    and status::text in ('pending', 'published', 'deleted')
   )
   or (select public.is_moderator_or_admin())
 );
