@@ -4,7 +4,6 @@ import { buildLoginHref } from "../../lib/auth-redirect";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
-import { useInvisibleTurnstile } from "./useInvisibleTurnstile";
 
 const circleTypes = [
   { value: "topic", label: "通用话题" },
@@ -24,8 +23,6 @@ function normalizeFileName(fileName: string) {
 }
 
 function mapCircleError(message: string) {
-  if (message.includes("TURNSTILE_REQUIRED")) return "请先完成安全验证后再创建圈子。";
-  if (message.includes("TURNSTILE_INVALID")) return "安全验证失败，请刷新页面后重试。";
   if (message.includes("RATE_LIMITED")) return "创建过于频繁，请稍后再试。";
   if (message.includes("NOT_AUTHENTICATED")) return "登录状态已失效，请重新登录后再创建圈子。";
   if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在，请换一个名称。";
@@ -67,14 +64,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
     maxHeight: number;
     openUp: boolean;
   } | null>(null);
-  const {
-    siteKeyEnabled,
-    ready: turnstileReady,
-    error: turnstileError,
-    containerRef,
-    ensureToken,
-    resetToken,
-  } = useInvisibleTurnstile("安全验证失败，请刷新后重试。");
 
   const selectedType = circleTypes.find((item) => item.value === type) ?? circleTypes[0];
 
@@ -240,7 +229,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
       }
 
       if (imageFile) {
-        const uploadTurnstileToken = await ensureToken({ forceRefresh: true });
         const guardResponse = await fetch("/api/forum/media-upload-guard", {
           method: "POST",
           headers: {
@@ -250,7 +238,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
           body: JSON.stringify({
             upload_kind: "circle_cover",
             size_bytes: imageFile.size,
-            turnstile_token: uploadTurnstileToken || undefined,
           }),
         });
         const guardPayload = (await guardResponse.json().catch(() => null)) as
@@ -276,8 +263,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
         }
       }
 
-      const createTurnstileToken = await ensureToken({ forceRefresh: true });
-
       const response = await fetch("/api/forum/circles", {
         method: "POST",
         headers: {
@@ -289,7 +274,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
           description: nextDescription,
           type,
           image_path: uploadedPath || null,
-          turnstile_token: createTurnstileToken || undefined,
         }),
       });
 
@@ -306,7 +290,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
       }
 
       setMessage("圈子创建成功，正在跳转。");
-      resetToken();
       window.location.assign(`/circles/${payload.circle.slug}/`);
     } catch (submitError) {
       if (uploadedPath) {
@@ -319,7 +302,6 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
         return;
       }
       setError(mapCircleError(nextMessage));
-      resetToken();
     } finally {
       setSubmitting(false);
     }
@@ -435,15 +417,12 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
 
       {error ? <span className="inline-error">{error}</span> : null}
       {message ? <span className="inline-success">{message}</span> : null}
-      {turnstileError ? <span className="inline-error">{turnstileError}</span> : null}
-      {!turnstileReady && siteKeyEnabled ? <span className="community-meta">正在初始化创建验证…</span> : null}
 
       <div className="community-cta-row circle-create-actions">
         <button type="submit" className="community-button" disabled={submitting}>
           {submitting ? "创建中..." : "创建圈子"}
         </button>
       </div>
-      <div ref={containerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />
       {typeMenuPortal}
     </form>
   );

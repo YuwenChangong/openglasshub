@@ -2,7 +2,6 @@ import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { getRequestIp } from "../../../lib/request-ip";
 import { enforceUploadRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
-import { validateTurnstileToken } from "../../../lib/server/turnstile";
 
 export const prerender = false;
 
@@ -47,22 +46,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) return json({ error: "Invalid auth token" }, 401);
 
     const payload = (await request.json().catch(() => null)) as
-      | { turnstile_token?: string; upload_kind?: string; size_bytes?: number }
+      | { upload_kind?: string; size_bytes?: number }
       | null;
     if (!payload) return json({ error: "Invalid JSON payload" }, 400);
 
     const uploadKind = String(payload.upload_kind ?? "").trim();
     if (!["post_media", "circle_cover", "profile_avatar", "profile_banner"].includes(uploadKind)) {
       return json({ error: "Invalid upload_kind" }, 400);
-    }
-
-    const turnstile = await validateTurnstileToken({
-      env,
-      token: String(payload.turnstile_token ?? "").trim(),
-      remoteIp: getRequestIp(request),
-    });
-    if (!turnstile.ok) {
-      return json({ error: turnstile.message, code: turnstile.code }, 403);
     }
 
     const salt = requireEnv(env, "RATE_LIMIT_SALT");

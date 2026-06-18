@@ -16,7 +16,6 @@ import { getRequestIp } from "../../../lib/request-ip";
 import { moderateContent } from "../../../lib/moderation/moderate-content.server";
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
-import { validateTurnstileToken } from "../../../lib/server/turnstile";
 
 export const prerender = false;
 
@@ -377,7 +376,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const postId = String(payload.post_id ?? "").trim();
     const body = String(payload.body ?? "").trim();
     const parentId = payload.parent_id ? String(payload.parent_id).trim() : null;
-    const turnstileToken = String(payload.turnstile_token ?? "").trim();
 
     if (!postId || !UUID_REGEX.test(postId)) {
       return json({ error: "post_id is required (valid UUID)" }, 400);
@@ -405,15 +403,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         },
         403,
       );
-    }
-
-    const turnstile = await validateTurnstileToken({
-      env,
-      token: turnstileToken,
-      remoteIp: getRequestIp(request),
-    });
-    if (!turnstile.ok) {
-      return json({ error: turnstile.message ?? "Turnstile verification failed", code: turnstile.code }, 403);
     }
 
     const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
@@ -484,13 +473,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       post_id: postId,
       author_id: authData.user.id,
       body,
-      status: moderation.decision === "review" ? "pending" : "published",
-      moderation_status: moderation.decision === "review" ? "pending_review" : "published",
-      moderation_reason: moderation.reason,
-      moderation_score: moderation.score,
-      moderated_at: new Date().toISOString(),
+      status: "published",
+      moderation_status: "published",
+      moderation_reason: null,
+      moderation_score: null,
+      moderated_at: null,
       moderated_by: null,
-      moderation_provider: moderation.provider,
+      moderation_provider: null,
     };
     if (parentId) insertPayload.parent_id = parentId;
 
@@ -518,16 +507,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       can_delete: true,
     };
 
-    const pendingReview = moderation.decision === "review";
     return json(
       {
         comment: enriched,
-        pending_review: pendingReview,
-        message: pendingReview
-          ? "Your comment was submitted and is waiting for review."
-          : "Comment published.",
+        pending_review: false,
+        message: "Comment published.",
       },
-      pendingReview ? 202 : 201,
+      201,
     );
   } catch (err) {
     return json(
