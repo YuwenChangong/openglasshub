@@ -81,7 +81,8 @@ async function loadCollectionPosts(
       "id,author_id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)",
     )
     .in("id", postIds)
-    .eq("status", "published");
+    .eq("status", "published")
+    .eq("moderation_status", "published");
 
   if (error) {
     console.warn("[profile] collection posts failed", error.message);

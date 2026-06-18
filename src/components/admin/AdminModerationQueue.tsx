@@ -162,6 +162,10 @@ export default function AdminModerationQueue() {
         <div className="community-list" style={{ marginTop: "0.8rem" }}>
           {items.map((item) => (
             <article key={`${item.target_type}-${item.id}`} className="community-list-item" style={{ gap: "0.65rem" }}>
+              {(() => {
+                const actionable = item.moderation_status === "pending_review";
+                return (
+                  <>
               <div className="admin-action-row">
                 <strong>{item.title || (item.target_type === "comment" ? "评论" : "帖子")}</strong>
                 <span className={statusClass(item.moderation_status)}>{statusLabel(item.moderation_status)}</span>
@@ -178,7 +182,7 @@ export default function AdminModerationQueue() {
                 <button
                   type="button"
                   className="community-button"
-                  disabled={actionId === item.id || item.moderation_status === "published"}
+                  disabled={!actionable || actionId === item.id}
                   onClick={() => void mutate(item, "approve")}
                 >
                   通过
@@ -186,7 +190,7 @@ export default function AdminModerationQueue() {
                 <button
                   type="button"
                   className="community-action-button community-action-button--danger"
-                  disabled={actionId === item.id}
+                  disabled={!actionable || actionId === item.id}
                   onClick={() => void mutate(item, "reject")}
                 >
                   拒绝
@@ -194,12 +198,15 @@ export default function AdminModerationQueue() {
                 <button
                   type="button"
                   className="community-action-button"
-                  disabled={actionId === item.id}
+                  disabled={!actionable || actionId === item.id}
                   onClick={() => void mutate(item, "hide")}
                 >
                   隐藏
                 </button>
               </div>
+                  </>
+                );
+              })()}
             </article>
           ))}
         </div>

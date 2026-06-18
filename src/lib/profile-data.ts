@@ -173,6 +173,7 @@ export async function getProfileByUsername(
     .from("posts")
     .select("author_id, profiles:author_id(username)")
     .eq("status", "published")
+    .eq("moderation_status", "published")
     .order("created_at", { ascending: false })
     .limit(200);
 
@@ -209,14 +210,17 @@ export async function loadProfilePageData(
     .from("posts")
     .select("id", { count: "exact", head: true })
     .eq("author_id", profile.id)
-    .eq("status", "published");
+    .eq("status", "published")
+    .eq("moderation_status", "published");
 
   const commentCountPromise = supabase
     .from("comments")
     .select("id,posts:post_id!inner(id)", { count: "exact", head: true })
     .eq("author_id", profile.id)
     .eq("status", "published")
-    .eq("posts.status", "published");
+    .eq("moderation_status", "published")
+    .eq("posts.status", "published")
+    .eq("posts.moderation_status", "published");
 
   const circleCountPromise = supabase
     .from("circles")
@@ -231,6 +235,7 @@ export async function loadProfilePageData(
     )
     .eq("author_id", profile.id)
     .eq("status", "published")
+    .eq("moderation_status", "published")
     .order("created_at", { ascending: false })
     .limit(20);
 
@@ -239,7 +244,9 @@ export async function loadProfilePageData(
     .select("id,post_id,body,created_at,posts:post_id!inner(id,title,status)")
     .eq("author_id", profile.id)
     .eq("status", "published")
+    .eq("moderation_status", "published")
     .eq("posts.status", "published")
+    .eq("posts.moderation_status", "published")
     .order("created_at", { ascending: false })
     .limit(20);
 

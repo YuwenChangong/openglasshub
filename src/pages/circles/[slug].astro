@@ -41,6 +41,7 @@ if (publicCircle) {
     .select("id, author_id, title, body, type, created_at, profiles:author_id(display_name,username), post_media(*)")
     .eq("circle_id", publicCircle.id)
     .eq("status", "published")
+    .eq("moderation_status", "published")
     .order("created_at", { ascending: false })
     .limit(50);
 

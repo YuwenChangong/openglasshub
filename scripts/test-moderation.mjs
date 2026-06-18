@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 
 const { evaluateLocalModeration, mergeModerationResults } = await import("../src/lib/moderation/moderate-content.server.ts");
+const { moderateContent } = await import("../src/lib/moderation/moderate-content.server.ts");
 const { parseModerationActionPayload } = await import("../src/lib/server/moderation-admin.ts");
 
-function test(name, fn) {
+async function test(name, fn) {
   try {
-    fn();
+    await fn();
     console.log(`PASS ${name}`);
   } catch (error) {
     console.error(`FAIL ${name}`);
@@ -13,7 +15,7 @@ function test(name, fn) {
   }
 }
 
-test("local moderation allows normal AR glasses discussion", () => {
+await test("local moderation allows normal AR glasses discussion", () => {
   const result = evaluateLocalModeration({
     contentType: "post_body",
     userId: "u1",
@@ -22,7 +24,16 @@ test("local moderation allows normal AR glasses discussion", () => {
   assert.equal(result.decision, "allow");
 });
 
-test("local moderation reviews suspicious redirect copy", () => {
+await test("local moderation allows short but meaningful Chinese title", () => {
+  const result = evaluateLocalModeration({
+    contentType: "post_title",
+    userId: "u1",
+    text: "想问一下",
+  });
+  assert.equal(result.decision, "allow");
+});
+
+await test("local moderation reviews suspicious redirect copy", () => {
   const result = evaluateLocalModeration({
     contentType: "post_body",
     userId: "u1",
@@ -32,7 +43,7 @@ test("local moderation reviews suspicious redirect copy", () => {
   assert.equal(result.reason, "sensitive_review");
 });
 
-test("local moderation rejects obvious scam content", () => {
+await test("local moderation rejects obvious scam content", () => {
   const result = evaluateLocalModeration({
     contentType: "post_body",
     userId: "u1",
@@ -41,7 +52,7 @@ test("local moderation rejects obvious scam content", () => {
   assert.equal(result.decision, "reject");
 });
 
-test("excessive links trigger review", () => {
+await test("excessive links trigger review", () => {
   const result = evaluateLocalModeration({
     contentType: "comment_body",
     userId: "u1",
@@ -50,7 +61,7 @@ test("excessive links trigger review", () => {
   assert.equal(result.decision, "review");
 });
 
-test("too many links trigger reject", () => {
+await test("too many links trigger reject", () => {
   const result = evaluateLocalModeration({
     contentType: "comment_body",
     userId: "u1",
@@ -59,7 +70,33 @@ test("too many links trigger reject", () => {
   assert.equal(result.decision, "reject");
 });
 
-test("merge moderation results prefers reject", () => {
+await test("provider default does not force clean content into review", async () => {
+  const result = await moderateContent({}, {
+    contentType: "post_body",
+    userId: "u1",
+    text: "想讨论一下 XREAL One 和 RayNeo X2 的日常使用差异。",
+  });
+  assert.equal(result.decision, "allow");
+});
+
+await test("public visibility filters require moderation_status published", async () => {
+  const files = [
+    "src/lib/forum-feed.ts",
+    "src/lib/forum-search.ts",
+    "src/lib/profile-data.ts",
+    "src/lib/post-engagement.ts",
+    "src/pages/index.astro",
+    "src/pages/circles/[slug].astro",
+    "src/pages/posts/[id].astro",
+  ];
+
+  for (const file of files) {
+    const content = await fs.readFile(new URL(`../${file}`, import.meta.url), "utf8");
+    assert.match(content, /moderation_status"\s*,\s*"published"|moderation_status', 'published'|moderation_status", "published"/);
+  }
+});
+
+await test("merge moderation results prefers reject", () => {
   const result = mergeModerationResults([
     { decision: "allow", reason: null, score: 0.01, matchedRules: [], provider: "local" },
     { decision: "review", reason: "spam", score: 0.5, matchedRules: ["r1"], provider: "local" },
@@ -69,7 +106,7 @@ test("merge moderation results prefers reject", () => {
   assert.equal(result.reason, "scam");
 });
 
-test("admin moderation payload parser validates target", () => {
+await test("admin moderation payload parser validates target", () => {
   const result = parseModerationActionPayload({ target_type: "post", target_id: "11111111-1111-1111-1111-111111111111" });
   assert.equal(result.ok, true);
 });

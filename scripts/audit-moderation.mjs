@@ -52,15 +52,36 @@ async function main() {
   const moderationPage = await read("src/pages/admin/moderation/index.astro");
   const moderationComponent = await read("src/components/admin/AdminModerationQueue.tsx");
   const sensitiveTermsSource = await read("src/lib/moderation/sensitive-terms.server.ts");
+  const moderationCore = await read("src/lib/moderation/moderate-content.server.ts");
+  const feedSource = await read("src/lib/forum-feed.ts");
+  const searchSource = await read("src/lib/forum-search.ts");
+  const profileSource = await read("src/lib/profile-data.ts");
+  const engagementSource = await read("src/lib/post-engagement.ts");
+  const postDetailSource = await read("src/pages/posts/[id].astro");
+  const commentsSource = await read("src/pages/api/forum/comments.ts");
+  const circlePageSource = await read("src/pages/circles/[slug].astro");
+  const homePageSource = await read("src/pages/index.astro");
 
   if (!postsApi.includes("moderateContent(")) fail(errors, "posts API does not call moderateContent");
   if (!commentsApi.includes("moderateContent(")) fail(errors, "comments API does not call moderateContent");
   if (!postsApi.includes("pending_review")) fail(errors, "posts API missing pending_review handling");
   if (!commentsApi.includes("pending_review")) fail(errors, "comments API missing pending_review handling");
+  if (!moderationCore.includes('return buildResult("allow"')) fail(errors, "moderation core missing default allow result");
+  if (!postsApi.includes('moderation_status: moderation.decision === "review" ? "pending_review" : "published"')) fail(errors, "posts API missing published moderation_status allow branch");
+  if (!commentsApi.includes('moderation_status: moderation.decision === "review" ? "pending_review" : "published"')) fail(errors, "comments API missing published moderation_status allow branch");
+  if (!feedSource.includes('.eq("moderation_status", "published")')) fail(errors, "forum feed missing moderation_status published filter");
+  if (!searchSource.includes('.eq("moderation_status", "published")')) fail(errors, "forum search missing moderation_status published filter");
+  if (!profileSource.includes('.eq("moderation_status", "published")')) fail(errors, "profile data missing moderation_status published filter");
+  if (!engagementSource.includes('.eq("moderation_status", "published")')) fail(errors, "post engagement comment counts missing moderation_status published filter");
+  if (!postDetailSource.includes('.eq("moderation_status", "published")')) fail(errors, "post detail missing moderation_status published filter");
+  if (!circlePageSource.includes('.eq("moderation_status", "published")')) fail(errors, "circle page missing moderation_status published filter");
+  if (!homePageSource.includes('.eq("moderation_status", "published")')) fail(errors, "homepage missing moderation_status published filter");
+  if (!commentsSource.includes('viewerUserId === c.author_id')) fail(errors, "comments API missing owner-only pending visibility handling");
   if (!moderationPage.includes("AdminModerationQueue")) fail(errors, "admin moderation page not wired");
   if (!moderationComponent.includes("/api/admin/moderation/approve")) fail(errors, "moderation queue missing approve action");
   if (!moderationComponent.includes("/api/admin/moderation/reject")) fail(errors, "moderation queue missing reject action");
   if (!moderationComponent.includes("/api/admin/moderation/hide")) fail(errors, "moderation queue missing hide action");
+  if (!moderationComponent.includes('item.moderation_status === "pending_review"')) fail(errors, "admin moderation queue missing handled-state action guard");
 
   const clientRoots = ["src/components", "src/pages"];
   for (const root of clientRoots) {
