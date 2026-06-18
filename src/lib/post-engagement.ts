@@ -94,7 +94,8 @@ export async function buildPostCommentCountMap(
     .from("comments")
     .select("post_id")
     .in("post_id", postIds)
-    .eq("status", "published");
+    .eq("status", "published")
+    .eq("moderation_status", "published");
 
   if (error || !data) {
     return counts;

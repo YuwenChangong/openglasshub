@@ -180,6 +180,7 @@ async function loadCandidatePosts(
     .from("posts")
     .select(selectWithViewCount)
     .eq("status", "published")
+    .eq("moderation_status", "published")
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -196,6 +197,7 @@ async function loadCandidatePosts(
       .from("posts")
       .select(selectWithoutViewCount)
       .eq("status", "published")
+      .eq("moderation_status", "published")
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -244,6 +246,7 @@ async function loadLatestPostsPage(
     .from("posts")
     .select(selectWithViewCount)
     .eq("status", "published")
+    .eq("moderation_status", "published")
     .order("created_at", { ascending: false })
     .range(rangeFrom, rangeTo);
 
@@ -260,6 +263,7 @@ async function loadLatestPostsPage(
       .from("posts")
       .select(selectWithoutViewCount)
       .eq("status", "published")
+      .eq("moderation_status", "published")
       .order("created_at", { ascending: false })
       .range(rangeFrom, rangeTo);
 

@@ -277,18 +277,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const normalizedBody = body || (hasMedia ? MEDIA_ONLY_SENTINEL : "");
     const type = String(payload.type ?? "").trim();
 
-    const moderation = mergeModerationResults([
+    const moderationInputs = [
       await moderateContent(env, {
         contentType: "post_title",
         userId: authData.user.id,
         text: title,
       }),
-      await moderateContent(env, {
-        contentType: "post_body",
-        userId: authData.user.id,
-        text: body,
-      }),
-    ]);
+    ];
+
+    if (body) {
+      moderationInputs.push(
+        await moderateContent(env, {
+          contentType: "post_body",
+          userId: authData.user.id,
+          text: body,
+        }),
+      );
+    }
+
+    const moderation = mergeModerationResults(moderationInputs);
 
     if (moderation.decision === "reject") {
       return json(

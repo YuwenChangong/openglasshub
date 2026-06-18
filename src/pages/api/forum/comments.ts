@@ -31,6 +31,7 @@ interface CommentRow {
   parent_id: string | null;
   body: string;
   status: string;
+  moderation_status?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -151,18 +152,48 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     const token = getBearerToken(request);
     let client = createAnonClient(env);
+    let viewerUserId: string | null = null;
     if (token) {
       const candidate = createUserClient(env, token);
       const { data: authData } = await candidate.auth.getUser(token).catch(() => ({ data: { user: null } }));
       if (authData?.user) {
         client = candidate;
+        viewerUserId = authData.user.id;
       }
     }
 
-    // Fetch comments (published + deleted placeholders for those with replies)
+    const { data: post, error: postError } = await client
+      .from("posts")
+      .select("id, author_id, status, moderation_status")
+      .eq("id", postId)
+      .maybeSingle();
+
+    if (postError) {
+      return json({ error: postError.message }, 500);
+    }
+    if (!post) {
+      return json({ error: "Post not found" }, 404);
+    }
+
+    const canViewOwnPendingPost =
+      viewerUserId === (post as { author_id?: string | null }).author_id &&
+      (post as { status?: string | null }).status === "pending" &&
+      (post as { moderation_status?: string | null }).moderation_status === "pending_review";
+
+    if (
+      !(
+        ((post as { status?: string | null }).status === "published") &&
+        ((post as { moderation_status?: string | null }).moderation_status === "published")
+      ) &&
+      !canViewOwnPendingPost
+    ) {
+      return json({ error: "Post not found" }, 404);
+    }
+
+    // Fetch comments (published + owner pending + deleted placeholders for published replies)
     const { data: allComments, error: commentsError } = await client
       .from("comments")
-      .select("id, post_id, author_id, parent_id, body, status, created_at, updated_at")
+      .select("id, post_id, author_id, parent_id, body, status, moderation_status, created_at, updated_at")
       .eq("post_id", postId)
       .in("status", ["published", "deleted", "pending"])
       .order("created_at", { ascending: true });
@@ -174,9 +205,15 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     const rows = (allComments ?? []) as CommentRow[];
 
-    // Separate published and deleted
-    const publishedComments = rows.filter((c) => c.status === "published");
-    const pendingComments = rows.filter((c) => c.status === "pending");
+    const publishedComments = rows.filter(
+      (c) => c.status === "published" && (c.moderation_status ?? "published") === "published",
+    );
+    const pendingComments = rows.filter(
+      (c) =>
+        c.status === "pending" &&
+        (c.moderation_status ?? null) === "pending_review" &&
+        viewerUserId === c.author_id,
+    );
     const deletedComments = rows.filter((c) => c.status === "deleted");
 
     // A deleted comment is only kept if it has child replies among published comments
@@ -237,10 +274,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
     }
 
     // Determine liked_by_me if authenticated
-    let myUserId: string | null = null;
+    let myUserId: string | null = viewerUserId;
     let myRole: string | null = null;
 
-    if (token) {
+    if (token && !myUserId) {
       try {
         const userClient = createUserClient(env, token);
         const { data: authData } = await userClient.auth.getUser(token);
@@ -412,12 +449,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Verify post exists and is published
     const { data: post, error: postError } = await userClient
       .from("posts")
-      .select("id, status")
+      .select("id, author_id, status, moderation_status")
       .eq("id", postId)
       .maybeSingle();
     if (postError) return json({ error: postError.message }, 500);
     if (!post) return json({ error: "Post not found" }, 404);
-    if ((post as { status: string }).status !== "published") {
+    if (
+      (post as { status: string }).status !== "published" ||
+      (post as { moderation_status?: string | null }).moderation_status !== "published"
+    ) {
       return json({ error: "Cannot comment on non-published post" }, 403);
     }
 
@@ -425,13 +465,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (parentId) {
       const { data: parentComment, error: parentError } = await userClient
         .from("comments")
-        .select("id, status")
+        .select("id, status, moderation_status")
         .eq("id", parentId)
         .eq("post_id", postId)
         .maybeSingle();
       if (parentError) return json({ error: parentError.message }, 500);
       if (!parentComment) return json({ error: "Parent comment not found" }, 404);
-      if ((parentComment as { status: string }).status !== "published") {
+      if (
+        (parentComment as { status: string }).status !== "published" ||
+        (parentComment as { moderation_status?: string | null }).moderation_status !== "published"
+      ) {
         return json({ error: "Cannot reply to a deleted comment" }, 400);
       }
     }
@@ -614,12 +657,15 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     // Verify comment exists and is published
     const { data: comment, error: commentError } = await userClient
       .from("comments")
-      .select("id, status")
+      .select("id, status, moderation_status")
       .eq("id", commentId)
       .maybeSingle();
     if (commentError) return json({ error: commentError.message }, 500);
     if (!comment) return json({ error: "Comment not found" }, 404);
-    if ((comment as { status: string }).status !== "published") {
+    if (
+      (comment as { status: string }).status !== "published" ||
+      (comment as { moderation_status?: string | null }).moderation_status !== "published"
+    ) {
       return json({ error: "Cannot like a deleted comment" }, 400);
     }
 

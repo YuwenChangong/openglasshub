@@ -50,7 +50,10 @@ function looksGibberish(text: string): boolean {
   if (!trimmed) return true;
   const alnum = (trimmed.match(/[a-z0-9\u4e00-\u9fff]/gi) ?? []).length;
   const symbols = trimmed.length - alnum;
-  return trimmed.length <= 6 || (symbols > alnum && trimmed.length < 18);
+  if (alnum === 0) return true;
+  if (trimmed.length <= 4) return alnum <= 1;
+  if (trimmed.length <= 6) return symbols > alnum && alnum <= 2;
+  return symbols > alnum && trimmed.length < 18;
 }
 
 function hasRepeatedContent(text: string): boolean {

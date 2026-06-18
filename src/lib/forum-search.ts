@@ -187,6 +187,7 @@ async function fetchPublishedPosts(
       .from("posts")
       .select(selectClause)
       .eq("status", "published")
+      .eq("moderation_status", "published")
       .or(`title.ilike.${params.pattern},body.ilike.${params.pattern}`)
       .order("created_at", { ascending: false })
       .limit(params.maxFetch);
@@ -222,6 +223,7 @@ async function fetchPublishedPosts(
       .from("posts")
       .select(authorSelect)
       .eq("status", "published")
+      .eq("moderation_status", "published")
       .in("author_id", params.authorIds)
       .order("created_at", { ascending: false })
       .limit(params.maxFetch);
@@ -237,6 +239,7 @@ async function fetchPublishedPosts(
         .from("posts")
         .select(selectWithoutViewCount)
         .eq("status", "published")
+        .eq("moderation_status", "published")
         .in("author_id", params.authorIds)
         .order("created_at", { ascending: false })
         .limit(params.maxFetch);
