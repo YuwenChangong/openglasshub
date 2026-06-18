@@ -3,7 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 import { buildR2PublicUrl, buildTmpVideoKey, signR2PutUrl } from "../../../lib/r2-server";
 import { getRequestIp } from "../../../lib/request-ip";
 import { enforceUploadRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
-import { validateTurnstileToken } from "../../../lib/server/turnstile";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 export const prerender = false;
@@ -67,7 +66,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     stage = "payload";
     const payload = (await request.json().catch(() => null)) as
-      | { post_id?: string; file_name?: string; mime_type?: string; size_bytes?: number; turnstile_token?: string }
+      | { post_id?: string; file_name?: string; mime_type?: string; size_bytes?: number }
       | null;
     if (!payload) return json({ error: "Invalid JSON payload" }, 400);
 
@@ -75,18 +74,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const fileNameRaw = String(payload.file_name ?? "").trim();
     const mimeType = String(payload.mime_type ?? "").trim().toLowerCase();
     const sizeBytes = Number(payload.size_bytes ?? 0);
-    const turnstileToken = String(payload.turnstile_token ?? "").trim();
     const remoteIp = getRequestIp(request);
-
-    stage = "turnstile";
-    const turnstile = await validateTurnstileToken({
-      env,
-      token: turnstileToken,
-      remoteIp,
-    });
-    if (!turnstile.ok) {
-      return json({ error: turnstile.message ?? "Turnstile verification failed", code: turnstile.code }, 403);
-    }
 
     if (!postId || !/^[0-9a-f-]{36}$/i.test(postId)) return json({ error: "Invalid post_id format" }, 400);
     if (!fileNameRaw) return json({ error: "file_name is required" }, 400);

@@ -4,7 +4,6 @@ import { createOptimizedImageVariant } from "../../lib/client-image";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
-import { useInvisibleTurnstile } from "./useInvisibleTurnstile";
 
 interface CircleOption {
   id: string;
@@ -38,7 +37,7 @@ const postTypes = [
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 50 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 150 * 1024 * 1024;
 const MAX_MEDIA_COUNT = 6;
 const MAX_TOTAL_SIZE = 150 * 1024 * 1024;
@@ -124,34 +123,11 @@ function mapAuthError(errorMessage: string): string {
     return "这篇帖子可能违反社区规则，暂时无法发布。";
   }
   if (/INVALID_POST_BODY/i.test(errorMessage)) return "正文至少需要 1 个字符，且不能超过 50000 个字符。";
-  if (/TURNSTILE_REQUIRED/i.test(errorMessage)) return "请先完成安全验证后再提交。";
-  if (/TURNSTILE_INVALID/i.test(errorMessage)) return "安全验证失败，请刷新页面后重试。";
   if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
   if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
   if (/User already registered/i.test(errorMessage)) return "该邮箱已经注册，请直接登录。";
   if (/exceeded the maximum allowed size/i.test(errorMessage)) {
     return "视频上传失败。";
-  }
-  if (/TURNSTILE_NOT_CONFIGURED/i.test(errorMessage)) {
-    return "发布验证服务未配置完成，请联系管理员检查 Turnstile 密钥。";
-  }
-  if (/invalid-input-secret/i.test(errorMessage)) {
-    return "发布验证配置错误（Secret 无效），请联系管理员修复。";
-  }
-  if (/invalid-input-response|missing-input-response/i.test(errorMessage)) {
-    return "发布验证已过期或未生效，请刷新页面后重试。";
-  }
-  if (/invalid hostname|hostname mismatch/i.test(errorMessage)) {
-    return "当前站点域名不在发布验证白名单，请联系管理员把此域名加入 Turnstile Hostnames。";
-  }
-  if (/timeout-or-duplicate/i.test(errorMessage)) {
-    return "发布验证已超时，请稍后重试。";
-  }
-  if (/Turnstile verification failed/i.test(errorMessage)) {
-    return "发布验证失败，请刷新页面后重试。";
-  }
-  if (/请先完成发布安全验证/.test(errorMessage)) {
-    return "发布验证尚未准备好。请刷新页面后重试；若仍失败，检查 Turnstile Hostnames 与当前域名是否一致。";
   }
   return errorMessage;
 }
@@ -160,9 +136,8 @@ async function uploadVideoToExternal(params: {
   accessToken: string;
   postId: string;
   file: File;
-  turnstileToken: string;
 }): Promise<{ mediaUrl: string; storagePath: string }> {
-  const { accessToken, postId, file, turnstileToken } = params;
+  const { accessToken, postId, file } = params;
   const ticketResponse = await fetch("/api/forum/external-video-upload", {
     method: "POST",
     headers: {
@@ -174,7 +149,6 @@ async function uploadVideoToExternal(params: {
       file_name: file.name,
       mime_type: file.type,
       size_bytes: file.size,
-      turnstile_token: turnstileToken,
     }),
   });
 
@@ -236,14 +210,6 @@ export default function CreatePostForm() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const authState = useBrowserAuthState(supabase);
-  const {
-    siteKeyEnabled,
-    ready: turnstileReady,
-    error: turnstileError,
-    containerRef: postWidgetContainerRef,
-    ensureToken,
-    resetToken,
-  } = useInvisibleTurnstile("安全验证失败，请刷新后重试。");
 
   useEffect(() => {
     if (!supabase) {
@@ -329,7 +295,6 @@ export default function CreatePostForm() {
     accessToken: string;
     sizeBytes: number;
     uploadKind: "post_media" | "circle_cover";
-    turnstileToken: string;
   }) {
     const response = await fetch("/api/forum/media-upload-guard", {
       method: "POST",
@@ -340,7 +305,6 @@ export default function CreatePostForm() {
       body: JSON.stringify({
         upload_kind: params.uploadKind,
         size_bytes: params.sizeBytes,
-        turnstile_token: params.turnstileToken,
       }),
     });
 
@@ -379,7 +343,7 @@ export default function CreatePostForm() {
         continue;
       }
       if (isImage && file.size > MAX_IMAGE_SIZE) {
-        setError("单张图片不能超过 10MB。");
+        setError("单张图片不能超过 50MB。");
         continue;
       }
       if (isVideo && file.size > MAX_VIDEO_SIZE) {
@@ -498,8 +462,6 @@ export default function CreatePostForm() {
     let accessToken = "";
 
     try {
-      const verifiedTurnstileToken = await ensureToken({ forceRefresh: true });
-
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !sessionData.session?.access_token || !sessionData.session.user) {
         window.location.replace(buildLoginHref("/posts/new/"));
@@ -520,7 +482,6 @@ export default function CreatePostForm() {
           title: title.trim(),
           body: body.trim(),
           has_media: mediaFiles.length > 0,
-          turnstile_token: verifiedTurnstileToken || undefined,
         }),
       });
 
@@ -554,12 +515,10 @@ export default function CreatePostForm() {
         for (const [index, item] of mediaFiles.entries()) {
           if (item.kind === "video") {
             try {
-              const uploadTurnstileToken = await ensureToken({ forceRefresh: true });
               const uploaded = await uploadVideoToExternal({
                 accessToken,
                 postId: createdPostId,
                 file: item.file,
-                turnstileToken: uploadTurnstileToken || "",
               });
               mediaPayload.push({
                 kind: "video",
@@ -586,12 +545,10 @@ export default function CreatePostForm() {
               const fileName = normalizeFileName(item.file.name) || `video-${index + 1}.mp4`;
               const storagePath = `${sessionData.session.user.id}/${createdPostId}/${Date.now()}-${index}-${fileName}`;
               try {
-                const fallbackTurnstileToken = await ensureToken({ forceRefresh: true });
                 await guardDirectMediaUpload({
                   accessToken,
                   sizeBytes: item.sizeBytes,
                   uploadKind: "post_media",
-                  turnstileToken: fallbackTurnstileToken || "",
                 });
                 await uploadToPostMediaWithTus({
                   file: item.file,
@@ -626,12 +583,10 @@ export default function CreatePostForm() {
             ? `${sessionData.session.user.id}/${createdPostId}/thumb-${Date.now()}-${index}-${normalizeFileName(item.thumbnailFile.name || fileName)}`
             : "";
           try {
-            const uploadTurnstileToken = await ensureToken({ forceRefresh: true });
             await guardDirectMediaUpload({
               accessToken,
               sizeBytes: item.sizeBytes,
               uploadKind: "post_media",
-              turnstileToken: uploadTurnstileToken || "",
             });
             await uploadToPostMediaWithTus({
               file: item.file,
@@ -693,15 +648,14 @@ export default function CreatePostForm() {
       setTitle("");
       setBody("");
       setMediaFiles([]);
-      resetToken();
 
-      const createdStatus = createPayload.post.status ?? "pending";
+      const createdStatus = createPayload.post.status ?? "published";
       if (createdStatus === "published") {
         setMessage("发布成功，正在跳转到帖子页面。");
         window.location.assign(`/posts/${createdPostId}/`);
         return;
       }
-      setMessage("帖子已提交，正在等待审核。审核通过后会出现在公开动态里。");
+      setMessage("发布成功。");
     } catch (submitError) {
       if (uploadedPaths.length > 0) {
         await supabase.storage.from("post-media").remove(uploadedPaths).catch(() => undefined);
@@ -712,7 +666,6 @@ export default function CreatePostForm() {
 
       const rawMessage = submitError instanceof Error ? submitError.message : "提交失败。";
       setError(mapAuthError(rawMessage));
-      resetToken();
     } finally {
       setSubmitting(false);
     }
@@ -910,14 +863,11 @@ export default function CreatePostForm() {
             {submitting ? "提交中..." : "提交帖子"}
           </button>
         </div>
-        <div ref={postWidgetContainerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />
       </form>
 
       <div className="post-composer__feedback">
         {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
         {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
-        {turnstileError ? <div className="auth-alert auth-alert--error">{turnstileError}</div> : null}
-        {!turnstileReady && siteKeyEnabled ? <div className="auth-alert">正在初始化提交环境…</div> : null}
       </div>
     </section>
   );

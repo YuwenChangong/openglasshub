@@ -21,7 +21,6 @@ import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
 import { mergeModerationResults, moderateContent } from "../../../lib/moderation/moderate-content.server";
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
-import { validateTurnstileToken } from "../../../lib/server/turnstile";
 import { listForumFeed, parseFeedSort } from "../../../lib/forum-feed";
 
 export const prerender = false;
@@ -244,15 +243,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (validationError) {
       return json({ error: validationError.message, code: validationError.code }, 400);
     }
-    const turnstileToken = String(payload.turnstile_token ?? "").trim();
-    const turnstile = await validateTurnstileToken({
-      env,
-      token: turnstileToken,
-      remoteIp: getRequestIp(request),
-    });
-    if (!turnstile.ok) {
-      return json({ error: turnstile.message ?? "Turnstile verification failed", code: turnstile.code }, 403);
-    }
     const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
     const ipHash = await hashRateLimitIp(getRequestIp(request), rateSalt);
     const rateLimit = await enforceUserRateLimit({
@@ -345,13 +335,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         type,
         title,
         body: normalizedBody,
-        status: moderation.decision === "review" ? "pending" : "published",
-        moderation_status: moderation.decision === "review" ? "pending_review" : "published",
-        moderation_reason: moderation.reason,
-        moderation_score: moderation.score,
-        moderated_at: new Date().toISOString(),
+        status: "published",
+        moderation_status: "published",
+        moderation_reason: null,
+        moderation_score: null,
+        moderated_at: null,
         moderated_by: null,
-        moderation_provider: moderation.provider,
+        moderation_provider: null,
       })
       .select("id,author_id,circle_id,type,title,status,created_at")
       .single();
@@ -362,16 +352,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: insertError.message }, 500);
     }
 
-    const pendingReview = moderation.decision === "review";
     return json(
       {
         post: inserted,
-        pending_review: pendingReview,
-        message: pendingReview
-          ? "Your post was submitted and is waiting for review."
-          : "Post published.",
+        pending_review: false,
+        message: "Post published.",
       },
-      pendingReview ? 202 : 201,
+      201,
     );
   } catch (err) {
     return json(

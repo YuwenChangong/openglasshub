@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
-import { useInvisibleTurnstile } from "./useInvisibleTurnstile";
 
 interface CommentFormProps {
   postId: string;
@@ -25,14 +24,6 @@ export default function CommentForm({
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const resolvedLoginHref = loginHref ?? buildLoginHref(`/posts/${postId}/#comments`);
   const resolvedPlaceholder = placeholder ?? "写下你的想法...";
-  const {
-    siteKeyEnabled,
-    ready: turnstileReady,
-    error: turnstileError,
-    containerRef,
-    ensureToken,
-    resetToken,
-  } = useInvisibleTurnstile("评论验证失败，请刷新后重试。");
 
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
@@ -73,11 +64,9 @@ export default function CommentForm({
         throw new Error("请先登录后再评论");
       }
 
-      const turnstileToken = await ensureToken({ forceRefresh: true });
       const reqBody: Record<string, unknown> = {
         post_id: postId,
         body: body.trim(),
-        turnstile_token: turnstileToken || undefined,
       };
       if (parentId) reqBody.parent_id = parentId;
 
@@ -102,27 +91,17 @@ export default function CommentForm({
 
       setBody("");
       setSuccess(true);
-      setSuccessMessage(
-        payload?.pending_review
-          ? "评论已提交，正在等待审核。"
-          : "评论发布成功。",
-      );
-      resetToken();
+      setSuccessMessage("评论发布成功。");
       onCommentCreated?.(payload?.comment ?? { id: "", post_id: postId, body: body.trim() });
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : "提交失败";
-      if (/TURNSTILE_REQUIRED/i.test(message)) {
-        setError("请先完成安全验证后再评论。");
-      } else if (/TURNSTILE_INVALID/i.test(message)) {
-        setError("评论验证失败，请刷新页面后重试。");
-      } else if (/CONTENT_REJECTED/i.test(message)) {
+      if (/CONTENT_REJECTED/i.test(message)) {
         setError("这条评论可能违反社区规则，暂时无法发布。");
       } else if (/RATE_LIMITED/i.test(message)) {
         setError("评论过于频繁，请稍后再试。");
       } else {
         setError(message);
       }
-      resetToken();
     } finally {
       setLoading(false);
     }
@@ -196,9 +175,6 @@ export default function CommentForm({
         </form>
         {error && <div className="comment-inline-error">{error}</div>}
         {success && <div className="comment-inline-success">{successMessage}</div>}
-        {turnstileError && <div className="comment-inline-error">{turnstileError}</div>}
-        {!turnstileReady && siteKeyEnabled && <div className="community-meta">正在初始化评论验证…</div>}
-        <div ref={containerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />
       </div>
     </Shell>
   );
