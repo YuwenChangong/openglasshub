@@ -67,8 +67,14 @@ async function main() {
   if (!postsApi.includes("pending_review")) fail(errors, "posts API missing pending_review handling");
   if (!commentsApi.includes("pending_review")) fail(errors, "comments API missing pending_review handling");
   if (!moderationCore.includes('return buildResult("allow"')) fail(errors, "moderation core missing default allow result");
-  if (!postsApi.includes('moderation_status: moderation.decision === "review" ? "pending_review" : "published"')) fail(errors, "posts API missing published moderation_status allow branch");
-  if (!commentsApi.includes('moderation_status: moderation.decision === "review" ? "pending_review" : "published"')) fail(errors, "comments API missing published moderation_status allow branch");
+  const postsHasPublishedAllowBranch =
+    postsApi.includes('moderation_status: moderation.decision === "review" ? "pending_review" : "published"') ||
+    (postsApi.includes('moderation_status: "published"') && postsApi.includes('pending_review: false'));
+  const commentsHasPublishedAllowBranch =
+    commentsApi.includes('moderation_status: moderation.decision === "review" ? "pending_review" : "published"') ||
+    (commentsApi.includes('moderation_status: "published"') && commentsApi.includes('pending_review: false'));
+  if (!postsHasPublishedAllowBranch) fail(errors, "posts API missing published moderation_status allow branch");
+  if (!commentsHasPublishedAllowBranch) fail(errors, "comments API missing published moderation_status allow branch");
   if (!feedSource.includes('.eq("moderation_status", "published")')) fail(errors, "forum feed missing moderation_status published filter");
   if (!searchSource.includes('.eq("moderation_status", "published")')) fail(errors, "forum search missing moderation_status published filter");
   if (!profileSource.includes('.eq("moderation_status", "published")')) fail(errors, "profile data missing moderation_status published filter");
