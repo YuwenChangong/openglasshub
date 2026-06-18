@@ -5,7 +5,6 @@ import { isValidProfileUsername } from "../../lib/profile-links";
 import { resolveProfileAvatarUrl, resolveProfileBannerUrl } from "../../lib/profile-media";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
-import { useInvisibleTurnstile } from "../forum/useInvisibleTurnstile";
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
@@ -46,8 +45,6 @@ function mapProfileError(message: string) {
   if (/username/i.test(message) && /check|constraint|invalid/i.test(message)) {
     return "主页地址仅支持小写英文、数字、下划线和短横线。";
   }
-  if (/TURNSTILE_REQUIRED/i.test(message)) return "请先完成安全验证后再上传。";
-  if (/TURNSTILE_INVALID/i.test(message)) return "上传验证失败，请刷新后重试。";
   if (/RATE_LIMITED/i.test(message)) return "上传过于频繁，请稍后再试。";
   if (/banner_url/i.test(message)) return "当前环境尚未完成个人横幅 migration。";
   return message;
@@ -89,14 +86,6 @@ export default function EditProfileForm() {
   const [avatarResolvedUrl, setAvatarResolvedUrl] = useState<string | null>(null);
   const [bannerResolvedUrl, setBannerResolvedUrl] = useState<string | null>(null);
   const [usernameComposing, setUsernameComposing] = useState(false);
-  const {
-    siteKeyEnabled,
-    ready: turnstileReady,
-    error: turnstileError,
-    containerRef,
-    ensureToken,
-    resetToken,
-  } = useInvisibleTurnstile("资料上传验证失败，请刷新后重试。");
 
   const avatarDisplayUrl = avatarPending.previewUrl ?? avatarResolvedUrl;
   const bannerDisplayUrl = bannerPending.previewUrl ?? bannerResolvedUrl;
@@ -175,7 +164,6 @@ export default function EditProfileForm() {
   }
 
   async function guardUpload(token: string, sizeBytes: number, uploadKind: "profile_avatar" | "profile_banner") {
-    const turnstileToken = await ensureToken({ forceRefresh: true });
     const response = await fetch("/api/forum/media-upload-guard", {
       method: "POST",
       headers: {
@@ -185,7 +173,6 @@ export default function EditProfileForm() {
       body: JSON.stringify({
         upload_kind: uploadKind,
         size_bytes: sizeBytes,
-        turnstile_token: turnstileToken || undefined,
       }),
     });
 
@@ -212,7 +199,6 @@ export default function EditProfileForm() {
     const objectPath = `${kind === "avatar" ? "profile-avatars" : "profile-banners"}/${profile.id}/${Date.now()}-${normalizeFileName(file.name)}`;
     await guardUpload(token, file.size, kind === "avatar" ? "profile_avatar" : "profile_banner");
     await uploadToPostMediaWithTus({ file, objectPath, accessToken: token });
-    resetToken();
     return objectPath;
   }
 
@@ -250,7 +236,6 @@ export default function EditProfileForm() {
         await removeStorageObject(nextPath);
       }
       setError(mapProfileError(requestError instanceof Error ? requestError.message : "上传失败。"));
-      resetToken();
     } finally {
       setUploadingKind(null);
       if (kind === "avatar" && avatarInputRef.current) avatarInputRef.current.value = "";
@@ -478,9 +463,6 @@ export default function EditProfileForm() {
 
       {error ? <span className="inline-error">{error}</span> : null}
       {success ? <span className="inline-success">{success}</span> : null}
-      {turnstileError ? <span className="inline-error">{turnstileError}</span> : null}
-      {!turnstileReady && siteKeyEnabled ? <span className="community-meta">正在初始化上传验证…</span> : null}
-      <div ref={containerRef} aria-hidden="true" style={{ position: "absolute", insetInlineStart: "-9999px" }} />
 
       <div className="community-cta-row">
         <button type="button" className="community-button" onClick={() => void handleSaveProfile()} disabled={isBusy}>
