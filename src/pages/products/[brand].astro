@@ -227,12 +227,41 @@ const devices = getDevicesByBrand(brand.key);
       grid-template-columns: 1fr;
     }
     .product-device-card {
-      height: 500px;
+      grid-template-rows: 188px auto auto auto;
+      height: auto;
+      min-height: 0;
+      gap: 0.72rem;
+      padding: 0.82rem;
+      border-radius: 18px;
+    }
+    .product-device-card :global(.product-visual) {
+      min-height: 188px;
+      height: 188px;
+    }
+    .product-device-card__spec {
+      min-height: 3.6rem;
+      padding: 0.56rem 0.6rem;
     }
     .product-device-card__foot,
     .product-device-card__state {
-      align-items: flex-start;
-      flex-direction: column;
+      align-items: center;
+      flex-direction: row;
+      justify-content: space-between;
+    }
+  }
+  @media (max-width: 420px) {
+    .products-brand-head__copy :global(.brand-mark) {
+      font-size: 1.35rem;
+    }
+    .product-device-card {
+      grid-template-rows: 176px auto auto auto;
+    }
+    .product-device-card :global(.product-visual) {
+      min-height: 176px;
+      height: 176px;
+    }
+    .product-device-card__specs {
+      gap: 0.45rem;
     }
   }
 </style>

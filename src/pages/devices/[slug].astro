@@ -420,6 +420,25 @@ const basicInfoItems = [
   @media (max-width: 720px) {
     .device-detail-head {
       grid-template-columns: 1fr;
+      gap: 0.95rem;
+      padding-top: 0.55rem;
+    }
+    .device-detail-head__visual :global(.product-visual) {
+      min-height: 312px;
+    }
+    .device-detail-head h1 {
+      font-size: 2.02rem;
+    }
+    .device-detail-head p {
+      font-size: 0.96rem;
+    }
+    .device-key-specs,
+    .device-fit-grid {
+      gap: 0.65rem;
+    }
+    .device-brief-panel,
+    .device-spec-panel {
+      padding: 0.9rem;
     }
     .device-spec-row {
       grid-template-columns: 1fr;
@@ -429,6 +448,17 @@ const basicInfoItems = [
     .device-source-panel__meta {
       align-items: flex-start;
       flex-direction: column;
+    }
+  }
+  @media (max-width: 420px) {
+    .device-detail-head__visual :global(.product-visual) {
+      min-height: 288px;
+    }
+    .device-key-specs {
+      grid-template-columns: 1fr;
+    }
+    .device-detail-head__actions {
+      gap: 0.55rem;
     }
   }
 </style>

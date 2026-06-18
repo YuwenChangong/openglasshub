@@ -6490,3 +6490,209 @@ body {
     margin: 0 -1rem;
   }
 }
+
+/* RC-6D mobile responsive polish hotfix */
+.community-post-meta,
+.community-post-title-link h3,
+.community-post-excerpt,
+.community-list-item strong,
+.community-list-item span,
+.device-key-spec strong,
+.device-spec-row dt,
+.device-spec-row dd,
+.device-brief-panel__body p,
+.device-fit-card li,
+.profile-bio,
+.profile-account-id {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 860px) {
+  .community-shell {
+    width: min(100%, calc(100% - 1.5rem));
+  }
+
+  .community-post-card,
+  .profile-post-card {
+    padding: 1rem 1rem 0;
+  }
+
+  .community-post-media-preview--single .community-post-media-preview__item {
+    min-height: 220px;
+    max-height: 360px;
+  }
+
+  .community-circle-card {
+    gap: 0.8rem;
+  }
+
+  .community-circle-card__cover img,
+  .community-circle-card__fallback {
+    min-height: 152px;
+  }
+
+  .news-feed-card,
+  .news-featured-card {
+    gap: 0.85rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .community-shell {
+    width: min(100%, calc(100% - 1rem));
+    padding-bottom: 3rem;
+  }
+
+  .community-page-head {
+    margin-bottom: 0.95rem;
+  }
+
+  .community-page-head h1,
+  .search-page-head h1,
+  .news-article-page__head h1,
+  .launcher-hero h1,
+  .devices-hero h1,
+  .device-detail-hero h1 {
+    font-size: clamp(2.08rem, 8vw, 2.55rem);
+  }
+
+  .community-surface--padded,
+  .community-sidebar-block,
+  .community-post-card,
+  .profile-post-card,
+  .news-feed-card,
+  .news-featured-card,
+  .community-product-card,
+  .community-circle-card {
+    padding-left: 0.95rem;
+    padding-right: 0.95rem;
+  }
+
+  .community-post-card,
+  .profile-post-card {
+    padding-top: 0.95rem;
+  }
+
+  .community-post-title-link h3 {
+    font-size: 1.1rem;
+  }
+
+  .community-post-excerpt {
+    font-size: 0.9rem;
+    line-height: 1.62;
+  }
+
+  .community-post-actions {
+    gap: 0.45rem;
+    padding-bottom: 0.9rem;
+  }
+
+  .community-action-button,
+  .community-action,
+  .community-action--muted {
+    min-height: 36px;
+    padding: 0.42rem 0.7rem;
+  }
+
+  .community-post-media-preview--single .community-post-media-preview__item {
+    min-height: 200px;
+    max-height: 320px;
+  }
+
+  .community-circle-card__cover img,
+  .community-circle-card__fallback {
+    min-height: 144px;
+    aspect-ratio: 16 / 9;
+  }
+
+  .community-news-card h3,
+  .community-circle-card h3,
+  .community-product-card h3 {
+    font-size: 1.02rem;
+    line-height: 1.34;
+  }
+
+  .forum-tabs-row__tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+
+  .forum-tabs-row__tabs::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .community-shell {
+    width: min(100%, calc(100% - 0.9rem));
+  }
+
+  .community-inline-links,
+  .community-page-head__actions {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+
+  .community-inline-links::-webkit-scrollbar,
+  .community-page-head__actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .community-post-actions {
+    flex-wrap: wrap;
+  }
+
+  .community-post-actions__spacer {
+    display: none;
+  }
+
+  .community-post-detail-link {
+    margin-left: 0;
+  }
+
+  .community-post-media-preview__item,
+  .community-post-media-preview__item img,
+  .community-post-media-preview__item video,
+  .community-post-media-preview__external {
+    min-height: 148px;
+    max-height: 220px;
+  }
+}
+
+@media (max-width: 420px) {
+  .community-shell {
+    width: min(100%, calc(100% - 0.8rem));
+  }
+
+  .community-page-head h1,
+  .search-page-head h1,
+  .news-article-page__head h1,
+  .launcher-hero h1,
+  .devices-hero h1,
+  .device-detail-hero h1 {
+    font-size: clamp(1.92rem, 9vw, 2.3rem);
+  }
+
+  .community-post-card,
+  .profile-post-card,
+  .community-news-card,
+  .community-circle-card,
+  .community-product-card,
+  .community-sidebar-block {
+    border-radius: 16px;
+  }
+
+  .community-post-actions {
+    gap: 0.4rem;
+  }
+
+  .community-action-button,
+  .community-action,
+  .community-action--muted {
+    padding-inline: 0.62rem;
+    font-size: 0.8rem;
+  }
+}

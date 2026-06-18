@@ -221,7 +221,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
       min-width: 200px;
     }
   }
-  @media (max-width: 900px) {
+  @media (max-width: 860px) {
     .og-header__inner {
       min-height: auto;
       padding: 0.8rem 0.9rem 0.9rem;
@@ -246,6 +246,78 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     }
     .og-header__brand span {
       font-size: 1rem;
+    }
+  }
+  @media (max-width: 720px) {
+    .og-header__inner {
+      gap: 0.75rem;
+      padding: 0.72rem 0.72rem 0.8rem;
+    }
+    .og-header__brand,
+    .ogh-brand {
+      gap: 10px;
+      min-height: 40px;
+    }
+    .og-header__brand img,
+    .ogh-brand img {
+      width: 30px;
+      height: 30px;
+    }
+    .og-header__brand span,
+    .ogh-brand span {
+      font-size: 0.96rem;
+    }
+    .og-header__link,
+    .ogh-nav a {
+      min-height: 36px;
+      padding: 7px 10px;
+      border-radius: 11px;
+      font-size: 0.86rem;
+    }
+    .og-header__auth,
+    .ogh-header-actions {
+      gap: 0.5rem;
+    }
+    :global(.ogh-login-button),
+    :global(.ogh-register-button),
+    :global(.ogh-auth-secondary) {
+      min-height: 40px;
+      padding: 9px 12px;
+      border-radius: 12px;
+    }
+    .og-header__search :global(.global-search-box__form) {
+      flex-direction: row;
+      gap: 0.45rem;
+      align-items: stretch;
+    }
+    .og-header__search :global(.global-search-box__button) {
+      width: auto;
+      min-width: 4.6rem;
+      padding-inline: 1rem;
+    }
+  }
+  @media (max-width: 420px) {
+    .og-header__inner {
+      gap: 0.65rem;
+      padding: 0.68rem 0.62rem 0.76rem;
+    }
+    .og-header__brand img,
+    .ogh-brand img {
+      width: 28px;
+      height: 28px;
+    }
+    .og-header__brand span,
+    .ogh-brand span {
+      font-size: 0.92rem;
+    }
+    .og-header__link,
+    .ogh-nav a {
+      padding: 7px 9px;
+      font-size: 0.82rem;
+    }
+    .og-header__search :global(.global-search-box__button) {
+      min-width: 4.25rem;
+      padding-inline: 0.86rem;
     }
   }
 </style>
