@@ -486,7 +486,7 @@ export default function CreatePostForm() {
       });
 
       const createPayload = (await createResponse.json().catch(() => null)) as
-        | { error?: string; code?: string; post?: { id: string; status: string } }
+        | { error?: string; code?: string; post?: { id: string; status: string }; pending_review?: boolean; message?: string }
         | null;
 
       if (!createResponse.ok || !createPayload?.post?.id) {
@@ -651,11 +651,11 @@ export default function CreatePostForm() {
 
       const createdStatus = createPayload.post.status ?? "published";
       if (createdStatus === "published") {
-        setMessage("发布成功，正在跳转到帖子页面。");
+        setMessage(createPayload.message || "发布成功，正在跳转到帖子页面。");
         window.location.assign(`/posts/${createdPostId}/`);
         return;
       }
-      setMessage("发布成功。");
+      setMessage(createPayload.message || (createPayload.pending_review ? "帖子已提交审核。" : "发布成功。"));
     } catch (submitError) {
       if (uploadedPaths.length > 0) {
         await supabase.storage.from("post-media").remove(uploadedPaths).catch(() => undefined);

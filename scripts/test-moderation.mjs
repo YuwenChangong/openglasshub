@@ -96,6 +96,22 @@ await test("public visibility filters require moderation_status published", asyn
   }
 });
 
+await test("post creation keeps review decisions out of published state", async () => {
+  const content = await fs.readFile(new URL("../src/pages/api/forum/posts.ts", import.meta.url), "utf8");
+  assert.match(content, /const requiresReview = moderation\.decision === "review"/);
+  assert.match(content, /status: insertedStatus/);
+  assert.match(content, /moderation_status: insertedModerationStatus/);
+  assert.match(content, /pending_review: requiresReview/);
+});
+
+await test("comment creation keeps review decisions out of published state", async () => {
+  const content = await fs.readFile(new URL("../src/pages/api/forum/comments.ts", import.meta.url), "utf8");
+  assert.match(content, /const requiresReview = moderation\.decision === "review"/);
+  assert.match(content, /status: insertedStatus/);
+  assert.match(content, /moderation_status: insertedModerationStatus/);
+  assert.match(content, /pending_review: requiresReview/);
+});
+
 await test("merge moderation results prefers reject", () => {
   const result = mergeModerationResults([
     { decision: "allow", reason: null, score: 0.01, matchedRules: [], provider: "local" },
