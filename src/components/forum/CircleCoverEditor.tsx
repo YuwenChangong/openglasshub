@@ -25,6 +25,7 @@ function normalizeFileName(fileName: string) {
 
 function mapCoverError(message: string) {
   if (/RATE_LIMITED/i.test(message)) return "上传过于频繁，请稍后再试。";
+  if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return "当前上传需要额外安全验证，请稍后再试。";
   return message;
 }
 

@@ -2,6 +2,34 @@ export type TurnstileResult =
   | { ok: true }
   | { ok: false; code: "TURNSTILE_REQUIRED" | "TURNSTILE_INVALID"; message: string };
 
+export type UploadTurnstileMode = "risk_based" | "required" | "off";
+
+export function resolveUploadTurnstileMode(env: Record<string, string | undefined>): UploadTurnstileMode {
+  const raw = String(env.UPLOAD_TURNSTILE_MODE ?? "risk_based").trim().toLowerCase();
+  if (raw === "required" || raw === "off") return raw;
+  return "risk_based";
+}
+
+export function shouldRequireUploadTurnstile(params: {
+  env: Record<string, string | undefined>;
+  uploadKind: string;
+  sizeBytes: number;
+}): boolean {
+  const mode = resolveUploadTurnstileMode(params.env);
+  if (mode === "off") return false;
+  if (mode === "required") return true;
+
+  const normalizedBytes = Number.isFinite(params.sizeBytes) && params.sizeBytes > 0
+    ? Math.trunc(params.sizeBytes)
+    : 0;
+
+  if (params.uploadKind === "post_media" && normalizedBytes >= 100 * 1024 * 1024) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function validateTurnstileToken(params: {
   env: Record<string, string | undefined>;
   token: string;

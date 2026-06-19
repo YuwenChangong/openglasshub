@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { buildR2PublicUrl, buildTmpVideoKey, signR2PutUrl } from "../../../lib/r2-server";
 import { getRequestIp } from "../../../lib/request-ip";
 import { enforceUploadRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { shouldRequireUploadTurnstile, validateTurnstileToken } from "../../../lib/server/turnstile";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 export const prerender = false;
@@ -66,7 +67,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     stage = "payload";
     const payload = (await request.json().catch(() => null)) as
-      | { post_id?: string; file_name?: string; mime_type?: string; size_bytes?: number }
+      | { post_id?: string; file_name?: string; mime_type?: string; size_bytes?: number; turnstile_token?: string }
       | null;
     if (!payload) return json({ error: "Invalid JSON payload" }, 400);
 
@@ -81,6 +82,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!ACCEPTED_VIDEO_TYPES.has(mimeType)) return json({ error: "Unsupported video mime type" }, 400);
     if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_VIDEO_SIZE) {
       return json({ error: "Video size exceeds current upload limit" }, 400);
+    }
+    if (shouldRequireUploadTurnstile({ env, uploadKind: "post_media", sizeBytes })) {
+      const turnstile = await validateTurnstileToken({
+        env,
+        token: String(payload.turnstile_token ?? "").trim(),
+        remoteIp,
+      });
+      if (!turnstile.ok) {
+        return json({ error: turnstile.code, code: turnstile.code }, 400);
+      }
     }
 
     stage = "post.lookup";

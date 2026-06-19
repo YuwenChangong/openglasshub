@@ -46,6 +46,7 @@ function mapProfileError(message: string) {
     return "主页地址仅支持小写英文、数字、下划线和短横线。";
   }
   if (/RATE_LIMITED/i.test(message)) return "上传过于频繁，请稍后再试。";
+  if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return "当前上传需要额外安全验证，请稍后再试。";
   if (/banner_url/i.test(message)) return "当前环境尚未完成个人横幅 migration。";
   return message;
 }

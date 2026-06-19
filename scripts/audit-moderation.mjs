@@ -49,6 +49,7 @@ async function main() {
 
   const postsApi = await read("src/pages/api/forum/posts.ts");
   const commentsApi = await read("src/pages/api/forum/comments.ts");
+  const circlesApi = await read("src/pages/api/forum/circles.ts");
   const moderationPage = await read("src/pages/admin/moderation/index.astro");
   const moderationComponent = await read("src/components/admin/AdminModerationQueue.tsx");
   const sensitiveTermsSource = await read("src/lib/moderation/sensitive-terms.server.ts");
@@ -64,6 +65,9 @@ async function main() {
 
   if (!postsApi.includes("moderateContent(")) fail(errors, "posts API does not call moderateContent");
   if (!commentsApi.includes("moderateContent(")) fail(errors, "comments API does not call moderateContent");
+  if (!circlesApi.includes('contentType: "circle_name"')) fail(errors, "circles API missing circle_name moderation");
+  if (!circlesApi.includes("mergeModerationResults")) fail(errors, "circles API missing merged moderation result");
+  if (!circlesApi.includes('code: "CONTENT_REJECTED"')) fail(errors, "circles API missing reject path");
   if (!postsApi.includes("pending_review")) fail(errors, "posts API missing pending_review handling");
   if (!commentsApi.includes("pending_review")) fail(errors, "comments API missing pending_review handling");
   if (!moderationCore.includes('return buildResult("allow"')) fail(errors, "moderation core missing default allow result");
