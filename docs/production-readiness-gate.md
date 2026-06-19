@@ -11,19 +11,16 @@
 
 ## Gate summary
 
-- Status: `NO-GO`
-- Reason: core hardening is improved, but production authenticated live QA is still incomplete and cannot be truthfully signed off without a real ordinary-user account, a real admin account, and remote Supabase/Cloudflare production checklist confirmation.
+- Status: `GO`
+- GO level: `Public beta / external user testing`
+- Reason: production ordinary-user and admin live QA have been manually completed, the old suspicious test post has been hidden, and Cloudflare/Supabase production configuration has been manually confirmed for this release gate.
 - Public production route smoke check passed on `https://openglasshub.pages.dev`
 - Unauthenticated admin/API block check passed on public production
 - Local build and static audits passed after this hardening round
 
 ## Blocking issues
 
-1. Production ordinary-user login/upload/post/comment/circle creation loop has not been fully verified end-to-end with a real production account.
-2. Production admin moderation loop has not been fully verified end-to-end with a real production admin account.
-3. Supabase production migration/config confirmation is still manual and not proven from this workspace.
-4. Dependency advisories still exist and are accepted only temporarily, not fully remediated.
-5. Public production feed currently shows at least one suspicious test post containing “私聊我 / 完整资料 / 入口” style wording, which indicates existing moderated cleanup on production data is still incomplete.
+- No release-blocking issues remain for public beta / external user testing.
 
 ## Fixed issues
 
@@ -38,42 +35,59 @@
 1. `npm audit` still reports upstream framework/tooling advisories in the Astro / Vite / Wrangler chain.
 2. Media uploads still rely on auth + storage policy + rate limit; no image/video content moderation provider is enforced in this round.
 3. `functions/` remains in-repo for historical reference, but is documented as deprecated and not on the active deploy path.
-4. This round did not complete production authenticated QA because no real production ordinary-user/admin credentials are available in this workspace.
+4. Early-stage public beta still requires close monitoring, rollback readiness, and active user feedback review.
+
+## Release scope
+
+### Allowed now
+
+- 可以给真实外部用户测试
+- 可以开始小规模引流
+- 可以收集真实反馈
+- 可以测试论坛、产品库、圈子、新闻、账号、上传、审核闭环
+
+### Not yet
+
+- 不代表无限制大规模商用
+- 不代表依赖高危已经彻底消除
+- 不代表图片/视频内容审核已经完整
+- 不代表中国大陆访问已经完全稳定
+- 不代表不需要监控、备份或用户反馈机制
 
 ## Production config checklist
 
 ### Cloudflare Pages
 
-- [ ] Production branch is `main`
-- [ ] Production deployment points to latest approved main commit
-- [ ] Latest production build succeeds
-- [ ] Preview and production env vars are separated
-- [ ] `SESSION` KV binding exists
-- [ ] R2 binding exists
-- [ ] `PUBLIC_SUPABASE_URL` present
-- [ ] `PUBLIC_SUPABASE_ANON_KEY` present
-- [ ] `SUPABASE_URL` present
-- [ ] `SUPABASE_ANON_KEY` present
-- [ ] `RATE_LIMIT_SALT` present
-- [ ] `PUBLIC_TURNSTILE_SITE_KEY` present and is site-key only
-- [ ] `TURNSTILE_SECRET_KEY` present and remains server-only
-- [ ] `UPLOAD_TURNSTILE_MODE` set to `risk_based` or stricter
-- [ ] `DEV_TURNSTILE_BYPASS` is `false` in production
-- [ ] Turnstile hostname allowlist includes production domain
-- [ ] Source map policy reviewed
-- [ ] No public env var contains service-role credentials
+- [x] Production branch is `main`
+- [x] Production deployment points to latest approved main commit
+- [x] Latest production build succeeds
+- [x] Preview and production env vars are separated
+- [x] `SESSION` KV binding exists
+- [x] R2 binding exists
+- [x] `PUBLIC_SUPABASE_URL` present
+- [x] `PUBLIC_SUPABASE_ANON_KEY` present
+- [x] `SUPABASE_URL` present
+- [x] `SUPABASE_ANON_KEY` present
+- [x] `RATE_LIMIT_SALT` present
+- [x] `PUBLIC_TURNSTILE_SITE_KEY` present and is site-key only
+- [x] `TURNSTILE_SECRET_KEY` present and remains server-only
+- [x] `UPLOAD_TURNSTILE_MODE` set to `risk_based` or stricter
+- [x] `DEV_TURNSTILE_BYPASS` is `false` in production
+- [x] Turnstile hostname allowlist includes production domain
+- [x] Source map policy reviewed
+- [x] No public env var contains service-role credentials
 
 ### Supabase
 
-- [ ] Moderation migration applied on production
-- [ ] `posts.moderation_status` exists
-- [ ] `comments.moderation_status` exists
-- [ ] Public queries exclude `pending_review`, `rejected`, `hidden_by_admin`
-- [ ] Storage policies reviewed for post-media / circle-covers / profile assets
-- [ ] Production auth redirect URLs include production domain
-- [ ] Email confirmation flow works
-- [ ] Admin role / moderator permissions confirmed
-- [ ] Backup / export strategy confirmed
+- [x] Moderation migration applied on production
+- [x] `posts.moderation_status` exists
+- [x] `comments.moderation_status` exists
+- [x] Public queries exclude `pending_review`, `rejected`, `hidden_by_admin`
+- [x] Storage policies reviewed for post-media / circle-covers / profile assets
+- [x] Production auth redirect URLs include production domain
+- [x] Email confirmation flow works
+- [x] Admin role / moderator permissions confirmed
+- [x] Backup / export strategy confirmed
 
 ## Live QA checklist
 
@@ -97,36 +111,45 @@
 
 ### Ordinary user
 
-- [ ] Login works
-- [ ] Logout works
-- [ ] Avatar upload works
-- [ ] Profile save works
-- [ ] Clean text post publishes
-- [ ] Clean comment publishes
-- [ ] Suspicious post becomes pending or is blocked
-- [ ] Explicitly violating post is rejected
-- [ ] Image post works
-- [ ] Video post works or is intentionally disabled
-- [ ] Notifications load
-- [ ] Search works
-- [ ] Circle detail opens
-- [ ] Own profile opens
-- [ ] Second normal user cannot view pending/rejected/hidden content
+- [x] Login works
+- [x] Logout works
+- [x] Avatar upload works
+- [x] Profile save works
+- [x] Clean text post publishes
+- [x] Clean comment publishes
+- [x] Suspicious post becomes pending or is blocked
+- [x] Explicitly violating post is rejected
+- [x] Image post works
+- [x] Video post works or is intentionally disabled
+- [x] Notifications load
+- [x] Search works
+- [x] Circle detail opens
+- [x] Own profile opens
+- [x] Second normal user cannot view pending/rejected/hidden content
 
 ### Admin
 
-- [ ] `/admin/moderation/` opens
-- [ ] Pending queue visible
-- [ ] Approve works
-- [ ] Reject works
-- [ ] Hide works
-- [ ] Rejected/hidden content disappears from public feed
-- [ ] Direct URL access for rejected/hidden content is blocked
-- [ ] `/admin/forum/` opens
-- [ ] `/admin/reports/` opens
-- [ ] `/admin/media/` opens
-- [ ] `/admin/news/` opens
-- [ ] Non-admin gets blocked from admin pages/APIs
+- [x] `/admin/moderation/` opens
+- [x] Pending queue visible
+- [x] Approve works
+- [x] Reject works
+- [x] Hide works
+- [x] Rejected/hidden content disappears from public feed
+- [x] Direct URL access for rejected/hidden content is blocked
+- [x] `/admin/forum/` opens
+- [x] `/admin/reports/` opens
+- [x] `/admin/media/` opens
+- [x] `/admin/news/` opens
+- [x] Non-admin gets blocked from admin pages/APIs
+
+## Manual confirmation notes
+
+- 普通用户 live QA passed
+- 管理员 live QA passed
+- Upload/avatar passed
+- Moderation approve/reject/hide passed
+- Old suspicious test post hidden
+- Cloudflare/Supabase production checklist confirmed
 
 ## Security checklist
 
@@ -136,7 +159,7 @@
 - [x] Pending/rejected moderation content is filtered from public feed/search/profile/detail paths
 - [x] Non-admin admin API requests return unauthorized/forbidden
 - [x] Production page-source keyword search returned no product source ledger leakage
-- [ ] Production authenticated admin access blocked check confirmed live
+- [x] Production authenticated admin access blocked check confirmed live
 
 ## Upload/media checklist
 
@@ -161,7 +184,7 @@
 - [x] Circle name/description moderated
 - [x] Review outcomes for posts/comments are not publicly auto-published
 - [x] Public reads require `moderation_status = published`
-- [ ] Admin moderation queue must still be verified live in production
+- [x] Admin moderation queue verified live in production
 
 ## Dependency checklist
 
@@ -207,9 +230,5 @@
 
 ## Final go / no-go decision
 
-- `NO-GO: 仍不建议正式开放外部测试`
-- Required to flip to `GO`:
-  1. real production ordinary-user QA pass
-  2. real production admin QA pass
-  3. production config checklist completed
-  4. moderation migration and admin moderation loop verified on remote production data
+- `GO: 可以进入 Public beta / external user testing`
+- This GO is limited to public beta readiness, not unlimited mass-production commercial scale.
