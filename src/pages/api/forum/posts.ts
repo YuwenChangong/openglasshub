@@ -333,6 +333,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "Circle not found or deleted" }, 404);
     }
 
+    const requiresReview = moderation.decision === "review";
+    const insertedStatus = requiresReview ? "pending" : "published";
+    const insertedModerationStatus = requiresReview ? "pending_review" : "published";
+    const moderatedAt = requiresReview ? new Date().toISOString() : null;
+
     // Insert post (RLS enforces ownership)
     const { data: inserted, error: insertError } = await userClient
       .from("posts")
@@ -342,15 +347,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
         type,
         title,
         body: normalizedBody,
-        status: "published",
-        moderation_status: "published",
-        moderation_reason: null,
-        moderation_score: null,
-        moderated_at: null,
+        status: insertedStatus,
+        moderation_status: insertedModerationStatus,
+        moderation_reason: requiresReview ? moderation.reason : null,
+        moderation_score: requiresReview ? moderation.score : null,
+        moderated_at: moderatedAt,
         moderated_by: null,
-        moderation_provider: null,
+        moderation_provider: requiresReview ? moderation.provider : null,
       })
-      .select("id,author_id,circle_id,type,title,status,created_at")
+      .select("id,author_id,circle_id,type,title,status,moderation_status,created_at")
       .single();
     if (insertError) {
       if (isPostBodyConstraintError(insertError)) {
@@ -362,8 +367,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json(
       {
         post: inserted,
-        pending_review: false,
-        message: "Post published.",
+        pending_review: requiresReview,
+        message: requiresReview ? "Post submitted for review." : "Post published.",
       },
       201,
     );

@@ -68,9 +68,11 @@ async function main() {
   if (!commentsApi.includes("pending_review")) fail(errors, "comments API missing pending_review handling");
   if (!moderationCore.includes('return buildResult("allow"')) fail(errors, "moderation core missing default allow result");
   const postsHasPublishedAllowBranch =
+    postsApi.includes('const insertedModerationStatus = requiresReview ? "pending_review" : "published"') ||
     postsApi.includes('moderation_status: moderation.decision === "review" ? "pending_review" : "published"') ||
     (postsApi.includes('moderation_status: "published"') && postsApi.includes('pending_review: false'));
   const commentsHasPublishedAllowBranch =
+    commentsApi.includes('const insertedModerationStatus = requiresReview ? "pending_review" : "published"') ||
     commentsApi.includes('moderation_status: moderation.decision === "review" ? "pending_review" : "published"') ||
     (commentsApi.includes('moderation_status: "published"') && commentsApi.includes('pending_review: false'));
   if (!postsHasPublishedAllowBranch) fail(errors, "posts API missing published moderation_status allow branch");

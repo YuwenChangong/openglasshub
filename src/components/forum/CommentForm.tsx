@@ -91,7 +91,7 @@ export default function CommentForm({
 
       setBody("");
       setSuccess(true);
-      setSuccessMessage("评论发布成功。");
+      setSuccessMessage(payload?.message || (payload?.pending_review ? "评论已提交审核。" : "评论发布成功。"));
       onCommentCreated?.(payload?.comment ?? { id: "", post_id: postId, body: body.trim() });
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : "提交失败";

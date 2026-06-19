@@ -468,18 +468,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
+    const requiresReview = moderation.decision === "review";
+    const insertedStatus = requiresReview ? "pending" : "published";
+    const insertedModerationStatus = requiresReview ? "pending_review" : "published";
+    const moderatedAt = requiresReview ? new Date().toISOString() : null;
+
     // Insert comment
     const insertPayload: Record<string, unknown> = {
       post_id: postId,
       author_id: authData.user.id,
       body,
-      status: "published",
-      moderation_status: "published",
-      moderation_reason: null,
-      moderation_score: null,
-      moderated_at: null,
+      status: insertedStatus,
+      moderation_status: insertedModerationStatus,
+      moderation_reason: requiresReview ? moderation.reason : null,
+      moderation_score: requiresReview ? moderation.score : null,
+      moderated_at: moderatedAt,
       moderated_by: null,
-      moderation_provider: null,
+      moderation_provider: requiresReview ? moderation.provider : null,
     };
     if (parentId) insertPayload.parent_id = parentId;
 
@@ -510,8 +515,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json(
       {
         comment: enriched,
-        pending_review: false,
-        message: "Comment published.",
+        pending_review: requiresReview,
+        message: requiresReview ? "Comment submitted for review." : "Comment published.",
       },
       201,
     );
