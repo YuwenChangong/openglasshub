@@ -393,6 +393,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       contentType: "comment_body",
       userId: authData.user.id,
       text: body,
+      providerInput: {
+        targetType: "comment",
+        body,
+        localeHint: "zh-CN",
+      },
     });
 
     if (moderation.decision === "reject") {

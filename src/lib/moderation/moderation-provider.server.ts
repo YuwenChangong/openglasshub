@@ -1,52 +1,130 @@
-import type { ModerationFailMode, ModerationInput, ModerationResult } from "./moderation-types.ts";
+import type {
+  ModerationFailMode,
+  ModerationProviderInput,
+  ModerationProviderName,
+  ModerationResult,
+} from "./moderation-types.ts";
 
 export type ModerationRuntimeEnv = Record<string, string | undefined>;
 
-function resolveFailMode(env: ModerationRuntimeEnv): ModerationFailMode {
-  const raw = String(env.MODERATION_FAIL_MODE ?? "review").trim().toLowerCase();
-  return raw === "allow" || raw === "reject" ? raw : "review";
-}
-
-export function resolveModerationProvider(env: ModerationRuntimeEnv): "local" | "mock" | "tencent" {
+export function resolveLegacyModerationProvider(env: ModerationRuntimeEnv): "local" | "mock" | "tencent" {
   const raw = String(env.MODERATION_PROVIDER ?? "local").trim().toLowerCase();
   return raw === "mock" || raw === "tencent" ? raw : "local";
 }
 
-export async function runProviderFallback(
-  env: ModerationRuntimeEnv,
-  input: ModerationInput,
+export function resolveModerationProvider(env: ModerationRuntimeEnv): ModerationProviderName {
+  const legacyProvider = resolveLegacyModerationProvider(env);
+  if (legacyProvider === "mock") return "mock";
+  if (legacyProvider === "tencent") return "tencent-disabled";
+  return isOpenAIModerationEnabled(env) ? "openai" : "local";
+}
+
+export function isOpenAIModerationEnabled(env: ModerationRuntimeEnv): boolean {
+  return String(env.OPENAI_MODERATION_ENABLED ?? "false").trim().toLowerCase() === "true";
+}
+
+export function isOpenAIImageModerationEnabled(env: ModerationRuntimeEnv): boolean {
+  return String(env.OPENAI_MODERATION_IMAGE_ENABLED ?? "false").trim().toLowerCase() === "true";
+}
+
+export function resolveOpenAIFailMode(env: ModerationRuntimeEnv): Extract<ModerationFailMode, "review" | "reject" | "local_only"> {
+  const raw = String(env.OPENAI_MODERATION_FAIL_MODE ?? "review").trim().toLowerCase();
+  return raw === "reject" || raw === "local_only" ? raw : "review";
+}
+
+export function resolveOpenAIModerationModel(env: ModerationRuntimeEnv): string {
+  const value = String(env.OPENAI_MODERATION_MODEL ?? "omni-moderation-latest").trim();
+  return value || "omni-moderation-latest";
+}
+
+export function resolveOpenAIModerationTimeoutMs(env: ModerationRuntimeEnv): number {
+  const raw = Number(env.OPENAI_MODERATION_TIMEOUT_MS ?? 3500);
+  if (!Number.isFinite(raw) || raw < 500) return 3500;
+  return Math.min(Math.max(Math.round(raw), 500), 10000);
+}
+
+export function resolveOpenAIModerationLogLevel(env: ModerationRuntimeEnv): "minimal" | "debug" {
+  return String(env.OPENAI_MODERATION_LOG_LEVEL ?? "minimal").trim().toLowerCase() === "debug"
+    ? "debug"
+    : "minimal";
+}
+
+export function buildModerationProviderInput(input: {
+  targetType: ModerationProviderInput["targetType"];
+  text?: string;
+  title?: string;
+  body?: string;
+  description?: string;
+  imageUrls?: string[];
+  localeHint?: string;
+  metadata?: Record<string, unknown>;
+}): ModerationProviderInput {
+  return {
+    targetType: input.targetType,
+    title: input.title?.trim() || undefined,
+    body: input.body?.trim() || input.text?.trim() || undefined,
+    description: input.description?.trim() || undefined,
+    imageUrls: input.imageUrls?.filter(Boolean) ?? [],
+    localeHint: input.localeHint?.trim() || undefined,
+    metadata: input.metadata,
+  };
+}
+
+export async function runMockModerationProvider(
+  providerInput: ModerationProviderInput,
 ): Promise<ModerationResult> {
-  const provider = resolveModerationProvider(env);
-  if (provider === "mock") {
-    const decision = String(input.metadata?.mockDecision ?? "allow").trim().toLowerCase();
-    if (decision === "review") {
-      return {
-        decision: "review",
-        reason: "sensitive_review",
-        score: 0.45,
-        matchedRules: ["mock:review"],
-        provider: "mock",
-      };
-    }
-    if (decision === "reject") {
-      return {
-        decision: "reject",
-        reason: "spam",
-        score: 0.98,
-        matchedRules: ["mock:reject"],
-        provider: "mock",
-      };
-    }
+  const decision = String(providerInput.metadata?.mockDecision ?? "allow").trim().toLowerCase();
+  if (decision === "review") {
     return {
-      decision: "allow",
-      reason: null,
-      score: 0.04,
-      matchedRules: ["mock:allow"],
+      decision: "review",
+      reason: "openai_flagged_mock_review",
+      score: 0.61,
+      matchedRules: ["mock:review"],
       provider: "mock",
+      providerDetails: {
+        categories: ["mock-review"],
+        scoresSummary: { "mock-review": "medium" },
+      },
     };
   }
+  if (decision === "reject") {
+    return {
+      decision: "reject",
+      reason: "openai_flagged_mock_reject",
+      score: 0.96,
+      matchedRules: ["mock:reject"],
+      provider: "mock",
+      providerDetails: {
+        categories: ["mock-reject"],
+        scoresSummary: { "mock-reject": "high" },
+      },
+    };
+  }
+  if (decision === "error") {
+    return {
+      decision: "review",
+      reason: "openai_provider_error_review",
+      score: 0.6,
+      matchedRules: ["mock:error"],
+      provider: "mock",
+      providerDetails: {
+        providerError: "mock provider error",
+      },
+    };
+  }
+  return {
+    decision: "allow",
+    reason: null,
+    score: 0.03,
+    matchedRules: ["mock:allow"],
+    provider: "mock",
+  };
+}
 
-  const failMode = resolveFailMode(env);
+export function runTencentDisabledFallback(
+  env: ModerationRuntimeEnv,
+): ModerationResult {
+  const failMode = String(env.MODERATION_FAIL_MODE ?? "review").trim().toLowerCase();
   if (failMode === "allow") {
     return {
       decision: "allow",

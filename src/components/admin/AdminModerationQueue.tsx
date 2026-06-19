@@ -51,6 +51,35 @@ function statusClass(status: string) {
   return "admin-status-badge";
 }
 
+function providerLabel(provider: string | null | undefined) {
+  switch (provider) {
+    case "local+openai":
+      return "local+openai";
+    case "openai":
+      return "openai";
+    case "local":
+      return "local";
+    case "manual-admin":
+      return "manual";
+    default:
+      return provider || "unknown";
+  }
+}
+
+function reasonLabel(reason: string | null | undefined) {
+  if (!reason) return "";
+  if (reason.startsWith("openai_flagged_")) return "OpenAI flagged";
+  if (reason.startsWith("openai_provider_error_")) return "OpenAI provider fallback";
+  if (reason === "sensitive_review") return "Local rule review";
+  if (reason === "personal_info") return "Possible personal info";
+  if (reason === "excessive_links") return "Excessive links";
+  if (reason === "repeated_content") return "Repeated content";
+  if (reason === "gibberish") return "Low-signal content";
+  if (reason === "spam") return "Spam";
+  if (reason === "scam") return "Scam";
+  return reason;
+}
+
 export default function AdminModerationQueue() {
   const adminSession = useAdminSession();
   const [items, setItems] = useState<ModerationItem[]>([]);
@@ -171,12 +200,12 @@ export default function AdminModerationQueue() {
                 <span className={statusClass(item.moderation_status)}>{statusLabel(item.moderation_status)}</span>
               </div>
               <div className="community-meta">
-                {item.target_type === "post" ? "帖子" : "评论"} · 作者 {authorLabel(item)} · 评分 {item.moderation_score.toFixed(2)} · 来源 {item.moderation_provider}
+                {item.target_type === "post" ? "帖子" : "评论"} · 作者 {authorLabel(item)} · 评分 {item.moderation_score.toFixed(2)} · Provider {providerLabel(item.moderation_provider)}
               </div>
               {item.circle?.name ? <div className="community-meta">圈子：{item.circle.name}</div> : null}
               {item.post?.title && item.target_type === "comment" ? <div className="community-meta">所属帖子：{item.post.title}</div> : null}
               <div>{item.excerpt || "无摘要"}</div>
-              {item.moderation_reason ? <div className="community-meta">原因：{item.moderation_reason}</div> : null}
+              {item.moderation_reason ? <div className="community-meta">原因：{reasonLabel(item.moderation_reason)}</div> : null}
               {success[item.id] ? <div className="admin-success">{success[item.id]}</div> : null}
               <div className="admin-action-row">
                 <button

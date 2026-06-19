@@ -9,7 +9,7 @@ import {
   requireForumUser,
   isCircleManager,
 } from "../../../lib/server/circle-management";
-import { mergeModerationResults, moderateContent } from "../../../lib/moderation/moderate-content.server";
+import { moderateContent } from "../../../lib/moderation/moderate-content.server";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 
 export const prerender = false;
@@ -138,25 +138,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return jsonResponse({ error: duplicate.error }, duplicate.status ?? 500);
     }
 
-    const moderationResults = [
-      await moderateContent(env, {
-        contentType: "circle_name",
-        userId: auth.user.id,
-        text: name,
-      }),
-    ];
-
-    if (description) {
-      moderationResults.push(
-        await moderateContent(env, {
-          contentType: "circle_description",
-          userId: auth.user.id,
-          text: description,
-        }),
-      );
-    }
-
-    const moderation = mergeModerationResults(moderationResults);
+    const moderation = await moderateContent(env, {
+      contentType: description ? "circle_description" : "circle_name",
+      userId: auth.user.id,
+      text: [name, description].filter(Boolean).join("\n\n"),
+      localInputs: [
+        { contentType: "circle_name", text: name },
+        ...(description ? [{ contentType: "circle_description" as const, text: description }] : []),
+      ],
+      providerInput: {
+        targetType: "circle",
+        title: name,
+        description,
+        localeHint: "zh-CN",
+      },
+    });
     if (moderation.decision !== "allow") {
       return jsonResponse(
         {

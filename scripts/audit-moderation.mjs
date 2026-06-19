@@ -7,6 +7,7 @@ const REQUIRED_FILES = [
   "src/lib/moderation/sensitive-terms.server.ts",
   "src/lib/moderation/moderate-content.server.ts",
   "src/lib/moderation/moderation-provider.server.ts",
+  "src/lib/moderation/openai-moderation-provider.server.ts",
   "src/pages/api/admin/moderation/queue.ts",
   "src/pages/api/admin/moderation/approve.ts",
   "src/pages/api/admin/moderation/reject.ts",
@@ -52,6 +53,9 @@ async function main() {
   const circlesApi = await read("src/pages/api/forum/circles.ts");
   const moderationPage = await read("src/pages/admin/moderation/index.astro");
   const moderationComponent = await read("src/components/admin/AdminModerationQueue.tsx");
+  const openaiProviderSource = await read("src/lib/moderation/openai-moderation-provider.server.ts");
+  const providerSource = await read("src/lib/moderation/moderation-provider.server.ts");
+  const envExample = await read(".env.example");
   const sensitiveTermsSource = await read("src/lib/moderation/sensitive-terms.server.ts");
   const moderationCore = await read("src/lib/moderation/moderate-content.server.ts");
   const feedSource = await read("src/lib/forum-feed.ts");
@@ -66,8 +70,12 @@ async function main() {
   if (!postsApi.includes("moderateContent(")) fail(errors, "posts API does not call moderateContent");
   if (!commentsApi.includes("moderateContent(")) fail(errors, "comments API does not call moderateContent");
   if (!circlesApi.includes('contentType: "circle_name"')) fail(errors, "circles API missing circle_name moderation");
-  if (!circlesApi.includes("mergeModerationResults")) fail(errors, "circles API missing merged moderation result");
   if (!circlesApi.includes('code: "CONTENT_REJECTED"')) fail(errors, "circles API missing reject path");
+  if (!providerSource.includes("OPENAI_MODERATION_ENABLED")) fail(errors, "moderation provider missing OPENAI_MODERATION_ENABLED handling");
+  if (!providerSource.includes("OPENAI_MODERATION_FAIL_MODE")) fail(errors, "moderation provider missing OPENAI_MODERATION_FAIL_MODE handling");
+  if (!openaiProviderSource.includes("api.openai.com/v1/moderations")) fail(errors, "openai provider missing moderation endpoint");
+  if (!envExample.includes("OPENAI_MODERATION_ENABLED=false")) fail(errors, ".env.example missing OPENAI_MODERATION_ENABLED=false");
+  if (!envExample.includes("OPENAI_MODERATION_FAIL_MODE=review")) fail(errors, ".env.example missing OPENAI_MODERATION_FAIL_MODE=review");
   if (!postsApi.includes("pending_review")) fail(errors, "posts API missing pending_review handling");
   if (!commentsApi.includes("pending_review")) fail(errors, "comments API missing pending_review handling");
   if (!moderationCore.includes('return buildResult("allow"')) fail(errors, "moderation core missing default allow result");
@@ -94,6 +102,12 @@ async function main() {
   if (!moderationComponent.includes("/api/admin/moderation/reject")) fail(errors, "moderation queue missing reject action");
   if (!moderationComponent.includes("/api/admin/moderation/hide")) fail(errors, "moderation queue missing hide action");
   if (!moderationComponent.includes('item.moderation_status === "pending_review"')) fail(errors, "admin moderation queue missing handled-state action guard");
+  if (!moderationComponent.includes("OpenAI flagged")) fail(errors, "admin moderation queue missing friendly OpenAI reason label");
+  if (!postsApi.includes("localInputs")) fail(errors, "posts API missing unified localInputs moderation path");
+  if (!circlesApi.includes("localInputs")) fail(errors, "circles API missing unified localInputs moderation path");
+  if (!commentsApi.includes('targetType: "comment"')) fail(errors, "comments API missing provider input target type");
+  if (!moderationCore.includes('resolveOpenAIFailMode')) fail(errors, "moderation core missing OpenAI fail mode handling");
+  if (!moderationCore.includes('openai_provider_error_review')) fail(errors, "moderation core missing default fail-closed review path");
 
   const clientRoots = ["src/components", "src/pages"];
   for (const root of clientRoots) {
@@ -116,11 +130,17 @@ async function main() {
     if (/MODERATION_PROVIDER|MODERATION_FAIL_MODE/.test(content) && !/src\/lib\/moderation\/|src\/pages\/api\//.test(normalized)) {
       fail(errors, `moderation env referenced outside server paths: ${normalized}`);
     }
+    if (/OPENAI_API_KEY|OPENAI_MODERATION_ENABLED|OPENAI_MODERATION_MODEL|OPENAI_MODERATION_FAIL_MODE/.test(content) && !/src\/lib\/moderation\/|src\/pages\/api\//.test(normalized)) {
+      fail(errors, `openai moderation env referenced outside server paths: ${normalized}`);
+    }
     if (/window\.confirm|window\.alert|window\.prompt/.test(content)) {
       fail(errors, `native browser dialog found: ${normalized}`);
     }
     if (/SUPABASE_SERVICE_ROLE_KEY|service_role/.test(content)) {
       fail(errors, `service role reference found in src: ${normalized}`);
+    }
+    if (/category_scores/.test(content) && normalized.startsWith("src/components")) {
+      fail(errors, `raw category_scores exposed in client path: ${normalized}`);
     }
   }
 

@@ -1,5 +1,13 @@
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  buildModerationProviderInput,
+  isOpenAIImageModerationEnabled,
+  resolveModerationProvider,
+  resolveOpenAIFailMode,
+  runMockModerationProvider,
+} from "../../../lib/moderation/moderation-provider.server";
+import { runOpenAIModeration } from "../../../lib/moderation/openai-moderation-provider.server";
 
 export const prerender = false;
 
@@ -106,6 +114,92 @@ function normalizeNonNegativeNumber(value: unknown): number | null {
 
 function shouldFallbackToLegacyColumns(message: string): boolean {
   return /column .* does not exist/i.test(message) || /schema cache/i.test(message);
+}
+
+async function createSignedMediaUrls(
+  client: SupabaseClient,
+  paths: string[],
+): Promise<string[]> {
+  const normalizedPaths = [...new Set(paths.map((item) => String(item ?? "").trim()).filter(Boolean))];
+  if (normalizedPaths.length === 0) return [];
+  const { data, error } = await client.storage.from("post-media").createSignedUrls(normalizedPaths, 10 * 60);
+  if (error) throw error;
+  return (data ?? []).map((entry) => entry?.signedUrl ?? "").filter(Boolean);
+}
+
+async function moderatePostMedia(params: {
+  client: SupabaseClient;
+  env: Record<string, string | undefined>;
+  post: { id: string; title?: string | null; body?: string | null; status?: string | null; moderation_status?: string | null };
+  media: MediaPayload[];
+}) {
+  const { client, env, post, media } = params;
+  const provider = resolveModerationProvider(env);
+  if (!isOpenAIImageModerationEnabled(env) || (provider !== "openai" && provider !== "mock")) {
+    return {
+      decision: "allow" as const,
+      reason: null as string | null,
+      score: null as number | null,
+      provider: null as string | null,
+    };
+  }
+
+  const imagePaths = media
+    .flatMap((item) => {
+      if (item.kind === "image") {
+        return [String(item.storage_path ?? "").trim()];
+      }
+      if (item.thumbnail_url) {
+        return [String(item.thumbnail_url).trim()];
+      }
+      return [];
+    })
+    .filter(Boolean);
+
+  if (imagePaths.length === 0) {
+    return {
+      decision: "allow" as const,
+      reason: null as string | null,
+      score: null as number | null,
+      provider: null as string | null,
+    };
+  }
+
+  const imageUrls = await createSignedMediaUrls(client, imagePaths);
+  const providerInput = buildModerationProviderInput({
+    targetType: "post",
+    title: String(post.title ?? "").trim(),
+    body: String(post.body ?? "").trim(),
+    imageUrls,
+    localeHint: "zh-CN",
+  });
+
+  const result =
+    provider === "mock"
+      ? await runMockModerationProvider(providerInput)
+      : await runOpenAIModeration(env, providerInput);
+
+  if (result.decision === "error") {
+    const failMode = resolveOpenAIFailMode(env);
+    return {
+      decision: failMode === "reject" ? "reject" as const : failMode === "local_only" ? "allow" as const : "review" as const,
+      reason:
+        failMode === "reject"
+          ? "openai_provider_error_reject"
+          : failMode === "local_only"
+            ? "openai_provider_error_local_only"
+            : "openai_provider_error_review",
+      score: failMode === "reject" ? 0.93 : failMode === "local_only" ? 0.02 : 0.61,
+      provider: "local+openai",
+    };
+  }
+
+  return {
+    decision: result.decision,
+    reason: result.decision === "allow" ? null : result.reasonCode,
+    score: result.decision === "reject" ? 0.94 : result.decision === "review" ? 0.62 : 0.02,
+    provider: "local+openai",
+  };
 }
 
 function validateMediaArray(postId: string, userId: string, media: MediaPayload[]): string | null {
@@ -237,7 +331,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const { data: post, error: postError } = await userClient
       .from("posts")
-      .select("id, author_id, status")
+      .select("id, author_id, status, moderation_status, title, body")
       .eq("id", postId)
       .maybeSingle();
     if (postError) {
@@ -289,6 +383,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       is_cover: item.is_cover === true || (coverIndex < 0 && index === 0),
     }));
 
+    const mediaModeration = await moderatePostMedia({
+      client: userClient,
+      env,
+      post: post as { id: string; title?: string | null; body?: string | null; status?: string | null; moderation_status?: string | null },
+      media,
+    });
+
     let { data: inserted, error: insertError } = await userClient
       .from("post_media")
       .insert(rows)
@@ -324,7 +425,74 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: insertError.message }, 500);
     }
 
-    return json({ media: inserted ?? [] }, 201);
+    let moderatedPost:
+      | {
+          id: string;
+          status: string;
+          moderation_status: string | null;
+          moderation_reason?: string | null;
+          moderation_provider?: string | null;
+        }
+      | null = null;
+
+    if (mediaModeration.decision !== "allow") {
+      const updatePayload =
+        mediaModeration.decision === "reject"
+          ? {
+              status: "hidden",
+              moderation_status: "rejected",
+              moderation_reason: mediaModeration.reason,
+              moderation_score: mediaModeration.score,
+              moderation_provider: mediaModeration.provider,
+              moderated_at: new Date().toISOString(),
+              moderated_by: null,
+            }
+          : {
+              status: "pending",
+              moderation_status: "pending_review",
+              moderation_reason: mediaModeration.reason,
+              moderation_score: mediaModeration.score,
+              moderation_provider: mediaModeration.provider,
+              moderated_at: new Date().toISOString(),
+              moderated_by: null,
+            };
+
+      const { data: updatedPost, error: updateError } = await userClient
+        .from("posts")
+        .update(updatePayload)
+        .eq("id", postId)
+        .select("id, status, moderation_status, moderation_reason, moderation_provider")
+        .single();
+
+      if (updateError) {
+        return json({ error: updateError.message }, 500);
+      }
+      moderatedPost = updatedPost;
+    } else if ((post as { status?: string | null }).status && (post as { moderation_status?: string | null }).moderation_status) {
+      moderatedPost = {
+        id: postId,
+        status: (post as { status?: string | null }).status ?? "published",
+        moderation_status: (post as { moderation_status?: string | null }).moderation_status ?? "published",
+        moderation_reason: null,
+        moderation_provider: null,
+      };
+    }
+
+    return json(
+      {
+        media: inserted ?? [],
+        post: moderatedPost,
+        pending_review: moderatedPost?.moderation_status === "pending_review",
+        rejected: moderatedPost?.moderation_status === "rejected",
+        message:
+          moderatedPost?.moderation_status === "rejected"
+            ? "帖子未通过自动审核，当前不会公开显示。"
+            : moderatedPost?.moderation_status === "pending_review"
+              ? "帖子已因媒体审核进入人工审核队列。"
+              : "媒体已保存。",
+      },
+      201,
+    );
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : "Unexpected server error" },

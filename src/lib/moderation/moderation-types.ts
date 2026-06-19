@@ -1,6 +1,6 @@
 export type ModerationDecision = "allow" | "review" | "reject";
 
-export type ModerationReasonCode =
+export type LocalModerationReasonCode =
   | "spam"
   | "scam"
   | "sexual"
@@ -14,6 +14,14 @@ export type ModerationReasonCode =
   | "gibberish"
   | "sensitive_review";
 
+export type OpenAIModerationReasonCode =
+  | `openai_flagged_${string}`
+  | "openai_provider_error_review"
+  | "openai_provider_error_reject"
+  | "openai_provider_error_local_only";
+
+export type ModerationReasonCode = LocalModerationReasonCode | OpenAIModerationReasonCode;
+
 export type ModerationContentType =
   | "post_title"
   | "post_body"
@@ -22,9 +30,34 @@ export type ModerationContentType =
   | "circle_name"
   | "circle_description";
 
-export type ModerationProviderName = "local" | "mock" | "tencent-disabled";
+export type ModerationProviderName =
+  | "local"
+  | "mock"
+  | "openai"
+  | "local+openai"
+  | "manual-admin"
+  | "tencent-disabled";
 
-export type ModerationFailMode = "review" | "reject" | "allow";
+export type ModerationFailMode = "review" | "reject" | "allow" | "local_only";
+
+export type ModerationProviderTargetType = "post" | "comment" | "circle" | "profile" | "media";
+
+export interface ModerationProviderInput {
+  targetType: ModerationProviderTargetType;
+  title?: string;
+  body?: string;
+  description?: string;
+  imageUrls?: string[];
+  localeHint?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ModerationLocalInput {
+  contentType: ModerationContentType;
+  text: string;
+  links?: string[];
+  metadata?: Record<string, unknown>;
+}
 
 export interface ModerationInput {
   contentType: ModerationContentType;
@@ -32,6 +65,17 @@ export interface ModerationInput {
   text: string;
   links?: string[];
   metadata?: Record<string, unknown>;
+  localInputs?: ModerationLocalInput[];
+  providerInput?: ModerationProviderInput;
+}
+
+export interface OpenAIModerationResult {
+  provider: "openai";
+  decision: "allow" | "review" | "reject" | "error";
+  reasonCode: string;
+  flagged: boolean;
+  categories?: string[];
+  scoresSummary?: Record<string, "low" | "medium" | "high">;
 }
 
 export interface ModerationResult {
@@ -40,5 +84,10 @@ export interface ModerationResult {
   score: number;
   matchedRules: string[];
   provider: ModerationProviderName;
+  providerDetails?: {
+    categories?: string[];
+    scoresSummary?: Record<string, "low" | "medium" | "high">;
+    providerError?: string | null;
+  };
 }
 

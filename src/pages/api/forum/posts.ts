@@ -18,7 +18,7 @@ import {
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
 import { getRequestIp } from "../../../lib/request-ip";
 import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
-import { mergeModerationResults, moderateContent } from "../../../lib/moderation/moderate-content.server";
+import { moderateContent } from "../../../lib/moderation/moderate-content.server";
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { listForumFeed, parseFeedSort } from "../../../lib/forum-feed";
@@ -267,25 +267,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const normalizedBody = body || (hasMedia ? MEDIA_ONLY_SENTINEL : "");
     const type = String(payload.type ?? "").trim();
 
-    const moderationInputs = [
-      await moderateContent(env, {
-        contentType: "post_title",
-        userId: authData.user.id,
-        text: title,
-      }),
-    ];
-
-    if (body) {
-      moderationInputs.push(
-        await moderateContent(env, {
-          contentType: "post_body",
-          userId: authData.user.id,
-          text: body,
-        }),
-      );
-    }
-
-    const moderation = mergeModerationResults(moderationInputs);
+    const moderation = await moderateContent(env, {
+      contentType: body ? "post_body" : "post_title",
+      userId: authData.user.id,
+      text: [title, body].filter(Boolean).join("\n\n"),
+      localInputs: [
+        { contentType: "post_title", text: title },
+        ...(body ? [{ contentType: "post_body" as const, text: body }] : []),
+      ],
+      providerInput: {
+        targetType: "post",
+        title,
+        body,
+        localeHint: "zh-CN",
+      },
+    });
 
     if (moderation.decision === "reject") {
       return json(

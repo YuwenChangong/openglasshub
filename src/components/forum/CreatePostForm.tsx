@@ -641,9 +641,27 @@ export default function CreatePostForm() {
           }),
         });
 
-        const mediaResult = (await mediaResponse.json().catch(() => null)) as { error?: string } | null;
+        const mediaResult = (await mediaResponse.json().catch(() => null)) as
+          | {
+              error?: string;
+              message?: string;
+              post?: { id: string; status?: string | null; moderation_status?: string | null };
+              pending_review?: boolean;
+              rejected?: boolean;
+            }
+          | null;
         if (!mediaResponse.ok) {
           throw new Error(mediaResult?.error ?? `媒体写入失败 (${mediaResponse.status})`);
+        }
+
+        if (mediaResult?.post?.status) {
+          createPayload.post.status = mediaResult.post.status;
+        }
+        if (typeof mediaResult?.pending_review === "boolean") {
+          createPayload.pending_review = mediaResult.pending_review;
+        }
+        if (mediaResult?.message) {
+          createPayload.message = mediaResult.message;
         }
       }
 

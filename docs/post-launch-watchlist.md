@@ -33,6 +33,8 @@ Check daily:
 - Email verification failures
 - Mobile feedback
 - China mainland access feedback
+- OpenAI provider errors
+- Pending queue spikes after provider failures or false positives
 
 ## Emergency actions
 
@@ -81,6 +83,7 @@ Check daily:
 ## Accepted risks
 
 - `npm audit` high risk dependency waiting for upgrade window
-- No cloud image / video moderation yet
+- OpenAI text / image moderation enabled if env configured
+- Full video moderation still not implemented
 - `functions/` deprecated but not deployed
 - Public beta needs manual monitoring

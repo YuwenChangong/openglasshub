@@ -10,21 +10,33 @@ import {
   moderationBlocklistPatterns,
   moderationReviewPatterns,
 } from "./sensitive-terms.server.ts";
-import { resolveModerationProvider, runProviderFallback, type ModerationRuntimeEnv } from "./moderation-provider.server.ts";
+import {
+  buildModerationProviderInput,
+  resolveModerationProvider,
+  resolveOpenAIFailMode,
+  runMockModerationProvider,
+  runTencentDisabledFallback,
+  type ModerationRuntimeEnv,
+} from "./moderation-provider.server.ts";
+import { runOpenAIModeration } from "./openai-moderation-provider.server.ts";
 import type {
+  ModerationDecision,
   ModerationInput,
+  ModerationLocalInput,
+  ModerationProviderInput,
   ModerationReasonCode,
   ModerationResult,
 } from "./moderation-types.ts";
 
 function buildResult(
-  decision: ModerationResult["decision"],
+  decision: ModerationDecision,
   reason: ModerationReasonCode | null,
   score: number,
   matchedRules: string[],
   provider: ModerationResult["provider"],
+  providerDetails?: ModerationResult["providerDetails"],
 ): ModerationResult {
-  return { decision, reason, score, matchedRules, provider };
+  return { decision, reason, score, matchedRules, provider, providerDetails };
 }
 
 function extractLinks(text: string): string[] {
@@ -76,10 +88,48 @@ function matchPatternGroup(
   rulePrefix: string,
   allowlistActive: boolean,
 ): string[] {
-  if (allowlistActive && rulePrefix === "review:sensitiveReview") return [];
+  if (allowlistActive && rulePrefix === "review:sensitive_review") return [];
   return patterns
     .filter((pattern) => pattern.test(text))
     .map((pattern, index) => `${rulePrefix}:${index + 1}:${pattern.source}`);
+}
+
+function buildDefaultProviderInput(input: ModerationInput): ModerationProviderInput {
+  const targetType =
+    input.contentType === "comment_body"
+      ? "comment"
+      : input.contentType === "circle_name" || input.contentType === "circle_description"
+        ? "circle"
+        : input.contentType === "profile_text"
+          ? "profile"
+          : "post";
+
+  if (input.providerInput) {
+    return {
+      ...input.providerInput,
+      metadata: {
+        ...(input.providerInput.metadata ?? {}),
+        ...(input.metadata ?? {}),
+      },
+    };
+  }
+
+  return buildModerationProviderInput({
+    targetType,
+    text: input.text,
+    localeHint: "zh-CN",
+    metadata: input.metadata,
+  });
+}
+
+function localInputToModerationInput(baseInput: ModerationInput, localInput: ModerationLocalInput): ModerationInput {
+  return {
+    contentType: localInput.contentType,
+    userId: baseInput.userId,
+    text: localInput.text,
+    links: localInput.links,
+    metadata: localInput.metadata,
+  };
 }
 
 export function evaluateLocalModeration(input: ModerationInput): ModerationResult {
@@ -167,16 +217,137 @@ export function mergeModerationResults(results: ModerationResult[]): ModerationR
   }, buildResult("allow", null, 0, [], "local"));
 }
 
+function mapOpenAIResultToModerationResult(
+  decision: "allow" | "review" | "reject",
+  reason: string | null,
+  score: number,
+  matchedRules: string[],
+  categories?: string[],
+  scoresSummary?: Record<string, "low" | "medium" | "high">,
+  providerError?: string | null,
+): ModerationResult {
+  return buildResult(decision, reason as ModerationReasonCode | null, score, matchedRules, "local+openai", {
+    categories,
+    scoresSummary,
+    providerError,
+  });
+}
+
 export async function moderateContent(
   env: ModerationRuntimeEnv,
   input: ModerationInput,
+  options?: {
+    openaiRunner?: typeof runOpenAIModeration;
+  },
 ): Promise<ModerationResult> {
-  const localResult = evaluateLocalModeration(input);
+  const localInputs =
+    input.localInputs?.length
+      ? input.localInputs.map((item) => evaluateLocalModeration(localInputToModerationInput(input, item)))
+      : [evaluateLocalModeration(input)];
+  const localResult = mergeModerationResults(localInputs);
   const provider = resolveModerationProvider(env);
 
-  if (localResult.decision !== "allow" || provider === "local") {
+  if (localResult.decision === "reject" || provider === "local") {
     return localResult;
   }
 
-  return runProviderFallback(env, input);
+  const providerInput = buildDefaultProviderInput(input);
+
+  if (provider === "mock") {
+    const mockResult = await runMockModerationProvider(providerInput);
+    if (localResult.decision === "review") {
+      if (mockResult.decision === "reject") return mockResult;
+      return {
+        ...localResult,
+        provider: "local+openai",
+        matchedRules: Array.from(new Set([...localResult.matchedRules, ...mockResult.matchedRules])),
+        providerDetails: mockResult.providerDetails,
+      };
+    }
+    return mockResult;
+  }
+
+  if (provider === "tencent-disabled") {
+    const fallbackResult = runTencentDisabledFallback(env);
+    if (localResult.decision === "review") {
+      return {
+        ...localResult,
+        provider: "local",
+        matchedRules: Array.from(new Set([...localResult.matchedRules, ...fallbackResult.matchedRules])),
+      };
+    }
+    return fallbackResult;
+  }
+
+  const openaiRunner = options?.openaiRunner ?? runOpenAIModeration;
+  const openaiResult = await openaiRunner(env, providerInput);
+  if (openaiResult.decision === "error") {
+    const failMode = resolveOpenAIFailMode(env);
+    if (localResult.decision === "review") {
+      return {
+        ...localResult,
+        provider: "local+openai",
+        providerDetails: { providerError: openaiResult.reasonCode },
+      };
+    }
+    if (failMode === "local_only") {
+      return {
+        ...localResult,
+        provider: "local+openai",
+        matchedRules: Array.from(new Set([...localResult.matchedRules, openaiResult.reasonCode])),
+        providerDetails: { providerError: openaiResult.reasonCode },
+      };
+    }
+    return mapOpenAIResultToModerationResult(
+      failMode === "reject" ? "reject" : "review",
+      failMode === "reject" ? "openai_provider_error_reject" : "openai_provider_error_review",
+      failMode === "reject" ? 0.93 : 0.61,
+      [openaiResult.reasonCode],
+      undefined,
+      undefined,
+      openaiResult.reasonCode,
+    );
+  }
+
+  if (localResult.decision === "review") {
+    if (openaiResult.decision === "reject") {
+      return mapOpenAIResultToModerationResult(
+        "reject",
+        openaiResult.reasonCode,
+        0.93,
+        [`openai:${openaiResult.reasonCode}`],
+        openaiResult.categories,
+        openaiResult.scoresSummary,
+      );
+    }
+    return {
+      ...localResult,
+      provider: "local+openai",
+      matchedRules: Array.from(new Set([...localResult.matchedRules, ...(openaiResult.decision === "review" ? [`openai:${openaiResult.reasonCode}`] : [])])),
+      providerDetails: {
+        categories: openaiResult.categories,
+        scoresSummary: openaiResult.scoresSummary,
+      },
+    };
+  }
+
+  if (openaiResult.decision === "allow") {
+    return {
+      ...localResult,
+      provider: "local+openai",
+      providerDetails: {
+        categories: openaiResult.categories,
+        scoresSummary: openaiResult.scoresSummary,
+      },
+    };
+  }
+
+  return mapOpenAIResultToModerationResult(
+    openaiResult.decision,
+    openaiResult.reasonCode,
+    openaiResult.decision === "reject" ? 0.94 : 0.62,
+    [`openai:${openaiResult.reasonCode}`],
+    openaiResult.categories,
+    openaiResult.scoresSummary,
+  );
 }

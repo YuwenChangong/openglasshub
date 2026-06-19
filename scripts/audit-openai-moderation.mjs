@@ -1,0 +1,105 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+
+function parseArgs(argv) {
+  return {
+    strict: argv.includes("--strict"),
+    verbose: argv.includes("--verbose"),
+  };
+}
+
+async function read(filePath) {
+  return fs.readFile(path.resolve(process.cwd(), filePath), "utf8");
+}
+
+async function exists(filePath) {
+  try {
+    await fs.access(path.resolve(process.cwd(), filePath));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function walk(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...(await walk(fullPath)));
+    else files.push(fullPath);
+  }
+  return files;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const errors = [];
+
+  const requiredFiles = [
+    "src/lib/moderation/openai-moderation-provider.server.ts",
+    "docs/openai-moderation-setup.md",
+    ".env.example",
+  ];
+
+  for (const file of requiredFiles) {
+    if (!(await exists(file))) errors.push(`missing required file: ${file}`);
+  }
+
+  const envExample = await read(".env.example");
+  const packageJson = await read("package.json");
+  const setupDoc = await read("docs/openai-moderation-setup.md");
+  const watchlistDoc = await read("docs/post-launch-watchlist.md");
+
+  if (/PUBLIC_OPENAI_API_KEY/i.test(envExample)) errors.push("PUBLIC_OPENAI_API_KEY should not exist");
+  if (!/OPENAI_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_MODERATION_ENABLED should default to false in .env.example");
+  if (!/OPENAI_MODERATION_FAIL_MODE=review/.test(envExample)) errors.push("OPENAI_MODERATION_FAIL_MODE should default to review in .env.example");
+  if (!/test:openai-moderation/.test(packageJson)) errors.push("package.json missing test:openai-moderation script");
+  if (!/server-only/i.test(setupDoc)) errors.push("openai moderation setup doc should mention server-only key handling");
+  if (!/Full video moderation still not implemented/i.test(watchlistDoc)) errors.push("watchlist should mention full video moderation is not implemented");
+
+  const srcFiles = await walk(path.resolve(process.cwd(), "src"));
+  const distDir = path.resolve(process.cwd(), "dist");
+  const distFiles = (await exists("dist")) ? await walk(distDir) : [];
+
+  for (const file of srcFiles) {
+    const content = await fs.readFile(file, "utf8");
+    const normalized = path.relative(process.cwd(), file).replace(/\\/g, "/");
+    if (/PUBLIC_OPENAI/i.test(content)) errors.push(`PUBLIC_OPENAI reference found in src: ${normalized}`);
+    if (/from\s+["']openai["']|import\("openai"\)/i.test(content) && !normalized.includes("scripts/")) {
+      errors.push(`browser/server SDK import not expected in src: ${normalized}`);
+    }
+    if (/OPENAI_API_KEY/.test(content) && normalized.startsWith("src/components")) {
+      errors.push(`OPENAI_API_KEY referenced from client component: ${normalized}`);
+    }
+  }
+
+  for (const file of distFiles) {
+    const content = await fs.readFile(file, "utf8");
+    const normalized = path.relative(process.cwd(), file).replace(/\\/g, "/");
+    if (/OPENAI_API_KEY|PUBLIC_OPENAI|category_scores/i.test(content)) {
+      errors.push(`sensitive OpenAI string leaked to dist: ${normalized}`);
+    }
+  }
+
+  console.log(`required files: ${requiredFiles.length}`);
+  console.log(`errors: ${errors.length}`);
+  if (args.verbose) {
+    requiredFiles.forEach((file) => console.log(`- file: ${file}`));
+  }
+
+  if (errors.length > 0) {
+    console.error("\nOPENAI MODERATION AUDIT FAILED");
+    errors.forEach((error) => console.error(`- ${error}`));
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log("\nOPENAI MODERATION AUDIT PASSED");
+}
+
+main().catch((error) => {
+  console.error("audit-openai-moderation failed");
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});
