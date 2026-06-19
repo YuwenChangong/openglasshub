@@ -57,13 +57,23 @@ function supportsHover() {
 
 function NotificationBellIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+    <svg
+      className="header-notifications__bell-svg"
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      preserveAspectRatio="xMidYMid meet"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
       <path
         d="M8.25 18.25h7.5m-9-1.5h10.5c-.82-.86-1.5-2.56-1.5-5.03 0-2.2-1.53-4.1-3.75-4.58V6.5a1.5 1.5 0 1 0-3 0v.64C6.78 7.62 5.25 9.52 5.25 11.72c0 2.47-.68 4.17-1.5 5.03Zm3.75 1.5a2.25 2.25 0 0 0 4.5 0"
         stroke="currentColor"
         strokeWidth="1.55"
         strokeLinecap="round"
         strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );
