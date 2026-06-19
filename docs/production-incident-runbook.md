@@ -1,5 +1,11 @@
 # Production Incident Runbook
 
+Related docs:
+
+- `D:\OpenGlass Hub\docs\post-launch-watchlist.md`
+- `D:\OpenGlass Hub\docs\production-readiness-gate.md`
+- `D:\OpenGlass Hub\docs\production-security-privacy-bug-audit.md`
+
 ## If the latest release causes a production incident
 
 1. Identify the bad commit on `main`.
