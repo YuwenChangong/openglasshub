@@ -38,6 +38,7 @@ async function main() {
 
   const requiredFiles = [
     "src/lib/moderation/openai-moderation-provider.server.ts",
+    "src/lib/moderation/moderate-asset.server.ts",
     "docs/openai-moderation-setup.md",
     ".env.example",
   ];
@@ -54,8 +55,14 @@ async function main() {
   if (/PUBLIC_OPENAI_API_KEY/i.test(envExample)) errors.push("PUBLIC_OPENAI_API_KEY should not exist");
   if (!/OPENAI_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_MODERATION_ENABLED should default to false in .env.example");
   if (!/OPENAI_MODERATION_FAIL_MODE=review/.test(envExample)) errors.push("OPENAI_MODERATION_FAIL_MODE should default to review in .env.example");
+  if (!/OPENAI_POST_IMAGE_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_POST_IMAGE_MODERATION_ENABLED should default to false in .env.example");
+  if (!/OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_PROFILE_IMAGE_MODERATION_ENABLED should default to false in .env.example");
+  if (!/OPENAI_CIRCLE_COVER_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_CIRCLE_COVER_MODERATION_ENABLED should default to false in .env.example");
+  if (!/OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED should default to false in .env.example");
   if (!/test:openai-moderation/.test(packageJson)) errors.push("package.json missing test:openai-moderation script");
   if (!/server-only/i.test(setupDoc)) errors.push("openai moderation setup doc should mention server-only key handling");
+  if (!/primary server-side moderation provider/i.test(setupDoc)) errors.push("openai moderation setup doc should describe OpenAI as primary provider when enabled");
+  if (!/profile avatar \/ banner/i.test(setupDoc)) errors.push("openai moderation setup doc should cover profile images");
   if (!/Full video moderation still not implemented/i.test(watchlistDoc)) errors.push("watchlist should mention full video moderation is not implemented");
 
   const srcFiles = await walk(path.resolve(process.cwd(), "src"));
@@ -71,6 +78,9 @@ async function main() {
     }
     if (/OPENAI_API_KEY/.test(content) && normalized.startsWith("src/components")) {
       errors.push(`OPENAI_API_KEY referenced from client component: ${normalized}`);
+    }
+    if (/PUBLIC_OPENAI/i.test(content)) {
+      errors.push(`PUBLIC_OPENAI reference found in src: ${normalized}`);
     }
   }
 

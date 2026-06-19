@@ -18,7 +18,8 @@ export type OpenAIModerationReasonCode =
   | `openai_flagged_${string}`
   | "openai_provider_error_review"
   | "openai_provider_error_reject"
-  | "openai_provider_error_local_only";
+  | "openai_provider_error_local_only"
+  | "openai_video_thumbnail_missing_review";
 
 export type ModerationReasonCode = LocalModerationReasonCode | OpenAIModerationReasonCode;
 
@@ -40,7 +41,16 @@ export type ModerationProviderName =
 
 export type ModerationFailMode = "review" | "reject" | "allow" | "local_only";
 
-export type ModerationProviderTargetType = "post" | "comment" | "circle" | "profile" | "media";
+export type ModerationProviderTargetType =
+  | "post_text"
+  | "post_image"
+  | "post_video_metadata"
+  | "comment_text"
+  | "circle_text"
+  | "circle_cover_image"
+  | "profile_text"
+  | "profile_avatar_image"
+  | "profile_banner_image";
 
 export interface ModerationProviderInput {
   targetType: ModerationProviderTargetType;

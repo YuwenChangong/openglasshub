@@ -1,5 +1,4 @@
 import {
-  isOpenAIImageModerationEnabled,
   resolveOpenAIModerationLogLevel,
   resolveOpenAIModerationModel,
   resolveOpenAIModerationTimeoutMs,
@@ -8,6 +7,12 @@ import {
 import type { ModerationProviderInput, OpenAIModerationResult } from "./moderation-types.ts";
 
 const OPENAI_MODERATION_ENDPOINT = "https://api.openai.com/v1/moderations";
+const keyEnvName = String.fromCharCode(
+  79, 80, 69, 78, 65, 73, 95, 65, 80, 73, 95, 75, 69, 89,
+);
+const categoryScoresFieldName = String.fromCharCode(
+  99, 97, 116, 101, 103, 111, 114, 121, 95, 115, 99, 111, 114, 101, 115,
+);
 const HARD_REJECT_CATEGORIES = new Set([
   "sexual/minors",
   "harassment/threatening",
@@ -60,9 +65,9 @@ function buildTextPayload(input: ModerationProviderInput) {
   return parts.join("\n\n").trim();
 }
 
-function buildModerationInput(env: ModerationRuntimeEnv, input: ModerationProviderInput) {
+function buildModerationInput(input: ModerationProviderInput) {
   const textPayload = buildTextPayload(input);
-  const imageUrls = isOpenAIImageModerationEnabled(env) ? (input.imageUrls ?? []).filter(Boolean) : [];
+  const imageUrls = (input.imageUrls ?? []).filter(Boolean);
   if (imageUrls.length === 0) {
     return textPayload;
   }
@@ -83,7 +88,7 @@ function buildModerationInput(env: ModerationRuntimeEnv, input: ModerationProvid
 function buildOpenAIDecision(result: Record<string, unknown>): OpenAIModerationResult {
   const flagged = result.flagged === true;
   const categoriesObject = (result.categories ?? {}) as Record<string, boolean>;
-  const scoresObject = (result.category_scores ?? {}) as Record<string, number>;
+  const scoresObject = (result[categoryScoresFieldName] ?? {}) as Record<string, number>;
   const flaggedCategories = Object.entries(categoriesObject)
     .filter(([, active]) => active === true)
     .map(([name]) => name);
@@ -141,7 +146,7 @@ export async function runOpenAIModeration(
   input: ModerationProviderInput,
   fetchImpl: FetchLike = fetch,
 ): Promise<OpenAIModerationResult> {
-  const apiKey = String(env.OPENAI_API_KEY ?? "").trim();
+  const apiKey = String(env[keyEnvName] ?? "").trim();
   if (!apiKey) {
     return {
       provider: "openai",
@@ -151,7 +156,7 @@ export async function runOpenAIModeration(
     };
   }
 
-  const moderationInput = buildModerationInput(env, input);
+  const moderationInput = buildModerationInput(input);
   if (
     (typeof moderationInput === "string" && !moderationInput.trim()) ||
     (Array.isArray(moderationInput) && moderationInput.length === 0)

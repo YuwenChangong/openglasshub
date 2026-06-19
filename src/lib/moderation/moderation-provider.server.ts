@@ -23,12 +23,42 @@ export function isOpenAIModerationEnabled(env: ModerationRuntimeEnv): boolean {
   return String(env.OPENAI_MODERATION_ENABLED ?? "false").trim().toLowerCase() === "true";
 }
 
+function resolveBooleanFlag(value: string | undefined, fallback = false): boolean {
+  if (typeof value === "undefined") return fallback;
+  return String(value).trim().toLowerCase() === "true";
+}
+
 export function isOpenAIImageModerationEnabled(env: ModerationRuntimeEnv): boolean {
-  return String(env.OPENAI_MODERATION_IMAGE_ENABLED ?? "false").trim().toLowerCase() === "true";
+  return resolveBooleanFlag(env.OPENAI_MODERATION_IMAGE_ENABLED, false);
+}
+
+export function isOpenAIPostImageModerationEnabled(env: ModerationRuntimeEnv): boolean {
+  return resolveBooleanFlag(env.OPENAI_POST_IMAGE_MODERATION_ENABLED, isOpenAIImageModerationEnabled(env));
+}
+
+export function isOpenAIProfileImageModerationEnabled(env: ModerationRuntimeEnv): boolean {
+  return resolveBooleanFlag(env.OPENAI_PROFILE_IMAGE_MODERATION_ENABLED, false);
+}
+
+export function isOpenAICircleCoverModerationEnabled(env: ModerationRuntimeEnv): boolean {
+  return resolveBooleanFlag(env.OPENAI_CIRCLE_COVER_MODERATION_ENABLED, false);
+}
+
+export function isOpenAIVideoThumbnailModerationEnabled(env: ModerationRuntimeEnv): boolean {
+  return resolveBooleanFlag(env.OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED, false);
+}
+
+export function doesVideoPostRequireThumbnailModeration(env: ModerationRuntimeEnv): boolean {
+  return resolveBooleanFlag(env.VIDEO_POST_REQUIRES_THUMBNAIL_MODERATION, false);
 }
 
 export function resolveOpenAIFailMode(env: ModerationRuntimeEnv): Extract<ModerationFailMode, "review" | "reject" | "local_only"> {
   const raw = String(env.OPENAI_MODERATION_FAIL_MODE ?? "review").trim().toLowerCase();
+  return raw === "reject" || raw === "local_only" ? raw : "review";
+}
+
+export function resolveVideoPostFailMode(env: ModerationRuntimeEnv): Extract<ModerationFailMode, "review" | "reject" | "local_only"> {
+  const raw = String(env.VIDEO_POST_FAIL_MODE ?? resolveOpenAIFailMode(env)).trim().toLowerCase();
   return raw === "reject" || raw === "local_only" ? raw : "review";
 }
 

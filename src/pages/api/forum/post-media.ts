@@ -2,12 +2,16 @@ import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   buildModerationProviderInput,
-  isOpenAIImageModerationEnabled,
+  doesVideoPostRequireThumbnailModeration,
+  isOpenAIPostImageModerationEnabled,
+  isOpenAIVideoThumbnailModerationEnabled,
   resolveModerationProvider,
-  resolveOpenAIFailMode,
+  resolveVideoPostFailMode,
   runMockModerationProvider,
 } from "../../../lib/moderation/moderation-provider.server";
 import { runOpenAIModeration } from "../../../lib/moderation/openai-moderation-provider.server";
+import { moderateAsset } from "../../../lib/moderation/moderate-asset.server";
+import { createSignedModerationUrls } from "../../../lib/moderation/moderation-media.server";
 
 export const prerender = false;
 
@@ -116,26 +120,16 @@ function shouldFallbackToLegacyColumns(message: string): boolean {
   return /column .* does not exist/i.test(message) || /schema cache/i.test(message);
 }
 
-async function createSignedMediaUrls(
-  client: SupabaseClient,
-  paths: string[],
-): Promise<string[]> {
-  const normalizedPaths = [...new Set(paths.map((item) => String(item ?? "").trim()).filter(Boolean))];
-  if (normalizedPaths.length === 0) return [];
-  const { data, error } = await client.storage.from("post-media").createSignedUrls(normalizedPaths, 10 * 60);
-  if (error) throw error;
-  return (data ?? []).map((entry) => entry?.signedUrl ?? "").filter(Boolean);
-}
-
 async function moderatePostMedia(params: {
   client: SupabaseClient;
   env: Record<string, string | undefined>;
+  userId: string;
   post: { id: string; title?: string | null; body?: string | null; status?: string | null; moderation_status?: string | null };
   media: MediaPayload[];
 }) {
-  const { client, env, post, media } = params;
+  const { client, env, post, media, userId } = params;
   const provider = resolveModerationProvider(env);
-  if (!isOpenAIImageModerationEnabled(env) || (provider !== "openai" && provider !== "mock")) {
+  if (provider !== "openai" && provider !== "mock") {
     return {
       decision: "allow" as const,
       reason: null as string | null,
@@ -144,19 +138,45 @@ async function moderatePostMedia(params: {
     };
   }
 
-  const imagePaths = media
+  const hasVideo = media.some((item) => item.kind === "video");
+  const hasImage = media.some((item) => item.kind === "image");
+  const reviewIfThumbnailMissing = hasVideo && doesVideoPostRequireThumbnailModeration(env);
+  const shouldModerateImages = hasImage && isOpenAIPostImageModerationEnabled(env);
+  const shouldModerateVideoThumbs = hasVideo && isOpenAIVideoThumbnailModerationEnabled(env);
+
+  if (reviewIfThumbnailMissing && media.some((item) => item.kind === "video" && !String(item.thumbnail_url ?? "").trim())) {
+    return {
+      decision: "review" as const,
+      reason: "openai_video_thumbnail_missing_review",
+      score: 0.57,
+      provider: "local+openai",
+    };
+  }
+
+  const mediaTextParts = media.flatMap((item) => {
+    const parts = [];
+    const altText = String(item.alt_text ?? "").trim();
+    if (altText) parts.push(`Caption: ${altText}`);
+    if (item.kind === "video") {
+      const externalUrl = String(item.url ?? "").trim();
+      if (externalUrl) parts.push(`Video URL: ${externalUrl}`);
+    }
+    return parts;
+  });
+
+  const imageUrlValues = media
     .flatMap((item) => {
-      if (item.kind === "image") {
+      if (item.kind === "image" && shouldModerateImages) {
         return [String(item.storage_path ?? "").trim()];
       }
-      if (item.thumbnail_url) {
-        return [String(item.thumbnail_url).trim()];
+      if (item.kind === "video" && shouldModerateVideoThumbs) {
+        return [String(item.thumbnail_url ?? "").trim()];
       }
       return [];
     })
     .filter(Boolean);
 
-  if (imagePaths.length === 0) {
+  if (imageUrlValues.length === 0 && mediaTextParts.length === 0) {
     return {
       decision: "allow" as const,
       reason: null as string | null,
@@ -165,11 +185,17 @@ async function moderatePostMedia(params: {
     };
   }
 
-  const imageUrls = await createSignedMediaUrls(client, imagePaths);
+  const imageUrls = await createSignedModerationUrls({
+    client,
+    values: imageUrlValues,
+    allowedPrefixes: [`${userId}/${post.id}/`, `tmp/${userId}/`],
+    allowAnyStoragePath: false,
+  });
+
   const providerInput = buildModerationProviderInput({
-    targetType: "post",
+    targetType: hasVideo ? "post_video_metadata" : "post_image",
     title: String(post.title ?? "").trim(),
-    body: String(post.body ?? "").trim(),
+    body: [String(post.body ?? "").trim(), ...mediaTextParts].filter(Boolean).join("\n"),
     imageUrls,
     localeHint: "zh-CN",
   });
@@ -177,28 +203,16 @@ async function moderatePostMedia(params: {
   const result =
     provider === "mock"
       ? await runMockModerationProvider(providerInput)
-      : await runOpenAIModeration(env, providerInput);
-
-  if (result.decision === "error") {
-    const failMode = resolveOpenAIFailMode(env);
-    return {
-      decision: failMode === "reject" ? "reject" as const : failMode === "local_only" ? "allow" as const : "review" as const,
-      reason:
-        failMode === "reject"
-          ? "openai_provider_error_reject"
-          : failMode === "local_only"
-            ? "openai_provider_error_local_only"
-            : "openai_provider_error_review",
-      score: failMode === "reject" ? 0.93 : failMode === "local_only" ? 0.02 : 0.61,
-      provider: "local+openai",
-    };
-  }
+      : await moderateAsset(env, providerInput, {
+          failMode: hasVideo ? resolveVideoPostFailMode(env) : undefined,
+          openaiRunner: runOpenAIModeration,
+        });
 
   return {
     decision: result.decision,
-    reason: result.decision === "allow" ? null : result.reasonCode,
-    score: result.decision === "reject" ? 0.94 : result.decision === "review" ? 0.62 : 0.02,
-    provider: "local+openai",
+    reason: result.reason,
+    score: result.score,
+    provider: result.provider,
   };
 }
 
@@ -386,6 +400,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const mediaModeration = await moderatePostMedia({
       client: userClient,
       env,
+      userId: authData.user.id,
       post: post as { id: string; title?: string | null; body?: string | null; status?: string | null; moderation_status?: string | null },
       media,
     });

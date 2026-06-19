@@ -70,6 +70,7 @@ function reasonLabel(reason: string | null | undefined) {
   if (!reason) return "";
   if (reason.startsWith("openai_flagged_")) return "OpenAI flagged";
   if (reason.startsWith("openai_provider_error_")) return "OpenAI provider fallback";
+  if (reason === "openai_video_thumbnail_missing_review") return "Video thumbnail required for review";
   if (reason === "sensitive_review") return "Local rule review";
   if (reason === "personal_info") return "Possible personal info";
   if (reason === "excessive_links") return "Excessive links";

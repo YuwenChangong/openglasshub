@@ -97,12 +97,12 @@ function matchPatternGroup(
 function buildDefaultProviderInput(input: ModerationInput): ModerationProviderInput {
   const targetType =
     input.contentType === "comment_body"
-      ? "comment"
+      ? "comment_text"
       : input.contentType === "circle_name" || input.contentType === "circle_description"
-        ? "circle"
+        ? "circle_text"
         : input.contentType === "profile_text"
-          ? "profile"
-          : "post";
+          ? "profile_text"
+          : "post_text";
 
   if (input.providerInput) {
     return {

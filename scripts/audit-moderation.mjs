@@ -6,8 +6,10 @@ const REQUIRED_FILES = [
   "src/lib/moderation/moderation-policy.ts",
   "src/lib/moderation/sensitive-terms.server.ts",
   "src/lib/moderation/moderate-content.server.ts",
+  "src/lib/moderation/moderate-asset.server.ts",
   "src/lib/moderation/moderation-provider.server.ts",
   "src/lib/moderation/openai-moderation-provider.server.ts",
+  "src/pages/api/users/me/profile.ts",
   "src/pages/api/admin/moderation/queue.ts",
   "src/pages/api/admin/moderation/approve.ts",
   "src/pages/api/admin/moderation/reject.ts",
@@ -51,6 +53,11 @@ async function main() {
   const postsApi = await read("src/pages/api/forum/posts.ts");
   const commentsApi = await read("src/pages/api/forum/comments.ts");
   const circlesApi = await read("src/pages/api/forum/circles.ts");
+  const circleManageApi = await read("src/pages/api/forum/circles/[slug]/manage.ts");
+  const adminCirclesApi = await read("src/pages/api/admin/forum/circles.ts");
+  const profileApi = await read("src/pages/api/users/me/profile.ts");
+  const profileForm = await read("src/components/profile/EditProfileForm.tsx");
+  const postMediaApi = await read("src/pages/api/forum/post-media.ts");
   const moderationPage = await read("src/pages/admin/moderation/index.astro");
   const moderationComponent = await read("src/components/admin/AdminModerationQueue.tsx");
   const openaiProviderSource = await read("src/lib/moderation/openai-moderation-provider.server.ts");
@@ -71,8 +78,17 @@ async function main() {
   if (!commentsApi.includes("moderateContent(")) fail(errors, "comments API does not call moderateContent");
   if (!circlesApi.includes('contentType: "circle_name"')) fail(errors, "circles API missing circle_name moderation");
   if (!circlesApi.includes('code: "CONTENT_REJECTED"')) fail(errors, "circles API missing reject path");
+  if (!circleManageApi.includes('targetType: "circle_text"')) fail(errors, "circle manage API missing text moderation");
+  if (!adminCirclesApi.includes('targetType: "circle_text"')) fail(errors, "admin circles API missing text moderation");
+  if (!profileApi.includes('targetType: "profile_text"')) fail(errors, "profile API missing text moderation");
+  if (!profileApi.includes('profile_avatar_image')) fail(errors, "profile API missing avatar moderation");
+  if (!profileApi.includes('profile_banner_image')) fail(errors, "profile API missing banner moderation");
+  if (!profileForm.includes('/api/users/me/profile')) fail(errors, "profile form is not using server moderation API");
   if (!providerSource.includes("OPENAI_MODERATION_ENABLED")) fail(errors, "moderation provider missing OPENAI_MODERATION_ENABLED handling");
   if (!providerSource.includes("OPENAI_MODERATION_FAIL_MODE")) fail(errors, "moderation provider missing OPENAI_MODERATION_FAIL_MODE handling");
+  if (!providerSource.includes("OPENAI_PROFILE_IMAGE_MODERATION_ENABLED")) fail(errors, "moderation provider missing profile image env");
+  if (!providerSource.includes("OPENAI_CIRCLE_COVER_MODERATION_ENABLED")) fail(errors, "moderation provider missing circle cover env");
+  if (!providerSource.includes("OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED")) fail(errors, "moderation provider missing video thumbnail env");
   if (!openaiProviderSource.includes("api.openai.com/v1/moderations")) fail(errors, "openai provider missing moderation endpoint");
   if (!envExample.includes("OPENAI_MODERATION_ENABLED=false")) fail(errors, ".env.example missing OPENAI_MODERATION_ENABLED=false");
   if (!envExample.includes("OPENAI_MODERATION_FAIL_MODE=review")) fail(errors, ".env.example missing OPENAI_MODERATION_FAIL_MODE=review");
@@ -105,7 +121,9 @@ async function main() {
   if (!moderationComponent.includes("OpenAI flagged")) fail(errors, "admin moderation queue missing friendly OpenAI reason label");
   if (!postsApi.includes("localInputs")) fail(errors, "posts API missing unified localInputs moderation path");
   if (!circlesApi.includes("localInputs")) fail(errors, "circles API missing unified localInputs moderation path");
-  if (!commentsApi.includes('targetType: "comment"')) fail(errors, "comments API missing provider input target type");
+  if (!commentsApi.includes('targetType: "comment_text"')) fail(errors, "comments API missing provider input target type");
+  if (!postMediaApi.includes('targetType: hasVideo ? "post_video_metadata" : "post_image"')) fail(errors, "post media API missing image/video moderation target types");
+  if (!postMediaApi.includes("openai_video_thumbnail_missing_review")) fail(errors, "post media API missing thumbnail review fallback");
   if (!moderationCore.includes('resolveOpenAIFailMode')) fail(errors, "moderation core missing OpenAI fail mode handling");
   if (!moderationCore.includes('openai_provider_error_review')) fail(errors, "moderation core missing default fail-closed review path");
 

@@ -35,6 +35,8 @@ Check daily:
 - China mainland access feedback
 - OpenAI provider errors
 - Pending queue spikes after provider failures or false positives
+- Profile save rejections after moderation
+- Circle cover / avatar / banner moderation failures
 
 ## Emergency actions
 
@@ -83,7 +85,7 @@ Check daily:
 ## Accepted risks
 
 - `npm audit` high risk dependency waiting for upgrade window
-- OpenAI text / image moderation enabled if env configured
+- OpenAI is the primary moderation provider when enabled, with local hard-block retained
 - Full video moderation still not implemented
 - `functions/` deprecated but not deployed
 - Public beta needs manual monitoring

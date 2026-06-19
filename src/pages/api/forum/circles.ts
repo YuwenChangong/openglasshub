@@ -3,6 +3,8 @@ import { buildUniqueCircleSlug, slugifyCircleName } from "../../../lib/circle-sl
 import { getRequestIp } from "../../../lib/request-ip";
 import { isPublicVisibleCircle } from "../../../lib/site-navigation";
 import { fetchCirclesWithFallback } from "../../../lib/circle-data";
+import { CIRCLE_COVER_PREFIX } from "../../../lib/circle-cover";
+import { moderateAsset } from "../../../lib/moderation/moderate-asset.server";
 import {
   createAnonClient,
   jsonResponse,
@@ -10,6 +12,8 @@ import {
   isCircleManager,
 } from "../../../lib/server/circle-management";
 import { moderateContent } from "../../../lib/moderation/moderate-content.server";
+import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../lib/moderation/moderation-media.server";
+import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../lib/moderation/moderation-provider.server";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 
 export const prerender = false;
@@ -30,6 +34,31 @@ function isCircleInsertRlsError(message: string) {
 
 function validateType(type: string) {
   return ["topic", "device", "project"].includes(type);
+}
+
+async function moderateCircleCoverImage(params: {
+  client: ReturnType<typeof createAnonClient>;
+  env: Record<string, string | undefined>;
+  imagePath: string | null;
+}) {
+  if (!params.imagePath || !isOpenAICircleCoverModerationEnabled(params.env)) {
+    return { decision: "allow" as const, reason: null as string | null };
+  }
+
+  const imageUrls = await createSignedModerationUrls({
+    client: params.client,
+    values: [params.imagePath],
+    allowedPrefixes: [CIRCLE_COVER_PREFIX],
+  });
+
+  return moderateAsset(
+    params.env,
+    buildModerationProviderInput({
+      targetType: "circle_cover_image",
+      imageUrls,
+      localeHint: "zh-CN",
+    }),
+  );
 }
 
 async function findDuplicateCircle(
@@ -147,7 +176,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ...(description ? [{ contentType: "circle_description" as const, text: description }] : []),
       ],
       providerInput: {
-        targetType: "circle",
+        targetType: "circle_text",
         title: name,
         description,
         localeHint: "zh-CN",
@@ -160,6 +189,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
           code: "CONTENT_REJECTED",
         },
         403,
+      );
+    }
+
+    const coverModeration = await moderateCircleCoverImage({
+      client: auth.client,
+      env,
+      imagePath,
+    });
+    if (coverModeration.decision !== "allow") {
+      await removeStoragePathIfAllowed({
+        client: auth.client,
+        value: imagePath,
+        allowedPrefixes: [CIRCLE_COVER_PREFIX],
+        logLabel: "circle-cover-moderation",
+      });
+      return jsonResponse(
+        {
+          error: "CONTENT_REJECTED",
+          message: "This circle cover could not be published because it may violate community rules.",
+        },
+        coverModeration.reason?.startsWith("openai_provider_error_") ? 503 : 403,
       );
     }
 
@@ -290,6 +340,59 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
 
     if (Object.keys(updates).length === 0) {
       return jsonResponse({ error: "NOTHING_TO_UPDATE" }, 400);
+    }
+
+    const nextName = typeof updates.name === "string" ? updates.name : null;
+    const nextDescription = typeof updates.description === "string" ? updates.description : null;
+    if (nextName !== null || nextDescription !== null) {
+      const moderation = await moderateContent(env, {
+        contentType: nextDescription ? "circle_description" : "circle_name",
+        userId: auth.user.id,
+        text: [nextName ?? "", nextDescription ?? ""].filter(Boolean).join("\n\n"),
+        localInputs: [
+          ...(nextName ? [{ contentType: "circle_name" as const, text: nextName }] : []),
+          ...(nextDescription ? [{ contentType: "circle_description" as const, text: nextDescription }] : []),
+        ],
+        providerInput: {
+          targetType: "circle_text",
+          title: nextName ?? undefined,
+          description: nextDescription ?? undefined,
+          localeHint: "zh-CN",
+        },
+      });
+
+      if (moderation.decision !== "allow") {
+        return jsonResponse(
+          {
+            error: "CONTENT_REJECTED",
+            message: "This circle update could not be published because it may violate community rules.",
+          },
+          403,
+        );
+      }
+    }
+
+    if ("image_path" in updates) {
+      const coverModeration = await moderateCircleCoverImage({
+        client: auth.client,
+        env,
+        imagePath: updates.image_path ?? null,
+      });
+      if (coverModeration.decision !== "allow") {
+        await removeStoragePathIfAllowed({
+          client: auth.client,
+          value: updates.image_path ?? null,
+          allowedPrefixes: [CIRCLE_COVER_PREFIX],
+          logLabel: "circle-cover-moderation",
+        });
+        return jsonResponse(
+          {
+            error: "CONTENT_REJECTED",
+            message: "This circle cover could not be published because it may violate community rules.",
+          },
+          coverModeration.reason?.startsWith("openai_provider_error_") ? 503 : 403,
+        );
+      }
     }
 
     const query = auth.client

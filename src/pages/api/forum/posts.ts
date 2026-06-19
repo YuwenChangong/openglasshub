@@ -276,10 +276,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ...(body ? [{ contentType: "post_body" as const, text: body }] : []),
       ],
       providerInput: {
-        targetType: "post",
+        targetType: "post_text",
         title,
         body,
         localeHint: "zh-CN",
+        metadata: {
+          circleSlug,
+        },
       },
     });
 

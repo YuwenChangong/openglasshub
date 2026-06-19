@@ -2,18 +2,18 @@
 
 ## What this does
 
-- Keeps local moderation as the first layer.
-- Adds OpenAI moderation as a second server-side provider when enabled.
+- Keeps local hard-block moderation as the first layer.
+- Makes OpenAI the primary server-side moderation provider when enabled.
 - Keeps manual admin review as the final safety layer.
-- Supports text moderation for posts, comments, and circles.
-- Supports image moderation for post images when `OPENAI_MODERATION_IMAGE_ENABLED=true`.
+- Supports text moderation for posts, comments, circles, and public profile fields.
+- Supports optional image moderation for post images, profile avatar/banner, and circle covers.
 
 ## What this does not do
 
 - Does not replace local rules.
 - Does not send browser-side requests to OpenAI.
 - Does not moderate full video content yet.
-- Does not moderate avatar or profile banner images in this first version.
+- Does not understand full uploaded video streams.
 
 ## Environment variables
 
@@ -23,19 +23,31 @@
 - `OPENAI_MODERATION_FAIL_MODE=review`
 - `OPENAI_MODERATION_TIMEOUT_MS=3500`
 - `OPENAI_MODERATION_IMAGE_ENABLED=false`
+- `OPENAI_POST_IMAGE_MODERATION_ENABLED=false`
+- `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=false`
+- `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=false`
+- `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=false`
+- `VIDEO_POST_REQUIRES_THUMBNAIL_MODERATION=false`
+- `VIDEO_POST_FAIL_MODE=review`
 - `OPENAI_MODERATION_LOG_LEVEL=minimal`
 
 ## Cloudflare setup
 
 - Store `OPENAI_API_KEY` as a server-side secret only.
 - Do not expose `OPENAI_API_KEY` through any `PUBLIC_*` variable.
-- Start Preview with:
+- Start Preview stage 1 with:
   - `OPENAI_MODERATION_ENABLED=true`
-  - `OPENAI_MODERATION_IMAGE_ENABLED=false`
+  - `OPENAI_POST_IMAGE_MODERATION_ENABLED=false`
+  - `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=false`
+  - `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=false`
+  - `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=false`
   - `OPENAI_MODERATION_FAIL_MODE=review`
 - Start Production in text-only mode first:
   - `OPENAI_MODERATION_ENABLED=true`
-  - `OPENAI_MODERATION_IMAGE_ENABLED=false`
+  - `OPENAI_POST_IMAGE_MODERATION_ENABLED=false`
+  - `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=false`
+  - `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=false`
+  - `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=false`
 
 ## Supabase impact
 
@@ -53,18 +65,23 @@
 
 ## Image moderation behavior
 
-- First version moderates post images only.
+- Post images can be moderated with `OPENAI_POST_IMAGE_MODERATION_ENABLED=true`.
+- Profile avatar / banner can be moderated with `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=true`.
+- Circle covers can be moderated with `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=true`.
 - Uses short-lived signed read URLs for uploaded images.
 - Does not send user email, JWT, IP, or secrets.
-- If image moderation flags content:
+- If post image moderation flags content:
   - medium / unclear => `pending_review`
   - high severity => `rejected`
+- If profile or circle cover moderation flags content:
+  - save/update is blocked
+  - rejected upload path is not promoted to public content
 
 ## Video limitation
 
-- Video moderation currently means text + thumbnail/keyframe only.
-- This version does not understand full video content.
-- If a post has no safe image thumbnail, video body moderation remains text-only.
+- Full video moderation is not implemented.
+- Current video moderation covers post text plus any available thumbnail/keyframe only.
+- If `VIDEO_POST_REQUIRES_THUMBNAIL_MODERATION=true` and no thumbnail exists, the post goes to `pending_review`.
 
 ## Failure mode
 
@@ -80,10 +97,37 @@
 - Do not send emails, JWTs, IPs, or other secrets to OpenAI.
 - Do not expose raw category scores to the public UI.
 - Do not log full user text or full signed image URLs.
+- Do not expose profile moderation reasons or provider internals to ordinary users.
+
+## Rollout stages
+
+### Stage 1
+
+- `OPENAI_MODERATION_ENABLED=true`
+- `OPENAI_POST_IMAGE_MODERATION_ENABLED=false`
+- `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=false`
+- `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=false`
+- `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=false`
+
+### Stage 2
+
+- `OPENAI_POST_IMAGE_MODERATION_ENABLED=true`
+
+### Stage 3
+
+- `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=true`
+- `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=true`
+
+### Stage 4
+
+- `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=true`
+- Optionally `VIDEO_POST_REQUIRES_THUMBNAIL_MODERATION=true`
 
 ## Rollback instructions
 
 1. Set `OPENAI_MODERATION_ENABLED=false`
+2. Or set `OPENAI_MODERATION_FAIL_MODE=local_only`
+3. Set image flags back to `false`
 2. Redeploy Cloudflare Pages / Functions
 3. Keep local moderation active
 4. Watch pending queue, provider errors, and user reports

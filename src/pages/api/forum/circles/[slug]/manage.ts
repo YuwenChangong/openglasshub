@@ -1,5 +1,10 @@
 import type { APIRoute } from "astro";
 import { resolveCircleCoverUrl } from "../../../../../lib/circle-cover";
+import { CIRCLE_COVER_PREFIX } from "../../../../../lib/circle-cover";
+import { moderateAsset } from "../../../../../lib/moderation/moderate-asset.server";
+import { moderateContent } from "../../../../../lib/moderation/moderate-content.server";
+import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../../../lib/moderation/moderation-media.server";
+import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../../../lib/moderation/moderation-provider.server";
 import { requireManagedCircleBySlug, jsonResponse } from "../../../../../lib/server/circle-management";
 
 export const prerender = false;
@@ -12,6 +17,31 @@ function isMissingCircleStatusError(message: string) {
 
 function isCircleDeleteRlsError(message: string) {
   return /row-level security|permission denied/i.test(message);
+}
+
+async function moderateCircleCoverImage(params: {
+  client: Awaited<ReturnType<typeof requireManagedCircleBySlug>>["client"];
+  env: Record<string, string | undefined>;
+  imagePath: string | null;
+}) {
+  if (!params.imagePath || !isOpenAICircleCoverModerationEnabled(params.env)) {
+    return { decision: "allow" as const, reason: null as string | null };
+  }
+
+  const imageUrls = await createSignedModerationUrls({
+    client: params.client,
+    values: [params.imagePath],
+    allowedPrefixes: [CIRCLE_COVER_PREFIX],
+  });
+
+  return moderateAsset(
+    params.env,
+    buildModerationProviderInput({
+      targetType: "circle_cover_image",
+      imageUrls,
+      localeHint: "zh-CN",
+    }),
+  );
 }
 
 export const GET: APIRoute = async ({ request, params, locals }) => {
@@ -124,6 +154,61 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
     }
     if (Object.keys(updates).length === 0) {
       return jsonResponse({ error: "NOTHING_TO_UPDATE" }, 400);
+    }
+
+    if ("name" in updates || "description" in updates) {
+      const moderation = await moderateContent(env, {
+        contentType: typeof updates.description === "string" ? "circle_description" : "circle_name",
+        userId: auth.user.id,
+        text: [typeof updates.name === "string" ? updates.name : "", typeof updates.description === "string" ? updates.description : ""]
+          .filter(Boolean)
+          .join("\n\n"),
+        localInputs: [
+          ...(typeof updates.name === "string" ? [{ contentType: "circle_name" as const, text: updates.name }] : []),
+          ...(typeof updates.description === "string"
+            ? [{ contentType: "circle_description" as const, text: updates.description }]
+            : []),
+        ],
+        providerInput: {
+          targetType: "circle_text",
+          title: typeof updates.name === "string" ? updates.name : undefined,
+          description: typeof updates.description === "string" ? updates.description : undefined,
+          localeHint: "zh-CN",
+        },
+      });
+
+      if (moderation.decision !== "allow") {
+        return jsonResponse(
+          {
+            error: "CONTENT_REJECTED",
+            message: "This circle update could not be published because it may violate community rules.",
+          },
+          403,
+        );
+      }
+    }
+
+    if ("image_path" in updates) {
+      const coverModeration = await moderateCircleCoverImage({
+        client: auth.client,
+        env,
+        imagePath: updates.image_path ?? null,
+      });
+      if (coverModeration.decision !== "allow") {
+        await removeStoragePathIfAllowed({
+          client: auth.client,
+          value: updates.image_path ?? null,
+          allowedPrefixes: [CIRCLE_COVER_PREFIX],
+          logLabel: "circle-cover-moderation",
+        });
+        return jsonResponse(
+          {
+            error: "CONTENT_REJECTED",
+            message: "This circle cover could not be published because it may violate community rules.",
+          },
+          coverModeration.reason?.startsWith("openai_provider_error_") ? 503 : 403,
+        );
+      }
     }
 
     let { data, error } = await auth.client

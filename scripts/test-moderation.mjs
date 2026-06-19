@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 const { evaluateLocalModeration, mergeModerationResults, moderateContent } = await import("../src/lib/moderation/moderate-content.server.ts");
+const { moderateAsset } = await import("../src/lib/moderation/moderate-asset.server.ts");
 const { parseModerationActionPayload } = await import("../src/lib/server/moderation-admin.ts");
 
 async function test(name, fn) {
@@ -282,6 +283,84 @@ await test("image moderation enabled + flagged => pending/reject path available"
   assert.equal(result.decision, "review");
 });
 
+await test("profile text uses OpenAI primary path when enabled", async () => {
+  const result = await moderateContent(
+    { OPENAI_MODERATION_ENABLED: "true" },
+    {
+      contentType: "profile_text",
+      userId: "u1",
+      text: "Display name: Test\nBio: 正常资料",
+      providerInput: { targetType: "profile_text", body: "Display name: Test\nBio: 正常资料" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "allow",
+        reasonCode: "openai_allow",
+        flagged: false,
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+});
+
+await test("asset moderation blocks flagged avatar image", async () => {
+  const result = await moderateAsset(
+    { OPENAI_MODERATION_ENABLED: "true" },
+    {
+      targetType: "profile_avatar_image",
+      imageUrls: ["https://example.com/avatar.png"],
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "reject",
+        reasonCode: "openai_flagged_harassment_threatening",
+        flagged: true,
+      }),
+    },
+  );
+  assert.equal(result.decision, "reject");
+});
+
+await test("asset moderation provider error respects review fail mode", async () => {
+  const result = await moderateAsset(
+    { OPENAI_MODERATION_ENABLED: "true", OPENAI_MODERATION_FAIL_MODE: "review" },
+    {
+      targetType: "circle_cover_image",
+      imageUrls: ["https://example.com/cover.png"],
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_network",
+        flagged: false,
+      }),
+    },
+  );
+  assert.equal(result.decision, "review");
+});
+
+await test("asset moderation provider error respects local_only fail mode", async () => {
+  const result = await moderateAsset(
+    { OPENAI_MODERATION_ENABLED: "true", OPENAI_MODERATION_FAIL_MODE: "local_only" },
+    {
+      targetType: "profile_banner_image",
+      imageUrls: ["https://example.com/banner.png"],
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_network",
+        flagged: false,
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+});
+
 await test("public visibility filters require moderation_status published", async () => {
   const files = [
     "src/lib/forum-feed.ts",
@@ -321,6 +400,17 @@ await test("circle creation moderates name and description before insert", async
   assert.match(content, /contentType: "circle_description"/);
   assert.match(content, /localInputs/);
   assert.match(content, /code: "CONTENT_REJECTED"/);
+});
+
+await test("profile save uses server moderation API", async () => {
+  const content = await fs.readFile(new URL("../src/components/profile/EditProfileForm.tsx", import.meta.url), "utf8");
+  assert.match(content, /\/api\/users\/me\/profile/);
+});
+
+await test("post media moderation supports video thumbnail review fallback", async () => {
+  const content = await fs.readFile(new URL("../src/pages/api/forum/post-media.ts", import.meta.url), "utf8");
+  assert.match(content, /openai_video_thumbnail_missing_review/);
+  assert.match(content, /post_video_metadata/);
 });
 
 await test("merge moderation results prefers reject", () => {

@@ -394,7 +394,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       userId: authData.user.id,
       text: body,
       providerInput: {
-        targetType: "comment",
+        targetType: "comment_text",
         body,
         localeHint: "zh-CN",
       },

@@ -19,6 +19,7 @@ Related docs:
 3. If media upload must be paused, block `/api/forum/media-upload-guard` and `/api/forum/external-video-upload` at the application layer.
 4. If abuse spikes, raise Turnstile strictness by setting `UPLOAD_TURNSTILE_MODE=required`.
 5. If OpenAI moderation fails or false positives spike, set `OPENAI_MODERATION_ENABLED=false` or switch `OPENAI_MODERATION_FAIL_MODE=local_only` / `review`, then redeploy.
+6. If image moderation is the source of noise, separately set `OPENAI_POST_IMAGE_MODERATION_ENABLED=false`, `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=false`, `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=false`, and `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=false`.
 
 ## Data repair
 

@@ -47,6 +47,9 @@ function mapProfileError(message: string) {
   }
   if (/RATE_LIMITED/i.test(message)) return "上传过于频繁，请稍后再试。";
   if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return "当前上传需要额外安全验证，请稍后再试。";
+  if (/PROFILE_CONTENT_REJECTED/i.test(message)) return "资料内容需要调整后再保存。";
+  if (/PROFILE_IMAGE_NOT_ALLOWED/i.test(message)) return "资料图片需要调整后再保存。";
+  if (/PROFILE_IMAGE_MODERATION_UNAVAILABLE/i.test(message)) return "资料图片审核暂时不可用，请稍后再试。";
   if (/banner_url/i.test(message)) return "当前环境尚未完成个人横幅 migration。";
   return message;
 }
@@ -268,34 +271,47 @@ export default function EditProfileForm() {
         avatar_url: avatarPending.path ?? profile.avatar_url ?? null,
         banner_url: bannerPending.path ?? profile.banner_url ?? null,
       };
-
-      const withBannerResult = await supabase
-        .from("profiles")
-        .update(payload)
-        .eq("id", profile.id)
-        .select("id, username, display_name, avatar_url, bio, role, created_at, banner_url")
-        .single();
-
-      let data = withBannerResult.data as EditableProfile | null;
-      let updateError = withBannerResult.error;
-
-      if (updateError && /banner_url/i.test(updateError.message) && !bannerPending.path) {
-        const fallbackResult = await supabase
-          .from("profiles")
-          .update({
-            display_name: payload.display_name,
-            username: payload.username,
-            bio: payload.bio,
-            avatar_url: payload.avatar_url,
-          })
-          .eq("id", profile.id)
-          .select("id, username, display_name, avatar_url, bio, role, created_at")
-          .single();
-        data = (fallbackResult.data as EditableProfile | null) ?? null;
-        updateError = fallbackResult.error;
+      const token = await getSessionToken();
+      if (!token) {
+        window.location.replace(buildLoginHref("/me/edit/"));
+        return;
       }
 
-      if (updateError || !data) throw updateError ?? new Error("保存资料失败。");
+      const response = await fetch("/api/users/me/profile", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const responsePayload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            message?: string;
+            field?: "avatar" | "banner";
+            profile?: EditableProfile & {
+              resolved_avatar_url?: string | null;
+              resolved_banner_url?: string | null;
+            };
+          }
+        | null;
+      if (!response.ok || !responsePayload?.profile) {
+        if (responsePayload?.field === "avatar") {
+          setAvatarPending((current) => {
+            if (current.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(current.previewUrl);
+            return { path: null, previewUrl: null };
+          });
+        }
+        if (responsePayload?.field === "banner") {
+          setBannerPending((current) => {
+            if (current.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(current.previewUrl);
+            return { path: null, previewUrl: null };
+          });
+        }
+        throw new Error(responsePayload?.error ?? responsePayload?.message ?? `保存资料失败 (${response.status})`);
+      }
+      const data = responsePayload.profile;
 
       const previousAvatarPath = profile.avatar_url ?? null;
       const previousBannerPath = profile.banner_url ?? null;
@@ -309,10 +325,8 @@ export default function EditProfileForm() {
         await removeStorageObject(previousBannerPath);
       }
 
-      const [resolvedAvatar, resolvedBanner] = await Promise.all([
-        resolveProfileAvatarUrl(supabase, finalAvatarPath),
-        resolveProfileBannerUrl(supabase, finalBannerPath),
-      ]);
+      const resolvedAvatar = responsePayload.profile.resolved_avatar_url ?? (await resolveProfileAvatarUrl(supabase, finalAvatarPath));
+      const resolvedBanner = responsePayload.profile.resolved_banner_url ?? (await resolveProfileBannerUrl(supabase, finalBannerPath));
 
       setProfile(data);
       setDisplayName(data.display_name ?? "");
