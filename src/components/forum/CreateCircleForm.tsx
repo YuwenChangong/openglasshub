@@ -24,9 +24,11 @@ function normalizeFileName(fileName: string) {
 
 function mapCircleError(message: string) {
   if (message.includes("RATE_LIMITED")) return "创建过于频繁，请稍后再试。";
+  if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return "当前上传需要额外安全验证，请稍后重试。";
   if (message.includes("NOT_AUTHENTICATED")) return "登录状态已失效，请重新登录后再创建圈子。";
   if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在，请换一个名称。";
   if (message.includes("CIRCLE_COVER_UPLOAD_FAILED")) return "圈子封面上传失败。";
+  if (/CONTENT_REJECTED/i.test(message)) return "该圈子内容可能违反社区规则，暂时无法创建。";
   if (message.includes("INVALID_GENERATED_CIRCLE_SLUG")) return "圈子链接生成失败，请换一个名称后重试。";
   if (message.includes("CIRCLE_CREATE_FORBIDDEN")) return "当前账号暂时无法创建圈子，请检查数据库权限配置。";
   if (message.includes("CIRCLE_OWNER_RLS_NOT_READY")) return "数据库还没有准备好 owner/RLS，请先执行最新 migration。";

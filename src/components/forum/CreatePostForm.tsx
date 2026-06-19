@@ -119,6 +119,9 @@ function readVideoMetadata(
 
 function mapAuthError(errorMessage: string): string {
   if (/RATE_LIMITED/i.test(errorMessage)) return "操作过于频繁，请稍后再试。";
+  if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(errorMessage)) {
+    return "当前上传需要额外安全验证，请稍后重试。";
+  }
   if (/CONTENT_REJECTED/i.test(errorMessage)) {
     return "这篇帖子可能违反社区规则，暂时无法发布。";
   }

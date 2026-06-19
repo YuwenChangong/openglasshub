@@ -9,6 +9,7 @@ import {
   requireForumUser,
   isCircleManager,
 } from "../../../lib/server/circle-management";
+import { mergeModerationResults, moderateContent } from "../../../lib/moderation/moderate-content.server";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 
 export const prerender = false;
@@ -135,6 +136,35 @@ export const POST: APIRoute = async ({ request, locals }) => {
         return jsonResponse({ error: "CIRCLE_CREATE_FAILED", details: duplicate.details ?? "Duplicate lookup failed" }, 500);
       }
       return jsonResponse({ error: duplicate.error }, duplicate.status ?? 500);
+    }
+
+    const moderationResults = [
+      await moderateContent(env, {
+        contentType: "circle_name",
+        userId: auth.user.id,
+        text: name,
+      }),
+    ];
+
+    if (description) {
+      moderationResults.push(
+        await moderateContent(env, {
+          contentType: "circle_description",
+          userId: auth.user.id,
+          text: description,
+        }),
+      );
+    }
+
+    const moderation = mergeModerationResults(moderationResults);
+    if (moderation.decision !== "allow") {
+      return jsonResponse(
+        {
+          error: "This circle could not be created because it may violate community rules.",
+          code: "CONTENT_REJECTED",
+        },
+        403,
+      );
     }
 
     const slugBase = slugifyCircleName(name);

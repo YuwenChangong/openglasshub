@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { getRequestIp } from "../../../lib/request-ip";
 import { enforceUploadRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { shouldRequireUploadTurnstile, validateTurnstileToken } from "../../../lib/server/turnstile";
 
 export const prerender = false;
 
@@ -46,13 +47,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) return json({ error: "Invalid auth token" }, 401);
 
     const payload = (await request.json().catch(() => null)) as
-      | { upload_kind?: string; size_bytes?: number }
+      | { upload_kind?: string; size_bytes?: number; turnstile_token?: string }
       | null;
     if (!payload) return json({ error: "Invalid JSON payload" }, 400);
 
     const uploadKind = String(payload.upload_kind ?? "").trim();
     if (!["post_media", "circle_cover", "profile_avatar", "profile_banner"].includes(uploadKind)) {
       return json({ error: "Invalid upload_kind" }, 400);
+    }
+    const sizeBytes = Number(payload.size_bytes ?? 0);
+
+    if (shouldRequireUploadTurnstile({ env, uploadKind, sizeBytes })) {
+      const turnstile = await validateTurnstileToken({
+        env,
+        token: String(payload.turnstile_token ?? "").trim(),
+        remoteIp: getRequestIp(request),
+      });
+      if (!turnstile.ok) {
+        return json({ error: turnstile.code, code: turnstile.code }, 400);
+      }
     }
 
     const salt = requireEnv(env, "RATE_LIMIT_SALT");
@@ -64,7 +77,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       purpose: "post_media_upload",
       maxAttempts: 10,
       windowMs: 60 * 60 * 1000,
-      bytes: Number(payload.size_bytes ?? 0),
+      bytes: sizeBytes,
     });
 
     if (!limit.allowed) {

@@ -112,6 +112,14 @@ await test("comment creation keeps review decisions out of published state", asy
   assert.match(content, /pending_review: requiresReview/);
 });
 
+await test("circle creation moderates name and description before insert", async () => {
+  const content = await fs.readFile(new URL("../src/pages/api/forum/circles.ts", import.meta.url), "utf8");
+  assert.match(content, /contentType: "circle_name"/);
+  assert.match(content, /contentType: "circle_description"/);
+  assert.match(content, /mergeModerationResults/);
+  assert.match(content, /code: "CONTENT_REJECTED"/);
+});
+
 await test("merge moderation results prefers reject", () => {
   const result = mergeModerationResults([
     { decision: "allow", reason: null, score: 0.01, matchedRules: [], provider: "local" },

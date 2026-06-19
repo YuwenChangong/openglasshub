@@ -14,7 +14,13 @@ export type ModerationReasonCode =
   | "gibberish"
   | "sensitive_review";
 
-export type ModerationContentType = "post_title" | "post_body" | "comment_body" | "profile_text";
+export type ModerationContentType =
+  | "post_title"
+  | "post_body"
+  | "comment_body"
+  | "profile_text"
+  | "circle_name"
+  | "circle_description";
 
 export type ModerationProviderName = "local" | "mock" | "tencent-disabled";
 
