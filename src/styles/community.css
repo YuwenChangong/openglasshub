@@ -3682,13 +3682,13 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 42px;
-  width: 42px;
-  min-width: 42px;
-  max-width: 42px;
-  height: 42px;
-  min-height: 42px;
-  max-height: 42px;
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
   aspect-ratio: 1 / 1;
   box-sizing: border-box;
   flex-shrink: 0;
@@ -3713,51 +3713,52 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  min-width: 18px;
-  min-height: 18px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
   line-height: 1;
-  flex: 0 0 18px;
+  flex: 0 0 20px;
   flex-shrink: 0;
 }
 
 .header-notifications__icon svg {
   display: block;
-  width: 18px;
-  min-width: 18px;
-  max-width: 18px;
-  height: 18px;
-  min-height: 18px;
-  max-height: 18px;
+  width: 20px;
+  min-width: 20px;
+  max-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  max-height: 20px;
   aspect-ratio: 1 / 1;
   overflow: visible;
-  flex: 0 0 18px;
+  flex: 0 0 20px;
   flex-shrink: 0;
   transform: none;
 }
 
 .header-notifications__bell-svg {
   display: block;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   aspect-ratio: 1 / 1;
+  shape-rendering: geometricPrecision;
 }
 
 .header-notifications__badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
+  top: -3px;
+  right: -3px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 0.3rem;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 0.38rem;
   border-radius: 999px;
   background: #c43145;
   color: #fff;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
   line-height: 1;
   box-shadow: 0 6px 16px rgba(196, 49, 69, 0.28);

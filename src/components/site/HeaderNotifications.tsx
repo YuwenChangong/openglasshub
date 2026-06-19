@@ -60,19 +60,26 @@ function NotificationBellIcon() {
     <svg
       className="header-notifications__bell-svg"
       viewBox="0 0 24 24"
-      width="18"
-      height="18"
+      width="20"
+      height="20"
       preserveAspectRatio="xMidYMid meet"
       fill="none"
       aria-hidden="true"
       focusable="false"
     >
       <path
-        d="M8.25 18.25h7.5m-9-1.5h10.5c-.82-.86-1.5-2.56-1.5-5.03 0-2.2-1.53-4.1-3.75-4.58V6.5a1.5 1.5 0 1 0-3 0v.64C6.78 7.62 5.25 9.52 5.25 11.72c0 2.47-.68 4.17-1.5 5.03Zm3.75 1.5a2.25 2.25 0 0 0 4.5 0"
+        d="M12 4.75a4.25 4.25 0 0 0-4.25 4.25v2.08c0 .92-.24 1.82-.7 2.62l-.92 1.62c-.14.24-.02.55.25.65.84.32 2.45.68 5.62.68 3.17 0 4.78-.36 5.62-.68.27-.1.39-.41.25-.65l-.92-1.62a5.27 5.27 0 0 1-.7-2.62V9A4.25 4.25 0 0 0 12 4.75Z"
         stroke="currentColor"
-        strokeWidth="1.55"
+        strokeWidth="1.85"
         strokeLinecap="round"
         strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <path
+        d="M10.2 18.15a1.9 1.9 0 0 0 3.6 0"
+        stroke="currentColor"
+        strokeWidth="1.85"
+        strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
       />
     </svg>
