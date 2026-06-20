@@ -55,12 +55,15 @@ const requiredFiles = [
   "src/pages/me/edit.astro",
   "src/pages/u/[username].astro",
   "src/pages/users/[id].astro",
+  "src/pages/api/users/me/profile.ts",
   "src/components/profile/MyProfilePage.tsx",
   "src/components/profile/EditProfileForm.tsx",
   "src/lib/profile-data.ts",
   "src/lib/profile-links.ts",
   "src/lib/profile-media.ts",
   "supabase/migrations/20260606_profile_banner_and_storage.sql",
+  "supabase/migrations/20260620_lock_profile_role_updates.sql",
+  "supabase/tests/profile_role_lockdown.sql",
   "supabase/tests/profile_system_smoke.sql",
 ];
 
@@ -93,6 +96,12 @@ check(
 );
 check("edit profile removes URL preview helper text", !editProfile.includes("保存后地址：") && !editProfile.includes("当前公开主页："));
 check("edit profile delays media save until profile save", editProfile.includes("avatar_url: avatarPending.path ?? profile.avatar_url ?? null"));
+check("edit profile saves through server API", editProfile.includes('fetch("/api/users/me/profile"'));
+check("edit profile does not directly update profiles table", !editProfile.includes('.from("profiles")'));
+
+const profileApi = read("src/pages/api/users/me/profile.ts");
+check("profile API rejects forbidden fields", profileApi.includes("PROFILE_FORBIDDEN_FIELD_UPDATE"));
+check("profile API defines explicit forbidden fields", profileApi.includes('const FORBIDDEN_PROFILE_FIELDS = ["role", "id", "email", "created_at", "updated_at", "updated_by"]'));
 
 const profileMedia = read("src/lib/profile-media.ts");
 check("profile media uses post-media bucket", profileMedia.includes('PROFILE_MEDIA_BUCKET = "post-media"'));
@@ -156,6 +165,10 @@ check("no native confirm/alert/prompt in src", promptHits.length === 0, promptHi
 
 const serviceRoleHits = search(srcDir, (content) => content.includes("SUPABASE_SERVICE_ROLE_KEY"));
 check("no service role usage in src", serviceRoleHits.length === 0, serviceRoleHits.join(", "));
+
+const roleLockMigration = read("supabase/migrations/20260620_lock_profile_role_updates.sql");
+check("role lockdown migration revokes broad profile updates", /revoke update on table public\.profiles from authenticated;/i.test(roleLockMigration));
+check("role lockdown migration adds role trigger", /create trigger trg_profiles_prevent_role_change/i.test(roleLockMigration));
 
 console.log("\n============================================================");
 console.log(`  PASS: ${pass}`);

@@ -42,6 +42,18 @@ passes.push("No native browser dialogs in src");
 
 const criticalChecks = [
   {
+    label: "Profile role lockdown migration exists",
+    ok: fs.existsSync(path.join(migrationsDir, "20260620_lock_profile_role_updates.sql")),
+  },
+  {
+    label: "Profile update API rejects forbidden role fields",
+    ok: /PROFILE_FORBIDDEN_FIELD_UPDATE/.test(read("src/pages/api/users/me/profile.ts")),
+  },
+  {
+    label: "Edit profile no longer updates profiles directly",
+    ok: !/\.from\("profiles"\)\s*\.update\(/s.test(read("src/components/profile/EditProfileForm.tsx")),
+  },
+  {
     label: "Post delete API checks owner or staff",
     ok: /post\.author_id !== authData\.user\.id && !isStaff/.test(read("src/pages/api/forum/posts.ts")),
   },
@@ -108,6 +120,20 @@ for (const file of migrationFiles) {
   }
 }
 passes.push("No obvious broad update/delete RLS policies found");
+
+const roleLockMigrationPath = path.join(migrationsDir, "20260620_lock_profile_role_updates.sql");
+if (fs.existsSync(roleLockMigrationPath)) {
+  const roleLockMigration = fs.readFileSync(roleLockMigrationPath, "utf8");
+  if (!/revoke update on table public\.profiles from authenticated;/i.test(roleLockMigration)) {
+    fail("20260620_lock_profile_role_updates.sql: missing revoke update on public.profiles from authenticated");
+  }
+  if (!/grant update \(/i.test(roleLockMigration)) {
+    fail("20260620_lock_profile_role_updates.sql: missing column-scoped profile update grant");
+  }
+  if (!/PROFILE_ROLE_UPDATE_FORBIDDEN/i.test(roleLockMigration)) {
+    fail("20260620_lock_profile_role_updates.sql: missing role change trigger protection");
+  }
+}
 
 if (failures.length > 0) {
   console.log("FORUM PERMISSION AUDIT FAILED");

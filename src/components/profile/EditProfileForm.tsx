@@ -41,6 +41,8 @@ function normalizeUsernameForBlur(value: string) {
 }
 
 function mapProfileError(message: string) {
+  if (/PROFILE_FORBIDDEN_FIELD_UPDATE/i.test(message)) return "当前请求包含不允许修改的资料字段。";
+  if (/PROFILE_UPDATE_FAILED/i.test(message)) return "保存资料失败，请稍后再试。";
   if (/23505|duplicate key|profiles_username_unique_ci/i.test(message)) return "主页地址已被占用。";
   if (/username/i.test(message) && /check|constraint|invalid/i.test(message)) {
     return "主页地址仅支持小写英文、数字、下划线和短横线。";
@@ -269,33 +271,30 @@ export default function EditProfileForm() {
         banner_url: bannerPending.path ?? profile.banner_url ?? null,
       };
 
-      const withBannerResult = await supabase
-        .from("profiles")
-        .update(payload)
-        .eq("id", profile.id)
-        .select("id, username, display_name, avatar_url, bio, role, created_at, banner_url")
-        .single();
-
-      let data = withBannerResult.data as EditableProfile | null;
-      let updateError = withBannerResult.error;
-
-      if (updateError && /banner_url/i.test(updateError.message) && !bannerPending.path) {
-        const fallbackResult = await supabase
-          .from("profiles")
-          .update({
-            display_name: payload.display_name,
-            username: payload.username,
-            bio: payload.bio,
-            avatar_url: payload.avatar_url,
-          })
-          .eq("id", profile.id)
-          .select("id, username, display_name, avatar_url, bio, role, created_at")
-          .single();
-        data = (fallbackResult.data as EditableProfile | null) ?? null;
-        updateError = fallbackResult.error;
+      const token = await getSessionToken();
+      if (!token) {
+        window.location.replace(buildLoginHref("/me/edit/"));
+        return;
       }
 
-      if (updateError || !data) throw updateError ?? new Error("保存资料失败。");
+      const response = await fetch("/api/users/me/profile", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = (await response.json().catch(() => null)) as
+        | { error?: string; profile?: (EditableProfile & { resolved_avatar_url?: string | null; resolved_banner_url?: string | null }) }
+        | null;
+
+      if (!response.ok || !result?.profile) {
+        throw new Error(result?.error ?? `保存资料失败 (${response.status})`);
+      }
+
+      const data = result.profile;
 
       const previousAvatarPath = profile.avatar_url ?? null;
       const previousBannerPath = profile.banner_url ?? null;
@@ -309,17 +308,12 @@ export default function EditProfileForm() {
         await removeStorageObject(previousBannerPath);
       }
 
-      const [resolvedAvatar, resolvedBanner] = await Promise.all([
-        resolveProfileAvatarUrl(supabase, finalAvatarPath),
-        resolveProfileBannerUrl(supabase, finalBannerPath),
-      ]);
-
       setProfile(data);
       setDisplayName(data.display_name ?? "");
       setUsername(data.username ?? "");
       setBio(data.bio ?? "");
-      setAvatarResolvedUrl(resolvedAvatar);
-      setBannerResolvedUrl(resolvedBanner);
+      setAvatarResolvedUrl(data.resolved_avatar_url ?? (await resolveProfileAvatarUrl(supabase, finalAvatarPath)));
+      setBannerResolvedUrl(data.resolved_banner_url ?? (await resolveProfileBannerUrl(supabase, finalBannerPath)));
       setAvatarPending((current) => {
         if (current.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(current.previewUrl);
         return { path: null, previewUrl: null };
