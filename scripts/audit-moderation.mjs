@@ -128,6 +128,7 @@ async function main() {
   if (!postMediaApi.includes("openai_video_thumbnail_missing_review")) fail(errors, "post media API missing thumbnail review fallback");
   if (!moderationCore.includes('resolveOpenAIFailMode')) fail(errors, "moderation core missing OpenAI fail mode handling");
   if (!moderationCore.includes('openai_provider_error_review')) fail(errors, "moderation core missing default fail-closed review path");
+  if (!moderationCore.includes('shouldFallbackToLocalOnlyOnProviderError')) fail(errors, "moderation core missing provider-error local-only fallback helper");
   if (!openaiProviderSource.includes('openai_provider_error_missing_key')) fail(errors, "openai provider missing provider missing key handling");
   if (!openaiProviderSource.includes('openai_threshold_review')) fail(errors, "openai provider missing threshold review mapping");
   if (!profileApi.includes("PROFILE_MODERATION_UNAVAILABLE")) fail(errors, "profile API missing provider unavailable path");

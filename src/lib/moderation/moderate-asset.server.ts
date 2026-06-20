@@ -13,8 +13,15 @@ import type {
   ModerationResult,
 } from "./moderation-types.ts";
 
-function isConfigLevelProviderStatus(status: ModerationProviderStatus | undefined): boolean {
-  return status === "missing_key" || status === "disabled";
+function shouldFallbackToLocalOnlyOnProviderError(status: ModerationProviderStatus | undefined): boolean {
+  return (
+    status === "missing_key" ||
+    status === "disabled" ||
+    status === "http_error" ||
+    status === "invalid_response" ||
+    status === "network_error" ||
+    status === "timeout"
+  );
 }
 
 function buildResult(
@@ -96,7 +103,7 @@ export async function moderateAsset(
 
   if (result.decision === "error") {
     const failMode =
-      isConfigLevelProviderStatus(result.providerStatus)
+      shouldFallbackToLocalOnlyOnProviderError(result.providerStatus)
         ? "local_only"
         : options?.failMode ?? resolveOpenAIFailMode(env);
     return mapProviderError(failMode, result.reasonCode, result.providerStatus, result.safeSummary ?? null);

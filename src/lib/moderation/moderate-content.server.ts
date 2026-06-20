@@ -29,8 +29,15 @@ import type {
   ModerationResult,
 } from "./moderation-types.ts";
 
-function isConfigLevelProviderStatus(status: ModerationProviderStatus | undefined): boolean {
-  return status === "missing_key" || status === "disabled";
+function shouldFallbackToLocalOnlyOnProviderError(status: ModerationProviderStatus | undefined): boolean {
+  return (
+    status === "missing_key" ||
+    status === "disabled" ||
+    status === "http_error" ||
+    status === "invalid_response" ||
+    status === "network_error" ||
+    status === "timeout"
+  );
 }
 
 function isProviderErrorReason(reason: string | null | undefined): boolean {
@@ -310,7 +317,7 @@ export async function moderateContent(
   const openaiResult = await openaiRunner(env, providerInput);
   if (openaiResult.decision === "error") {
     const providerStatus = openaiResult.providerStatus;
-    const forceLocalOnly = isConfigLevelProviderStatus(providerStatus);
+    const forceLocalOnly = shouldFallbackToLocalOnlyOnProviderError(providerStatus);
     const failMode = resolveOpenAIFailMode(env);
     if (localResult.decision === "review") {
       return {

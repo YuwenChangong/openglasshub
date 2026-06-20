@@ -88,11 +88,11 @@
 
 - Recommended initial setting: `OPENAI_MODERATION_FAIL_MODE=review`
 - Behavior:
-  - `review`: provider failure routes content to review
+  - `review`: provider failure keeps locally suspicious content in review, but clean local-allow content falls back to local-only
   - `local_only`: provider failure falls back to local decision
   - `reject`: provider failure rejects content
 - Special case:
-  - if OpenAI is enabled but the key is missing, the runtime falls back to local-only with an internal provider diagnostic instead of silently forcing all clean content into review
+  - if OpenAI is enabled but the key is missing, invalid, timed out, or returns an unusable response, clean local-allow content falls back to local-only with an internal provider diagnostic instead of silently forcing all clean content into review
 
 ## Privacy notes
 

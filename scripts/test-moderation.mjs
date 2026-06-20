@@ -194,7 +194,7 @@ await test("local reject does not call OpenAI", async () => {
   assert.equal(called, false);
 });
 
-await test("OpenAI timeout + fail_mode=review => pending_review", async () => {
+await test("OpenAI timeout degrades to local-only for clean text even when fail_mode=review", async () => {
   const result = await moderateContent(
     { OPENAI_MODERATION_ENABLED: "true", OPENAI_MODERATION_FAIL_MODE: "review" },
     {
@@ -213,7 +213,8 @@ await test("OpenAI timeout + fail_mode=review => pending_review", async () => {
       }),
     },
   );
-  assert.equal(result.decision, "review");
+  assert.equal(result.decision, "allow");
+  assert.equal(result.providerDetails?.providerStatus, "timeout");
 });
 
 await test("OpenAI timeout + fail_mode=local_only => local decision", async () => {
@@ -260,6 +261,30 @@ await test("OpenAI missing key degrades to local-only for clean text", async () 
   );
   assert.equal(result.decision, "allow");
   assert.equal(result.providerDetails?.providerStatus, "missing_key");
+});
+
+await test("OpenAI http error degrades to local-only for clean text", async () => {
+  const result = await moderateContent(
+    { OPENAI_MODERATION_ENABLED: "true", OPENAI_MODERATION_FAIL_MODE: "review" },
+    {
+      contentType: "post_body",
+      userId: "u1",
+      text: "想讨论一下 XREAL One 和 RayNeo Air 3s 的日常使用差异。",
+      providerInput: { targetType: "post_text", body: "想讨论一下 XREAL One 和 RayNeo Air 3s 的日常使用差异。" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_http",
+        flagged: false,
+        providerStatus: "http_error",
+        safeSummary: "OpenAI moderation returned an HTTP error.",
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+  assert.equal(result.providerDetails?.providerStatus, "http_error");
 });
 
 await test("clean profile text stays allow when provider config is missing", async () => {
@@ -429,7 +454,7 @@ await test("asset moderation blocks flagged avatar image", async () => {
   assert.equal(result.decision, "reject");
 });
 
-await test("asset moderation provider error respects review fail mode", async () => {
+await test("asset moderation provider error degrades to local-only for clean media", async () => {
   const result = await moderateAsset(
     { OPENAI_MODERATION_ENABLED: "true", OPENAI_MODERATION_FAIL_MODE: "review" },
     {
@@ -446,7 +471,8 @@ await test("asset moderation provider error respects review fail mode", async ()
       }),
     },
   );
-  assert.equal(result.decision, "review");
+  assert.equal(result.decision, "allow");
+  assert.equal(result.providerDetails?.providerStatus, "timeout");
 });
 
 await test("asset moderation provider error respects local_only fail mode", async () => {

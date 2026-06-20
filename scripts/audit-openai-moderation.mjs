@@ -70,9 +70,10 @@ async function main() {
   if (!/Full video moderation still not implemented/i.test(watchlistDoc)) errors.push("watchlist should mention full video moderation is not implemented");
   if (!/openai_provider_error_missing_key/.test(moderationTypes)) errors.push("moderation types missing openai_provider_error_missing_key");
   if (!/openai_threshold_review/.test(moderationTypes)) errors.push("moderation types missing openai_threshold_review");
-  if (!/isConfigLevelProviderStatus/.test(moderationCore)) errors.push("moderation core missing config-level provider fallback helper");
-  if (!/isConfigLevelProviderStatus/.test(moderationAsset)) errors.push("asset moderation missing config-level provider fallback helper");
+  if (!/shouldFallbackToLocalOnlyOnProviderError/.test(moderationCore)) errors.push("moderation core missing provider-error local-only fallback helper");
+  if (!/shouldFallbackToLocalOnlyOnProviderError/.test(moderationAsset)) errors.push("asset moderation missing provider-error local-only fallback helper");
   if (!/OpenAI missing key degrades to local-only for clean text/.test(moderationTests)) errors.push("missing test for provider missing-key local-only clean text path");
+  if (!/OpenAI http error degrades to local-only for clean text/.test(moderationTests)) errors.push("missing test for provider http-error local-only clean text path");
   if (!/flagged false never maps to review by score summary alone/.test(moderationTests)) errors.push("missing test for flagged false allow mapping");
 
   const srcFiles = await walk(path.resolve(process.cwd(), "src"));
