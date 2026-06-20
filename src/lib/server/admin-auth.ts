@@ -68,6 +68,10 @@ export async function requireModerator(request: Request, env: RuntimeEnv): Promi
     .eq("id", authData.user.id)
     .maybeSingle();
 
+  // Note: admin access still reads profiles.role, but that field is intended to be
+  // database-protected by a dedicated RLS/grant/trigger migration and must never be
+  // user-editable through ordinary profile update paths.
+
   if (profileError) {
     throw jsonResponse({ error: "Profile lookup failed", details: profileError.message }, 500);
   }
