@@ -51,6 +51,19 @@ await test("lexicon reviews 二维码引流", () => {
   assert.notEqual(result.decision, "allow");
 });
 
+await test("lexicon rejects 人口贩卖", () => {
+  const result = evaluateLocalSensitiveLexicon("[MOD-CRITICAL-TERM] 人口贩卖");
+  assert.equal(result.decision, "reject");
+  assert.equal(result.reasonCode, "illegal_goods_or_services");
+});
+
+await test("lexicon does not allow 嫖娼 or 卖淫", () => {
+  const prostitution = evaluateLocalSensitiveLexicon("[MOD-CRITICAL-TERM] 嫖娼");
+  const solicitation = evaluateLocalSensitiveLexicon("[MOD-CRITICAL-TERM] 卖淫");
+  assert.notEqual(prostitution.decision, "allow");
+  assert.notEqual(solicitation.decision, "allow");
+});
+
 await test("微信登录问题不会直接 reject", () => {
   const result = evaluateLocalModeration({
     contentType: "post_body",

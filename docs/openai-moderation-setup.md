@@ -38,6 +38,12 @@ Do not hand-edit generated files. Edit:
 
 Then regenerate.
 
+Critical coverage note:
+
+- Final blocker QA first confirmed `嫖娼` and `卖淫` were present in imported lexicon coverage
+- `人口贩卖` was added to `src/data/moderation/custom-denylist.json` after final blocker QA showed that upstream imports did not naturally detect it
+- `嫖娼` and `卖淫` are now also pinned in `src/data/moderation/custom-reviewlist.json` so Cloudflare deploys do not depend on the 65k-word upstream runtime dictionary
+
 ## Environment variables
 
 - `OPENAI_API_KEY`

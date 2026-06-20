@@ -5,6 +5,7 @@ const repoRoot = process.cwd();
 const manifestPath = path.join(repoRoot, "third_party/sensitive-lexicons/source-manifest.json");
 const outputPath = path.join(repoRoot, "src/data/moderation/sensitive-lexicon.generated.json");
 const outputManifestPath = path.join(repoRoot, "src/data/moderation/sensitive-lexicon-manifest.generated.json");
+const outputTsPath = path.join(repoRoot, "src/data/moderation/sensitive-lexicon.generated.ts");
 const customAllowPath = path.join(repoRoot, "src/data/moderation/custom-allowlist.json");
 const customReviewPath = path.join(repoRoot, "src/data/moderation/custom-reviewlist.json");
 const customDenyPath = path.join(repoRoot, "src/data/moderation/custom-denylist.json");
@@ -209,6 +210,11 @@ async function main() {
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
   await fs.writeFile(outputManifestPath, `${JSON.stringify(outputManifest, null, 2)}\n`, "utf8");
+  await fs.writeFile(
+    outputTsPath,
+    `const sensitiveLexiconData = ${JSON.stringify(output, null, 2)} as const;\n\nexport default sensitiveLexiconData;\n`,
+    "utf8",
+  );
 
   console.log(`Generated ${path.relative(repoRoot, outputPath)} with ${terms.length} terms.`);
 }

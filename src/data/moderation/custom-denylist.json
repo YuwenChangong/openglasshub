@@ -1,5 +1,11 @@
 [
   {
+    "term": "人口贩卖",
+    "category": "illegal_goods_or_services",
+    "severity": "reject",
+    "match": "contains"
+  },
+  {
     "term": "私下交易",
     "category": "illegal_goods_or_services",
     "severity": "reject",

@@ -33,6 +33,7 @@ async function main() {
     "src/data/moderation/custom-reviewlist.json",
     "src/data/moderation/custom-denylist.json",
     "src/data/moderation/sensitive-lexicon.generated.json",
+    "src/data/moderation/sensitive-lexicon.generated.ts",
     "src/data/moderation/sensitive-lexicon-manifest.generated.json",
     "src/lib/moderation/local-sensitive-lexicon.server.ts",
     "scripts/moderation/import-sensitive-lexicons.mjs",
@@ -60,7 +61,7 @@ async function main() {
   if (!Array.isArray(generatedManifest.importedFiles) || generatedManifest.importedFiles.length < 4) {
     errors.push("generated manifest missing imported file records");
   }
-  if (!/sensitive-lexicon\.generated\.json/.test(matcherSource)) {
+  if (!/sensitive-lexicon\.generated\.(json|ts)/.test(matcherSource)) {
     errors.push("local matcher is not loading generated lexicon data");
   }
   if (!/module-level|compileLexicon|compiledLexicon/i.test(matcherSource)) {

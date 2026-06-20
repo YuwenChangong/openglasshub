@@ -30,8 +30,16 @@ Priority examples:
 - `加微信` + `资料/入口/私聊` => reject
 - `完整资料入口` + contact lure => reject
 - `私下交易 / 卖号 / 破解教程` => reject
+- `人口贩卖` => reject
+- `嫖娼 / 卖淫` => review or reject
 - `微信登录问题` => not auto-reject
 - normal AR / AI / XR glasses discussion => allow
+
+Critical term note:
+
+- Final blocker QA first confirmed `嫖娼` and `卖淫` were naturally covered by imported lexicon data
+- Final blocker QA also found `人口贩卖` was not naturally covered by upstream imports and was added as an OpenGlass custom deny rule
+- To keep the Cloudflare worker bundle within deployment limits, `嫖娼` and `卖淫` are now also pinned in OpenGlass custom review rules instead of relying on the giant upstream dictionary at runtime
 
 ## Visibility rules
 

@@ -69,12 +69,6 @@
       "notes": "Imported resource dictionaries and allow/deny examples only. Java runtime code, README extras, images, and community assets were skipped.",
       "imports": [
         {
-          "sourcePath": "resources/dict_v20240407.txt",
-          "category": "platform_policy_custom",
-          "severity": "soft_review",
-          "match": "contains"
-        },
-        {
           "sourcePath": "resources/sensitive_word_deny.txt",
           "category": "platform_policy_custom",
           "severity": "review",

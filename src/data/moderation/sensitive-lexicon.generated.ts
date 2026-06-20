@@ -1,4 +1,4 @@
-{
+const sensitiveLexiconData = {
   "version": "lexicon-2026-06-20",
   "generatedAt": "2026-06-20T11:06:13.425Z",
   "sources": [
@@ -153279,4 +153279,6 @@
       "condensed": "微信支付"
     }
   ]
-}
+} as const;
+
+export default sensitiveLexiconData;

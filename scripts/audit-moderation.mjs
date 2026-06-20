@@ -43,6 +43,7 @@ async function main() {
     "src/lib/moderation/moderate-asset.server.ts",
     "scripts/moderation/import-sensitive-lexicons.mjs",
     "src/data/moderation/sensitive-lexicon.generated.json",
+    "src/data/moderation/sensitive-lexicon.generated.ts",
     "src/data/moderation/sensitive-lexicon-manifest.generated.json",
     "docs/moderation-policy.md",
   ];

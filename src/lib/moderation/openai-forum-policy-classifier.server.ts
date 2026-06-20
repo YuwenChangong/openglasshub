@@ -120,6 +120,7 @@ function buildMessages(input: ForumPolicyClassifierInput) {
         "reason_code must be one of: clean, off_platform_contact, spam_or_promotion, scam_or_resource_lure, suspicious_external_link, fake_download_or_private_access, sexual_content, violence_or_threat, hate_or_harassment, illegal_goods_or_services, personal_data_or_doxxing, political_sensitive, vulgar_abuse, low_quality_spam, platform_policy_custom. " +
         "Rules: clean AR/AI/XR glasses discussion should allow. " +
         "Off-platform contact, private-resource lures, scam trading, spam promotion, suspicious external download lures should review or reject. " +
+        "Content involving human trafficking, prostitution, sexual exploitation, or illegal sexual services must review or reject. " +
         "Do not output explanations or markdown.",
     },
     {

@@ -1,8 +1,8 @@
 {
   "version": "lexicon-2026-06-20",
-  "generatedAt": "2026-06-20T10:37:57.779Z",
-  "totalRawTerms": 82594,
-  "totalTerms": 82146,
+  "generatedAt": "2026-06-20T11:06:13.425Z",
+  "totalRawTerms": 17451,
+  "totalTerms": 17025,
   "importedFiles": [
     {
       "source": "konsheng-sensitive-lexicon",
@@ -58,13 +58,6 @@
       "file": "third_party/sensitive-lexicons/konsheng-sensitive-lexicon/Vocabulary/反动词库.txt",
       "category": "political_sensitive",
       "severity": "review",
-      "match": "contains"
-    },
-    {
-      "source": "houbb-sensitive-word",
-      "file": "third_party/sensitive-lexicons/houbb-sensitive-word/resources/dict_v20240407.txt",
-      "category": "platform_policy_custom",
-      "severity": "soft_review",
       "match": "contains"
     },
     {

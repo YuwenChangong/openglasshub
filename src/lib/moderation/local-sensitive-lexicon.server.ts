@@ -1,4 +1,4 @@
-import lexiconData from "../../data/moderation/sensitive-lexicon.generated.json" with { type: "json" };
+import lexiconData from "../../data/moderation/sensitive-lexicon.generated.ts";
 
 export type LocalLexiconCategory =
   | "off_platform_contact"

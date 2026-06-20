@@ -1,5 +1,17 @@
 [
   {
+    "term": "嫖娼",
+    "category": "illegal_goods_or_services",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "卖淫",
+    "category": "illegal_goods_or_services",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
     "term": "私聊",
     "category": "off_platform_contact",
     "severity": "review",
