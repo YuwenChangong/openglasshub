@@ -41,6 +41,8 @@ function normalizeUsernameForBlur(value: string) {
 }
 
 function mapProfileError(message: string) {
+  if (/PROFILE_FORBIDDEN_FIELD_UPDATE/i.test(message)) return "当前请求包含不允许修改的资料字段。";
+  if (/PROFILE_UPDATE_FAILED/i.test(message)) return "保存资料失败，请稍后再试。";
   if (/23505|duplicate key|profiles_username_unique_ci/i.test(message)) return "主页地址已被占用。";
   if (/username/i.test(message) && /check|constraint|invalid/i.test(message)) {
     return "主页地址仅支持小写英文、数字、下划线和短横线。";
@@ -327,7 +329,6 @@ export default function EditProfileForm() {
 
       const resolvedAvatar = responsePayload.profile.resolved_avatar_url ?? (await resolveProfileAvatarUrl(supabase, finalAvatarPath));
       const resolvedBanner = responsePayload.profile.resolved_banner_url ?? (await resolveProfileBannerUrl(supabase, finalBannerPath));
-
       setProfile(data);
       setDisplayName(data.display_name ?? "");
       setUsername(data.username ?? "");

@@ -1,9 +1,20 @@
 import type { APIRoute } from "astro";
 import { moderateAsset } from "../../../../lib/moderation/moderate-asset.server";
 import { moderateContent } from "../../../../lib/moderation/moderate-content.server";
-import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../../lib/moderation/moderation-media.server";
-import { buildModerationProviderInput, isOpenAIProfileImageModerationEnabled } from "../../../../lib/moderation/moderation-provider.server";
-import { PROFILE_AVATAR_PREFIX, PROFILE_BANNER_PREFIX, resolveProfileAvatarUrl, resolveProfileBannerUrl } from "../../../../lib/profile-media";
+import {
+  createSignedModerationUrls,
+  removeStoragePathIfAllowed,
+} from "../../../../lib/moderation/moderation-media.server";
+import {
+  buildModerationProviderInput,
+  isOpenAIProfileImageModerationEnabled,
+} from "../../../../lib/moderation/moderation-provider.server";
+import {
+  PROFILE_AVATAR_PREFIX,
+  PROFILE_BANNER_PREFIX,
+  resolveProfileAvatarUrl,
+  resolveProfileBannerUrl,
+} from "../../../../lib/profile-media";
 import { isValidProfileUsername } from "../../../../lib/profile-links";
 import { jsonResponse, requireForumUser } from "../../../../lib/server/circle-management";
 
@@ -17,7 +28,15 @@ type ProfilePayload = {
   bio?: string | null;
   avatar_url?: string | null;
   banner_url?: string | null;
+  role?: unknown;
+  id?: unknown;
+  email?: unknown;
+  created_at?: unknown;
+  updated_at?: unknown;
+  updated_by?: unknown;
 };
+
+const FORBIDDEN_PROFILE_FIELDS = ["role", "id", "email", "created_at", "updated_at", "updated_by"] as const;
 
 function normalizeString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -30,6 +49,10 @@ function isMissingBannerSchemaError(message: string) {
 function sanitizeImagePath(value: unknown) {
   const path = typeof value === "string" ? value.trim() : "";
   return path || null;
+}
+
+function hasForbiddenFields(payload: ProfilePayload) {
+  return FORBIDDEN_PROFILE_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(payload, field));
 }
 
 function validatePayload(payload: ProfilePayload) {
@@ -68,7 +91,7 @@ async function moderateProfileImage(params: {
     allowedPrefixes,
   });
 
-  const moderation = await moderateAsset(
+  return moderateAsset(
     params.env,
     buildModerationProviderInput({
       targetType: params.targetType,
@@ -76,8 +99,6 @@ async function moderateProfileImage(params: {
       localeHint: "zh-CN",
     }),
   );
-
-  return moderation;
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -89,6 +110,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const payload = (await request.json().catch(() => null)) as ProfilePayload | null;
     if (!payload) {
       return jsonResponse({ error: "INVALID_JSON_PAYLOAD" }, 400);
+    }
+    if (hasForbiddenFields(payload)) {
+      return jsonResponse({ error: "PROFILE_FORBIDDEN_FIELD_UPDATE" }, 403);
     }
 
     const validationError = validatePayload(payload);
@@ -196,7 +220,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const code = avatarModeration.reason?.startsWith("openai_provider_error_")
         ? "PROFILE_IMAGE_MODERATION_UNAVAILABLE"
         : "PROFILE_IMAGE_NOT_ALLOWED";
-      return jsonResponse({ error: code, field: "avatar", message: "资料图片需要调整后再保存。" }, code === "PROFILE_IMAGE_NOT_ALLOWED" ? 403 : 503);
+      return jsonResponse(
+        { error: code, field: "avatar", message: "资料图片需要调整后再保存。" },
+        code === "PROFILE_IMAGE_NOT_ALLOWED" ? 403 : 503,
+      );
     }
 
     if (bannerModeration.decision !== "allow") {
@@ -209,7 +236,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const code = bannerModeration.reason?.startsWith("openai_provider_error_")
         ? "PROFILE_IMAGE_MODERATION_UNAVAILABLE"
         : "PROFILE_IMAGE_NOT_ALLOWED";
-      return jsonResponse({ error: code, field: "banner", message: "资料图片需要调整后再保存。" }, code === "PROFILE_IMAGE_NOT_ALLOWED" ? 403 : 503);
+      return jsonResponse(
+        { error: code, field: "banner", message: "资料图片需要调整后再保存。" },
+        code === "PROFILE_IMAGE_NOT_ALLOWED" ? 403 : 503,
+      );
     }
 
     const updatePayload = {
@@ -260,10 +290,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    return jsonResponse(
-      { error: error instanceof Error ? error.message : "Unexpected server error" },
-      500,
-    );
+    return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
   }
 };
 
