@@ -69,8 +69,20 @@ async function ensureUser(client, { email, password }) {
 }
 
 async function ensureAdminRole(client, userId) {
-  const { error } = await client.from("profiles").update({ role: "admin" }).eq("id", userId);
-  if (error) throw error;
+  const { data, error } = await client.rpc("qa_grant_admin_role", { target_user_id: userId });
+  if (error) {
+    const message = String(error.message ?? "").toLowerCase();
+    if (message.includes("could not find the function") || message.includes("schema cache")) {
+      throw new Error("QA_ADMIN_ROLE_RPC_MISSING");
+    }
+    if (error.code === "42501" || message.includes("permission denied")) {
+      throw new Error("QA_ADMIN_ROLE_RPC_PERMISSION_DENIED");
+    }
+    throw new Error(`QA_ADMIN_ROLE_RPC_FAILED: ${error.message ?? "unknown error"}`);
+  }
+  if (data !== "admin") {
+    throw new Error("QA_ADMIN_ROLE_GRANT_VERIFY_FAILED");
+  }
 }
 
 async function main() {

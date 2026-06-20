@@ -40,6 +40,23 @@ async function listUsersByEmail(client, email) {
   return users;
 }
 
+async function revokeAdminRole(client, userId) {
+  const { data, error } = await client.rpc("qa_revoke_admin_role", { target_user_id: userId });
+  if (error) {
+    const message = String(error.message ?? "").toLowerCase();
+    if (message.includes("could not find the function") || message.includes("schema cache")) {
+      throw new Error("QA_ADMIN_ROLE_RPC_MISSING");
+    }
+    if (error.code === "42501" || message.includes("permission denied")) {
+      throw new Error("QA_ADMIN_ROLE_RPC_PERMISSION_DENIED");
+    }
+    throw new Error(`QA_ADMIN_ROLE_RPC_FAILED: ${error.message ?? "unknown error"}`);
+  }
+  if (data !== "user") {
+    throw new Error("QA_ADMIN_ROLE_REVOKE_VERIFY_FAILED");
+  }
+}
+
 async function softHideContent(client, userId) {
   await client.from("posts").update({
     status: "hidden_by_admin",
@@ -71,6 +88,9 @@ async function main() {
     const users = await listUsersByEmail(client, email);
     for (const user of users) {
       await softHideContent(client, user.id);
+      if (email === env.QA_ADMIN_EMAIL) {
+        await revokeAdminRole(client, user.id);
+      }
       const { error } = await client.auth.admin.deleteUser(user.id);
       if (error) throw error;
       console.log(`cleaned QA user ${redactEmail(email)}`);
