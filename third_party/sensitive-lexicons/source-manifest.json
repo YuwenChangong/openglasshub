@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "importedAt": "2026-06-20T00:00:00.000Z",
+  "sources": [
+    {
+      "id": "konsheng-sensitive-lexicon",
+      "repoUrl": "https://github.com/konsheng/Sensitive-lexicon",
+      "commit": "5a8da94c61c160e203a6b2fcfafbea642404d50c",
+      "license": "MIT",
+      "licenseFile": "third_party/sensitive-lexicons/konsheng-sensitive-lexicon/LICENSE",
+      "notes": "Imported selected plain-text vocabulary files only. README, ads, and unrelated materials were skipped.",
+      "imports": [
+        {
+          "sourcePath": "Vocabulary/广告类型.txt",
+          "category": "spam_or_promotion",
+          "severity": "review",
+          "match": "contains"
+        },
+        {
+          "sourcePath": "Vocabulary/非法网址.txt",
+          "category": "suspicious_external_link",
+          "severity": "reject",
+          "match": "contains"
+        },
+        {
+          "sourcePath": "Vocabulary/色情词库.txt",
+          "category": "sexual_content",
+          "severity": "reject",
+          "match": "contains"
+        },
+        {
+          "sourcePath": "Vocabulary/色情类型.txt",
+          "category": "sexual_content",
+          "severity": "review",
+          "match": "contains"
+        },
+        {
+          "sourcePath": "Vocabulary/暴恐词库.txt",
+          "category": "violence_or_threat",
+          "severity": "reject",
+          "match": "contains"
+        },
+        {
+          "sourcePath": "Vocabulary/涉枪涉爆.txt",
+          "category": "illegal_goods_or_services",
+          "severity": "reject",
+          "match": "contains"
+        },
+        {
+          "sourcePath": "Vocabulary/政治类型.txt",
+          "category": "political_sensitive",
+          "severity": "review",
+          "match": "contains"
+        },
+        {
+          "sourcePath": "Vocabulary/反动词库.txt",
+          "category": "political_sensitive",
+          "severity": "review",
+          "match": "contains"
+        }
+      ]
+    },
+    {
+      "id": "houbb-sensitive-word",
+      "repoUrl": "https://github.com/houbb/sensitive-word",
+      "commit": "b86249ddfa381b426359a420623486e099c2092d",
+      "license": "Apache-2.0",
+      "licenseFile": "third_party/sensitive-lexicons/houbb-sensitive-word/LICENSE.txt",
+      "notes": "Imported resource dictionaries and allow/deny examples only. Java runtime code, README extras, images, and community assets were skipped.",
+      "imports": [
+        {
+          "sourcePath": "resources/dict_v20240407.txt",
+          "category": "platform_policy_custom",
+          "severity": "soft_review",
+          "match": "contains"
+        },
+        {
+          "sourcePath": "resources/sensitive_word_deny.txt",
+          "category": "platform_policy_custom",
+          "severity": "review",
+          "match": "contains"
+        },
+        {
+          "sourcePath": "resources/sensitive_word_allow.txt",
+          "category": "platform_policy_custom",
+          "severity": "allow",
+          "match": "contains"
+        }
+      ]
+    }
+  ]
+}

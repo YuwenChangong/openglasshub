@@ -53,6 +53,8 @@ function statusClass(status: string) {
 
 function providerLabel(provider: string | null | undefined) {
   switch (provider) {
+    case "layered":
+      return "layered";
     case "local+openai":
       return "local+openai";
     case "openai":
@@ -68,6 +70,20 @@ function providerLabel(provider: string | null | undefined) {
 
 function reasonLabel(reason: string | null | undefined) {
   if (!reason) return "";
+  if (reason === "off_platform_contact") return "Off-platform contact";
+  if (reason === "spam_or_promotion") return "Spam or promotion";
+  if (reason === "scam_or_resource_lure") return "Resource lure or scam";
+  if (reason === "suspicious_external_link") return "Suspicious external link";
+  if (reason === "fake_download_or_private_access") return "Fake download or private access";
+  if (reason === "sexual_content") return "Sexual content";
+  if (reason === "violence_or_threat") return "Violence or threat";
+  if (reason === "hate_or_harassment") return "Hate or harassment";
+  if (reason === "illegal_goods_or_services") return "Illegal goods or services";
+  if (reason === "personal_data_or_doxxing") return "Possible personal data";
+  if (reason === "political_sensitive") return "Political sensitive content";
+  if (reason === "vulgar_abuse") return "Vulgar abuse";
+  if (reason === "low_quality_spam") return "Low-quality spam";
+  if (reason === "platform_policy_custom") return "Platform policy review";
   if (reason === "openai_flagged_text") return "OpenAI flagged text";
   if (reason === "openai_flagged_image") return "OpenAI flagged image";
   if (reason === "openai_threshold_review") return "OpenAI review threshold";
@@ -75,15 +91,33 @@ function reasonLabel(reason: string | null | undefined) {
   if (reason === "openai_provider_error_missing_key") return "OpenAI provider unavailable";
   if (reason === "openai_provider_error_http") return "OpenAI provider error";
   if (reason === "openai_provider_error_timeout") return "OpenAI provider timeout";
+  if (reason === "openai_provider_error_review") return "OpenAI provider review fallback";
+  if (reason === "openai_provider_error_reject") return "OpenAI provider reject fallback";
   if (reason.startsWith("openai_provider_error_")) return "OpenAI provider error";
   if (reason === "openai_video_thumbnail_missing_review") return "Video thumbnail required for review";
+  if (reason === "forum_policy_clean") return "Forum policy allow";
+  if (reason === "forum_policy_off_platform_contact") return "Forum policy: off-platform contact";
+  if (reason === "forum_policy_spam_or_promotion") return "Forum policy: spam or promotion";
+  if (reason === "forum_policy_scam_or_resource_lure") return "Forum policy: resource lure or scam";
+  if (reason === "forum_policy_suspicious_external_link") return "Forum policy: suspicious external link";
+  if (reason === "forum_policy_fake_download_or_private_access") return "Forum policy: fake download or private access";
+  if (reason === "forum_policy_sexual_content") return "Forum policy: sexual content";
+  if (reason === "forum_policy_violence_or_threat") return "Forum policy: violence or threat";
+  if (reason === "forum_policy_hate_or_harassment") return "Forum policy: hate or harassment";
+  if (reason === "forum_policy_illegal_goods_or_services") return "Forum policy: illegal goods or services";
+  if (reason === "forum_policy_personal_data_or_doxxing") return "Forum policy: personal data";
+  if (reason === "forum_policy_political_sensitive") return "Forum policy: political sensitive content";
+  if (reason === "forum_policy_vulgar_abuse") return "Forum policy: vulgar abuse";
+  if (reason === "forum_policy_low_quality_spam") return "Forum policy: low-quality spam";
+  if (reason === "forum_policy_platform_policy_custom") return "Forum policy: custom rule";
+  if (reason === "forum_policy_invalid_json") return "Forum policy invalid response";
+  if (reason === "forum_policy_timeout") return "Forum policy timeout";
+  if (reason === "forum_policy_error") return "Forum policy provider error";
+  if (reason === "forum_policy_missing_model") return "Forum policy model missing";
   if (reason === "sensitive_review") return "Local rule review";
-  if (reason === "personal_info") return "Possible personal info";
   if (reason === "excessive_links") return "Excessive links";
   if (reason === "repeated_content") return "Repeated content";
   if (reason === "gibberish") return "Low-signal content";
-  if (reason === "spam") return "Spam";
-  if (reason === "scam") return "Scam";
   return reason;
 }
 

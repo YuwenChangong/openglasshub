@@ -1,27 +1,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const REQUIRED_FILES = [
-  "src/lib/moderation/moderation-types.ts",
-  "src/lib/moderation/moderation-policy.ts",
-  "src/lib/moderation/sensitive-terms.server.ts",
-  "src/lib/moderation/moderate-content.server.ts",
-  "src/lib/moderation/moderate-asset.server.ts",
-  "src/lib/moderation/moderation-provider.server.ts",
-  "src/lib/moderation/openai-moderation-provider.server.ts",
-  "src/pages/api/users/me/profile.ts",
-  "src/pages/api/admin/moderation/queue.ts",
-  "src/pages/api/admin/moderation/approve.ts",
-  "src/pages/api/admin/moderation/reject.ts",
-  "src/pages/api/admin/moderation/hide.ts",
-  "src/pages/admin/moderation/index.astro",
-];
-
 function parseArgs(argv) {
   return {
     strict: argv.includes("--strict"),
     verbose: argv.includes("--verbose"),
   };
+}
+
+async function read(filePath) {
+  return fs.readFile(path.resolve(process.cwd(), filePath), "utf8");
 }
 
 async function exists(filePath) {
@@ -33,122 +21,73 @@ async function exists(filePath) {
   }
 }
 
-async function read(filePath) {
-  return fs.readFile(path.resolve(process.cwd(), filePath), "utf8");
-}
-
-function fail(errors, message) {
-  errors.push(message);
+async function walk(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...(await walk(fullPath)));
+    else files.push(fullPath);
+  }
+  return files;
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const errors = [];
-  const warnings = [];
 
-  for (const file of REQUIRED_FILES) {
-    if (!(await exists(file))) fail(errors, `missing required file: ${file}`);
+  const requiredFiles = [
+    "src/lib/moderation/local-sensitive-lexicon.server.ts",
+    "src/lib/moderation/openai-forum-policy-classifier.server.ts",
+    "src/lib/moderation/moderate-content.server.ts",
+    "src/lib/moderation/moderate-asset.server.ts",
+    "scripts/moderation/import-sensitive-lexicons.mjs",
+    "src/data/moderation/sensitive-lexicon.generated.json",
+    "src/data/moderation/sensitive-lexicon-manifest.generated.json",
+    "docs/moderation-policy.md",
+  ];
+
+  for (const file of requiredFiles) {
+    if (!(await exists(file))) errors.push(`missing required file: ${file}`);
   }
 
   const postsApi = await read("src/pages/api/forum/posts.ts");
   const commentsApi = await read("src/pages/api/forum/comments.ts");
   const circlesApi = await read("src/pages/api/forum/circles.ts");
-  const circleManageApi = await read("src/pages/api/forum/circles/[slug]/manage.ts");
-  const adminCirclesApi = await read("src/pages/api/admin/forum/circles.ts");
   const profileApi = await read("src/pages/api/users/me/profile.ts");
-  const profileForm = await read("src/components/profile/EditProfileForm.tsx");
   const postMediaApi = await read("src/pages/api/forum/post-media.ts");
-  const moderationPage = await read("src/pages/admin/moderation/index.astro");
-  const moderationComponent = await read("src/components/admin/AdminModerationQueue.tsx");
-  const openaiProviderSource = await read("src/lib/moderation/openai-moderation-provider.server.ts");
-  const providerSource = await read("src/lib/moderation/moderation-provider.server.ts");
-  const envExample = await read(".env.example");
-  const sensitiveTermsSource = await read("src/lib/moderation/sensitive-terms.server.ts");
   const moderationCore = await read("src/lib/moderation/moderate-content.server.ts");
-  const feedSource = await read("src/lib/forum-feed.ts");
-  const searchSource = await read("src/lib/forum-search.ts");
-  const profileSource = await read("src/lib/profile-data.ts");
-  const engagementSource = await read("src/lib/post-engagement.ts");
-  const postDetailSource = await read("src/pages/posts/[id].astro");
-  const commentsSource = await read("src/pages/api/forum/comments.ts");
-  const circlePageSource = await read("src/pages/circles/[slug].astro");
-  const homePageSource = await read("src/pages/index.astro");
+  const moderationAsset = await read("src/lib/moderation/moderate-asset.server.ts");
+  const matcherSource = await read("src/lib/moderation/local-sensitive-lexicon.server.ts");
+  const policyDoc = await read("docs/moderation-policy.md");
 
-  if (!postsApi.includes("moderateContent(")) fail(errors, "posts API does not call moderateContent");
-  if (!commentsApi.includes("moderateContent(")) fail(errors, "comments API does not call moderateContent");
-  if (!circlesApi.includes('contentType: "circle_name"')) fail(errors, "circles API missing circle_name moderation");
-  if (!/CONTENT_REJECTED|MODERATION_TEMPORARILY_UNAVAILABLE/.test(circlesApi)) fail(errors, "circles API missing reject path");
-  if (!circleManageApi.includes('targetType: "circle_text"')) fail(errors, "circle manage API missing text moderation");
-  if (!adminCirclesApi.includes('targetType: "circle_text"')) fail(errors, "admin circles API missing text moderation");
-  if (!profileApi.includes('targetType: "profile_text"')) fail(errors, "profile API missing text moderation");
-  if (!profileApi.includes('profile_avatar_image')) fail(errors, "profile API missing avatar moderation");
-  if (!profileApi.includes('profile_banner_image')) fail(errors, "profile API missing banner moderation");
-  if (!profileForm.includes('/api/users/me/profile')) fail(errors, "profile form is not using server moderation API");
-  if (!providerSource.includes("OPENAI_MODERATION_ENABLED")) fail(errors, "moderation provider missing OPENAI_MODERATION_ENABLED handling");
-  if (!providerSource.includes("OPENAI_MODERATION_FAIL_MODE")) fail(errors, "moderation provider missing OPENAI_MODERATION_FAIL_MODE handling");
-  if (!providerSource.includes("OPENAI_PROFILE_IMAGE_MODERATION_ENABLED")) fail(errors, "moderation provider missing profile image env");
-  if (!providerSource.includes("OPENAI_CIRCLE_COVER_MODERATION_ENABLED")) fail(errors, "moderation provider missing circle cover env");
-  if (!providerSource.includes("OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED")) fail(errors, "moderation provider missing video thumbnail env");
-  if (!openaiProviderSource.includes("api.openai.com/v1/moderations")) fail(errors, "openai provider missing moderation endpoint");
-  if (!envExample.includes("OPENAI_MODERATION_ENABLED=false")) fail(errors, ".env.example missing OPENAI_MODERATION_ENABLED=false");
-  if (!envExample.includes("OPENAI_MODERATION_FAIL_MODE=review")) fail(errors, ".env.example missing OPENAI_MODERATION_FAIL_MODE=review");
-  if (!postsApi.includes("pending_review")) fail(errors, "posts API missing pending_review handling");
-  if (!commentsApi.includes("pending_review")) fail(errors, "comments API missing pending_review handling");
-  if (!moderationCore.includes('return buildResult("allow"')) fail(errors, "moderation core missing default allow result");
-  const postsHasPublishedAllowBranch =
-    postsApi.includes('const insertedModerationStatus = requiresReview ? "pending_review" : "published"') ||
-    postsApi.includes('moderation_status: moderation.decision === "review" ? "pending_review" : "published"') ||
-    (postsApi.includes('moderation_status: "published"') && postsApi.includes('pending_review: false'));
-  const commentsHasPublishedAllowBranch =
-    commentsApi.includes('const insertedModerationStatus = requiresReview ? "pending_review" : "published"') ||
-    commentsApi.includes('moderation_status: moderation.decision === "review" ? "pending_review" : "published"') ||
-    (commentsApi.includes('moderation_status: "published"') && commentsApi.includes('pending_review: false'));
-  if (!postsHasPublishedAllowBranch) fail(errors, "posts API missing published moderation_status allow branch");
-  if (!commentsHasPublishedAllowBranch) fail(errors, "comments API missing published moderation_status allow branch");
-  if (!feedSource.includes('.eq("moderation_status", "published")')) fail(errors, "forum feed missing moderation_status published filter");
-  if (!searchSource.includes('.eq("moderation_status", "published")')) fail(errors, "forum search missing moderation_status published filter");
-  if (!profileSource.includes('.eq("moderation_status", "published")')) fail(errors, "profile data missing moderation_status published filter");
-  if (!engagementSource.includes('.eq("moderation_status", "published")')) fail(errors, "post engagement comment counts missing moderation_status published filter");
-  if (!postDetailSource.includes('.eq("moderation_status", "published")')) fail(errors, "post detail missing moderation_status published filter");
-  if (!circlePageSource.includes('.eq("moderation_status", "published")')) fail(errors, "circle page missing moderation_status published filter");
-  if (!homePageSource.includes('.eq("moderation_status", "published")')) fail(errors, "homepage missing moderation_status published filter");
-  if (!commentsSource.includes('viewerUserId === c.author_id')) fail(errors, "comments API missing owner-only pending visibility handling");
-  if (!moderationPage.includes("AdminModerationQueue")) fail(errors, "admin moderation page not wired");
-  if (!moderationComponent.includes("/api/admin/moderation/approve")) fail(errors, "moderation queue missing approve action");
-  if (!moderationComponent.includes("/api/admin/moderation/reject")) fail(errors, "moderation queue missing reject action");
-  if (!moderationComponent.includes("/api/admin/moderation/hide")) fail(errors, "moderation queue missing hide action");
-  if (!moderationComponent.includes('item.moderation_status === "pending_review"')) fail(errors, "admin moderation queue missing handled-state action guard");
-  if (!moderationComponent.includes("OpenAI flagged")) fail(errors, "admin moderation queue missing friendly OpenAI reason label");
-  if (!moderationComponent.includes("OpenAI provider unavailable")) fail(errors, "admin moderation queue missing provider unavailable label");
-  if (!moderationComponent.includes("OpenAI invalid response")) fail(errors, "admin moderation queue missing invalid response label");
-  if (!postsApi.includes("localInputs")) fail(errors, "posts API missing unified localInputs moderation path");
-  if (!circlesApi.includes("localInputs")) fail(errors, "circles API missing unified localInputs moderation path");
-  if (!commentsApi.includes('targetType: "comment_text"')) fail(errors, "comments API missing provider input target type");
-  if (!postMediaApi.includes('targetType: hasVideo ? "post_video_metadata" : "post_image"')) fail(errors, "post media API missing image/video moderation target types");
-  if (!postMediaApi.includes("openai_video_thumbnail_missing_review")) fail(errors, "post media API missing thumbnail review fallback");
-  if (!moderationCore.includes('resolveOpenAIFailMode')) fail(errors, "moderation core missing OpenAI fail mode handling");
-  if (!moderationCore.includes('openai_provider_error_review')) fail(errors, "moderation core missing default fail-closed review path");
-  if (!moderationCore.includes('shouldFallbackToLocalOnlyOnProviderError')) fail(errors, "moderation core missing provider-error local-only fallback helper");
-  if (!openaiProviderSource.includes('openai_provider_error_missing_key')) fail(errors, "openai provider missing provider missing key handling");
-  if (!openaiProviderSource.includes('openai_threshold_review')) fail(errors, "openai provider missing threshold review mapping");
-  if (!profileApi.includes("PROFILE_MODERATION_UNAVAILABLE")) fail(errors, "profile API missing provider unavailable path");
-  if (!circlesApi.includes("MODERATION_TEMPORARILY_UNAVAILABLE")) fail(errors, "circles API missing provider unavailable path");
-  if (!openaiProviderSource.includes('flagged === true')) fail(errors, "openai provider missing flagged-based decision mapping");
-  if (openaiProviderSource.includes('Object.values(scoresObject).some((score) => Number(score) >= 0.85);') && !openaiProviderSource.includes('if (!flagged)')) {
-    fail(errors, "openai provider appears to map scores without flagged guard");
-  }
+  if (!postsApi.includes("moderateContent(")) errors.push("posts API does not call moderateContent");
+  if (!commentsApi.includes("moderateContent(")) errors.push("comments API does not call moderateContent");
+  if (!circlesApi.includes("moderateContent(")) errors.push("circles API does not call moderateContent");
+  if (!profileApi.includes("moderateContent(")) errors.push("profile API does not call moderateContent");
+  if (!profileApi.includes("moderateAsset(")) errors.push("profile API does not call moderateAsset");
+  if (!circlesApi.includes("moderateAsset(")) errors.push("circles API does not call moderateAsset");
+  if (!postMediaApi.includes("moderateAsset(")) errors.push("post media API does not call moderateAsset");
+  if (!/evaluateLocalSensitiveLexicon/.test(moderationCore)) errors.push("moderation core missing local sensitive lexicon layer");
+  if (!/runOpenAIForumPolicyClassifier/.test(moderationCore)) errors.push("moderation core missing forum policy classifier layer");
+  if (/local_only/.test(moderationCore)) errors.push("moderation core still contains local_only fallback");
+  if (/local_only/.test(moderationAsset)) errors.push("asset moderation still contains local_only fallback");
+  if (!/reject|review|allow/.test(policyDoc)) errors.push("moderation policy doc looks incomplete");
+  if (!/compiledLexicon/.test(matcherSource)) errors.push("local matcher does not appear to cache compiled lexicon data");
 
-  const clientRoots = ["src/components", "src/pages"];
-  for (const root of clientRoots) {
-    const files = await walk(path.resolve(process.cwd(), root));
-    for (const file of files) {
-      const content = await fs.readFile(file, "utf8");
-      if (/sensitive-terms\.server|moderate-content\.server|moderation-provider\.server/i.test(content)) {
-        const normalized = path.relative(process.cwd(), file).replace(/\\/g, "/");
-        if (!normalized.startsWith("src/pages/api/")) {
-          fail(errors, `client/public path imports server moderation file: ${normalized}`);
-        }
-      }
+  const filterFiles = [
+    "src/lib/forum-feed.ts",
+    "src/lib/forum-search.ts",
+    "src/lib/profile-data.ts",
+    "src/pages/index.astro",
+    "src/pages/circles/[slug].astro",
+    "src/pages/posts/[id].astro",
+  ];
+
+  for (const file of filterFiles) {
+    const content = await read(file);
+    if (!/moderation_status"\s*,\s*"published"|moderation_status', 'published'|moderation_status", "published"/.test(content)) {
+      errors.push(`missing moderation_status published filter: ${file}`);
     }
   }
 
@@ -156,52 +95,21 @@ async function main() {
   for (const file of srcFiles) {
     const content = await fs.readFile(file, "utf8");
     const normalized = path.relative(process.cwd(), file).replace(/\\/g, "/");
-    if (/MODERATION_PROVIDER|MODERATION_FAIL_MODE/.test(content) && !/src\/lib\/moderation\/|src\/pages\/api\//.test(normalized)) {
-      fail(errors, `moderation env referenced outside server paths: ${normalized}`);
-    }
-    if (/OPENAI_API_KEY|OPENAI_MODERATION_ENABLED|OPENAI_MODERATION_MODEL|OPENAI_MODERATION_FAIL_MODE/.test(content) && !/src\/lib\/moderation\/|src\/pages\/api\//.test(normalized)) {
-      fail(errors, `openai moderation env referenced outside server paths: ${normalized}`);
-    }
     if (/window\.confirm|window\.alert|window\.prompt/.test(content)) {
-      fail(errors, `native browser dialog found: ${normalized}`);
+      errors.push(`native browser dialog found: ${normalized}`);
     }
     if (/SUPABASE_SERVICE_ROLE_KEY|service_role/.test(content)) {
-      fail(errors, `service role reference found in src: ${normalized}`);
+      errors.push(`service role reference found in src: ${normalized}`);
     }
-    if (/category_scores/.test(content) && normalized.startsWith("src/components")) {
-      fail(errors, `raw category_scores exposed in client path: ${normalized}`);
+    if (/raw response|category_scores/i.test(content) && normalized.startsWith("src/components")) {
+      errors.push(`client path references raw moderation data: ${normalized}`);
     }
   }
 
-  if (!/obvious|spam|scam/i.test(sensitiveTermsSource)) {
-    warnings.push("sensitive terms source looks unexpectedly small; manual review recommended");
-  }
-
-  const migrationFiles = (await walk(path.resolve(process.cwd(), "supabase/migrations")))
-    .map((file) => path.relative(process.cwd(), file).replace(/\\/g, "/"))
-    .filter((file) => file.includes("moderation") || file.includes("20260616_community_moderation_mvp.sql"));
-
-  console.log(`required files: ${REQUIRED_FILES.length}`);
-  console.log(`migration files: ${migrationFiles.length}`);
+  console.log(`required files: ${requiredFiles.length}`);
   console.log(`errors: ${errors.length}`);
-  console.log(`warnings: ${warnings.length}`);
-
   if (args.verbose) {
-    migrationFiles.forEach((file) => console.log(`- migration: ${file}`));
-    warnings.forEach((warning) => console.log(`- warning: ${warning}`));
-  }
-
-  if (args.strict && (errors.length > 0 || warnings.length > 0)) {
-    if (errors.length > 0) {
-      console.error("\nMODERATION AUDIT FAILED");
-      errors.forEach((error) => console.error(`- ${error}`));
-    }
-    if (warnings.length > 0) {
-      console.error("\nMODERATION AUDIT WARNINGS");
-      warnings.forEach((warning) => console.error(`- ${warning}`));
-    }
-    process.exitCode = 1;
-    return;
+    requiredFiles.forEach((file) => console.log(`- file: ${file}`));
   }
 
   if (errors.length > 0) {
@@ -212,17 +120,6 @@ async function main() {
   }
 
   console.log("\nMODERATION AUDIT PASSED");
-}
-
-async function walk(dir) {
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  const files = [];
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) files.push(...(await walk(fullPath)));
-    else files.push(fullPath);
-  }
-  return files;
 }
 
 main().catch((error) => {

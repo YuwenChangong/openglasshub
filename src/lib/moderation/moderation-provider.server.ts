@@ -52,14 +52,33 @@ export function doesVideoPostRequireThumbnailModeration(env: ModerationRuntimeEn
   return resolveBooleanFlag(env.VIDEO_POST_REQUIRES_THUMBNAIL_MODERATION, false);
 }
 
-export function resolveOpenAIFailMode(env: ModerationRuntimeEnv): Extract<ModerationFailMode, "review" | "reject" | "local_only"> {
+export function resolveOpenAIFailMode(env: ModerationRuntimeEnv): Extract<ModerationFailMode, "review" | "reject"> {
   const raw = String(env.OPENAI_MODERATION_FAIL_MODE ?? "review").trim().toLowerCase();
-  return raw === "reject" || raw === "local_only" ? raw : "review";
+  return raw === "reject" ? "reject" : "review";
 }
 
-export function resolveVideoPostFailMode(env: ModerationRuntimeEnv): Extract<ModerationFailMode, "review" | "reject" | "local_only"> {
+export function resolveVideoPostFailMode(env: ModerationRuntimeEnv): Extract<ModerationFailMode, "review" | "reject"> {
   const raw = String(env.VIDEO_POST_FAIL_MODE ?? resolveOpenAIFailMode(env)).trim().toLowerCase();
-  return raw === "reject" || raw === "local_only" ? raw : "review";
+  return raw === "reject" ? "reject" : "review";
+}
+
+export function isOpenAIForumPolicyEnabled(env: ModerationRuntimeEnv): boolean {
+  return resolveBooleanFlag(env.OPENAI_FORUM_POLICY_ENABLED, false);
+}
+
+export function resolveOpenAIForumPolicyModel(env: ModerationRuntimeEnv): string {
+  return String(env.OPENAI_FORUM_POLICY_MODEL ?? "").trim();
+}
+
+export function resolveOpenAIForumPolicyTimeoutMs(env: ModerationRuntimeEnv): number {
+  const raw = Number(env.OPENAI_FORUM_POLICY_TIMEOUT_MS ?? 4000);
+  if (!Number.isFinite(raw) || raw < 500) return 4000;
+  return Math.min(Math.max(Math.round(raw), 500), 10000);
+}
+
+export function resolveOpenAIForumPolicyFailMode(env: ModerationRuntimeEnv): Extract<ModerationFailMode, "review" | "reject"> {
+  const raw = String(env.OPENAI_FORUM_POLICY_FAIL_MODE ?? "review").trim().toLowerCase();
+  return raw === "reject" ? "reject" : "review";
 }
 
 export function resolveOpenAIModerationModel(env: ModerationRuntimeEnv): string {
@@ -107,7 +126,7 @@ export async function runMockModerationProvider(
   if (decision === "review") {
     return {
       decision: "review",
-      reason: "openai_flagged_mock_review",
+      reason: "openai_threshold_review",
       score: 0.61,
       matchedRules: ["mock:review"],
       provider: "mock",
@@ -120,7 +139,7 @@ export async function runMockModerationProvider(
   if (decision === "reject") {
     return {
       decision: "reject",
-      reason: "openai_flagged_mock_reject",
+      reason: "openai_flagged_text",
       score: 0.96,
       matchedRules: ["mock:reject"],
       provider: "mock",

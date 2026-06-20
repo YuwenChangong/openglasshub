@@ -1,0 +1,68 @@
+[
+  {
+    "term": "私下交易",
+    "category": "illegal_goods_or_services",
+    "severity": "reject",
+    "match": "contains"
+  },
+  {
+    "term": "代付",
+    "category": "scam_or_resource_lure",
+    "severity": "reject",
+    "match": "contains"
+  },
+  {
+    "term": "代购",
+    "category": "illegal_goods_or_services",
+    "severity": "reject",
+    "match": "contains"
+  },
+  {
+    "term": "卖号",
+    "category": "illegal_goods_or_services",
+    "severity": "reject",
+    "match": "contains"
+  },
+  {
+    "term": "账号交易",
+    "category": "illegal_goods_or_services",
+    "severity": "reject",
+    "match": "contains"
+  },
+  {
+    "term": "破解版",
+    "category": "illegal_goods_or_services",
+    "severity": "reject",
+    "match": "contains"
+  },
+  {
+    "term": "破解教程",
+    "category": "illegal_goods_or_services",
+    "severity": "reject",
+    "match": "contains"
+  },
+  {
+    "pattern": "(?:加|联系|私聊|私信).{0,8}(?:微信|vx|v信|wechat|telegram|whatsapp|qq|qq群|二维码)",
+    "category": "off_platform_contact",
+    "severity": "reject",
+    "match": "regex"
+  },
+  {
+    "pattern": "(?:完整资料|资料入口|下载入口|内部资料|资源入口|免费领取|福利入口).{0,10}(?:私聊|私信|联系|微信|vx|v信|telegram|whatsapp|qq|二维码)",
+    "category": "scam_or_resource_lure",
+    "severity": "reject",
+    "match": "regex"
+  },
+  {
+    "pattern": "(?:微信|vx|v信|telegram|whatsapp|qq|二维码).{0,10}(?:买|售|交易|资料|入口|下载|资源|私下交易|代付|代购|卖号|破解版|破解教程)",
+    "category": "scam_or_resource_lure",
+    "severity": "reject",
+    "match": "regex"
+  },
+  {
+    "pattern": "(?:广告合作|接推广|引流|代发|兼职拉新).{0,8}(?:私聊|私信|联系|微信|vx|telegram|whatsapp|qq|二维码)",
+    "category": "spam_or_promotion",
+    "severity": "reject",
+    "match": "regex"
+  }
+]

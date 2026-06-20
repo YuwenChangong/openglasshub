@@ -1,19 +1,42 @@
 # OpenAI Moderation Setup
 
-## What this does
+## Layered moderation stack
 
-- Keeps local hard-block moderation as the first layer.
-- Makes OpenAI the primary server-side moderation provider when enabled.
-- Keeps manual admin review as the final safety layer.
-- Supports text moderation for posts, comments, circles, and public profile fields.
-- Supports optional image moderation for post images, profile avatar/banner, and circle covers.
+OpenGlass Hub now uses three layers for forum write paths:
 
-## What this does not do
+1. Local sensitive lexicon + OpenGlass hard rules
+2. OpenAI Moderation API
+3. OpenAI forum policy classifier
 
-- Does not replace local rules.
-- Does not send browser-side requests to OpenAI.
-- Does not moderate full video content yet.
-- Does not understand full uploaded video streams.
+Only content that passes every active layer can publish publicly.
+
+## Source inputs
+
+- `third_party/sensitive-lexicons/konsheng-sensitive-lexicon/`
+  - Source: `https://github.com/konsheng/Sensitive-lexicon`
+  - License: MIT
+- `third_party/sensitive-lexicons/houbb-sensitive-word/`
+  - Source: `https://github.com/houbb/sensitive-word`
+  - License: Apache-2.0
+
+We import selected plain-text lexicon files only. We do not fetch GitHub at runtime, and we do not depend on Java runtime code.
+
+## Generated files
+
+- `src/data/moderation/sensitive-lexicon.generated.json`
+- `src/data/moderation/sensitive-lexicon-manifest.generated.json`
+
+Generated data is rebuilt with:
+
+`node scripts/moderation/import-sensitive-lexicons.mjs`
+
+Do not hand-edit generated files. Edit:
+
+- `src/data/moderation/custom-allowlist.json`
+- `src/data/moderation/custom-reviewlist.json`
+- `src/data/moderation/custom-denylist.json`
+
+Then regenerate.
 
 ## Environment variables
 
@@ -30,107 +53,78 @@
 - `VIDEO_POST_REQUIRES_THUMBNAIL_MODERATION=false`
 - `VIDEO_POST_FAIL_MODE=review`
 - `OPENAI_MODERATION_LOG_LEVEL=minimal`
+- `OPENAI_FORUM_POLICY_ENABLED=false`
+- `OPENAI_FORUM_POLICY_MODEL=`
+- `OPENAI_FORUM_POLICY_TIMEOUT_MS=4000`
+- `OPENAI_FORUM_POLICY_FAIL_MODE=review`
 
-## Cloudflare setup
+## Behavior
 
-- Store `OPENAI_API_KEY` as a server-side secret only.
-- Ensure `OPENAI_API_KEY` exists in both Preview and Production if `OPENAI_MODERATION_ENABLED=true`.
-- Do not expose `OPENAI_API_KEY` through any `PUBLIC_*` variable.
-- Start Preview stage 1 with:
-  - `OPENAI_MODERATION_ENABLED=true`
-  - `OPENAI_POST_IMAGE_MODERATION_ENABLED=false`
-  - `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=false`
-  - `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=false`
-  - `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=false`
-  - `OPENAI_MODERATION_FAIL_MODE=review`
-- Start Production in text-only mode first:
-  - `OPENAI_MODERATION_ENABLED=true`
-  - `OPENAI_POST_IMAGE_MODERATION_ENABLED=false`
-  - `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=false`
-  - `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=false`
-  - `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=false`
+### Local lexicon
 
-## Supabase impact
+- Runs first on posts, comments, profile text, circle text
+- Uses imported lexicons plus OpenGlass custom allow/review/reject rules
+- Can allow, review, or reject
+- Handles off-platform contact, resource-lure spam, suspicious trading, low-quality spam, sexual/violent terms, and political-sensitive categories
 
-- No schema change required.
-- Reuses existing `moderation_provider`, `moderation_reason`, `moderation_score`, `moderation_status`, `moderated_at`.
-- Does not store raw OpenAI responses in public tables.
+### OpenAI Moderation API
 
-## Text moderation behavior
+- Runs server-side only
+- Reviews text and selected image inputs
+- Never exposes `OPENAI_API_KEY` to the browser
+- Provider errors fail closed
 
-- Local reject: reject immediately, skip OpenAI.
-- Local review: remains `pending_review`; OpenAI can escalate to reject, but not wash review into allow.
-- Local allow + OpenAI allow: publish.
-- Local allow + OpenAI review: `pending_review`.
-- Local allow + OpenAI reject: reject.
+### OpenAI forum policy classifier
 
-## Image moderation behavior
+- Runs server-side only
+- Uses a normal OpenAI model to classify OpenGlass Hub policy violations into strict JSON
+- Provider errors, invalid JSON, missing model, and timeouts fail closed
 
-- Post images can be moderated with `OPENAI_POST_IMAGE_MODERATION_ENABLED=true`.
-- Profile avatar / banner can be moderated with `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=true`.
-- Circle covers can be moderated with `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=true`.
-- Uses short-lived signed read URLs for uploaded images.
-- Does not send user email, JWT, IP, or secrets.
-- If post image moderation flags content:
-  - medium / unclear => `pending_review`
-  - high severity => `rejected`
-- If profile or circle cover moderation flags content:
-  - save/update is blocked
-  - rejected upload path is not promoted to public content
+## Fail-closed policy
+
+- Provider error => `pending_review` or blocked save
+- Provider error never allows public publish
+- Invalid classifier JSON never allows public publish
+- Missing OpenAI key/model in enabled environments never allows public publish
+
+## Coverage
+
+Text:
+
+- posts
+- comments
+- profile display name / username / bio payload
+- circle name / description
+
+Media:
+
+- post image metadata + signed image moderation when enabled
+- post video metadata + thumbnail moderation when enabled
+- profile avatar / banner when enabled
+- circle cover when enabled
 
 ## Video limitation
 
-- Full video moderation is not implemented.
-- Current video moderation covers post text plus any available thumbnail/keyframe only.
-- If `VIDEO_POST_REQUIRES_THUMBNAIL_MODERATION=true` and no thumbnail exists, the post goes to `pending_review`.
+Full video-stream moderation is not implemented.
 
-## Failure mode
+Current video review covers:
 
-- Recommended initial setting: `OPENAI_MODERATION_FAIL_MODE=review`
-- Behavior:
-  - `review`: provider failure keeps locally suspicious content in review, but clean local-allow content falls back to local-only
-  - `local_only`: provider failure falls back to local decision
-  - `reject`: provider failure rejects content
-- Special case:
-  - if OpenAI is enabled but the key is missing, invalid, timed out, or returns an unusable response, clean local-allow content falls back to local-only with an internal provider diagnostic instead of silently forcing all clean content into review
+- post title/body/metadata
+- thumbnail or keyframe if available
 
-## Privacy notes
+If thumbnail moderation is required and no thumbnail exists, the post must stay in review.
 
-- API key is server-only.
-- Do not send emails, JWTs, IPs, or other secrets to OpenAI.
-- Do not expose raw category scores to the public UI.
-- Do not log full user text or full signed image URLs.
-- Do not expose profile moderation reasons or provider internals to ordinary users.
+## False positive handling
 
-## Rollout stages
+1. Confirm whether local lexicon or forum policy classifier triggered
+2. Add a narrow allowlist term if the false positive is stable and safe
+3. Prefer allowlist or combo-rule tuning over weakening the whole provider
+4. Use admin queue for final manual approval
 
-### Stage 1
-
-- `OPENAI_MODERATION_ENABLED=true`
-- `OPENAI_POST_IMAGE_MODERATION_ENABLED=false`
-- `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=false`
-- `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=false`
-- `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=false`
-
-### Stage 2
-
-- `OPENAI_POST_IMAGE_MODERATION_ENABLED=true`
-
-### Stage 3
-
-- `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=true`
-- `OPENAI_CIRCLE_COVER_MODERATION_ENABLED=true`
-
-### Stage 4
-
-- `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=true`
-- Optionally `VIDEO_POST_REQUIRES_THUMBNAIL_MODERATION=true`
-
-## Rollback instructions
+## Rollback
 
 1. Set `OPENAI_MODERATION_ENABLED=false`
-2. Or set `OPENAI_MODERATION_FAIL_MODE=local_only`
-3. Set image flags back to `false`
-2. Redeploy Cloudflare Pages / Functions
+2. Set `OPENAI_FORUM_POLICY_ENABLED=false`
 3. Keep local moderation active
-4. Watch pending queue, provider errors, and user reports
+4. Redeploy
+5. Watch admin queue and user reports

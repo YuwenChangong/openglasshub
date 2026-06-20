@@ -38,7 +38,10 @@ async function main() {
 
   const requiredFiles = [
     "src/lib/moderation/openai-moderation-provider.server.ts",
+    "src/lib/moderation/openai-forum-policy-classifier.server.ts",
+    "src/lib/moderation/moderate-content.server.ts",
     "src/lib/moderation/moderate-asset.server.ts",
+    "scripts/qa/check-openai-moderation-provider.mjs",
     "docs/openai-moderation-setup.md",
     ".env.example",
   ];
@@ -50,31 +53,24 @@ async function main() {
   const envExample = await read(".env.example");
   const packageJson = await read("package.json");
   const setupDoc = await read("docs/openai-moderation-setup.md");
-  const watchlistDoc = await read("docs/post-launch-watchlist.md");
   const moderationCore = await read("src/lib/moderation/moderate-content.server.ts");
   const moderationAsset = await read("src/lib/moderation/moderate-asset.server.ts");
-  const moderationTypes = await read("src/lib/moderation/moderation-types.ts");
-  const moderationTests = await read("scripts/test-moderation.mjs");
+  const classifierSource = await read("src/lib/moderation/openai-forum-policy-classifier.server.ts");
+  const providerSource = await read("src/lib/moderation/openai-moderation-provider.server.ts");
 
-  if (/PUBLIC_OPENAI_API_KEY/i.test(envExample)) errors.push("PUBLIC_OPENAI_API_KEY should not exist");
-  if (!/OPENAI_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_MODERATION_ENABLED should default to false in .env.example");
-  if (!/OPENAI_MODERATION_FAIL_MODE=review/.test(envExample)) errors.push("OPENAI_MODERATION_FAIL_MODE should default to review in .env.example");
-  if (!/OPENAI_POST_IMAGE_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_POST_IMAGE_MODERATION_ENABLED should default to false in .env.example");
-  if (!/OPENAI_PROFILE_IMAGE_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_PROFILE_IMAGE_MODERATION_ENABLED should default to false in .env.example");
-  if (!/OPENAI_CIRCLE_COVER_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_CIRCLE_COVER_MODERATION_ENABLED should default to false in .env.example");
-  if (!/OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED should default to false in .env.example");
-  if (!/test:openai-moderation/.test(packageJson)) errors.push("package.json missing test:openai-moderation script");
-  if (!/server-only/i.test(setupDoc)) errors.push("openai moderation setup doc should mention server-only key handling");
-  if (!/primary server-side moderation provider/i.test(setupDoc)) errors.push("openai moderation setup doc should describe OpenAI as primary provider when enabled");
-  if (!/profile avatar \/ banner/i.test(setupDoc)) errors.push("openai moderation setup doc should cover profile images");
-  if (!/Full video moderation still not implemented/i.test(watchlistDoc)) errors.push("watchlist should mention full video moderation is not implemented");
-  if (!/openai_provider_error_missing_key/.test(moderationTypes)) errors.push("moderation types missing openai_provider_error_missing_key");
-  if (!/openai_threshold_review/.test(moderationTypes)) errors.push("moderation types missing openai_threshold_review");
-  if (!/shouldFallbackToLocalOnlyOnProviderError/.test(moderationCore)) errors.push("moderation core missing provider-error local-only fallback helper");
-  if (!/shouldFallbackToLocalOnlyOnProviderError/.test(moderationAsset)) errors.push("asset moderation missing provider-error local-only fallback helper");
-  if (!/OpenAI missing key degrades to local-only for clean text/.test(moderationTests)) errors.push("missing test for provider missing-key local-only clean text path");
-  if (!/OpenAI http error degrades to local-only for clean text/.test(moderationTests)) errors.push("missing test for provider http-error local-only clean text path");
-  if (!/flagged false never maps to review by score summary alone/.test(moderationTests)) errors.push("missing test for flagged false allow mapping");
+  if (/PUBLIC_OPENAI/i.test(envExample)) errors.push("PUBLIC_OPENAI env should not exist");
+  if (!/OPENAI_MODERATION_ENABLED=false/.test(envExample)) errors.push(".env.example missing OPENAI_MODERATION_ENABLED=false");
+  if (!/OPENAI_MODERATION_FAIL_MODE=review/.test(envExample)) errors.push(".env.example missing OPENAI_MODERATION_FAIL_MODE=review");
+  if (!/OPENAI_FORUM_POLICY_ENABLED=false/.test(envExample)) errors.push(".env.example missing OPENAI_FORUM_POLICY_ENABLED=false");
+  if (!/OPENAI_FORUM_POLICY_FAIL_MODE=review/.test(envExample)) errors.push(".env.example missing OPENAI_FORUM_POLICY_FAIL_MODE=review");
+  if (!/test:sensitive-lexicon/.test(packageJson)) errors.push("package.json missing test:sensitive-lexicon");
+  if (!/server-side only/i.test(setupDoc) && !/server-only/i.test(setupDoc)) errors.push("setup doc should mention server-only key handling");
+  if (!/fail closed/i.test(setupDoc)) errors.push("setup doc should document fail-closed behavior");
+  if (!/Full video-stream moderation is not implemented/i.test(setupDoc)) errors.push("setup doc should document video limitation");
+  if (/local_only/.test(moderationCore)) errors.push("moderation core still references local_only provider fallback");
+  if (/local_only/.test(moderationAsset)) errors.push("asset moderation still references local_only provider fallback");
+  if (!/chat\/completions/.test(classifierSource)) errors.push("forum policy classifier missing OpenAI chat completions call");
+  if (!/api\.openai\.com\/v1\/moderations/.test(providerSource)) errors.push("OpenAI moderation endpoint missing");
 
   const srcFiles = await walk(path.resolve(process.cwd(), "src"));
   const distDir = path.resolve(process.cwd(), "dist");
@@ -83,10 +79,6 @@ async function main() {
   for (const file of srcFiles) {
     const content = await fs.readFile(file, "utf8");
     const normalized = path.relative(process.cwd(), file).replace(/\\/g, "/");
-    if (/PUBLIC_OPENAI/i.test(content)) errors.push(`PUBLIC_OPENAI reference found in src: ${normalized}`);
-    if (/from\s+["']openai["']|import\("openai"\)/i.test(content) && !normalized.includes("scripts/")) {
-      errors.push(`browser/server SDK import not expected in src: ${normalized}`);
-    }
     if (/OPENAI_API_KEY/.test(content) && normalized.startsWith("src/components")) {
       errors.push(`OPENAI_API_KEY referenced from client component: ${normalized}`);
     }

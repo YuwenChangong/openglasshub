@@ -1,0 +1,110 @@
+[
+  {
+    "term": "私聊",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "加我",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "联系方式",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "二维码",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "telegram",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "whatsapp",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "qq群",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "完整资料",
+    "category": "fake_download_or_private_access",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "资料入口",
+    "category": "fake_download_or_private_access",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "下载入口",
+    "category": "fake_download_or_private_access",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "内部资料",
+    "category": "fake_download_or_private_access",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "资源入口",
+    "category": "fake_download_or_private_access",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "免费领取",
+    "category": "spam_or_promotion",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "福利入口",
+    "category": "spam_or_promotion",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "广告合作",
+    "category": "spam_or_promotion",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "接推广",
+    "category": "spam_or_promotion",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "引流",
+    "category": "spam_or_promotion",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "群发",
+    "category": "low_quality_spam",
+    "severity": "soft_review",
+    "match": "contains"
+  }
+]

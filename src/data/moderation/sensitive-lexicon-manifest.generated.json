@@ -1,0 +1,90 @@
+{
+  "version": "lexicon-2026-06-20",
+  "generatedAt": "2026-06-20T10:37:57.779Z",
+  "totalRawTerms": 82594,
+  "totalTerms": 82146,
+  "importedFiles": [
+    {
+      "source": "konsheng-sensitive-lexicon",
+      "file": "third_party/sensitive-lexicons/konsheng-sensitive-lexicon/Vocabulary/广告类型.txt",
+      "category": "spam_or_promotion",
+      "severity": "review",
+      "match": "contains"
+    },
+    {
+      "source": "konsheng-sensitive-lexicon",
+      "file": "third_party/sensitive-lexicons/konsheng-sensitive-lexicon/Vocabulary/非法网址.txt",
+      "category": "suspicious_external_link",
+      "severity": "reject",
+      "match": "contains"
+    },
+    {
+      "source": "konsheng-sensitive-lexicon",
+      "file": "third_party/sensitive-lexicons/konsheng-sensitive-lexicon/Vocabulary/色情词库.txt",
+      "category": "sexual_content",
+      "severity": "reject",
+      "match": "contains"
+    },
+    {
+      "source": "konsheng-sensitive-lexicon",
+      "file": "third_party/sensitive-lexicons/konsheng-sensitive-lexicon/Vocabulary/色情类型.txt",
+      "category": "sexual_content",
+      "severity": "review",
+      "match": "contains"
+    },
+    {
+      "source": "konsheng-sensitive-lexicon",
+      "file": "third_party/sensitive-lexicons/konsheng-sensitive-lexicon/Vocabulary/暴恐词库.txt",
+      "category": "violence_or_threat",
+      "severity": "reject",
+      "match": "contains"
+    },
+    {
+      "source": "konsheng-sensitive-lexicon",
+      "file": "third_party/sensitive-lexicons/konsheng-sensitive-lexicon/Vocabulary/涉枪涉爆.txt",
+      "category": "illegal_goods_or_services",
+      "severity": "reject",
+      "match": "contains"
+    },
+    {
+      "source": "konsheng-sensitive-lexicon",
+      "file": "third_party/sensitive-lexicons/konsheng-sensitive-lexicon/Vocabulary/政治类型.txt",
+      "category": "political_sensitive",
+      "severity": "review",
+      "match": "contains"
+    },
+    {
+      "source": "konsheng-sensitive-lexicon",
+      "file": "third_party/sensitive-lexicons/konsheng-sensitive-lexicon/Vocabulary/反动词库.txt",
+      "category": "political_sensitive",
+      "severity": "review",
+      "match": "contains"
+    },
+    {
+      "source": "houbb-sensitive-word",
+      "file": "third_party/sensitive-lexicons/houbb-sensitive-word/resources/dict_v20240407.txt",
+      "category": "platform_policy_custom",
+      "severity": "soft_review",
+      "match": "contains"
+    },
+    {
+      "source": "houbb-sensitive-word",
+      "file": "third_party/sensitive-lexicons/houbb-sensitive-word/resources/sensitive_word_deny.txt",
+      "category": "platform_policy_custom",
+      "severity": "review",
+      "match": "contains"
+    },
+    {
+      "source": "houbb-sensitive-word",
+      "file": "third_party/sensitive-lexicons/houbb-sensitive-word/resources/sensitive_word_allow.txt",
+      "category": "platform_policy_custom",
+      "severity": "allow",
+      "match": "contains"
+    }
+  ],
+  "customFiles": [
+    "src/data/moderation/custom-allowlist.json",
+    "src/data/moderation/custom-reviewlist.json",
+    "src/data/moderation/custom-denylist.json"
+  ]
+}
