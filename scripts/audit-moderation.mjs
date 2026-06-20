@@ -59,8 +59,12 @@ async function main() {
   const postMediaApi = await read("src/pages/api/forum/post-media.ts");
   const moderationCore = await read("src/lib/moderation/moderate-content.server.ts");
   const moderationAsset = await read("src/lib/moderation/moderate-asset.server.ts");
+  const providerSource = await read("src/lib/moderation/moderation-provider.server.ts");
   const matcherSource = await read("src/lib/moderation/local-sensitive-lexicon.server.ts");
   const policyDoc = await read("docs/moderation-policy.md");
+  const customReview = await read("src/data/moderation/custom-reviewlist.json");
+  const customDeny = await read("src/data/moderation/custom-denylist.json");
+  const customAllow = await read("src/data/moderation/custom-allowlist.json");
 
   if (!postsApi.includes("moderateContent(")) errors.push("posts API does not call moderateContent");
   if (!commentsApi.includes("moderateContent(")) errors.push("comments API does not call moderateContent");
@@ -71,10 +75,14 @@ async function main() {
   if (!postMediaApi.includes("moderateAsset(")) errors.push("post media API does not call moderateAsset");
   if (!/evaluateLocalSensitiveLexicon/.test(moderationCore)) errors.push("moderation core missing local sensitive lexicon layer");
   if (!/runOpenAIForumPolicyClassifier/.test(moderationCore)) errors.push("moderation core missing forum policy classifier layer");
-  if (/local_only/.test(moderationCore)) errors.push("moderation core still contains local_only fallback");
-  if (/local_only/.test(moderationAsset)) errors.push("asset moderation still contains local_only fallback");
+  if (!/resolveModerationProviderUnavailablePolicy/.test(providerSource)) errors.push("provider unavailable policy resolver missing");
+  if (!/openai_provider_unavailable_local_allow/.test(moderationCore)) errors.push("moderation core missing degraded local-only reason");
+  if (!/local_only_safe/.test(policyDoc)) errors.push("moderation policy doc missing local_only_safe mode");
+  if (!/not equivalent to full OpenAI moderation/i.test(policyDoc)) errors.push("moderation policy doc should explain degraded mode is not full OpenAI moderation");
   if (!/reject|review|allow/.test(policyDoc)) errors.push("moderation policy doc looks incomplete");
   if (!/compiledLexicon/.test(matcherSource)) errors.push("local matcher does not appear to cache compiled lexicon data");
+  if (!/isLocalDegradedModerationResult/.test(postsApi)) errors.push("posts API does not preserve degraded metadata");
+  if (!/isLocalDegradedModerationResult/.test(commentsApi)) errors.push("comments API does not preserve degraded metadata");
 
   const filterFiles = [
     "src/lib/forum-feed.ts",
@@ -104,6 +112,14 @@ async function main() {
     }
     if (/raw response|category_scores/i.test(content) && normalized.startsWith("src/components")) {
       errors.push(`client path references raw moderation data: ${normalized}`);
+    }
+  }
+
+  const criticalSources = `${matcherSource}\n${moderationCore}\n${policyDoc}\n${customReview}\n${customDeny}\n${customAllow}`.toLowerCase();
+  const criticalTerms = ["人口贩卖", "嫖娼", "卖淫", "私聊", "完整资料入口", "加微信", "telegram", "二维码"];
+  for (const term of criticalTerms) {
+    if (!criticalSources.includes(term.toLowerCase())) {
+      errors.push(`critical term coverage not evident for: ${term}`);
     }
   }
 

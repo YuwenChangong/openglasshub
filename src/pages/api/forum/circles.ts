@@ -12,6 +12,7 @@ import {
   isCircleManager,
 } from "../../../lib/server/circle-management";
 import {
+  isLocalDegradedModerationResult,
   isProviderErrorModerationResult,
   moderateContent,
 } from "../../../lib/moderation/moderate-content.server";
@@ -196,6 +197,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
+    if (isLocalDegradedModerationResult(moderation)) {
+      console.warn("[moderation] local-only degraded allow", {
+        targetType: "circle_text",
+        userId: auth.user.id,
+        name,
+        reason: moderation.reason,
+        provider: moderation.provider,
+        status: moderation.providerDetails?.providerStatus ?? null,
+      });
+    }
+
     const coverModeration = await moderateCircleCoverImage({
       client: auth.client,
       env,
@@ -376,6 +388,17 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
           },
           unavailable ? 503 : 403,
         );
+      }
+
+      if (isLocalDegradedModerationResult(moderation)) {
+        console.warn("[moderation] local-only degraded allow", {
+          targetType: "circle_text",
+          userId: auth.user.id,
+          circleId: currentCircle.id,
+          reason: moderation.reason,
+          provider: moderation.provider,
+          status: moderation.providerDetails?.providerStatus ?? null,
+        });
       }
     }
 

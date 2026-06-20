@@ -14,6 +14,7 @@ import {
   resolveModerationProvider,
   resolveOpenAIFailMode,
   resolveOpenAIForumPolicyFailMode,
+  resolveModerationProviderUnavailablePolicy,
   runMockModerationProvider,
   runTencentDisabledFallback,
   type ModerationRuntimeEnv,
@@ -32,6 +33,7 @@ import type {
   ModerationProviderStatus,
   ModerationReasonCode,
   ModerationResult,
+  ModerationProviderUnavailablePolicy,
   OpenAIModerationResult,
 } from "./moderation-types.ts";
 
@@ -373,6 +375,62 @@ function mapProviderErrorResult(
   );
 }
 
+function isProviderUnavailableStatus(status: ModerationProviderStatus | undefined): boolean {
+  return (
+    status === "http_429" ||
+    status === "http_5xx" ||
+    status === "timeout" ||
+    status === "network_error" ||
+    status === "circuit_open"
+  );
+}
+
+function applyUnavailablePolicy(params: {
+  localResult: ModerationResult;
+  providerResult: ModerationResult;
+  policy: ModerationProviderUnavailablePolicy;
+  source: "openai" | "forum_policy";
+}): ModerationResult {
+  const { localResult, providerResult, policy, source } = params;
+  const providerStatus = providerResult.providerDetails?.providerStatus;
+  if (!isProviderUnavailableStatus(providerStatus)) {
+    return mergeModerationResults([localResult, providerResult]);
+  }
+
+  if (localResult.decision === "reject" || localResult.decision === "review") {
+    return mergeModerationResults([localResult, providerResult]);
+  }
+
+  if (policy !== "local_only_safe") {
+    return mergeModerationResults([localResult, providerResult]);
+  }
+
+  return buildResult(
+    "allow",
+    "openai_provider_unavailable_local_allow",
+    0.08,
+    [
+      ...localResult.matchedRules,
+      `${source}:openai_provider_unavailable_local_allow`,
+    ],
+    source === "openai" ? "local_degraded" : "layered_degraded",
+    {
+      decisionSource: "local_degraded",
+      decisionPath: "allow",
+      reasonCode: "openai_provider_unavailable_local_allow",
+      providerStatus,
+      safeSummary:
+        providerResult.providerDetails?.safeSummary ??
+        "Provider unavailable; local-only degraded moderation allow applied.",
+      localDecision: localResult.decision,
+      openaiDecision: providerResult.providerDetails?.openaiDecision ?? "error",
+      categories: providerResult.providerDetails?.categories ?? [],
+      scoresSummary: providerResult.providerDetails?.scoresSummary ?? {},
+      providerError: providerResult.providerDetails?.providerError ?? null,
+    },
+  );
+}
+
 export async function moderateContent(
   env: ModerationRuntimeEnv,
   input: ModerationInput,
@@ -388,6 +446,7 @@ export async function moderateContent(
   let finalResult = mergeModerationResults(localInputs);
   const provider = resolveModerationProvider(env);
   const providerInput = buildDefaultProviderInput(input);
+  const unavailablePolicy = resolveModerationProviderUnavailablePolicy(env);
 
   if (provider === "mock") {
     const mockResult = await runMockModerationProvider(providerInput);
@@ -408,16 +467,18 @@ export async function moderateContent(
     const openaiResult = await openaiRunner(env, providerInput);
 
     if (openaiResult.decision === "error") {
-      return mergeModerationResults([
-        finalResult,
-        mapProviderErrorResult(
+      return applyUnavailablePolicy({
+        localResult: finalResult,
+        providerResult: mapProviderErrorResult(
           openaiResult.reasonCode as ModerationReasonCode,
           openaiResult.providerStatus,
           openaiResult.safeSummary,
           "openai",
-          resolveOpenAIFailMode(env),
+          unavailablePolicy === "block_sensitive" ? "review" : resolveOpenAIFailMode(env),
         ),
-      ]);
+        policy: unavailablePolicy,
+        source: "openai",
+      });
     }
 
     finalResult = mergeModerationResults([finalResult, mapOpenAIResultToModerationResult(openaiResult)]);
@@ -428,16 +489,18 @@ export async function moderateContent(
     const forumResult = await forumClassifierRunner(env, buildForumPolicyInput(input, providerInput, finalResult));
 
     if (forumResult.decision === "error") {
-      return mergeModerationResults([
-        finalResult,
-        mapProviderErrorResult(
+      return applyUnavailablePolicy({
+        localResult: finalResult,
+        providerResult: mapProviderErrorResult(
           forumResult.reasonCode,
           forumResult.providerStatus,
           forumResult.safeSummary,
           "forum_policy",
-          resolveOpenAIForumPolicyFailMode(env),
+          unavailablePolicy === "block_sensitive" ? "review" : resolveOpenAIForumPolicyFailMode(env),
         ),
-      ]);
+        policy: unavailablePolicy,
+        source: "forum_policy",
+      });
     }
 
     finalResult = mergeModerationResults([finalResult, mapForumPolicyResultToModerationResult(forumResult)]);
@@ -454,5 +517,17 @@ export function isProviderErrorModerationResult(result: Pick<ModerationResult, "
     result.reason &&
       (String(result.reason).startsWith("openai_provider_error_") ||
         String(result.reason).startsWith("forum_policy_") && /invalid_json|timeout|error|missing_model/.test(String(result.reason))),
+  );
+}
+
+export function isLocalDegradedModerationResult(
+  result: Pick<ModerationResult, "decision" | "reason" | "provider" | "providerDetails">,
+): boolean {
+  return (
+    result.decision === "allow" &&
+    (result.reason === "openai_provider_unavailable_local_allow" ||
+      result.provider === "local_degraded" ||
+      result.provider === "layered_degraded" ||
+      result.providerDetails?.decisionSource === "local_degraded")
   );
 }

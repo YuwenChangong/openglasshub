@@ -3,6 +3,7 @@ import { buildUniqueCircleSlug, slugifyCircleName } from "../../../../lib/circle
 import { buildCircleCoverUrlMap, CIRCLE_COVER_PREFIX, resolveCircleCoverUrl } from "../../../../lib/circle-cover";
 import { moderateAsset } from "../../../../lib/moderation/moderate-asset.server";
 import {
+  isLocalDegradedModerationResult,
   isProviderErrorModerationResult,
   moderateContent,
 } from "../../../../lib/moderation/moderate-content.server";
@@ -208,6 +209,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (textModeration.decision !== "allow") {
       const unavailable = textModeration.decision === "review" && isProviderErrorModerationResult(textModeration);
       return jsonResponse({ error: unavailable ? "MODERATION_TEMPORARILY_UNAVAILABLE" : "CONTENT_REJECTED" }, unavailable ? 503 : 403);
+    }
+
+    if (isLocalDegradedModerationResult(textModeration)) {
+      console.warn("[moderation] local-only degraded allow", {
+        targetType: "circle_text",
+        userId: auth.user.id,
+        admin: true,
+        name,
+        reason: textModeration.reason,
+        provider: textModeration.provider,
+        status: textModeration.providerDetails?.providerStatus ?? null,
+      });
     }
 
     const coverModeration = await moderateCircleCoverImage({

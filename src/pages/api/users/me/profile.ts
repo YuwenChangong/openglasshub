@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { moderateAsset } from "../../../../lib/moderation/moderate-asset.server";
 import {
+  isLocalDegradedModerationResult,
   isProviderErrorModerationResult,
   moderateContent,
 } from "../../../../lib/moderation/moderate-content.server";
@@ -158,6 +159,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
         },
         unavailable ? 503 : 403,
       );
+    }
+
+    if (isLocalDegradedModerationResult(textModeration)) {
+      console.warn("[moderation] local-only degraded allow", {
+        targetType: "profile_text",
+        userId: auth.user.id,
+        reason: textModeration.reason,
+        provider: textModeration.provider,
+        status: textModeration.providerDetails?.providerStatus ?? null,
+      });
     }
 
     let currentProfileResult = await auth.client

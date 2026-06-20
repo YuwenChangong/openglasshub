@@ -169,6 +169,220 @@ await test("OpenAI moderation provider error fail-closes to review", async () =>
   assert.equal(result.reason, "openai_provider_error_timeout");
 });
 
+await test("provider unavailable + local_only_safe allows clean post as local degraded", async () => {
+  const result = await moderateContent(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+      OPENAI_FORUM_POLICY_ENABLED: "false",
+      MODERATION_PROVIDER_UNAVAILABLE_POLICY: "local_only_safe",
+    },
+    {
+      contentType: "post_body",
+      userId: "u1",
+      text: "正常 AR 眼镜使用讨论内容。",
+      providerInput: { targetType: "post_text", body: "正常 AR 眼镜使用讨论内容。" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_http",
+        flagged: false,
+        providerStatus: "http_429",
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+  assert.equal(result.reason, "openai_provider_unavailable_local_allow");
+  assert.match(String(result.provider), /degraded/);
+});
+
+await test("provider unavailable + local_only_safe allows clean comment as local degraded", async () => {
+  const result = await moderateContent(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+      OPENAI_FORUM_POLICY_ENABLED: "false",
+      MODERATION_PROVIDER_UNAVAILABLE_POLICY: "local_only_safe",
+    },
+    {
+      contentType: "comment_body",
+      userId: "u1",
+      text: "正常评论。",
+      providerInput: { targetType: "comment_text", body: "正常评论。" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_timeout",
+        flagged: false,
+        providerStatus: "timeout",
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+  assert.equal(result.reason, "openai_provider_unavailable_local_allow");
+});
+
+await test("provider unavailable + local_only_safe allows clean profile text as local degraded", async () => {
+  const result = await moderateContent(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+      OPENAI_FORUM_POLICY_ENABLED: "false",
+      MODERATION_PROVIDER_UNAVAILABLE_POLICY: "local_only_safe",
+    },
+    {
+      contentType: "profile_text",
+      userId: "u1",
+      text: "AR glasses builder and researcher.",
+      providerInput: { targetType: "profile_text", body: "AR glasses builder and researcher." },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_http",
+        flagged: false,
+        providerStatus: "http_5xx",
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+});
+
+await test("provider unavailable + local_only_safe allows clean circle text as local degraded", async () => {
+  const result = await moderateContent(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+      OPENAI_FORUM_POLICY_ENABLED: "false",
+      MODERATION_PROVIDER_UNAVAILABLE_POLICY: "local_only_safe",
+    },
+    {
+      contentType: "circle_description",
+      userId: "u1",
+      text: "Discuss comfort, display quality and software.",
+      localInputs: [{ contentType: "circle_description", text: "Discuss comfort, display quality and software." }],
+      providerInput: { targetType: "circle_text", description: "Discuss comfort, display quality and software." },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_http",
+        flagged: false,
+        providerStatus: "network_error",
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+});
+
+await test("provider unavailable + local rules still reject 人口贩卖", async () => {
+  const result = await moderateContent(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+      OPENAI_FORUM_POLICY_ENABLED: "false",
+      MODERATION_PROVIDER_UNAVAILABLE_POLICY: "local_only_safe",
+    },
+    {
+      contentType: "post_body",
+      userId: "u1",
+      text: "人口贩卖",
+      providerInput: { targetType: "post_text", body: "人口贩卖" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_http",
+        flagged: false,
+        providerStatus: "http_429",
+      }),
+    },
+  );
+  assert.equal(result.decision, "reject");
+});
+
+await test("provider unavailable + local rules still do not allow 嫖娼 and 卖淫", async () => {
+  for (const term of ["嫖娼", "卖淫"]) {
+    const result = await moderateContent(
+      {
+        OPENAI_MODERATION_ENABLED: "true",
+        OPENAI_FORUM_POLICY_ENABLED: "false",
+        MODERATION_PROVIDER_UNAVAILABLE_POLICY: "local_only_safe",
+      },
+      {
+        contentType: "comment_body",
+        userId: "u1",
+        text: term,
+        providerInput: { targetType: "comment_text", body: term },
+      },
+      {
+        openaiRunner: async () => ({
+          provider: "openai",
+          decision: "error",
+          reasonCode: "openai_provider_error_http",
+          flagged: false,
+          providerStatus: "http_429",
+        }),
+      },
+    );
+    assert.notEqual(result.decision, "allow");
+  }
+});
+
+await test("review_all keeps clean provider unavailable content in review", async () => {
+  const result = await moderateContent(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+      OPENAI_FORUM_POLICY_ENABLED: "false",
+      MODERATION_PROVIDER_UNAVAILABLE_POLICY: "review_all",
+    },
+    {
+      contentType: "post_body",
+      userId: "u1",
+      text: "正常讨论内容",
+      providerInput: { targetType: "post_text", body: "正常讨论内容" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_http",
+        flagged: false,
+        providerStatus: "http_429",
+      }),
+    },
+  );
+  assert.equal(result.decision, "review");
+});
+
+await test("block_sensitive keeps clean provider unavailable profile in review", async () => {
+  const result = await moderateContent(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+      OPENAI_FORUM_POLICY_ENABLED: "false",
+      MODERATION_PROVIDER_UNAVAILABLE_POLICY: "block_sensitive",
+    },
+    {
+      contentType: "profile_text",
+      userId: "u1",
+      text: "Normal profile text",
+      providerInput: { targetType: "profile_text", body: "Normal profile text" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_http",
+        flagged: false,
+        providerStatus: "http_429",
+      }),
+    },
+  );
+  assert.equal(result.decision, "review");
+});
+
 await test("forum classifier allow keeps clean content allow", async () => {
   const result = await moderateContent(
     {
@@ -429,6 +643,56 @@ await test("asset moderation provider error fail-closes", async () => {
     },
   );
   assert.equal(result.decision, "review");
+});
+
+await test("asset moderation provider unavailable does not local-only allow clean image", async () => {
+  const result = await moderateAsset(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+      MODERATION_PROVIDER_UNAVAILABLE_POLICY: "local_only_safe",
+      OPENAI_MODERATION_FAIL_MODE: "review",
+    },
+    {
+      targetType: "post_image",
+      imageUrls: ["https://example.com/post-image.png"],
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_http",
+        flagged: false,
+        providerStatus: "http_429",
+      }),
+    },
+  );
+  assert.equal(result.decision, "review");
+});
+
+await test("avatar and banner provider unavailable stay blocked/review", async () => {
+  for (const targetType of ["profile_avatar_image", "profile_banner_image", "circle_cover_image"]) {
+    const result = await moderateAsset(
+      {
+        OPENAI_MODERATION_ENABLED: "true",
+        MODERATION_PROVIDER_UNAVAILABLE_POLICY: "local_only_safe",
+        OPENAI_MODERATION_FAIL_MODE: "review",
+      },
+      {
+        targetType,
+        imageUrls: ["https://example.com/asset.png"],
+      },
+      {
+        openaiRunner: async () => ({
+          provider: "openai",
+          decision: "error",
+          reasonCode: "openai_provider_error_timeout",
+          flagged: false,
+          providerStatus: "timeout",
+        }),
+      },
+    );
+    assert.equal(result.decision, "review");
+  }
 });
 
 await test("routes still wire moderation for all write paths", async () => {

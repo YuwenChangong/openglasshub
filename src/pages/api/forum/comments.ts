@@ -13,7 +13,10 @@
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getRequestIp } from "../../../lib/request-ip";
-import { moderateContent } from "../../../lib/moderation/moderate-content.server";
+import {
+  isLocalDegradedModerationResult,
+  moderateContent,
+} from "../../../lib/moderation/moderate-content.server";
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 
@@ -474,9 +477,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const requiresReview = moderation.decision === "review";
+    const isDegradedAllow = isLocalDegradedModerationResult(moderation);
     const insertedStatus = requiresReview ? "pending" : "published";
     const insertedModerationStatus = requiresReview ? "pending_review" : "published";
-    const moderatedAt = requiresReview ? new Date().toISOString() : null;
+    const moderatedAt = requiresReview || isDegradedAllow ? new Date().toISOString() : null;
 
     // Insert comment
     const insertPayload: Record<string, unknown> = {
@@ -485,11 +489,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       body,
       status: insertedStatus,
       moderation_status: insertedModerationStatus,
-      moderation_reason: requiresReview ? moderation.reason : null,
+      moderation_reason: requiresReview || isDegradedAllow ? moderation.reason : null,
       moderation_score: requiresReview ? moderation.score : null,
       moderated_at: moderatedAt,
       moderated_by: null,
-      moderation_provider: requiresReview ? moderation.provider : null,
+      moderation_provider: requiresReview || isDegradedAllow ? moderation.provider : null,
     };
     if (parentId) insertPayload.parent_id = parentId;
 

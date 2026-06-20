@@ -198,6 +198,12 @@ export async function runOpenAIForumPolicyClassifier(
 
     const responseText = await response.text();
     if (!response.ok) {
+      const providerStatus =
+        response.status === 429
+          ? "http_429"
+          : response.status >= 500 && response.status <= 599
+            ? "http_5xx"
+            : "http_error";
       console.warn("[moderation] forum policy provider error", {
         targetType: input.targetType,
         status: response.status,
@@ -205,7 +211,7 @@ export async function runOpenAIForumPolicyClassifier(
       });
       return buildErrorResult(
         "forum_policy_error",
-        "http_error",
+        providerStatus,
         "Forum policy classifier returned an HTTP error.",
       );
     }

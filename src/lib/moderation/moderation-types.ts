@@ -27,6 +27,7 @@ export type OpenAIModerationReasonCode =
   | "openai_provider_error_review"
   | "openai_provider_error_reject"
   | "openai_provider_error_local_only"
+  | "openai_provider_unavailable_local_allow"
   | "openai_provider_error_missing_key"
   | "openai_provider_error_http"
   | "openai_provider_error_timeout"
@@ -69,16 +70,20 @@ export type ModerationContentType =
 
 export type ModerationProviderName =
   | "local"
+  | "local_degraded"
   | "mock"
   | "openai"
   | "local+openai"
   | "layered"
+  | "layered_degraded"
   | "manual-admin"
   | "tencent-disabled";
 
 export type ModerationFailMode = "review" | "reject" | "allow" | "local_only";
+export type ModerationProviderUnavailablePolicy = "review_all" | "local_only_safe" | "block_sensitive";
 export type ModerationDecisionSource =
   | "local"
+  | "local_degraded"
   | "openai"
   | "forum_policy"
   | "local+openai"
@@ -87,11 +92,14 @@ export type ModerationDecisionSource =
   | "layered";
 export type ModerationProviderStatus =
   | "success"
+  | "http_429"
+  | "http_5xx"
   | "timeout"
   | "http_error"
   | "invalid_response"
   | "missing_key"
   | "disabled"
+  | "circuit_open"
   | "network_error"
   | "not_configured";
 

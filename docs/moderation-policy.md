@@ -53,3 +53,20 @@ Critical term note:
 - Do not expose raw OpenAI responses or category scores to users
 - Do not expose full sensitive term lists to the client
 - Do not claim full video-stream moderation
+
+## Provider unavailable policy
+
+- `MODERATION_PROVIDER_UNAVAILABLE_POLICY=review_all`
+  - provider unavailable keeps text content in `review`
+  - safest fail-closed mode
+- `MODERATION_PROVIDER_UNAVAILABLE_POLICY=local_only_safe`
+  - degraded beta mode only
+  - provider unavailable can allow low-risk text only when local lexicon says `allow`
+  - degraded allow must be marked as local degraded metadata
+  - media, avatar, banner, circle cover, and visual moderation do not local-only public allow
+- `MODERATION_PROVIDER_UNAVAILABLE_POLICY=block_sensitive`
+  - provider unavailable still blocks profile/circle text saves and keeps post/comment text in review
+
+Degraded local-only mode is not equivalent to full OpenAI moderation. Full OpenAI GO still requires OpenAI provider health success.
+
+If the policy env is unset, non-`main` Cloudflare Pages preview branches default to `local_only_safe`. Production-like branches default to `review_all`.

@@ -226,6 +226,12 @@ export async function runOpenAIModeration(
       if (!response.ok) {
         const sanitized = sanitizeProviderMessage(responseText || `OpenAI moderation failed with ${response.status}`);
         if (attempt === 0) continue;
+        const providerStatus =
+          response.status === 429
+            ? "http_429"
+            : response.status >= 500 && response.status <= 599
+              ? "http_5xx"
+              : "http_error";
         console.warn("[moderation] openai provider error", {
           targetType: input.targetType,
           status: response.status,
@@ -233,7 +239,7 @@ export async function runOpenAIModeration(
         });
         return buildErrorResult(
           "openai_provider_error_http",
-          "http_error",
+          providerStatus,
           "OpenAI moderation returned an HTTP error.",
         );
       }

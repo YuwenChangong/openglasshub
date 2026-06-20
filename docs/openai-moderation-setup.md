@@ -50,6 +50,7 @@ Critical coverage note:
 - `OPENAI_MODERATION_ENABLED=false`
 - `OPENAI_MODERATION_MODEL=omni-moderation-latest`
 - `OPENAI_MODERATION_FAIL_MODE=review`
+- `MODERATION_PROVIDER_UNAVAILABLE_POLICY=review_all`
 - `OPENAI_MODERATION_TIMEOUT_MS=3500`
 - `OPENAI_MODERATION_IMAGE_ENABLED=false`
 - `OPENAI_POST_IMAGE_MODERATION_ENABLED=false`
@@ -78,7 +79,8 @@ Critical coverage note:
 - Runs server-side only
 - Reviews text and selected image inputs
 - Never exposes `OPENAI_API_KEY` to the browser
-- Provider errors fail closed
+- Provider errors do not count as OpenAI success
+- Provider unavailable does not count as OpenAI success
 
 ### OpenAI forum policy classifier
 
@@ -86,10 +88,25 @@ Critical coverage note:
 - Uses a normal OpenAI model to classify OpenGlass Hub policy violations into strict JSON
 - Provider errors, invalid JSON, missing model, and timeouts fail closed
 
+## Provider unavailable modes
+
+- `review_all`
+  - Provider error => `pending_review` or blocked save
+  - Provider error never allows public publish
+- `local_only_safe`
+  - Intended for degraded preview / beta operation when provider returns `429`, `5xx`, timeout, network failure, or a circuit-open state
+  - Text content can publish only if the local lexicon says `allow`
+  - Degraded allows are marked with local degraded moderation metadata
+  - Media / visual moderation does not local-only public allow
+- `block_sensitive`
+  - Provider error keeps post/comment in review and blocks profile/circle saves
+
+If `MODERATION_PROVIDER_UNAVAILABLE_POLICY` is unset, non-`main` Cloudflare Pages preview branches default to `local_only_safe`, while production-like branches default to `review_all`.
+
+Configuration and implementation errors such as `401`, `403`, missing key, invalid response, parser failures, or missing model are not treated as successful moderation.
+
 ## Fail-closed policy
 
-- Provider error => `pending_review` or blocked save
-- Provider error never allows public publish
 - Invalid classifier JSON never allows public publish
 - Missing OpenAI key/model in enabled environments never allows public publish
 
@@ -119,6 +136,12 @@ Current video review covers:
 - thumbnail or keyframe if available
 
 If thumbnail moderation is required and no thumbnail exists, the post must stay in review.
+
+## 429 handling
+
+- Use retry/backoff and circuit-breaking upstream to avoid request storms
+- Log failed OpenAI calls in redacted form only
+- Do not expose raw provider errors, raw responses, or category scores to normal users
 
 ## False positive handling
 

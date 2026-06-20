@@ -3,6 +3,7 @@ import { resolveCircleCoverUrl } from "../../../../../lib/circle-cover";
 import { CIRCLE_COVER_PREFIX } from "../../../../../lib/circle-cover";
 import { moderateAsset } from "../../../../../lib/moderation/moderate-asset.server";
 import {
+  isLocalDegradedModerationResult,
   isProviderErrorModerationResult,
   moderateContent,
 } from "../../../../../lib/moderation/moderate-content.server";
@@ -191,6 +192,17 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
           },
           unavailable ? 503 : 403,
         );
+      }
+
+      if (isLocalDegradedModerationResult(moderation)) {
+        console.warn("[moderation] local-only degraded allow", {
+          targetType: "circle_text",
+          userId: auth.user.id,
+          circleId: auth.circle.id,
+          reason: moderation.reason,
+          provider: moderation.provider,
+          status: moderation.providerDetails?.providerStatus ?? null,
+        });
       }
     }
 

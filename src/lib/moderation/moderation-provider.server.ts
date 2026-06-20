@@ -2,6 +2,7 @@ import type {
   ModerationFailMode,
   ModerationProviderInput,
   ModerationProviderName,
+  ModerationProviderUnavailablePolicy,
   ModerationResult,
 } from "./moderation-types.ts";
 
@@ -79,6 +80,22 @@ export function resolveOpenAIForumPolicyTimeoutMs(env: ModerationRuntimeEnv): nu
 export function resolveOpenAIForumPolicyFailMode(env: ModerationRuntimeEnv): Extract<ModerationFailMode, "review" | "reject"> {
   const raw = String(env.OPENAI_FORUM_POLICY_FAIL_MODE ?? "review").trim().toLowerCase();
   return raw === "reject" ? "reject" : "review";
+}
+
+export function resolveModerationProviderUnavailablePolicy(
+  env: ModerationRuntimeEnv,
+): ModerationProviderUnavailablePolicy {
+  const configured = String(env.MODERATION_PROVIDER_UNAVAILABLE_POLICY ?? "").trim().toLowerCase();
+  if (!configured) {
+    const branch = String(env.CF_PAGES_BRANCH ?? "").trim().toLowerCase();
+    if (branch && branch !== "main" && branch !== "master") {
+      return "local_only_safe";
+    }
+    return "review_all";
+  }
+  const raw = configured;
+  if (raw === "local_only_safe" || raw === "block_sensitive") return raw;
+  return "review_all";
 }
 
 export function resolveOpenAIModerationModel(env: ModerationRuntimeEnv): string {
