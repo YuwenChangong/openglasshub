@@ -15,7 +15,8 @@
     "test:profile-role-security": "node scripts/audit-profile-role-security.mjs --strict --verbose",
     "test:forum-permissions": "node scripts/verify-forum-permissions.cjs",
     "test:moderation-audit": "node scripts/audit-moderation.mjs --strict --verbose",
-    "test:openai-moderation": "node scripts/audit-openai-moderation.mjs --strict --verbose"
+    "test:openai-moderation": "node scripts/audit-openai-moderation.mjs --strict --verbose",
+    "test:media-url-privacy": "node scripts/audit-media-url-privacy.mjs --strict --verbose"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.6.13",

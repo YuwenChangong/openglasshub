@@ -78,12 +78,17 @@ const postMedia = await resolveSignedPostMedia(
   (mediaRows ?? []) as PostMediaRow[],
   60 * 60,
   r2PublicBaseUrl,
+  { publicProxy: true },
 );
 const likeCountMap = post ? await buildPostLikeCountMap(supabase, [post.id]) : new Map();
 const initialLikeCount = post ? likeCountMap.get(post.id) ?? 0 : 0;
 const displayBody = sanitizeBodyForDisplay(post?.body);
 const authorHref = post ? buildProfileHref({ id: post.author_id, username: post.profiles?.username ?? null }) : null;
-const authorAvatarUrl = post ? await resolveProfileAvatarUrl(supabase, post.profiles?.avatar_url ?? null) : null;
+const authorAvatarUrl = post
+  ? await resolveProfileAvatarUrl(supabase, post.profiles?.avatar_url ?? null, undefined, {
+      publicProxyUserId: post.author_id,
+    })
+  : null;
 const authorName = post
   ? post.profiles?.display_name?.trim()
     || post.profiles?.username?.trim()

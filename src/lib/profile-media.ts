@@ -3,8 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const PROFILE_MEDIA_BUCKET = "post-media";
 export const PROFILE_AVATAR_PREFIX = "profile-avatars/";
 export const PROFILE_BANNER_PREFIX = "profile-banners/";
-export const PROFILE_MEDIA_EXPIRES_IN = 60 * 60;
+export const PROFILE_MEDIA_EXPIRES_IN = 10 * 60;
 const profileMediaUrlCache = new WeakMap<SupabaseClient, Map<string, Promise<string | null>>>();
+
+export function buildProfileMediaProxyUrl(userId: string, kind: "avatar" | "banner") {
+  return `/api/media/profile/${encodeURIComponent(userId)}/${kind}`;
+}
 
 export function isProfileAvatarPath(value?: string | null): value is string {
   return typeof value === "string" && value.startsWith(PROFILE_AVATAR_PREFIX);
@@ -57,10 +61,14 @@ export async function resolveProfileAvatarUrl(
   supabase: SupabaseClient,
   avatarUrl?: string | null,
   expiresIn = PROFILE_MEDIA_EXPIRES_IN,
+  options?: { publicProxyUserId?: string | null },
 ): Promise<string | null> {
   if (!avatarUrl) return null;
   if (isAbsoluteUrl(avatarUrl)) return avatarUrl;
   if (!isProfileAvatarPath(avatarUrl)) return null;
+  if (options?.publicProxyUserId) {
+    return buildProfileMediaProxyUrl(options.publicProxyUserId, "avatar");
+  }
   return createSignedUrl(supabase, avatarUrl, expiresIn, "avatar");
 }
 
@@ -68,9 +76,13 @@ export async function resolveProfileBannerUrl(
   supabase: SupabaseClient,
   bannerUrl?: string | null,
   expiresIn = PROFILE_MEDIA_EXPIRES_IN,
+  options?: { publicProxyUserId?: string | null },
 ): Promise<string | null> {
   if (!bannerUrl) return null;
   if (isAbsoluteUrl(bannerUrl)) return bannerUrl;
   if (!isProfileBannerPath(bannerUrl)) return null;
+  if (options?.publicProxyUserId) {
+    return buildProfileMediaProxyUrl(options.publicProxyUserId, "banner");
+  }
   return createSignedUrl(supabase, bannerUrl, expiresIn, "banner");
 }

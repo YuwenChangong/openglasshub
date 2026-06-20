@@ -277,8 +277,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const updatedProfile = updateResult.data as typeof currentProfile;
     const [resolvedAvatarUrl, resolvedBannerUrl] = await Promise.all([
-      resolveProfileAvatarUrl(auth.client, updatedProfile.avatar_url),
-      resolveProfileBannerUrl(auth.client, updatedProfile.banner_url ?? null),
+      resolveProfileAvatarUrl(auth.client, updatedProfile.avatar_url, undefined, {
+        publicProxyUserId: updatedProfile.id,
+      }),
+      resolveProfileBannerUrl(auth.client, updatedProfile.banner_url ?? null, undefined, {
+        publicProxyUserId: updatedProfile.id,
+      }),
     ]);
 
     return jsonResponse({

@@ -280,16 +280,18 @@ export async function loadProfilePageData(
   );
   const circles = (circlesRaw as ProfileCircleRecord[] | null) ?? [];
 
-  const mediaMap = await buildResolvedPostMediaMap(supabase, posts, 60 * 60, r2PublicBaseUrl);
+  const mediaMap = await buildResolvedPostMediaMap(supabase, posts, 60 * 60, r2PublicBaseUrl, {
+    publicProxy: true,
+  });
   const postIds = posts.map((post) => post.id);
   const [likeCountMap, commentCountMap] = await Promise.all([
     buildPostLikeCountMap(supabase, postIds),
     buildPostCommentCountMap(supabase, postIds),
   ]);
-  const circleImageMap = await buildCircleImageMap(supabase, circles, 60 * 60);
+  const circleImageMap = await buildCircleImageMap(supabase, circles, 60 * 60, { publicProxy: true });
   const [resolvedAvatarUrl, resolvedBannerUrl] = await Promise.all([
-    resolveProfileAvatarUrl(supabase, profile.avatar_url),
-    resolveProfileBannerUrl(supabase, profile.banner_url ?? null),
+    resolveProfileAvatarUrl(supabase, profile.avatar_url, undefined, { publicProxyUserId: profile.id }),
+    resolveProfileBannerUrl(supabase, profile.banner_url ?? null, undefined, { publicProxyUserId: profile.id }),
   ]);
 
   return {

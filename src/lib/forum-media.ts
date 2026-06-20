@@ -32,6 +32,11 @@ type PostWithMedia = {
 
 const signedPostMediaCache = new WeakMap<SupabaseClient, Map<string, Promise<string>>>();
 
+export function buildPublicPostMediaProxyUrl(mediaId: string, variant: "display" | "thumb" = "display") {
+  const suffix = variant === "thumb" ? "?variant=thumb" : "";
+  return `/api/media/post/${encodeURIComponent(mediaId)}${suffix}`;
+}
+
 function sortMediaRows<T extends PostMediaRow>(rows: T[]): T[] {
   return [...rows].sort((left, right) => {
     const leftCover = left.is_cover ? 1 : 0;
@@ -66,6 +71,7 @@ export async function resolveSignedPostMedia(
   mediaRows: PostMediaRow[],
   expiresIn = 60 * 60,
   r2PublicBaseUrl?: string,
+  options?: { publicProxy?: boolean },
 ): Promise<ResolvedPostMedia[]> {
   const sortedRows = sortMediaRows(mediaRows);
   const isR2TempMedia = (item: PostMediaRow) =>
@@ -110,14 +116,24 @@ export async function resolveSignedPostMedia(
       r2PublicBaseUrl && item.storage_path && isTempR2
         ? buildPublicR2Url(r2PublicBaseUrl, item.storage_path)
         : "";
+    const publicDisplayUrl =
+      options?.publicProxy && item.id
+        ? buildPublicPostMediaProxyUrl(item.id, "display")
+        : "";
+    const publicPreviewUrl =
+      options?.publicProxy && item.id && item.thumbnail_url
+        ? buildPublicPostMediaProxyUrl(item.id, "thumb")
+        : "";
     const signedUrl = isTempR2
       ? fallbackExternalUrl || item.url?.trim() || ""
+      : publicDisplayUrl
+        ? publicDisplayUrl
       : item.storage_path && (item.kind === "image" || item.kind === "video")
         ? (await resolvePath(item.storage_path)) || fallbackExternalUrl || item.url?.trim() || ""
         : item.url?.trim() ?? "";
-    const thumbnailUrl = item.thumbnail_url?.trim()
+    const thumbnailUrl = publicPreviewUrl || (item.thumbnail_url?.trim()
       ? await resolvePath(item.thumbnail_url)
-      : "";
+      : "");
 
     return {
       ...item,
@@ -132,6 +148,7 @@ export async function buildResolvedPostMediaMap(
   posts: PostWithMedia[],
   expiresIn = 60 * 60,
   r2PublicBaseUrl?: string,
+  options?: { publicProxy?: boolean },
 ): Promise<Map<string, ResolvedPostMedia[]>> {
   const flattened = posts.flatMap((post) =>
     (post.post_media ?? []).map((item) => ({
@@ -145,6 +162,7 @@ export async function buildResolvedPostMediaMap(
     flattened,
     expiresIn,
     r2PublicBaseUrl,
+    options,
   );
   const mediaMap = new Map<string, ResolvedPostMedia[]>();
 

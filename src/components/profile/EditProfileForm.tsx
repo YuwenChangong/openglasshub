@@ -126,8 +126,12 @@ export default function EditProfileForm() {
       }
 
       const [resolvedAvatarUrl, resolvedBannerUrl] = await Promise.all([
-        resolveProfileAvatarUrl(supabase, profileRow.avatar_url),
-        resolveProfileBannerUrl(supabase, profileRow.banner_url ?? null),
+        resolveProfileAvatarUrl(supabase, profileRow.avatar_url, undefined, {
+          publicProxyUserId: profileRow.id,
+        }),
+        resolveProfileBannerUrl(supabase, profileRow.banner_url ?? null, undefined, {
+          publicProxyUserId: profileRow.id,
+        }),
       ]);
 
       if (!cancelled) {
@@ -327,8 +331,16 @@ export default function EditProfileForm() {
         await removeStorageObject(previousBannerPath);
       }
 
-      const resolvedAvatar = responsePayload.profile.resolved_avatar_url ?? (await resolveProfileAvatarUrl(supabase, finalAvatarPath));
-      const resolvedBanner = responsePayload.profile.resolved_banner_url ?? (await resolveProfileBannerUrl(supabase, finalBannerPath));
+      const resolvedAvatar =
+        responsePayload.profile.resolved_avatar_url ??
+        (await resolveProfileAvatarUrl(supabase, finalAvatarPath, undefined, {
+          publicProxyUserId: data.id,
+        }));
+      const resolvedBanner =
+        responsePayload.profile.resolved_banner_url ??
+        (await resolveProfileBannerUrl(supabase, finalBannerPath, undefined, {
+          publicProxyUserId: data.id,
+        }));
       setProfile(data);
       setDisplayName(data.display_name ?? "");
       setUsername(data.username ?? "");

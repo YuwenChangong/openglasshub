@@ -44,6 +44,9 @@ const postMediaMap = posts.length > 0
       posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>,
       60 * 60,
       r2PublicBaseUrl,
+      {
+        publicProxy: true,
+      },
     )
   : new Map();
 

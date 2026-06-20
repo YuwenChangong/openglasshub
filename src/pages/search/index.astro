@@ -34,7 +34,11 @@ const searchResult = !hasQuery || invalidQuery
 
 const posts = searchResult?.ok ? searchResult.results.posts : [];
 const circles = !circleSlug && searchResult?.ok ? searchResult.results.circles : [];
-const circleImageMap = circles.length > 0 ? await buildCircleImageMap(supabase, circles) : new Map();
+const circleImageMap = circles.length > 0
+  ? await buildCircleImageMap(supabase, circles, 60 * 60, {
+      publicProxy: true,
+    })
+  : new Map();
 const showPostsSection = posts.length > 0;
 const showCirclesSection = circles.length > 0;
 const hasAnyResults = showPostsSection || showCirclesSection;

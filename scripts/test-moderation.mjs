@@ -411,6 +411,19 @@ await test("post media moderation supports video thumbnail review fallback", asy
   const content = await fs.readFile(new URL("../src/pages/api/forum/post-media.ts", import.meta.url), "utf8");
   assert.match(content, /openai_video_thumbnail_missing_review/);
   assert.match(content, /post_video_metadata/);
+  assert.match(content, /reason_code:\s*moderatedPost\?\.moderation_reason/);
+  assert.match(content, /视频已提交审核/);
+});
+
+await test("create post form falls back on failed external video fetch", async () => {
+  const content = await fs.readFile(new URL("../src/components/forum/CreatePostForm.tsx", import.meta.url), "utf8");
+  assert.match(content, /Failed to fetch/);
+  assert.match(content, /视频已提交审核/);
+});
+
+await test("external video upload route returns JSON on catch-all errors", async () => {
+  const content = await fs.readFile(new URL("../src/pages/api/forum/external-video-upload.ts", import.meta.url), "utf8");
+  assert.match(content, /return json\(\{ error: `\[\$\{stage\}\] \$\{message\}` \}, 500\)/);
 });
 
 await test("merge moderation results prefers reject", () => {

@@ -93,7 +93,9 @@ async function loadCollectionPosts(
     (left, right) => postIds.indexOf(left.id) - postIds.indexOf(right.id),
   );
   const [mediaMap, likeCountMap, commentCountMap] = await Promise.all([
-    buildResolvedPostMediaMap(supabase, posts, 60 * 60, r2PublicBaseUrl),
+    buildResolvedPostMediaMap(supabase, posts, 60 * 60, r2PublicBaseUrl, {
+      publicProxy: true,
+    }),
     buildPostLikeCountMap(supabase, postIds),
     buildPostCommentCountMap(supabase, postIds),
   ]);

@@ -25,6 +25,14 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
+function mapVideoModerationMessage(reason: string | null | undefined) {
+  if (!reason) return null;
+  if (/openai_video_thumbnail_missing_review|video_thumbnail_required_review/i.test(reason)) {
+    return "视频已提交审核。";
+  }
+  return null;
+}
+
 function getBearerToken(request: Request): string | null {
   const authHeader = request.headers.get("authorization");
   if (!authHeader) return null;
@@ -497,13 +505,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       {
         media: inserted ?? [],
         post: moderatedPost,
+        reason_code: moderatedPost?.moderation_reason ?? mediaModeration.reason ?? null,
         pending_review: moderatedPost?.moderation_status === "pending_review",
         rejected: moderatedPost?.moderation_status === "rejected",
         message:
           moderatedPost?.moderation_status === "rejected"
             ? "帖子未通过自动审核，当前不会公开显示。"
             : moderatedPost?.moderation_status === "pending_review"
-              ? "帖子已因媒体审核进入人工审核队列。"
+              ? mapVideoModerationMessage(moderatedPost?.moderation_reason ?? mediaModeration.reason)
+                ?? "帖子已因媒体审核进入人工审核队列。"
               : "媒体已保存。",
       },
       201,

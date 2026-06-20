@@ -13,7 +13,9 @@ const supabase = createSSRClient(env);
 
 const { circles, error } = await fetchCirclesWithFallback(supabase);
 const visibleCircles = circles.filter((circle) => isPublicVisibleCircle(circle));
-const circleImageMap = await buildCircleImageMap(supabase, visibleCircles);
+const circleImageMap = await buildCircleImageMap(supabase, visibleCircles, 60 * 60, {
+  publicProxy: true,
+});
 ---
 
 <ForumLayout

@@ -371,6 +371,9 @@ export async function runForumSearch(
         limitedPosts.map((post) => ({ id: post.id, post_media: post.post_media ?? [] })),
         60 * 60,
         params.r2PublicBaseUrl,
+        {
+          publicProxy: true,
+        },
       ),
     ]);
 
