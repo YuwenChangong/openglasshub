@@ -68,8 +68,14 @@ function providerLabel(provider: string | null | undefined) {
 
 function reasonLabel(reason: string | null | undefined) {
   if (!reason) return "";
-  if (reason.startsWith("openai_flagged_")) return "OpenAI flagged";
-  if (reason.startsWith("openai_provider_error_")) return "OpenAI provider fallback";
+  if (reason === "openai_flagged_text") return "OpenAI flagged text";
+  if (reason === "openai_flagged_image") return "OpenAI flagged image";
+  if (reason === "openai_threshold_review") return "OpenAI review threshold";
+  if (reason === "openai_response_parse_error") return "OpenAI invalid response";
+  if (reason === "openai_provider_error_missing_key") return "OpenAI provider unavailable";
+  if (reason === "openai_provider_error_http") return "OpenAI provider error";
+  if (reason === "openai_provider_error_timeout") return "OpenAI provider timeout";
+  if (reason.startsWith("openai_provider_error_")) return "OpenAI provider error";
   if (reason === "openai_video_thumbnail_missing_review") return "Video thumbnail required for review";
   if (reason === "sensitive_review") return "Local rule review";
   if (reason === "personal_info") return "Possible personal info";

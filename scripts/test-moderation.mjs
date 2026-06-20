@@ -86,7 +86,7 @@ await test("local allow + openai allow => published path stays allow", async () 
       contentType: "post_body",
       userId: "u1",
       text: "想讨论一下 XREAL One 和 RayNeo X2 的日常使用差异。",
-      providerInput: { targetType: "post", body: "想讨论一下 XREAL One 和 RayNeo X2 的日常使用差异。" },
+      providerInput: { targetType: "post_text", body: "想讨论一下 XREAL One 和 RayNeo X2 的日常使用差异。" },
     },
     {
       openaiRunner: async () => ({
@@ -108,7 +108,7 @@ await test("local allow + openai review => pending_review", async () => {
       contentType: "post_body",
       userId: "u1",
       text: "测试内容",
-      providerInput: { targetType: "post", body: "测试内容" },
+      providerInput: { targetType: "post_text", body: "测试内容" },
     },
     {
       openaiRunner: async () => ({
@@ -131,7 +131,7 @@ await test("local allow + openai reject => rejected", async () => {
       contentType: "post_body",
       userId: "u1",
       text: "测试内容",
-      providerInput: { targetType: "post", body: "测试内容" },
+      providerInput: { targetType: "post_text", body: "测试内容" },
     },
     {
       openaiRunner: async () => ({
@@ -154,7 +154,7 @@ await test("local review + openai allow => pending_review", async () => {
       contentType: "post_body",
       userId: "u1",
       text: "加群获取完整资料，私聊我拿链接。",
-      providerInput: { targetType: "post", body: "加群获取完整资料，私聊我拿链接。" },
+      providerInput: { targetType: "post_text", body: "加群获取完整资料，私聊我拿链接。" },
     },
     {
       openaiRunner: async () => ({
@@ -176,7 +176,7 @@ await test("local reject does not call OpenAI", async () => {
       contentType: "post_body",
       userId: "u1",
       text: "稳赚不赔，带单老师带你一夜暴富，马上加微。",
-      providerInput: { targetType: "post", body: "稳赚不赔，带单老师带你一夜暴富，马上加微。" },
+      providerInput: { targetType: "post_text", body: "稳赚不赔，带单老师带你一夜暴富，马上加微。" },
     },
     {
       openaiRunner: async () => {
@@ -201,14 +201,15 @@ await test("OpenAI timeout + fail_mode=review => pending_review", async () => {
       contentType: "comment_body",
       userId: "u1",
       text: "正常评论",
-      providerInput: { targetType: "comment", body: "正常评论" },
+      providerInput: { targetType: "comment_text", body: "正常评论" },
     },
     {
       openaiRunner: async () => ({
         provider: "openai",
         decision: "error",
-        reasonCode: "openai_provider_error_network",
+        reasonCode: "openai_provider_error_timeout",
         flagged: false,
+        providerStatus: "timeout",
       }),
     },
   );
@@ -222,14 +223,94 @@ await test("OpenAI timeout + fail_mode=local_only => local decision", async () =
       contentType: "comment_body",
       userId: "u1",
       text: "正常评论",
-      providerInput: { targetType: "comment", body: "正常评论" },
+      providerInput: { targetType: "comment_text", body: "正常评论" },
     },
     {
       openaiRunner: async () => ({
         provider: "openai",
         decision: "error",
-        reasonCode: "openai_provider_error_network",
+        reasonCode: "openai_provider_error_timeout",
         flagged: false,
+        providerStatus: "timeout",
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+});
+
+await test("OpenAI missing key degrades to local-only for clean text", async () => {
+  const result = await moderateContent(
+    { OPENAI_MODERATION_ENABLED: "true", OPENAI_MODERATION_FAIL_MODE: "review" },
+    {
+      contentType: "post_body",
+      userId: "u1",
+      text: "想讨论一下 XREAL One 和 RayNeo Air 3s 的日常使用差异。",
+      providerInput: { targetType: "post_text", body: "想讨论一下 XREAL One 和 RayNeo Air 3s 的日常使用差异。" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_missing_key",
+        flagged: false,
+        providerStatus: "missing_key",
+        safeSummary: "OpenAI moderation key is not configured.",
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+  assert.equal(result.providerDetails?.providerStatus, "missing_key");
+});
+
+await test("clean profile text stays allow when provider config is missing", async () => {
+  const result = await moderateContent(
+    { OPENAI_MODERATION_ENABLED: "true", OPENAI_MODERATION_FAIL_MODE: "review" },
+    {
+      contentType: "profile_text",
+      userId: "u1",
+      text: "Display name: Test\nBio: AR glasses enthusiast. Interested in spatial computing.",
+      providerInput: {
+        targetType: "profile_text",
+        body: "Display name: Test\nBio: AR glasses enthusiast. Interested in spatial computing.",
+      },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_missing_key",
+        flagged: false,
+        providerStatus: "missing_key",
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+});
+
+await test("clean circle text stays allow when provider config is missing", async () => {
+  const result = await moderateContent(
+    { OPENAI_MODERATION_ENABLED: "true", OPENAI_MODERATION_FAIL_MODE: "review" },
+    {
+      contentType: "circle_description",
+      userId: "u1",
+      text: "[OPENAI-QA-FP] AR Glasses Daily\nDiscuss daily use, comfort, display quality and software experience.",
+      localInputs: [
+        { contentType: "circle_name", text: "[OPENAI-QA-FP] AR Glasses Daily" },
+        { contentType: "circle_description", text: "Discuss daily use, comfort, display quality and software experience." },
+      ],
+      providerInput: {
+        targetType: "circle_text",
+        title: "[OPENAI-QA-FP] AR Glasses Daily",
+        description: "Discuss daily use, comfort, display quality and software experience.",
+      },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_missing_key",
+        flagged: false,
+        providerStatus: "missing_key",
       }),
     },
   );
@@ -243,7 +324,7 @@ await test("image moderation disabled keeps provider input image-free path harml
       contentType: "post_body",
       userId: "u1",
       text: "正常图片帖",
-      providerInput: { targetType: "post", body: "正常图片帖", imageUrls: ["https://example.com/image.png"] },
+      providerInput: { targetType: "post_text", body: "正常图片帖", imageUrls: ["https://example.com/image.png"] },
     },
     {
       openaiRunner: async (_env, providerInput) => {
@@ -273,8 +354,9 @@ await test("image moderation enabled + flagged => pending/reject path available"
       openaiRunner: async () => ({
         provider: "openai",
         decision: "review",
-        reasonCode: "openai_flagged_sexual",
+        reasonCode: "openai_threshold_review",
         flagged: true,
+        providerStatus: "success",
         categories: ["sexual"],
         scoresSummary: { sexual: "medium" },
       }),
@@ -298,6 +380,30 @@ await test("profile text uses OpenAI primary path when enabled", async () => {
         decision: "allow",
         reasonCode: "openai_allow",
         flagged: false,
+        providerStatus: "success",
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+});
+
+await test("flagged false never maps to review by score summary alone", async () => {
+  const result = await moderateContent(
+    { OPENAI_MODERATION_ENABLED: "true" },
+    {
+      contentType: "post_body",
+      userId: "u1",
+      text: "正常内容",
+      providerInput: { targetType: "post_text", body: "正常内容" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "allow",
+        reasonCode: "openai_allow",
+        flagged: false,
+        providerStatus: "success",
+        scoresSummary: { harassment: "high" },
       }),
     },
   );
@@ -334,8 +440,9 @@ await test("asset moderation provider error respects review fail mode", async ()
       openaiRunner: async () => ({
         provider: "openai",
         decision: "error",
-        reasonCode: "openai_provider_error_network",
+        reasonCode: "openai_provider_error_timeout",
         flagged: false,
+        providerStatus: "timeout",
       }),
     },
   );
@@ -353,8 +460,30 @@ await test("asset moderation provider error respects local_only fail mode", asyn
       openaiRunner: async () => ({
         provider: "openai",
         decision: "error",
-        reasonCode: "openai_provider_error_network",
+        reasonCode: "openai_provider_error_timeout",
         flagged: false,
+        providerStatus: "timeout",
+      }),
+    },
+  );
+  assert.equal(result.decision, "allow");
+});
+
+await test("asset moderation missing key degrades to local-only even with review fail mode", async () => {
+  const result = await moderateAsset(
+    { OPENAI_MODERATION_ENABLED: "true", OPENAI_MODERATION_FAIL_MODE: "review" },
+    {
+      targetType: "post_image",
+      imageUrls: ["https://example.com/cover.png"],
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "error",
+        reasonCode: "openai_provider_error_missing_key",
+        flagged: false,
+        providerStatus: "missing_key",
+        safeSummary: "OpenAI moderation key is not configured.",
       }),
     },
   );
@@ -399,12 +528,24 @@ await test("circle creation moderates name and description before insert", async
   assert.match(content, /contentType: "circle_name"/);
   assert.match(content, /contentType: "circle_description"/);
   assert.match(content, /localInputs/);
-  assert.match(content, /code: "CONTENT_REJECTED"/);
+  assert.match(content, /CONTENT_REJECTED|MODERATION_TEMPORARILY_UNAVAILABLE/);
 });
 
 await test("profile save uses server moderation API", async () => {
   const content = await fs.readFile(new URL("../src/components/profile/EditProfileForm.tsx", import.meta.url), "utf8");
   assert.match(content, /\/api\/users\/me\/profile/);
+});
+
+await test("profile API distinguishes provider unavailability from content rejection", async () => {
+  const content = await fs.readFile(new URL("../src/pages/api/users/me/profile.ts", import.meta.url), "utf8");
+  assert.match(content, /PROFILE_MODERATION_UNAVAILABLE/);
+  assert.match(content, /资料审核暂时不可用/);
+});
+
+await test("circle APIs distinguish provider unavailability from content rejection", async () => {
+  const content = await fs.readFile(new URL("../src/pages/api/forum/circles.ts", import.meta.url), "utf8");
+  assert.match(content, /MODERATION_TEMPORARILY_UNAVAILABLE/);
+  assert.match(content, /isProviderErrorModerationResult/);
 });
 
 await test("post media moderation supports video thumbnail review fallback", async () => {

@@ -2,7 +2,10 @@ import type { APIRoute } from "astro";
 import { resolveCircleCoverUrl } from "../../../../../lib/circle-cover";
 import { CIRCLE_COVER_PREFIX } from "../../../../../lib/circle-cover";
 import { moderateAsset } from "../../../../../lib/moderation/moderate-asset.server";
-import { moderateContent } from "../../../../../lib/moderation/moderate-content.server";
+import {
+  isProviderErrorModerationResult,
+  moderateContent,
+} from "../../../../../lib/moderation/moderate-content.server";
 import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../../../lib/moderation/moderation-media.server";
 import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../../../lib/moderation/moderation-provider.server";
 import { requireManagedCircleBySlug, jsonResponse } from "../../../../../lib/server/circle-management";
@@ -178,12 +181,15 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
       });
 
       if (moderation.decision !== "allow") {
+        const unavailable = moderation.decision === "review" && isProviderErrorModerationResult(moderation);
         return jsonResponse(
           {
-            error: "CONTENT_REJECTED",
-            message: "This circle update could not be published because it may violate community rules.",
+            error: unavailable ? "MODERATION_TEMPORARILY_UNAVAILABLE" : "CONTENT_REJECTED",
+            message: unavailable
+              ? "Circle moderation is temporarily unavailable. Please try again later."
+              : "This circle update could not be published because it may violate community rules.",
           },
-          403,
+          unavailable ? 503 : 403,
         );
       }
     }

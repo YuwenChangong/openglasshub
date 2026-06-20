@@ -51,6 +51,10 @@ async function main() {
   const packageJson = await read("package.json");
   const setupDoc = await read("docs/openai-moderation-setup.md");
   const watchlistDoc = await read("docs/post-launch-watchlist.md");
+  const moderationCore = await read("src/lib/moderation/moderate-content.server.ts");
+  const moderationAsset = await read("src/lib/moderation/moderate-asset.server.ts");
+  const moderationTypes = await read("src/lib/moderation/moderation-types.ts");
+  const moderationTests = await read("scripts/test-moderation.mjs");
 
   if (/PUBLIC_OPENAI_API_KEY/i.test(envExample)) errors.push("PUBLIC_OPENAI_API_KEY should not exist");
   if (!/OPENAI_MODERATION_ENABLED=false/.test(envExample)) errors.push("OPENAI_MODERATION_ENABLED should default to false in .env.example");
@@ -64,6 +68,12 @@ async function main() {
   if (!/primary server-side moderation provider/i.test(setupDoc)) errors.push("openai moderation setup doc should describe OpenAI as primary provider when enabled");
   if (!/profile avatar \/ banner/i.test(setupDoc)) errors.push("openai moderation setup doc should cover profile images");
   if (!/Full video moderation still not implemented/i.test(watchlistDoc)) errors.push("watchlist should mention full video moderation is not implemented");
+  if (!/openai_provider_error_missing_key/.test(moderationTypes)) errors.push("moderation types missing openai_provider_error_missing_key");
+  if (!/openai_threshold_review/.test(moderationTypes)) errors.push("moderation types missing openai_threshold_review");
+  if (!/isConfigLevelProviderStatus/.test(moderationCore)) errors.push("moderation core missing config-level provider fallback helper");
+  if (!/isConfigLevelProviderStatus/.test(moderationAsset)) errors.push("asset moderation missing config-level provider fallback helper");
+  if (!/OpenAI missing key degrades to local-only for clean text/.test(moderationTests)) errors.push("missing test for provider missing-key local-only clean text path");
+  if (!/flagged false never maps to review by score summary alone/.test(moderationTests)) errors.push("missing test for flagged false allow mapping");
 
   const srcFiles = await walk(path.resolve(process.cwd(), "src"));
   const distDir = path.resolve(process.cwd(), "dist");

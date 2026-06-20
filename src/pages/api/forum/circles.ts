@@ -11,7 +11,10 @@ import {
   requireForumUser,
   isCircleManager,
 } from "../../../lib/server/circle-management";
-import { moderateContent } from "../../../lib/moderation/moderate-content.server";
+import {
+  isProviderErrorModerationResult,
+  moderateContent,
+} from "../../../lib/moderation/moderate-content.server";
 import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../lib/moderation/moderation-media.server";
 import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../lib/moderation/moderation-provider.server";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
@@ -183,12 +186,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       },
     });
     if (moderation.decision !== "allow") {
+      const unavailable = moderation.decision === "review" && isProviderErrorModerationResult(moderation);
       return jsonResponse(
         {
-          error: "This circle could not be created because it may violate community rules.",
-          code: "CONTENT_REJECTED",
+          error: unavailable ? "MODERATION_TEMPORARILY_UNAVAILABLE" : "This circle could not be created because it may violate community rules.",
+          code: unavailable ? "MODERATION_TEMPORARILY_UNAVAILABLE" : "CONTENT_REJECTED",
         },
-        403,
+        unavailable ? 503 : 403,
       );
     }
 
@@ -362,12 +366,15 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
       });
 
       if (moderation.decision !== "allow") {
+        const unavailable = moderation.decision === "review" && isProviderErrorModerationResult(moderation);
         return jsonResponse(
           {
-            error: "CONTENT_REJECTED",
-            message: "This circle update could not be published because it may violate community rules.",
+            error: unavailable ? "MODERATION_TEMPORARILY_UNAVAILABLE" : "CONTENT_REJECTED",
+            message: unavailable
+              ? "Circle moderation is temporarily unavailable. Please try again later."
+              : "This circle update could not be published because it may violate community rules.",
           },
-          403,
+          unavailable ? 503 : 403,
         );
       }
     }

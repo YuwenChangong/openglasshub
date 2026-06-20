@@ -34,6 +34,7 @@
 ## Cloudflare setup
 
 - Store `OPENAI_API_KEY` as a server-side secret only.
+- Ensure `OPENAI_API_KEY` exists in both Preview and Production if `OPENAI_MODERATION_ENABLED=true`.
 - Do not expose `OPENAI_API_KEY` through any `PUBLIC_*` variable.
 - Start Preview stage 1 with:
   - `OPENAI_MODERATION_ENABLED=true`
@@ -90,6 +91,8 @@
   - `review`: provider failure routes content to review
   - `local_only`: provider failure falls back to local decision
   - `reject`: provider failure rejects content
+- Special case:
+  - if OpenAI is enabled but the key is missing, the runtime falls back to local-only with an internal provider diagnostic instead of silently forcing all clean content into review
 
 ## Privacy notes
 

@@ -24,9 +24,18 @@ import type {
   ModerationInput,
   ModerationLocalInput,
   ModerationProviderInput,
+  ModerationProviderStatus,
   ModerationReasonCode,
   ModerationResult,
 } from "./moderation-types.ts";
+
+function isConfigLevelProviderStatus(status: ModerationProviderStatus | undefined): boolean {
+  return status === "missing_key" || status === "disabled";
+}
+
+function isProviderErrorReason(reason: string | null | undefined): boolean {
+  return Boolean(reason && (reason.startsWith("openai_provider_error_") || reason === "openai_response_parse_error"));
+}
 
 function buildResult(
   decision: ModerationDecision,
@@ -36,7 +45,18 @@ function buildResult(
   provider: ModerationResult["provider"],
   providerDetails?: ModerationResult["providerDetails"],
 ): ModerationResult {
-  return { decision, reason, score, matchedRules, provider, providerDetails };
+  return {
+    decision,
+    reason,
+    score,
+    matchedRules,
+    provider,
+    providerDetails: {
+      decisionPath: decision,
+      reasonCode: reason,
+      ...providerDetails,
+    },
+  };
 }
 
 function extractLinks(text: string): string[] {
@@ -225,8 +245,15 @@ function mapOpenAIResultToModerationResult(
   categories?: string[],
   scoresSummary?: Record<string, "low" | "medium" | "high">,
   providerError?: string | null,
+  providerStatus?: ModerationProviderStatus,
+  safeSummary?: string | null,
 ): ModerationResult {
   return buildResult(decision, reason as ModerationReasonCode | null, score, matchedRules, "local+openai", {
+    decisionSource: "openai",
+    decisionPath: decision,
+    reasonCode: reason as ModerationReasonCode | null,
+    providerStatus,
+    safeSummary,
     categories,
     scoresSummary,
     providerError,
@@ -282,20 +309,40 @@ export async function moderateContent(
   const openaiRunner = options?.openaiRunner ?? runOpenAIModeration;
   const openaiResult = await openaiRunner(env, providerInput);
   if (openaiResult.decision === "error") {
+    const providerStatus = openaiResult.providerStatus;
+    const forceLocalOnly = isConfigLevelProviderStatus(providerStatus);
     const failMode = resolveOpenAIFailMode(env);
     if (localResult.decision === "review") {
       return {
         ...localResult,
         provider: "local+openai",
-        providerDetails: { providerError: openaiResult.reasonCode },
+        providerDetails: {
+          decisionSource: "provider_error",
+          decisionPath: "review",
+          reasonCode: openaiResult.reasonCode,
+          providerStatus,
+          safeSummary: openaiResult.safeSummary ?? null,
+          localDecision: localResult.decision,
+          openaiDecision: openaiResult.decision,
+          providerError: openaiResult.reasonCode,
+        },
       };
     }
-    if (failMode === "local_only") {
+    if (failMode === "local_only" || forceLocalOnly) {
       return {
         ...localResult,
         provider: "local+openai",
         matchedRules: Array.from(new Set([...localResult.matchedRules, openaiResult.reasonCode])),
-        providerDetails: { providerError: openaiResult.reasonCode },
+        providerDetails: {
+          decisionSource: forceLocalOnly ? "fallback" : "provider_error",
+          decisionPath: localResult.decision,
+          reasonCode: openaiResult.reasonCode,
+          providerStatus,
+          safeSummary: openaiResult.safeSummary ?? null,
+          localDecision: localResult.decision,
+          openaiDecision: openaiResult.decision,
+          providerError: openaiResult.reasonCode,
+        },
       };
     }
     return mapOpenAIResultToModerationResult(
@@ -306,6 +353,8 @@ export async function moderateContent(
       undefined,
       undefined,
       openaiResult.reasonCode,
+      providerStatus,
+      openaiResult.safeSummary ?? null,
     );
   }
 
@@ -318,6 +367,9 @@ export async function moderateContent(
         [`openai:${openaiResult.reasonCode}`],
         openaiResult.categories,
         openaiResult.scoresSummary,
+        undefined,
+        openaiResult.providerStatus,
+        openaiResult.safeSummary ?? null,
       );
     }
     return {
@@ -325,6 +377,13 @@ export async function moderateContent(
       provider: "local+openai",
       matchedRules: Array.from(new Set([...localResult.matchedRules, ...(openaiResult.decision === "review" ? [`openai:${openaiResult.reasonCode}`] : [])])),
       providerDetails: {
+        decisionSource: openaiResult.decision === "review" ? "local+openai" : "local",
+        decisionPath: localResult.decision,
+        reasonCode: openaiResult.reasonCode,
+        providerStatus: openaiResult.providerStatus,
+        safeSummary: openaiResult.safeSummary ?? null,
+        localDecision: localResult.decision,
+        openaiDecision: openaiResult.decision,
         categories: openaiResult.categories,
         scoresSummary: openaiResult.scoresSummary,
       },
@@ -336,6 +395,13 @@ export async function moderateContent(
       ...localResult,
       provider: "local+openai",
       providerDetails: {
+        decisionSource: "openai",
+        decisionPath: localResult.decision,
+        reasonCode: openaiResult.reasonCode,
+        providerStatus: openaiResult.providerStatus,
+        safeSummary: openaiResult.safeSummary ?? null,
+        localDecision: localResult.decision,
+        openaiDecision: openaiResult.decision,
         categories: openaiResult.categories,
         scoresSummary: openaiResult.scoresSummary,
       },
@@ -349,5 +415,12 @@ export async function moderateContent(
     [`openai:${openaiResult.reasonCode}`],
     openaiResult.categories,
     openaiResult.scoresSummary,
+    undefined,
+    openaiResult.providerStatus,
+    openaiResult.safeSummary ?? null,
   );
+}
+
+export function isProviderErrorModerationResult(result: Pick<ModerationResult, "reason">): boolean {
+  return isProviderErrorReason(result.reason);
 }

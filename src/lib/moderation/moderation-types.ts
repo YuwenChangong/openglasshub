@@ -15,10 +15,16 @@ export type LocalModerationReasonCode =
   | "sensitive_review";
 
 export type OpenAIModerationReasonCode =
-  | `openai_flagged_${string}`
+  | "openai_flagged_text"
+  | "openai_flagged_image"
+  | "openai_threshold_review"
   | "openai_provider_error_review"
   | "openai_provider_error_reject"
   | "openai_provider_error_local_only"
+  | "openai_provider_error_missing_key"
+  | "openai_provider_error_http"
+  | "openai_provider_error_timeout"
+  | "openai_response_parse_error"
   | "openai_video_thumbnail_missing_review";
 
 export type ModerationReasonCode = LocalModerationReasonCode | OpenAIModerationReasonCode;
@@ -40,6 +46,15 @@ export type ModerationProviderName =
   | "tencent-disabled";
 
 export type ModerationFailMode = "review" | "reject" | "allow" | "local_only";
+export type ModerationDecisionSource = "local" | "openai" | "local+openai" | "provider_error" | "fallback";
+export type ModerationProviderStatus =
+  | "success"
+  | "timeout"
+  | "http_error"
+  | "invalid_response"
+  | "missing_key"
+  | "disabled"
+  | "network_error";
 
 export type ModerationProviderTargetType =
   | "post_text"
@@ -84,8 +99,12 @@ export interface OpenAIModerationResult {
   decision: "allow" | "review" | "reject" | "error";
   reasonCode: string;
   flagged: boolean;
+  providerStatus?: ModerationProviderStatus;
+  decisionSource?: ModerationDecisionSource;
+  decisionPath?: ModerationDecision;
   categories?: string[];
   scoresSummary?: Record<string, "low" | "medium" | "high">;
+  safeSummary?: string | null;
 }
 
 export interface ModerationResult {
@@ -95,6 +114,13 @@ export interface ModerationResult {
   matchedRules: string[];
   provider: ModerationProviderName;
   providerDetails?: {
+    decisionSource?: ModerationDecisionSource;
+    decisionPath?: ModerationDecision;
+    reasonCode?: ModerationReasonCode | string | null;
+    providerStatus?: ModerationProviderStatus;
+    safeSummary?: string | null;
+    localDecision?: ModerationDecision;
+    openaiDecision?: ModerationDecision | "error";
     categories?: string[];
     scoresSummary?: Record<string, "low" | "medium" | "high">;
     providerError?: string | null;

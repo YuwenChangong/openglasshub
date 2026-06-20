@@ -1,6 +1,9 @@
 import type { APIRoute } from "astro";
 import { moderateAsset } from "../../../../lib/moderation/moderate-asset.server";
-import { moderateContent } from "../../../../lib/moderation/moderate-content.server";
+import {
+  isProviderErrorModerationResult,
+  moderateContent,
+} from "../../../../lib/moderation/moderate-content.server";
 import {
   createSignedModerationUrls,
   removeStoragePathIfAllowed,
@@ -147,12 +150,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
     if (textModeration.decision !== "allow") {
+      const unavailable = textModeration.decision === "review" && isProviderErrorModerationResult(textModeration);
       return jsonResponse(
         {
-          error: "PROFILE_CONTENT_REJECTED",
-          message: "资料内容需要调整后再保存。",
+          error: unavailable ? "PROFILE_MODERATION_UNAVAILABLE" : "PROFILE_CONTENT_REJECTED",
+          message: unavailable ? "资料审核暂时不可用，请稍后重试。" : "资料内容需要调整后再保存。",
         },
-        403,
+        unavailable ? 503 : 403,
       );
     }
 

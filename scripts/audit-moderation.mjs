@@ -77,7 +77,7 @@ async function main() {
   if (!postsApi.includes("moderateContent(")) fail(errors, "posts API does not call moderateContent");
   if (!commentsApi.includes("moderateContent(")) fail(errors, "comments API does not call moderateContent");
   if (!circlesApi.includes('contentType: "circle_name"')) fail(errors, "circles API missing circle_name moderation");
-  if (!circlesApi.includes('code: "CONTENT_REJECTED"')) fail(errors, "circles API missing reject path");
+  if (!/CONTENT_REJECTED|MODERATION_TEMPORARILY_UNAVAILABLE/.test(circlesApi)) fail(errors, "circles API missing reject path");
   if (!circleManageApi.includes('targetType: "circle_text"')) fail(errors, "circle manage API missing text moderation");
   if (!adminCirclesApi.includes('targetType: "circle_text"')) fail(errors, "admin circles API missing text moderation");
   if (!profileApi.includes('targetType: "profile_text"')) fail(errors, "profile API missing text moderation");
@@ -119,6 +119,8 @@ async function main() {
   if (!moderationComponent.includes("/api/admin/moderation/hide")) fail(errors, "moderation queue missing hide action");
   if (!moderationComponent.includes('item.moderation_status === "pending_review"')) fail(errors, "admin moderation queue missing handled-state action guard");
   if (!moderationComponent.includes("OpenAI flagged")) fail(errors, "admin moderation queue missing friendly OpenAI reason label");
+  if (!moderationComponent.includes("OpenAI provider unavailable")) fail(errors, "admin moderation queue missing provider unavailable label");
+  if (!moderationComponent.includes("OpenAI invalid response")) fail(errors, "admin moderation queue missing invalid response label");
   if (!postsApi.includes("localInputs")) fail(errors, "posts API missing unified localInputs moderation path");
   if (!circlesApi.includes("localInputs")) fail(errors, "circles API missing unified localInputs moderation path");
   if (!commentsApi.includes('targetType: "comment_text"')) fail(errors, "comments API missing provider input target type");
@@ -126,6 +128,14 @@ async function main() {
   if (!postMediaApi.includes("openai_video_thumbnail_missing_review")) fail(errors, "post media API missing thumbnail review fallback");
   if (!moderationCore.includes('resolveOpenAIFailMode')) fail(errors, "moderation core missing OpenAI fail mode handling");
   if (!moderationCore.includes('openai_provider_error_review')) fail(errors, "moderation core missing default fail-closed review path");
+  if (!openaiProviderSource.includes('openai_provider_error_missing_key')) fail(errors, "openai provider missing provider missing key handling");
+  if (!openaiProviderSource.includes('openai_threshold_review')) fail(errors, "openai provider missing threshold review mapping");
+  if (!profileApi.includes("PROFILE_MODERATION_UNAVAILABLE")) fail(errors, "profile API missing provider unavailable path");
+  if (!circlesApi.includes("MODERATION_TEMPORARILY_UNAVAILABLE")) fail(errors, "circles API missing provider unavailable path");
+  if (!openaiProviderSource.includes('flagged === true')) fail(errors, "openai provider missing flagged-based decision mapping");
+  if (openaiProviderSource.includes('Object.values(scoresObject).some((score) => Number(score) >= 0.85);') && !openaiProviderSource.includes('if (!flagged)')) {
+    fail(errors, "openai provider appears to map scores without flagged guard");
+  }
 
   const clientRoots = ["src/components", "src/pages"];
   for (const root of clientRoots) {

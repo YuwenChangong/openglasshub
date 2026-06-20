@@ -2,7 +2,10 @@ import type { APIRoute } from "astro";
 import { buildUniqueCircleSlug, slugifyCircleName } from "../../../../lib/circle-slug";
 import { buildCircleCoverUrlMap, CIRCLE_COVER_PREFIX, resolveCircleCoverUrl } from "../../../../lib/circle-cover";
 import { moderateAsset } from "../../../../lib/moderation/moderate-asset.server";
-import { moderateContent } from "../../../../lib/moderation/moderate-content.server";
+import {
+  isProviderErrorModerationResult,
+  moderateContent,
+} from "../../../../lib/moderation/moderate-content.server";
 import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../../lib/moderation/moderation-media.server";
 import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../../lib/moderation/moderation-provider.server";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
@@ -203,7 +206,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       },
     });
     if (textModeration.decision !== "allow") {
-      return jsonResponse({ error: "CONTENT_REJECTED" }, 403);
+      const unavailable = textModeration.decision === "review" && isProviderErrorModerationResult(textModeration);
+      return jsonResponse({ error: unavailable ? "MODERATION_TEMPORARILY_UNAVAILABLE" : "CONTENT_REJECTED" }, unavailable ? 503 : 403);
     }
 
     const coverModeration = await moderateCircleCoverImage({
@@ -340,7 +344,8 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
         },
       });
       if (textModeration.decision !== "allow") {
-        return jsonResponse({ error: "CONTENT_REJECTED" }, 403);
+        const unavailable = textModeration.decision === "review" && isProviderErrorModerationResult(textModeration);
+        return jsonResponse({ error: unavailable ? "MODERATION_TEMPORARILY_UNAVAILABLE" : "CONTENT_REJECTED" }, unavailable ? 503 : 403);
       }
     }
 
