@@ -75,7 +75,7 @@ async function main() {
   if (!profileApi.includes("moderateContent(")) errors.push("profile API does not call moderateContent");
   if (!profileApi.includes("moderateAsset(")) errors.push("profile API does not call moderateAsset");
   if (!circlesApi.includes("moderateAsset(")) errors.push("circles API does not call moderateAsset");
-  if (!postMediaApi.includes("moderateAsset(")) errors.push("post media API does not call moderateAsset");
+  if (!postMediaApi.includes("moderateContent(")) errors.push("post media API does not call moderateContent");
   if (!/createSignedModerationUrls/.test(moderationMedia)) errors.push("moderation media helper missing signed moderation url resolver");
   if (!/absolutizeSignedUrl/.test(moderationMedia)) errors.push("moderation media helper should absolutize signed URLs");
   if (/\.single\(\)/.test(moderationAdmin)) errors.push("moderation admin actions should avoid unsafe .single() coercion");

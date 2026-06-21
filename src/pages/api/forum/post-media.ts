@@ -6,11 +6,10 @@ import {
   isOpenAIPostImageModerationEnabled,
   isOpenAIVideoThumbnailModerationEnabled,
   resolveModerationProvider,
-  resolveVideoPostFailMode,
   runMockModerationProvider,
 } from "../../../lib/moderation/moderation-provider.server";
 import { runOpenAIModeration } from "../../../lib/moderation/openai-moderation-provider.server";
-import { moderateAsset } from "../../../lib/moderation/moderate-asset.server";
+import { moderateContent } from "../../../lib/moderation/moderate-content.server";
 import { createSignedModerationUrls } from "../../../lib/moderation/moderation-media.server";
 
 export const prerender = false;
@@ -212,10 +211,24 @@ async function moderatePostMedia(params: {
   const result =
     provider === "mock"
       ? await runMockModerationProvider(providerInput)
-      : await moderateAsset(env, providerInput, {
-          failMode: hasVideo ? resolveVideoPostFailMode(env) : undefined,
-          openaiRunner: runOpenAIModeration,
-        });
+      : await moderateContent(
+          env,
+          {
+            contentType: "post_body",
+            userId,
+            text: [
+              String(post.title ?? "").trim(),
+              String(post.body ?? "").trim(),
+              ...mediaTextParts,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+            providerInput,
+          },
+          {
+            openaiRunner: runOpenAIModeration,
+          },
+        );
 
   return {
     decision: result.decision,
@@ -460,26 +473,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       | null = null;
 
     if (mediaModeration.decision !== "allow") {
-      const updatePayload =
-        mediaModeration.decision === "reject"
-          ? {
-              status: "hidden",
-              moderation_status: "rejected",
-              moderation_reason: mediaModeration.reason,
-              moderation_score: mediaModeration.score,
-              moderation_provider: mediaModeration.provider,
-              moderated_at: new Date().toISOString(),
-              moderated_by: null,
-            }
-          : {
-              status: "pending",
-              moderation_status: "pending_review",
-              moderation_reason: mediaModeration.reason,
-              moderation_score: mediaModeration.score,
-              moderation_provider: mediaModeration.provider,
-              moderated_at: new Date().toISOString(),
-              moderated_by: null,
-            };
+      const updatePayload = {
+        status: "pending",
+        moderation_status: "pending_review",
+        moderation_reason: mediaModeration.reason,
+        moderation_score: mediaModeration.score,
+        moderation_provider: mediaModeration.provider,
+        moderated_at: new Date().toISOString(),
+        moderated_by: null,
+      };
 
       const { data: updatedPost, error: updateError } = await userClient
         .from("posts")
@@ -508,14 +510,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
         post: moderatedPost,
         reason_code: moderatedPost?.moderation_reason ?? mediaModeration.reason ?? null,
         pending_review: moderatedPost?.moderation_status === "pending_review",
-        rejected: moderatedPost?.moderation_status === "rejected",
+        rejected: false,
         message:
-          moderatedPost?.moderation_status === "rejected"
-            ? "帖子未通过自动审核，当前不会公开显示。"
-            : moderatedPost?.moderation_status === "pending_review"
-              ? mapVideoModerationMessage(moderatedPost?.moderation_reason ?? mediaModeration.reason)
-                ?? "帖子已因媒体审核进入人工审核队列。"
-              : "媒体已保存。",
+          moderatedPost?.moderation_status === "pending_review"
+            ? mapVideoModerationMessage(moderatedPost?.moderation_reason ?? mediaModeration.reason)
+              ?? "帖子已因媒体审核进入人工审核队列。"
+            : "媒体已保存。",
       },
       201,
     );

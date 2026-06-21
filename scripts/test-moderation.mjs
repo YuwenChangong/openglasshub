@@ -948,6 +948,41 @@ await test("avatar and banner provider unavailable stay blocked/review", async (
   }
 });
 
+await test("media metadata local rules still catch 嫖娼 before OpenAI allow", async () => {
+  const result = await moderateContent(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+      OPENAI_MODERATION_FAIL_MODE: "review",
+      OPENAI_FORUM_POLICY_ENABLED: "false",
+    },
+    {
+      contentType: "post_body",
+      userId: "user-1",
+      text: "Video caption: 嫖娼",
+      providerInput: {
+        targetType: "post_video_metadata",
+        title: "clean video",
+        body: "Video caption: 嫖娼",
+        imageUrls: ["https://example.com/thumb.png"],
+        localeHint: "zh-CN",
+      },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "allow",
+        reasonCode: "openai_allow",
+        flagged: false,
+        providerStatus: "success",
+      }),
+    },
+  );
+
+  assert.equal(result.decision, "review");
+  assert.equal(result.reason, "illegal_goods_or_services");
+  assert.equal(result.provider, "local");
+});
+
 await test("routes still wire moderation for all write paths", async () => {
   const postsApi = await read("src/pages/api/forum/posts.ts");
   const commentsApi = await read("src/pages/api/forum/comments.ts");
@@ -961,7 +996,7 @@ await test("routes still wire moderation for all write paths", async () => {
   assert.match(profileApi, /moderateContent\(/);
   assert.match(profileApi, /moderateAsset\(/);
   assert.match(circlesApi, /moderateAsset\(/);
-  assert.match(postMediaApi, /moderateAsset\(/);
+  assert.match(postMediaApi, /moderateContent\(/);
 });
 
 await test("public visibility paths still require moderation_status published", async () => {
