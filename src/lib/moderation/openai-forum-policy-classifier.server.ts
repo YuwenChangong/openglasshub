@@ -14,6 +14,8 @@ const keyEnvName = String.fromCharCode(
   79, 80, 69, 78, 65, 73, 95, 65, 80, 73, 95, 75, 69, 89,
 );
 
+// Optional paid enhancement only. Default moderation must not rely on this path.
+
 export type ForumPolicyClassifierInput = {
   targetType: string;
   title?: string;

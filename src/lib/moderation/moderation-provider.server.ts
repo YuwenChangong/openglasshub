@@ -63,9 +63,11 @@ export function resolveVideoPostFailMode(env: ModerationRuntimeEnv): Extract<Mod
   return raw === "reject" ? "reject" : "review";
 }
 
-export function isOpenAIForumPolicyEnabled(env: ModerationRuntimeEnv): boolean {
+export function isOpenAIForumPolicyClassifierEnabled(env: ModerationRuntimeEnv): boolean {
   return resolveBooleanFlag(env.OPENAI_FORUM_POLICY_ENABLED, false);
 }
+
+export const isOpenAIForumPolicyEnabled = isOpenAIForumPolicyClassifierEnabled;
 
 export function resolveOpenAIForumPolicyModel(env: ModerationRuntimeEnv): string {
   return String(env.OPENAI_FORUM_POLICY_MODEL ?? "").trim();

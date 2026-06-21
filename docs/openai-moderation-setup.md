@@ -1,14 +1,22 @@
 # OpenAI Moderation Setup
 
-## Layered moderation stack
+## Default moderation stack:
 
-OpenGlass Hub now uses three layers for forum write paths:
+OpenGlass Hub default moderation for forum write paths is:
 
 1. Local sensitive lexicon + OpenGlass hard rules
 2. OpenAI Moderation API
-3. OpenAI forum policy classifier
+3. Admin queue / pending review
 
-Only content that passes every active layer can publish publicly.
+Only content that passes the active default layers can publish publicly.
+
+## Optional paid enhancement
+
+- OpenAI forum policy classifier
+- disabled by default
+- only enabled when `OPENAI_FORUM_POLICY_ENABLED=true`
+- uses a normal OpenAI model, not the dedicated moderation endpoint
+- may consume API credits / cost money
 
 ## Source inputs
 
@@ -86,6 +94,7 @@ Critical coverage note:
 
 - Runs server-side only
 - Uses a normal OpenAI model to classify OpenGlass Hub policy violations into strict JSON
+- Disabled by default
 - Provider errors, invalid JSON, missing model, and timeouts fail closed
 
 ## Provider unavailable modes

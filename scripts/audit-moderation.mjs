@@ -62,6 +62,7 @@ async function main() {
   const providerSource = await read("src/lib/moderation/moderation-provider.server.ts");
   const matcherSource = await read("src/lib/moderation/local-sensitive-lexicon.server.ts");
   const policyDoc = await read("docs/moderation-policy.md");
+  const setupDoc = await read("docs/openai-moderation-setup.md");
   const customReview = await read("src/data/moderation/custom-reviewlist.json");
   const customDeny = await read("src/data/moderation/custom-denylist.json");
   const customAllow = await read("src/data/moderation/custom-allowlist.json");
@@ -77,8 +78,11 @@ async function main() {
   if (!/runOpenAIForumPolicyClassifier/.test(moderationCore)) errors.push("moderation core missing forum policy classifier layer");
   if (!/resolveModerationProviderUnavailablePolicy/.test(providerSource)) errors.push("provider unavailable policy resolver missing");
   if (!/openai_provider_unavailable_local_allow/.test(moderationCore)) errors.push("moderation core missing degraded local-only reason");
+  if (!/forumPolicyClassifierEnabled/.test(moderationCore)) errors.push("moderation core missing explicit optional classifier gate");
   if (!/local_only_safe/.test(policyDoc)) errors.push("moderation policy doc missing local_only_safe mode");
   if (!/not equivalent to full OpenAI moderation/i.test(policyDoc)) errors.push("moderation policy doc should explain degraded mode is not full OpenAI moderation");
+  if (!/Default moderation stack/i.test(setupDoc)) errors.push("setup doc should describe the default moderation stack");
+  if (!/Optional paid enhancement/i.test(setupDoc)) errors.push("setup doc should describe paid classifier as optional");
   if (!/reject|review|allow/.test(policyDoc)) errors.push("moderation policy doc looks incomplete");
   if (!/compiledLexicon/.test(matcherSource)) errors.push("local matcher does not appear to cache compiled lexicon data");
   if (!/isLocalDegradedModerationResult/.test(postsApi)) errors.push("posts API does not preserve degraded metadata");

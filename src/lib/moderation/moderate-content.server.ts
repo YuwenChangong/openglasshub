@@ -10,7 +10,7 @@ import {
 } from "./local-sensitive-lexicon.server.ts";
 import {
   buildModerationProviderInput,
-  isOpenAIForumPolicyEnabled,
+  isOpenAIForumPolicyClassifierEnabled,
   resolveModerationProvider,
   resolveOpenAIFailMode,
   resolveOpenAIForumPolicyFailMode,
@@ -484,7 +484,9 @@ export async function moderateContent(
     finalResult = mergeModerationResults([finalResult, mapOpenAIResultToModerationResult(openaiResult)]);
   }
 
-  if (finalResult.decision !== "reject" && isOpenAIForumPolicyEnabled(env)) {
+  const forumPolicyClassifierEnabled = isOpenAIForumPolicyClassifierEnabled(env);
+
+  if (finalResult.decision !== "reject" && forumPolicyClassifierEnabled) {
     const forumClassifierRunner = options?.forumClassifierRunner ?? runOpenAIForumPolicyClassifier;
     const forumResult = await forumClassifierRunner(env, buildForumPolicyInput(input, providerInput, finalResult));
 

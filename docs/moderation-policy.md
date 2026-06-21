@@ -1,5 +1,13 @@
 # Moderation Policy
 
+## Default moderation stack
+
+1. Local sensitive lexicon + OpenGlass hard rules
+2. OpenAI Moderation API
+3. Admin queue / pending review
+
+The OpenAI forum policy classifier is an optional paid enhancement and is disabled by default.
+
 ## Decision model
 
 - `allow`: content can publish or save
@@ -53,6 +61,7 @@ Critical term note:
 - Do not expose raw OpenAI responses or category scores to users
 - Do not expose full sensitive term lists to the client
 - Do not claim full video-stream moderation
+- Do not assume the optional forum policy classifier is enabled
 
 ## Provider unavailable policy
 

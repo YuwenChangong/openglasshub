@@ -20,8 +20,8 @@ async function run() {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     QA_OPENAI_API_KEY: process.env.QA_OPENAI_API_KEY,
     OPENAI_MODERATION_ENABLED: canRunProvider ? "true" : "false",
-    OPENAI_FORUM_POLICY_ENABLED: canRunProvider && boolEnv("OPENAI_FORUM_POLICY_ENABLED") ? "true" : "false",
-    OPENAI_FORUM_POLICY_MODEL: process.env.OPENAI_FORUM_POLICY_MODEL,
+    OPENAI_FORUM_POLICY_ENABLED: "false",
+    OPENAI_FORUM_POLICY_MODEL: "",
     OPENAI_MODERATION_MODEL: process.env.OPENAI_MODERATION_MODEL,
   };
 

@@ -64,12 +64,17 @@ async function main() {
   if (!/MODERATION_PROVIDER_UNAVAILABLE_POLICY=review_all/.test(envExample)) errors.push(".env.example missing MODERATION_PROVIDER_UNAVAILABLE_POLICY=review_all");
   if (!/OPENAI_FORUM_POLICY_ENABLED=false/.test(envExample)) errors.push(".env.example missing OPENAI_FORUM_POLICY_ENABLED=false");
   if (!/OPENAI_FORUM_POLICY_FAIL_MODE=review/.test(envExample)) errors.push(".env.example missing OPENAI_FORUM_POLICY_FAIL_MODE=review");
+  if (!/Optional paid enhancement/i.test(setupDoc)) errors.push("setup doc should mark forum policy classifier as optional paid enhancement");
+  if (!/Default moderation stack:/i.test(setupDoc)) errors.push("setup doc should declare the default moderation stack");
+  if (!/OpenAI forum policy classifier[\s\S]*disabled by default/i.test(setupDoc)) errors.push("setup doc should state classifier is disabled by default");
+  if (!/normal OpenAI model/i.test(setupDoc) || !/cost money|consume API credits/i.test(setupDoc)) errors.push("setup doc should explain classifier uses a paid normal model");
   if (!/test:sensitive-lexicon/.test(packageJson)) errors.push("package.json missing test:sensitive-lexicon");
   if (!/server-side only/i.test(setupDoc) && !/server-only/i.test(setupDoc)) errors.push("setup doc should mention server-only key handling");
   if (!/local_only_safe/i.test(setupDoc)) errors.push("setup doc should document degraded local_only_safe behavior");
   if (!/does not count as OpenAI success/i.test(setupDoc)) errors.push("setup doc should state provider errors are not OpenAI success");
   if (!/fail closed/i.test(setupDoc)) errors.push("setup doc should document fail-closed behavior");
   if (!/Full video-stream moderation is not implemented/i.test(setupDoc)) errors.push("setup doc should document video limitation");
+  if (!/forumPolicyClassifierEnabled/.test(moderationCore)) errors.push("moderation core should use an explicit forum policy classifier enable gate");
   if (!/openai_provider_unavailable_local_allow/.test(moderationCore)) errors.push("moderation core missing degraded local-only allow reason");
   if (!/resolveModerationProviderUnavailablePolicy/.test(moderationCore)) errors.push("moderation core missing provider unavailable policy resolver");
   if (!/http_429|http_5xx/.test(providerSource)) errors.push("OpenAI moderation provider missing 429/5xx status mapping");

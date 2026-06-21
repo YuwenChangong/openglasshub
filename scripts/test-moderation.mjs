@@ -122,6 +122,81 @@ await test("OpenAI moderation provider allow keeps clean content allow", async (
   assert.equal(result.decision, "allow");
 });
 
+await test("forum classifier runner is not called by default when flag is absent", async () => {
+  let forumRunnerCalled = false;
+  const result = await moderateContent(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+    },
+    {
+      contentType: "post_body",
+      userId: "u1",
+      text: "正常 AR 讨论内容。",
+      providerInput: { targetType: "post_text", body: "正常 AR 讨论内容。" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "allow",
+        reasonCode: "openai_allow",
+        flagged: false,
+        providerStatus: "success",
+      }),
+      forumClassifierRunner: async () => {
+        forumRunnerCalled = true;
+        return {
+          provider: "forum_policy",
+          decision: "reject",
+          reasonCode: "forum_policy_spam_or_promotion",
+          confidence: "high",
+          matchedPolicy: "spam_or_promotion",
+          providerStatus: "success",
+        };
+      },
+    },
+  );
+  assert.equal(result.decision, "allow");
+  assert.equal(forumRunnerCalled, false);
+});
+
+await test("forum classifier runner is not called when disabled explicitly", async () => {
+  let forumRunnerCalled = false;
+  const result = await moderateContent(
+    {
+      OPENAI_MODERATION_ENABLED: "true",
+      OPENAI_FORUM_POLICY_ENABLED: "false",
+    },
+    {
+      contentType: "post_body",
+      userId: "u1",
+      text: "正常 AR 讨论内容。",
+      providerInput: { targetType: "post_text", body: "正常 AR 讨论内容。" },
+    },
+    {
+      openaiRunner: async () => ({
+        provider: "openai",
+        decision: "allow",
+        reasonCode: "openai_allow",
+        flagged: false,
+        providerStatus: "success",
+      }),
+      forumClassifierRunner: async () => {
+        forumRunnerCalled = true;
+        return {
+          provider: "forum_policy",
+          decision: "reject",
+          reasonCode: "forum_policy_spam_or_promotion",
+          confidence: "high",
+          matchedPolicy: "spam_or_promotion",
+          providerStatus: "success",
+        };
+      },
+    },
+  );
+  assert.equal(result.decision, "allow");
+  assert.equal(forumRunnerCalled, false);
+});
+
 await test("OpenAI moderation flagged provider can force review", async () => {
   const result = await moderateContent(
     { OPENAI_MODERATION_ENABLED: "true", OPENAI_FORUM_POLICY_ENABLED: "false" },
