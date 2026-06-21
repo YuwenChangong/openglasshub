@@ -54,6 +54,12 @@ async function ensureUser(client, { email, password }) {
     const { data, error } = await client.auth.admin.updateUserById(current.id, {
       password,
       email_confirm: true,
+      ban_duration: "none",
+      user_metadata: {
+        ...(current.user_metadata ?? {}),
+        qa_disabled: false,
+        qa_cleanup_at: null,
+      },
     });
     if (error) throw error;
     return data.user ?? current;
