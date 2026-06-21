@@ -9,8 +9,9 @@ import {
   runMockModerationProvider,
 } from "../../../lib/moderation/moderation-provider.server";
 import { runOpenAIModeration } from "../../../lib/moderation/openai-moderation-provider.server";
-import { moderateContent } from "../../../lib/moderation/moderate-content.server";
+import { moderateAsset } from "../../../lib/moderation/moderate-asset.server";
 import { createSignedModerationUrls } from "../../../lib/moderation/moderation-media.server";
+import { evaluateLocalSensitiveLexicon } from "../../../lib/moderation/local-sensitive-lexicon.server";
 
 export const prerender = false;
 
@@ -192,6 +193,19 @@ async function moderatePostMedia(params: {
     };
   }
 
+  const localMetadataText = mediaTextParts.join("\n").trim();
+  if (localMetadataText) {
+    const localLexicon = evaluateLocalSensitiveLexicon(localMetadataText);
+    if (localLexicon.decision !== "allow") {
+      return {
+        decision: localLexicon.decision,
+        reason: localLexicon.reasonCode,
+        score: localLexicon.confidence,
+        provider: "local" as const,
+      };
+    }
+  }
+
   const imageUrls = await createSignedModerationUrls({
     client,
     values: imageUrlValues,
@@ -211,24 +225,9 @@ async function moderatePostMedia(params: {
   const result =
     provider === "mock"
       ? await runMockModerationProvider(providerInput)
-      : await moderateContent(
-          env,
-          {
-            contentType: "post_body",
-            userId,
-            text: [
-              String(post.title ?? "").trim(),
-              String(post.body ?? "").trim(),
-              ...mediaTextParts,
-            ]
-              .filter(Boolean)
-              .join("\n"),
-            providerInput,
-          },
-          {
-            openaiRunner: runOpenAIModeration,
-          },
-        );
+      : await moderateAsset(env, providerInput, {
+          openaiRunner: runOpenAIModeration,
+        });
 
   return {
     decision: result.decision,
