@@ -1,6 +1,6 @@
 const sensitiveLexiconData = {
-  "version": "lexicon-2026-06-20",
-  "generatedAt": "2026-06-20T11:06:13.425Z",
+  "version": "lexicon-2026-06-21",
+  "generatedAt": "2026-06-21T04:03:09.153Z",
   "sources": [
     {
       "id": "konsheng-sensitive-lexicon",
@@ -141779,6 +141779,26 @@ const sensitiveLexiconData = {
       "match": "contains"
     },
     {
+      "term": "telegram 继续聊",
+      "pattern": null,
+      "category": "off_platform_contact",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "telegram 继续聊",
+      "condensed": "telegram继续聊"
+    },
+    {
+      "term": "whatsapp 继续聊",
+      "pattern": null,
+      "category": "off_platform_contact",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "whatsapp 继续聊",
+      "condensed": "whatsapp继续聊"
+    },
+    {
       "term": "shangfang",
       "normalized": "shangfang",
       "condensed": "shangfang",
@@ -142346,6 +142366,26 @@ const sensitiveLexiconData = {
       "severity": "review",
       "source": "houbb-sensitive-word",
       "match": "contains"
+    },
+    {
+      "term": "外部链接诱导",
+      "pattern": null,
+      "category": "suspicious_external_link",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "外部链接诱导",
+      "condensed": "外部链接诱导"
+    },
+    {
+      "term": "链接领取资料",
+      "pattern": null,
+      "category": "fake_download_or_private_access",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "链接领取资料",
+      "condensed": "链接领取资料"
     },
     {
       "term": "帮忙点一下",
@@ -142940,6 +142980,16 @@ const sensitiveLexiconData = {
       "severity": "review",
       "source": "konsheng-sensitive-lexicon",
       "match": "contains"
+    },
+    {
+      "term": "点链接领取",
+      "pattern": null,
+      "category": "fake_download_or_private_access",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "点链接领取",
+      "condensed": "点链接领取"
     },
     {
       "term": "网络工作",
@@ -145415,6 +145465,66 @@ const sensitiveLexiconData = {
       "match": "contains",
       "normalized": "广告合作",
       "condensed": "广告合作"
+    },
+    {
+      "term": "外链诱导",
+      "pattern": null,
+      "category": "suspicious_external_link",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "外链诱导",
+      "condensed": "外链诱导"
+    },
+    {
+      "term": "资料链接",
+      "pattern": null,
+      "category": "fake_download_or_private_access",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "资料链接",
+      "condensed": "资料链接"
+    },
+    {
+      "term": "下载链接",
+      "pattern": null,
+      "category": "fake_download_or_private_access",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "下载链接",
+      "condensed": "下载链接"
+    },
+    {
+      "term": "私发链接",
+      "pattern": null,
+      "category": "suspicious_external_link",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "私发链接",
+      "condensed": "私发链接"
+    },
+    {
+      "term": "加群领取",
+      "pattern": null,
+      "category": "off_platform_contact",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "加群领取",
+      "condensed": "加群领取"
+    },
+    {
+      "term": "进群领取",
+      "pattern": null,
+      "category": "off_platform_contact",
+      "severity": "review",
+      "source": "openglass_custom_review",
+      "match": "contains",
+      "normalized": "进群领取",
+      "condensed": "进群领取"
     },
     {
       "term": "有意者",

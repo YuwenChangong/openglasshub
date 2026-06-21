@@ -55,6 +55,7 @@ async function main() {
   const setupDoc = await read("docs/openai-moderation-setup.md");
   const moderationCore = await read("src/lib/moderation/moderate-content.server.ts");
   const moderationAsset = await read("src/lib/moderation/moderate-asset.server.ts");
+  const moderationMedia = await read("src/lib/moderation/moderation-media.server.ts");
   const classifierSource = await read("src/lib/moderation/openai-forum-policy-classifier.server.ts");
   const providerSource = await read("src/lib/moderation/openai-moderation-provider.server.ts");
 
@@ -81,6 +82,8 @@ async function main() {
   if (!/http_429|http_5xx/.test(classifierSource)) errors.push("forum policy classifier missing 429/5xx status mapping");
   if (!/chat\/completions/.test(classifierSource)) errors.push("forum policy classifier missing OpenAI chat completions call");
   if (!/api\.openai\.com\/v1\/moderations/.test(providerSource)) errors.push("OpenAI moderation endpoint missing");
+  if (!/absolutizeSignedUrl/.test(moderationMedia)) errors.push("moderation media helper should normalize signed URLs for provider access");
+  if (!/createSignedModerationUrls/.test(moderationMedia)) errors.push("moderation media helper missing createSignedModerationUrls");
 
   const srcFiles = await walk(path.resolve(process.cwd(), "src"));
   const distDir = path.resolve(process.cwd(), "dist");

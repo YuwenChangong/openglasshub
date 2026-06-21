@@ -59,8 +59,10 @@ async function main() {
   const postMediaApi = await read("src/pages/api/forum/post-media.ts");
   const moderationCore = await read("src/lib/moderation/moderate-content.server.ts");
   const moderationAsset = await read("src/lib/moderation/moderate-asset.server.ts");
+  const moderationMedia = await read("src/lib/moderation/moderation-media.server.ts");
   const providerSource = await read("src/lib/moderation/moderation-provider.server.ts");
   const matcherSource = await read("src/lib/moderation/local-sensitive-lexicon.server.ts");
+  const moderationAdmin = await read("src/lib/server/moderation-admin.ts");
   const policyDoc = await read("docs/moderation-policy.md");
   const setupDoc = await read("docs/openai-moderation-setup.md");
   const customReview = await read("src/data/moderation/custom-reviewlist.json");
@@ -74,6 +76,9 @@ async function main() {
   if (!profileApi.includes("moderateAsset(")) errors.push("profile API does not call moderateAsset");
   if (!circlesApi.includes("moderateAsset(")) errors.push("circles API does not call moderateAsset");
   if (!postMediaApi.includes("moderateAsset(")) errors.push("post media API does not call moderateAsset");
+  if (!/createSignedModerationUrls/.test(moderationMedia)) errors.push("moderation media helper missing signed moderation url resolver");
+  if (!/absolutizeSignedUrl/.test(moderationMedia)) errors.push("moderation media helper should absolutize signed URLs");
+  if (/\.single\(\)/.test(moderationAdmin)) errors.push("moderation admin actions should avoid unsafe .single() coercion");
   if (!/evaluateLocalSensitiveLexicon/.test(moderationCore)) errors.push("moderation core missing local sensitive lexicon layer");
   if (!/runOpenAIForumPolicyClassifier/.test(moderationCore)) errors.push("moderation core missing forum policy classifier layer");
   if (!/resolveModerationProviderUnavailablePolicy/.test(providerSource)) errors.push("provider unavailable policy resolver missing");
@@ -120,7 +125,7 @@ async function main() {
   }
 
   const criticalSources = `${matcherSource}\n${moderationCore}\n${policyDoc}\n${customReview}\n${customDeny}\n${customAllow}`.toLowerCase();
-  const criticalTerms = ["人口贩卖", "嫖娼", "卖淫", "私聊", "完整资料入口", "加微信", "telegram", "二维码"];
+  const criticalTerms = ["人口贩卖", "嫖娼", "卖淫", "私聊", "完整资料入口", "加微信", "telegram", "二维码", "外部链接诱导", "下载链接"];
   for (const term of criticalTerms) {
     if (!criticalSources.includes(term.toLowerCase())) {
       errors.push(`critical term coverage not evident for: ${term}`);

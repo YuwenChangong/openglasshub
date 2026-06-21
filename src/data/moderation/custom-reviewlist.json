@@ -114,6 +114,72 @@
     "match": "contains"
   },
   {
+    "term": "外部链接诱导",
+    "category": "suspicious_external_link",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "外链诱导",
+    "category": "suspicious_external_link",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "点链接领取",
+    "category": "fake_download_or_private_access",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "链接领取资料",
+    "category": "fake_download_or_private_access",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "资料链接",
+    "category": "fake_download_or_private_access",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "下载链接",
+    "category": "fake_download_or_private_access",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "私发链接",
+    "category": "suspicious_external_link",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "加群领取",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "进群领取",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "telegram 继续聊",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
+    "term": "whatsapp 继续聊",
+    "category": "off_platform_contact",
+    "severity": "review",
+    "match": "contains"
+  },
+  {
     "term": "群发",
     "category": "low_quality_spam",
     "severity": "soft_review",

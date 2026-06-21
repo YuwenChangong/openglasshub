@@ -9,6 +9,8 @@ const {
   moderateContent,
 } = await import("../src/lib/moderation/moderate-content.server.ts");
 const { moderateAsset } = await import("../src/lib/moderation/moderate-asset.server.ts");
+const { createSignedModerationUrls } = await import("../src/lib/moderation/moderation-media.server.ts");
+const { applyModerationAdminAction } = await import("../src/lib/server/moderation-admin.ts");
 
 async function test(name, fn) {
   try {
@@ -89,6 +91,24 @@ await test("正常 profile bio allow", () => {
     text: "AR glasses enthusiast interested in spatial computing and wearable interfaces.",
   });
   assert.equal(result.decision, "allow");
+});
+
+await test("profile 外部链接诱导 should not allow", () => {
+  const result = evaluateLocalModeration({
+    contentType: "profile_text",
+    userId: "u1",
+    text: "外部链接诱导，点链接领取资料。",
+  });
+  assert.notEqual(result.decision, "allow");
+});
+
+await test("官网链接打不开 should not hard reject", () => {
+  const result = evaluateLocalModeration({
+    contentType: "profile_text",
+    userId: "u1",
+    text: "我在官网链接看到产品参数，但这个链接打不开。",
+  });
+  assert.notEqual(result.decision, "reject");
 });
 
 await test("正常 circle description allow", () => {
@@ -742,6 +762,134 @@ await test("asset moderation provider unavailable does not local-only allow clea
     },
   );
   assert.equal(result.decision, "review");
+});
+
+await test("createSignedModerationUrls returns absolute signed URLs", async () => {
+  const urls = await createSignedModerationUrls({
+    client: {
+      storage: {
+        from() {
+          return {
+            url: "https://example.supabase.co/storage/v1",
+            async createSignedUrls() {
+              return {
+                data: [{ signedUrl: "/storage/v1/object/sign/post-media/private/path.png?token=test" }],
+                error: null,
+              };
+            },
+          };
+        },
+      },
+    },
+    values: ["private/path.png"],
+    allowedPrefixes: ["private/"],
+  });
+
+  assert.deepEqual(urls, ["https://example.supabase.co/storage/v1/object/sign/post-media/private/path.png?token=test"]);
+});
+
+function createMockAdminClient(initialRow) {
+  const row = initialRow ? { ...initialRow } : null;
+  const actionInserts = [];
+  return {
+    actionInserts,
+    client: {
+      from(table) {
+        if (table === "moderation_actions") {
+          return {
+            async insert(payload) {
+              actionInserts.push(payload);
+              return { error: null };
+            },
+          };
+        }
+
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          async maybeSingle() {
+            return { data: row ? { ...row } : null, error: null };
+          },
+          update(payload) {
+            return {
+              eq() {
+                return {
+                  async select() {
+                    if (!row) return { data: [], error: null };
+                    Object.assign(row, payload);
+                    return { data: [{ ...row }], error: null };
+                  },
+                };
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+}
+
+await test("admin approve pending item => 200-shape result", async () => {
+  const mock = createMockAdminClient({
+    id: "00000000-0000-0000-0000-000000000001",
+    status: "pending",
+    moderation_status: "pending_review",
+    moderation_reason: "openai_threshold_review",
+    moderated_at: null,
+    moderated_by: null,
+  });
+  const result = await applyModerationAdminAction({
+    client: mock.client,
+    moderatorId: "00000000-0000-0000-0000-000000000099",
+    targetType: "post",
+    targetId: "00000000-0000-0000-0000-000000000001",
+    action: "approve",
+    reason: "ok",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.item.status, "published");
+  assert.equal(result.item.moderation_status, "published");
+  assert.equal(mock.actionInserts.length, 1);
+});
+
+await test("admin action on nonexistent item => 404, not 500", async () => {
+  const mock = createMockAdminClient(null);
+  const result = await applyModerationAdminAction({
+    client: mock.client,
+    moderatorId: "00000000-0000-0000-0000-000000000099",
+    targetType: "comment",
+    targetId: "00000000-0000-0000-0000-000000000002",
+    action: "reject",
+    reason: "nope",
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 404);
+});
+
+await test("admin action already processed => friendly success without extra log", async () => {
+  const mock = createMockAdminClient({
+    id: "00000000-0000-0000-0000-000000000003",
+    status: "hidden",
+    moderation_status: "hidden_by_admin",
+    moderation_reason: "Hidden by moderator",
+    moderated_at: "2026-06-21T00:00:00.000Z",
+    moderated_by: "00000000-0000-0000-0000-000000000099",
+  });
+  const result = await applyModerationAdminAction({
+    client: mock.client,
+    moderatorId: "00000000-0000-0000-0000-000000000099",
+    targetType: "post",
+    targetId: "00000000-0000-0000-0000-000000000003",
+    action: "hide",
+    reason: "again",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.alreadyApplied, true);
+  assert.equal(mock.actionInserts.length, 0);
 });
 
 await test("avatar and banner provider unavailable stay blocked/review", async () => {

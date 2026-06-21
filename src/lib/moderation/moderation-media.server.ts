@@ -14,6 +14,18 @@ function isAllowedStoragePath(path: string, allowedPrefixes: string[]) {
   return allowedPrefixes.some((prefix) => path.startsWith(prefix));
 }
 
+function absolutizeSignedUrl(url: string, baseUrl: string) {
+  if (isAbsoluteUrl(url)) return url;
+  if (!url.startsWith("/")) return url;
+
+  try {
+    const base = new URL(baseUrl);
+    return new URL(url, `${base.origin}/`).toString();
+  } catch {
+    return url;
+  }
+}
+
 export async function createSignedModerationUrls(params: {
   client: SupabaseClient;
   bucket?: string;
@@ -24,6 +36,7 @@ export async function createSignedModerationUrls(params: {
 }): Promise<string[]> {
   const bucket = params.bucket ?? "post-media";
   const expiresIn = params.expiresIn ?? DEFAULT_EXPIRES_IN;
+  const bucketApi = params.client.storage.from(bucket);
   const absoluteUrls = new Set<string>();
   const storagePaths = new Set<string>();
 
@@ -42,12 +55,14 @@ export async function createSignedModerationUrls(params: {
     return [...absoluteUrls];
   }
 
-  const { data, error } = await params.client.storage.from(bucket).createSignedUrls([...storagePaths], expiresIn);
+  const { data, error } = await bucketApi.createSignedUrls([...storagePaths], expiresIn);
   if (error) {
     throw new Error(error.message);
   }
 
-  const signed = (data ?? []).map((entry) => entry?.signedUrl ?? "").filter(Boolean);
+  const signed = (data ?? [])
+    .map((entry) => absolutizeSignedUrl(entry?.signedUrl ?? "", bucketApi.url))
+    .filter(Boolean);
   return [...absoluteUrls, ...signed];
 }
 
