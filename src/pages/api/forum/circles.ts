@@ -53,6 +53,7 @@ async function moderateCircleCoverImage(params: {
     client: params.client,
     values: [params.imagePath],
     allowedPrefixes: [CIRCLE_COVER_PREFIX],
+    preferDataUrls: true,
   });
 
   return moderateAsset(

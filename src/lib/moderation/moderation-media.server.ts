@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const DEFAULT_EXPIRES_IN = 10 * 60;
+const MAX_OPENAI_IMAGE_BYTES = 20 * 1024 * 1024;
 
 function normalizePath(path: string | null | undefined) {
   return String(path ?? "").trim();
@@ -26,6 +27,42 @@ function absolutizeSignedUrl(url: string, baseUrl: string) {
   }
 }
 
+function toBase64(bytes: Uint8Array) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function createImageDataUrl(
+  fetchImpl: typeof fetch,
+  url: string,
+): Promise<string | null> {
+  const response = await fetchImpl(url);
+  if (!response.ok) return null;
+
+  const contentType = String(response.headers.get("content-type") ?? "").trim().toLowerCase();
+  if (!contentType.startsWith("image/")) return null;
+
+  const contentLength = Number(response.headers.get("content-length") ?? "");
+  if (Number.isFinite(contentLength) && contentLength > MAX_OPENAI_IMAGE_BYTES) {
+    return null;
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  if (arrayBuffer.byteLength <= 0 || arrayBuffer.byteLength > MAX_OPENAI_IMAGE_BYTES) {
+    return null;
+  }
+
+  return `data:${contentType};base64,${toBase64(new Uint8Array(arrayBuffer))}`;
+}
+
 export async function createSignedModerationUrls(params: {
   client: SupabaseClient;
   bucket?: string;
@@ -33,6 +70,8 @@ export async function createSignedModerationUrls(params: {
   allowedPrefixes: string[];
   expiresIn?: number;
   allowAnyStoragePath?: boolean;
+  preferDataUrls?: boolean;
+  fetchImpl?: typeof fetch;
 }): Promise<string[]> {
   const bucket = params.bucket ?? "post-media";
   const expiresIn = params.expiresIn ?? DEFAULT_EXPIRES_IN;
@@ -63,7 +102,16 @@ export async function createSignedModerationUrls(params: {
   const signed = (data ?? [])
     .map((entry) => absolutizeSignedUrl(entry?.signedUrl ?? "", bucketApi.url))
     .filter(Boolean);
-  return [...absoluteUrls, ...signed];
+
+  if (!params.preferDataUrls) {
+    return [...absoluteUrls, ...signed];
+  }
+
+  const fetchImpl = params.fetchImpl ?? fetch;
+  const resolvedSigned = await Promise.all(
+    signed.map(async (url) => (await createImageDataUrl(fetchImpl, url)) ?? url),
+  );
+  return [...absoluteUrls, ...resolvedSigned];
 }
 
 export async function removeStoragePathIfAllowed(params: {

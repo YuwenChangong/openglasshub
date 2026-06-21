@@ -788,6 +788,36 @@ await test("createSignedModerationUrls returns absolute signed URLs", async () =
   assert.deepEqual(urls, ["https://example.supabase.co/storage/v1/object/sign/post-media/private/path.png?token=test"]);
 });
 
+await test("createSignedModerationUrls can convert signed images to data URLs", async () => {
+  const urls = await createSignedModerationUrls({
+    client: {
+      storage: {
+        from() {
+          return {
+            url: "https://example.supabase.co/storage/v1",
+            async createSignedUrls() {
+              return {
+                data: [{ signedUrl: "/storage/v1/object/sign/post-media/private/path.png?token=test" }],
+                error: null,
+              };
+            },
+          };
+        },
+      },
+    },
+    values: ["private/path.png"],
+    allowedPrefixes: ["private/"],
+    preferDataUrls: true,
+    fetchImpl: async () =>
+      new Response(Uint8Array.from([137, 80, 78, 71]), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": "4" },
+      }),
+  });
+
+  assert.match(urls[0], /^data:image\/png;base64,/);
+});
+
 function createMockAdminClient(initialRow) {
   const row = initialRow ? { ...initialRow } : null;
   const actionInserts = [];

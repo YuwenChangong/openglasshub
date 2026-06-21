@@ -93,6 +93,7 @@ async function moderateProfileImage(params: {
     client: params.client,
     values: [params.path],
     allowedPrefixes,
+    preferDataUrls: true,
   });
 
   return moderateAsset(

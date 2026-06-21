@@ -198,6 +198,7 @@ async function moderatePostMedia(params: {
     values: imageUrlValues,
     allowedPrefixes: [`${userId}/${post.id}/`, `tmp/${userId}/`],
     allowAnyStoragePath: false,
+    preferDataUrls: true,
   });
 
   const providerInput = buildModerationProviderInput({
