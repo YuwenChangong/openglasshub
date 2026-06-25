@@ -96,6 +96,34 @@ exception
     raise;
 end $$;
 
+do $$
+begin
+  perform public.qa_grant_admin_role(current_setting('app.profile_role_test_other_id')::uuid);
+
+  raise exception 'Expected authenticated qa_grant_admin_role to fail';
+exception
+  when insufficient_privilege then
+    null;
+  when others then
+    if position('QA_ADMIN_ROLE_RPC_PERMISSION_DENIED' in sqlerrm) = 0 then
+      raise;
+    end if;
+end $$;
+
+do $$
+begin
+  perform public.qa_revoke_admin_role(current_setting('app.profile_role_test_other_id')::uuid);
+
+  raise exception 'Expected authenticated qa_revoke_admin_role to fail';
+exception
+  when insufficient_privilege then
+    null;
+  when others then
+    if position('QA_ADMIN_ROLE_RPC_PERMISSION_DENIED' in sqlerrm) = 0 then
+      raise;
+    end if;
+end $$;
+
 reset role;
 set local role anon;
 select set_config('request.jwt.claim.role', 'anon', true);
@@ -113,6 +141,42 @@ exception
     null;
   when others then
     raise;
+end $$;
+
+-- SQL Editor sessions usually run as postgres, so we can smoke-test the controlled
+-- definer path here even though this does not impersonate PostgREST service_role.
+reset role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claim.sub', '', true);
+
+select public.qa_grant_admin_role(current_setting('app.profile_role_test_other_id')::uuid);
+
+do $$
+declare
+  v_role public.user_role;
+begin
+  select role into v_role
+  from public.profiles
+  where id = current_setting('app.profile_role_test_other_id')::uuid;
+
+  if v_role <> 'admin' then
+    raise exception 'Expected QA grant rpc to set admin role, got %', v_role;
+  end if;
+end $$;
+
+select public.qa_revoke_admin_role(current_setting('app.profile_role_test_other_id')::uuid);
+
+do $$
+declare
+  v_role public.user_role;
+begin
+  select role into v_role
+  from public.profiles
+  where id = current_setting('app.profile_role_test_other_id')::uuid;
+
+  if v_role <> 'user' then
+    raise exception 'Expected QA revoke rpc to reset user role, got %', v_role;
+  end if;
 end $$;
 
 rollback;

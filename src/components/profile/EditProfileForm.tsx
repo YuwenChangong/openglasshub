@@ -49,6 +49,9 @@ function mapProfileError(message: string) {
   }
   if (/RATE_LIMITED/i.test(message)) return "上传过于频繁，请稍后再试。";
   if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return "当前上传需要额外安全验证，请稍后再试。";
+  if (/PROFILE_CONTENT_REJECTED/i.test(message)) return "资料内容需要调整后再保存。";
+  if (/PROFILE_IMAGE_NOT_ALLOWED/i.test(message)) return "资料图片需要调整后再保存。";
+  if (/PROFILE_IMAGE_MODERATION_UNAVAILABLE/i.test(message)) return "资料图片审核暂时不可用，请稍后再试。";
   if (/banner_url/i.test(message)) return "当前环境尚未完成个人横幅 migration。";
   return message;
 }
@@ -123,8 +126,12 @@ export default function EditProfileForm() {
       }
 
       const [resolvedAvatarUrl, resolvedBannerUrl] = await Promise.all([
-        resolveProfileAvatarUrl(supabase, profileRow.avatar_url),
-        resolveProfileBannerUrl(supabase, profileRow.banner_url ?? null),
+        resolveProfileAvatarUrl(supabase, profileRow.avatar_url, undefined, {
+          publicProxyUserId: profileRow.id,
+        }),
+        resolveProfileBannerUrl(supabase, profileRow.banner_url ?? null, undefined, {
+          publicProxyUserId: profileRow.id,
+        }),
       ]);
 
       if (!cancelled) {
@@ -270,7 +277,6 @@ export default function EditProfileForm() {
         avatar_url: avatarPending.path ?? profile.avatar_url ?? null,
         banner_url: bannerPending.path ?? profile.banner_url ?? null,
       };
-
       const token = await getSessionToken();
       if (!token) {
         window.location.replace(buildLoginHref("/me/edit/"));
@@ -285,16 +291,33 @@ export default function EditProfileForm() {
         },
         body: JSON.stringify(payload),
       });
-
-      const result = (await response.json().catch(() => null)) as
-        | { error?: string; profile?: (EditableProfile & { resolved_avatar_url?: string | null; resolved_banner_url?: string | null }) }
+      const responsePayload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            message?: string;
+            field?: "avatar" | "banner";
+            profile?: EditableProfile & {
+              resolved_avatar_url?: string | null;
+              resolved_banner_url?: string | null;
+            };
+          }
         | null;
-
-      if (!response.ok || !result?.profile) {
-        throw new Error(result?.error ?? `保存资料失败 (${response.status})`);
+      if (!response.ok || !responsePayload?.profile) {
+        if (responsePayload?.field === "avatar") {
+          setAvatarPending((current) => {
+            if (current.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(current.previewUrl);
+            return { path: null, previewUrl: null };
+          });
+        }
+        if (responsePayload?.field === "banner") {
+          setBannerPending((current) => {
+            if (current.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(current.previewUrl);
+            return { path: null, previewUrl: null };
+          });
+        }
+        throw new Error(responsePayload?.error ?? responsePayload?.message ?? `保存资料失败 (${response.status})`);
       }
-
-      const data = result.profile;
+      const data = responsePayload.profile;
 
       const previousAvatarPath = profile.avatar_url ?? null;
       const previousBannerPath = profile.banner_url ?? null;
@@ -308,12 +331,22 @@ export default function EditProfileForm() {
         await removeStorageObject(previousBannerPath);
       }
 
+      const resolvedAvatar =
+        responsePayload.profile.resolved_avatar_url ??
+        (await resolveProfileAvatarUrl(supabase, finalAvatarPath, undefined, {
+          publicProxyUserId: data.id,
+        }));
+      const resolvedBanner =
+        responsePayload.profile.resolved_banner_url ??
+        (await resolveProfileBannerUrl(supabase, finalBannerPath, undefined, {
+          publicProxyUserId: data.id,
+        }));
       setProfile(data);
       setDisplayName(data.display_name ?? "");
       setUsername(data.username ?? "");
       setBio(data.bio ?? "");
-      setAvatarResolvedUrl(data.resolved_avatar_url ?? (await resolveProfileAvatarUrl(supabase, finalAvatarPath)));
-      setBannerResolvedUrl(data.resolved_banner_url ?? (await resolveProfileBannerUrl(supabase, finalBannerPath)));
+      setAvatarResolvedUrl(resolvedAvatar);
+      setBannerResolvedUrl(resolvedBanner);
       setAvatarPending((current) => {
         if (current.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(current.previewUrl);
         return { path: null, previewUrl: null };

@@ -131,7 +131,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
     }
 
     const [avatarResolvedUrl, postStats, commentLikeCount] = await Promise.all([
-      resolveProfileAvatarUrl(client, profile.avatar_url),
+      resolveProfileAvatarUrl(client, profile.avatar_url, undefined, {
+        publicProxyUserId: profile.id,
+      }),
       countPostLikes(client, profile.id),
       countCommentLikes(client, profile.id),
     ]);

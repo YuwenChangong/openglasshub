@@ -1,6 +1,14 @@
 import type { APIRoute } from "astro";
 import { buildUniqueCircleSlug, slugifyCircleName } from "../../../../lib/circle-slug";
-import { buildCircleCoverUrlMap, resolveCircleCoverUrl } from "../../../../lib/circle-cover";
+import { buildCircleCoverUrlMap, CIRCLE_COVER_PREFIX, resolveCircleCoverUrl } from "../../../../lib/circle-cover";
+import { moderateAsset } from "../../../../lib/moderation/moderate-asset.server";
+import {
+  isLocalDegradedModerationResult,
+  isProviderErrorModerationResult,
+  moderateContent,
+} from "../../../../lib/moderation/moderate-content.server";
+import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../../lib/moderation/moderation-media.server";
+import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../../lib/moderation/moderation-provider.server";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
 
 export const prerender = false;
@@ -21,6 +29,32 @@ function validateType(type: string) {
 
 function validateDescription(description: string) {
   return description.length <= 200;
+}
+
+async function moderateCircleCoverImage(params: {
+  client: Awaited<ReturnType<typeof requireModerator>>["client"];
+  env: RuntimeEnv;
+  imagePath: string | null;
+}) {
+  if (!params.imagePath || !isOpenAICircleCoverModerationEnabled(params.env)) {
+    return { decision: "allow" as const, reason: null as string | null };
+  }
+
+  const imageUrls = await createSignedModerationUrls({
+    client: params.client,
+    values: [params.imagePath],
+    allowedPrefixes: [CIRCLE_COVER_PREFIX],
+    preferDataUrls: true,
+  });
+
+  return moderateAsset(
+    params.env,
+    buildModerationProviderInput({
+      targetType: "circle_cover_image",
+      imageUrls,
+      localeHint: "zh-CN",
+    }),
+  );
 }
 
 async function checkDuplicates(
@@ -158,6 +192,53 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const duplicate = await checkDuplicates(auth.client, { name });
     if (duplicate) return jsonResponse({ error: duplicate.error }, duplicate.status ?? 500);
 
+    const textModeration = await moderateContent(env, {
+      contentType: description ? "circle_description" : "circle_name",
+      userId: auth.user.id,
+      text: [name, description].filter(Boolean).join("\n\n"),
+      localInputs: [
+        { contentType: "circle_name", text: name },
+        ...(description ? [{ contentType: "circle_description" as const, text: description }] : []),
+      ],
+      providerInput: {
+        targetType: "circle_text",
+        title: name,
+        description,
+        localeHint: "zh-CN",
+      },
+    });
+    if (textModeration.decision !== "allow") {
+      const unavailable = textModeration.decision === "review" && isProviderErrorModerationResult(textModeration);
+      return jsonResponse({ error: unavailable ? "MODERATION_TEMPORARILY_UNAVAILABLE" : "CONTENT_REJECTED" }, unavailable ? 503 : 403);
+    }
+
+    if (isLocalDegradedModerationResult(textModeration)) {
+      console.warn("[moderation] local-only degraded allow", {
+        targetType: "circle_text",
+        userId: auth.user.id,
+        admin: true,
+        name,
+        reason: textModeration.reason,
+        provider: textModeration.provider,
+        status: textModeration.providerDetails?.providerStatus ?? null,
+      });
+    }
+
+    const coverModeration = await moderateCircleCoverImage({
+      client: auth.client,
+      env,
+      imagePath,
+    });
+    if (coverModeration.decision !== "allow") {
+      await removeStoragePathIfAllowed({
+        client: auth.client,
+        value: imagePath,
+        allowedPrefixes: [CIRCLE_COVER_PREFIX],
+        logLabel: "admin-circle-cover-moderation",
+      });
+      return jsonResponse({ error: "CONTENT_REJECTED" }, coverModeration.reason?.startsWith("openai_provider_error_") ? 503 : 403);
+    }
+
     const slugBase = slugifyCircleName(name);
 
     async function insertCircleWithSlug(slug: string) {
@@ -255,6 +336,49 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     }
 
     if (Object.keys(updates).length === 0) return jsonResponse({ error: "Nothing to update" }, 400);
+
+    if ("name" in updates || "description" in updates) {
+      const textModeration = await moderateContent(env, {
+        contentType: typeof updates.description === "string" ? "circle_description" : "circle_name",
+        userId: auth.user.id,
+        text: [typeof updates.name === "string" ? updates.name : "", typeof updates.description === "string" ? updates.description : ""]
+          .filter(Boolean)
+          .join("\n\n"),
+        localInputs: [
+          ...(typeof updates.name === "string" ? [{ contentType: "circle_name" as const, text: updates.name }] : []),
+          ...(typeof updates.description === "string"
+            ? [{ contentType: "circle_description" as const, text: updates.description }]
+            : []),
+        ],
+        providerInput: {
+          targetType: "circle_text",
+          title: typeof updates.name === "string" ? updates.name : undefined,
+          description: typeof updates.description === "string" ? updates.description : undefined,
+          localeHint: "zh-CN",
+        },
+      });
+      if (textModeration.decision !== "allow") {
+        const unavailable = textModeration.decision === "review" && isProviderErrorModerationResult(textModeration);
+        return jsonResponse({ error: unavailable ? "MODERATION_TEMPORARILY_UNAVAILABLE" : "CONTENT_REJECTED" }, unavailable ? 503 : 403);
+      }
+    }
+
+    if ("image_path" in updates) {
+      const coverModeration = await moderateCircleCoverImage({
+        client: auth.client,
+        env,
+        imagePath: updates.image_path ?? null,
+      });
+      if (coverModeration.decision !== "allow") {
+        await removeStoragePathIfAllowed({
+          client: auth.client,
+          value: updates.image_path ?? null,
+          allowedPrefixes: [CIRCLE_COVER_PREFIX],
+          logLabel: "admin-circle-cover-moderation",
+        });
+        return jsonResponse({ error: "CONTENT_REJECTED" }, coverModeration.reason?.startsWith("openai_provider_error_") ? 503 : 403);
+      }
+    }
 
     let { data, error } = await auth.client
       .from("circles")

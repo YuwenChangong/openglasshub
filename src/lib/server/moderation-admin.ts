@@ -70,16 +70,44 @@ export async function applyModerationAdminAction(params: {
             moderated_by: moderatorId,
           };
 
-  const { data: updated, error: updateError } = await client
+  const desiredStatus = updatePayload.status;
+  const desiredModerationStatus = updatePayload.moderation_status;
+
+  const { data: existing, error: existingError } = await client
+    .from(table)
+    .select("id,status,moderation_status,moderation_reason,moderated_at,moderated_by")
+    .eq("id", targetId)
+    .maybeSingle();
+
+  if (existingError) {
+    return { ok: false as const, status: 500, error: existingError.message };
+  }
+  if (!existing) {
+    return { ok: false as const, status: 404, error: "Moderation target not found" };
+  }
+
+  if (
+    existing.status === desiredStatus &&
+    existing.moderation_status === desiredModerationStatus
+  ) {
+    return {
+      ok: true as const,
+      item: existing,
+      alreadyApplied: true,
+    };
+  }
+
+  const { data: updatedRows, error: updateError } = await client
     .from(table)
     .update(updatePayload)
     .eq("id", targetId)
-    .select("id,status,moderation_status,moderation_reason,moderated_at,moderated_by")
-    .single();
+    .select("id,status,moderation_status,moderation_reason,moderated_at,moderated_by");
 
   if (updateError) {
-    return { ok: false as const, error: updateError.message };
+    return { ok: false as const, status: 500, error: updateError.message };
   }
+
+  const updated = Array.isArray(updatedRows) ? (updatedRows[0] ?? null) : updatedRows ?? null;
 
   const { error: actionError } = await client.from("moderation_actions").insert({
     moderator_id: moderatorId,
@@ -90,8 +118,21 @@ export async function applyModerationAdminAction(params: {
   });
 
   if (actionError) {
-    return { ok: false as const, error: actionError.message };
+    return { ok: false as const, status: 500, error: actionError.message };
   }
 
-  return { ok: true as const, item: updated };
+  return {
+    ok: true as const,
+    item:
+      updated ??
+      {
+        id: targetId,
+        status: desiredStatus,
+        moderation_status: desiredModerationStatus,
+        moderation_reason: updatePayload.moderation_reason ?? null,
+        moderated_at: now,
+        moderated_by: moderatorId,
+      },
+    alreadyApplied: false,
+  };
 }

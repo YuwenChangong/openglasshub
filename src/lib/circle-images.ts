@@ -47,8 +47,9 @@ export async function buildCircleImageMap(
   supabase: SupabaseClient,
   circles: CircleImageRow[],
   expiresIn = 60 * 60,
+  options?: { publicProxy?: boolean },
 ): Promise<Map<string, string>> {
-  const imageMap = await buildCircleCoverUrlMap(supabase, circles, expiresIn);
+  const imageMap = await buildCircleCoverUrlMap(supabase, circles, expiresIn, options);
 
   circles.forEach((circle) => {
     const resolved = imageMap.get(circle.id);

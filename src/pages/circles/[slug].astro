@@ -55,6 +55,9 @@ const postMediaMap = publicCircle
       posts as Array<{ id: string; post_media?: PostMediaRow[] | null }>,
       60 * 60,
       r2PublicBaseUrl,
+      {
+        publicProxy: true,
+      },
     )
   : new Map();
 const likeCountMap = publicCircle ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
@@ -69,7 +72,11 @@ const postTypeLabels: Record<string, string> = {
 };
 
 const canonicalUrl = publicCircle ? `https://openglasshub.pages.dev/circles/${publicCircle.slug}/` : undefined;
-const circleImageMap = publicCircle ? await buildCircleImageMap(supabase, [publicCircle]) : new Map();
+const circleImageMap = publicCircle
+  ? await buildCircleImageMap(supabase, [publicCircle], 60 * 60, {
+      publicProxy: true,
+    })
+  : new Map();
 const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
 ---
 

@@ -18,7 +18,10 @@ import {
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
 import { getRequestIp } from "../../../lib/request-ip";
 import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
-import { mergeModerationResults, moderateContent } from "../../../lib/moderation/moderate-content.server";
+import {
+  isLocalDegradedModerationResult,
+  moderateContent,
+} from "../../../lib/moderation/moderate-content.server";
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { listForumFeed, parseFeedSort } from "../../../lib/forum-feed";
@@ -267,25 +270,24 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const normalizedBody = body || (hasMedia ? MEDIA_ONLY_SENTINEL : "");
     const type = String(payload.type ?? "").trim();
 
-    const moderationInputs = [
-      await moderateContent(env, {
-        contentType: "post_title",
-        userId: authData.user.id,
-        text: title,
-      }),
-    ];
-
-    if (body) {
-      moderationInputs.push(
-        await moderateContent(env, {
-          contentType: "post_body",
-          userId: authData.user.id,
-          text: body,
-        }),
-      );
-    }
-
-    const moderation = mergeModerationResults(moderationInputs);
+    const moderation = await moderateContent(env, {
+      contentType: body ? "post_body" : "post_title",
+      userId: authData.user.id,
+      text: [title, body].filter(Boolean).join("\n\n"),
+      localInputs: [
+        { contentType: "post_title", text: title },
+        ...(body ? [{ contentType: "post_body" as const, text: body }] : []),
+      ],
+      providerInput: {
+        targetType: "post_text",
+        title,
+        body,
+        localeHint: "zh-CN",
+        metadata: {
+          circleSlug,
+        },
+      },
+    });
 
     if (moderation.decision === "reject") {
       return json(
@@ -334,9 +336,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const requiresReview = moderation.decision === "review";
+    const isDegradedAllow = isLocalDegradedModerationResult(moderation);
     const insertedStatus = requiresReview ? "pending" : "published";
     const insertedModerationStatus = requiresReview ? "pending_review" : "published";
-    const moderatedAt = requiresReview ? new Date().toISOString() : null;
+    const moderatedAt = requiresReview || isDegradedAllow ? new Date().toISOString() : null;
 
     // Insert post (RLS enforces ownership)
     const { data: inserted, error: insertError } = await userClient
@@ -349,11 +352,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
         body: normalizedBody,
         status: insertedStatus,
         moderation_status: insertedModerationStatus,
-        moderation_reason: requiresReview ? moderation.reason : null,
+        moderation_reason: requiresReview || isDegradedAllow ? moderation.reason : null,
         moderation_score: requiresReview ? moderation.score : null,
         moderated_at: moderatedAt,
         moderated_by: null,
-        moderation_provider: requiresReview ? moderation.provider : null,
+        moderation_provider: requiresReview || isDegradedAllow ? moderation.provider : null,
       })
       .select("id,author_id,circle_id,type,title,status,moderation_status,created_at")
       .single();

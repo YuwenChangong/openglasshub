@@ -539,7 +539,10 @@ export default function CreatePostForm() {
               const uploadMessage = uploadError instanceof Error ? uploadError.message : "未知错误";
               const canFallbackToSupabase =
                 /Missing required env var: R2_/i.test(uploadMessage) ||
-                /视频上传初始化失败 \(500\)/i.test(uploadMessage);
+                /视频上传初始化失败 \(500\)/i.test(uploadMessage) ||
+                /Failed to fetch/i.test(uploadMessage) ||
+                /NetworkError/i.test(uploadMessage) ||
+                /Load failed/i.test(uploadMessage);
 
               if (!canFallbackToSupabase) {
                 throw new Error(`视频上传失败：${uploadMessage}`);
@@ -641,9 +644,37 @@ export default function CreatePostForm() {
           }),
         });
 
-        const mediaResult = (await mediaResponse.json().catch(() => null)) as { error?: string } | null;
+        const mediaResult = (await mediaResponse.json().catch(() => null)) as
+          | {
+              error?: string;
+              message?: string;
+              reason_code?: string | null;
+              post?: { id: string; status?: string | null; moderation_status?: string | null };
+              pending_review?: boolean;
+              rejected?: boolean;
+            }
+          | null;
         if (!mediaResponse.ok) {
           throw new Error(mediaResult?.error ?? `媒体写入失败 (${mediaResponse.status})`);
+        }
+
+        if (mediaResult?.post?.status) {
+          createPayload.post.status = mediaResult.post.status;
+        }
+        if (typeof mediaResult?.pending_review === "boolean") {
+          createPayload.pending_review = mediaResult.pending_review;
+        }
+        if (mediaResult?.message) {
+          createPayload.message = mediaResult.message;
+        }
+        if (
+          mediaResult?.pending_review &&
+          mediaResult?.reason_code &&
+          /video_thumbnail_missing_review|video_thumbnail_required_review|openai_video_thumbnail_missing_review/i.test(
+            mediaResult.reason_code,
+          )
+        ) {
+          createPayload.message = "视频已提交审核。";
         }
       }
 

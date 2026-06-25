@@ -26,6 +26,7 @@ function check(label, ok, detail = "") {
 }
 
 const migrationPath = "supabase/migrations/20260620_lock_profile_role_updates.sql";
+const qaGrantPath = "supabase/migrations/20260620_admin_qa_role_grant_path.sql";
 const profileApiPath = "src/pages/api/users/me/profile.ts";
 const editProfilePath = "src/components/profile/EditProfileForm.tsx";
 const adminAuthPath = "src/lib/server/admin-auth.ts";
@@ -37,6 +38,28 @@ if (exists(migrationPath)) {
   check("migration grants column-scoped profile update", /grant update \(/i.test(migration));
   check("migration adds role change trigger", /create trigger trg_profiles_prevent_role_change/i.test(migration));
   check("migration adds role change function", /prevent_unauthorized_profile_role_change/i.test(migration));
+}
+
+check("qa admin role rpc migration exists", exists(qaGrantPath));
+if (exists(qaGrantPath)) {
+  const migration = read(qaGrantPath);
+  check("qa grant rpc exists", /create or replace function public\.qa_grant_admin_role/i.test(migration));
+  check("qa revoke rpc exists", /create or replace function public\.qa_revoke_admin_role/i.test(migration));
+  check("qa role rpc uses security definer", /security definer/i.test(migration));
+  check(
+    "qa role rpc execute revoked from public anon authenticated",
+    /revoke all on function public\.qa_grant_admin_role\(uuid\) from public, anon, authenticated;/i.test(migration)
+      && /revoke all on function public\.qa_revoke_admin_role\(uuid\) from public, anon, authenticated;/i.test(migration),
+  );
+  check(
+    "qa role rpc execute granted only to service_role",
+    /grant execute on function public\.qa_grant_admin_role\(uuid\) to service_role;/i.test(migration)
+      && /grant execute on function public\.qa_revoke_admin_role\(uuid\) to service_role;/i.test(migration),
+  );
+  check(
+    "qa role rpc checks service_role gate",
+    /jwt_role <> 'service_role'/i.test(migration) || /current_user <> 'postgres'/i.test(migration),
+  );
 }
 
 check("profile update API exists", exists(profileApiPath));
@@ -51,6 +74,19 @@ if (exists(editProfilePath)) {
   const component = read(editProfilePath);
   check("edit profile posts to server API", /fetch\("\/api\/users\/me\/profile"/.test(component));
   check("edit profile no longer updates profiles directly", !/\.from\("profiles"\)\s*\.update\(/s.test(component));
+}
+
+const createQaScriptPath = "scripts/qa/create-preview-test-accounts.mjs";
+if (exists(createQaScriptPath)) {
+  const script = read(createQaScriptPath);
+  check("qa create script uses grant rpc", /rpc\("qa_grant_admin_role"/.test(script));
+  check("qa create script no direct profiles role update", !/from\("profiles"\)\.update\(\{ role: "admin" \}\)/.test(script));
+}
+
+const cleanupQaScriptPath = "scripts/qa/cleanup-preview-test-accounts.mjs";
+if (exists(cleanupQaScriptPath)) {
+  const script = read(cleanupQaScriptPath);
+  check("qa cleanup script uses revoke rpc", /rpc\("qa_revoke_admin_role"/.test(script));
 }
 
 if (exists(adminAuthPath)) {

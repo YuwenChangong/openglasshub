@@ -1,0 +1,32 @@
+[
+  {
+    "term": "微信登录",
+    "category": "platform_policy_custom",
+    "severity": "allow",
+    "match": "contains"
+  },
+  {
+    "term": "微信通知",
+    "category": "platform_policy_custom",
+    "severity": "allow",
+    "match": "contains"
+  },
+  {
+    "term": "微信支付",
+    "category": "platform_policy_custom",
+    "severity": "allow",
+    "match": "contains"
+  },
+  {
+    "term": "telegram bot",
+    "category": "platform_policy_custom",
+    "severity": "allow",
+    "match": "contains"
+  },
+  {
+    "term": "whatsapp integration",
+    "category": "platform_policy_custom",
+    "severity": "allow",
+    "match": "contains"
+  }
+]

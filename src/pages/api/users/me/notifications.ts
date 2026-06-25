@@ -149,7 +149,9 @@ async function resolveActors(client: SupabaseClient, rows: NotificationRow[]): P
   const baseRows = (data as ProfileRow[] | null) ?? [];
   const resolvedPairs = await Promise.all(
     baseRows.map(async (row) => {
-      const avatarResolvedUrl = await resolveProfileAvatarUrl(client, row.avatar_url);
+      const avatarResolvedUrl = await resolveProfileAvatarUrl(client, row.avatar_url, undefined, {
+        publicProxyUserId: row.id,
+      });
       return [
         row.id,
         {

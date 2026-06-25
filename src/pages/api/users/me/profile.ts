@@ -1,6 +1,25 @@
 import type { APIRoute } from "astro";
+import { moderateAsset } from "../../../../lib/moderation/moderate-asset.server";
+import {
+  isLocalDegradedModerationResult,
+  isProviderErrorModerationResult,
+  moderateContent,
+} from "../../../../lib/moderation/moderate-content.server";
+import {
+  createSignedModerationUrls,
+  removeStoragePathIfAllowed,
+} from "../../../../lib/moderation/moderation-media.server";
+import {
+  buildModerationProviderInput,
+  isOpenAIProfileImageModerationEnabled,
+} from "../../../../lib/moderation/moderation-provider.server";
+import {
+  PROFILE_AVATAR_PREFIX,
+  PROFILE_BANNER_PREFIX,
+  resolveProfileAvatarUrl,
+  resolveProfileBannerUrl,
+} from "../../../../lib/profile-media";
 import { isValidProfileUsername } from "../../../../lib/profile-links";
-import { resolveProfileAvatarUrl, resolveProfileBannerUrl } from "../../../../lib/profile-media";
 import { jsonResponse, requireForumUser } from "../../../../lib/server/circle-management";
 
 export const prerender = false;
@@ -27,13 +46,13 @@ function normalizeString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isMissingBannerSchemaError(message: string) {
+  return /banner_url/i.test(message) && /does not exist/i.test(message);
+}
+
 function sanitizeImagePath(value: unknown) {
   const path = typeof value === "string" ? value.trim() : "";
   return path || null;
-}
-
-function isMissingBannerSchemaError(message: string) {
-  return /banner_url/i.test(message) && /does not exist/i.test(message);
 }
 
 function hasForbiddenFields(payload: ProfilePayload) {
@@ -58,6 +77,35 @@ function validatePayload(payload: ProfilePayload) {
   return null;
 }
 
+async function moderateProfileImage(params: {
+  client: Awaited<ReturnType<typeof requireForumUser>>["client"];
+  env: Record<string, string | undefined>;
+  path: string | null;
+  targetType: "profile_avatar_image" | "profile_banner_image";
+}) {
+  if (!params.path || !isOpenAIProfileImageModerationEnabled(params.env)) {
+    return { decision: "allow" as const, reason: null as string | null };
+  }
+
+  const allowedPrefixes =
+    params.targetType === "profile_avatar_image" ? [PROFILE_AVATAR_PREFIX] : [PROFILE_BANNER_PREFIX];
+  const imageUrls = await createSignedModerationUrls({
+    client: params.client,
+    values: [params.path],
+    allowedPrefixes,
+    preferDataUrls: true,
+  });
+
+  return moderateAsset(
+    params.env,
+    buildModerationProviderInput({
+      targetType: params.targetType,
+      imageUrls,
+      localeHint: "zh-CN",
+    }),
+  );
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const env = (locals as RuntimeLocals).runtime?.env;
@@ -65,11 +113,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const auth = await requireForumUser(request, env);
     const payload = (await request.json().catch(() => null)) as ProfilePayload | null;
-    if (!payload) return jsonResponse({ error: "INVALID_JSON_PAYLOAD" }, 400);
-    if (hasForbiddenFields(payload)) return jsonResponse({ error: "PROFILE_FORBIDDEN_FIELD_UPDATE" }, 403);
+    if (!payload) {
+      return jsonResponse({ error: "INVALID_JSON_PAYLOAD" }, 400);
+    }
+    if (hasForbiddenFields(payload)) {
+      return jsonResponse({ error: "PROFILE_FORBIDDEN_FIELD_UPDATE" }, 403);
+    }
 
     const validationError = validatePayload(payload);
-    if (validationError) return jsonResponse({ error: validationError }, 400);
+    if (validationError) {
+      return jsonResponse({ error: validationError }, 400);
+    }
 
     const displayName = normalizeString(payload.display_name) || null;
     const username = normalizeString(payload.username).toLowerCase() || null;
@@ -77,40 +131,66 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const avatarUrl = sanitizeImagePath(payload.avatar_url);
     const bannerUrl = sanitizeImagePath(payload.banner_url);
 
-    const updatePayload = {
-      display_name: displayName,
-      username,
-      bio,
-      avatar_url: avatarUrl,
-      banner_url: bannerUrl,
-    };
+    const textPayload = [
+      displayName ? `Display name: ${displayName}` : "",
+      username ? `Username: ${username}` : "",
+      bio ? `Bio: ${bio}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
 
-    let updateResult = await auth.client
+    const textModeration = await moderateContent(env, {
+      contentType: "profile_text",
+      userId: auth.user.id,
+      text: textPayload,
+      providerInput: {
+        targetType: "profile_text",
+        title: displayName ?? undefined,
+        body: textPayload,
+        localeHint: "zh-CN",
+      },
+    });
+
+    if (textModeration.decision !== "allow") {
+      const unavailable = textModeration.decision === "review" && isProviderErrorModerationResult(textModeration);
+      return jsonResponse(
+        {
+          error: unavailable ? "PROFILE_MODERATION_UNAVAILABLE" : "PROFILE_CONTENT_REJECTED",
+          message: unavailable ? "资料审核暂时不可用，请稍后重试。" : "资料内容需要调整后再保存。",
+        },
+        unavailable ? 503 : 403,
+      );
+    }
+
+    if (isLocalDegradedModerationResult(textModeration)) {
+      console.warn("[moderation] local-only degraded allow", {
+        targetType: "profile_text",
+        userId: auth.user.id,
+        reason: textModeration.reason,
+        provider: textModeration.provider,
+        status: textModeration.providerDetails?.providerStatus ?? null,
+      });
+    }
+
+    let currentProfileResult = await auth.client
       .from("profiles")
-      .update(updatePayload)
-      .eq("id", auth.user.id)
       .select("id, username, display_name, avatar_url, bio, role, created_at, banner_url")
-      .single();
+      .eq("id", auth.user.id)
+      .maybeSingle();
 
-    if (updateResult.error && isMissingBannerSchemaError(updateResult.error.message) && !bannerUrl) {
-      updateResult = await auth.client
+    if (currentProfileResult.error && isMissingBannerSchemaError(currentProfileResult.error.message)) {
+      currentProfileResult = await auth.client
         .from("profiles")
-        .update({
-          display_name: displayName,
-          username,
-          bio,
-          avatar_url: avatarUrl,
-        })
-        .eq("id", auth.user.id)
         .select("id, username, display_name, avatar_url, bio, role, created_at")
-        .single();
+        .eq("id", auth.user.id)
+        .maybeSingle();
     }
 
-    if (updateResult.error || !updateResult.data) {
-      return jsonResponse({ error: "PROFILE_UPDATE_FAILED" }, 500);
+    if (currentProfileResult.error || !currentProfileResult.data) {
+      return jsonResponse({ error: currentProfileResult.error?.message ?? "Profile not found" }, 404);
     }
 
-    const updatedProfile = updateResult.data as {
+    const currentProfile = currentProfileResult.data as {
       id: string;
       username: string | null;
       display_name: string | null;
@@ -121,9 +201,104 @@ export const POST: APIRoute = async ({ request, locals }) => {
       created_at: string;
     };
 
+    const nextAvatarPath = avatarUrl ?? currentProfile.avatar_url ?? null;
+    const nextBannerPath = bannerUrl ?? currentProfile.banner_url ?? null;
+
+    const avatarChanged = nextAvatarPath !== (currentProfile.avatar_url ?? null);
+    const bannerChanged = nextBannerPath !== (currentProfile.banner_url ?? null);
+
+    const [avatarModeration, bannerModeration] = await Promise.all([
+      avatarChanged
+        ? moderateProfileImage({
+            client: auth.client,
+            env,
+            path: nextAvatarPath,
+            targetType: "profile_avatar_image",
+          })
+        : Promise.resolve({ decision: "allow" as const, reason: null }),
+      bannerChanged
+        ? moderateProfileImage({
+            client: auth.client,
+            env,
+            path: nextBannerPath,
+            targetType: "profile_banner_image",
+          })
+        : Promise.resolve({ decision: "allow" as const, reason: null }),
+    ]);
+
+    if (avatarModeration.decision !== "allow") {
+      await removeStoragePathIfAllowed({
+        client: auth.client,
+        value: nextAvatarPath,
+        allowedPrefixes: [PROFILE_AVATAR_PREFIX],
+        logLabel: "profile-avatar-moderation",
+      });
+      const code = avatarModeration.reason?.startsWith("openai_provider_error_")
+        ? "PROFILE_IMAGE_MODERATION_UNAVAILABLE"
+        : "PROFILE_IMAGE_NOT_ALLOWED";
+      return jsonResponse(
+        { error: code, field: "avatar", message: "资料图片需要调整后再保存。" },
+        code === "PROFILE_IMAGE_NOT_ALLOWED" ? 403 : 503,
+      );
+    }
+
+    if (bannerModeration.decision !== "allow") {
+      await removeStoragePathIfAllowed({
+        client: auth.client,
+        value: nextBannerPath,
+        allowedPrefixes: [PROFILE_BANNER_PREFIX],
+        logLabel: "profile-banner-moderation",
+      });
+      const code = bannerModeration.reason?.startsWith("openai_provider_error_")
+        ? "PROFILE_IMAGE_MODERATION_UNAVAILABLE"
+        : "PROFILE_IMAGE_NOT_ALLOWED";
+      return jsonResponse(
+        { error: code, field: "banner", message: "资料图片需要调整后再保存。" },
+        code === "PROFILE_IMAGE_NOT_ALLOWED" ? 403 : 503,
+      );
+    }
+
+    const updatePayload = {
+      display_name: displayName,
+      username,
+      bio,
+      avatar_url: nextAvatarPath,
+      banner_url: nextBannerPath,
+    };
+
+    let updateResult = await auth.client
+      .from("profiles")
+      .update(updatePayload)
+      .eq("id", auth.user.id)
+      .select("id, username, display_name, avatar_url, bio, role, created_at, banner_url")
+      .single();
+
+    if (updateResult.error && isMissingBannerSchemaError(updateResult.error.message) && !bannerChanged) {
+      updateResult = await auth.client
+        .from("profiles")
+        .update({
+          display_name: displayName,
+          username,
+          bio,
+          avatar_url: nextAvatarPath,
+        })
+        .eq("id", auth.user.id)
+        .select("id, username, display_name, avatar_url, bio, role, created_at")
+        .single();
+    }
+
+    if (updateResult.error || !updateResult.data) {
+      return jsonResponse({ error: updateResult.error?.message ?? "PROFILE_UPDATE_FAILED" }, 500);
+    }
+
+    const updatedProfile = updateResult.data as typeof currentProfile;
     const [resolvedAvatarUrl, resolvedBannerUrl] = await Promise.all([
-      resolveProfileAvatarUrl(auth.client, updatedProfile.avatar_url),
-      resolveProfileBannerUrl(auth.client, updatedProfile.banner_url ?? null),
+      resolveProfileAvatarUrl(auth.client, updatedProfile.avatar_url, undefined, {
+        publicProxyUserId: updatedProfile.id,
+      }),
+      resolveProfileBannerUrl(auth.client, updatedProfile.banner_url ?? null, undefined, {
+        publicProxyUserId: updatedProfile.id,
+      }),
     ]);
 
     return jsonResponse({
@@ -135,7 +310,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    return jsonResponse({ error: "PROFILE_UPDATE_FAILED" }, 500);
+    return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
   }
 };
 

@@ -22,8 +22,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       action: "approve",
       reason: parsed.reason,
     });
-    if (!result.ok) return jsonResponse({ error: result.error }, 500);
-    return jsonResponse({ ok: true, item: result.item });
+    if (!result.ok) return jsonResponse({ error: result.error }, result.status ?? 500);
+    return jsonResponse({ ok: true, item: result.item, already_applied: result.alreadyApplied === true });
   } catch (error) {
     if (error instanceof Response) return error;
     return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
