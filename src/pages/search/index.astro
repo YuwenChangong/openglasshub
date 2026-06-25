@@ -1,14 +1,11 @@
-﻿---
+---
 export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
-import PostCard from "../../components/community/PostCard.astro";
-import CircleCard from "../../components/community/CircleCard.astro";
 import { buildCircleImageMap } from "../../lib/circle-images";
 import { FORUM_SEARCH_LIMITS, runForumSearch } from "../../lib/forum-search";
-import { formatPostTime } from "../../lib/format-time";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
-import type { ForumSearchType } from "../../lib/search-types";
+import type { ForumSearchResults, ForumSearchType } from "../../lib/search-types";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
@@ -17,7 +14,7 @@ const circleSlug = String(Astro.url.searchParams.get("circle") ?? "").trim() || 
 const searchType = (() => {
   if (circleSlug) return "posts";
   const raw = Astro.url.searchParams.get("type");
-  return raw === "posts" || raw === "circles" || raw === "all" ? raw : "all";
+  return raw === "posts" || raw === "circles" || raw === "users" || raw === "devices" || raw === "all" ? raw : "all";
 })() as ForumSearchType;
 
 const hasQuery = rawQuery.trim().length > 0;
@@ -32,47 +29,65 @@ const searchResult = !hasQuery || invalidQuery
       r2PublicBaseUrl: env.R2_PUBLIC_BASE_URL,
     });
 
-const posts = searchResult?.ok ? searchResult.results.posts : [];
-const circles = !circleSlug && searchResult?.ok ? searchResult.results.circles : [];
+const results: ForumSearchResults | null = searchResult?.ok ? searchResult.results : null;
+const posts = results?.posts ?? [];
+const circles = !circleSlug ? results?.circles ?? [] : [];
+const users = !circleSlug ? results?.users ?? [] : [];
+const devices = !circleSlug ? results?.devices ?? [] : [];
+const counts = results?.counts ?? { posts: 0, circles: 0, users: 0, devices: 0 };
 const circleImageMap = circles.length > 0
   ? await buildCircleImageMap(supabase, circles, 60 * 60, {
       publicProxy: true,
     })
   : new Map();
+
 const showPostsSection = posts.length > 0;
 const showCirclesSection = circles.length > 0;
-const hasAnyResults = showPostsSection || showCirclesSection;
+const showUsersSection = users.length > 0;
+const showDevicesSection = devices.length > 0;
+const hasAnyResults = showPostsSection || showCirclesSection || showUsersSection || showDevicesSection;
 
-function searchHref(nextType: ForumSearchType) {
+const suggestions = ["xreal", "rayneo", "AR glasses", "apple", "brilliant labs", "测试"];
+
+function searchHref(nextType: ForumSearchType, nextQuery = rawQuery.trim()) {
   const params = new URLSearchParams();
-  if (rawQuery.trim()) params.set("q", rawQuery.trim());
+  if (nextQuery) params.set("q", nextQuery);
   if (circleSlug) params.set("circle", circleSlug);
   if (nextType !== "all") params.set("type", nextType);
   return `/search/${params.toString() ? `?${params.toString()}` : ""}`;
 }
 
-const postTypeLabels: Record<string, string> = {
-  experience: "体验",
-  question: "提问",
-  review: "评测",
-  dev: "开发",
-  news: "资讯",
-  feedback: "反馈",
-};
+function formatDate(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-NZ", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+const resultSummary = [
+  { key: "posts", label: "Posts", count: counts.posts },
+  { key: "circles", label: "Circles", count: counts.circles },
+  { key: "users", label: "People", count: counts.users },
+  { key: "devices", label: "Devices", count: counts.devices },
+].filter((item) => item.count > 0);
 ---
 
 <ForumLayout
-  title="搜索"
-  description="搜索 OpenGlass Hub 论坛内容。"
+  title="Search OpenGlass Hub"
+  description="Search posts, circles, people, and devices across OpenGlass Hub."
   noindex={true}
 >
   <section class="search-page-head">
-    <h1>搜索</h1>
+    <h1>Search OpenGlass Hub</h1>
   </section>
 
   <section class="community-surface community-surface--padded search-panel">
-    <form method="get" action="/search/" class="search-form">
-      <div class="search-form__row">
+    <form method="get" action="/search/" class="search-form" data-search-form>
+      <div class="search-form__row search-form__row--primary">
         <input
           class="community-input search-form__input"
           type="search"
@@ -80,31 +95,54 @@ const postTypeLabels: Record<string, string> = {
           value={rawQuery}
           minlength={FORUM_SEARCH_LIMITS.minQueryLength}
           maxlength={FORUM_SEARCH_LIMITS.maxQueryLength}
-          placeholder="搜索"
-          aria-label="搜索内容"
+          placeholder="Search"
+          aria-label="Search OpenGlass Hub"
         />
-        <button type="submit" class="community-action-button community-action-button--primary">搜索</button>
+        <button type="submit" class="community-action-button community-action-button--primary" data-search-submit>Search</button>
       </div>
       {circleSlug ? <input type="hidden" name="circle" value={circleSlug} /> : null}
       <input type="hidden" name="type" value={searchType} />
     </form>
 
     {!circleSlug ? (
-      <div class="search-filter-row" role="tablist" aria-label="搜索类型">
-        <a href={searchHref("all")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "all" }]} role="tab" aria-selected={searchType === "all"}>全部</a>
-        <a href={searchHref("posts")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "posts" }]} role="tab" aria-selected={searchType === "posts"}>帖子</a>
-        <a href={searchHref("circles")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "circles" }]} role="tab" aria-selected={searchType === "circles"}>圈子</a>
+      <div class="search-filter-row" role="tablist" aria-label="Search type">
+        <a href={searchHref("all")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "all" }]} role="tab" aria-selected={searchType === "all"}>All</a>
+        <a href={searchHref("posts")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "posts" }]} role="tab" aria-selected={searchType === "posts"}>Posts</a>
+        <a href={searchHref("circles")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "circles" }]} role="tab" aria-selected={searchType === "circles"}>Circles</a>
+        <a href={searchHref("users")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "users" }]} role="tab" aria-selected={searchType === "users"}>People</a>
+        <a href={searchHref("devices")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "devices" }]} role="tab" aria-selected={searchType === "devices"}>Devices</a>
+      </div>
+    ) : null}
+
+    {!hasQuery ? (
+      <div class="community-chip-row search-suggestions" aria-label="Common search suggestions">
+        {suggestions.map((suggestion) => (
+          <a href={searchHref("all", suggestion)} class="community-chip">{suggestion}</a>
+        ))}
+      </div>
+    ) : null}
+
+    {resultSummary.length > 0 ? (
+      <div class="search-summary" aria-label="Search result counts">
+        {resultSummary.map((item) => (
+          <span class="search-summary__item">
+            <strong>{item.count}</strong>
+            <span>{item.label}</span>
+          </span>
+        ))}
       </div>
     ) : null}
   </section>
 
   {invalidQuery ? (
     <section class="community-empty search-empty">
-      <strong>请输入至少 2 个字符</strong>
+      <strong>Search needs at least 2 characters</strong>
+      <p>Try another keyword</p>
     </section>
   ) : searchResult && !searchResult.ok ? (
     <section class="community-empty search-empty">
-      <strong>{searchResult.error === "INVALID_QUERY" ? "请输入至少 2 个字符" : "搜索失败，请稍后重试"}</strong>
+      <strong>{searchResult.error === "INVALID_QUERY" ? "Search needs at least 2 characters" : "Search failed"}</strong>
+      <p>Try another keyword</p>
     </section>
   ) : hasQuery ? (
     hasAnyResults ? (
@@ -112,25 +150,37 @@ const postTypeLabels: Record<string, string> = {
         {showPostsSection ? (
           <section class="search-group">
             <div class="community-stream-head search-group__head">
-              <h2>帖子</h2>
-              <span class="community-meta">{posts.length}</span>
+              <h2>Posts</h2>
+              <span class="community-meta">{counts.posts}</span>
             </div>
-            <div class="community-feed-list">
+            <div class="search-card-list">
               {posts.map((post) => (
-                <PostCard
-                  id={post.id}
-                  title={post.title}
-                  excerpt={post.excerpt}
-                  circleName={post.circle?.name ?? undefined}
-                  circleSlug={post.circle?.slug ?? undefined}
-                  typeLabel={post.type ? (postTypeLabels[post.type] || post.type) : undefined}
-                  authorName={post.author?.display_name || post.author?.username || undefined}
-                  authorId={post.author?.id ?? undefined}
-                  authorUsername={post.author?.username ?? undefined}
-                  timestamp={formatPostTime(post.created_at)}
-                  media={post.preview_image_url ? [{ id: `search-${post.id}`, kind: "image", displayUrl: post.preview_image_url, previewUrl: post.preview_image_url }] : []}
-                  likeCount={0}
-                />
+                <article class:list={["search-card", "search-card--post", { "search-card--post-no-media": !post.preview_image_url }]}>
+                  {post.preview_image_url ? (
+                    <a href={`/posts/${post.id}/`} aria-label={post.title}>
+                      <img src={post.preview_image_url} alt="" class="search-card__thumb" loading="lazy" decoding="async" />
+                    </a>
+                  ) : null}
+                  <div class="search-card__body">
+                    <div class="search-card__head">
+                      <strong><a href={`/posts/${post.id}/`}>{post.title}</a></strong>
+                    </div>
+                    {post.excerpt ? <p>{post.excerpt}</p> : null}
+                    <div class="search-card__meta">
+                      {post.author?.display_name || post.author?.username ? (
+                        post.author?.href ? (
+                          <a href={post.author?.href} class="search-card__meta-link">{post.author.display_name || post.author.username}</a>
+                        ) : (
+                          <span>{post.author.display_name || post.author.username}</span>
+                        )
+                      ) : null}
+                      {post.circle?.name ? <span>{post.circle.name}</span> : null}
+                      {post.type ? <span>{post.type}</span> : null}
+                      {post.has_media ? <span>Media</span> : null}
+                      {formatDate(post.created_at) ? <span>{formatDate(post.created_at)}</span> : null}
+                    </div>
+                  </div>
+                </article>
               ))}
             </div>
           </section>
@@ -139,19 +189,73 @@ const postTypeLabels: Record<string, string> = {
         {showCirclesSection ? (
           <section class="search-group">
             <div class="community-stream-head search-group__head">
-              <h2>圈子</h2>
-              <span class="community-meta">{circles.length}</span>
+              <h2>Circles</h2>
+              <span class="community-meta">{counts.circles}</span>
             </div>
-            <div class="search-circle-grid">
+            <div class="search-entity-grid">
               {circles.map((circle) => (
-                <CircleCard
-                  id={circle.id}
-                  name={circle.name}
-                  slug={circle.slug}
-                  description={circle.description || undefined}
-                  latestNote={circle.created_at ? `创建于 ${new Date(circle.created_at).toLocaleDateString("zh-CN")}` : undefined}
-                  imageUrl={circleImageMap.get(circle.id)}
-                />
+                <a href={`/circles/${circle.slug}/`} class="search-entity-card">
+                  {circleImageMap.get(circle.id) ? (
+                    <img src={circleImageMap.get(circle.id)} alt="" class="search-entity-card__cover" loading="lazy" decoding="async" />
+                  ) : null}
+                  <div class="search-entity-card__copy">
+                    <strong>{circle.name}</strong>
+                    {circle.description ? <p>{circle.description}</p> : null}
+                    <div class="search-entity-card__meta">
+                      {circle.post_count > 0 ? <span>{circle.post_count} posts</span> : null}
+                      {formatDate(circle.created_at) ? <span>{formatDate(circle.created_at)}</span> : null}
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {showUsersSection ? (
+          <section class="search-group">
+            <div class="community-stream-head search-group__head">
+              <h2>People</h2>
+              <span class="community-meta">{counts.users}</span>
+            </div>
+            <div class="search-entity-grid search-entity-grid--people">
+              {users.map((user) => (
+                <a href={user.href || `/users/${user.id}/`} class="search-user-card">
+                  {user.avatar_url ? <img src={user.avatar_url} alt="" class="search-user-card__avatar" loading="lazy" decoding="async" /> : <span class="search-user-card__avatar search-user-card__avatar--placeholder">{(user.display_name || user.username || "U").slice(0, 1).toUpperCase()}</span>}
+                  <div class="search-user-card__copy">
+                    <strong>{user.display_name || user.username || "User"}</strong>
+                    {user.username ? <span>@{user.username}</span> : null}
+                    {user.bio_excerpt ? <p>{user.bio_excerpt}</p> : null}
+                    <div class="search-user-card__meta">
+                      {user.post_count > 0 ? <span>{user.post_count} posts</span> : null}
+                      {user.circle_count > 0 ? <span>{user.circle_count} circles</span> : null}
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {showDevicesSection ? (
+          <section class="search-group">
+            <div class="community-stream-head search-group__head">
+              <h2>Devices</h2>
+              <span class="community-meta">{counts.devices}</span>
+            </div>
+            <div class="search-entity-grid">
+              {devices.map((device) => (
+                <a href={device.href} class="search-entity-card search-entity-card--device">
+                  <div class="search-entity-card__copy">
+                    <span class="search-entity-card__eyebrow">{device.brand_name}</span>
+                    <strong>{device.name}</strong>
+                    {device.description ? <p>{device.description}</p> : null}
+                    <div class="search-entity-card__meta">
+                      {device.type_label ? <span>{device.type_label}</span> : null}
+                      {device.release_year ? <span>{device.release_year}</span> : null}
+                    </div>
+                  </div>
+                </a>
               ))}
             </div>
           </section>
@@ -159,8 +263,20 @@ const postTypeLabels: Record<string, string> = {
       </section>
     ) : (
       <section class="community-empty search-empty">
-        <strong>没有找到相关内容</strong>
+        <strong>No results found</strong>
+        <p>Try another keyword</p>
       </section>
     )
   ) : null}
+
+  <script is:inline>
+    const searchForm = document.querySelector('[data-search-form]');
+    const searchSubmit = document.querySelector('[data-search-submit]');
+    if (searchForm instanceof HTMLFormElement && searchSubmit instanceof HTMLButtonElement) {
+      searchForm.addEventListener('submit', () => {
+        searchSubmit.textContent = 'Searching…';
+        searchSubmit.disabled = true;
+      });
+    }
+  </script>
 </ForumLayout>

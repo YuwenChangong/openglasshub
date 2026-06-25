@@ -10,6 +10,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "test": "node --experimental-strip-types scripts/test-moderation.mjs",
+    "test:search": "node --experimental-strip-types scripts/test-search.mjs",
+    "test:search-audit": "node scripts/audit-search.mjs --dist dist --strict --verbose",
     "test:post-launch": "node scripts/post-launch-check.mjs --url https://openglasshub.pages.dev --strict --verbose",
     "test:profile-audit": "node scripts/verify-profile-system.cjs",
     "test:profile-role-security": "node scripts/audit-profile-role-security.mjs --strict --verbose",
