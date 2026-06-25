@@ -1,5 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+
+/**
+ * QA cleanup success criteria:
+ * - public QA posts/circles are no longer visible
+ * - admin role is revoked for the QA admin account
+ * - auth users are deleted, or disabled as an accepted fallback
+ *
+ * Physical auth deletion is preferred but not required when the fallback keeps
+ * the public surface clean and removes elevated privileges.
+ */
 
 const REQUIRED_ENV = [
   "QA_SUPABASE_URL",
@@ -7,6 +17,31 @@ const REQUIRED_ENV = [
   "QA_ORDINARY_EMAIL",
   "QA_ADMIN_EMAIL",
 ];
+
+const DEFAULT_BASE_URL = "https://openglasshub.pages.dev";
+const DEFAULT_OUTPUT_DIR = ".tmp-qa/cleanup-runs";
+
+function parseArgs(argv) {
+  const options = {
+    dryRun: false,
+    marker: null,
+    verbose: false,
+    strictPublic: false,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === "--dry-run") options.dryRun = true;
+    else if (value === "--verbose") options.verbose = true;
+    else if (value === "--strict-public") options.strictPublic = true;
+    else if (value === "--marker") {
+      options.marker = String(argv[index + 1] ?? "").trim() || null;
+      index += 1;
+    }
+  }
+
+  return options;
+}
 
 function requireEnv() {
   const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
@@ -22,6 +57,11 @@ function redactEmail(email) {
   const [local, domain] = String(email).split("@");
   if (!local || !domain) return "***";
   return `${local.slice(0, 1)}***@${domain}`;
+}
+
+function redactId(id) {
+  if (!id) return "unknown";
+  return `${id.slice(0, 6)}…${id.slice(-4)}`;
 }
 
 function uniqueStrings(values) {
@@ -47,7 +87,7 @@ function loadDotEnv() {
   return values;
 }
 
-function resolveUserCleanupConfig(env) {
+function resolveRuntimeConfig(env) {
   const dotEnv = loadDotEnv();
   const anonKey =
     process.env.PUBLIC_SUPABASE_ANON_KEY ??
@@ -57,12 +97,30 @@ function resolveUserCleanupConfig(env) {
     null;
 
   return {
-    url: process.env.PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? dotEnv.PUBLIC_SUPABASE_URL ?? dotEnv.SUPABASE_URL ??
+    baseUrl: String(process.env.QA_BASE_URL ?? process.env.PREVIEW_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, ""),
+    url:
+      process.env.PUBLIC_SUPABASE_URL ??
+      process.env.SUPABASE_URL ??
+      dotEnv.PUBLIC_SUPABASE_URL ??
+      dotEnv.SUPABASE_URL ??
       env.QA_SUPABASE_URL,
     anonKey,
     ordinaryPassword: process.env.QA_ORDINARY_PASSWORD ?? null,
     adminPassword: process.env.QA_ADMIN_PASSWORD ?? null,
   };
+}
+
+function sanitizeError(error) {
+  if (!error) return null;
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/eyJ[A-Za-z0-9._-]+/g, "[redacted-jwt]")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
+    .replace(/[A-Za-z0-9_-]{24,}\.[A-Za-z0-9._-]{24,}/g, "[redacted-token]");
+}
+
+function logVerbose(options, ...args) {
+  if (options.verbose) console.log(...args);
 }
 
 async function listUsersByEmail(client, email) {
@@ -99,85 +157,6 @@ async function revokeAdminRole(client, userId) {
   }
 }
 
-async function softHideContent(client, userId) {
-  const postResult = await client.from("posts").update({
-    status: "hidden_by_admin",
-    moderation_status: "hidden_by_admin",
-    moderation_reason: "qa_cleanup",
-  }).eq("author_id", userId);
-
-  const commentResult = await client.from("comments").update({
-    status: "hidden_by_admin",
-    moderation_status: "hidden_by_admin",
-    moderation_reason: "qa_cleanup",
-  }).eq("author_id", userId);
-
-  const circleResult = await client.from("circles").update({
-    status: "deleted",
-  }).eq("owner_id", userId);
-
-  return {
-    posts: postResult.error ? postResult.error.message : null,
-    comments: commentResult.error ? commentResult.error.message : null,
-    circles: circleResult.error ? circleResult.error.message : null,
-  };
-}
-
-async function collectStoragePaths(client, userId) {
-  const paths = [];
-
-  const { data: mediaRows } = await client
-    .from("post_media")
-    .select("storage_path, thumbnail_url")
-    .eq("user_id", userId);
-  for (const row of mediaRows ?? []) {
-    paths.push(row.storage_path ?? "", row.thumbnail_url ?? "");
-  }
-
-  const { data: profile } = await client
-    .from("profiles")
-    .select("avatar_url, banner_url")
-    .eq("id", userId)
-    .maybeSingle();
-  if (profile) {
-    paths.push(profile.avatar_url ?? "", profile.banner_url ?? "");
-  }
-
-  const { data: circles } = await client
-    .from("circles")
-    .select("image_path")
-    .eq("owner_id", userId);
-  for (const circle of circles ?? []) {
-    paths.push(circle.image_path ?? "");
-  }
-
-  return uniqueStrings(paths).filter((value) =>
-    /^(profile-avatars|profile-banners|circle-covers|tmp\/|[0-9a-f-]{36}\/)/i.test(value),
-  );
-}
-
-async function removeStorageObjects(client, paths) {
-  if (!paths.length) return { removed: 0, failed: 0 };
-  const { data, error } = await client.storage.from("post-media").remove(paths);
-  if (error) {
-    return { removed: 0, failed: paths.length, error: error.message };
-  }
-  const removed = Array.isArray(data) ? data.filter((item) => item?.name).length : 0;
-  return { removed, failed: Math.max(0, paths.length - removed) };
-}
-
-async function resetProfile(client, userId, email) {
-  const payload = {
-    display_name: "QA User",
-    username: null,
-    bio: "",
-    avatar_url: null,
-    banner_url: null,
-  };
-  const result = await client.from("profiles").update(payload).eq("id", userId);
-  return result.error ? { ok: false, error: result.error.message } : { ok: true };
-}
-
 async function tryDeleteAuthUser(client, userId) {
   const { error } = await client.auth.admin.deleteUser(userId);
   if (!error) return { deleted: true };
@@ -203,88 +182,498 @@ async function disableAuthUser(client, userId) {
   return error ? { ok: false, error: error.message ?? "unknown error" } : { ok: true };
 }
 
-async function createOwnedCleanupClient(config, email, password) {
-  if (!config.url || !config.anonKey || !password) {
-    return null;
-  }
+async function createSignedInClient(config, email, password) {
+  if (!config.url || !config.anonKey || !password) return { client: null, user: null, token: null, error: "MISSING_SIGNIN_CONFIG" };
   const client = createClient(config.url, config.anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data, error } = await client.auth.signInWithPassword({ email, password });
   if (error || !data.session || !data.user) {
-    return null;
+    return { client: null, user: null, token: null, error: error?.message ?? "SIGN_IN_FAILED" };
   }
-  return client;
+  return { client, user: data.user, token: data.session.access_token, error: null };
 }
 
-async function cleanupOwnedContent(client, userId) {
-  const { data: comments } = await client.from("comments").select("id").eq("author_id", userId).neq("status", "deleted");
-  for (const comment of comments ?? []) {
-    await client.from("comments").update({ status: "deleted" }).eq("id", comment.id);
+async function apiFetch(baseUrl, path, { method = "GET", token, body } = {}) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(body ? { "content-type": "application/json" } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await response.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {}
+  return { status: response.status, ok: response.ok, text, json };
+}
+
+async function pageFetch(baseUrl, path) {
+  const response = await fetch(`${baseUrl}${path}`);
+  return { status: response.status, text: await response.text() };
+}
+
+async function discoverOwnedArtifacts(serviceClient, userClient, userId, options) {
+  const discovered = {
+    posts: [],
+    comments: [],
+    circles: [],
+    mediaPaths: [],
+    profile: null,
+    errors: [],
+  };
+
+  if (userClient) {
+    const [postsResult, commentsResult, circlesResult, mediaResult, profileResult] = await Promise.all([
+      userClient.from("posts").select("id,title,status,circle_id").eq("author_id", userId).neq("status", "deleted"),
+      userClient.from("comments").select("id,post_id,body,status").eq("author_id", userId).neq("status", "deleted"),
+      userClient.from("circles").select("id,slug,name,status,image_path").eq("owner_id", userId).neq("status", "deleted"),
+      userClient.from("post_media").select("id,post_id,storage_path,thumbnail_url").eq("user_id", userId),
+      userClient.from("profiles").select("id,username,display_name,avatar_url,banner_url,role").eq("id", userId).maybeSingle(),
+    ]);
+
+    if (postsResult.error) discovered.errors.push(`discover_posts:${postsResult.error.message}`);
+    else discovered.posts = postsResult.data ?? [];
+
+    if (commentsResult.error) discovered.errors.push(`discover_comments:${commentsResult.error.message}`);
+    else discovered.comments = commentsResult.data ?? [];
+
+    if (circlesResult.error) discovered.errors.push(`discover_circles:${circlesResult.error.message}`);
+    else discovered.circles = circlesResult.data ?? [];
+
+    if (mediaResult.error) discovered.errors.push(`discover_media:${mediaResult.error.message}`);
+    else {
+      discovered.mediaPaths.push(
+        ...(mediaResult.data ?? []).flatMap((row) => [row.storage_path ?? "", row.thumbnail_url ?? ""]),
+      );
+    }
+
+    if (profileResult.error) discovered.errors.push(`discover_profile:${profileResult.error.message}`);
+    else discovered.profile = profileResult.data ?? null;
   }
 
-  const { data: posts } = await client.from("posts").select("id").eq("author_id", userId).neq("status", "deleted");
-  for (const post of posts ?? []) {
-    await client.from("posts").update({ status: "deleted" }).eq("id", post.id);
+  const [profileService, circlesService, mediaService] = await Promise.all([
+    serviceClient.from("profiles").select("avatar_url,banner_url").eq("id", userId).maybeSingle(),
+    serviceClient.from("circles").select("id,slug,name,status,image_path").eq("owner_id", userId),
+    serviceClient.from("post_media").select("storage_path,thumbnail_url").eq("user_id", userId),
+  ]);
+
+  if (!profileService.error && profileService.data) {
+    discovered.mediaPaths.push(profileService.data.avatar_url ?? "", profileService.data.banner_url ?? "");
+  }
+  if (!circlesService.error) {
+    for (const circle of circlesService.data ?? []) {
+      discovered.mediaPaths.push(circle.image_path ?? "");
+      if (!discovered.circles.some((item) => item.id === circle.id)) {
+        discovered.circles.push(circle);
+      }
+    }
+  }
+  if (!mediaService.error) {
+    for (const media of mediaService.data ?? []) {
+      discovered.mediaPaths.push(media.storage_path ?? "", media.thumbnail_url ?? "");
+    }
   }
 
-  const { data: circles } = await client.from("circles").select("id").eq("owner_id", userId).neq("status", "deleted");
-  for (const circle of circles ?? []) {
-    await client.from("circles").update({ status: "deleted" }).eq("id", circle.id);
+  discovered.mediaPaths = uniqueStrings(discovered.mediaPaths).filter((value) =>
+    /^(profile-avatars|profile-banners|circle-covers|tmp\/|[0-9a-f-]{36}\/)/i.test(value),
+  );
+
+  logVerbose(options, "[cleanup] discovered artifacts", {
+    userId: redactId(userId),
+    posts: discovered.posts.length,
+    comments: discovered.comments.length,
+    circles: discovered.circles.length,
+    mediaPaths: discovered.mediaPaths.length,
+  });
+
+  return discovered;
+}
+
+async function deleteOwnedComments(baseUrl, token, comments, options, dryRun) {
+  const results = [];
+  for (const comment of comments) {
+    if (dryRun) {
+      results.push({ id: comment.id, status: "DRY_RUN" });
+      continue;
+    }
+    const response = await apiFetch(baseUrl, `/api/forum/comments?id=${encodeURIComponent(comment.id)}`, {
+      method: "DELETE",
+      token,
+    });
+    results.push({
+      id: comment.id,
+      status: response.status,
+      ok: response.ok,
+      error: response.ok ? null : response.json?.error ?? response.text ?? null,
+    });
   }
+  logVerbose(options, "[cleanup] comment delete results", results);
+  return results;
+}
+
+async function deleteOwnedPosts(baseUrl, token, posts, options, dryRun) {
+  const results = [];
+  for (const post of posts) {
+    if (dryRun) {
+      results.push({ id: post.id, status: "DRY_RUN" });
+      continue;
+    }
+    const response = await apiFetch(baseUrl, `/api/forum/posts?id=${encodeURIComponent(post.id)}`, {
+      method: "DELETE",
+      token,
+    });
+    results.push({
+      id: post.id,
+      status: response.status,
+      ok: response.ok,
+      error: response.ok ? null : response.json?.error ?? response.text ?? null,
+    });
+  }
+  logVerbose(options, "[cleanup] post delete results", results);
+  return results;
+}
+
+async function deleteOwnedCircles(baseUrl, token, circles, options, dryRun) {
+  const results = [];
+  for (const circle of circles) {
+    if (dryRun) {
+      results.push({ id: circle.id, slug: circle.slug, status: "DRY_RUN" });
+      continue;
+    }
+    const response = await apiFetch(baseUrl, `/api/forum/circles/${encodeURIComponent(circle.slug)}/manage`, {
+      method: "DELETE",
+      token,
+    });
+    results.push({
+      id: circle.id,
+      slug: circle.slug,
+      status: response.status,
+      ok: response.ok,
+      error: response.ok ? null : response.json?.error ?? response.text ?? null,
+    });
+  }
+  logVerbose(options, "[cleanup] circle delete results", results);
+  return results;
+}
+
+async function resetOwnedProfile(baseUrl, token, options, dryRun) {
+  if (dryRun) return { ok: true, status: "DRY_RUN" };
+  const response = await apiFetch(baseUrl, "/api/users/me/profile", {
+    method: "POST",
+    token,
+    body: {
+      display_name: "QA User",
+      username: null,
+      bio: "",
+      avatar_url: null,
+      banner_url: null,
+    },
+  });
+  const result = {
+    ok: response.ok,
+    status: response.status,
+    error: response.ok ? null : response.json?.error ?? response.text ?? null,
+  };
+  logVerbose(options, "[cleanup] profile reset result", result);
+  return result;
+}
+
+async function removeStorageObjects(client, paths, dryRun) {
+  if (!paths.length) return { removed: 0, failed: 0, remaining: [] };
+  if (dryRun) return { removed: 0, failed: 0, remaining: paths.slice(), dryRun: true };
+  const { data, error } = await client.storage.from("post-media").remove(paths);
+  if (error) {
+    return { removed: 0, failed: paths.length, remaining: paths.slice(), error: error.message };
+  }
+  const removedNames = new Set(Array.isArray(data) ? data.map((item) => item?.name).filter(Boolean) : []);
+  const remaining = paths.filter((path) => !removedNames.has(path));
+  return { removed: removedNames.size, failed: remaining.length, remaining };
+}
+
+async function searchPublicArtifacts(baseUrl, marker) {
+  if (!marker) return { status: null, posts: [], circles: [], raw: null };
+  const response = await apiFetch(baseUrl, `/api/forum/search?q=${encodeURIComponent(marker)}`);
+  return {
+    status: response.status,
+    posts: response.json?.results?.posts ?? [],
+    circles: response.json?.results?.circles ?? [],
+    raw: response.json ?? response.text,
+  };
+}
+
+async function hidePublicPosts(baseUrl, token, posts, dryRun) {
+  const results = [];
+  for (const post of posts) {
+    if (dryRun) {
+      results.push({ id: post.id, status: "DRY_RUN" });
+      continue;
+    }
+    const response = await apiFetch(baseUrl, "/api/admin/moderation/hide", {
+      method: "POST",
+      token,
+      body: { target_type: "post", target_id: post.id, reason: "qa_cleanup" },
+    });
+    results.push({ id: post.id, status: response.status, ok: response.ok, error: response.ok ? null : response.json?.error ?? response.text ?? null });
+  }
+  return results;
+}
+
+async function deletePublicCircles(baseUrl, token, circles, dryRun) {
+  const results = [];
+  for (const circle of circles) {
+    if (dryRun) {
+      results.push({ id: circle.id, slug: circle.slug, status: "DRY_RUN" });
+      continue;
+    }
+    const response = await apiFetch(baseUrl, "/api/admin/forum/circles", {
+      method: "PATCH",
+      token,
+      body: { id: circle.id, status: "deleted" },
+    });
+    results.push({ id: circle.id, slug: circle.slug, status: response.status, ok: response.ok, error: response.ok ? null : response.json?.error ?? response.text ?? null });
+  }
+  return results;
+}
+
+async function verifyPublicSurface(baseUrl, marker, discoveredDirectUrls, strictPublic) {
+  const verification = {
+    marker,
+    feed: null,
+    search: null,
+    circles: null,
+    direct: [],
+    publicLeak: false,
+  };
+
+  if (marker) {
+    const [feedPage, circlesPage, searchResponse] = await Promise.all([
+      pageFetch(baseUrl, "/feed/"),
+      pageFetch(baseUrl, "/circles/"),
+      apiFetch(baseUrl, `/api/forum/search?q=${encodeURIComponent(marker)}`),
+    ]);
+    verification.feed = {
+      status: feedPage.status,
+      hasMarker: feedPage.text.includes(marker),
+    };
+    verification.circles = {
+      status: circlesPage.status,
+      hasMarker: circlesPage.text.includes(marker),
+    };
+    verification.search = {
+      status: searchResponse.status,
+      posts: searchResponse.json?.results?.posts?.length ?? null,
+      circles: searchResponse.json?.results?.circles?.length ?? null,
+    };
+    if (verification.feed.hasMarker || verification.circles.hasMarker || (verification.search.posts ?? 0) > 0 || (verification.search.circles ?? 0) > 0) {
+      verification.publicLeak = true;
+    }
+  }
+
+  for (const item of discoveredDirectUrls) {
+    const page = await pageFetch(baseUrl, item.path);
+    const visible = page.status === 200 && (!marker || page.text.includes(marker));
+    verification.direct.push({
+      label: item.label,
+      path: item.path,
+      status: page.status,
+      visible,
+    });
+    if (visible) verification.publicLeak = true;
+  }
+
+  if (strictPublic && verification.publicLeak) {
+    process.exitCode = 1;
+  }
+
+  return verification;
+}
+
+function classificationFor(summary) {
+  if (summary.verification.publicLeak) return "NO-GO_CLEANUP_PUBLIC_LEAK";
+  const adminRoleProblem = summary.users.some((item) => item.label === "admin" && item.adminRoleRevoked !== true);
+  if (adminRoleProblem) return "NO-GO_CLEANUP_AUTH_STATE";
+  const authStateProblem = summary.auth.some((item) => item.authDelete.deleted === false && item.authDisable.ok !== true);
+  if (authStateProblem) return "NO-GO_CLEANUP_AUTH_STATE";
+  if (summary.auth.some((item) => item.authDelete.deleted === false && item.authDisable.ok)) {
+    return "CLEANUP_OK_WITH_AUTH_DELETE_FALLBACK";
+  }
+  return "CLEANUP_OK";
 }
 
 async function main() {
+  const options = parseArgs(process.argv.slice(2));
   const env = requireEnv();
   if (!env) return;
 
-  const client = createClient(env.QA_SUPABASE_URL, env.QA_SUPABASE_SERVICE_ROLE_KEY, {
+  const runtime = resolveRuntimeConfig(env);
+  const serviceClient = createClient(env.QA_SUPABASE_URL, env.QA_SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const userCleanupConfig = resolveUserCleanupConfig(env);
 
-  const emails = [env.QA_ORDINARY_EMAIL, env.QA_ADMIN_EMAIL];
-  let hadFallback = false;
-  for (const email of emails) {
-    const users = await listUsersByEmail(client, email);
+  const adminSignIn = await createSignedInClient(runtime, env.QA_ADMIN_EMAIL, runtime.adminPassword);
+  const ordinarySignIn = await createSignedInClient(runtime, env.QA_ORDINARY_EMAIL, runtime.ordinaryPassword);
+
+  const summary = {
+    baseUrl: runtime.baseUrl,
+    marker: options.marker,
+    dryRun: options.dryRun,
+    strictPublic: options.strictPublic,
+    users: [],
+    auth: [],
+    publicActions: {
+      hiddenPosts: [],
+      deletedCircles: [],
+    },
+    verification: null,
+  };
+
+  const emails = [
+    { email: env.QA_ORDINARY_EMAIL, label: "ordinary", password: runtime.ordinaryPassword, signIn: ordinarySignIn },
+    { email: env.QA_ADMIN_EMAIL, label: "admin", password: runtime.adminPassword, signIn: adminSignIn },
+  ];
+
+  const discoveredDirectUrls = [];
+  const adminFallbackPosts = [];
+  const adminFallbackCircles = [];
+
+  for (const { email, label, signIn } of emails) {
+    const users = await listUsersByEmail(serviceClient, email);
     for (const user of users) {
-      const ownedCleanupClient = await createOwnedCleanupClient(
-        userCleanupConfig,
-        email,
-        email === env.QA_ADMIN_EMAIL ? userCleanupConfig.adminPassword : userCleanupConfig.ordinaryPassword,
+      const userSummary = {
+        label,
+        email: redactEmail(email),
+        userId: redactId(user.id),
+        signInError: signIn.error ? sanitizeError(signIn.error) : null,
+        discovery: null,
+        ownerCleanup: {
+          comments: [],
+          posts: [],
+          circles: [],
+          profileReset: null,
+        },
+        storage: null,
+        adminRoleRevoked: label === "admin" ? false : null,
+      };
+
+      const userClient = signIn.client;
+      const token = signIn.token;
+      const discovered = await discoverOwnedArtifacts(serviceClient, userClient, user.id, options);
+      userSummary.discovery = {
+        posts: discovered.posts.map((item) => ({ id: item.id, title: item.title ?? null, status: item.status ?? null })),
+        comments: discovered.comments.map((item) => ({ id: item.id, post_id: item.post_id ?? null, status: item.status ?? null })),
+        circles: discovered.circles.map((item) => ({ id: item.id, slug: item.slug ?? null, status: item.status ?? null })),
+        mediaPaths: discovered.mediaPaths,
+        errors: discovered.errors,
+      };
+
+      discoveredDirectUrls.push(
+        ...discovered.posts.map((post) => ({ label: `post:${post.id}`, path: `/posts/${post.id}/` })),
+        ...discovered.circles.filter((circle) => circle.slug).map((circle) => ({ label: `circle:${circle.slug}`, path: `/circles/${circle.slug}/` })),
       );
-      if (ownedCleanupClient) {
-        await cleanupOwnedContent(ownedCleanupClient, user.id);
+
+      if (token) {
+        userSummary.ownerCleanup.comments = await deleteOwnedComments(runtime.baseUrl, token, discovered.comments, options, options.dryRun);
+        userSummary.ownerCleanup.posts = await deleteOwnedPosts(runtime.baseUrl, token, discovered.posts, options, options.dryRun);
+        userSummary.ownerCleanup.circles = await deleteOwnedCircles(runtime.baseUrl, token, discovered.circles, options, options.dryRun);
+        userSummary.ownerCleanup.profileReset = await resetOwnedProfile(runtime.baseUrl, token, options, options.dryRun);
+      } else {
+        userSummary.ownerCleanup.profileReset = { ok: false, status: null, error: "SIGN_IN_UNAVAILABLE" };
       }
 
-      const storagePaths = await collectStoragePaths(client, user.id);
-      const softHideErrors = await softHideContent(client, user.id);
-      if (email === env.QA_ADMIN_EMAIL) {
-        await revokeAdminRole(client, user.id);
-      }
-      const storageResult = await removeStorageObjects(client, storagePaths);
-      const deleteResult = await tryDeleteAuthUser(client, user.id);
-      if (deleteResult.deleted) {
-        console.log(`cleaned QA user ${redactEmail(email)} (deleted auth user, removed ${storageResult.removed} objects)`);
-        continue;
+      const failedPostIds = new Set(
+        userSummary.ownerCleanup.posts
+          .filter((item) => item.ok === false)
+          .map((item) => item.id),
+      );
+      const failedCircleIds = new Set(
+        userSummary.ownerCleanup.circles
+          .filter((item) => item.ok === false)
+          .map((item) => item.id),
+      );
+      adminFallbackPosts.push(
+        ...discovered.posts.filter((post) => failedPostIds.has(post.id)).map((post) => ({ id: post.id })),
+      );
+      adminFallbackCircles.push(
+        ...discovered.circles.filter((circle) => failedCircleIds.has(circle.id)).map((circle) => ({ id: circle.id, slug: circle.slug })),
+      );
+
+      userSummary.storage = await removeStorageObjects(serviceClient, discovered.mediaPaths, options.dryRun);
+
+      if (label === "admin") {
+        try {
+          if (!options.dryRun) await revokeAdminRole(serviceClient, user.id);
+          userSummary.adminRoleRevoked = true;
+        } catch (error) {
+          userSummary.adminRoleRevoked = sanitizeError(error);
+        }
       }
 
-      hadFallback = true;
-      const profileReset = await resetProfile(client, user.id, email);
-      const authDisable = await disableAuthUser(client, user.id);
-      console.log(
-        `cleaned QA user ${redactEmail(email)} (fallback preserved auth user; admin revoked=${email === env.QA_ADMIN_EMAIL ? "yes" : "n/a"}; profile_reset=${profileReset.ok ? "yes" : `no:${profileReset.error}`}; auth_disabled=${authDisable.ok ? "yes" : `no:${authDisable.error}`}; removed ${storageResult.removed} objects; auth_delete_error=${deleteResult.error}; soft_hide_posts=${softHideErrors.posts ?? "ok"}; soft_hide_comments=${softHideErrors.comments ?? "ok"}; soft_hide_circles=${softHideErrors.circles ?? "ok"})`,
+      let authDelete = { deleted: false, error: "DRY_RUN" };
+      let authDisable = { ok: false, error: "DRY_RUN" };
+      if (!options.dryRun) {
+        authDelete = await tryDeleteAuthUser(serviceClient, user.id);
+        if (!authDelete.deleted) {
+          authDisable = await disableAuthUser(serviceClient, user.id);
+        }
+      }
+      summary.auth.push({
+        label,
+        email: redactEmail(email),
+        userId: redactId(user.id),
+        authDelete,
+        authDisable,
+        fallbackCode: !authDelete.deleted && authDisable.ok ? "AUTH_DELETE_FALLBACK_DISABLED" : null,
+      });
+      summary.users.push(userSummary);
+    }
+  }
+
+  if (adminSignIn.token) {
+    const uniquePostFallbacks = Array.from(new Map(adminFallbackPosts.map((item) => [item.id, item])).values());
+    const uniqueCircleFallbacks = Array.from(new Map(adminFallbackCircles.map((item) => [item.id, item])).values());
+    if (uniquePostFallbacks.length > 0) {
+      summary.publicActions.hiddenPosts.push(
+        ...(await hidePublicPosts(runtime.baseUrl, adminSignIn.token, uniquePostFallbacks, options.dryRun)),
+      );
+    }
+    if (uniqueCircleFallbacks.length > 0) {
+      summary.publicActions.deletedCircles.push(
+        ...(await deletePublicCircles(runtime.baseUrl, adminSignIn.token, uniqueCircleFallbacks, options.dryRun)),
+      );
+    }
+
+    const publicArtifacts = await searchPublicArtifacts(runtime.baseUrl, options.marker);
+    if ((publicArtifacts.posts?.length ?? 0) > 0) {
+      summary.publicActions.hiddenPosts.push(
+        ...(await hidePublicPosts(runtime.baseUrl, adminSignIn.token, publicArtifacts.posts, options.dryRun)),
+      );
+    }
+    if ((publicArtifacts.circles?.length ?? 0) > 0) {
+      summary.publicActions.deletedCircles.push(
+        ...(await deletePublicCircles(runtime.baseUrl, adminSignIn.token, publicArtifacts.circles, options.dryRun)),
       );
     }
   }
 
-  if (hadFallback) {
-    console.log("cleanup completed with fallback preservation for at least one QA auth user");
+  summary.verification = await verifyPublicSurface(runtime.baseUrl, options.marker, discoveredDirectUrls, options.strictPublic);
+  summary.classification = classificationFor(summary);
+
+  mkdirSync(DEFAULT_OUTPUT_DIR, { recursive: true });
+  const outputPath = `${DEFAULT_OUTPUT_DIR}/cleanup-${Date.now()}.json`;
+  writeFileSync(outputPath, JSON.stringify(summary, null, 2));
+  console.log(JSON.stringify({ ...summary, outputPath }, null, 2));
+
+  if (summary.verification.publicLeak) {
+    process.exitCode = 1;
   }
 }
 
 main().catch((error) => {
   console.error("cleanup-preview-test-accounts failed");
-  console.error(error instanceof Error ? error.message : String(error));
+  console.error(sanitizeError(error));
   process.exitCode = 1;
 });

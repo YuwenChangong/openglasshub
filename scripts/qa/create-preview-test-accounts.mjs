@@ -57,6 +57,8 @@ async function ensureUser(client, { email, password }) {
       ban_duration: "none",
       user_metadata: {
         ...(current.user_metadata ?? {}),
+        qa_managed: true,
+        qa_account_type: email === process.env.QA_ADMIN_EMAIL ? "admin" : "ordinary",
         qa_disabled: false,
         qa_cleanup_at: null,
       },
@@ -69,6 +71,12 @@ async function ensureUser(client, { email, password }) {
     email,
     password,
     email_confirm: true,
+    user_metadata: {
+      qa_managed: true,
+      qa_account_type: email === process.env.QA_ADMIN_EMAIL ? "admin" : "ordinary",
+      qa_disabled: false,
+      qa_cleanup_at: null,
+    },
   });
   if (error || !data.user) throw error ?? new Error(`failed to create user for ${email}`);
   return data.user;
