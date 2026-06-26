@@ -19,6 +19,7 @@ import {
 } from "../../../lib/moderation/moderate-content.server";
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 
 export const prerender = false;
 
@@ -369,6 +370,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const { data: authData, error: authError } = await userClient.auth.getUser(token);
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
+    }
+    const safetyDecision = await assertUserCanWrite(userClient, authData.user.id, "comment_create");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
     }
 
     const payload = (await request.json().catch(() => null)) as Record<string, unknown> | null;

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getRequestIp } from "../../../lib/request-ip";
 import { enforceUploadRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { shouldRequireUploadTurnstile, validateTurnstileToken } from "../../../lib/server/turnstile";
+import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 
 export const prerender = false;
 
@@ -56,6 +57,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "Invalid upload_kind" }, 400);
     }
     const sizeBytes = Number(payload.size_bytes ?? 0);
+    const safetyDecision = await assertUserCanWrite(supabase, authData.user.id, "media_upload");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
+    }
 
     if (shouldRequireUploadTurnstile({ env, uploadKind, sizeBytes })) {
       const turnstile = await validateTurnstileToken({

@@ -19,6 +19,7 @@ import {
 import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../lib/moderation/moderation-media.server";
 import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../lib/moderation/moderation-provider.server";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 
 export const prerender = false;
 
@@ -116,6 +117,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const auth = await requireForumUser(request, env);
+    const safetyDecision = await assertUserCanWrite(auth.client, auth.user.id, "circle_create");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
+    }
     const payload = (await request.json().catch(() => null)) as
       | { slug?: string; name?: string; description?: string | null; type?: string; image_path?: string | null; owner_id?: string | null }
       | null;
@@ -297,6 +302,10 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     }
 
     const auth = await requireForumUser(request, env);
+    const safetyDecision = await assertUserCanWrite(auth.client, auth.user.id, "circle_update");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
+    }
     const payload = (await request.json().catch(() => null)) as
       | { id?: string; slug?: string; name?: string; description?: string | null; image_path?: string | null }
       | null;

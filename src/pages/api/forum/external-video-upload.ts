@@ -4,6 +4,7 @@ import { buildR2PublicUrl, buildTmpVideoKey, signR2PutUrl } from "../../../lib/r
 import { getRequestIp } from "../../../lib/request-ip";
 import { enforceUploadRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { shouldRequireUploadTurnstile, validateTurnstileToken } from "../../../lib/server/turnstile";
+import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 export const prerender = false;
@@ -64,6 +65,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     stage = "auth.getUser";
     const { data: authData, error: authError } = await supabase.auth.getUser(token);
     if (authError || !authData.user) return json({ error: "Invalid auth token" }, 401);
+    const safetyDecision = await assertUserCanWrite(supabase, authData.user.id, "external_video_upload");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
+    }
 
     stage = "payload";
     const payload = (await request.json().catch(() => null)) as
