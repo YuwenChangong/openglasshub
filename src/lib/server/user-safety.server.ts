@@ -286,17 +286,40 @@ export async function upsertUserSafetyState(
     updated_by: state.updated_by,
   };
 
-  const { data, error } = await client
+  const { data: existing, error: lookupError } = await client
     .from("user_safety_states")
-    .upsert(payload)
-    .select(SAFETY_STATE_SELECT)
-    .single();
+    .select("user_id")
+    .eq("user_id", state.user_id)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(mapSupabaseErrorMessage(lookupError, "USER_SAFETY_LOOKUP_FAILED"));
+  }
+
+  const { error } = existing
+    ? await client
+        .from("user_safety_states")
+        .update({
+          reputation_score: payload.reputation_score,
+          strike_count: payload.strike_count,
+          warning_count: payload.warning_count,
+          status: payload.status,
+          suspended_until: payload.suspended_until,
+          banned_at: payload.banned_at,
+          ban_reason: payload.ban_reason,
+          last_action_at: payload.last_action_at,
+          updated_by: payload.updated_by,
+        })
+        .eq("user_id", state.user_id)
+    : await client
+        .from("user_safety_states")
+        .insert(payload);
 
   if (error) {
     throw new Error(mapSupabaseErrorMessage(error, "USER_SAFETY_UPSERT_FAILED"));
   }
 
-  return normalizeUserSafetyState(state.user_id, (data as Record<string, unknown> | null) ?? null);
+  return getUserSafetyState(client, state.user_id);
 }
 
 export async function insertUserSafetyEvent(client: SupabaseClient, event: {
