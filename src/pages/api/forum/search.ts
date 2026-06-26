@@ -1,4 +1,4 @@
-﻿import type { APIRoute } from "astro";
+import type { APIRoute } from "astro";
 import { createSSRClient } from "../../../lib/supabase-server";
 import { FORUM_SEARCH_LIMITS, runForumSearch } from "../../../lib/forum-search";
 
@@ -14,6 +14,11 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
+function clampLimit(value: string | null, max: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), max) : undefined;
+}
+
 export const GET: APIRoute = async ({ request, locals }) => {
   const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
   if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) {
@@ -24,10 +29,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
   const q = String(url.searchParams.get("q") ?? "");
   const type = url.searchParams.get("type");
   const circle = url.searchParams.get("circle");
-  const limitPostsRaw = Number.parseInt(url.searchParams.get("limit_posts") ?? "", 10);
-  const limitPosts = Number.isFinite(limitPostsRaw)
-    ? Math.min(Math.max(limitPostsRaw, 1), FORUM_SEARCH_LIMITS.maxPostResults)
-    : undefined;
+  const limitPosts = clampLimit(url.searchParams.get("limit_posts"), FORUM_SEARCH_LIMITS.maxPostResults);
+  const limitCircles = clampLimit(url.searchParams.get("limit_circles"), FORUM_SEARCH_LIMITS.maxCircleResults);
+  const limitUsers = clampLimit(url.searchParams.get("limit_users"), FORUM_SEARCH_LIMITS.maxUserResults);
+  const limitDevices = clampLimit(url.searchParams.get("limit_devices"), FORUM_SEARCH_LIMITS.maxDeviceResults);
 
   const supabase = createSSRClient({
     SUPABASE_URL: env.SUPABASE_URL,
@@ -36,9 +41,12 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
   const result = await runForumSearch(supabase, {
     query: q,
-    type: type === "posts" || type === "circles" || type === "all" ? type : "all",
+    type: type === "posts" || type === "circles" || type === "users" || type === "devices" || type === "all" ? type : "all",
     circleSlug: circle,
     limitPosts,
+    limitCircles,
+    limitUsers,
+    limitDevices,
     r2PublicBaseUrl: env.R2_PUBLIC_BASE_URL,
   });
 

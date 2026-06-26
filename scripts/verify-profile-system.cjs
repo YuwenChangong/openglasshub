@@ -128,17 +128,22 @@ const authorLinkFiles = [
   { path: "src/components/forum/CommentsSection.tsx", mode: "buildProfileHref" },
   { path: "src/components/forum/CircleOwnerDashboard.tsx", mode: "buildProfileHref" },
   { path: "src/components/admin/AdminCirclesDashboard.tsx", mode: "buildProfileHref" },
-  { path: "src/pages/search/index.astro", mode: "postcardAuthorProps" },
+  { path: "src/pages/search/index.astro", mode: "searchAuthorLink" },
 ];
 for (const entry of authorLinkFiles) {
   const content = read(entry.path);
   if (entry.mode === "buildProfileHref") {
     check(`${entry.path} uses buildProfileHref`, content.includes("buildProfileHref"));
-  } else {
+  } else if (entry.mode === "postcardAuthorProps") {
     check(
       `${entry.path} passes authorId and authorUsername`,
       content.includes("authorId={post.author?.id ?? undefined}") &&
         content.includes("authorUsername={post.author?.username ?? undefined}"),
+    );
+  } else {
+    check(
+      `${entry.path} keeps searchable author profile links`,
+      content.includes("post.author?.href") && content.includes("post.author.display_name || post.author.username"),
     );
   }
 }
