@@ -34,7 +34,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const { data: safetyRows, error: safetyError } = userIds.length
       ? await client
           .from("user_safety_states")
-          .select("user_id,reputation_score,strike_count,warning_count,status,suspended_until,banned_at,ban_reason,last_action_at,updated_by,created_at,updated_at")
+          .select("user_id,reputation_score,strike_count,warning_count,status,suspended_until,banned_at,ban_reason,last_action_at,created_at,updated_at")
           .in("user_id", userIds)
       : { data: [], error: null };
 
