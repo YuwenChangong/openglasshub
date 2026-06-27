@@ -12,6 +12,7 @@ import {
 } from "../../lib/profile-data";
 import { buildProfileHref } from "../../lib/profile-links";
 import ProfilePostCard from "./ProfilePostCard";
+import ReportTrigger from "../reports/ReportTrigger";
 
 function formatProfileTime(value: string) {
   try {
@@ -379,7 +380,18 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
                   公开主页
                 </a>
               </div>
-            ) : null}
+            ) : (
+              <div className="report-trigger-row" style={{ marginTop: "0.85rem" }}>
+                <ReportTrigger
+                  targetType="user"
+                  targetId={pageData.profile.id}
+                  loginHref={buildLoginHref(publicHref)}
+                  buttonLabel="举报用户"
+                  className="community-action-button community-action-button--compact"
+                  compact
+                />
+              </div>
+            )}
           </div>
         </div>
       </section>
