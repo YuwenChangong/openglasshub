@@ -10,6 +10,7 @@ import {
 import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../../../lib/moderation/moderation-media.server";
 import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../../../lib/moderation/moderation-provider.server";
 import { requireManagedCircleBySlug, jsonResponse } from "../../../../../lib/server/circle-management";
+import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../../../lib/server/user-safety.server";
 
 export const prerender = false;
 
@@ -112,6 +113,10 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
     if (!slug) return jsonResponse({ error: "MISSING_CIRCLE_SLUG" }, 400);
 
     const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const safetyDecision = await assertUserCanWrite(auth.client, auth.user.id, "circle_update");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
+    }
     const payload = (await request.json().catch(() => null)) as
       | { name?: string; description?: string | null; image_path?: string | null; status?: string }
       | null;
@@ -285,6 +290,10 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
     if (!slug) return jsonResponse({ error: "MISSING_CIRCLE_SLUG" }, 400);
 
     const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const safetyDecision = await assertUserCanWrite(auth.client, auth.user.id, "circle_update");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
+    }
     const { data, error } = await auth.client
       .from("circles")
       .update({ status: "deleted" })

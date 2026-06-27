@@ -1,0 +1,20 @@
+---
+export const prerender = false;
+
+import CommunityLayout from "../../../layouts/CommunityLayout.astro";
+import AdminUsersDashboard from "../../../components/admin/AdminUsersDashboard";
+---
+
+<CommunityLayout
+  title="管理员用户安全"
+  description="OpenGlass Hub 管理员用户安全与封禁控制台。"
+  noindex={true}
+  activeSection="forum"
+>
+  <section class="community-section" style="padding-top: 1rem;">
+    <h1 class="community-page-title">/admin/users</h1>
+    <p class="community-page-subtitle">查看用户安全状态、执行 warning / suspend / ban / unban，并检查安全事件历史。</p>
+    <p class="community-page-subtitle"><a href="/admin/moderation/" class="community-link">审核队列</a> · <a href="/admin/forum/" class="community-link">论坛治理</a></p>
+    <AdminUsersDashboard client:load />
+  </section>
+</CommunityLayout>

@@ -12,6 +12,7 @@ import { runOpenAIModeration } from "../../../lib/moderation/openai-moderation-p
 import { moderateAsset } from "../../../lib/moderation/moderate-asset.server";
 import { createSignedModerationUrls } from "../../../lib/moderation/moderation-media.server";
 import { evaluateLocalSensitiveLexicon } from "../../../lib/moderation/local-sensitive-lexicon.server";
+import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 
 export const prerender = false;
 
@@ -350,6 +351,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const { data: authData, error: authError } = await userClient.auth.getUser(token);
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
+    }
+    const safetyDecision = await assertUserCanWrite(userClient, authData.user.id, "post_media_create");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
     }
 
     const payload = (await request.json().catch(() => null)) as

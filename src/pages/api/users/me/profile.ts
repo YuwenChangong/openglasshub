@@ -21,6 +21,7 @@ import {
 } from "../../../../lib/profile-media";
 import { isValidProfileUsername } from "../../../../lib/profile-links";
 import { jsonResponse, requireForumUser } from "../../../../lib/server/circle-management";
+import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../../lib/server/user-safety.server";
 
 export const prerender = false;
 
@@ -112,6 +113,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireForumUser(request, env);
+    const safetyDecision = await assertUserCanWrite(auth.client, auth.user.id, "profile_update");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
+    }
     const payload = (await request.json().catch(() => null)) as ProfilePayload | null;
     if (!payload) {
       return jsonResponse({ error: "INVALID_JSON_PAYLOAD" }, 400);
