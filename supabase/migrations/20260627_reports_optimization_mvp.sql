@@ -32,6 +32,18 @@ begin
 end
 $$;
 
+-- Preflight orphan audit (read-only; run manually before/after migration if needed):
+-- select id, target_type, target_id, status, created_at
+-- from public.reports
+-- where
+--   (target_type = 'post' and not exists (select 1 from public.posts p where p.id = reports.target_id))
+--   or (target_type = 'comment' and not exists (select 1 from public.comments c where c.id = reports.target_id))
+--   or (target_type = 'circle' and not exists (select 1 from public.circles circle_row where circle_row.id = reports.target_id))
+--   or (target_type = 'user' and not exists (select 1 from public.profiles profile_row where profile_row.id = reports.target_id))
+-- order by created_at desc;
+
+drop trigger if exists trg_reports_validate_target on public.reports;
+
 alter table public.reports
   add column if not exists reason_code text,
   add column if not exists reason_text text,
@@ -178,6 +190,12 @@ returns trigger
 language plpgsql
 as $$
 begin
+  if tg_op = 'UPDATE'
+     and new.target_type is not distinct from old.target_type
+     and new.target_id is not distinct from old.target_id then
+    return new;
+  end if;
+
   if new.target_type = 'post' and not exists (
     select 1 from public.posts p where p.id = new.target_id
   ) then
@@ -198,3 +216,8 @@ begin
   return new;
 end;
 $$;
+
+drop trigger if exists trg_reports_validate_target on public.reports;
+create trigger trg_reports_validate_target
+before insert or update on public.reports
+for each row execute function public.validate_report_target();

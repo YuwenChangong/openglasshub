@@ -41,6 +41,9 @@ if (exists(migrationPath)) {
   check("report_events table exists", /create table if not exists public\.report_events/i.test(migration));
   check("report_events rls enabled", /alter table public\.report_events enable row level security/i.test(migration));
   check("priority constraint exists", /reports_priority_check/i.test(migration));
+  check("reports migration drops target trigger before backfill", /drop trigger if exists trg_reports_validate_target on public\.reports/i.test(migration));
+  check("reports migration preserves orphan targets on unrelated update", /tg_op = 'UPDATE'[\s\S]*new\.target_type is not distinct from old\.target_type[\s\S]*new\.target_id is not distinct from old\.target_id/i.test(migration));
+  check("reports migration recreates target trigger", /create trigger trg_reports_validate_target[\s\S]*execute function public\.validate_report_target\(\)/i.test(migration));
 }
 
 check("user report api exists", exists(userApiPath));
