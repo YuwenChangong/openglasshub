@@ -172,3 +172,29 @@ to authenticated
 with check (
   (select public.is_moderator_or_admin())
 );
+
+create or replace function public.validate_report_target()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.target_type = 'post' and not exists (
+    select 1 from public.posts p where p.id = new.target_id
+  ) then
+    raise exception 'report target post % not found', new.target_id;
+  elsif new.target_type = 'comment' and not exists (
+    select 1 from public.comments c where c.id = new.target_id
+  ) then
+    raise exception 'report target comment % not found', new.target_id;
+  elsif new.target_type = 'circle' and not exists (
+    select 1 from public.circles circle_row where circle_row.id = new.target_id
+  ) then
+    raise exception 'report target circle % not found', new.target_id;
+  elsif new.target_type = 'user' and not exists (
+    select 1 from public.profiles profile_row where profile_row.id = new.target_id
+  ) then
+    raise exception 'report target user % not found', new.target_id;
+  end if;
+  return new;
+end;
+$$;
