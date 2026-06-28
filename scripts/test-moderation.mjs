@@ -26,48 +26,48 @@ async function read(filePath) {
   return fs.readFile(new URL(`../${filePath}`, import.meta.url), "utf8");
 }
 
-await test("lexicon reviews 私聊拿资料", () => {
-  const result = evaluateLocalSensitiveLexicon("私聊我拿资料，我给你入口。");
+await test("lexicon reviews 私聊拿资料", async () => {
+  const result = await evaluateLocalSensitiveLexicon("私聊我拿资料，我给你入口。");
   assert.equal(result.decision, "review");
   assert.ok(result.reasonCode);
 });
 
-await test("lexicon rejects 完整资料入口 + 微信组合", () => {
-  const result = evaluateLocalSensitiveLexicon("完整资料入口在这，加微信拿下载链接。");
+await test("lexicon rejects 完整资料入口 + 微信组合", async () => {
+  const result = await evaluateLocalSensitiveLexicon("完整资料入口在这，加微信拿下载链接。");
   assert.equal(result.decision, "reject");
   assert.ok(result.reasonCode);
 });
 
-await test("lexicon rejects 加微信买资料", () => {
-  const result = evaluateLocalSensitiveLexicon("加微信买资料，私下交易更便宜。");
+await test("lexicon rejects 加微信买资料", async () => {
+  const result = await evaluateLocalSensitiveLexicon("加微信买资料，私下交易更便宜。");
   assert.equal(result.decision, "reject");
 });
 
-await test("lexicon reviews Telegram 引流", () => {
-  const result = evaluateLocalSensitiveLexicon("可以去 Telegram 群继续聊，资料入口也在那边。");
+await test("lexicon reviews Telegram 引流", async () => {
+  const result = await evaluateLocalSensitiveLexicon("可以去 Telegram 群继续聊，资料入口也在那边。");
   assert.notEqual(result.decision, "allow");
 });
 
-await test("lexicon reviews 二维码引流", () => {
-  const result = evaluateLocalSensitiveLexicon("扫二维码获取完整资料。");
+await test("lexicon reviews 二维码引流", async () => {
+  const result = await evaluateLocalSensitiveLexicon("扫二维码获取完整资料。");
   assert.notEqual(result.decision, "allow");
 });
 
-await test("lexicon rejects 人口贩卖", () => {
-  const result = evaluateLocalSensitiveLexicon("[MOD-CRITICAL-TERM] 人口贩卖");
+await test("lexicon rejects 人口贩卖", async () => {
+  const result = await evaluateLocalSensitiveLexicon("[MOD-CRITICAL-TERM] 人口贩卖");
   assert.equal(result.decision, "reject");
   assert.equal(result.reasonCode, "illegal_goods_or_services");
 });
 
-await test("lexicon does not allow 嫖娼 or 卖淫", () => {
-  const prostitution = evaluateLocalSensitiveLexicon("[MOD-CRITICAL-TERM] 嫖娼");
-  const solicitation = evaluateLocalSensitiveLexicon("[MOD-CRITICAL-TERM] 卖淫");
+await test("lexicon does not allow 嫖娼 or 卖淫", async () => {
+  const prostitution = await evaluateLocalSensitiveLexicon("[MOD-CRITICAL-TERM] 嫖娼");
+  const solicitation = await evaluateLocalSensitiveLexicon("[MOD-CRITICAL-TERM] 卖淫");
   assert.notEqual(prostitution.decision, "allow");
   assert.notEqual(solicitation.decision, "allow");
 });
 
-await test("微信登录问题不会直接 reject", () => {
-  const result = evaluateLocalModeration({
+await test("微信登录问题不会直接 reject", async () => {
+  const result = await evaluateLocalModeration({
     contentType: "post_body",
     userId: "u1",
     text: "有人遇到微信登录问题吗？我这边授权后没有跳转。",
@@ -75,8 +75,8 @@ await test("微信登录问题不会直接 reject", () => {
   assert.notEqual(result.decision, "reject");
 });
 
-await test("正常 AR glasses 讨论 allow", () => {
-  const result = evaluateLocalModeration({
+await test("正常 AR glasses 讨论 allow", async () => {
+  const result = await evaluateLocalModeration({
     contentType: "post_body",
     userId: "u1",
     text: "XREAL One 和 RayNeo Air 3s 的日常使用差异是什么？更在意重量还是清晰度？",
@@ -84,8 +84,8 @@ await test("正常 AR glasses 讨论 allow", () => {
   assert.equal(result.decision, "allow");
 });
 
-await test("正常 profile bio allow", () => {
-  const result = evaluateLocalModeration({
+await test("正常 profile bio allow", async () => {
+  const result = await evaluateLocalModeration({
     contentType: "profile_text",
     userId: "u1",
     text: "AR glasses enthusiast interested in spatial computing and wearable interfaces.",
@@ -93,8 +93,8 @@ await test("正常 profile bio allow", () => {
   assert.equal(result.decision, "allow");
 });
 
-await test("profile 外部链接诱导 should not allow", () => {
-  const result = evaluateLocalModeration({
+await test("profile 外部链接诱导 should not allow", async () => {
+  const result = await evaluateLocalModeration({
     contentType: "profile_text",
     userId: "u1",
     text: "外部链接诱导，点链接领取资料。",
@@ -102,8 +102,8 @@ await test("profile 外部链接诱导 should not allow", () => {
   assert.notEqual(result.decision, "allow");
 });
 
-await test("官网链接打不开 should not hard reject", () => {
-  const result = evaluateLocalModeration({
+await test("官网链接打不开 should not hard reject", async () => {
+  const result = await evaluateLocalModeration({
     contentType: "profile_text",
     userId: "u1",
     text: "我在官网链接看到产品参数，但这个链接打不开。",
@@ -111,8 +111,8 @@ await test("官网链接打不开 should not hard reject", () => {
   assert.notEqual(result.decision, "reject");
 });
 
-await test("正常 circle description allow", () => {
-  const result = evaluateLocalModeration({
+await test("正常 circle description allow", async () => {
+  const result = await evaluateLocalModeration({
     contentType: "circle_description",
     userId: "u1",
     text: "Discuss daily use, comfort, display quality and software experience.",
@@ -716,7 +716,7 @@ await test("pipeline any reject => reject", async () => {
 });
 
 await test("suspicious content without 私聊 but with 完整资料入口 still reviews or rejects", async () => {
-  const result = evaluateLocalSensitiveLexicon("这里有完整资料入口和下载入口。");
+  const result = await evaluateLocalSensitiveLexicon("这里有完整资料入口和下载入口。");
   assert.notEqual(result.decision, "allow");
 });
 
@@ -949,7 +949,7 @@ await test("avatar and banner provider unavailable stay blocked/review", async (
 });
 
 await test("media metadata local lexicon still catches 嫖娼", async () => {
-  const result = evaluateLocalSensitiveLexicon("Video caption: 嫖娼");
+  const result = await evaluateLocalSensitiveLexicon("Video caption: 嫖娼");
   assert.equal(result.decision, "review");
   assert.equal(result.reasonCode, "illegal_goods_or_services");
 });

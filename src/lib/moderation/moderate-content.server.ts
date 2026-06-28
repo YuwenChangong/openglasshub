@@ -188,12 +188,15 @@ function mergeProviderDetails(
   };
 }
 
-export function evaluateLocalModeration(input: ModerationInput): ModerationResult {
+export async function evaluateLocalModeration(
+  input: ModerationInput,
+  env?: ModerationRuntimeEnv,
+): Promise<ModerationResult> {
   const rawText = String(input.text ?? "");
   const text = rawText.trim();
   const links = input.links?.length ? input.links : extractLinks(text);
   const matchedRules: string[] = [];
-  const lexiconResult = evaluateLocalSensitiveLexicon(text);
+  const lexiconResult = await evaluateLocalSensitiveLexicon(text, env);
 
   if (lexiconResult.decision === "reject") {
     return buildResult("reject", lexiconResult.reasonCode, lexiconResult.confidence, lexiconResult.matchedRules, "local", {
@@ -441,8 +444,8 @@ export async function moderateContent(
 ): Promise<ModerationResult> {
   const localInputs =
     input.localInputs?.length
-      ? input.localInputs.map((item) => evaluateLocalModeration(localInputToModerationInput(input, item)))
-      : [evaluateLocalModeration(input)];
+      ? await Promise.all(input.localInputs.map((item) => evaluateLocalModeration(localInputToModerationInput(input, item), env)))
+      : [await evaluateLocalModeration(input, env)];
   let finalResult = mergeModerationResults(localInputs);
   const provider = resolveModerationProvider(env);
   const providerInput = buildDefaultProviderInput(input);
