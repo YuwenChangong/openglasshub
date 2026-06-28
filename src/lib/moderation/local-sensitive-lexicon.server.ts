@@ -1,5 +1,7 @@
 import {
+  getSensitiveLexiconSource,
   loadSensitiveLexicon,
+  resetSensitiveLexiconRuntimeCache,
   type LocalLexiconCategory,
   type LocalLexiconSeverity,
   type SensitiveLexiconData,
@@ -98,6 +100,7 @@ type CompiledLexicon = {
 };
 
 let compiledLexiconPromise: Promise<CompiledLexicon> | null = null;
+let compiledLexiconSource: "r2" | "local_file" | "emergency" | null = null;
 
 function normalizeText(input: string) {
   const normalized = String(input ?? "")
@@ -165,11 +168,28 @@ function compileLexicon(lexiconData: SensitiveLexiconData): CompiledLexicon {
 }
 
 async function getCompiledLexicon(env?: Record<string, unknown>): Promise<CompiledLexicon> {
+  if (compiledLexiconPromise && compiledLexiconSource && compiledLexiconSource !== "emergency") {
+    return compiledLexiconPromise;
+  }
+
   if (!compiledLexiconPromise) {
     // Module-level cache keeps the compiled lexicon out of the Worker bundle while still avoiding repeated parsing.
-    compiledLexiconPromise = loadSensitiveLexicon(env).then((lexiconData) => compileLexicon(lexiconData));
+    compiledLexiconPromise = loadSensitiveLexicon(env).then((lexiconData) => {
+      const compiled = compileLexicon(lexiconData);
+      compiledLexiconSource = getSensitiveLexiconSource();
+      if (compiledLexiconSource === "emergency") {
+        compiledLexiconPromise = null;
+      }
+      return compiled;
+    });
   }
   return compiledLexiconPromise;
+}
+
+export function resetCompiledSensitiveLexiconCache() {
+  compiledLexiconPromise = null;
+  compiledLexiconSource = null;
+  resetSensitiveLexiconRuntimeCache();
 }
 
 function isSafeContext(text: string) {

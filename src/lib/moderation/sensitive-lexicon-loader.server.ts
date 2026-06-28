@@ -50,6 +50,21 @@ type R2BucketLike = {
 
 export type SensitiveLexiconRuntimeEnv = Record<string, unknown> & {
   MODERATION_ASSETS?: R2BucketLike;
+  SENSITIVE_LEXICON_DISABLE_NODE_LOCAL?: boolean | string;
+};
+
+export type SensitiveLexiconSource = "r2" | "local_file" | "emergency";
+
+export type SensitiveLexiconHealth = {
+  bindingPresent: boolean;
+  source: SensitiveLexiconSource | null;
+  objectKeyUsed: string;
+  entryCount: number;
+  categoryCount: number;
+  lexiconHashPrefix: string | null;
+  parseOk: boolean;
+  lastErrorCode: string | null;
+  fallbackUsed: boolean;
 };
 
 const LEXICON_OBJECT_KEY = "moderation/local-sensitive-lexicon.zh.json";
@@ -167,8 +182,22 @@ const emergencyLexicon: SensitiveLexiconData = {
 };
 
 let cachedLexicon: SensitiveLexiconData | null = null;
-let cachedLexiconSource: "r2" | "local_file" | "emergency" | null = null;
+let cachedLexiconSource: SensitiveLexiconSource | null = null;
 let pendingLexiconLoad: Promise<SensitiveLexiconData> | null = null;
+let lastErrorCode: string | null = null;
+
+function shouldDisableNodeLocal(env?: SensitiveLexiconRuntimeEnv) {
+  const value = env?.SENSITIVE_LEXICON_DISABLE_NODE_LOCAL;
+  return value === true || String(value ?? "").trim().toLowerCase() === "true";
+}
+
+function classifyLexiconErrorCode(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (/No such object|object missing/i.test(message)) return "object_missing";
+  if (/Unexpected token|JSON/i.test(message)) return "invalid_json";
+  if (/network|fetch|timeout/i.test(message)) return "r2_fetch_failed";
+  return "runtime_error";
+}
 
 function isSensitiveLexiconData(value: unknown): value is SensitiveLexiconData {
   return Boolean(
@@ -189,24 +218,31 @@ function logLexiconLoadWarning(message: string, details?: string | null) {
 
 async function loadFromR2(env?: SensitiveLexiconRuntimeEnv): Promise<SensitiveLexiconData | null> {
   const bucket = env?.MODERATION_ASSETS;
-  if (!bucket || typeof bucket.get !== "function") return null;
+  if (!bucket || typeof bucket.get !== "function") {
+    lastErrorCode = "binding_missing";
+    return null;
+  }
 
   try {
     const object = await bucket.get(LEXICON_OBJECT_KEY);
     if (!object) {
+      lastErrorCode = "object_missing";
       logLexiconLoadWarning("R2 lexicon object missing", LEXICON_OBJECT_KEY);
       return null;
     }
 
     const parsed = JSON.parse(await object.text()) as unknown;
     if (!isSensitiveLexiconData(parsed)) {
+      lastErrorCode = "invalid_payload";
       logLexiconLoadWarning("R2 lexicon payload invalid", LEXICON_OBJECT_KEY);
       return null;
     }
 
     cachedLexiconSource = "r2";
+    lastErrorCode = null;
     return parsed;
   } catch (error) {
+    lastErrorCode = classifyLexiconErrorCode(error);
     logLexiconLoadWarning(
       "Failed to load sensitive lexicon from R2",
       error instanceof Error ? error.message : String(error),
@@ -215,7 +251,8 @@ async function loadFromR2(env?: SensitiveLexiconRuntimeEnv): Promise<SensitiveLe
   }
 }
 
-async function loadFromLocalFile(): Promise<SensitiveLexiconData | null> {
+async function loadFromLocalFile(env?: SensitiveLexiconRuntimeEnv): Promise<SensitiveLexiconData | null> {
+  if (shouldDisableNodeLocal(env)) return null;
   if (typeof process === "undefined" || !process.versions?.node) return null;
 
   try {
@@ -223,13 +260,16 @@ async function loadFromLocalFile(): Promise<SensitiveLexiconData | null> {
     const fileUrl = new URL("../../data/moderation/sensitive-lexicon.generated.json", import.meta.url);
     const parsed = JSON.parse(await fs.readFile(fileUrl, "utf8")) as unknown;
     if (!isSensitiveLexiconData(parsed)) {
+      lastErrorCode = "local_invalid_payload";
       logLexiconLoadWarning("Local lexicon payload invalid", String(fileUrl));
       return null;
     }
 
     cachedLexiconSource = "local_file";
+    lastErrorCode = null;
     return parsed;
   } catch (error) {
+    lastErrorCode = "local_file_failed";
     logLexiconLoadWarning(
       "Failed to load sensitive lexicon from local file",
       error instanceof Error ? error.message : String(error),
@@ -239,14 +279,16 @@ async function loadFromLocalFile(): Promise<SensitiveLexiconData | null> {
 }
 
 export async function loadSensitiveLexicon(env?: SensitiveLexiconRuntimeEnv): Promise<SensitiveLexiconData> {
-  if (cachedLexicon) return cachedLexicon;
+  if (cachedLexicon && cachedLexiconSource && cachedLexiconSource !== "emergency") return cachedLexicon;
   if (pendingLexiconLoad) return pendingLexiconLoad;
 
   pendingLexiconLoad = (async () => {
-    const lexicon = (await loadFromR2(env)) ?? (await loadFromLocalFile()) ?? emergencyLexicon;
+    const lexicon = (await loadFromR2(env)) ?? (await loadFromLocalFile(env)) ?? emergencyLexicon;
     if (lexicon === emergencyLexicon) {
       cachedLexiconSource = "emergency";
+      lastErrorCode = lastErrorCode ?? "emergency_fallback";
       logLexiconLoadWarning("Using emergency fallback lexicon", LEXICON_OBJECT_KEY);
+      return lexicon;
     }
     cachedLexicon = lexicon;
     return lexicon;
@@ -263,10 +305,52 @@ export function getSensitiveLexiconObjectKey(): string {
   return LEXICON_OBJECT_KEY;
 }
 
-export function getSensitiveLexiconSource(): "r2" | "local_file" | "emergency" | null {
+export function getSensitiveLexiconSource(): SensitiveLexiconSource | null {
   return cachedLexiconSource;
 }
 
 export function getEmergencySensitiveLexicon(): SensitiveLexiconData {
   return emergencyLexicon;
+}
+
+async function buildLexiconHashPrefix(lexicon: SensitiveLexiconData): Promise<string | null> {
+  const payload = JSON.stringify({
+    version: lexicon.version,
+    count: lexicon.terms.length,
+    sources: lexicon.sources?.map((item) => item.id) ?? [],
+  });
+
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(payload));
+    return Array.from(new Uint8Array(digest))
+      .slice(0, 6)
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return null;
+  }
+}
+
+export async function getSensitiveLexiconHealth(env?: SensitiveLexiconRuntimeEnv): Promise<SensitiveLexiconHealth> {
+  const lexicon = await loadSensitiveLexicon(env);
+  const categories = new Set(lexicon.terms.map((term) => term.category));
+  const source = getSensitiveLexiconSource();
+  return {
+    bindingPresent: Boolean(env?.MODERATION_ASSETS && typeof env.MODERATION_ASSETS.get === "function"),
+    source,
+    objectKeyUsed: LEXICON_OBJECT_KEY,
+    entryCount: lexicon.terms.length,
+    categoryCount: categories.size,
+    lexiconHashPrefix: await buildLexiconHashPrefix(lexicon),
+    parseOk: Array.isArray(lexicon.terms),
+    lastErrorCode,
+    fallbackUsed: source === "emergency",
+  };
+}
+
+export function resetSensitiveLexiconRuntimeCache() {
+  cachedLexicon = null;
+  cachedLexiconSource = null;
+  pendingLexiconLoad = null;
+  lastErrorCode = null;
 }

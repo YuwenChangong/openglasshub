@@ -3,11 +3,15 @@ import fs from "node:fs/promises";
 
 const {
   evaluateLocalSensitiveLexicon,
+  resetCompiledSensitiveLexiconCache,
 } = await import("../src/lib/moderation/local-sensitive-lexicon.server.ts");
 const {
   evaluateLocalModeration,
   moderateContent,
 } = await import("../src/lib/moderation/moderate-content.server.ts");
+const {
+  getSensitiveLexiconHealth,
+} = await import("../src/lib/moderation/sensitive-lexicon-loader.server.ts");
 const { moderateAsset } = await import("../src/lib/moderation/moderate-asset.server.ts");
 const { createSignedModerationUrls } = await import("../src/lib/moderation/moderation-media.server.ts");
 const { applyModerationAdminAction } = await import("../src/lib/server/moderation-admin.ts");
@@ -64,6 +68,54 @@ await test("lexicon does not allow 嫖娼 or 卖淫", async () => {
   const solicitation = await evaluateLocalSensitiveLexicon("[MOD-CRITICAL-TERM] 卖淫");
   assert.notEqual(prostitution.decision, "allow");
   assert.notEqual(solicitation.decision, "allow");
+});
+
+await test("lexicon retry escapes emergency fallback when R2 becomes available", async () => {
+  resetCompiledSensitiveLexiconCache();
+  try {
+    let attempt = 0;
+    const env = {
+      SENSITIVE_LEXICON_DISABLE_NODE_LOCAL: "true",
+      MODERATION_ASSETS: {
+        async get() {
+          attempt += 1;
+          if (attempt === 1) {
+            throw new Error("temporary r2 failure");
+          }
+          return {
+            async text() {
+              return JSON.stringify({
+                version: "qa-r2",
+                terms: [
+                  {
+                    term: "artificiallanguages.info",
+                    normalized: "artificiallanguages.info",
+                    condensed: "artificiallanguagesinfo",
+                    category: "suspicious_external_link",
+                    severity: "reject",
+                    source: "qa-r2",
+                    match: "contains",
+                  },
+                ],
+              });
+            },
+          };
+        },
+      },
+    };
+
+    const first = await evaluateLocalSensitiveLexicon("artificiallanguages.info", env);
+    assert.equal(first.decision, "allow");
+
+    const second = await evaluateLocalSensitiveLexicon("artificiallanguages.info", env);
+    assert.equal(second.decision, "reject");
+
+    const health = await getSensitiveLexiconHealth(env);
+    assert.equal(health.source, "r2");
+    assert.equal(health.fallbackUsed, false);
+  } finally {
+    resetCompiledSensitiveLexiconCache();
+  }
 });
 
 await test("微信登录问题不会直接 reject", async () => {
