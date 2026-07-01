@@ -9,6 +9,7 @@ export type UserSafetyEventType =
   | "strike_added"
   | "strike_removed"
   | "note";
+export type UserSafetyAdminAction = "warn" | "suspend" | "ban" | "unban" | "clear_warning";
 export type UserSafetyWriteAction =
   | "post_create"
   | "comment_create"
@@ -355,11 +356,150 @@ export function validateFutureIsoTimestamp(value: unknown): { ok: true; iso: str
   return { ok: true, iso: date.toISOString() };
 }
 
+type UserSafetyTransitionResult =
+  | { ok: false; status: 400 | 409; error: string }
+  | {
+      ok: true;
+      changed: boolean;
+      eventType: UserSafetyEventType | null;
+      nextState: {
+        reputation_score: number;
+        strike_count: number;
+        warning_count: number;
+        status: UserSafetyStatus;
+        suspended_until: string | null;
+        banned_at: string | null;
+        ban_reason: string | null;
+      };
+    };
+
+export function computeUserSafetyTransition(
+  current: UserSafetyState,
+  action: UserSafetyAdminAction,
+  params: { reason: string | null; until?: string | null; nowIso?: string | null },
+): UserSafetyTransitionResult {
+  const nowIso = params.nowIso ?? new Date().toISOString();
+  let nextStatus: UserSafetyStatus = current.status;
+  let nextSuspendedUntil = current.suspended_until;
+  let nextBannedAt = current.banned_at;
+  let nextBanReason = current.ban_reason;
+  let nextWarningCount = current.warning_count;
+  let nextStrikeCount = current.strike_count;
+  let nextReputation = current.reputation_score;
+  let eventType: UserSafetyEventType | null = null;
+
+  if (action === "warn") {
+    if (current.effective_status === "banned" || current.effective_status === "suspended") {
+      return { ok: false, status: 409, error: "USER_SAFETY_ACTION_CONFLICT" };
+    }
+    nextStatus = "warned";
+    nextWarningCount += 1;
+    nextReputation -= 1;
+    eventType = "warning";
+  } else if (action === "suspend") {
+    if (current.effective_status === "banned") {
+      return { ok: false, status: 409, error: "USER_ALREADY_BANNED" };
+    }
+    if (current.effective_status === "suspended") {
+      return { ok: false, status: 409, error: "USER_ALREADY_SUSPENDED" };
+    }
+    const validatedUntil = validateFutureIsoTimestamp(params.until);
+    if (!validatedUntil.ok) {
+      return { ok: false, status: 400, error: validatedUntil.error };
+    }
+    nextStatus = "suspended";
+    nextSuspendedUntil = validatedUntil.iso;
+    nextBannedAt = null;
+    nextBanReason = params.reason;
+    nextStrikeCount += 1;
+    nextReputation -= 2;
+    eventType = "suspend";
+  } else if (action === "ban") {
+    if (current.effective_status === "banned") {
+      return { ok: false, status: 409, error: "USER_ALREADY_BANNED" };
+    }
+    nextStatus = "banned";
+    nextSuspendedUntil = null;
+    nextBannedAt = nowIso;
+    nextBanReason = params.reason;
+    nextStrikeCount += 1;
+    nextReputation -= 5;
+    eventType = "ban";
+  } else if (action === "clear_warning") {
+    if (
+      current.effective_status === "banned" ||
+      current.effective_status === "suspended" ||
+      current.status === "banned" ||
+      current.status === "suspended"
+    ) {
+      return { ok: false, status: 409, error: "USER_SAFETY_ACTION_CONFLICT" };
+    }
+    if (current.warning_count <= 0 && current.status === "active") {
+      return {
+        ok: true,
+        changed: false,
+        eventType: null,
+        nextState: {
+          reputation_score: current.reputation_score,
+          strike_count: current.strike_count,
+          warning_count: current.warning_count,
+          status: current.status,
+          suspended_until: current.suspended_until,
+          banned_at: current.banned_at,
+          ban_reason: current.ban_reason,
+        },
+      };
+    }
+    nextWarningCount = Math.max(0, current.warning_count - 1);
+    nextStatus = defaultStatusFromCounters(nextWarningCount);
+    if (nextReputation < 0) nextReputation += 1;
+    eventType = "note";
+  } else {
+    if (
+      current.effective_status !== "banned" &&
+      current.effective_status !== "suspended" &&
+      current.status !== "banned" &&
+      current.status !== "suspended"
+    ) {
+      return { ok: false, status: 409, error: "USER_NOT_RESTRICTED" };
+    }
+    nextStatus = defaultStatusFromCounters(current.warning_count);
+    nextSuspendedUntil = null;
+    nextBannedAt = null;
+    nextBanReason = null;
+    eventType = "unban";
+  }
+
+  const changed =
+    nextStatus !== current.status ||
+    nextSuspendedUntil !== current.suspended_until ||
+    nextBannedAt !== current.banned_at ||
+    nextBanReason !== current.ban_reason ||
+    nextWarningCount !== current.warning_count ||
+    nextStrikeCount !== current.strike_count ||
+    nextReputation !== current.reputation_score;
+
+  return {
+    ok: true,
+    changed,
+    eventType,
+    nextState: {
+      reputation_score: nextReputation,
+      strike_count: nextStrikeCount,
+      warning_count: nextWarningCount,
+      status: nextStatus,
+      suspended_until: nextSuspendedUntil,
+      banned_at: nextBannedAt,
+      ban_reason: nextBanReason,
+    },
+  };
+}
+
 export async function applyUserSafetyAction(params: {
   client: SupabaseClient;
   actorId: string;
   targetUserId: string;
-  action: "warn" | "suspend" | "ban" | "unban";
+  action: UserSafetyAdminAction;
   reason: string | null;
   until?: string | null;
 }) {
@@ -382,90 +522,49 @@ export async function applyUserSafetyAction(params: {
 
   const current = await getUserSafetyState(client, targetUserId);
   const nowIso = new Date().toISOString();
-  let nextStatus: UserSafetyStatus = current.status;
-  let nextSuspendedUntil = current.suspended_until;
-  let nextBannedAt = current.banned_at;
-  let nextBanReason = current.ban_reason;
-  let nextWarningCount = current.warning_count;
-  let nextStrikeCount = current.strike_count;
-  let nextReputation = current.reputation_score;
-  let eventType: UserSafetyEventType;
-
-  if (action === "warn") {
-    if (current.effective_status === "banned" || current.effective_status === "suspended") {
-      return { ok: false as const, status: 409, error: "USER_SAFETY_ACTION_CONFLICT" };
-    }
-    nextStatus = "warned";
-    nextWarningCount += 1;
-    nextReputation -= 1;
-    eventType = "warning";
-  } else if (action === "suspend") {
-    if (current.effective_status === "banned") {
-      return { ok: false as const, status: 409, error: "USER_ALREADY_BANNED" };
-    }
-    if (current.effective_status === "suspended") {
-      return { ok: false as const, status: 409, error: "USER_ALREADY_SUSPENDED" };
-    }
-    const validatedUntil = validateFutureIsoTimestamp(params.until);
-    if (!validatedUntil.ok) {
-      return { ok: false as const, status: 400, error: validatedUntil.error };
-    }
-    nextStatus = "suspended";
-    nextSuspendedUntil = validatedUntil.iso;
-    nextBannedAt = null;
-    nextBanReason = params.reason;
-    nextStrikeCount += 1;
-    nextReputation -= 2;
-    eventType = "suspend";
-  } else if (action === "ban") {
-    if (current.effective_status === "banned") {
-      return { ok: false as const, status: 409, error: "USER_ALREADY_BANNED" };
-    }
-    nextStatus = "banned";
-    nextSuspendedUntil = null;
-    nextBannedAt = nowIso;
-    nextBanReason = params.reason;
-    nextStrikeCount += 1;
-    nextReputation -= 5;
-    eventType = "ban";
-  } else {
-    if (current.effective_status !== "banned" && current.effective_status !== "suspended" && current.status !== "banned" && current.status !== "suspended") {
-      return { ok: false as const, status: 409, error: "USER_NOT_RESTRICTED" };
-    }
-    nextStatus = defaultStatusFromCounters(current.warning_count);
-    nextSuspendedUntil = null;
-    nextBannedAt = null;
-    nextBanReason = null;
-    eventType = "unban";
+  const transition = computeUserSafetyTransition(current, action, {
+    reason: params.reason,
+    until: params.until ?? null,
+    nowIso,
+  });
+  if (!transition.ok) {
+    return { ok: false as const, status: transition.status, error: transition.error };
+  }
+  if (!transition.changed) {
+    return { ok: true as const, state: current };
   }
 
   const nextState = await upsertUserSafetyState(client, {
     user_id: targetUserId,
-    reputation_score: nextReputation,
-    strike_count: nextStrikeCount,
-    warning_count: nextWarningCount,
-    status: nextStatus,
-    suspended_until: nextSuspendedUntil,
-    banned_at: nextBannedAt,
-    ban_reason: nextBanReason,
+    reputation_score: transition.nextState.reputation_score,
+    strike_count: transition.nextState.strike_count,
+    warning_count: transition.nextState.warning_count,
+    status: transition.nextState.status,
+    suspended_until: transition.nextState.suspended_until,
+    banned_at: transition.nextState.banned_at,
+    ban_reason: transition.nextState.ban_reason,
     last_action_at: nowIso,
     updated_by: actorId,
   });
 
-  await insertUserSafetyEvent(client, {
-    user_id: targetUserId,
-    actor_id: actorId,
-    event_type: eventType,
-    reason: params.reason,
-    metadata: {
-      action,
-      previous_status: current.status,
-      previous_effective_status: current.effective_status,
-      next_status: nextState.status,
-      next_effective_status: nextState.effective_status,
-      suspended_until: nextState.suspended_until,
-    },
-  });
+  if (transition.eventType) {
+    await insertUserSafetyEvent(client, {
+      user_id: targetUserId,
+      actor_id: actorId,
+      event_type: transition.eventType,
+      reason: params.reason,
+      metadata: {
+        action,
+        previous_status: current.status,
+        previous_effective_status: current.effective_status,
+        previous_warning_count: current.warning_count,
+        next_status: nextState.status,
+        next_effective_status: nextState.effective_status,
+        next_warning_count: nextState.warning_count,
+        suspended_until: nextState.suspended_until,
+      },
+    });
+  }
 
   return { ok: true as const, state: nextState };
 }

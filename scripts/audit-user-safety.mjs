@@ -61,11 +61,19 @@ check("admin users page exists", exists(adminPagePath));
 check("admin users component exists", exists(adminComponentPath));
 
 const adminUsersApi = "src/pages/api/admin/users.ts";
+const clearWarningApi = "src/pages/api/admin/users/[id]/clear-warning.ts";
 check("admin users api exists", exists(adminUsersApi));
 if (exists(adminUsersApi)) {
   const api = read(adminUsersApi);
   check("admin users api hides email", !/email/i.test(api));
   check("admin users api returns safety", /warning_count/i.test(api) && /strike_count/i.test(api));
+}
+
+check("clear warning api exists", exists(clearWarningApi));
+if (exists(clearWarningApi)) {
+  const api = read(clearWarningApi);
+  check("clear warning requires moderator", /requireModerator/i.test(api));
+  check("clear warning uses safety helper", /applyUserSafetyAction/i.test(api) && /clear_warning/i.test(api));
 }
 
 const publicFiles = walk(path.join(root, "src"))
