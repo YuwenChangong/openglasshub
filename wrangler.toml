@@ -1,0 +1,27 @@
+name = "openglasshub"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-05-17"
+
+[[r2_buckets]]
+binding = "MODERATION_ASSETS"
+bucket_name = "openglasshub-media"
+
+[[kv_namespaces]]
+binding = "SESSION"
+id = "c6d05834ec1d4d3780d8495236496887"
+
+[env.preview]
+
+[[env.preview.r2_buckets]]
+binding = "MODERATION_ASSETS"
+bucket_name = "openglasshub-media"
+
+[[env.preview.kv_namespaces]]
+binding = "SESSION"
+id = "1aececb7c13140909c240bfafbd9d29d"
+
+[env.production]
+
+[[env.production.r2_buckets]]
+binding = "MODERATION_ASSETS"
+bucket_name = "openglasshub-media"
