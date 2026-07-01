@@ -30,7 +30,7 @@ async function run() {
   for (const term of terms) {
     for (const target of targets) {
       const text = target.textFor(term);
-      const local = evaluateLocalSensitiveLexicon(text);
+      const local = await evaluateLocalSensitiveLexicon(text, env);
       const result = await moderateContent(env, {
         contentType: target.contentType,
         userId: "qa-critical-term",

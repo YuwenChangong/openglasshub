@@ -10,6 +10,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "test": "node --experimental-strip-types scripts/test-moderation.mjs",
+    "test:reports": "node --experimental-strip-types scripts/test-reports.mjs",
+    "test:reports-audit": "node scripts/audit-reports.mjs --strict --verbose",
     "test:user-safety": "node --experimental-strip-types scripts/test-user-safety.mjs",
     "test:user-safety-audit": "node scripts/audit-user-safety.mjs --strict --verbose",
     "test:search": "node --experimental-strip-types scripts/test-search.mjs",

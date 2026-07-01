@@ -3,6 +3,7 @@ import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 import CommentForm from "./CommentForm";
 import { buildProfileHref } from "../../lib/profile-links";
+import ReportTrigger from "../reports/ReportTrigger";
 
 interface Author {
   username: string | null;
@@ -436,6 +437,15 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
                   <span>回复</span>
                   <span>{comment.reply_count}</span>
                 </button>
+
+                <ReportTrigger
+                  targetType="comment"
+                  targetId={comment.id}
+                  buttonLabel="举报"
+                  loginHref={loginHref}
+                  className="community-action-button comment-action-button"
+                  compact
+                />
 
                 {comment.can_delete ? (
                   <button

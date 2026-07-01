@@ -36,6 +36,8 @@ async function main() {
     "src/data/moderation/sensitive-lexicon.generated.ts",
     "src/data/moderation/sensitive-lexicon-manifest.generated.json",
     "src/lib/moderation/local-sensitive-lexicon.server.ts",
+    "src/lib/moderation/sensitive-lexicon-loader.server.ts",
+    "src/pages/api/admin/moderation/lexicon-health.ts",
     "scripts/moderation/import-sensitive-lexicons.mjs",
   ];
 
@@ -47,6 +49,8 @@ async function main() {
   const generated = JSON.parse(await read("src/data/moderation/sensitive-lexicon.generated.json"));
   const generatedManifest = JSON.parse(await read("src/data/moderation/sensitive-lexicon-manifest.generated.json"));
   const matcherSource = await read("src/lib/moderation/local-sensitive-lexicon.server.ts");
+  const loaderSource = await read("src/lib/moderation/sensitive-lexicon-loader.server.ts");
+  const healthApiSource = await read("src/pages/api/admin/moderation/lexicon-health.ts");
   const importScript = await read("scripts/moderation/import-sensitive-lexicons.mjs");
 
   if (!Array.isArray(manifest.sources) || manifest.sources.length < 2) {
@@ -61,8 +65,17 @@ async function main() {
   if (!Array.isArray(generatedManifest.importedFiles) || generatedManifest.importedFiles.length < 4) {
     errors.push("generated manifest missing imported file records");
   }
-  if (!/sensitive-lexicon\.generated\.(json|ts)/.test(matcherSource)) {
-    errors.push("local matcher is not loading generated lexicon data");
+  if (!/loadSensitiveLexicon/.test(matcherSource)) {
+    errors.push("local matcher is not using runtime sensitive lexicon loader");
+  }
+  if (!/getSensitiveLexiconHealth/.test(healthApiSource) || !/requireModerator/.test(healthApiSource)) {
+    errors.push("admin lexicon health endpoint is missing safe runtime diagnostics");
+  }
+  if (!/MODERATION_ASSETS|sensitive-lexicon\.generated\.json/.test(loaderSource)) {
+    errors.push("runtime lexicon loader does not appear to support private runtime loading");
+  }
+  if (!/cachedLexiconSource !== \"emergency\"|compiledLexiconSource === \"emergency\"/.test(`${loaderSource}\n${matcherSource}`)) {
+    errors.push("runtime lexicon cache may still lock emergency fallback permanently");
   }
   if (!/module-level|compileLexicon|compiledLexicon/i.test(matcherSource)) {
     errors.push("local matcher does not appear to cache compiled lexicon terms");

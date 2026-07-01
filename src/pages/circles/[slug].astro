@@ -10,6 +10,7 @@ import { buildPostLikeCountMap } from "../../lib/post-engagement";
 import { buildCircleImageMap } from "../../lib/circle-images";
 import { fetchCircleBySlugWithFallback } from "../../lib/circle-data";
 import CircleManageEntry from "../../components/forum/CircleManageEntry";
+import ReportTrigger from "../../components/reports/ReportTrigger";
 import { formatPostTime } from "../../lib/format-time";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
@@ -118,6 +119,14 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
       <span class="forum-meta">创建于 {new Date(publicCircle.created_at).toLocaleDateString("zh-CN")}</span>
       <div class="community-inline-links" style="margin-top: 0.8rem;">
         <CircleManageEntry circleSlug={publicCircle.slug} ownerId={publicCircle.owner_id ?? null} client:load />
+        <ReportTrigger
+          targetType="circle"
+          targetId={publicCircle.id}
+          buttonLabel="举报圈子"
+          className="community-action-button community-action-button--compact"
+          compact={true}
+          client:load
+        />
       </div>
     </header>
 

@@ -46,6 +46,28 @@ Do not hand-edit generated files. Edit:
 
 Then regenerate.
 
+## Runtime lexicon storage
+
+To keep the Cloudflare Pages Worker under the 3 MiB bundle limit, the full generated lexicon is no longer imported directly into server code.
+
+- Runtime binding name: `MODERATION_ASSETS`
+- Private object key: `moderation/local-sensitive-lexicon.zh.json`
+- Loader path: `src/lib/moderation/sensitive-lexicon-loader.server.ts`
+- Fallback behavior:
+  - first try private R2 object
+  - local Node/test environments can read `src/data/moderation/sensitive-lexicon.generated.json`
+  - if both fail, use a tiny built-in emergency lexicon for critical terms only
+
+Cloudflare setup:
+
+1. Create or reuse a private R2 bucket for moderation assets.
+2. Add a Pages binding named `MODERATION_ASSETS` to that bucket.
+3. Upload the generated lexicon object:
+
+`npx wrangler r2 object put <bucket-name>/moderation/local-sensitive-lexicon.zh.json --file src/data/moderation/sensitive-lexicon.generated.json`
+
+Do not put the full lexicon in `public/` and do not expose it to the client bundle.
+
 Critical coverage note:
 
 - Final blocker QA first confirmed `嫖娼` and `卖淫` were present in imported lexicon coverage

@@ -60,6 +60,8 @@ Critical term note:
 
 - Do not expose raw OpenAI responses or category scores to users
 - Do not expose full sensitive term lists to the client
+- Do not statically bundle the full sensitive lexicon into the Cloudflare Worker
+- Load the full lexicon from private runtime storage (`MODERATION_ASSETS`) and keep only a tiny emergency fallback in code
 - Do not claim full video-stream moderation
 - Do not assume the optional forum policy classifier is enabled
 

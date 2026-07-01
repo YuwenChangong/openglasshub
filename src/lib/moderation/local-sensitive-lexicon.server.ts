@@ -1,34 +1,12 @@
-import lexiconData from "../../data/moderation/sensitive-lexicon.generated.ts";
-
-export type LocalLexiconCategory =
-  | "off_platform_contact"
-  | "spam_or_promotion"
-  | "scam_or_resource_lure"
-  | "suspicious_external_link"
-  | "fake_download_or_private_access"
-  | "sexual_content"
-  | "violence_or_threat"
-  | "hate_or_harassment"
-  | "illegal_goods_or_services"
-  | "personal_data_or_doxxing"
-  | "political_sensitive"
-  | "vulgar_abuse"
-  | "low_quality_spam"
-  | "platform_policy_custom";
-
-export type LocalLexiconSeverity = "allow" | "soft_review" | "review" | "reject";
-export type LocalLexiconMatchMode = "exact" | "contains" | "phrase" | "regex";
-
-type LexiconTerm = {
-  term: string | null;
-  normalized: string | null;
-  condensed: string | null;
-  category: LocalLexiconCategory;
-  severity: LocalLexiconSeverity;
-  source: string;
-  match: LocalLexiconMatchMode;
-  pattern?: string | null;
-};
+import {
+  getSensitiveLexiconSource,
+  loadSensitiveLexicon,
+  resetSensitiveLexiconRuntimeCache,
+  type LocalLexiconCategory,
+  type LocalLexiconSeverity,
+  type SensitiveLexiconData,
+  type SensitiveLexiconTerm,
+} from "./sensitive-lexicon-loader.server.ts";
 
 export type LocalSensitiveLexiconResult = {
   decision: "allow" | "review" | "reject";
@@ -111,6 +89,19 @@ const HARD_REVIEW_RULES: Array<{
   },
 ];
 
+type CompiledLexiconTerm = SensitiveLexiconTerm & { compiled?: RegExp };
+
+type CompiledLexicon = {
+  allow: SensitiveLexiconTerm[];
+  reject: SensitiveLexiconTerm[];
+  review: SensitiveLexiconTerm[];
+  softReview: SensitiveLexiconTerm[];
+  regexTerms: Array<CompiledLexiconTerm & { compiled: RegExp }>;
+};
+
+let compiledLexiconPromise: Promise<CompiledLexicon> | null = null;
+let compiledLexiconSource: "r2" | "local_file" | "emergency" | null = null;
+
 function normalizeText(input: string) {
   const normalized = String(input ?? "")
     .slice(0, MAX_TEXT_LENGTH)
@@ -147,13 +138,13 @@ function decisionFromSeverity(severity: LocalLexiconSeverity): "allow" | "review
   return "allow";
 }
 
-function compileLexicon() {
-  const terms = (lexiconData.terms ?? []) as LexiconTerm[];
-  const allow: LexiconTerm[] = [];
-  const reject: LexiconTerm[] = [];
-  const review: LexiconTerm[] = [];
-  const softReview: LexiconTerm[] = [];
-  const regexTerms: Array<LexiconTerm & { compiled: RegExp }> = [];
+function compileLexicon(lexiconData: SensitiveLexiconData): CompiledLexicon {
+  const terms = (lexiconData.terms ?? []) as SensitiveLexiconTerm[];
+  const allow: SensitiveLexiconTerm[] = [];
+  const reject: SensitiveLexiconTerm[] = [];
+  const review: SensitiveLexiconTerm[] = [];
+  const softReview: SensitiveLexiconTerm[] = [];
+  const regexTerms: Array<CompiledLexiconTerm & { compiled: RegExp }> = [];
 
   for (const term of terms) {
     if (term.match === "regex" && term.pattern) {
@@ -176,13 +167,36 @@ function compileLexicon() {
   };
 }
 
-const compiledLexicon = compileLexicon();
+async function getCompiledLexicon(env?: Record<string, unknown>): Promise<CompiledLexicon> {
+  if (compiledLexiconPromise && compiledLexiconSource && compiledLexiconSource !== "emergency") {
+    return compiledLexiconPromise;
+  }
+
+  if (!compiledLexiconPromise) {
+    // Module-level cache keeps the compiled lexicon out of the Worker bundle while still avoiding repeated parsing.
+    compiledLexiconPromise = loadSensitiveLexicon(env).then((lexiconData) => {
+      const compiled = compileLexicon(lexiconData);
+      compiledLexiconSource = getSensitiveLexiconSource();
+      if (compiledLexiconSource === "emergency") {
+        compiledLexiconPromise = null;
+      }
+      return compiled;
+    });
+  }
+  return compiledLexiconPromise;
+}
+
+export function resetCompiledSensitiveLexiconCache() {
+  compiledLexiconPromise = null;
+  compiledLexiconSource = null;
+  resetSensitiveLexiconRuntimeCache();
+}
 
 function isSafeContext(text: string) {
   return SAFE_CONTEXT_PATTERNS.some((pattern) => pattern.test(text));
 }
 
-function matchesTerm(entry: LexiconTerm, normalizedText: string, condensedText: string) {
+function matchesTerm(entry: SensitiveLexiconTerm, normalizedText: string, condensedText: string) {
   if (!entry.normalized) return false;
   const target = entry.condensed?.length ? condensedText : normalizedText;
   const needle = entry.condensed?.length ? entry.condensed : entry.normalized;
@@ -197,7 +211,7 @@ function matchesTerm(entry: LexiconTerm, normalizedText: string, condensedText: 
   return target.includes(needle);
 }
 
-function allowlistSuppresses(entry: LexiconTerm, allowHits: LexiconTerm[]) {
+function allowlistSuppresses(entry: SensitiveLexiconTerm, allowHits: SensitiveLexiconTerm[]) {
   if (!entry.normalized || allowHits.length === 0) return false;
   return allowHits.some((allowHit) => {
     if (!allowHit.normalized) return false;
@@ -206,8 +220,13 @@ function allowlistSuppresses(entry: LexiconTerm, allowHits: LexiconTerm[]) {
   });
 }
 
-function collectMatches(entries: LexiconTerm[], normalizedText: string, condensedText: string, allowHits: LexiconTerm[]) {
-  const matches: LexiconTerm[] = [];
+function collectMatches(
+  entries: SensitiveLexiconTerm[],
+  normalizedText: string,
+  condensedText: string,
+  allowHits: SensitiveLexiconTerm[],
+) {
+  const matches: SensitiveLexiconTerm[] = [];
   for (const entry of entries) {
     if (!matchesTerm(entry, normalizedText, condensedText)) continue;
     if (allowlistSuppresses(entry, allowHits)) continue;
@@ -217,7 +236,10 @@ function collectMatches(entries: LexiconTerm[], normalizedText: string, condense
   return matches;
 }
 
-export function evaluateLocalSensitiveLexicon(input: string): LocalSensitiveLexiconResult {
+export async function evaluateLocalSensitiveLexicon(
+  input: string,
+  env?: Record<string, unknown>,
+): Promise<LocalSensitiveLexiconResult> {
   const { normalized, condensed } = normalizeText(input);
   if (!normalized) {
     return {
@@ -232,6 +254,7 @@ export function evaluateLocalSensitiveLexicon(input: string): LocalSensitiveLexi
     };
   }
 
+  const compiledLexicon = await getCompiledLexicon(env);
   const safeContext = isSafeContext(normalized);
   const allowHits = collectMatches(compiledLexicon.allow, normalized, condensed, []);
 

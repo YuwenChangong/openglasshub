@@ -196,7 +196,7 @@ async function moderatePostMedia(params: {
 
   const localMetadataText = mediaTextParts.join("\n").trim();
   if (localMetadataText) {
-    const localLexicon = evaluateLocalSensitiveLexicon(localMetadataText);
+    const localLexicon = await evaluateLocalSensitiveLexicon(localMetadataText, env);
     if (localLexicon.decision !== "allow") {
       return {
         decision: localLexicon.decision,

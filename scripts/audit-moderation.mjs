@@ -40,6 +40,7 @@ async function main() {
     "src/lib/moderation/local-sensitive-lexicon.server.ts",
     "src/lib/moderation/openai-forum-policy-classifier.server.ts",
     "src/lib/moderation/moderate-content.server.ts",
+    "src/lib/moderation/sensitive-lexicon-loader.server.ts",
     "src/lib/moderation/moderate-asset.server.ts",
     "scripts/moderation/import-sensitive-lexicons.mjs",
     "src/data/moderation/sensitive-lexicon.generated.json",
