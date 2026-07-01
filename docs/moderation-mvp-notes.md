@@ -1,5 +1,22 @@
 # Community Moderation MVP Notes
 
+## Production release update
+
+- OpenGlass Hub Reports Optimization MVP released to production.
+- Final commit: `cefe29bf7668a472a5681faf1abaf4df4973badc`
+- Final classification: `PRODUCTION_RELEASE_GO`
+
+### Key shipped items
+
+- Expanded report targets: `post` / `comment` / `circle` / `user` / admin-user workflows
+- `report_events` audit trail
+- Admin reports list / detail / filter / action flows
+- User safety actions
+- R2-backed full sensitive lexicon runtime
+- Admin-only `clear-warning` restore path
+- Production migration applied
+- Production QA passed
+
 - `posts` 已有 `status`，当前使用 `pending | published | hidden | deleted`，可复用为审核可见性层。
 - `comments` 当前只有 `published | hidden | deleted`，缺少待审核状态，需要最小 migration 补 `pending`。
 - `reports` 表已存在，字段足够支撑人工处理入口。
