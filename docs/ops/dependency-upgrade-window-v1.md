@@ -117,19 +117,39 @@ Additional non-risk note after upgrade:
 
 ## Preview Deploy QA
 
-- Preview deployment URL: `https://a8161802.openglasshub.pages.dev`
-- Preview alias URL: `https://dependency-upgrade-v1.openglasshub.pages.dev`
+- Initial preview deployment URL: `https://a8161802.openglasshub.pages.dev`
+- Initial preview alias URL: `https://dependency-upgrade-v1.openglasshub.pages.dev`
 
-Preview result:
+Initial preview result:
 
 - Deploy command succeeded
 - Required smoke checks failed
 - `/`, `/feed/`, `/circles/`, `/api/forum/reports`, `/api/admin/reports`, and `/api/admin/moderation/lexicon-health` all returned `404`
 
+Follow-up diagnosis:
+
+- Local build output was verified as healthy:
+  - `dist/_worker.js` was generated with the SSR and API routes bundled
+  - `dist/_routes.json` included `/`, `/feed`, `/circles/*`, and `/api/*`
+- Manual redeploy with local `wrangler@4.106.0` succeeded:
+  - Deployment URL: `https://77f76222.openglasshub.pages.dev`
+  - Alias URL: `https://dependency-upgrade-v1.openglasshub.pages.dev`
+- One-off redeploy with `npx wrangler@4.59.2` also succeeded:
+  - Deployment URL: `https://0bb64207.openglasshub.pages.dev`
+  - Alias URL: `https://dependency-upgrade-v1-wrangl.openglasshub.pages.dev`
+- Both fresh deploys passed the same route checks that had previously failed:
+  - `/` -> `200`
+  - `/feed/` -> `200`
+  - `/circles/` -> `200`
+  - `/api/forum/reports` -> `405`
+  - `/api/admin/reports` -> `401`
+  - `/api/admin/moderation/lexicon-health` -> `401`
+
 Interpretation:
 
-- Local validation passed, but manual preview deployment did not serve the expected app/runtime for this branch in this environment.
-- This blocks a full completion classification for the window.
+- The dependency upgrade output was not the root cause of the blanket `404` behavior.
+- The most likely cause was a stale or bad preview deployment state on the earlier manual Pages deploy.
+- Because both the current and prior Wrangler lines produced healthy preview deploys after redeploy, this did not reproduce as a durable `wrangler` version regression.
 
 ## Production Impact
 
@@ -150,8 +170,8 @@ Interpretation:
 
 ### Wrangler Upgrade Window v1
 
-- Confirm whether `wrangler pages deploy dist --branch ...` is the correct preview path for the current Astro + Pages runtime output
-- If needed, align manual preview deployment with the active runtime packaging model
+- Keep `wrangler pages deploy dist --branch ...` as the manual preview path for the current Astro + Pages runtime output
+- If blanket preview `404`s recur, treat stale/bad Pages preview state as the first recovery hypothesis and redeploy before widening scope
 
 ### Supabase Client Upgrade Window v1
 
