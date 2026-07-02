@@ -7,6 +7,7 @@ interface GlassConfirmDialogProps {
   cancelLabel?: string;
   danger?: boolean;
   loading?: boolean;
+  loadingLabel?: string;
   error?: string;
   onConfirm: () => void;
   onCancel: () => void;
@@ -21,6 +22,7 @@ export default function GlassConfirmDialog({
   cancelLabel = "取消",
   danger = false,
   loading = false,
+  loadingLabel = "处理中...",
   error = "",
   onConfirm,
   onCancel,
@@ -49,11 +51,11 @@ export default function GlassConfirmDialog({
           </button>
           <button
             type="button"
-            className={danger ? "community-button" : "community-button"}
+            className={danger ? "community-button admin-action-danger" : "community-button"}
             onClick={onConfirm}
             disabled={loading}
           >
-            {loading ? "删除中..." : confirmLabel}
+            {loading ? loadingLabel : confirmLabel}
           </button>
         </div>
       </div>

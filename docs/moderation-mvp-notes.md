@@ -5,6 +5,9 @@
 - OpenGlass Hub Reports Optimization MVP released to production.
 - Final commit: `cefe29bf7668a472a5681faf1abaf4df4973badc`
 - Final classification: `PRODUCTION_RELEASE_GO`
+- Reports Admin UX v1 completed with queue scanning, filter clarity, event timeline readability, and safer confirmation UX improvements.
+- No migration was needed.
+- Preview QA smoke passed on `https://reports-admin-ux-v1.openglasshub.pages.dev`.
 
 ### Key shipped items
 

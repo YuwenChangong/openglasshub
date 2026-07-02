@@ -87,6 +87,18 @@ const cleanupQaScriptPath = "scripts/qa/cleanup-preview-test-accounts.mjs";
 if (exists(cleanupQaScriptPath)) {
   const script = read(cleanupQaScriptPath);
   check("qa cleanup script uses revoke rpc", /rpc\("qa_revoke_admin_role"/.test(script));
+  check("qa cleanup script requires explicit marker", /requires --marker <disposable-marker>|!options\.marker/.test(script));
+  check(
+    "qa cleanup script refuses production base url",
+    /refuses to run against production|isProductionBaseUrl/.test(script),
+  );
+  check(
+    "qa cleanup script uses admin cleanup routes",
+    /\/api\/admin\/moderation\/hide/.test(script)
+      && /\/api\/admin\/forum\/circles/.test(script)
+      && /\/api\/admin\/moderation\/hide/.test(script),
+  );
+  check("qa cleanup script avoids profile reset write", !/\/api\/users\/me\/profile/.test(script));
 }
 
 if (exists(adminAuthPath)) {

@@ -64,7 +64,11 @@ export async function adminFetch<T = JsonObject>(path: string, options: AdminFet
     }
 
     if (response.status === 403) {
-      throw new AdminApiError("当前账号没有管理员权限", 403, payload?.details);
+      const forbiddenMessage =
+        payloadError && payloadError !== "Forbidden"
+          ? payloadError
+          : "当前账号没有管理员权限";
+      throw new AdminApiError(forbiddenMessage, 403, payload?.details);
     }
 
     throw new AdminApiError(apiMessage, response.status, payload?.details);
