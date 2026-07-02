@@ -648,9 +648,11 @@ export default function AdminReportsPanel() {
   const [note, setNote] = useState("");
   const [until, setUntil] = useState("");
   const [rowMessage, setRowMessage] = useState("");
+  const [dialogError, setDialogError] = useState("");
   const [actionLoading, setActionLoading] = useState<ReportAdminAction | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [filters, setFilters] = useState({
@@ -732,7 +734,12 @@ export default function AdminReportsPanel() {
     let cancelled = false;
 
     async function loadReports() {
-      setDataState("loading");
+      const showFullLoadingState = reports.length === 0 && dataState !== "ready";
+      if (showFullLoadingState) {
+        setDataState("loading");
+      } else {
+        setIsRefreshing(true);
+      }
       setError("");
       try {
         const payload = await adminFetch<ReportsPayload>(`/api/admin/reports?${queryString}`, {
@@ -769,7 +776,11 @@ export default function AdminReportsPanel() {
           return;
         }
         setError(requestError instanceof Error ? requestError.message : "加载举报列表失败");
-        setDataState("error");
+        setDataState(showFullLoadingState ? "error" : "ready");
+      } finally {
+        if (!cancelled) {
+          setIsRefreshing(false);
+        }
       }
     }
 
@@ -818,7 +829,7 @@ export default function AdminReportsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [adminSession.session, adminSession.state.status, refreshNonce, selectedId]);
+  }, [adminSession.session, adminSession.state.status, selectedId]);
 
   useEffect(() => {
     if (filteredReports.length === 0) return;
@@ -840,6 +851,7 @@ export default function AdminReportsPanel() {
     if (!selectedReport || !adminSession.session) return;
     setActionLoading(action);
     setError("");
+    setDialogError("");
     setRowMessage("");
     try {
       const payload = await adminFetch<ActionPayload>(`/api/admin/reports/${selectedReport.id}/action`, {
@@ -863,6 +875,7 @@ export default function AdminReportsPanel() {
       }
 
       setRowMessage(buildActionSuccessMessage(action));
+      setDialogError("");
       setConfirmState(null);
       if (action !== "reviewing") {
         setNote("");
@@ -870,7 +883,12 @@ export default function AdminReportsPanel() {
       }
       setRefreshNonce((current) => current + 1);
     } catch (requestError) {
-      setError(getActionErrorMessage(requestError));
+      const nextError = getActionErrorMessage(requestError);
+      if (confirmState?.action === action) {
+        setDialogError(nextError);
+      } else {
+        setError(nextError);
+      }
     } finally {
       setActionLoading(null);
     }
@@ -879,6 +897,7 @@ export default function AdminReportsPanel() {
   function requestAction(action: ReportAdminAction) {
     if (!selectedReport) return;
     setError("");
+    setDialogError("");
     setRowMessage("");
     setConfirmState({ action, reportId: selectedReport.id });
   }
@@ -984,8 +1003,9 @@ export default function AdminReportsPanel() {
 
       {error ? <div className="admin-error">{error}</div> : null}
       {rowMessage ? <div className="admin-inline-success">{rowMessage}</div> : null}
+      {isRefreshing && reports.length > 0 ? <p className="community-meta admin-state-message">正在刷新当前队列...</p> : null}
 
-      {dataState === "loading" ? (
+      {dataState === "loading" && reports.length === 0 ? (
         <div className="admin-reports-loading">
           <p className="community-meta admin-state-message">正在加载举报队列...</p>
           <div className="admin-reports-loading__grid">
@@ -1275,11 +1295,11 @@ export default function AdminReportsPanel() {
         danger={confirmConfig?.danger ?? false}
         loading={!!confirmState && actionLoading === confirmState.action}
         loadingLabel={confirmConfig?.loadingLabel ?? "处理中..."}
-        error={error}
+        error={dialogError}
         onCancel={() => {
           if (actionLoading) return;
           setConfirmState(null);
-          setError("");
+          setDialogError("");
         }}
         onConfirm={() => {
           if (!confirmState) return;
