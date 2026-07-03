@@ -12,6 +12,7 @@ export interface Props {
   twitterCard?: "summary" | "summary_large_image";
   activeSection?: "home" | "forum" | "news" | "products" | "devices" | "launcher";
   pageClass?: string;
+  structuredData?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
 const {
@@ -24,6 +25,7 @@ const {
   twitterCard = "summary_large_image",
   activeSection,
   pageClass = "",
+  structuredData,
 } = Astro.props;
 const siteName = "OpenGlass Hub";
 const baseUrl = Astro.site?.toString() ?? "https://openglasshub.pages.dev";
@@ -31,6 +33,7 @@ const fullTitle = `${title} | ${siteName}`;
 const canonicalHref = canonical ? new URL(canonical, baseUrl).toString() : undefined;
 const ogImageHref = new URL(ogImage ?? "/brand/logo.jpg", baseUrl).toString();
 const robotsContent = noindex ? "noindex,nofollow" : "index,follow,max-image-preview:large";
+const structuredDataItems = Array.isArray(structuredData) ? structuredData.filter(Boolean) : structuredData ? [structuredData] : [];
 ---
 <!doctype html>
 <html lang="zh-CN">
@@ -57,6 +60,9 @@ const robotsContent = noindex ? "noindex,nofollow" : "index,follow,max-image-pre
     <link rel="icon" type="image/svg+xml" href="/gaze-icon-v6.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/gaze-icon-32-v6.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v6.png" />
+    {structuredDataItems.map((item) => (
+      <script type="application/ld+json" set:html={JSON.stringify(item)} />
+    ))}
   </head>
   <body>
     <CommunityHeader currentPath={Astro.url.pathname} currentSection={activeSection} next={Astro.url.pathname} />

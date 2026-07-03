@@ -51,10 +51,12 @@ Release stack:
 
 Architecture and safety notes:
 - Device pages remain public and continue to use static local data only.
+- Device pages now include SEO metadata plus conservative JSON-LD structured data for the library and device detail pages.
 - Device discussion context is query-param based and only activates for known local device slugs.
 - Device slug input is sanitized and must match entries in `src/data/devices.ts`.
 - No arbitrary query text is injected into post prefill.
 - Source/verification labels are guidance, not guarantees that every field is complete or final.
+- Structured data intentionally omits prices, offers, ratings, and reviews unless those fields can be verified safely.
 - Comparison is a lightweight MVP meant for high-level orientation rather than exhaustive buying decisions.
 - Existing feed, circles, and device browsing flows remain separate from post creation until a user explicitly acts.
 
@@ -67,4 +69,4 @@ Future work:
 - device-specific circles or tags
 - richer comparison table
 - image/media handling for devices
-- SEO and structured data pass
+- full sitemap and SEO audit

@@ -2,16 +2,23 @@
 import DeviceLibraryExplorer from "../../components/devices/DeviceLibraryExplorer";
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import { deviceCategoryLabels, deviceLibrary, deviceStatusLabels, deviceUseCaseLabels } from "../../data/devices";
+import {
+  buildDeviceLibraryStructuredData,
+  getDeviceLibraryCanonicalUrl,
+  getDeviceLibraryMetaDescription,
+} from "../../lib/device-seo";
 
 const categoryCount = new Set(deviceLibrary.map((device) => device.category)).size;
 const brandCount = new Set(deviceLibrary.map((device) => device.brand)).size;
+const structuredData = buildDeviceLibraryStructuredData();
 ---
 
 <CommunityLayout
   title="Device Library"
-  description="OpenGlass Hub 的公开设备库，提供保守规格说明、核验级别提示和轻量设备对比。"
-  canonical="https://openglasshub.pages.dev/devices/"
+  description={getDeviceLibraryMetaDescription()}
+  canonical={getDeviceLibraryCanonicalUrl()}
   activeSection="devices"
+  structuredData={structuredData}
 >
   <section class="devices-hero">
     <div class="devices-hero__copy">

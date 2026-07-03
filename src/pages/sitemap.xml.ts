@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { getCollection } from "astro:content";
+import { deviceLibrary } from "../data/devices";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { isPublicVisibleCircle } from "../lib/site-navigation";
 
@@ -68,20 +69,18 @@ export const GET: APIRoute = async ({ locals }) => {
     { loc: absoluteUrl("/gaze-launcher/"), changefreq: "weekly", priority: "0.75" },
   ];
 
+  for (const device of deviceLibrary) {
+    entries.push({
+      loc: absoluteUrl(`/devices/${device.slug}/`),
+      changefreq: "monthly",
+      priority: "0.7",
+    });
+  }
+
   for (const entry of docs) {
     const docSlug = String((entry as { slug?: string | null }).slug ?? "");
     if (!docSlug) continue;
 
-    if (docSlug.startsWith("reference/devices/")) {
-      const slug = docSlug.replace("reference/devices/", "");
-      entries.push({
-        loc: absoluteUrl(`/devices/${slug}/`),
-        lastmod: normalizeDate(entry.data.lastUpdated?.toISOString?.() ?? undefined),
-        changefreq: "monthly",
-        priority: "0.7",
-      });
-      continue;
-    }
     if (docSlug.startsWith("reference/guides/")) {
       const slug = docSlug.replace("reference/guides/", "");
       entries.push({

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 
@@ -14,6 +15,13 @@ function assert(condition, message) {
   }
 }
 
+function runNodeWithStripTypes(code) {
+  return execFileSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "--eval", code], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+}
+
 async function main() {
   const dataSource = await read("src/data/devices.ts");
   const indexRoute = await read("src/pages/devices/index.astro");
@@ -24,6 +32,9 @@ async function main() {
   const newPostRoute = await read("src/pages/posts/new.astro");
   const createPostForm = await read("src/components/forum/CreatePostForm.tsx");
   const discussionHelper = await read("src/lib/device-discussion.ts");
+  const deviceSeoHelper = await read("src/lib/device-seo.ts");
+  const communityLayout = await read("src/layouts/CommunityLayout.astro");
+  const sitemapRoute = await read("src/pages/sitemap.xml.ts");
 
   const slugMatches = [...dataSource.matchAll(/slug:\s*"([^"]+)"/g)].map((match) => match[1]);
   const verificationMatches = [...dataSource.matchAll(/verification_level:\s*"([^"]+)"/g)].map((match) => match[1]);
@@ -38,6 +49,7 @@ async function main() {
 
   assert(indexRoute.includes("DeviceLibraryExplorer"), "Device index route should render DeviceLibraryExplorer.");
   assert(indexRoute.includes('activeSection="devices"'), "Device index route should set activeSection to devices.");
+  assert(indexRoute.includes("structuredData"), "Device index route should pass structured data.");
   assert(indexRoute.includes("轻量对比") || explorer.includes("轻量对比"), "Device library should contain comparison UI copy.");
   assert(explorer.includes("maxCompareCount = 3"), "Comparison UI should cap selection at 3 devices.");
   assert(explorer.includes("toggleCompare"), "Comparison UI should include comparison toggle logic.");
@@ -47,6 +59,7 @@ async function main() {
   assert(detailRoute.includes("来源与确认度"), "Device detail route should show verification/source information.");
   assert(detailRoute.includes("限制与注意点"), "Device detail route should render limitations when present.");
   assert(detailRoute.includes("讨论这台设备"), "Device detail route should include discussion entry copy.");
+  assert(detailRoute.includes("structuredData"), "Device detail route should pass structured data.");
   assert(
     detailRoute.includes("feedHref") || detailRoute.includes('href="/feed/"'),
     "Device detail route should include a community CTA.",
@@ -60,9 +73,34 @@ async function main() {
   assert(createPostForm.includes("buildLoginHref(nextPath)"), "Login redirect should preserve safe discussion context.");
   assert(discussionHelper.includes("sanitizeDeviceSlug"), "Device discussion helper should sanitize incoming device slugs.");
   assert(discussionHelper.includes("suggestedTitle"), "Device discussion helper should provide safe starter copy.");
+  assert(deviceSeoHelper.includes("buildDeviceLibraryStructuredData"), "Device SEO helper should build library structured data.");
+  assert(deviceSeoHelper.includes("buildDeviceStructuredData"), "Device SEO helper should build detail structured data.");
+  assert(!deviceSeoHelper.includes("aggregateRating"), "Device SEO helper should not emit aggregateRating.");
+  assert(!deviceSeoHelper.includes("offers"), "Device SEO helper should not emit offers.");
+  assert(!deviceSeoHelper.includes("review"), "Device SEO helper should not emit reviews.");
+  assert(communityLayout.includes('application/ld+json'), "Community layout should render JSON-LD scripts.");
+  assert(sitemapRoute.includes("deviceLibrary"), "Sitemap should include routes from the local device library.");
 
   assert(navigation.includes('href: "/devices/"'), "Main navigation should include the /devices/ entry.");
   assert(!dataSource.includes("NaN"), "Device data source should not contain obviously broken values.");
+
+  const seoJson = runNodeWithStripTypes(`
+    import { deviceLibrary } from "./src/data/devices.ts";
+    import { buildDeviceLibraryStructuredData, buildDeviceStructuredData } from "./src/lib/device-seo.ts";
+    const payload = {
+      library: buildDeviceLibraryStructuredData(),
+      detail: buildDeviceStructuredData(deviceLibrary.find((entry) => entry.slug === "xreal-one")),
+    };
+    process.stdout.write(JSON.stringify(payload));
+  `);
+  const parsedSeo = JSON.parse(seoJson);
+  assert(parsedSeo.library["@type"] === "CollectionPage", "Library structured data should use CollectionPage.");
+  assert(parsedSeo.library.mainEntity?.["@type"] === "ItemList", "Library structured data should include an ItemList.");
+  assert(parsedSeo.detail["@type"] === "Product", "Device detail structured data should use Product.");
+  assert(parsedSeo.detail.name === "XREAL One", "Device detail structured data should include the device name.");
+  assert(!("aggregateRating" in parsedSeo.detail), "Device detail structured data should omit aggregateRating.");
+  assert(!("offers" in parsedSeo.detail), "Device detail structured data should omit offers.");
+  assert(!("review" in parsedSeo.detail), "Device detail structured data should omit reviews.");
 
   console.log(`DEVICE_LIBRARY_AUDIT_OK seedDevices=${slugMatches.length}`);
 }

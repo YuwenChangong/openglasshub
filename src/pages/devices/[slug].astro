@@ -11,6 +11,11 @@ import {
   getDeviceLibraryEntry,
 } from "../../data/devices";
 import { getDeviceDiscussionContext } from "../../lib/device-discussion";
+import {
+  buildDeviceStructuredData,
+  getDeviceCanonicalUrl,
+  getDeviceMetaDescription,
+} from "../../lib/device-seo";
 
 const slug = Astro.params.slug ?? "";
 const device = getDeviceLibraryEntry(slug);
@@ -19,12 +24,14 @@ if (!device) {
   Astro.response.status = 404;
 }
 
-const title = device ? device.name : "Device Not Found";
+const title = device ? `${device.name} | Device Library` : "Device Not Found";
 const description = device
-  ? `${device.name} 的保守规格摘要、核验级别、来源链接与使用限制说明。`
+  ? getDeviceMetaDescription(device)
   : "请求的设备条目不存在，或还没有加入当前的 Device Library MVP。";
 const verificationLevel = device?.verification_level ?? "unknown";
 const discussionContext = getDeviceDiscussionContext(slug);
+const canonicalUrl = device ? getDeviceCanonicalUrl(device.slug) : `https://openglasshub.pages.dev/devices/${slug}/`;
+const structuredData = device ? buildDeviceStructuredData(device) : undefined;
 
 const keyFacts = device
   ? [
@@ -44,9 +51,10 @@ const keyFacts = device
 <CommunityLayout
   title={title}
   description={description}
-  canonical={`https://openglasshub.pages.dev/devices/${slug}/`}
+  canonical={canonicalUrl}
   noindex={!device}
   activeSection="devices"
+  structuredData={structuredData}
 >
   {device ? (
     <>
