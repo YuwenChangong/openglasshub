@@ -1,10 +1,11 @@
-﻿export type NavKey = "home" | "forum" | "news" | "products" | "launcher";
+export type NavKey = "home" | "forum" | "news" | "products" | "devices" | "launcher";
 
 export const mainNav = [
   { key: "home", label: "首页", href: "/" },
   { key: "forum", label: "论坛", href: "/feed/" },
   { key: "news", label: "热点", href: "/news/" },
   { key: "products", label: "产品", href: "/products/" },
+  { key: "devices", label: "设备库", href: "/devices/" },
   { key: "launcher", label: "Gaze Launcher", href: "/gaze-launcher/" },
 ] as const;
 
@@ -56,7 +57,8 @@ export function inferNavKey(pathname: string): NavKey {
     return "forum";
   }
   if (pathname.startsWith("/news")) return "news";
-  if (pathname.startsWith("/products") || pathname.startsWith("/devices") || pathname.startsWith("/guides") || pathname.startsWith("/developers")) {
+  if (pathname.startsWith("/devices")) return "devices";
+  if (pathname.startsWith("/products") || pathname.startsWith("/guides") || pathname.startsWith("/developers")) {
     return "products";
   }
   if (pathname.startsWith("/gaze-launcher")) return "launcher";
