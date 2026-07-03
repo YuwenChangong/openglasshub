@@ -2,463 +2,127 @@
 export const prerender = false;
 
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
-import BrandMark from "../../components/products/BrandMark.astro";
-import ProductVisual from "../../components/products/ProductVisual.astro";
-import { getDeviceBySlug } from "../../lib/device-catalog";
+import {
+  deviceCategoryLabels,
+  deviceStatusLabels,
+  deviceUseCaseLabels,
+  getDeviceLibraryEntry,
+} from "../../data/devices";
 
 const slug = Astro.params.slug ?? "";
-const modules = import.meta.glob("../../content/docs/devices/*.mdx");
-const loadEntry = modules[`../../content/docs/devices/${slug}.mdx`];
-
-if (!loadEntry) {
-  return Astro.redirect("/products/");
-}
-
-const entry = (await loadEntry()) as {
-  frontmatter: {
-    title: string;
-    description?: string;
-  };
-};
-
-const device = getDeviceBySlug(slug);
+const device = getDeviceLibraryEntry(slug);
 
 if (!device) {
-  return Astro.redirect("/products/");
+  Astro.response.status = 404;
 }
 
-const heroLinks = device.externalLinks.slice(0, 3);
-const specItems = device.specGroups.flatMap((group) => group.items);
-const getSpecValue = (field: string) => specItems.find((item) => item.field === field)?.value ?? null;
-const basicInfoItems = [
-  { label: "类型", value: device.typeLabel },
-  { label: "发布时间", value: device.releaseYear ?? getSpecValue("release_year") },
-  { label: "可得性", value: device.availability ?? getSpecValue("availability") },
-  { label: "平台 / 系统", value: getSpecValue("platform") },
-  { label: "主机依赖", value: getSpecValue("required_host") },
-  { label: "输入方式", value: getSpecValue("input_controls") },
-].filter((item) => item.value);
+const title = device ? device.name : "Device Not Found";
+const description = device
+  ? `${device.name} 的保守版设备摘要、用途标签与来源说明。`
+  : "请求的设备条目不存在，或还没有加入当前的 Device Library MVP。";
+
+const keyFacts = device
+  ? [
+      { label: "品牌", value: device.brand },
+      { label: "分类", value: deviceCategoryLabels[device.category] },
+      { label: "状态", value: deviceStatusLabels[device.status] },
+      { label: "价格", value: device.price_label ?? null },
+      { label: "重量", value: device.weight_label ?? null },
+      { label: "显示", value: device.display_label ?? null },
+      { label: "视场角", value: device.fov_label ?? null },
+      { label: "平台", value: device.platform_label ?? null },
+      { label: "最后更新", value: device.updated_label ?? null },
+    ].filter((item) => item.value)
+  : [];
 ---
 
 <CommunityLayout
-  title={entry.frontmatter.title}
-  description={device.shortDescription}
+  title={title}
+  description={description}
   canonical={`https://openglasshub.pages.dev/devices/${slug}/`}
-  activeSection="products"
+  noindex={!device}
+  activeSection="devices"
 >
-  <section class="device-detail-head">
-    <div class="device-detail-head__visual">
-      <ProductVisual
-        brandMark={device.brandMarkText}
-        title={device.title}
-        categoryLabel={device.typeLabel}
-        variant="hero"
-        statusLabel={null}
-        highlights={device.previewSpecs}
-        placeholderType={device.detailMedia.placeholderType}
-      />
-    </div>
-    <div class="device-detail-head__copy">
-      <a href={`/products/${device.brandKey}/`} class="device-detail-head__back">返回 {device.brandLabel}</a>
-      <BrandMark logo={device.brandLogo} compact={true} brandKey={device.brandKey} />
-      <h1>{entry.frontmatter.title}</h1>
-      <p>{device.positioning}</p>
-      <div class="device-detail-head__meta">
-        <span>{device.typeLabel}</span>
-        {device.releaseYear && <span>{device.releaseYear}</span>}
-        {device.availability && <span>{device.availability}</span>}
-      </div>
-      {heroLinks.length > 0 && (
-        <div class="device-detail-head__actions">
-          {heroLinks.map((link, index) => (
-            <a
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              class={index === 0 ? "community-button--secondary" : "community-link"}
-            >
-              {link.label}
-            </a>
-          ))}
+  {device ? (
+    <>
+      <section class="device-detail-hero">
+        <a href="/devices/" class="device-detail-hero__back">返回设备库</a>
+        <div class="device-detail-hero__headline">
+          <div class="device-detail-hero__eyebrow">
+            <span>{device.brand}</span>
+            <span>{deviceCategoryLabels[device.category]}</span>
+            <span>{deviceStatusLabels[device.status]}</span>
+          </div>
+          <h1>{device.name}</h1>
+          <p>{device.short_description}</p>
         </div>
-      )}
-    </div>
-  </section>
+      </section>
 
-  {basicInfoItems.length > 0 && (
-    <section class="device-key-specs">
-      {basicInfoItems.map((item) => (
-        <article class="community-surface device-key-spec">
-          <span>{item.label}</span>
-          <strong>{item.value}</strong>
+      <section class="device-detail-grid">
+        <article class="community-surface community-surface--padded device-detail-panel">
+          <div class="device-detail-panel__head">
+            <h2>关键事实</h2>
+            <span>这版只展示当前确认度较高的信息</span>
+          </div>
+          <dl class="device-detail-facts">
+            {keyFacts.map((fact) => (
+              <div class="device-detail-facts__row">
+                <dt>{fact.label}</dt>
+                <dd>{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
         </article>
-      ))}
-    </section>
-  )}
 
-  {device.quickSpecs.length > 0 && (
-    <section class="device-key-specs">
-      {device.quickSpecs.slice(0, 6).map((spec) => (
-        <article class="community-surface device-key-spec">
-          <span>{spec.label}</span>
-          <strong>{spec.value}</strong>
-        </article>
-      ))}
-    </section>
-  )}
-
-  <section class="device-brief-panel">
-    <div class="device-brief-panel__head">
-      <h2>产品简介</h2>
-    </div>
-    <div class="device-brief-panel__body">
-      {device.detailSummary.slice(0, 4).map((paragraph) => (
-        <p>{paragraph}</p>
-      ))}
-      {device.keyLimitations.length > 0 && (
-        <ul>
-          {device.keyLimitations.slice(0, 3).map((item) => (
-            <li>{item}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  </section>
-
-  <section class="device-fit-grid">
-    <article class="community-surface device-fit-card">
-      <h2>适合</h2>
-      <ul>
-        {device.bestFor.slice(0, 3).map((item) => (
-          <li>{item}</li>
-        ))}
-      </ul>
-    </article>
-    <article class="community-surface device-fit-card">
-      <h2>不太适合</h2>
-      <ul>
-        {device.notIdealFor.slice(0, 3).map((item) => (
-          <li>{item}</li>
-        ))}
-      </ul>
-    </article>
-  </section>
-
-  {device.specGroups.length > 0 && (
-    <section class="device-spec-panel">
-      <h2>参数</h2>
-      <div class="device-spec-groups">
-        {device.specGroups.map((group) => (
-          <section class="device-spec-group">
-            <h3>{group.label}</h3>
-            <dl>
-              {group.items.map((item) => (
-                <div class="device-spec-row">
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
+        <aside class="device-detail-sidebar">
+          <section class="community-surface community-surface--padded device-detail-panel">
+            <div class="device-detail-panel__head">
+              <h2>适合的用途</h2>
+            </div>
+            <div class="community-chip-row">
+              {device.use_cases.map((useCase) => (
+                <span class="community-chip">{deviceUseCaseLabels[useCase]}</span>
               ))}
-            </dl>
+            </div>
           </section>
-        ))}
+
+          <section class="community-surface community-surface--padded device-detail-panel">
+            <div class="device-detail-panel__head">
+              <h2>来源与确认度</h2>
+            </div>
+            <p class="device-detail-panel__copy">
+              {device.source_note ?? "当前条目来自静态本地数据，后续会替换成带来源说明的结构化数据。"}
+            </p>
+            {device.source_url ? (
+              <a href={device.source_url} target="_blank" rel="noopener noreferrer" class="community-button--secondary device-detail-source-link">
+                查看参考来源
+              </a>
+            ) : null}
+          </section>
+
+          <section class="community-surface community-surface--padded device-detail-panel">
+            <div class="device-detail-panel__head">
+              <h2>去社区讨论</h2>
+            </div>
+            <p class="device-detail-panel__copy">
+              想看真实体验、购买建议或开发限制，可以直接去社区继续讨论。
+            </p>
+            <div class="device-detail-actions">
+              <a href="/feed/" class="community-button">去动态</a>
+              <a href="/circles/" class="community-button--secondary">看圈子</a>
+            </div>
+          </section>
+        </aside>
+      </section>
+    </>
+  ) : (
+    <section class="community-empty device-not-found">
+      <strong>没有找到这个设备</strong>
+      <p>当前 Device Library MVP 还没有这个条目，或者链接 slug 不存在。</p>
+      <div class="device-detail-actions">
+        <a href="/devices/" class="community-button">返回设备库</a>
+        <a href="/feed/" class="community-button--secondary">去社区提问</a>
       </div>
     </section>
   )}
-
 </CommunityLayout>
-
-<style>
-  .device-detail-head {
-    display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
-    gap: 1.2rem;
-    padding: 0.95rem 0 1rem;
-  }
-  .device-detail-head__visual {
-    min-width: 0;
-  }
-  .device-detail-head__visual :global(.product-visual) {
-    min-height: 380px;
-  }
-  .device-detail-head__copy {
-    display: grid;
-    align-content: start;
-    gap: 0.72rem;
-    min-width: 0;
-  }
-  .device-detail-head__back {
-    width: fit-content;
-    color: var(--text-faint);
-    font-size: 0.84rem;
-    text-decoration: none;
-  }
-  .device-detail-head__back:hover {
-    color: var(--text);
-  }
-  .device-detail-head h1 {
-    margin: 0;
-    color: var(--text);
-    font-size: 2.45rem;
-    line-height: 0.98;
-    letter-spacing: -0.03em;
-    text-wrap: balance;
-  }
-  .device-detail-head p {
-    margin: 0;
-    max-width: 34rem;
-    color: var(--text-muted);
-    line-height: 1.66;
-  }
-  .device-detail-head__meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.55rem;
-  }
-  .device-detail-head__meta span,
-  .device-source-panel p,
-  .device-source-panel__meta span {
-    color: rgba(245, 245, 245, 0.64);
-    font-size: 0.84rem;
-  }
-  .device-detail-head__actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.7rem;
-  }
-  .device-key-specs,
-  .device-fit-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.8rem;
-    margin-top: 1rem;
-  }
-  .device-brief-panel,
-  .device-key-spec,
-  .device-fit-card,
-  .device-spec-group {
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: linear-gradient(180deg, rgba(13, 16, 20, 0.96), rgba(9, 11, 14, 0.98));
-  }
-  .device-brief-panel {
-    display: grid;
-    gap: 0.85rem;
-    margin-top: 1rem;
-    padding: 1rem 1.05rem;
-  }
-  .device-brief-panel__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.8rem;
-    flex-wrap: wrap;
-  }
-  .device-brief-panel__head h2 {
-    margin: 0;
-    font-size: 1.12rem;
-  }
-  .device-brief-panel__head span {
-    color: rgba(245, 245, 245, 0.62);
-    font-size: 0.82rem;
-  }
-  .device-brief-panel__body {
-    display: grid;
-    gap: 0.75rem;
-  }
-  .device-brief-panel__body p {
-    margin: 0;
-    color: rgba(245, 245, 245, 0.76);
-    line-height: 1.72;
-  }
-  .device-brief-panel__body ul {
-    display: grid;
-    gap: 0.42rem;
-    margin: 0;
-    padding-left: 1.1rem;
-    color: rgba(245, 245, 245, 0.62);
-  }
-  .device-key-spec {
-    display: grid;
-    gap: 0.2rem;
-    padding: 0.8rem;
-  }
-  .device-key-spec span,
-  .device-spec-row dt {
-    color: var(--text-faint);
-    font-size: 0.8rem;
-  }
-  .device-key-spec strong {
-    color: var(--text);
-    font-size: 1rem;
-    line-height: 1.35;
-  }
-  .device-fit-card {
-    padding: 0.85rem 0.95rem;
-  }
-  .device-fit-card h2,
-  .device-spec-panel h2 {
-    margin: 0 0 0.45rem;
-    color: var(--text);
-    font-size: 1.15rem;
-    letter-spacing: -0.02em;
-  }
-  .device-fit-card ul {
-    display: grid;
-    gap: 0.42rem;
-    margin: 0;
-    padding-left: 1.1rem;
-    color: var(--text-muted);
-    line-height: 1.6;
-  }
-  .device-pending-panel {
-    display: grid;
-    gap: 0.65rem;
-    margin-top: 1rem;
-    padding: 0.9rem 1rem;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: linear-gradient(180deg, rgba(13, 16, 20, 0.96), rgba(9, 11, 14, 0.98));
-  }
-  .device-pending-panel h2 {
-    margin: 0;
-    color: var(--text);
-    font-size: 1.05rem;
-  }
-  .device-pending-panel__list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-  }
-  .device-pending-panel__list span {
-    display: inline-flex;
-    align-items: center;
-    min-height: 1.85rem;
-    padding: 0.14rem 0.48rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    color: rgba(245, 245, 245, 0.62);
-    font-size: 0.78rem;
-  }
-  .device-spec-panel,
-  .device-source-panel {
-    margin-top: 1rem;
-    padding: 0.95rem 1rem;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: linear-gradient(180deg, rgba(13, 16, 20, 0.96), rgba(9, 11, 14, 0.98));
-  }
-  .device-spec-groups {
-    display: grid;
-    gap: 0.8rem;
-  }
-  .device-spec-group {
-    display: grid;
-    gap: 0.65rem;
-    padding: 0.75rem 0;
-    border-radius: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  }
-  .device-spec-group:last-child { border-bottom: 0; }
-  .device-spec-group h3 {
-    margin: 0;
-    color: var(--text);
-    font-size: 0.95rem;
-  }
-  .device-spec-group dl {
-    display: grid;
-    gap: 0.55rem;
-    margin: 0;
-  }
-  .device-spec-row {
-    display: grid;
-    grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
-    gap: 0.9rem;
-  }
-  .device-spec-row dd {
-    margin: 0;
-    color: rgba(242, 244, 245, 0.92);
-    font-size: 0.92rem;
-    line-height: 1.5;
-  }
-  .device-source-panel,
-  .device-source-panel__meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
-  }
-  .device-source-panel__block {
-    display: grid;
-    gap: 0.35rem;
-    min-width: 0;
-  }
-  .device-source-panel__notes {
-    display: grid;
-    gap: 0.35rem;
-    margin: 0.2rem 0 0;
-    padding-left: 1rem;
-    color: rgba(245, 245, 245, 0.6);
-    font-size: 0.84rem;
-    line-height: 1.6;
-  }
-  .device-source-panel__links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.7rem;
-  }
-  .device-source-panel h2 {
-    margin: 0 0 0.2rem;
-    color: var(--text);
-    font-size: 1rem;
-  }
-  @media (max-width: 720px) {
-    .device-detail-head {
-      grid-template-columns: 1fr;
-      gap: 0.95rem;
-      padding-top: 0.55rem;
-    }
-    .device-detail-head__visual :global(.product-visual) {
-      min-height: 312px;
-    }
-    .device-detail-head h1 {
-      font-size: 2.02rem;
-    }
-    .device-detail-head p {
-      font-size: 0.96rem;
-    }
-    .device-key-specs,
-    .device-fit-grid {
-      gap: 0.65rem;
-    }
-    .device-brief-panel,
-    .device-spec-panel {
-      padding: 0.9rem;
-    }
-    .device-spec-row {
-      grid-template-columns: 1fr;
-      gap: 0.18rem;
-    }
-    .device-source-panel,
-    .device-source-panel__meta {
-      align-items: flex-start;
-      flex-direction: column;
-    }
-  }
-  @media (max-width: 420px) {
-    .device-detail-head__visual :global(.product-visual) {
-      min-height: 288px;
-    }
-    .device-key-specs {
-      grid-template-columns: 1fr;
-    }
-    .device-detail-head__actions {
-      gap: 0.55rem;
-    }
-  }
-</style>

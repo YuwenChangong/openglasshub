@@ -7294,3 +7294,329 @@ body {
     font-size: 0.8rem;
   }
 }
+
+.devices-hero,
+.device-detail-hero {
+  display: grid;
+  gap: 1.1rem;
+  margin-bottom: 1.2rem;
+}
+
+.devices-hero {
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
+  align-items: end;
+}
+
+.devices-hero__copy,
+.device-detail-hero__headline,
+.device-detail-panel,
+.device-library-card {
+  min-width: 0;
+}
+
+.devices-hero__eyebrow,
+.device-detail-hero__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 0 0.75rem;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.devices-hero__lead,
+.device-detail-hero__headline p,
+.device-detail-panel__copy,
+.device-library-note p,
+.device-not-found p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.98rem;
+  line-height: 1.68;
+}
+
+.devices-hero__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.device-hero-stat {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem 1.05rem;
+  border-radius: 20px;
+}
+
+.device-hero-stat span {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+}
+
+.device-hero-stat strong {
+  color: var(--text);
+  font-size: 1.75rem;
+  letter-spacing: -0.04em;
+}
+
+.device-library-note {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.device-library-note h2,
+.device-detail-panel__head h2,
+.device-library-card h2 {
+  margin: 0;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.device-library {
+  display: grid;
+  gap: 1rem;
+}
+
+.device-library-toolbar {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1.05rem;
+  border-radius: 22px;
+}
+
+.device-library-toolbar__search {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.device-library-toolbar__label,
+.device-library-toolbar__filters label span {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.device-library-toolbar__filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.device-library-toolbar__filters label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.device-library-toolbar__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.device-library-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.device-library-card {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1.05rem 1.1rem;
+  text-decoration: none;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02));
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.device-library-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.11);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.048), rgba(255, 255, 255, 0.026));
+}
+
+.device-library-card__head {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.device-library-card__brand {
+  margin: 0 0 0.35rem;
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.device-library-card__badges,
+.device-library-card__use-cases,
+.device-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.device-library-card__summary,
+.device-library-card__fallback {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.62;
+}
+
+.device-library-card__facts,
+.device-detail-facts {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+.device-library-card__facts {
+  list-style: none;
+}
+
+.device-library-card__facts li {
+  color: rgba(245, 245, 247, 0.84);
+  font-size: 0.86rem;
+}
+
+.device-library-card__cta {
+  color: rgba(245, 245, 247, 0.88);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.device-library-empty,
+.device-not-found {
+  display: grid;
+  gap: 0.55rem;
+  justify-items: start;
+}
+
+.device-detail-hero__back {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 34px;
+  padding: 0.38rem 0.78rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(245, 245, 247, 0.76);
+  text-decoration: none;
+  font-size: 0.82rem;
+}
+
+.device-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.device-detail-sidebar {
+  display: grid;
+  gap: 1rem;
+}
+
+.device-detail-panel {
+  border-radius: 22px;
+}
+
+.device-detail-panel__head {
+  display: grid;
+  gap: 0.22rem;
+  margin-bottom: 0.85rem;
+}
+
+.device-detail-panel__head span {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+}
+
+.device-detail-facts__row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.62rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.device-detail-facts__row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.device-detail-facts dt {
+  color: var(--text-faint);
+  font-size: 0.82rem;
+}
+
+.device-detail-facts dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.device-detail-source-link {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 0.85rem;
+  text-decoration: none;
+}
+
+@media (max-width: 1100px) {
+  .devices-hero,
+  .device-detail-grid,
+  .device-library-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .device-library-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .devices-hero__stats,
+  .device-library-toolbar__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .devices-hero,
+  .device-detail-hero,
+  .device-library {
+    gap: 0.9rem;
+  }
+
+  .device-library-note,
+  .device-library-toolbar,
+  .device-library-card {
+    padding-left: 0.95rem;
+    padding-right: 0.95rem;
+  }
+
+  .device-detail-facts__row {
+    grid-template-columns: 1fr;
+    gap: 0.3rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .devices-hero__stats,
+  .device-library-toolbar__filters,
+  .device-library-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .device-library-toolbar__footer {
+    align-items: stretch;
+  }
+}

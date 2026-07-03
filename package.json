@@ -15,6 +15,7 @@
     "test:reports-audit": "node scripts/audit-reports.mjs --strict --verbose",
     "test:user-safety": "node --experimental-strip-types scripts/test-user-safety.mjs",
     "test:user-safety-audit": "node scripts/audit-user-safety.mjs --strict --verbose",
+    "test:device-library": "node scripts/test-device-library.mjs",
     "test:search": "node --experimental-strip-types scripts/test-search.mjs",
     "test:search-audit": "node scripts/audit-search.mjs --dist dist --strict --verbose",
     "test:post-launch": "node scripts/post-launch-check.mjs --url https://openglasshub.pages.dev --strict --verbose",
