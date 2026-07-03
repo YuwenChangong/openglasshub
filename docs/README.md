@@ -26,10 +26,45 @@
 
 ## Device Library
 
-- Device Library currently uses static local data only and adds no DB migration.
-- Device entries intentionally stay conservative; uncertain specs should remain sparse, marked `TBD`, `Not verified`, or omitted.
-- Verification labels are directional signals, not guarantees that every field is complete or final.
+Current production baseline:
+- Production URL: `https://openglasshub.pages.dev`
+- Latest production/main commit: `475fd71eee66d62b8962323879158ba27169a652`
+- No DB migration has been added for the Device Library release stack so far.
+- No production data was touched by the Device Library releases so far.
+
+Release stack:
+- Device Library MVP v1
+  Routes: `/devices/` and `/devices/[slug]/`
+  Data source: static local data in `src/data/devices.ts`
+  Scope: 13 seed devices, public no-auth access, search/filter/card/detail pages, custom 404 for unknown device slugs
+- Device Library Accuracy & Comparison v1
+  Added static accuracy metadata: `verification_level`, `specs_verified`, `last_checked_label`, `source_links`, `comparison_highlights`, `limitations`
+  Added verification badges, source/accuracy sections, conservative caveat copy, and lightweight comparison for up to 3 devices
+  Missing comparison values render as `TBD`
+  Policy: do not invent precise specs; unverified values should be omitted, marked `TBD`, or left as not verified
+- Device Discussion Entry v1
+  Added `讨论这台设备` section on device detail pages
+  Added discussion entry links to `/feed/?compose=1&device=<slug>`, `/posts/new/?device=<slug>`, `/circles/`, and `/devices/`
+  `/feed/` shows a safe discussion banner for known device context
+  `/posts/new/` supports safe starter copy based on known local device data
+  No auto-post and no auto-submit behavior
+
+Architecture and safety notes:
+- Device pages remain public and continue to use static local data only.
+- Device discussion context is query-param based and only activates for known local device slugs.
+- Device slug input is sanitized and must match entries in `src/data/devices.ts`.
+- No arbitrary query text is injected into post prefill.
+- Source/verification labels are guidance, not guarantees that every field is complete or final.
 - Comparison is a lightweight MVP meant for high-level orientation rather than exhaustive buying decisions.
-- Device detail pages now include community discussion entry points to `/feed/`, `/posts/new/`, and `/circles/`.
-- Device discussion context is passed safely by query params only for known local device slugs, and never auto-creates a post.
-- Planned follow-up areas: sourced specs pipeline, community corrections, user reviews, DB-backed device pages, and a richer comparison table.
+- Existing feed, circles, and device browsing flows remain separate from post creation until a user explicitly acts.
+
+Future work:
+- DB-backed device pages
+- sourced spec ingestion/update workflow
+- community corrections
+- user reviews
+- related posts aggregation per device
+- device-specific circles or tags
+- richer comparison table
+- image/media handling for devices
+- SEO and structured data pass
