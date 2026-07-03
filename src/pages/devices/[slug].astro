@@ -10,6 +10,7 @@ import {
   deviceVerificationLabels,
   getDeviceLibraryEntry,
 } from "../../data/devices";
+import { getDeviceDiscussionContext } from "../../lib/device-discussion";
 
 const slug = Astro.params.slug ?? "";
 const device = getDeviceLibraryEntry(slug);
@@ -23,6 +24,7 @@ const description = device
   ? `${device.name} 的保守规格摘要、核验级别、来源链接与使用限制说明。`
   : "请求的设备条目不存在，或还没有加入当前的 Device Library MVP。";
 const verificationLevel = device?.verification_level ?? "unknown";
+const discussionContext = getDeviceDiscussionContext(slug);
 
 const keyFacts = device
   ? [
@@ -154,15 +156,22 @@ const keyFacts = device
 
           <section class="community-surface community-surface--padded device-detail-panel">
             <div class="device-detail-panel__head">
-              <h2>去社区讨论</h2>
+              <h2>讨论这台设备</h2>
             </div>
             <p class="device-detail-panel__copy">
-              想看真实体验、购买建议或开发限制，可以直接去社区继续讨论。
+              想看真实体验、购买建议或开发限制，可以把 {device.name} 的上下文带到社区继续讨论。
             </p>
             <div class="device-detail-actions">
-              <a href="/feed/" class="community-button">去动态</a>
-              <a href="/circles/" class="community-button--secondary">看圈子</a>
+              <a href={discussionContext?.feedHref ?? "/feed/"} class="community-button">在动态里讨论</a>
+              <a href={discussionContext?.startPostHref ?? "/posts/new/"} class="community-button--secondary">开始发帖</a>
             </div>
+            <div class="device-detail-actions">
+              <a href={discussionContext?.circlesHref ?? "/circles/"} class="community-button--secondary">看看圈子</a>
+              <a href={discussionContext?.libraryHref ?? "/devices/"} class="community-button--secondary">返回设备库</a>
+            </div>
+            <p class="device-detail-panel__copy">
+              这些链接只会带入安全的设备上下文，不会自动创建任何帖子。
+            </p>
           </section>
         </aside>
       </section>

@@ -30,4 +30,6 @@
 - Device entries intentionally stay conservative; uncertain specs should remain sparse, marked `TBD`, `Not verified`, or omitted.
 - Verification labels are directional signals, not guarantees that every field is complete or final.
 - Comparison is a lightweight MVP meant for high-level orientation rather than exhaustive buying decisions.
+- Device detail pages now include community discussion entry points to `/feed/`, `/posts/new/`, and `/circles/`.
+- Device discussion context is passed safely by query params only for known local device slugs, and never auto-creates a post.
 - Planned follow-up areas: sourced specs pipeline, community corrections, user reviews, DB-backed device pages, and a richer comparison table.

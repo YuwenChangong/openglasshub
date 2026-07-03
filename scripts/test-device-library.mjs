@@ -20,6 +20,10 @@ async function main() {
   const detailRoute = await read("src/pages/devices/[slug].astro");
   const navigation = await read("src/lib/site-navigation.ts");
   const explorer = await read("src/components/devices/DeviceLibraryExplorer.tsx");
+  const feedRoute = await read("src/pages/feed/index.astro");
+  const newPostRoute = await read("src/pages/posts/new.astro");
+  const createPostForm = await read("src/components/forum/CreatePostForm.tsx");
+  const discussionHelper = await read("src/lib/device-discussion.ts");
 
   const slugMatches = [...dataSource.matchAll(/slug:\s*"([^"]+)"/g)].map((match) => match[1]);
   const verificationMatches = [...dataSource.matchAll(/verification_level:\s*"([^"]+)"/g)].map((match) => match[1]);
@@ -42,10 +46,20 @@ async function main() {
   assert(detailRoute.includes('href="/devices/"'), "Device detail route should link back to /devices/.");
   assert(detailRoute.includes("来源与确认度"), "Device detail route should show verification/source information.");
   assert(detailRoute.includes("限制与注意点"), "Device detail route should render limitations when present.");
+  assert(detailRoute.includes("讨论这台设备"), "Device detail route should include discussion entry copy.");
   assert(
-    detailRoute.includes('href="/feed/"') || detailRoute.includes('href="/circles/"'),
+    detailRoute.includes("feedHref") || detailRoute.includes('href="/feed/"'),
     "Device detail route should include a community CTA.",
   );
+  assert(feedRoute.includes("composeRequested"), "Feed route should inspect compose query params safely.");
+  assert(feedRoute.includes("deviceDiscussion"), "Feed route should resolve safe device discussion context.");
+  assert(feedRoute.includes("这里不会自动发帖"), "Feed route should clarify that posts are not auto-created.");
+  assert(newPostRoute.includes("getDeviceDiscussionContext"), "New post route should resolve safe device discussion context.");
+  assert(createPostForm.includes("initialTitle"), "CreatePostForm should support safe initial title prefill.");
+  assert(createPostForm.includes("initialBody"), "CreatePostForm should support safe initial body prefill.");
+  assert(createPostForm.includes("buildLoginHref(nextPath)"), "Login redirect should preserve safe discussion context.");
+  assert(discussionHelper.includes("sanitizeDeviceSlug"), "Device discussion helper should sanitize incoming device slugs.");
+  assert(discussionHelper.includes("suggestedTitle"), "Device discussion helper should provide safe starter copy.");
 
   assert(navigation.includes('href: "/devices/"'), "Main navigation should include the /devices/ entry.");
   assert(!dataSource.includes("NaN"), "Device data source should not contain obviously broken values.");
