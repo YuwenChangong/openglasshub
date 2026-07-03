@@ -53,6 +53,30 @@
 
 ## Moderation action notifications v1
 
+- Release status: `MODERATION_ACTION_NOTIFICATIONS_PRODUCTION_GO`
+- Production release commit: `9a8667c16feddd9e050147c90e6d0528641ade24`
+
+### Production release notes
+
+- Production migration applied: `supabase/migrations/20260703_moderation_action_notifications.sql`
+- Preview had no separate Supabase project, so production QA used disposable production-only accounts and content with explicit operator risk acceptance
+- Verified shipped notification types in production:
+  - `post_moderated`
+  - `comment_moderated`
+  - `user_warned`
+  - `user_restricted`
+- Production smoke passed after deploy
+- Authenticated production notification checks passed for all four shipped moderation notification types
+- Verified user-facing copy stayed generic and actorless
+- Verified no reporter identity, admin identity, admin notes, signed media URLs, or raw moderation internals were exposed
+- Existing social notification live regression was not fully feasible because disposable user comments entered pending review before a reply chain could be completed; automated code/audit coverage remained green
+- Disposable production QA cleanup completed:
+  - temporary admin role revoked
+  - ordinary disposable auth user deleted
+  - temporary admin auth user disabled after delete fallback
+  - disposable posts/comments hidden
+  - marker search returned zero public posts and circles
+
 - Supported in-app notification triggers:
   - reported post hidden or rejected -> post author receives `post_moderated`
   - reported comment hidden or rejected -> comment author receives `comment_moderated`
