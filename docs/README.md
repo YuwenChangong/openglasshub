@@ -24,8 +24,10 @@
 - Treat `docs/ops/*` as the primary source for post-release hardening and day-2 operations.
 - Treat preview QA as production-equivalent data risk because preview currently uses production-equivalent non-secret runtime values.
 
-## Device Library MVP
+## Device Library
 
-- Device Library MVP uses static local data only and adds no DB migration.
-- Device entries intentionally stay conservative; uncertain specs should remain sparse, marked `TBD`, or omitted.
-- Planned follow-up areas: sourced spec ingestion, comparison views, user reviews, and device-specific discussion surfaces.
+- Device Library currently uses static local data only and adds no DB migration.
+- Device entries intentionally stay conservative; uncertain specs should remain sparse, marked `TBD`, `Not verified`, or omitted.
+- Verification labels are directional signals, not guarantees that every field is complete or final.
+- Comparison is a lightweight MVP meant for high-level orientation rather than exhaustive buying decisions.
+- Planned follow-up areas: sourced specs pipeline, community corrections, user reviews, DB-backed device pages, and a richer comparison table.

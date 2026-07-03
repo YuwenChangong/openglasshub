@@ -1,8 +1,9 @@
-import { useDeferredValue, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   deviceCategoryLabels,
   deviceStatusLabels,
   deviceUseCaseLabels,
+  deviceVerificationLabels,
   type DeviceCategory,
   type DeviceLibraryEntry,
   type DeviceStatus,
@@ -27,6 +28,8 @@ const initialFilters: FilterState = {
   useCase: "all",
 };
 
+const maxCompareCount = 3;
+
 function matchesQuery(device: DeviceLibraryEntry, query: string) {
   if (!query) return true;
   const haystack = [
@@ -35,6 +38,7 @@ function matchesQuery(device: DeviceLibraryEntry, query: string) {
     device.short_description,
     device.platform_label ?? "",
     device.display_label ?? "",
+    ...(device.comparison_highlights ?? []),
   ]
     .join(" ")
     .toLowerCase();
@@ -52,10 +56,30 @@ function buildKeyFacts(device: DeviceLibraryEntry) {
   ].filter(Boolean) as string[];
 }
 
+function comparisonValue(value?: string) {
+  return value?.trim() ? value : "TBD";
+}
+
+function verificationTone(device: DeviceLibraryEntry) {
+  switch (device.verification_level) {
+    case "official":
+      return "is-official";
+    case "retailer":
+      return "is-retailer";
+    case "community":
+    case "estimated":
+      return "is-community";
+    default:
+      return "is-unknown";
+  }
+}
+
 export default function DeviceLibraryExplorer({ devices }: Props) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FilterState>(initialFilters);
-  const deferredQuery = useDeferredValue(query.trim().toLowerCase());
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
+  const [compareMessage, setCompareMessage] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
 
   const brands = useMemo(
     () => Array.from(new Set(devices.map((device) => device.brand))).sort((left, right) => left.localeCompare(right)),
@@ -68,17 +92,50 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
       if (filters.brand !== "all" && device.brand !== filters.brand) return false;
       if (filters.status !== "all" && device.status !== filters.status) return false;
       if (filters.useCase !== "all" && !device.use_cases.includes(filters.useCase)) return false;
-      if (!matchesQuery(device, deferredQuery)) return false;
+      if (!matchesQuery(device, normalizedQuery)) return false;
       return true;
     });
-  }, [deferredQuery, devices, filters]);
+  }, [devices, filters, normalizedQuery]);
+
+  const selectedDevices = useMemo(
+    () =>
+      selectedSlugs
+        .map((slug) => devices.find((device) => device.slug === slug))
+        .filter((device): device is DeviceLibraryEntry => Boolean(device)),
+    [devices, selectedSlugs],
+  );
 
   const activeFilterCount =
     Number(filters.category !== "all") +
     Number(filters.brand !== "all") +
     Number(filters.status !== "all") +
     Number(filters.useCase !== "all") +
-    Number(deferredQuery.length > 0);
+    Number(normalizedQuery.length > 0);
+
+  function clearFilters() {
+    setQuery("");
+    setFilters(initialFilters);
+  }
+
+  function clearComparison() {
+    setSelectedSlugs([]);
+    setCompareMessage("");
+  }
+
+  function toggleCompare(slug: string) {
+    setSelectedSlugs((current) => {
+      if (current.includes(slug)) {
+        setCompareMessage("");
+        return current.filter((value) => value !== slug);
+      }
+      if (current.length >= maxCompareCount) {
+        setCompareMessage("对比栏最多保留 3 台设备，请先移除一台再继续。");
+        return current;
+      }
+      setCompareMessage("");
+      return [...current, slug];
+    });
+  }
 
   return (
     <div className="device-library">
@@ -173,33 +230,145 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
 
         <div className="device-library-toolbar__footer">
           <div className="community-chip-row">
-            {deferredQuery ? <span className="community-chip">搜索: {query.trim()}</span> : null}
+            {normalizedQuery ? <span className="community-chip">搜索: {query.trim()}</span> : null}
             {filters.category !== "all" ? <span className="community-chip">{deviceCategoryLabels[filters.category]}</span> : null}
             {filters.brand !== "all" ? <span className="community-chip">{filters.brand}</span> : null}
             {filters.status !== "all" ? <span className="community-chip">{deviceStatusLabels[filters.status]}</span> : null}
             {filters.useCase !== "all" ? <span className="community-chip">{deviceUseCaseLabels[filters.useCase]}</span> : null}
           </div>
 
-          <button
-            type="button"
-            className="community-button--secondary"
-            onClick={() => {
-              setQuery("");
-              setFilters(initialFilters);
-            }}
-            disabled={activeFilterCount === 0}
-          >
+          <button type="button" className="community-button--secondary" onClick={clearFilters} disabled={activeFilterCount === 0}>
             清除筛选
           </button>
         </div>
       </section>
 
+      <section className="community-surface community-surface--padded device-compare-tray">
+        <div className="device-compare-tray__head">
+          <div>
+            <h2>轻量对比</h2>
+            <p>最多选择 3 台设备。缺失字段会显示为 TBD 或 Not verified。</p>
+          </div>
+          <button
+            type="button"
+            className="community-button--secondary"
+            onClick={clearComparison}
+            disabled={selectedDevices.length === 0}
+          >
+            清空对比
+          </button>
+        </div>
+
+        <div className="device-compare-tray__chips">
+          {selectedDevices.length > 0 ? (
+            selectedDevices.map((device) => (
+              <span key={device.slug} className="device-compare-pill">
+                <span>{device.name}</span>
+                <button type="button" aria-label={`移除 ${device.name}`} onClick={() => toggleCompare(device.slug)}>
+                  移除
+                </button>
+              </span>
+            ))
+          ) : (
+            <p className="device-compare-tray__empty">还没有选择设备。先从下面的卡片里加入 2 到 3 台设备。</p>
+          )}
+        </div>
+
+        <p className="device-compare-tray__feedback" aria-live="polite">
+          {compareMessage || (selectedDevices.length > 0 ? `已选择 ${selectedDevices.length} / ${maxCompareCount} 台设备用于比较。` : "")}
+        </p>
+      </section>
+
+      {selectedDevices.length > 0 ? (
+        <section className="community-surface device-compare-panel">
+          <div className="device-compare-panel__head">
+            <h2>对比面板</h2>
+            <p>这是一张高层比较表，只帮助判断方向，不代表完整或最终规格。</p>
+          </div>
+
+          <div className="device-compare-table-wrap">
+            <table className="device-compare-table">
+              <thead>
+                <tr>
+                  <th scope="col">对比项</th>
+                  {selectedDevices.map((device) => (
+                    <th key={device.slug} scope="col">
+                      <div className="device-compare-table__device">
+                        <strong>{device.name}</strong>
+                        <span>{device.brand}</span>
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">分类</th>
+                  {selectedDevices.map((device) => (
+                    <td key={`${device.slug}-category`}>{deviceCategoryLabels[device.category]}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">状态</th>
+                  {selectedDevices.map((device) => (
+                    <td key={`${device.slug}-status`}>{deviceStatusLabels[device.status]}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">用途</th>
+                  {selectedDevices.map((device) => (
+                    <td key={`${device.slug}-use-cases`}>{device.use_cases.map((useCase) => deviceUseCaseLabels[useCase]).join(" / ")}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">价格</th>
+                  {selectedDevices.map((device) => (
+                    <td key={`${device.slug}-price`}>{comparisonValue(device.price_label)}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">重量</th>
+                  {selectedDevices.map((device) => (
+                    <td key={`${device.slug}-weight`}>{comparisonValue(device.weight_label)}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">显示</th>
+                  {selectedDevices.map((device) => (
+                    <td key={`${device.slug}-display`}>{comparisonValue(device.display_label)}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">视场</th>
+                  {selectedDevices.map((device) => (
+                    <td key={`${device.slug}-fov`}>{comparisonValue(device.fov_label)}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">平台</th>
+                  {selectedDevices.map((device) => (
+                    <td key={`${device.slug}-platform`}>{comparisonValue(device.platform_label)}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">核验级别</th>
+                  {selectedDevices.map((device) => (
+                    <td key={`${device.slug}-verification`}>{deviceVerificationLabels[device.verification_level ?? "unknown"]}</td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       {filteredDevices.length > 0 ? (
         <section className="device-library-grid" aria-live="polite">
           {filteredDevices.map((device) => {
             const keyFacts = buildKeyFacts(device);
+            const isSelected = selectedSlugs.includes(device.slug);
             return (
-              <a key={device.slug} href={`/devices/${device.slug}/`} className="device-library-card">
+              <article key={device.slug} className="device-library-card">
                 <div className="device-library-card__head">
                   <div>
                     <p className="device-library-card__brand">{device.brand}</p>
@@ -208,6 +377,9 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                   <div className="device-library-card__badges">
                     <span className="community-chip">{deviceCategoryLabels[device.category]}</span>
                     <span className="community-chip">{deviceStatusLabels[device.status]}</span>
+                    <span className={`device-verification-badge ${verificationTone(device)}`}>
+                      {deviceVerificationLabels[device.verification_level ?? "unknown"]}
+                    </span>
                   </div>
                 </div>
 
@@ -221,6 +393,14 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                   ))}
                 </div>
 
+                {device.comparison_highlights?.length ? (
+                  <ul className="device-library-card__highlights">
+                    {device.comparison_highlights.slice(0, 2).map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                ) : null}
+
                 {keyFacts.length > 0 ? (
                   <ul className="device-library-card__facts">
                     {keyFacts.slice(0, 4).map((fact) => (
@@ -231,8 +411,19 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                   <p className="device-library-card__fallback">详细硬件信息将在后续带来源说明的版本补齐。</p>
                 )}
 
-                <span className="device-library-card__cta">查看设备页</span>
-              </a>
+                <div className="device-library-card__actions">
+                  <button
+                    type="button"
+                    className={`community-button--secondary device-library-card__compare ${isSelected ? "is-selected" : ""}`}
+                    onClick={() => toggleCompare(device.slug)}
+                  >
+                    {isSelected ? "已加入对比" : "加入对比"}
+                  </button>
+                  <a href={`/devices/${device.slug}/`} className="device-library-card__cta">
+                    查看设备页
+                  </a>
+                </div>
+              </article>
             );
           })}
         </section>

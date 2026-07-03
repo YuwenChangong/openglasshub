@@ -7463,11 +7463,57 @@ body {
   gap: 0.45rem;
 }
 
+.device-verification-badge,
+.device-detail-meta-chip,
+.device-compare-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0.2rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(245, 245, 247, 0.82);
+  font-size: 0.78rem;
+}
+
+.device-verification-badge.is-official {
+  background: rgba(94, 181, 122, 0.14);
+  border-color: rgba(94, 181, 122, 0.24);
+  color: #d6f0de;
+}
+
+.device-verification-badge.is-retailer {
+  background: rgba(207, 160, 69, 0.14);
+  border-color: rgba(207, 160, 69, 0.24);
+  color: #f1dfb6;
+}
+
+.device-verification-badge.is-community,
+.device-verification-badge.is-estimated {
+  background: rgba(106, 137, 214, 0.14);
+  border-color: rgba(106, 137, 214, 0.22);
+  color: #d6e0fb;
+}
+
+.device-verification-badge.is-unknown {
+  color: rgba(245, 245, 247, 0.68);
+}
+
 .device-library-card__summary,
 .device-library-card__fallback {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.62;
+}
+
+.device-library-card__highlights,
+.device-detail-limitations {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: rgba(245, 245, 247, 0.82);
 }
 
 .device-library-card__facts,
@@ -7491,6 +7537,23 @@ body {
   color: rgba(245, 245, 247, 0.88);
   font-size: 0.88rem;
   font-weight: 600;
+}
+
+.device-library-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.device-library-card__compare {
+  text-decoration: none;
+}
+
+.device-library-card__compare.is-selected {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 .device-library-empty,
@@ -7518,6 +7581,12 @@ body {
   grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
   gap: 1rem;
   align-items: start;
+}
+
+.device-detail-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .device-detail-sidebar {
@@ -7566,8 +7635,108 @@ body {
 .device-detail-source-link {
   display: inline-flex;
   width: fit-content;
-  margin-top: 0.85rem;
   text-decoration: none;
+}
+
+.device-detail-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.device-compare-tray,
+.device-compare-panel {
+  border-radius: 22px;
+}
+
+.device-compare-tray {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.device-compare-tray__head,
+.device-compare-panel__head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.device-compare-tray__head h2,
+.device-compare-panel__head h2 {
+  margin: 0;
+}
+
+.device-compare-tray__head p,
+.device-compare-panel__head p,
+.device-compare-tray__empty,
+.device-compare-tray__feedback {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.device-compare-tray__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.device-compare-pill {
+  gap: 0.5rem;
+}
+
+.device-compare-pill button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(245, 245, 247, 0.7);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.device-compare-table-wrap {
+  overflow-x: auto;
+}
+
+.device-compare-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+}
+
+.device-compare-table th,
+.device-compare-table td {
+  padding: 0.8rem 0.7rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: left;
+  vertical-align: top;
+}
+
+.device-compare-table thead th {
+  border-top: 0;
+  color: var(--text);
+}
+
+.device-compare-table tbody th {
+  width: 140px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.device-compare-table__device {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.device-compare-table__device strong {
+  color: var(--text);
+}
+
+.device-compare-table__device span {
+  color: var(--text-faint);
+  font-size: 0.8rem;
 }
 
 @media (max-width: 1100px) {
@@ -7598,7 +7767,9 @@ body {
 
   .device-library-note,
   .device-library-toolbar,
-  .device-library-card {
+  .device-library-card,
+  .device-compare-tray,
+  .device-compare-panel {
     padding-left: 0.95rem;
     padding-right: 0.95rem;
   }

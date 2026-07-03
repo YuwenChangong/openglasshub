@@ -6,6 +6,8 @@ import {
   deviceCategoryLabels,
   deviceStatusLabels,
   deviceUseCaseLabels,
+  deviceVerificationDescriptions,
+  deviceVerificationLabels,
   getDeviceLibraryEntry,
 } from "../../data/devices";
 
@@ -18,8 +20,9 @@ if (!device) {
 
 const title = device ? device.name : "Device Not Found";
 const description = device
-  ? `${device.name} 的保守版设备摘要、用途标签与来源说明。`
+  ? `${device.name} 的保守规格摘要、核验级别、来源链接与使用限制说明。`
   : "请求的设备条目不存在，或还没有加入当前的 Device Library MVP。";
+const verificationLevel = device?.verification_level ?? "unknown";
 
 const keyFacts = device
   ? [
@@ -55,6 +58,13 @@ const keyFacts = device
           </div>
           <h1>{device.name}</h1>
           <p>{device.short_description}</p>
+          <div class="device-detail-hero__meta">
+            <span class={`device-verification-badge is-${verificationLevel}`}>
+              {deviceVerificationLabels[verificationLevel]}
+            </span>
+            {device.last_checked_label ? <span class="device-detail-meta-chip">最近检查: {device.last_checked_label}</span> : null}
+            {device.specs_verified ? <span class="device-detail-meta-chip">关键字段已核对</span> : <span class="device-detail-meta-chip">仍有字段待核对</span>}
+          </div>
         </div>
       </section>
 
@@ -91,13 +101,55 @@ const keyFacts = device
               <h2>来源与确认度</h2>
             </div>
             <p class="device-detail-panel__copy">
+              {deviceVerificationDescriptions[device.verification_level ?? "unknown"]}
+            </p>
+            <p class="device-detail-panel__copy">
               {device.source_note ?? "当前条目来自静态本地数据，后续会替换成带来源说明的结构化数据。"}
             </p>
-            {device.source_url ? (
-              <a href={device.source_url} target="_blank" rel="noopener noreferrer" class="community-button--secondary device-detail-source-link">
-                查看参考来源
-              </a>
+            {device.source_links?.length ? (
+              <div class="device-detail-source-list">
+                {device.source_links.map((source) => (
+                  <a href={source.url} target="_blank" rel="noopener noreferrer" class="community-button--secondary device-detail-source-link">
+                    {source.label}
+                  </a>
+                ))}
+              </div>
             ) : null}
+          </section>
+
+          {device.limitations?.length ? (
+            <section class="community-surface community-surface--padded device-detail-panel">
+              <div class="device-detail-panel__head">
+                <h2>限制与注意点</h2>
+              </div>
+              <ul class="device-detail-limitations">
+                {device.limitations.map((item) => (
+                  <li>{item}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {device.comparison_highlights?.length ? (
+            <section class="community-surface community-surface--padded device-detail-panel">
+              <div class="device-detail-panel__head">
+                <h2>高层对比提示</h2>
+              </div>
+              <ul class="device-detail-limitations">
+                {device.comparison_highlights.map((item) => (
+                  <li>{item}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <section class="community-surface community-surface--padded device-detail-panel">
+            <div class="device-detail-panel__head">
+              <h2>保守说明</h2>
+            </div>
+            <p class="device-detail-panel__copy">
+              这里的规格与描述会优先保守，不会为了完整度去补写未核实的精确参数。
+            </p>
           </section>
 
           <section class="community-surface community-surface--padded device-detail-panel">

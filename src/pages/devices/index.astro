@@ -9,7 +9,7 @@ const brandCount = new Set(deviceLibrary.map((device) => device.brand)).size;
 
 <CommunityLayout
   title="Device Library"
-  description="OpenGlass Hub 的公开设备库 MVP，按品牌、分类、状态和用途浏览 AR / AI 眼镜与 XR 设备。"
+  description="OpenGlass Hub 的公开设备库，提供保守规格说明、核验级别提示和轻量设备对比。"
   canonical="https://openglasshub.pages.dev/devices/"
   activeSection="devices"
 >
@@ -19,7 +19,7 @@ const brandCount = new Set(deviceLibrary.map((device) => device.brand)).size;
       <h1>公开设备库 MVP</h1>
       <p class="devices-hero__lead">
         这是一个面向用户的第一版设备库，用静态本地数据整理当前值得关注的 AR / AI 眼镜与 XR 设备。
-        这一版故意保持保守，不确定的硬件细节会留空、标记 TBD，或直接不写。
+        这一版故意保持保守，不确定的硬件细节会留空、标记 TBD，或直接不写。规格在核验完成前可能不完整。
       </p>
     </div>
 
@@ -43,7 +43,7 @@ const brandCount = new Set(deviceLibrary.map((device) => device.brand)).size;
     <div>
       <h2>这版先解决什么</h2>
       <p>
-        先把设备入口做得可见、可搜、可筛选，方便用户快速建立方向感。数据库、对比表、用户评测和自动化规格采集留到后续版本。
+        先把设备入口做得可见、可搜、可筛选，并加上更明确的核验提示和轻量对比。数据库、社区纠错、用户评测和自动化规格采集留到后续版本。
       </p>
     </div>
     <div class="community-chip-row">
