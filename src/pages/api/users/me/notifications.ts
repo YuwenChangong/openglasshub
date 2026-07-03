@@ -230,7 +230,7 @@ function buildNotificationItem(
     read_at: row.read_at,
     post_id: row.post_id,
     comment_id: row.comment_id,
-    href: buildNotificationHref(row.post_id ?? comment?.post_id ?? null, row.comment_id),
+    href: buildNotificationHref(row.type, row.post_id ?? comment?.post_id ?? null, row.comment_id),
     actor: actor ?? fallbackActor,
     message: buildNotificationMessage(row.type, actorName),
     preview: buildNotificationPreview(row.type, previewSource),

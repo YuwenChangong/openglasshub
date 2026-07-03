@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  notifyUserRestricted,
+  notifyUserWarned,
+} from "../src/lib/server/moderation-notifications.server.ts";
+import {
   computeUserSafetyTransition,
   createDefaultUserSafetyState,
   validateFutureIsoTimestamp,
@@ -61,6 +65,27 @@ async function main() {
     assert.equal(blockedClearWarning.error, "USER_SAFETY_ACTION_CONFLICT");
   }
 
+  const rpcCalls = [];
+  const fakeClient = {
+    async rpc(name, payload) {
+      rpcCalls.push({ name, payload });
+      return { error: null };
+    },
+  };
+  assert.equal(await notifyUserWarned({
+    client: fakeClient,
+    recipientId: "00000000-0000-0000-0000-000000000021",
+    actingAdminId: "00000000-0000-0000-0000-000000000022",
+  }), true);
+  assert.equal(await notifyUserRestricted({
+    client: fakeClient,
+    recipientId: "00000000-0000-0000-0000-000000000023",
+    actingAdminId: "00000000-0000-0000-0000-000000000024",
+  }), true);
+  assert.equal(rpcCalls.length, 2);
+  assert.equal(rpcCalls[0].payload.p_type, "user_warned");
+  assert.equal(rpcCalls[1].payload.p_type, "user_restricted");
+
   const postsApi = await read("src/pages/api/forum/posts.ts");
   const commentsApi = await read("src/pages/api/forum/comments.ts");
   const circlesApi = await read("src/pages/api/forum/circles.ts");
@@ -92,12 +117,16 @@ async function main() {
   const banApi = await read("src/pages/api/admin/users/[id]/ban.ts");
   const unbanApi = await read("src/pages/api/admin/users/[id]/unban.ts");
   const clearWarningApi = await read("src/pages/api/admin/users/[id]/clear-warning.ts");
+  const notificationHelper = await read("src/lib/server/moderation-notifications.server.ts");
   assert(/REASON_REQUIRED/.test(warnApi), "warn route should require reason");
   assert(/REASON_REQUIRED/.test(suspendApi), "suspend route should require reason");
   assert(/REASON_REQUIRED/.test(banApi), "ban route should require reason");
   assert(/applyUserSafetyAction/.test(unbanApi), "unban route should exist");
   assert(/clear_warning/.test(clearWarningApi), "clear warning route should exist");
   assert(/clear_warning/.test(safetyHelper), "user safety helper should support clear warning");
+  assert(/notifyUserWarned/.test(safetyHelper), "user safety helper should notify warned users");
+  assert(/notifyUserRestricted/.test(safetyHelper), "user safety helper should notify restricted users");
+  assert(!/admin.*name|admin.*email/i.test(notificationHelper), "moderation notification helper should not expose admin identity");
 
   console.log("USER SAFETY TEST PASSED");
 }

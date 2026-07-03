@@ -2,6 +2,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  buildNotificationHref,
+  buildNotificationMessage,
+  buildNotificationPreview,
+  isSystemNotificationType,
+} from "../src/lib/notifications.ts";
+import {
+  notifyCommentModerated,
+  notifyPostModerated,
+} from "../src/lib/server/moderation-notifications.server.ts";
+import {
   buildLegacyReason,
   normalizeReportPriority,
   normalizeReportStatus,
@@ -50,6 +60,47 @@ async function main() {
   assert.equal(normalizeReportStatus("reviewed"), "actioned");
   assert.equal(normalizeReportPriority("high"), "high");
   assert.equal(normalizeReportPriority("weird"), "normal");
+  assert.equal(buildNotificationMessage("post_like", "Alice"), "Alice 赞了你的帖子");
+  assert.equal(buildNotificationMessage("post_moderated", "Alice"), "Your post was removed after review.");
+  assert.equal(buildNotificationPreview("post_moderated", "should not render"), null);
+  assert.equal(buildNotificationHref("post_moderated", "00000000-0000-0000-0000-000000000010", null), "/notifications/");
+  assert.equal(isSystemNotificationType("user_restricted"), true);
+
+  const rpcCalls = [];
+  const fakeClient = {
+    async rpc(name, payload) {
+      rpcCalls.push({ name, payload });
+      return { error: null };
+    },
+  };
+
+  assert.equal(await notifyPostModerated({
+    client: fakeClient,
+    recipientId: "00000000-0000-0000-0000-000000000011",
+    postId: "00000000-0000-0000-0000-000000000012",
+    actingAdminId: "00000000-0000-0000-0000-000000000013",
+  }), true);
+  assert.equal(rpcCalls.length, 1);
+  assert.equal(rpcCalls[0].name, "insert_forum_notification");
+  assert.equal(rpcCalls[0].payload.p_actor_id, null);
+  assert.equal(rpcCalls[0].payload.p_type, "post_moderated");
+
+  assert.equal(await notifyCommentModerated({
+    client: fakeClient,
+    recipientId: "",
+    commentId: "00000000-0000-0000-0000-000000000014",
+    postId: "00000000-0000-0000-0000-000000000015",
+    actingAdminId: "00000000-0000-0000-0000-000000000016",
+  }), false);
+  assert.equal(rpcCalls.length, 1);
+
+  assert.equal(await notifyPostModerated({
+    client: fakeClient,
+    recipientId: "00000000-0000-0000-0000-000000000017",
+    postId: "00000000-0000-0000-0000-000000000018",
+    actingAdminId: "00000000-0000-0000-0000-000000000017",
+  }), false);
+  assert.equal(rpcCalls.length, 1);
 
   const userApi = await read("src/pages/api/forum/reports.ts");
   const adminListApi = await read("src/pages/api/admin/reports.ts");
@@ -61,6 +112,8 @@ async function main() {
   const circlePage = await read("src/pages/circles/[slug].astro");
   const profilePage = await read("src/components/profile/MyProfilePage.tsx");
   const helperSource = await read("src/lib/server/reports.server.ts");
+  const notificationHelperSource = await read("src/lib/server/moderation-notifications.server.ts");
+  const notificationSource = await read("src/lib/notifications.ts");
 
   assert(/countRecentReportsByUser/.test(userApi), "user reports API should rate-limit reporters");
   assert(/resolveReportTargetPreview/.test(userApi), "user reports API should verify target exists");
@@ -79,6 +132,12 @@ async function main() {
 
   assert(/warn_user/.test(helperSource) && /ban_user/.test(helperSource), "report helper should integrate user safety actions");
   assert(/hide_target/.test(helperSource) && /reject_target/.test(helperSource), "report helper should integrate moderation actions");
+  assert(/notifyPostModerated/.test(helperSource), "report helper should notify moderated post authors");
+  assert(/notifyCommentModerated/.test(helperSource), "report helper should notify moderated comment authors");
+  assert(/post_moderated/.test(notificationSource) && /user_restricted/.test(notificationSource), "notification types should include moderation variants");
+  assert(/p_actor_id:\s*null/.test(notificationHelperSource), "moderation notifications should not expose admin identity");
+  assert(!/reporter/i.test(notificationHelperSource), "moderation notification helper should not expose reporter identity");
+  assert(!/note:|reason:|metadata:/i.test(notificationHelperSource), "moderation notification helper should avoid admin notes and raw metadata");
 
   console.log("REPORTS TEST PASSED");
 }

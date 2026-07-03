@@ -34,6 +34,7 @@ function walk(dir, files = []) {
 
 const migrationPath = "supabase/migrations/20260626_user_safety_states_and_bans.sql";
 const helperPath = "src/lib/server/user-safety.server.ts";
+const notificationHelperPath = "src/lib/server/moderation-notifications.server.ts";
 const adminPagePath = "src/pages/admin/users/index.astro";
 const adminComponentPath = "src/components/admin/AdminUsersDashboard.tsx";
 
@@ -55,7 +56,11 @@ if (exists(helperPath)) {
   check("helper exposes assertUserCanWrite", /export async function assertUserCanWrite/i.test(helper));
   check("helper exposes block response", /export function getSafetyWriteBlockResponse/i.test(helper));
   check("helper forbids self action", /USER_SAFETY_SELF_ACTION_FORBIDDEN/i.test(helper));
+  check("helper dispatches warn notifications", /notifyUserWarned/i.test(helper));
+  check("helper dispatches restriction notifications", /notifyUserRestricted/i.test(helper));
 }
+
+check("moderation notification helper exists", exists(notificationHelperPath));
 
 check("admin users page exists", exists(adminPagePath));
 check("admin users component exists", exists(adminComponentPath));

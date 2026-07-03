@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
-import { sortNotificationsByLatestEvent, type NotificationItem } from "../../lib/notifications";
+import {
+  getNotificationVisualLabel,
+  isSystemNotificationType,
+  sortNotificationsByLatestEvent,
+  type NotificationItem,
+} from "../../lib/notifications";
 
 type NotificationsPayload = {
   ok: true;
@@ -238,8 +243,9 @@ export default function NotificationsPage() {
       ) : (
         <div className="notifications-page__list">
           {notifications.map((notification) => {
-            const actorLabel = notification.actor.display_name || notification.actor.username || "有人";
+            const actorLabel = getNotificationVisualLabel(notification.type, notification.actor);
             const unread = notification.read_at === null;
+            const systemNotification = isSystemNotificationType(notification.type);
 
             return (
               <a
@@ -248,11 +254,11 @@ export default function NotificationsPage() {
                 className={`notifications-page__item${unread ? " is-unread" : ""}`}
                 onClick={(event) => void handleOpenNotification(event, notification)}
               >
-                {notification.actor.avatar_resolved_url ? (
+                {notification.actor.avatar_resolved_url && !systemNotification ? (
                   <img src={notification.actor.avatar_resolved_url} alt="" className="notifications-page__avatar" />
                 ) : (
                   <span className="notifications-page__avatar notifications-page__avatar--fallback" aria-hidden="true">
-                    {getInitial(actorLabel)}
+                    {systemNotification ? "系" : getInitial(actorLabel)}
                   </span>
                 )}
                 <span className="notifications-page__copy">

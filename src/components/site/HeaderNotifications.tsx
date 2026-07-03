@@ -2,7 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
-import { sortNotificationsByLatestEvent, type NotificationItem } from "../../lib/notifications";
+import {
+  getNotificationVisualLabel,
+  isSystemNotificationType,
+  sortNotificationsByLatestEvent,
+  type NotificationItem,
+} from "../../lib/notifications";
 
 type NotificationsPayload = {
   ok: true;
@@ -423,7 +428,8 @@ export default function HeaderNotifications() {
               <div className="header-notifications__empty">暂无未读通知</div>
             ) : (
               unreadItems.map((notification) => {
-                const actorLabel = notification.actor.display_name || notification.actor.username || "有人";
+                const actorLabel = getNotificationVisualLabel(notification.type, notification.actor);
+                const systemNotification = isSystemNotificationType(notification.type);
                 return (
                   <button
                     key={notification.id}
@@ -431,11 +437,11 @@ export default function HeaderNotifications() {
                     className="header-notifications__item is-unread"
                     onClick={() => void markSingleReadAndNavigate(notification)}
                   >
-                    {notification.actor.avatar_resolved_url ? (
+                    {notification.actor.avatar_resolved_url && !systemNotification ? (
                       <img src={notification.actor.avatar_resolved_url} alt="" className="header-notifications__avatar" />
                     ) : (
                       <span className="header-notifications__avatar header-notifications__avatar--fallback" aria-hidden="true">
-                        {getInitial(actorLabel)}
+                        {systemNotification ? "系" : getInitial(actorLabel)}
                       </span>
                     )}
                     <span className="header-notifications__copy">
