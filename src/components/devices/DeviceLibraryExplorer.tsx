@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   deviceCategoryLabels,
   deviceStatusLabels,
@@ -79,7 +79,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [compareMessage, setCompareMessage] = useState("");
-  const deferredQuery = useDeferredValue(query.trim().toLowerCase());
+  const normalizedQuery = query.trim().toLowerCase();
 
   const brands = useMemo(
     () => Array.from(new Set(devices.map((device) => device.brand))).sort((left, right) => left.localeCompare(right)),
@@ -92,10 +92,10 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
       if (filters.brand !== "all" && device.brand !== filters.brand) return false;
       if (filters.status !== "all" && device.status !== filters.status) return false;
       if (filters.useCase !== "all" && !device.use_cases.includes(filters.useCase)) return false;
-      if (!matchesQuery(device, deferredQuery)) return false;
+      if (!matchesQuery(device, normalizedQuery)) return false;
       return true;
     });
-  }, [deferredQuery, devices, filters]);
+  }, [devices, filters, normalizedQuery]);
 
   const selectedDevices = useMemo(
     () =>
@@ -110,7 +110,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
     Number(filters.brand !== "all") +
     Number(filters.status !== "all") +
     Number(filters.useCase !== "all") +
-    Number(deferredQuery.length > 0);
+    Number(normalizedQuery.length > 0);
 
   function clearFilters() {
     setQuery("");
@@ -230,7 +230,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
 
         <div className="device-library-toolbar__footer">
           <div className="community-chip-row">
-            {deferredQuery ? <span className="community-chip">搜索: {query.trim()}</span> : null}
+            {normalizedQuery ? <span className="community-chip">搜索: {query.trim()}</span> : null}
             {filters.category !== "all" ? <span className="community-chip">{deviceCategoryLabels[filters.category]}</span> : null}
             {filters.brand !== "all" ? <span className="community-chip">{filters.brand}</span> : null}
             {filters.status !== "all" ? <span className="community-chip">{deviceStatusLabels[filters.status]}</span> : null}
