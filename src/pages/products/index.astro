@@ -1,128 +1,947 @@
 ---
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import BrandMark from "../../components/products/BrandMark.astro";
-import { getBrandSummaries } from "../../lib/device-catalog";
+import ProductVisual from "../../components/products/ProductVisual.astro";
+import { getBrandSummaries, getBrandProducts } from "../../lib/device-catalog";
 
-const brands = getBrandSummaries();
+const compareFieldOrder = [
+  ["name", "产品"],
+  ["brand", "品牌"],
+  ["category", "类别"],
+  ["status", "状态"],
+  ["display_type", "显示"],
+  ["resolution", "分辨率"],
+  ["refresh_rate", "刷新率"],
+  ["brightness", "亮度"],
+  ["field_of_view", "FOV"],
+  ["weight", "重量"],
+  ["chipset", "平台 / 芯片"],
+  ["use_cases", "适合"],
+] as const;
+
+function getSpecValue(
+  product: NonNullable<ReturnType<typeof getBrandProducts>[number]>,
+  field: string,
+) {
+  for (const group of product.specGroups ?? []) {
+    const match = group.items.find((item) => item.field === field);
+    if (match?.value) return match.value;
+  }
+  return null;
+}
+
+function buildCardFacts(product: NonNullable<ReturnType<typeof getBrandProducts>[number]>) {
+  const candidates = [
+    { label: "显示", value: getSpecValue(product, "display_type") ?? getSpecValue(product, "resolution") },
+    { label: "刷新", value: getSpecValue(product, "refresh_rate") },
+    { label: "亮度", value: getSpecValue(product, "brightness") },
+    { label: "FOV", value: getSpecValue(product, "field_of_view") },
+    { label: "重量", value: getSpecValue(product, "weight") },
+    { label: "平台", value: getSpecValue(product, "chipset") ?? getSpecValue(product, "platform") },
+  ];
+
+  return candidates.filter((item) => item.value).slice(0, 3);
+}
+
+const brandSections = getBrandSummaries().map((brand) => {
+  const products = getBrandProducts(brand.key).map((product) => {
+    const compareValues = Object.fromEntries(
+      compareFieldOrder.map(([field]) => {
+        switch (field) {
+          case "name":
+            return [field, product.name];
+          case "brand":
+            return [field, product.brandLabel];
+          case "category":
+            return [field, product.typeLabel];
+          case "status":
+            return [field, product.availability ?? product.infoStatusLabel ?? product.statusLabel ?? "TBD"];
+          case "use_cases":
+            return [field, product.bestFor?.slice(0, 3).join(" / ") || "TBD"];
+          default:
+            return [field, getSpecValue(product, field) ?? "TBD"];
+        }
+      }),
+    );
+
+    return {
+      slug: product.slug,
+      name: product.name,
+      brandKey: brand.key,
+      brandLabel: product.brandLabel,
+      brandMarkText: product.brandMarkText,
+      typeLabel: product.typeLabel,
+      availability: product.availability ?? product.infoStatusLabel ?? product.statusLabel ?? null,
+      positioning: product.positioning ?? "",
+      cardFacts: buildCardFacts(product),
+      placeholderType: product.cardMedia.placeholderType,
+      compareValues,
+      detailHref: `/devices/${product.slug}/`,
+      brandHref: `/products/${brand.key}/`,
+      searchText: [
+        product.name,
+        product.brandLabel,
+        product.typeLabel,
+        product.positioning ?? "",
+        ...(product.bestFor ?? []),
+      ]
+        .join(" ")
+        .toLowerCase(),
+    };
+  });
+
+  return {
+    key: brand.key,
+    displayName: brand.displayName,
+    brandLogo: brand.brandLogo,
+    productCount: products.length,
+    brandHref: `/products/${brand.key}/`,
+    products,
+  };
+});
+
+const compareFieldConfig = compareFieldOrder.map(([key, label]) => ({ key, label }));
+const productClientCatalog = brandSections.flatMap((section) =>
+  section.products.map((product) => ({
+    slug: product.slug,
+    name: product.name,
+    brandKey: product.brandKey,
+    brandLabel: product.brandLabel,
+    typeLabel: product.typeLabel,
+    detailHref: product.detailHref,
+    brandHref: product.brandHref,
+    searchText: product.searchText,
+    compareValues: product.compareValues,
+  })),
+);
 ---
 
 <CommunityLayout
   title="产品"
-  description="按品牌浏览 AR / AI 眼镜设备。"
+  description="面向 AR / AI 眼镜与 XR 设备的主产品发现页，支持直接比较。"
   canonical="https://openglasshub.pages.dev/products/"
   activeSection="products"
 >
   <section class="products-page-head">
+    <p class="products-page-head__eyebrow">OpenGlass Hub Products</p>
     <h1>产品</h1>
-    <p>按品牌浏览 AR / AI 眼镜设备。</p>
+    <p>更干净的主发现页，直接比较你真正想放在一起看的产品。</p>
   </section>
 
-  <section class="products-brand-grid">
-    {brands.map((brand) => (
-      <a href={`/products/${brand.key}/`} class="brand-tile">
-        <div class="brand-tile__top">
-          <BrandMark logo={brand.brandLogo} tone="accent" brandKey={brand.key} />
-          <span>{brand.productCount} 款</span>
+  <section class="products-toolbar community-surface">
+    <label class="products-toolbar__search" for="products-search">
+      <span>搜索</span>
+      <input
+        id="products-search"
+        class="glass-input"
+        type="search"
+        placeholder="按品牌、产品名或用途搜索"
+        autocomplete="off"
+      />
+    </label>
+
+    <div class="products-toolbar__meta">
+      <p id="products-result-count">{productClientCatalog.length} 款产品</p>
+      <a href="/guides/" class="community-link">选购指南</a>
+    </div>
+  </section>
+
+  <section class="products-compare community-surface" id="products-compare" hidden>
+    <div class="products-compare__head">
+      <div>
+        <p class="products-compare__eyebrow">Compare</p>
+        <h2>产品对比</h2>
+      </div>
+      <button type="button" class="products-compare__clear" id="products-compare-clear">
+        清空
+      </button>
+    </div>
+
+    <div class="products-compare__selected" id="products-compare-selected"></div>
+
+    <div class="products-compare__search-row">
+      <label class="products-compare__search" for="products-compare-search">
+        <span>添加到对比</span>
+        <input
+          id="products-compare-search"
+          class="glass-input"
+          type="search"
+          placeholder="搜索并加入已知产品"
+          autocomplete="off"
+        />
+      </label>
+      <p class="products-compare__hint">最多 3 款。</p>
+    </div>
+
+    <div class="products-compare__results" id="products-compare-results" hidden></div>
+    <p class="products-compare__feedback" id="products-compare-feedback" aria-live="polite"></p>
+
+    <div class="products-compare__table-wrap" id="products-compare-table-wrap" hidden>
+      <table class="products-compare__table">
+        <thead id="products-compare-table-head"></thead>
+        <tbody id="products-compare-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="products-brand-sections" id="products-brand-sections">
+    {brandSections.map((brand) => (
+      <section class="product-brand-section" data-brand-section data-brand-key={brand.key}>
+        <div class="product-brand-section__head">
+          <div class="product-brand-section__identity">
+            <BrandMark logo={brand.brandLogo} tone="accent" brandKey={brand.key} />
+            <span class="product-brand-section__count">{brand.productCount} 款</span>
+          </div>
+          <a href={brand.brandHref} class="product-brand-section__link">品牌页</a>
         </div>
-        <p class="brand-tile__positioning">{brand.positioning}</p>
-        <div class="brand-tile__products">
-          {brand.representativeNames.map((name) => (
-            <span>{name}</span>
+
+        <div class="product-card-grid">
+          {brand.products.map((product) => (
+            <article
+              class="product-card"
+              data-product-card
+              data-product-slug={product.slug}
+              data-brand-key={product.brandKey}
+              data-search={product.searchText}
+            >
+              <div class="product-card__visual-wrap">
+                <ProductVisual
+                  brandMark={product.brandMarkText}
+                  title={product.name}
+                  categoryLabel={product.typeLabel}
+                  highlights={[]}
+                  placeholderType={product.placeholderType}
+                />
+
+                <button
+                  type="button"
+                  class="product-card__compare-button"
+                  data-compare-button
+                  data-product-slug={product.slug}
+                  aria-label={`添加 ${product.name} 到对比`}
+                  title="添加到对比"
+                >
+                  <span aria-hidden="true">+</span>
+                </button>
+              </div>
+
+              <div class="product-card__body">
+                <div class="product-card__head">
+                  <div>
+                    <h2>{product.name}</h2>
+                    <p>{product.brandLabel}</p>
+                  </div>
+                </div>
+
+                <div class="product-card__chips">
+                  <span class="product-chip">{product.typeLabel}</span>
+                  {product.availability ? <span class="product-chip product-chip--muted">{product.availability}</span> : null}
+                </div>
+
+                <dl class="product-card__facts">
+                  {product.cardFacts.map((fact) => (
+                    <div class="product-card__fact">
+                      <dt>{fact.label}</dt>
+                      <dd>{fact.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+
+                <div class="product-card__footer">
+                  <a href={product.detailHref} class="product-card__detail-link">完整资料</a>
+                </div>
+              </div>
+            </article>
           ))}
         </div>
-        <span class="brand-tile__cta">查看产品</span>
-      </a>
+      </section>
     ))}
   </section>
+
+  <script
+    id="product-discovery-data"
+    type="application/json"
+    set:html={JSON.stringify({ products: productClientCatalog, compareFields: compareFieldConfig })}
+  />
+
+  <script type="module">
+    const dataElement = document.getElementById("product-discovery-data");
+    const parsed = dataElement?.textContent ? JSON.parse(dataElement.textContent) : { products: [], compareFields: [] };
+    const products = Array.isArray(parsed.products) ? parsed.products : [];
+    const compareFields = Array.isArray(parsed.compareFields) ? parsed.compareFields : [];
+    const productMap = new Map(products.map((product) => [product.slug, product]));
+    const selected = [];
+    const maxCompareCount = 3;
+
+    const pageSearch = document.getElementById("products-search");
+    const resultCount = document.getElementById("products-result-count");
+    const brandSections = Array.from(document.querySelectorAll("[data-brand-section]"));
+    const compareSurface = document.getElementById("products-compare");
+    const compareSelected = document.getElementById("products-compare-selected");
+    const compareFeedback = document.getElementById("products-compare-feedback");
+    const compareClear = document.getElementById("products-compare-clear");
+    const compareSearch = document.getElementById("products-compare-search");
+    const compareResults = document.getElementById("products-compare-results");
+    const compareTableWrap = document.getElementById("products-compare-table-wrap");
+    const compareTableHead = document.getElementById("products-compare-table-head");
+    const compareTableBody = document.getElementById("products-compare-table-body");
+    const compareButtons = Array.from(document.querySelectorAll("[data-compare-button]"));
+
+    function normalize(value) {
+      return String(value || "")
+        .trim()
+        .toLowerCase();
+    }
+
+    function setFeedback(message = "") {
+      if (compareFeedback) compareFeedback.textContent = message;
+    }
+
+    function isSelected(slug) {
+      return selected.includes(slug);
+    }
+
+    function renderCompareButtons() {
+      compareButtons.forEach((button) => {
+        const slug = button.getAttribute("data-product-slug");
+        const active = slug ? isSelected(slug) : false;
+        button.classList.toggle("is-selected", active);
+        button.setAttribute("aria-label", active ? "移出对比" : "添加到对比");
+        button.setAttribute("title", active ? "移出对比" : "添加到对比");
+        button.innerHTML = `<span aria-hidden="true">${active ? "−" : "+"}</span>`;
+      });
+    }
+
+    function renderCompareSelected() {
+      if (!compareSelected) return;
+      compareSelected.innerHTML = "";
+
+      selected.forEach((slug) => {
+        const product = productMap.get(slug);
+        if (!product) return;
+        const pill = document.createElement("button");
+        pill.type = "button";
+        pill.className = "products-compare__pill";
+        pill.dataset.productSlug = slug;
+        pill.innerHTML = `<span>${product.name}</span><strong>移除</strong>`;
+        pill.addEventListener("click", () => removeFromCompare(slug));
+        compareSelected.appendChild(pill);
+      });
+    }
+
+    function renderCompareTable() {
+      if (!compareTableHead || !compareTableBody || !compareTableWrap) return;
+      if (selected.length < 2) {
+        compareTableWrap.hidden = true;
+        compareTableHead.innerHTML = "";
+        compareTableBody.innerHTML = "";
+        return;
+      }
+
+      compareTableWrap.hidden = false;
+      const selectedProducts = selected.map((slug) => productMap.get(slug)).filter(Boolean);
+      const visibleFields = compareFields.filter((field) =>
+        selectedProducts.some((product) => {
+          const value = product.compareValues?.[field.key];
+          return value && value !== "TBD";
+        }),
+      );
+      const headerCells = selectedProducts
+        .map((product) => `<th scope="col"><strong>${product.name}</strong><span>${product.brandLabel}</span></th>`)
+        .join("");
+
+      compareTableHead.innerHTML = `<tr><th scope="col">项目</th>${headerCells}</tr>`;
+      compareTableBody.innerHTML = visibleFields
+        .map((field) => {
+          const cells = selectedProducts
+            .map((product) => `<td>${product.compareValues?.[field.key] || "TBD"}</td>`)
+            .join("");
+          return `<tr><th scope="row">${field.label}</th>${cells}</tr>`;
+        })
+        .join("");
+    }
+
+    function renderCompareResults() {
+      if (!compareResults || !compareSearch) return;
+      const query = normalize(compareSearch.value);
+      if (!query) {
+        compareResults.hidden = true;
+        compareResults.innerHTML = "";
+        return;
+      }
+
+      const matches = products
+        .filter((product) => !isSelected(product.slug))
+        .filter((product) => product.searchText.includes(query))
+        .slice(0, 6);
+
+      if (matches.length === 0) {
+        compareResults.hidden = false;
+        compareResults.innerHTML = `<p class="products-compare__empty">没有可加入的已知产品。</p>`;
+        return;
+      }
+
+      compareResults.hidden = false;
+      compareResults.innerHTML = matches
+        .map(
+          (product) => `
+            <button type="button" class="products-compare__result" data-compare-result="${product.slug}">
+              <strong>${product.name}</strong>
+              <span>${product.brandLabel} · ${product.typeLabel}</span>
+            </button>
+          `,
+        )
+        .join("");
+
+      compareResults.querySelectorAll("[data-compare-result]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const slug = button.getAttribute("data-compare-result");
+          if (!slug) return;
+          addToCompare(slug);
+          compareSearch.value = "";
+          renderCompareResults();
+        });
+      });
+    }
+
+    function renderCompareSurface() {
+      if (compareSurface) compareSurface.hidden = selected.length === 0;
+      if (compareClear) compareClear.disabled = selected.length === 0;
+      renderCompareButtons();
+      renderCompareSelected();
+      renderCompareTable();
+    }
+
+    function addToCompare(slug) {
+      if (!productMap.has(slug)) return;
+      if (isSelected(slug)) {
+        removeFromCompare(slug);
+        return;
+      }
+      if (selected.length >= maxCompareCount) {
+        setFeedback("最多同时比较 3 款产品。");
+        renderCompareSurface();
+        return;
+      }
+      selected.push(slug);
+      setFeedback("");
+      renderCompareSurface();
+    }
+
+    function removeFromCompare(slug) {
+      const index = selected.indexOf(slug);
+      if (index === -1) return;
+      selected.splice(index, 1);
+      setFeedback("");
+      renderCompareSurface();
+      renderCompareResults();
+    }
+
+    function clearCompare() {
+      selected.splice(0, selected.length);
+      setFeedback("");
+      renderCompareSurface();
+      renderCompareResults();
+    }
+
+    function updateListing() {
+      const query = normalize(pageSearch?.value);
+      let visibleCount = 0;
+
+      brandSections.forEach((section) => {
+        const cards = Array.from(section.querySelectorAll("[data-product-card]"));
+        let sectionVisibleCount = 0;
+
+        cards.forEach((card) => {
+          const haystack = card.getAttribute("data-search") || "";
+          const matches = !query || haystack.includes(query);
+          card.hidden = !matches;
+          if (matches) {
+            sectionVisibleCount += 1;
+            visibleCount += 1;
+          }
+        });
+
+        section.hidden = sectionVisibleCount === 0;
+      });
+
+      if (resultCount) {
+        resultCount.textContent = query ? `${visibleCount} 款匹配产品` : `${products.length} 款产品`;
+      }
+    }
+
+    pageSearch?.addEventListener("input", updateListing);
+    compareSearch?.addEventListener("input", renderCompareResults);
+    compareClear?.addEventListener("click", clearCompare);
+
+    compareButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const slug = button.getAttribute("data-product-slug");
+        if (!slug) return;
+        addToCompare(slug);
+      });
+    });
+
+    updateListing();
+    renderCompareSurface();
+  </script>
 </CommunityLayout>
 
 <style>
+  .products-page-head,
+  .products-toolbar,
+  .products-compare,
+  .product-brand-section,
+  .product-card {
+    border-radius: 26px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: linear-gradient(180deg, rgba(14, 17, 22, 0.96), rgba(9, 11, 15, 0.98));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
   .products-page-head {
     display: grid;
-    gap: 0.32rem;
-    padding: 0.95rem 0 1.2rem;
+    gap: 0.42rem;
+    padding: 1.1rem 1.15rem 1.25rem;
+    margin-bottom: 0.95rem;
   }
+
+  .products-page-head__eyebrow,
+  .products-compare__eyebrow {
+    margin: 0;
+    color: rgba(245, 245, 245, 0.46);
+    font-size: 0.76rem;
+    font-weight: 650;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .products-page-head h1,
+  .products-compare__head h2 {
+    margin: 0;
+    color: #f8f8fa;
+    letter-spacing: -0.05em;
+  }
+
   .products-page-head h1 {
-    margin: 0;
-    color: var(--text);
-    font-size: 2.2rem;
-    letter-spacing: -0.03em;
+    font-size: clamp(2.5rem, 4vw, 4rem);
+    line-height: 0.95;
   }
-  .products-page-head p {
+
+  .products-page-head p:last-child {
     margin: 0;
-    max-width: 38rem;
+    max-width: 30rem;
     color: rgba(245, 245, 245, 0.68);
-    line-height: 1.55;
+    line-height: 1.5;
   }
-  .products-brand-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+
+  .products-toolbar,
+  .products-compare,
+  .product-brand-section {
+    padding: 1rem;
+  }
+
+  .products-toolbar {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
     gap: 1rem;
+    margin-bottom: 1rem;
   }
-  .brand-tile {
+
+  .products-toolbar__search,
+  .products-compare__search {
     display: grid;
-    grid-template-rows: auto auto 1fr auto;
-    align-content: start;
-    gap: 0.8rem;
-    min-height: 248px;
-    padding: 1.25rem;
-    text-decoration: none;
-    border-radius: 22px;
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    background: linear-gradient(180deg, rgba(16, 19, 24, 0.98), rgba(10, 12, 16, 1));
-    transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
+    gap: 0.42rem;
+    min-width: 0;
+    flex: 1 1 auto;
   }
-  .brand-tile:hover {
-    border-color: rgba(255, 255, 255, 0.11);
-    background: linear-gradient(180deg, rgba(18, 22, 27, 1), rgba(11, 13, 17, 1));
-    transform: translateY(-1px);
+
+  .products-toolbar__search span,
+  .products-compare__search span,
+  .product-card__fact dt,
+  .product-card__head p,
+  .products-toolbar__meta p,
+  .products-compare__hint,
+  .products-compare__empty,
+  .products-compare__result span,
+  .products-compare__table th span {
+    color: rgba(245, 245, 245, 0.54);
+    font-size: 0.82rem;
+    line-height: 1.35;
   }
-  .brand-tile__top {
+
+  .products-toolbar__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    flex: 0 0 auto;
+  }
+
+  .products-toolbar__meta p {
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .products-compare {
+    display: grid;
+    gap: 0.9rem;
+    margin-bottom: 1rem;
+  }
+
+  .products-compare__head,
+  .products-compare__search-row,
+  .product-brand-section__head,
+  .product-brand-section__identity,
+  .product-card__head,
+  .product-card__footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.8rem;
   }
-  .brand-tile__top :global(.brand-mark) {
-    font-size: 1.6rem;
+
+  .products-compare__head h2 {
+    font-size: 1.4rem;
   }
-  .brand-tile__top span,
-  .brand-tile__cta {
-    color: rgba(245, 245, 245, 0.72);
-    font-size: 0.84rem;
-    font-weight: 600;
+
+  .products-compare__clear,
+  .product-card__compare-button,
+  .products-compare__pill,
+  .products-compare__result {
+    appearance: none;
+    border: 0;
+    background: none;
+    font: inherit;
   }
-  .brand-tile__positioning {
-    margin: 0;
-    color: rgba(245, 245, 245, 0.68);
-    font-size: 0.9rem;
-    font-weight: 500;
-    line-height: 1.6;
-    letter-spacing: -0.01em;
-  }
-  .brand-tile__products {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-  }
-  .brand-tile__products span {
+
+  .products-compare__clear {
     display: inline-flex;
     align-items: center;
-    min-height: 1.8rem;
-    padding: 0.16rem 0.5rem;
+    min-height: 2rem;
+    padding: 0 0.8rem;
     border-radius: 999px;
+    color: rgba(245, 245, 245, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    color: rgba(245, 245, 245, 0.62);
-    font-size: 0.78rem;
+    cursor: pointer;
   }
-  .brand-tile__cta {
-    color: #f5f5f5;
+
+  .products-compare__clear:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .products-compare__selected,
+  .products-compare__results,
+  .product-card__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+
+  .products-compare__pill,
+  .product-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2rem;
+    max-width: 100%;
+    padding: 0 0.78rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(248, 248, 250, 0.88);
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .products-compare__pill {
+    cursor: pointer;
+  }
+
+  .products-compare__pill strong {
+    color: rgba(245, 245, 245, 0.54);
+    font-size: 0.74rem;
     font-weight: 600;
   }
+
+  .product-chip--muted {
+    color: rgba(245, 245, 245, 0.68);
+  }
+
+  .products-compare__results {
+    align-items: stretch;
+  }
+
+  .products-compare__result {
+    display: grid;
+    gap: 0.18rem;
+    min-width: min(100%, 220px);
+    padding: 0.72rem 0.82rem;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.025);
+    color: #f7f7fa;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .products-compare__feedback {
+    margin: 0;
+    min-height: 1.25rem;
+    color: rgba(245, 245, 245, 0.72);
+    font-size: 0.84rem;
+  }
+
+  .products-compare__table-wrap {
+    overflow-x: auto;
+  }
+
+  .products-compare__table {
+    width: 100%;
+    min-width: 620px;
+    border-collapse: collapse;
+  }
+
+  .products-compare__table th,
+  .products-compare__table td {
+    padding: 0.82rem 0.9rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .products-compare__table th {
+    color: rgba(248, 248, 250, 0.92);
+    font-size: 0.86rem;
+    font-weight: 600;
+  }
+
+  .products-compare__table td {
+    color: rgba(245, 245, 245, 0.72);
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  .products-compare__table th strong {
+    display: block;
+    color: #f8f8fa;
+    font-size: 0.94rem;
+  }
+
+  .products-brand-sections {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .product-brand-section__identity {
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .product-brand-section__identity :global(.brand-mark) {
+    min-width: 0;
+    font-size: 1.42rem;
+  }
+
+  .product-brand-section__count {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3.8rem;
+    min-height: 2rem;
+    padding: 0 0.72rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(248, 248, 250, 0.86);
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .product-brand-section__link,
+  .product-card__detail-link {
+    color: rgba(248, 248, 250, 0.82);
+    font-size: 0.84rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .product-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 264px), 1fr));
+    gap: 0.95rem;
+    margin-top: 0.95rem;
+  }
+
+  .product-card {
+    display: grid;
+    gap: 0.85rem;
+    padding: 0.88rem;
+  }
+
+  .product-card__visual-wrap {
+    position: relative;
+  }
+
+  .product-card__visual-wrap :global(.product-visual) {
+    min-height: 240px;
+    height: 240px;
+  }
+
+  .product-card__compare-button {
+    position: absolute;
+    top: 0.8rem;
+    right: 0.8rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(10, 12, 16, 0.62);
+    color: #f8f8fa;
+    cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+  }
+
+  .product-card__compare-button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(18, 22, 28, 0.9);
+  }
+
+  .product-card__compare-button.is-selected {
+    border-color: rgba(255, 255, 255, 0.24);
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .product-card__compare-button span {
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+
+  .product-card__body {
+    display: grid;
+    gap: 0.72rem;
+  }
+
+  .product-card__head {
+    align-items: start;
+  }
+
+  .product-card__head h2 {
+    margin: 0;
+    color: #f8f8fa;
+    font-size: 1.08rem;
+    letter-spacing: -0.03em;
+    line-height: 1.12;
+  }
+
+  .product-card__head p {
+    margin: 0.22rem 0 0;
+  }
+
+  .product-card__facts {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+  }
+
+  .product-card__fact {
+    display: grid;
+    grid-template-columns: minmax(0, 78px) minmax(0, 1fr);
+    gap: 0.8rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .product-card__fact dd {
+    margin: 0;
+    color: rgba(248, 248, 250, 0.9);
+    font-size: 0.9rem;
+    line-height: 1.35;
+    text-align: right;
+  }
+
+  .product-card__footer {
+    padding-top: 0.1rem;
+  }
+
+  @media (max-width: 900px) {
+    .products-toolbar,
+    .products-compare__head,
+    .products-compare__search-row,
+    .product-brand-section__head {
+      align-items: start;
+      flex-direction: column;
+    }
+
+    .products-toolbar__meta {
+      justify-content: space-between;
+      width: 100%;
+    }
+  }
+
   @media (max-width: 720px) {
-    .brand-tile {
-      min-height: 224px;
+    .products-page-head {
+      padding: 1rem;
+    }
+
+    .products-page-head h1 {
+      font-size: 2.2rem;
+    }
+
+    .product-card-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .product-card__visual-wrap :global(.product-visual) {
+      min-height: 214px;
+      height: 214px;
+    }
+
+    .product-card__fact {
+      grid-template-columns: minmax(0, 64px) minmax(0, 1fr);
+      gap: 0.65rem;
+    }
+
+    .products-compare__table {
+      min-width: 560px;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .products-toolbar,
+    .products-compare,
+    .product-brand-section,
+    .product-card {
+      padding: 0.82rem;
+      border-radius: 22px;
+    }
+
+    .product-brand-section__identity {
+      width: 100%;
+    }
+
+    .product-brand-section__identity :global(.brand-mark) {
+      min-width: 0;
+      max-width: calc(100% - 4.5rem);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .product-brand-section__count {
+      min-width: 3.55rem;
     }
   }
 </style>

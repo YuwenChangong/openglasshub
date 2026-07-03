@@ -24,6 +24,15 @@
 - Treat `docs/ops/*` as the primary source for post-release hardening and day-2 operations.
 - Treat preview QA as production-equivalent data risk because preview currently uses production-equivalent non-secret runtime values.
 
+## Product Surface
+
+Current direction:
+- `/products/` is now the primary product discovery surface for public browsing.
+- The main product page supports direct on-page comparison with a hard cap of 3 selected products.
+- Compare entry is available from product cards and the dedicated compare search inside the tray.
+- The product page intentionally keeps copy sparse and keeps placeholder visuals minimal and product-name led.
+- `/devices/` remains available as a secondary supporting surface for deeper legacy-style detail and device-specific discussion entry.
+
 ## Device Library
 
 Current production baseline:
