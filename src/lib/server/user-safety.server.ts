@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notifyUserRestricted, notifyUserWarned } from "./moderation-notifications.server.ts";
 
 export type UserSafetyStatus = "active" | "warned" | "suspended" | "banned";
 export type UserSafetyEventType =
@@ -563,6 +564,27 @@ export async function applyUserSafetyAction(params: {
         next_warning_count: nextState.warning_count,
         suspended_until: nextState.suspended_until,
       },
+    });
+  }
+
+  try {
+    if (action === "warn") {
+      await notifyUserWarned({
+        client,
+        recipientId: targetUserId,
+        actingAdminId: actorId,
+      });
+    } else if (action === "suspend" || action === "ban") {
+      await notifyUserRestricted({
+        client,
+        recipientId: targetUserId,
+        actingAdminId: actorId,
+      });
+    }
+  } catch (error) {
+    console.warn("[user-safety] notification dispatch failed", {
+      action,
+      message: error instanceof Error ? error.message : "unknown error",
     });
   }
 

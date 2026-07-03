@@ -29,6 +29,8 @@ const adminListPath = "src/pages/api/admin/reports.ts";
 const adminDetailPath = "src/pages/api/admin/reports/[id].ts";
 const adminActionPath = "src/pages/api/admin/reports/[id]/action.ts";
 const helperPath = "src/lib/server/reports.server.ts";
+const notificationHelperPath = "src/lib/server/moderation-notifications.server.ts";
+const notificationsLibPath = "src/lib/notifications.ts";
 const triggerPath = "src/components/reports/ReportTrigger.tsx";
 const adminPanelPath = "src/components/admin/AdminReportsPanel.tsx";
 
@@ -51,6 +53,8 @@ check("admin reports list api exists", exists(adminListPath));
 check("admin reports detail api exists", exists(adminDetailPath));
 check("admin reports action api exists", exists(adminActionPath));
 check("reports helper exists", exists(helperPath));
+check("moderation notification helper exists", exists(notificationHelperPath));
+check("notifications lib exists", exists(notificationsLibPath));
 check("report trigger exists", exists(triggerPath));
 check("admin reports panel exists", exists(adminPanelPath));
 
@@ -71,6 +75,24 @@ if (exists(adminPanelPath)) {
   const panel = read(adminPanelPath);
   check("admin reports panel has filters", /全部状态/.test(panel) && /全部对象/.test(panel));
   check("admin reports panel supports dismiss/hide/ban", /驳回举报/.test(panel) && /隐藏内容/.test(panel) && /封禁用户/.test(panel));
+}
+
+if (exists(helperPath)) {
+  const helper = read(helperPath);
+  check("report helper notifies moderated post authors", /notifyPostModerated/i.test(helper));
+  check("report helper notifies moderated comment authors", /notifyCommentModerated/i.test(helper));
+}
+
+if (exists(notificationHelperPath)) {
+  const helper = read(notificationHelperPath);
+  check("moderation notifications use actorless system delivery", /p_actor_id:\s*null/i.test(helper));
+  check("moderation notifications avoid reporter identity", !/reporter/i.test(helper));
+  check("moderation notifications avoid admin notes payload", !/note:|reason:|metadata:/i.test(helper));
+}
+
+if (exists(notificationsLibPath)) {
+  const lib = read(notificationsLibPath);
+  check("notifications lib supports moderation types", /post_moderated/i.test(lib) && /comment_moderated/i.test(lib) && /user_warned/i.test(lib) && /user_restricted/i.test(lib));
 }
 
 const publicFiles = [

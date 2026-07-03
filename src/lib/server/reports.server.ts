@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyModerationAdminAction, type ModerationAdminTarget } from "./moderation-admin.ts";
+import { notifyCommentModerated, notifyPostModerated } from "./moderation-notifications.server.ts";
 import { applyUserSafetyAction, insertUserSafetyEvent, sanitizeSafetyReason } from "./user-safety.server.ts";
 
 export type ReportTargetType = "post" | "comment" | "circle" | "user";
@@ -847,6 +848,24 @@ export async function applyAdminReportAction(params: {
       target_type: report.target_type,
       target_id: report.target_id,
     });
+
+    if (report.target_type === "post") {
+      void notifyPostModerated({
+        client: params.client,
+        recipientId: target.author_id ?? null,
+        postId: report.target_id,
+        actingAdminId: params.moderatorId,
+      });
+    } else if (report.target_type === "comment") {
+      void notifyCommentModerated({
+        client: params.client,
+        recipientId: target.author_id ?? null,
+        commentId: report.target_id,
+        postId: target.post?.id ?? null,
+        actingAdminId: params.moderatorId,
+      });
+    }
+
     return { ok: true as const, report: updated };
   }
 

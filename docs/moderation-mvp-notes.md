@@ -51,6 +51,32 @@
 - Temporary QA admin was revoked and deleted after verification
 - No secrets were exposed
 
+## Moderation action notifications v1
+
+- Supported in-app notification triggers:
+  - reported post hidden or rejected -> post author receives `post_moderated`
+  - reported comment hidden or rejected -> comment author receives `comment_moderated`
+  - warning action -> target user receives `user_warned`
+  - suspend or ban action -> target user receives `user_restricted`
+- Safe copy policy:
+  - "Your post was removed after review."
+  - "Your comment was removed after review."
+  - "You received a warning after a moderation review."
+  - "Your account access was restricted after a moderation review."
+- Privacy exclusions:
+  - no reporter identity or email
+  - no admin identity or email
+  - no admin notes
+  - no raw moderation JSON
+  - no signed media URLs
+  - no internal rule names, lexicon matches, or safety scores
+- V1 limitations:
+  - in-app notifications only
+  - no email notifications
+  - no appeal flow
+  - no detailed violation reason in the user-facing copy
+  - no report submitter `report_reviewed` notification in v1
+
 ### Key shipped items
 
 - Expanded report targets: `post` / `comment` / `circle` / `user` / admin-user workflows

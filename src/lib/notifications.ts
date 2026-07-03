@@ -2,7 +2,11 @@ export type ForumNotificationType =
   | "comment_on_post"
   | "reply_to_comment"
   | "post_like"
-  | "comment_like";
+  | "comment_like"
+  | "post_moderated"
+  | "comment_moderated"
+  | "user_warned"
+  | "user_restricted";
 
 export interface NotificationActor {
   id: string | null;
@@ -25,11 +29,28 @@ export interface NotificationItem {
   preview: string | null;
 }
 
+export function isSystemNotificationType(type: ForumNotificationType): boolean {
+  return (
+    type === "post_moderated" ||
+    type === "comment_moderated" ||
+    type === "user_warned" ||
+    type === "user_restricted"
+  );
+}
+
 export function getNotificationActorName(actor: Pick<NotificationActor, "display_name" | "username" | "id">): string {
   return actor.display_name?.trim() || actor.username?.trim() || (actor.id ? `${actor.id.slice(0, 6)}…${actor.id.slice(-4)}` : "有人");
 }
 
-export function buildNotificationHref(postId?: string | null, commentId?: string | null): string {
+export function getNotificationVisualLabel(
+  type: ForumNotificationType,
+  actor: Pick<NotificationActor, "display_name" | "username" | "id">,
+): string {
+  return isSystemNotificationType(type) ? "系统" : getNotificationActorName(actor);
+}
+
+export function buildNotificationHref(type: ForumNotificationType, postId?: string | null, commentId?: string | null): string {
+  if (isSystemNotificationType(type)) return "/notifications/";
   if (!postId) return "/notifications/";
   if (commentId) return `/posts/${encodeURIComponent(postId)}/#comment-${encodeURIComponent(commentId)}`;
   return `/posts/${encodeURIComponent(postId)}/`;
@@ -45,12 +66,23 @@ export function buildNotificationMessage(type: ForumNotificationType, actorName:
       return `${actorName} 赞了你的帖子`;
     case "comment_like":
       return `${actorName} 赞了你的评论`;
+    case "post_moderated":
+      return "Your post was removed after review.";
+    case "comment_moderated":
+      return "Your comment was removed after review.";
+    case "user_warned":
+      return "You received a warning after a moderation review.";
+    case "user_restricted":
+      return "Your account access was restricted after a moderation review.";
     default:
       return `${actorName} 与你互动了`;
   }
 }
 
 export function buildNotificationPreview(type: ForumNotificationType, previewSource?: string | null): string | null {
+  if (isSystemNotificationType(type)) {
+    return null;
+  }
   const value = previewSource?.replace(/\s+/g, " ").trim();
   if (!value) return null;
   const shortened = value.length > 48 ? `${value.slice(0, 48)}…` : value;
