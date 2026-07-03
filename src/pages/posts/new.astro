@@ -3,6 +3,10 @@ export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import CreatePostForm from "../../components/forum/CreatePostForm";
+import { getDeviceDiscussionContext } from "../../lib/device-discussion";
+
+const discussionContext = getDeviceDiscussionContext(Astro.url.searchParams.get("device"));
+const nextPath = discussionContext ? discussionContext.startPostHref : "/posts/new/";
 ---
 
 <ForumLayout
@@ -13,5 +17,34 @@ import CreatePostForm from "../../components/forum/CreatePostForm";
   activeTab="new-post"
 >
   <h1>新建帖子</h1>
-  <CreatePostForm client:only="react" />
+  {discussionContext ? (
+    <section class="community-surface community-surface--padded post-prefill-note">
+      <strong>已带入设备讨论草稿</strong>
+      <p>
+        当前草稿来自 <a href={`/devices/${discussionContext.slug}/`}>{discussionContext.device.name}</a> 设备页。
+        你可以自由修改标题和正文，只有点击提交后才会真正发帖。
+      </p>
+    </section>
+  ) : null}
+  <CreatePostForm
+    client:only="react"
+    initialTitle={discussionContext?.suggestedTitle}
+    initialBody={discussionContext?.suggestedBody}
+    nextPath={nextPath}
+    discussionDeviceName={discussionContext?.device.name}
+  />
 </ForumLayout>
+
+<style>
+  .post-prefill-note {
+    margin-bottom: 1rem;
+  }
+  .post-prefill-note strong {
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+  .post-prefill-note p {
+    margin: 0;
+    color: var(--text-muted);
+  }
+</style>

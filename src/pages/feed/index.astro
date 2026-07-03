@@ -10,12 +10,15 @@ import { formatPostTime } from "../../lib/format-time";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
+import { getDeviceDiscussionContext } from "../../lib/device-discussion";
 import { listForumFeed, parseFeedSort } from "../../lib/forum-feed";
 
 const env = Astro.locals.runtime.env as CloudflareEnv;
 const supabase = createSSRClient(env);
 const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
 const sort = parseFeedSort(Astro.url.searchParams.get("sort"));
+const composeRequested = Astro.url.searchParams.get("compose") === "1";
+const deviceDiscussion = getDeviceDiscussionContext(Astro.url.searchParams.get("device"));
 const pageParam = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);
 const page = Number.isFinite(pageParam) ? Math.max(1, pageParam) : 1;
 const feedLimit = 20;
@@ -106,6 +109,27 @@ const buildFeedHref = (nextSort: string, nextPage = 1) =>
         <span class="community-meta">{currentMeta.title}</span>
         <span class="community-meta">第 {feed.page} 页</span>
       </div>
+
+      {composeRequested && deviceDiscussion ? (
+        <section class="community-surface community-surface--padded device-discussion-entry">
+          <div>
+            <strong>讨论 {deviceDiscussion.device.name}</strong>
+            <p>
+              这里不会自动发帖。你可以先浏览动态，也可以带着设备上下文去发一个新帖子。
+            </p>
+          </div>
+          <div class="device-discussion-entry__actions">
+            <a href={deviceDiscussion.startPostHref} class="community-button">开始发帖</a>
+            <a
+              href={`/search/?${new URLSearchParams({ q: deviceDiscussion.searchQuery, type: "posts" }).toString()}`}
+              class="community-button--secondary"
+            >
+              查相关帖子
+            </a>
+            <a href={deviceDiscussion.circlesHref} class="community-button--secondary">看看圈子</a>
+          </div>
+        </section>
+      ) : null}
 
       {!posts || posts.length === 0 ? (
         <EmptyFeedState />
@@ -208,6 +232,24 @@ const buildFeedHref = (nextSort: string, nextPage = 1) =>
   .community-feed-meta {
     margin: 0 0 1rem;
   }
+  .device-discussion-entry {
+    display: grid;
+    gap: 0.9rem;
+    margin-bottom: 1rem;
+  }
+  .device-discussion-entry strong {
+    display: block;
+    margin-bottom: 0.3rem;
+  }
+  .device-discussion-entry p {
+    margin: 0;
+    color: var(--text-muted);
+  }
+  .device-discussion-entry__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+  }
   .community-feed-pagination {
     justify-content: space-between;
     margin-top: 1.2rem;
@@ -226,6 +268,10 @@ const buildFeedHref = (nextSort: string, nextPage = 1) =>
     }
     .community-feed-pagination {
       justify-content: flex-start;
+    }
+    .device-discussion-entry__actions {
+      align-items: stretch;
+      flex-direction: column;
     }
   }
 </style>

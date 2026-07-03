@@ -194,7 +194,19 @@ async function uploadVideoToExternal(params: {
   return { mediaUrl: ticketPayload.media_url, storagePath: ticketPayload.storage_path };
 }
 
-export default function CreatePostForm() {
+type Props = {
+  initialTitle?: string;
+  initialBody?: string;
+  nextPath?: string;
+  discussionDeviceName?: string;
+};
+
+export default function CreatePostForm({
+  initialTitle = "",
+  initialBody = "",
+  nextPath = "/posts/new/",
+  discussionDeviceName,
+}: Props) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const circlePickerRef = useRef<HTMLDivElement | null>(null);
@@ -202,8 +214,8 @@ export default function CreatePostForm() {
   const mediaFilesRef = useRef<LocalMedia[]>([]);
   const [circleSlug, setCircleSlug] = useState("");
   const [type, setType] = useState("question");
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const [title, setTitle] = useState(initialTitle);
+  const [body, setBody] = useState(initialBody);
   const [circles, setCircles] = useState<CircleOption[]>([]);
   const [circleMenuOpen, setCircleMenuOpen] = useState(false);
   const [circleActiveIndex, setCircleActiveIndex] = useState(0);
@@ -467,7 +479,7 @@ export default function CreatePostForm() {
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !sessionData.session?.access_token || !sessionData.session.user) {
-        window.location.replace(buildLoginHref("/posts/new/"));
+        window.location.replace(buildLoginHref(nextPath));
         return;
       }
 
@@ -717,7 +729,7 @@ export default function CreatePostForm() {
     return (
       <section className="post-composer">
         <div className="auth-alert">
-          <a href={buildLoginHref("/posts/new/")} className="community-link">登录后继续发帖</a>
+          <a href={buildLoginHref(nextPath)} className="community-link">登录后继续发帖</a>
         </div>
       </section>
     );
@@ -732,6 +744,7 @@ export default function CreatePostForm() {
     <section className="post-composer">
       <div className="post-composer__intro">
         <h2>发布帖子</h2>
+        {discussionDeviceName ? <p>已根据 {discussionDeviceName} 设备页带入一个中性讨论草稿，可继续修改。</p> : null}
       </div>
 
       <form onSubmit={handleSubmit} className="post-composer__form">
