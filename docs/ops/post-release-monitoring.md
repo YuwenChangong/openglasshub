@@ -20,6 +20,9 @@
 - provider outage / fail-closed behavior
 - media upload errors
 - user safety action audit checks
+- After admin UX deploys, verify production auth in a fresh browser or fresh session
+- Stale browser or client state can falsely show old Supabase key behavior
+- Do not judge auth-fix status from stale sessions alone
 
 ## Escalation
 

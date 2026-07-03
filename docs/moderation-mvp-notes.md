@@ -9,6 +9,48 @@
 - No migration was needed.
 - Preview QA smoke passed on `https://reports-admin-ux-v1.openglasshub.pages.dev`.
 
+## Reports Admin UX v1 production release
+
+- Release status: `REPORTS_ADMIN_UX_DEPLOYED_GO`
+
+### What shipped
+
+- Clearer reports queue with better scanability
+- Status / target / reason / priority badges
+- Client-side search on loaded data
+- Filter chips and clear filters
+- Improved detail panel
+- Readable event timeline
+- Grouped risk-based actions
+- Custom glass confirmation modal
+- Duplicate-click protection
+- Better loading / error / empty states
+- Improved cleanup helper
+- Readable self-action guard error
+
+### Production verification
+
+- Production smoke passed
+- Authenticated `/admin/reports` loaded
+- Reports list rendered
+- Detail panel and timeline rendered
+- Confirmation modal opened and closed without destructive action
+
+### Auth incident note
+
+- Production login briefly returned Supabase `Invalid API key` after deployment
+- Root cause was a stale or mismatched `PUBLIC_SUPABASE_ANON_KEY`
+- Fix path was updating repo `wrangler.toml` plus the Cloudflare production Supabase anon secret/config
+- Final fresh-session auth no longer returned `Invalid API key`
+
+### Safety
+
+- No migration was run
+- No destructive actions were performed
+- No real users or production content were modified
+- Temporary QA admin was revoked and deleted after verification
+- No secrets were exposed
+
 ### Key shipped items
 
 - Expanded report targets: `post` / `comment` / `circle` / `user` / admin-user workflows
