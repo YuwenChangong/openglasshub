@@ -21,7 +21,7 @@ const nextPath = discussionContext ? discussionContext.startPostHref : "/posts/n
     <section class="community-surface community-surface--padded post-prefill-note">
       <strong>已带入设备讨论草稿</strong>
       <p>
-        当前草稿来自 <a href={`/devices/${discussionContext.slug}/`}>{discussionContext.device.name}</a> 设备页。
+        当前草稿来自 <a href={discussionContext.productHref}>{discussionContext.device.name}</a> 产品页。
         你可以自由修改标题和正文，只有点击提交后才会真正发帖。
       </p>
     </section>

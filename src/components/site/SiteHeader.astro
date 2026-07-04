@@ -9,9 +9,10 @@ interface Props {
   currentSection?: NavKey;
   next?: string;
   variant?: "site" | "starlight";
+  showSearch?: boolean;
 }
 
-const { currentPath = Astro.url.pathname, currentSection, next = currentPath, variant = "site" } = Astro.props;
+const { currentPath = Astro.url.pathname, currentSection, next = currentPath, variant = "site", showSearch = true } = Astro.props;
 const activeKey = currentSection ?? inferNavKey(currentPath);
 ---
 
@@ -34,9 +35,11 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
       ))}
     </nav>
 
-    <div class="og-header__search">
-      <GlobalSearchBox compact={true} client:load />
-    </div>
+    {showSearch ? (
+      <div class="og-header__search">
+        <GlobalSearchBox compact={true} client:load />
+      </div>
+    ) : null}
 
     <div class="og-header__auth ogh-header-actions">
       <HeaderNotifications client:only="react" />

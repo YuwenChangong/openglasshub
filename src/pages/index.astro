@@ -85,7 +85,7 @@ const quickLinks = [
   { href: "/feed/?sort=recommended", label: "推荐讨论" },
   { href: "/circles/", label: "圈子" },
   { href: "/news/", label: "热点" },
-  { href: "/devices/", label: "设备库" },
+  { href: "/products/", label: "产品" },
 ] as const;
 
 function excerpt(body?: string | null): string {
@@ -173,9 +173,9 @@ function excerpt(body?: string | null): string {
           <AuthCTA next="/" client:only="react" />
           <SignedOutHeroNote client:only="react" />
           <div class="community-list home-utility-list">
-            <a href="/devices/" class="community-list-item">
-              <strong>设备库</strong>
-              <span>按品牌和路线查看资料。</span>
+            <a href="/products/" class="community-list-item">
+              <strong>产品</strong>
+              <span>按品牌直接浏览和轻量比较。</span>
             </a>
             <a href="/gaze-launcher/" class="community-list-item">
               <strong>Gaze Launcher</strong>

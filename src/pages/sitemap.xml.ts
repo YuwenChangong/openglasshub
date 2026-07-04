@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { getCollection } from "astro:content";
+import { brandCatalog, getDeviceBySlug } from "../lib/device-catalog";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { isPublicVisibleCircle } from "../lib/site-navigation";
 
@@ -62,11 +63,18 @@ export const GET: APIRoute = async ({ locals }) => {
     { loc: absoluteUrl("/circles/"), changefreq: "daily", priority: "0.85" },
     { loc: absoluteUrl("/news/"), changefreq: "daily", priority: "0.85" },
     { loc: absoluteUrl("/products/"), changefreq: "weekly", priority: "0.8" },
-    { loc: absoluteUrl("/devices/"), changefreq: "weekly", priority: "0.8" },
     { loc: absoluteUrl("/guides/"), changefreq: "weekly", priority: "0.8" },
     { loc: absoluteUrl("/developers/"), changefreq: "weekly", priority: "0.75" },
     { loc: absoluteUrl("/gaze-launcher/"), changefreq: "weekly", priority: "0.75" },
   ];
+
+  for (const brand of brandCatalog) {
+    entries.push({
+      loc: absoluteUrl(`/products/${brand.key}/`),
+      changefreq: "weekly",
+      priority: "0.72",
+    });
+  }
 
   for (const entry of docs) {
     const docSlug = String((entry as { slug?: string | null }).slug ?? "");
@@ -74,8 +82,10 @@ export const GET: APIRoute = async ({ locals }) => {
 
     if (docSlug.startsWith("reference/devices/")) {
       const slug = docSlug.replace("reference/devices/", "");
+      const product = getDeviceBySlug(slug);
+      if (!product) continue;
       entries.push({
-        loc: absoluteUrl(`/devices/${slug}/`),
+        loc: absoluteUrl(`/products/${product.brandKey}/`),
         lastmod: normalizeDate(entry.data.lastUpdated?.toISOString?.() ?? undefined),
         changefreq: "monthly",
         priority: "0.7",

@@ -10,7 +10,8 @@ export interface Props {
   ogImage?: string;
   ogType?: "website" | "article" | "profile";
   twitterCard?: "summary" | "summary_large_image";
-  activeSection?: "home" | "forum" | "news" | "products" | "devices" | "launcher";
+  activeSection?: "home" | "forum" | "news" | "products" | "launcher";
+  showHeaderSearch?: boolean;
   pageClass?: string;
 }
 
@@ -23,6 +24,7 @@ const {
   ogType = "website",
   twitterCard = "summary_large_image",
   activeSection,
+  showHeaderSearch = true,
   pageClass = "",
 } = Astro.props;
 const siteName = "OpenGlass Hub";
@@ -59,7 +61,12 @@ const robotsContent = noindex ? "noindex,nofollow" : "index,follow,max-image-pre
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v6.png" />
   </head>
   <body>
-    <CommunityHeader currentPath={Astro.url.pathname} currentSection={activeSection} next={Astro.url.pathname} />
+    <CommunityHeader
+      currentPath={Astro.url.pathname}
+      currentSection={activeSection}
+      next={Astro.url.pathname}
+      showSearch={showHeaderSearch}
+    />
     <slot name="belowHeader" />
     <main class:list={["community-shell", pageClass]}>
       <slot />
