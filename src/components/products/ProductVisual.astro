@@ -22,6 +22,8 @@ const {
 <div class:list={["product-visual", `product-visual--${variant}`, `product-visual--${placeholderType}`]}>
   <div class="product-visual__shell">
     <span class="product-visual__glow" aria-hidden="true"></span>
+    <span class="product-visual__gridline product-visual__gridline--top" aria-hidden="true"></span>
+    <span class="product-visual__gridline product-visual__gridline--bottom" aria-hidden="true"></span>
 
     <div class="product-visual__topline">
       <span class="product-visual__brand">{brandMark}</span>
@@ -46,11 +48,11 @@ const {
     overflow: hidden;
     min-width: 0;
     min-height: 100%;
-    border-radius: 24px;
+    border-radius: 18px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background:
-      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.08), transparent 34%),
-      linear-gradient(180deg, rgba(18, 22, 28, 0.98), rgba(9, 11, 15, 1));
+      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05), transparent 34%),
+      linear-gradient(180deg, rgba(14, 17, 21, 0.98), rgba(9, 11, 15, 1));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     isolation: isolate;
   }
@@ -67,18 +69,19 @@ const {
     position: relative;
     display: grid;
     grid-template-rows: auto 1fr auto;
-    gap: 1rem;
+    gap: 0.9rem;
     min-height: inherit;
     height: 100%;
-    padding: 1rem;
-    border-radius: 22px;
+    padding: 1rem 1rem 1.05rem;
+    border-radius: 17px;
     overflow: hidden;
     background:
-      radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.06), transparent 28%),
-      linear-gradient(180deg, rgba(24, 29, 36, 0.98), rgba(10, 13, 17, 0.98));
+      radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.045), transparent 26%),
+      linear-gradient(180deg, rgba(20, 24, 30, 0.98), rgba(10, 13, 17, 0.98));
   }
 
   .product-visual__glow,
+  .product-visual__gridline,
   .product-visual__base,
   .product-visual__rail,
   .product-visual__halo {
@@ -89,49 +92,65 @@ const {
     position: absolute;
     left: 50%;
     bottom: 12%;
-    width: 70%;
-    height: 50%;
+    width: 74%;
+    height: 46%;
     transform: translateX(-50%);
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(174, 194, 228, 0.14), transparent 68%);
-    filter: blur(18px);
-    opacity: 0.9;
+    background: radial-gradient(circle, rgba(170, 186, 212, 0.12), transparent 68%);
+    filter: blur(22px);
+    opacity: 0.7;
+  }
+
+  .product-visual__gridline {
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    opacity: 0.7;
+  }
+
+  .product-visual__gridline--top {
+    top: 3.3rem;
+  }
+
+  .product-visual__gridline--bottom {
+    bottom: 3.3rem;
   }
 
   .product-visual__topline {
     position: relative;
     z-index: 1;
     display: flex;
-    align-items: center;
+    align-items: start;
     justify-content: space-between;
     gap: 0.65rem;
   }
 
   .product-visual__brand {
     min-width: 0;
-    color: rgba(245, 245, 247, 0.76);
-    font-size: 0.78rem;
+    color: rgba(245, 245, 247, 0.68);
+    font-size: 0.72rem;
     font-weight: 650;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     line-height: 1.2;
     text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    text-wrap: balance;
   }
 
   .product-visual__pill,
   .product-visual__status {
     display: inline-flex;
     align-items: center;
-    min-height: 1.8rem;
+    min-height: 1.7rem;
     max-width: 100%;
-    padding: 0 0.68rem;
+    padding: 0 0.62rem;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
-    color: rgba(245, 245, 247, 0.7);
-    font-size: 0.74rem;
+    color: rgba(245, 245, 247, 0.66);
+    font-size: 0.72rem;
     font-weight: 600;
     line-height: 1;
     white-space: nowrap;
@@ -143,26 +162,26 @@ const {
     position: relative;
     z-index: 1;
     display: grid;
-    gap: 0.62rem;
-    align-content: center;
+    gap: 0.55rem;
+    align-content: end;
     justify-items: start;
     min-height: 0;
   }
 
   .product-visual__title {
-    max-width: 11ch;
+    max-width: 10.5ch;
     margin: 0;
     color: #f8f8fa;
-    font-size: 1.82rem;
-    font-weight: 600;
-    line-height: 0.96;
-    letter-spacing: -0.055em;
+    font-size: 1.72rem;
+    font-weight: 620;
+    line-height: 0.98;
+    letter-spacing: -0.04em;
     text-wrap: balance;
   }
 
   .product-visual--hero .product-visual__title {
-    max-width: 10ch;
-    font-size: 2.9rem;
+    max-width: 9.5ch;
+    font-size: 2.7rem;
   }
 
   .product-visual__status {
@@ -174,36 +193,41 @@ const {
     z-index: 1;
     display: grid;
     place-items: center;
-    min-height: 48px;
+    min-height: 42px;
   }
 
   .product-visual__rail {
-    width: 72%;
+    width: 68%;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.36), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
   }
 
   .product-visual__halo {
     position: absolute;
-    width: 40%;
-    height: 34px;
+    width: 36%;
+    height: 28px;
     border-radius: 999px 999px 0 0;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.07);
     border-bottom: 0;
-    opacity: 0.75;
+    opacity: 0.58;
   }
 
   @media (max-width: 720px) {
     .product-visual__shell {
-      padding: 0.9rem;
+      padding: 0.88rem 0.88rem 0.94rem;
+    }
+
+    .product-visual__gridline {
+      left: 0.88rem;
+      right: 0.88rem;
     }
 
     .product-visual__title {
-      font-size: 1.58rem;
+      font-size: 1.5rem;
     }
 
     .product-visual--hero .product-visual__title {
-      font-size: 2.15rem;
+      font-size: 2.05rem;
       max-width: none;
     }
   }
