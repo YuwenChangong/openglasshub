@@ -24,6 +24,15 @@
 - Treat `docs/ops/*` as the primary source for post-release hardening and day-2 operations.
 - Treat preview QA as production-equivalent data risk because preview currently uses production-equivalent non-secret runtime values.
 
+## Product Surface
+
+Current direction:
+- `/products/` is now the primary product discovery surface for public browsing.
+- The main product page supports direct on-page comparison with a hard cap of 3 selected products.
+- Compare entry is available from product cards and the dedicated compare search inside the tray.
+- The product page intentionally keeps copy sparse and keeps placeholder visuals minimal and product-name led.
+- `/devices/` remains available as a secondary supporting surface for deeper legacy-style detail and device-specific discussion entry.
+
 ## Device Library
 
 Current production baseline:
@@ -51,10 +60,12 @@ Release stack:
 
 Architecture and safety notes:
 - Device pages remain public and continue to use static local data only.
+- Device pages now include SEO metadata plus conservative JSON-LD structured data for the library and device detail pages.
 - Device discussion context is query-param based and only activates for known local device slugs.
 - Device slug input is sanitized and must match entries in `src/data/devices.ts`.
 - No arbitrary query text is injected into post prefill.
 - Source/verification labels are guidance, not guarantees that every field is complete or final.
+- Structured data intentionally omits prices, offers, ratings, and reviews unless those fields can be verified safely.
 - Comparison is a lightweight MVP meant for high-level orientation rather than exhaustive buying decisions.
 - Existing feed, circles, and device browsing flows remain separate from post creation until a user explicitly acts.
 
@@ -67,4 +78,4 @@ Future work:
 - device-specific circles or tags
 - richer comparison table
 - image/media handling for devices
-- SEO and structured data pass
+- full sitemap and SEO audit
