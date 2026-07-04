@@ -1,11 +1,10 @@
-export type NavKey = "home" | "forum" | "news" | "products" | "devices" | "launcher";
+export type NavKey = "home" | "forum" | "news" | "products" | "launcher";
 
 export const mainNav = [
   { key: "home", label: "首页", href: "/" },
   { key: "forum", label: "论坛", href: "/feed/" },
   { key: "news", label: "热点", href: "/news/" },
   { key: "products", label: "产品", href: "/products/" },
-  { key: "devices", label: "设备库", href: "/devices/" },
   { key: "launcher", label: "Gaze Launcher", href: "/gaze-launcher/" },
 ] as const;
 
@@ -13,12 +12,7 @@ export const productLinks = [
   {
     label: "产品",
     href: "/products/",
-    description: "主产品发现页，支持按品牌浏览并直接比较。",
-  },
-  {
-    label: "设备库",
-    href: "/devices/",
-    description: "保留更细的设备资料与讨论入口，作为次级补充。",
+    description: "主产品发现页，按品牌直接浏览并轻量比较。",
   },
   {
     label: "选购指南",
@@ -62,7 +56,6 @@ export function inferNavKey(pathname: string): NavKey {
     return "forum";
   }
   if (pathname.startsWith("/news")) return "news";
-  if (pathname.startsWith("/devices")) return "devices";
   if (pathname.startsWith("/products") || pathname.startsWith("/guides") || pathname.startsWith("/developers")) {
     return "products";
   }

@@ -28,10 +28,11 @@
 
 Current direction:
 - `/products/` is now the primary product discovery surface for public browsing.
+- The main product page uses brand modules that directly list products instead of splitting brand and product discovery into separate heavy sections.
 - The main product page supports direct on-page comparison with a hard cap of 3 selected products.
-- Compare entry is available from product cards and the dedicated compare search inside the tray.
+- Compare entry now comes from product cards only, with a single page-level search input.
 - The product page intentionally keeps copy sparse and keeps placeholder visuals minimal and product-name led.
-- `/devices/` remains available as a secondary supporting surface for deeper legacy-style detail and device-specific discussion entry.
+- Legacy `/devices/` routes are no longer a primary public discovery surface and should redirect users back into `/products/`.
 
 ## Device Library
 

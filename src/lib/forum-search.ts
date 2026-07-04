@@ -478,7 +478,7 @@ function buildDeviceSearchResults(query: string, limitDevices: number): ForumSea
 
       return {
         slug: device.slug,
-        href: `/devices/${encodeURIComponent(device.slug)}/`,
+        href: `/products/${encodeURIComponent(device.brandKey)}/#product-${encodeURIComponent(device.slug)}`,
         name: device.name,
         brand_name: device.brandLabel ?? device.brandName,
         type_label: device.typeLabel ?? null,

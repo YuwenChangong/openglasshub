@@ -1,4 +1,5 @@
 import { deviceLibrary, type DeviceLibraryEntry } from "../data/devices";
+import { getDeviceBySlug } from "./device-catalog";
 
 export type DeviceDiscussionContext = {
   device: DeviceLibraryEntry;
@@ -8,6 +9,7 @@ export type DeviceDiscussionContext = {
   startPostHref: string;
   circlesHref: string;
   libraryHref: string;
+  productHref: string;
   suggestedTitle: string;
   suggestedBody: string;
 };
@@ -34,6 +36,8 @@ export function getDeviceDiscussionContext(rawSlug: string | null | undefined): 
   const postParams = new URLSearchParams({
     device: slug,
   });
+  const product = getDeviceBySlug(slug);
+  const productHref = product ? `/products/${product.brandKey}/#product-${product.slug}` : "/products/";
 
   return {
     device,
@@ -42,7 +46,8 @@ export function getDeviceDiscussionContext(rawSlug: string | null | undefined): 
     feedHref: `/feed/?${feedParams.toString()}`,
     startPostHref: `/posts/new/?${postParams.toString()}`,
     circlesHref: "/circles/",
-    libraryHref: "/devices/",
+    libraryHref: "/products/",
+    productHref,
     suggestedTitle: `Thoughts on ${device.name}`,
     suggestedBody: `Has anyone tried ${device.name}? I'm interested in how it feels for daily use, display quality, comfort, and app support.`,
   };

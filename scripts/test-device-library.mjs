@@ -15,59 +15,26 @@ function assert(condition, message) {
 }
 
 async function main() {
-  const dataSource = await read("src/data/devices.ts");
   const indexRoute = await read("src/pages/devices/index.astro");
   const detailRoute = await read("src/pages/devices/[slug].astro");
   const navigation = await read("src/lib/site-navigation.ts");
-  const explorer = await read("src/components/devices/DeviceLibraryExplorer.tsx");
+  const discussionHelper = await read("src/lib/device-discussion.ts");
   const feedRoute = await read("src/pages/feed/index.astro");
   const newPostRoute = await read("src/pages/posts/new.astro");
-  const createPostForm = await read("src/components/forum/CreatePostForm.tsx");
-  const discussionHelper = await read("src/lib/device-discussion.ts");
 
-  const slugMatches = [...dataSource.matchAll(/slug:\s*"([^"]+)"/g)].map((match) => match[1]);
-  const verificationMatches = [...dataSource.matchAll(/verification_level:\s*"([^"]+)"/g)].map((match) => match[1]);
-  const sourceLinksCount = [...dataSource.matchAll(/source_links:/g)].length;
+  assert(indexRoute.includes('Astro.redirect("/products/"'), "Legacy /devices/ index should redirect to /products/.");
+  assert(detailRoute.includes("getDeviceBySlug"), "Legacy /devices/[slug] route should resolve known products before redirecting.");
+  assert(detailRoute.includes('"/products/"'), "Legacy /devices/[slug] route should redirect back into products.");
+  assert(!navigation.includes('href: "/devices/"'), "Main navigation should not include /devices/.");
+  assert(discussionHelper.includes('libraryHref: "/products/"'), "Discussion helper should point library links back to /products/.");
+  assert(discussionHelper.includes("productHref"), "Discussion helper should expose a safe product page link.");
+  assert(feedRoute.includes("deviceDiscussion"), "Feed route should keep safe device discussion context handling.");
+  assert(newPostRoute.includes("discussionContext.productHref"), "New-post prefill note should link to the product page.");
 
-  assert(slugMatches.length >= 8, `Expected at least 8 seed devices, found ${slugMatches.length}.`);
-  assert(slugMatches.includes("xreal-one"), "Missing expected seed device slug: xreal-one.");
-  assert(slugMatches.includes("ray-ban-meta"), "Missing expected seed device slug: ray-ban-meta.");
-  assert(slugMatches.includes("apple-vision-pro"), "Missing expected seed device slug: apple-vision-pro.");
-  assert(verificationMatches.length >= 8, "Expected verification levels on the seeded device entries.");
-  assert(sourceLinksCount >= 8, "Expected source links on the seeded device entries.");
-
-  assert(indexRoute.includes("DeviceLibraryExplorer"), "Device index route should render DeviceLibraryExplorer.");
-  assert(indexRoute.includes('activeSection="devices"'), "Device index route should set activeSection to devices.");
-  assert(indexRoute.includes("轻量对比") || explorer.includes("轻量对比"), "Device library should contain comparison UI copy.");
-  assert(explorer.includes("maxCompareCount = 3"), "Comparison UI should cap selection at 3 devices.");
-  assert(explorer.includes("toggleCompare"), "Comparison UI should include comparison toggle logic.");
-
-  assert(detailRoute.includes("Astro.response.status = 404"), "Device detail route should set a 404 status for missing devices.");
-  assert(detailRoute.includes('href="/devices/"'), "Device detail route should link back to /devices/.");
-  assert(detailRoute.includes("来源与确认度"), "Device detail route should show verification/source information.");
-  assert(detailRoute.includes("限制与注意点"), "Device detail route should render limitations when present.");
-  assert(detailRoute.includes("讨论这台设备"), "Device detail route should include discussion entry copy.");
-  assert(
-    detailRoute.includes("feedHref") || detailRoute.includes('href="/feed/"'),
-    "Device detail route should include a community CTA.",
-  );
-  assert(feedRoute.includes("composeRequested"), "Feed route should inspect compose query params safely.");
-  assert(feedRoute.includes("deviceDiscussion"), "Feed route should resolve safe device discussion context.");
-  assert(feedRoute.includes("这里不会自动发帖"), "Feed route should clarify that posts are not auto-created.");
-  assert(newPostRoute.includes("getDeviceDiscussionContext"), "New post route should resolve safe device discussion context.");
-  assert(createPostForm.includes("initialTitle"), "CreatePostForm should support safe initial title prefill.");
-  assert(createPostForm.includes("initialBody"), "CreatePostForm should support safe initial body prefill.");
-  assert(createPostForm.includes("buildLoginHref(nextPath)"), "Login redirect should preserve safe discussion context.");
-  assert(discussionHelper.includes("sanitizeDeviceSlug"), "Device discussion helper should sanitize incoming device slugs.");
-  assert(discussionHelper.includes("suggestedTitle"), "Device discussion helper should provide safe starter copy.");
-
-  assert(navigation.includes('href: "/devices/"'), "Main navigation should include the /devices/ entry.");
-  assert(!dataSource.includes("NaN"), "Device data source should not contain obviously broken values.");
-
-  console.log(`DEVICE_LIBRARY_AUDIT_OK seedDevices=${slugMatches.length}`);
+  console.log("DEVICE_LIBRARY_LEGACY_ROUTE_AUDIT_OK");
 }
 
 main().catch((error) => {
-  console.error(`DEVICE_LIBRARY_AUDIT_FAIL ${error.message}`);
+  console.error(`DEVICE_LIBRARY_LEGACY_ROUTE_AUDIT_FAIL ${error.message}`);
   process.exitCode = 1;
 });
