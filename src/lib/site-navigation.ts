@@ -11,9 +11,14 @@ export const mainNav = [
 
 export const productLinks = [
   {
+    label: "产品",
+    href: "/products/",
+    description: "主产品发现页，支持按品牌浏览并直接比较。",
+  },
+  {
     label: "设备库",
     href: "/devices/",
-    description: "按品牌查看主流 AR/AI 眼镜资料与适用场景。",
+    description: "保留更细的设备资料与讨论入口，作为次级补充。",
   },
   {
     label: "选购指南",

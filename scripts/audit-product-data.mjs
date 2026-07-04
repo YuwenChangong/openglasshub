@@ -95,6 +95,7 @@ async function main() {
   const publicManifest = await loadJson("src/data/product-public-data.json");
   const deviceCatalogSource = await loadText("src/lib/device-catalog.ts");
   const productVisualSource = await loadText("src/components/products/ProductVisual.astro");
+  const productIndexPageSource = await loadText("src/pages/products/index.astro");
   const productBrandPageSource = await loadText("src/pages/products/[brand].astro");
   const productDetailPageSource = await loadText("src/pages/devices/[slug].astro");
 
@@ -123,6 +124,7 @@ async function main() {
 
   for (const forbidden of FORBIDDEN_UI_STRINGS) {
     if (productVisualSource.toLowerCase().includes(forbidden.toLowerCase())) fail(errors, `ProductVisual contains forbidden UI copy: ${forbidden}`);
+    if (productIndexPageSource.toLowerCase().includes(forbidden.toLowerCase())) fail(errors, `products/index contains forbidden UI copy: ${forbidden}`);
     if (productBrandPageSource.toLowerCase().includes(forbidden.toLowerCase())) fail(errors, `products/[brand] contains forbidden UI copy: ${forbidden}`);
     if (productDetailPageSource.toLowerCase().includes(forbidden.toLowerCase())) fail(errors, `devices/[slug] contains forbidden UI copy: ${forbidden}`);
   }
