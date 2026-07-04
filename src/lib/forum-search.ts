@@ -447,10 +447,11 @@ async function fetchPublicProfiles(
 function buildDeviceSearchResults(query: string, limitDevices: number): ForumSearchDeviceResult[] {
   const buildDeviceKeywordText = (device: ReturnType<typeof getAllDevices>[number]) => {
     const categoryKeywords: Record<string, string> = {
-      display_glasses: "ar glasses display glasses xr glasses wearable display",
+      display_glasses: "ar glasses display glasses wearable display portable screen",
       ai_glasses: "ai glasses smart glasses wearable ai eyewear",
-      standalone_xr: "xr glasses ar glasses spatial computing standalone headset mixed reality",
-      developer_device: "developer ar glasses xr device prototype spatial computing",
+      ar_glasses: "ar glasses navigation translation heads up display wearable ar",
+      smart_glasses: "smart glasses ai glasses wearable assistant camera audio",
+      developer_device: "developer ar glasses prototype sensors sdk wearable computing",
     };
 
     return [

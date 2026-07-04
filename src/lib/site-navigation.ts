@@ -12,12 +12,7 @@ export const productLinks = [
   {
     label: "产品",
     href: "/products/",
-    description: "主产品发现页，按品牌直接浏览并轻量比较。",
-  },
-  {
-    label: "选购指南",
-    href: "/guides/",
-    description: "围绕预算、用途与风险边界做购买判断。",
+    description: "按品牌直接浏览 AR / AI 眼镜。",
   },
   {
     label: "开发者",

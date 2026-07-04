@@ -1,72 +1,11 @@
 {
-  "generated_at": "2026-06-15T11:50:25.894Z",
+  "generated_at": "2026-07-04T07:28:34.070Z",
   "products": [
-    {
-      "slug": "apple-vision-pro",
-      "name": "Apple Vision Pro",
-      "publicData": {
-        "shortSummary": "Apple Vision Pro 是一款高端独立空间计算头显，适合研究完整系统级体验、内容形态和空间交互。它不属于轻量眼镜路线，而是完整头显形态。",
-        "longSummary": "这类产品的核心不只是显示，而是完整系统、传感器融合、眼手语音输入和高端内容生态。",
-        "positioning": "完整独立系统和高端空间计算路线。",
-        "keyLimitations": [
-          "佩戴体积和预算门槛都更高。",
-          "核心体验依赖 Apple 生态。"
-        ],
-        "bestFor": [
-          "系统级空间计算研究",
-          "高端 XR 体验",
-          "观察完整交互范式"
-        ],
-        "notIdealFor": [
-          "轻量佩戴",
-          "便携显示替代",
-          "低预算试水"
-        ],
-        "releaseYear": "2024",
-        "availability": "在售",
-        "keySpecs": {
-          "display_type": "Micro‑OLED",
-          "resolution": "23 million pixels",
-          "refresh_rate": "90/96/100/120Hz",
-          "chipset": "Apple M2 + R1"
-        },
-        "fullSpecs": {
-          "display": {
-            "display_type": "Micro‑OLED",
-            "resolution": "23 million pixels",
-            "refresh_rate": "90/96/100/120Hz",
-            "color_gamut": "92% DCI‑P3"
-          },
-          "hardware": {
-            "chipset": "Apple M2 + R1",
-            "storage": "256GB / 512GB / 1TB",
-            "platform": "visionOS"
-          },
-          "cameraSensors": {
-            "camera": "6.5 stereo MP",
-            "sensors": "12 cameras + LiDAR + IMUs"
-          },
-          "connectivity": {
-            "supported_devices": "iPhone / Mac 生态",
-            "input_controls": "眼动、手势、语音"
-          },
-          "batteryBody": {
-            "battery_life": "最长约 2 小时",
-            "power_source": "外置电池或接电使用"
-          },
-          "market": {
-            "price": "USD 3499",
-            "availability": "在售",
-            "release_year": "2024"
-          }
-        }
-      }
-    },
     {
       "slug": "brilliant-labs-frame",
       "name": "Brilliant Labs Frame",
       "publicData": {
-        "shortSummary": "Brilliant Labs Frame 是一款偏实验和开发的 AI 眼镜，用于快速原型、接口实验和轻量穿戴交互，不是面向大众娱乐消费的完整 XR 平台。",
+        "shortSummary": "Brilliant Labs Frame 是一款偏实验和开发的 AI 眼镜，用于快速原型、接口实验和轻量穿戴交互，不是面向大众娱乐消费的完整平台。",
         "longSummary": "它更像开放实验设备，而不是成熟消费眼镜。重点在 Noa 平台、官方文档和开发边界。",
         "positioning": "开放实验和快速原型优先的开发设备。",
         "keyLimitations": [
@@ -119,7 +58,7 @@
       "name": "Even Realities G1",
       "publicData": {
         "shortSummary": "Even Realities G1 是一款偏低干扰信息提示的智能眼镜，核心是通知、轻量信息和日常佩戴，而不是沉浸式 AR 大屏。",
-        "longSummary": "它更适合被看作提示型智能眼镜：重点是把短信息放到视线里，而不是提供完整的空间计算体验。",
+        "longSummary": "它更适合被看作提示型智能眼镜：重点是把短信息放到视线里，而不是提供完整的大屏体验。",
         "positioning": "低干扰信息提示优先，不走大屏路线。",
         "keyLimitations": [
           "公开硬件细节相对有限。",
@@ -132,7 +71,7 @@
         ],
         "notIdealFor": [
           "期待沉浸式显示",
-          "需要开放 XR 平台",
+          "需要开放平台",
           "把它当观影设备"
         ],
         "releaseYear": null,
@@ -226,7 +165,7 @@
         "notIdealFor": [
           "期待沉浸大屏",
           "主要看电影打游戏",
-          "需要开放 XR 开发平台"
+          "需要开放开发平台"
         ],
         "releaseYear": "2025",
         "availability": "在售",
@@ -270,7 +209,7 @@
       "slug": "ray-ban-meta",
       "name": "Ray-Ban Meta",
       "publicData": {
-        "shortSummary": "Ray-Ban Meta 是一款无显示 AI 眼镜，重点是第一视角拍摄、音频和语音助理，而不是画面显示。它更接近日常穿戴设备，不是 XR 大屏产品。",
+        "shortSummary": "Ray-Ban Meta 是一款无显示 AI 眼镜，重点是第一视角拍摄、音频和语音助理，而不是画面显示。它更接近日常穿戴设备，不是大屏产品。",
         "longSummary": "这条路线说明智能眼镜并不一定从显示开始，而是先从拍摄、音频和 AI 助手切入高频日常使用。",
         "positioning": "无显示、重拍摄和语音入口的 AI 眼镜。",
         "keyLimitations": [
@@ -435,7 +374,7 @@
         "positioning": "高色域、高舒适度的显示眼镜。",
         "keyLimitations": [
           "依赖外部设备输出内容。",
-          "主要优势在影音体验，不是开放 XR 平台。"
+          "主要优势在影音体验，不是开放开发平台。"
         ],
         "bestFor": [
           "电影与串流",
@@ -492,7 +431,7 @@
         "positioning": "RayNeo 当前高阶显示眼镜。",
         "keyLimitations": [
           "仍然需要外部设备输出。",
-          "提升主要集中在显示与音频，不是空间计算平台。"
+          "提升主要集中在显示与音频，不是独立系统平台。"
         ],
         "bestFor": [
           "HDR 观影",
@@ -702,9 +641,9 @@
       "slug": "rokid-ar-lite",
       "name": "Rokid AR Lite",
       "publicData": {
-        "shortSummary": "Rokid AR Lite 不是单独一副眼镜，而是 Max 2 + Station 2 组成的空间计算套装，目标是把大屏显示推进到多窗口和空间交互。",
-        "longSummary": "它比普通显示眼镜更接近完整系统体验，但核心依旧建立在眼镜与主机协同上，而不是单镜腿里塞进全部计算。",
-        "positioning": "Rokid 面向空间计算的组合式套装。",
+        "shortSummary": "Rokid AR Lite 不是单独一副眼镜，而是 Max 2 + Station 2 组成的 AR 套装，目标是把大屏显示推进到多窗口和信息叠加。",
+        "longSummary": "它比普通显示眼镜更接近多窗口 AR 套装体验，但核心依旧建立在眼镜与主机协同上，而不是把全部计算放进眼镜本体。",
+        "positioning": "Rokid 面向多窗口 AR 的组合式套装。",
         "keyLimitations": [
           "它是套装，不是单一眼镜。",
           "Station 2 是体验成立的关键部分。"
@@ -859,7 +798,7 @@
       "slug": "viture-one",
       "name": "VITURE One",
       "publicData": {
-        "shortSummary": "VITURE One 是 VITURE 早期 XR 显示眼镜，核心是把手机、掌机和电脑的画面变成随身私人屏幕。它仍然是外接显示路线。",
+        "shortSummary": "VITURE One 是 VITURE 早期显示眼镜，核心是把手机、掌机和电脑的画面变成随身私人屏幕。它仍然是外接显示路线。",
         "longSummary": "这代产品已经体现出 VITURE 的连接和交互思路，比如磁吸连接与 3DoF 支持。相比后续型号，它更适合被看作品牌路线的起点。",
         "positioning": "VITURE 早期显示眼镜。",
         "keyLimitations": [
@@ -906,7 +845,7 @@
       "slug": "viture-one-lite",
       "name": "VITURE One Lite",
       "publicData": {
-        "shortSummary": "VITURE One Lite 是更低门槛的 XR 显示眼镜版本，保留大多数 One 系列核心体验，但把连接改成标准 USB‑C，并取消电致变色镜片。",
+        "shortSummary": "VITURE One Lite 是更低门槛的显示眼镜版本，保留大多数 One 系列核心体验，但把连接改成标准 USB-C，并取消电致变色镜片。",
         "longSummary": "它更适合把 VITURE 生态当作入门方案来理解：保留大屏体验和 120Hz Full HD 虚拟屏，但减少了一些更精致的硬件特性。",
         "positioning": "VITURE 面向入门用户的显示眼镜。",
         "keyLimitations": [
@@ -1274,7 +1213,7 @@
       "slug": "xreal-one-pro",
       "name": "XREAL One Pro",
       "publicData": {
-        "shortSummary": "XREAL One Pro 仍是外接式显示眼镜，重点在更大的视场角和更完整的显示体验。它同样依赖外部主机，不是独立 XR 系统。",
+        "shortSummary": "XREAL One Pro 仍是外接式显示眼镜，重点在更大的视场角和更完整的显示体验。它同样依赖外部主机，不是独立系统。",
         "longSummary": "它更像 XREAL One 的显示升级版，适合已经接受显示眼镜路线、但希望获得更开阔画面的人。",
         "positioning": "更偏显示体验升级，而不是独立系统替代。",
         "keyLimitations": [

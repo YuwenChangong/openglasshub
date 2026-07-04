@@ -1,7 +1,6 @@
 export type DeviceCategory =
   | "ai_glasses"
   | "ar_glasses"
-  | "xr_headset"
   | "display_glasses"
   | "developer_device";
 
@@ -61,7 +60,6 @@ export type DeviceLibraryEntry = {
 export const deviceCategoryLabels: Record<DeviceCategory, string> = {
   ai_glasses: "AI 眼镜",
   ar_glasses: "AR 眼镜",
-  xr_headset: "XR 头显",
   display_glasses: "显示眼镜",
   developer_device: "开发设备",
 };
@@ -274,7 +272,7 @@ export const deviceLibrary: DeviceLibraryEntry[] = [
     verification_level: "official",
     specs_verified: false,
     last_checked_label: "2026-07 官方页复核",
-    comparison_highlights: ["更偏轻量提示与字幕翻译", "不是沉浸式 XR 头显"],
+    comparison_highlights: ["更偏轻量提示与字幕翻译", "不是沉浸式大屏设备"],
     limitations: ["更多系统能力仍需以实机体验验证", "这里未细分全部交互限制"],
     weight_label: "≈58g",
     display_label: "Micro-LED + waveguide",
@@ -346,28 +344,6 @@ export const deviceLibrary: DeviceLibraryEntry[] = [
     source_note: "Public hardware details remain sparse in current repo notes. Specs are intentionally kept minimal.",
     source_links: sourceLinks(
       { label: "Even Realities G1 页", url: "https://www.evenrealities.com/en-FI/g1", type: "official" },
-    ),
-    updated_label: "2026-07 static comparison v1",
-  },
-  {
-    slug: "apple-vision-pro",
-    name: "Apple Vision Pro",
-    brand: "Apple",
-    category: "xr_headset",
-    status: "released",
-    short_description: "高端独立空间计算头显，适合研究完整系统级体验与空间交互。",
-    use_cases: ["productivity", "development", "entertainment"],
-    verification_level: "official",
-    specs_verified: false,
-    last_checked_label: "2026-07 官方页复核",
-    comparison_highlights: ["完整空间计算平台", "和轻量眼镜路线明显不同"],
-    limitations: ["不适合和轻量眼镜只按单一参数横比", "重量与佩戴负担这里只保留高层信息"],
-    price_label: "USD 3499",
-    display_label: "Micro-OLED",
-    platform_label: "visionOS",
-    source_note: staticMvpNote,
-    source_links: sourceLinks(
-      { label: "Apple Vision Pro 官方页", url: "https://www.apple.com/apple-vision-pro/", type: "official" },
     ),
     updated_label: "2026-07 static comparison v1",
   },
