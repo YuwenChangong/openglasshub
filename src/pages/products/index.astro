@@ -76,6 +76,10 @@ const brands = getBrandSummaries().map((brand) => {
     ))}
   </section>
 
+  <p class="products-empty-state" id="products-empty-state" hidden>
+    没有找到匹配品牌。
+  </p>
+
   <script
     id="products-brand-data"
     type="application/json"
@@ -89,6 +93,7 @@ const brands = getBrandSummaries().map((brand) => {
     const brandsDataElement = document.getElementById("products-brand-data");
     const brandsPayload = brandsDataElement?.textContent ? JSON.parse(brandsDataElement.textContent) : { brands: [] };
     const totalBrands = Array.isArray(brandsPayload.brands) ? brandsPayload.brands.length : modules.length;
+    const emptyState = document.getElementById("products-empty-state");
 
     function normalize(value) {
       return String(value || "")
@@ -109,6 +114,10 @@ const brands = getBrandSummaries().map((brand) => {
 
       if (resultCount) {
         resultCount.textContent = query ? `${visibleCount} 个匹配品牌` : `${totalBrands} 个品牌`;
+      }
+
+      if (emptyState) {
+        emptyState.hidden = visibleCount > 0;
       }
     }
 
@@ -183,6 +192,17 @@ const brands = getBrandSummaries().map((brand) => {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
     gap: 0.95rem;
+  }
+
+  .products-empty-state {
+    margin: 0.9rem 0 0;
+    padding: 0.95rem 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.025);
+    color: rgba(245, 245, 247, 0.62);
+    font-size: 0.9rem;
+    line-height: 1.45;
   }
 
   .brand-module {
