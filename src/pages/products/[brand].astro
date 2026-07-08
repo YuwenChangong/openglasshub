@@ -373,14 +373,17 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
         if (inDropdown) {
           button.disabled = active;
-          button.setAttribute("aria-label", active ? `已加入对比 ${product?.name || "产品"}` : `添加 ${product?.name || "产品"} 到对比`);
+          button.setAttribute("aria-label", active ? `已添加 ${product?.name || "产品"}` : `添加 ${product?.name || "产品"} 到对比`);
+          button.setAttribute("aria-disabled", active ? "true" : "false");
           button.setAttribute("title", active ? "已加入对比" : "添加到对比");
+          button.closest(".brand-search-result")?.classList.toggle("is-selected", active);
           button.innerHTML = active
-            ? '<span class="brand-search-result__compare-state" aria-hidden="true">已添加</span>'
+            ? '<span class="brand-search-result__compare-state" aria-hidden="true">✓</span>'
             : '<span aria-hidden="true">+</span>';
           return;
         }
 
+        button.removeAttribute("aria-disabled");
         button.disabled = false;
         button.setAttribute("aria-label", active ? `移除 ${product?.name || "产品"}` : `添加 ${product?.name || "产品"} 到对比`);
         button.setAttribute("title", active ? "已加入对比" : "添加到对比");
@@ -842,6 +845,11 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     background: rgba(255, 255, 255, 0.05);
   }
 
+  :global(.brand-search-result.is-selected) {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.035);
+  }
+
   :global(.brand-search-result__copy) {
     display: grid;
     gap: 0.26rem;
@@ -1180,9 +1188,10 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
   }
 
   :global(.brand-search-result__compare-state) {
-    font-size: 0.66rem;
+    font-size: 0.88rem;
     font-weight: 700;
-    letter-spacing: 0.01em;
+    line-height: 1;
+    transform: translateY(-0.02em);
   }
 
   .brand-product-card__compare-button span,

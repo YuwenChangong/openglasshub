@@ -46,8 +46,13 @@ async function main() {
   assert(!productsIndex.includes("products-compare"), "Products index should not render a compare tray.");
   assert(!productsIndex.includes("/guides/"), "Products index should not surface a guides CTA.");
   assert(productsIndex.includes("brand-module__pill"), "Products index should surface product preview pills inside brand modules.");
+  assert(productsIndex.includes("data-brand-preview"), "Products index should tag brand preview pills for filtering.");
+  assert(productsIndex.includes("data-brand-name"), "Products index should track each module brand name for filtering.");
   assert(productsIndex.includes("brand-module__count"), "Products index should keep a stable product count badge.");
-  assert(productsIndex.includes("haystack.includes(query)"), "Products index search should filter brand modules.");
+  assert(productsIndex.includes("brandName.includes(query)"), "Products index search should match brand names.");
+  assert(productsIndex.includes("previewMatchCount > 0"), "Products index search should keep only modules with matching preview products.");
+  assert(productsIndex.includes("pill.hidden = Boolean(query) && !brandMatches && !previewMatches"), "Products index should hide unrelated preview pills inside matched modules.");
+  assert(productsIndex.includes("module.hidden = !matches"), "Products index search should hide unrelated brand modules.");
 
   assert(brandPage.includes("maxCompareCount = 3"), "Brand page should cap comparison at 3.");
   assert(brandPage.includes('id="brand-products-search"'), "Brand page should keep a single search input.");
@@ -84,7 +89,12 @@ async function main() {
   assert(brandPage.includes('aria-label", `移除 ${product.name}`'), "Selected compare pills should expose an accessible remove label.");
   assert(brandPage.includes('button.setAttribute("aria-label", `加入对比 ${product.name}`)'), "Dropdown add buttons should expose accessible add labels.");
   assert(brandPage.includes("button.disabled = active;"), "Dropdown should expose a stable selected state instead of a duplicate add action.");
+  assert(brandPage.includes('button.setAttribute("aria-label", active ? `已添加 ${product?.name || "产品"}` : `添加 ${product?.name || "产品"} 到对比`)'), "Dropdown selected state should expose an accessible added label.");
+  assert(brandPage.includes('button.setAttribute("aria-disabled", active ? "true" : "false")'), "Dropdown selected state should expose a disabled affordance.");
+  assert(brandPage.includes('button.closest(".brand-search-result")?.classList.toggle("is-selected", active);'), "Dropdown selected rows should get a subtle selected-row state.");
   assert(brandPage.includes("brand-search-result__compare-state"), "Dropdown selected rows should render a compact added state.");
+  assert(brandPage.includes('<span class="brand-search-result__compare-state" aria-hidden="true">✓</span>'), "Dropdown selected state should use a compact check icon.");
+  assert(!brandPage.includes(">已添加</span>"), "Dropdown selected state should not render wrapped 已添加 text inside the compact control.");
   assert(brandPage.includes("已选 1 款，再添加 1 款开始对比。"), "Brand page should show a compact one-product compare hint.");
   assert(brandPage.includes("选择产品进行对比，最多 3 款。"), "Brand page should keep a compact empty compare state.");
   assert(brandPage.includes("selected.length < 2"), "Compare table should require at least two selected products.");

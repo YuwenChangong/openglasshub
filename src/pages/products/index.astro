@@ -4,19 +4,17 @@ import BrandMark from "../../components/products/BrandMark.astro";
 import { getBrandSummaries } from "../../lib/device-catalog";
 
 const brands = getBrandSummaries().map((brand) => {
-  const searchText = [
-    brand.displayName,
-    ...brand.representativeNames,
-    ...brand.featuredProducts.flatMap((product) => product.bestFor ?? []),
-  ]
-    .join(" ")
-    .toLowerCase();
+  const previewProducts = brand.representativeNames.map((name) => ({
+    name,
+    searchText: name.toLowerCase(),
+  }));
+  const searchText = [brand.displayName, ...previewProducts.map((product) => product.name)].join(" ").toLowerCase();
 
   return {
     key: brand.key,
     displayName: brand.displayName,
     productCount: brand.productCount,
-    representativeNames: brand.representativeNames,
+    previewProducts,
     brandLogo: brand.brandLogo,
     href: `/products/${brand.key}/`,
     searchText,
@@ -58,6 +56,7 @@ const brands = getBrandSummaries().map((brand) => {
         href={brand.href}
         class="brand-module"
         data-brand-module
+        data-brand-name={brand.displayName.toLowerCase()}
         data-search={brand.searchText}
       >
         <div class="brand-module__top">
@@ -66,8 +65,8 @@ const brands = getBrandSummaries().map((brand) => {
         </div>
 
         <div class="brand-module__products" aria-label={`${brand.displayName} 产品预览`}>
-          {brand.representativeNames.map((name) => (
-            <span class="brand-module__pill">{name}</span>
+          {brand.previewProducts.map((product) => (
+            <span class="brand-module__pill" data-brand-preview data-search={product.searchText}>{product.name}</span>
           ))}
         </div>
 
@@ -106,9 +105,21 @@ const brands = getBrandSummaries().map((brand) => {
       let visibleCount = 0;
 
       modules.forEach((module) => {
-        const haystack = module.getAttribute("data-search") || "";
-        const matches = !query || haystack.includes(query);
+        const brandName = normalize(module.getAttribute("data-brand-name"));
+        const previewPills = Array.from(module.querySelectorAll("[data-brand-preview]"));
+        const brandMatches = query ? brandName.includes(query) : true;
+        let previewMatchCount = 0;
+
+        previewPills.forEach((pill) => {
+          const previewMatches = query ? normalize(pill.getAttribute("data-search")).includes(query) : true;
+          if (previewMatches) previewMatchCount += 1;
+          pill.hidden = Boolean(query) && !brandMatches && !previewMatches;
+        });
+
+        const matches = !query || brandMatches || previewMatchCount > 0;
         module.hidden = !matches;
+        module.classList.toggle("is-filtered", Boolean(query));
+        module.classList.toggle("is-brand-match", Boolean(query) && brandMatches);
         if (matches) visibleCount += 1;
       });
 
@@ -271,6 +282,10 @@ const brands = getBrandSummaries().map((brand) => {
     justify-content: flex-start;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .brand-module.is-filtered .brand-module__pill[hidden] {
+    display: none;
   }
 
   .brand-module__cta {
