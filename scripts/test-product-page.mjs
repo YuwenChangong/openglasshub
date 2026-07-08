@@ -52,8 +52,9 @@ async function main() {
   assert(brandPage.includes("maxCompareCount = 3"), "Brand page should cap comparison at 3.");
   assert(brandPage.includes('id="brand-products-search"'), "Brand page should keep a single search input.");
   assert(brandPage.includes('id="brand-products-empty-state"'), "Brand page should include a compact search empty state.");
-  assert(brandPage.includes('id="brand-compare-hint"'), "Brand page should include a compact compare hint.");
   assert(brandPage.includes('id="brand-compare-summary"'), "Brand page should include a compare summary.");
+  assert(brandPage.includes('id="brand-search-results"'), "Brand page should render a compact cross-brand compare search result area.");
+  assert(brandPage.includes("跨品牌加入对比"), "Brand page should label cross-brand compare results clearly.");
   assert(!brandPage.includes("compare-search"), "Brand page should not include a compare-specific search input.");
   assert(brandPage.includes("data-compare-button"), "Brand page should expose compare buttons on product cards.");
   assert(brandPage.includes("brand-product-card__footer"), "Brand page should place actions in the product card footer.");
@@ -62,13 +63,18 @@ async function main() {
   assert(!brandPage.includes("/devices/"), "Brand page should not link into /devices/.");
   assert(brandPage.includes('emptyState.hidden = visibleCount > 0'), "Brand page search should toggle its empty state.");
   assert(brandPage.includes('haystack.includes(query)'), "Brand page search should filter product cards.");
+  assert(brandPage.includes("crossBrandMatches"), "Brand page should derive cross-brand matches from the single search input.");
+  assert(brandPage.includes("product.brandKey !== currentBrandKey"), "Brand page search results should stay focused on other brands.");
+  assert(brandPage.includes("renderSearchResults(query, crossBrandMatches);"), "Brand page should render cross-brand compare results from the same search flow.");
   assert(brandPage.includes("brand-compare__pill-label"), "Selected compare pills should separate the product label.");
   assert(brandPage.includes("brand-compare__pill-remove"), "Selected compare pills should render a dedicated remove button.");
   assert(brandPage.includes('aria-label", `移除 ${product.name}`'), "Selected compare pills should expose an accessible remove label.");
-  assert(brandPage.includes("再添加 1 款产品开始对比。"), "Brand page should show a one-product compare hint.");
+  assert(brandPage.includes("已选 1 款，再添加 1 款开始对比。"), "Brand page should show a compact one-product compare hint.");
   assert(brandPage.includes("选择产品进行对比，最多 3 款。"), "Brand page should keep a compact empty compare state.");
   assert(brandPage.includes("selected.length < 2"), "Compare table should require at least two selected products.");
   assert(brandPage.includes("brand-compare__column-heading"), "Compare table headers should separate name and brand visually.");
+  assert(brandPage.includes("renderCompareButtons();"), "Brand page should keep cross-brand search result buttons in sync with selected compare state.");
+  assert(!brandPage.includes('id="brand-compare-hint"'), "Brand page should not duplicate compare hint copy.");
 
   assert(visual.includes("product-visual__title"), "Product visual should keep the title dominant.");
   assert(!visual.includes("product-visual__pill"), "Product visual should not render top-right pills.");
@@ -105,6 +111,7 @@ async function main() {
       indexHasNoCompare: ${!productsIndex.includes("data-compare-button") && !productsIndex.includes("products-compare")},
       brandHasCompare: ${brandPage.includes("data-compare-button") && brandPage.includes("maxCompareCount = 3")},
       brandHasSingleSearch: ${brandPage.includes('id="brand-products-search"') && !brandPage.includes("compare-search")},
+      brandHasCrossBrandResults: ${brandPage.includes('id="brand-search-results"') && brandPage.includes("crossBrandMatches")},
     };
     process.stdout.write(JSON.stringify(payload));
   `);
@@ -113,6 +120,7 @@ async function main() {
   assert(parsed.indexHasNoCompare, "Strip-types sanity check should confirm no compare UI on the products index.");
   assert(parsed.brandHasCompare, "Strip-types sanity check should confirm compare on the brand page.");
   assert(parsed.brandHasSingleSearch, "Strip-types sanity check should confirm the single-search brand page.");
+  assert(parsed.brandHasCrossBrandResults, "Strip-types sanity check should confirm cross-brand compare results on the brand page.");
 
   console.log(`PRODUCT_PAGE_AUDIT_OK products=${productCount}`);
 }
