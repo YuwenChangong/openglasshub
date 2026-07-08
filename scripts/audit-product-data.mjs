@@ -26,9 +26,9 @@ const REQUIRED_SLUGS = [
   "ray-ban-meta",
   "brilliant-labs-frame",
   "even-realities-g1",
-  "apple-vision-pro",
 ];
-const MIN_PRODUCT_COUNT = 25;
+const FORBIDDEN_SLUGS = ["apple-vision-pro"];
+const MIN_PRODUCT_COUNT = 24;
 const DIRTY_PATTERNS = [/^000$/i, /^5g$/i, /^8g$/i, /^wifi 6g$/i, /^wifi 8g$/i, /^wifi 6g \| wifi 8g$/i, /^wi-?fi\s*6\s*b$/i];
 const FORBIDDEN_UI_STRINGS = [
   "参数待确认",
@@ -50,14 +50,14 @@ const FORBIDDEN_UI_STRINGS = [
   "confirmedfields",
 ];
 const FORBIDDEN_PUBLIC_FIELDS = [
-  'sourceUrl',
-  'sourceNotes',
-  'lastChecked',
-  'missingFields',
-  'needsReviewFields',
-  'confirmedFields',
-  'supportUrl',
-  'sourceLedger',
+  "sourceUrl",
+  "sourceNotes",
+  "lastChecked",
+  "missingFields",
+  "needsReviewFields",
+  "confirmedFields",
+  "supportUrl",
+  "sourceLedger",
 ];
 
 function parseArgs(argv) {
@@ -122,6 +122,15 @@ async function main() {
     }
   }
 
+  for (const slug of FORBIDDEN_SLUGS) {
+    if (publicSlugSet.has(slug)) fail(errors, `forbidden public data entry still present: ${slug}`);
+    if (deviceCatalogSource.includes(`"${slug}"`)) fail(errors, `forbidden device-catalog entry still present: ${slug}`);
+  }
+
+  if (deviceCatalogSource.includes('"standalone_xr"')) {
+    fail(errors, 'device-catalog still exposes forbidden category key: "standalone_xr"');
+  }
+
   for (const forbidden of FORBIDDEN_UI_STRINGS) {
     if (productVisualSource.toLowerCase().includes(forbidden.toLowerCase())) fail(errors, `ProductVisual contains forbidden UI copy: ${forbidden}`);
     if (productIndexPageSource.toLowerCase().includes(forbidden.toLowerCase())) fail(errors, `products/index contains forbidden UI copy: ${forbidden}`);
@@ -134,6 +143,25 @@ async function main() {
     if (deviceCatalogSource.toLowerCase().includes(lower)) fail(errors, `device-catalog exposes forbidden field name: ${field}`);
     const publicText = JSON.stringify(publicManifest).toLowerCase();
     if (publicText.includes(lower)) fail(errors, `public manifest leaks forbidden field: ${field}`);
+  }
+
+  if (!productIndexPageSource.includes("data-brand-module")) {
+    fail(errors, "products/index should render brand modules");
+  }
+  if (productIndexPageSource.includes("data-product-card")) {
+    fail(errors, "products/index should not render full product cards");
+  }
+  if (productIndexPageSource.includes("products-compare") || productIndexPageSource.includes("data-compare-button")) {
+    fail(errors, "products/index should not render compare UI");
+  }
+  if (productIndexPageSource.includes("/guides/")) {
+    fail(errors, "products/index should not link to guides");
+  }
+  if (!productBrandPageSource.includes("maxCompareCount = 3")) {
+    fail(errors, "products/[brand] should keep compare max 3");
+  }
+  if (productBrandPageSource.includes("compare-search")) {
+    fail(errors, "products/[brand] should not render a compare-specific search input");
   }
 
   for (const product of ledgerProducts) {

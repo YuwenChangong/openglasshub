@@ -28,10 +28,12 @@
 
 Current direction:
 - `/products/` is now the primary product discovery surface for public browsing.
-- The main product page uses brand modules that directly list products instead of splitting brand and product discovery into separate heavy sections.
-- The main product page supports direct on-page comparison with a hard cap of 3 selected products.
-- Compare entry now comes from product cards only, with a single page-level search input.
-- The product page intentionally keeps copy sparse and keeps placeholder visuals minimal and product-name led.
+- The main product page uses a clean brand-module grid: brand name, stable count badge, a few product preview pills, and a single `查看产品` entry.
+- `/products/` keeps one search input and filters brand modules by brand name, product name, and use case text only.
+- Full product cards and compare actions now live on `/products/[brand]/`, not on the main `/products/` page.
+- Brand pages keep comparison lightweight with a hard cap of 3 selected products and no compare-specific search box.
+- The product surface intentionally keeps copy sparse and placeholder visuals minimal and product-name led.
+- Public product scope is now focused on AR / AI glasses. Apple Vision Pro and XR-headset framing are removed from the main public product surface.
 - Legacy `/devices/` routes are no longer a primary public discovery surface and should redirect users back into `/products/`.
 
 ## Device Library
@@ -54,13 +56,14 @@ Release stack:
   Policy: do not invent precise specs; unverified values should be omitted, marked `TBD`, or left as not verified
 - Device Discussion Entry v1
   Added `讨论这台设备` section on device detail pages
-  Added discussion entry links to `/feed/?compose=1&device=<slug>`, `/posts/new/?device=<slug>`, `/circles/`, and `/devices/`
+  Added discussion entry links to `/feed/?compose=1&device=<slug>`, `/posts/new/?device=<slug>`, `/circles/`, and the current `/products/` surface
   `/feed/` shows a safe discussion banner for known device context
   `/posts/new/` supports safe starter copy based on known local device data
   No auto-post and no auto-submit behavior
 
 Architecture and safety notes:
-- Device pages remain public and continue to use static local data only.
+- Legacy device routes remain available only as downline redirects for old links and discussion context.
+- Product discovery is now brand-first on `/products/`, while `/devices/` should not be treated as a primary browsing surface.
 - Device pages now include SEO metadata plus conservative JSON-LD structured data for the library and device detail pages.
 - Device discussion context is query-param based and only activates for known local device slugs.
 - Device slug input is sanitized and must match entries in `src/data/devices.ts`.
