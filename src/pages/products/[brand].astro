@@ -133,7 +133,7 @@ const products = getDevicesByBrand(brand.key).map((product) => {
     <div class="brand-compare__head">
       <div>
         <h2>对比</h2>
-        <p>最多 3 款。</p>
+        <p id="brand-compare-summary">选择产品进行对比，最多 3 款。</p>
       </div>
       <button type="button" class="brand-compare__clear" id="brand-compare-clear">
         清空
@@ -142,6 +142,7 @@ const products = getDevicesByBrand(brand.key).map((product) => {
 
     <div class="brand-compare__selected" id="brand-compare-selected"></div>
     <p class="brand-compare__feedback" id="brand-compare-feedback" aria-live="polite"></p>
+    <p class="brand-compare__hint" id="brand-compare-hint">选择产品进行对比，最多 3 款。</p>
 
     <div class="brand-compare__table-wrap" id="brand-compare-table-wrap" hidden>
       <table class="brand-compare__table">
@@ -210,6 +211,10 @@ const products = getDevicesByBrand(brand.key).map((product) => {
     ))}
   </section>
 
+  <p class="brand-products-empty-state" id="brand-products-empty-state" hidden>
+    没有找到匹配产品。
+  </p>
+
   <script
     id="brand-products-data"
     type="application/json"
@@ -241,10 +246,13 @@ const products = getDevicesByBrand(brand.key).map((product) => {
     const compareSelected = document.getElementById("brand-compare-selected");
     const compareFeedback = document.getElementById("brand-compare-feedback");
     const compareClear = document.getElementById("brand-compare-clear");
+    const compareHint = document.getElementById("brand-compare-hint");
+    const compareSummary = document.getElementById("brand-compare-summary");
     const compareTableWrap = document.getElementById("brand-compare-table-wrap");
     const compareTableHead = document.getElementById("brand-compare-table-head");
     const compareTableBody = document.getElementById("brand-compare-table-body");
     const compareButtons = Array.from(document.querySelectorAll("[data-compare-button]"));
+    const emptyState = document.getElementById("brand-products-empty-state");
 
     function normalize(value) {
       return String(value || "")
@@ -265,8 +273,9 @@ const products = getDevicesByBrand(brand.key).map((product) => {
         const slug = button.getAttribute("data-product-slug");
         const active = slug ? isSelected(slug) : false;
         button.classList.toggle("is-selected", active);
-        button.setAttribute("aria-label", active ? "移出对比" : "添加到对比");
-        button.setAttribute("title", active ? "移出对比" : "添加到对比");
+        const product = slug ? productMap.get(slug) : null;
+        button.setAttribute("aria-label", active ? `移除 ${product?.name || "产品"}` : `添加 ${product?.name || "产品"} 到对比`);
+        button.setAttribute("title", active ? "已加入对比" : "添加到对比");
         button.innerHTML = `<span aria-hidden="true">${active ? "−" : "+"}</span>`;
       });
     }
@@ -278,12 +287,22 @@ const products = getDevicesByBrand(brand.key).map((product) => {
       selected.forEach((slug) => {
         const product = productMap.get(slug);
         if (!product) return;
-        const pill = document.createElement("button");
-        pill.type = "button";
+        const pill = document.createElement("div");
         pill.className = "brand-compare__pill";
         pill.dataset.productSlug = slug;
-        pill.innerHTML = `<span>${product.name}</span><strong>移除</strong>`;
-        pill.addEventListener("click", () => removeFromCompare(slug));
+
+        const label = document.createElement("span");
+        label.className = "brand-compare__pill-label";
+        label.textContent = product.name;
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "brand-compare__pill-remove";
+        removeButton.setAttribute("aria-label", `移除 ${product.name}`);
+        removeButton.innerHTML = '<span aria-hidden="true">×</span>';
+        removeButton.addEventListener("click", () => removeFromCompare(slug));
+
+        pill.append(label, removeButton);
         compareSelected.appendChild(pill);
       });
     }
@@ -307,7 +326,10 @@ const products = getDevicesByBrand(brand.key).map((product) => {
       );
 
       const headerCells = selectedProducts
-        .map((product) => `<th scope="col"><strong>${product.name}</strong><span>${product.brandLabel}</span></th>`)
+        .map(
+          (product) =>
+            `<th scope="col"><div class="brand-compare__column-heading"><strong>${product.name}</strong><br /><span>${product.brandLabel}</span></div></th>`,
+        )
         .join("");
 
       compareTableHead.innerHTML = `<tr><th scope="col">项目</th>${headerCells}</tr>`;
@@ -322,8 +344,27 @@ const products = getDevicesByBrand(brand.key).map((product) => {
     }
 
     function renderCompareSurface() {
-      if (compareSurface) compareSurface.hidden = selected.length === 0;
-      if (compareClear) compareClear.disabled = selected.length === 0;
+      if (compareSurface) compareSurface.hidden = false;
+      if (compareClear) {
+        compareClear.disabled = selected.length === 0;
+        compareClear.hidden = selected.length === 0;
+      }
+
+      if (compareSummary) {
+        compareSummary.textContent =
+          selected.length === 0
+            ? "选择产品进行对比，最多 3 款。"
+            : selected.length === 1
+              ? "再添加 1 款产品开始对比。"
+              : `已选择 ${selected.length} 款产品。`;
+      }
+
+      if (compareHint) {
+        compareHint.hidden = selected.length >= 2;
+        compareHint.textContent =
+          selected.length === 1 ? "再添加 1 款产品开始对比。" : "选择产品进行对比，最多 3 款。";
+      }
+
       renderCompareButtons();
       renderCompareSelected();
       renderCompareTable();
@@ -372,6 +413,10 @@ const products = getDevicesByBrand(brand.key).map((product) => {
 
       if (countLabel) {
         countLabel.textContent = query ? `${visibleCount} 款匹配产品` : `${products.length} 款产品`;
+      }
+
+      if (emptyState) {
+        emptyState.hidden = visibleCount > 0;
       }
     }
 
@@ -538,7 +583,7 @@ const products = getDevicesByBrand(brand.key).map((product) => {
 
   .brand-compare {
     display: grid;
-    gap: 0.9rem;
+    gap: 0.72rem;
     margin-bottom: 1rem;
   }
 
@@ -555,7 +600,7 @@ const products = getDevicesByBrand(brand.key).map((product) => {
 
   .brand-compare__clear,
   .brand-product-card__compare-button,
-  .brand-compare__pill {
+  .brand-compare__pill-remove {
     appearance: none;
     border: 0;
     background: none;
@@ -578,8 +623,8 @@ const products = getDevicesByBrand(brand.key).map((product) => {
 
   .brand-compare__clear:hover:not(:disabled),
   .brand-compare__clear:focus-visible,
-  .brand-compare__pill:hover,
-  .brand-compare__pill:focus-visible,
+  .brand-compare__pill-remove:hover,
+  .brand-compare__pill-remove:focus-visible,
   .brand-product-card__compare-button:hover,
   .brand-product-card__compare-button:focus-visible {
     border-color: rgba(255, 255, 255, 0.16);
@@ -600,35 +645,109 @@ const products = getDevicesByBrand(brand.key).map((product) => {
   }
 
   .brand-compare__pill {
-    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    min-height: 2rem;
+    padding: 0.18rem 0.22rem 0.18rem 0.82rem;
+    border-radius: 999px;
+    border: 1px solid var(--products-chip-border);
+    background: rgba(255, 255, 255, 0.045);
+    color: rgba(248, 248, 250, 0.92);
+    max-width: 100%;
   }
 
-  .brand-compare__pill strong {
-    color: rgba(245, 245, 245, 0.5);
-    font-size: 0.72rem;
+  .brand-compare__pill-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.79rem;
     font-weight: 600;
-    margin-left: 0.4rem;
+    line-height: 1;
+  }
+
+  .brand-compare__pill-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 1.62rem;
+    height: 1.62rem;
+    border-radius: 999px;
+    color: rgba(245, 245, 245, 0.62);
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  }
+
+  .brand-compare__pill-remove span {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .brand-compare__hint {
+    margin: 0;
+    color: rgba(245, 245, 247, 0.66);
+    font-size: 0.88rem;
+    line-height: 1.45;
   }
 
   .brand-compare__feedback {
     min-height: 1.2rem;
   }
 
+  .brand-compare__feedback:empty {
+    min-height: 0;
+  }
+
   .brand-compare__table-wrap {
     overflow-x: auto;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
-    padding-top: 0.2rem;
+    padding-top: 0.5rem;
+  }
+
+  .brand-compare__column-heading {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .brand-compare__column-heading strong {
+    display: block;
+    color: #f8f8fa;
+    font-size: 0.94rem;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+
+  .brand-compare__column-heading span {
+    display: block;
+    color: var(--products-muted-text);
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .brand-products-empty-state {
+    margin: 0.95rem 0 0;
+    padding: 0.95rem 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.025);
+    color: rgba(245, 245, 247, 0.62);
+    font-size: 0.9rem;
+    line-height: 1.45;
   }
 
   .brand-compare__table {
     width: 100%;
     min-width: 620px;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
   }
 
   .brand-compare__table th,
   .brand-compare__table td {
-    padding: 0.78rem 0.82rem;
+    padding: 0.92rem 0.86rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     text-align: left;
     vertical-align: top;
@@ -640,16 +759,22 @@ const products = getDevicesByBrand(brand.key).map((product) => {
     font-weight: 600;
   }
 
+  .brand-compare__table thead th {
+    padding-top: 0.3rem;
+    padding-bottom: 0.85rem;
+  }
+
+  .brand-compare__table tbody th {
+    width: 8.5rem;
+    color: rgba(248, 248, 250, 0.9);
+    font-size: 0.82rem;
+    letter-spacing: 0.01em;
+  }
+
   .brand-compare__table td {
     color: rgba(245, 245, 245, 0.76);
     font-size: 0.88rem;
     line-height: 1.45;
-  }
-
-  .brand-compare__table th strong {
-    display: block;
-    color: #f8f8fa;
-    font-size: 0.94rem;
   }
 
   .brand-product-grid {
