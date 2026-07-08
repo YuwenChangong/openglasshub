@@ -691,7 +691,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   .brand-page-head__count,
   .product-chip,
-  .brand-compare__pill {
+  :global(.brand-compare__pill) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -725,6 +725,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     gap: 0.42rem;
     flex: 1 1 auto;
     min-width: 0;
+    max-width: 38rem;
   }
 
   .brand-toolbar__search-field {
@@ -761,11 +762,11 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   .brand-toolbar :global(.glass-input:focus-visible),
   .brand-compare__clear:focus-visible,
-  .brand-compare__pill:focus-visible,
-  .brand-search-result__compare-button:focus-visible,
+  :global(.brand-compare__pill:focus-visible),
+  :global(.brand-search-result__compare-button:focus-visible),
   .brand-product-card__compare-button:focus-visible,
   .brand-product-card__link:focus-visible,
-  .brand-search-result__title:focus-visible {
+  :global(.brand-search-result__title:focus-visible) {
     outline: none;
     box-shadow: var(--products-focus-ring);
   }
@@ -812,7 +813,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     line-height: 1.4;
   }
 
-  .brand-search-result {
+  :global(.brand-search-result) {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -825,19 +826,19 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
   }
 
-  .brand-search-result:hover,
-  .brand-search-result:focus-within {
+  :global(.brand-search-result:hover),
+  :global(.brand-search-result:focus-within) {
     border-color: rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.05);
   }
 
-  .brand-search-result__copy {
+  :global(.brand-search-result__copy) {
     display: grid;
     gap: 0.26rem;
     min-width: 0;
   }
 
-  .brand-search-result__title {
+  :global(.brand-search-result__title) {
     color: #f8f8fa;
     font-size: 0.92rem;
     font-weight: 600;
@@ -845,14 +846,14 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     text-decoration: none;
   }
 
-  .brand-search-result__title:hover,
-  .brand-search-result__title:focus-visible,
+  :global(.brand-search-result__title:hover),
+  :global(.brand-search-result__title:focus-visible),
   .brand-product-card__link:hover,
   .brand-product-card__link:focus-visible {
     color: #ffffff;
   }
 
-  .brand-search-result__meta,
+  :global(.brand-search-result__meta),
   .brand-compare__selected,
   .brand-product-card__chips {
     display: flex;
@@ -860,7 +861,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     gap: 0.55rem;
   }
 
-  .brand-search-result__meta {
+  :global(.brand-search-result__meta) {
     color: rgba(245, 245, 247, 0.54);
     font-size: 0.77rem;
     line-height: 1.25;
@@ -885,8 +886,8 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   .brand-compare__clear,
   .brand-product-card__compare-button,
-  .brand-compare__pill-remove,
-  .brand-search-result__compare-button {
+  :global(.brand-compare__pill-remove),
+  :global(.brand-search-result__compare-button) {
     appearance: none;
     border: 0;
     background: none;
@@ -909,10 +910,10 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   .brand-compare__clear:hover:not(:disabled),
   .brand-compare__clear:focus-visible,
-  .brand-compare__pill-remove:hover,
-  .brand-compare__pill-remove:focus-visible,
-  .brand-search-result__compare-button:hover,
-  .brand-search-result__compare-button:focus-visible,
+  :global(.brand-compare__pill-remove:hover),
+  :global(.brand-compare__pill-remove:focus-visible),
+  :global(.brand-search-result__compare-button:hover),
+  :global(.brand-search-result__compare-button:focus-visible),
   .brand-product-card__compare-button:hover,
   .brand-product-card__compare-button:focus-visible {
     border-color: rgba(255, 255, 255, 0.16);
@@ -925,7 +926,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     opacity: 0.46;
   }
 
-  .brand-compare__pill {
+  :global(.brand-compare__pill) {
     display: inline-flex;
     align-items: center;
     gap: 0.22rem;
@@ -938,7 +939,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     max-width: 100%;
   }
 
-  .brand-compare__pill-label {
+  :global(.brand-compare__pill-label) {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -948,7 +949,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     line-height: 1;
   }
 
-  .brand-compare__pill-remove {
+  :global(.brand-compare__pill-remove) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -961,7 +962,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
   }
 
-  .brand-compare__pill-remove span {
+  :global(.brand-compare__pill-remove span) {
     font-size: 1rem;
     line-height: 1;
   }
@@ -980,12 +981,12 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     padding-top: 0.5rem;
   }
 
-  .brand-compare__column-heading {
+  :global(.brand-compare__column-heading) {
     display: grid;
     gap: 0.2rem;
   }
 
-  .brand-compare__column-heading strong {
+  :global(.brand-compare__column-heading strong) {
     display: block;
     color: #f8f8fa;
     font-size: 0.94rem;
@@ -993,7 +994,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     text-wrap: balance;
   }
 
-  .brand-compare__column-heading span {
+  :global(.brand-compare__column-heading span) {
     display: block;
     color: var(--products-muted-text);
     font-size: 0.78rem;
@@ -1136,7 +1137,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
   }
 
   .brand-product-card__compare-button,
-  .brand-search-result__compare-button {
+  :global(.brand-search-result__compare-button) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1151,31 +1152,31 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
   }
 
-  .brand-search-result__compare-button {
+  :global(.brand-search-result__compare-button) {
     width: 1.92rem;
     height: 1.92rem;
     background: rgba(255, 255, 255, 0.04);
   }
 
   .brand-product-card__compare-button.is-selected,
-  .brand-search-result__compare-button.is-selected {
+  :global(.brand-search-result__compare-button.is-selected) {
     border-color: rgba(255, 255, 255, 0.24);
     background: rgba(255, 255, 255, 0.14);
   }
 
-  .brand-search-result__compare-button:disabled {
+  :global(.brand-search-result__compare-button:disabled) {
     cursor: default;
     opacity: 1;
   }
 
-  .brand-search-result__compare-state {
+  :global(.brand-search-result__compare-state) {
     font-size: 0.66rem;
     font-weight: 700;
     letter-spacing: 0.01em;
   }
 
   .brand-product-card__compare-button span,
-  .brand-search-result__compare-button span {
+  :global(.brand-search-result__compare-button span) {
     font-size: 1rem;
     line-height: 1;
   }
@@ -1183,9 +1184,9 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
   @media (prefers-reduced-motion: reduce) {
     .brand-toolbar :global(.glass-input),
     .brand-compare__clear,
-    .brand-compare__pill,
-    .brand-search-result__compare-button,
-    .brand-search-result__title,
+    :global(.brand-compare__pill),
+    :global(.brand-search-result__compare-button),
+    :global(.brand-search-result__title),
     .brand-product-card__link,
     .brand-product-card__compare-button,
     .brand-page-head,
