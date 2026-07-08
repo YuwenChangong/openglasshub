@@ -65,10 +65,14 @@ async function main() {
   assert(!brandPage.includes("/devices/"), "Brand page should not link into /devices/.");
   assert(brandPage.includes('emptyState.hidden = visibleCount > 0'), "Brand page search should toggle its empty state.");
   assert(brandPage.includes("function shouldMatchBrandCard"), "Brand page should use dedicated search logic for current-brand cards.");
+  assert(brandPage.includes("modelSearchText"), "Brand page search should keep a dedicated product/model search field.");
+  assert(brandPage.includes("detailSearchText"), "Brand page search should keep broader metadata in a separate field.");
+  assert(brandPage.includes("stripBrandTerms"), "Brand page search should strip current-brand terms out of broader metadata.");
   assert(brandPage.includes("normalizedQuery.length <= 1"), "Brand page search should avoid blind one-letter overmatching.");
-  assert(brandPage.includes("normalizedQuery === currentBrandKey || normalizedQuery === brandLabelNormalized"), "Brand page should still allow explicit brand-name queries.");
+  assert(!brandPage.includes("normalizedQuery === currentBrandKey || normalizedQuery === brandLabelNormalized"), "Brand page should not treat current brand names as an automatic full-match.");
   assert(brandPage.includes("stripLeadingBrandName"), "Brand page search should remove leading brand names from card filtering.");
   assert(brandPage.includes("stripLeadingBrandSlug"), "Brand page search should remove brand slug prefixes from card filtering.");
+  assert(brandPage.includes('data-search={`${product.modelSearchText} ${product.detailSearchText}`.trim()}'), "Brand cards should expose combined search data without relying on brand-prefixed tokens.");
   assert(brandPage.includes("crossBrandMatches"), "Brand page should derive cross-brand matches from the single search input.");
   assert(brandPage.includes("product.brandKey !== currentBrandKey"), "Brand page search results should stay focused on other brands.");
   assert(brandPage.includes(").slice(0, 6)"), "Brand page cross-brand suggestions should stay capped and compact.");
@@ -126,6 +130,7 @@ async function main() {
       brandHasSingleSearch: ${brandPage.includes('id="brand-products-search"') && !brandPage.includes("compare-search")},
       brandHasSearchDropdown: ${brandPage.includes('id="brand-search-dropdown"') && brandPage.includes("crossBrandMatches") && brandPage.includes("slice(0, 6)")},
       brandHasCardSearchLogic: ${brandPage.includes("function shouldMatchBrandCard") && brandPage.includes("stripLeadingBrandSlug")},
+      brandHasSplitSearchFields: ${brandPage.includes("modelSearchText") && brandPage.includes("detailSearchText") && brandPage.includes("stripBrandTerms")},
     };
     process.stdout.write(JSON.stringify(payload));
   `);
@@ -136,6 +141,7 @@ async function main() {
   assert(parsed.brandHasSingleSearch, "Strip-types sanity check should confirm the single-search brand page.");
   assert(parsed.brandHasSearchDropdown, "Strip-types sanity check should confirm dropdown compare results on the brand page.");
   assert(parsed.brandHasCardSearchLogic, "Strip-types sanity check should confirm refined current-brand search logic.");
+  assert(parsed.brandHasSplitSearchFields, "Strip-types sanity check should confirm split search fields for short-query matching.");
 
   console.log(`PRODUCT_PAGE_AUDIT_OK products=${productCount}`);
 }

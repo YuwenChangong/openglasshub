@@ -53,16 +53,31 @@ function stripLeadingBrandSlug(slug: string, brandKey: string) {
   return slug.replace(new RegExp(`^${brandKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-?`, "i"), "").trim() || slug;
 }
 
+function stripBrandTerms(value: string | null | undefined, brandLabel: string, brandKey: string) {
+  const variants = [brandLabel, brandKey, brandKey.replaceAll("-", " ")]
+    .map((item) => item?.trim())
+    .filter((item): item is string => Boolean(item));
+
+  let result = String(value || "");
+  for (const variant of new Set(variants)) {
+    result = result.replace(new RegExp(variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
+  }
+
+  return result.replace(/\s+/g, " ").trim();
+}
+
 function serializeCompareProduct(product: DeviceRecord) {
   const bareName = stripLeadingBrandName(product.name, product.brandLabel);
   const bareSlug = stripLeadingBrandSlug(product.slug, product.brandKey).replaceAll("-", " ");
-  const cardSearchText = [
+  const modelSearchText = [bareName, bareSlug]
+    .join(" ")
+    .toLowerCase();
+  const detailSearchText = [
     bareName,
-    bareSlug,
     product.typeLabel,
     product.availability ?? product.infoStatusLabel ?? product.statusLabel ?? "",
-    product.positioning ?? "",
-    ...(product.bestFor ?? []),
+    stripBrandTerms(product.positioning ?? "", product.brandLabel, product.brandKey),
+    ...(product.bestFor ?? []).map((item) => stripBrandTerms(item, product.brandLabel, product.brandKey)),
     ...buildCardFacts(product).flatMap((fact) => [fact.label, fact.value]),
   ]
     .join(" ")
@@ -93,7 +108,8 @@ function serializeCompareProduct(product: DeviceRecord) {
     placeholderType: product.cardMedia.placeholderType,
     detailHref: `/products/${product.brandKey}/#product-${product.slug}`,
     officialHref: product.officialProductUrl ?? product.buyUrl ?? product.brandWebsiteUrl ?? "/products/",
-    cardSearchText,
+    modelSearchText,
+    detailSearchText,
     searchText: [
       product.name,
       bareName,
@@ -204,7 +220,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
         id={`product-${product.slug}`}
         data-product-card
         data-product-slug={product.slug}
-        data-search={product.cardSearchText}
+        data-search={`${product.modelSearchText} ${product.detailSearchText}`.trim()}
       >
         <ProductVisual
           brandMark={product.brandMarkText}
@@ -269,7 +285,8 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       brandProducts: brandProducts.map((product) => ({
         slug: product.slug,
         searchText: product.searchText,
-        cardSearchText: product.cardSearchText,
+        modelSearchText: product.modelSearchText,
+        detailSearchText: product.detailSearchText,
       })),
       compareProducts: compareProducts.map((product) => ({
         slug: product.slug,
@@ -313,9 +330,6 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     const compareTableHead = document.getElementById("brand-compare-table-head");
     const compareTableBody = document.getElementById("brand-compare-table-body");
     const emptyState = document.getElementById("brand-products-empty-state");
-    const brandLabelNormalized = normalize(
-      cards[0]?.querySelector(".brand-product-card__head p")?.textContent || currentBrandKey.replaceAll("-", " "),
-    );
 
     function normalize(value) {
       return String(value || "")
@@ -329,19 +343,15 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
       const normalizedQuery = normalize(query);
       if (!normalizedQuery) return true;
-
-      if (normalizedQuery.length > 1 && (normalizedQuery === currentBrandKey || normalizedQuery === brandLabelNormalized)) {
-        return true;
-      }
-
-      const haystack = normalize(product.cardSearchText);
+      const modelSearchText = normalize(product.modelSearchText);
+      const detailSearchText = normalize(product.detailSearchText);
       if (normalizedQuery.length <= 1) {
-        return haystack
+        return modelSearchText
           .split(/\s+/)
           .some((token) => token.length > 1 && token.startsWith(normalizedQuery));
       }
 
-      return haystack.includes(normalizedQuery);
+      return modelSearchText.includes(normalizedQuery) || detailSearchText.includes(normalizedQuery);
     }
 
     function isSelected(slug) {
