@@ -151,8 +151,11 @@ async function main() {
   if (productIndexPageSource.includes("data-product-card")) {
     fail(errors, "products/index should not render full product cards");
   }
-  if (productIndexPageSource.includes("products-compare") || productIndexPageSource.includes("data-compare-button")) {
-    fail(errors, "products/index should not render compare UI");
+  if (!productIndexPageSource.includes("products-search-dropdown")) {
+    fail(errors, "products/index should render a global product search dropdown");
+  }
+  if (!productIndexPageSource.includes("products-compare")) {
+    fail(errors, "products/index should render compare UI");
   }
   if (productIndexPageSource.includes("/guides/")) {
     fail(errors, "products/index should not link to guides");

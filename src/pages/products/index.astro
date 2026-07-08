@@ -1,7 +1,78 @@
 ---
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import BrandMark from "../../components/products/BrandMark.astro";
-import { getBrandSummaries } from "../../lib/device-catalog";
+import { getAllDevices, getBrandSummaries } from "../../lib/device-catalog";
+
+const compareFieldOrder = [
+  ["name", "产品"],
+  ["category", "类别"],
+  ["display_type", "显示"],
+  ["resolution", "分辨率"],
+  ["refresh_rate", "刷新率"],
+  ["brightness", "亮度"],
+  ["field_of_view", "FOV"],
+  ["weight", "重量"],
+  ["chipset", "平台 / 芯片"],
+  ["camera", "相机"],
+  ["battery_life", "续航"],
+] as const;
+
+type DeviceRecord = NonNullable<ReturnType<typeof getAllDevices>[number]>;
+
+function getSpecValue(product: DeviceRecord, field: string) {
+  for (const group of product.specGroups ?? []) {
+    const match = group.items.find((item) => item.field === field);
+    if (match?.value) return match.value;
+  }
+  return null;
+}
+
+function buildCardFacts(product: DeviceRecord) {
+  const candidates = [
+    { label: "显示", value: getSpecValue(product, "display_type") ?? getSpecValue(product, "resolution") },
+    { label: "重量", value: getSpecValue(product, "weight") },
+    { label: "平台", value: getSpecValue(product, "chipset") ?? getSpecValue(product, "platform") },
+  ];
+
+  return candidates.filter((item) => item.value).slice(0, 3);
+}
+
+function serializeCompareProduct(product: DeviceRecord) {
+  const facts = buildCardFacts(product);
+  return {
+    slug: product.slug,
+    name: product.name,
+    brandKey: product.brandKey,
+    brandLabel: product.brandLabel,
+    typeLabel: product.typeLabel,
+    availability: product.availability ?? product.infoStatusLabel ?? product.statusLabel ?? "",
+    detailHref: `/products/${product.brandKey}/#product-${product.slug}`,
+    searchText: [
+      product.name,
+      product.slug,
+      product.brandKey,
+      product.brandLabel,
+      product.typeLabel,
+      product.positioning ?? "",
+      ...(product.bestFor ?? []),
+      ...facts.flatMap((fact) => [fact.label, fact.value]),
+    ]
+      .join(" ")
+      .toLowerCase(),
+    compareValues: Object.fromEntries(
+      compareFieldOrder.map(([field]) => {
+        switch (field) {
+          case "name":
+            return [field, product.name];
+          case "category":
+            return [field, product.typeLabel];
+          default:
+            return [field, getSpecValue(product, field) ?? "TBD"];
+        }
+      }),
+    ),
+  };
+}
 
 const brands = getBrandSummaries().map((brand) => {
   const previewProducts = brand.representativeNames.map((name) => ({
@@ -20,6 +91,8 @@ const brands = getBrandSummaries().map((brand) => {
     searchText,
   };
 });
+
+const compareProducts = getAllDevices().map((product) => serializeCompareProduct(product));
 ---
 
 <CommunityLayout
@@ -39,15 +112,49 @@ const brands = getBrandSummaries().map((brand) => {
   <section class="products-toolbar">
     <label class="products-toolbar__search" for="products-search">
       <span>搜索</span>
-      <input
-        id="products-search"
-        class="glass-input"
-        type="search"
-        placeholder="搜索品牌、产品名或用途"
-        autocomplete="off"
-      />
+      <div class="products-toolbar__search-field">
+        <input
+          id="products-search"
+          class="glass-input"
+          type="search"
+          placeholder="搜索产品、品牌或类别"
+          autocomplete="off"
+          aria-describedby="products-result-count"
+          aria-expanded="false"
+          aria-controls="products-search-dropdown"
+        />
+
+        <div class="products-search-dropdown" id="products-search-dropdown" hidden>
+          <div class="products-search-dropdown__list" id="products-search-results-list"></div>
+          <p class="products-search-dropdown__empty" id="products-search-empty" hidden>
+            没有找到可加入对比的产品。
+          </p>
+        </div>
+      </div>
     </label>
     <p class="products-toolbar__meta" id="products-result-count">{brands.length} 个品牌</p>
+  </section>
+
+  <section class="products-compare" id="products-compare" hidden>
+    <div class="products-compare__head">
+      <div>
+        <h2>对比</h2>
+        <p id="products-compare-summary">选择产品进行对比，最多 3 款。</p>
+      </div>
+      <button type="button" class="products-compare__clear" id="products-compare-clear">
+        清空
+      </button>
+    </div>
+
+    <div class="products-compare__selected" id="products-compare-selected"></div>
+    <p class="products-compare__feedback" id="products-compare-feedback" aria-live="polite"></p>
+
+    <div class="products-compare__table-wrap" id="products-compare-table-wrap" hidden>
+      <table class="products-compare__table">
+        <thead id="products-compare-table-head"></thead>
+        <tbody id="products-compare-table-body"></tbody>
+      </table>
+    </div>
   </section>
 
   <section class="products-brand-grid" id="products-brand-grid">
@@ -82,7 +189,11 @@ const brands = getBrandSummaries().map((brand) => {
   <script
     id="products-brand-data"
     type="application/json"
-    set:html={JSON.stringify({ brands })}
+    set:html={JSON.stringify({
+      brands,
+      compareFields: compareFieldOrder.map(([key, label]) => ({ key, label })),
+      compareProducts,
+    })}
   />
 
   <script type="module">
@@ -90,9 +201,27 @@ const brands = getBrandSummaries().map((brand) => {
     const resultCount = document.getElementById("products-result-count");
     const modules = Array.from(document.querySelectorAll("[data-brand-module]"));
     const brandsDataElement = document.getElementById("products-brand-data");
-    const brandsPayload = brandsDataElement?.textContent ? JSON.parse(brandsDataElement.textContent) : { brands: [] };
+    const brandsPayload = brandsDataElement?.textContent
+      ? JSON.parse(brandsDataElement.textContent)
+      : { brands: [], compareFields: [], compareProducts: [] };
     const totalBrands = Array.isArray(brandsPayload.brands) ? brandsPayload.brands.length : modules.length;
+    const compareProducts = Array.isArray(brandsPayload.compareProducts) ? brandsPayload.compareProducts : [];
+    const compareFields = Array.isArray(brandsPayload.compareFields) ? brandsPayload.compareFields : [];
+    const productMap = new Map(compareProducts.map((product) => [product.slug, product]));
+    const selected = [];
+    const maxCompareCount = 3;
     const emptyState = document.getElementById("products-empty-state");
+    const searchDropdown = document.getElementById("products-search-dropdown");
+    const searchResultsList = document.getElementById("products-search-results-list");
+    const searchEmpty = document.getElementById("products-search-empty");
+    const compareSurface = document.getElementById("products-compare");
+    const compareSummary = document.getElementById("products-compare-summary");
+    const compareSelected = document.getElementById("products-compare-selected");
+    const compareFeedback = document.getElementById("products-compare-feedback");
+    const compareClear = document.getElementById("products-compare-clear");
+    const compareTableWrap = document.getElementById("products-compare-table-wrap");
+    const compareTableHead = document.getElementById("products-compare-table-head");
+    const compareTableBody = document.getElementById("products-compare-table-body");
 
     function normalize(value) {
       return String(value || "")
@@ -100,9 +229,229 @@ const brands = getBrandSummaries().map((brand) => {
         .toLowerCase();
     }
 
+    function isSelected(slug) {
+      return selected.includes(slug);
+    }
+
+    function setFeedback(message = "") {
+      if (compareFeedback) compareFeedback.textContent = message;
+    }
+
+    function renderCompareSelected() {
+      if (!compareSelected) return;
+      compareSelected.innerHTML = "";
+
+      selected.forEach((slug) => {
+        const product = productMap.get(slug);
+        if (!product) return;
+
+        const pill = document.createElement("div");
+        pill.className = "products-compare__pill";
+
+        const label = document.createElement("span");
+        label.className = "products-compare__pill-label";
+        label.textContent = product.name;
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "products-compare__pill-remove";
+        removeButton.setAttribute("aria-label", `移除 ${product.name}`);
+        removeButton.innerHTML = '<span aria-hidden="true">×</span>';
+        removeButton.addEventListener("click", () => removeFromCompare(slug));
+
+        pill.append(label, removeButton);
+        compareSelected.appendChild(pill);
+      });
+    }
+
+    function renderCompareTable() {
+      if (!compareTableWrap || !compareTableHead || !compareTableBody) return;
+      if (selected.length < 2) {
+        compareTableWrap.hidden = true;
+        compareTableHead.innerHTML = "";
+        compareTableBody.innerHTML = "";
+        return;
+      }
+
+      compareTableWrap.hidden = false;
+      const selectedProducts = selected.map((slug) => productMap.get(slug)).filter(Boolean);
+      const visibleFields = compareFields.filter((field) =>
+        selectedProducts.some((product) => {
+          const value = product.compareValues?.[field.key];
+          return value && value !== "TBD";
+        }),
+      );
+
+      const headerCells = selectedProducts
+        .map(
+          (product) =>
+            `<th scope="col"><div class="products-compare__column-heading"><strong>${product.name}</strong><span>${product.brandLabel}</span></div></th>`,
+        )
+        .join("");
+
+      compareTableHead.innerHTML = `<tr><th scope="col">项目</th>${headerCells}</tr>`;
+      compareTableBody.innerHTML = visibleFields
+        .map((field) => {
+          const cells = selectedProducts
+            .map((product) => `<td>${product.compareValues?.[field.key] || "TBD"}</td>`)
+            .join("");
+          return `<tr><th scope="row">${field.label}</th>${cells}</tr>`;
+        })
+        .join("");
+    }
+
+    function renderCompareButtons() {
+      const compareButtons = Array.from(document.querySelectorAll("[data-compare-button]"));
+      compareButtons.forEach((button) => {
+        const slug = button.getAttribute("data-product-slug");
+        const active = slug ? isSelected(slug) : false;
+        const product = slug ? productMap.get(slug) : null;
+        button.classList.toggle("is-selected", active);
+        button.disabled = active;
+        button.setAttribute("aria-disabled", active ? "true" : "false");
+        button.setAttribute("aria-label", active ? `已添加 ${product?.name || "产品"}` : `添加 ${product?.name || "产品"} 到对比`);
+        button.setAttribute("title", active ? "已加入对比" : "添加到对比");
+        button.closest(".products-search-result")?.classList.toggle("is-selected", active);
+        button.innerHTML = active
+          ? '<span class="products-search-result__compare-state" aria-hidden="true">✓</span>'
+          : '<span aria-hidden="true">+</span>';
+      });
+    }
+
+    function renderCompareSurface() {
+      if (compareSurface) compareSurface.hidden = false;
+      if (compareClear) {
+        compareClear.disabled = selected.length === 0;
+        compareClear.hidden = selected.length === 0;
+      }
+
+      if (compareSummary) {
+        compareSummary.textContent =
+          selected.length === 0
+            ? "选择产品进行对比，最多 3 款。"
+            : selected.length === 1
+              ? "已选 1 款，再添加 1 款开始对比。"
+              : `已选 ${selected.length} 款，向右查看完整对比。`;
+      }
+
+      renderCompareButtons();
+      renderCompareSelected();
+      renderCompareTable();
+    }
+
+    function renderSearchResults(query, matches) {
+      if (!searchDropdown || !searchResultsList || !searchEmpty || !searchInput) return;
+
+      if (!query) {
+        searchDropdown.hidden = true;
+        searchResultsList.innerHTML = "";
+        searchEmpty.hidden = true;
+        searchInput.setAttribute("aria-expanded", "false");
+        return;
+      }
+
+      searchDropdown.hidden = false;
+      searchResultsList.innerHTML = "";
+      searchInput.setAttribute("aria-expanded", "true");
+
+      if (matches.length === 0) {
+        searchEmpty.hidden = false;
+        return;
+      }
+
+      searchEmpty.hidden = true;
+
+      matches.forEach((product) => {
+        const item = document.createElement("article");
+        item.className = "products-search-result";
+        item.setAttribute("role", "option");
+
+        const copy = document.createElement("div");
+        copy.className = "products-search-result__copy";
+
+        const title = document.createElement("a");
+        title.className = "products-search-result__title";
+        title.href = product.detailHref;
+        title.textContent = product.name;
+
+        const meta = document.createElement("div");
+        meta.className = "products-search-result__meta";
+
+        const brandPill = document.createElement("span");
+        brandPill.className = "brand-module__pill products-search-result__pill";
+        brandPill.textContent = product.brandLabel;
+
+        const typePill = document.createElement("span");
+        typePill.className = "brand-module__pill products-search-result__pill products-search-result__pill--muted";
+        typePill.textContent = product.typeLabel;
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "products-search-result__compare-button";
+        button.dataset.compareButton = "";
+        button.dataset.productSlug = product.slug;
+        button.setAttribute("aria-label", `加入对比 ${product.name}`);
+        button.addEventListener("click", () => addToCompare(product.slug));
+
+        meta.append(brandPill, typePill);
+        copy.append(title, meta);
+        item.append(copy, button);
+        searchResultsList.appendChild(item);
+      });
+
+      renderCompareButtons();
+    }
+
+    function addToCompare(slug) {
+      if (!productMap.has(slug)) return;
+      if (isSelected(slug)) return;
+      if (selected.length >= maxCompareCount) {
+        setFeedback("最多同时比较 3 款产品。");
+        renderCompareSurface();
+        return;
+      }
+
+      selected.push(slug);
+      setFeedback("");
+      renderCompareSurface();
+
+      const query = normalize(searchInput?.value);
+      if (query) {
+        const matches = compareProducts.filter((product) => product.searchText.includes(query)).slice(0, 6);
+        renderSearchResults(query, matches);
+      }
+    }
+
+    function removeFromCompare(slug) {
+      const index = selected.indexOf(slug);
+      if (index === -1) return;
+      selected.splice(index, 1);
+      setFeedback("");
+      renderCompareSurface();
+      const query = normalize(searchInput?.value);
+      if (query) {
+        const matches = compareProducts.filter((product) => product.searchText.includes(query)).slice(0, 6);
+        renderSearchResults(query, matches);
+      }
+    }
+
+    function clearCompare() {
+      selected.splice(0, selected.length);
+      setFeedback("");
+      renderCompareSurface();
+      const query = normalize(searchInput?.value);
+      if (query) {
+        const matches = compareProducts.filter((product) => product.searchText.includes(query)).slice(0, 6);
+        renderSearchResults(query, matches);
+      }
+    }
+
     function updateListing() {
       const query = normalize(searchInput?.value);
       let visibleCount = 0;
+      const productMatches = query
+        ? compareProducts.filter((product) => product.searchText.includes(query)).slice(0, 6)
+        : [];
 
       modules.forEach((module) => {
         const brandName = normalize(module.getAttribute("data-brand-name"));
@@ -123,21 +472,47 @@ const brands = getBrandSummaries().map((brand) => {
         if (matches) visibleCount += 1;
       });
 
+      renderSearchResults(query, productMatches);
+
       if (resultCount) {
         resultCount.textContent = query ? `${visibleCount} 个匹配品牌` : `${totalBrands} 个品牌`;
       }
 
       if (emptyState) {
-        emptyState.hidden = visibleCount > 0;
+        emptyState.hidden = visibleCount > 0 || productMatches.length > 0;
       }
     }
 
     searchInput?.addEventListener("input", updateListing);
+    searchInput?.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (searchInput && normalize(searchInput.value) === "") {
+          searchInput.setAttribute("aria-expanded", "false");
+          if (searchDropdown) searchDropdown.hidden = true;
+          if (searchEmpty) searchEmpty.hidden = true;
+        }
+      }, 120);
+    });
+    compareClear?.addEventListener("click", clearCompare);
     updateListing();
+    renderCompareSurface();
   </script>
 </CommunityLayout>
 
 <style>
+  .products-toolbar,
+  .products-compare,
+  .brand-module {
+    --products-panel-bg: linear-gradient(180deg, rgba(16, 18, 22, 0.92), rgba(10, 12, 15, 0.98));
+    --products-panel-border: rgba(255, 255, 255, 0.07);
+    --products-panel-highlight: rgba(255, 255, 255, 0.04);
+    --products-chip-bg: rgba(255, 255, 255, 0.04);
+    --products-chip-border: rgba(255, 255, 255, 0.08);
+    --products-chip-text: rgba(248, 248, 250, 0.84);
+    --products-muted-text: rgba(245, 245, 245, 0.56);
+    --products-focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.08);
+  }
+
   .products-page-head {
     padding: 0.95rem 0 0.65rem;
   }
@@ -172,6 +547,11 @@ const brands = getBrandSummaries().map((brand) => {
     min-width: 0;
   }
 
+  .products-toolbar__search-field {
+    position: relative;
+    min-width: 0;
+  }
+
   .products-toolbar__search span,
   .products-toolbar__meta {
     margin: 0;
@@ -194,9 +574,308 @@ const brands = getBrandSummaries().map((brand) => {
   }
 
   .products-toolbar :global(.glass-input:focus-visible),
+  .products-compare__clear:focus-visible,
+  :global(.products-compare__pill:focus-visible),
+  :global(.products-search-result__compare-button:focus-visible),
+  :global(.products-compare__pill-remove:focus-visible),
+  :global(.products-search-result__title:focus-visible),
   .brand-module:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+    box-shadow: var(--products-focus-ring);
+  }
+
+  .products-search-dropdown {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    display: grid;
+    gap: 0.2rem;
+    max-height: min(376px, calc(100vh - 180px));
+    padding: 0.38rem;
+    overflow: hidden;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: linear-gradient(180deg, rgba(18, 20, 24, 0.94), rgba(11, 13, 16, 0.98));
+    box-shadow: 0 18px 30px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(22px);
+  }
+
+  .products-search-dropdown[hidden],
+  .products-search-dropdown__empty[hidden] {
+    display: none;
+  }
+
+  .products-search-dropdown__list {
+    display: grid;
+    gap: 0.18rem;
+    overflow-y: auto;
+    max-height: min(336px, calc(100vh - 220px));
+    padding-right: 0.08rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+
+  .products-search-dropdown__empty {
+    margin: 0;
+    padding: 0.78rem 0.86rem;
+    border-radius: 16px;
+    color: rgba(245, 245, 247, 0.58);
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+
+  :global(.products-search-result) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    min-height: 58px;
+    padding: 0.65rem 0.72rem;
+    border-radius: 16px;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.018);
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  }
+
+  :global(.products-search-result:hover),
+  :global(.products-search-result:focus-within) {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  :global(.products-search-result.is-selected) {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  :global(.products-search-result__copy) {
+    display: grid;
+    gap: 0.26rem;
+    min-width: 0;
+  }
+
+  :global(.products-search-result__title) {
+    color: #f8f8fa;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.24;
+    text-decoration: none;
+  }
+
+  :global(.products-search-result__meta),
+  .products-compare__selected {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+
+  :global(.products-search-result__pill) {
+    min-height: 1.8rem;
+  }
+
+  :global(.products-search-result__pill--muted) {
+    color: rgba(245, 245, 245, 0.7);
+  }
+
+  :global(.products-search-result__compare-button),
+  .products-compare__clear,
+  :global(.products-compare__pill-remove) {
+    appearance: none;
+    border: 0;
+    background: none;
+    font: inherit;
+  }
+
+  :global(.products-search-result__compare-button) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 1.92rem;
+    height: 1.92rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: #f8f8fa;
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  }
+
+  :global(.products-search-result__compare-button:disabled) {
+    cursor: default;
+    opacity: 1;
+  }
+
+  :global(.products-search-result__compare-state) {
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1;
+    transform: translateY(-0.02em);
+  }
+
+  .products-compare {
+    display: grid;
+    gap: 0.72rem;
+    margin-bottom: 1rem;
+    padding: 1rem 1.05rem;
+    border-radius: 18px;
+    border: 1px solid var(--products-panel-border);
+    background: var(--products-panel-bg);
+    box-shadow: inset 0 1px 0 var(--products-panel-highlight);
+  }
+
+  .products-compare__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+  }
+
+  .products-compare__head h2 {
+    margin: 0;
+    color: #f8f8fa;
+    font-size: 1.08rem;
+    letter-spacing: -0.03em;
+  }
+
+  .products-compare__head p,
+  .products-compare__feedback,
+  .products-compare__table th span {
+    margin: 0;
+    color: var(--products-muted-text);
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  .products-compare__clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.05rem;
+    padding: 0 0.88rem;
+    border-radius: 999px;
+    color: var(--products-chip-text);
+    border: 1px solid var(--products-chip-border);
+    background: var(--products-chip-bg);
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  }
+
+  .products-compare__clear:disabled {
+    cursor: default;
+    opacity: 0.46;
+  }
+
+  :global(.products-compare__pill) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    min-height: 2rem;
+    padding: 0.18rem 0.22rem 0.18rem 0.82rem;
+    border-radius: 999px;
+    border: 1px solid var(--products-chip-border);
+    background: rgba(255, 255, 255, 0.045);
+    color: rgba(248, 248, 250, 0.92);
+    max-width: 100%;
+  }
+
+  :global(.products-compare__pill-label) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.79rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  :global(.products-compare__pill-remove) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 1.62rem;
+    height: 1.62rem;
+    border-radius: 999px;
+    color: rgba(245, 245, 245, 0.62);
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  }
+
+  .products-compare__feedback {
+    min-height: 1.2rem;
+  }
+
+  .products-compare__feedback:empty {
+    min-height: 0;
+  }
+
+  .products-compare__table-wrap {
+    overflow-x: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 0.5rem;
+  }
+
+  .products-compare__table {
+    width: 100%;
+    min-width: 620px;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .products-compare__table th,
+  .products-compare__table td {
+    padding: 0.92rem 0.86rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .products-compare__table th {
+    color: rgba(248, 248, 250, 0.92);
+    font-size: 0.86rem;
+    font-weight: 600;
+  }
+
+  .products-compare__table thead th {
+    padding-top: 0.3rem;
+    padding-bottom: 0.85rem;
+  }
+
+  .products-compare__table tbody th {
+    width: 8.5rem;
+    color: rgba(248, 248, 250, 0.9);
+    font-size: 0.82rem;
+    letter-spacing: 0.01em;
+  }
+
+  .products-compare__table td {
+    color: rgba(245, 245, 245, 0.76);
+    font-size: 0.88rem;
+    line-height: 1.45;
+  }
+
+  :global(.products-compare__column-heading) {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  :global(.products-compare__column-heading strong) {
+    display: block;
+    color: #f8f8fa;
+    font-size: 0.94rem;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+
+  :global(.products-compare__column-heading span) {
+    display: block;
+    color: var(--products-muted-text);
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.3;
   }
 
   .products-brand-grid {
@@ -297,13 +976,21 @@ const brands = getBrandSummaries().map((brand) => {
 
   @media (prefers-reduced-motion: reduce) {
     .products-toolbar :global(.glass-input),
+    .products-compare,
+    .products-compare__clear,
+    :global(.products-search-result),
+    :global(.products-search-result__compare-button),
+    :global(.products-search-result__title),
+    :global(.products-compare__pill),
+    :global(.products-compare__pill-remove),
     .brand-module {
       transition: none;
     }
   }
 
   @media (max-width: 900px) {
-    .products-toolbar {
+    .products-toolbar,
+    .products-compare__head {
       align-items: start;
       flex-direction: column;
     }
@@ -320,6 +1007,11 @@ const brands = getBrandSummaries().map((brand) => {
   }
 
   @media (max-width: 420px) {
+    .products-compare {
+      padding: 0.92rem;
+      border-radius: 16px;
+    }
+
     .brand-module {
       padding: 0.92rem;
       border-radius: 16px;
@@ -329,6 +1021,12 @@ const brands = getBrandSummaries().map((brand) => {
       max-width: calc(100% - 4.6rem);
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .products-search-dropdown {
+      left: 0;
+      right: 0;
+      max-height: min(332px, calc(100vh - 156px));
     }
   }
 </style>
