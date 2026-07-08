@@ -57,15 +57,21 @@ async function main() {
   assert(brandPage.includes('id="brand-search-empty"'), "Brand page should include a compact dropdown empty state.");
   assert(!brandPage.includes("compare-search"), "Brand page should not include a compare-specific search input.");
   assert(!brandPage.includes("跨品牌加入对比"), "Brand page should not render a large cross-brand compare block.");
+  assert(brandPage.includes("max-height: min(376px"), "Brand page dropdown should stay compact and scroll internally.");
   assert(brandPage.includes("data-compare-button"), "Brand page should expose compare buttons on product cards.");
   assert(brandPage.includes("brand-product-card__footer"), "Brand page should place actions in the product card footer.");
   assert(brandPage.includes("brand-product-card__compare-button"), "Brand page should keep compare buttons at the bottom-right action area.");
   assert(brandPage.includes('href="/products/"'), "Brand page should link back to /products/.");
   assert(!brandPage.includes("/devices/"), "Brand page should not link into /devices/.");
   assert(brandPage.includes('emptyState.hidden = visibleCount > 0'), "Brand page search should toggle its empty state.");
-  assert(brandPage.includes('haystack.includes(query)'), "Brand page search should filter product cards.");
+  assert(brandPage.includes("function shouldMatchBrandCard"), "Brand page should use dedicated search logic for current-brand cards.");
+  assert(brandPage.includes("normalizedQuery.length <= 1"), "Brand page search should avoid blind one-letter overmatching.");
+  assert(brandPage.includes("normalizedQuery === currentBrandKey || normalizedQuery === brandLabelNormalized"), "Brand page should still allow explicit brand-name queries.");
+  assert(brandPage.includes("stripLeadingBrandName"), "Brand page search should remove leading brand names from card filtering.");
+  assert(brandPage.includes("stripLeadingBrandSlug"), "Brand page search should remove brand slug prefixes from card filtering.");
   assert(brandPage.includes("crossBrandMatches"), "Brand page should derive cross-brand matches from the single search input.");
   assert(brandPage.includes("product.brandKey !== currentBrandKey"), "Brand page search results should stay focused on other brands.");
+  assert(brandPage.includes(").slice(0, 6)"), "Brand page cross-brand suggestions should stay capped and compact.");
   assert(brandPage.includes("renderSearchResults(query, crossBrandMatches);"), "Brand page should render cross-brand compare results from the same search flow.");
   assert(brandPage.includes('searchInput.setAttribute("aria-expanded", "false")'), "Brand page should collapse dropdown results when the query is empty.");
   assert(brandPage.includes("没有找到可加入对比的产品。"), "Brand page should show a compact dropdown empty state for unknown queries.");
@@ -73,6 +79,8 @@ async function main() {
   assert(brandPage.includes("brand-compare__pill-remove"), "Selected compare pills should render a dedicated remove button.");
   assert(brandPage.includes('aria-label", `移除 ${product.name}`'), "Selected compare pills should expose an accessible remove label.");
   assert(brandPage.includes('button.setAttribute("aria-label", `加入对比 ${product.name}`)'), "Dropdown add buttons should expose accessible add labels.");
+  assert(brandPage.includes("button.disabled = active;"), "Dropdown should expose a stable selected state instead of a duplicate add action.");
+  assert(brandPage.includes("brand-search-result__compare-state"), "Dropdown selected rows should render a compact added state.");
   assert(brandPage.includes("已选 1 款，再添加 1 款开始对比。"), "Brand page should show a compact one-product compare hint.");
   assert(brandPage.includes("选择产品进行对比，最多 3 款。"), "Brand page should keep a compact empty compare state.");
   assert(brandPage.includes("selected.length < 2"), "Compare table should require at least two selected products.");
@@ -116,7 +124,8 @@ async function main() {
       indexHasNoCompare: ${!productsIndex.includes("data-compare-button") && !productsIndex.includes("products-compare")},
       brandHasCompare: ${brandPage.includes("data-compare-button") && brandPage.includes("maxCompareCount = 3")},
       brandHasSingleSearch: ${brandPage.includes('id="brand-products-search"') && !brandPage.includes("compare-search")},
-      brandHasSearchDropdown: ${brandPage.includes('id="brand-search-dropdown"') && brandPage.includes("crossBrandMatches")},
+      brandHasSearchDropdown: ${brandPage.includes('id="brand-search-dropdown"') && brandPage.includes("crossBrandMatches") && brandPage.includes("slice(0, 6)")},
+      brandHasCardSearchLogic: ${brandPage.includes("function shouldMatchBrandCard") && brandPage.includes("stripLeadingBrandSlug")},
     };
     process.stdout.write(JSON.stringify(payload));
   `);
@@ -126,6 +135,7 @@ async function main() {
   assert(parsed.brandHasCompare, "Strip-types sanity check should confirm compare on the brand page.");
   assert(parsed.brandHasSingleSearch, "Strip-types sanity check should confirm the single-search brand page.");
   assert(parsed.brandHasSearchDropdown, "Strip-types sanity check should confirm dropdown compare results on the brand page.");
+  assert(parsed.brandHasCardSearchLogic, "Strip-types sanity check should confirm refined current-brand search logic.");
 
   console.log(`PRODUCT_PAGE_AUDIT_OK products=${productCount}`);
 }
