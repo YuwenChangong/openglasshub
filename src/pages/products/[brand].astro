@@ -316,6 +316,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     const maxCompareCount = 3;
 
     const searchInput = document.getElementById("brand-products-search");
+    const searchField = document.querySelector(".brand-toolbar__search-field");
     const countLabel = document.getElementById("brand-products-count");
     const cards = Array.from(document.querySelectorAll("[data-product-card]"));
     const searchDropdown = document.getElementById("brand-search-dropdown");
@@ -330,6 +331,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     const compareTableHead = document.getElementById("brand-compare-table-head");
     const compareTableBody = document.getElementById("brand-compare-table-body");
     const emptyState = document.getElementById("brand-products-empty-state");
+    let searchDropdownOpen = false;
 
     function normalize(value) {
       return String(value || "")
@@ -476,20 +478,28 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       renderCompareTable();
     }
 
+    function setSearchDropdownOpen(open) {
+      if (!searchDropdown || !searchInput) return;
+      const shouldOpen = Boolean(open && normalize(searchInput.value));
+      searchDropdownOpen = shouldOpen;
+      searchDropdown.hidden = !shouldOpen;
+      searchInput.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+      if (!shouldOpen && searchEmpty) {
+        searchEmpty.hidden = true;
+      }
+    }
+
     function renderSearchResults(query, matches) {
       if (!searchDropdown || !searchResultsList || !searchEmpty || !searchInput) return;
 
       if (!query) {
-        searchDropdown.hidden = true;
         searchResultsList.innerHTML = "";
-        searchEmpty.hidden = true;
-        searchInput.setAttribute("aria-expanded", "false");
+        setSearchDropdownOpen(false);
         return;
       }
 
-      searchDropdown.hidden = false;
       searchResultsList.innerHTML = "";
-      searchInput.setAttribute("aria-expanded", "true");
+      setSearchDropdownOpen(true);
 
       if (matches.length === 0) {
         searchEmpty.hidden = false;
@@ -539,6 +549,19 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       renderCompareButtons();
     }
 
+    function getCrossBrandMatches(query) {
+      return query
+        ? compareProducts
+            .filter((product) => product.brandKey !== currentBrandKey && product.searchText.includes(query))
+            .slice(0, 6)
+        : [];
+    }
+
+    function refreshSearchResultsFromInput() {
+      const query = normalize(searchInput?.value);
+      renderSearchResults(query, getCrossBrandMatches(query));
+    }
+
     function addToCompare(slug) {
       if (!productMap.has(slug)) return;
       if (isSelected(slug)) {
@@ -554,14 +577,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       selected.push(slug);
       setFeedback("");
       renderCompareSurface();
-
-      const query = normalize(searchInput?.value);
-      if (query) {
-        const crossBrandMatches = compareProducts.filter(
-          (product) => product.brandKey !== currentBrandKey && product.searchText.includes(query),
-        );
-        renderSearchResults(query, crossBrandMatches);
-      }
+      refreshSearchResultsFromInput();
     }
 
     function removeFromCompare(slug) {
@@ -581,11 +597,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     function updateListing() {
       const query = normalize(searchInput?.value);
       let visibleCount = 0;
-      const crossBrandMatches = query
-        ? compareProducts.filter(
-            (product) => product.brandKey !== currentBrandKey && product.searchText.includes(query),
-          ).slice(0, 6)
-        : [];
+      const crossBrandMatches = getCrossBrandMatches(query);
 
       cards.forEach((card) => {
         const product = brandProductMap.get(card.getAttribute("data-product-slug"));
@@ -606,14 +618,29 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     }
 
     searchInput?.addEventListener("input", updateListing);
+    searchInput?.addEventListener("focus", () => {
+      if (normalize(searchInput.value)) {
+        refreshSearchResultsFromInput();
+      }
+    });
+    searchInput?.addEventListener("click", () => {
+      if (!searchDropdownOpen && normalize(searchInput.value)) {
+        refreshSearchResultsFromInput();
+      }
+    });
     searchInput?.addEventListener("blur", () => {
       window.setTimeout(() => {
-        if (searchInput && normalize(searchInput.value) === "") {
-          searchInput.setAttribute("aria-expanded", "false");
-          if (searchDropdown) searchDropdown.hidden = true;
-          if (searchEmpty) searchEmpty.hidden = true;
+        const activeElement = document.activeElement;
+        if (searchField && activeElement instanceof Node && searchField.contains(activeElement)) {
+          return;
         }
+        setSearchDropdownOpen(false);
       }, 120);
+    });
+    document.addEventListener("pointerdown", (event) => {
+      if (!(event.target instanceof Node) || !searchField?.contains(event.target)) {
+        setSearchDropdownOpen(false);
+      }
     });
     compareClear?.addEventListener("click", clearCompare);
 
