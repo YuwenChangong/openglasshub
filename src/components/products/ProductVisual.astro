@@ -41,14 +41,12 @@ const {
     overflow: hidden;
     min-width: 0;
     min-height: 100%;
-    border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.055);
     background:
-      radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.045), transparent 34%),
-      linear-gradient(180deg, rgba(15, 18, 22, 0.98), rgba(9, 11, 15, 1));
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.045),
-      0 18px 36px rgba(0, 0, 0, 0.18);
+      radial-gradient(circle at 50% 8%, rgba(255, 255, 255, 0.055), transparent 34%),
+      linear-gradient(180deg, rgba(18, 20, 24, 0.98), rgba(7, 8, 10, 1));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
     isolation: isolate;
   }
 
@@ -64,15 +62,15 @@ const {
     position: relative;
     display: grid;
     grid-template-rows: auto 1fr auto;
-    gap: 0.9rem;
+    gap: 0.85rem;
     min-height: inherit;
     height: 100%;
     padding: 1rem 1rem 1.02rem;
-    border-radius: 18px;
+    border-radius: 16px;
     overflow: hidden;
     background:
-      radial-gradient(circle at 50% 6%, rgba(255, 255, 255, 0.03), transparent 24%),
-      linear-gradient(180deg, rgba(21, 25, 31, 0.98), rgba(10, 13, 17, 0.985));
+      radial-gradient(circle at 50% 8%, rgba(255, 255, 255, 0.035), transparent 26%),
+      linear-gradient(180deg, rgba(18, 20, 24, 0.98), rgba(8, 10, 13, 0.985));
   }
 
   .product-visual__glow,
@@ -86,14 +84,14 @@ const {
   .product-visual__glow {
     position: absolute;
     left: 50%;
-    bottom: 10%;
-    width: 62%;
-    height: 34%;
+    bottom: 12%;
+    width: 56%;
+    height: 30%;
     transform: translateX(-50%);
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(180, 193, 214, 0.07), transparent 70%);
-    filter: blur(22px);
-    opacity: 0.42;
+    background: radial-gradient(circle, rgba(208, 215, 226, 0.08), transparent 70%);
+    filter: blur(18px);
+    opacity: 0.34;
   }
 
   .product-visual__gridline {
@@ -103,7 +101,7 @@ const {
     right: 1rem;
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
-    opacity: 0.58;
+    opacity: 0.42;
   }
 
   .product-visual__brand {
@@ -113,10 +111,10 @@ const {
     align-items: center;
     align-self: start;
     min-width: 0;
-    color: rgba(245, 245, 247, 0.56);
+    color: rgba(245, 245, 247, 0.46);
     font-size: 0.7rem;
     font-weight: 640;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.08em;
     line-height: 1.2;
     text-transform: uppercase;
     white-space: normal;
@@ -137,10 +135,10 @@ const {
     max-width: 10.8ch;
     margin: 0;
     color: rgba(248, 248, 250, 0.98);
-    font-size: 1.8rem;
+    font-size: 1.78rem;
     font-weight: 615;
-    line-height: 0.92;
-    letter-spacing: -0.05em;
+    line-height: 0.95;
+    letter-spacing: -0.035em;
     text-wrap: balance;
   }
 
@@ -160,7 +158,7 @@ const {
   .product-visual__rail {
     width: 64%;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
   }
 
   .product-visual__halo {
@@ -170,7 +168,7 @@ const {
     border-radius: 999px 999px 0 0;
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-bottom: 0;
-    opacity: 0.46;
+    opacity: 0.34;
   }
 
   @media (max-width: 720px) {
