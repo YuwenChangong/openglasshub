@@ -198,6 +198,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   <script type="module">
     const searchInput = document.getElementById("products-search");
+    const searchField = document.querySelector(".products-toolbar__search-field");
     const resultCount = document.getElementById("products-result-count");
     const modules = Array.from(document.querySelectorAll("[data-brand-module]"));
     const brandsDataElement = document.getElementById("products-brand-data");
@@ -222,6 +223,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     const compareTableWrap = document.getElementById("products-compare-table-wrap");
     const compareTableHead = document.getElementById("products-compare-table-head");
     const compareTableBody = document.getElementById("products-compare-table-body");
+    let searchDropdownOpen = false;
 
     function normalize(value) {
       return String(value || "")
@@ -339,20 +341,28 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       renderCompareTable();
     }
 
+    function setSearchDropdownOpen(open) {
+      if (!searchDropdown || !searchInput) return;
+      const shouldOpen = Boolean(open && normalize(searchInput.value));
+      searchDropdownOpen = shouldOpen;
+      searchDropdown.hidden = !shouldOpen;
+      searchInput.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+      if (!shouldOpen && searchEmpty) {
+        searchEmpty.hidden = true;
+      }
+    }
+
     function renderSearchResults(query, matches) {
       if (!searchDropdown || !searchResultsList || !searchEmpty || !searchInput) return;
 
       if (!query) {
-        searchDropdown.hidden = true;
         searchResultsList.innerHTML = "";
-        searchEmpty.hidden = true;
-        searchInput.setAttribute("aria-expanded", "false");
+        setSearchDropdownOpen(false);
         return;
       }
 
-      searchDropdown.hidden = false;
       searchResultsList.innerHTML = "";
-      searchInput.setAttribute("aria-expanded", "true");
+      setSearchDropdownOpen(true);
 
       if (matches.length === 0) {
         searchEmpty.hidden = false;
@@ -402,6 +412,15 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       renderCompareButtons();
     }
 
+    function getProductMatches(query) {
+      return query ? compareProducts.filter((product) => product.searchText.includes(query)).slice(0, 6) : [];
+    }
+
+    function refreshSearchResultsFromInput() {
+      const query = normalize(searchInput?.value);
+      renderSearchResults(query, getProductMatches(query));
+    }
+
     function addToCompare(slug) {
       if (!productMap.has(slug)) return;
       if (isSelected(slug)) return;
@@ -414,12 +433,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       selected.push(slug);
       setFeedback("");
       renderCompareSurface();
-
-      const query = normalize(searchInput?.value);
-      if (query) {
-        const matches = compareProducts.filter((product) => product.searchText.includes(query)).slice(0, 6);
-        renderSearchResults(query, matches);
-      }
+      refreshSearchResultsFromInput();
     }
 
     function removeFromCompare(slug) {
@@ -428,30 +442,20 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       selected.splice(index, 1);
       setFeedback("");
       renderCompareSurface();
-      const query = normalize(searchInput?.value);
-      if (query) {
-        const matches = compareProducts.filter((product) => product.searchText.includes(query)).slice(0, 6);
-        renderSearchResults(query, matches);
-      }
+      refreshSearchResultsFromInput();
     }
 
     function clearCompare() {
       selected.splice(0, selected.length);
       setFeedback("");
       renderCompareSurface();
-      const query = normalize(searchInput?.value);
-      if (query) {
-        const matches = compareProducts.filter((product) => product.searchText.includes(query)).slice(0, 6);
-        renderSearchResults(query, matches);
-      }
+      refreshSearchResultsFromInput();
     }
 
     function updateListing() {
       const query = normalize(searchInput?.value);
       let visibleCount = 0;
-      const productMatches = query
-        ? compareProducts.filter((product) => product.searchText.includes(query)).slice(0, 6)
-        : [];
+      const productMatches = getProductMatches(query);
 
       modules.forEach((module) => {
         const brandName = normalize(module.getAttribute("data-brand-name"));
@@ -484,14 +488,29 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     }
 
     searchInput?.addEventListener("input", updateListing);
+    searchInput?.addEventListener("focus", () => {
+      if (normalize(searchInput.value)) {
+        refreshSearchResultsFromInput();
+      }
+    });
+    searchInput?.addEventListener("click", () => {
+      if (!searchDropdownOpen && normalize(searchInput.value)) {
+        refreshSearchResultsFromInput();
+      }
+    });
     searchInput?.addEventListener("blur", () => {
       window.setTimeout(() => {
-        if (searchInput && normalize(searchInput.value) === "") {
-          searchInput.setAttribute("aria-expanded", "false");
-          if (searchDropdown) searchDropdown.hidden = true;
-          if (searchEmpty) searchEmpty.hidden = true;
+        const activeElement = document.activeElement;
+        if (searchField && activeElement instanceof Node && searchField.contains(activeElement)) {
+          return;
         }
+        setSearchDropdownOpen(false);
       }, 120);
+    });
+    document.addEventListener("pointerdown", (event) => {
+      if (!(event.target instanceof Node) || !searchField?.contains(event.target)) {
+        setSearchDropdownOpen(false);
+      }
     });
     compareClear?.addEventListener("click", clearCompare);
     updateListing();

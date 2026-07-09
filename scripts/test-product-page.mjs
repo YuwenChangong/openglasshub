@@ -50,12 +50,19 @@ async function main() {
   assert(productsIndex.includes("products-search-dropdown"), "Products index should render a compact global product dropdown.");
   assert(productsIndex.includes("products-search-results-list"), "Products index should render a global product results list.");
   assert(productsIndex.includes("products-search-empty"), "Products index should include a compact global product empty state.");
+  assert(productsIndex.includes('const searchField = document.querySelector(".products-toolbar__search-field")'), "Products index should scope outside-click dismissal to the search field.");
+  assert(productsIndex.includes("let searchDropdownOpen = false"), "Products index should track dropdown open state.");
+  assert(productsIndex.includes("function setSearchDropdownOpen(open)"), "Products index should centralize dropdown open/close state.");
+  assert(productsIndex.includes("searchInput?.addEventListener(\"focus\""), "Products index should reopen dropdown suggestions when refocusing a non-empty search.");
+  assert(productsIndex.includes("if (!searchDropdownOpen && normalize(searchInput.value))"), "Products index should let clicking back into a non-empty search reopen the dropdown.");
+  assert(productsIndex.includes("document.addEventListener(\"pointerdown\""), "Products index should dismiss the dropdown on outside pointer interaction.");
+  assert(productsIndex.includes("searchField?.contains(event.target)"), "Products index outside-click logic should ignore interactions inside the search field.");
   assert(productsIndex.includes("products-compare"), "Products index should render a compare surface.");
   assert(productsIndex.includes("products-compare-summary"), "Products index compare surface should include a summary.");
   assert(productsIndex.includes("products-compare-table-wrap"), "Products index compare surface should render a compare table container.");
   assert(productsIndex.includes("compareProducts"), "Products index should load global compare products.");
   assert(productsIndex.includes("renderSearchResults(query, productMatches);"), "Products index should render product-level search dropdown results.");
-  assert(productsIndex.includes("const productMatches = query"), "Products index should derive global product matches from the main search.");
+  assert(productsIndex.includes("const productMatches = getProductMatches(query);"), "Products index should derive global product matches from the main search.");
   assert(productsIndex.includes("products-search-result__compare-button"), "Products index dropdown rows should include compare buttons.");
   assert(productsIndex.includes('<span class="products-search-result__compare-state" aria-hidden="true">✓</span>'), "Products index selected dropdown rows should use a compact check state.");
   assert(productsIndex.includes("button.disabled = active;"), "Products index selected dropdown rows should disable duplicate add actions.");
@@ -79,6 +86,9 @@ async function main() {
   assert(brandPage.includes('id="brand-compare-summary"'), "Brand page should include a compare summary.");
   assert(brandPage.includes('id="brand-search-dropdown"'), "Brand page should render a compact search dropdown under the search field.");
   assert(brandPage.includes('id="brand-search-empty"'), "Brand page should include a compact dropdown empty state.");
+  assert(brandPage.includes('const searchField = document.querySelector(".brand-toolbar__search-field")'), "Brand page should scope outside-click dismissal to the search field.");
+  assert(brandPage.includes("let searchDropdownOpen = false"), "Brand page should track dropdown open state.");
+  assert(brandPage.includes("function setSearchDropdownOpen(open)"), "Brand page should centralize dropdown open/close state.");
   assert(!brandPage.includes("compare-search"), "Brand page should not include a compare-specific search input.");
   assert(!brandPage.includes("跨品牌加入对比"), "Brand page should not render a large cross-brand compare block.");
   assert(brandPage.includes("max-height: min(376px"), "Brand page dropdown should stay compact and scroll internally.");
@@ -99,9 +109,13 @@ async function main() {
   assert(brandPage.includes('data-search={`${product.modelSearchText} ${product.detailSearchText}`.trim()}'), "Brand cards should expose combined search data without relying on brand-prefixed tokens.");
   assert(brandPage.includes("crossBrandMatches"), "Brand page should derive cross-brand matches from the single search input.");
   assert(brandPage.includes("product.brandKey !== currentBrandKey"), "Brand page search results should stay focused on other brands.");
-  assert(brandPage.includes(").slice(0, 6)"), "Brand page cross-brand suggestions should stay capped and compact.");
+  assert(brandPage.includes("function getCrossBrandMatches(query)"), "Brand page should derive capped cross-brand suggestions from a dedicated helper.");
   assert(brandPage.includes("renderSearchResults(query, crossBrandMatches);"), "Brand page should render cross-brand compare results from the same search flow.");
-  assert(brandPage.includes('searchInput.setAttribute("aria-expanded", "false")'), "Brand page should collapse dropdown results when the query is empty.");
+  assert(brandPage.includes("setSearchDropdownOpen(false);"), "Brand page should collapse dropdown results when the query is empty.");
+  assert(brandPage.includes("searchInput?.addEventListener(\"focus\""), "Brand page should reopen dropdown suggestions when refocusing a non-empty search.");
+  assert(brandPage.includes("if (!searchDropdownOpen && normalize(searchInput.value))"), "Brand page should let clicking back into a non-empty search reopen the dropdown.");
+  assert(brandPage.includes("document.addEventListener(\"pointerdown\""), "Brand page should dismiss the dropdown on outside pointer interaction.");
+  assert(brandPage.includes("searchField?.contains(event.target)"), "Brand page outside-click logic should ignore interactions inside the search field.");
   assert(brandPage.includes("没有找到可加入对比的产品。"), "Brand page should show a compact dropdown empty state for unknown queries.");
   assert(brandPage.includes("brand-compare__pill-label"), "Selected compare pills should separate the product label.");
   assert(brandPage.includes("brand-compare__pill-remove"), "Selected compare pills should render a dedicated remove button.");
@@ -155,9 +169,11 @@ async function main() {
     const payload = {
       indexHasSingleSearch: ${productsIndex.includes('id="products-search"')},
       indexHasGlobalCompare: ${productsIndex.includes("products-compare") && productsIndex.includes("products-search-dropdown") && productsIndex.includes("compareProducts")},
+      indexHasDismissalState: ${productsIndex.includes("setSearchDropdownOpen(open)") && productsIndex.includes("document.addEventListener(\"pointerdown\"")},
       brandHasCompare: ${brandPage.includes("data-compare-button") && brandPage.includes("maxCompareCount = 3")},
       brandHasSingleSearch: ${brandPage.includes('id="brand-products-search"') && !brandPage.includes("compare-search")},
       brandHasSearchDropdown: ${brandPage.includes('id="brand-search-dropdown"') && brandPage.includes("crossBrandMatches") && brandPage.includes("slice(0, 6)")},
+      brandHasDismissalState: ${brandPage.includes("setSearchDropdownOpen(open)") && brandPage.includes("document.addEventListener(\"pointerdown\"")},
       brandHasCardSearchLogic: ${brandPage.includes("function shouldMatchBrandCard") && brandPage.includes("stripLeadingBrandSlug")},
       brandHasSplitSearchFields: ${brandPage.includes("modelSearchText") && brandPage.includes("detailSearchText") && brandPage.includes("stripBrandTerms")},
     };
@@ -166,9 +182,11 @@ async function main() {
   const parsed = JSON.parse(stripTypesCheck);
   assert(parsed.indexHasSingleSearch, "Strip-types sanity check should confirm the single-search products index.");
   assert(parsed.indexHasGlobalCompare, "Strip-types sanity check should confirm global compare UI on the products index.");
+  assert(parsed.indexHasDismissalState, "Strip-types sanity check should confirm dropdown dismissal state on the products index.");
   assert(parsed.brandHasCompare, "Strip-types sanity check should confirm compare on the brand page.");
   assert(parsed.brandHasSingleSearch, "Strip-types sanity check should confirm the single-search brand page.");
   assert(parsed.brandHasSearchDropdown, "Strip-types sanity check should confirm dropdown compare results on the brand page.");
+  assert(parsed.brandHasDismissalState, "Strip-types sanity check should confirm dropdown dismissal state on the brand page.");
   assert(parsed.brandHasCardSearchLogic, "Strip-types sanity check should confirm refined current-brand search logic.");
   assert(parsed.brandHasSplitSearchFields, "Strip-types sanity check should confirm split search fields for short-query matching.");
 
