@@ -42,13 +42,32 @@ async function main() {
   assert(productsIndex.includes('id="products-empty-state"'), "Products index should include a compact empty state.");
   assert(productsIndex.includes('emptyState.hidden = visibleCount > 0'), "Products index search should toggle its empty state.");
   assert(!productsIndex.includes("data-product-card"), "Products index should not render full product cards.");
-  assert(!productsIndex.includes("data-compare-button"), "Products index should not render compare buttons.");
-  assert(!productsIndex.includes("products-compare"), "Products index should not render a compare tray.");
   assert(!productsIndex.includes("/guides/"), "Products index should not surface a guides CTA.");
   assert(productsIndex.includes("brand-module__pill"), "Products index should surface product preview pills inside brand modules.");
   assert(productsIndex.includes("data-brand-preview"), "Products index should tag brand preview pills for filtering.");
   assert(productsIndex.includes("data-brand-name"), "Products index should track each module brand name for filtering.");
   assert(productsIndex.includes("brand-module__count"), "Products index should keep a stable product count badge.");
+  assert(productsIndex.includes("products-search-dropdown"), "Products index should render a compact global product dropdown.");
+  assert(productsIndex.includes("products-search-results-list"), "Products index should render a global product results list.");
+  assert(productsIndex.includes("products-search-empty"), "Products index should include a compact global product empty state.");
+  assert(productsIndex.includes("products-compare"), "Products index should render a compare surface.");
+  assert(productsIndex.includes("products-compare-summary"), "Products index compare surface should include a summary.");
+  assert(productsIndex.includes("products-compare-table-wrap"), "Products index compare surface should render a compare table container.");
+  assert(productsIndex.includes("compareProducts"), "Products index should load global compare products.");
+  assert(productsIndex.includes("renderSearchResults(query, productMatches);"), "Products index should render product-level search dropdown results.");
+  assert(productsIndex.includes("const productMatches = query"), "Products index should derive global product matches from the main search.");
+  assert(productsIndex.includes("products-search-result__compare-button"), "Products index dropdown rows should include compare buttons.");
+  assert(productsIndex.includes('<span class="products-search-result__compare-state" aria-hidden="true">✓</span>'), "Products index selected dropdown rows should use a compact check state.");
+  assert(productsIndex.includes("button.disabled = active;"), "Products index selected dropdown rows should disable duplicate add actions.");
+  assert(productsIndex.includes("selected.length >= maxCompareCount"), "Products index should enforce a max compare count.");
+  assert(productsIndex.includes("最多同时比较 3 款产品。"), "Products index should show inline max-3 compare feedback.");
+  assert(productsIndex.includes("已选 1 款，再添加 1 款开始对比。"), "Products index should show a compact one-product compare hint.");
+  assert(productsIndex.includes("选择产品进行对比，最多 3 款。"), "Products index should show a compact zero-product compare hint.");
+  assert(productsIndex.includes("selected.length < 2"), "Products index compare table should require at least two selected products.");
+  assert(productsIndex.includes("products-compare__column-heading"), "Products index compare table should separate product and brand labels.");
+  assert(productsIndex.includes("products-compare__pill-label"), "Products index compare pills should separate product labels.");
+  assert(productsIndex.includes("products-compare__pill-remove"), "Products index compare pills should render remove buttons.");
+  assert(productsIndex.includes("没有找到可加入对比的产品。"), "Products index should show the compact dropdown empty state for unknown queries.");
   assert(productsIndex.includes("brandName.includes(query)"), "Products index search should match brand names.");
   assert(productsIndex.includes("previewMatchCount > 0"), "Products index search should keep only modules with matching preview products.");
   assert(productsIndex.includes("pill.hidden = Boolean(query) && !brandMatches && !previewMatches"), "Products index should hide unrelated preview pills inside matched modules.");
@@ -135,7 +154,7 @@ async function main() {
   const stripTypesCheck = runNodeWithStripTypes(`
     const payload = {
       indexHasSingleSearch: ${productsIndex.includes('id="products-search"')},
-      indexHasNoCompare: ${!productsIndex.includes("data-compare-button") && !productsIndex.includes("products-compare")},
+      indexHasGlobalCompare: ${productsIndex.includes("products-compare") && productsIndex.includes("products-search-dropdown") && productsIndex.includes("compareProducts")},
       brandHasCompare: ${brandPage.includes("data-compare-button") && brandPage.includes("maxCompareCount = 3")},
       brandHasSingleSearch: ${brandPage.includes('id="brand-products-search"') && !brandPage.includes("compare-search")},
       brandHasSearchDropdown: ${brandPage.includes('id="brand-search-dropdown"') && brandPage.includes("crossBrandMatches") && brandPage.includes("slice(0, 6)")},
@@ -146,7 +165,7 @@ async function main() {
   `);
   const parsed = JSON.parse(stripTypesCheck);
   assert(parsed.indexHasSingleSearch, "Strip-types sanity check should confirm the single-search products index.");
-  assert(parsed.indexHasNoCompare, "Strip-types sanity check should confirm no compare UI on the products index.");
+  assert(parsed.indexHasGlobalCompare, "Strip-types sanity check should confirm global compare UI on the products index.");
   assert(parsed.brandHasCompare, "Strip-types sanity check should confirm compare on the brand page.");
   assert(parsed.brandHasSingleSearch, "Strip-types sanity check should confirm the single-search brand page.");
   assert(parsed.brandHasSearchDropdown, "Strip-types sanity check should confirm dropdown compare results on the brand page.");
