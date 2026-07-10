@@ -229,7 +229,16 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
   }
 
   if (status === "checking") {
-    return <span className="header-user-menu__status">检查登录状态...</span>;
+    return (
+      <div className="ogh-auth-inline">
+        <a href={buildLoginHref(safeNext)} className="ogh-login-button">
+          登录
+        </a>
+        <a href={buildLoginHref(safeNext)} className="ogh-register-button">
+          注册
+        </a>
+      </div>
+    );
   }
 
   if (status !== "signed_in" || !user) {

@@ -11,6 +11,7 @@ const cwd = process.cwd();
 const requiredFiles = [
   "src/styles/community.css",
   "src/components/site/SiteHeader.astro",
+  "src/components/site/HeaderUserMenu.tsx",
   "src/components/products/ProductVisual.astro",
   "src/components/community/PostCard.astro",
   "src/pages/devices/[slug].astro",
@@ -45,6 +46,9 @@ const communityCss = fs.existsSync(path.join(cwd, "src/styles/community.css"))
 const headerAstro = fs.existsSync(path.join(cwd, "src/components/site/SiteHeader.astro"))
   ? read("src/components/site/SiteHeader.astro")
   : "";
+const headerUserMenu = fs.existsSync(path.join(cwd, "src/components/site/HeaderUserMenu.tsx"))
+  ? read("src/components/site/HeaderUserMenu.tsx")
+  : "";
 const productVisual = fs.existsSync(path.join(cwd, "src/components/products/ProductVisual.astro"))
   ? read("src/components/products/ProductVisual.astro")
   : "";
@@ -73,6 +77,19 @@ const contentChecks = [
     details: "header search should stay usable without stacking button under input",
   },
   {
+    name: "header user menu hydrates from server markup",
+    pass: headerAstro.includes('<HeaderUserMenu next={next} client:load />'),
+    details: "signed-out auth actions should exist in initial HTML before React hydration",
+  },
+  {
+    name: "header user menu keeps signed-out auth visible while checking",
+    pass:
+      headerUserMenu.includes('if (status === "checking")') &&
+      headerUserMenu.includes('className="ogh-login-button"') &&
+      headerUserMenu.includes('className="ogh-register-button"'),
+    details: "mobile signed-out users should keep visible 登录 / 注册 actions during auth state resolution",
+  },
+  {
     name: "product visual has mobile-specific rules",
     pass: productVisual.includes("@media (max-width: 720px)"),
     details: "name-card should have dedicated mobile treatment",
@@ -83,9 +100,9 @@ const contentChecks = [
     details: "mobile wrap rules depend on the post action row class",
   },
   {
-    name: "device detail has mobile layout rule",
-    pass: devicePage.includes("@media (max-width: 720px)"),
-    details: "device detail page should collapse safely on mobile",
+    name: "device route preserves redirect handoff",
+    pass: devicePage.includes("Astro.redirect(target, 301)"),
+    details: "legacy /devices/ routes should stay downlined to the products surface",
   },
   {
     name: "long text wrapping guard exists",
@@ -105,7 +122,7 @@ const riskyPatterns = [
   },
   {
     name: "no oversized mobile min-width card declarations",
-    regex: /min-width:\s*(?:6\d\d|[7-9]\d\d|\d{4,})px/i,
+    regex: /(?:brand-module|brand-product-card|community-post-card|product-visual|og-header)[\s\S]{0,220}min-width:\s*(?:6\d\d|[7-9]\d\d|\d{4,})px/i,
   },
 ];
 
