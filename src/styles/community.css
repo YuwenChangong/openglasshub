@@ -1119,7 +1119,6 @@ body {
 .global-search-box__button {
   flex: 0 0 auto;
   min-width: 5.5rem;
-  white-space: nowrap;
 }
 
 .global-search-box--hero .global-search-box__input {
@@ -1128,11 +1127,6 @@ body {
 
 .global-search-box--compact .global-search-box__input {
   min-height: 42px;
-}
-
-.global-search-box--compact .global-search-box__button {
-  min-height: 42px;
-  padding-inline: 0.95rem;
 }
 
 .global-search-box__dropdown,
