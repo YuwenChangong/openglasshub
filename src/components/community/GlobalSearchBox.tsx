@@ -103,7 +103,7 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
   useEffect(() => {
     if (!mounted) return;
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
         setOpen(false);
       }
@@ -115,11 +115,11 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
       }
     };
 
-    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [mounted]);
@@ -219,6 +219,9 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
             className="glass-input global-search-box__input"
             placeholder="搜索"
             autoComplete="off"
+            aria-haspopup="listbox"
+            aria-expanded={dropdownVisible}
+            aria-controls="global-search-preview"
             maxLength={80}
           />
         </label>
@@ -234,7 +237,7 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
       </form>
 
       {dropdownVisible ? (
-        <div className="global-search-box__dropdown glass-card" role="listbox" aria-label="快速搜索结果">
+        <div id="global-search-preview" className="global-search-box__dropdown glass-card is-open" role="listbox" aria-label="快速搜索结果">
           <div className="global-search-box__dropdown-head">
             <strong>搜索结果</strong>
             <a href={detailHref} className="community-link">

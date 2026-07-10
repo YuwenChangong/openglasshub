@@ -8622,6 +8622,23 @@ body[class] {
   box-shadow: 0 20px 46px rgba(0, 0, 0, 0.34);
 }
 
+.global-search-box__dropdown,
+.global-search-box__dropdown.glass-card {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px) scale(0.99);
+  transition:
+    opacity var(--ogh-blue-fast) var(--ogh-blue-ease),
+    transform var(--ogh-blue-fast) var(--ogh-blue-ease);
+}
+
+.global-search-box__dropdown.is-open,
+.global-search-box__dropdown.glass-card.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
 .header-user-menu__trigger,
 .header-notifications__trigger {
   border-color: rgba(126, 168, 255, 0.14);
@@ -8634,6 +8651,17 @@ body[class] {
 .header-notifications__trigger.is-open {
   border-color: rgba(151, 191, 255, 0.25);
   background: rgba(60, 116, 225, 0.14);
+}
+
+.header-user-menu__trigger:active,
+.header-notifications__trigger:active,
+.community-action-button:active,
+.community-button:active,
+.community-button--secondary:active,
+.community-link-button:active,
+.community-filter-chip:active,
+.community-inline-link:active {
+  transform: translateY(0) scale(0.99);
 }
 
 .community-post-media-preview__item,
@@ -8658,7 +8686,7 @@ body[class] {
 .post-media-thumb img,
 .post-media-thumb video {
   background: transparent;
-  opacity: 0.98;
+  animation: ogh-media-ready var(--ogh-blue-base) var(--ogh-blue-ease) both;
   transform: translateZ(0);
   transition: opacity var(--ogh-blue-base) var(--ogh-blue-ease), transform var(--ogh-blue-base) var(--ogh-blue-ease);
 }
@@ -8666,6 +8694,16 @@ body[class] {
 .community-post-media-preview__item:hover img,
 .community-post-media-preview__item:hover video {
   transform: scale(1.01);
+}
+
+@keyframes ogh-media-ready {
+  from {
+    opacity: 0.01;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .community-post-media-preview__badge,
@@ -8702,15 +8740,36 @@ body[class] {
   .community-post-card {
     padding: 0.84rem 0.88rem 0;
   }
+
+  .community-action-button,
+  .community-button,
+  .community-button--secondary,
+  .community-link-button,
+  .community-filter-chip,
+  .header-user-menu__trigger,
+  .header-notifications__trigger {
+    min-height: 44px;
+  }
+
+  .community-action-button {
+    padding-inline: 0.82rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .global-search-box__dropdown,
+  .global-search-box__dropdown.glass-card {
+    transition: none !important;
+    transform: none !important;
+  }
+
   .community-post-media-preview__item img,
   .community-post-media-preview__item video,
   .post-media-main img,
   .post-media-main video,
   .post-media-thumb img,
   .post-media-thumb video {
+    animation: none !important;
     transition: none !important;
     transform: none !important;
   }

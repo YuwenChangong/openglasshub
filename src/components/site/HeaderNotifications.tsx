@@ -388,8 +388,11 @@ export default function HeaderNotifications() {
   const popover = open && portalReady
     ? createPortal(
         <div
+          id="header-notifications-menu"
           ref={popoverRef}
           className={`header-notifications__popover header-notifications__popover--fixed${position.ready ? " is-ready" : ""}`}
+          role="menu"
+          aria-label="通知菜单"
           style={{
             position: "fixed",
             top: `${position.top}px`,
@@ -492,8 +495,17 @@ export default function HeaderNotifications() {
         ref={triggerRef}
         href="/notifications/"
         className={`header-notifications__trigger${open ? " is-open" : ""}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls="header-notifications-menu"
         aria-label={unreadCount > 0 ? `通知，${clampUnreadCount(unreadCount)} 条未读` : "通知"}
         title="通知"
+        onClick={(event) => {
+          event.preventDefault();
+          clearCloseTimer();
+          setOpen((current) => !current);
+          void loadUnreadMenu({ silent: true });
+        }}
         onFocus={() => {
           clearCloseTimer();
           setOpen(true);

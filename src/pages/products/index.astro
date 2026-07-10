@@ -120,11 +120,12 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
           placeholder="搜索产品、品牌或类别"
           autocomplete="off"
           aria-describedby="products-result-count"
+          aria-haspopup="listbox"
           aria-expanded="false"
           aria-controls="products-search-dropdown"
         />
 
-        <div class="products-search-dropdown" id="products-search-dropdown" hidden>
+        <div class="products-search-dropdown" id="products-search-dropdown" role="listbox" aria-label="可加入对比的产品" hidden>
           <div class="products-search-dropdown__list" id="products-search-results-list"></div>
           <p class="products-search-dropdown__empty" id="products-search-empty" hidden>
             没有找到可加入对比的产品。
@@ -224,6 +225,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     const compareTableHead = document.getElementById("products-compare-table-head");
     const compareTableBody = document.getElementById("products-compare-table-body");
     let searchDropdownOpen = false;
+    let searchDropdownCloseTimer = 0;
 
     function normalize(value) {
       return String(value || "")
@@ -345,10 +347,36 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       if (!searchDropdown || !searchInput) return;
       const shouldOpen = Boolean(open && normalize(searchInput.value));
       searchDropdownOpen = shouldOpen;
-      searchDropdown.hidden = !shouldOpen;
       searchInput.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-      if (!shouldOpen && searchEmpty) {
-        searchEmpty.hidden = true;
+
+      if (searchDropdownCloseTimer) {
+        window.clearTimeout(searchDropdownCloseTimer);
+        searchDropdownCloseTimer = 0;
+      }
+
+      if (shouldOpen) {
+        searchDropdown.hidden = false;
+        window.requestAnimationFrame(() => searchDropdown.classList.add("is-open"));
+        return;
+      }
+
+      searchDropdown.classList.remove("is-open");
+      searchDropdownCloseTimer = window.setTimeout(() => {
+        searchDropdown.hidden = true;
+        if (searchEmpty) searchEmpty.hidden = true;
+        searchDropdownCloseTimer = 0;
+      }, 160);
+    }
+
+    function closeSearchDropdown() {
+      setSearchDropdownOpen(false);
+    }
+
+    function handleSearchKeyDown(event) {
+      if (event.key === "Escape" && searchDropdownOpen) {
+        event.preventDefault();
+        closeSearchDropdown();
+        searchInput?.focus();
       }
     }
 
@@ -498,18 +526,19 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
         refreshSearchResultsFromInput();
       }
     });
+    searchInput?.addEventListener("keydown", handleSearchKeyDown);
     searchInput?.addEventListener("blur", () => {
       window.setTimeout(() => {
         const activeElement = document.activeElement;
         if (searchField && activeElement instanceof Node && searchField.contains(activeElement)) {
           return;
         }
-        setSearchDropdownOpen(false);
+        closeSearchDropdown();
       }, 120);
     });
     document.addEventListener("pointerdown", (event) => {
       if (!(event.target instanceof Node) || !searchField?.contains(event.target)) {
-        setSearchDropdownOpen(false);
+        closeSearchDropdown();
       }
     });
     compareClear?.addEventListener("click", clearCompare);
@@ -634,8 +663,19 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     box-shadow: 0 6px 8px rgba(0, 0, 0, 0.32);
     backdrop-filter: blur(18px) saturate(112%);
     -webkit-backdrop-filter: blur(18px) saturate(112%);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px) scale(0.99);
     transform-origin: top center;
-    animation: products-pop 220ms var(--products-ease);
+    transition:
+      opacity 160ms var(--products-ease),
+      transform 160ms var(--products-ease);
+  }
+
+  .products-search-dropdown.is-open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
   }
 
   .products-search-dropdown[hidden],
@@ -750,6 +790,12 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     border-color: rgba(255, 255, 255, 0.17);
     background: rgba(255, 255, 255, 0.08);
     transform: translateY(-1px);
+  }
+
+  :global(.products-search-result__compare-button:active:not(:disabled)),
+  .products-compare__clear:active:not(:disabled),
+  :global(.products-compare__pill-remove:active) {
+    transform: translateY(0) scale(0.98);
   }
 
   :global(.products-search-result__compare-button:disabled) {
@@ -1077,6 +1123,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     .products-compare__clear {
       transition: none;
       animation: none;
+      transform: none;
     }
   }
 
@@ -1102,6 +1149,16 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       min-height: 206px;
       padding: 0.96rem;
       border-radius: 16px;
+    }
+
+    :global(.products-search-result__compare-button),
+    :global(.products-compare__pill-remove) {
+      width: 2.75rem;
+      height: 2.75rem;
+    }
+
+    .products-compare__clear {
+      min-height: 2.75rem;
     }
   }
 
