@@ -259,6 +259,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
   const popover = open && portalReady
     ? createPortal(
         <div
+          id="header-user-menu"
           ref={popoverRef}
           className={`header-user-menu__popover header-user-menu__popover--fixed${position.ready ? " is-ready" : ""}`}
           role="menu"
@@ -357,6 +358,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
         }}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls="header-user-menu"
         aria-label="打开账户菜单"
       >
         {avatarUrl ? (
