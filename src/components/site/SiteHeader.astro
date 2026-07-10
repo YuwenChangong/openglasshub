@@ -55,19 +55,21 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     top: 0;
     z-index: var(--premium-header-z, 120);
     width: 100%;
-    background: rgba(5, 6, 8, 0.78);
-    backdrop-filter: blur(22px) saturate(112%);
-    -webkit-backdrop-filter: blur(22px) saturate(112%);
-    border-bottom: 1px solid rgba(255,255,255,0.045);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.025);
+    background:
+      linear-gradient(180deg, rgba(5, 11, 24, 0.88), rgba(3, 5, 9, 0.82)),
+      rgba(3, 5, 9, 0.82);
+    backdrop-filter: blur(18px) saturate(128%);
+    -webkit-backdrop-filter: blur(18px) saturate(128%);
+    border-bottom: 1px solid rgba(92, 142, 240, 0.13);
+    box-shadow: 0 1px 0 rgba(184, 211, 255, 0.035);
   }
   .og-header__inner,
   .ogh-site-header__inner {
     width: 100%;
     max-width: none;
-    min-height: 62px;
+    min-height: 58px;
     margin: 0;
-    padding: 0 30px;
+    padding: 0 28px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -79,7 +81,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     align-items: center;
     gap: 12px;
     text-decoration: none;
-    color: rgba(248, 248, 250, 0.97);
+    color: rgba(248, 251, 255, 0.98);
     font-weight: 650;
     font-size: 0.98rem;
     letter-spacing: -0.015em;
@@ -96,8 +98,8 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   }
   .og-header__brand img,
   .ogh-brand img {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     display: block;
     object-fit: contain;
     image-rendering: -webkit-optimize-contrast;
@@ -120,10 +122,10 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   .ogh-nav a {
     display: inline-flex;
     align-items: center;
-    min-height: 34px;
-    padding: 6px 11px;
+    min-height: 32px;
+    padding: 5px 10px;
     border-radius: 999px;
-    color: rgba(245,245,245,0.66);
+    color: rgba(218, 228, 246, 0.7);
     text-decoration: none;
     font-size: 0.86rem;
     font-weight: 560;
@@ -142,7 +144,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   .og-header__link:hover,
   .ogh-nav a:hover {
     color: #fff;
-    background: rgba(255,255,255,0.045);
+    background: rgba(83, 131, 226, 0.11);
     border-color: transparent;
     transform: none;
     box-shadow: none;
@@ -152,7 +154,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   .ogh-nav a[aria-current="page"],
   .ogh-nav a.is-active {
     color: #fff;
-    background: rgba(255,255,255,0.07);
+    background: rgba(62, 116, 225, 0.16);
     border-color: transparent;
     box-shadow: none;
   }
@@ -163,8 +165,21 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     display: none;
   }
   .og-header__search {
-    flex: 0 1 300px;
+    flex: 0 1 280px;
     min-width: 210px;
+  }
+  .og-header__search :global(.global-search-box__form) {
+    border-radius: 999px;
+  }
+  .og-header__search :global(.global-search-box__input) {
+    min-height: 38px;
+    border-radius: 999px;
+    background: rgba(7, 18, 39, 0.58);
+    border-color: rgba(126, 168, 255, 0.12);
+  }
+  .og-header__search :global(.global-search-box__button) {
+    min-height: 38px;
+    border-radius: 999px;
   }
   .og-header__auth,
   .ogh-header-actions {
@@ -187,12 +202,12 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 36px;
+    min-height: 34px;
     padding: 7px 13px;
     border-radius: 999px;
     text-decoration: none;
     font-weight: 650;
-    border: 1px solid rgba(255,255,255,0.09);
+    border: 1px solid rgba(126, 168, 255, 0.12);
     color: #f5f5f5;
     backdrop-filter: blur(16px) saturate(116%);
     -webkit-backdrop-filter: blur(16px) saturate(116%);
@@ -204,12 +219,12 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   }
   :global(.ogh-login-button),
   :global(.ogh-auth-secondary) {
-    background: rgba(255,255,255,0.035);
+    background: rgba(7, 18, 39, 0.52);
     box-shadow: none;
   }
   :global(.ogh-register-button) {
-    background: rgba(245, 247, 252, 0.15);
-    border-color: rgba(245, 247, 252, 0.18);
+    background: rgba(62, 116, 225, 0.18);
+    border-color: rgba(141, 178, 255, 0.26);
     color: #fff;
     font-weight: 650;
     box-shadow: none;
@@ -225,14 +240,14 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   }
   :global(.ogh-login-button:hover),
   :global(.ogh-auth-secondary:hover) {
-    background: rgba(255,255,255,0.07);
-    border-color: rgba(255,255,255,0.18);
+    background: rgba(76, 132, 240, 0.16);
+    border-color: rgba(151, 188, 255, 0.28);
     color: #fff;
     transform: translateY(-1px);
   }
   :global(.ogh-register-button:hover) {
-    background: rgba(245, 247, 252, 0.2);
-    border-color: rgba(245, 247, 252, 0.26);
+    background: rgba(72, 130, 245, 0.24);
+    border-color: rgba(166, 198, 255, 0.34);
     transform: none;
   }
   .og-header__link:focus-visible,
@@ -243,7 +258,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   :global(.ogh-register-button:focus-visible),
   :global(.ogh-auth-secondary:focus-visible) {
     outline: none;
-    box-shadow: var(--premium-focus-ring, 0 0 0 3px rgba(255,255,255,0.09));
+    box-shadow: var(--premium-focus-ring, 0 0 0 3px rgba(75, 135, 255, 0.22));
   }
   @media (max-width: 1100px) {
     .og-header__search {

@@ -88,6 +88,15 @@ const quickLinks = [
   { href: "/products/", label: "产品" },
 ] as const;
 
+const heroSignals = [
+  { label: "公开讨论", value: posts.length > 0 ? `${posts.length}` : "启动中" },
+  { label: "产品入口", value: "按品牌" },
+  { label: "社区节奏", value: homeCircles.length > 0 ? `${homeCircles.length} 个圈子` : "持续整理" },
+] as const;
+
+const featuredPost = posts[0];
+const featuredCircle = homeCircles[0];
+
 function excerpt(body?: string | null): string {
   const sanitized = sanitizeBodyForDisplay(body);
   if (!sanitized) return "";
@@ -103,13 +112,34 @@ function excerpt(body?: string | null): string {
 >
   <section class="home-intro">
     <div class="home-intro__copy">
+      <span class="home-intro__kicker">AR / AI 眼镜社区</span>
       <h1>OpenGlass Hub</h1>
-      <p>AR / AI 眼镜社区，记录真实体验、产品选择和开发问题。</p>
-      <small>面向早期用户、开发者和正在做购买判断的人。</small>
+      <p>讨论 AR / AI 眼镜的真实体验、产品选择和开发问题。</p>
+      <small>给早期用户、开发者和正在做购买判断的人。</small>
+      <div class="home-intro__actions">
+        <a href="/feed/" class="community-button">进入论坛</a>
+        <a href="/products/" class="community-button--secondary">浏览产品</a>
+      </div>
     </div>
-    <div class="home-intro__actions">
-      <a href="/feed/" class="community-button">进入论坛</a>
-      <a href="/posts/new/" class="community-button--secondary">发起讨论</a>
+
+    <div class="home-intro__signal" aria-label="社区概览">
+      <div class="home-signal-card home-signal-card--primary">
+        <span>当前焦点</span>
+        <strong>{featuredPost?.title || "从产品体验和开发问题开始"}</strong>
+        <a href={featuredPost ? `/posts/${featuredPost.id}/` : "/feed/"}>查看讨论</a>
+      </div>
+      <div class="home-signal-grid">
+        {heroSignals.map((item) => (
+          <div class="home-signal-metric">
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </div>
+        ))}
+      </div>
+      <a class="home-signal-route" href={featuredCircle?.slug ? `/circles/${featuredCircle.slug}/` : "/circles/"}>
+        <span>进入圈子</span>
+        <strong>{featuredCircle?.name || "查看公开圈子"}</strong>
+      </a>
     </div>
   </section>
 
@@ -169,7 +199,7 @@ function excerpt(body?: string | null): string {
       <section class="community-sidebar-block community-sidebar-block--strong">
         <div class="home-utility-block">
           <div class="community-sidebar-head">
-            <h2>工具入口</h2>
+            <h2>开始</h2>
           </div>
           <AuthCTA next="/" client:only="react" />
           <SignedOutHeroNote client:only="react" />
@@ -223,63 +253,150 @@ function excerpt(body?: string | null): string {
   .home-intro {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    gap: 2rem;
-    min-height: clamp(280px, 34vw, 460px);
-    padding: 3.1rem 0 3.4rem;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 430px);
+    align-items: stretch;
+    gap: clamp(1.2rem, 3vw, 2.4rem);
+    min-height: 0;
+    padding: clamp(1.45rem, 4vw, 3rem) 0 clamp(1.2rem, 3vw, 2.2rem);
     isolation: isolate;
   }
   .home-intro::before {
     content: "";
     position: absolute;
-    inset: 1.2rem -8vw 0 auto;
+    inset: -1.5rem -7vw auto auto;
     z-index: -1;
-    width: min(52vw, 680px);
-    border-radius: 999px;
+    width: min(56vw, 720px);
+    height: min(40vw, 520px);
+    border-radius: 40%;
     background:
-      radial-gradient(circle at 60% 36%, rgba(255, 255, 255, 0.12), transparent 36%),
-      radial-gradient(circle at 38% 58%, rgba(126, 147, 181, 0.12), transparent 42%);
-    filter: blur(18px);
-    opacity: 0.72;
+      radial-gradient(circle at 62% 30%, rgba(58, 132, 255, 0.2), transparent 34%),
+      radial-gradient(circle at 36% 58%, rgba(18, 56, 126, 0.34), transparent 44%);
+    filter: blur(22px);
+    opacity: 0.82;
   }
   .home-intro__copy {
+    display: grid;
+    align-content: center;
     min-width: 0;
+    max-width: 680px;
+  }
+  .home-intro__kicker {
+    width: fit-content;
+    margin-bottom: 0.78rem;
+    color: rgba(149, 184, 255, 0.88);
+    font-size: 0.82rem;
+    font-weight: 650;
+    letter-spacing: 0.01em;
   }
   .home-intro h1 {
     margin: 0;
-    max-width: 11ch;
-    font-size: clamp(3rem, 7vw, 5.6rem);
-    line-height: 0.94;
-    letter-spacing: -0.038em;
+    max-width: 12ch;
+    font-size: clamp(3rem, 6.4vw, 5.35rem);
+    line-height: 0.93;
+    letter-spacing: -0.034em;
     text-wrap: balance;
   }
   .home-intro p {
-    margin: 1.08rem 0 0;
-    max-width: 35ch;
-    color: rgba(245, 245, 247, 0.78);
-    font-size: 1.16rem;
-    line-height: 1.58;
+    margin: 1rem 0 0;
+    max-width: 30ch;
+    color: rgba(241, 246, 255, 0.84);
+    font-size: 1.18rem;
+    line-height: 1.52;
   }
   .home-intro small {
     display: block;
-    margin-top: 0.75rem;
-    color: rgba(245, 245, 247, 0.54);
+    margin-top: 0.62rem;
+    color: rgba(207, 219, 241, 0.62);
     font-size: 0.94rem;
     line-height: 1.55;
   }
   .home-intro__actions {
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
+    gap: 0.68rem;
+    margin-top: 1.35rem;
+  }
+  .home-intro__signal {
+    align-self: center;
+    display: grid;
     gap: 0.72rem;
-    padding-bottom: 0.2rem;
+    min-width: 0;
+    padding: 0.8rem;
+    border: 1px solid rgba(91, 145, 255, 0.14);
+    border-radius: 20px;
+    background:
+      linear-gradient(180deg, rgba(9, 22, 48, 0.72), rgba(5, 8, 14, 0.84)),
+      rgba(255, 255, 255, 0.025);
+    box-shadow: inset 0 1px 0 rgba(178, 206, 255, 0.08), 0 4px 8px rgba(0, 0, 0, 0.22);
+  }
+  .home-signal-card,
+  .home-signal-metric,
+  .home-signal-route {
+    min-width: 0;
+    border: 1px solid rgba(163, 194, 255, 0.1);
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .home-signal-card {
+    display: grid;
+    gap: 0.42rem;
+    padding: 1rem;
+  }
+  .home-signal-card span,
+  .home-signal-metric span,
+  .home-signal-route span {
+    color: rgba(205, 220, 248, 0.58);
+    font-size: 0.78rem;
+    font-weight: 620;
+  }
+  .home-signal-card strong {
+    color: rgba(248, 251, 255, 0.96);
+    font-size: 1rem;
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+  .home-signal-card a,
+  .home-signal-route {
+    color: rgba(185, 211, 255, 0.94);
+    text-decoration: none;
+    font-size: 0.84rem;
+    font-weight: 650;
+  }
+  .home-signal-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+  .home-signal-metric {
+    display: grid;
+    gap: 0.22rem;
+    padding: 0.72rem;
+  }
+  .home-signal-metric strong {
+    color: #f8fbff;
+    font-size: 0.9rem;
+    line-height: 1.25;
+  }
+  .home-signal-route {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    padding: 0.78rem 0.9rem;
+  }
+  .home-signal-route strong {
+    min-width: 0;
+    overflow: hidden;
+    color: rgba(248, 251, 255, 0.94);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .home-channel-bar {
     display: flex;
     align-items: center;
     gap: 0.72rem;
-    margin-bottom: 2.2rem;
+    margin-bottom: 1.45rem;
     padding: 0.72rem 0;
     border-top: 1px solid rgba(255, 255, 255, 0.055);
     border-bottom: 1px solid rgba(255, 255, 255, 0.055);
@@ -296,7 +413,7 @@ function excerpt(body?: string | null): string {
   .home-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 2.6rem;
+    gap: clamp(1.2rem, 2.6vw, 2.2rem);
     align-items: start;
   }
   .community-feed-column {
@@ -337,9 +454,6 @@ function excerpt(body?: string | null): string {
       align-items: flex-start;
       flex-direction: column;
     }
-    .home-intro__actions {
-      justify-content: flex-start;
-    }
   }
   @media (max-width: 720px) {
     .home-intro {
@@ -366,6 +480,13 @@ function excerpt(body?: string | null): string {
     }
     .home-intro__actions {
       width: 100%;
+    }
+    .home-intro__signal {
+      padding: 0.66rem;
+      border-radius: 16px;
+    }
+    .home-signal-grid {
+      grid-template-columns: 1fr;
     }
     .home-intro__actions :global(.community-button),
     .home-intro__actions :global(.community-button--secondary) {
