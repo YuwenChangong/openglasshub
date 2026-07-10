@@ -106,6 +106,7 @@ export default function HeaderNotifications() {
     ready: false,
   });
   const triggerRef = useRef<HTMLAnchorElement | null>(null);
+  const triggerCleanupRef = useRef<(() => void) | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
 
@@ -313,6 +314,33 @@ export default function HeaderNotifications() {
     return () => clearCloseTimer();
   }, [clearCloseTimer]);
 
+  const attachTriggerRef = useCallback((node: HTMLAnchorElement | null) => {
+    triggerCleanupRef.current?.();
+    triggerCleanupRef.current = null;
+    triggerRef.current = node;
+
+    if (!node) return;
+
+    const handleTriggerClick = (event: MouseEvent) => {
+      event.preventDefault();
+      clearCloseTimer();
+      setOpen(true);
+      void loadUnreadMenu({ silent: true });
+    };
+
+    node.addEventListener("click", handleTriggerClick);
+    triggerCleanupRef.current = () => {
+      node.removeEventListener("click", handleTriggerClick);
+    };
+  }, [clearCloseTimer, loadUnreadMenu, status, user]);
+
+  useEffect(() => {
+    return () => {
+      triggerCleanupRef.current?.();
+      triggerCleanupRef.current = null;
+    };
+  }, []);
+
   const markAllRead = useCallback(async () => {
     if (markingAll || !supabase) return;
     setMarkingAll(true);
@@ -492,7 +520,7 @@ export default function HeaderNotifications() {
       }}
     >
       <a
-        ref={triggerRef}
+        ref={attachTriggerRef}
         href="/notifications/"
         className={`header-notifications__trigger${open ? " is-open" : ""}`}
         aria-haspopup="menu"
@@ -500,17 +528,6 @@ export default function HeaderNotifications() {
         aria-controls="header-notifications-menu"
         aria-label={unreadCount > 0 ? `通知，${clampUnreadCount(unreadCount)} 条未读` : "通知"}
         title="通知"
-        onClick={(event) => {
-          event.preventDefault();
-          clearCloseTimer();
-          setOpen((current) => !current);
-          void loadUnreadMenu({ silent: true });
-        }}
-        onFocus={() => {
-          clearCloseTimer();
-          setOpen(true);
-          void loadUnreadMenu({ silent: true });
-        }}
       >
         <span className="header-notifications__icon" aria-hidden="true">
           <NotificationBellIcon />
