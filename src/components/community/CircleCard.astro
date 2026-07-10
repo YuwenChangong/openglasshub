@@ -14,19 +14,24 @@ const fallbackLetter = name.trim().charAt(0).toUpperCase() || "圈";
 
 <a href={`/circles/${slug}/`} class="community-circle-card">
   <div class="community-circle-card__content">
-    <div class="community-tags">
-      <span class="community-tag community-tag--muted">圈子</span>
+    <div class="community-circle-card__top">
+      <div class="community-tags">
+        <span class="community-tag community-tag--muted">圈子</span>
+      </div>
+      <span class="community-circle-card__cta">进入圈子</span>
     </div>
-    <h3>{name}</h3>
-    <p>{description || "查看这个圈子的公开讨论与后续动态。"}</p>
-    {latestNote && <span class="community-meta">{latestNote}</span>}
-    <div class="community-post-actions" style="padding-top: 0.4rem;">
-      <span class="community-action">进入圈子</span>
+    <div class="community-circle-card__body">
+      <h3>{name}</h3>
+      <p>{description || "查看这个圈子的公开讨论与后续动态。"}</p>
+    </div>
+    <div class="community-circle-card__meta-row">
+      {latestNote && <span class="community-meta">{latestNote}</span>}
+      <span class="community-circle-card__meta-pill">公开讨论</span>
     </div>
   </div>
   <div class="community-circle-card__cover community-circle-card__cover--side">
     {imageUrl ? (
-      <img src={imageUrl} alt={`${name} 圈子封面`} loading="lazy" />
+      <img src={imageUrl} alt={`${name} 圈子封面`} loading="lazy" decoding="async" />
     ) : (
       <div class="community-circle-card__fallback" aria-hidden="true">
         <span>{fallbackLetter}</span>
