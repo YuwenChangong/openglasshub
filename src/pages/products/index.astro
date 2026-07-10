@@ -120,11 +120,12 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
           placeholder="搜索产品、品牌或类别"
           autocomplete="off"
           aria-describedby="products-result-count"
+          aria-haspopup="listbox"
           aria-expanded="false"
           aria-controls="products-search-dropdown"
         />
 
-        <div class="products-search-dropdown" id="products-search-dropdown" hidden>
+        <div class="products-search-dropdown" id="products-search-dropdown" role="listbox" aria-label="可加入对比的产品" hidden>
           <div class="products-search-dropdown__list" id="products-search-results-list"></div>
           <p class="products-search-dropdown__empty" id="products-search-empty" hidden>
             没有找到可加入对比的产品。
@@ -224,6 +225,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     const compareTableHead = document.getElementById("products-compare-table-head");
     const compareTableBody = document.getElementById("products-compare-table-body");
     let searchDropdownOpen = false;
+    let searchDropdownCloseTimer = 0;
 
     function normalize(value) {
       return String(value || "")
@@ -345,10 +347,36 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       if (!searchDropdown || !searchInput) return;
       const shouldOpen = Boolean(open && normalize(searchInput.value));
       searchDropdownOpen = shouldOpen;
-      searchDropdown.hidden = !shouldOpen;
       searchInput.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-      if (!shouldOpen && searchEmpty) {
-        searchEmpty.hidden = true;
+
+      if (searchDropdownCloseTimer) {
+        window.clearTimeout(searchDropdownCloseTimer);
+        searchDropdownCloseTimer = 0;
+      }
+
+      if (shouldOpen) {
+        searchDropdown.hidden = false;
+        window.requestAnimationFrame(() => searchDropdown.classList.add("is-open"));
+        return;
+      }
+
+      searchDropdown.classList.remove("is-open");
+      searchDropdownCloseTimer = window.setTimeout(() => {
+        searchDropdown.hidden = true;
+        if (searchEmpty) searchEmpty.hidden = true;
+        searchDropdownCloseTimer = 0;
+      }, 160);
+    }
+
+    function closeSearchDropdown() {
+      setSearchDropdownOpen(false);
+    }
+
+    function handleSearchKeyDown(event) {
+      if (event.key === "Escape" && searchDropdownOpen) {
+        event.preventDefault();
+        closeSearchDropdown();
+        searchInput?.focus();
       }
     }
 
@@ -498,18 +526,19 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
         refreshSearchResultsFromInput();
       }
     });
+    searchInput?.addEventListener("keydown", handleSearchKeyDown);
     searchInput?.addEventListener("blur", () => {
       window.setTimeout(() => {
         const activeElement = document.activeElement;
         if (searchField && activeElement instanceof Node && searchField.contains(activeElement)) {
           return;
         }
-        setSearchDropdownOpen(false);
+        closeSearchDropdown();
       }, 120);
     });
     document.addEventListener("pointerdown", (event) => {
       if (!(event.target instanceof Node) || !searchField?.contains(event.target)) {
-        setSearchDropdownOpen(false);
+        closeSearchDropdown();
       }
     });
     compareClear?.addEventListener("click", clearCompare);
@@ -522,35 +551,33 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
   .products-toolbar,
   .products-compare,
   .brand-module {
-    --products-panel-bg: linear-gradient(180deg, rgba(9, 19, 42, 0.62), rgba(5, 8, 14, 0.78));
-    --products-panel-border: rgba(111, 160, 255, 0.12);
-    --products-panel-highlight: rgba(160, 196, 255, 0.05);
-    --products-chip-bg: rgba(70, 122, 226, 0.1);
-    --products-chip-border: rgba(142, 180, 255, 0.14);
-    --products-chip-text: rgba(248, 248, 250, 0.85);
-    --products-muted-text: rgba(210, 224, 249, 0.64);
-    --products-focus-ring: 0 0 0 3px rgba(73, 137, 255, 0.22);
-    --products-shadow: 0 4px 8px rgba(0, 0, 0, 0.18);
-    --products-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --products-panel-bg: linear-gradient(180deg, rgba(16, 18, 22, 0.92), rgba(10, 12, 15, 0.98));
+    --products-panel-border: rgba(255, 255, 255, 0.07);
+    --products-panel-highlight: rgba(255, 255, 255, 0.04);
+    --products-chip-bg: rgba(255, 255, 255, 0.04);
+    --products-chip-border: rgba(255, 255, 255, 0.08);
+    --products-chip-text: rgba(248, 248, 250, 0.84);
+    --products-muted-text: rgba(245, 245, 245, 0.56);
+    --products-focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.08);
   }
 
   .products-page-head {
-    padding: 1.45rem 0 1rem;
+    padding: 0.95rem 0 0.65rem;
   }
 
   .products-page-head h1 {
     margin: 0;
     color: #f8f8fa;
-    font-size: 3rem;
-    line-height: 0.96;
-    letter-spacing: -0.038em;
+    font-size: 2.15rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
   }
 
   .products-page-head p {
-    margin: 0.42rem 0 0;
-    color: rgba(214, 226, 249, 0.72);
-    font-size: 1rem;
-    line-height: 1.5;
+    margin: 0.34rem 0 0;
+    color: rgba(245, 245, 247, 0.7);
+    font-size: 0.98rem;
+    line-height: 1.55;
   }
 
   .products-toolbar {
@@ -558,18 +585,12 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     align-items: end;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1.35rem;
-    padding: 0.9rem;
-    border-radius: 18px;
-    border: 1px solid var(--products-panel-border);
-    border-width: 1px;
-    background: var(--products-panel-bg);
-    box-shadow: inset 0 1px 0 var(--products-panel-highlight);
+    margin-bottom: 1rem;
   }
 
   .products-toolbar__search {
     display: grid;
-    gap: 0.48rem;
+    gap: 0.42rem;
     flex: 1 1 auto;
     min-width: 0;
   }
@@ -583,26 +604,21 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
   .products-toolbar__meta {
     margin: 0;
     color: rgba(245, 245, 247, 0.56);
-    font-size: 0.8rem;
-    font-weight: 560;
-    letter-spacing: 0.01em;
+    font-size: 0.82rem;
     line-height: 1.35;
   }
 
   .products-toolbar :global(.glass-input) {
     min-height: 44px;
     border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.075);
-    background: rgba(4, 12, 28, 0.62);
-    transition:
-      border-color 180ms var(--products-ease),
-      background 180ms var(--products-ease),
-      box-shadow 180ms var(--products-ease);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
   }
 
   .products-toolbar :global(.glass-input:hover) {
-    border-color: rgba(255, 255, 255, 0.13);
-    background: rgba(12, 28, 58, 0.74);
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.045);
   }
 
   .products-toolbar :global(.glass-input:focus-visible),
@@ -618,24 +634,33 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   .products-search-dropdown {
     position: absolute;
-    top: calc(100% + 0.52rem);
+    top: calc(100% + 0.45rem);
     left: 0;
-    right: auto;
+    right: 0;
     z-index: 20;
-    width: min(680px, 100%);
     display: grid;
-    gap: 0.24rem;
+    gap: 0.2rem;
     max-height: min(376px, calc(100vh - 180px));
-    padding: 0.42rem;
+    padding: 0.38rem;
     overflow: hidden;
-    border-radius: 16px;
-    border: 1px solid rgba(127, 173, 255, 0.16);
-    background: linear-gradient(180deg, rgba(8, 18, 39, 0.98), rgba(5, 8, 14, 0.99));
-    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.32);
-    backdrop-filter: blur(18px) saturate(112%);
-    -webkit-backdrop-filter: blur(18px) saturate(112%);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: linear-gradient(180deg, rgba(18, 20, 24, 0.94), rgba(11, 13, 16, 0.98));
+    box-shadow: 0 18px 30px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(22px);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px) scale(0.99);
     transform-origin: top center;
-    animation: products-pop 220ms var(--products-ease);
+    transition:
+      opacity 160ms var(--products-ease),
+      transform 160ms var(--products-ease);
+  }
+
+  .products-search-dropdown.is-open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
   }
 
   .products-search-dropdown[hidden],
@@ -645,7 +670,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   .products-search-dropdown__list {
     display: grid;
-    gap: 0.24rem;
+    gap: 0.18rem;
     overflow-y: auto;
     max-height: min(336px, calc(100vh - 220px));
     padding-right: 0.08rem;
@@ -655,7 +680,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   .products-search-dropdown__empty {
     margin: 0;
-    padding: 0.9rem 0.92rem;
+    padding: 0.78rem 0.86rem;
     border-radius: 16px;
     color: rgba(245, 245, 247, 0.58);
     font-size: 0.8rem;
@@ -667,21 +692,19 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     align-items: center;
     justify-content: space-between;
     gap: 0.7rem;
-    min-height: 56px;
-    padding: 0.64rem 0.7rem;
-    border-radius: 14px;
+    min-height: 58px;
+    padding: 0.65rem 0.72rem;
+    border-radius: 16px;
     border: 1px solid transparent;
-    background: rgba(255, 255, 255, 0.026);
-    transition:
-      background 180ms var(--products-ease),
-      border-color 180ms var(--products-ease),
-      transform 180ms var(--products-ease);
+    background: rgba(255, 255, 255, 0.018);
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
   }
 
   :global(.products-search-result:hover),
   :global(.products-search-result:focus-within) {
-    border-color: rgba(126, 170, 255, 0.14);
-    background: rgba(68, 118, 220, 0.09);
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
   }
 
   :global(.products-search-result.is-selected) {
@@ -697,9 +720,9 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   :global(.products-search-result__title) {
     color: #f8f8fa;
-    font-size: 0.94rem;
-    font-weight: 610;
-    line-height: 1.22;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.24;
     text-decoration: none;
   }
 
@@ -732,29 +755,25 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    width: 1.9rem;
-    height: 1.9rem;
+    width: 1.92rem;
+    height: 1.92rem;
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(70, 122, 226, 0.12);
+    background: rgba(255, 255, 255, 0.04);
     color: #f8f8fa;
     cursor: pointer;
-    transition:
-      background 180ms var(--products-ease),
-      border-color 180ms var(--products-ease),
-      color 180ms var(--products-ease),
-      transform 180ms var(--products-ease);
-  }
-
-  :global(.products-search-result__compare-button:hover:not(:disabled)) {
-    border-color: rgba(255, 255, 255, 0.17);
-    background: rgba(255, 255, 255, 0.08);
-    transform: translateY(-1px);
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
   }
 
   :global(.products-search-result__compare-button:disabled) {
     cursor: default;
     opacity: 1;
+  }
+
+  :global(.products-search-result__compare-button:active:not(:disabled)),
+  .products-compare__clear:active:not(:disabled),
+  :global(.products-compare__pill-remove:active) {
+    transform: translateY(0) scale(0.98);
   }
 
   :global(.products-search-result__compare-state) {
@@ -766,13 +785,13 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   .products-compare {
     display: grid;
-    gap: 0.82rem;
-    margin-bottom: 1.12rem;
-    padding: 0.95rem 1rem;
-    border-radius: 16px;
+    gap: 0.72rem;
+    margin-bottom: 1rem;
+    padding: 1rem 1.05rem;
+    border-radius: 18px;
     border: 1px solid var(--products-panel-border);
     background: var(--products-panel-bg);
-    box-shadow: inset 0 1px 0 var(--products-panel-highlight), var(--products-shadow);
+    box-shadow: inset 0 1px 0 var(--products-panel-highlight);
   }
 
   .products-compare__head {
@@ -785,8 +804,8 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
   .products-compare__head h2 {
     margin: 0;
     color: #f8f8fa;
-    font-size: 1.02rem;
-    letter-spacing: -0.035em;
+    font-size: 1.08rem;
+    letter-spacing: -0.03em;
   }
 
   .products-compare__head p,
@@ -802,24 +821,14 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 2.15rem;
-    padding: 0 0.92rem;
+    min-height: 2.05rem;
+    padding: 0 0.88rem;
     border-radius: 999px;
     color: var(--products-chip-text);
     border: 1px solid var(--products-chip-border);
     background: var(--products-chip-bg);
     cursor: pointer;
-    transition:
-      background 180ms var(--products-ease),
-      border-color 180ms var(--products-ease),
-      color 180ms var(--products-ease),
-      transform 180ms var(--products-ease);
-  }
-
-  .products-compare__clear:hover:not(:disabled) {
-    border-color: rgba(255, 255, 255, 0.15);
-    background: rgba(255, 255, 255, 0.065);
-    transform: translateY(-1px);
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
   }
 
   .products-compare__clear:disabled {
@@ -830,9 +839,9 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
   :global(.products-compare__pill) {
     display: inline-flex;
     align-items: center;
-    gap: 0.26rem;
-    min-height: 2.08rem;
-    padding: 0.2rem 0.24rem 0.2rem 0.82rem;
+    gap: 0.22rem;
+    min-height: 2rem;
+    padding: 0.18rem 0.22rem 0.18rem 0.82rem;
     border-radius: 999px;
     border: 1px solid var(--products-chip-border);
     background: rgba(255, 255, 255, 0.045);
@@ -855,20 +864,12 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    width: 1.66rem;
-    height: 1.66rem;
+    width: 1.62rem;
+    height: 1.62rem;
     border-radius: 999px;
     color: rgba(245, 245, 245, 0.62);
     cursor: pointer;
-    transition:
-      background 180ms var(--products-ease),
-      border-color 180ms var(--products-ease),
-      color 180ms var(--products-ease);
-  }
-
-  :global(.products-compare__pill-remove:hover) {
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(245, 245, 245, 0.9);
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
   }
 
   .products-compare__feedback {
@@ -882,7 +883,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
   .products-compare__table-wrap {
     overflow-x: auto;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
-    padding-top: 0.58rem;
+    padding-top: 0.5rem;
   }
 
   .products-compare__table {
@@ -947,16 +948,16 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   .products-brand-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-    gap: 0.9rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: 0.95rem;
   }
 
   .products-empty-state {
-    margin: 0.95rem 0 0;
-    padding: 1rem 1.04rem;
+    margin: 0.9rem 0 0;
+    padding: 0.95rem 1rem;
     border-radius: 16px;
-    border: 1px solid rgba(112, 162, 255, 0.12);
-    background: rgba(8, 18, 39, 0.54);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.025);
     color: rgba(245, 245, 247, 0.62);
     font-size: 0.9rem;
     line-height: 1.45;
@@ -965,30 +966,21 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
   .brand-module {
     display: grid;
     grid-template-rows: auto 1fr auto;
-    gap: 1rem;
-    min-height: 218px;
+    gap: 0.95rem;
+    min-height: 224px;
     padding: 1.05rem;
     text-decoration: none;
-    border-radius: 16px;
-    border: 1px solid rgba(105, 154, 255, 0.12);
-    background:
-      radial-gradient(circle at 85% 8%, rgba(67, 124, 238, 0.14), transparent 32%),
-      linear-gradient(180deg, rgba(8, 18, 39, 0.56), rgba(5, 8, 14, 0.74));
-    box-shadow: inset 0 1px 0 rgba(164, 198, 255, 0.045);
-    transition:
-      border-color 180ms var(--products-ease),
-      background 180ms var(--products-ease),
-      transform 180ms var(--products-ease),
-      box-shadow 180ms var(--products-ease);
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: linear-gradient(180deg, rgba(16, 18, 22, 0.92), rgba(10, 12, 15, 0.98));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
   }
 
   .brand-module:hover {
-    border-color: rgba(139, 183, 255, 0.22);
-    background:
-      radial-gradient(circle at 85% 8%, rgba(83, 142, 255, 0.18), transparent 32%),
-      linear-gradient(180deg, rgba(11, 26, 55, 0.68), rgba(6, 10, 18, 0.82));
+    border-color: rgba(255, 255, 255, 0.12);
+    background: linear-gradient(180deg, rgba(18, 21, 25, 0.94), rgba(11, 13, 17, 1));
     transform: translateY(-1px);
-    box-shadow: none;
   }
 
   .brand-module__top {
@@ -1000,7 +992,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   .brand-module__top :global(.brand-mark) {
     min-width: 0;
-    font-size: 1.32rem;
+    font-size: 1.35rem;
   }
 
   .brand-module__count,
@@ -1008,12 +1000,12 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 1.92rem;
+    min-height: 1.95rem;
     max-width: 100%;
-    padding: 0 0.74rem;
+    padding: 0 0.72rem;
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(78, 129, 229, 0.1);
+    background: rgba(255, 255, 255, 0.04);
     color: rgba(248, 248, 250, 0.84);
     font-size: 0.79rem;
     font-weight: 600;
@@ -1030,7 +1022,7 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     display: flex;
     flex-wrap: wrap;
     align-content: start;
-    gap: 0.52rem;
+    gap: 0.5rem;
   }
 
   .brand-module__pill {
@@ -1044,39 +1036,25 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
   }
 
   .brand-module__cta {
-    color: rgba(190, 216, 255, 0.96);
-    font-size: 0.83rem;
+    color: #f8f8fa;
+    font-size: 0.84rem;
     font-weight: 600;
     line-height: 1.3;
-    opacity: 0.9;
-  }
-
-  @keyframes products-pop {
-    from {
-      opacity: 0;
-      transform: translateY(8px) scale(0.985);
-    }
-
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .products-toolbar :global(.glass-input),
     .products-compare,
+    .products-search-dropdown,
     .products-compare__clear,
     :global(.products-search-result),
     :global(.products-search-result__compare-button),
     :global(.products-search-result__title),
     :global(.products-compare__pill),
     :global(.products-compare__pill-remove),
-    .brand-module,
-    .products-search-dropdown,
-    .products-compare__clear {
+    .brand-module {
       transition: none;
-      animation: none;
+      transform: none;
     }
   }
 
@@ -1090,23 +1068,15 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
 
   @media (max-width: 720px) {
     .products-page-head h1 {
-      font-size: 2rem;
-    }
-
-    .products-toolbar {
-      padding: 0.94rem;
-      border-radius: 16px;
+      font-size: 1.95rem;
     }
 
     .brand-module {
-      min-height: 206px;
-      padding: 0.96rem;
-      border-radius: 16px;
+      min-height: 208px;
     }
   }
 
   @media (max-width: 420px) {
-    .products-toolbar,
     .products-compare {
       padding: 0.92rem;
       border-radius: 16px;
@@ -1126,8 +1096,17 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     .products-search-dropdown {
       left: 0;
       right: 0;
-      width: auto;
       max-height: min(332px, calc(100vh - 156px));
+    }
+
+    :global(.products-search-result__compare-button),
+    :global(.products-compare__pill-remove) {
+      width: 2.75rem;
+      height: 2.75rem;
+    }
+
+    .products-compare__clear {
+      min-height: 2.75rem;
     }
   }
 </style>
