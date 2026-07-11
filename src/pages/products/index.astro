@@ -449,6 +449,11 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
       renderSearchResults(query, getProductMatches(query));
     }
 
+    function reopenSearchDropdownFromInput() {
+      if (!normalize(searchInput?.value)) return;
+      refreshSearchResultsFromInput();
+    }
+
     function addToCompare(slug) {
       if (!productMap.has(slug)) return;
       if (isSelected(slug)) return;
@@ -516,14 +521,15 @@ const compareProducts = getAllDevices().map((product) => serializeCompareProduct
     }
 
     searchInput?.addEventListener("input", updateListing);
-    searchInput?.addEventListener("focus", () => {
-      if (normalize(searchInput.value)) {
-        refreshSearchResultsFromInput();
+    searchInput?.addEventListener("focus", reopenSearchDropdownFromInput);
+    searchInput?.addEventListener("pointerdown", () => {
+      if (!searchDropdownOpen) {
+        reopenSearchDropdownFromInput();
       }
     });
     searchInput?.addEventListener("click", () => {
-      if (!searchDropdownOpen && normalize(searchInput.value)) {
-        refreshSearchResultsFromInput();
+      if (!searchDropdownOpen) {
+        reopenSearchDropdownFromInput();
       }
     });
     searchInput?.addEventListener("keydown", handleSearchKeyDown);

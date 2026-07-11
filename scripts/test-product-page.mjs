@@ -53,8 +53,11 @@ async function main() {
   assert(productsIndex.includes('const searchField = document.querySelector(".products-toolbar__search-field")'), "Products index should scope outside-click dismissal to the search field.");
   assert(productsIndex.includes("let searchDropdownOpen = false"), "Products index should track dropdown open state.");
   assert(productsIndex.includes("function setSearchDropdownOpen(open)"), "Products index should centralize dropdown open/close state.");
-  assert(productsIndex.includes("searchInput?.addEventListener(\"focus\""), "Products index should reopen dropdown suggestions when refocusing a non-empty search.");
-  assert(productsIndex.includes("if (!searchDropdownOpen && normalize(searchInput.value))"), "Products index should let clicking back into a non-empty search reopen the dropdown.");
+  assert(productsIndex.includes("function reopenSearchDropdownFromInput()"), "Products index should centralize refocus reopen behavior for the current query.");
+  assert(productsIndex.includes("if (!normalize(searchInput?.value)) return;"), "Products index should not reopen dropdown suggestions for empty searches.");
+  assert(productsIndex.includes("searchInput?.addEventListener(\"focus\", reopenSearchDropdownFromInput)"), "Products index should reopen dropdown suggestions when refocusing a non-empty search.");
+  assert(productsIndex.includes("searchInput?.addEventListener(\"pointerdown\""), "Products index should reopen a dismissed non-empty search on pointer refocus.");
+  assert(productsIndex.includes("if (!searchDropdownOpen)"), "Products index should only use the pointer/click reopen path after the dropdown has been dismissed.");
   assert(productsIndex.includes("document.addEventListener(\"pointerdown\""), "Products index should dismiss the dropdown on outside pointer interaction.");
   assert(productsIndex.includes("searchField?.contains(event.target)"), "Products index outside-click logic should ignore interactions inside the search field.");
   assert(productsIndex.includes("products-compare"), "Products index should render a compare surface.");
