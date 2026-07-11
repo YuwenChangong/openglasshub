@@ -73,6 +73,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
     ready: false,
   });
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const triggerCleanupRef = useRef<(() => void) | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
 
@@ -221,6 +222,31 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
     };
   }, [clearCloseTimer]);
 
+  const attachTriggerRef = useCallback((node: HTMLButtonElement | null) => {
+    triggerCleanupRef.current?.();
+    triggerCleanupRef.current = null;
+    triggerRef.current = node;
+
+    if (!node) return;
+
+    const handleTriggerClick = () => {
+      clearCloseTimer();
+      setOpen(true);
+    };
+
+    node.addEventListener("click", handleTriggerClick);
+    triggerCleanupRef.current = () => {
+      node.removeEventListener("click", handleTriggerClick);
+    };
+  }, [clearCloseTimer]);
+
+  useEffect(() => {
+    return () => {
+      triggerCleanupRef.current?.();
+      triggerCleanupRef.current = null;
+    };
+  }, []);
+
   async function handleSignOut() {
     if (!supabase) return;
     setSigningOut(true);
@@ -358,13 +384,9 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
       }}
     >
       <button
-        ref={triggerRef}
+        ref={attachTriggerRef}
         type="button"
         className={`header-user-menu__trigger${open ? " is-open" : ""}${!summaryReady ? " is-loading" : ""}`}
-        onClick={() => {
-          clearCloseTimer();
-          setOpen((current) => !current);
-        }}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="header-user-menu"
