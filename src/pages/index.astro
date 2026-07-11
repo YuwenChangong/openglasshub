@@ -241,6 +241,33 @@ function excerpt(body?: string | null): string {
   .home-sidebar-block {
     gap: 0.8rem;
   }
+  @media (min-width: 861px) {
+    .home-intro {
+      padding: 0.28rem 0 0.82rem;
+    }
+    .home-intro__copy {
+      gap: 0.56rem;
+      max-width: 36rem;
+    }
+    .home-intro h1 {
+      font-size: clamp(2.55rem, 4.1vw, 3.05rem);
+      line-height: 1;
+      letter-spacing: -0.036em;
+    }
+    .home-intro p {
+      max-width: 34ch;
+      font-size: 1rem;
+      line-height: 1.48;
+    }
+    .home-intro small {
+      max-width: 45ch;
+      font-size: 0.88rem;
+      line-height: 1.48;
+    }
+    .home-grid {
+      gap: 1.45rem;
+    }
+  }
   @media (max-width: 860px) {
     .home-grid {
       grid-template-columns: 1fr;
