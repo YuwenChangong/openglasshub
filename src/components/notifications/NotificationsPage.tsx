@@ -215,7 +215,7 @@ export default function NotificationsPage() {
   }
 
   if (status !== "signed_in" || !user) {
-    return <section className="community-empty"><strong>请先登录后查看通知</strong></section>;
+    return <section className="community-empty notifications-page__signed-out"><strong>请先登录后查看通知</strong></section>;
   }
 
   if (error) {
