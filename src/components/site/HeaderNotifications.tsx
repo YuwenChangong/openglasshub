@@ -105,7 +105,7 @@ export default function HeaderNotifications() {
     maxHeight: 520,
     ready: false,
   });
-  const triggerRef = useRef<HTMLAnchorElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const triggerCleanupRef = useRef<(() => void) | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -314,7 +314,7 @@ export default function HeaderNotifications() {
     return () => clearCloseTimer();
   }, [clearCloseTimer]);
 
-  const attachTriggerRef = useCallback((node: HTMLAnchorElement | null) => {
+  const attachTriggerRef = useCallback((node: HTMLButtonElement | null) => {
     triggerCleanupRef.current?.();
     triggerCleanupRef.current = null;
     triggerRef.current = node;
@@ -519,9 +519,9 @@ export default function HeaderNotifications() {
         }
       }}
     >
-      <a
+      <button
         ref={attachTriggerRef}
-        href="/notifications/"
+        type="button"
         className={`header-notifications__trigger${open ? " is-open" : ""}`}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -533,7 +533,7 @@ export default function HeaderNotifications() {
           <NotificationBellIcon />
         </span>
         {unreadCount > 0 ? <span className="header-notifications__badge">{clampUnreadCount(unreadCount)}</span> : null}
-      </a>
+      </button>
       {popover}
     </div>
   );
