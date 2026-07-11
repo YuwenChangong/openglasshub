@@ -718,18 +718,18 @@ export default function CreatePostForm({
   }
 
   if (error && authState.status !== "signed_in" && !loadingCircles) {
-    return <section className="post-composer"><div className="auth-alert auth-alert--error">{error}</div></section>;
+    return <section className="post-composer post-composer--status"><div className="auth-alert auth-alert--error">{error}</div></section>;
   }
 
   if (authState.status === "checking") {
-    return <section className="post-composer"><div className="auth-alert">正在检查登录状态...</div></section>;
+    return <section className="post-composer post-composer--status post-composer--checking"><div className="auth-alert">正在检查登录状态...</div></section>;
   }
 
   if (authState.status !== "signed_in") {
     return (
-      <section className="post-composer">
-        <div className="auth-alert">
-          <a href={buildLoginHref(nextPath)} className="community-link">登录后继续发帖</a>
+      <section className="post-composer post-composer--status post-composer--signed-out">
+        <div className="auth-alert auth-alert--action">
+          <a href={buildLoginHref(nextPath)} className="community-link post-composer__auth-link">登录后继续发帖</a>
         </div>
       </section>
     );
