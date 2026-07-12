@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import {
   printQaWriteGuardError,
+  readConfirmRunArgument,
   readQaWriteGuardConfig,
   validateQaWriteTarget,
 } from "./target-write-guard.mjs";
@@ -15,12 +16,11 @@ const REQUIRED_ENV = [
 ];
 
 function parseArgs(argv) {
-  const options = { dryRun: false, confirmRun: null };
+  const options = { dryRun: false, confirmRun: readConfirmRunArgument(argv) };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     if (value === "--dry-run") options.dryRun = true;
     else if (value === "--confirm-run") {
-      options.confirmRun = String(argv[index + 1] ?? "").trim() || null;
       index += 1;
     }
   }
@@ -118,7 +118,14 @@ async function ensureAdminRole(client, userId) {
 }
 
 async function main() {
-  const options = parseArgs(process.argv.slice(2));
+  let options;
+  try {
+    options = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    printQaWriteGuardError(error);
+    process.exitCode = 1;
+    return;
+  }
   const env = requireEnv();
   if (!env) return;
 

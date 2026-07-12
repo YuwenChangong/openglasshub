@@ -1,5 +1,5 @@
 const REF_PATTERN = /^[a-z0-9]{6,64}$/i;
-const GENERIC_CONFIRMATIONS = new Set(["yes", "true", "confirm", "production", "test"]);
+const GENERIC_CONFIRMATIONS = new Set(["yes", "true", "confirm", "confirmed", "production", "prod", "test", "qa", "run"]);
 
 export class QaWriteGuardError extends Error {
   constructor(code) {
@@ -46,6 +46,17 @@ export function validateConfirmRun(value) {
     throw new QaWriteGuardError("QA_CONFIRM_RUN_INVALID");
   }
   return runId;
+}
+
+export function readConfirmRunArgument(argv) {
+  let confirmRun = null;
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] !== "--confirm-run") continue;
+    if (confirmRun !== null) throw new QaWriteGuardError("QA_CONFIRM_RUN_DUPLICATE");
+    confirmRun = String(argv[index + 1] ?? "").trim() || null;
+    index += 1;
+  }
+  return confirmRun;
 }
 
 export function validateQaWriteTarget({ targetUrl, expectedTargetRef, productionRef, allowProductionWrites, confirmRun }) {

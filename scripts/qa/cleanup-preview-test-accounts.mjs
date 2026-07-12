@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import {
   printQaWriteGuardError,
+  readConfirmRunArgument,
   readQaWriteGuardConfig,
   validateQaWriteTarget,
 } from "./target-write-guard.mjs";
@@ -32,7 +33,7 @@ function parseArgs(argv) {
     marker: null,
     verbose: false,
     strictPublic: false,
-    confirmRun: null,
+    confirmRun: readConfirmRunArgument(argv),
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -41,7 +42,6 @@ function parseArgs(argv) {
     else if (value === "--verbose") options.verbose = true;
     else if (value === "--strict-public") options.strictPublic = true;
     else if (value === "--confirm-run") {
-      options.confirmRun = String(argv[index + 1] ?? "").trim() || null;
       index += 1;
     }
     else if (value === "--marker") {
@@ -602,8 +602,19 @@ export function classificationFor(summary) {
   return "CLEANUP_OK";
 }
 
+export function cleanupExitCode(summary) {
+  return cleanupHasFailures(summary) ? 1 : 0;
+}
+
 async function main() {
-  const options = parseArgs(process.argv.slice(2));
+  let options;
+  try {
+    options = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    printQaWriteGuardError(error);
+    process.exitCode = 1;
+    return;
+  }
   const env = requireEnv();
   if (!env) return;
 
@@ -781,9 +792,7 @@ async function main() {
   writeFileSync(outputPath, JSON.stringify(summary, null, 2));
   console.log(JSON.stringify({ ...summary, outputPath }, null, 2));
 
-  if (cleanupHasFailures(summary)) {
-    process.exitCode = 1;
-  }
+  process.exitCode = cleanupExitCode(summary);
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {

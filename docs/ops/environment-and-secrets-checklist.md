@@ -4,7 +4,7 @@
 
 - Secret values must never be committed, printed, screenshotted, or pasted into chat.
 - Secret values must never be stored in docs.
-- Preview currently uses production-equivalent non-secret runtime values, so preview QA must use disposable test data only.
+- Preview QA is read-only by default. If preview shares the production Supabase ref, it is production-backed and must follow `preview-qa-safety.md`; routine write QA requires staging.
 
 ## Required production runtime vars by name only
 
@@ -69,4 +69,4 @@
 
 - Full sensitive lexicon must remain R2-backed.
 - Do not bundle the full lexicon into the worker or client.
-- Preview QA must treat content writes as production-equivalent data risk.
+- Preview QA must not create content by default. Production-backed write QA is an explicit, guarded exception; routine write QA belongs in staging.

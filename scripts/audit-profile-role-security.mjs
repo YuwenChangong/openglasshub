@@ -108,7 +108,7 @@ if (exists(cleanupQaScriptPath)) {
   check("qa cleanup script avoids profile reset write", !/\/api\/users\/me\/profile/.test(script));
   check(
     "qa cleanup failures are process-fatal",
-    /if \(cleanupHasFailures\(summary\)\)\s*\{\s*process\.exitCode = 1;/s.test(script),
+    /process\.exitCode = cleanupExitCode\(summary\);/.test(script),
   );
 }
 
@@ -121,6 +121,7 @@ if (exists(qaTargetGuardPath)) {
   check("shared guard rejects target ref mismatch", /QA_TARGET_REF_MISMATCH/.test(guard));
   check("shared guard rejects production by default", /QA_PRODUCTION_WRITES_DISABLED/.test(guard));
   check("shared guard requires a non-generic confirmation", /QA_CONFIRM_RUN_GENERIC/.test(guard));
+  check("shared guard rejects duplicate confirmation flags", /QA_CONFIRM_RUN_DUPLICATE/.test(guard));
 }
 
 const smokePath = "scripts/smoke-production.mjs";

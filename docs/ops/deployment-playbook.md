@@ -32,7 +32,7 @@ npx wrangler pages deploy dist --project-name openglasshub --branch <branch-name
 
 - Do not deploy when the worktree is dirty and unrelated changes are present.
 - Do not deploy when build or smoke checks are failing.
-- Do not deploy preview if QA would touch non-disposable production-equivalent data.
+- Do not deploy preview for routine write QA when it shares production data. Production-backed previews require the exceptional destructive-QA contract in `preview-qa-safety.md`.
 - Do not deploy production just to test secrets, bindings, or migration assumptions.
 
 ## Active runtime path

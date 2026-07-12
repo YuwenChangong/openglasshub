@@ -22,7 +22,7 @@
 ## Notes
 
 - Treat `docs/ops/*` as the primary source for post-release hardening and day-2 operations.
-- Treat preview QA as production-equivalent data risk because preview currently uses production-equivalent non-secret runtime values.
+- Treat preview QA as read-only by default. A preview sharing the production Supabase ref is production-backed; follow `docs/ops/preview-qa-safety.md` for the exceptional destructive-QA contract.
 
 ## Product Surface
 
