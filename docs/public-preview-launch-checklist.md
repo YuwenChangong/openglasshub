@@ -1,5 +1,7 @@
 # OpenGlass Hub RC-4 Public Preview Launch Checklist
 
+> Routine preview and production verification is read-only by default. A Cloudflare preview that uses the production Supabase project is production-backed and must follow the destructive-QA safety procedure, not this checklist.
+
 ## 1. Scope
 
 - This checklist is for the public preview on `https://openglasshub.pages.dev`.
@@ -53,11 +55,8 @@
 - `post-media` stays private unless an existing policy intentionally allows public object reads for specific prefixes.
 - Circle cover access must continue to rely on signed URL resolution or existing prefix-specific SELECT policies.
 - R2 delivery remains limited to already-public optimized media use cases.
-- Preview validation should include:
-  - create post with image/video
-  - create circle with cover
-  - open public news/article pages with media
-  - open public profile pages with avatar/banner if configured
+- Preview validation should include read-only media rendering on public news, profile, post, and circle pages.
+- Do not create media, posts, comments, circles, reports, accounts, or roles as part of this checklist.
 
 ## 5. Turnstile and Rate Limit Readiness
 
@@ -142,7 +141,7 @@ See also: `docs/email-verification-deliverability-checklist.md`
   - revert the most recent migration only with a reviewed SQL down-plan
   - do not hotfix by weakening RLS or exposing storage publicly
 
-## 11. Manual QA Before Cutover
+## 11. Read-only QA Before Cutover
 
 - Public routes:
   - `/`
@@ -154,22 +153,10 @@ See also: `docs/email-verification-deliverability-checklist.md`
   - `/guides/`
   - `/developers/`
   - `/gaze-launcher/`
-- Forum writes:
-  - create text post
-  - create image/video post
-  - create comment/reply
-  - like/unlike post
-  - like/unlike comment
-  - delete own post/comment
-  - create circle with and without cover
 - Auth:
-  - login/signup
-  - email confirmation
-  - resend confirmation
-  - reset password
+  - verify signed-out routes and authentication error handling without creating accounts
 - Admin:
-  - moderate reports
-  - inspect forum/media/circle/news dashboards
+  - inspect dashboards and authorization boundaries without taking actions
 - Mobile:
   - homepage
   - feed
@@ -178,7 +165,19 @@ See also: `docs/email-verification-deliverability-checklist.md`
   - search page
   - news detail
 
-## 12. Validation Commands
+## 12. Explicit Destructive QA (exception only)
+
+- Routine release QA must not use destructive writes.
+- Use a dedicated staging/preview Supabase project for any write QA. A preview sharing the production Supabase ref counts as production data.
+- Any approved production-backed write run requires all of the following before any client or browser write:
+  - `QA_EXPECTED_SUPABASE_REF` exactly matches the actual target ref.
+  - `QA_PRODUCTION_SUPABASE_REF` is supplied through operator or CI environment configuration.
+  - `QA_ALLOW_PRODUCTION_WRITES=1` and `--confirm-run <unique-run-id>` are both present for a production target.
+  - exact artifact IDs are recorded, cleanup is verified, and zero public residue remains.
+- Cleanup failure is a failed release gate. Do not use broad title, marker, or owner-prefix deletion in future workflows.
+- Stop immediately on target ambiguity, target mismatch, missing confirmation, unexpected artifact discovery, or failed cleanup verification.
+
+## 13. Validation Commands
 
 Run before push:
 

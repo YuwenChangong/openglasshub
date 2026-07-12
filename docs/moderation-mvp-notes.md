@@ -1,5 +1,7 @@
 # Community Moderation MVP Notes
 
+> **Historical record only:** any prior production or production-backed QA practices described below must not be reused. Current QA safety requirements are in [Preview QA Safety](ops/preview-qa-safety.md): read-only by default, with separately confirmed destructive QA only on a positively identified target.
+
 ## Production release update
 
 - OpenGlass Hub Reports Optimization MVP released to production.
