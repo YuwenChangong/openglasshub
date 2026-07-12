@@ -45,6 +45,14 @@ node scripts/qa/cleanup-preview-test-accounts.mjs --dry-run --marker "qa-run-<un
 - Do not use broad prefix, title, marker, or owner deletion for future destructive QA.
 - Do not create or modify real users, real content, roles, reports, or media to rehearse QA.
 
+## Exact-ID Destructive QA v2
+
+- V2 is staging-first and is not part of routine release validation or production smoke.
+- The v1 target guard and dual-confirmation contract remain mandatory. A production target additionally needs the explicit `--execute-destructive-qa` action flag and separate approval.
+- Every created artifact must be registered immediately by exact immutable ID in one run manifest. New workflows must never discover cleanup targets by owner, marker, title, or prefix.
+- The orchestrator always enters cleanup in `finally`, attempts each exact-ID cleanup independently, and verifies exact absence for every registered artifact.
+- A partial cleanup, failed cleanup call, missing exact ID, or any residue is a failed release gate. The current CLI supports validation plans only; a real staging adapter has not been configured.
+
 ## Staging requirement
 
 Create and maintain a dedicated staging or preview Supabase project, configure preview-only runtime values there, and verify the target-ref guard before any write QA. Leave production values and secrets untouched.

@@ -131,6 +131,34 @@ if (exists(smokePath)) {
   check("production smoke has no mutating HTTP method", !/method\s*:\s*["'](?:POST|PUT|PATCH|DELETE)/i.test(smoke));
 }
 
+const orchestratorPath = "scripts/qa/destructive-qa-orchestrator.mjs";
+const orchestratorCliPath = "scripts/qa/run-destructive-qa.mjs";
+const orchestratorTestPath = "scripts/test-destructive-qa-orchestrator.mjs";
+check("exact-ID destructive QA orchestrator exists", exists(orchestratorPath));
+if (exists(orchestratorPath)) {
+  const orchestrator = read(orchestratorPath);
+  check("orchestrator requires exact artifact IDs", /QA_MANIFEST_EXACT_ID_REQUIRED/.test(orchestrator));
+  check("orchestrator uses finally cleanup", /finally\s*\{\s*await cleanupManifest/.test(orchestrator));
+  check("orchestrator verifies every exact artifact", /verifyArtifactAbsent/.test(orchestrator));
+  check("orchestrator makes residue fatal", /QA_RESIDUE_REMAINS/.test(orchestrator));
+  check("orchestrator does not invoke legacy owner marker cleanup", !/deleteOwned|searchPublicArtifacts|marker cleanup|prefix cleanup/i.test(orchestrator));
+}
+check("destructive QA CLI exists", exists(orchestratorCliPath));
+if (exists(orchestratorCliPath)) {
+  const cli = read(orchestratorCliPath);
+  check("destructive QA CLI invokes v1 guard", /validateQaWriteTarget/.test(cli));
+  check("destructive QA CLI requires explicit execute flag", /--execute-destructive-qa/.test(cli));
+  check("destructive QA CLI rejects dry execute conflict", /QA_ORCHESTRATOR_MODE_CONFLICT/.test(cli));
+  check("destructive QA CLI does not configure a real adapter", /QA_ORCHESTRATOR_REAL_ADAPTER_NOT_CONFIGURED/.test(cli));
+}
+check("orchestrator behavioral test exists", exists(orchestratorTestPath));
+if (exists(orchestratorTestPath)) {
+  const test = read(orchestratorTestPath);
+  check("orchestrator test blocks child-process network", /QA_TEST_NETWORK_BLOCKED/.test(test));
+  check("orchestrator test exercises cleanup failures", /cleanup failure continues/.test(test));
+  check("orchestrator test exercises residue", /residue verification/.test(test));
+}
+
 const previewChecklistPath = "docs/public-preview-launch-checklist.md";
 check("preview checklist exists", exists(previewChecklistPath));
 if (exists(previewChecklistPath)) {
