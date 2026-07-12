@@ -112,6 +112,9 @@ async function main() {
   }
 
   const srcFiles = await walk(path.resolve(process.cwd(), "src"));
+  const serviceRoleAllowlist = new Set([
+    "src/lib/server/legal-consent-repository.server.ts",
+  ]);
   for (const file of srcFiles) {
     const content = await fs.readFile(file, "utf8");
     const normalized = path.relative(process.cwd(), file).replace(/\\/g, "/");
@@ -119,7 +122,11 @@ async function main() {
       errors.push(`native browser dialog found: ${normalized}`);
     }
     if (/SUPABASE_SERVICE_ROLE_KEY|service_role/.test(content)) {
-      errors.push(`service role reference found in src: ${normalized}`);
+      if (!serviceRoleAllowlist.has(normalized)) {
+        errors.push(`service role reference found in src: ${normalized}`);
+      } else if (!normalized.includes("/server/") || !/createLegalConsentServiceClient/.test(content)) {
+        errors.push(`invalid service role allowlist entry: ${normalized}`);
+      }
     }
     if (/raw response|category_scores/i.test(content) && normalized.startsWith("src/components")) {
       errors.push(`client path references raw moderation data: ${normalized}`);

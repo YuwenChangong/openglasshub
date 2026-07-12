@@ -160,7 +160,6 @@ async function main() {
   ]);
 
   for (const forbiddenPath of [
-    "supabase/migrations",
     "src/pages/api/consent",
     "src/lib/consent",
   ]) {
@@ -169,6 +168,14 @@ async function main() {
       `Phase 1 diff must not introduce ${forbiddenPath}.`,
     );
   }
+
+  const unexpectedLegalMigrations = Array.from(diffFiles).filter(
+    (file) => file.startsWith("supabase/migrations/") && file !== "supabase/migrations/20260712_legal_policy_acceptances.sql",
+  );
+  assert(
+    unexpectedLegalMigrations.length === 0,
+    `Legal foundation diff must not introduce unrelated migrations: ${unexpectedLegalMigrations.join(", ")}`,
+  );
 
   assert(
     !Array.from(diffFiles).some((file) => /package-lock|pnpm-lock|yarn.lock/.test(file)),
