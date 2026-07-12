@@ -134,6 +134,9 @@ if (exists(smokePath)) {
 const orchestratorPath = "scripts/qa/destructive-qa-orchestrator.mjs";
 const orchestratorCliPath = "scripts/qa/run-destructive-qa.mjs";
 const orchestratorTestPath = "scripts/test-destructive-qa-orchestrator.mjs";
+const recoveryManifestPath = "scripts/qa/recovery-manifest.mjs";
+const recoveryCliPath = "scripts/qa/recover-destructive-qa.mjs";
+const recoveryTestPath = "scripts/test-destructive-qa-recovery.mjs";
 check("exact-ID destructive QA orchestrator exists", exists(orchestratorPath));
 if (exists(orchestratorPath)) {
   const orchestrator = read(orchestratorPath);
@@ -143,6 +146,20 @@ if (exists(orchestratorPath)) {
   check("orchestrator makes residue fatal", /QA_RESIDUE_REMAINS/.test(orchestrator));
   check("orchestrator does not invoke legacy owner marker cleanup", !/deleteOwned|searchPublicArtifacts|marker cleanup|prefix cleanup/i.test(orchestrator));
 }
+check("private recovery manifest helper exists", exists(recoveryManifestPath));
+if (exists(recoveryManifestPath)) {
+  const recovery = read(recoveryManifestPath);
+  check("recovery manifest rejects repository paths", /QA_RECOVERY_MANIFEST_INSIDE_REPO/.test(recovery));
+  check("recovery manifest writes atomically", /fsyncSync[\s\S]*renameSync/.test(recovery));
+}
+check("recovery CLI exists", exists(recoveryCliPath));
+if (exists(recoveryCliPath)) {
+  const cli = read(recoveryCliPath);
+  check("recovery CLI invokes v1 guard", /validateQaWriteTarget/.test(cli));
+  check("recovery CLI rejects production", /QA_RECOVERY_PRODUCTION_REJECTED/.test(cli));
+  check("recovery CLI requires explicit execute flag", /--execute-recovery/.test(cli));
+}
+check("offline recovery test exists", exists(recoveryTestPath));
 check("destructive QA CLI exists", exists(orchestratorCliPath));
 if (exists(orchestratorCliPath)) {
   const cli = read(orchestratorCliPath);
