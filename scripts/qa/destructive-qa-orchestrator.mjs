@@ -130,43 +130,55 @@ function artifactFromResult(group, result, creationStep, extra = {}) {
   };
 }
 
-export async function orchestrateDestructiveQa(adapter, { runId, targetClassification = "staging" }) {
+export async function orchestrateDestructiveQa(adapter, { runId, targetClassification = "staging", persistManifest = async () => {} }) {
   const manifest = createRunManifest({ runId, targetClassification });
   const created = {};
+  const persist = async () => persistManifest(manifest);
+  await persist();
 
   try {
     created.user = await adapter.createQaUser({ runId });
     registerArtifact(manifest, "users", artifactFromResult("users", created.user, "createQaUser"));
+    await persist();
     if (created.user.profileId) registerArtifact(manifest, "profiles", { id: created.user.profileId, creationStep: "createQaUser", parentIds: [created.user.id] });
+    if (created.user.profileId) await persist();
 
     created.role = await adapter.assignQaRole({ userId: created.user.id, runId });
     registerArtifact(manifest, "roleAssignments", artifactFromResult("roleAssignments", created.role, "assignQaRole", { parentIds: [created.user.id] }));
+    await persist();
 
     created.circle = await adapter.createCircle({ userId: created.user.id, runId });
     registerArtifact(manifest, "circles", artifactFromResult("circles", created.circle, "createCircle", { parentIds: [created.user.id] }));
+    await persist();
 
     created.post = await adapter.createPost({ userId: created.user.id, circleId: created.circle.id, runId });
     registerArtifact(manifest, "posts", artifactFromResult("posts", created.post, "createPost", { parentIds: [created.user.id, created.circle.id] }));
+    await persist();
 
     created.comment = await adapter.createComment({ userId: created.user.id, postId: created.post.id, runId });
     registerArtifact(manifest, "comments", artifactFromResult("comments", created.comment, "createComment", { parentIds: [created.user.id, created.post.id] }));
+    await persist();
 
     if (typeof adapter.createRelationshipRow === "function") {
       created.relationship = await adapter.createRelationshipRow({ userId: created.user.id, postId: created.post.id, commentId: created.comment.id, runId });
       registerArtifact(manifest, "relationshipRows", artifactFromResult("relationshipRows", created.relationship, "createRelationshipRow", { parentIds: [created.user.id, created.post.id, created.comment.id] }));
+      await persist();
     }
 
     created.report = await adapter.createReport({ userId: created.user.id, postId: created.post.id, runId });
     registerArtifact(manifest, "reports", artifactFromResult("reports", created.report, "createReport", { parentIds: [created.user.id, created.post.id] }));
+    await persist();
 
     created.media = await adapter.uploadMedia({ userId: created.user.id, postId: created.post.id, runId });
     registerArtifact(manifest, "mediaObjects", artifactFromResult("mediaObjects", created.media, "uploadMedia", { parentIds: [created.user.id, created.post.id] }));
+    await persist();
 
     if (typeof adapter.assertQaScenario === "function") await adapter.assertQaScenario({ runId, manifest, created });
   } catch (error) {
     manifest.qaFailures.push(String(error?.message ?? "QA_ORCHESTRATION_FAILED"));
   } finally {
     await cleanupManifest(adapter, manifest);
+    await persist();
   }
 
   return finishManifest(manifest);

@@ -53,6 +53,7 @@ node scripts/qa/cleanup-preview-test-accounts.mjs --dry-run --marker "qa-run-<un
 - The orchestrator always enters cleanup in `finally`, attempts each exact-ID cleanup independently, and verifies exact absence for every registered artifact.
 - A partial cleanup, failed cleanup call, missing exact ID, or any residue is a failed release gate. The current CLI supports validation plans only; a real staging adapter has not been configured.
 - `finally` improves ordinary failure handling but is not crash-safe: it cannot run after a process kill, power loss, runtime crash before `finally`, or forced CI cancellation. No real execution is allowed before dedicated staging and a separately approved persistent recovery-manifest design exist.
+- V3 provides that framework offline only: private exact-ID manifests are atomically stored outside the repository, recovery is staging-only, production recovery is rejected, and no real adapter or staging project is configured.
 
 ## Staging requirement
 
