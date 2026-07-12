@@ -1,0 +1,54 @@
+---
+import LegalPage from "../../components/legal/LegalPage.astro";
+import {
+  getLegalPolicyVersion,
+  getMissingPublicLegalContactKeys,
+  getPublicLegalContacts,
+  hasConfiguredPublicLegalContacts,
+} from "../../lib/legal-policy";
+
+const contacts = getPublicLegalContacts();
+const missingKeys = getMissingPublicLegalContactKeys();
+const configReady = hasConfiguredPublicLegalContacts();
+const missingLabelsZh = {
+  operator: "运营方",
+  support: "支持",
+  abuse: "滥用与安全",
+  privacy: "隐私请求",
+  intellectualProperty: "知识产权投诉",
+} as const;
+const missingLabelsEn = {
+  operator: "operator",
+  support: "support",
+  abuse: "abuse and safety",
+  privacy: "privacy requests",
+  intellectualProperty: "intellectual property complaints",
+} as const;
+
+function renderContactRow(label: string, value: string | null) {
+  if (!value) {
+    return `<li><strong>${label}:</strong> 待配置</li>`;
+  }
+  return `<li><strong>${label}:</strong> <a href="mailto:${value}">${value}</a></li>`;
+}
+
+function renderContactRowEn(label: string, value: string | null) {
+  if (!value) {
+    return `<li><strong>${label}:</strong> pending configuration</li>`;
+  }
+  return `<li><strong>${label}:</strong> <a href="mailto:${value}">${value}</a></li>`;
+}
+
+const zh = `<h3>公开联系配置</h3><p>公开支持、滥用安全、隐私请求、账户删除和知识产权投诉渠道必须在正式发布前由运营方配置。当前页面只显示真实已配置值；缺失时不会展示虚假地址或非工作表单。</p><ul>${renderContactRow("运营方", contacts.operator)}${renderContactRow("支持", contacts.support)}${renderContactRow("滥用与安全", contacts.abuse)}${renderContactRow("隐私请求", contacts.privacy)}<li><strong>账户删除:</strong> 启用后请使用公开支持或隐私请求渠道。</li>${renderContactRow("知识产权投诉", contacts.intellectualProperty)}</ul><p>${configReady ? "公开联系渠道已配置。" : `仍缺少以下公开联系配置：${missingKeys.map((key) => missingLabelsZh[key]).join("、")}。`}</p>`;
+const en = `<h3>Public contact configuration</h3><p>Support, abuse and safety, privacy, account-deletion, and intellectual-property complaint channels must be configured by the operator before launch. This page only displays real configured values; when a value is missing, no fake address or non-working form is shown.</p><ul>${renderContactRowEn("Operator", contacts.operator)}${renderContactRowEn("Support", contacts.support)}${renderContactRowEn("Abuse and safety", contacts.abuse)}${renderContactRowEn("Privacy requests", contacts.privacy)}<li><strong>Account deletion:</strong> Use the configured support or privacy-request channel once available.</li>${renderContactRowEn("Intellectual property complaints", contacts.intellectualProperty)}</ul><p>${configReady ? "Public contact channels are configured." : `Missing public contact configuration: ${missingKeys.map((key) => missingLabelsEn[key]).join(", ")}.`}</p>`;
+---
+<LegalPage
+  pageTitle="联系"
+  description="OpenGlass Hub 联系方式配置状态。"
+  routeKey="contact"
+  version={getLegalPolicyVersion("contact")}
+  headingZh="联系"
+  headingEn="Contact"
+  zh={zh}
+  en={en}
+/>

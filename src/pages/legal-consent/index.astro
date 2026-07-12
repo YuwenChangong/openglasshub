@@ -1,0 +1,18 @@
+---
+import LegalPage from "../../components/legal/LegalPage.astro";
+import { LEGAL_POLICY, getLegalPolicyVersion } from "../../lib/legal-policy";
+
+const zh = `<h3>当前阶段说明</h3><p>${LEGAL_POLICY.platformName} 仅面向年满 ${LEGAL_POLICY.minimumAge} 周岁的用户。请阅读服务条款、社区准则和隐私政策。本页面用于说明后续版本化同意流程的范围，不会在当前阶段记录同意。</p><h3>后续阶段</h3><p>认证后的版本化同意、数据库迁移、RLS、API 和服务端执行将在后续阶段单独实现，并配套发布门禁。</p>`;
+const en = `<h3>Current-phase note</h3><p>${LEGAL_POLICY.platformName} is for people aged ${LEGAL_POLICY.minimumAge} and older. Please review the Terms, Community Guidelines, and Privacy Policy. This page explains the scope of later versioned consent work and does not record consent in the current phase.</p><h3>Later phases</h3><p>Authenticated versioned consent, database migration, RLS, API work, and server-side enforcement will be implemented separately in later phases with their own release gates.</p>`;
+---
+<LegalPage
+  pageTitle="政策知悉"
+  description="OpenGlass Hub 政策知悉说明。"
+  routeKey="consent"
+  version={getLegalPolicyVersion("consent")}
+  headingZh="政策知悉"
+  headingEn="Legal Consent"
+  zh={zh}
+  en={en}
+  noindex={true}
+/>

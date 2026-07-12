@@ -7,6 +7,7 @@ type Mode = "login" | "signup";
 
 interface AuthPanelProps {
   next?: string;
+  initialMode?: Mode;
 }
 
 type ResendResponse =
@@ -26,7 +27,7 @@ function mapAuthError(errorMessage: string): string {
   return errorMessage;
 }
 
-export default function AuthPanel({ next }: AuthPanelProps) {
+export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const safeNext = useMemo(() => {
     if (next) return getSafeNext(next);
@@ -34,7 +35,7 @@ export default function AuthPanel({ next }: AuthPanelProps) {
     return getSafeNext(new URLSearchParams(window.location.search).get("next"));
   }, [next]);
 
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -57,6 +58,10 @@ export default function AuthPanel({ next }: AuthPanelProps) {
       setCooldownNow(Date.now());
     }
   }, []);
+
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
 
   useEffect(() => {
     if (!resendCooldownUntil || resendCooldownUntil <= Date.now()) {
