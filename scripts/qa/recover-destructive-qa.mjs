@@ -11,6 +11,7 @@ function main() {
     const manifest = loadRecoveryManifest(manifestPath);
     if (manifest.runId !== runId) throw new Error("QA_RECOVERY_RUN_ID_MISMATCH");
     const target = validateQaWriteTarget(readQaWriteGuardConfig(process.env, runId));
+    if (manifest.targetBinding?.projectRef !== target.actualRef || manifest.targetBinding.projectRef !== target.expectedRef) throw new Error("QA_RECOVERY_TARGET_MISMATCH");
     if (target.productionTarget) throw new Error("QA_RECOVERY_PRODUCTION_REJECTED");
     if (manifest.status === "RECOVERED" && !dry) throw new Error("QA_RECOVERY_ALREADY_COMPLETE");
     if (dry) { console.log(JSON.stringify({ phase: "PLAN", runLabel: runId, artifactCounts: Object.fromEntries(Object.entries(manifest.artifacts).map(([k,v])=>[k,v.length])) }, null, 2)); return; }

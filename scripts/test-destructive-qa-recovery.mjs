@@ -8,7 +8,7 @@ import { assertPrivateManifestPath, loadRecoveryManifest, writeRecoveryManifestA
 const dir = mkdtempSync(join(tmpdir(), "openglass-qa-recovery-"));
 try {
   const path = join(dir, "run.json");
-  const manifest = createRunManifest({ runId: "qa-recovery-12345", targetClassification: "staging" });
+  const manifest = { ...createRunManifest({ runId: "qa-recovery-12345", targetClassification: "staging" }), targetBinding: { projectRef: "stagingref123", classification: "staging" }, revision: 0 };
   registerArtifact(manifest, "users", { id: "user-exact-123", creationStep: "createQaUser" });
   writeRecoveryManifestAtomic(path, manifest);
   const loaded = loadRecoveryManifest(path);
@@ -17,6 +17,7 @@ try {
   assert.throws(() => assertPrivateManifestPath(join(process.cwd(), "recovery.json")), /INSIDE_REPO/);
   writeFileSync(`${path}.partial.tmp`, "{");
   assert.equal(loadRecoveryManifest(path).runId, "qa-recovery-12345", "atomic authoritative file remains readable beside partial temp");
+  assert.throws(() => writeRecoveryManifestAtomic(path, manifest), /COLLISION/, "existing manifests cannot be overwritten");
   writeFileSync(join(dir, "bad.json"), "{");
   assert.throws(() => loadRecoveryManifest(join(dir, "bad.json")), /QA_RECOVERY_MANIFEST_INVALID/);
   console.log("DESTRUCTIVE_QA_RECOVERY_OK temporary private manifests only");
