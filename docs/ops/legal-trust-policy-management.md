@@ -95,3 +95,10 @@ Phase 4:
 - release gate for versioned consent requirements
 
 Do not treat Phase 1 alone as permission to deploy a full legal-compliance system.
+# Phase 3B1 offline visual harness
+
+The Phase 3B1 login, callback, and consent components accept optional typed auth, consent, and navigation adapters. Production pages do not supply them and retain the existing Supabase browser client, consent API helper, and browser navigation behavior. The adapters are not selectable through URL parameters, cookies, local storage, headers, or public environment variables.
+
+The test-only harness is located at `tests/visual/legal-consent-harness/`. It is served by `npm run test:legal-consent-visual` with a temporary local Vite server and uses only in-memory fake sessions and consent responses. It is outside `src/pages`, is not linked from the application, and the visual test rejects non-local network requests. The command captures the desktop and mobile state matrix, interaction/accessibility checks, overflow results, redacted call records, and screenshots in an OS temp evidence directory.
+
+Run the normal production build after changes and inspect its output for harness names and fake fixture values. The harness is not a production route and does not introduce global page gating or mutation enforcement. Database migration/runtime configuration, public operator contact configuration, and qualified legal review remain separate prerequisites for release.

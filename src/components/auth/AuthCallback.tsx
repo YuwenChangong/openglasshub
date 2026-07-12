@@ -2,9 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { getLegalConsentStatus } from "../../lib/legal-consent-client";
+import { browserNavigationAdapter, type LegalConsentAdapter, type LegalConsentAuthAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 
 interface AuthCallbackProps {
   next?: string;
+  authAdapter?: LegalConsentAuthAdapter;
+  consentAdapter?: LegalConsentAdapter;
+  navigationAdapter?: LegalConsentNavigationAdapter;
 }
 
 function mapCallbackError(errorMessage: string): string {
@@ -12,8 +16,9 @@ function mapCallbackError(errorMessage: string): string {
   return errorMessage;
 }
 
-export default function AuthCallback({ next }: AuthCallbackProps) {
+export default function AuthCallback({ next, authAdapter, consentAdapter, navigationAdapter }: AuthCallbackProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
   const safeNext = useMemo(() => {
     if (next) return getSafeNext(next);
     if (typeof window === "undefined") return "/";
@@ -24,7 +29,7 @@ export default function AuthCallback({ next }: AuthCallbackProps) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!supabase) {
+    if (!supabase && !authAdapter) {
       setError("缺少 PUBLIC_SUPABASE_URL 或 PUBLIC_SUPABASE_ANON_KEY。");
       return;
     }
@@ -33,15 +38,16 @@ export default function AuthCallback({ next }: AuthCallbackProps) {
     let timeoutId: number | undefined;
 
     async function redirectIfReady() {
-      const { data } = await supabase.auth.getSession();
+      const adapterSession = authAdapter ? await authAdapter.getSession() : null;
+      const { data } = authAdapter ? { data: { session: adapterSession ? { access_token: adapterSession.accessToken } : null } } : await supabase!.auth.getSession();
       if (!mounted) return;
 
       if (data.session?.access_token) {
         try {
-          const consent = await getLegalConsentStatus(data.session.access_token);
-          window.location.replace(consent.current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
+          const consent = consentAdapter ? await consentAdapter.getCurrentConsent(data.session.access_token) : await getLegalConsentStatus(data.session.access_token);
+          navigation.replace(consent.current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
         } catch {
-          window.location.replace(`/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
+          navigation.replace(`/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
         }
       }
     }
@@ -51,7 +57,7 @@ export default function AuthCallback({ next }: AuthCallbackProps) {
         const currentUrl = new URL(window.location.href);
         const code = currentUrl.searchParams.get("code");
 
-        if (code) {
+        if (code && !authAdapter) {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) {
             throw exchangeError;
@@ -60,7 +66,8 @@ export default function AuthCallback({ next }: AuthCallbackProps) {
 
         await redirectIfReady();
 
-        const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+        if (authAdapter) return;
+        const { data: listener } = supabase!.auth.onAuthStateChange((event, session) => {
           if (!mounted) return;
 
           if (session?.access_token && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
@@ -95,7 +102,7 @@ export default function AuthCallback({ next }: AuthCallbackProps) {
       }
       unsubscribe?.();
     };
-  }, [safeNext, supabase]);
+  }, [safeNext, supabase, authAdapter, consentAdapter, navigation]);
 
   return (
     <section className="auth-card">

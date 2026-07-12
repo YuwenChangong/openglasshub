@@ -3,6 +3,7 @@ import { getSafeNext } from "../../lib/auth-redirect";
 import { getLegalConsentStatus, LegalConsentClientError, recordLegalConsent, type LegalConsentStatus } from "../../lib/legal-consent-client";
 import { LEGAL_POLICY } from "../../lib/legal-policy";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { browserNavigationAdapter, type LegalConsentAdapter, type LegalConsentAuthAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 
 type PageState = "loading" | "signed_out" | "needs_consent" | "current" | "error";
 
@@ -20,8 +21,9 @@ function messageForError(error: unknown) {
   return "暂时无法记录政策确认。请稍后重试，或退出后重新登录。";
 }
 
-export default function LegalConsentPage({ next, reason }: { next?: string; reason?: string }) {
+export default function LegalConsentPage({ next, reason, authAdapter, consentAdapter, navigationAdapter }: { next?: string; reason?: string; authAdapter?: LegalConsentAuthAdapter; consentAdapter?: LegalConsentAdapter; navigationAdapter?: LegalConsentNavigationAdapter }) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
   const safeNext = useMemo(() => getSafeNext(next ?? (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("next")), "/feed/"), [next]);
   const [state, setState] = useState<PageState>("loading");
   const [status, setStatus] = useState<LegalConsentStatus | null>(null);
@@ -30,21 +32,21 @@ export default function LegalConsentPage({ next, reason }: { next?: string; reas
   const [error, setError] = useState("");
 
   async function loadStatus() {
-    if (!supabase) {
+    if (!supabase && !authAdapter) {
       setState("error");
       setError("登录服务暂不可用，请稍后重试。");
       return;
     }
     setState("loading");
     setError("");
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
+    const session = authAdapter ? await authAdapter.getSession() : (await supabase!.auth.getSession()).data.session ? { accessToken: (await supabase!.auth.getSession()).data.session!.access_token } : null;
+    const token = session?.accessToken;
     if (!token) {
       setState("signed_out");
       return;
     }
     try {
-      const nextStatus = await getLegalConsentStatus(token);
+      const nextStatus = consentAdapter ? await consentAdapter.getCurrentConsent(token) : await getLegalConsentStatus(token);
       setStatus(nextStatus);
       setState(nextStatus.current ? "current" : "needs_consent");
     } catch (loadError) {
@@ -53,7 +55,7 @@ export default function LegalConsentPage({ next, reason }: { next?: string; reas
     }
   }
 
-  useEffect(() => { void loadStatus(); }, [supabase]);
+  useEffect(() => { void loadStatus(); }, [supabase, authAdapter, consentAdapter]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -61,9 +63,9 @@ export default function LegalConsentPage({ next, reason }: { next?: string; reas
       setError(`请确认您已年满 ${LEGAL_POLICY.minimumAge} 周岁，并阅读相关政策后继续。`);
       return;
     }
-    if (!supabase || busy) return;
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
+    if ((!supabase && !authAdapter) || busy) return;
+    const session = authAdapter ? await authAdapter.getSession() : (await supabase!.auth.getSession()).data.session ? { accessToken: (await supabase!.auth.getSession()).data.session!.access_token } : null;
+    const token = session?.accessToken;
     if (!token) {
       setState("signed_out");
       return;
@@ -71,10 +73,10 @@ export default function LegalConsentPage({ next, reason }: { next?: string; reas
     setBusy(true);
     setError("");
     try {
-      const nextStatus = await recordLegalConsent({ accessToken: token, source: sourceForReason(reason ?? null) });
+      const nextStatus = consentAdapter ? await consentAdapter.recordCurrentConsent({ accessToken: token, source: sourceForReason(reason ?? null) }) : await recordLegalConsent({ accessToken: token, source: sourceForReason(reason ?? null) });
       setStatus(nextStatus);
       setState("current");
-      window.location.assign(safeNext);
+      navigation.navigate(safeNext);
     } catch (submitError) {
       setError(messageForError(submitError));
     } finally {
@@ -83,10 +85,10 @@ export default function LegalConsentPage({ next, reason }: { next?: string; reas
   }
 
   async function signOut() {
-    if (!supabase) return;
+    if (!supabase && !authAdapter) return;
     setBusy(true);
-    await supabase.auth.signOut();
-    window.location.assign(`/login/?next=${encodeURIComponent("/legal-consent/")}`);
+    if (authAdapter?.signOut) await authAdapter.signOut(); else await supabase!.auth.signOut();
+    navigation.navigate(`/login/?next=${encodeURIComponent("/legal-consent/")}`);
   }
 
   if (state === "loading") return <section className="auth-card"><div className="auth-alert" role="status">正在检查政策确认状态...</div></section>;

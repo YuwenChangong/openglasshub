@@ -4,12 +4,16 @@ import { LEGAL_POLICY } from "../../lib/legal-policy";
 import { recordLegalConsent } from "../../lib/legal-consent-client";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
+import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 
 type Mode = "login" | "signup";
 
 interface AuthPanelProps {
   next?: string;
   initialMode?: Mode;
+  authAdapter?: AuthPanelAdapter;
+  consentAdapter?: LegalConsentAdapter;
+  navigationAdapter?: LegalConsentNavigationAdapter;
 }
 
 type ResendResponse =
@@ -34,8 +38,9 @@ function mapAuthError(errorMessage: string): string {
   return errorMessage;
 }
 
-export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProps) {
+export default function AuthPanel({ next, initialMode = "login", authAdapter, consentAdapter, navigationAdapter }: AuthPanelProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
   const safeNext = useMemo(() => {
     if (next) return getSafeNext(next);
     if (typeof window === "undefined") return "/";
@@ -56,7 +61,9 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
   const [legalAcknowledgementError, setLegalAcknowledgementError] = useState("");
   const [resendCooldownUntil, setResendCooldownUntil] = useState(0);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
-  const { status, user } = useBrowserAuthState(supabase);
+  const browserAuthState = useBrowserAuthState(supabase);
+  const status = authAdapter?.viewState ?? browserAuthState.status;
+  const user = authAdapter?.userPresent ? { id: "adapter-user" } : browserAuthState.user;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -133,7 +140,7 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
 
   async function handleAuthSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!supabase) return;
+    if (!supabase && !authAdapter) return;
 
     if (!legalAcknowledged) {
       setLegalAcknowledgementError(LEGAL_ACKNOWLEDGEMENT_ERROR);
@@ -146,24 +153,25 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
 
     try {
       if (mode === "login") {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const signInResult = authAdapter?.signInWithPassword
+          ? await authAdapter.signInWithPassword({ email, password })
+          : await supabase!.auth.signInWithPassword({ email, password }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
+        const signInData = signInResult.data;
+        const signInError = signInResult.error;
         if (signInError) throw signInError;
-        const accessToken = signInData.session?.access_token;
+        const accessToken = signInData?.accessToken;
         if (!accessToken) {
-          window.location.assign(consentRecoveryHref(safeNext));
+          navigation.navigate(consentRecoveryHref(safeNext));
           return;
         }
         setMessage("正在记录政策确认...");
         try {
-          await recordLegalConsent({ accessToken, source: "login" });
+          if (consentAdapter) await consentAdapter.recordCurrentConsent({ accessToken, source: "login" }); else await recordLegalConsent({ accessToken, source: "login" });
         } catch {
-          window.location.assign(consentRecoveryHref(safeNext));
+          navigation.navigate(consentRecoveryHref(safeNext));
           return;
         }
-        window.location.assign(safeNext);
+        navigation.navigate(safeNext);
         return;
       }
 
@@ -172,24 +180,22 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
           ? buildAuthCallbackRedirect(window.location.origin, safeNext)
           : undefined;
 
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo,
-        },
-      });
+      const signUpResult = authAdapter?.signUp
+        ? await authAdapter.signUp({ email, password, emailRedirectTo })
+        : await supabase!.auth.signUp({ email, password, options: { emailRedirectTo } }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
+      const signUpData = signUpResult.data;
+      const signUpError = signUpResult.error;
       if (signUpError) throw signUpError;
 
-      const accessToken = signUpData.session?.access_token;
+      const accessToken = signUpData?.accessToken;
       if (accessToken) {
         setMessage("正在记录政策确认...");
         try {
-          await recordLegalConsent({ accessToken, source: "registration" });
-          window.location.assign(safeNext);
+          if (consentAdapter) await consentAdapter.recordCurrentConsent({ accessToken, source: "registration" }); else await recordLegalConsent({ accessToken, source: "registration" });
+          navigation.navigate(safeNext);
           return;
         } catch {
-          window.location.assign(consentRecoveryHref(safeNext));
+          navigation.navigate(consentRecoveryHref(safeNext));
           return;
         }
       }
@@ -248,7 +254,7 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
 
   async function handleResetPasswordEmail(event: React.FormEvent) {
     event.preventDefault();
-    if (!supabase) return;
+    if (!supabase && !authAdapter) return;
 
     setSendingReset(true);
     setError("");
@@ -281,16 +287,16 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
     setLoading(true);
     setError("");
     setMessage("");
-    const { error: signOutError } = await supabase.auth.signOut();
+    const signOutError = authAdapter?.signOut ? await authAdapter.signOut() : (await supabase!.auth.signOut()).error;
     if (signOutError) {
       setError(mapAuthError(signOutError.message));
       setLoading(false);
       return;
     }
-    window.location.reload();
+    navigation.navigate(navigation.getCurrentUrl());
   }
 
-  if (!supabase) {
+  if (!supabase && !authAdapter) {
     return (
       <section className="auth-card">
         <div className="auth-alert auth-alert--error">登录暂不可用，缺少必要的 Supabase 公共环境变量。</div>

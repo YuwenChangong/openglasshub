@@ -18,14 +18,16 @@ async function main() {
   assert(!/userId|bundleVersion|minimumAge|acceptedAt/.test(helper.match(/recordLegalConsent[\s\S]*/)?.[0] ?? ""));
   assert(!/localStorage|document\.cookie|SUPABASE_SERVICE_ROLE_KEY/.test(helper));
 
-  assert(authPanel.indexOf("signInWithPassword") < authPanel.indexOf('recordLegalConsent({ accessToken, source: "login" })'));
-  assert(authPanel.indexOf('recordLegalConsent({ accessToken, source: "login" })') < authPanel.indexOf("window.location.assign(safeNext)"));
-  assert(authPanel.includes('recordLegalConsent({ accessToken, source: "registration" })'));
-  assert(authPanel.includes("const accessToken = signUpData.session?.access_token"));
+  assert(authPanel.indexOf("signInWithPassword") < authPanel.indexOf('source: "login"'));
+  assert(authPanel.indexOf('source: "login"') < authPanel.indexOf("navigation.navigate(safeNext)"));
+  assert(authPanel.includes('source: "registration"'));
+  assert(authPanel.includes("const accessToken = signUpData?.accessToken"));
   assert(authPanel.includes("if (accessToken)"));
   assert(authPanel.includes("验证邮件已发送"));
   assert(authPanel.includes("consentRecoveryHref(safeNext)"));
   assert(!authPanel.includes('from("legal_policy_acceptances")'));
+  assert(authPanel.includes("authAdapter?: AuthPanelAdapter"));
+  assert(authPanel.includes("consentAdapter?: LegalConsentAdapter"));
 
   assert(callback.includes("getLegalConsentStatus"));
   assert(callback.includes("consent.current ? safeNext"));
@@ -41,6 +43,8 @@ async function main() {
   assert(consentPage.includes("退出登录"));
   assert(consentPage.includes("getSafeNext"));
   assert(!/row id|历史记录|历史同意/.test(consentPage));
+  assert(consentPage.includes("authAdapter?: LegalConsentAuthAdapter"));
+  assert(consentPage.includes("navigationAdapter?: LegalConsentNavigationAdapter"));
 
   console.log("LEGAL_CONSENT_AUTH_FLOW_OK offline static auth/callback/page checks passed");
 }

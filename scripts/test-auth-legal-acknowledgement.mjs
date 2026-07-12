@@ -37,12 +37,12 @@ async function main() {
   assert(authPanel.includes("我确认已年满 {LEGAL_POLICY.minimumAge} 周岁"), "Chinese acknowledgement must use the central age.");
   assert(authPanel.includes("I confirm that I am at least {LEGAL_POLICY.minimumAge} years old"), "English acknowledgement must use the central age.");
   assert(!/marketing|analytics/i.test(authPanel), "No optional marketing or analytics consent may be bundled into auth.");
-  assert(authPanel.includes('recordLegalConsent({ accessToken, source: "login" })'), "Authenticated login must persist the current acknowledgement.");
+  assert(authPanel.includes('source: "login"'), "Authenticated login must persist the current acknowledgement.");
 
   assert(authPanel.indexOf("if (!legalAcknowledged)") < authPanel.indexOf("setLoading(true)"), "Unchecked auth submit must be blocked before loading or provider calls.");
   assert(authPanel.includes("setLegalAcknowledgementError(LEGAL_ACKNOWLEDGEMENT_ERROR);"), "Unchecked auth submit must show a local acknowledgement error.");
-  assert(authPanel.includes("await supabase.auth.signInWithPassword"), "Checked login must retain the existing sign-in call.");
-  assert(authPanel.includes("await supabase.auth.signUp"), "Checked signup must retain the existing signup call.");
+  assert(authPanel.includes("supabase!.auth.signInWithPassword"), "Checked login must retain the existing sign-in call.");
+  assert(authPanel.includes("supabase!.auth.signUp"), "Checked signup must retain the existing signup call.");
   assert(authPanel.includes('aria-describedby={legalAcknowledgementError ? "auth-legal-acknowledgement-error" : undefined}'), "Acknowledgement errors must be associated with the control.");
   assert(authPanel.includes('role="alert"'), "Acknowledgement error must be exposed accessibly.");
   assert(authPanel.includes("if (checked) setLegalAcknowledgementError(\"\");"), "Checking the control must clear the local acknowledgement error.");
