@@ -25,6 +25,7 @@ const CLEANUP_METHODS = {
   mediaObjects: "deleteMediaByExactKey",
   relationshipRows: "deleteRelationshipRowById",
 };
+const ARTIFACT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{2,255}$/;
 
 export function generateRunId() {
   return `qa-${crypto.randomUUID()}`;
@@ -50,7 +51,7 @@ export function createRunManifest({ runId = generateRunId(), targetClassificatio
 export function registerArtifact(manifest, group, artifact) {
   if (!ARTIFACT_GROUPS.includes(group)) throw new Error("QA_MANIFEST_ARTIFACT_GROUP_INVALID");
   const id = String(artifact?.id ?? "").trim();
-  if (!id) throw new Error("QA_MANIFEST_EXACT_ID_REQUIRED");
+  if (!ARTIFACT_ID_PATTERN.test(id)) throw new Error("QA_MANIFEST_EXACT_ID_REQUIRED");
   if (manifest.artifacts[group].some((item) => item.id === id)) throw new Error("QA_MANIFEST_DUPLICATE_EXACT_ID");
 
   const entry = {
@@ -59,6 +60,7 @@ export function registerArtifact(manifest, group, artifact) {
     creationStep: String(artifact.creationStep ?? group),
     cleanupMethod: CLEANUP_METHODS[group],
     cleanupStatus: "PENDING",
+    residueStatus: "PENDING",
     publicRoute: artifact.publicRoute ?? null,
     parentIds: Array.isArray(artifact.parentIds) ? artifact.parentIds.map(String) : [],
   };
@@ -102,6 +104,7 @@ async function cleanAndVerifyArtifact(adapter, manifest, artifact) {
     verificationError = String(error?.message ?? "QA_RESIDUE_VERIFICATION_THROWN");
   }
   manifest.residueResults.push({ artifactType: artifact.artifactType, id: artifact.id, absent, error: verificationError });
+  artifact.residueStatus = absent ? "ABSENT" : "REMAINS";
   if (!absent) manifest.cleanupFailures.push({ artifactType: artifact.artifactType, id: artifact.id, error: verificationError ?? "QA_RESIDUE_REMAINS" });
 }
 
@@ -147,6 +150,11 @@ export async function orchestrateDestructiveQa(adapter, { runId, targetClassific
 
     created.comment = await adapter.createComment({ userId: created.user.id, postId: created.post.id, runId });
     registerArtifact(manifest, "comments", artifactFromResult("comments", created.comment, "createComment", { parentIds: [created.user.id, created.post.id] }));
+
+    if (typeof adapter.createRelationshipRow === "function") {
+      created.relationship = await adapter.createRelationshipRow({ userId: created.user.id, postId: created.post.id, commentId: created.comment.id, runId });
+      registerArtifact(manifest, "relationshipRows", artifactFromResult("relationshipRows", created.relationship, "createRelationshipRow", { parentIds: [created.user.id, created.post.id, created.comment.id] }));
+    }
 
     created.report = await adapter.createReport({ userId: created.user.id, postId: created.post.id, runId });
     registerArtifact(manifest, "reports", artifactFromResult("reports", created.report, "createReport", { parentIds: [created.user.id, created.post.id] }));

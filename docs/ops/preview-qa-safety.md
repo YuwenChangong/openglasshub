@@ -52,6 +52,7 @@ node scripts/qa/cleanup-preview-test-accounts.mjs --dry-run --marker "qa-run-<un
 - Every created artifact must be registered immediately by exact immutable ID in one run manifest. New workflows must never discover cleanup targets by owner, marker, title, or prefix.
 - The orchestrator always enters cleanup in `finally`, attempts each exact-ID cleanup independently, and verifies exact absence for every registered artifact.
 - A partial cleanup, failed cleanup call, missing exact ID, or any residue is a failed release gate. The current CLI supports validation plans only; a real staging adapter has not been configured.
+- `finally` improves ordinary failure handling but is not crash-safe: it cannot run after a process kill, power loss, runtime crash before `finally`, or forced CI cancellation. No real execution is allowed before dedicated staging and a separately approved persistent recovery-manifest design exist.
 
 ## Staging requirement
 
