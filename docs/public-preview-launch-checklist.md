@@ -176,6 +176,7 @@ See also: `docs/email-verification-deliverability-checklist.md`
   - exact artifact IDs are recorded, cleanup is verified, and zero public residue remains.
 - Cleanup failure is a failed release gate. Do not use broad title, marker, or owner-prefix deletion in future workflows.
 - Stop immediately on target ambiguity, target mismatch, missing confirmation, unexpected artifact discovery, or failed cleanup verification.
+- V2 destructive QA is staging-first: it records exact artifact IDs, cleans them in `finally`, and verifies zero exact-ID residue. It is not a routine smoke or release command, and no real staging adapter is configured yet.
 
 ## 13. Validation Commands
 
