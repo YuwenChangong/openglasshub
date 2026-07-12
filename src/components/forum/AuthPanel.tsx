@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
+import { LEGAL_POLICY } from "../../lib/legal-policy";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 
@@ -16,6 +17,7 @@ type ResendResponse =
 
 const RESEND_COOLDOWN_MS = 60_000;
 const RESEND_COOLDOWN_STORAGE_KEY = "auth-resend-confirmation-cooldown-until";
+const LEGAL_ACKNOWLEDGEMENT_ERROR = `请确认您已年满 ${LEGAL_POLICY.minimumAge} 周岁，并阅读相关政策后继续。`;
 
 function mapAuthError(errorMessage: string): string {
   if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
@@ -45,6 +47,8 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
   const [resending, setResending] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [forgotMode, setForgotMode] = useState(false);
+  const [legalAcknowledged, setLegalAcknowledged] = useState(false);
+  const [legalAcknowledgementError, setLegalAcknowledgementError] = useState("");
   const [resendCooldownUntil, setResendCooldownUntil] = useState(0);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
   const { status, user } = useBrowserAuthState(supabase);
@@ -61,6 +65,8 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
 
   useEffect(() => {
     setMode(initialMode);
+    setLegalAcknowledged(false);
+    setLegalAcknowledgementError("");
   }, [initialMode]);
 
   useEffect(() => {
@@ -99,9 +105,35 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
     }
   }
 
+  function selectAuthMode(nextMode: Mode) {
+    setMode(nextMode);
+    setLegalAcknowledged(false);
+    setLegalAcknowledgementError("");
+    setError("");
+    setMessage("");
+  }
+
+  function returnToAuthMode() {
+    setForgotMode(false);
+    setLegalAcknowledged(false);
+    setLegalAcknowledgementError("");
+    setError("");
+    setMessage("");
+  }
+
+  function handleLegalAcknowledgementChange(checked: boolean) {
+    setLegalAcknowledged(checked);
+    if (checked) setLegalAcknowledgementError("");
+  }
+
   async function handleAuthSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!supabase) return;
+
+    if (!legalAcknowledged) {
+      setLegalAcknowledgementError(LEGAL_ACKNOWLEDGEMENT_ERROR);
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -245,7 +277,7 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
             role="tab"
             aria-selected={mode === "login"}
             className={mode === "login" ? "is-active" : ""}
-            onClick={() => setMode("login")}
+            onClick={() => selectAuthMode("login")}
           >
             登录
           </button>
@@ -254,7 +286,7 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
             role="tab"
             aria-selected={mode === "signup"}
             className={mode === "signup" ? "is-active" : ""}
-            onClick={() => setMode("signup")}
+            onClick={() => selectAuthMode("signup")}
           >
             注册
           </button>
@@ -306,11 +338,7 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
             <button
               type="button"
               className="community-button--secondary auth-button"
-              onClick={() => {
-                setForgotMode(false);
-                setError("");
-                setMessage("");
-              }}
+              onClick={returnToAuthMode}
               disabled={sendingReset}
             >
               返回登录
@@ -342,6 +370,49 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
               required
             />
           </label>
+          <div className="auth-legal-acknowledgement">
+            <input
+              id="auth-legal-acknowledgement"
+              type="checkbox"
+              checked={legalAcknowledged}
+              onChange={(event) => handleLegalAcknowledgementChange(event.target.checked)}
+              aria-invalid={legalAcknowledgementError ? true : undefined}
+              aria-describedby={legalAcknowledgementError ? "auth-legal-acknowledgement-error" : undefined}
+            />
+            <label htmlFor="auth-legal-acknowledgement">
+              我确认已年满 {LEGAL_POLICY.minimumAge} 周岁，并已阅读并同意
+              <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
+                《服务条款》
+              </a>
+              和
+              <a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
+                《社区准则》
+              </a>
+              ，且已阅读并知悉
+              <a href={LEGAL_POLICY.routes.privacy} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
+                《隐私政策》
+              </a>
+              。
+              <span lang="en">
+                I confirm that I am at least {LEGAL_POLICY.minimumAge} years old, agree to the{" "}
+                <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
+                  Terms of Service
+                </a>
+                {" "}and{" "}
+                <a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>Community Guidelines</a>, and acknowledge that I have read the
+                {" "}
+                <a href={LEGAL_POLICY.routes.privacy} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
+                  Privacy Policy
+                </a>
+                .
+              </span>
+            </label>
+            {legalAcknowledgementError ? (
+              <div id="auth-legal-acknowledgement-error" className="auth-alert auth-alert--error" role="alert">
+                {legalAcknowledgementError}
+              </div>
+            ) : null}
+          </div>
           <div className="community-cta-row">
             <button className="community-button auth-button" type="submit" disabled={loading}>
               {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
@@ -349,7 +420,7 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
             <button
               type="button"
               className="community-button--secondary auth-button"
-              onClick={() => setMode(mode === "login" ? "signup" : "login")}
+              onClick={() => selectAuthMode(mode === "login" ? "signup" : "login")}
               disabled={loading}
             >
               {mode === "login" ? "切换到注册" : "切换到登录"}
@@ -361,6 +432,8 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
               className="auth-forgot-link"
               onClick={() => {
                 setForgotMode(true);
+                setLegalAcknowledged(false);
+                setLegalAcknowledgementError("");
                 setError("");
                 setMessage("");
               }}

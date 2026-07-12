@@ -2503,6 +2503,52 @@ body {
   box-sizing: border-box;
 }
 
+.auth-legal-acknowledgement {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.55rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.auth-legal-acknowledgement input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  min-height: 1.05rem;
+  margin: 0.2rem 0 0;
+  accent-color: #8fc6ff;
+}
+
+.auth-legal-acknowledgement label {
+  display: block;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.auth-legal-acknowledgement a {
+  margin: 0 0.18rem;
+  color: #8fc6ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-legal-acknowledgement a:focus-visible {
+  outline: 2px solid #8fc6ff;
+  outline-offset: 2px;
+}
+
+.auth-legal-acknowledgement span {
+  display: block;
+  margin-top: 0.4rem;
+}
+
+.auth-legal-acknowledgement .auth-alert {
+  grid-column: 1 / -1;
+  margin-top: 0.1rem;
+}
+
 .auth-resend {
   display: grid;
   gap: 0.75rem;

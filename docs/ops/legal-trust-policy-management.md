@@ -63,8 +63,12 @@ The `16+` rule is a platform policy, not a universal legal-compliance guarantee.
 ## Deferred follow-up phases
 
 Phase 2:
-- combined login/register consent checkbox
-- informational consent UX tied to auth surface
+- one combined, unchecked-by-default `16+` acknowledgement checkbox on every password login and registration attempt
+- agreement to the Terms of Service and Community Guidelines, plus acknowledgement of the Privacy Policy
+- separate, keyboard-accessible policy links within that one checkbox label
+- frontend/auth-entry enforcement only, with no server acceptance record, localStorage proof, or cookie proof
+- password recovery and resend confirmation remain recovery/verification actions, not acceptance
+- policy links open without submitting or changing the current auth mode
 
 Phase 3:
 - consent migration

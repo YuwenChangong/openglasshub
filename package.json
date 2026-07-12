@@ -18,6 +18,7 @@
     "test:device-library": "node scripts/test-device-library.mjs",
     "test:products": "node scripts/test-product-page.mjs",
     "test:legal-content": "node --experimental-strip-types scripts/test-legal-trust-content.mjs",
+    "test:auth-legal-consent": "node scripts/test-auth-legal-acknowledgement.mjs",
     "test:search": "node --experimental-strip-types scripts/test-search.mjs",
     "test:search-audit": "node scripts/audit-search.mjs --dist dist --strict --verbose",
     "test:post-launch": "node scripts/post-launch-check.mjs --url https://openglasshub.pages.dev --strict --verbose",
