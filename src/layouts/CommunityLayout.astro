@@ -1,6 +1,8 @@
 ---
 import CommunityHeader from "../components/community/CommunityHeader.astro";
 import { LEGAL_POLICY, LEGAL_POLICY_LINKS } from "../lib/legal-policy";
+import { classifyLegalConsentRoute } from "../lib/legal-consent-route-policy";
+import LegalConsentGate from "../components/legal/LegalConsentGate";
 import "../styles/community.css";
 
 export interface Props {
@@ -34,6 +36,7 @@ const fullTitle = `${title} | ${siteName}`;
 const canonicalHref = canonical ? new URL(canonical, baseUrl).toString() : undefined;
 const ogImageHref = new URL(ogImage ?? "/brand/logo.jpg", baseUrl).toString();
 const robotsContent = noindex ? "noindex,nofollow" : "index,follow,max-image-preview:large";
+const consentAccessMode = classifyLegalConsentRoute(Astro.url.pathname);
 ---
 <!doctype html>
 <html lang="zh-CN">
@@ -69,7 +72,8 @@ const robotsContent = noindex ? "noindex,nofollow" : "index,follow,max-image-pre
       showSearch={showHeaderSearch}
     />
     <slot name="belowHeader" />
-    <main class:list={["community-shell", pageClass]}>
+    {consentAccessMode !== "exempt" && <LegalConsentGate pathname={Astro.url.pathname} client:only="react" />}
+    <main class:list={["community-shell", pageClass]} data-consent-gated-main={consentAccessMode !== "exempt" ? true : undefined} hidden={consentAccessMode !== "exempt"}>
       <slot />
     </main>
     <footer class="community-site-footer" aria-label="Legal and trust">

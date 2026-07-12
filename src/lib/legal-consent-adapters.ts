@@ -23,6 +23,10 @@ export interface LegalConsentNavigationAdapter {
   getCurrentUrl(): string;
 }
 
+export interface LegalConsentGateAdapter extends LegalConsentAuthAdapter {
+  subscribe?(listener: () => void): () => void;
+}
+
 export type AuthPanelAdapter = LegalConsentAuthAdapter & {
   viewState: AuthViewState;
   userPresent?: boolean;

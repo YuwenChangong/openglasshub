@@ -103,4 +103,10 @@ The test-only harness is located at `tests/visual/legal-consent-harness/`. It is
 
 The canonical 30-state manifest is `tests/visual/legal-consent-state-matrix.mjs`. States 1 through 25 require screenshots at 1440x900, 430x932, and 390x844, for a minimum of 75 screenshots. Callback outcomes 26 through 30 require structured redirect results instead. The generated `matrix.json` must show 30 expected, executed, and passed states, no missing or duplicate IDs, five passing redirect assertions, 75 or more screenshots, and zero unexpected external requests. Evidence is saved under `openglass-legal-consent-phase3b1-matrix-*` in the OS temp directory. Phase 3B1 cannot be marked ready from partial coverage.
 
+## Phase 3B2A page gate
+
+`src/lib/legal-consent-route-policy.ts` is the single page-route policy: exempt routes remain available, community reading routes remain public only while signed out, and notifications, account, create/edit/manage, and admin routes require both a session and current consent. `CommunityLayout.astro` mounts the reusable gate and hides gated page content until the client session and consent status resolve. Missing, outdated, or failed authenticated consent status does not reveal protected content. It redirects only to sanitized internal login or legal-consent destinations and uses replace navigation to limit loops. Admin consent is additional to, never a replacement for, existing role checks.
+
+This is page/session enforcement only. Mutation APIs remain intentionally unchanged until Phase 4, so direct API bypass is not prevented by Phase 3B2A. Production migration/runtime configuration, public legal contact values, and qualified legal review remain pending.
+
 Run the normal production build after changes and inspect its output for harness names and fake fixture values. The harness is not a production route and does not introduce global page gating or mutation enforcement. Database migration/runtime configuration, public operator contact configuration, and qualified legal review remain separate prerequisites for release.
