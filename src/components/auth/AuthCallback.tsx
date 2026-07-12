@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { getLegalConsentStatus } from "../../lib/legal-consent-client";
 
 interface AuthCallbackProps {
   next?: string;
@@ -35,8 +36,13 @@ export default function AuthCallback({ next }: AuthCallbackProps) {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
 
-      if (data.session) {
-        window.location.replace(safeNext);
+      if (data.session?.access_token) {
+        try {
+          const consent = await getLegalConsentStatus(data.session.access_token);
+          window.location.replace(consent.current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
+        } catch {
+          window.location.replace(`/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
+        }
       }
     }
 
@@ -57,8 +63,8 @@ export default function AuthCallback({ next }: AuthCallbackProps) {
         const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
           if (!mounted) return;
 
-          if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
-            window.location.replace(safeNext);
+          if (session?.access_token && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
+            void redirectIfReady();
           }
         });
 

@@ -83,6 +83,13 @@ Phase 3B:
 - login/signup persistence integration
 - authenticated consent page and current-consent gate
 
+Phase 3B1:
+- password login records the current bundle only after Supabase returns an in-memory authenticated session; normal navigation waits for the authenticated API result.
+- signup with an immediate session records source `registration`. Signup pending email confirmation records nothing and lets the first authenticated callback route to `/legal-consent/`.
+- the callback checks current status, never records acknowledgement automatically, and routes missing, outdated, or unavailable status to the consent page with a sanitized internal destination.
+- `/legal-consent/` supports signed-out guidance, current-status display, one combined acknowledgement, retry, and logout. It does not expose history, row IDs, tokens, or client-controlled versions.
+- Phase 3B1 requires the server-only service-role runtime binding and the unapplied migration before any production write can work. Phase 3B2 remains responsible for broader session/page gating.
+
 Phase 4:
 - mutation-route enforcement
 - release gate for versioned consent requirements

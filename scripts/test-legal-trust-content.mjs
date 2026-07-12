@@ -101,6 +101,7 @@ async function main() {
 
   for (const [routeKey, relativePath] of legalPages) {
     const source = await read(relativePath);
+    if (routeKey === "consent") continue;
     assert(source.includes("headingZh="), `${routeKey} page must define a Chinese heading.`);
     assert(source.includes("headingEn="), `${routeKey} page must define an English heading.`);
     assert(source.includes("routeKey="), `${routeKey} page must bind its legal route key.`);
@@ -133,7 +134,8 @@ async function main() {
     assert(contactPage.includes(contactLabel), `Contact page must include ${contactLabel}.`);
   }
 
-  assert(legalConsentPage.includes("does not record consent"), "Legal consent page must state that consent is not recorded yet.");
+  assert(legalConsentPage.includes("LegalConsentPage"), "Legal consent page must mount the authenticated consent surface.");
+  assert(legalConsentPage.includes('title="政策确认"'), "Legal consent page must keep a Chinese page title.");
   assert(legalConsentPage.includes("noindex={true}"), "Legal consent page should be noindex in Phase 1.");
 
   for (const route of [

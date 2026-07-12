@@ -20,6 +20,7 @@
     "test:legal-content": "node --experimental-strip-types scripts/test-legal-trust-content.mjs",
     "test:auth-legal-consent": "node scripts/test-auth-legal-acknowledgement.mjs",
     "test:legal-consent-persistence": "node --experimental-strip-types scripts/test-legal-consent-persistence.mjs",
+    "test:legal-consent-auth-flow": "node scripts/test-legal-consent-auth-flow.mjs",
     "test:search": "node --experimental-strip-types scripts/test-search.mjs",
     "test:search-audit": "node scripts/audit-search.mjs --dist dist --strict --verbose",
     "test:post-launch": "node scripts/post-launch-check.mjs --url https://openglasshub.pages.dev --strict --verbose",

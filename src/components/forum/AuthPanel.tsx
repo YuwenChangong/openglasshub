@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
 import { LEGAL_POLICY } from "../../lib/legal-policy";
+import { recordLegalConsent } from "../../lib/legal-consent-client";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 
@@ -18,6 +19,10 @@ type ResendResponse =
 const RESEND_COOLDOWN_MS = 60_000;
 const RESEND_COOLDOWN_STORAGE_KEY = "auth-resend-confirmation-cooldown-until";
 const LEGAL_ACKNOWLEDGEMENT_ERROR = `请确认您已年满 ${LEGAL_POLICY.minimumAge} 周岁，并阅读相关政策后继续。`;
+
+function consentRecoveryHref(next: string): string {
+  return `/legal-consent/?next=${encodeURIComponent(getSafeNext(next))}&reason=callback`;
+}
 
 function mapAuthError(errorMessage: string): string {
   if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
@@ -141,11 +146,23 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
 
     try {
       if (mode === "login") {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (signInError) throw signInError;
+        const accessToken = signInData.session?.access_token;
+        if (!accessToken) {
+          window.location.assign(consentRecoveryHref(safeNext));
+          return;
+        }
+        setMessage("正在记录政策确认...");
+        try {
+          await recordLegalConsent({ accessToken, source: "login" });
+        } catch {
+          window.location.assign(consentRecoveryHref(safeNext));
+          return;
+        }
         window.location.assign(safeNext);
         return;
       }
@@ -155,7 +172,7 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
           ? buildAuthCallbackRedirect(window.location.origin, safeNext)
           : undefined;
 
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -163,6 +180,19 @@ export default function AuthPanel({ next, initialMode = "login" }: AuthPanelProp
         },
       });
       if (signUpError) throw signUpError;
+
+      const accessToken = signUpData.session?.access_token;
+      if (accessToken) {
+        setMessage("正在记录政策确认...");
+        try {
+          await recordLegalConsent({ accessToken, source: "registration" });
+          window.location.assign(safeNext);
+          return;
+        } catch {
+          window.location.assign(consentRecoveryHref(safeNext));
+          return;
+        }
+      }
 
       setPendingVerificationEmail(email.trim());
       setMessage("验证邮件已发送。请先完成邮箱验证，再返回站内继续。");
