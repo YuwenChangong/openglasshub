@@ -1,4 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  printQaWriteGuardError,
+  readConfirmRunArgument,
+  readQaWriteGuardConfig,
+  validateQaWriteTarget,
+} from "./target-write-guard.mjs";
 
 const REQUIRED_ENV = [
   "QA_SUPABASE_URL",
@@ -8,6 +14,18 @@ const REQUIRED_ENV = [
   "QA_ADMIN_EMAIL",
   "QA_ADMIN_PASSWORD",
 ];
+
+function parseArgs(argv) {
+  const options = { dryRun: false, confirmRun: readConfirmRunArgument(argv) };
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === "--dry-run") options.dryRun = true;
+    else if (value === "--confirm-run") {
+      index += 1;
+    }
+  }
+  return options;
+}
 
 function requireEnv() {
   const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
@@ -100,8 +118,36 @@ async function ensureAdminRole(client, userId) {
 }
 
 async function main() {
+  let options;
+  try {
+    options = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    printQaWriteGuardError(error);
+    process.exitCode = 1;
+    return;
+  }
   const env = requireEnv();
   if (!env) return;
+
+  let target;
+  try {
+    target = validateQaWriteTarget(readQaWriteGuardConfig(process.env, options.confirmRun));
+  } catch (error) {
+    printQaWriteGuardError(error);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (options.dryRun) {
+    console.log(JSON.stringify({
+      dryRun: true,
+      targetRef: target.actualRef,
+      productionTarget: target.productionTarget,
+      runLabel: target.safeRunLabel,
+      plannedOperations: ["ensure ordinary QA account", "ensure admin QA account", "grant QA admin role"],
+    }, null, 2));
+    return;
+  }
 
   const client = createClient(env.QA_SUPABASE_URL, env.QA_SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },

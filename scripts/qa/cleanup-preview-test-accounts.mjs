@@ -1,5 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import {
+  printQaWriteGuardError,
+  readConfirmRunArgument,
+  readQaWriteGuardConfig,
+  validateQaWriteTarget,
+} from "./target-write-guard.mjs";
 
 /**
  * QA cleanup success criteria:
@@ -7,8 +14,8 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
  * - admin role is revoked for the QA admin account
  * - auth users are deleted, or disabled as an accepted fallback
  *
- * Physical auth deletion is preferred but not required when the fallback keeps
- * the public surface clean and removes elevated privileges.
+ * This is legacy compatibility cleanup: it discovers by owner and marker, not
+ * exact run IDs. Future destructive QA must use exact-ID cleanup instead.
  */
 
 const REQUIRED_ENV = [
@@ -26,6 +33,7 @@ function parseArgs(argv) {
     marker: null,
     verbose: false,
     strictPublic: false,
+    confirmRun: readConfirmRunArgument(argv),
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -33,6 +41,9 @@ function parseArgs(argv) {
     if (value === "--dry-run") options.dryRun = true;
     else if (value === "--verbose") options.verbose = true;
     else if (value === "--strict-public") options.strictPublic = true;
+    else if (value === "--confirm-run") {
+      index += 1;
+    }
     else if (value === "--marker") {
       options.marker = String(argv[index + 1] ?? "").trim() || null;
       index += 1;
@@ -103,19 +114,14 @@ function resolveRuntimeConfig(env) {
         dotEnv.PREVIEW_URL ??
         "",
     ).replace(/\/+$/, ""),
-    url:
-      process.env.PUBLIC_SUPABASE_URL ??
-      process.env.SUPABASE_URL ??
-      dotEnv.PUBLIC_SUPABASE_URL ??
-      dotEnv.SUPABASE_URL ??
-      env.QA_SUPABASE_URL,
+    url: env.QA_SUPABASE_URL,
     anonKey,
     ordinaryPassword: process.env.QA_ORDINARY_PASSWORD ?? null,
     adminPassword: process.env.QA_ADMIN_PASSWORD ?? null,
   };
 }
 
-function isProductionBaseUrl(value) {
+function isCanonicalProductionBaseUrl(value) {
   try {
     const url = new URL(value);
     return url.hostname === "openglasshub.pages.dev";
@@ -124,7 +130,7 @@ function isProductionBaseUrl(value) {
   }
 }
 
-function validateRuntimeConfig(options, runtime) {
+function validateRuntimeConfig(options, runtime, target) {
   if (!options.marker) {
     console.error("cleanup-preview-test-accounts requires --marker <disposable-marker>");
     process.exitCode = 1;
@@ -140,13 +146,13 @@ function validateRuntimeConfig(options, runtime) {
   try {
     new URL(runtime.baseUrl);
   } catch {
-    console.error(`invalid preview base url: ${runtime.baseUrl}`);
+    console.error("QA_WRITE_GUARD_FAILED: QA_BASE_URL_INVALID");
     process.exitCode = 1;
     return false;
   }
 
-  if (isProductionBaseUrl(runtime.baseUrl)) {
-    console.error("cleanup-preview-test-accounts refuses to run against production; set QA_BASE_URL or PREVIEW_URL to a preview deployment");
+  if (isCanonicalProductionBaseUrl(runtime.baseUrl) && !target.productionTarget) {
+    console.error("QA_WRITE_GUARD_FAILED: QA_BASE_URL_TARGET_MISMATCH");
     process.exitCode = 1;
     return false;
   }
@@ -564,25 +570,79 @@ async function verifyPublicSurface(baseUrl, marker, discoveredDirectUrls, strict
   return verification;
 }
 
-function classificationFor(summary) {
+function failedActions(actions) {
+  return actions.some((item) => item?.ok !== true && item?.status !== "DRY_RUN");
+}
+
+export function cleanupHasFailures(summary) {
+  if (summary.verification?.publicLeak) return true;
+  if (failedActions(summary.publicActions?.hiddenPosts ?? []) || failedActions(summary.publicActions?.deletedCircles ?? [])) return true;
+
+  return summary.users.some((item) => {
+    const ownerCleanup = item.ownerCleanup ?? {};
+    return (
+      (item.signInError && item.signInError !== "MISSING_SIGNIN_CONFIG") ||
+      (item.discovery?.errors?.length ?? 0) > 0 ||
+      failedActions(ownerCleanup.comments ?? []) ||
+      failedActions(ownerCleanup.posts ?? []) ||
+      failedActions(ownerCleanup.circles ?? []) ||
+      (item.storage?.failed ?? 0) > 0 ||
+      (item.label === "admin" && item.adminRoleRevoked !== true)
+    );
+  }) || summary.auth.some((item) => item.authDelete?.deleted !== true);
+}
+
+export function classificationFor(summary) {
   if (summary.verification.publicLeak) return "NO-GO_CLEANUP_PUBLIC_LEAK";
+  if (cleanupHasFailures(summary)) return "NO-GO_CLEANUP_INCOMPLETE";
   const adminRoleProblem = summary.users.some((item) => item.label === "admin" && item.adminRoleRevoked !== true);
   if (adminRoleProblem) return "NO-GO_CLEANUP_AUTH_STATE";
-  const authStateProblem = summary.auth.some((item) => item.authDelete.deleted === false && item.authDisable.ok !== true);
+  const authStateProblem = summary.auth.some((item) => item.authDelete.deleted !== true);
   if (authStateProblem) return "NO-GO_CLEANUP_AUTH_STATE";
-  if (summary.auth.some((item) => item.authDelete.deleted === false && item.authDisable.ok)) {
-    return "CLEANUP_OK_WITH_AUTH_DELETE_FALLBACK";
-  }
   return "CLEANUP_OK";
 }
 
+export function cleanupExitCode(summary) {
+  return cleanupHasFailures(summary) ? 1 : 0;
+}
+
 async function main() {
-  const options = parseArgs(process.argv.slice(2));
+  let options;
+  try {
+    options = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    printQaWriteGuardError(error);
+    process.exitCode = 1;
+    return;
+  }
   const env = requireEnv();
   if (!env) return;
 
+  let target;
+  try {
+    target = validateQaWriteTarget(readQaWriteGuardConfig(process.env, options.confirmRun));
+  } catch (error) {
+    printQaWriteGuardError(error);
+    process.exitCode = 1;
+    return;
+  }
+
   const runtime = resolveRuntimeConfig(env);
-  if (!validateRuntimeConfig(options, runtime)) return;
+  if (!validateRuntimeConfig(options, runtime, target)) return;
+
+  if (options.dryRun) {
+    console.log(JSON.stringify({
+      dryRun: true,
+      targetRef: target.actualRef,
+      productionTarget: target.productionTarget,
+      runLabel: target.safeRunLabel,
+      marker: options.marker,
+      legacyCleanup: true,
+      plannedOperations: ["discover legacy QA-owned artifacts", "hide posts/comments", "delete circles/media", "revoke QA admin role", "delete or disable QA users", "verify public residue"],
+    }, null, 2));
+    return;
+  }
+
   const serviceClient = createClient(env.QA_SUPABASE_URL, env.QA_SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -732,13 +792,13 @@ async function main() {
   writeFileSync(outputPath, JSON.stringify(summary, null, 2));
   console.log(JSON.stringify({ ...summary, outputPath }, null, 2));
 
-  if (summary.verification.publicLeak) {
-    process.exitCode = 1;
-  }
+  process.exitCode = cleanupExitCode(summary);
 }
 
-main().catch((error) => {
-  console.error("cleanup-preview-test-accounts failed");
-  console.error(sanitizeError(error));
-  process.exitCode = 1;
-});
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main().catch((error) => {
+    console.error("cleanup-preview-test-accounts failed");
+    console.error(sanitizeError(error));
+    process.exitCode = 1;
+  });
+}

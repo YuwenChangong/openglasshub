@@ -1,70 +1,50 @@
 # Preview QA Safety
 
-## Rules
+## Default posture
 
-- Preview uses production-equivalent runtime values.
-- Disposable test data only.
-- Never test destructive actions on real users or real content.
-- No production migration from preview QA.
-- Migration QA requires a confirmed non-production Supabase target.
-- Never apply preview migration when the intended target ref matches the production ref.
+- Preview and production verification is read-only by default.
+- A Cloudflare preview is production-backed when its actual Supabase project ref equals production, regardless of its Pages hostname.
+- Routine write QA requires a separate preview or staging Supabase project. Do not use production-backed previews for routine writes.
+- Never run migrations, destructive moderation, account changes, role changes, or public-content creation against production as ordinary QA.
 
-## QA user cleanup
+## Required target contract
 
-- Use dedicated disposable QA accounts only.
-- Clean up preview QA accounts and content after test cycles.
-- Treat posts, comments, circles, reports, and user safety writes as real shared-data risk.
+All privileged QA writers require these non-secret operator or CI values:
 
-## Safe cleanup notes
+- `QA_SUPABASE_URL`: exact target project URL.
+- `QA_EXPECTED_SUPABASE_REF`: ref expected for that target.
+- `QA_PRODUCTION_SUPABASE_REF`: known production ref.
 
-- Use the clear-warning cleanup route when warning-state cleanup is required.
-- Do not use preview QA to rehearse destructive moderation or user-safety actions on real accounts.
+The target URL must be a well-formed HTTPS Supabase project URL. The guard rejects missing, malformed, localhost, unidentifiable, or expected-ref-mismatched targets. It never treats an unfamiliar target as safe.
 
-## Preview Supabase requirement
+## Production-backed exception
 
-- Preferred wiring: Cloudflare Pages Preview uses a dedicated preview or staging Supabase project.
-- Production continues using the production Supabase project.
-- If Pages Preview and production point at the same Supabase ref, preview browser QA must be treated as production-equivalent and schema migration QA must stop.
-- A fresh Cloudflare deployment URL is more trustworthy than a stale branch alias when preview routing looks inconsistent.
-
-## Required ref checks before migration
-
-1. Identify the production Supabase ref from the production URL only.
-2. Identify the intended preview or staging Supabase ref from preview-only env vars only.
-3. Identify the locally linked Supabase CLI ref, if any.
-4. Refuse migration if:
-   - target ref equals production ref
-   - linked CLI ref still equals production ref
-   - the target environment cannot be proven non-production
-
-## Guard command
-
-Run this before any preview migration:
+Production-backed writes are disabled unless both controls are present:
 
 ```powershell
-node scripts/guard-preview-supabase-target.mjs ^
-  --production-url "%PUBLIC_SUPABASE_URL%" ^
-  --target-url "%QA_SUPABASE_URL%" ^
-  --linked-ref "<linked-project-ref>"
+$env:QA_ALLOW_PRODUCTION_WRITES = "1"
+node scripts/qa/create-preview-test-accounts.mjs --confirm-run "qa-run-<unique-id>"
 ```
 
-The script prints refs only. It must fail closed when the target ref matches production.
+`--confirm-run` must be a unique, non-generic run ID. Either control alone fails closed. The confirmation does not bypass target-ref validation.
 
-## Operator checklist for safe preview DB setup
+## Safe dry runs
 
-1. Create a separate Supabase project named `OpenGlass Hub Preview` or `OpenGlass Hub Staging`.
-2. Record the new project ref and keep it distinct from production.
-3. Link the Supabase CLI to the preview or staging project before running migrations.
-4. Apply baseline migrations to the preview or staging project only.
-5. Configure preview-only auth settings needed for disposable QA.
-6. Configure preview-only Cloudflare Pages Preview vars and secrets by name:
-   - `SUPABASE_URL`
-   - `SUPABASE_ANON_KEY`
-   - `PUBLIC_SUPABASE_URL`
-   - `PUBLIC_SUPABASE_ANON_KEY`
-   - preview-only service-role secret if a QA script requires it
-7. Leave Cloudflare production vars and secrets untouched.
-8. Run the guard script again and confirm:
-   - target ref != production ref
-   - linked CLI ref != production ref
-9. Use the fresh deployment URL for QA if the branch alias appears stale.
+Dry runs validate the target and print only operation categories, refs, and the safe run label. They perform no network mutation and never print credentials, passwords, tokens, or private emails.
+
+```powershell
+node scripts/qa/create-preview-test-accounts.mjs --dry-run
+node scripts/qa/cleanup-preview-test-accounts.mjs --dry-run --marker "qa-run-<unique-id>"
+```
+
+## Cleanup and emergency stop
+
+- Stop immediately for an ambiguous target, ref mismatch, missing confirmation, unexpected artifact discovery, or cleanup error.
+- Cleanup verification must show zero targeted public artifacts. Any incomplete cleanup is a failed release gate and returns nonzero.
+- Legacy owner/marker cleanup exists only for compatibility and is high risk. Future workflows must track exact artifact IDs and clean only those IDs.
+- Do not use broad prefix, title, marker, or owner deletion for future destructive QA.
+- Do not create or modify real users, real content, roles, reports, or media to rehearse QA.
+
+## Staging requirement
+
+Create and maintain a dedicated staging or preview Supabase project, configure preview-only runtime values there, and verify the target-ref guard before any write QA. Leave production values and secrets untouched.

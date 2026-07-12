@@ -81,6 +81,12 @@ if (exists(createQaScriptPath)) {
   const script = read(createQaScriptPath);
   check("qa create script uses grant rpc", /rpc\("qa_grant_admin_role"/.test(script));
   check("qa create script no direct profiles role update", !/from\("profiles"\)\.update\(\{ role: "admin" \}\)/.test(script));
+  check(
+    "qa create script invokes the shared target guard before privileged client setup",
+    script.includes('from "./target-write-guard.mjs"')
+      && script.indexOf("target = validateQaWriteTarget") < script.indexOf("createClient(env.QA_SUPABASE_URL"),
+  );
+  check("qa create script has validation-only dry run", /if \(options\.dryRun\)[\s\S]*plannedOperations/.test(script));
 }
 
 const cleanupQaScriptPath = "scripts/qa/cleanup-preview-test-accounts.mjs";
@@ -89,8 +95,9 @@ if (exists(cleanupQaScriptPath)) {
   check("qa cleanup script uses revoke rpc", /rpc\("qa_revoke_admin_role"/.test(script));
   check("qa cleanup script requires explicit marker", /requires --marker <disposable-marker>|!options\.marker/.test(script));
   check(
-    "qa cleanup script refuses production base url",
-    /refuses to run against production|isProductionBaseUrl/.test(script),
+    "qa cleanup script invokes the shared target guard before privileged client setup",
+    script.includes('from "./target-write-guard.mjs"')
+      && script.indexOf("target = validateQaWriteTarget") < script.indexOf("createClient(env.QA_SUPABASE_URL"),
   );
   check(
     "qa cleanup script uses admin cleanup routes",
@@ -99,6 +106,37 @@ if (exists(cleanupQaScriptPath)) {
       && /\/api\/admin\/moderation\/hide/.test(script),
   );
   check("qa cleanup script avoids profile reset write", !/\/api\/users\/me\/profile/.test(script));
+  check(
+    "qa cleanup failures are process-fatal",
+    /process\.exitCode = cleanupExitCode\(summary\);/.test(script),
+  );
+}
+
+const qaTargetGuardPath = "scripts/qa/target-write-guard.mjs";
+check("shared QA target guard exists", exists(qaTargetGuardPath));
+if (exists(qaTargetGuardPath)) {
+  const guard = read(qaTargetGuardPath);
+  check("shared guard requires expected target ref", /QA_EXPECTED_TARGET_REF_REQUIRED/.test(guard));
+  check("shared guard requires production ref contract", /QA_PRODUCTION_REF_REQUIRED/.test(guard));
+  check("shared guard rejects target ref mismatch", /QA_TARGET_REF_MISMATCH/.test(guard));
+  check("shared guard rejects production by default", /QA_PRODUCTION_WRITES_DISABLED/.test(guard));
+  check("shared guard requires a non-generic confirmation", /QA_CONFIRM_RUN_GENERIC/.test(guard));
+  check("shared guard rejects duplicate confirmation flags", /QA_CONFIRM_RUN_DUPLICATE/.test(guard));
+}
+
+const smokePath = "scripts/smoke-production.mjs";
+check("production smoke remains read-only", exists(smokePath));
+if (exists(smokePath)) {
+  const smoke = read(smokePath);
+  check("production smoke has no mutating HTTP method", !/method\s*:\s*["'](?:POST|PUT|PATCH|DELETE)/i.test(smoke));
+}
+
+const previewChecklistPath = "docs/public-preview-launch-checklist.md";
+check("preview checklist exists", exists(previewChecklistPath));
+if (exists(previewChecklistPath)) {
+  const checklist = read(previewChecklistPath);
+  check("preview checklist makes routine QA read-only", /read-only by default/i.test(checklist));
+  check("preview checklist does not present forum writes as routine QA", !/## 11\. Read-only QA Before Cutover[\s\S]*?- Forum writes:/i.test(checklist));
 }
 
 if (exists(adminAuthPath)) {
