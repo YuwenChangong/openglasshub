@@ -42,6 +42,14 @@ GET requires moderator authentication, bounds and allowlists filters, and calls 
 
 GET validates a non-empty dynamic report id, requires moderator authentication, then calls `fetchAdminReportDetail` for report, target preview, reporter, count, event, and actor reads. The dynamic id never supplies the acting moderator and no status/event/target/notification/cache mutation occurs. The route only checks that the id is non-empty, and its generic 500 branch returns the caught `Error.message` rather than sanitizing helper errors.
 
+## Phase 4A1 Batch 2H - admin/reports/[id]/action.ts POST
+
+POST validates runtime env and a non-empty report id, authenticates and derives the moderator from the bearer token through `requireModerator`, then parses JSON and allowlists `dismiss`, `reviewing`, `hide_target`, `reject_target`, `warn_user`, `suspend_user`, and `ban_user`. It does not check the id format, content type, request size, or rate limit. A future consent guard can be awaited in `POST` immediately after `requireModerator(request, env)` and before `request.json()`; this needs no refactor beyond passing the verified `auth.user.id` to the guard.
+
+`applyAdminReportAction` reads the report and target after authentication. Reviewing and dismiss update `reports` before inserting the report event. Post/comment hide or reject reads the target again, updates the target, inserts `moderation_actions`, updates the report, inserts the report event, then starts a notification RPC without awaiting it. Circle hide updates the circle, then follows the report/event sequence; circle reject and user hide are rejected. User warn/suspend/ban read user safety state, upsert it, insert a user-safety event, attempt a notification, optionally attempt and swallow a supplemental note failure, then update the report and insert the report event.
+
+Findings: raw helper `Error.message` values are returned to clients through both non-ok results and the generic 500 branch (Phase 4B hardening). The target/state, moderation-action, report-state, report-event, and notification writes are not transactional; each later failure can leave earlier writes committed (Phase 4B hardening). There is no report-resolved gate or action idempotency key, so repeated requests can duplicate report events and some target/user-safety actions; target post/comment moderation suppresses only an already-desired target update, not the later report event (Phase 4B hardening). Missing request-size, content-type, rate-limit, and UUID controls are Phase 4B hardening. These findings do not block this Phase 4A1 source trace.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
