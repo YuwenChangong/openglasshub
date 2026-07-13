@@ -55,7 +55,7 @@ const criticalChecks = [
   },
   {
     label: "Post delete API checks owner or staff",
-    ok: /post\.author_id !== authData\.user\.id && !isStaff/.test(read("src/pages/api/forum/posts.ts")),
+    ok: /target\.target\.authorId !== authData\.user\.id && !isStaff/.test(read("src/pages/api/forum/posts.ts")),
   },
   {
     label: "Post moderation UI gates delete button",

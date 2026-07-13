@@ -12,9 +12,6 @@
 
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import {
-  safeIncrementPostViewCount,
-} from "../../../lib/post-engagement";
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
 import { getRequestIp } from "../../../lib/request-ip";
 import { deletePostMediaObjects } from "../../../lib/server/media-cleanup";
@@ -26,6 +23,7 @@ import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 import { listForumFeed, parseFeedSort } from "../../../lib/forum-feed";
+import { isPublicVisibleCircle } from "../../../lib/site-navigation";
 
 export const prerender = false;
 
@@ -99,6 +97,57 @@ async function loadViewerRole(client: SupabaseClient, userId: string): Promise<s
 // ---------------------------------------------------------------------------
 
 const ALLOWED_TYPES = new Set(["experience", "question", "review", "dev", "news", "feedback"]);
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type AccessibleForumPostTarget = { id: string; authorId: string; circleId: string };
+
+async function resolveWritableCircleBySlug(client: SupabaseClient, circleSlug: string) {
+  let { data: circle, error: circleError } = await client
+    .from("circles")
+    .select("id,slug,name,status")
+    .eq("slug", circleSlug)
+    .eq("status", "active")
+    .maybeSingle();
+  if (circleError && isMissingCircleStatusError(circleError)) {
+    const fallback = await client.from("circles").select("id,slug,name").eq("slug", circleSlug).maybeSingle();
+    circle = fallback.data ? { ...fallback.data, status: "active" } : null;
+    circleError = fallback.error;
+  }
+  if (circleError) return { ok: false as const, status: 500, error: "CIRCLE_LOOKUP_FAILED" };
+  if (!circle || circle.status?.toLowerCase() !== "active" || !isPublicVisibleCircle(circle)) {
+    return { ok: false as const, status: 404, error: "CIRCLE_NOT_ACCESSIBLE" };
+  }
+  return { ok: true as const, circleId: String(circle.id) };
+}
+
+export async function resolveAccessibleForumPostTarget(
+  client: SupabaseClient,
+  postId: string,
+): Promise<{ ok: true; target: AccessibleForumPostTarget } | { ok: false; status: 404 | 500; error: string }> {
+  const { data: post, error: postError } = await client
+    .from("posts")
+    .select("id,author_id,circle_id,status,moderation_status")
+    .eq("id", postId)
+    .maybeSingle();
+  if (postError) return { ok: false, status: 500, error: "POST_TARGET_LOOKUP_FAILED" };
+
+  const postRow = post as { id: string; author_id: string; circle_id: string | null; status: string; moderation_status?: string | null } | null;
+  if (!postRow || postRow.id !== postId || !postRow.circle_id || !UUID_REGEX.test(postRow.circle_id) || postRow.status !== "published" || postRow.moderation_status !== "published") {
+    return { ok: false, status: 404, error: "POST_NOT_ACCESSIBLE" };
+  }
+
+  const { data: circle, error: circleError } = await client
+    .from("circles")
+    .select("id,slug,name,status")
+    .eq("id", postRow.circle_id)
+    .maybeSingle();
+  if (circleError) return { ok: false, status: 500, error: "POST_TARGET_LOOKUP_FAILED" };
+  if (!circle || circle.id !== postRow.circle_id || circle.status?.toLowerCase() !== "active" || !isPublicVisibleCircle(circle)) {
+    return { ok: false, status: 404, error: "POST_NOT_ACCESSIBLE" };
+  }
+
+  return { ok: true, target: { id: postRow.id, authorId: postRow.author_id, circleId: postRow.circle_id } };
+}
 
 function validatePayload(payload: Record<string, unknown>): { code: string; message: string } | null {
   const circleSlug = String(payload.circle_slug ?? "").trim();
@@ -189,16 +238,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 20;
     const pageParam = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
     const page = Number.isFinite(pageParam) ? Math.max(1, pageParam) : 1;
-    const incrementView = url.searchParams.get("increment_view") === "1";
-    const incrementPostId = String(url.searchParams.get("id") ?? "").trim();
-
-    const client = createAnonClient(env);
-
-    if (incrementView && incrementPostId) {
-      const result = await safeIncrementPostViewCount(client, incrementPostId);
-      return json(result.ok ? { ok: true } : { ok: false }, 200);
+    if (url.searchParams.get("increment_view") === "1") {
+      return json({ error: "View increment is not supported by this read-only endpoint" }, 400);
     }
 
+    const client = createAnonClient(env);
     const feed = await listForumFeed({
       client,
       sort,
@@ -251,6 +295,32 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (validationError) {
       return json({ error: validationError.message, code: validationError.code }, 400);
     }
+    const circleSlug = String(payload.circle_slug ?? "").trim();
+    const title = String(payload.title ?? "").trim();
+    const body = String(payload.body ?? "").trim();
+    const hasMedia = payload.has_media === true;
+    const normalizedBody = body || (hasMedia ? MEDIA_ONLY_SENTINEL : "");
+    const type = String(payload.type ?? "").trim();
+
+    // Verify profile exists
+    const { data: profile, error: profileError } = await userClient
+      .from("profiles")
+      .select("id")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+    if (profileError) {
+      return json({ error: profileError.message }, 500);
+    }
+    if (!profile) {
+      return json({ error: "Profile not found for current user" }, 403);
+    }
+
+    const circleTarget = await resolveWritableCircleBySlug(userClient, circleSlug);
+    if (!circleTarget.ok) {
+      if (circleTarget.status === 500) return json({ error: "Circle lookup failed" }, 500);
+      return json({ error: "Circle not found or deleted" }, 404);
+    }
+
     const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
     const ipHash = await hashRateLimitIp(getRequestIp(request), rateSalt);
     const rateLimit = await enforceUserRateLimit({
@@ -262,18 +332,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       windowMs: 60 * 60 * 1000,
       bytes: 0,
     });
-    if (!rateLimit.allowed) {
-      if (rateLimit.reason === "RATE_LIMITED") {
-        return json({ error: "Too many posts created", code: "RATE_LIMITED" }, 429);
-      }
+    if (!rateLimit.allowed && rateLimit.reason === "RATE_LIMITED") {
+      return json({ error: "Too many posts created", code: "RATE_LIMITED" }, 429);
     }
-
-    const circleSlug = String(payload.circle_slug ?? "").trim();
-    const title = String(payload.title ?? "").trim();
-    const body = String(payload.body ?? "").trim();
-    const hasMedia = payload.has_media === true;
-    const normalizedBody = body || (hasMedia ? MEDIA_ONLY_SENTINEL : "");
-    const type = String(payload.type ?? "").trim();
 
     const moderation = await moderateContent(env, {
       contentType: body ? "post_body" : "post_title",
@@ -304,42 +365,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    // Verify profile exists
-    const { data: profile, error: profileError } = await userClient
-      .from("profiles")
-      .select("id")
-      .eq("id", authData.user.id)
-      .maybeSingle();
-    if (profileError) {
-      return json({ error: profileError.message }, 500);
-    }
-    if (!profile) {
-      return json({ error: "Profile not found for current user" }, 403);
-    }
-
-    // Resolve circle
-    let { data: circle, error: circleError } = await userClient
-      .from("circles")
-      .select("id")
-      .eq("slug", circleSlug)
-      .eq("status", "active")
-      .maybeSingle();
-    if (circleError && isMissingCircleStatusError(circleError)) {
-      const fallback = await userClient
-        .from("circles")
-        .select("id")
-        .eq("slug", circleSlug)
-        .maybeSingle();
-      circle = fallback.data;
-      circleError = fallback.error;
-    }
-    if (circleError) {
-      return json({ error: circleError.message }, 500);
-    }
-    if (!circle) {
-      return json({ error: "Circle not found or deleted" }, 404);
-    }
-
     const requiresReview = moderation.decision === "review";
     const isDegradedAllow = isLocalDegradedModerationResult(moderation);
     const insertedStatus = requiresReview ? "pending" : "published";
@@ -351,7 +376,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .from("posts")
       .insert({
         author_id: authData.user.id,
-        circle_id: circle.id,
+        circle_id: circleTarget.circleId,
         type,
         title,
         body: normalizedBody,
@@ -409,44 +434,26 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
     }
+    const safetyDecision = await assertUserCanWrite(userClient, authData.user.id, "post_delete");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
+    }
     const viewerRole = await loadViewerRole(userClient, authData.user.id);
     const isStaff = isModeratorRole(viewerRole);
 
     const url = new URL(request.url);
     const postId = String(url.searchParams.get("id") ?? url.searchParams.get("post_id") ?? "").trim();
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(postId)) {
+    if (!UUID_REGEX.test(postId)) {
       return json({ error: "Invalid post_id format" }, 400);
     }
 
-    const { data: post, error: postError } = await userClient
-      .from("posts")
-      .select("id, author_id, status")
-      .eq("id", postId)
-      .maybeSingle();
-    if (postError) {
-      return json({ error: postError.message }, 500);
-    }
-    if (!post) {
+    const target = await resolveAccessibleForumPostTarget(userClient, postId);
+    if (!target.ok) {
+      if (target.status === 500) return json({ error: "Post lookup failed" }, 500);
       return json({ error: "Post not found" }, 404);
     }
-    if (post.author_id !== authData.user.id && !isStaff) {
+    if (target.target.authorId !== authData.user.id && !isStaff) {
       return json({ error: "Cannot delete a post you do not own" }, 403);
-    }
-    if (post.status === "deleted") {
-      return json({
-        ok: true,
-        status: "deleted",
-        post: { id: postId, status: "deleted" },
-        cleanup: {
-          ok: true,
-          warnings: [],
-          errors: [],
-          deletedObjects: [],
-          deletedRows: 0,
-        },
-        message: "已删除",
-      });
     }
 
     let mediaQuery = userClient
@@ -474,30 +481,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       .select("id,status")
       .single();
     if (updateError) {
-      // Backward compatibility: old RLS policies may not allow authors to set deleted.
-      let hardDeleteQuery = userClient
-        .from("posts")
-        .delete()
-        .eq("id", postId);
-      if (!isStaff) {
-        hardDeleteQuery = hardDeleteQuery.eq("author_id", authData.user.id);
-      }
-      const { error: hardDeleteError } = await hardDeleteQuery;
-      if (hardDeleteError) {
-        return json({ error: updateError.message }, 500);
-      }
-      return json({
-        ok: true,
-        post: { id: postId, status: "deleted" },
-        mode: "hard_delete_fallback",
-        cleanup: {
-          ok: true,
-          warnings: [],
-          errors: [],
-          deletedObjects: [],
-          deletedRows: 0,
-        },
-      });
+      return json({ error: updateError.message }, 500);
     }
 
     const cleanup = await deletePostMediaObjects({
@@ -545,21 +529,30 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
     }
-    const viewerRole = await loadViewerRole(userClient, authData.user.id);
+    const safetyDecision = await assertUserCanWrite(userClient, authData.user.id, "post_moderate");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
+    }
 
     const payload = (await request.json().catch(() => null)) as
       | { id?: string; status?: string }
       | null;
     const postId = String(payload?.id ?? "").trim();
     const nextStatus = String(payload?.status ?? "").trim();
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(postId)) {
+    if (!UUID_REGEX.test(postId)) {
       return json({ error: "Invalid post id" }, 400);
     }
     if (nextStatus !== "hidden") {
       return json({ error: "Only hidden status is supported in this endpoint" }, 400);
     }
 
+    const target = await resolveAccessibleForumPostTarget(userClient, postId);
+    if (!target.ok) {
+      if (target.status === 500) return json({ error: "Post lookup failed" }, 500);
+      return json({ error: "Post not found" }, 404);
+    }
+
+    const viewerRole = await loadViewerRole(userClient, authData.user.id);
     if (!isModeratorRole(viewerRole)) {
       return json({ error: "Forbidden" }, 403);
     }

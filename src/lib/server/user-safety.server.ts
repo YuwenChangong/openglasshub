@@ -14,6 +14,8 @@ export type UserSafetyAdminAction = "warn" | "suspend" | "ban" | "unban" | "clea
 export type UserSafetyRole = "user" | "moderator" | "admin";
 export type UserSafetyWriteAction =
   | "post_create"
+  | "post_delete"
+  | "post_moderate"
   | "comment_create"
   | "circle_create"
   | "circle_update"
