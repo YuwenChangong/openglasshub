@@ -5,9 +5,9 @@ import {
   authorizeUserSafetyAction,
 } from "../src/lib/server/user-safety.server.ts";
 
-function createFakeClient(roles) {
+function createFakeClient(roles, initialState = null) {
   const writes = { states: [], events: [], notifications: [] };
-  let state = null;
+  let state = initialState;
 
   return {
     writes,
@@ -105,12 +105,31 @@ async function assertAllowed(actorRole, targetRole) {
   assert.equal(client.writes.notifications.length, 1);
 }
 
+async function assertClearWarningBehavior() {
+  const activeState = { user_id: "target", reputation_score: 0, strike_count: 0, warning_count: 0, status: "active", suspended_until: null, banned_at: null, ban_reason: null, last_action_at: null, updated_by: null };
+  const noOpClient = createFakeClient({ actor: "admin", target: "user" }, activeState);
+  const noOp = await applyUserSafetyAction({ client: noOpClient, actorId: "actor", targetUserId: "target", action: "clear_warning", reason: null });
+  assert.equal(noOp.ok, true);
+  assert.deepEqual(noOpClient.writes, { states: [], events: [], notifications: [] });
+
+  const warnedState = { ...activeState, warning_count: 1, status: "warned", reputation_score: -1 };
+  const clearClient = createFakeClient({ actor: "moderator", target: "user" }, warnedState);
+  const cleared = await applyUserSafetyAction({ client: clearClient, actorId: "actor", targetUserId: "target", action: "clear_warning", reason: "reviewed" });
+  assert.equal(cleared.ok, true);
+  assert.equal(clearClient.writes.states.length, 1);
+  assert.equal(clearClient.writes.events.length, 1);
+  assert.equal(clearClient.writes.events[0].event_type, "note");
+  assert.equal(clearClient.writes.events[0].actor_id, "actor");
+  assert.equal(clearClient.writes.notifications.length, 0);
+}
+
 assert.equal(authorizeUserSafetyAction({ actorId: "actor", targetUserId: "target", actorRole: "moderator", targetRole: "user" }).ok, true);
 assert.equal(authorizeUserSafetyAction({ actorId: "actor", targetUserId: "target", actorRole: "admin", targetRole: "moderator" }).ok, true);
 
 await assertAllowed("moderator", "user");
 await assertAllowed("admin", "user");
 await assertAllowed("admin", "moderator");
+await assertClearWarningBehavior();
 await assertDenied({ actorId: "actor", targetId: "actor", actorRole: "moderator", targetRole: "moderator" });
 await assertDenied({ actorRole: "moderator", targetRole: "moderator" });
 await assertDenied({ actorRole: "moderator", targetRole: "admin" });
@@ -122,8 +141,12 @@ await assertDenied({ actorRole: "owner", targetRole: "user" });
 await assertDenied({ actorRole: "moderator", targetRole: "admin", suppliedActorRole: "admin" });
 
 const banRoute = await fs.readFile(new URL("../src/pages/api/admin/users/[id]/ban.ts", import.meta.url), "utf8");
+const clearWarningRoute = await fs.readFile(new URL("../src/pages/api/admin/users/[id]/clear-warning.ts", import.meta.url), "utf8");
 assert.match(banRoute, /targetUserId = String\(params\.id/);
 assert.match(banRoute, /actorId: auth\.user\.id/);
 assert.doesNotMatch(banRoute, /actorRole|payload\?\.actor|payload\?\.user/i);
+assert.match(clearWarningRoute, /targetUserId = String\(params\.id/);
+assert.match(clearWarningRoute, /actorId: auth\.user\.id/);
+assert.doesNotMatch(clearWarningRoute, /actorRole|payload\?\.actor|payload\?\.user/i);
 
 console.log("USER SAFETY PRIVILEGE BOUNDARY TEST PASSED");

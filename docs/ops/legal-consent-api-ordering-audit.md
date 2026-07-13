@@ -64,6 +64,12 @@ Historical blocker: the former helper read only target `id`, allowing a moderato
 
 After authorization, the method reads current safety state, upserts the state as its first irreversible effect, inserts the safety event, and attempts the notification RPC. An already-banned state returns `USER_ALREADY_BANNED` before writes, but no request idempotency key or transaction spans state/event/notification, and later helper errors can still reach the route's generic `Error.message` branch. Those are Phase 4B hardening findings. Future consent belongs immediately after `requireModerator` and before `request.json()`. The privilege blocker is cleared by this re-audit; Batch 3 remains pending at 24/66 traced and 42 pending, and Phase 4A1 remains NO_GO.
 
+## Phase 4A1 Batch 3C - admin/users/[id]/clear-warning.ts POST
+
+POST validates runtime env and a non-empty route target id, verifies the bearer moderator/admin before parsing its optional reason, then calls the shared safety helper with only `auth.user.id` as actor. The helper rejects self-targeting, reads both server-side profile roles, and applies the same fail-closed hierarchy before any safety-state read: moderators may target only users; administrators may target users or moderators but never administrators.
+
+Clear warning rejects suspended or banned states. It decrements one warning and emits a `note` event with the verified actor when a warning exists; an active zero-warning state returns a no-op success without state write, event, or notification. There is no separate warning metadata to erase, and no clear-warning notification/email/external branch. The state upsert precedes the event, so event failure can leave committed state; concurrent requests have no idempotency key beyond the normal no-op path. Content type, body-size, rate limit, route UUID validation, and later raw helper-error exposure remain Phase 4B hardening. Future consent belongs after `requireModerator` and before JSON parsing. Batch 3 remains pending at 25/66 traced and 41 pending.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.

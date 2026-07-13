@@ -10,6 +10,11 @@ export function buildTraceBatches(methodIds, representatives = []) {
 export function traceBatchForMethod(methodId, methodIds) { return buildTraceBatches(methodIds).find((batch) => batch.methodIds.includes(methodId))?.id ?? null; }
 
 export const fileTraceProgress = {
+  "src/pages/api/admin/users/[id]/clear-warning.ts": {
+    batchId: "phase4a1-trace-batch-3",
+    methodIds: ["src/pages/api/admin/users/[id]/clear-warning.ts#POST"],
+    status: "complete",
+  },
   "src/pages/api/admin/users/[id]/ban.ts": {
     batchId: "phase4a1-trace-batch-3",
     methodIds: ["src/pages/api/admin/users/[id]/ban.ts#POST"],
