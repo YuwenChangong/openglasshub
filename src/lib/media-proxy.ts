@@ -19,6 +19,7 @@ export async function streamTrustedMediaUrl(params: {
   cacheSeconds?: number;
   timeoutMs?: number;
   maxResponseBytes?: number;
+  allowedContentTypes?: readonly string[];
 }) {
   const cacheSeconds = params.cacheSeconds ?? 120;
   const timeoutMs = params.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
@@ -49,6 +50,11 @@ export async function streamTrustedMediaUrl(params: {
     return json({ error: "MEDIA_UNAVAILABLE" }, 502);
   }
 
+  const normalizedContentType = contentType?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  if (params.allowedContentTypes && !params.allowedContentTypes.includes(normalizedContentType)) {
+    return json({ error: "MEDIA_UNAVAILABLE" }, 502);
+  }
+
   if (contentType) headers.set("content-type", contentType);
   if (contentLength) headers.set("content-length", contentLength);
   if (etag) headers.set("etag", etag);
@@ -67,6 +73,7 @@ export async function streamStorageObjectViaSignedUrl(params: {
   bucket?: string;
   signedUrlTtl?: number;
   cacheSeconds?: number;
+  allowedContentTypes?: readonly string[];
 }) {
   const bucket = params.bucket ?? "post-media";
   const signedUrlTtl = params.signedUrlTtl ?? DEFAULT_PROXY_TTL;
@@ -79,5 +86,6 @@ export async function streamStorageObjectViaSignedUrl(params: {
   return streamTrustedMediaUrl({
     url: data.signedUrl,
     cacheSeconds: params.cacheSeconds,
+    allowedContentTypes: params.allowedContentTypes,
   });
 }

@@ -22,7 +22,7 @@ function createSearchClient() {
   const visibleCircle = { id: ids.visibleCircle, slug: "visible-circle", name: "Visible Circle", description: "Visible discussion", created_at: "2026-07-01T00:00:00.000Z", image_path: null, status: "active", owner_id: ids.user };
   const hiddenCircle = { id: ids.hiddenCircle, slug: "rls-test-circle", name: "RLS Test Circle", description: "Hidden circle description", created_at: "2026-07-01T00:00:00.000Z", image_path: null, status: "active", owner_id: ids.user };
   const inactiveCircle = { id: ids.inactiveCircle, slug: "inactive-circle", name: "Inactive Circle", description: "Inactive circle description", created_at: "2026-07-01T00:00:00.000Z", image_path: null, status: "inactive", owner_id: ids.user };
-  const profile = { id: ids.user, username: "visible-user", display_name: "Visible User", avatar_url: "profile-avatars/visible.jpg", bio: "Visible profile", created_at: "2026-07-01T00:00:00.000Z" };
+  const profile = { id: ids.user, username: "visible-user", display_name: "Visible User", avatar_url: `profile-avatars/${ids.user}/1752451200000-visible.jpg`, bio: "Visible profile", created_at: "2026-07-01T00:00:00.000Z" };
   const post = (id, circle, title, body) => ({
     id,
     title,

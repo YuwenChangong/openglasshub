@@ -4,6 +4,8 @@ export const PROFILE_MEDIA_BUCKET = "post-media";
 export const PROFILE_AVATAR_PREFIX = "profile-avatars/";
 export const PROFILE_BANNER_PREFIX = "profile-banners/";
 export const PROFILE_MEDIA_EXPIRES_IN = 10 * 60;
+const PROFILE_MEDIA_PATH_PATTERN = /^(profile-avatars|profile-banners)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/([1-9][0-9]{0,12})-([a-z0-9._-]{0,240})$/;
+const PROFILE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const profileMediaUrlCache = new WeakMap<SupabaseClient, Map<string, Promise<string | null>>>();
 
 export function buildProfileMediaProxyUrl(userId: string, kind: "avatar" | "banner") {
@@ -11,11 +13,23 @@ export function buildProfileMediaProxyUrl(userId: string, kind: "avatar" | "bann
 }
 
 export function isProfileAvatarPath(value?: string | null): value is string {
-  return typeof value === "string" && value.startsWith(PROFILE_AVATAR_PREFIX);
+  return typeof value === "string" && PROFILE_MEDIA_PATH_PATTERN.test(value) && value.startsWith(PROFILE_AVATAR_PREFIX);
 }
 
 export function isProfileBannerPath(value?: string | null): value is string {
-  return typeof value === "string" && value.startsWith(PROFILE_BANNER_PREFIX);
+  return typeof value === "string" && PROFILE_MEDIA_PATH_PATTERN.test(value) && value.startsWith(PROFILE_BANNER_PREFIX);
+}
+
+export function isProfileMediaPathForUser(
+  value: string | null | undefined,
+  userId: string,
+  kind: "avatar" | "banner",
+): value is string {
+  if (typeof value !== "string" || !PROFILE_UUID_PATTERN.test(userId)) return false;
+  const match = value.match(PROFILE_MEDIA_PATH_PATTERN);
+  if (!match) return false;
+  const [prefix, pathUserId] = match.slice(1);
+  return prefix === (kind === "avatar" ? "profile-avatars" : "profile-banners") && pathUserId.toLowerCase() === userId.toLowerCase();
 }
 
 function isAbsoluteUrl(value?: string | null): value is string {
@@ -67,6 +81,7 @@ export async function resolveProfileAvatarUrl(
   if (isAbsoluteUrl(avatarUrl)) return avatarUrl;
   if (!isProfileAvatarPath(avatarUrl)) return null;
   if (options?.publicProxyUserId) {
+    if (!isProfileMediaPathForUser(avatarUrl, options.publicProxyUserId, "avatar")) return null;
     return buildProfileMediaProxyUrl(options.publicProxyUserId, "avatar");
   }
   return createSignedUrl(supabase, avatarUrl, expiresIn, "avatar");
@@ -82,6 +97,7 @@ export async function resolveProfileBannerUrl(
   if (isAbsoluteUrl(bannerUrl)) return bannerUrl;
   if (!isProfileBannerPath(bannerUrl)) return null;
   if (options?.publicProxyUserId) {
+    if (!isProfileMediaPathForUser(bannerUrl, options.publicProxyUserId, "banner")) return null;
     return buildProfileMediaProxyUrl(options.publicProxyUserId, "banner");
   }
   return createSignedUrl(supabase, bannerUrl, expiresIn, "banner");
