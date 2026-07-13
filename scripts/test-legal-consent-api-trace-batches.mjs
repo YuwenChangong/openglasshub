@@ -39,6 +39,7 @@ const resolvedCommentReaction = methodTraceFixture.resolvedSecurityFindings.find
 const commentPutTrace = methodTraceFixture.batch4dTraces?.["src/pages/api/forum/comments.ts#PUT"];
 const resolvedCommentCreation = methodTraceFixture.resolvedSecurityFindings.find((finding) => finding?.id === "COMMENT_CREATION_CIRCLE_ANCESTOR_AUTHORIZATION");
 const commentPostTrace = methodTraceFixture.batch4eTraces?.["src/pages/api/forum/comments.ts#POST"];
+const commentGetBlocker = methodTraceFixture.releaseBlockingFindings.find((finding) => finding?.id === "COMMENT_READ_CIRCLE_ANCESTOR_VISIBILITY_AUTHORIZATION");
 const resolvedResendFinding = methodTraceFixture.resolvedSecurityFindings.find((finding) => finding?.id === "RESEND_CONFIRMATION_EXTERNAL_REDIRECT");
 
 assert.equal(batches.length, expectedBatchCount);
@@ -62,13 +63,27 @@ assert.equal(fileTraceProgress["src/pages/api/forum/circles/[slug]/posts.ts"]?.s
 assert.equal(fileTraceProgress["src/pages/api/forum/comments.ts"]?.status, "partial");
 assert.deepEqual(fileTraceProgress["src/pages/api/forum/comments.ts"]?.completedMethodIds, ["src/pages/api/forum/comments.ts#POST"]);
 assert.deepEqual(fileTraceProgress["src/pages/api/forum/comments.ts"]?.pendingMethodIds, ["src/pages/api/forum/comments.ts#GET"]);
+assert.equal(fileTraceProgress["src/pages/api/forum/comments.ts"]?.blockerId, "COMMENT_READ_CIRCLE_ANCESTOR_VISIBILITY_AUTHORIZATION");
+assert.equal(fileTraceProgress["src/pages/api/forum/comments.ts"]?.getForwardMigrationStatus, "required-not-authored");
+assert.equal(fileTraceProgress["src/pages/api/forum/comments.ts"]?.getReauditRequired, true);
 assert.equal(fileTraceProgress["src/pages/api/forum/comments.ts"]?.reAuditedMethodId, "src/pages/api/forum/comments.ts#PUT");
 assert.equal(fileTraceProgress["src/pages/api/forum/comments.ts"]?.migrationExecutionStatus, "authored-not-executed");
 assert.equal(commentPutTrace?.traceStatus, "complete");
 assert.equal(commentPutTrace?.traceEvidenceComplete, true);
 assert.equal(commentPutTrace?.traceCompleteness, "complete");
 assert.equal(commentPutTrace?.migrationExecutionStatus, "authored-not-executed");
-assert.deepEqual(methodTraceFixture.releaseBlockingFindings, []);
+assert.equal(methodTraceFixture.releaseBlockingFindings.length, 1);
+assert.equal(commentGetBlocker?.status, "active");
+assert.equal(commentGetBlocker?.sourceFile, "src/pages/api/forum/comments.ts");
+assert.equal(commentGetBlocker?.method, "GET");
+assert.equal(commentGetBlocker?.routeEvidence?.symbol, "GET");
+assert.equal(commentGetBlocker?.postRlsEvidence?.symbol, "posts_select_published_public");
+assert.equal(commentGetBlocker?.commentRlsEvidence?.symbol, "comments_select_public_or_staff");
+assert.equal(commentGetBlocker?.requiresRuntimeRemediation, true);
+assert.equal(commentGetBlocker?.requiresForwardMigrationRemediation, true);
+assert.equal(commentGetBlocker?.singleLayerFixInsufficient, true);
+assert.equal(commentGetBlocker?.consentDoesNotRemediateAuthorization, true);
+assert(commentGetBlocker?.evidence?.every((entry) => entry.sourceFile && entry.symbol && entry.evidenceType && entry.conciseFinding));
 assert.equal(resolvedCommentCreation?.status, "resolved-source-awaiting-deployment");
 assert.equal(resolvedCommentCreation?.remediationCommit, "485215b2c311a0347258c5618db4db5326f84a58");
 assert.equal(resolvedCommentCreation?.migrationExecutionStatus, "authored-not-executed");
