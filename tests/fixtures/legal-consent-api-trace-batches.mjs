@@ -33,6 +33,15 @@ export const fileTraceProgress = {
     reAuditedMethodId: "src/pages/api/forum/comments.ts#PUT",
     remediationCommit: "d57aae680fb81ed4133af73aae955473218d9c09",
     migrationExecutionStatus: "authored-not-executed",
+    batch5Progress: {
+      batchId: "phase4a1-trace-batch-5",
+      methodIds: ["src/pages/api/forum/comments.ts#PUT", "src/pages/api/forum/comments.ts#DELETE"],
+      status: "complete",
+      completedMethodIds: ["src/pages/api/forum/comments.ts#PUT", "src/pages/api/forum/comments.ts#DELETE"],
+      pendingMethodIds: [],
+      nextPendingSourceFile: "src/pages/api/forum/external-video-upload.ts",
+      nextPendingMethodId: "src/pages/api/forum/external-video-upload.ts#POST",
+    },
   },
   "src/pages/api/forum/circles/[slug]/posts.ts": {
     batchId: "phase4a1-trace-batch-4",
