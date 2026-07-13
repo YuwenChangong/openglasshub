@@ -118,6 +118,16 @@ PATCH follows the same bearer/profile/safety order and takes future consent at t
 
 Phase 4B: POST rate accounting persists even if later create stages fail; neither mutation has a request idempotency key or transaction; concurrent name races rely on the lower(name) unique index and the create path makes one slug-conflict retry. Missing content-type/body-size controls, PATCH rate limiting and UUID validation, GET pagination/read rate limiting, and raw database/caught error details remain to harden. Progress is 33/66 traced and 33 pending; parent Batch 3 remains pending.
 
+## Phase 4A1 Batch 4A - forum/circles/[slug]/comments.ts
+
+This source contains authenticated circle-management methods only: GET, PATCH, and DELETE. It does not create comments or replies, so it has no comment body/parent validation, rate-attempt persistence, comment insertion, insert-triggered notification, or comment/reply count update. Those behaviors are in the separate `forum/comments.ts` source and are not completed by this trace.
+
+Every method trims/lowercases `[slug]` and rejects only an empty value. `requireManagedCircleBySlug` then verifies the bearer through `auth.getUser`, creates the bearer-bound anon-key RLS client, reads the verified profile and exact circle, and permits only the circle owner or moderator/admin. It has no service-role client, request-supplied actor, membership model, public path, or private-circle setting. It does not reject a deleted circle, so the owner/staff management surface remains available for a deleted circle. GET reads all RLS-visible posts in that circle, all their comments newest-first, and the returned author profiles; it has no pagination/filter/cursor and no write, cache, audit, notification, count, RPC, email, storage, or external effect.
+
+PATCH parses a UUID comment id and allowlisted `published`/`deleted` status after managed-circle authorization. DELETE reads only a UUID id query parameter after the same authorization. Both read the target comment, then prove its post belongs to the resolved circle before allowing only the verified author or staff; a cross-circle id returns 404 before update. Non-staff paths include a second `author_id = auth.user.id` predicate. Same-status PATCH and already-deleted DELETE return no-op success before the single comment status update, which is each mutation's first and only persistent domain effect. There is no companion notification/count/audit write, so no multi-write partial-failure transaction applies.
+
+Phase 4B: neither mutation calls `assertUserCanWrite`; PATCH also permits an author to restore an owned deleted comment to published without re-running moderation. Neither method has content-type/body-size/rate/idempotency-key controls, route slug syntax is only non-empty, and database/helper errors are returned raw. Progress is 36/66 traced and 30 pending; Batch 3 is complete and parent Batch 4 remains pending.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.

@@ -1,6 +1,6 @@
 export const expectedBatchCount = 6;
 export const expectedMethodCount = 66;
-export const completedBatchIds = new Set(["phase4a1-trace-batch-1", "phase4a1-trace-batch-2"]);
+export const completedBatchIds = new Set(["phase4a1-trace-batch-1", "phase4a1-trace-batch-2", "phase4a1-trace-batch-3"]);
 const methodOrder = { GET: 0, POST: 1, PUT: 2, PATCH: 3, DELETE: 4 };
 export function buildTraceBatches(methodIds, representatives = []) {
   const sorted = [...methodIds].sort((a, b) => { const [af, am] = a.split("#"), [bf, bm] = b.split("#"); return af.localeCompare(bf) || methodOrder[am] - methodOrder[bm]; });
@@ -10,6 +10,11 @@ export function buildTraceBatches(methodIds, representatives = []) {
 export function traceBatchForMethod(methodId, methodIds) { return buildTraceBatches(methodIds).find((batch) => batch.methodIds.includes(methodId))?.id ?? null; }
 
 export const fileTraceProgress = {
+  "src/pages/api/forum/circles/[slug]/comments.ts": {
+    batchId: "phase4a1-trace-batch-4",
+    methodIds: ["src/pages/api/forum/circles/[slug]/comments.ts#GET", "src/pages/api/forum/circles/[slug]/comments.ts#PATCH", "src/pages/api/forum/circles/[slug]/comments.ts#DELETE"],
+    status: "complete",
+  },
   "src/pages/api/forum/circles.ts": {
     batchId: "phase4a1-trace-batch-3",
     methodIds: ["src/pages/api/forum/circles.ts#GET", "src/pages/api/forum/circles.ts#POST", "src/pages/api/forum/circles.ts#PATCH"],
