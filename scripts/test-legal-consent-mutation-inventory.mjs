@@ -19,7 +19,15 @@ const resolvedCommentReactionVisibility = resolvedSecurityFindings.find((finding
 const resolvedCommentCreationVisibility = resolvedSecurityFindings.find((finding) => finding?.id === "COMMENT_CREATION_CIRCLE_ANCESTOR_AUTHORIZATION");
 const resolvedCommentReadVisibility = resolvedSecurityFindings.find((finding) => finding?.id === "COMMENT_READ_CIRCLE_ANCESTOR_VISIBILITY_AUTHORIZATION");
 const resolvedExternalVideoOrdering = resolvedSecurityFindings.find((finding) => finding?.id === "EXTERNAL_VIDEO_UPLOAD_TARGET_AUTHORIZATION_ORDERING");
-assert.deepEqual(releaseBlockingFindings, []);
+const postMediaProvenanceBlocker = releaseBlockingFindings.find((finding) => finding?.id === "POST_MEDIA_TMP_OBJECT_CROSS_POST_PROVENANCE");
+assert.equal(releaseBlockingFindings.length, 1);
+assert.equal(postMediaProvenanceBlocker?.status, "active");
+assert.equal(postMediaProvenanceBlocker?.sourceFile, "src/pages/api/forum/post-media.ts");
+assert.equal(postMediaProvenanceBlocker?.method, "POST");
+assert.equal(postMediaProvenanceBlocker?.requiresRuntimeRemediation, true);
+assert.equal(postMediaProvenanceBlocker?.requiresForwardMigrationRemediation, true);
+assert.equal(postMediaProvenanceBlocker?.singleLayerFixInsufficient, true);
+assert(postMediaProvenanceBlocker?.evidence?.every((entry) => entry.sourceFile && entry.symbol && entry.evidenceType && entry.conciseFinding));
 assert.equal(resolvedExternalVideoOrdering?.status, "resolved");
 assert.equal(resolvedExternalVideoOrdering?.remediationCommit, "30ece7ec89e7de477b3b74d94e36ee51709419d5");
 assert.equal(resolvedExternalVideoOrdering?.sourceFile, "src/pages/api/forum/external-video-upload.ts");
