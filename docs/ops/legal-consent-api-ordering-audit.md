@@ -82,6 +82,12 @@ POST validates runtime env and a non-empty route target id, authenticates the be
 
 After a safety-state read, suspension rejects banned or effectively suspended targets and requires a valid future deadline. The first irreversible effect is the safety-state upsert, followed by the verified-actor safety event and a notification RPC attempt. A notification failure is swallowed; event insertion failure can follow a committed state update. An effective existing suspension returns `USER_ALREADY_SUSPENDED` before writes, but there is no request idempotency key or transaction for concurrent retries. Route UUID/content-type/body-size/rate validation and later raw helper-error exposure remain Phase 4B hardening. Future consent belongs after `requireModerator` and before JSON parsing. Batch 3 remains pending at 27/66 traced and 39 pending.
 
+## Phase 4A1 Batch 3F - admin/users/[id]/unban.ts POST
+
+POST validates runtime env and a non-empty route target id, verifies moderator/admin bearer identity, parses an optional reason, and passes only `auth.user.id` plus the target resource id to the shared helper. Self-target and the server-side actor/target role hierarchy complete before safety-state access: moderators may target only users; administrators may target users or moderators but never administrators.
+
+The `unban` transition is not limited to a banned state: it also clears suspended state, including an expired suspension whose stored status remains suspended. It preserves warning count, strike count, and reputation while resetting status from the warning count and clearing `suspended_until`, `banned_at`, and `ban_reason`. An unrestricted target returns `USER_NOT_RESTRICTED` before writes. The state upsert precedes the verified-actor unban event; there is no unban notification/email/external branch. Event failure can follow committed state, and concurrent retries have no idempotency key. Route UUID/content-type/body-size/rate validation and later raw helper-error exposure remain Phase 4B hardening. Future consent belongs after `requireModerator` and before JSON parsing. Batch 3 remains pending at 28/66 traced and 38 pending.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
