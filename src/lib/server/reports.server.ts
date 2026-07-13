@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyModerationAdminAction, type ModerationAdminTarget } from "./moderation-admin.ts";
 import { notifyCommentModerated, notifyPostModerated } from "./moderation-notifications.server.ts";
 import { applyUserSafetyAction, insertUserSafetyEvent, sanitizeSafetyReason } from "./user-safety.server.ts";
+import { isPublicVisibleCircle } from "../site-navigation.ts";
 
 export type ReportTargetType = "post" | "comment" | "circle" | "user";
 export type ReportReasonCode =
@@ -261,20 +262,22 @@ export async function resolveReportTargetPreview(
   if (targetType === "post") {
     const { data, error } = await client
       .from("posts")
-      .select("id,title,body,status,moderation_status,author_id,circle_id,profiles:author_id(id,username,display_name,avatar_url,role),circles:circle_id(id,name,slug)")
+      .select("id,title,body,status,moderation_status,author_id,circle_id,profiles:author_id(id,username,display_name,avatar_url,role),circles:circle_id(id,name,slug,status)")
       .eq("id", targetId)
       .maybeSingle();
     if (error) return { exists: false, available: false, target: null, error: error.message };
     if (!data) return { exists: false, available: false, target: null };
     const status = typeof data.status === "string" ? data.status : null;
     const moderationStatus = typeof data.moderation_status === "string" ? data.moderation_status : null;
+    const circle = (data.circles as Record<string, unknown> | null | undefined) ?? null;
     return {
-      exists: true,
+      exists: String(data.id ?? "") === targetId,
       available:
-        status !== "deleted" &&
-        status !== "hidden" &&
-        moderationStatus !== "rejected" &&
-        moderationStatus !== "hidden_by_admin",
+        String(data.id ?? "") === targetId &&
+        status === "published" &&
+        moderationStatus === "published" &&
+        circle?.status === "active" &&
+        isPublicVisibleCircle(circle),
       target: {
         target_type: "post",
         target_id: data.id,
@@ -284,14 +287,14 @@ export async function resolveReportTargetPreview(
         moderation_status: moderationStatus,
         author_id: typeof data.author_id === "string" ? data.author_id : null,
         author_profile: mapProfilePreview((data.profiles as Record<string, unknown> | null | undefined) ?? null),
-        circle: data.circles
+        circle: circle
           ? {
-              id: String((data.circles as Record<string, unknown>).id ?? ""),
-              name: typeof (data.circles as Record<string, unknown>).name === "string"
-                ? ((data.circles as Record<string, unknown>).name as string)
+              id: String(circle.id ?? ""),
+              name: typeof circle.name === "string"
+                ? (circle.name as string)
                 : null,
-              slug: typeof (data.circles as Record<string, unknown>).slug === "string"
-                ? ((data.circles as Record<string, unknown>).slug as string)
+              slug: typeof circle.slug === "string"
+                ? (circle.slug as string)
                 : null,
             }
           : null,
@@ -302,7 +305,7 @@ export async function resolveReportTargetPreview(
   if (targetType === "comment") {
     const { data, error } = await client
       .from("comments")
-      .select("id,body,status,moderation_status,author_id,post_id,profiles:author_id(id,username,display_name,avatar_url,role),posts:post_id(id,title,status,circle_id,circles:circle_id(id,name,slug))")
+      .select("id,body,status,moderation_status,author_id,post_id,profiles:author_id(id,username,display_name,avatar_url,role),posts:post_id(id,title,status,moderation_status,circle_id,circles:circle_id(id,name,slug,status))")
       .eq("id", targetId)
       .maybeSingle();
     if (error) return { exists: false, available: false, target: null, error: error.message };
@@ -312,12 +315,17 @@ export async function resolveReportTargetPreview(
     const postRow = (data.posts as Record<string, unknown> | null | undefined) ?? null;
     const circleRow = (postRow?.circles as Record<string, unknown> | null | undefined) ?? null;
     return {
-      exists: true,
+      exists: String(data.id ?? "") === targetId,
       available:
-        status !== "deleted" &&
-        status !== "hidden" &&
-        moderationStatus !== "rejected" &&
-        moderationStatus !== "hidden_by_admin",
+        String(data.id ?? "") === targetId &&
+        status === "published" &&
+        moderationStatus === "published" &&
+        typeof postRow?.id === "string" &&
+        postRow.id === data.post_id &&
+        postRow.status === "published" &&
+        postRow.moderation_status === "published" &&
+        circleRow?.status === "active" &&
+        isPublicVisibleCircle(circleRow),
       target: {
         target_type: "comment",
         target_id: data.id,
@@ -355,8 +363,11 @@ export async function resolveReportTargetPreview(
     if (!data) return { exists: false, available: false, target: null };
     const status = typeof data.status === "string" ? data.status : "active";
     return {
-      exists: true,
-      available: status !== "deleted",
+      exists: String(data.id ?? "") === targetId,
+      available:
+        String(data.id ?? "") === targetId &&
+        status === "active" &&
+        isPublicVisibleCircle(data),
       target: {
         target_type: "circle",
         target_id: data.id,
@@ -383,7 +394,7 @@ export async function resolveReportTargetPreview(
   if (error) return { exists: false, available: false, target: null, error: error.message };
   if (!data) return { exists: false, available: false, target: null };
   return {
-    exists: true,
+    exists: String(data.id ?? "") === targetId,
     available: true,
     target: {
       target_type: "user",

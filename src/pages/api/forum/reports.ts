@@ -14,6 +14,7 @@ import {
   resolveReportTargetPreview,
   sanitizeReportReasonText,
 } from "../../../lib/server/reports.server";
+import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 
 export const prerender = false;
 
@@ -51,27 +52,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return jsonResponse({ error: "Invalid auth token" }, 401);
     }
 
+    const safetyDecision = await assertUserCanWrite(client, authData.user.id, "report_create");
+    if (!safetyDecision.allowed) {
+      return getSafetyWriteBlockResponse(safetyDecision);
+    }
+
     const payload = await request.json().catch(() => null);
     const parsed = parsePayload(payload);
     if (!parsed.ok) {
       return jsonResponse({ error: parsed.error }, parsed.status);
-    }
-
-    let recentCount = 0;
-    try {
-      recentCount = await countRecentReportsByUser(client, authData.user.id, 60 * 60 * 1000);
-    } catch (error) {
-      return jsonResponse(
-        {
-          error: "REPORT_RATE_LIMIT_QUERY_FAILED",
-          details: error instanceof Error ? error.message : "Unexpected report rate limit error",
-        },
-        500,
-      );
-    }
-
-    if (recentCount >= 12) {
-      return jsonResponse({ error: "RATE_LIMITED" }, 429);
     }
 
     const resolved = await resolveReportTargetPreview(client, parsed.targetType, parsed.targetId);
@@ -91,6 +80,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
         },
         200,
       );
+    }
+
+    let recentCount = 0;
+    try {
+      recentCount = await countRecentReportsByUser(client, authData.user.id, 60 * 60 * 1000);
+    } catch (error) {
+      return jsonResponse(
+        {
+          error: "REPORT_RATE_LIMIT_QUERY_FAILED",
+          details: error instanceof Error ? error.message : "Unexpected report rate limit error",
+        },
+        500,
+      );
+    }
+
+    if (recentCount >= 12) {
+      return jsonResponse({ error: "RATE_LIMITED" }, 429);
     }
 
     const created = await createUserReport({

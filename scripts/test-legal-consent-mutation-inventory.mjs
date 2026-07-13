@@ -21,6 +21,7 @@ const resolvedCommentReadVisibility = resolvedSecurityFindings.find((finding) =>
 const resolvedExternalVideoOrdering = resolvedSecurityFindings.find((finding) => finding?.id === "EXTERNAL_VIDEO_UPLOAD_TARGET_AUTHORIZATION_ORDERING");
 const resolvedPostMediaProvenance = resolvedSecurityFindings.find((finding) => finding?.id === "POST_MEDIA_TMP_OBJECT_CROSS_POST_PROVENANCE");
 const resolvedForumPostsAuthorization = resolvedSecurityFindings.find((finding) => finding?.id === "FORUM_POSTS_CIRCLE_VISIBILITY_AND_EFFECT_ORDERING");
+const resolvedForumReportAuthorization = resolvedSecurityFindings.find((finding) => finding?.id === "FORUM_REPORT_TARGET_AND_INITIAL_STATE_AUTHORIZATION");
 assert.deepEqual(releaseBlockingFindings, []);
 assert.equal(resolvedPostMediaProvenance?.status, "resolved-source-awaiting-deployment");
 assert.equal(resolvedPostMediaProvenance?.blockerCheckpoint, "7fae49fc9e0d13928bbd9ab196051fbbdacc4c0a");
@@ -34,6 +35,11 @@ assert.equal(resolvedForumPostsAuthorization?.sourceFile, "src/pages/api/forum/p
 assert.equal(resolvedForumPostsAuthorization?.forwardMigration, "supabase/migrations/20260713_forum_posts_circle_authorization.sql");
 assert.equal(resolvedForumPostsAuthorization?.migrationExecutionStatus, "authored-not-executed");
 assert(resolvedForumPostsAuthorization?.evidence?.every((entry) => entry.sourceFile && entry.symbol && entry.evidenceType && entry.conciseFinding));
+assert.equal(resolvedForumReportAuthorization?.status, "resolved-source-awaiting-deployment");
+assert.equal(resolvedForumReportAuthorization?.sourceFile, "src/pages/api/forum/reports.ts");
+assert.equal(resolvedForumReportAuthorization?.forwardMigration, "supabase/migrations/20260713_forum_report_target_authorization.sql");
+assert.equal(resolvedForumReportAuthorization?.migrationExecutionStatus, "authored-not-executed");
+assert(resolvedForumReportAuthorization?.evidence?.every((entry) => entry.sourceFile && entry.symbol && entry.evidenceType && entry.conciseFinding));
 assert.equal(resolvedExternalVideoOrdering?.status, "resolved");
 assert.equal(resolvedExternalVideoOrdering?.remediationCommit, "30ece7ec89e7de477b3b74d94e36ee51709419d5");
 assert.equal(resolvedExternalVideoOrdering?.sourceFile, "src/pages/api/forum/external-video-upload.ts");
