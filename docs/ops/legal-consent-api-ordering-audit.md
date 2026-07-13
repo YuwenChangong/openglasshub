@@ -6,6 +6,14 @@ Methods are sorted by source file then `GET`, `POST`, `PUT`, `PATCH`, `DELETE` a
 
 Checkpoint progress: 0/66 fully traced; 66 pending. Phase 4A1 remains NO_GO. No production endpoint is protected by this checkpoint, and direct API bypass remains possible for all 37 normal consent-required mutations.
 
+## Phase 4A1 Batch 1F - admin/moderation/approve.ts
+
+POST requires `requireModerator`, validates a post/comment UUID action payload, reads the target for already-applied protection, updates the target moderation fields, then records a moderation action. The verified actor is passed as `moderatorId`; no client identity replaces it. Future consent belongs after `requireModerator`, before payload parsing and target lookup.
+
+## Parent Batch 1 closure
+
+All 11 Batch 1 method records are traced. Parent Batch 1 is complete; batches 2 through 6 remain pending. Cumulative progress is 11/66 traced and 55 pending. No endpoint enforcement is active.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
