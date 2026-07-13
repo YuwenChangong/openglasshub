@@ -94,6 +94,14 @@ POST validates runtime env and a non-empty route target id, verifies moderator/a
 
 Warning rejects effectively banned or suspended targets. Each successful call increments warning count by one and decreases reputation by one, leaves strike count unchanged, and does not automatically suspend or ban at any threshold. State upsert is the first irreversible effect, followed by a verified-actor warning event and notification RPC attempt; notification failure is swallowed, while event failure can follow committed state. No already-warned/idempotency guard exists, so repeated or concurrent requests can create duplicate warnings/events/notification attempts. Route UUID/content-type/body-size/rate validation and later raw helper-error exposure remain Phase 4B hardening. Future consent belongs after `requireModerator` and before JSON parsing. Batch 3 remains pending at 29/66 traced and 37 pending.
 
+## Phase 4A1 Batch 3 blocker - auth/resend-confirmation.ts POST
+
+`POST /api/auth/resend-confirmation` is expected to remain an unauthenticated auth/recovery exemption: it accepts a target email and a client-controlled JSON `next`, so requiring legal consent before confirmation would prevent an unconfirmed account from reaching the authenticated callback and consent flow. That exemption does not validate redirects.
+
+The route passes `payload.next` to `getSafeNext`. In `src/lib/auth-redirect.ts`, `getSafeNext` rejects a leading `//` but immediately returns every value satisfying `candidate.startsWith("/")`; it neither rejects backslashes nor resolves that candidate against the trusted origin. The unsafe input `/\\evil.example` therefore survives the sanitizer. `buildAuthCallbackRedirect` then serializes it into the same-origin `/auth/callback/` URL. `src/pages/auth/callback.astro` passes callback `next` to `AuthCallback`, which calls `getSafeNext` again and passes the result to `browserNavigationAdapter.replace`. That adapter invokes `window.location.replace`, whose special-URL normalization interprets `/\\evil.example` as `https://evil.example/`.
+
+This is arbitrary external redirect injection after confirmation/callback processing and is release-blocking. Consent enforcement cannot repair it because the unsafe value is already propagated through the callback metadata and is also used after consent. Batch 3 tracing is paused: `resend-confirmation.ts#POST` remains pending, no later Batch 3 method may be completed, and progress remains 29/66 traced and 37 pending. All `getSafeNext` callers require centralized remediation review before this method receives a separate re-audit.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.

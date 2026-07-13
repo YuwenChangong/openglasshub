@@ -10,6 +10,12 @@ export function buildTraceBatches(methodIds, representatives = []) {
 export function traceBatchForMethod(methodId, methodIds) { return buildTraceBatches(methodIds).find((batch) => batch.methodIds.includes(methodId))?.id ?? null; }
 
 export const fileTraceProgress = {
+  "src/pages/api/auth/resend-confirmation.ts": {
+    batchId: "phase4a1-trace-batch-3",
+    methodIds: ["src/pages/api/auth/resend-confirmation.ts#POST"],
+    status: "pending",
+    blockerId: "RESEND_CONFIRMATION_EXTERNAL_REDIRECT",
+  },
   "src/pages/api/admin/users/[id]/warn.ts": {
     batchId: "phase4a1-trace-batch-3",
     methodIds: ["src/pages/api/admin/users/[id]/warn.ts#POST"],

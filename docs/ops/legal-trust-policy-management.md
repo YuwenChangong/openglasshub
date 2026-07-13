@@ -109,6 +109,12 @@ The canonical 30-state manifest is `tests/visual/legal-consent-state-matrix.mjs`
 
 This is page/session enforcement only. Mutation APIs remain intentionally unchanged until Phase 4, so direct API bypass is not prevented by Phase 3B2A. Production migration/runtime configuration, public legal contact values, and qualified legal review remain pending.
 
+## Phase 4A1 redirect-sanitization blocker
+
+Phase 4A1 is blocked on redirect sanitization. `src/pages/api/auth/resend-confirmation.ts#POST` remains incomplete after source evidence showed that `getSafeNext` accepts `/\\evil.example` through its leading-slash branch, and the value can reach `window.location.replace` after the auth callback as an external origin. Production remains NO_GO.
+
+Remediation must be a separate centralized runtime-security task for `src/lib/auth-redirect.ts`, not a legal-consent guard change. Every `getSafeNext` caller requires review, including login, signup, callback, consent, header, and CTA flows; password recovery uses a separate redirect helper and must also be checked as part of the same remediation review. After a reviewed runtime fix, the resend-confirmation endpoint requires a separate source re-audit before Batch 3 can resume.
+
 ## Phase 3B2B route coverage
 
 `tests/fixtures/legal-consent-page-routes.mjs` is the authoritative page-route inventory. `npm run test:legal-consent-route-coverage` compares discovered Astro page files to that inventory, verifies a single central classification for each pattern, and confirms the shared CommunityLayout hosts the gate. New production pages must be added to this inventory and classified before release. API and test-only routes are deliberately excluded. Page-level coverage does not protect direct mutation APIs; that remains Phase 4.

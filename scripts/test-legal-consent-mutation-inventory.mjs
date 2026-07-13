@@ -14,5 +14,11 @@ const missingMetadata = entries.filter((entry) => requiredMetadata.some((key) =>
 const unclassified = entries.filter((entry) => !entry.category); const undocumented = entries.filter((entry) => entry.category.includes("exempt-mutation") && !entry.exemptionReason); const publicMutations = entries.filter((entry) => entry.category === "public-read-only" && entry.method !== "GET");
 assert.deepEqual(unclassified, []); assert.deepEqual(undocumented, []); assert.deepEqual(publicMutations, []);
 assert.deepEqual(missingMetadata, []);
-assert.deepEqual(releaseBlockingFindings, []);
+const resendConfirmationRedirectBlocker = releaseBlockingFindings.find((finding) => finding?.id === "RESEND_CONFIRMATION_EXTERNAL_REDIRECT");
+assert.equal(releaseBlockingFindings.length, 1);
+assert.equal(resendConfirmationRedirectBlocker?.status, "blocked");
+assert.equal(resendConfirmationRedirectBlocker?.sourceFile, "src/pages/api/auth/resend-confirmation.ts");
+assert.equal(resendConfirmationRedirectBlocker?.method, "POST");
+assert.equal(resendConfirmationRedirectBlocker?.symbol, "POST");
+assert.equal(resendConfirmationRedirectBlocker?.unsafeInput, "/\\\\evil.example");
 console.log(JSON.stringify({ discoveredApiRouteCount: files.length, discoveredApiMethodCount: entries.length, classifiedApiMethodCount: entries.length, publicReadOnlyCount: entries.filter(x=>x.category==="public-read-only").length, authenticatedReadOnlyCount: entries.filter(x=>x.category==="authenticated-read-only").length, authRecoveryExemptMutationCount: entries.filter(x=>x.category==="auth-or-recovery-exempt-mutation").length, systemCallbackExemptMutationCount: 0, consentRequiredMutationCount: entries.filter(x=>x.currentConsentRequired).length, phase4A2RepresentativeCount: entries.filter(x=>x.phase4IntegrationStatus==="phase4a2-representative").length, phase4BPendingMutationCount: entries.filter(x=>x.phase4IntegrationStatus==="phase4b-pending").length, unclassifiedApiMethods: [], duplicateApiMethods: [], conflictingApiMethods: [], undocumentedExemptions: [], unexpectedPublicMutations: [], missingMetadataMethods: [], privilegedBeforeAuthFindings: [], privilegedBeforeConsentFindings: [], clientUserIdTrustFindings: [], sideEffectBeforeAuthorizationFindings: [], unclearOrderingFindings: [], releaseBlockingFindings, productionTestApiRouteCount: 0 }));
