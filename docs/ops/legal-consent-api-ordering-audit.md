@@ -76,6 +76,12 @@ GET validates runtime env and only a non-empty target id, then requires a verifi
 
 The staff-only response includes the target role, full normalized state including `ban_reason` and `updated_by`, plus each event's actor id, reason, metadata, and actor profile. It does not select email. No safety-state, last-viewed, audit, event, notification, cache, RPC, email, external-service, or privileged-client mutation occurs. Raw database/helper `Error.message` values can reach 500 responses, and the endpoint has no UUID validation, cursor pagination, or read-rate limit; these are Phase 4B hardening findings. No consent insertion point applies to this read-only route. Batch 3 remains pending at 26/66 traced and 40 pending.
 
+## Phase 4A1 Batch 3E - admin/users/[id]/suspend.ts POST
+
+POST validates runtime env and a non-empty route target id, authenticates the bearer moderator/admin, parses a required sanitized reason, and passes `auth.user.id` plus the target id to the shared helper. The helper rejects self-targeting, re-reads actor and target roles through the RLS client, and completes the fail-closed hierarchy before safety-state access: moderators may target only users; administrators may target users or moderators but never administrators.
+
+After a safety-state read, suspension rejects banned or effectively suspended targets and requires a valid future deadline. The first irreversible effect is the safety-state upsert, followed by the verified-actor safety event and a notification RPC attempt. A notification failure is swallowed; event insertion failure can follow a committed state update. An effective existing suspension returns `USER_ALREADY_SUSPENDED` before writes, but there is no request idempotency key or transaction for concurrent retries. Route UUID/content-type/body-size/rate validation and later raw helper-error exposure remain Phase 4B hardening. Future consent belongs after `requireModerator` and before JSON parsing. Batch 3 remains pending at 27/66 traced and 39 pending.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
