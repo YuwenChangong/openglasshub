@@ -7,3 +7,11 @@ export function buildTraceBatches(methodIds, representatives = []) {
   return Array.from({ length: expectedBatchCount }, (_, index) => { const methodIds = sorted.slice(index * size, (index + 1) * size); return { id: `phase4a1-trace-batch-${index + 1}`, order: index + 1, sourceFiles: [...new Set(methodIds.map((id) => id.split("#")[0]))], methodIds, methodCount: methodIds.length, representativeMethodIds: methodIds.filter((id) => representatives.includes(id)), status: index === 0 ? "complete" : "pending" }; });
 }
 export function traceBatchForMethod(methodId, methodIds) { return buildTraceBatches(methodIds).find((batch) => batch.methodIds.includes(methodId))?.id ?? null; }
+
+export const fileTraceProgress = {
+  "src/pages/api/admin/reports/[id].ts": {
+    batchId: "phase4a1-trace-batch-2",
+    methodIds: ["src/pages/api/admin/reports/[id].ts#GET"],
+    status: "complete",
+  },
+};

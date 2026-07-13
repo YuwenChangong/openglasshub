@@ -38,6 +38,10 @@ GET delegates only to read-only admin news queries and does not synchronize exte
 
 GET requires moderator authentication, bounds and allowlists filters, and calls `fetchAdminReportsQueue` for report and target preview reads. It does not update report state, targets, events, notifications, cache, email, or external services.
 
+## Phase 4A1 Batch 2G - admin/reports/[id].ts GET
+
+GET validates a non-empty dynamic report id, requires moderator authentication, then calls `fetchAdminReportDetail` for report, target preview, reporter, count, event, and actor reads. The dynamic id never supplies the acting moderator and no status/event/target/notification/cache mutation occurs. The route only checks that the id is non-empty, and its generic 500 branch returns the caught `Error.message` rather than sanitizing helper errors.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
