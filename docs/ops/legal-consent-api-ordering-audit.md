@@ -13,3 +13,7 @@ Checkpoint progress: 0/66 fully traced; 66 pending. Phase 4A1 remains NO_GO. No 
 ## Phase 4A1 Batch 1B - admin/forum/me.ts
 
 GET is an authenticated admin read. `requireModerator` obtains the bearer credential, creates the RLS user client, verifies `auth.getUser`, and checks the profile role before the handler returns selected actor/profile fields. No mutation, R2 access, email, privileged client, ownership lookup, or external side effect exists. Parent Batch 1 remains pending.
+
+## Phase 4A1 Batch 1C - admin/forum/media.ts
+
+GET is a moderator-only read with bounded list filters and no mutation. DELETE verifies moderator role, validates the target media UUID, reads the media row, invokes `deleteMediaObject` for managed R2 or Supabase storage cleanup, then deletes the Postgres row. Future consent belongs after `requireModerator` and before the media lookup, so it precedes the first irreversible storage deletion. Parent Batch 1 remains pending.
