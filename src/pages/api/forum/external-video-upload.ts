@@ -47,7 +47,52 @@ function formatDbError(stage: string, error: PostgrestError | null): string {
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const MAX_VIDEO_SIZE = 150 * 1024 * 1024;
 
-export const POST: APIRoute = async ({ request, locals }) => {
+type ExternalVideoUploadDependencies = {
+  createClient: typeof createClient;
+  buildR2PublicUrl: typeof buildR2PublicUrl;
+  buildTmpVideoKey: typeof buildTmpVideoKey;
+  signR2PutUrl: typeof signR2PutUrl;
+  getRequestIp: typeof getRequestIp;
+  enforceUploadRateLimit: typeof enforceUploadRateLimit;
+  hashRateLimitIp: typeof hashRateLimitIp;
+  shouldRequireUploadTurnstile: typeof shouldRequireUploadTurnstile;
+  validateTurnstileToken: typeof validateTurnstileToken;
+  assertUserCanWrite: typeof assertUserCanWrite;
+  getSafetyWriteBlockResponse: typeof getSafetyWriteBlockResponse;
+};
+
+const productionDependencies: ExternalVideoUploadDependencies = {
+  createClient,
+  buildR2PublicUrl,
+  buildTmpVideoKey,
+  signR2PutUrl,
+  getRequestIp,
+  enforceUploadRateLimit,
+  hashRateLimitIp,
+  shouldRequireUploadTurnstile,
+  validateTurnstileToken,
+  assertUserCanWrite,
+  getSafetyWriteBlockResponse,
+};
+
+export function createExternalVideoUploadPost(
+  dependencies: ExternalVideoUploadDependencies = productionDependencies,
+): APIRoute {
+  const {
+    createClient,
+    buildR2PublicUrl,
+    buildTmpVideoKey,
+    signR2PutUrl,
+    getRequestIp,
+    enforceUploadRateLimit,
+    hashRateLimitIp,
+    shouldRequireUploadTurnstile,
+    validateTurnstileToken,
+    assertUserCanWrite,
+    getSafetyWriteBlockResponse,
+  } = dependencies;
+
+  return async ({ request, locals }) => {
   let stage = "init";
   try {
     stage = "env";
@@ -88,6 +133,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_VIDEO_SIZE) {
       return json({ error: "Video size exceeds current upload limit" }, 400);
     }
+
+    stage = "post.lookup";
+    const { data: post, error: postError } = await supabase
+      .from("posts")
+      .select("id, author_id")
+      .eq("id", postId)
+      .maybeSingle();
+    if (postError) return json({ error: formatDbError(stage, postError) }, 500);
+    if (!post) return json({ error: "Post not found" }, 404);
+
+    stage = "post.authorize";
+    if (post.author_id !== authData.user.id) return json({ error: "Cannot upload media for a post you do not own" }, 403);
+
+    stage = "turnstile";
     if (shouldRequireUploadTurnstile({ env, uploadKind: "post_media", sizeBytes })) {
       const turnstile = await validateTurnstileToken({
         env,
@@ -98,16 +157,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         return json({ error: turnstile.code, code: turnstile.code }, 400);
       }
     }
-
-    stage = "post.lookup";
-    const { data: post, error: postError } = await supabase
-      .from("posts")
-      .select("id, author_id")
-      .eq("id", postId)
-      .maybeSingle();
-    if (postError) return json({ error: formatDbError(stage, postError) }, 500);
-    if (!post) return json({ error: "Post not found" }, 404);
-    if (post.author_id !== authData.user.id) return json({ error: "Cannot upload media for a post you do not own" }, 403);
 
     stage = "rate.ip";
     const previewBypass = env.DEV_TURNSTILE_BYPASS === "true";
@@ -185,5 +234,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: `[${stage}] ${message}` }, 500);
   }
 };
+}
+
+export const POST: APIRoute = createExternalVideoUploadPost();
 
 export const ALL: APIRoute = () => json({ error: "Method not allowed" }, 405);

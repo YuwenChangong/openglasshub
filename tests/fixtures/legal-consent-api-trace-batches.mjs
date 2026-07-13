@@ -26,6 +26,9 @@ export const fileTraceProgress = {
     ownershipComparisonSymbol: "post.author_id !== authData.user.id",
     firstExternalEffect: "validateTurnstileToken",
     firstPersistentEffect: "enforceUploadRateLimit#forum_upload_attempts.insert",
+    runtimeRemediationStatus: "implemented-awaiting-post-reaudit",
+    targetAuthorizationBeforeTurnstile: true,
+    migrationRequired: false,
     reAuditRequired: true,
   },
   "src/pages/api/forum/comments.ts": {
