@@ -60,7 +60,7 @@ Findings: profile and safety query errors, plus generic caught errors, return ra
 
 `POST` derives the acting user exclusively from `requireModerator`, which verifies the bearer session and permits either `moderator` or `admin`. The route passes the non-empty `[id]` only as `targetUserId` into `applyUserSafetyAction`; request data cannot replace `auth.user.id`. `applyUserSafetyAction` rejects `actorId === targetUserId`, but its target profile query selects only `id`. It neither reads the target role nor compares target and actor privilege before the ban transition.
 
-Consequently, a moderator can ban a different moderator or administrator. The insufficient authorization reaches `upsertUserSafetyState`, the first irreversible side effect, then `insertUserSafetyEvent`; notification is attempted afterward and failure is swallowed. Consent enforcement inserted after `requireModerator` would not repair the missing target-role authorization. This is release-blocking. Batch 3 tracing is paused at 23/66 traced and 43 pending until a separate narrow runtime-security remediation and re-audit complete.
+The original vulnerable path allowed a moderator to ban a different moderator or administrator. Remediation now reads both actor and target roles from server-side profiles and applies a fail-closed hierarchy check before safety-state access: moderators may target only users, while administrators may target users or moderators but never administrators. The self-target denial remains. The method remains pending and release-blocking until a separate source-to-helper re-audit verifies this remediation; consent enforcement does not replace authorization review. Batch 3 remains paused at 23/66 traced and 43 pending.
 
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 

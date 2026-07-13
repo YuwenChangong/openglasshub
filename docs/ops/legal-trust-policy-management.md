@@ -121,6 +121,6 @@ The policy-level mutation inventory is checkpointed before deep execution tracin
 
 ## Phase 4A1 release blocker checkpoint
 
-Phase 4A1 is blocked at `src/pages/api/admin/users/[id]/ban.ts#POST`. The verified moderator path reaches `applyUserSafetyAction`, which prevents self-targeting but does not load the target role or compare target and actor privilege before committing a ban safety-state transition. A moderator can therefore ban a different moderator or administrator. No further mutation trace completion may proceed past this checkpoint. Remediation must be a separate narrowly scoped runtime-security task, followed by re-audit of this method. Production remains `NO_GO`.
+Phase 4A1 remains blocked at `src/pages/api/admin/users/[id]/ban.ts#POST` pending re-audit. The narrow runtime remediation now re-reads actor and target roles in `applyUserSafetyAction` and denies moderator-to-staff and administrator-to-administrator actions before safety-state access. The original blocker evidence and regression checks remain because the method must be re-audited before the blocker can be cleared. No further mutation trace completion may proceed past this checkpoint. Production remains `NO_GO`.
 
 Run the normal production build after changes and inspect its output for harness names and fake fixture values. The harness is not a production route and does not introduce global page gating or mutation enforcement. Database migration/runtime configuration, public operator contact configuration, and qualified legal review remain separate prerequisites for release.

@@ -11,6 +11,7 @@ export type UserSafetyEventType =
   | "strike_removed"
   | "note";
 export type UserSafetyAdminAction = "warn" | "suspend" | "ban" | "unban" | "clear_warning";
+export type UserSafetyRole = "user" | "moderator" | "admin";
 export type UserSafetyWriteAction =
   | "post_create"
   | "comment_create"
@@ -348,6 +349,37 @@ export function sanitizeSafetyReason(value: unknown): string {
   return String(value ?? "").trim().slice(0, 500);
 }
 
+function normalizeUserSafetyRole(value: unknown): UserSafetyRole | null {
+  return value === "user" || value === "moderator" || value === "admin" ? value : null;
+}
+
+export function authorizeUserSafetyAction(params: {
+  actorId: string;
+  targetUserId: string;
+  actorRole: unknown;
+  targetRole: unknown;
+}) {
+  if (params.actorId === params.targetUserId) {
+    return { ok: false as const, status: 403 as const, error: "USER_SAFETY_SELF_ACTION_FORBIDDEN" };
+  }
+
+  const actorRole = normalizeUserSafetyRole(params.actorRole);
+  if (actorRole !== "moderator" && actorRole !== "admin") {
+    return { ok: false as const, status: 403 as const, error: "USER_SAFETY_ACTOR_FORBIDDEN" };
+  }
+
+  const targetRole = normalizeUserSafetyRole(params.targetRole);
+  if (!targetRole) {
+    return { ok: false as const, status: 403 as const, error: "USER_SAFETY_TARGET_FORBIDDEN" };
+  }
+
+  if ((actorRole === "moderator" && targetRole !== "user") || (actorRole === "admin" && targetRole === "admin")) {
+    return { ok: false as const, status: 403 as const, error: "USER_SAFETY_PRIVILEGE_TARGET_FORBIDDEN" };
+  }
+
+  return { ok: true as const, actorRole, targetRole };
+}
+
 export function validateFutureIsoTimestamp(value: unknown): { ok: true; iso: string } | { ok: false; error: string } {
   const raw = String(value ?? "").trim();
   if (!raw) return { ok: false, error: "SUSPEND_UNTIL_REQUIRED" };
@@ -509,16 +541,35 @@ export async function applyUserSafetyAction(params: {
     return { ok: false as const, status: 403, error: "USER_SAFETY_SELF_ACTION_FORBIDDEN" };
   }
 
+  const { data: actorProfile, error: actorProfileError } = await client
+    .from("profiles")
+    .select("id,role")
+    .eq("id", actorId)
+    .maybeSingle();
+  if (actorProfileError) {
+    return { ok: false as const, status: 503, error: "USER_SAFETY_AUTHORIZATION_UNAVAILABLE" };
+  }
+
   const { data: targetProfile, error: targetProfileError } = await client
     .from("profiles")
-    .select("id")
+    .select("id,role")
     .eq("id", targetUserId)
     .maybeSingle();
   if (targetProfileError) {
-    throw new Error(mapSupabaseErrorMessage(targetProfileError, "USER_LOOKUP_FAILED"));
+    return { ok: false as const, status: 503, error: "USER_SAFETY_AUTHORIZATION_UNAVAILABLE" };
   }
   if (!targetProfile) {
     return { ok: false as const, status: 404, error: "USER_NOT_FOUND" };
+  }
+
+  const authorization = authorizeUserSafetyAction({
+    actorId,
+    targetUserId,
+    actorRole: actorProfile?.role,
+    targetRole: targetProfile.role,
+  });
+  if (!authorization.ok) {
+    return authorization;
   }
 
   const current = await getUserSafetyState(client, targetUserId);
