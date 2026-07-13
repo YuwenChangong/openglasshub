@@ -179,6 +179,8 @@ async function main() {
   try {
     ({ createExternalVideoUploadPost } = await vite.ssrLoadModule("/src/pages/api/forum/external-video-upload.ts"));
   const source = await fs.readFile(path.join(root, "src/pages/api/forum/external-video-upload.ts"), "utf8");
+  const deployedPostSelectPolicy = await fs.readFile(path.join(root, "supabase/migrations/20260611_forum_permission_lockdown.sql"), "utf8");
+  const authoredPostSelectPolicy = await fs.readFile(path.join(root, "supabase/migrations/20260713_comment_read_circle_visibility_authorization.sql"), "utf8");
   const postIdValidation = source.indexOf("if (!postId || !/^[0-9a-f-]{36}$/i.test(postId))");
   const postLookup = source.indexOf('stage = "post.lookup";');
   const ownershipComparison = source.indexOf("if (post.author_id !== authData.user.id)");
@@ -189,6 +191,8 @@ async function main() {
   assert(postIdValidation >= 0 && postIdValidation < postLookup);
   assert(postLookup < ownershipComparison && ownershipComparison < turnstile);
   assert(turnstile < rateReads && rateReads < r2Signing && r2Signing < rateAttemptInsert);
+  assert(/create policy "posts_select_published_public"[\s\S]*?status = 'published'[\s\S]*?or author_id = auth\.uid\(\)[\s\S]*?or \(select public\.is_moderator_or_admin\(\)\)/.test(deployedPostSelectPolicy));
+  assert(/create policy "posts_select_published_public"[\s\S]*?moderation_status = 'published'[\s\S]*?public\.can_access_public_circle\(circle_id\)[\s\S]*?or author_id = auth\.uid\(\)/.test(authoredPostSelectPolicy));
 
   const missing = await runScenario({ postAuthorId: null });
   assert.equal(missing.response.status, 404);
@@ -258,6 +262,8 @@ async function main() {
     invalidTurnstileRateAttemptInserts: invalidTurnstile.effects.rateAttemptInsert,
     successfulOrder: owner.calls,
     turnstileDisabledOwnershipBeforeLaterProcessing: true,
+    deployedPostSelectPolicy: "published-or-own-or-staff",
+    authoredPostSelectPolicy: "published-visible-circle-or-own-or-staff",
     realNetworkStorageDatabaseRequests: 0,
   }));
   } finally {
