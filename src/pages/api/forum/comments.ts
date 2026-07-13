@@ -144,6 +144,10 @@ type CommentCreationTargetAccess =
   | { ok: true; postId: string; circleId: string; parentId: string | null }
   | { ok: false; status: 404 | 500; error: string };
 
+type CommentReadTargetAccess =
+  | { ok: true; postId: string; circleId: string }
+  | { ok: false; status: 404 | 500; error: string };
+
 /**
  * Resolve the whole visibility chain before a reaction can mutate state. Every
  * relationship comes from server reads rather than the request payload.
@@ -291,6 +295,62 @@ export async function resolveAccessibleCommentCreationTarget(
   return { ok: true, postId: postRow.id, circleId: circle.id, parentId };
 }
 
+/**
+ * Public comment reads must prove the post-to-circle visibility chain before
+ * querying comments or any enrichment data.
+ */
+export async function resolveAccessibleCommentReadTarget(
+  client: SupabaseClient,
+  postId: string,
+): Promise<CommentReadTargetAccess> {
+  const { data: post, error: postError } = await client
+    .from("posts")
+    .select("id,author_id,circle_id,status,moderation_status")
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (postError) {
+    return { ok: false, status: 500, error: "COMMENT_READ_TARGET_LOOKUP_FAILED" };
+  }
+
+  const postRow = post as {
+    id: string;
+    circle_id: string | null;
+    status: string;
+    moderation_status?: string | null;
+  } | null;
+  if (
+    !postRow ||
+    postRow.id !== postId ||
+    !postRow.circle_id ||
+    !UUID_REGEX.test(postRow.circle_id) ||
+    postRow.status !== "published" ||
+    postRow.moderation_status !== "published"
+  ) {
+    return { ok: false, status: 404, error: "Post not found" };
+  }
+
+  const { data: circle, error: circleError } = await client
+    .from("circles")
+    .select("id,slug,name,status")
+    .eq("id", postRow.circle_id)
+    .maybeSingle();
+
+  if (circleError) {
+    return { ok: false, status: 500, error: "COMMENT_READ_TARGET_LOOKUP_FAILED" };
+  }
+  if (
+    !circle ||
+    circle.id !== postRow.circle_id ||
+    circle.status?.toLowerCase() !== "active" ||
+    !isPublicVisibleCircle(circle)
+  ) {
+    return { ok: false, status: 404, error: "Post not found" };
+  }
+
+  return { ok: true, postId: postRow.id, circleId: circle.id };
+}
+
 // ---------------------------------------------------------------------------
 // GET - threaded comments with likes, reply count, and can_delete
 // ---------------------------------------------------------------------------
@@ -321,39 +381,16 @@ export const GET: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    const { data: post, error: postError } = await client
-      .from("posts")
-      .select("id, author_id, status, moderation_status")
-      .eq("id", postId)
-      .maybeSingle();
-
-    if (postError) {
-      return json({ error: postError.message }, 500);
-    }
-    if (!post) {
-      return json({ error: "Post not found" }, 404);
-    }
-
-    const canViewOwnPendingPost =
-      viewerUserId === (post as { author_id?: string | null }).author_id &&
-      (post as { status?: string | null }).status === "pending" &&
-      (post as { moderation_status?: string | null }).moderation_status === "pending_review";
-
-    if (
-      !(
-        ((post as { status?: string | null }).status === "published") &&
-        ((post as { moderation_status?: string | null }).moderation_status === "published")
-      ) &&
-      !canViewOwnPendingPost
-    ) {
-      return json({ error: "Post not found" }, 404);
+    const readTarget = await resolveAccessibleCommentReadTarget(client, postId);
+    if (!readTarget.ok) {
+      return json({ error: readTarget.error }, readTarget.status);
     }
 
     // Fetch comments (published + owner pending + deleted placeholders for published replies)
     const { data: allComments, error: commentsError } = await client
       .from("comments")
       .select("id, post_id, author_id, parent_id, body, status, moderation_status, created_at, updated_at")
-      .eq("post_id", postId)
+      .eq("post_id", readTarget.postId)
       .in("status", ["published", "deleted", "pending"])
       .order("created_at", { ascending: true });
 

@@ -27,6 +27,9 @@ const resolvedCommentReactionVisibility = resolvedSecurityFindings.find((finding
   assert.equal(commentReadCircleVisibility?.singleLayerFixInsufficient, true);
   assert.equal(commentReadCircleVisibility?.consentDoesNotRemediateAuthorization, true);
   assert.equal(commentReadCircleVisibility?.postReauditRequired, true);
+  assert.equal(commentReadCircleVisibility?.runtimeRemediationStatus, "implemented-source-awaiting-get-reaudit");
+  assert.equal(commentReadCircleVisibility?.forwardMigration, "supabase/migrations/20260713_comment_read_circle_visibility_authorization.sql");
+  assert.equal(commentReadCircleVisibility?.forwardMigrationStatus, "authored-not-executed");
   assert.equal(commentReadCircleVisibility?.routeEvidence?.symbol, "GET");
   assert.equal(commentReadCircleVisibility?.postRlsEvidence?.symbol, "posts_select_published_public");
   assert.equal(commentReadCircleVisibility?.commentRlsEvidence?.symbol, "comments_select_public_or_staff");
