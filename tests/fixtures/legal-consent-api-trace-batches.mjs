@@ -1,6 +1,6 @@
 export const expectedBatchCount = 6;
 export const expectedMethodCount = 66;
-export const completedBatchIds = new Set(["phase4a1-trace-batch-1", "phase4a1-trace-batch-2", "phase4a1-trace-batch-3"]);
+export const completedBatchIds = new Set(["phase4a1-trace-batch-1", "phase4a1-trace-batch-2", "phase4a1-trace-batch-3", "phase4a1-trace-batch-4"]);
 const methodOrder = { GET: 0, POST: 1, PUT: 2, PATCH: 3, DELETE: 4 };
 export function buildTraceBatches(methodIds, representatives = []) {
   const sorted = [...methodIds].sort((a, b) => { const [af, am] = a.split("#"), [bf, bm] = b.split("#"); return af.localeCompare(bf) || methodOrder[am] - methodOrder[bm]; });
@@ -13,17 +13,18 @@ export const fileTraceProgress = {
   "src/pages/api/forum/comments.ts": {
     batchId: "phase4a1-trace-batch-4",
     methodIds: ["src/pages/api/forum/comments.ts#GET", "src/pages/api/forum/comments.ts#POST"],
-    status: "partial",
-    completedMethodIds: ["src/pages/api/forum/comments.ts#POST"],
-    pendingMethodIds: ["src/pages/api/forum/comments.ts#GET"],
-    blockerId: "COMMENT_READ_CIRCLE_ANCESTOR_VISIBILITY_AUTHORIZATION",
+    status: "complete",
+    completedMethodIds: ["src/pages/api/forum/comments.ts#GET", "src/pages/api/forum/comments.ts#POST"],
+    pendingMethodIds: [],
+    historicalBlockerId: "COMMENT_READ_CIRCLE_ANCESTOR_VISIBILITY_AUTHORIZATION",
     getRouteEvidenceSource: "src/pages/api/forum/comments.ts#GET",
     getPostRlsEvidenceSource: "supabase/migrations/20260611_forum_permission_lockdown.sql#posts_select_published_public",
     getCommentRlsEvidenceSource: "supabase/migrations/20260611_forum_permission_lockdown.sql#comments_select_public_or_staff",
-    getRuntimeRemediationStatus: "implemented-source-awaiting-get-reaudit",
+    getRuntimeRemediationStatus: "implemented-source-reaudited",
     getForwardMigration: "supabase/migrations/20260713_comment_read_circle_visibility_authorization.sql",
     getForwardMigrationStatus: "authored-not-executed",
-    getReauditRequired: true,
+    getReauditRequired: false,
+    getReauditCommit: "aa2cf01be3a21eed9d3a0de111bc249c0ead046a",
     routeEvidenceSource: "src/pages/api/forum/comments.ts#POST#resolveAccessibleCommentCreationTarget",
     rlsEvidenceSource: "supabase/migrations/20260713_comment_creation_circle_authorization.sql#comments_insert_self",
     postReauditCommit: "485215b2c311a0347258c5618db4db5326f84a58",
