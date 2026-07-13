@@ -28,6 +28,7 @@
     "test:legal-consent-mutation-guard": "node --experimental-strip-types scripts/test-legal-consent-mutation-guard.mjs",
     "test:legal-consent-mutation-inventory": "node scripts/test-legal-consent-mutation-inventory.mjs",
     "test:legal-consent-trace-batches": "node scripts/test-legal-consent-api-trace-batches.mjs",
+    "test:auth-redirect-safety": "node --experimental-strip-types scripts/test-auth-redirect-safety.mjs",
     "test:search": "node --experimental-strip-types scripts/test-search.mjs",
     "test:search-audit": "node scripts/audit-search.mjs --dist dist --strict --verbose",
     "test:post-launch": "node scripts/post-launch-check.mjs --url https://openglasshub.pages.dev --strict --verbose",

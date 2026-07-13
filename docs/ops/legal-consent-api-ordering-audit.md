@@ -102,6 +102,8 @@ The route passes `payload.next` to `getSafeNext`. In `src/lib/auth-redirect.ts`,
 
 This is arbitrary external redirect injection after confirmation/callback processing and is release-blocking. Consent enforcement cannot repair it because the unsafe value is already propagated through the callback metadata and is also used after consent. Batch 3 tracing is paused: `resend-confirmation.ts#POST` remains pending, no later Batch 3 method may be completed, and progress remains 29/66 traced and 37 pending. All `getSafeNext` callers require centralized remediation review before this method receives a separate re-audit.
 
+Centralized remediation is now implemented in `getSafeNext`: it accepts only a canonical application-relative path/query/hash that remains at the trusted origin after URL resolution, and rejects raw or repeatedly decoded backslashes, controls, boundary whitespace, protocol-relative authority, malformed encodings, absolute URLs, and cross-origin resolution. `buildAuthCallbackRedirect` and `buildResetPasswordRedirect` now share trusted-origin parsing, and browser navigation plus the legal-consent gate sanitize again at the final sink. Login, register/signup, resend confirmation, callback, consent, header/menu, CTA, and recovery callers were reviewed. The original blocker evidence remains active: resend-confirmation is still pending until a separate source-to-sink re-audit validates the deployed fix.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.

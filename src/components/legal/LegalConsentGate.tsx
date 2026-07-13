@@ -13,7 +13,10 @@ export default function LegalConsentGate({ pathname, authAdapter, consentAdapter
   const [error, setError] = useState("");
   const reveal = () => document.querySelector<HTMLElement>("[data-consent-gated-main]")?.removeAttribute("hidden");
   const safeNext = getSafeNext(`${pathname}${window.location.search}`, "/");
-  const redirect = (path: string) => navigationAdapter ? navigationAdapter.replace(path) : window.location.replace(path);
+  const redirect = (path: string) => {
+    const destination = getSafeNext(path);
+    if (navigationAdapter) navigationAdapter.replace(destination); else window.location.replace(destination);
+  };
 
   useEffect(() => {
     let active = true;

@@ -1,5 +1,6 @@
 import type { LegalConsentSource } from "./server/legal-consent.server";
 import type { LegalConsentStatus } from "./legal-consent-client";
+import { getSafeNext } from "./auth-redirect";
 
 export type ConsentSession = { accessToken: string; userId?: string };
 export type AdapterResult<T> = { data: T; error: Error | null };
@@ -34,8 +35,8 @@ export type AuthPanelAdapter = LegalConsentAuthAdapter & {
 
 export function browserNavigationAdapter(): LegalConsentNavigationAdapter {
   return {
-    navigate: (url) => window.location.assign(url),
-    replace: (url) => window.location.replace(url),
-    getCurrentUrl: () => window.location.href,
+    navigate: (url) => window.location.assign(getSafeNext(url)),
+    replace: (url) => window.location.replace(getSafeNext(url)),
+    getCurrentUrl: () => `${window.location.pathname}${window.location.search}${window.location.hash}`,
   };
 }
