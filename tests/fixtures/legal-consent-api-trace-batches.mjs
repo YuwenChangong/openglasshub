@@ -18,10 +18,12 @@ export const fileTraceProgress = {
     blockedMethodId: "src/pages/api/forum/comments.ts#PUT",
     blockedMethodBatchId: "phase4a1-trace-batch-5",
     routeEvidenceSource: "src/pages/api/forum/comments.ts#PUT",
-    rlsEvidenceSource: "supabase/migrations/20260603_forum_comments_interactions.sql#comment_reactions_insert_self",
+    rlsEvidenceSource: "supabase/migrations/20260713_comment_reaction_visibility_authorization.sql#can_access_comment_reaction_target",
     singleLayerFixInsufficient: true,
     requiresRuntimeRemediation: true,
     requiresForwardMigrationRemediation: true,
+    remediationImplemented: true,
+    reAuditRequired: true,
   },
   "src/pages/api/forum/circles/[slug]/posts.ts": {
     batchId: "phase4a1-trace-batch-4",

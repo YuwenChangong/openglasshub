@@ -20,6 +20,7 @@ import {
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
+import { isPublicVisibleCircle } from "../../../lib/site-navigation";
 
 export const prerender = false;
 
@@ -134,6 +135,70 @@ function createUserClient(
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type CommentReactionTargetAccess =
+  | { ok: true; commentId: string; postId: string; circleId: string }
+  | { ok: false; status: 404 | 500; error: string };
+
+/**
+ * Resolve the whole visibility chain before a reaction can mutate state. Every
+ * relationship comes from server reads rather than the request payload.
+ */
+export async function resolveAccessibleCommentReactionTarget(
+  client: SupabaseClient,
+  commentId: string,
+): Promise<CommentReactionTargetAccess> {
+  const { data: comment, error: commentError } = await client
+    .from("comments")
+    .select("id,post_id,status,moderation_status")
+    .eq("id", commentId)
+    .maybeSingle();
+
+  if (commentError) {
+    return { ok: false, status: 500, error: "REACTION_TARGET_LOOKUP_FAILED" };
+  }
+  if (!comment || comment.status !== "published" || comment.moderation_status !== "published") {
+    return { ok: false, status: 404, error: "REACTION_TARGET_NOT_ACCESSIBLE" };
+  }
+
+  const { data: post, error: postError } = await client
+    .from("posts")
+    .select("id,circle_id,status,moderation_status")
+    .eq("id", comment.post_id)
+    .maybeSingle();
+
+  if (postError) {
+    return { ok: false, status: 500, error: "REACTION_TARGET_LOOKUP_FAILED" };
+  }
+  if (
+    !post ||
+    post.id !== comment.post_id ||
+    post.status !== "published" ||
+    post.moderation_status !== "published"
+  ) {
+    return { ok: false, status: 404, error: "REACTION_TARGET_NOT_ACCESSIBLE" };
+  }
+
+  const { data: circle, error: circleError } = await client
+    .from("circles")
+    .select("id,slug,name,status")
+    .eq("id", post.circle_id)
+    .maybeSingle();
+
+  if (circleError) {
+    return { ok: false, status: 500, error: "REACTION_TARGET_LOOKUP_FAILED" };
+  }
+  if (
+    !circle ||
+    circle.id !== post.circle_id ||
+    circle.status?.toLowerCase() !== "active" ||
+    !isPublicVisibleCircle(circle)
+  ) {
+    return { ok: false, status: 404, error: "REACTION_TARGET_NOT_ACCESSIBLE" };
+  }
+
+  return { ok: true, commentId: comment.id, postId: post.id, circleId: circle.id };
+}
 
 // ---------------------------------------------------------------------------
 // GET - threaded comments with likes, reply count, and can_delete
@@ -659,19 +724,9 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       return json({ error: "comment_id is required (valid UUID)" }, 400);
     }
 
-    // Verify comment exists and is published
-    const { data: comment, error: commentError } = await userClient
-      .from("comments")
-      .select("id, status, moderation_status")
-      .eq("id", commentId)
-      .maybeSingle();
-    if (commentError) return json({ error: commentError.message }, 500);
-    if (!comment) return json({ error: "Comment not found" }, 404);
-    if (
-      (comment as { status: string }).status !== "published" ||
-      (comment as { moderation_status?: string | null }).moderation_status !== "published"
-    ) {
-      return json({ error: "Cannot like a deleted comment" }, 400);
+    const reactionTarget = await resolveAccessibleCommentReactionTarget(userClient, commentId);
+    if (!reactionTarget.ok) {
+      return json({ error: reactionTarget.error }, reactionTarget.status);
     }
 
     // Check if already liked

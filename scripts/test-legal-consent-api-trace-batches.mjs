@@ -56,8 +56,10 @@ assert.equal(fileTraceProgress["src/pages/api/forum/comments.ts"]?.status, "bloc
 assert.equal(fileTraceProgress["src/pages/api/forum/comments.ts"]?.blockedMethodId, "src/pages/api/forum/comments.ts#PUT");
 assert.equal(commentPutBlockerTrace?.traceStatus, "blocked");
 assert.equal(commentPutBlockerTrace?.traceEvidenceComplete, false);
-assert.equal(commentReactionBlocker?.routeEvidence?.symbol, "PUT");
-assert.equal(commentReactionBlocker?.rlsEvidence?.symbol, "comment_reactions_insert_self");
+assert.equal(commentReactionBlocker?.routeEvidence?.symbol, "resolveAccessibleCommentReactionTarget");
+assert.equal(commentReactionBlocker?.rlsEvidence?.symbol, "can_access_comment_reaction_target");
+assert.equal(commentReactionBlocker?.remediationImplemented, true);
+assert.equal(commentReactionBlocker?.reAuditRequired, true);
 assert.equal(commentReactionBlocker?.mismatchEvidence?.symbol, "GET");
 assert.equal(commentReactionBlocker?.singleLayerFixInsufficient, true);
 assert.equal(commentReactionBlocker?.requiresRuntimeRemediation, true);
