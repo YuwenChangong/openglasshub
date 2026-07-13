@@ -5,7 +5,33 @@ export const batch1aTraces = {
   "src/pages/api/admin/forum/circles.ts#PATCH": { traceStatus: "complete", consentInsertionPoint: "PATCH after requireModerator and before request.json", currentExecutionOrder: ["authenticate", "derive-verified-user", "construct-rls-client", "role-check", "parse-body", "schema-validation", "duplicate-check", "external-service-call", "postgres-write", "response"], evidence: [{ sourceFile: "src/pages/api/admin/forum/circles.ts", symbol: "PATCH", evidenceType: "handler", conciseFinding: "Authenticates moderator before reading the target id and validating requested update fields." }, { sourceFile: "src/pages/api/admin/forum/circles.ts", symbol: "PATCH", evidenceType: "validation", conciseFinding: "Requires an id, rejects invalid name, description, type, image path, status, and empty update payloads." }, { sourceFile: "src/pages/api/admin/forum/circles.ts", symbol: "PATCH", evidenceType: "database-write", conciseFinding: "Updates circles by target id only after validation and optional text/image moderation." }, { sourceFile: "src/pages/api/admin/forum/circles.ts", symbol: "PATCH", evidenceType: "absence-confirmed", conciseFinding: "No service-role client, R2 write, email send, or acting-user value from the payload is used." }] },
 };
 export const AUTHENTICATED_READ_ONLY_PREFIXES = ["src/pages/api/admin/", "src/pages/api/users/me/"];
-export const releaseBlockingFindings = [];
+export const releaseBlockingFindings = [{
+  id: "COMMENT_CREATION_CIRCLE_ANCESTOR_AUTHORIZATION",
+  status: "active",
+  severity: "release-blocking",
+  sourceFile: "src/pages/api/forum/comments.ts",
+  method: "POST",
+  symbol: "POST",
+  conciseFinding: "POST can insert a top-level comment or reply on a published post retained under a deleted circle because neither the route nor comments_insert_self authorizes the post-to-circle visibility chain.",
+  routeEvidence: { sourceFile: "src/pages/api/forum/comments.ts", symbol: "POST", evidenceType: "resource-authorization-gap", conciseFinding: "POST verifies the bearer, safety state, UUID-shaped post_id, and the post's status/moderation_status, but selects no posts.circle_id and performs no circles read, canonical visibility check, or membership authorization before comments.insert." },
+  rlsEvidence: { sourceFile: "supabase/migrations/20260616_community_moderation_mvp.sql", symbol: "comments_insert_self", evidenceType: "rls-policy-gap", conciseFinding: "The active INSERT policy requires only author_id = auth.uid() and status::text in published or pending; it has no exists predicate for the parent post, post moderation state, circle status, or circle accessibility." },
+  firstIrreversibleEffect: { sourceFile: "src/lib/server/rate-limit.ts", symbol: "enforceUserRateLimit", evidenceType: "rate-attempt-write", conciseFinding: "After moderation and before profile/post/parent checks, the helper inserts a forum_upload_attempts row for comment_create when under the limit. The first domain mutation is the later comments.insert." },
+  requiresRuntimeRemediation: true,
+  requiresForwardMigrationRemediation: true,
+  singleLayerFixInsufficient: true,
+  consentDoesNotRemediateAuthorization: true,
+  requiredRemediation: "A runtime comment-create target resolver must bind post_id to an active accessible circle before comments.insert, and a new forward RLS migration must make comments INSERT require the same post/circle predicate. Historical migrations must remain unchanged; legal-consent checks cannot establish resource accessibility.",
+  evidence: [
+    { sourceFile: "src/pages/api/forum/comments.ts", symbol: "POST", evidenceType: "authentication-and-actor-binding", conciseFinding: "POST requires a bearer, creates a bearer-bound anon-key client, verifies auth.getUser(token), and always inserts author_id: authData.user.id. Request payload has post_id, body, and optional parent_id only, so it cannot replace the actor or author." },
+    { sourceFile: "src/lib/server/user-safety.server.ts", symbol: "assertUserCanWrite", evidenceType: "safety-authorization", conciseFinding: "POST passes only the verified user id and comment_create action to the helper, which reads that actor's safety state and denies banned, suspended, or unavailable states before request parsing, rate persistence, or comment insertion." },
+    { sourceFile: "src/pages/api/forum/comments.ts", symbol: "POST", evidenceType: "post-and-parent-validation", conciseFinding: "POST validates UUID-shaped post_id and optional parent_id, checks the selected post is published with moderation_status published, and constrains parent lookup with both parent id and post_id. It rejects a missing or non-published parent, preventing a cross-post parent reference, but has no reply-depth limit." },
+    { sourceFile: "src/pages/api/forum/comments.ts", symbol: "POST", evidenceType: "missing-circle-authorization", conciseFinding: "The post select requests id, author_id, status, and moderation_status only. No route stage reads posts.circle_id, queries circles, calls isPublicVisibleCircle, or checks a membership relation before the comment insert." },
+    { sourceFile: "supabase/migrations/20260604_forum_circle_soft_delete_and_management.sql", symbol: "circles_status_check", evidenceType: "retained-published-post-path", conciseFinding: "Circles use active or deleted soft-delete status. Deleting a circle does not update child post status, so a published post can remain under a deleted circle for the route and INSERT policy to accept." },
+    { sourceFile: "supabase/migrations/20260616_community_moderation_mvp.sql", symbol: "comments_insert_self", evidenceType: "rls-gap", conciseFinding: "INSERT policy has no parent-post, post moderation, circle status, visibility, or membership predicate. Route-only remediation leaves direct INSERT authorization open; RLS-only remediation leaves the route resource contract incomplete." },
+    { sourceFile: "src/pages/api/forum/comments.ts", symbol: "POST", evidenceType: "unsafe-mutation", conciseFinding: "Both top-level comments and replies use the same comments.insert after the same post check. A verified actor can therefore create either kind on a published post retained under a deleted circle; private-circle behavior is not applicable because the schema contains no private-circle or membership model." },
+    { sourceFile: "src/pages/api/forum/comments.ts", symbol: "POST", evidenceType: "consent-boundary", conciseFinding: "A legal-consent guard can verify policy acceptance but cannot prove the selected post belongs to an accessible circle, so it cannot remediate this route/RLS resource authorization mismatch." }
+  ]
+}];
 export const resolvedSecurityFindings = [{
   id: "RESEND_CONFIRMATION_EXTERNAL_REDIRECT",
   status: "resolved",
@@ -93,6 +119,23 @@ export const batch4dTraces = {
       { sourceFile: "src/pages/api/forum/comments.ts", symbol: "PUT", evidenceType: "idempotency-and-hardening", conciseFinding: "This is a toggle without an idempotency key, transaction, content-type/body-size limit, or rate limiter. Sequential retries alternate state; concurrent requests can race with the unique reaction constraint. Several database and caught Error.message values are returned raw. These remain non-blocking Phase 4B findings." },
       { sourceFile: "scripts/test-comment-reaction-visibility-authorization.mjs", symbol: "comment-reaction-visibility-authorization", evidenceType: "regression-test", conciseFinding: "Deterministic offline cases prove denied target chains make zero reaction mutation calls, static source ordering puts target resolution before reaction queries, migration policies cover ancestors for SELECT/INSERT/UPDATE/DELETE, and the historical migration hash is unchanged." },
       { sourceFile: "supabase/migrations/20260713_comment_reaction_visibility_authorization.sql", symbol: "migration-file", evidenceType: "deployment-prerequisite", conciseFinding: "The forward migration is authored but was not executed during this re-audit. Applying it remains a deployment prerequisite rather than a source-level authorization blocker." }
+    ]
+  }
+};
+export const batch4eBlockerEvidence = {
+  "src/pages/api/forum/comments.ts#POST": {
+    traceStatus: "blocked",
+    traceEvidenceComplete: false,
+    traceCompleteness: "blocked",
+    blockerId: "COMMENT_CREATION_CIRCLE_ANCESTOR_AUTHORIZATION",
+    currentExecutionOrder: ["runtime-validation", "bearer-presence-validation", "construct-bearer-rls-client", "authenticate", "derive-verified-user", "user-safety-state-read", "parse-json", "post-parent-and-body-validation", "content-moderation", "rate-limit-attempt-write-first-irreversible-effect", "profile-read", "published-post-read-without-circle-authorization", "same-post-published-parent-read", "comment-insert-first-domain-mutation", "response"],
+    evidence: [
+      { sourceFile: "src/pages/api/forum/comments.ts", symbol: "POST", evidenceType: "route-gap", conciseFinding: "POST reads post id, author_id, status, and moderation_status, but not circle_id. It has no circles query, canonical visibility helper call, private membership relation, or circle authorization before comments.insert." },
+      { sourceFile: "supabase/migrations/20260616_community_moderation_mvp.sql", symbol: "comments_insert_self", evidenceType: "rls-gap", conciseFinding: "INSERT policy requires author_id = auth.uid() and comment status published or pending only; no parent-post or parent-circle predicate closes the route gap." },
+      { sourceFile: "supabase/migrations/20260604_forum_circle_soft_delete_and_management.sql", symbol: "circles_status_check", evidenceType: "retained-ancestor-path", conciseFinding: "Circle deletion is a status change to deleted and does not change posts. A published post can therefore remain addressable under a deleted circle." },
+      { sourceFile: "src/pages/api/forum/comments.ts", symbol: "POST", evidenceType: "unsafe-capability", conciseFinding: "The shared insert path permits both top-level comments and replies after the same incomplete post-only authorization. The parent query protects same-post linkage and parent publication, but not the post's circle accessibility." },
+      { sourceFile: "src/lib/server/rate-limit.ts", symbol: "enforceUserRateLimit", evidenceType: "first-irreversible-effect", conciseFinding: "The helper writes a comment_create attempt before profile and post reads. comments.insert is the first domain mutation; route/RLS remediation must still complete before that domain write." },
+      { sourceFile: "src/pages/api/forum/comments.ts", symbol: "POST", evidenceType: "remediation-boundary", conciseFinding: "Both runtime target-chain authorization and a new forward comments INSERT policy are required. A consent check does not prove the selected post belongs to an accessible circle." }
     ]
   }
 };

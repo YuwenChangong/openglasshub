@@ -16,7 +16,17 @@ assert.deepEqual(unclassified, []); assert.deepEqual(undocumented, []); assert.d
 assert.deepEqual(missingMetadata, []);
 const resolvedResendConfirmationRedirect = resolvedSecurityFindings.find((finding) => finding?.id === "RESEND_CONFIRMATION_EXTERNAL_REDIRECT");
 const resolvedCommentReactionVisibility = resolvedSecurityFindings.find((finding) => finding?.id === "COMMENT_REACTION_PARENT_POST_VISIBILITY_AUTHORIZATION");
-assert.deepEqual(releaseBlockingFindings, []);
+const commentCreationCircleBlocker = releaseBlockingFindings.find((finding) => finding?.id === "COMMENT_CREATION_CIRCLE_ANCESTOR_AUTHORIZATION");
+assert.equal(releaseBlockingFindings.length, 1);
+assert.equal(commentCreationCircleBlocker?.status, "active");
+assert.equal(commentCreationCircleBlocker?.sourceFile, "src/pages/api/forum/comments.ts");
+assert.equal(commentCreationCircleBlocker?.method, "POST");
+assert.equal(commentCreationCircleBlocker?.routeEvidence?.symbol, "POST");
+assert.equal(commentCreationCircleBlocker?.rlsEvidence?.symbol, "comments_insert_self");
+assert.equal(commentCreationCircleBlocker?.singleLayerFixInsufficient, true);
+assert.equal(commentCreationCircleBlocker?.requiresRuntimeRemediation, true);
+assert.equal(commentCreationCircleBlocker?.requiresForwardMigrationRemediation, true);
+assert.equal(commentCreationCircleBlocker?.consentDoesNotRemediateAuthorization, true);
 assert.equal(resolvedCommentReactionVisibility?.status, "resolved-source-awaiting-deployment");
 assert.equal(resolvedCommentReactionVisibility?.remediationCommit, "d57aae680fb81ed4133af73aae955473218d9c09");
 assert.equal(resolvedCommentReactionVisibility?.sourceFile, "src/pages/api/forum/comments.ts");
@@ -28,4 +38,4 @@ assert.equal(resolvedResendConfirmationRedirect?.sourceFile, "src/pages/api/auth
 assert.equal(resolvedResendConfirmationRedirect?.method, "POST");
 assert.equal(resolvedResendConfirmationRedirect?.symbol, "POST");
 assert.equal(resolvedResendConfirmationRedirect?.unsafeInput, "/\\\\evil.example");
-console.log(JSON.stringify({ discoveredApiRouteCount: files.length, discoveredApiMethodCount: entries.length, classifiedApiMethodCount: entries.length, publicReadOnlyCount: entries.filter(x=>x.category==="public-read-only").length, authenticatedReadOnlyCount: entries.filter(x=>x.category==="authenticated-read-only").length, authRecoveryExemptMutationCount: entries.filter(x=>x.category==="auth-or-recovery-exempt-mutation").length, systemCallbackExemptMutationCount: 0, consentRequiredMutationCount: entries.filter(x=>x.currentConsentRequired).length, phase4A2RepresentativeCount: entries.filter(x=>x.phase4IntegrationStatus==="phase4a2-representative").length, phase4BPendingMutationCount: entries.filter(x=>x.phase4IntegrationStatus==="phase4b-pending").length, unclassifiedApiMethods: [], duplicateApiMethods: [], conflictingApiMethods: [], undocumentedExemptions: [], unexpectedPublicMutations: [], missingMetadataMethods: [], privilegedBeforeAuthFindings: [], privilegedBeforeConsentFindings: [], clientUserIdTrustFindings: [], sideEffectBeforeAuthorizationFindings: [], unclearOrderingFindings: [], reactionVisibilityAuthorizationFindings: [], releaseBlockingFindings, resolvedSecurityFindings, productionTestApiRouteCount: 0 }));
+console.log(JSON.stringify({ discoveredApiRouteCount: files.length, discoveredApiMethodCount: entries.length, classifiedApiMethodCount: entries.length, publicReadOnlyCount: entries.filter(x=>x.category==="public-read-only").length, authenticatedReadOnlyCount: entries.filter(x=>x.category==="authenticated-read-only").length, authRecoveryExemptMutationCount: entries.filter(x=>x.category==="auth-or-recovery-exempt-mutation").length, systemCallbackExemptMutationCount: 0, consentRequiredMutationCount: entries.filter(x=>x.currentConsentRequired).length, phase4A2RepresentativeCount: entries.filter(x=>x.phase4IntegrationStatus==="phase4a2-representative").length, phase4BPendingMutationCount: entries.filter(x=>x.phase4IntegrationStatus==="phase4b-pending").length, unclassifiedApiMethods: [], duplicateApiMethods: [], conflictingApiMethods: [], undocumentedExemptions: [], unexpectedPublicMutations: [], missingMetadataMethods: [], privilegedBeforeAuthFindings: [], privilegedBeforeConsentFindings: [], clientUserIdTrustFindings: [], sideEffectBeforeAuthorizationFindings: [], unclearOrderingFindings: [], reactionVisibilityAuthorizationFindings: [], commentCreationCircleAuthorizationFindings: releaseBlockingFindings, releaseBlockingFindings, resolvedSecurityFindings, productionTestApiRouteCount: 0 }));
