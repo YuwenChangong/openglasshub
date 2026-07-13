@@ -14,6 +14,10 @@ POST requires `requireModerator`, validates a post/comment UUID action payload, 
 
 All 11 Batch 1 method records are traced. Parent Batch 1 is complete; batches 2 through 6 remain pending. Cumulative progress is 11/66 traced and 55 pending. No endpoint enforcement is active.
 
+## Phase 4A1 Batch 2A - admin/moderation/hide.ts POST
+
+POST verifies moderator identity, validates target type and UUID, reads the target for already-hidden protection, updates its moderation state, and then inserts the moderation action record. Future consent belongs after `requireModerator`, before payload parsing and target lookup. The action record may fail after target update, so this is a documented Phase 4B transactional-hardening concern, not a pre-authorization side effect.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
