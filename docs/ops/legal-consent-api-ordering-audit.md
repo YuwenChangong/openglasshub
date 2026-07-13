@@ -18,6 +18,10 @@ All 11 Batch 1 method records are traced. Parent Batch 1 is complete; batches 2 
 
 POST verifies moderator identity, validates target type and UUID, reads the target for already-hidden protection, updates its moderation state, and then inserts the moderation action record. Future consent belongs after `requireModerator`, before payload parsing and target lookup. The action record may fail after target update, so this is a documented Phase 4B transactional-hardening concern, not a pre-authorization side effect.
 
+## Phase 4A1 Batch 2B - admin/moderation/lexicon-health.ts GET
+
+GET requires moderator authentication and then calls `getSensitiveLexiconHealth`. The loader reads the configured R2 object when available, otherwise reads the generated local file or uses the emergency in-memory lexicon. Caching is process-memory only; no persistent write, RPC mutation, audit event, notification, email, or telemetry side effect exists.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
