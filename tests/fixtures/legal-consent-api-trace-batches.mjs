@@ -13,8 +13,7 @@ export const fileTraceProgress = {
   "src/pages/api/auth/resend-confirmation.ts": {
     batchId: "phase4a1-trace-batch-3",
     methodIds: ["src/pages/api/auth/resend-confirmation.ts#POST"],
-    status: "pending",
-    blockerId: "RESEND_CONFIRMATION_EXTERNAL_REDIRECT",
+    status: "complete",
   },
   "src/pages/api/admin/users/[id]/warn.ts": {
     batchId: "phase4a1-trace-batch-3",
