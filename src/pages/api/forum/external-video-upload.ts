@@ -121,7 +121,7 @@ export function createExternalVideoUploadPost(
       | null;
     if (!payload) return json({ error: "Invalid JSON payload" }, 400);
 
-    const postId = String(payload.post_id ?? "").trim();
+    const postId = String(payload.post_id ?? "").trim().toLowerCase();
     const fileNameRaw = String(payload.file_name ?? "").trim();
     const mimeType = String(payload.mime_type ?? "").trim().toLowerCase();
     const sizeBytes = Number(payload.size_bytes ?? 0);
@@ -145,6 +145,9 @@ export function createExternalVideoUploadPost(
 
     stage = "post.authorize";
     if (post.author_id !== authData.user.id) return json({ error: "Cannot upload media for a post you do not own" }, 403);
+
+    stage = "key.build";
+    const objectKey = buildTmpVideoKey(authData.user.id, postId, fileNameRaw);
 
     stage = "turnstile";
     if (shouldRequireUploadTurnstile({ env, uploadKind: "post_media", sizeBytes })) {
@@ -195,7 +198,6 @@ export function createExternalVideoUploadPost(
     }
 
     stage = "r2.sign";
-    const objectKey = buildTmpVideoKey(authData.user.id, fileNameRaw);
     const uploadUrl = await signR2PutUrl({
       env,
       objectKey,

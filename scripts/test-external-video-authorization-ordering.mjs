@@ -39,6 +39,7 @@ async function runScenario({
     rateAttemptInsert: 0,
     r2Signing: 0,
     directMutation: 0,
+    keyBuild: 0,
   };
   const post = makePost(postAuthorId, calls);
 
@@ -92,8 +93,10 @@ async function runScenario({
     buildR2PublicUrl() {
       return "https://r2.example/media";
     },
-    buildTmpVideoKey() {
-      return `tmp/${ACTOR_ID}/test.mp4`;
+    buildTmpVideoKey(actorId, postId) {
+      effects.keyBuild += 1;
+      calls.push("post-bound key generation");
+      return `tmp/${actorId}/${postId}/test.mp4`;
     },
     async signR2PutUrl() {
       effects.r2Signing += 1;
@@ -166,6 +169,7 @@ function assertNoLaterEffects(result) {
   assert.equal(result.effects.rateAttemptInsert, 0);
   assert.equal(result.effects.r2Signing, 0);
   assert.equal(result.effects.directMutation, 0);
+  assert.equal(result.effects.keyBuild, 0);
   assert(!result.calls.some((call) => call.startsWith("daily-rate")));
 }
 
@@ -184,12 +188,13 @@ async function main() {
   const postIdValidation = source.indexOf("if (!postId || !/^[0-9a-f-]{36}$/i.test(postId))");
   const postLookup = source.indexOf('stage = "post.lookup";');
   const ownershipComparison = source.indexOf("if (post.author_id !== authData.user.id)");
+  const keyBuild = source.indexOf("const objectKey = buildTmpVideoKey(authData.user.id, postId, fileNameRaw);");
   const turnstile = source.indexOf('stage = "turnstile";');
   const rateReads = source.indexOf('stage = "rate.ip";');
   const r2Signing = source.indexOf('stage = "r2.sign";');
   const rateAttemptInsert = source.indexOf('stage = "attempt.insert";');
   assert(postIdValidation >= 0 && postIdValidation < postLookup);
-  assert(postLookup < ownershipComparison && ownershipComparison < turnstile);
+  assert(postLookup < ownershipComparison && ownershipComparison < keyBuild && keyBuild < turnstile);
   assert(turnstile < rateReads && rateReads < r2Signing && r2Signing < rateAttemptInsert);
   assert(/create policy "posts_select_published_public"[\s\S]*?status = 'published'[\s\S]*?or author_id = auth\.uid\(\)[\s\S]*?or \(select public\.is_moderator_or_admin\(\)\)/.test(deployedPostSelectPolicy));
   assert(/create policy "posts_select_published_public"[\s\S]*?moderation_status = 'published'[\s\S]*?public\.can_access_public_circle\(circle_id\)[\s\S]*?or author_id = auth\.uid\(\)/.test(authoredPostSelectPolicy));
@@ -226,6 +231,7 @@ async function main() {
     "safety authorization",
     "post lookup",
     "ownership comparison",
+    "post-bound key generation",
     "Turnstile validation",
   ]);
   assert.equal(invalidTurnstile.effects.rateAttemptInsert, 0);
@@ -239,6 +245,7 @@ async function main() {
     "safety authorization",
     "post lookup",
     "ownership comparison",
+    "post-bound key generation",
     "Turnstile validation",
     "daily-rate hash",
     "daily-rate attempt read",
@@ -249,6 +256,7 @@ async function main() {
   assert.equal(owner.effects.rateAttemptInsert, 1);
   assert.equal(owner.effects.r2Signing, 1);
   assert.equal(owner.effects.directMutation, 0);
+  assert.equal(owner.effects.keyBuild, 1);
 
   const turnstileDisabled = await runScenario({ turnstileRequired: false });
   assert.equal(turnstileDisabled.response.status, 200);

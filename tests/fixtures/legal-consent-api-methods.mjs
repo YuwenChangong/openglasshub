@@ -7,8 +7,8 @@ export const batch1aTraces = {
 export const AUTHENTICATED_READ_ONLY_PREFIXES = ["src/pages/api/admin/", "src/pages/api/users/me/"];
 export const historicalCommentCreationCircleAuthorizationFindings = [{
   id: "COMMENT_CREATION_CIRCLE_ANCESTOR_AUTHORIZATION",
-  status: "active",
-  severity: "release-blocking",
+  status: "historical-checkpoint",
+  severity: "historical-release-blocking",
   sourceFile: "src/pages/api/forum/comments.ts",
   method: "POST",
   symbol: "POST",
@@ -98,7 +98,7 @@ const resolvedExternalVideoAuthorizationOrderingFindings = [{
     { sourceFile: "src/pages/api/forum/external-video-upload.ts", symbol: "POST#post.lookup,POST#post.authorize,validateTurnstileToken", evidenceType: "implemented-order", conciseFinding: "Current order is runtime check; bearer presence; bearer-bound client; auth.getUser; assertUserCanWrite; JSON parse and post_id/file/mime/declared-size validation; post lookup; server-read author comparison; conditional Turnstile; daily rate reads; local R2 signing; rate-attempt insertion; signed-upload response." },
     { sourceFile: "src/pages/api/forum/external-video-upload.ts", symbol: "POST#post.lookup,POST#post.authorize", evidenceType: "denied-target-effect-boundary", conciseFinding: "Missing target rows return 404 and non-owner rows return 403 before the conditional Turnstile branch. Those paths therefore cannot invoke Turnstile, daily-rate reads, R2 signing, enforceUploadRateLimit, database mutation, notification, audit, email, or other later external effect." },
     { sourceFile: "src/lib/server/turnstile.ts", symbol: "validateTurnstileToken", evidenceType: "fixed-destination-not-ssrf", conciseFinding: "The helper has one hard-coded Cloudflare URL and no caller-provided URL, host, protocol, port, redirect, DNS, download, or video metadata input. No client-selected outbound destination or video fetch exists in this endpoint." },
-    { sourceFile: "src/lib/r2-server.ts", symbol: "signR2PutUrl,buildTmpVideoKey", evidenceType: "later-storage-boundary", conciseFinding: "After target authorization the server locally creates a random UUID key under tmp/<verified-user-id>/ and cryptographically signs a PUT URL; it does not upload to R2. The browser performs the later direct upload outside this endpoint, and no post_media row is inserted here." },
+    { sourceFile: "src/lib/r2-server.ts", symbol: "signR2PutUrl,buildTmpVideoKey", evidenceType: "later-storage-boundary", conciseFinding: "After target authorization the server locally creates a random UUID key under tmp/<verified-user-id>/<authorized-post-id>/ and cryptographically signs a PUT URL; it does not upload to R2. The browser performs the later direct upload outside this endpoint, and no post_media row is inserted here." },
     { sourceFile: "scripts/test-external-video-authorization-ordering.mjs", symbol: "external-video-authorization-ordering", evidenceType: "offline-ordering-regression-test", conciseFinding: "Fully offline dependency fakes prove missing, non-owner, malformed, unauthenticated, and safety-denied paths make zero Turnstile, Cloudflare-fetch, daily-rate, R2-signing, rate-attempt, or direct mutation calls; the valid-owner path orders post lookup and author comparison before Turnstile, while an invalid Turnstile result stops before rate-attempt insertion." },
     { sourceFile: "supabase/migrations/20260611_forum_permission_lockdown.sql", symbol: "posts_select_published_public", evidenceType: "deployed-post-select-rls", conciseFinding: "The deployed-source policy permits only published posts, rows whose author_id equals auth.uid(), or server-derived moderator/admin access. The bearer-bound client therefore cannot select arbitrary non-public cross-user rows; the route independently rejects any selected row whose server-read author_id differs from authData.user.id." },
     { sourceFile: "supabase/migrations/20260713_comment_read_circle_visibility_authorization.sql", symbol: "posts_select_published_public", evidenceType: "authored-forward-post-select-rls", conciseFinding: "The authored but unexecuted comment-read migration further constrains the public branch to published moderation-visible posts in an accessible public circle while preserving own-author and staff branches. Its unexecuted status is a comment-read deployment prerequisite, not an external-video route blocker." },
@@ -106,7 +106,7 @@ const resolvedExternalVideoAuthorizationOrderingFindings = [{
     { sourceFile: "src/pages/api/forum/external-video-upload.ts", symbol: "POST,formatDbError", evidenceType: "phase4b-hardening", conciseFinding: "The route does not require a Content-Type header or transport body-size limit, has no request idempotency key, and returns formatted database/caught error messages. validateTurnstileToken retains helper error text internally but POST exposes only its TURNSTILE_REQUIRED or TURNSTILE_INVALID code. Rate attempts can duplicate on retries and remain persisted if a later response path fails; these are Phase 4B hardening concerns, not target-authorization bypasses." }
   ]
 }];
-export const releaseBlockingFindings = [{
+const historicalPostMediaCrossPostProvenanceBlocker = [{
   id: "POST_MEDIA_TMP_OBJECT_CROSS_POST_PROVENANCE",
   status: "active",
   severity: "release-blocking",
@@ -130,11 +130,35 @@ export const releaseBlockingFindings = [{
     { sourceFile: "src/lib/r2-server.ts", symbol: "buildTmpVideoKey", evidenceType: "temporary-key-shape", conciseFinding: "The generated key is tmp/<actor-id>/<crypto.randomUUID>-<normalized-file-name>, with no source post identifier or capability nonce embedded beyond the random object suffix." },
     { sourceFile: "src/pages/api/forum/post-media.ts", symbol: "validateMediaArray", evidenceType: "same-actor-cross-post-replay", conciseFinding: "A video storage_path matching tmp/<actor-id>/ is accepted independently of the postId argument. The same verified actor can therefore provide an upload path authorized for post A while selecting owned post B." },
     { sourceFile: "supabase/migrations/20260524_forum_phase3_post_media.sql", symbol: "post_media_insert_self,post_media_objects_insert_self", evidenceType: "independent-rls-gap", conciseFinding: "Current insert policies bind the row and storage object to auth.uid(), and bind the row target to an auth.uid()-authored post, but contain no tmp object-to-post provenance predicate. They do not independently prevent A-to-B replay by the same actor." },
-    { sourceFile: "scripts/test-post-media-cross-post-provenance-blocker.mjs", symbol: "post-media-cross-post-provenance-blocker", evidenceType: "offline-blocker-regression", conciseFinding: "Static source assertions prove the issuer authorizes a selected post before generating a user-only tmp key, the consumer accepts that key for another post, and current RLS has actor/post ownership checks without object-to-original-post binding. The test performs no auth, database, storage, or network operation." },
     { sourceFile: "src/pages/api/forum/post-media.ts", symbol: "POST", evidenceType: "consent-insufficiency", conciseFinding: "A future consent check can run after auth.getUser(token), but it cannot establish which post authorized an existing tmp object. Runtime provenance and forward RLS/schema enforcement are both required before this method can be re-audited complete." }
   ]
 }];
-export const resolvedSecurityFindings = [...resolvedExternalVideoAuthorizationOrderingFindings, {
+export const releaseBlockingFindings = [];
+export const resolvedPostMediaCrossPostProvenanceFindings = [{
+  id: "POST_MEDIA_TMP_OBJECT_CROSS_POST_PROVENANCE",
+  status: "resolved-source-awaiting-deployment",
+  severity: "historical-release-blocking",
+  blockerCheckpoint: "7fae49fc9e0d13928bbd9ab196051fbbdacc4c0a",
+  remediationCommit: "Fix and trace post-bound media provenance",
+  sourceFile: "src/pages/api/forum/post-media.ts",
+  method: "POST",
+  symbol: "POST,validateMediaArray,buildTmpVideoKey,post_media_insert_self,post_media_update_self_or_staff",
+  forwardMigration: "supabase/migrations/20260713_post_bound_media_provenance.sql",
+  migrationExecutionStatus: "authored-not-executed",
+  runtimeRemediationStatus: "implemented-source-reaudited",
+  historicalEvidence: historicalPostMediaCrossPostProvenanceBlocker,
+  conciseFinding: "The former same-actor post-A-to-post-B temporary-media replay is resolved in source by canonical tmp/<verified-actor-id>/<authorized-post-id>/<random-object-name> keys, finalization validation that binds actor, selected post, and object path, and matching forward post_media INSERT/UPDATE RLS. The new migration remains unexecuted and is a deployment prerequisite.",
+  evidence: [
+    { sourceFile: "src/lib/r2-server.ts", symbol: "buildTmpVideoKey,requireCanonicalUuidSegment", evidenceType: "post-bound-key-generation", conciseFinding: "The key builder normalizes and UUID-validates the verified actor and target post before returning exactly tmp/<actor-id>/<post-id>/<server-random-uuid>-<normalized-file-name>; client input cannot choose the actor namespace, target segment, or random identity." },
+    { sourceFile: "src/pages/api/forum/external-video-upload.ts", symbol: "POST#post.lookup,POST#post.authorize,POST#key.build", evidenceType: "upload-authorization-order", conciseFinding: "POST verifies the bearer actor, applies assertUserCanWrite, validates the body and UUID-shaped post id, reads the server post, requires server author equality, then creates the post-bound key before Turnstile, rate processing, R2 signing, and operational attempt persistence." },
+    { sourceFile: "src/pages/api/forum/post-media.ts", symbol: "POST,validateMediaArray", evidenceType: "runtime-provenance-finalization", conciseFinding: "POST verifies the actor, applies user-safety authorization, validates the payload and target post ownership, then validates every storage path against the exact actor/post direct or temporary canonical form before resetCover or post_media insert; foreign video URLs and ambiguous separator forms are rejected." },
+    { sourceFile: "supabase/migrations/20260713_post_bound_media_provenance.sql", symbol: "is_canonical_post_media_object_key,can_bind_post_media_provenance,post_media_insert_self,post_media_update_self_or_staff", evidenceType: "forward-rls-provenance-enforcement", conciseFinding: "The forward policy requires auth.uid row ownership, an auth.uid-authored target post, and a fully anchored actor/post object path for INSERT and ordinary-user UPDATE. Missing, cross-user, cross-post, percent-encoded, query, fragment, backslash, and prefix-confused provenance fails closed." },
+    { sourceFile: "scripts/test-post-media-provenance-authorization.mjs", symbol: "post-media-provenance-authorization", evidenceType: "offline-runtime-and-migration-regression", conciseFinding: "Offline Vite-loaded validation accepts an actor A post A key only for post A and rejects post-A-to-post-B replay, actor substitution, actor-only legacy tmp paths, encoded or duplicate separators, traversal, and foreign URLs before finalization writes; static assertions pin historical migration blobs and the new RLS predicates." },
+    { sourceFile: "src/pages/api/forum/post-media.ts", symbol: "POST#resetCover,POST#insert", evidenceType: "first-mutation-and-retry-behavior", conciseFinding: "After authorization and provenance validation, resetCover is the first persistent domain mutation, followed by media insert and optional post moderation update. The route has no transaction or idempotency key, so retry and partial-failure behavior remains Phase 4B hardening rather than an authorization bypass." },
+    { sourceFile: "src/pages/api/forum/post-media.ts", symbol: "POST", evidenceType: "consent-boundary", conciseFinding: "A future consent guard belongs immediately after verified auth.getUser(token) and before assertUserCanWrite, target-post processing, provenance validation, resetCover, or insertion. Consent does not establish actor-to-post-to-object provenance and cannot replace the runtime and RLS controls." }
+  ]
+}];
+export const resolvedSecurityFindings = [...resolvedExternalVideoAuthorizationOrderingFindings, ...resolvedPostMediaCrossPostProvenanceFindings, {
   id: "RESEND_CONFIRMATION_EXTERNAL_REDIRECT",
   status: "resolved",
   severity: "historical-release-blocking",
@@ -389,16 +413,29 @@ export const batch5cTraces = {
     ]
   }
 };
-export const batch5dBlockers = {
+export const batch5dTraces = {
   "src/pages/api/forum/post-media.ts#POST": {
-    traceStatus: "incomplete",
-    traceEvidenceComplete: false,
-    traceCompleteness: "blocked",
-    blockerId: "POST_MEDIA_TMP_OBJECT_CROSS_POST_PROVENANCE",
-    conciseFinding: "Actor-scoped tmp media paths can be replayed from one owned post to another because neither runtime nor current RLS preserves object-to-original-post provenance.",
-    requiresRuntimeRemediation: true,
-    requiresForwardMigrationRemediation: true,
-    consentDoesNotRemediateAuthorization: true
+    traceStatus: "complete",
+    traceEvidenceComplete: true,
+    traceCompleteness: "complete",
+    historicalBlockerId: "POST_MEDIA_TMP_OBJECT_CROSS_POST_PROVENANCE",
+    blockerCheckpoint: "7fae49fc9e0d13928bbd9ab196051fbbdacc4c0a",
+    forwardMigration: "supabase/migrations/20260713_post_bound_media_provenance.sql",
+    migrationExecutionStatus: "authored-not-executed",
+    runtimeRemediationStatus: "implemented-source-reaudited",
+    consentInsertionPoint: "POST after auth.getUser(token) verification and before assertUserCanWrite, target-post processing, provenance validation, resetCover, or insertion",
+    consentInsertion: { symbol: "POST", precedingStage: "The bearer-bound anon-key client has completed auth.getUser(token) and derives authData.user.id as the only actor.", followingStage: "POST calls assertUserCanWrite, parses JSON, validates the target post and canonical provenance, resets the existing cover, moderates storage media, inserts post_media, and may update post moderation state.", refactorRequired: false, smallestFutureRefactor: "Await the consent guard immediately after the authData.user check and pass only authData.user.id before assertUserCanWrite." },
+    currentExecutionOrder: ["runtime-environment-validation", "bearer-presence-validation", "construct-bearer-bound-anon-rls-client", "authenticate", "derive-verified-actor", "global-user-safety-authorization", "json-payload-parse", "post-id-validation", "server-target-post-read", "server-post-author-authorization", "canonical-actor-post-object-provenance-validation", "reset-existing-cover-first-persistent-domain-mutation", "post-bound-storage-moderation-reads-and-fixed-provider-call-when-configured", "post-media-insert", "conditional-post-moderation-update", "response"],
+    evidence: [
+      { sourceFile: "src/pages/api/forum/post-media.ts", symbol: "POST,getBearerToken,createClient,auth.getUser", evidenceType: "handler-authentication-and-verified-actor", conciseFinding: "POST requires a bearer, constructs only an anon-key client carrying that bearer, verifies auth.getUser(token), and derives the actor only from authData.user.id; payload fields cannot replace user, author, owner, role, or client identity." },
+      { sourceFile: "src/lib/server/user-safety.server.ts", symbol: "assertUserCanWrite", evidenceType: "pre-write-safety-authorization", conciseFinding: "POST passes only the verified actor id and post_media action to the safety helper, which reads that actor's state before payload target work or persistent mutation." },
+      { sourceFile: "src/pages/api/forum/post-media.ts", symbol: "POST#post.lookup,POST#post.authorize", evidenceType: "server-derived-target-authorization", conciseFinding: "POST trims and normalizes post_id, reads the selected server post, and requires server-read author_id equality with the verified actor before media provenance validation or resetCover." },
+      { sourceFile: "src/pages/api/forum/post-media.ts", symbol: "validateMediaArray", evidenceType: "canonical-runtime-provenance", conciseFinding: "Video finalization accepts only exact direct actor/post paths or tmp/actor/post paths and rejects foreign URLs, actor-only legacy tmp paths, missing post segments, encoded separators, duplicate slashes, query/fragment forms, and backslash traversal before any domain write." },
+      { sourceFile: "src/pages/api/forum/external-video-upload.ts", symbol: "POST#key.build", evidenceType: "issuer-binding", conciseFinding: "The upload issuer calls buildTmpVideoKey(authData.user.id, postId, fileNameRaw) only after verified server post ownership and before Turnstile/signing, preserving the exact target post in the generated temporary object key." },
+      { sourceFile: "supabase/migrations/20260713_post_bound_media_provenance.sql", symbol: "post_media_insert_self,post_media_update_self_or_staff", evidenceType: "forward-rls-equivalence", conciseFinding: "The authored forward policies independently require auth.uid ownership, an auth.uid-authored target post, and can_bind_post_media_provenance for INSERT and ordinary-user UPDATE; the anchored helper binds actor, target post, and canonical object path." },
+      { sourceFile: "src/pages/api/forum/post-media.ts", symbol: "POST#resetCover,POST#insert", evidenceType: "first-irreversible-effect-and-partial-failure", conciseFinding: "resetCover is the first persistent domain mutation only after target and provenance checks; post_media insertion follows. No transaction or idempotency key exists, so retries and a later insert failure can leave the cover reset as Phase 4B hardening work." },
+      { sourceFile: "scripts/test-post-media-provenance-authorization.mjs", symbol: "post-media-provenance-authorization", evidenceType: "offline-regression", conciseFinding: "The offline Vite-loaded test proves post A to post B and cross-user replay are denied before finalization writes, pins historical migrations unchanged, and verifies the new forward policy binds actor, post, and object provenance without real network, R2, Supabase, or auth operations." }
+    ]
   }
 };
 export const batch3gTraces = {

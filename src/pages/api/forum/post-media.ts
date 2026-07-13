@@ -90,8 +90,8 @@ type MediaPayload =
     };
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const storagePathRegex = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[^/]+$/i;
-const tempStoragePathRegex = /^tmp\/[0-9a-f-]{36}\/[^/]+$/i;
+const storagePathRegex = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[^/?#\\%]+$/i;
+const tempStoragePathRegex = /^tmp\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[^/?#\\%]+$/i;
 const acceptedMimeTypes = new Set([
   "image/jpeg",
   "image/png",
@@ -101,15 +101,6 @@ const acceptedMimeTypes = new Set([
   "video/webm",
   "video/quicktime",
 ]);
-
-function isValidVideoUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return ["http:", "https:"].includes(url.protocol);
-  } catch {
-    return false;
-  }
-}
 
 function normalizePositiveInteger(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -238,7 +229,7 @@ async function moderatePostMedia(params: {
   };
 }
 
-function validateMediaArray(postId: string, userId: string, media: MediaPayload[]): string | null {
+export function validateMediaArray(postId: string, userId: string, media: MediaPayload[]): string | null {
   if (!Array.isArray(media) || media.length === 0) {
     return "media is required";
   }
@@ -301,23 +292,20 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
       const storagePath = String(item.storage_path ?? "").trim();
       const externalUrl = String(item.url ?? "").trim();
       const hasStoragePath = Boolean(storagePath);
-      const hasExternalUrl = Boolean(externalUrl);
 
-      if (!hasStoragePath && !hasExternalUrl) {
-        return "video requires storage_path or url";
+      if (!hasStoragePath) {
+        return "video requires storage_path";
       }
-      if (hasStoragePath) {
-        if (!storagePathRegex.test(storagePath) && !tempStoragePathRegex.test(storagePath)) {
-          return "Invalid media storage_path";
-        }
-        const isUserPostPath = storagePath.startsWith(`${userId}/${postId}/`);
-        const isUserTempPath = storagePath.startsWith(`tmp/${userId}/`);
-        if (!isUserPostPath && !isUserTempPath) {
-          return "Media storage_path must stay inside the current user/post folder";
-        }
+      if (!storagePathRegex.test(storagePath) && !tempStoragePathRegex.test(storagePath)) {
+        return "Invalid media storage_path";
       }
-      if (hasExternalUrl && !isValidVideoUrl(externalUrl)) {
-        return "Invalid video url";
+      const isUserPostPath = storagePath.startsWith(`${userId}/${postId}/`);
+      const isUserTempPath = storagePath.startsWith(`tmp/${userId}/${postId}/`);
+      if (!isUserPostPath && !isUserTempPath) {
+        return "Media storage_path must stay inside the current user/post folder";
+      }
+      if (externalUrl) {
+        return "External video urls are not supported";
       }
       if (!item.mime_type) {
         return "mime_type is required for uploaded media";
@@ -364,7 +352,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "Invalid JSON payload" }, 400);
     }
 
-    const postId = String(payload.post_id ?? "").trim();
+    const postId = String(payload.post_id ?? "").trim().toLowerCase();
     if (!uuidRegex.test(postId)) {
       return json({ error: "Invalid post_id format" }, 400);
     }
@@ -405,7 +393,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       post_id: postId,
       user_id: authData.user.id,
       kind: item.kind,
-      url: item.kind === "video" && item.url ? item.url.trim() : null,
+      url: null,
       storage_path:
         item.kind === "image"
           ? item.storage_path.trim()
@@ -441,7 +429,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         post_id: postId,
         user_id: authData.user.id,
         kind: item.kind,
-        url: item.kind === "video" && item.url ? item.url.trim() : null,
+        url: null,
         storage_path:
           item.kind === "image"
             ? item.storage_path.trim()
