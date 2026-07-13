@@ -7,10 +7,9 @@ const root = process.cwd();
 function sanitizeSearchInput(raw) {
   return String(raw)
     .trim()
-    .replace(/[%_]+/g, " ")
+    .replace(/[^\p{L}\p{N}\s-]+/gu, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 80);
+    .trim();
 }
 
 function parseForumSearchParams(rawQuery, rawType, rawCircle) {
@@ -85,6 +84,8 @@ async function main() {
 
   const invalid = parseForumSearchParams("a", "all");
   assert.equal(invalid.ok, false);
+  assert.equal(parseForumSearchParams("x".repeat(81), "all").ok, false);
+  assert.equal(parseForumSearchParams("xreal),status.eq.hidden", "all").ok, true);
 
   assert(scoreSearchText("XREAL One", "xreal") > scoreSearchText("A nice display device", "xreal"));
   assert(scoreSearchText("RayNeo X2", "rayneo x2") >= scoreSearchText("RayNeo smart glasses", "rayneo x2"));
@@ -98,6 +99,9 @@ async function main() {
   assert(/\.eq\("status", "published"\)/.test(forumSearchSource), "posts search must filter published status");
   assert(/\.eq\("moderation_status", "published"\)/.test(forumSearchSource), "posts search must filter moderation_status published");
   assert(/isPublicVisibleCircle/.test(forumSearchSource), "circle visibility helper must be used");
+  assert(/isActivePublicSearchCircle/.test(forumSearchSource), "search must fail closed for missing, inactive, or hidden parent circles");
+  assert(/circles:circle_id\(id,slug,name,status\)/.test(forumSearchSource), "post results must load parent-circle visibility fields");
+  assert(/\[\^\\p\{L\}\\p\{N\}\\s-\]\+/.test(forumSearchSource), "query text must exclude PostgREST filter grammar");
   assert(/ForumSearchType = "all" \| "posts" \| "circles" \| "users" \| "devices"/.test(typeSource), "search types must include users/devices");
   assert(/ForumSearchUserResult/.test(typeSource) && /ForumSearchDeviceResult/.test(typeSource), "search result types must include users/devices");
   assert(/counts: ForumSearchCounts/.test(typeSource), "search results must include counts");

@@ -1,6 +1,6 @@
 export const expectedBatchCount = 6;
 export const expectedMethodCount = 66;
-export const completedBatchIds = new Set(["phase4a1-trace-batch-1", "phase4a1-trace-batch-2", "phase4a1-trace-batch-3", "phase4a1-trace-batch-4"]);
+export const completedBatchIds = new Set(["phase4a1-trace-batch-1", "phase4a1-trace-batch-2", "phase4a1-trace-batch-3", "phase4a1-trace-batch-4", "phase4a1-trace-batch-5"]);
 const methodOrder = { GET: 0, POST: 1, PUT: 2, PATCH: 3, DELETE: 4 };
 export function buildTraceBatches(methodIds, representatives = []) {
   const sorted = [...methodIds].sort((a, b) => { const [af, am] = a.split("#"), [bf, bm] = b.split("#"); return af.localeCompare(bf) || methodOrder[am] - methodOrder[bm]; });
@@ -31,8 +31,8 @@ export const fileTraceProgress = {
     migrationRequired: false,
     reAuditRequired: false,
     reAuditCommit: "30ece7ec89e7de477b3b74d94e36ee51709419d5",
-    nextPendingSourceFile: "src/pages/api/forum/search.ts",
-    nextPendingMethodId: "src/pages/api/forum/search.ts#GET",
+    nextPendingSourceFile: "src/pages/api/legal/consent.ts",
+    nextPendingMethodId: "src/pages/api/legal/consent.ts#GET",
   },
   "src/pages/api/forum/media-upload-guard.ts": {
     batchId: "phase4a1-trace-batch-5",
@@ -47,8 +47,8 @@ export const fileTraceProgress = {
     firstExternalEffect: "validateTurnstileToken#fetch when required",
     firstPersistentEffect: "enforceUploadRateLimit#forum_upload_attempts.insert when under limit",
     firstDomainMutation: "none",
-    nextPendingSourceFile: "src/pages/api/forum/search.ts",
-    nextPendingMethodId: "src/pages/api/forum/search.ts#GET",
+    nextPendingSourceFile: "src/pages/api/legal/consent.ts",
+    nextPendingMethodId: "src/pages/api/legal/consent.ts#GET",
   },
   "src/pages/api/forum/post-media.ts": {
     batchId: "phase4a1-trace-batch-5",
@@ -65,8 +65,8 @@ export const fileTraceProgress = {
     targetBindingAtUpload: "server post ownership is verified before post-bound key generation",
     targetBindingAtAttach: "temporary prefix must exactly bind verified actor and current target post",
     currentRlsBinding: "forward INSERT and ordinary-user UPDATE RLS require auth.uid, auth.uid-authored target post, and canonical actor/post/object provenance",
-    nextPendingSourceFile: "src/pages/api/forum/search.ts",
-    nextPendingMethodId: "src/pages/api/forum/search.ts#GET",
+    nextPendingSourceFile: "src/pages/api/legal/consent.ts",
+    nextPendingMethodId: "src/pages/api/legal/consent.ts#GET",
   },
   "src/pages/api/forum/comments.ts": {
     batchId: "phase4a1-trace-batch-4",
@@ -97,8 +97,8 @@ export const fileTraceProgress = {
       status: "complete",
       completedMethodIds: ["src/pages/api/forum/comments.ts#PUT", "src/pages/api/forum/comments.ts#DELETE"],
       pendingMethodIds: [],
-      nextPendingSourceFile: "src/pages/api/forum/search.ts",
-      nextPendingMethodId: "src/pages/api/forum/search.ts#GET",
+      nextPendingSourceFile: "src/pages/api/legal/consent.ts",
+      nextPendingMethodId: "src/pages/api/legal/consent.ts#GET",
     },
   },
   "src/pages/api/forum/posts.ts": {
@@ -111,8 +111,8 @@ export const fileTraceProgress = {
     runtimeRemediationStatus: "implemented-source-reaudited",
     forwardMigration: "supabase/migrations/20260713_forum_posts_circle_authorization.sql",
     migrationExecutionStatus: "authored-not-executed",
-    nextPendingSourceFile: "src/pages/api/forum/search.ts",
-    nextPendingMethodId: "src/pages/api/forum/search.ts#GET",
+    nextPendingSourceFile: "src/pages/api/legal/consent.ts",
+    nextPendingMethodId: "src/pages/api/legal/consent.ts#GET",
   },
   "src/pages/api/forum/reports.ts": {
     batchId: "phase4a1-trace-batch-5",
@@ -124,8 +124,25 @@ export const fileTraceProgress = {
     runtimeRemediationStatus: "implemented-source-reaudited",
     forwardMigration: "supabase/migrations/20260713_forum_report_target_authorization.sql",
     migrationExecutionStatus: "authored-not-executed",
-    nextPendingSourceFile: "src/pages/api/forum/search.ts",
-    nextPendingMethodId: "src/pages/api/forum/search.ts#GET",
+    nextPendingSourceFile: "src/pages/api/legal/consent.ts",
+    nextPendingMethodId: "src/pages/api/legal/consent.ts#GET",
+  },
+  "src/pages/api/forum/search.ts": {
+    batchId: "phase4a1-trace-batch-5",
+    methodIds: ["src/pages/api/forum/search.ts#GET"],
+    status: "complete",
+    completedMethodIds: ["src/pages/api/forum/search.ts#GET"],
+    pendingMethodIds: [],
+    historicalBlockerId: "FORUM_SEARCH_PUBLIC_VISIBILITY_AND_QUERY_FILTER_SAFETY",
+    runtimeRemediationStatus: "implemented-source-reaudited",
+    forwardMigration: "supabase/migrations/20260713_comment_read_circle_visibility_authorization.sql",
+    migrationExecutionStatus: "authored-not-executed",
+    searchedEntityTypes: ["posts", "circles", "profiles", "devices"],
+    clientConstruction: "anon-key-only createSSRClient without request bearer propagation",
+    firstDatabaseOperation: "profiles.select(id) matching-author read when posts are enabled",
+    firstIrreversibleEffect: "none",
+    nextPendingSourceFile: "src/pages/api/legal/consent.ts",
+    nextPendingMethodId: "src/pages/api/legal/consent.ts#GET",
   },
   "src/pages/api/forum/circles/[slug]/posts.ts": {
     batchId: "phase4a1-trace-batch-4",
