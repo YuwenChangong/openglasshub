@@ -50,6 +50,12 @@ POST validates runtime env and a non-empty report id, authenticates and derives 
 
 Findings: raw helper `Error.message` values are returned to clients through both non-ok results and the generic 500 branch (Phase 4B hardening). The target/state, moderation-action, report-state, report-event, and notification writes are not transactional; each later failure can leave earlier writes committed (Phase 4B hardening). There is no report-resolved gate or action idempotency key, so repeated requests can duplicate report events and some target/user-safety actions; target post/comment moderation suppresses only an already-desired target update, not the later report event (Phase 4B hardening). Missing request-size, content-type, rate-limit, and UUID controls are Phase 4B hardening. These findings do not block this Phase 4A1 source trace.
 
+## Phase 4A1 Batch 3A - admin/users.ts GET
+
+GET requires a verified moderator or administrator before parsing `q` and `limit`. It clamps `limit` to 1 through 200, lists profile identity/display/role fields, then reads safety rows for only those returned profile ids. Missing safety rows are represented by `createDefaultUserSafetyState`, and expired suspensions are normalized in memory; neither operation writes state. There is no auth-admin call, target action, self-action path, profile or role mutation, notification, email, audit, analytics, cache, or other side effect. The acting administrator comes only from `requireModerator`; response profile ids are not action inputs.
+
+Findings: profile and safety query errors, plus generic caught errors, return raw `Error.message` values (Phase 4B hardening). `q` is embedded directly in the PostgREST `or` filter without a length bound or filter-grammar escaping, and the endpoint has no cursor pagination or read-rate limit (Phase 4B hardening). This is a read-only method, so no legal-consent insertion point applies and no mutation-specific partial-failure, idempotency, self-target, or privilege-escalation path exists.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
