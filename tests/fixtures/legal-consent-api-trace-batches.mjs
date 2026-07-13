@@ -10,6 +10,19 @@ export function buildTraceBatches(methodIds, representatives = []) {
 export function traceBatchForMethod(methodId, methodIds) { return buildTraceBatches(methodIds).find((batch) => batch.methodIds.includes(methodId))?.id ?? null; }
 
 export const fileTraceProgress = {
+  "src/pages/api/forum/comments.ts": {
+    batchId: "phase4a1-trace-batch-4",
+    methodIds: ["src/pages/api/forum/comments.ts#GET", "src/pages/api/forum/comments.ts#POST"],
+    status: "blocked",
+    blockerId: "COMMENT_REACTION_PARENT_POST_VISIBILITY_AUTHORIZATION",
+    blockedMethodId: "src/pages/api/forum/comments.ts#PUT",
+    blockedMethodBatchId: "phase4a1-trace-batch-5",
+    routeEvidenceSource: "src/pages/api/forum/comments.ts#PUT",
+    rlsEvidenceSource: "supabase/migrations/20260603_forum_comments_interactions.sql#comment_reactions_insert_self",
+    singleLayerFixInsufficient: true,
+    requiresRuntimeRemediation: true,
+    requiresForwardMigrationRemediation: true,
+  },
   "src/pages/api/forum/circles/[slug]/posts.ts": {
     batchId: "phase4a1-trace-batch-4",
     methodIds: ["src/pages/api/forum/circles/[slug]/posts.ts#GET", "src/pages/api/forum/circles/[slug]/posts.ts#PATCH", "src/pages/api/forum/circles/[slug]/posts.ts#DELETE"],
