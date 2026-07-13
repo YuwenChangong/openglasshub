@@ -1,10 +1,11 @@
 export const expectedBatchCount = 6;
 export const expectedMethodCount = 66;
+export const completedBatchIds = new Set(["phase4a1-trace-batch-1", "phase4a1-trace-batch-2"]);
 const methodOrder = { GET: 0, POST: 1, PUT: 2, PATCH: 3, DELETE: 4 };
 export function buildTraceBatches(methodIds, representatives = []) {
   const sorted = [...methodIds].sort((a, b) => { const [af, am] = a.split("#"), [bf, bm] = b.split("#"); return af.localeCompare(bf) || methodOrder[am] - methodOrder[bm]; });
   const size = Math.ceil(sorted.length / expectedBatchCount);
-  return Array.from({ length: expectedBatchCount }, (_, index) => { const methodIds = sorted.slice(index * size, (index + 1) * size); return { id: `phase4a1-trace-batch-${index + 1}`, order: index + 1, sourceFiles: [...new Set(methodIds.map((id) => id.split("#")[0]))], methodIds, methodCount: methodIds.length, representativeMethodIds: methodIds.filter((id) => representatives.includes(id)), status: index === 0 ? "complete" : "pending" }; });
+  return Array.from({ length: expectedBatchCount }, (_, index) => { const methodIds = sorted.slice(index * size, (index + 1) * size); const id = `phase4a1-trace-batch-${index + 1}`; return { id, order: index + 1, sourceFiles: [...new Set(methodIds.map((id) => id.split("#")[0]))], methodIds, methodCount: methodIds.length, representativeMethodIds: methodIds.filter((id) => representatives.includes(id)), status: completedBatchIds.has(id) ? "complete" : "pending" }; });
 }
 export function traceBatchForMethod(methodId, methodIds) { return buildTraceBatches(methodIds).find((batch) => batch.methodIds.includes(methodId))?.id ?? null; }
 
