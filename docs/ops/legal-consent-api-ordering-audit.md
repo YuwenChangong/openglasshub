@@ -26,6 +26,10 @@ GET requires moderator authentication and then calls `getSensitiveLexiconHealth`
 
 GET requires moderator authentication, bounds the queue limit, selects matching post and comment moderation rows, and sorts mapped results in memory. No persistent or external side effect occurs.
 
+## Phase 4A1 Batch 2D - admin/moderation/reject.ts POST
+
+POST requires moderator identity, validates the post/comment target payload, reads the target for already-rejected protection, updates target moderation state, then inserts the moderation action record. The verified actor supplies `moderatorId`; target fields cannot replace it. The audit record can fail after target mutation, so transactional compensation is Phase 4B hardening. Future consent belongs immediately after `requireModerator`.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
