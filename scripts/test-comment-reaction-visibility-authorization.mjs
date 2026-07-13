@@ -95,10 +95,12 @@ const deniedCases = [
 ];
 
 for (const [name, rows] of deniedCases) {
-  const attempt = await attemptReaction("insert", rows);
-  assert.equal(attempt.target.ok, false, `${name} is denied`);
-  assert.deepEqual(attempt.mutationCalls, [], `${name} makes zero reaction mutations`);
-  assert.equal(attempt.tableCalls.includes("comment_reactions"), false, `${name} never reaches reaction queries`);
+  for (const kind of ["insert", "update", "delete"]) {
+    const attempt = await attemptReaction(kind, rows);
+    assert.equal(attempt.target.ok, false, `${name} is denied for ${kind}`);
+    assert.deepEqual(attempt.mutationCalls, [], `${name} makes zero ${kind} mutations`);
+    assert.equal(attempt.tableCalls.includes("comment_reactions"), false, `${name} never reaches ${kind} reaction queries`);
+  }
 }
 
 const unauthenticated = await attemptReaction("insert", accessibleRows(), null);
@@ -131,6 +133,7 @@ for (const required of [
   "p.status = 'published'",
   "p.moderation_status = 'published'",
   "circle_ref.status = 'active'",
+  'create policy "comment_reactions_select_accessible"',
   'create policy "comment_reactions_insert_self"',
   'create policy "comment_reactions_update_self"',
   'create policy "comment_reactions_delete_self"',
@@ -139,6 +142,8 @@ for (const required of [
 }
 assert.ok((migration.match(/public\.can_access_comment_reaction_target\(comment_id\)/g) ?? []).length >= 5, "SELECT, INSERT, UPDATE, and DELETE policies all use the full target predicate");
 assert.doesNotMatch(migration, /for (?:insert|update|delete)[\s\S]{0,180}comments\.status = 'published'/i, "no mutation policy relies directly on comment publication alone");
+assert.match(migration, /for update[\s\S]*?using \([\s\S]*?user_id = auth\.uid\(\)[\s\S]*?can_access_comment_reaction_target\(comment_id\)[\s\S]*?\)[\s\S]*?with check \([\s\S]*?user_id = auth\.uid\(\)[\s\S]*?can_access_comment_reaction_target\(comment_id\)/, "UPDATE enforces ownership and the full target predicate in USING and WITH CHECK");
+assert.match(migration, /current schema has no private-circle membership relation/i, "migration records that private-circle membership is not supported by the current schema");
 const historicalMigrationHash = createHash("sha256").update(readFileSync(historicalMigrationPath)).digest("hex");
 assert.equal(historicalMigrationHash, historicalMigrationSha256, "historical reaction migration is unchanged");
 
