@@ -23,7 +23,16 @@ const resolvedPostMediaProvenance = resolvedSecurityFindings.find((finding) => f
 const resolvedForumPostsAuthorization = resolvedSecurityFindings.find((finding) => finding?.id === "FORUM_POSTS_CIRCLE_VISIBILITY_AND_EFFECT_ORDERING");
 const resolvedForumReportAuthorization = resolvedSecurityFindings.find((finding) => finding?.id === "FORUM_REPORT_TARGET_AND_INITIAL_STATE_AUTHORIZATION");
 const resolvedForumSearchVisibility = resolvedSecurityFindings.find((finding) => finding?.id === "FORUM_SEARCH_PUBLIC_VISIBILITY_AND_QUERY_FILTER_SAFETY");
+const legalConsentGet = entries.find((entry) => entry.id === "src/pages/api/legal/consent.ts#GET");
+const legalConsentPost = entries.find((entry) => entry.id === "src/pages/api/legal/consent.ts#POST");
 assert.deepEqual(releaseBlockingFindings, []);
+assert.equal(legalConsentGet?.category, "authenticated-read-only");
+assert.equal(legalConsentGet?.currentConsentRequired, false);
+assert.equal(legalConsentGet?.clientUserIdAccepted, false);
+assert.equal(legalConsentGet?.privilegedClientUsed, false);
+assert.equal(legalConsentPost?.category, "auth-or-recovery-exempt-mutation");
+assert.equal(legalConsentPost?.currentConsentRequired, false);
+assert.match(legalConsentPost?.exemptionReason ?? "", /Consent recording/i);
 assert.equal(resolvedPostMediaProvenance?.status, "resolved-source-awaiting-deployment");
 assert.equal(resolvedPostMediaProvenance?.blockerCheckpoint, "7fae49fc9e0d13928bbd9ab196051fbbdacc4c0a");
 assert.equal(resolvedPostMediaProvenance?.sourceFile, "src/pages/api/forum/post-media.ts");
