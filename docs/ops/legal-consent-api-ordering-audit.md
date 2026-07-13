@@ -30,6 +30,10 @@ GET requires moderator authentication, bounds the queue limit, selects matching 
 
 POST requires moderator identity, validates the post/comment target payload, reads the target for already-rejected protection, updates target moderation state, then inserts the moderation action record. The verified actor supplies `moderatorId`; target fields cannot replace it. The audit record can fail after target mutation, so transactional compensation is Phase 4B hardening. Future consent belongs immediately after `requireModerator`.
 
+## Phase 4A1 Batch 2E - admin/news.ts
+
+GET delegates only to read-only admin news queries and does not synchronize external news or mutate a cache. POST/PATCH validate all article fields, build a unique slug, and write `news_articles` with the verified moderator as author. DELETE validates the target id and deletes the article. Future consent belongs immediately after `requireModerator` for each mutation; no R2, email, notification, provider, or cache-persistence side effect exists.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
