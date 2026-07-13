@@ -75,7 +75,28 @@ export const historicalCommentReadCircleVisibilityFindings = [{
     { sourceFile: "tests/fixtures/legal-consent-api-methods.mjs", symbol: "COMMENT_READ_CIRCLE_ANCESTOR_VISIBILITY_AUTHORIZATION", evidenceType: "remediation-boundary", conciseFinding: "A route-only repair leaves direct public SELECT paths insufficiently protected, while an RLS-only repair cannot make GET's route-level public visibility contract explicit or consistently control enrichment. The runtime and forward policy are source-aligned and re-audited; migration execution remains required. A consent guard verifies policy acceptance, not post-to-circle accessibility." }
   ]
 }];
-export const releaseBlockingFindings = [];
+export const releaseBlockingFindings = [{
+  id: "EXTERNAL_VIDEO_UPLOAD_TARGET_AUTHORIZATION_ORDERING",
+  status: "active",
+  severity: "release-blocking",
+  sourceFile: "src/pages/api/forum/external-video-upload.ts",
+  method: "POST",
+  symbol: "POST",
+  conciseFinding: "When shouldRequireUploadTurnstile is true, POST validates Turnstile through an outbound fixed-host fetch after verified bearer authentication and global user-safety approval but before it reads the client-selected post or proves post.author_id equals the verified actor. Target-resource authorization must precede every outbound or irreversible effect.",
+  authenticationEvidence: { sourceFile: "src/pages/api/forum/external-video-upload.ts", symbol: "getBearerToken,POST", evidenceType: "bearer-authentication", conciseFinding: "POST requires a bearer, constructs an anon-key Supabase client bound to it, verifies auth.getUser(token), and derives the actor only from authData.user.id before payload handling or Turnstile." },
+  globalWriteSafetyEvidence: { sourceFile: "src/lib/server/user-safety.server.ts", symbol: "assertUserCanWrite", evidenceType: "global-write-authorization", conciseFinding: "POST passes only authData.user.id and external_video_upload. The helper denies banned, suspended, or safety-lookup-failure actors, but it does not read or authorize the requested post." },
+  firstExternalEffect: { sourceFile: "src/lib/server/turnstile.ts", symbol: "validateTurnstileToken", evidenceType: "outbound-network-effect", conciseFinding: "When called, the helper fetches the fixed https://challenges.cloudflare.com/turnstile/v0/siteverify endpoint with the client-supplied Turnstile token and request IP. The destination is not client-selected, so this is not SSRF, but it is an outbound server-side effect." },
+  targetAuthorizationEvidence: { sourceFile: "src/pages/api/forum/external-video-upload.ts", symbol: "POST", evidenceType: "late-resource-authorization", conciseFinding: "Only after validateTurnstileToken returns does stage post.lookup select posts.id and author_id by the client-supplied post_id, reject a missing post, and require post.author_id === authData.user.id." },
+  firstPersistentEffect: { sourceFile: "src/lib/server/rate-limit.ts", symbol: "enforceUploadRateLimit", evidenceType: "later-rate-attempt-write", conciseFinding: "After successful target ownership authorization and local R2 PUT URL signing, the helper can insert forum_upload_attempts. The endpoint itself performs no R2 upload, post_media insert, notification, audit, RPC, email, cache, or domain-record mutation." },
+  requiredRemediation: "Move target post lookup and post.author_id === authData.user.id authorization before the conditional validateTurnstileToken call. Denied or missing targets must return before Turnstile, R2 signing, rate-attempt persistence, or any later effect; re-audit POST after the runtime reorder. Consent enforcement cannot establish post ownership or repair this ordering.",
+  evidence: [
+    { sourceFile: "src/pages/api/forum/external-video-upload.ts", symbol: "POST", evidenceType: "current-order", conciseFinding: "Current order is runtime check; bearer presence; bearer-bound client; auth.getUser; assertUserCanWrite; JSON parse and post_id/file/mime/declared-size validation; conditional Turnstile; post lookup and author comparison; daily rate reads; local R2 signing; rate-attempt insertion; signed-upload response." },
+    { sourceFile: "src/pages/api/forum/external-video-upload.ts", symbol: "shouldRequireUploadTurnstile,validateTurnstileToken", evidenceType: "conditional-blocker-path", conciseFinding: "The call is reachable when UPLOAD_TURNSTILE_MODE is required or risk_based with a declared post_media size of at least 100 MiB. Such an authenticated, globally write-eligible caller can select another user's UUID-shaped post_id and trigger the outbound verification before the later 403 owner response." },
+    { sourceFile: "src/lib/server/turnstile.ts", symbol: "validateTurnstileToken", evidenceType: "fixed-destination-not-ssrf", conciseFinding: "The helper has one hard-coded Cloudflare URL and no caller-provided URL, host, protocol, port, redirect, DNS, download, or video metadata input. No client-selected outbound destination or video fetch exists in this endpoint." },
+    { sourceFile: "src/lib/r2-server.ts", symbol: "signR2PutUrl,buildTmpVideoKey", evidenceType: "later-storage-boundary", conciseFinding: "After target authorization the server locally creates a random UUID key under tmp/<verified-user-id>/ and cryptographically signs a PUT URL; it does not upload to R2. The browser performs the later direct upload outside this endpoint, and no post_media row is inserted here." },
+    { sourceFile: "src/pages/api/forum/external-video-upload.ts", symbol: "POST", evidenceType: "consent-boundary", conciseFinding: "A future legal-consent guard may run after verified authentication, but it cannot prove the selected post belongs to the actor. The necessary source repair is target-resource authorization before Turnstile, followed by a separate POST re-audit." }
+  ]
+}];
 export const resolvedSecurityFindings = [{
   id: "RESEND_CONFIRMATION_EXTERNAL_REDIRECT",
   status: "resolved",

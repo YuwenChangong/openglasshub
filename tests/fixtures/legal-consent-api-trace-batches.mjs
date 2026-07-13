@@ -10,6 +10,24 @@ export function buildTraceBatches(methodIds, representatives = []) {
 export function traceBatchForMethod(methodId, methodIds) { return buildTraceBatches(methodIds).find((batch) => batch.methodIds.includes(methodId))?.id ?? null; }
 
 export const fileTraceProgress = {
+  "src/pages/api/forum/external-video-upload.ts": {
+    batchId: "phase4a1-trace-batch-5",
+    methodIds: ["src/pages/api/forum/external-video-upload.ts#POST"],
+    status: "blocked",
+    completedMethodIds: [],
+    pendingMethodIds: ["src/pages/api/forum/external-video-upload.ts#POST"],
+    blockerId: "EXTERNAL_VIDEO_UPLOAD_TARGET_AUTHORIZATION_ORDERING",
+    bearerAuthenticationSymbol: "getBearerToken,POST",
+    verifiedActorSymbol: "auth.getUser",
+    globalWriteSafetySymbol: "assertUserCanWrite",
+    turnstileCallSymbol: "validateTurnstileToken",
+    outboundFetchSymbol: "fetch",
+    targetPostLookupSymbol: "POST#post.lookup",
+    ownershipComparisonSymbol: "post.author_id !== authData.user.id",
+    firstExternalEffect: "validateTurnstileToken",
+    firstPersistentEffect: "enforceUploadRateLimit#forum_upload_attempts.insert",
+    reAuditRequired: true,
+  },
   "src/pages/api/forum/comments.ts": {
     batchId: "phase4a1-trace-batch-4",
     methodIds: ["src/pages/api/forum/comments.ts#GET", "src/pages/api/forum/comments.ts#POST"],

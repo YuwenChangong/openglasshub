@@ -18,7 +18,15 @@ const resolvedResendConfirmationRedirect = resolvedSecurityFindings.find((findin
 const resolvedCommentReactionVisibility = resolvedSecurityFindings.find((finding) => finding?.id === "COMMENT_REACTION_PARENT_POST_VISIBILITY_AUTHORIZATION");
 const resolvedCommentCreationVisibility = resolvedSecurityFindings.find((finding) => finding?.id === "COMMENT_CREATION_CIRCLE_ANCESTOR_AUTHORIZATION");
 const resolvedCommentReadVisibility = resolvedSecurityFindings.find((finding) => finding?.id === "COMMENT_READ_CIRCLE_ANCESTOR_VISIBILITY_AUTHORIZATION");
-assert.deepEqual(releaseBlockingFindings, []);
+const externalVideoOrderingBlocker = releaseBlockingFindings.find((finding) => finding?.id === "EXTERNAL_VIDEO_UPLOAD_TARGET_AUTHORIZATION_ORDERING");
+assert.equal(releaseBlockingFindings.length, 1);
+assert.equal(externalVideoOrderingBlocker?.status, "active");
+assert.equal(externalVideoOrderingBlocker?.sourceFile, "src/pages/api/forum/external-video-upload.ts");
+assert.equal(externalVideoOrderingBlocker?.method, "POST");
+assert.equal(externalVideoOrderingBlocker?.firstExternalEffect?.symbol, "validateTurnstileToken");
+assert.equal(externalVideoOrderingBlocker?.targetAuthorizationEvidence?.symbol, "POST");
+assert.equal(externalVideoOrderingBlocker?.firstPersistentEffect?.symbol, "enforceUploadRateLimit");
+assert(externalVideoOrderingBlocker?.evidence?.every((entry) => entry.sourceFile && entry.symbol && entry.evidenceType && entry.conciseFinding));
 assert.equal(resolvedCommentReadVisibility?.status, "resolved-source-awaiting-deployment");
 assert.equal(resolvedCommentReadVisibility?.remediationCommit, "aa2cf01be3a21eed9d3a0de111bc249c0ead046a");
 assert.equal(resolvedCommentReadVisibility?.sourceFile, "src/pages/api/forum/comments.ts");
