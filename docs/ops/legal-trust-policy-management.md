@@ -109,4 +109,10 @@ The canonical 30-state manifest is `tests/visual/legal-consent-state-matrix.mjs`
 
 This is page/session enforcement only. Mutation APIs remain intentionally unchanged until Phase 4, so direct API bypass is not prevented by Phase 3B2A. Production migration/runtime configuration, public legal contact values, and qualified legal review remain pending.
 
+## Phase 3B2B route coverage
+
+`tests/fixtures/legal-consent-page-routes.mjs` is the authoritative page-route inventory. `npm run test:legal-consent-route-coverage` compares discovered Astro page files to that inventory, verifies a single central classification for each pattern, and confirms the shared CommunityLayout hosts the gate. New production pages must be added to this inventory and classified before release. API and test-only routes are deliberately excluded. Page-level coverage does not protect direct mutation APIs; that remains Phase 4.
+
+The current audit covers 44 production Astro routes: 23 exempt, 7 public-conditional, and 14 authenticated-and-consented, with zero coverage gaps. No Phase 3B2B page types required additional visual evidence because the audit introduced no new layout integration; the Phase 3B1 and 3B2A offline matrices remain the canonical UI evidence. The mobile-header regression is an external-server consumer: start `node node_modules/astro/astro.js dev --host 127.0.0.1 --port 4323`, wait for an HTTP 200 from `http://127.0.0.1:4323/`, run the test, then stop only that spawned process. It passed twice consecutively with the known local feed/circles binding warnings.
+
 Run the normal production build after changes and inspect its output for harness names and fake fixture values. The harness is not a production route and does not introduce global page gating or mutation enforcement. Database migration/runtime configuration, public operator contact configuration, and qualified legal review remain separate prerequisites for release.

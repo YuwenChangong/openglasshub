@@ -24,6 +24,7 @@
     "test:legal-consent-visual": "node scripts/test-legal-consent-visual.mjs",
     "test:legal-consent-page-gate": "node --experimental-strip-types scripts/test-legal-consent-page-gate.mjs",
     "test:legal-consent-page-gate-visual": "node scripts/test-legal-consent-page-gate-visual.mjs",
+    "test:legal-consent-route-coverage": "node --experimental-strip-types scripts/test-legal-consent-route-coverage.mjs",
     "test:search": "node --experimental-strip-types scripts/test-search.mjs",
     "test:search-audit": "node scripts/audit-search.mjs --dist dist --strict --verbose",
     "test:post-launch": "node scripts/post-launch-check.mjs --url https://openglasshub.pages.dev --strict --verbose",
