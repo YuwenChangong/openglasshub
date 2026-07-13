@@ -140,6 +140,10 @@ type CommentReactionTargetAccess =
   | { ok: true; commentId: string; postId: string; circleId: string }
   | { ok: false; status: 404 | 500; error: string };
 
+type CommentCreationTargetAccess =
+  | { ok: true; postId: string; circleId: string; parentId: string | null }
+  | { ok: false; status: 404 | 500; error: string };
+
 /**
  * Resolve the whole visibility chain before a reaction can mutate state. Every
  * relationship comes from server reads rather than the request payload.
@@ -198,6 +202,93 @@ export async function resolveAccessibleCommentReactionTarget(
   }
 
   return { ok: true, commentId: comment.id, postId: post.id, circleId: circle.id };
+}
+
+/**
+ * Resolve every ancestor a new comment depends on before any moderation or
+ * rate-limit side effect. The request supplies only candidate ids; the post,
+ * circle, and parent relationship are re-derived from RLS-scoped reads.
+ */
+export async function resolveAccessibleCommentCreationTarget(
+  client: SupabaseClient,
+  postId: string,
+  parentId: string | null,
+): Promise<CommentCreationTargetAccess> {
+  const { data: post, error: postError } = await client
+    .from("posts")
+    .select("id,circle_id,status,moderation_status")
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (postError) {
+    return { ok: false, status: 500, error: "COMMENT_TARGET_LOOKUP_FAILED" };
+  }
+
+  const postRow = post as {
+    id: string;
+    circle_id: string | null;
+    status: string;
+    moderation_status?: string | null;
+  } | null;
+  if (
+    !postRow ||
+    postRow.id !== postId ||
+    !postRow.circle_id ||
+    !UUID_REGEX.test(postRow.circle_id) ||
+    postRow.status !== "published" ||
+    postRow.moderation_status !== "published"
+  ) {
+    return { ok: false, status: 404, error: "COMMENT_TARGET_NOT_ACCESSIBLE" };
+  }
+
+  const { data: circle, error: circleError } = await client
+    .from("circles")
+    .select("id,slug,name,status")
+    .eq("id", postRow.circle_id)
+    .maybeSingle();
+
+  if (circleError) {
+    return { ok: false, status: 500, error: "COMMENT_TARGET_LOOKUP_FAILED" };
+  }
+  if (
+    !circle ||
+    circle.id !== postRow.circle_id ||
+    circle.status?.toLowerCase() !== "active" ||
+    !isPublicVisibleCircle(circle)
+  ) {
+    return { ok: false, status: 404, error: "COMMENT_TARGET_NOT_ACCESSIBLE" };
+  }
+
+  if (parentId) {
+    const { data: parentComment, error: parentError } = await client
+      .from("comments")
+      .select("id,post_id,status,moderation_status")
+      .eq("id", parentId)
+      .eq("post_id", postRow.id)
+      .maybeSingle();
+
+    if (parentError) {
+      return { ok: false, status: 500, error: "COMMENT_TARGET_LOOKUP_FAILED" };
+    }
+
+    const parentRow = parentComment as {
+      id: string;
+      post_id: string;
+      status: string;
+      moderation_status?: string | null;
+    } | null;
+    if (
+      !parentRow ||
+      parentRow.id !== parentId ||
+      parentRow.post_id !== postRow.id ||
+      parentRow.status !== "published" ||
+      parentRow.moderation_status !== "published"
+    ) {
+      return { ok: false, status: 404, error: "COMMENT_PARENT_NOT_ACCESSIBLE" };
+    }
+  }
+
+  return { ok: true, postId: postRow.id, circleId: circle.id, parentId };
 }
 
 // ---------------------------------------------------------------------------
@@ -462,6 +553,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "body must be 1-5000 characters" }, 400);
     }
 
+    // Verify profile and resolve every target ancestor before moderation or
+    // rate persistence, so inaccessible content cannot produce any effect.
+    const { data: profile, error: profileError } = await userClient
+      .from("profiles")
+      .select("id, username, display_name, avatar_url, role")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+    if (profileError) {
+      return json({ error: profileError.message }, 500);
+    }
+    if (!profile) {
+      return json({ error: "Profile not found for current user" }, 403);
+    }
+
+    const commentTarget = await resolveAccessibleCommentCreationTarget(userClient, postId, parentId);
+    if (!commentTarget.ok) {
+      return json({ error: commentTarget.error }, commentTarget.status);
+    }
+
     const moderation = await moderateContent(env, {
       contentType: "comment_body",
       userId: authData.user.id,
@@ -500,52 +610,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    // Verify profile exists
-    const { data: profile, error: profileError } = await userClient
-      .from("profiles")
-      .select("id, username, display_name, avatar_url, role")
-      .eq("id", authData.user.id)
-      .maybeSingle();
-    if (profileError) {
-      return json({ error: profileError.message }, 500);
-    }
-    if (!profile) {
-      return json({ error: "Profile not found for current user" }, 403);
-    }
-
-    // Verify post exists and is published
-    const { data: post, error: postError } = await userClient
-      .from("posts")
-      .select("id, author_id, status, moderation_status")
-      .eq("id", postId)
-      .maybeSingle();
-    if (postError) return json({ error: postError.message }, 500);
-    if (!post) return json({ error: "Post not found" }, 404);
-    if (
-      (post as { status: string }).status !== "published" ||
-      (post as { moderation_status?: string | null }).moderation_status !== "published"
-    ) {
-      return json({ error: "Cannot comment on non-published post" }, 403);
-    }
-
-    // If parent_id is provided, verify parent comment exists and is published
-    if (parentId) {
-      const { data: parentComment, error: parentError } = await userClient
-        .from("comments")
-        .select("id, status, moderation_status")
-        .eq("id", parentId)
-        .eq("post_id", postId)
-        .maybeSingle();
-      if (parentError) return json({ error: parentError.message }, 500);
-      if (!parentComment) return json({ error: "Parent comment not found" }, 404);
-      if (
-        (parentComment as { status: string }).status !== "published" ||
-        (parentComment as { moderation_status?: string | null }).moderation_status !== "published"
-      ) {
-        return json({ error: "Cannot reply to a deleted comment" }, 400);
-      }
-    }
-
     const requiresReview = moderation.decision === "review";
     const isDegradedAllow = isLocalDegradedModerationResult(moderation);
     const insertedStatus = requiresReview ? "pending" : "published";
@@ -554,7 +618,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Insert comment
     const insertPayload: Record<string, unknown> = {
-      post_id: postId,
+      post_id: commentTarget.postId,
       author_id: authData.user.id,
       body,
       status: insertedStatus,
@@ -565,7 +629,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       moderated_by: null,
       moderation_provider: requiresReview || isDegradedAllow ? moderation.provider : null,
     };
-    if (parentId) insertPayload.parent_id = parentId;
+    if (commentTarget.parentId) insertPayload.parent_id = commentTarget.parentId;
 
     const { data: inserted, error: insertError } = await userClient
       .from("comments")

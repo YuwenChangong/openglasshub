@@ -71,11 +71,14 @@ assert.equal(commentPutTrace?.migrationExecutionStatus, "authored-not-executed")
 assert.equal(commentPostBlocker?.status, "active");
 assert.equal(commentPostBlocker?.sourceFile, "src/pages/api/forum/comments.ts");
 assert.equal(commentPostBlocker?.method, "POST");
-assert.equal(commentPostBlocker?.routeEvidence?.symbol, "POST");
+assert.equal(commentPostBlocker?.routeEvidence?.symbol, "resolveAccessibleCommentCreationTarget");
 assert.equal(commentPostBlocker?.rlsEvidence?.symbol, "comments_insert_self");
 assert.equal(commentPostBlocker?.singleLayerFixInsufficient, true);
 assert.equal(commentPostBlocker?.requiresRuntimeRemediation, true);
 assert.equal(commentPostBlocker?.requiresForwardMigrationRemediation, true);
+assert.equal(commentPostBlocker?.runtimeRemediationStatus, "implemented-source-awaiting-post-reaudit");
+assert.equal(commentPostBlocker?.migrationExecutionStatus, "authored-not-executed");
+assert.equal(commentPostBlocker?.postReauditRequired, true);
 assert.equal(commentPostBlockerTrace?.traceStatus, "blocked");
 assert.equal(commentPostBlockerTrace?.traceEvidenceComplete, false);
 assert.equal(commentPostBlockerTrace?.traceCompleteness, "blocked");
