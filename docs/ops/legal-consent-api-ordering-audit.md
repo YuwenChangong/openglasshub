@@ -70,6 +70,12 @@ POST validates runtime env and a non-empty route target id, verifies the bearer 
 
 Clear warning rejects suspended or banned states. It decrements one warning and emits a `note` event with the verified actor when a warning exists; an active zero-warning state returns a no-op success without state write, event, or notification. There is no separate warning metadata to erase, and no clear-warning notification/email/external branch. The state upsert precedes the event, so event failure can leave committed state; concurrent requests have no idempotency key beyond the normal no-op path. Content type, body-size, rate limit, route UUID validation, and later raw helper-error exposure remain Phase 4B hardening. Future consent belongs after `requireModerator` and before JSON parsing. Batch 3 remains pending at 25/66 traced and 41 pending.
 
+## Phase 4A1 Batch 3D - admin/users/[id]/safety.ts GET
+
+GET validates runtime env and only a non-empty target id, then requires a verified moderator/admin before reading the target profile. It concurrently loads normalized safety state and the 100 most recent safety events ordered newest first, then reads profiles for distinct event actors. It does not invoke the user-safety action or privilege hierarchy helper because no mutation is attempted; there is no self-target or target-hierarchy action authorization path to apply.
+
+The staff-only response includes the target role, full normalized state including `ban_reason` and `updated_by`, plus each event's actor id, reason, metadata, and actor profile. It does not select email. No safety-state, last-viewed, audit, event, notification, cache, RPC, email, external-service, or privileged-client mutation occurs. Raw database/helper `Error.message` values can reach 500 responses, and the endpoint has no UUID validation, cursor pagination, or read-rate limit; these are Phase 4B hardening findings. No consent insertion point applies to this read-only route. Batch 3 remains pending at 26/66 traced and 40 pending.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
