@@ -115,4 +115,8 @@ This is page/session enforcement only. Mutation APIs remain intentionally unchan
 
 The current audit covers 44 production Astro routes: 23 exempt, 7 public-conditional, and 14 authenticated-and-consented, with zero coverage gaps. No Phase 3B2B page types required additional visual evidence because the audit introduced no new layout integration; the Phase 3B1 and 3B2A offline matrices remain the canonical UI evidence. The mobile-header regression is an external-server consumer: start `node node_modules/astro/astro.js dev --host 127.0.0.1 --port 4323`, wait for an HTTP 200 from `http://127.0.0.1:4323/`, run the test, then stop only that spawned process. It passed twice consecutively with the known local feed/circles binding warnings.
 
+## Phase 4A1 checkpoint
+
+The policy-level mutation inventory is checkpointed before deep execution tracing. All 66 methods are deterministically assigned to six pending batches. Evidence-backed tracing must reach 66/66 before Phase 4A1 can be ready; no mutation endpoint is protected at this checkpoint, and Phase 4A2 remains the first representative route integration phase.
+
 Run the normal production build after changes and inspect its output for harness names and fake fixture values. The harness is not a production route and does not introduce global page gating or mutation enforcement. Database migration/runtime configuration, public operator contact configuration, and qualified legal review remain separate prerequisites for release.

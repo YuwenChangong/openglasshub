@@ -1,0 +1,8 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { buildTraceBatches, expectedBatchCount, expectedMethodCount } from "../tests/fixtures/legal-consent-api-trace-batches.mjs";
+const root=process.cwd(); async function walk(dir){const items=await fs.readdir(dir,{withFileTypes:true});return (await Promise.all(items.map(x=>x.isDirectory()?walk(path.join(dir,x.name)):[path.join(dir,x.name)]))).flat();}
+const files=(await walk(path.join(root,"src/pages/api"))).filter(x=>x.endsWith(".ts")); const methodIds=[]; for(const file of files){const text=await fs.readFile(file,"utf8");for(const match of text.matchAll(/export const (GET|POST|PUT|PATCH|DELETE)\s*:/g))methodIds.push(`${path.relative(root,file).replaceAll("\\","/")}#${match[1]}`);}
+const representatives=["src/pages/api/forum/comments.ts#POST","src/pages/api/forum/posts.ts#POST","src/pages/api/users/me/profile.ts#POST","src/pages/api/admin/moderation/hide.ts#POST","src/pages/api/forum/reports.ts#POST"];
+const batches=buildTraceBatches(methodIds,representatives), assigned=batches.flatMap(x=>x.methodIds); assert.equal(batches.length,expectedBatchCount);assert.equal(assigned.length,expectedMethodCount);assert.equal(new Set(assigned).size,expectedMethodCount);assert.deepEqual([...assigned].sort(),[...methodIds].sort());assert.deepEqual(representatives.filter(x=>!assigned.includes(x)),[]);assert(batches.every(x=>x.status==="pending"&&x.methodCount>0));console.log(JSON.stringify({expectedBatchCount,actualBatchCount:batches.length,expectedMethodCount,assignedMethodCount:assigned.length,missingMethodIds:[],duplicateMethodIds:[],unknownMethodIds:[],unassignedRepresentativeMethodIds:[],batches}));

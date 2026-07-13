@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import { requireAuthenticatedLegalConsent } from "../src/lib/server/legal-consent-mutation.server.ts";
+import { getActiveLegalBundle } from "../src/lib/server/legal-consent.server.ts";
+const bundle = getActiveLegalBundle();
+const repository = (record) => ({ findByUserAndBundle: async () => record });
+let result = await requireAuthenticatedLegalConsent(null); assert.equal(result.ok, false); assert.equal(result.response.status, 401);
+result = await requireAuthenticatedLegalConsent({ identity: { userId: "test-user" }, repository: repository(null) }); assert.equal(result.ok, false); assert.equal(result.response.status, 403); assert.deepEqual(await result.response.json(), { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" });
+result = await requireAuthenticatedLegalConsent({ identity: { userId: "test-user" }, repository: repository({ userId: "test-user", ...bundle, lastConfirmedAt: "2026-01-01T00:00:00Z" }) }); assert.equal(result.ok, true);
+result = await requireAuthenticatedLegalConsent({ identity: { userId: "test-user" }, repository: { findByUserAndBundle: async () => { throw new Error("offline"); } } }); assert.equal(result.ok, false); assert.equal(result.response.status, 503);
+console.log("LEGAL_CONSENT_MUTATION_GUARD_OK offline cases=4");
