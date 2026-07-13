@@ -119,4 +119,8 @@ The current audit covers 44 production Astro routes: 23 exempt, 7 public-conditi
 
 The policy-level mutation inventory is checkpointed before deep execution tracing. All 66 methods are deterministically assigned to six pending batches. Evidence-backed tracing must reach 66/66 before Phase 4A1 can be ready; no mutation endpoint is protected at this checkpoint, and Phase 4A2 remains the first representative route integration phase.
 
+## Phase 4A1 release blocker checkpoint
+
+Phase 4A1 is blocked at `src/pages/api/admin/users/[id]/ban.ts#POST`. The verified moderator path reaches `applyUserSafetyAction`, which prevents self-targeting but does not load the target role or compare target and actor privilege before committing a ban safety-state transition. A moderator can therefore ban a different moderator or administrator. No further mutation trace completion may proceed past this checkpoint. Remediation must be a separate narrowly scoped runtime-security task, followed by re-audit of this method. Production remains `NO_GO`.
+
 Run the normal production build after changes and inspect its output for harness names and fake fixture values. The harness is not a production route and does not introduce global page gating or mutation enforcement. Database migration/runtime configuration, public operator contact configuration, and qualified legal review remain separate prerequisites for release.

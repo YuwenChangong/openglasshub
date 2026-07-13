@@ -56,6 +56,12 @@ GET requires a verified moderator or administrator before parsing `q` and `limit
 
 Findings: profile and safety query errors, plus generic caught errors, return raw `Error.message` values (Phase 4B hardening). `q` is embedded directly in the PostgREST `or` filter without a length bound or filter-grammar escaping, and the endpoint has no cursor pagination or read-rate limit (Phase 4B hardening). This is a read-only method, so no legal-consent insertion point applies and no mutation-specific partial-failure, idempotency, self-target, or privilege-escalation path exists.
 
+## Phase 4A1 Batch 3 blocker - admin/users/[id]/ban.ts POST
+
+`POST` derives the acting user exclusively from `requireModerator`, which verifies the bearer session and permits either `moderator` or `admin`. The route passes the non-empty `[id]` only as `targetUserId` into `applyUserSafetyAction`; request data cannot replace `auth.user.id`. `applyUserSafetyAction` rejects `actorId === targetUserId`, but its target profile query selects only `id`. It neither reads the target role nor compares target and actor privilege before the ban transition.
+
+Consequently, a moderator can ban a different moderator or administrator. The insufficient authorization reaches `upsertUserSafetyState`, the first irreversible side effect, then `insertUserSafetyEvent`; notification is attempted afterward and failure is swallowed. Consent enforcement inserted after `requireModerator` would not repair the missing target-role authorization. This is release-blocking. Batch 3 tracing is paused at 23/66 traced and 43 pending until a separate narrow runtime-security remediation and re-audit complete.
+
 ## Phase 4A1 Batch 1E - admin/forum/reports.ts
 
 GET is a moderator-only report read. It bounds the limit, selects post reports, and reads linked posts, circles, and profiles for response formatting. No report status/event, target, notification, email, external-service, or other state mutation occurs. Parent Batch 1 remains pending.
