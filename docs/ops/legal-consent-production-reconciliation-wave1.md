@@ -1,6 +1,6 @@
 # Production Reconciliation Wave 1 Review
 
-Status: `PARTIALLY_AUTHORED_LOCAL_VALIDATED`; production remains `NO_GO`.
+Status: `TWO_PROPOSALS_AUTHORED_LOCAL_VALIDATED`; production remains `NO_GO`.
 
 Reviewed commit: `4fb0c31765684a60a4a9b8e142eb5b97504e3f03`. This is not a canonical migration. No production SQL, Supabase cloud operation, migration repair, deployment, or production data operation occurred.
 
@@ -8,10 +8,10 @@ Reviewed commit: `4fb0c31765684a60a4a9b8e142eb5b97504e3f03`. This is not a canon
 
 | Exact signature | Expected body hash | Observed body hash | Body evidence | Proposal status |
 | --- | --- | --- | --- | --- |
-| `public.increment_post_view_count(uuid)` | `5e5d6c9682a32dbb9deb7003be854eaf06700577593c7b7ac108ddecd55fed5d` | `c29ed210f5aa903e33323aff772130d038f72c42cd6ccae593e33dda5d87b1f2` | `BODY_DIVERGENT` | Blocked; no proposal SQL authored for this function. |
+| `public.increment_post_view_count(uuid)` | `5e5d6c9682a32dbb9deb7003be854eaf06700577593c7b7ac108ddecd55fed5d` | `c29ed210f5aa903e33323aff772130d038f72c42cd6ccae593e33dda5d87b1f2` | `FORENSIC_DIFF_SECURITY_BROADENING_NO_PRODUCT_DECISION` | Separate Wave 1B body/metadata/ACL proposal authored and locally validated. |
 | `public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)` | `96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2` | `96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2` | `EXACT_BODY_MATCH` | Metadata/ACL proposal authored and locally validated. |
 
-`increment_post_view_count` is SECURITY DEFINER, owned by `postgres`, returns `void`, and has `search_path=public` in both captured definitions. Its observed body updates any published post by id; the expected body additionally requires published moderation status and `can_access_public_circle`. ACL repair cannot conceal that behavioral divergence. Fresh read-only production preflight and a separately reviewed body-level proposal are required.
+`increment_post_view_count` is SECURITY DEFINER, owned by `postgres`, returns `void`, and has `search_path=public` in both captured definitions. Its observed body updates any published post by id; the expected body additionally requires published moderation status and `can_access_public_circle`. The Wave 1B forensic review classifies both omissions as security broadening, establishes the exact public post-detail caller contract, and finds no product-semantic choice requiring a human decision. Its separate body-level proposal remains unexecuted and non-production only.
 
 `insert_forum_notification` is SECURITY DEFINER, owned by `postgres`, returns `void`, and has `search_path=public, pg_temp` in both captured definitions. Its body exactly matches. The observed production ACL has effective `PUBLIC`, `anon`, and `authenticated` execution and lacks the expected service-role-only direct grant. The server-only writer in `src/lib/server/moderation-notifications.server.ts` lazily constructs the service-role client after verified actor/target normalization and calls only this fixed RPC. No other runtime application caller exists. `src/lib/post-engagement.ts` is the public caller of the separate view-count RPC; anon/authenticated execution remains intended for that function but is blocked from this metadata-only wave due to its divergent body.
 

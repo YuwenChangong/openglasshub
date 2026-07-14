@@ -101,14 +101,14 @@ function sourceMigrationsFor(entry, row) {
 
 function wave1Status(identity) {
   if (identity === "increment_post_view_count(uuid)") return {
-    proposalStatus: "BLOCKED_BODY_DIVERGENT",
-    bodyEvidence: "BODY_DIVERGENT",
+    proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+    bodyEvidence: "FORENSIC_DIFF_SECURITY_BROADENING_NO_PRODUCT_DECISION",
     preflightRequired: true,
-    proposalFile: null,
-    localSimulationStatus: "NOT_RUN_BODY_BLOCKER",
-    verificationStatus: "BODY_HASH_MISMATCH_REQUIRES_SEPARATE_REVIEW",
-    blockerStatus: "BLOCKED_BODY_DIVERGENT",
-    nextApprovalRequired: "Separate body-level review and fresh read-only production preflight",
+    proposalFile: "docs/ops/reconciliation/legal-consent-production-wave1b-proposal.sql",
+    localSimulationStatus: "LOCAL_DOCKER_ONLY_BODY_METADATA_ACL_AND_BEHAVIOR_CONVERGENCE_VALIDATED",
+    verificationStatus: "FORENSIC_BODY_DIFF_AND_LOCAL_CONVERGENCE_VALIDATED",
+    blockerStatus: "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+    nextApprovalRequired: "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
   };
   if (identity === "insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid)") return {
     proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED",

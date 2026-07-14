@@ -42,11 +42,11 @@ assert.match(proposal, /GRANT EXECUTE ON FUNCTION public\.insert_forum_notificat
 assert.doesNotMatch(proposal, /increment_post_view_count/);
 assert.doesNotMatch(proposal, /CREATE OR REPLACE FUNCTION|\$function\$|GRANT\s+(?:ALL|EXECUTE)\s+ON\s+FUNCTION[^;]+\s+TO\s+PUBLIC/i);
 assert.match(forwardPlan, /`insert_forum_notification\(\.\.\.\)`: `EXACT_BODY_MATCH`/);
-assert.match(forwardPlan, /`increment_post_view_count\(uuid\)`: `BODY_DIVERGENT`/);
+assert.match(forwardPlan, /`increment_post_view_count\(uuid\)`: forensic source evidence proves the body drift is security broadening/);
 
 const waveOne = manifest.items.filter((item) => item.proposedWave === "W1_ACL_FUNCTION_HARDENING");
 assert.deepEqual([...new Set(waveOne.map((item) => item.identity))].sort(), ["increment_post_view_count(uuid)", "insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid)"]);
-for (const item of waveOne.filter((item) => item.identity === "increment_post_view_count(uuid)")) assert.equal(item.proposalStatus, "BLOCKED_BODY_DIVERGENT");
+for (const item of waveOne.filter((item) => item.identity === "increment_post_view_count(uuid)")) assert.equal(item.proposalStatus, "PROPOSAL_AUTHORED_LOCAL_VALIDATED");
 for (const item of waveOne.filter((item) => item.identity === "insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid)")) assert.equal(item.proposalStatus, "PROPOSAL_AUTHORED_LOCAL_VALIDATED");
 
 const expectedNotification = expected.objects.find((entry) => entry.identity === "insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid)" && entry.attribute === "definition");
@@ -85,4 +85,4 @@ assert.equal(owner, "postgres");
 assert.equal(securityDefiner, "true");
 assert.equal(searchPath, "search_path=public, pg_temp");
 assert.deepEqual([publicExecute, anonExecute, authenticatedExecute, serviceRoleExecute], ["false", "false", "false", "true"]);
-console.log(JSON.stringify({ localDockerOnly: true, notificationBodyHash: expectedNotification.deterministicSha256, bodyPreserved: true, driftReproduced: true, converged: true, blockedFunction: "increment_post_view_count(uuid)", realOperations: 0 }));
+console.log(JSON.stringify({ localDockerOnly: true, notificationBodyHash: expectedNotification.deterministicSha256, bodyPreserved: true, driftReproduced: true, converged: true, wave1bProposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED", realOperations: 0 }));

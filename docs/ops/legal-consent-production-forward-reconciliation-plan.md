@@ -2,7 +2,7 @@
 
 Status: `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PRODUCTION_RECONCILIATION_NO_GO`.
 
-This is a deterministic planning artifact, not an authorization to mutate production. Wave 1 has one unexecuted, non-production review proposal for an exact-body-matched function and one body-divergent blocked function; no production SQL was authored or executed. Do not use `db push`, blind historical replay, or migration-history repair.
+This is a deterministic planning artifact, not an authorization to mutate production. Wave 1 has two unexecuted, non-production review proposals: Wave 1A is an exact-body metadata/ACL convergence and Wave 1B is a separately forensically reviewed body, metadata, and ACL convergence. No production SQL was authored or executed. Do not use `db push`, blind historical replay, or migration-history repair.
 
 ## Evidence baseline
 
@@ -45,7 +45,7 @@ The order keeps a table before its constraints/indexes/RLS/RPC, a predicate func
 | Wave | Objects | Strategy and prerequisites | Stop conditions |
 | --- | ---: | --- | --- |
 | W0 operator gate | 0 | Exact target confirmation, tested backup/restore evidence, maintenance decision, offline manifest approval, and read-only preflight only. | Wrong target, missing backup rehearsal, unresolved operator/legal approval, or preflight anomaly. |
-| W1 ACL/function hardening | 2 | `insert_forum_notification(...)`: `EXACT_BODY_MATCH`; an unexecuted non-production metadata/ACL review proposal is locally validated, pending fresh preflight and human approval. `increment_post_view_count(uuid)`: `BODY_DIVERGENT`; blocked with no proposal SQL. | Any signature/body/owner/search_path mismatch, unknown caller, grant outside the approved role matrix, or a body-divergent function included in ACL-only SQL. |
+| W1 ACL/function hardening | 2 | `insert_forum_notification(...)`: `EXACT_BODY_MATCH`; an unexecuted non-production metadata/ACL review proposal is locally validated. `increment_post_view_count(uuid)`: forensic source evidence proves the body drift is security broadening with no product decision; a separate unexecuted non-production body/metadata/ACL proposal is locally validated. Both await fresh preflight and human approval. | Any signature/body/owner/search_path mismatch, unknown caller, grant outside the approved role matrix, or a body change without a completed source-backed semantic review. |
 | W2A legal table/columns | 15 | `legal_policy_acceptances` table plus 14 columns; `CREATE_MISSING` only after duplicate/version/source aggregate checks. | Existing table conflict, duplicate user/bundle rows, invalid policy versions, or incomplete backup. |
 | W2B legal constraints/trigger | 13 | Twelve acceptance constraints and updated-at trigger; `ADD_CONSTRAINT_NOT_VALID_THEN_VALIDATE` where data exists. Depends on W2A. | Any violation count is nonzero or trigger target/function differs. |
 | W2C legal indexes | 3 | Primary/unique/bundle-confirmed indexes; `CREATE_INDEX_CONCURRENTLY` where an index operation is separately approved. Depends on W2B. | Duplicate/lock budget failure or wrong index definition. |
@@ -63,7 +63,7 @@ No wave exceeds 15 logical objects or six tables. Every item has a forward-only 
 
 ### SECURITY DEFINER and ACLs
 
-W1 begins with the observed `PUBLIC:EXECUTE` exposure on `increment_post_view_count` and `insert_forum_notification`, plus the divergent authenticated/service-role ACLs. The offline production fingerprint proves the view-count body is divergent, so it remains blocked pending separate body review and has no ACL-only proposal. The notification body exactly matches; its isolated proposal at [legal-consent-production-wave1-proposal.sql](reconciliation/legal-consent-production-wave1-proposal.sql) changes only signature-qualified owner, SECURITY DEFINER, search path, and ACL metadata in a non-production transaction. Before any action, run [legal-consent-production-wave1-preflight.sql](reconciliation/legal-consent-production-wave1-preflight.sql) against a verified non-production target, attach its output, confirm the exact body hash and caller roles, and obtain human approval. `can_create_user_report_target` is included in W4 with its report-policy dependency. No generic function grant is permitted.
+W1 begins with the observed `PUBLIC:EXECUTE` exposure on `increment_post_view_count` and `insert_forum_notification`, plus the divergent authenticated/service-role ACLs. Wave 1A's notification body exactly matches; its isolated proposal at [legal-consent-production-wave1-proposal.sql](reconciliation/legal-consent-production-wave1-proposal.sql) changes only signature-qualified owner, SECURITY DEFINER, search path, and ACL metadata. Wave 1B's [forensic comparison](legal-consent-production-reconciliation-wave1b.md) proves the view-count production body lacks the source-intended moderation and public-circle predicates; its separate [proposal](reconciliation/legal-consent-production-wave1b-proposal.sql) restores only the exact verified function body and ACL contract. Before any action, run the corresponding read-only preflight against a verified non-production target, attach its output, confirm the exact body hash and caller roles, and obtain human approval. `can_create_user_report_target` is included in W4 with its report-policy dependency. No generic function grant is permitted.
 
 ### Legal-consent persistence
 
@@ -95,4 +95,4 @@ W5 requires aggregate-only preflight for storage paths with wrong actor/post/cir
 - [ ] Legal/operations owner resolves active policy bundle and public contact/legal-review blockers.
 - [ ] Human approval is recorded for each wave before any non-production or production action.
 
-Production remains `NO_GO`. The next safe action is a fresh, attached W1 preflight on a verified non-production target and human review of the notification proposal; separately resolve the view-count body divergence before any proposal for that function. No production SQL, deployment, migration execution, or migration-history operation is authorized.
+Production remains `NO_GO`. The next safe action is a fresh, attached W1A and W1B preflight on a verified non-production target and human review of the two isolated proposals. No production SQL, deployment, migration execution, or migration-history operation is authorized.
