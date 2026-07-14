@@ -33,6 +33,7 @@
     "test:legal-consent-phase4b-wave2": "node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs",
     "test:legal-consent-phase4b-wave3": "node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs",
     "test:legal-consent-phase4b-wave4": "node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs",
+    "test:legal-consent-predeployment-readiness": "node scripts/test-legal-consent-predeployment-readiness.mjs",
     "test:legal-consent-mutation-inventory": "node scripts/test-legal-consent-mutation-inventory.mjs",
     "test:legal-consent-trace-batches": "node scripts/test-legal-consent-api-trace-batches.mjs",
     "test:auth-redirect-safety": "node --experimental-strip-types scripts/test-auth-redirect-safety.mjs",

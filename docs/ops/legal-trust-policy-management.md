@@ -49,6 +49,10 @@ These values must be genuine public launch values before launch. Do not add fake
 
 Missing public operator/contact configuration blocks a fully ready legal launch classification. Phase 1 may be classified as configuration-required until those public values exist.
 
+## Pre-deployment readiness
+
+The source rollout is complete, but production remains blocked. See [legal-consent-predeployment-readiness.md](/D:/OpenGlass%20Hub%20interaction-release-fresh/docs/ops/legal-consent-predeployment-readiness.md) for the exact authored migration inventory, static SQL findings, configuration matrix, non-production verification plan, cleanup contract, and GO/NO-GO checklist. The listed public contact values and qualified legal review remain required human inputs; no source check can supply or approve them.
+
 ## Review requirements
 
 Every policy revision should go through:
