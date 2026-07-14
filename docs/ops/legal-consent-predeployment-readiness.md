@@ -55,6 +55,10 @@ The source architecture blocker is resolved by `20260717_security_definer_execut
 
 All three retain explicit trusted source search paths: notification uses `public, pg_temp`; post-view and report-target helpers use `public`. Their bodies use fixed SQL/function references and no request-controlled dynamic SQL, schema, table, function, or actor selection. Live verification must still inspect function ACLs and the target schema's CREATE privileges before a non-production run; this document does not claim live database validation.
 
+## Offline Review Packet
+
+The source-level moderation notification and migration 12 review, exact changed-file list, negative security review, migration checksums, and isolated non-production procedure are recorded in `docs/ops/legal-consent-notification-rpc-offline-review.md`. It is documentation only: explicit human approval, target identity verification, and live non-production validation remain required before any execution.
+
 ## Future execution sequence
 
 ### Stage 0: operator readiness
