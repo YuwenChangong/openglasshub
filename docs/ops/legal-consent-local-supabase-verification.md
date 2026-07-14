@@ -2,7 +2,7 @@
 
 Status: blocked during the first clean local migration replay. No remote Supabase project was linked, queried, or modified.
 
-Original replay commit: `5082063d64ce0705ee0bc609c374cac163f48536`  
+Original replay commit: `5082063d64ce0705ee0bc609c374cac163f48536`
 Forensic audit baseline: `80b2ed4753fcd3845bd0f11c3ac79a775c1633f2`
 
 ## Local-Only Target Evidence
