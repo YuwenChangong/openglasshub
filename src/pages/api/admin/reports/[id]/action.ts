@@ -6,6 +6,8 @@ import {
   sanitizeReportResolutionNote,
   type ReportAdminAction,
 } from "../../../../../lib/server/reports.server";
+import { requireAuthenticatedLegalConsent } from "../../../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../../../lib/server/legal-consent-repository.server";
 
 export const prerender = false;
 
@@ -30,6 +32,12 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
     if (!reportId) return jsonResponse({ error: "REPORT_ID_REQUIRED" }, 400);
 
     const auth = await requireModerator(request, env);
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: auth.user.id },
+      repository: createLegalConsentReadRepository(auth.client),
+    });
+    if (!consent.ok) return consent.response;
+
     const payload = (await request.json().catch(() => null)) as
       | { action?: string; note?: string | null; until?: string | null }
       | null;
