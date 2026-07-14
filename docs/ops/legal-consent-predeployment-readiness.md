@@ -12,7 +12,7 @@ Baseline: `feature/legal-trust-consent-foundation-v1` at `e7572fe1d6696d7d5f212a
 | Phase 4A2 representatives | `5/5` complete |
 | Phase 4B consent-required mutations | `37/37` integrated; zero remaining |
 | Profile/service-role audit | `49/49` passing |
-| Authored forward migrations | `0/11` executed |
+| Authored forward migrations | `0/12` executed |
 
 `npm run test:legal-consent-predeployment-readiness` is deterministic and offline. It asserts the exact migration list, dependency order, expected object fragments, no destructive DDL or broad grants in the scoped files, source guard totals, active policy bundle declaration, public-contact symbols, and the SQL blocker set. It never reads a secret value or calls a service.
 
@@ -33,10 +33,11 @@ Every item is `UNEXECUTED`. Apply only in this order, after the blockers and Sta
 | 9 | `20260714_circle_cover_public_visibility_authorization.sql` | Circle-cover predicate; circles and storage object read policies | #5 public-circle predicate | RLS/storage policy; forward fix preferred |
 | 10 | `20260715_post_media_delivery_visibility_authorization.sql` | Post-media delivery predicate; post-media and storage object read policies | #5 and #8 predicates | RLS/storage policy; forward fix preferred |
 | 11 | `20260716_profile_media_delivery_authorization.sql` | Profile-media delivery predicate; avatar/banner storage read policies | Existing profile-media storage schema | RLS/storage policy; forward fix preferred |
+| 12 | `20260717_security_definer_execute_hardening.sql` | Exact EXECUTE ACLs for three existing privileged functions; no body, schema, data, or policy change | #11 and reviewed runtime writer | ACL only; forward fix if live verification disagrees |
 
 The chain carries RLS policy replacement, `SECURITY DEFINER` functions, storage policy changes, constraints, an index, a trigger, and consent history. A migration runner may execute a file transactionally, but policy/function replacement can change runtime availability during the operation. No direct rollback SQL is approved for access control, media provenance, or acceptance history. Revert the application only where safe, then use a reviewed forward-fix migration.
 
-## Static SQL result: release blockers
+## Static SQL result: resolved in source
 
 Three `SECURITY DEFINER` functions in `public` have no explicit revocation of PostgreSQL's default `PUBLIC EXECUTE` grant in their authored migration:
 
@@ -44,7 +45,15 @@ Three `SECURITY DEFINER` functions in `public` have no explicit revocation of Po
 2. `increment_post_view_count(uuid)` in migration 6.
 3. `can_create_user_report_target(text, uuid)` in migration 7.
 
-This is a hard NO_GO. Do not run the current chain until a database-security reviewer approves a **new forward hardening migration** that revokes `PUBLIC` execute for each exact signature and grants only the minimal role required by the reviewed caller contract. That review must also recheck each function's explicit search path, authorization, service-role assumption, policy `USING`/`WITH CHECK` agreement, and caller accessibility. Do not rewrite historical migrations or perform ad hoc database changes.
+The source architecture blocker is resolved by `20260717_security_definer_execute_hardening.sql`, still `UNEXECUTED`. It revokes `PUBLIC` from all three exact signatures before applying these source-proven grants:
+
+| Function | Final direct grantee(s) | Reason |
+| --- | --- | --- |
+| `public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)` | `service_role` only | The authenticated moderator RPC path was removed. The server-only writer captures the verified moderator actor after `requireModerator` and current-consent success, accepts only four typed commands, lazily invokes this one fixed RPC after the authorized primary action, and never exposes generic RPC/table access. Existing notification triggers are `SECURITY DEFINER` database callers, not client-facing RPC callers. |
+| `public.increment_post_view_count(uuid)` | `anon`, `authenticated` | Public post pages invoke the fixed view-count RPC. Its SQL only increments a published, moderation-published post in an accessible public circle; `PUBLIC` is not used as a substitute for `anon`. |
+| `public.can_create_user_report_target(text, uuid)` | `authenticated` only | It is a boolean predicate inside `reports_insert_self`, which is itself `TO authenticated` and also requires `reporter_id = auth.uid()` plus neutral report state. It cannot independently create a report. |
+
+All three retain explicit trusted source search paths: notification uses `public, pg_temp`; post-view and report-target helpers use `public`. Their bodies use fixed SQL/function references and no request-controlled dynamic SQL, schema, table, function, or actor selection. Live verification must still inspect function ACLs and the target schema's CREATE privileges before a non-production run; this document does not claim live database validation.
 
 ## Future execution sequence
 
@@ -54,11 +63,11 @@ This is a hard NO_GO. Do not run the current chain until a database-security rev
 2. Verify a tested backup and restore runbook, recovery point, and incident owner; stop if restoration has not been rehearsed.
 3. Verify the privileged migration identity exists only in the approved operator path and is never in browser configuration or logs; stop if identity/scope is uncertain.
 4. Make an explicit maintenance and availability decision for RLS/storage-policy replacement; stop if untrusted traffic cannot be prevented between migration steps.
-5. Obtain the reviewed security-definer hardening migration; stop until its signature-specific revocations and least-privilege grants are approved.
+5. Review the exact three signatures and least-privilege matrix in migration 12; stop until explicit human approval is recorded.
 
 ### Stage 1: non-production schema/policy verification
 
-Apply migrations 1 through 11 in the inventory order, followed immediately by the approved forward hardening migration, to an isolated non-production target. After every file, stop on runner failure, unexpected function signature, missing expected policy/index/constraint/trigger, unexpected grant, RLS disabled state, policy-count mismatch, or route behavior that differs from source expectations. Verify each named table, function/RPC, index/constraint, and policy before continuing. Production migration is prohibited until this stage and every later stage pass.
+Apply migrations 1 through 12 in the inventory order to an isolated non-production target. After migration 12, inspect each function ACL to verify `PUBLIC` has no EXECUTE and only the matrix roles above have direct EXECUTE; then run notification creation, post-view count, user-report target, RLS, and consent-guard smoke checks. Stop on runner failure, unexpected function signature, missing expected policy/index/constraint/trigger, unexpected grant, RLS disabled state, policy-count mismatch, or route behavior that differs from source expectations. Production migration is prohibited until this stage and every later stage pass.
 
 ### Stage 2: runtime configuration and smoke
 
@@ -115,7 +124,7 @@ Use unique run IDs and exact record/object cleanup, never broad prefixes. Eviden
 
 All items are currently false or unverified; one missing item keeps this release NO_GO.
 
-- [ ] `SECURITY DEFINER` grant blockers resolved by reviewed forward migration.
+- [ ] Migration 12 ACL changes verified in non-production; source evidence is complete but execution is prohibited pending approval.
 - [ ] Exact Supabase target identity verified.
 - [ ] Backup and restore process verified.
 - [ ] Required server secrets and Cloudflare bindings verified without logging values.
@@ -128,6 +137,6 @@ All items are currently false or unverified; one missing item keeps this release
 - [ ] Explicit human approval for main merge.
 - [ ] Separate human approval for production migration/deployment.
 
-Exact next approved action: have a database-security reviewer author and approve the forward migration that removes the three default `PUBLIC EXECUTE` grants with least-privilege replacement grants, then rerun this offline readiness audit. No migration execution or deployment is approved before that review.
+Exact next approved action: perform an offline review of the server-only moderation writer and migration 12 diff, then obtain explicit approval for a later isolated non-production migration run. No migration execution or deployment is approved by this document.
 
 No migration, database query, authentication, storage, email, preview, staging, production, merge, or deployment operation occurred while creating this package.

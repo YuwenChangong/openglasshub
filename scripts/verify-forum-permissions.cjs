@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { findUnsafeServiceRoleUsage } = require("./profile-service-role-audit.cjs");
 
 const root = path.join(__dirname, "..");
 const srcDir = path.join(root, "src");
@@ -25,23 +26,14 @@ function fail(message) {
 
 const failures = [];
 const passes = [];
-const approvedLegalConsentServiceRoleFile = path.join("src", "lib", "server", "legal-consent-repository.server.ts");
-
 const srcFiles = walk(srcDir).filter((file) => fs.statSync(file).isFile());
 for (const file of srcFiles) {
   const text = fs.readFileSync(file, "utf8");
-  const rel = path.relative(root, file);
-  const isApprovedLegalConsentWriter = rel === approvedLegalConsentServiceRoleFile
-    && /createLegalConsentServiceClient/.test(text)
-    && /createLegalConsentWriteRepository/.test(text)
-    && /record_current_legal_policy_acceptance/.test(text);
-  if (/SUPABASE_SERVICE_ROLE_KEY|service_role/i.test(text) && !isApprovedLegalConsentWriter) {
-    fail(`${rel}: contains service role usage`);
-  }
   if (/window\.confirm|window\.alert|window\.prompt/i.test(text)) {
     fail(`${rel}: contains native browser dialog usage`);
   }
 }
+for (const finding of findUnsafeServiceRoleUsage(root, srcDir)) fail(finding);
 passes.push("No unapproved service role usage in src");
 passes.push("No native browser dialogs in src");
 

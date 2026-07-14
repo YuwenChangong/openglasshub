@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyModerationAdminAction, type ModerationAdminTarget } from "./moderation-admin.ts";
-import { notifyCommentModerated, notifyPostModerated } from "./moderation-notifications.server.ts";
+import {
+  notifyCommentModerated,
+  notifyPostModerated,
+  type ModerationNotificationWriter,
+} from "./moderation-notifications.server.ts";
 import { applyUserSafetyAction, insertUserSafetyEvent, sanitizeSafetyReason } from "./user-safety.server.ts";
 import { isPublicVisibleCircle } from "../site-navigation.ts";
 
@@ -769,6 +773,7 @@ export async function applyAdminReportAction(params: {
   action: ReportAdminAction;
   note?: string | null;
   until?: string | null;
+  notificationWriter?: ModerationNotificationWriter;
 }) {
   const detail = await fetchAdminReportDetail(params.client, params.reportId);
   if (!detail) {
@@ -860,20 +865,13 @@ export async function applyAdminReportAction(params: {
       target_id: report.target_id,
     });
 
-    if (report.target_type === "post") {
-      void notifyPostModerated({
-        client: params.client,
-        recipientId: target.author_id ?? null,
-        postId: report.target_id,
-        actingAdminId: params.moderatorId,
-      });
-    } else if (report.target_type === "comment") {
-      void notifyCommentModerated({
-        client: params.client,
-        recipientId: target.author_id ?? null,
+    if (report.target_type === "post" && params.notificationWriter && target.author_id) {
+      void notifyPostModerated(params.notificationWriter, { recipientId: target.author_id, postId: report.target_id });
+    } else if (report.target_type === "comment" && params.notificationWriter && target.author_id && target.post?.id) {
+      void notifyCommentModerated(params.notificationWriter, {
+        recipientId: target.author_id,
         commentId: report.target_id,
-        postId: target.post?.id ?? null,
-        actingAdminId: params.moderatorId,
+        postId: target.post.id,
       });
     }
 
@@ -902,6 +900,7 @@ export async function applyAdminReportAction(params: {
     action: safetyAction,
     reason: sanitizeSafetyReason(note || `${params.action} via report ${report.id}`) || null,
     until: params.until ?? null,
+    notificationWriter: params.notificationWriter,
   });
 
   if (!safetyResult.ok) {

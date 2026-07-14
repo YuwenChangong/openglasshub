@@ -90,12 +90,19 @@ async function assertDenied({ actorId = "actor", targetId = "target", actorRole,
 
 async function assertAllowed(actorRole, targetRole) {
   const client = createFakeClient({ actor: actorRole, target: targetRole });
+  const notificationWriter = {
+    async send(command) {
+      client.writes.notifications.push(command);
+      return true;
+    },
+  };
   const result = await applyUserSafetyAction({
     client,
     actorId: "actor",
     targetUserId: "target",
     action: "ban",
     reason: "offline privilege-boundary test",
+    notificationWriter,
   });
   assert.equal(result.ok, true);
   assert.equal(client.writes.states.length, 1);

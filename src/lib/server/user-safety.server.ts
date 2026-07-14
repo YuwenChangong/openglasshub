@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { notifyUserRestricted, notifyUserWarned } from "./moderation-notifications.server.ts";
+import {
+  notifyUserRestricted,
+  notifyUserWarned,
+  type ModerationNotificationWriter,
+} from "./moderation-notifications.server.ts";
 
 export type UserSafetyStatus = "active" | "warned" | "suspended" | "banned";
 export type UserSafetyEventType =
@@ -538,6 +542,7 @@ export async function applyUserSafetyAction(params: {
   action: UserSafetyAdminAction;
   reason: string | null;
   until?: string | null;
+  notificationWriter?: ModerationNotificationWriter;
 }) {
   const { client, actorId, targetUserId, action } = params;
   if (actorId === targetUserId) {
@@ -622,18 +627,10 @@ export async function applyUserSafetyAction(params: {
   }
 
   try {
-    if (action === "warn") {
-      await notifyUserWarned({
-        client,
-        recipientId: targetUserId,
-        actingAdminId: actorId,
-      });
-    } else if (action === "suspend" || action === "ban") {
-      await notifyUserRestricted({
-        client,
-        recipientId: targetUserId,
-        actingAdminId: actorId,
-      });
+    if (action === "warn" && params.notificationWriter) {
+      await notifyUserWarned(params.notificationWriter, targetUserId);
+    } else if ((action === "suspend" || action === "ban") && params.notificationWriter) {
+      await notifyUserRestricted(params.notificationWriter, targetUserId);
     }
   } catch (error) {
     console.warn("[user-safety] notification dispatch failed", {

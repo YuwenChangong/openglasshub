@@ -65,26 +65,18 @@ async function main() {
     assert.equal(blockedClearWarning.error, "USER_SAFETY_ACTION_CONFLICT");
   }
 
-  const rpcCalls = [];
-  const fakeClient = {
-    async rpc(name, payload) {
-      rpcCalls.push({ name, payload });
-      return { error: null };
+  const commands = [];
+  const fakeWriter = {
+    async send(command) {
+      commands.push(command);
+      return true;
     },
   };
-  assert.equal(await notifyUserWarned({
-    client: fakeClient,
-    recipientId: "00000000-0000-0000-0000-000000000021",
-    actingAdminId: "00000000-0000-0000-0000-000000000022",
-  }), true);
-  assert.equal(await notifyUserRestricted({
-    client: fakeClient,
-    recipientId: "00000000-0000-0000-0000-000000000023",
-    actingAdminId: "00000000-0000-0000-0000-000000000024",
-  }), true);
-  assert.equal(rpcCalls.length, 2);
-  assert.equal(rpcCalls[0].payload.p_type, "user_warned");
-  assert.equal(rpcCalls[1].payload.p_type, "user_restricted");
+  assert.equal(await notifyUserWarned(fakeWriter, "00000000-0000-0000-0000-000000000021"), true);
+  assert.equal(await notifyUserRestricted(fakeWriter, "00000000-0000-0000-0000-000000000023"), true);
+  assert.equal(commands.length, 2);
+  assert.equal(commands[0].type, "user_warned");
+  assert.equal(commands[1].type, "user_restricted");
 
   const postsApi = await read("src/pages/api/forum/posts.ts");
   const commentsApi = await read("src/pages/api/forum/comments.ts");

@@ -1,5 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ForumNotificationType } from "../notifications";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { requireEnv, type RuntimeEnv } from "./admin-auth.ts";
 
 type ModerationNotificationType =
   | "post_moderated"
@@ -7,115 +7,108 @@ type ModerationNotificationType =
   | "user_warned"
   | "user_restricted";
 
-type CreateModerationNotificationParams = {
-  client: SupabaseClient;
-  recipientId: string | null | undefined;
-  type: ModerationNotificationType;
-  actingAdminId?: string | null;
-  postId?: string | null;
-  commentId?: string | null;
+type ModerationNotificationCommand =
+  | { type: "post_moderated"; recipientId: string; postId: string }
+  | { type: "comment_moderated"; recipientId: string; postId: string; commentId: string }
+  | { type: "user_warned"; recipientId: string }
+  | { type: "user_restricted"; recipientId: string };
+
+type NotificationRpcClient = Pick<SupabaseClient, "rpc">;
+
+export type ModerationNotificationWriter = {
+  send(command: ModerationNotificationCommand): Promise<boolean>;
 };
 
-function normalizeId(value: string | null | undefined): string | null {
-  const normalized = String(value ?? "").trim();
-  return normalized || null;
+type ModerationNotificationWriterDependencies = {
+  createServiceClient?: (env: RuntimeEnv) => NotificationRpcClient;
+};
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string): boolean {
+  return uuidPattern.test(value);
 }
 
-async function createModerationNotification(params: CreateModerationNotificationParams): Promise<boolean> {
-  const recipientId = normalizeId(params.recipientId);
-  const actingAdminId = normalizeId(params.actingAdminId);
-  const postId = normalizeId(params.postId);
-  const commentId = normalizeId(params.commentId);
+function createModerationNotificationServiceClient(env: RuntimeEnv): NotificationRpcClient {
+  return createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_SERVICE_ROLE_KEY"), {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 
-  if (!recipientId) return false;
-  if (actingAdminId && recipientId === actingAdminId) return false;
+function normalizeCommand(command: ModerationNotificationCommand): {
+  recipientId: string;
+  type: ModerationNotificationType;
+  postId: string | null;
+  commentId: string | null;
+} | null {
+  if (!isUuid(command.recipientId)) return null;
 
-  try {
-    const { error } = await params.client.rpc("insert_forum_notification", {
-      p_recipient_id: recipientId,
-      p_actor_id: null,
-      p_type: params.type satisfies ForumNotificationType,
-      p_post_id: postId,
-      p_comment_id: commentId,
-      p_circle_id: null,
-    });
-
-    if (error) {
-      console.warn("[moderation-notifications] create failed", {
-        type: params.type,
-        hasPostId: Boolean(postId),
-        hasCommentId: Boolean(commentId),
-        message: error.message,
-      });
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.warn("[moderation-notifications] create crashed", {
-      type: params.type,
-      hasPostId: Boolean(postId),
-      hasCommentId: Boolean(commentId),
-      message: error instanceof Error ? error.message : "unknown error",
-    });
-    return false;
+  if (command.type === "post_moderated") {
+    return isUuid(command.postId)
+      ? { recipientId: command.recipientId, type: command.type, postId: command.postId, commentId: null }
+      : null;
   }
+  if (command.type === "comment_moderated") {
+    return isUuid(command.postId) && isUuid(command.commentId)
+      ? { recipientId: command.recipientId, type: command.type, postId: command.postId, commentId: command.commentId }
+      : null;
+  }
+  if (command.type === "user_warned" || command.type === "user_restricted") {
+    return { recipientId: command.recipientId, type: command.type, postId: null, commentId: null };
+  }
+  return null;
 }
 
-export async function notifyPostModerated(params: {
-  client: SupabaseClient;
-  recipientId: string | null | undefined;
-  postId: string | null | undefined;
-  actingAdminId?: string | null;
-}) {
-  return createModerationNotification({
-    client: params.client,
-    recipientId: params.recipientId,
-    type: "post_moderated",
-    actingAdminId: params.actingAdminId,
-    postId: params.postId,
-  });
+// Routes create this only after verified moderator authorization and consent.
+// The service-role client remains lazy until an authorized action reaches its notification stage.
+export function createModerationNotificationWriter(
+  env: RuntimeEnv,
+  verifiedActorId: string,
+  dependencies: ModerationNotificationWriterDependencies = {},
+): ModerationNotificationWriter {
+  const createServiceClient = dependencies.createServiceClient ?? createModerationNotificationServiceClient;
+
+  return {
+    async send(command) {
+      const normalized = normalizeCommand(command);
+      if (!normalized || !isUuid(verifiedActorId) || normalized.recipientId === verifiedActorId) return false;
+
+      try {
+        const client = createServiceClient(env);
+        const { error } = await client.rpc("insert_forum_notification", {
+          p_recipient_id: normalized.recipientId,
+          p_actor_id: verifiedActorId,
+          p_type: normalized.type,
+          p_post_id: normalized.postId,
+          p_comment_id: normalized.commentId,
+          p_circle_id: null,
+        });
+        return !error;
+      } catch {
+        return false;
+      }
+    },
+  };
 }
 
-export async function notifyCommentModerated(params: {
-  client: SupabaseClient;
-  recipientId: string | null | undefined;
-  commentId: string | null | undefined;
-  postId?: string | null;
-  actingAdminId?: string | null;
-}) {
-  return createModerationNotification({
-    client: params.client,
-    recipientId: params.recipientId,
-    type: "comment_moderated",
-    actingAdminId: params.actingAdminId,
-    postId: params.postId,
-    commentId: params.commentId,
-  });
+export function notifyPostModerated(
+  writer: ModerationNotificationWriter,
+  params: { recipientId: string; postId: string },
+) {
+  return writer.send({ type: "post_moderated", recipientId: params.recipientId, postId: params.postId });
 }
 
-export async function notifyUserWarned(params: {
-  client: SupabaseClient;
-  recipientId: string | null | undefined;
-  actingAdminId?: string | null;
-}) {
-  return createModerationNotification({
-    client: params.client,
-    recipientId: params.recipientId,
-    type: "user_warned",
-    actingAdminId: params.actingAdminId,
-  });
+export function notifyCommentModerated(
+  writer: ModerationNotificationWriter,
+  params: { recipientId: string; postId: string; commentId: string },
+) {
+  return writer.send({ type: "comment_moderated", recipientId: params.recipientId, postId: params.postId, commentId: params.commentId });
 }
 
-export async function notifyUserRestricted(params: {
-  client: SupabaseClient;
-  recipientId: string | null | undefined;
-  actingAdminId?: string | null;
-}) {
-  return createModerationNotification({
-    client: params.client,
-    recipientId: params.recipientId,
-    type: "user_restricted",
-    actingAdminId: params.actingAdminId,
-  });
+export function notifyUserWarned(writer: ModerationNotificationWriter, recipientId: string) {
+  return writer.send({ type: "user_warned", recipientId });
+}
+
+export function notifyUserRestricted(writer: ModerationNotificationWriter, recipientId: string) {
+  return writer.send({ type: "user_restricted", recipientId });
 }
