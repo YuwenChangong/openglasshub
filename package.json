@@ -29,6 +29,7 @@
     "test:legal-consent-route-coverage": "node --experimental-strip-types scripts/test-legal-consent-route-coverage.mjs",
     "test:legal-consent-mutation-guard": "node --experimental-strip-types scripts/test-legal-consent-mutation-guard.mjs",
     "test:legal-consent-phase4a2": "node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs",
+    "test:legal-consent-phase4b-wave1": "node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs",
     "test:legal-consent-mutation-inventory": "node scripts/test-legal-consent-mutation-inventory.mjs",
     "test:legal-consent-trace-batches": "node scripts/test-legal-consent-api-trace-batches.mjs",
     "test:auth-redirect-safety": "node --experimental-strip-types scripts/test-auth-redirect-safety.mjs",

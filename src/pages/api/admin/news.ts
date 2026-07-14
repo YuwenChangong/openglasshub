@@ -4,6 +4,8 @@ import {
   requireModerator,
   type RuntimeEnv,
 } from "../../../lib/server/admin-auth";
+import { requireAuthenticatedLegalConsent } from "../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../lib/server/legal-consent-repository.server";
 import {
   buildUniqueNewsSlug,
   getAdminNewsArticleBySlug,
@@ -178,6 +180,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireModerator(request, env);
+    const consent = await requireAuthenticatedLegalConsent({ identity: { userId: auth.user.id }, repository: createLegalConsentReadRepository(auth.client) });
+    if (!consent.ok) return consent.response;
     const payload = (await request.json().catch(() => null)) as NewsPayload | null;
     if (!payload) return jsonResponse({ ok: false, code: "INVALID_PAYLOAD", message: "请求内容无效。" }, 400);
 
@@ -218,6 +222,8 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireModerator(request, env);
+    const consent = await requireAuthenticatedLegalConsent({ identity: { userId: auth.user.id }, repository: createLegalConsentReadRepository(auth.client) });
+    if (!consent.ok) return consent.response;
     const payload = (await request.json().catch(() => null)) as NewsPayload | null;
     if (!payload?.id) return jsonResponse({ ok: false, code: "MISSING_ID", message: "缺少资讯 ID。" }, 400);
 
@@ -258,6 +264,8 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireModerator(request, env);
+    const consent = await requireAuthenticatedLegalConsent({ identity: { userId: auth.user.id }, repository: createLegalConsentReadRepository(auth.client) });
+    if (!consent.ok) return consent.response;
     const url = new URL(request.url);
     const id = String(url.searchParams.get("id") ?? "").trim();
     if (!id) return jsonResponse({ ok: false, code: "MISSING_ID", message: "缺少资讯 ID。" }, 400);
