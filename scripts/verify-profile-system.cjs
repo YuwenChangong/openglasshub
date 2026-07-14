@@ -101,7 +101,7 @@ check("edit profile does not directly update profiles table", !editProfile.inclu
 
 const profileApi = read("src/pages/api/users/me/profile.ts");
 check("profile API rejects forbidden fields", profileApi.includes("PROFILE_FORBIDDEN_FIELD_UPDATE"));
-check("profile API defines explicit forbidden fields", profileApi.includes('const FORBIDDEN_PROFILE_FIELDS = ["role", "id", "email", "created_at", "updated_at", "updated_by"]'));
+check("profile API defines explicit mutable field allowlist", profileApi.includes("PROFILE_MUTABLE_FIELDS") && profileApi.includes('"display_name", "username", "bio", "avatar_url", "banner_url"'));
 
 const profileMedia = read("src/lib/profile-media.ts");
 check("profile media uses post-media bucket", profileMedia.includes('PROFILE_MEDIA_BUCKET = "post-media"'));
