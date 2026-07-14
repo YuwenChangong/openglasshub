@@ -35,6 +35,7 @@
     "test:post-launch": "node scripts/post-launch-check.mjs --url https://openglasshub.pages.dev --strict --verbose",
     "test:profile-audit": "node scripts/verify-profile-system.cjs",
     "test:user-profile-api-safety": "node scripts/test-user-profile-api-safety.mjs",
+    "test:user-summary-api-safety": "node scripts/test-user-summary-api-safety.mjs",
     "test:profile-role-security": "node scripts/audit-profile-role-security.mjs --strict --verbose",
     "test:qa-orchestrator": "node scripts/test-destructive-qa-orchestrator.mjs",
     "test:forum-permissions": "node scripts/verify-forum-permissions.cjs",

@@ -1,165 +1,129 @@
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { getProfileById } from "../../../../lib/profile-data";
 import { buildProfileHref } from "../../../../lib/profile-links";
-import { resolveProfileAvatarUrl } from "../../../../lib/profile-media";
+import { isProfileMediaPathForUser, resolveProfileAvatarUrl } from "../../../../lib/profile-media";
 
 export const prerender = false;
 
 type RuntimeEnv = Record<string, string | undefined>;
+type SummaryProfile = { id: string; username: string | null; display_name: string | null; avatar_url: string | null };
+type SummaryAuth = { client: SupabaseClient; userId: string };
+type SummaryDependencies = {
+  authenticate?: (request: Request, env: RuntimeEnv) => Promise<SummaryAuth | { error: Response }>;
+  loadProfile?: (client: SupabaseClient, userId: string) => Promise<SummaryProfile | null>;
+  countPostLikes?: (client: SupabaseClient, authorId: string) => Promise<{ postCount: number; likeCount: number }>;
+  countCommentLikes?: (client: SupabaseClient, authorId: string) => Promise<number>;
+  resolveAvatar?: (client: SupabaseClient, profile: SummaryProfile) => Promise<string | null>;
+};
 
 function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-    },
-  });
+  return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 }
 
-function requireEnv(env: RuntimeEnv, key: string): string {
-  const value = env[key];
-  if (!value) throw new Error(`Missing required env var: ${key}`);
-  return value;
+function hasRuntimeBindings(env: RuntimeEnv | undefined): env is RuntimeEnv & { SUPABASE_URL: string; SUPABASE_ANON_KEY: string } {
+  return Boolean(env?.SUPABASE_URL && env.SUPABASE_ANON_KEY);
 }
 
-function getBearerToken(request: Request): string | null {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader) return null;
-  const [scheme, token] = authHeader.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
-  return token.trim();
+export function getBearerToken(request: Request): string | null {
+  const value = request.headers.get("authorization");
+  const match = value?.match(/^Bearer ([^\s]+)$/i);
+  return match?.[1] ?? null;
 }
 
-function createUserClient(env: RuntimeEnv, bearerToken: string): SupabaseClient {
-  return createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_ANON_KEY"), {
-    global: {
-      headers: { Authorization: `Bearer ${bearerToken}` },
-    },
+function createUserClient(env: RuntimeEnv & { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }, token: string): SupabaseClient {
+  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
-function isMissingCommentReactionsError(error?: { message?: string | null } | null) {
-  const message = error?.message?.toLowerCase() ?? "";
-  return (
-    message.includes("comment_reactions") &&
-    (message.includes("does not exist") || message.includes("schema cache") || message.includes("relation"))
-  );
+async function authenticate(request: Request, env: RuntimeEnv): Promise<SummaryAuth | { error: Response }> {
+  const token = getBearerToken(request);
+  if (!token) return { error: json({ ok: false, error: "NOT_AUTHENTICATED" }, 401) };
+  const client = createUserClient(env as RuntimeEnv & { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }, token);
+  const { data, error } = await client.auth.getUser(token);
+  if (error || !data.user?.id) return { error: json({ ok: false, error: "NOT_AUTHENTICATED" }, 401) };
+  return { client, userId: data.user.id };
+}
+
+async function loadProfile(client: SupabaseClient, userId: string): Promise<SummaryProfile | null> {
+  const { data, error } = await client
+    .from("profiles")
+    .select("id,username,display_name,avatar_url")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as SummaryProfile;
 }
 
 async function countPostLikes(client: SupabaseClient, authorId: string): Promise<{ postCount: number; likeCount: number }> {
-  const { data: posts, error: postsError, count: postCount } = await client
-    .from("posts")
-    .select("id", { count: "exact" })
-    .eq("author_id", authorId)
-    .eq("status", "published");
-
-  if (postsError) {
-    throw postsError;
-  }
-
-  const postIds = ((posts as Array<{ id: string }> | null) ?? []).map((post) => post.id);
-  if (postIds.length === 0) {
-    return { postCount: postCount ?? 0, likeCount: 0 };
-  }
-
-  const { count, error } = await client
-    .from("post_votes")
-    .select("post_id", { count: "exact", head: true })
-    .in("post_id", postIds)
-    .eq("vote", 1);
-
-  if (error) {
-    throw error;
-  }
-
-  return {
-    postCount: postCount ?? postIds.length,
-    likeCount: count ?? 0,
-  };
+  const [posts, likes] = await Promise.all([
+    client.from("posts").select("id", { count: "exact", head: true }).eq("author_id", authorId).eq("status", "published").eq("moderation_status", "published"),
+    client.from("post_votes").select("post_id,posts!inner(id)", { count: "exact", head: true }).eq("vote", 1).eq("posts.author_id", authorId).eq("posts.status", "published").eq("posts.moderation_status", "published"),
+  ]);
+  if (posts.error || likes.error) throw new Error("SUMMARY_AGGREGATION_FAILED");
+  return { postCount: posts.count ?? 0, likeCount: likes.count ?? 0 };
 }
 
 async function countCommentLikes(client: SupabaseClient, authorId: string): Promise<number> {
-  const { data: comments, error: commentsError } = await client
-    .from("comments")
-    .select("id,posts:post_id!inner(id)")
-    .eq("author_id", authorId)
-    .eq("status", "published")
-    .eq("posts.status", "published");
-
-  if (commentsError) {
-    if (isMissingCommentReactionsError(commentsError)) return 0;
-    throw commentsError;
-  }
-
-  const commentIds = ((comments as Array<{ id: string }> | null) ?? []).map((comment) => comment.id);
-  if (commentIds.length === 0) return 0;
-
   const { count, error } = await client
     .from("comment_reactions")
-    .select("comment_id", { count: "exact", head: true })
-    .in("comment_id", commentIds)
-    .eq("reaction_type", "like");
-
-  if (error) {
-    if (isMissingCommentReactionsError(error)) return 0;
-    throw error;
-  }
-
+    .select("comment_id,comments!inner(id,posts:post_id!inner(id))", { count: "exact", head: true })
+    .eq("reaction_type", "like")
+    .eq("comments.author_id", authorId)
+    .eq("comments.status", "published")
+    .eq("comments.moderation_status", "published")
+    .eq("comments.posts.status", "published")
+    .eq("comments.posts.moderation_status", "published");
+  if (error) throw new Error("SUMMARY_AGGREGATION_FAILED");
   return count ?? 0;
 }
 
-export const GET: APIRoute = async ({ request, locals }) => {
-  try {
+async function resolveAvatar(client: SupabaseClient, profile: SummaryProfile) {
+  if (!isProfileMediaPathForUser(profile.avatar_url, profile.id, "avatar")) return null;
+  return resolveProfileAvatarUrl(client, profile.avatar_url, undefined, { publicProxyUserId: profile.id });
+}
+
+function isAuthenticationFailure(value: SummaryAuth | { error: Response }): value is { error: Response } {
+  return "error" in value;
+}
+
+function summaryResponse(profile: SummaryProfile, avatarResolvedUrl: string | null, postCount: number, receivedLikeCount: number) {
+  return {
+    ok: true,
+    profile: {
+      id: profile.id,
+      username: profile.username,
+      display_name: profile.display_name,
+      profile_href: buildProfileHref(profile),
+      avatar_resolved_url: avatarResolvedUrl,
+    },
+    stats: { post_count: postCount, received_like_count: receivedLikeCount },
+  };
+}
+
+export function createSummaryGet(dependencies: SummaryDependencies = {}): APIRoute {
+  return async ({ request, locals }) => {
     const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
-    if (!env) return json({ ok: false, error: "Runtime environment not available" }, 500);
+    if (!hasRuntimeBindings(env)) return json({ ok: false, error: "SUMMARY_UNAVAILABLE" }, 503);
 
-    const token = getBearerToken(request);
-    if (!token) return json({ ok: false, error: "NOT_AUTHENTICATED" }, 401);
+    try {
+      const auth = await (dependencies.authenticate ?? authenticate)(request, env);
+      if (isAuthenticationFailure(auth)) return auth.error;
+      const profile = await (dependencies.loadProfile ?? loadProfile)(auth.client, auth.userId);
+      if (!profile || profile.id !== auth.userId) return json({ ok: false, error: "PROFILE_NOT_FOUND" }, 404);
 
-    const client = createUserClient(env, token);
-    const { data: authData, error: authError } = await client.auth.getUser(token);
-    if (authError || !authData.user) {
-      return json({ ok: false, error: "NOT_AUTHENTICATED" }, 401);
+      const [avatarResolvedUrl, postStats, commentLikeCount] = await Promise.all([
+        (dependencies.resolveAvatar ?? resolveAvatar)(auth.client, profile),
+        (dependencies.countPostLikes ?? countPostLikes)(auth.client, auth.userId),
+        (dependencies.countCommentLikes ?? countCommentLikes)(auth.client, auth.userId),
+      ]);
+      return json(summaryResponse(profile, avatarResolvedUrl, postStats.postCount, postStats.likeCount + commentLikeCount));
+    } catch {
+      return json({ ok: false, error: "SUMMARY_FAILED" }, 500);
     }
+  };
+}
 
-    const profile = await getProfileById(client, authData.user.id);
-    if (!profile) {
-      return json({ ok: false, error: "PROFILE_NOT_FOUND" }, 404);
-    }
-
-    const [avatarResolvedUrl, postStats, commentLikeCount] = await Promise.all([
-      resolveProfileAvatarUrl(client, profile.avatar_url, undefined, {
-        publicProxyUserId: profile.id,
-      }),
-      countPostLikes(client, profile.id),
-      countCommentLikes(client, profile.id),
-    ]);
-
-    return json({
-      ok: true,
-      profile: {
-        id: profile.id,
-        username: profile.username,
-        display_name: profile.display_name,
-        avatar_url: profile.avatar_url,
-        role: profile.role,
-        profile_href: buildProfileHref(profile),
-        avatar_resolved_url: avatarResolvedUrl,
-      },
-      stats: {
-        post_count: postStats.postCount,
-        received_like_count: postStats.likeCount + commentLikeCount,
-      },
-    });
-  } catch (error) {
-    console.warn("[header-user-menu] summary failed", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return json({ ok: false, error: "SUMMARY_FAILED" }, 500);
-  }
-};
-
+export const GET: APIRoute = createSummaryGet();
 export const ALL: APIRoute = () => json({ error: "Method not allowed" }, 405);
