@@ -63,7 +63,9 @@ The source-level moderation notification and migration 12 review, exact changed-
 
 The first LOCAL_DOCKER_ONLY clean replay at commit `5082063d64ce0705ee0bc609c374cac163f48536` stopped before migration 12 because multiple historical files share the same CLI migration version. The first collision is the three `20260525_*` files, which produce `SQLSTATE 23505` on `supabase_migrations.schema_migrations.version`. The complete failure record is in `docs/ops/legal-consent-local-supabase-verification.md`.
 
-Do not rename or reorder historical migration files as an ad hoc local fix. A separately reviewed, upgrade-safe migration-history remediation plan is required before any fresh local replay, non-production migration, or production migration operation.
+The forensic audit found 43 well-formed migration filenames and ten duplicate-version groups (`20260525`, `20260603`, `20260604`, `20260605`, `20260606`, `20260607`, `20260611`, `20260612`, `20260620`, and `20260713`). Git provenance cannot prove which duplicate file names were ever recorded remotely, so the result is `REMOTE_HISTORY_CONFIRMATION_REQUIRED`, not a safe repository correction. The exact duplicate checksums, provenance, dependency analysis, and an operator-only read-only `supabase_migrations.schema_migrations` query are in `docs/ops/legal-consent-local-supabase-verification.md`.
+
+Do not rename or reorder historical migration files as an ad hoc local fix. A separately reviewed, upgrade-safe migration-history remediation plan is required after the read-only history confirmation and before any fresh local replay, non-production migration, or production migration operation.
 
 ## Future execution sequence
 
