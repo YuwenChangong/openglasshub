@@ -29,6 +29,7 @@ async function main() {
   assert.doesNotMatch(routeSource, /requireForumUser/);
   assert.doesNotMatch(routeSource, /SUPABASE_SERVICE_ROLE_KEY|service_role/i);
   assert.ok(routeSource.indexOf("const auth = await (dependencies.authenticate ?? authenticateProfileActor)") < routeSource.indexOf("const safetyDecision = await (dependencies.assertWrite ?? assertUserCanWrite)"));
+  assert.ok(routeSource.indexOf("const consent = await (dependencies.requireConsent ?? requireAuthenticatedLegalConsent)") < routeSource.indexOf("const safetyDecision = await (dependencies.assertWrite ?? assertUserCanWrite)"));
   assert.ok(routeSource.indexOf("const safetyDecision = await (dependencies.assertWrite ?? assertUserCanWrite)") < routeSource.indexOf("const rawBody = await request.text"));
   const postStart = routeSource.indexOf("export function createProfilePost");
   assert.ok(routeSource.indexOf("const mediaError = validateProfileMediaReferences", postStart) < routeSource.indexOf("const [avatarModeration, bannerModeration]", postStart));
@@ -82,8 +83,12 @@ async function main() {
     const fakeClient = {
       from() { calls.reads += 1; throw new Error("denied requests must not read profiles"); },
     };
+    const currentConsent = async () => ({ ok: true, userId: actorId });
+    const fakeConsentRepository = () => ({ findByUserAndBundle: async () => null });
     const deniedPost = createProfilePost({
       authenticate: async () => ({ client: fakeClient, userId: actorId }),
+      requireConsent: currentConsent,
+      createConsentRepository: fakeConsentRepository,
       assertWrite: async () => { calls.safety += 1; return { allowed: true, state: {} }; },
     });
     for (const payload of [
@@ -97,10 +102,23 @@ async function main() {
     }
     const safetyDenied = createProfilePost({
       authenticate: async () => ({ client: fakeClient, userId: actorId }),
+      requireConsent: currentConsent,
+      createConsentRepository: fakeConsentRepository,
       assertWrite: async () => ({ allowed: false, code: "USER_BANNED", status: 403, message: "blocked" }),
     });
     const safetyDeniedResponse = await safetyDenied({ request: new Request("https://app.example/api/users/me/profile", { method: "POST", headers: { authorization: "Bearer local-test-token", "content-type": "application/json" }, body: JSON.stringify({ display_name: "Alice" }) }), locals: { runtime: { env: { SUPABASE_URL: "https://example.test", SUPABASE_ANON_KEY: "anon" } } } });
     assert.equal(safetyDeniedResponse.status, 403);
+    const consentCalls = [];
+    const consentDenied = createProfilePost({
+      authenticate: async () => { consentCalls.push("authenticate"); return { client: fakeClient, userId: actorId }; },
+      createConsentRepository: () => { consentCalls.push("consent-repository"); return fakeConsentRepository(); },
+      requireConsent: async () => { consentCalls.push("consent-denied"); return { ok: false, response: new Response(JSON.stringify({ error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" }), { status: 403 }) }; },
+      assertWrite: async () => { consentCalls.push("safety"); return { allowed: true, state: {} }; },
+    });
+    const consentDeniedResponse = await consentDenied({ request: new Request("https://app.example/api/users/me/profile", { method: "POST", headers: { authorization: "Bearer local-test-token", "content-type": "application/json" }, body: JSON.stringify({ display_name: "Alice" }) }), locals: { runtime: { env: { SUPABASE_URL: "https://example.test", SUPABASE_ANON_KEY: "anon" } } } });
+    assert.equal(consentDeniedResponse.status, 403);
+    assert.deepEqual(await consentDeniedResponse.json(), { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" });
+    assert.deepEqual(consentCalls, ["authenticate", "consent-repository", "consent-denied"], "missing consent stops before safety, profile reads, moderation, storage, and profile update");
     assert.equal(calls.reads, 0, "all rejected requests stop before profile reads or writes");
     assert.equal(calls.writes, 0, "all rejected requests perform zero profile/media writes");
     assert.ok(calls.safety >= 4, "verified actor safety is checked before rejected profile payload work");
@@ -112,7 +130,7 @@ async function main() {
     allowed: ["own canonical profile fields", "canonical lower-case username", "own avatar/banner key"],
     denied: ["missing schema fields", "privileged actor/role/safety fields", "markup/control text", "unknown URL/social fields", "foreign/cross-kind/external/traversal media"],
     effects: "offline source and pure-parser/media tests only; no auth, database, storage, provider, or network request is executed",
-    serviceRole: "the known legal-consent repository service-role implementation is asserted separately and is not imported by the profile route",
+    serviceRole: "the known legal-consent service-role writer is asserted separately and is never constructed by the profile route",
   }));
 }
 

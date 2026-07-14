@@ -23,6 +23,8 @@ import {
 } from "../../../../lib/profile-media";
 import { isValidProfileUsername } from "../../../../lib/profile-links";
 import { createUserClient, jsonResponse } from "../../../../lib/server/circle-management";
+import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../../lib/server/legal-consent-repository.server";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../../lib/server/user-safety.server";
 
 export const prerender = false;
@@ -212,12 +214,19 @@ function profileResponse(profile: {
 
 export function createProfilePost(dependencies: {
   authenticate?: typeof authenticateProfileActor;
+  requireConsent?: typeof requireAuthenticatedLegalConsent;
+  createConsentRepository?: typeof createLegalConsentReadRepository;
   assertWrite?: typeof assertUserCanWrite;
 } = {}): APIRoute {
   return async ({ request, locals }) => {
   try {
     const env = requireRuntimeBindings((locals as RuntimeLocals).runtime?.env);
     const auth = await (dependencies.authenticate ?? authenticateProfileActor)(request, env);
+    const consent = await (dependencies.requireConsent ?? requireAuthenticatedLegalConsent)({
+      identity: { userId: auth.userId },
+      repository: (dependencies.createConsentRepository ?? createLegalConsentReadRepository)(auth.client),
+    });
+    if (!consent.ok) return consent.response;
     const safetyDecision = await (dependencies.assertWrite ?? assertUserCanWrite)(auth.client, auth.userId, "profile_update");
     if (!safetyDecision.allowed) return getSafetyWriteBlockResponse(safetyDecision);
 
