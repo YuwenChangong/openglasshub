@@ -5,6 +5,7 @@ import { classifyApiMethod } from "../tests/fixtures/legal-consent-api-methods.m
 import { PHASE4A2_REPRESENTATIVES, PHASE4A2_STATUS } from "../tests/fixtures/legal-consent-phase4a2.mjs";
 import { PHASE4B_MANIFEST_BEFORE_WAVE1, PHASE4B_WAVE1_METHODS, PHASE4B_WAVE1_STATUS } from "../tests/fixtures/legal-consent-phase4b-wave1.mjs";
 import { PHASE4B_WAVE2_METHODS, PHASE4B_WAVE2_STATUS } from "../tests/fixtures/legal-consent-phase4b-wave2.mjs";
+import { PHASE4B_WAVE3_METHODS, PHASE4B_WAVE3_STATUS } from "../tests/fixtures/legal-consent-phase4b-wave3.mjs";
 import { requireAuthenticatedLegalConsent } from "../src/lib/server/legal-consent-mutation.server.ts";
 import { getActiveLegalBundle } from "../src/lib/server/legal-consent.server.ts";
 
@@ -73,7 +74,7 @@ assert.deepEqual(PHASE4A2_REPRESENTATIVES.map((entry) => entry.id).sort(), expec
 assert.equal(PHASE4A2_STATUS.integratedRepresentativeCount, 5);
 assert.equal(PHASE4A2_STATUS.pendingRepresentativeCount, 0);
 assert.deepEqual(PHASE4A2_STATUS.activeRepresentativeBlockers, []);
-assert.equal(PHASE4A2_STATUS.phase4BStatus, "wave-1-integrated");
+assert.equal(PHASE4A2_STATUS.phase4BStatus, "wave-3-integrated");
 
 for (const representative of PHASE4A2_REPRESENTATIVES) {
   const source = await readFile(path.join(root, representative.sourceFile), "utf8");
@@ -129,6 +130,20 @@ assert.deepEqual(PHASE4B_WAVE2_STATUS, {
   remainingMutationCount: 16,
   activeBlockers: [],
   nextManifestMethodId: "src/pages/api/forum/circles/[slug]/comments.ts#PATCH",
+  phase4BStatus: "in-progress",
+});
+assert.deepEqual(PHASE4B_WAVE3_METHODS.map((entry) => entry.id), PHASE4B_MANIFEST_BEFORE_WAVE1.slice(16, 24));
+assert.deepEqual(PHASE4B_WAVE3_STATUS, {
+  totalConsentRequiredMutationCount: 37,
+  phase4A2IntegratedCount: 5,
+  wave1IntegratedCount: 10,
+  wave2IntegratedCount: 6,
+  remainingBeforeWave: 16,
+  waveIntegratedCount: 8,
+  cumulativeIntegratedCount: 29,
+  remainingMutationCount: 8,
+  activeBlockers: [],
+  nextManifestMethodId: "src/pages/api/forum/comments.ts#DELETE",
   phase4BStatus: "in-progress",
 });
 
@@ -188,6 +203,36 @@ for (const waveMethod of PHASE4B_WAVE2_METHODS) {
   }
 }
 
+for (const waveMethod of PHASE4B_WAVE3_METHODS) {
+  const [sourceFile, method] = waveMethod.id.split("#");
+  assert.equal(classifyApiMethod(sourceFile, method).phase4IntegrationStatus, "phase4b-wave3-integrated", `${waveMethod.id} is integrated only in Wave 3`);
+  const source = await readFile(path.join(root, sourceFile), "utf8");
+  const end = method === "POST" ? "export const PATCH" : method === "PATCH" && sourceFile.includes("[slug]") ? "export const DELETE" : "export const ALL";
+  const handler = postHandler(source, `export const ${method}`, end);
+  const auth = handler.indexOf("requireForumUser(request, env)");
+  const guard = handler.indexOf("requireAuthenticatedLegalConsent");
+  const managed = sourceFile.includes("[slug]");
+  const next = managed ? handler.indexOf("requireManagedCircleForAuthenticatedUser") : handler.indexOf("assertUserCanWrite");
+  assert.ok(auth >= 0 && auth < guard && guard < next, `${waveMethod.id} authenticates, gates consent, then begins its first resource or safety stage`);
+  assert.ok(handler.includes("identity: { userId: auth.user.id }") || handler.includes("identity: { userId: forumAuth.user.id }"), `${waveMethod.id} scopes consent to the verified actor only`);
+  assert.ok(handler.includes("createLegalConsentReadRepository"), `${waveMethod.id} uses the existing bearer-bound RLS client for consent reads`);
+  if (managed) {
+    assert.ok(handler.includes("requireManagedCircleForAuthenticatedUser({ auth: forumAuth, slug })"), `${waveMethod.id} resolves the exact managed circle only after consent`);
+    const getHandler = postHandler(source, "export const GET", "export const PATCH");
+    assert.equal(getHandler.includes("requireAuthenticatedLegalConsent"), false, `${sourceFile}#GET remains unguarded`);
+    if (sourceFile.includes("comments")) {
+      assert.ok(handler.includes(".from(\"comments\")") && handler.includes(".eq(\"circle_id\", auth.circle.id)"), `${waveMethod.id} keeps comment-to-circle binding`);
+    } else if (sourceFile.includes("posts")) {
+      assert.ok(handler.includes("existingPost.circle_id !== auth.circle.id"), `${waveMethod.id} keeps post-to-circle binding`);
+    } else {
+      assert.ok(handler.includes("assertUserCanWrite") && handler.includes(".from(\"circles\")"), `${waveMethod.id} keeps managed-circle safety and lifecycle processing downstream`);
+    }
+  } else {
+    assert.ok(handler.includes("assertUserCanWrite") && handler.includes("auth.user.id"), `${waveMethod.id} keeps verified creator safety processing downstream`);
+    assert.ok(handler.includes("owner_id") || handler.includes("isCircleManager"), `${waveMethod.id} keeps server-derived circle ownership handling`);
+  }
+}
+
 for (const waveMethod of PHASE4B_WAVE1_METHODS) {
   const unauthenticatedLog = [];
   const unauthenticated = await runGuardedRoute({ outcome: "missing", authenticated: false, log: unauthenticatedLog });
@@ -232,6 +277,26 @@ for (const waveMethod of PHASE4B_WAVE2_METHODS) {
   assert.deepEqual(currentLog.slice(-3), ["downstream-target-read", "downstream-rate-or-provider", "downstream-persistent-mutation"]);
 }
 
+for (const waveMethod of PHASE4B_WAVE3_METHODS) {
+  const unauthenticatedLog = [];
+  const unauthenticated = await runGuardedRoute({ outcome: "missing", authenticated: false, log: unauthenticatedLog });
+  assert.equal(unauthenticated.status, 401, `${waveMethod.id} unauthenticated`);
+  assert.deepEqual(unauthenticatedLog, ["authentication-denied"], `${waveMethod.id} has no consent read or downstream effect before authentication`);
+  for (const outcome of ["missing", "outdated", "failure"]) {
+    const log = [];
+    const response = await runGuardedRoute({ outcome, log });
+    assert.equal(response.status, outcome === "failure" ? 503 : 403, `${waveMethod.id} ${outcome}`);
+    assert.deepEqual(await response.json(), outcome === "failure"
+      ? { error: "LEGAL_CONSENT_UNAVAILABLE" }
+      : { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" }, `${waveMethod.id} uses the central sanitized denial response`);
+    assert.deepEqual(log.filter((entry) => entry.startsWith("downstream-")), [], `${waveMethod.id} ${outcome} produces zero circle, safety, resource, mutation, or provider calls`);
+  }
+  const currentLog = [];
+  const current = await runGuardedRoute({ outcome: "current", log: currentLog });
+  assert.equal(current.status, 201, `${waveMethod.id} current consent continues into existing authorization`);
+  assert.deepEqual(currentLog.slice(-3), ["downstream-target-read", "downstream-rate-or-provider", "downstream-persistent-mutation"]);
+}
+
 const userSafetySource = await readFile(path.join(root, "src/lib/server/user-safety.server.ts"), "utf8");
 const safetyAction = postHandler(userSafetySource, "export async function applyUserSafetyAction", undefined);
 for (const requiredSymbol of ["actorId === targetUserId", "authorizeUserSafetyAction", "getUserSafetyState", "upsertUserSafetyState", "insertUserSafetyEvent"]) {
@@ -241,6 +306,9 @@ const reportsSource = await readFile(path.join(root, "src/lib/server/reports.ser
 const reportAction = postHandler(reportsSource, "export async function applyAdminReportAction", undefined);
 assert.ok(reportAction.indexOf("fetchAdminReportDetail") < reportAction.indexOf("updateReportStatus"), "report action still resolves the report before a report-status mutation");
 assert.ok(reportAction.includes("applyUserSafetyAction"), "report action retains downstream user-safety hierarchy enforcement");
+const circleManagementSource = await readFile(path.join(root, "src/lib/server/circle-management.ts"), "utf8");
+const managedCircleResolver = postHandler(circleManagementSource, "export async function requireManagedCircleForAuthenticatedUser", "export async function requireManagedCircleBySlug");
+assert.ok(managedCircleResolver.includes(".eq(\"slug\", params.slug)") && managedCircleResolver.includes("isCircleManager"), "managed-circle resolver retains exact slug lookup and server-derived manager authorization");
 
 for (const representative of PHASE4A2_REPRESENTATIVES) {
   const log = [];
@@ -268,7 +336,6 @@ for (const representative of PHASE4A2_REPRESENTATIVES) {
 }
 
 for (const [sourceFile, method] of [
-  ["src/pages/api/forum/circles/[slug]/comments.ts", "PATCH"],
   ["src/pages/api/forum/comments.ts", "DELETE"],
   ["src/pages/api/forum/posts.ts", "DELETE"],
   ["src/pages/api/users/me/notifications.ts", "PATCH"],
@@ -281,7 +348,8 @@ console.log(JSON.stringify({
   phase4A1: "66/66 traced, 0 pending",
   representatives: "5/5 integrated",
   phase4BWave1: "10/10 integrated",
-  phase4BWave2: "6/6 integrated; 16 remaining",
+  phase4BWave2: "6/6 integrated",
+  phase4BWave3: "8/8 integrated; 8 remaining",
   denial: "403 missing-or-outdated, 503 infrastructure failure, zero downstream call-log entries",
   exemptions: ["legal consent POST", "auth recovery", "read-only GET"],
   phase4B: "in progress",

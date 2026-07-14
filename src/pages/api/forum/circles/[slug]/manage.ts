@@ -9,8 +9,10 @@ import {
 } from "../../../../../lib/moderation/moderate-content.server";
 import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../../../lib/moderation/moderation-media.server";
 import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../../../lib/moderation/moderation-provider.server";
-import { requireManagedCircleBySlug, jsonResponse } from "../../../../../lib/server/circle-management";
+import { requireForumUser, requireManagedCircleBySlug, requireManagedCircleForAuthenticatedUser, jsonResponse } from "../../../../../lib/server/circle-management";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../../../lib/server/user-safety.server";
+import { requireAuthenticatedLegalConsent } from "../../../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../../../lib/server/legal-consent-repository.server";
 
 export const prerender = false;
 
@@ -112,7 +114,13 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
     if (!env) return jsonResponse({ error: "RUNTIME_ENV_MISSING" }, 500);
     if (!slug) return jsonResponse({ error: "MISSING_CIRCLE_SLUG" }, 400);
 
-    const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const forumAuth = await requireForumUser(request, env);
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: forumAuth.user.id },
+      repository: createLegalConsentReadRepository(forumAuth.client),
+    });
+    if (!consent.ok) return consent.response;
+    const auth = await requireManagedCircleForAuthenticatedUser({ auth: forumAuth, slug });
     const safetyDecision = await assertUserCanWrite(auth.client, auth.user.id, "circle_update");
     if (!safetyDecision.allowed) {
       return getSafetyWriteBlockResponse(safetyDecision);
@@ -289,7 +297,13 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
     if (!env) return jsonResponse({ error: "RUNTIME_ENV_MISSING" }, 500);
     if (!slug) return jsonResponse({ error: "MISSING_CIRCLE_SLUG" }, 400);
 
-    const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const forumAuth = await requireForumUser(request, env);
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: forumAuth.user.id },
+      repository: createLegalConsentReadRepository(forumAuth.client),
+    });
+    if (!consent.ok) return consent.response;
+    const auth = await requireManagedCircleForAuthenticatedUser({ auth: forumAuth, slug });
     const safetyDecision = await assertUserCanWrite(auth.client, auth.user.id, "circle_update");
     if (!safetyDecision.allowed) {
       return getSafetyWriteBlockResponse(safetyDecision);

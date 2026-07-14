@@ -25,19 +25,24 @@ function fail(message) {
 
 const failures = [];
 const passes = [];
+const approvedLegalConsentServiceRoleFile = path.join("src", "lib", "server", "legal-consent-repository.server.ts");
 
 const srcFiles = walk(srcDir).filter((file) => fs.statSync(file).isFile());
 for (const file of srcFiles) {
   const text = fs.readFileSync(file, "utf8");
   const rel = path.relative(root, file);
-  if (/SUPABASE_SERVICE_ROLE_KEY|service_role/i.test(text)) {
+  const isApprovedLegalConsentWriter = rel === approvedLegalConsentServiceRoleFile
+    && /createLegalConsentServiceClient/.test(text)
+    && /createLegalConsentWriteRepository/.test(text)
+    && /record_current_legal_policy_acceptance/.test(text);
+  if (/SUPABASE_SERVICE_ROLE_KEY|service_role/i.test(text) && !isApprovedLegalConsentWriter) {
     fail(`${rel}: contains service role usage`);
   }
   if (/window\.confirm|window\.alert|window\.prompt/i.test(text)) {
     fail(`${rel}: contains native browser dialog usage`);
   }
 }
-passes.push("No service role usage in src");
+passes.push("No unapproved service role usage in src");
 passes.push("No native browser dialogs in src");
 
 const criticalChecks = [
@@ -71,11 +76,11 @@ const criticalChecks = [
   },
   {
     label: "Notifications API only updates own notifications",
-    ok: /\.update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]*?\.eq\("id", notificationId\)[\s\S]*?\.eq\("recipient_id", auth\.userId\)/.test(read("src/pages/api/users/me/notifications.ts")),
+    ok: /\.update\(\{ read_at: readAt \}\)\.eq\("recipient_id", auth\.userId\)\.is\("read_at", null\)[\s\S]*?\.eq\("id", action\.notificationId\)/.test(read("src/pages/api/users/me/notifications.ts")),
   },
   {
     label: "Notifications API only updates own notifications for mark all",
-    ok: /\.update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]*?\.eq\("recipient_id", auth\.userId\)[\s\S]*?\.is\("read_at", null\)/.test(read("src/pages/api/users/me/notifications.ts")),
+    ok: /\.update\(\{ read_at: readAt \}\)\.eq\("recipient_id", auth\.userId\)\.is\("read_at", null\)/.test(read("src/pages/api/users/me/notifications.ts")),
   },
   {
     label: "Post detail links author profile",

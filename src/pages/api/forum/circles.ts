@@ -20,6 +20,8 @@ import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../..
 import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../lib/moderation/moderation-provider.server";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
+import { requireAuthenticatedLegalConsent } from "../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../lib/server/legal-consent-repository.server";
 
 export const prerender = false;
 
@@ -117,6 +119,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const auth = await requireForumUser(request, env);
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: auth.user.id },
+      repository: createLegalConsentReadRepository(auth.client),
+    });
+    if (!consent.ok) return consent.response;
     const safetyDecision = await assertUserCanWrite(auth.client, auth.user.id, "circle_create");
     if (!safetyDecision.allowed) {
       return getSafetyWriteBlockResponse(safetyDecision);
@@ -302,6 +309,11 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     }
 
     const auth = await requireForumUser(request, env);
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: auth.user.id },
+      repository: createLegalConsentReadRepository(auth.client),
+    });
+    if (!consent.ok) return consent.response;
     const safetyDecision = await assertUserCanWrite(auth.client, auth.user.id, "circle_update");
     if (!safetyDecision.allowed) {
       return getSafetyWriteBlockResponse(safetyDecision);
