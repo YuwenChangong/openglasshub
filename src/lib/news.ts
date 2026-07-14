@@ -543,7 +543,7 @@ export async function getPublicNewsArticleBySlug(client: SupabaseClient, slug: s
     .maybeSingle();
 
   if (isMissingNewsTableError(result.error)) {
-    return FALLBACK_NEWS_ARTICLES.find((item) => item.slug === slug) ?? null;
+    return normalizePublicNewsArticle(FALLBACK_NEWS_ARTICLES.find((item) => item.slug === slug) ?? {});
   }
 
   if (result.error) {
@@ -575,6 +575,7 @@ export async function listRelatedPublicNews(
   client: SupabaseClient,
   options: { category: NewsCategoryKey; excludeSlug: string; limit: number },
 ) {
+  const limit = Math.min(Math.max(Number.isFinite(options.limit) ? Math.trunc(options.limit) : 4, 1), 4);
   const result = await client
     .from("news_articles")
     .select("*")
@@ -582,12 +583,14 @@ export async function listRelatedPublicNews(
     .eq("category", options.category)
     .neq("slug", options.excludeSlug)
     .order("published_at", { ascending: false, nullsFirst: false })
-    .limit(options.limit);
+    .limit(limit);
 
   if (isMissingNewsTableError(result.error)) {
     return FALLBACK_NEWS_ARTICLES
       .filter((item) => item.category === options.category && item.slug !== options.excludeSlug)
-      .slice(0, options.limit);
+      .map(normalizePublicNewsArticle)
+      .filter((item): item is NewsArticle => Boolean(item))
+      .slice(0, limit);
   }
 
   if (result.error) {

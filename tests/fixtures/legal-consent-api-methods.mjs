@@ -304,7 +304,21 @@ export const resolvedPublicNewsApiSafetyFindings = [{
     { sourceFile: "scripts/test-public-news-api-safety.mjs", symbol: "public-news-api-safety", evidenceType: "offline-regression", conciseFinding: "Offline Vite fakes prove valid bounded public reads, malformed-query zero-read denial, bearer-agnostic public behavior, generic error sanitization, URL and HTML/control sanitization, no cache or write effect, and no real network/database/provider operation." }
   ]
 }];
-export const resolvedSecurityFindings = [...resolvedExternalVideoAuthorizationOrderingFindings, ...resolvedPostMediaCrossPostProvenanceFindings, ...resolvedForumPostsCircleAuthorizationFindings, ...resolvedForumReportAuthorizationFindings, ...resolvedForumSearchVisibilityFindings, ...resolvedCircleCoverVisibilityFindings, ...resolvedPostMediaDeliveryVisibilityFindings, ...resolvedProfileMediaDeliveryVisibilityFindings, ...resolvedPublicNewsApiSafetyFindings, {
+export const resolvedPublicNewsDetailApiSafetyFindings = [{
+  id: "PUBLIC_NEWS_DETAIL_SLUG_AND_OUTPUT_SAFETY",
+  status: "resolved",
+  severity: "historical-release-blocking",
+  remediationCommit: "Fix and trace news detail API safety",
+  sourceFile: "src/pages/api/news/[slug].ts",
+  method: "GET",
+  conciseFinding: "The public news-detail GET now single-decodes and canonical-validates the route slug before constructing its anon client, returns one generic not-found response for malformed, missing, and inaccessible targets, normalizes both database and fixed fallback rows, bounds related results, and never returns raw helper details.",
+  evidence: [
+    { sourceFile: "src/pages/api/news/[slug].ts", symbol: "parsePublicNewsSlug,createPublicNewsDetailGet", evidenceType: "runtime-remediation", conciseFinding: "The route rejects empty, oversized, malformed-percent, control, slash, backslash, traversal, double-encoded, filter-grammar, whitespace, and noncanonical values before client construction or lookup, then uses only the decoded validated slug." },
+    { sourceFile: "src/lib/news.ts", symbol: "getPublicNewsArticleBySlug,listRelatedPublicNews,normalizePublicNewsArticle", evidenceType: "public-output-remediation", conciseFinding: "Exact published lookup and fixed related category/exclude values pass through the common public normalizer. Missing-table fallback rows are now normalized too, related results are capped at four, and no author id, unsafe URL, control character, literal HTML, invalid status, category, or slug reaches the response." },
+    { sourceFile: "scripts/test-public-news-detail-api-safety.mjs", symbol: "public-news-detail-api-safety", evidenceType: "offline-regression", conciseFinding: "Offline Vite fakes prove zero-read invalid-slug denial, identical malformed-bearer public behavior, generic errors, normalized fallback/related output, no provider/cache/write effect, and no real network/database operation." }
+  ]
+}];
+export const resolvedSecurityFindings = [...resolvedExternalVideoAuthorizationOrderingFindings, ...resolvedPostMediaCrossPostProvenanceFindings, ...resolvedForumPostsCircleAuthorizationFindings, ...resolvedForumReportAuthorizationFindings, ...resolvedForumSearchVisibilityFindings, ...resolvedCircleCoverVisibilityFindings, ...resolvedPostMediaDeliveryVisibilityFindings, ...resolvedProfileMediaDeliveryVisibilityFindings, ...resolvedPublicNewsApiSafetyFindings, ...resolvedPublicNewsDetailApiSafetyFindings, {
   id: "RESEND_CONFIRMATION_EXTERNAL_REDIRECT",
   status: "resolved",
   severity: "historical-release-blocking",
@@ -794,6 +808,27 @@ export const batch6eTraces = {
       { sourceFile: "src/lib/news-content.ts,src/pages/news/[slug].astro", symbol: "parseNewsContent,parseInlineSegments", evidenceType: "rendering-contract", conciseFinding: "The public page parses content into explicit text/link/image blocks and Astro emits text as escaped content. Its link parser only permits relative or HTTP(S) hrefs; route/helper normalization has already removed literal HTML and unsafe URL forms from returned rows." },
       { sourceFile: "src/pages/api/news.ts,src/lib/news.ts", symbol: "GET,listPublicNewsFeed", evidenceType: "external-fetch-cache-and-effect-absence", conciseFinding: "There is no RSS/provider/API adapter, fetch wrapper, outbound request, redirect, DNS resolution, request authorization header, cache lookup/write, KV, database write, filesystem write, audit, analytics, rate, notification, email, RPC, R2, or storage mutation. No client-selected outbound destination or SSRF-capable path exists." },
       { sourceFile: "scripts/test-public-news-api-safety.mjs", symbol: "public-news-api-safety", evidenceType: "offline-regression", conciseFinding: "The deterministic Vite fake matrix proves valid allowlisted reads, zero-read malformed-query denial, bearer-agnostic public behavior, generic errors without secret-like content, sanitized URLs/text/nonpublished rows, and zero provider/cache/write effects with no real service operation." }
+    ]
+  }
+};
+export const batch6fTraces = {
+  "src/pages/api/news/[slug].ts#GET": {
+    traceStatus: "complete",
+    traceEvidenceComplete: true,
+    traceCompleteness: "complete",
+    historicalBlockerId: "PUBLIC_NEWS_DETAIL_SLUG_AND_OUTPUT_SAFETY",
+    runtimeRemediationStatus: "implemented-source-reaudited",
+    consentInsertionPoint: "not-applicable: GET is public and read-only",
+    consentInsertion: { symbol: "GET", precedingStage: "The route validates runtime bindings and the single-decoded canonical public slug before its anon client and exact published read.", followingStage: "It serializes normalized article and bounded related rows without a mutation or operational cache write.", refactorRequired: false, smallestFutureRefactor: "No legal-consent guard applies because this public GET has no consent-required mutation, provider fetch, storage signing, or cache persistence." },
+    currentExecutionOrder: ["runtime-binding-presence-validation", "single-decode-and-canonical-slug-validation", "construct-anon-key-client-without-bearer-propagation", "exact-published-news-row-database-read", "public-row-url-text-status-category-normalization", "bounded-related-published-news-database-read", "normalized-json-response"],
+    evidence: [
+      { sourceFile: "src/pages/api/news/[slug].ts", symbol: "GET,createPublicNewsDetailGet,parsePublicNewsSlug", evidenceType: "handler-and-slug-boundary", conciseFinding: "Slug input comes only from params.slug. One safe decode is followed by a 96-character bound, control/slash/backslash rejection, and the exact lower-case alphanumeric-hyphen grammar. Empty, malformed, encoded traversal, repeated-encoding, filter-grammar, whitespace, and noncanonical forms return NEWS_NOT_FOUND before a client or database read; no table, column, filter, sort, RPC, URL, provider, storage key, query, or header input is accepted." },
+      { sourceFile: "src/lib/supabase-server.ts,supabase/migrations/20260612_hot_news_mvp.sql", symbol: "createSSRClient,news_articles_select_published_public,news_articles_select_staff_all", evidenceType: "public-authentication-and-rls", conciseFinding: "The route constructs only an anon-key client and never parses or propagates bearer input, so a caller cannot reach the authenticated staff SELECT branch. The public policy permits only status = published while staff access is database-role-derived; no public SELECT policy grants mutation authority." },
+      { sourceFile: "src/lib/news.ts", symbol: "getPublicNewsArticleBySlug,listRelatedPublicNews", evidenceType: "database-read-order-and-visibility", conciseFinding: "After slug validation, the first and only target lookup is an exact news_articles slug equality plus status published maybeSingle. A normalized missing-table fallback is fixed local content only. Only a successful normalized article supplies its server-derived category and slug to the later related published-category query, whose limit is independently capped at four." },
+      { sourceFile: "src/lib/news.ts", symbol: "normalizePublicNewsArticle,normalizeNewsUrl,isPrivateOrLocalHostname", evidenceType: "public-output-sanitization", conciseFinding: "Article and related output require published status, a valid slug and category, bounded title/summary/content/source text with controls and literal HTML removed, author_id removed, canonical storage references or safe HTTP(S) URLs only, and rejection of javascript, data, credentials, localhost, loopback, private, link-local, and IPv6-loopback URLs." },
+      { sourceFile: "src/lib/news-content.ts,src/pages/news/[slug].astro", symbol: "parseNewsContent,parseInlineSegments", evidenceType: "rendering-contract", conciseFinding: "The public page parses returned text into explicit blocks and Astro escapes text. Links are represented as relative or HTTP(S) values rather than trusted HTML; API normalization has already removed literal tags and unsafe article-level URLs." },
+      { sourceFile: "src/pages/api/news/[slug].ts,src/lib/news.ts", symbol: "GET,getPublicNewsArticleBySlug,listRelatedPublicNews", evidenceType: "effect-and-ssrf-absence", conciseFinding: "This GET has no provider or image fetch, URL preview, redirect, storage signing, cache/KV/filesystem access, view counter, database write, analytics, audit, notification, email, RPC, R2, or other persistent effect. It returns values only, so no client-selected outbound destination or SSRF-capable path exists." },
+      { sourceFile: "scripts/test-public-news-detail-api-safety.mjs", symbol: "public-news-detail-api-safety", evidenceType: "offline-regression", conciseFinding: "The deterministic fake matrix proves canonical and safely decoded published slugs, zero-read denial of malformed/traversal/filter inputs, generic missing and error responses, bearer-agnostic visibility, public fallback/related normalization, and zero real network, database, cache, storage, or write effects." }
     ]
   }
 };
