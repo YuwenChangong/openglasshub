@@ -48,7 +48,7 @@ export function compareFingerprint(expected, actualRows) {
       results.push({ key: rowKey(expectedRow), classification: "DIVERGENT_IN_PRODUCTION", severity: securityClassification(entry, actualValue), expected: expectedRow.value, actual: actualValue });
     } else results.push({ key: rowKey(expectedRow), classification: "MATCH", severity: "NONE" });
   }
-  for (const extra of actualByKey.values()) results.push({ key: rowKey(extra), classification: "EXTRA_IN_PRODUCTION", severity: "HARMLESS_EXTRA_OBJECT" });
+  for (const extra of actualByKey.values()) results.push({ key: rowKey(extra), classification: "EXTRA_IN_PRODUCTION", severity: extraSecurityClassification(extra) });
 
   const ledgerRows = actualRows.filter((row) => row.section === "migration_ledger");
   const migrations = ORDERED_MIGRATION_FILENAMES.map((migration) => {
@@ -76,6 +76,16 @@ export function compareFingerprint(expected, actualRows) {
     hardBlockers: results.filter((result) => ["SECURITY_BROADENING", "POSSIBLE_SECURITY_BROADENING"].includes(result.severity)),
     legalPrerequisiteEvidence: migrations.filter((result) => LEGAL_PREREQUISITES.has(result.migration)),
   };
+}
+
+function extraSecurityClassification(row) {
+  if (row.object_type === "policy") return "POSSIBLE_SECURITY_BROADENING";
+  if (row.object_type.endsWith("_grant")) {
+    const [role, privilege] = row.attribute.split(":", 2);
+    if (["PUBLIC", "anon"].includes(role)) return "SECURITY_BROADENING";
+    if (["INSERT", "UPDATE", "DELETE", "TRUNCATE", "EXECUTE"].includes(privilege)) return "POSSIBLE_SECURITY_BROADENING";
+  }
+  return "HARMLESS_EXTRA_OBJECT";
 }
 
 function sectionForEntry(entry) {

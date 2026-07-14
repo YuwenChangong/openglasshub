@@ -57,6 +57,10 @@ assert.equal(divergent.counts.DIVERGENT_IN_PRODUCTION, 1);
 assert.equal(divergent.hardBlockers.length, 1, "policy divergence is a hard security review blocker");
 const extra = compareFingerprint(expected, [...rows, { ...rows[0], identity: "unexpected.identity" }]);
 assert.equal(extra.counts.EXTRA_IN_PRODUCTION, 1);
+const broadExtraGrant = compareFingerprint(expected, [...rows, { section: "grants", object_type: "function_grant", schema_name: "public", object_name: "unexpected_function", identity: "unexpected_function()", attribute: "PUBLIC:EXECUTE", value: "true", definition_hash: "" }]);
+assert(broadExtraGrant.hardBlockers.some((result) => result.classification === "EXTRA_IN_PRODUCTION" && result.severity === "SECURITY_BROADENING"));
+const extraPolicy = compareFingerprint(expected, [...rows, { section: "policies", object_type: "policy", schema_name: "public", object_name: "unexpected_table", identity: "public.unexpected_table.unreviewed_policy", attribute: "SELECT", value: "using=(true)", definition_hash: "" }]);
+assert(extraPolicy.hardBlockers.some((result) => result.classification === "EXTRA_IN_PRODUCTION" && result.severity === "POSSIBLE_SECURITY_BROADENING"));
 const aclIndex = rows.findIndex((row) => row.identity.startsWith("insert_forum_notification") && row.attribute === "PUBLIC_execute");
 const wrongAclRows = rows.map((row) => ({ ...row }));
 wrongAclRows[aclIndex].value = "true";
@@ -70,4 +74,4 @@ assert.equal(unrecordedPresent.migrationResults.find((result) => result.migratio
 assert(compareFingerprint(expected, []).counts.INSUFFICIENT_EVIDENCE > 0, "missing section markers must be reported as insufficient evidence");
 assert.throws(() => parseCsv("bad,input\n"), /required fingerprint columns/);
 assert.deepEqual(PACKET_COLUMNS.length, 8);
-console.log(JSON.stringify({ fingerprintObjects: expected.objectCount, packetReadOnly: true, comparisonCases: 15, realOperations: 0 }));
+console.log(JSON.stringify({ fingerprintObjects: expected.objectCount, packetReadOnly: true, comparisonCases: 17, realOperations: 0 }));
