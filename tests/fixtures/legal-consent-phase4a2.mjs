@@ -70,5 +70,5 @@ export const PHASE4A2_STATUS = {
   integratedRepresentativeCount: 5,
   pendingRepresentativeCount: 0,
   activeRepresentativeBlockers: [],
-  phase4BStatus: "wave-3-integrated",
+  phase4BStatus: "complete",
 };

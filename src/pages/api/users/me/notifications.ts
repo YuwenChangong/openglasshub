@@ -15,6 +15,8 @@ import {
 } from "../../../../lib/notifications";
 import { resolveProfileAvatarUrl } from "../../../../lib/profile-media";
 import { isPublicVisibleCircle } from "../../../../lib/site-navigation";
+import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../../lib/server/legal-consent-repository.server";
 
 export const prerender = false;
 
@@ -304,10 +306,12 @@ type NotificationRouteDependencies = {
   resolveActors: typeof resolveActors;
   resolvePosts: typeof resolvePosts;
   resolveComments: typeof resolveComments;
+  requireAuthenticatedLegalConsent: typeof requireAuthenticatedLegalConsent;
+  createLegalConsentReadRepository: typeof createLegalConsentReadRepository;
   now: () => string;
 };
 
-const productionDependencies: NotificationRouteDependencies = { authenticate, getUnreadCount, loadNotificationRows, resolveActors, resolvePosts, resolveComments, now: () => new Date().toISOString() };
+const productionDependencies: NotificationRouteDependencies = { authenticate, getUnreadCount, loadNotificationRows, resolveActors, resolvePosts, resolveComments, requireAuthenticatedLegalConsent, createLegalConsentReadRepository, now: () => new Date().toISOString() };
 
 export function createNotificationsGet(dependencies: NotificationRouteDependencies = productionDependencies): APIRoute {
   return async ({ request, locals }) => {
@@ -331,6 +335,11 @@ export function createNotificationsPatch(dependencies: NotificationRouteDependen
   return async ({ request, locals }) => {
     const auth = await dependencies.authenticate(request, locals);
     if ("error" in auth) return auth.error;
+    const consent = await dependencies.requireAuthenticatedLegalConsent({
+      identity: { userId: auth.userId },
+      repository: dependencies.createLegalConsentReadRepository(auth.client),
+    });
+    if (!consent.ok) return consent.response;
     const contentLength = Number(request.headers.get("content-length") ?? "0");
     if (!Number.isSafeInteger(contentLength) || contentLength < 0 || contentLength > MAX_PATCH_BODY_BYTES) return json({ ok: false, error: "INVALID_ACTION" }, 400);
     const contentType = request.headers.get("content-type");

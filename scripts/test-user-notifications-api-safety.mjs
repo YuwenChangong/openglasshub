@@ -77,7 +77,7 @@ async function main() {
     assert.equal(buildNotificationPreview("comment_on_post", "<script>secret</script>\u0000 visible"), "secret visible");
     assert.deepEqual(sortNotificationsByLatestEvent([row({ id: ids.notificationA }), row({ id: ids.notificationB })]).map((entry) => entry.id), [ids.notificationB, ids.notificationA]);
 
-    const effects = { authentication: 0, reads: 0, writes: 0 };
+    const effects = { authentication: 0, reads: 0, writes: 0, consentReads: 0, consentGuards: 0 };
     const fakeClient = {};
     let rows = [row(), row({ id: ids.notificationB, last_event_at: "2026-07-17T02:00:00.000Z" })];
     const dependencies = {
@@ -87,6 +87,8 @@ async function main() {
       resolveActors: async () => new Map([[ids.actor, { username: "public_actor", display_name: "Public Actor", avatar_resolved_url: `/api/media/profile/${ids.actor}/avatar` }]]),
       resolvePosts: async () => new Map([[ids.post, { id: ids.post, title: "Visible post", circle_id: "circle", status: "published", moderation_status: "published" }]]),
       resolveComments: async () => new Map([[ids.comment, { id: ids.comment, body: "Visible comment", post_id: ids.post, status: "published", moderation_status: "published" }]]),
+      createLegalConsentReadRepository: () => { effects.consentReads += 1; return {}; },
+      requireAuthenticatedLegalConsent: async ({ identity }) => { effects.consentGuards += 1; assert.equal(identity.userId, ids.recipient); return { ok: true, userId: ids.recipient }; },
       now: () => "2026-07-17T03:00:00.000Z",
     };
     const get = createNotificationsGet(dependencies);
@@ -136,6 +138,30 @@ async function main() {
     assert.equal(bulk.status, 200);
     assert.equal(calls.filter((call) => call === `eq:recipient_id:${ids.recipient}`).length, 2, "bulk updates remain verified-recipient scoped");
     assert.equal(calls.filter((call) => call === "is:read_at:null").length, 2, "repeat calls skip already-read rows");
+
+    for (const outcome of ["missing", "outdated", "failure"]) {
+      const denialCalls = [];
+      const deniedPatch = createNotificationsPatch({
+        ...dependencies,
+        authenticate: async () => ({ client: mutationClient(denialCalls), userId: ids.recipient }),
+        createLegalConsentReadRepository: () => { effects.consentReads += 1; return {}; },
+        requireAuthenticatedLegalConsent: async () => ({
+          ok: false,
+          response: new Response(JSON.stringify(outcome === "failure"
+            ? { error: "LEGAL_CONSENT_UNAVAILABLE" }
+            : { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" }), { status: outcome === "failure" ? 503 : 403 }),
+        }),
+      });
+      const deniedResponse = await deniedPatch({ request: new Request("https://app.example/api/users/me/notifications", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "mark_all_read", recipient_id: ids.otherRecipient }) }), locals: {} });
+      assert.equal(deniedResponse.status, outcome === "failure" ? 503 : 403);
+      assert.deepEqual(await deniedResponse.json(), outcome === "failure"
+        ? { error: "LEGAL_CONSENT_UNAVAILABLE" }
+        : { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" });
+      assert.deepEqual(denialCalls, [], `${outcome} consent denial performs zero notification writes`);
+    }
+    const unauthenticatedPatch = createNotificationsPatch({ ...dependencies, authenticate: async () => ({ error: new Response("denied", { status: 401 }) }) });
+    const unauthenticatedResponse = await unauthenticatedPatch({ request: new Request("https://app.example/api/users/me/notifications", { method: "PATCH" }), locals: {} });
+    assert.equal(unauthenticatedResponse.status, 401);
   } finally {
     await vite.close();
   }
@@ -143,7 +169,7 @@ async function main() {
   console.log(JSON.stringify({
     allowed: ["verified recipient only", "strict bounded limit and unread filter", "stable last_event_at/created_at/id order", "same-origin internal links", "public actor fields only", "visible target preview"],
     deniedOrRedacted: ["absent or malformed bearer", "recipient override", "filter/sort/offset grammar", "invalid/excessive pagination", "raw metadata type", "unsafe target id", "missing or inaccessible target text/link", "client actor or recipient fields"],
-    effects: "GET uses authenticated RLS reads only and performs zero writes; PATCH writes only unread rows scoped to auth.getUser-derived recipient",
+    effects: "GET uses authenticated RLS reads only and performs zero writes; PATCH gates current consent before body parsing and writes only unread rows scoped to auth.getUser-derived recipient",
     externalOperations: "none; all test clients are fakes",
   }));
 }

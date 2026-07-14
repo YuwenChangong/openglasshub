@@ -441,6 +441,11 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
     }
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: authData.user.id },
+      repository: createLegalConsentReadRepository(userClient),
+    });
+    if (!consent.ok) return consent.response;
     const safetyDecision = await assertUserCanWrite(userClient, authData.user.id, "post_delete");
     if (!safetyDecision.allowed) {
       return getSafetyWriteBlockResponse(safetyDecision);
@@ -536,6 +541,11 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
     }
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: authData.user.id },
+      repository: createLegalConsentReadRepository(userClient),
+    });
+    if (!consent.ok) return consent.response;
     const safetyDecision = await assertUserCanWrite(userClient, authData.user.id, "post_moderate");
     if (!safetyDecision.allowed) {
       return getSafetyWriteBlockResponse(safetyDecision);

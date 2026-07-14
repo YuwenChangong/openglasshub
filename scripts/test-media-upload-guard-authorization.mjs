@@ -11,12 +11,15 @@ async function main() {
 
   const bearer = source.indexOf("const token = getBearerToken(request);");
   const authenticatedActor = source.indexOf("await supabase.auth.getUser(token)");
+  const consent = source.indexOf("const consent = await requireAuthenticatedLegalConsent");
   const payload = source.indexOf("const payload = (await request.json()");
   const safety = source.indexOf("await assertUserCanWrite");
   const turnstile = source.indexOf("await validateTurnstileToken");
   const rate = source.indexOf("await enforceUploadRateLimit");
-  assert(bearer >= 0 && bearer < authenticatedActor && authenticatedActor < payload);
+  assert(bearer >= 0 && bearer < authenticatedActor && authenticatedActor < consent && consent < payload);
   assert(payload < safety && safety < turnstile && turnstile < rate);
+  assert.match(source, /identity: \{ userId: authData\.user\.id \}/);
+  assert.match(source, /repository: createLegalConsentReadRepository\(supabase\)/);
   assert(/\{ upload_kind\?: string; size_bytes\?: number; turnstile_token\?: string \}/.test(source));
   assert(!/post_id|circle_id|media_id|user_id|author_id|owner_id|upload_url|storage_path|signR2PutUrl|buildTmpVideoKey/.test(source));
   assert(/return json\(\{ ok: true \}\);/.test(source));
@@ -30,6 +33,7 @@ async function main() {
     targetIdentifierAccepted: false,
     firstExternalEffect: "validateTurnstileToken when required",
     firstPersistentEffect: "enforceUploadRateLimit forum_upload_attempts insert when under limit",
+    consentDenial: "403 missing-or-outdated or sanitized 503 before payload, safety, Turnstile, or quota work",
     directMediaMutation: false,
     ssrfCapablePath: false,
   }));

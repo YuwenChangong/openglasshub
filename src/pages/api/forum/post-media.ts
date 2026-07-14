@@ -13,6 +13,8 @@ import { moderateAsset } from "../../../lib/moderation/moderate-asset.server";
 import { createSignedModerationUrls } from "../../../lib/moderation/moderation-media.server";
 import { evaluateLocalSensitiveLexicon } from "../../../lib/moderation/local-sensitive-lexicon.server";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
+import { requireAuthenticatedLegalConsent } from "../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../lib/server/legal-consent-repository.server";
 
 export const prerender = false;
 
@@ -340,6 +342,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
     }
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: authData.user.id },
+      repository: createLegalConsentReadRepository(userClient),
+    });
+    if (!consent.ok) return consent.response;
     const safetyDecision = await assertUserCanWrite(userClient, authData.user.id, "post_media_create");
     if (!safetyDecision.allowed) {
       return getSafetyWriteBlockResponse(safetyDecision);

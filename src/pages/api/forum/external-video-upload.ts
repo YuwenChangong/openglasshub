@@ -5,6 +5,8 @@ import { getRequestIp } from "../../../lib/request-ip";
 import { enforceUploadRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { shouldRequireUploadTurnstile, validateTurnstileToken } from "../../../lib/server/turnstile";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
+import { requireAuthenticatedLegalConsent } from "../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../lib/server/legal-consent-repository.server";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 export const prerender = false;
@@ -59,6 +61,8 @@ type ExternalVideoUploadDependencies = {
   validateTurnstileToken: typeof validateTurnstileToken;
   assertUserCanWrite: typeof assertUserCanWrite;
   getSafetyWriteBlockResponse: typeof getSafetyWriteBlockResponse;
+  requireAuthenticatedLegalConsent: typeof requireAuthenticatedLegalConsent;
+  createLegalConsentReadRepository: typeof createLegalConsentReadRepository;
 };
 
 const productionDependencies: ExternalVideoUploadDependencies = {
@@ -73,11 +77,14 @@ const productionDependencies: ExternalVideoUploadDependencies = {
   validateTurnstileToken,
   assertUserCanWrite,
   getSafetyWriteBlockResponse,
+  requireAuthenticatedLegalConsent,
+  createLegalConsentReadRepository,
 };
 
 export function createExternalVideoUploadPost(
-  dependencies: ExternalVideoUploadDependencies = productionDependencies,
+  dependencies: Partial<ExternalVideoUploadDependencies> = {},
 ): APIRoute {
+  const resolvedDependencies = { ...productionDependencies, ...dependencies };
   const {
     createClient,
     buildR2PublicUrl,
@@ -90,7 +97,9 @@ export function createExternalVideoUploadPost(
     validateTurnstileToken,
     assertUserCanWrite,
     getSafetyWriteBlockResponse,
-  } = dependencies;
+    requireAuthenticatedLegalConsent,
+    createLegalConsentReadRepository,
+  } = resolvedDependencies;
 
   return async ({ request, locals }) => {
   let stage = "init";
@@ -110,6 +119,11 @@ export function createExternalVideoUploadPost(
     stage = "auth.getUser";
     const { data: authData, error: authError } = await supabase.auth.getUser(token);
     if (authError || !authData.user) return json({ error: "Invalid auth token" }, 401);
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: authData.user.id },
+      repository: createLegalConsentReadRepository(supabase),
+    });
+    if (!consent.ok) return consent.response;
     const safetyDecision = await assertUserCanWrite(supabase, authData.user.id, "external_video_upload");
     if (!safetyDecision.allowed) {
       return getSafetyWriteBlockResponse(safetyDecision);

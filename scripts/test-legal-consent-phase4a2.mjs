@@ -6,6 +6,7 @@ import { PHASE4A2_REPRESENTATIVES, PHASE4A2_STATUS } from "../tests/fixtures/leg
 import { PHASE4B_MANIFEST_BEFORE_WAVE1, PHASE4B_WAVE1_METHODS, PHASE4B_WAVE1_STATUS } from "../tests/fixtures/legal-consent-phase4b-wave1.mjs";
 import { PHASE4B_WAVE2_METHODS, PHASE4B_WAVE2_STATUS } from "../tests/fixtures/legal-consent-phase4b-wave2.mjs";
 import { PHASE4B_WAVE3_METHODS, PHASE4B_WAVE3_STATUS } from "../tests/fixtures/legal-consent-phase4b-wave3.mjs";
+import { PHASE4B_WAVE4_METHODS, PHASE4B_WAVE4_STATUS } from "../tests/fixtures/legal-consent-phase4b-wave4.mjs";
 import { requireAuthenticatedLegalConsent } from "../src/lib/server/legal-consent-mutation.server.ts";
 import { getActiveLegalBundle } from "../src/lib/server/legal-consent.server.ts";
 
@@ -74,7 +75,7 @@ assert.deepEqual(PHASE4A2_REPRESENTATIVES.map((entry) => entry.id).sort(), expec
 assert.equal(PHASE4A2_STATUS.integratedRepresentativeCount, 5);
 assert.equal(PHASE4A2_STATUS.pendingRepresentativeCount, 0);
 assert.deepEqual(PHASE4A2_STATUS.activeRepresentativeBlockers, []);
-assert.equal(PHASE4A2_STATUS.phase4BStatus, "wave-3-integrated");
+assert.equal(PHASE4A2_STATUS.phase4BStatus, "complete");
 
 for (const representative of PHASE4A2_REPRESENTATIVES) {
   const source = await readFile(path.join(root, representative.sourceFile), "utf8");
@@ -146,6 +147,22 @@ assert.deepEqual(PHASE4B_WAVE3_STATUS, {
   nextManifestMethodId: "src/pages/api/forum/comments.ts#DELETE",
   phase4BStatus: "in-progress",
 });
+assert.deepEqual(PHASE4B_WAVE4_METHODS.map((entry) => entry.id), PHASE4B_MANIFEST_BEFORE_WAVE1.slice(24, 32));
+assert.equal(new Set(PHASE4B_WAVE4_METHODS.map((entry) => entry.sourceFile)).size, 6);
+assert.deepEqual(PHASE4B_WAVE4_STATUS, {
+  totalConsentRequiredMutationCount: 37,
+  phase4A2IntegratedCount: 5,
+  wave1IntegratedCount: 10,
+  wave2IntegratedCount: 6,
+  wave3IntegratedCount: 8,
+  remainingBeforeWave: 8,
+  waveIntegratedCount: 8,
+  cumulativeIntegratedCount: 37,
+  remainingMutationCount: 0,
+  activeBlockers: [],
+  nextManifestMethodId: null,
+  phase4BStatus: "complete",
+});
 
 for (const waveMethod of PHASE4B_WAVE1_METHODS) {
   const [sourceFile, method] = waveMethod.id.split("#");
@@ -163,7 +180,7 @@ for (const waveMethod of PHASE4B_WAVE1_METHODS) {
           : method === "DELETE" ? "export const ALL" : "export const ALL";
   const handler = postHandler(source, start, end);
   const auth = handler.indexOf("requireModerator(request, env)");
-  const guard = handler.indexOf("requireAuthenticatedLegalConsent");
+  const guard = handler.indexOf("const consent = await");
   const next = method === "DELETE" ? handler.indexOf("const url = new URL") : handler.indexOf("request.json()");
   assert.ok(auth >= 0 && auth < guard && guard < next, `${waveMethod.id} authenticates, gates consent, then starts route processing`);
 }
@@ -233,6 +250,37 @@ for (const waveMethod of PHASE4B_WAVE3_METHODS) {
   }
 }
 
+for (const waveMethod of PHASE4B_WAVE4_METHODS) {
+  const [sourceFile, method] = waveMethod.id.split("#");
+  assert.equal(classifyApiMethod(sourceFile, method).phase4IntegrationStatus, "phase4b-wave4-integrated", `${waveMethod.id} is integrated only in Wave 4`);
+  const source = await readFile(path.join(root, sourceFile), "utf8");
+  const handler = sourceFile.endsWith("comments.ts")
+    ? postHandler(source, `export const ${method}`, method === "DELETE" ? "export const PUT" : "export const ALL")
+    : sourceFile.endsWith("posts.ts")
+      ? postHandler(source, `export const ${method}`, method === "DELETE" ? "export const PATCH" : "export const ALL")
+      : sourceFile.endsWith("external-video-upload.ts")
+        ? postHandler(source, "export function createExternalVideoUploadPost", "export const POST")
+        : sourceFile.endsWith("notifications.ts")
+          ? postHandler(source, "export function createNotificationsPatch", "export const GET")
+          : postHandler(source, "export const POST", "export const ALL");
+  const auth = sourceFile.endsWith("notifications.ts")
+    ? handler.indexOf("dependencies.authenticate(request, locals)")
+    : handler.indexOf("auth.getUser(token)");
+  const guard = handler.indexOf("const consent = await");
+  const next = handler.indexOf(waveMethod.firstFollowingStage.includes("request.json") ? "request.json" : waveMethod.firstFollowingStage.includes("profiles") ? ".from(\"profiles\")" : waveMethod.firstFollowingStage.includes("content-length") ? "content-length" : "const safetyDecision = await");
+  assert.ok(auth >= 0 && auth < guard && guard < next, `${waveMethod.id} authenticates, gates consent, then starts its first recorded downstream stage`);
+  assert.ok(handler.includes("identity: { userId:"), `${waveMethod.id} passes only a verified actor to the guard`);
+  assert.ok(handler.includes("createLegalConsentReadRepository"), `${waveMethod.id} uses the existing RLS client for consent reads`);
+  if (sourceFile.endsWith("comments.ts") && method === "PUT") assert.ok(handler.includes("resolveAccessibleCommentReactionTarget") && handler.includes("comment_reactions"), `${waveMethod.id} retains comment-post-circle visibility and reaction binding`);
+  if (sourceFile.endsWith("comments.ts") && method === "DELETE") assert.ok(handler.includes("isModeratorRole") && handler.includes("status: \"deleted\""), `${waveMethod.id} retains author-or-staff soft-delete lifecycle`);
+  if (sourceFile.endsWith("external-video-upload.ts")) assert.ok(handler.includes("validateTurnstileToken") && handler.includes("signR2PutUrl") && handler.includes("buildTmpVideoKey"), `${waveMethod.id} retains target ownership, Turnstile, and post-bound signing`);
+  if (sourceFile.endsWith("media-upload-guard.ts")) assert.ok(handler.includes("[\"post_media\", \"circle_cover\", \"profile_avatar\", \"profile_banner\"]") && handler.includes("enforceUploadRateLimit"), `${waveMethod.id} retains purpose allowlist and quota checks`);
+  if (sourceFile.endsWith("post-media.ts")) assert.ok(handler.includes("validateMediaArray") && handler.includes("moderatePostMedia") && handler.includes(".insert(rows)"), `${waveMethod.id} retains post-bound media provenance and moderation`);
+  if (sourceFile.endsWith("posts.ts") && method === "DELETE") assert.ok(handler.includes("resolveAccessibleForumPostTarget") && handler.includes("deletePostMediaObjects"), `${waveMethod.id} retains target authorization and cleanup lifecycle`);
+  if (sourceFile.endsWith("posts.ts") && method === "PATCH") assert.ok(handler.includes("resolveAccessibleForumPostTarget") && handler.includes("isModeratorRole"), `${waveMethod.id} retains exact target and moderator-only transition authorization`);
+  if (sourceFile.endsWith("notifications.ts")) assert.ok(handler.includes('.eq("recipient_id", auth.userId)') && handler.includes('.is("read_at", null)'), `${waveMethod.id} retains recipient-scoped idempotent updates`);
+}
+
 for (const waveMethod of PHASE4B_WAVE1_METHODS) {
   const unauthenticatedLog = [];
   const unauthenticated = await runGuardedRoute({ outcome: "missing", authenticated: false, log: unauthenticatedLog });
@@ -297,6 +345,26 @@ for (const waveMethod of PHASE4B_WAVE3_METHODS) {
   assert.deepEqual(currentLog.slice(-3), ["downstream-target-read", "downstream-rate-or-provider", "downstream-persistent-mutation"]);
 }
 
+for (const waveMethod of PHASE4B_WAVE4_METHODS) {
+  const unauthenticatedLog = [];
+  const unauthenticated = await runGuardedRoute({ outcome: "missing", authenticated: false, log: unauthenticatedLog });
+  assert.equal(unauthenticated.status, 401, `${waveMethod.id} unauthenticated`);
+  assert.deepEqual(unauthenticatedLog, ["authentication-denied"], `${waveMethod.id} does not construct a consent reader before verified authentication`);
+  for (const outcome of ["missing", "outdated", "failure"]) {
+    const log = [];
+    const response = await runGuardedRoute({ outcome, log });
+    assert.equal(response.status, outcome === "failure" ? 503 : 403, `${waveMethod.id} ${outcome}`);
+    assert.deepEqual(await response.json(), outcome === "failure"
+      ? { error: "LEGAL_CONSENT_UNAVAILABLE" }
+      : { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" }, `${waveMethod.id} uses the central denial contract`);
+    assert.deepEqual(log.filter((entry) => entry.startsWith("downstream-")), [], `${waveMethod.id} ${outcome} produces zero resource, safety, signing, provider, mutation, cleanup, or notification effects`);
+  }
+  const currentLog = [];
+  const current = await runGuardedRoute({ outcome: "current", log: currentLog });
+  assert.equal(current.status, 201, `${waveMethod.id} current consent continues into existing authorization`);
+  assert.deepEqual(currentLog.slice(-3), ["downstream-target-read", "downstream-rate-or-provider", "downstream-persistent-mutation"]);
+}
+
 const userSafetySource = await readFile(path.join(root, "src/lib/server/user-safety.server.ts"), "utf8");
 const safetyAction = postHandler(userSafetySource, "export async function applyUserSafetyAction", undefined);
 for (const requiredSymbol of ["actorId === targetUserId", "authorizeUserSafetyAction", "getUserSafetyState", "upsertUserSafetyState", "insertUserSafetyEvent"]) {
@@ -335,11 +403,6 @@ for (const representative of PHASE4A2_REPRESENTATIVES) {
   assert.deepEqual(log.slice(-3), ["downstream-target-read", "downstream-rate-or-provider", "downstream-persistent-mutation"]);
 }
 
-for (const [sourceFile, method] of [
-  ["src/pages/api/forum/comments.ts", "DELETE"],
-  ["src/pages/api/forum/posts.ts", "DELETE"],
-  ["src/pages/api/users/me/notifications.ts", "PATCH"],
-]) assert.equal(classifyApiMethod(sourceFile, method).phase4IntegrationStatus, "phase4b-pending", `${sourceFile}#${method} remains outside representative scope`);
 assert.equal(classifyApiMethod("src/pages/api/legal/consent.ts", "POST").phase4IntegrationStatus, "exempt");
 assert.equal(classifyApiMethod("src/pages/api/auth/resend-confirmation.ts", "POST").phase4IntegrationStatus, "exempt");
 assert.equal(classifyApiMethod("src/pages/api/forum/comments.ts", "GET").phase4IntegrationStatus, "not-required");
@@ -349,9 +412,10 @@ console.log(JSON.stringify({
   representatives: "5/5 integrated",
   phase4BWave1: "10/10 integrated",
   phase4BWave2: "6/6 integrated",
-  phase4BWave3: "8/8 integrated; 8 remaining",
+  phase4BWave3: "8/8 integrated",
+  phase4BWave4: "8/8 integrated; 0 remaining",
   denial: "403 missing-or-outdated, 503 infrastructure failure, zero downstream call-log entries",
   exemptions: ["legal consent POST", "auth recovery", "read-only GET"],
-  phase4B: "in progress",
+  phase4B: "complete 37/37",
   realOperations: 0,
 }));

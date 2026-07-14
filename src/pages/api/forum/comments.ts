@@ -743,6 +743,11 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
     }
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: authData.user.id },
+      repository: createLegalConsentReadRepository(userClient),
+    });
+    if (!consent.ok) return consent.response;
 
     // Check user's role
     const { data: profile, error: profileError } = await userClient
@@ -821,6 +826,11 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     if (authError || !authData.user) {
       return json({ error: "Invalid auth token" }, 401);
     }
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: authData.user.id },
+      repository: createLegalConsentReadRepository(userClient),
+    });
+    if (!consent.ok) return consent.response;
 
     const payload = (await request.json().catch(() => null)) as Record<string, unknown> | null;
     if (!payload) {

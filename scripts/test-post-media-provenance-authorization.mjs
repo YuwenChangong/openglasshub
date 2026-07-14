@@ -33,6 +33,12 @@ async function main() {
   assert(/buildTmpVideoKey\(authData\.user\.id, postId, fileNameRaw\)/.test(issuerSource));
   assert(issuerSource.indexOf('stage = "post.authorize";') < issuerSource.indexOf('stage = "key.build";'));
   assert(issuerSource.indexOf('stage = "key.build";') < issuerSource.indexOf('stage = "turnstile";'));
+  const postMediaAuth = postMediaSource.indexOf("await userClient.auth.getUser(token)");
+  const postMediaConsent = postMediaSource.indexOf("const consent = await requireAuthenticatedLegalConsent");
+  const postMediaSafety = postMediaSource.indexOf("await assertUserCanWrite");
+  assert(postMediaAuth >= 0 && postMediaAuth < postMediaConsent && postMediaConsent < postMediaSafety);
+  assert(/identity: \{ userId: authData\.user\.id \}/.test(postMediaSource));
+  assert(/repository: createLegalConsentReadRepository\(userClient\)/.test(postMediaSource));
   assert(postMediaSource.indexOf("const validationError = validateMediaArray") < postMediaSource.indexOf("const { error: resetCoverError }"));
   assert(postMediaSource.indexOf("const validationError = validateMediaArray") < postMediaSource.indexOf(".insert(rows)"));
 
@@ -69,6 +75,7 @@ async function main() {
     allowed: "actor A key for post A",
     denied: ["post A key for post B", "other actor", "legacy actor-only tmp key", "encoded slash", "duplicate slash", "backslash traversal", "foreign url"],
     deniedFinalizationDomainWrites: 0,
+    consentDenial: "403 missing-or-outdated or sanitized 503 before safety, post lookup, provenance validation, moderation, or post_media writes",
     historicalMigrationsUnchanged: true,
     forwardRlsBinds: ["actor", "target post", "canonical object key"],
     realNetworkStorageDatabaseRequests: 0,

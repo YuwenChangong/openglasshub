@@ -31,6 +31,7 @@ async function runScenario({
   turnstileRequired = true,
   turnstileResult = { ok: true },
   malformedPostId = false,
+  consentOutcome = "current",
 } = {}) {
   const calls = [];
   const effects = {
@@ -133,6 +134,20 @@ async function runScenario({
     getSafetyWriteBlockResponse() {
       return new Response(JSON.stringify({ error: "USER_BANNED" }), { status: 403 });
     },
+    createLegalConsentReadRepository() {
+      calls.push("consent repository");
+      return {};
+    },
+    async requireAuthenticatedLegalConsent({ identity }) {
+      calls.push(`consent guard:${identity.userId}`);
+      if (consentOutcome === "current") return { ok: true, userId: ACTOR_ID };
+      return {
+        ok: false,
+        response: new Response(JSON.stringify(consentOutcome === "failure"
+          ? { error: "LEGAL_CONSENT_UNAVAILABLE" }
+          : { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" }), { status: consentOutcome === "failure" ? 503 : 403 }),
+      };
+    },
   });
 
   const headers = authenticated ? { authorization: "Bearer test-token" } : {};
@@ -186,6 +201,7 @@ async function main() {
   const deployedPostSelectPolicy = await fs.readFile(path.join(root, "supabase/migrations/20260611_forum_permission_lockdown.sql"), "utf8");
   const authoredPostSelectPolicy = await fs.readFile(path.join(root, "supabase/migrations/20260713_comment_read_circle_visibility_authorization.sql"), "utf8");
   const postIdValidation = source.indexOf("if (!postId || !/^[0-9a-f-]{36}$/i.test(postId))");
+  const consent = source.indexOf("const consent = await requireAuthenticatedLegalConsent");
   const postLookup = source.indexOf('stage = "post.lookup";');
   const ownershipComparison = source.indexOf("if (post.author_id !== authData.user.id)");
   const keyBuild = source.indexOf("const objectKey = buildTmpVideoKey(authData.user.id, postId, fileNameRaw);");
@@ -193,7 +209,7 @@ async function main() {
   const rateReads = source.indexOf('stage = "rate.ip";');
   const r2Signing = source.indexOf('stage = "r2.sign";');
   const rateAttemptInsert = source.indexOf('stage = "attempt.insert";');
-  assert(postIdValidation >= 0 && postIdValidation < postLookup);
+  assert(consent >= 0 && consent < postIdValidation && postIdValidation < postLookup);
   assert(postLookup < ownershipComparison && ownershipComparison < keyBuild && keyBuild < turnstile);
   assert(turnstile < rateReads && rateReads < r2Signing && r2Signing < rateAttemptInsert);
   assert(/create policy "posts_select_published_public"[\s\S]*?status = 'published'[\s\S]*?or author_id = auth\.uid\(\)[\s\S]*?or \(select public\.is_moderator_or_admin\(\)\)/.test(deployedPostSelectPolicy));
@@ -201,17 +217,17 @@ async function main() {
 
   const missing = await runScenario({ postAuthorId: null });
   assert.equal(missing.response.status, 404);
-  assert.deepEqual(missing.calls, ["authenticate", "safety authorization", "post lookup"]);
+  assert.deepEqual(missing.calls, ["authenticate", "consent repository", `consent guard:${ACTOR_ID}`, "safety authorization", "post lookup"]);
   assertNoLaterEffects(missing);
 
   const wrongOwner = await runScenario({ postAuthorId: OTHER_USER_ID });
   assert.equal(wrongOwner.response.status, 403);
-  assert.deepEqual(wrongOwner.calls, ["authenticate", "safety authorization", "post lookup", "ownership comparison"]);
+  assert.deepEqual(wrongOwner.calls, ["authenticate", "consent repository", `consent guard:${ACTOR_ID}`, "safety authorization", "post lookup", "ownership comparison"]);
   assertNoLaterEffects(wrongOwner);
 
   const malformed = await runScenario({ malformedPostId: true });
   assert.equal(malformed.response.status, 400);
-  assert.deepEqual(malformed.calls, ["authenticate", "safety authorization"]);
+  assert.deepEqual(malformed.calls, ["authenticate", "consent repository", `consent guard:${ACTOR_ID}`, "safety authorization"]);
   assertNoLaterEffects(malformed);
 
   const unauthenticated = await runScenario({ authenticated: false });
@@ -221,13 +237,25 @@ async function main() {
 
   const safetyDenied = await runScenario({ safetyAllowed: false });
   assert.equal(safetyDenied.response.status, 403);
-  assert.deepEqual(safetyDenied.calls, ["authenticate", "safety authorization"]);
+  assert.deepEqual(safetyDenied.calls, ["authenticate", "consent repository", `consent guard:${ACTOR_ID}`, "safety authorization"]);
+
+  for (const consentOutcome of ["missing", "outdated", "failure"]) {
+    const denied = await runScenario({ consentOutcome });
+    assert.equal(denied.response.status, consentOutcome === "failure" ? 503 : 403);
+    assert.deepEqual(await denied.response.json(), consentOutcome === "failure"
+      ? { error: "LEGAL_CONSENT_UNAVAILABLE" }
+      : { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" });
+    assert.deepEqual(denied.calls, ["authenticate", "consent repository", `consent guard:${ACTOR_ID}`]);
+    assertNoLaterEffects(denied);
+  }
   assertNoLaterEffects(safetyDenied);
 
   const invalidTurnstile = await runScenario({ turnstileResult: { ok: false, code: "TURNSTILE_INVALID" } });
   assert.equal(invalidTurnstile.response.status, 400);
   assert.deepEqual(invalidTurnstile.calls, [
     "authenticate",
+    "consent repository",
+    `consent guard:${ACTOR_ID}`,
     "safety authorization",
     "post lookup",
     "ownership comparison",
@@ -242,6 +270,8 @@ async function main() {
   assert.equal(owner.response.status, 200);
   assert.deepEqual(owner.calls, [
     "authenticate",
+    "consent repository",
+    `consent guard:${ACTOR_ID}`,
     "safety authorization",
     "post lookup",
     "ownership comparison",
@@ -268,6 +298,7 @@ async function main() {
     missingTargetTurnstileCalls: missing.effects.turnstile,
     wrongOwnerTurnstileCalls: wrongOwner.effects.turnstile,
     invalidTurnstileRateAttemptInserts: invalidTurnstile.effects.rateAttemptInsert,
+    consentDenials: [403, 503],
     successfulOrder: owner.calls,
     turnstileDisabledOwnershipBeforeLaterProcessing: true,
     deployedPostSelectPolicy: "published-or-own-or-staff",
