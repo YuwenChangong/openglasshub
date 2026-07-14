@@ -11,10 +11,11 @@ import {
   rowsFromFingerprint,
   securityClassification,
   sha256,
+  validateProductionExport,
 } from "./production-schema-fingerprint-core.mjs";
 import { ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 
-function parseExport(text, filename) {
+export function parseExport(text, filename) {
   if (filename.toLowerCase().endsWith(".json")) {
     const parsed = JSON.parse(text);
     const rows = Array.isArray(parsed) ? parsed : parsed.rows;
@@ -97,7 +98,9 @@ async function main() {
     readFile(path.join(root, "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8"),
     readFile(path.resolve(exportPath), "utf8"),
   ]);
-  const report = compareFingerprint(JSON.parse(expectedText), parseExport(exportText, exportPath));
+  const actualRows = parseExport(exportText, exportPath);
+  validateProductionExport(actualRows);
+  const report = compareFingerprint(JSON.parse(expectedText), actualRows);
   console.log(JSON.stringify(report, null, 2));
   if (report.hardBlockers.length) process.exitCode = 2;
 }

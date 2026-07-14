@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { compareFingerprint } from "./compare-production-schema-fingerprint.mjs";
-import { loadPacketSql, PACKET_COLUMNS, parseCsv, rowsFromFingerprint } from "./production-schema-fingerprint-core.mjs";
+import { compareFingerprint, parseExport } from "./compare-production-schema-fingerprint.mjs";
+import { loadPacketSql, PACKET_COLUMNS, parseCsv, rowsFromFingerprint, validateProductionExport } from "./production-schema-fingerprint-core.mjs";
 import { generateLocalFingerprint } from "./generate-local-production-schema-fingerprint.mjs";
 
 const root = process.cwd();
@@ -37,8 +37,16 @@ assert.deepEqual(local, expected, "local expected fingerprint generation must be
 const exact = compareFingerprint(expected, rowsFromFingerprint(expected));
 assert.equal(exact.counts.MATCH, expected.objectCount);
 assert.equal(exact.hardBlockers.length, 0);
-
 const rows = rowsFromFingerprint(expected);
+assert(validateProductionExport(rows).rowCount > 1000, "complete packet validation must accept the expected catalog-only export");
+assert.throws(() => validateProductionExport([...rows, { ...rows[0] }]), /duplicate row key/);
+assert.throws(() => validateProductionExport(rows.slice(0, 100)), /100-row limit/);
+assert.throws(() => validateProductionExport(rows.filter((row) => !(row.section === "packet_sections" && row.object_name === "policies"))), /required packet sections missing: policies/);
+assert.throws(() => validateProductionExport([...rows, { ...rows[0], identity: "secret", value: "postgresql://user:password@example.test/db" }]), /secret-like/);
+assert.throws(() => validateProductionExport([...rows, { ...rows[0], section: "functions", object_type: "report", identity: "public.reports.live_content" }]), /not a catalog object allowed/);
+assert.throws(() => parseCsv(`${PACKET_COLUMNS.join(",")}\nonly,two\n`), /expected 8 columns, received 2/);
+assert.deepEqual(parseExport(`\uFEFF${PACKET_COLUMNS.join(",")}\npacket_sections,section_marker,,,,collected,true,\n`, "packet.csv"), [{ section: "packet_sections", object_type: "section_marker", schema_name: "", object_name: "", identity: "", attribute: "collected", value: "true", definition_hash: "" }]);
+
 const missing = compareFingerprint(expected, rows.slice(1));
 assert.equal(missing.counts.MISSING_IN_PRODUCTION + missing.counts.INSUFFICIENT_EVIDENCE > 0, true);
 const policyIndex = rows.findIndex((row) => row.section === "policies");
@@ -62,4 +70,4 @@ assert.equal(unrecordedPresent.migrationResults.find((result) => result.migratio
 assert(compareFingerprint(expected, []).counts.INSUFFICIENT_EVIDENCE > 0, "missing section markers must be reported as insufficient evidence");
 assert.throws(() => parseCsv("bad,input\n"), /required fingerprint columns/);
 assert.deepEqual(PACKET_COLUMNS.length, 8);
-console.log(JSON.stringify({ fingerprintObjects: expected.objectCount, packetReadOnly: true, comparisonCases: 8, realOperations: 0 }));
+console.log(JSON.stringify({ fingerprintObjects: expected.objectCount, packetReadOnly: true, comparisonCases: 15, realOperations: 0 }));

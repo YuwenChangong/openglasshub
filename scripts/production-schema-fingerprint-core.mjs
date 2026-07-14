@@ -6,6 +6,36 @@ import { ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirro
 export const PACKET_COLUMNS = ["section", "object_type", "schema_name", "object_name", "identity", "attribute", "value", "definition_hash"];
 export const LEGAL_PREREQUISITES = new Set(ORDERED_MIGRATION_FILENAMES.filter((name) => name >= "20260703_"));
 export const NON_OBJECT_SECTION = "migration_ledger";
+export const REQUIRED_PACKET_SECTIONS = [
+  "migration_ledger",
+  "schemas_and_tables",
+  "columns",
+  "constraints_and_indexes",
+  "types",
+  "sequences",
+  "functions",
+  "function_acl",
+  "triggers",
+  "policies",
+  "grants",
+  "migration_configuration",
+];
+export const ALLOWED_PACKET_SECTIONS = new Set(["packet_sections", ...REQUIRED_PACKET_SECTIONS]);
+const SECTION_OBJECT_TYPES = new Map([
+  ["packet_sections", new Set(["section_marker"])],
+  ["migration_ledger", new Set(["migration"])],
+  ["schemas_and_tables", new Set(["schema", "table"])],
+  ["columns", new Set(["column"])],
+  ["constraints_and_indexes", new Set(["constraint", "index"])],
+  ["types", new Set(["type"])],
+  ["sequences", new Set(["sequence"])],
+  ["functions", new Set(["function"])],
+  ["function_acl", new Set(["function"])],
+  ["triggers", new Set(["trigger"])],
+  ["policies", new Set(["policy"])],
+  ["grants", new Set(["function_grant", "schema_grant", "table_grant"])],
+  ["migration_configuration", new Set(["storage_bucket"])],
+]);
 
 export function normalize(value) {
   return String(value ?? "").replace(/[\n\r\t]+/g, " ").replace(/ +/g, " ").trim();
@@ -40,7 +70,45 @@ export function parseCsv(text) {
   if (!rows.length) throw new Error("Malformed CSV: no rows");
   const headerIndex = rows.findIndex((values) => JSON.stringify(values) === JSON.stringify(PACKET_COLUMNS));
   if (headerIndex < 0) throw new Error("Malformed CSV: required fingerprint columns are missing or reordered");
-  return rows.slice(headerIndex + 1).filter((values) => values.length === PACKET_COLUMNS.length).map((values) => Object.fromEntries(PACKET_COLUMNS.map((key, index) => [key, values[index]])));
+  const dataRows = rows.slice(headerIndex + 1);
+  const packetRows = [];
+  for (const values of dataRows) {
+    // psql prints transaction status lines around the CSV result; they are not packet data.
+    if (values.length === 1 && ["BEGIN", "ROLLBACK"].includes(values[0])) continue;
+    if (values.length !== PACKET_COLUMNS.length) throw new Error(`Malformed CSV: expected ${PACKET_COLUMNS.length} columns, received ${values.length}`);
+    packetRows.push(Object.fromEntries(PACKET_COLUMNS.map((key, index) => [key, values[index]])));
+  }
+  if (!packetRows.length) throw new Error("Malformed CSV: no fingerprint entries");
+  return packetRows;
+}
+
+export function validateProductionExport(rows) {
+  if (rows.length === 100) throw new Error("Production fingerprint export appears truncated at the Dashboard 100-row limit");
+  const seen = new Set();
+  const collectedSections = new Set();
+  for (const row of rows) {
+    const key = rowKey(row);
+    if (seen.has(key)) throw new Error(`Malformed production fingerprint export: duplicate row key ${key}`);
+    seen.add(key);
+    if (!ALLOWED_PACKET_SECTIONS.has(row.section)) throw new Error(`Malformed production fingerprint export: unsupported section ${row.section}`);
+    if (!SECTION_OBJECT_TYPES.get(row.section).has(row.object_type)) {
+      throw new Error(`Malformed production fingerprint export: ${row.object_type} is not a catalog object allowed in ${row.section}`);
+    }
+    if (row.schema_name && !["public", "auth", "storage", "supabase_migrations"].includes(row.schema_name)) {
+      throw new Error(`Malformed production fingerprint export: unexpected schema ${row.schema_name}`);
+    }
+    if (row.section === "packet_sections" && row.object_type === "section_marker" && row.attribute === "collected" && row.value === "true") collectedSections.add(row.object_name);
+    const content = PACKET_COLUMNS.map((column) => String(row[column] ?? "")).join("\n");
+    if (/-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----|\b(?:postgres(?:ql)?|mysql):\/\/|\b(?:bearer|apikey|api[_-]?key)\s+[A-Za-z0-9._~+/=-]{12,}|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/i.test(content)) {
+      throw new Error("Production fingerprint export contains secret-like or connection-string data");
+    }
+    if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(content)) {
+      throw new Error("Production fingerprint export contains email-like user data");
+    }
+  }
+  const missing = REQUIRED_PACKET_SECTIONS.filter((section) => !collectedSections.has(section));
+  if (missing.length) throw new Error(`Production fingerprint export is incomplete: required packet sections missing: ${missing.join(", ")}`);
+  return { rowCount: rows.length, collectedSections: [...collectedSections].sort() };
 }
 
 export async function loadPacketSql(root) {
