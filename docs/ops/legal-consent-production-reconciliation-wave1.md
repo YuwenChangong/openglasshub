@@ -1,7 +1,8 @@
 # Production Reconciliation Wave 1 Review
 
-Status: `EXECUTION_PACKET_READY_PENDING_HUMAN_APPROVAL`. Wave 1 is
-`PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED`; overall production
+Status: `BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT`. Wave 1 remains
+`PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED`, but its approved production
+attempt proved `public.can_access_public_circle(uuid)` is absent; overall production
 reconciliation remains `NO_GO`.
 
 This packet combines the already reviewed Wave 1A and Wave 1B evidence without
@@ -39,6 +40,15 @@ permissions, then grants only anon/authenticated. It then converges notification
 metadata without replacing its exact body, removes broad permissions, and grants
 only service_role. In-transaction assertions abort the complete packet on any
 overload, metadata, ACL, or unexpected direct-grantee mismatch.
+
+## Prerequisite stop condition
+
+Production execution must not retry until the dedicated
+[circle-access prerequisite preflight](reconciliation/can-access-public-circle-preflight.sql)
+proves the direct `public.circles` catalog dependencies. The missing function
+was encountered before commit, so both Wave 1 target functions remained
+unchanged. No prerequisite proposal has been authored and no Stage 2 retry is
+authorized by this document.
 
 ## LOCAL_DOCKER_ONLY validation
 

@@ -11,12 +11,19 @@ assert.deepEqual(manifest.comparisonCounts, { MATCH: 974, MISSING_IN_PRODUCTION:
 assert.equal(manifest.securityFindingCount, 151);
 assert.equal(manifest.actionableManifestItemCount, 168);
 assert.equal(manifest.uniqueRepairObjectCount, 75);
-assert.equal(manifest.wave1ExecutionPacket?.status, "EXECUTION_PACKET_READY_PENDING_HUMAN_APPROVAL");
+assert.equal(manifest.wave1ExecutionPacket?.status, "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT");
 assert.equal(manifest.wave1ExecutionPacket?.proposalStatus, "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED");
 assert.deepEqual(manifest.wave1ExecutionPacket?.exactSignatures, [
   "public.increment_post_view_count(uuid)",
   "public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)",
 ]);
+assert.deepEqual(manifest.wave1ExecutionPacket?.prerequisite, {
+  identity: "public.can_access_public_circle(uuid)",
+  status: "ADDITIONAL_PREFLIGHT_REQUIRED",
+  preflightFile: "docs/ops/reconciliation/can-access-public-circle-preflight.sql",
+  proposalAuthored: false,
+  postflightAuthored: false,
+});
 assert.equal(new Set(manifest.items.map((item) => item.itemId)).size, manifest.items.length, "every mismatch entry has one stable assignment");
 assert.equal(new Set(manifest.items.map((item) => item.comparisonKey)).size, manifest.items.length, "a comparison entry cannot be scheduled twice");
 assert.equal(manifest.items.filter((item) => item.comparisonClassification === "MISSING_IN_PRODUCTION").length, 134);
@@ -40,6 +47,7 @@ for (const wave of manifest.waves) {
 assert.equal(manifest.items.filter((item) => item.comparisonClassification === "EXTRA_IN_PRODUCTION" && item.securityClassification === "HARMLESS_EXTRA_OBJECT").length, 0, "only security-relevant extras are planned");
 assert(!JSON.stringify(manifest).match(/\b(?:db_push|blind_replay|migration_repair)\b/i), "manifest cannot propose prohibited reconciliation operations");
 assert.match(plan, /PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED/);
-assert.match(plan, /no production SQL was authored or executed/i);
+assert.match(plan, /BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT/);
+assert.match(plan, /do not author or execute a prerequisite proposal until its direct dependencies are proven/i);
 assert.match(plan, /Track A[\s\S]*Track B/);
 console.log(JSON.stringify({ manifestItems: manifest.items.length, uniqueRepairObjects: manifest.uniqueRepairObjectCount, waves: manifest.waves.length, realOperations: 0 }));

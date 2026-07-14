@@ -17,7 +17,7 @@
   "sourceMigrationsChanged": false,
   "productionCsvCommitted": false,
   "wave1ExecutionPacket": {
-    "status": "EXECUTION_PACKET_READY_PENDING_HUMAN_APPROVAL",
+    "status": "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT",
     "exactSignatures": [
       "public.increment_post_view_count(uuid)",
       "public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)"
@@ -27,6 +27,13 @@
     "preflightFile": "docs/ops/reconciliation/legal-consent-production-wave1-preflight.sql",
     "postflightFile": "docs/ops/reconciliation/legal-consent-production-wave1-postflight.sql",
     "executionChecklistFile": "docs/ops/reconciliation/legal-consent-production-wave1-execution-checklist.md",
+    "prerequisite": {
+      "identity": "public.can_access_public_circle(uuid)",
+      "status": "ADDITIONAL_PREFLIGHT_REQUIRED",
+      "preflightFile": "docs/ops/reconciliation/can-access-public-circle-preflight.sql",
+      "proposalAuthored": false,
+      "postflightAuthored": false
+    },
     "realProductionOperations": 0
   },
   "waves": [

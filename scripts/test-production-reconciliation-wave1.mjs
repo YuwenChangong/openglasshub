@@ -53,7 +53,7 @@ assert.match(proposal, /DO \$assertions\$/);
 for (const gate of ["Gate A", "Gate B", "Gate C", "Gate D"]) assert.match(checklist, new RegExp(gate));
 assert.match(checklist, /do not restore\s+PUBLIC EXECUTE/i);
 assert.match(checklist, /secure forward-fix/i);
-assert.match(forwardPlan, /EXECUTION_PACKET_READY_PENDING_HUMAN_APPROVAL/);
+assert.match(forwardPlan, /BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT/);
 
 const waveOne = manifest.items.filter((item) => item.proposedWave === "W1_ACL_FUNCTION_HARDENING");
 assert.deepEqual([...new Set(waveOne.map((item) => item.identity))].sort(), targetIdentities);
@@ -61,13 +61,20 @@ for (const item of waveOne) {
   assert.equal(item.blockerStatus, "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL");
 }
 assert.deepEqual(manifest.wave1ExecutionPacket, {
-  status: "EXECUTION_PACKET_READY_PENDING_HUMAN_APPROVAL",
+  status: "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT",
   exactSignatures: [viewSignature, notificationSignature],
   proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
   proposalFile: "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
   preflightFile: "docs/ops/reconciliation/legal-consent-production-wave1-preflight.sql",
   postflightFile: "docs/ops/reconciliation/legal-consent-production-wave1-postflight.sql",
   executionChecklistFile: "docs/ops/reconciliation/legal-consent-production-wave1-execution-checklist.md",
+  prerequisite: {
+    identity: "public.can_access_public_circle(uuid)",
+    status: "ADDITIONAL_PREFLIGHT_REQUIRED",
+    preflightFile: "docs/ops/reconciliation/can-access-public-circle-preflight.sql",
+    proposalAuthored: false,
+    postflightAuthored: false,
+  },
   realProductionOperations: 0,
 });
 
