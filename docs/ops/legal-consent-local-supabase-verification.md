@@ -1,6 +1,6 @@
 # Legal Consent Local Supabase Verification
 
-Status: blocked during the first clean local migration replay. No remote Supabase project was linked, queried, or modified.
+Status: local replay and upgrade verification completed with a disposable BOM-safe mirror. No remote Supabase project was linked, queried, or modified. Production remains blocked.
 
 Original replay commit: `5082063d64ce0705ee0bc609c374cac163f48536`
 Forensic audit baseline: `80b2ed4753fcd3845bd0f11c3ac79a775c1633f2`
@@ -192,3 +192,49 @@ The original legal-consent source review remains valid, but local database valid
 Next approved action: author and review a dedicated migration-history duplicate-version remediation plan. Do not run cloud or production migration commands.
 
 Classification: `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PREDEPLOYMENT_NO_GO`.
+
+## 2026-07-14 BOM-Safe Local Reverification
+
+This supersedes the failed byte-identical mirror result above for local verification only. It does not change any canonical migration, reconcile a cloud migration ledger, or authorize a non-local operation.
+
+### Disposable normalization and canonical integrity
+
+- Repository baseline: `205c736d9ebf6bd779d141fe9ed28d542a16ad7d` on `feature/legal-trust-consent-foundation-v1`.
+- The deterministic `scripts/build-local-supabase-replay-mirror.mjs` audited all 43 canonical SQL files as UTF-8. It rejected invalid UTF-8, UTF-16 markers, NUL bytes, non-leading BOMs, and unsupported control bytes.
+- All 43 canonical names and SHA-256 values were rechecked after replay. `git diff -- supabase/migrations` was empty; no canonical migration was staged or edited.
+- The mirror was external and disposable: `D:\OpenGlass Hub\local-supabase-normalized-replay-20260714-bom-safe\supabase\migrations`. Its mapping report is external and untracked.
+- The only permitted transformation was removal of bytes `EF BB BF` at byte offset zero. All other replay files are byte-identical to their canonical source; each transformed replay body equals `canonical_bytes.slice(3)`.
+
+| Canonical file | Leading bytes | Canonical SHA-256 | Replay SHA-256 | Transformation |
+| --- | --- | --- | --- | --- |
+| `20260603_forum_comments_interactions.sql` | `EF BB BF 2D 2D 20 4F 70` | `e7b7187ccb3f0f660d3f5e367bb1e791d14335e1365e7aded8fbe4c64fbc6300` | `0305a8d2c25e7a65fdfa5e6b9192e0f62d4e4233275598b7c3d5ad91b9fbe034` | `REMOVE_LEADING_UTF8_BOM` |
+| `20260605_forum_posts_body_short_content.sql` | `EF BB BF 61 6C 74 65 72` | `21ce077f23c4aa14911b20cd00545190e3fba7410821f3b0be5aa449de260eaa` | `65c0fc5a36ef6869c8489ac98a4073b1f88667042b652eee3e31c06567f5a9e3` | `REMOVE_LEADING_UTF8_BOM` |
+
+The inventory contains 32 CRLF files and 11 LF files. Line endings, final newlines, comments, whitespace, and SQL text were preserved. The 12 legal prerequisite migrations retained their recorded order, with `20260717_security_definer_execute_hardening.sql` last.
+
+### LOCAL_DOCKER_ONLY replay and upgrade simulation
+
+- Docker Engine and Supabase CLI `2.109.1` were used only with `--local` in the external workspace. Remote-oriented environment variables were cleared before every CLI call; no link metadata, remote URL, project reference, credential, or cloud CLI command was used.
+- Local endpoints: API `http://127.0.0.1:54321`, database `127.0.0.1:54322`, Studio `http://127.0.0.1:54323`.
+- A fresh local replay applied all 43 temporary migrations exactly once. The former duplicate-version and UTF-8 BOM boundaries both passed.
+- The local migration ledger contained 43 rows after replay.
+- Upgrade simulation reset the local database to `20260627000001`: 31 migrations present and zero of the 12 legal prerequisites. `supabase migration up --local` then applied all 12 once in the documented order, ending with `20260717000001_security_definer_execute_hardening.sql`. The final ledger again contained 43 rows.
+- `supabase db lint --local --fail-on error` returned no schema errors.
+
+### Local catalog and behavior verification
+
+- The three reviewed functions each had one overload, owner `postgres`, `SECURITY DEFINER`, explicit expected search paths, no `PUBLIC EXECUTE`, no unexpected grantee, and no dynamic `EXECUTE` in the function definition:
+  - `insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)`: only `service_role` executes; `search_path=public, pg_temp`.
+  - `increment_post_view_count(uuid)`: only `anon` and `authenticated` execute; `search_path=public`.
+  - `can_create_user_report_target(text, uuid)`: only `authenticated` executes; `search_path=public`.
+- RLS remained enabled on sampled notification, post, report, profile, comment, circle, consent, user-safety, post-media, and reaction tables. The local catalog reported zero duplicate policy names.
+- Disposable local fakes confirmed that anonymous and ordinary authenticated notification RPC calls are denied before a write; a service-role call using a fake moderator actor wrote exactly one notification. Anonymous and authenticated public-view calls incremented a visible post twice in total; a hidden post stayed at zero. Anonymous report-target predicate access was denied; authenticated visibility evaluation allowed the visible target, denied a hidden target, and an attempted hidden-target report insert left zero report rows.
+- The post-reset residue query found zero disposable fake Auth users, notifications, and posts. No local media, upload, rate-attempt, moderation, safety, report-event, or consent fixture was retained.
+- The repository's SQL-editor-style scripts are not pgTAP TAP emitters. `supabase test db --local` therefore reported no TAP plan; their explicit empty-Auth guard also failed on the clean stack. A direct fixture run exposed that `forum_rls_phase2.sql` creates the reserved `rls-test-circle`, which the hardened `can_access_public_circle` deliberately excludes. This is a legacy test-fixture compatibility result, not a local schema replay failure; no production or migration code was changed in this verification.
+- Legal-consent runtime semantics are covered with offline fake dependencies in the repository tests: bootstrap and stale renewal are actor-bound and server-bundle-selected; client-selected identity/version/timestamp fields are rejected; missing or stale consent yields exact `403`; repository failure yields sanitized `503`; and the consent POST is exempt. The mutation-guard inventory tests assert that authorization remains required after consent.
+
+### Scope and remaining blocker
+
+No cloud Supabase service, cloud database, Auth, Storage, Edge Function, dashboard SQL editor, credential, production data, migration history, or migration-repair operation was contacted or changed by Codex. The reported production ledger still contains only `20260518` and `20260703`; absence of the other records does not prove the corresponding SQL was never manually applied.
+
+Local replay is now verified, but production remains `NO_GO`: cloud schema/ACL/runtime configuration are unverified, the 12 managed cloud migrations remain unexecuted through reconciled migration history, operator/contact values and qualified legal review are unresolved, and no production approval exists.
