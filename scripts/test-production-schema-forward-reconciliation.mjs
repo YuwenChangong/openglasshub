@@ -33,6 +33,7 @@ for (const wave of manifest.waves) {
 }
 assert.equal(manifest.items.filter((item) => item.comparisonClassification === "EXTRA_IN_PRODUCTION" && item.securityClassification === "HARMLESS_EXTRA_OBJECT").length, 0, "only security-relevant extras are planned");
 assert(!JSON.stringify(manifest).match(/\b(?:db_push|blind_replay|migration_repair)\b/i), "manifest cannot propose prohibited reconciliation operations");
-assert.match(plan, /No executable repair SQL was authored or executed/i);
+assert.match(plan, /unexecuted, non-production review proposal/i);
+assert.match(plan, /no production SQL was authored or executed/i);
 assert.match(plan, /Track A[\s\S]*Track B/);
 console.log(JSON.stringify({ manifestItems: manifest.items.length, uniqueRepairObjects: manifest.uniqueRepairObjectCount, waves: manifest.waves.length, realOperations: 0 }));

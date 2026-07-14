@@ -3224,8 +3224,15 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function increment_post_view_count(uuid) (PUBLIC_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "BLOCKED_BODY_DIVERGENT",
+      "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function increment_post_view_count(uuid) (PUBLIC_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "proposalStatus": "BLOCKED_BODY_DIVERGENT",
+      "bodyEvidence": "BODY_DIVERGENT",
+      "preflightRequired": true,
+      "proposalFile": null,
+      "localSimulationStatus": "NOT_RUN_BODY_BLOCKER",
+      "verificationStatus": "BODY_HASH_MISMATCH_REQUIRES_SEPARATE_REVIEW",
+      "nextApprovalRequired": "Separate body-level review and fresh read-only production preflight"
     },
     {
       "itemId": "reconcile:cbfc97459e13c46c20cc",
@@ -3271,8 +3278,15 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function increment_post_view_count(uuid) (service_role_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "BLOCKED_BODY_DIVERGENT",
+      "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function increment_post_view_count(uuid) (service_role_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "proposalStatus": "BLOCKED_BODY_DIVERGENT",
+      "bodyEvidence": "BODY_DIVERGENT",
+      "preflightRequired": true,
+      "proposalFile": null,
+      "localSimulationStatus": "NOT_RUN_BODY_BLOCKER",
+      "verificationStatus": "BODY_HASH_MISMATCH_REQUIRES_SEPARATE_REVIEW",
+      "nextApprovalRequired": "Separate body-level review and fresh read-only production preflight"
     },
     {
       "itemId": "reconcile:68a0c3c761e017e08d69",
@@ -3321,8 +3335,15 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "DIVERGENT_IN_PRODUCTION: POSSIBLE_AVAILABILITY_BREAK; function_acl/function insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (anon_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "conciseReason": "DIVERGENT_IN_PRODUCTION: POSSIBLE_AVAILABILITY_BREAK; function_acl/function insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (anon_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+      "bodyEvidence": "EXACT_BODY_MATCH",
+      "preflightRequired": true,
+      "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
+      "localSimulationStatus": "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
+      "verificationStatus": "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
     },
     {
       "itemId": "reconcile:cc50f3df0a0b4dce6deb",
@@ -3371,8 +3392,15 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (authenticated_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (authenticated_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+      "bodyEvidence": "EXACT_BODY_MATCH",
+      "preflightRequired": true,
+      "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
+      "localSimulationStatus": "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
+      "verificationStatus": "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
     },
     {
       "itemId": "reconcile:bda620a4eb00a5f98e08",
@@ -3421,8 +3449,15 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (PUBLIC_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (PUBLIC_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+      "bodyEvidence": "EXACT_BODY_MATCH",
+      "preflightRequired": true,
+      "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
+      "localSimulationStatus": "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
+      "verificationStatus": "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
     },
     {
       "itemId": "reconcile:60bdf4e8ef648aca660e",
@@ -4225,8 +4260,15 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; functions/function increment_post_view_count(uuid) (definition) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "BLOCKED_BODY_DIVERGENT",
+      "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; functions/function increment_post_view_count(uuid) (definition) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "proposalStatus": "BLOCKED_BODY_DIVERGENT",
+      "bodyEvidence": "BODY_DIVERGENT",
+      "preflightRequired": true,
+      "proposalFile": null,
+      "localSimulationStatus": "NOT_RUN_BODY_BLOCKER",
+      "verificationStatus": "BODY_HASH_MISMATCH_REQUIRES_SEPARATE_REVIEW",
+      "nextApprovalRequired": "Separate body-level review and fresh read-only production preflight"
     },
     {
       "itemId": "reconcile:476dd3fa2ff3e675a833",
@@ -5430,8 +5472,15 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "EXTRA_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant increment_post_view_count(uuid) (PUBLIC:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "BLOCKED_BODY_DIVERGENT",
+      "conciseReason": "EXTRA_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant increment_post_view_count(uuid) (PUBLIC:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "proposalStatus": "BLOCKED_BODY_DIVERGENT",
+      "bodyEvidence": "BODY_DIVERGENT",
+      "preflightRequired": true,
+      "proposalFile": null,
+      "localSimulationStatus": "NOT_RUN_BODY_BLOCKER",
+      "verificationStatus": "BODY_HASH_MISMATCH_REQUIRES_SEPARATE_REVIEW",
+      "nextApprovalRequired": "Separate body-level review and fresh read-only production preflight"
     },
     {
       "itemId": "reconcile:d1bdbd1766f35b7c6ce5",
@@ -5476,8 +5525,15 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "EXTRA_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (PUBLIC:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "conciseReason": "EXTRA_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (PUBLIC:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+      "bodyEvidence": "EXACT_BODY_MATCH",
+      "preflightRequired": true,
+      "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
+      "localSimulationStatus": "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
+      "verificationStatus": "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
     },
     {
       "itemId": "reconcile:2fdeeb53b44d3a075a68",
@@ -5526,8 +5582,15 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (service_role:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (service_role:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+      "bodyEvidence": "EXACT_BODY_MATCH",
+      "preflightRequired": true,
+      "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
+      "localSimulationStatus": "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
+      "verificationStatus": "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
     },
     {
       "itemId": "reconcile:37d25278e8064458d08e",

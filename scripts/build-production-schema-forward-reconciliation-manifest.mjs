@@ -99,6 +99,30 @@ function sourceMigrationsFor(entry, row) {
   return [];
 }
 
+function wave1Status(identity) {
+  if (identity === "increment_post_view_count(uuid)") return {
+    proposalStatus: "BLOCKED_BODY_DIVERGENT",
+    bodyEvidence: "BODY_DIVERGENT",
+    preflightRequired: true,
+    proposalFile: null,
+    localSimulationStatus: "NOT_RUN_BODY_BLOCKER",
+    verificationStatus: "BODY_HASH_MISMATCH_REQUIRES_SEPARATE_REVIEW",
+    blockerStatus: "BLOCKED_BODY_DIVERGENT",
+    nextApprovalRequired: "Separate body-level review and fresh read-only production preflight",
+  };
+  if (identity === "insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid)") return {
+    proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+    bodyEvidence: "EXACT_BODY_MATCH",
+    preflightRequired: true,
+    proposalFile: "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
+    localSimulationStatus: "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
+    verificationStatus: "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
+    blockerStatus: "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+    nextApprovalRequired: "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
+  };
+  return null;
+}
+
 export function buildManifest({ expected, actualRows, comparedCommit, exportSha256 }) {
   validateProductionExport(actualRows);
   const report = compareFingerprint(expected, actualRows);
@@ -114,6 +138,7 @@ export function buildManifest({ expected, actualRows, comparedCommit, exportSha2
     const entry = expectedEntryByKey.get(result.key);
     const domain = domainFor(row);
     const context = CONTEXT[domain];
+    const wave1 = row.identity === "increment_post_view_count(uuid)" || row.identity === "insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid)" ? wave1Status(row.identity) : null;
     return {
       itemId: `reconcile:${sha256(result.key).slice(0, 20)}`,
       repairObjectId: repairObjectId(row),
@@ -144,6 +169,7 @@ export function buildManifest({ expected, actualRows, comparedCommit, exportSha2
       verificationRequirements: context.verification,
       blockerStatus: result.severity === "HARMLESS_EXTRA_OBJECT" ? "RETAINED_NON_BLOCKER" : "BLOCKED_PENDING_REVIEW",
       conciseReason: `${result.classification}: ${result.severity}; ${row.section}/${row.object_type} ${row.identity} (${row.attribute}) differs from the verified local fingerprint and requires a reviewed forward-only decision.`,
+      ...(wave1 ?? {}),
     };
   }).sort((left, right) => left.comparisonKey.localeCompare(right.comparisonKey));
   const uniqueRepairObjects = [...new Set(items.map((item) => item.repairObjectId))];

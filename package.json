@@ -38,6 +38,7 @@
     "generate:production-schema-fingerprint": "node scripts/generate-local-production-schema-fingerprint.mjs",
     "test:production-schema-fingerprint": "node scripts/test-production-schema-fingerprint.mjs",
     "test:production-schema-forward-reconciliation": "node scripts/test-production-schema-forward-reconciliation.mjs",
+    "test:production-reconciliation-wave1": "node scripts/test-production-reconciliation-wave1.mjs",
     "test:moderation-notification-writer": "node --experimental-strip-types scripts/test-moderation-notification-writer.mjs",
     "test:legal-consent-mutation-inventory": "node scripts/test-legal-consent-mutation-inventory.mjs",
     "test:legal-consent-trace-batches": "node scripts/test-legal-consent-api-trace-batches.mjs",
