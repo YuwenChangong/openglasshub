@@ -59,6 +59,12 @@ All three retain explicit trusted source search paths: notification uses `public
 
 The source-level moderation notification and migration 12 review, exact changed-file list, negative security review, migration checksums, and isolated non-production procedure are recorded in `docs/ops/legal-consent-notification-rpc-offline-review.md`. It is documentation only: explicit human approval, target identity verification, and live non-production validation remain required before any execution.
 
+## Local Replay Blocker
+
+The first LOCAL_DOCKER_ONLY clean replay at commit `5082063d64ce0705ee0bc609c374cac163f48536` stopped before migration 12 because multiple historical files share the same CLI migration version. The first collision is the three `20260525_*` files, which produce `SQLSTATE 23505` on `supabase_migrations.schema_migrations.version`. The complete failure record is in `docs/ops/legal-consent-local-supabase-verification.md`.
+
+Do not rename or reorder historical migration files as an ad hoc local fix. A separately reviewed, upgrade-safe migration-history remediation plan is required before any fresh local replay, non-production migration, or production migration operation.
+
 ## Future execution sequence
 
 ### Stage 0: operator readiness
