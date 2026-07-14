@@ -5,6 +5,8 @@ import { buildTraceBatches, completedBatchIds, expectedBatchCount, expectedMetho
 import * as methodTraceFixture from "../tests/fixtures/legal-consent-api-methods.mjs";
 
 const root = process.cwd();
+const orderingAudit = await fs.readFile(path.join(root, "docs/ops/legal-consent-api-ordering-audit.md"), "utf8");
+const policyManagement = await fs.readFile(path.join(root, "docs/ops/legal-trust-policy-management.md"), "utf8");
 
 async function walk(dir) {
   const items = await fs.readdir(dir, { withFileTypes: true });
@@ -52,6 +54,7 @@ const postsDeleteTrace = methodTraceFixture.batch5eTraces?.["src/pages/api/forum
 const reportsPostTrace = methodTraceFixture.batch5fTraces?.["src/pages/api/forum/reports.ts#POST"];
 const searchGetTrace = methodTraceFixture.batch5gTraces?.["src/pages/api/forum/search.ts#GET"];
 const legalConsentGetTrace = methodTraceFixture.batch6aTraces?.["src/pages/api/legal/consent.ts#GET"];
+const legalConsentPostTrace = methodTraceFixture.batch6jTraces?.["src/pages/api/legal/consent.ts#POST"];
 const circleCoverGetTrace = methodTraceFixture.batch6bTraces?.["src/pages/api/media/circle/[circleId].ts#GET"];
 const postMediaDeliveryGetTrace = methodTraceFixture.batch6cTraces?.["src/pages/api/media/post/[mediaId].ts#GET"];
 const profileMediaDeliveryGetTrace = methodTraceFixture.batch6dTraces?.["src/pages/api/media/profile/[userId]/[kind].ts#GET"];
@@ -80,13 +83,13 @@ assert.equal(new Set(assigned).size, expectedMethodCount);
 assert.deepEqual([...assigned].sort(), [...methodIds].sort());
 assert.deepEqual(representatives.filter((id) => !assigned.includes(id)), []);
 assert(batches.every((batch) => (completedBatchIds.has(batch.id) ? batch.status === "complete" : batch.status === "pending") && batch.methodCount > 0));
-assert.equal(new Set(completeTraceIds).size, 65);
-assert.equal(expectedMethodCount - new Set(completeTraceIds).size, 1);
+assert.equal(new Set(completeTraceIds).size, 66);
+assert.equal(expectedMethodCount - new Set(completeTraceIds).size, 0);
 assert.equal(batch3?.status, "complete");
 assert.equal(batch4?.status, "complete");
 assert.equal(batch5?.status, "complete");
-assert.equal(batch6?.status, "pending");
-assert.deepEqual(batches.slice(0, 5).map((batch) => batch.status), ["complete", "complete", "complete", "complete", "complete"]);
+assert.equal(batch6?.status, "complete");
+assert.deepEqual(batches.map((batch) => batch.status), ["complete", "complete", "complete", "complete", "complete", "complete"]);
 assert.equal(fileTraceProgress["src/pages/api/auth/resend-confirmation.ts"]?.status, "complete");
 assert.equal(fileTraceProgress["src/pages/api/forum/circles.ts"]?.status, "complete");
 assert.equal(fileTraceProgress["src/pages/api/forum/circles/[slug]/comments.ts"]?.status, "complete");
@@ -194,11 +197,11 @@ assert.equal(legalConsentGetTrace?.traceCompleteness, "complete");
 assert.equal(legalConsentGetTrace?.consentInsertionPoint, "not-applicable: GET is read-only");
 assert(legalConsentGetTrace?.evidence?.every((entry) => entry.sourceFile && entry.symbol && entry.evidenceType && entry.conciseFinding));
 assert.equal(legalConsentProgress?.status, "complete");
-assert.deepEqual(legalConsentProgress?.completedMethodIds, ["src/pages/api/legal/consent.ts#GET"]);
-assert.deepEqual(legalConsentProgress?.exemptMethodIds, ["src/pages/api/legal/consent.ts#POST"]);
+assert.deepEqual(legalConsentProgress?.completedMethodIds, ["src/pages/api/legal/consent.ts#GET", "src/pages/api/legal/consent.ts#POST"]);
+assert.deepEqual(legalConsentProgress?.exemptMethodIds, []);
 assert.deepEqual(legalConsentProgress?.pendingMethodIds, []);
-assert.equal(legalConsentProgress?.getPrivilegedClientConstruction, "none; service-role writer remains lazy and POST-only");
-assert.equal(legalConsentProgress?.nextPendingMethodId, "src/pages/api/media/post/[mediaId].ts#GET");
+assert.match(legalConsentProgress?.getPrivilegedClientConstruction ?? "", /bound to auth\.userId/);
+assert.equal(legalConsentProgress?.nextPendingMethodId, null);
 assert.equal(fileTraceProgress["src/pages/api/media/circle/[circleId].ts"]?.status, "complete");
 assert.deepEqual(fileTraceProgress["src/pages/api/media/circle/[circleId].ts"]?.completedMethodIds, ["src/pages/api/media/circle/[circleId].ts#GET"]);
 assert.deepEqual(fileTraceProgress["src/pages/api/media/circle/[circleId].ts"]?.pendingMethodIds, []);
@@ -286,7 +289,7 @@ assert(profilePostTrace?.evidence?.every((entry) => entry.sourceFile && entry.sy
 assert(completeTraceIds.includes("src/pages/api/users/me/profile.ts#POST"));
 assert.equal(fileTraceProgress["src/pages/api/users/me/summary.ts"]?.status, "complete");
 assert.deepEqual(fileTraceProgress["src/pages/api/users/me/summary.ts"]?.completedMethodIds, ["src/pages/api/users/me/summary.ts#GET"]);
-assert.equal(fileTraceProgress["src/pages/api/users/me/summary.ts"]?.nextPendingMethodId, "src/pages/api/legal/consent.ts#POST");
+assert.equal(fileTraceProgress["src/pages/api/users/me/summary.ts"]?.nextPendingMethodId, null);
 assert.equal(summaryGetTrace?.traceStatus, "complete");
 assert.equal(summaryGetTrace?.traceEvidenceComplete, true);
 assert.equal(summaryGetTrace?.traceCompleteness, "complete");
@@ -294,10 +297,33 @@ assert.equal(summaryGetTrace?.consentInsertionPoint, "not-applicable: GET is aut
 assert(summaryGetTrace?.evidence?.every((entry) => entry.sourceFile && entry.symbol && entry.evidenceType && entry.conciseFinding));
 assert(completeTraceIds.includes("src/pages/api/users/me/summary.ts#GET"));
 assert(completeTraceIds.includes("src/pages/api/legal/consent.ts#GET"));
-assert(!completeTraceIds.includes("src/pages/api/legal/consent.ts#POST"));
+assert.equal(legalConsentPostTrace?.traceStatus, "complete");
+assert.equal(legalConsentPostTrace?.traceEvidenceComplete, true);
+assert.equal(legalConsentPostTrace?.traceCompleteness, "complete");
+assert.match(legalConsentPostTrace?.consentInsertionPoint ?? "", /AUTH_RECOVERY_EXEMPT/);
+assert(legalConsentPostTrace?.evidence?.every((entry) => entry.sourceFile && entry.symbol && entry.evidenceType && entry.conciseFinding));
+assert(completeTraceIds.includes("src/pages/api/legal/consent.ts#POST"));
 assert(methodTraceFixture.AUTH_RECOVERY_EXEMPT.has("src/pages/api/legal/consent.ts#POST"));
-assert(batch6?.methodIds.includes("src/pages/api/legal/consent.ts#GET"));
+assert.deepEqual(batch6?.methodIds.filter((id) => !completeTraceIds.includes(id)), []);
 assert.deepEqual(methodTraceFixture.releaseBlockingFindings, []);
+assert.match(orderingAudit, /Final Phase 4A1 Legal Consent POST and Inventory Closure/);
+assert.match(policyManagement, /Phase 4A1 Final Consent POST Closure/);
+for (const migration of [
+  "20260703_moderation_action_notifications.sql",
+  "20260712_legal_policy_acceptances.sql",
+  "20260713_comment_creation_circle_authorization.sql",
+  "20260713_comment_reaction_visibility_authorization.sql",
+  "20260713_comment_read_circle_visibility_authorization.sql",
+  "20260713_forum_posts_circle_authorization.sql",
+  "20260713_forum_report_target_authorization.sql",
+  "20260713_post_bound_media_provenance.sql",
+  "20260714_circle_cover_public_visibility_authorization.sql",
+  "20260715_post_media_delivery_visibility_authorization.sql",
+  "20260716_profile_media_delivery_authorization.sql",
+]) {
+  assert(orderingAudit.includes(migration), `ordering audit must retain ${migration}`);
+  assert(policyManagement.includes(migration), `policy management must retain ${migration}`);
+}
 assert.equal(resolvedPostMediaProvenance?.status, "resolved-source-awaiting-deployment");
 assert.equal(resolvedPostMediaProvenance?.blockerCheckpoint, "7fae49fc9e0d13928bbd9ab196051fbbdacc4c0a");
 assert.equal(resolvedPostMediaProvenance?.sourceFile, "src/pages/api/forum/post-media.ts");

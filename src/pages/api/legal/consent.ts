@@ -36,7 +36,10 @@ async function authenticate(request: Request, env: RuntimeEnv) {
 function dependenciesFor(request: Request, env: RuntimeEnv) {
   return {
     authenticate: () => authenticate(request, env),
-    createWriteRepository: () => createLegalConsentWriteRepository(createLegalConsentServiceClient(env)),
+    createWriteRepository: (verifiedUserId) => createLegalConsentWriteRepository(
+      createLegalConsentServiceClient(env),
+      verifiedUserId,
+    ),
   };
 }
 

@@ -335,3 +335,33 @@ The response is closed to self id, username, display name, internal profile href
 The 16 KiB JSON body accepts only `display_name`, `username`, `bio`, `avatar_url`, and `banner_url`; unknown URL/social/location/preferences fields are rejected, as are identity, role, safety, moderation, trust, consent, timestamp, and report fields. Text is NFC-trimmed, rejects controls and literal markup, and is bounded. Username is lower-case canonical under the existing grammar, with the `profiles_username_unique_ci` lower-case index as the race-safe authority and a fixed conflict response. There is no source-defined reserved-name registry. Submitted media must be the exact canonical verified-user and matching avatar/banner key before any signed moderation URL or provider effect; external, foreign, cross-kind, traversal, encoded-separator, backslash, and malformed values fail closed. Invalid legacy stored media is normalized to null rather than re-saved or emitted raw.
 
 After the actor-bound current-profile read, text and changed-image moderation are the first external effects; `profiles.update(...).eq("id", auth.userId)` is the first persistent domain effect. The response allowlists only public profile fields and same-user proxy URLs. The existing profile RLS owner predicates, update column grant, role trigger, and unique index align with the runtime boundary. No migration was needed or executed. `test:profile-audit` intentionally remains 48/1: its service-role observation is `createLegalConsentServiceClient` in `src/lib/server/legal-consent-repository.server.ts`, which this route does not import or execute. Phase 4A1 is **64/66 traced** with **2 pending**; Batch 6 remains pending and the next source is `src/pages/api/users/me/summary.ts#GET`. Overall status remains `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PHASE4A1_NO_GO`.
+
+## Final Phase 4A1 Legal Consent POST and Inventory Closure
+
+`POST /api/legal/consent` is the final Phase 4A1 trace and is complete. Its exact source order is runtime-environment validation; strict single-token Bearer parsing; bearer-bound anon client construction; `auth.getUser(token)` verification; verified actor/read-repository derivation; fixed JSON content-type, 1024-byte body, `accepted: true`, and allowlisted-source validation; server active-bundle construction plus the actor-scoped current-consent read and reconfirmation rate decision; lazy service-role writer construction bound to `auth.userId`; one fixed `record_current_legal_policy_acceptance` RPC; then a minimal no-store response. No privileged client or persistent effect occurs before verified authentication.
+
+The payload cannot provide user, profile, actor, accepted-by identity, role, staff state, bundle, individual policy version, timestamp, historical consent, analytics, or marketing value. `LEGAL_POLICY` exclusively supplies the combined Terms, Privacy, Community Guidelines, bundle, and age fields. Required consent is explicit and server-authoritative; optional analytics/marketing choices are not supported by this required-consent endpoint and cannot substitute for it. The service writer no longer accepts a user id in its method contract: the route passes only the verified actor to writer construction and the repository closes over that value for the sole RPC's `p_user_id`.
+
+The endpoint remains the narrow `AUTH_RECOVERY_EXEMPT` bootstrap and renewal operation. Requiring current consent through the ordinary mutation guard would prevent a user with missing or stale consent from recording the current bundle. The fixed payload and single-purpose writer do not confer authority to perform another mutation or access another table. `unique(user_id, bundle_version)` and the RPC `ON CONFLICT` update make same-bundle confirmation idempotent; database `now()` supplies confirmation timestamps. A failed read or RPC returns only `LEGAL_CONSENT_UNAVAILABLE` and never falsely reports current consent or exposes raw row, SQL, secret, or environment detail.
+
+The former profile-audit observation is resolved without a global allowlist. `scripts/profile-service-role-audit.cjs` accepts only this exact route-authenticated, actor-bound, one-fixed-RPC writer. Its offline negative matrix fails pre-validation writer creation, request-controlled actor binding, arbitrary table access, arbitrary RPCs, secret logging, and every unrelated service-role use. `npm run test:profile-audit` now passes 49/49.
+
+Phase 4A1 source ordering and authorization tracing is complete: 66/66 methods traced, zero pending methods, and Batches 1 through 6 complete. Historical blocker evidence remains retained as resolved source history. This closes the source inventory only; it does not claim production readiness, execute SQL, or apply the general consent guard.
+
+### Authored Migration Deployment Prerequisites
+
+The repository source inventory contains the following forward migrations relevant to this branch history. None was executed in this audit; release operators must confirm and apply the applicable migrations in deployment order before treating database-layer authorization as live:
+
+- `20260703_moderation_action_notifications.sql`
+- `20260712_legal_policy_acceptances.sql`
+- `20260713_comment_creation_circle_authorization.sql`
+- `20260713_comment_reaction_visibility_authorization.sql`
+- `20260713_comment_read_circle_visibility_authorization.sql`
+- `20260713_forum_posts_circle_authorization.sql`
+- `20260713_forum_report_target_authorization.sql`
+- `20260713_post_bound_media_provenance.sql`
+- `20260714_circle_cover_public_visibility_authorization.sql`
+- `20260715_post_media_delivery_visibility_authorization.sql`
+- `20260716_profile_media_delivery_authorization.sql`
+
+The comment, forum-post, report, post-media, circle-cover, and media-delivery migrations remain explicit production deployment prerequisites even though their runtime source re-audits are complete. Legal-consent persistence is likewise source-audited but no migration execution occurred here. Overall classification remains `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PHASE4A1_NO_GO`.

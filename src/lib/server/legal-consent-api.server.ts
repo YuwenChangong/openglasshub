@@ -18,7 +18,7 @@ type LegalConsentAuthContext = {
 
 export type LegalConsentApiDependencies = {
   authenticate(request: Request): Promise<LegalConsentAuthContext | null>;
-  createWriteRepository(): LegalConsentWriteRepository;
+  createWriteRepository(verifiedUserId: string): LegalConsentWriteRepository;
   now?: () => number;
 };
 
@@ -45,7 +45,12 @@ export async function parseLegalConsentPostPayload(request: Request): Promise<
     return { ok: false, status: 413, error: "LEGAL_CONSENT_BODY_TOO_LARGE" };
   }
 
-  const body = await request.text();
+  let body: string;
+  try {
+    body = await request.text();
+  } catch {
+    return { ok: false, status: 400, error: "LEGAL_CONSENT_INVALID_JSON" };
+  }
   if (new TextEncoder().encode(body).byteLength > MAX_LEGAL_CONSENT_BODY_BYTES) {
     return { ok: false, status: 413, error: "LEGAL_CONSENT_BODY_TOO_LARGE" };
   }
@@ -101,8 +106,8 @@ export async function handleLegalConsentPost(request: Request, dependencies: Leg
       return legalConsentJson({ error: "LEGAL_CONSENT_RATE_LIMITED" }, 429);
     }
 
-    const writeRepository = dependencies.createWriteRepository();
-    const activeBundle = await recordCurrentLegalConsent(writeRepository, auth.userId, payload.source);
+    const writeRepository = dependencies.createWriteRepository(auth.userId);
+    const activeBundle = await recordCurrentLegalConsent(writeRepository, payload.source);
     return legalConsentJson(buildSafeConsentResponse({ current: true, activeBundle }));
   } catch {
     return legalConsentJson({ error: "LEGAL_CONSENT_UNAVAILABLE" }, 500);

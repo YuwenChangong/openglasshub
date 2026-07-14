@@ -34,7 +34,7 @@ export type LegalConsentReadRepository = {
 };
 
 export type LegalConsentWriteRepository = {
-  recordCurrentAcceptance(params: ActiveLegalBundle & { userId: string; source: LegalConsentSource }): Promise<void>;
+  recordCurrentAcceptance(params: ActiveLegalBundle & { source: LegalConsentSource }): Promise<void>;
 };
 
 export type CurrentLegalConsentStatus = {
@@ -86,11 +86,10 @@ export async function hasCurrentLegalConsent(repository: LegalConsentReadReposit
 
 export async function recordCurrentLegalConsent(
   repository: LegalConsentWriteRepository,
-  userId: string,
   source: LegalConsentSource,
 ): Promise<ActiveLegalBundle> {
   const activeBundle = getActiveLegalBundle();
-  await repository.recordCurrentAcceptance({ ...activeBundle, userId, source });
+  await repository.recordCurrentAcceptance({ ...activeBundle, source });
   return activeBundle;
 }
 

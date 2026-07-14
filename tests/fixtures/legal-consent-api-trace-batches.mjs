@@ -1,6 +1,6 @@
 export const expectedBatchCount = 6;
 export const expectedMethodCount = 66;
-export const completedBatchIds = new Set(["phase4a1-trace-batch-1", "phase4a1-trace-batch-2", "phase4a1-trace-batch-3", "phase4a1-trace-batch-4", "phase4a1-trace-batch-5"]);
+export const completedBatchIds = new Set(["phase4a1-trace-batch-1", "phase4a1-trace-batch-2", "phase4a1-trace-batch-3", "phase4a1-trace-batch-4", "phase4a1-trace-batch-5", "phase4a1-trace-batch-6"]);
 const methodOrder = { GET: 0, POST: 1, PUT: 2, PATCH: 3, DELETE: 4 };
 export function buildTraceBatches(methodIds, representatives = []) {
   const sorted = [...methodIds].sort((a, b) => { const [af, am] = a.split("#"), [bf, bm] = b.split("#"); return af.localeCompare(bf) || methodOrder[am] - methodOrder[bm]; });
@@ -218,17 +218,19 @@ export const fileTraceProgress = {
     batchId: "phase4a1-trace-batch-6",
     methodIds: ["src/pages/api/legal/consent.ts#GET", "src/pages/api/legal/consent.ts#POST"],
     status: "complete",
-    completedMethodIds: ["src/pages/api/legal/consent.ts#GET"],
-    exemptMethodIds: ["src/pages/api/legal/consent.ts#POST"],
+    completedMethodIds: ["src/pages/api/legal/consent.ts#GET", "src/pages/api/legal/consent.ts#POST"],
+    exemptMethodIds: [],
     pendingMethodIds: [],
     getAuthenticationSymbol: "authenticate,getBearerToken,createUserClient,auth.getUser",
     getFirstDatabaseRead: "createLegalConsentReadRepository#findByUserAndBundle",
-    getPrivilegedClientConstruction: "none; service-role writer remains lazy and POST-only",
+    getPrivilegedClientConstruction: "POST only after verified authentication, strict payload validation, active-bundle read, and rate decision; writer is bound to auth.userId",
     getFirstIrreversibleEffect: "none",
     postExemptionSymbol: "AUTH_RECOVERY_EXEMPT,classifyLegalConsentRoute",
     postExemptionReason: "Current consent cannot be required before the authenticated user records or renews current consent.",
-    nextPendingSourceFile: "src/pages/api/media/post/[mediaId].ts",
-    nextPendingMethodId: "src/pages/api/media/post/[mediaId].ts#GET",
+    postFirstPersistentEffect: "record_current_legal_policy_acceptance RPC after verified actor binding and server-current bundle construction",
+    postServiceRoleAudit: "profile audit accepts only the exact actor-bound fixed RPC and rejects unsafe variants",
+    nextPendingSourceFile: null,
+    nextPendingMethodId: null,
   },
   "src/pages/api/media/circle/[circleId].ts": {
     batchId: "phase4a1-trace-batch-6",
@@ -369,8 +371,8 @@ export const fileTraceProgress = {
     aggregationScope: "post count author_id = verified actor; vote and reaction counts join only the actor authored published/moderation-published post/comment ancestry",
     firstPersistentEffect: "none",
     firstExternalEffect: "none",
-    serviceRoleAudit: "test:profile-audit remains 48/1 because legal-consent-repository.server.ts is not imported by this route",
-    nextPendingSourceFile: "src/pages/api/legal/consent.ts",
-    nextPendingMethodId: "src/pages/api/legal/consent.ts#POST",
+    serviceRoleAudit: "test:profile-audit passes because the only service-role repository is now checked as an exact actor-bound fixed-RPC consent writer",
+    nextPendingSourceFile: null,
+    nextPendingMethodId: null,
   },
 };

@@ -112,8 +112,8 @@ async function main() {
     async recordCurrentAcceptance(params) {
       recorded = params;
     },
-  }, userId, "login");
-  assert.equal(recorded.userId, userId);
+  }, "login");
+  assert.equal("userId" in recorded, false);
   assert.equal(recorded.minimumAge, 16);
   assert.equal(recorded.bundleVersion, LEGAL_POLICY.bundleVersion);
   assert.equal("acceptedAt" in recorded, false);
@@ -130,7 +130,8 @@ async function main() {
   const readRepository = { async findByUserAndBundle() { return null; } };
   const dependencies = {
     async authenticate() { return { userId, readRepository }; },
-    createWriteRepository() {
+    createWriteRepository(verifiedUserId) {
+      assert.equal(verifiedUserId, userId, "only the verified actor can bind the writer");
       writeRepositoryCreated += 1;
       return { async recordCurrentAcceptance(params) { recorded = params; } };
     },
@@ -171,8 +172,10 @@ async function main() {
   assert.match(route, /getBearerToken\(request\)/);
   assert.match(route, /client\.auth\.getUser\(token\)/);
   assert.match(route, /createLegalConsentServiceClient\(env\)/);
+  assert.match(route, /createWriteRepository:\s*\(verifiedUserId\)[\s\S]*?createLegalConsentWriteRepository\([\s\S]*?verifiedUserId/);
   assert(route.indexOf("client.auth.getUser(token)") < route.indexOf("createLegalConsentServiceClient(env)"));
   assert.match(repository, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(repository, /p_user_id:\s*verifiedUserId/);
   assert.doesNotMatch(route, /signIn|signUp|redirect|requireCurrentLegalConsent/);
 
   console.log("LEGAL_CONSENT_PERSISTENCE_OK offline mocks and static RLS/API checks passed");
