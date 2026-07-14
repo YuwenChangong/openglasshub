@@ -35,6 +35,8 @@
     "test:legal-consent-phase4b-wave4": "node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs",
     "test:legal-consent-predeployment-readiness": "node scripts/test-legal-consent-predeployment-readiness.mjs",
     "test:local-supabase-replay-mirror": "node scripts/test-local-supabase-replay-mirror.mjs",
+    "generate:production-schema-fingerprint": "node scripts/generate-local-production-schema-fingerprint.mjs",
+    "test:production-schema-fingerprint": "node scripts/test-production-schema-fingerprint.mjs",
     "test:moderation-notification-writer": "node --experimental-strip-types scripts/test-moderation-notification-writer.mjs",
     "test:legal-consent-mutation-inventory": "node scripts/test-legal-consent-mutation-inventory.mjs",
     "test:legal-consent-trace-batches": "node scripts/test-legal-consent-api-trace-batches.mjs",

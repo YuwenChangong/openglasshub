@@ -238,3 +238,9 @@ The inventory contains 32 CRLF files and 11 LF files. Line endings, final newlin
 No cloud Supabase service, cloud database, Auth, Storage, Edge Function, dashboard SQL editor, credential, production data, migration history, or migration-repair operation was contacted or changed by Codex. The reported production ledger still contains only `20260518` and `20260703`; absence of the other records does not prove the corresponding SQL was never manually applied.
 
 Local replay is now verified, but production remains `NO_GO`: cloud schema/ACL/runtime configuration are unverified, the 12 managed cloud migrations remain unexecuted through reconciled migration history, operator/contact values and qualified legal review are unresolved, and no production approval exists.
+
+## Production Fingerprint Packet
+
+The verified local Docker catalog now has a deterministic expected-schema fingerprint at `tests/fixtures/production-schema-expected-fingerprint.json`. It contains structural catalog and allowlisted storage-bucket configuration evidence only; it contains no Auth users, business rows, credentials, hostnames, or generated local test data. `docs/ops/legal-consent-production-schema-fingerprint.sql` is the separate read-only Dashboard packet, and `scripts/compare-production-schema-fingerprint.mjs` compares the exported CSV entirely offline.
+
+Production fingerprint collection is `NOT RUN`; comparison is `NOT RUN`; history reconciliation is `BLOCKED_PENDING_FINGERPRINT`. The packet does not authorize any cloud migration, migration repair, `db push`, history change, or deployment.

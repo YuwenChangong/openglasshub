@@ -69,6 +69,8 @@ Do not rename or reorder historical migration files as an ad hoc local fix. A se
 
 The read-only production history result records only `20260518_forum_phase1_schema` and `20260703_moderation_action_notifications`; duplicate-version absence still does not establish that their SQL was never applied manually. A disposable external mirror now resolves duplicate local versions and removes only a leading UTF-8 BOM from two canonical copies: `20260603_forum_comments_interactions.sql` and `20260605_forum_posts_body_short_content.sql`. The canonical files remain byte-for-byte unchanged; every transformed replay body equals the canonical bytes after its first three BOM bytes. The local clean replay, version-limited upgrade simulation, local lint, migration ledger, ACL/search-path, RLS, RPC, residue, and offline consent checks passed as recorded in `docs/ops/legal-consent-local-supabase-verification.md`. This is local evidence only; it does not reconcile the production history, execute a cloud migration, or verify cloud runtime state.
 
+The next approved evidence step is the read-only production fingerprint packet in `docs/ops/legal-consent-production-schema-fingerprint.sql`. An operator exports its single catalog/configuration result set, then Codex compares that file offline using `scripts/compare-production-schema-fingerprint.mjs`. Collection and comparison are both currently `NOT RUN`; history reconciliation is `BLOCKED_PENDING_FINGERPRINT`. The packet cannot change schema, data, grants, policies, migration history, or deployment state.
+
 ## Future execution sequence
 
 ### Stage 0: operator readiness
