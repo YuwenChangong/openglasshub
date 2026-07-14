@@ -67,6 +67,8 @@ The forensic audit found 43 well-formed migration filenames and ten duplicate-ve
 
 Do not rename or reorder historical migration files as an ad hoc local fix. A separately reviewed, upgrade-safe migration-history remediation plan is required after the read-only history confirmation and before any fresh local replay, non-production migration, or production migration operation.
 
+The read-only production history result records only `20260518_forum_phase1_schema` and `20260703_moderation_action_notifications`; duplicate-version absence still does not establish that their SQL was never applied manually. A byte-identical disposable 43-file mirror then passed the old duplicate-version boundary but stopped at `20260603000001_forum_comments_interactions.sql` because the canonical source begins with UTF-8 BOM bytes `EF BB BF`, producing local `SQLSTATE 42601` at statement zero. The mirror and canonical SHA-256 values matched, so the failure cannot be addressed here without violating the canonical-content preservation rule. Local replay, upgrade, live catalog, ACL/RLS/RPC/Auth/consent, and residue verification remain incomplete. The exact mapping and failure record are in `docs/ops/legal-consent-local-supabase-verification.md`.
+
 ## Future execution sequence
 
 ### Stage 0: operator readiness

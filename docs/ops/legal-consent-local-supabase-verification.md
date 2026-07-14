@@ -133,13 +133,48 @@ order by version, name;
 
 Return only the three displayed fields and the project environment label, with all project identifiers, credentials, and statement bodies omitted. Current CLI metadata has a unique version plus `name` and parsed `statements`; `name` can identify the recorded duplicate. If the target metadata table has only `version` or an empty `name`, it cannot distinguish the competing files. In that case the additional required read-only evidence is the immutable migration-runner/deployment log naming the applied file and commit for each duplicate version. A history row alone still does not prove an edited SQL body's schema effect, so any later remediation plan must reconcile this result with a reviewed schema/object comparison. No migration repair, history update, remote rename, `db push`, `db pull`, or remote CLI command is approved by this report.
 
+## Disposable Normalized Mirror Attempt
+
+An operator supplied a read-only production history result after the forensic audit: only `20260518 | forum_phase1_schema | 103 statements` and `20260703 | moderation_action_notifications | 3 statements` are recorded. None of the ten duplicate versions is recorded. That absence remains insufficient evidence to rename a canonical migration because it cannot exclude manual schema application or an incomplete history record.
+
+The LOCAL_DOCKER_ONLY mirror was created outside the repository at `D:\OpenGlass Hub\local-supabase-normalized-replay-20260714`. It has a fresh CLI-generated local config, a local workspace id, localhost/127.0.0.1 endpoints only, no `.supabase` metadata, and no copied environment file or credentials. The process removed the three inherited Supabase environment variables before every CLI invocation. Docker Desktop and Supabase CLI `2.109.1` were the only execution target; no cloud Supabase project was contacted.
+
+`normalized-migration-mapping.json` and `.csv` remain in that disposable workspace and contain the required one-to-one canonical filename/version/SHA-256, duplicate-group membership, temporary filename/version/SHA-256 mapping for all 43 files. All temporary bodies were copied byte-for-byte: 43 canonical files, 43 mirror files, 43 unique temporary versions, and zero SHA-256 mismatches. The canonical migration directory remained unchanged.
+
+The normalized ordering uses `YYYYMMDD` plus a six-digit sequence. Unique-date files use sequence `000001`; within-date order was source-dependency-reviewed first, then Git introduction chronology, then lexical order only for true ties. No contradictory within-date dependency was found. The duplicate-group decisions are:
+
+| Date group | Temporary order | Basis |
+| --- | --- | --- |
+| `20260525` | video media, posts RLS, circle creator/images | Video follows Phase 3 post-media; the two Phase 5 changes have no direct SQL-object dependency, so Git chronology orders posts before circles. |
+| `20260603` | comments interactions, hot-sort/circle-name guard, circle-owner management | Each consumes earlier schema; no same-group produced object is required by another. Git chronology provides the order. |
+| `20260604` | circle soft-delete/management, circle-cover storage policy | Both consume earlier circle/post-media schema; Git chronology provides the order. |
+| `20260605` | circle-cover public select, rate-limit purposes, posts body short-content | The first two share an introduction commit and are independent, so lexical tie-break precedes the later posts change. |
+| `20260606` | profile banner/storage, forum notifications | Independent subsystems; Git chronology provides the order. |
+| `20260607` | auth resend limit, enable forum realtime, notification relike guard | Auth is earlier; the two realtime/notification changes are independent within the group and use lexical order. |
+| `20260611` | fix notification realtime, stabilize notification realtime permissions, forum permission lockdown | Each consumes prior notification schema; Git introduction chronology preserves the historical sequence. |
+| `20260612` | hot news MVP, news view count/pagination, news media storage policy | Later news changes consume the earlier news schema; Git chronology is source-compatible. |
+| `20260620` | lock profile role updates, admin QA role grant path | Independent policy/grant changes; Git chronology provides the order. |
+| `20260713` | comment reaction, comment creation, comment read, post-bound media, forum posts, report target | Comment-read creates `can_access_public_circle`, which is required before forum-post and report-target authorization; other independent changes retain Git chronology. |
+
+The initial local start applied the first seven normalized migrations exactly once, including all three former `20260525` files, then stopped at `20260603000001_forum_comments_interactions.sql`, the mirror of `20260603_forum_comments_interactions.sql`:
+
+```text
+SQLSTATE 42601
+syntax error at or near UTF-8 BOM at statement 0
+```
+
+The canonical file begins with bytes `EF BB BF`, and its SHA-256 is `E7B7187CCB3F0F660D3F5E367BB1E791D14335E1365E7ADED8FBE4C64FBC6300`, exactly matching the temporary copy. Removing that BOM would violate the byte-identical mirror rule and would alter a canonical historical SQL body, so no workaround was applied. The CLI stopped and removed the local containers; no local Studio URL remained available.
+
+Because the first replay failed, the upgrade simulation, local lint/pgTAP, migration-history completion, ACL/RLS catalog checks, RPC/Auth/consent behavior tests, and residue checks were not run. No local identities, data, media objects, notifications, report events, or production resources were created or changed. A future attempt requires a separately approved, byte-preservation-compatible local runner or an explicit historical migration-content remediation decision; it must not silently strip the BOM or edit canonical SQL.
+
 ## Verification Result
 
 | Check | Result |
 | --- | --- |
 | Local Docker stack start | Reached local Postgres migration replay, then failed and cleaned itself up |
-| Full clean migration replay | Failed at duplicate version `20260525` |
-| Upgrade-path simulation | Not started; clean replay is prerequisite |
+| First canonical replay | Failed at duplicate version `20260525` |
+| Disposable normalized replay | Reached `20260603000001_forum_comments_interactions.sql`, then failed on its byte-identical UTF-8 BOM |
+| Upgrade-path simulation | Not started; a successful full mirror replay is prerequisite |
 | `db lint --local` and `test db --local` | Not started; no healthy local database remained |
 | Migration 12 application and history | Not reached / not verified locally |
 | ACL, SECURITY DEFINER, search-path, and RLS catalog checks | Not started; no healthy local database remained |
