@@ -1,41 +1,61 @@
 # Production Reconciliation Wave 1 Review
 
-Status: `TWO_PROPOSALS_AUTHORED_LOCAL_VALIDATED`; production remains `NO_GO`.
+Status: `EXECUTION_PACKET_READY_PENDING_HUMAN_APPROVAL`. Wave 1 is
+`PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED`; overall production
+reconciliation remains `NO_GO`.
 
-Reviewed commit: `4fb0c31765684a60a4a9b8e142eb5b97504e3f03`. This is not a canonical migration. No production SQL, Supabase cloud operation, migration repair, deployment, or production data operation occurred.
+This packet combines the already reviewed Wave 1A and Wave 1B evidence without
+expanding scope. It is not a canonical migration, migration-history repair,
+deployment, or authorization to run SQL against production. No Supabase cloud
+operation, production SQL, production data operation, or deployment occurred.
 
-## Body-integrity gate
+## Exact scope
 
-| Exact signature | Expected body hash | Observed body hash | Body evidence | Proposal status |
-| --- | --- | --- | --- | --- |
-| `public.increment_post_view_count(uuid)` | `5e5d6c9682a32dbb9deb7003be854eaf06700577593c7b7ac108ddecd55fed5d` | `c29ed210f5aa903e33323aff772130d038f72c42cd6ccae593e33dda5d87b1f2` | `FORENSIC_DIFF_SECURITY_BROADENING_NO_PRODUCT_DECISION` | Separate Wave 1B body/metadata/ACL proposal authored and locally validated. |
-| `public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)` | `96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2` | `96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2` | `EXACT_BODY_MATCH` | Metadata/ACL proposal authored and locally validated. |
+| Exact signature | Reviewed body evidence | Reviewed target ACL |
+| --- | --- | --- |
+| `public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)` | Exact body match: `96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2` remains unchanged. | PUBLIC/anon/authenticated denied; service_role allowed. |
+| `public.increment_post_view_count(uuid)` | Production `c29ed210f5aa903e33323aff772130d038f72c42cd6ccae593e33dda5d87b1f2` is security-broadened; reviewed target is `5e5d6c9682a32dbb9deb7003be854eaf06700577593c7b7ac108ddecd55fed5d`. | PUBLIC/service_role denied; anon/authenticated allowed. |
 
-`increment_post_view_count` is SECURITY DEFINER, owned by `postgres`, returns `void`, and has `search_path=public` in both captured definitions. Its observed body updates any published post by id; the expected body additionally requires published moderation status and `can_access_public_circle`. The Wave 1B forensic review classifies both omissions as security broadening, establishes the exact public post-detail caller contract, and finds no product-semantic choice requiring a human decision. Its separate body-level proposal remains unexecuted and non-production only.
+No other function, table, policy, constraint, index, storage object, or Wave 2+
+object is part of Wave 1.
 
-`insert_forum_notification` is SECURITY DEFINER, owned by `postgres`, returns `void`, and has `search_path=public, pg_temp` in both captured definitions. Its body exactly matches. The observed production ACL has effective `PUBLIC`, `anon`, and `authenticated` execution and lacks the expected service-role-only direct grant. The server-only writer in `src/lib/server/moderation-notifications.server.ts` lazily constructs the service-role client after verified actor/target normalization and calls only this fixed RPC. No other runtime application caller exists. `src/lib/post-engagement.ts` is the public caller of the separate view-count RPC; anon/authenticated execution remains intended for that function but is blocked from this metadata-only wave due to its divergent body.
+`increment_post_view_count` keeps its fixed-object, `void`, `postgres`,
+`SECURITY DEFINER`, `search_path=public` contract. The reviewed replacement adds
+the missing `moderation_status = 'published'` and
+`public.can_access_public_circle(post_ref.circle_id)` predicates. Its public
+post-detail caller remains intentional. `insert_forum_notification` keeps its
+exact body and `search_path=public, pg_temp`; the server-only moderation writer
+is its only application RPC caller and requires service-role direct execution.
 
-## Artifacts
+## Execution-ready packet
 
-- Read-only packet: [legal-consent-production-wave1-preflight.sql](reconciliation/legal-consent-production-wave1-preflight.sql). It captures existence, exact overload, return type, owner, SECURITY DEFINER, search path, full definition, effective role execution, ACL entries, overload count, and safely queryable dependent policies for both signatures.
-- Non-production review proposal: [legal-consent-production-wave1-proposal.sql](reconciliation/legal-consent-production-wave1-proposal.sql). It is prominently marked unexecuted and applies only signature-qualified owner, SECURITY DEFINER, search-path, revoke, and grant operations for `insert_forum_notification`.
+- [Fresh preflight](reconciliation/legal-consent-production-wave1-preflight.sql): read-only exact-signature catalog, body-hash, overload, ACL, and safely queryable dependency export.
+- [Unexecuted proposal](reconciliation/legal-consent-production-wave1-proposal.sql): one transaction, the two reviewed functions only, no migration-history operation.
+- [Read-only postflight](reconciliation/legal-consent-production-wave1-postflight.sql): exact metadata, ACL, overload, and body-hash verification after a future approved execution.
+- [Execution checklist](reconciliation/legal-consent-production-wave1-execution-checklist.md): human approvals, fresh-preflight gates, stop conditions, and secure-forward-fix guidance.
 
-## Local simulation
+The proposal first converges the post-view body and metadata, removes its broad
+permissions, then grants only anon/authenticated. It then converges notification
+metadata without replacing its exact body, removes broad permissions, and grants
+only service_role. In-transaction assertions abort the complete packet on any
+overload, metadata, ACL, or unexpected direct-grantee mismatch.
 
-The read-only preflight packet executed against the disposable `LOCAL_DOCKER_ONLY` normalized replay database and resolved both exact function OIDs using `to_regprocedure`; it rolled back after catalog inspection. The test then reproduced only notification ACL drift inside a transaction: service-role execution revoked and PUBLIC execution granted. It applied the proposal operations inside that same transaction and proved:
+## LOCAL_DOCKER_ONLY validation
 
-- the notification body hash was preserved;
-- owner remained `postgres`;
-- SECURITY DEFINER remained enabled;
-- `search_path` converged to `public, pg_temp`;
-- effective PUBLIC, anon, and authenticated execution became false;
-- effective service-role execution became true; and
-- the transaction rolled back, leaving no local residue.
+The disposable normalized replay database reproduced both reviewed production
+drifts in one transaction: notification metadata/ACL drift and post-view
+body/ACL drift. The combined proposal then converged both exact expected body
+hashes, owners, SECURITY DEFINER flags, search paths, and role matrices; the
+transaction rolled back afterward. Focused offline tests separately prove the
+fixed moderation writer/RPC surface and visible/pending/inaccessible post-view
+behavior. No unrelated object or Wave 2 object was included.
 
-The view-count function was not simulated because reproducing its captured production state would require modifying its divergent body, which is forbidden for this metadata/ACL-only proposal.
+## Required human decision
 
-## Risk, rollback, and stop conditions
-
-Function ACL and metadata operations take short catalog locks but can immediately affect callers. They require exact target confirmation, fresh attached preflight output, reviewed dependent callers, backup/restore readiness, and explicit non-production human approval. If verification fails after a partial application, stop and use a reviewed forward fix. Do not restore PUBLIC execution as a rollback shortcut because that would reintroduce the identified privilege boundary.
-
-Stop immediately on an unknown overload, unexpected owner/return type/search path, non-matching notification body hash, unexpected dependent caller, failed service-role writer regression, or any evidence that the target is production. Wave 2+ legal-consent, circle, comment, post, report, media, and operational objects remain unresolved.
+Before any future execution, a named human operator must attach a fresh
+production preflight, confirm the target and reviewed observed hashes/ACLs,
+obtain database/security and application review, confirm backup/restore and
+incident ownership, and explicitly approve this exact SQL file. Preflight drift
+or a postflight mismatch is a STOP condition. After any committed issue, use a
+reviewed secure forward-fix; never restore `PUBLIC EXECUTE` or blindly restore
+the known-broadened post-view body.

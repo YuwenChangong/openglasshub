@@ -101,22 +101,22 @@ function sourceMigrationsFor(entry, row) {
 
 function wave1Status(identity) {
   if (identity === "increment_post_view_count(uuid)") return {
-    proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+    proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
     bodyEvidence: "FORENSIC_DIFF_SECURITY_BROADENING_NO_PRODUCT_DECISION",
     preflightRequired: true,
-    proposalFile: "docs/ops/reconciliation/legal-consent-production-wave1b-proposal.sql",
-    localSimulationStatus: "LOCAL_DOCKER_ONLY_BODY_METADATA_ACL_AND_BEHAVIOR_CONVERGENCE_VALIDATED",
-    verificationStatus: "FORENSIC_BODY_DIFF_AND_LOCAL_CONVERGENCE_VALIDATED",
+    proposalFile: "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
+    localSimulationStatus: "LOCAL_DOCKER_ONLY_COMBINED_WAVE1_CONVERGENCE_VALIDATED",
+    verificationStatus: "COMBINED_PACKET_BODY_METADATA_ACL_AND_BEHAVIOR_CONVERGENCE_VALIDATED",
     blockerStatus: "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
     nextApprovalRequired: "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
   };
   if (identity === "insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid)") return {
-    proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+    proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
     bodyEvidence: "EXACT_BODY_MATCH",
     preflightRequired: true,
     proposalFile: "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
-    localSimulationStatus: "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
-    verificationStatus: "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
+    localSimulationStatus: "LOCAL_DOCKER_ONLY_COMBINED_WAVE1_CONVERGENCE_VALIDATED",
+    verificationStatus: "COMBINED_PACKET_BODY_METADATA_ACL_CONVERGENCE_VALIDATED",
     blockerStatus: "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
     nextApprovalRequired: "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
   };
@@ -185,6 +185,19 @@ export function buildManifest({ expected, actualRows, comparedCommit, exportSha2
     uniqueRepairObjectCount: uniqueRepairObjects.length,
     sourceMigrationsChanged: false,
     productionCsvCommitted: false,
+    wave1ExecutionPacket: {
+      status: "EXECUTION_PACKET_READY_PENDING_HUMAN_APPROVAL",
+      exactSignatures: [
+        "public.increment_post_view_count(uuid)",
+        "public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)",
+      ],
+      proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+      proposalFile: "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
+      preflightFile: "docs/ops/reconciliation/legal-consent-production-wave1-preflight.sql",
+      postflightFile: "docs/ops/reconciliation/legal-consent-production-wave1-postflight.sql",
+      executionChecklistFile: "docs/ops/reconciliation/legal-consent-production-wave1-execution-checklist.md",
+      realProductionOperations: 0,
+    },
     waves: WAVES,
     items,
   };

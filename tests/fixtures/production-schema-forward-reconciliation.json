@@ -16,6 +16,19 @@
   "uniqueRepairObjectCount": 75,
   "sourceMigrationsChanged": false,
   "productionCsvCommitted": false,
+  "wave1ExecutionPacket": {
+    "status": "EXECUTION_PACKET_READY_PENDING_HUMAN_APPROVAL",
+    "exactSignatures": [
+      "public.increment_post_view_count(uuid)",
+      "public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)"
+    ],
+    "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+    "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
+    "preflightFile": "docs/ops/reconciliation/legal-consent-production-wave1-preflight.sql",
+    "postflightFile": "docs/ops/reconciliation/legal-consent-production-wave1-postflight.sql",
+    "executionChecklistFile": "docs/ops/reconciliation/legal-consent-production-wave1-execution-checklist.md",
+    "realProductionOperations": 0
+  },
   "waves": [
     {
       "id": "W0_OPERATOR_GATE",
