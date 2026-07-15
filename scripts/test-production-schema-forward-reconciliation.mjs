@@ -102,7 +102,17 @@ assert.equal(operationalWave?.authenticatedPrivilegePreflightStaticTest, "script
 assert.equal(operationalWave?.authenticatedPrivilegePreflightStatus, "CATALOG_ONLY_EXECUTED_REDACTED_SUPPLEMENTAL_EVIDENCE_REQUIRED");
 assert.equal(operationalWave?.authenticatedPrivilegeSupplementalPreflightFile, "docs/ops/reconciliation/operational-guardrails-authenticated-privilege-supplemental-preflight.sql");
 assert.equal(operationalWave?.authenticatedPrivilegeSupplementalPreflightStaticTest, "scripts/test-operational-guardrails-authenticated-privilege-supplemental-preflight.mjs");
-assert.equal(operationalWave?.authenticatedPrivilegeSupplementalPreflightStatus, "READ_ONLY_PACKET_READY_EXECUTION_REQUIRES_EXPLICIT_OPERATOR_APPROVAL");
+assert.equal(operationalWave?.authenticatedPrivilegeSupplementalPreflightLocalTest, "scripts/test-operational-guardrails-authenticated-privilege-supplemental-local.mjs");
+assert.equal(operationalWave?.authenticatedPrivilegeSupplementalPreflightStatus, "PRODUCTION_READ_ONLY_EXECUTION_FAILED_SAFELY_42P21_CORRECTED_LOCAL_DOCKER_VALIDATED_FRESH_APPROVAL_REQUIRED");
+assert.deepEqual(operationalWave?.authenticatedPrivilegeSupplementalPreflightFailure, {
+  sqlState: "42P21",
+  location: "role_closure recursive CTE third output column",
+  cause: "anchor text used default collation while recursive pg_roles.rolname used C collation",
+  productionCatalogEvidenceReturned: false,
+  productionMutationPossible: false,
+  correction: "both third-column branches explicitly emit text COLLATE C",
+  localDockerValidation: "legacy failure reproduced; corrected packet completed through ROLLBACK",
+});
 assert.deepEqual(operationalWave?.authenticatedPrivilegePreflightResult, {
   productionDataRowsRead: false,
   productionObjectMutation: false,

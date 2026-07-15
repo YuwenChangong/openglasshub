@@ -9,11 +9,11 @@ target_roles AS (
   LEFT JOIN pg_roles role_ref ON role_ref.rolname = target.role_name
 ),
 role_closure AS (
-  SELECT role_name AS root_role, oid AS role_oid, role_name AS effective_role, 0 AS depth, ARRAY[oid] AS path
+  SELECT role_name AS root_role, oid AS role_oid, role_name::text COLLATE "C" AS effective_role, 0 AS depth, ARRAY[oid] AS path
   FROM target_roles
   WHERE oid IS NOT NULL
   UNION ALL
-  SELECT closure.root_role, parent.oid, parent.rolname, closure.depth + 1, closure.path || parent.oid
+  SELECT closure.root_role, parent.oid, parent.rolname::text COLLATE "C", closure.depth + 1, closure.path || parent.oid
   FROM role_closure closure
   JOIN pg_auth_members membership ON membership.member = closure.role_oid
   JOIN pg_roles parent ON parent.oid = membership.roleid
@@ -74,7 +74,7 @@ packet_rows AS (
     CASE WHEN role.oid IS NULL THEN 'MISSING' ELSE 'PRESENT' END, 'SECURITY_BROADENING'
   FROM target_roles role
   UNION ALL
-  SELECT 3, 'role_membership_topology', closure.root_role || '->' || closure.effective_role, 'public', 'forum_upload_attempts', 'membership',
+  SELECT DISTINCT 3, 'role_membership_topology', closure.root_role || '->' || closure.effective_role, 'public', 'forum_upload_attempts', 'membership',
     json_build_object('root_role', closure.root_role, 'parent_role', closure.effective_role, 'membership_depth', closure.depth,
       'membership_kind', CASE WHEN closure.depth = 0 THEN 'SELF' WHEN closure.depth = 1 THEN 'DIRECT' ELSE 'TRANSITIVE' END)::text,
     'PRESENT', 'SECURITY_BROADENING'

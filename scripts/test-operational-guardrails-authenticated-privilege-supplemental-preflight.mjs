@@ -11,6 +11,10 @@ assert.match(sql, /operational-guardrails-authenticated-privilege-supplemental-p
 assert.match(sql, /'expected_section_count', '8'/);
 assert.match(normalized, /with recursive/);
 assert.match(sql, /pg_auth_members/);
+assert.match(sql, /role_name::text\s+COLLATE\s+"C"\s+AS effective_role/);
+assert.match(sql, /parent\.rolname::text\s+COLLATE\s+"C"/);
+assert.match(sql, /WHERE NOT parent\.oid = ANY\(closure\.path\)/);
+assert.match(sql, /SELECT DISTINCT 3, 'role_membership_topology'/);
 assert.match(sql, /has_schema_privilege\(/);
 assert.match(sql, /has_sequence_privilege\(/);
 assert.match(sql, /pg_attrdef/);

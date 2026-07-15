@@ -234,11 +234,34 @@ It also emits `NO_REFERENCED_SEQUENCE` when the table has no sequence-backed
 default. The source migration currently uses `gen_random_uuid()`, so that is
 the expected outcome, but the catalog packet is the authority for production.
 
-This packet has not been executed. The current task did not include explicit
-operator approval for this new production query. Before execution, reconfirm
-the exact production project, clean matching branch, and the already-verified
-valid/ready Stage A and Stage B index postflight state. Do not run any policy,
-grant, index, function, migration, or application operation with this packet.
+The first approved production execution failed safely before it returned any
+catalog evidence. PostgreSQL reported `42P21` in the third output column of
+the recursive `role_closure` CTE: the anchor produced default-collated text
+while the recursive `pg_roles.rolname` value carried collation `"C"`. The
+packet begins `BEGIN TRANSACTION READ ONLY`, reads no application rows, and has
+no mutating statement, so no production mutation was possible. The client
+stopped at the error before its explicit `ROLLBACK` statement; connection
+cleanup ended the failed read-only transaction without committing a change.
+
+The packet is now corrected locally by emitting `::text COLLATE "C"` from both
+third-column branches. This makes the type, typmod (unconstrained `text`), and
+collation identical without changing target roles, membership direction,
+privilege calculations, redaction, or output columns. The traversal remains
+child-to-parent (`pg_auth_members.member` to `roleid`), keeps an OID path to
+terminate cycles, and labels depth one as direct and greater depths as
+transitive. The rendered topology now uses `DISTINCT` only to avoid duplicate
+identical report edges; distinct paths at different depths remain visible.
+
+`scripts/test-operational-guardrails-authenticated-privilege-supplemental-local.mjs`
+reproduces the original mixed-collation `42P21` in LOCAL_DOCKER_ONLY, then runs
+the corrected full packet through its final `ROLLBACK`. It proves the eight
+sections and ten-column contract, direct and transitive role membership output,
+and absence of any attempt-row mutation. Fresh explicit operator approval is
+required before one corrected production read-only execution. Before execution,
+reconfirm the exact production project, clean matching branch, and the
+already-verified valid/ready Stage A and Stage B index postflight state. Do not
+run any policy, grant, index, function, migration, or application operation
+with this packet.
 
 Its result can complete the supporting privilege matrix, but it cannot change
 the prior conclusion on its own: table `SELECT`/`INSERT` remains the decisive
