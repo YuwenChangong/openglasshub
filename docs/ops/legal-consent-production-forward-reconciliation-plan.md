@@ -7,7 +7,7 @@ production. Wave 1 is `PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`: Stage 1
 created `can_access_public_circle(uuid)` and the two Stage 2 functions committed
 with verified postflights. The original forensic inventory remains 168
 actionable manifest entries across 75 logical repair objects; the active
-inventory is now 147 entries across 68 pending logical repair objects and 132
+inventory is now 146 entries across 67 pending logical repair objects and 131
 security-sensitive findings. Do not
 use `db push`, blind historical replay, or migration-history repair.
 
@@ -68,7 +68,7 @@ The order keeps a table before its constraints/indexes/RLS/RPC, a predicate func
 | W3B comments/reactions | 11 | Comment-create/read/reaction predicates, comment/reaction policies, and unexpected direct grants. Depends on W3A. | Published comment/post/circle ancestry mismatch, zero-write denied-path test failure, or extra policy intent unresolved. |
 | W4 posts/reports | 7 | Posts RLS set, `can_create_user_report_target`, reports INSERT policy, and view-count index. Depends on W3A and W1. | Public post/report target can bypass moderation/circle visibility, or view count caller cannot use the narrowed ACL. |
 | W5 media provenance/delivery | 13 | Canonical media-key and delivery predicates, post-media/storage policies, and bucket configuration. Depends on W3A and W4. | Cross-user/post media key, private-circle object, or malformed storage path is accepted; bucket state differs from reviewed target. |
-| W6 operational guardrails | 3 pending | `INDEX_STAGE_A_APPLIED_POSTFLIGHT_VERIFIED_STAGE_B_REVIEW_READY_POLICY_PRIVILEGE_HOLD`: Stage A now has the verified purpose/IP/created-at index. Stage B remains separately approval-gated. The extra policies are RLS-redundant but held because `authenticated` lacks effective SELECT/INSERT privilege, so runtime preservation is not proven. | A fresh Stage B preflight changes, the concurrent build fails, an index is invalid/not ready, or the authenticated table-privilege contract remains unreconciled. |
+| W6 operational guardrails | 2 pending | `INDEX_STAGES_APPLIED_POSTFLIGHT_VERIFIED_POLICY_PRIVILEGE_HOLD`: both purpose-leading rate-limit indexes now have exact verified production shapes. The extra policies are RLS-redundant but held because `authenticated` lacks effective SELECT/INSERT privilege, so runtime preservation is not proven. | The authenticated table-privilege contract remains unreconciled, policy-removal behavior is not source-proven, or a future catalog preflight finds index drift. |
 
 No wave exceeds 15 logical objects or six tables. Every item has a forward-only strategy, verification step, and rollback/forward-fix class in the manifest. A failed verification means stop the wave and prepare a reviewed forward fix; do not roll back access control by broadly restoring old policies.
 

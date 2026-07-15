@@ -1,11 +1,9 @@
 # W6 Index-Only Execution Checklist
 
-Status: `STAGE_A_APPLIED_POSTFLIGHT_VERIFIED_STAGE_B_REVIEW_READY`. Stage A
-created `forum_upload_attempts_purpose_ip_created_idx` with a fresh matching
-preflight and verified postflight. Stage B remains missing and requires its own
-fresh preflight and explicit approval. The two extra policies remain outside
-this approval path because `authenticated` still lacks effective `SELECT` and
-`INSERT` privileges.
+Status: `INDEX_STAGES_APPLIED_POSTFLIGHT_VERIFIED_POLICY_PRIVILEGE_HOLD`. Both
+reviewed indexes were created sequentially with fresh matching preflights and
+verified postflights. The two extra policies remain outside this approval path
+because `authenticated` still lacks effective `SELECT` and `INSERT` privileges.
 
 1. Confirm the reviewed commit and the intended production target, backup
    readiness, and incident owner.

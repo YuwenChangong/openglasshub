@@ -1,6 +1,6 @@
 # Operational Guardrails Reconciliation Preflight
 
-Status: `INDEX_STAGE_A_APPLIED_POSTFLIGHT_VERIFIED_STAGE_B_REVIEW_READY_POLICY_PRIVILEGE_HOLD`. This is W6 only and remains
+Status: `INDEX_STAGES_APPLIED_POSTFLIGHT_VERIFIED_POLICY_PRIVILEGE_HOLD`. This is W6 only and remains
 `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PRODUCTION_RECONCILIATION_NO_GO`.
 
 ## Why W6 is next
@@ -19,7 +19,8 @@ Exact scope:
   (`PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED`; historical classification
   `MISSING_IN_PRODUCTION`, P1), from `20260605_forum_rate_limit_purposes.sql`.
 - `public.forum_upload_attempts.forum_upload_attempts_purpose_user_created_idx`
-  (`MISSING_IN_PRODUCTION`, P1), from the same migration.
+  (`PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED`; historical classification
+  `MISSING_IN_PRODUCTION`, P1), from the same migration.
 - `public.forum_upload_attempts.forum_upload_attempts_insert_self`
   (`EXTRA_IN_PRODUCTION`, P0), from
   `20260531_forum_phase6_upload_guardrails.sql`.
@@ -68,12 +69,23 @@ once, outside a transaction. Fresh preflight confirmed the target was missing,
 no structural equivalent or invalid/unfinished candidate existed, and the
 policy/privilege hold matched the reviewed state.
 
-Redacted postflight verified one valid, ready, non-unique `btree` index with the
-exact reviewed key order and descending `created_at`. Stage B remains missing;
+Redacted Stage A postflight verified one valid, ready, non-unique `btree` index
+with the exact reviewed key order and descending `created_at`.
+
+Stage B then executed its reviewed standalone
+`CREATE INDEX CONCURRENTLY forum_upload_attempts_purpose_user_created_idx ON
+public.forum_upload_attempts (purpose, user_id, created_at DESC)` statement
+once, outside a transaction. Its fresh preflight confirmed Stage A remained
+exact and valid/ready, Stage B was missing, and no structural equivalent or
+invalid/unfinished candidate existed. Redacted postflight verified both exact
+index shapes, with no invalid, unfinished, failed, or duplicate Stage B-shaped
+index remaining.
+
 `forum_upload_attempts_insert_self` and `forum_upload_attempts_select_self`
 remain unchanged; no grant, privilege, policy, application-data, or unrelated
-catalog change was made. The next safe action is a separately approved Stage B
-fresh preflight and review. W6 and the overall reconciliation remain `NO_GO`.
+catalog change was made. The next safe action is a separately reviewed policy
+and authenticated-privilege reconciliation; it is not authorized by this index
+execution record. W6 and the overall reconciliation remain `NO_GO`.
 
 ## Supplemental catalog review
 
