@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { MOUNTED_REVIEWED_SQL_PATH, PINNED_PSQL_IMAGE, inspectPinnedPsqlImage, resolveReviewedSourcePath, verifyReadOnlyMountedPacket } from "./lib/docker-psql-file-transport.mjs";
 import { assertReviewedPayload, buildExecutionManifest, loadReviewedSupplementalSql } from "./lib/reviewed-sql-transport.mjs";
+import { parseAuthenticatedPrivilegeSupplementCsv, validateAuthenticatedPrivilegeSupplementCsv } from "./validate-operational-guardrails-authenticated-privilege-supplement.mjs";
 
 const root = process.cwd();
 const reviewedPacket = await loadReviewedSupplementalSql({ root });
@@ -45,18 +46,21 @@ const runDockerPsqlFile = async () => {
   if (passwordResult.status !== 0 || !passwordResult.stdout) throw new Error("local Docker test credential channel was unavailable");
   const directory = await mkdtemp(path.join(os.tmpdir(), "openglass-psql-file-transport-"));
   const envFile = path.join(directory, "client.env");
+  const outputFile = path.join(directory, "packet.csv");
   try {
     await writeFile(envFile, `PGPASSWORD=${passwordResult.stdout}\nPGSSLMODE=disable\n`, { encoding: "utf8", mode: 0o600 });
+    await writeFile(outputFile, "", { encoding: "utf8", flag: "wx" });
     const sourcePath = resolveReviewedSourcePath({ root, packet: reviewedPacket });
     const result = spawnSync("docker", [
-      "run", "--rm", "--network", `container:${container}`, "--env-file", envFile,
+      "run", "--rm", "--read-only", "--network", `container:${container}`, "--env-file", envFile,
       "--mount", `type=bind,src=${sourcePath},dst=${MOUNTED_REVIEWED_SQL_PATH},readonly`,
+      "--mount", `type=bind,src=${outputFile},dst=/tmp/packet.csv`,
       PINNED_PSQL_IMAGE,
-      "psql", "-X", "-At", "-F", "\t", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose",
-      "-h", "127.0.0.1", "-U", "postgres", "-d", "postgres", "-f", MOUNTED_REVIEWED_SQL_PATH,
+      "psql", "-X", "-q", "--csv", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose",
+      "-h", "127.0.0.1", "-U", "postgres", "-d", "dbname=postgres sslmode=disable", "-f", MOUNTED_REVIEWED_SQL_PATH, "-o", "/tmp/packet.csv",
     ], { encoding: "utf8" });
     if (result.status !== 0) throw new Error(result.stderr || result.stdout || "Docker psql -f failed");
-    return result;
+    return { result, output: await readFile(outputFile, "utf8") };
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -137,33 +141,18 @@ try {
   assert.equal(mount.containerByteCount, reviewedPacket.sourceByteCount);
   assert.equal(mount.mountedReadOnly, true);
 
-  const result = await runDockerPsqlFile();
+  const { result, output } = await runDockerPsqlFile();
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.doesNotMatch(`${result.stderr}\n${result.stdout}`, /42P21/);
-  const outputLines = result.stdout.trim().split(/\r?\n/).filter(Boolean);
-  const rows = outputLines.filter((line) => line.split("\t").length === 10).map((line) => line.split("\t"));
-  const commandTags = outputLines.filter((line) => line.split("\t").length !== 10);
-  assert(commandTags.every((tag) => /^(?:BEGIN|ROLLBACK)$/.test(tag)), `unexpected packet output: ${commandTags.join(", ")}`);
-  assert(commandTags.includes("ROLLBACK"), "the packet must reach its final ROLLBACK");
-  assert(rows.length > 0, "the corrected packet must return catalog evidence");
-  assert(rows.every((row) => row.length === 10), "the corrected packet must preserve its ten-column contract");
-  const sections = new Set(rows.map((row) => row[2]));
-  assert.deepEqual([...sections].sort(), [
-    "effective_schema_privileges",
-    "effective_sequence_privileges",
-    "packet_manifest",
-    "referenced_sequence_catalog",
-    "role_membership_topology",
-    "schema_acl_catalog",
-    "sequence_acl_catalog",
-    "target_role_catalog",
-  ]);
-  const topology = rows
-    .filter((row) => row[2] === "role_membership_topology")
-    .map((row) => JSON.parse(row[7]));
+  assert.equal(result.stdout.trim(), "", "quiet CSV file output must never become a SQL input or console payload");
+  assert(output.length > 0, "the pre-created writable file mount must receive CSV evidence");
+  const validated = validateAuthenticatedPrivilegeSupplementCsv(output);
+  assert.equal(validated.sectionCount, 8);
+  const rows = parseAuthenticatedPrivilegeSupplementCsv(output);
+  const topology = rows.filter((row) => row.section === "role_membership_topology").map((row) => JSON.parse(row.value));
   assert(topology.some((edge) => edge.root_role === "authenticated" && edge.parent_role === parentRole && edge.membership_depth === 1 && edge.membership_kind === "DIRECT"));
   assert(topology.some((edge) => edge.root_role === "authenticated" && edge.parent_role === grandparentRole && edge.membership_depth === 2 && edge.membership_kind === "TRANSITIVE"));
-  assert.equal(new Set(rows.map((row) => `${row[2]}|${row[3]}|${row[6]}`)).size, rows.length, "the packet must not emit duplicate report rows");
+  assert.equal(new Set(rows.map((row) => `${row.section}|${row.row_key}|${row.attribute}`)).size, rows.length, "the packet must not emit duplicate report rows");
 } finally {
   try {
     mustRun(`DROP DATABASE IF EXISTS ${database};`, "postgres");

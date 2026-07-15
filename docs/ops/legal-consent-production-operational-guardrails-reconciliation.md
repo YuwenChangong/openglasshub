@@ -313,13 +313,32 @@ the repository. It refuses an image-digest, source/payload, byte-count, mount,
 target-fingerprint, or connection-mode mismatch. The helper requires separate
 observed and reviewed target identity fingerprints and fails unless they match.
 
-The reviewed execution shape is a separate client container with `psql -X -v
-ON_ERROR_STOP=1 -f /reviewed/...`, a read-only bind mount, and a temporary
-credential env-file that is neither committed, printed, nor placed in a shell
-command. SQL input is only the mounted file; stdout, stderr, process status,
-and the manifest are never SQL input. The local regression proves that exact
-Docker `psql -f` path returns the eight reviewed sections and ten columns and
-reaches the packet's explicit `ROLLBACK`.
+The first interactive attempt stopped before `Password:` and before any
+connection or SQL because the read-only client image has no `/output` target
+for the proposed directory mount. The corrected operator transport pre-creates
+a unique, zero-byte host staging file adjacent to the final CSV, bind-mounts
+that exact file as the only writable container path at `/tmp/...csv`, then runs
+`psql -X -W -q --csv -v ON_ERROR_STOP=1 -f /reviewed/... -o /tmp/...csv`.
+It validates a non-empty staging CSV offline and atomically renames it to the
+approved final path only after success. A non-empty failed or invalid staging
+file is moved to a unique `.failed.csv` quarantine name; an empty staging file
+is removed. The approved final CSV is never overwritten.
+
+Run the user-operated script only from an interactive terminal:
+
+```powershell
+& "D:\OpenGlass Hub interaction-release-fresh\scripts\run-operational-guardrails-authenticated-privilege-supplement.ps1"
+```
+
+It prompts only for non-secret Dashboard direct host, port, database, user,
+and the exact project name. `psql -W` alone prompts for the hidden password;
+the script rejects password environment variables, credential files, poolers,
+an unclean/unmatched branch, an altered reviewed packet, a changed image
+digest, and a pre-existing final CSV. SQL input remains only the read-only
+reviewed mount; stdout, stderr, process status, and the output CSV never become
+SQL input. The local Docker regression proves the exact writable file mount
+returns the eight sections and ten columns before the reviewed packet reaches
+its explicit `ROLLBACK`.
 
 The planned production mode is `DIRECT_SSL_REQUIRED`; it must use an explicit
 SSL-required direct PostgreSQL connection only after a fresh approved
@@ -334,12 +353,12 @@ authorization boundary, and the recommended remediation remains a fail-closed,
 atomic, server-only rate-limit RPC rather than direct browser-role table grants.
 
 The eight-section packet has a dedicated operator export path:
-`C:\\Users\\1\\Downloads\\operational-guardrails-authenticated-privilege-supplement.csv`.
+`C:\Users\1\Downloads\operational-guardrails-authenticated-privilege-supplement.csv`.
 It must never reuse the distinct ten-section W6 supplemental export. Validate
 the direct `psql --csv` result fully offline with:
 
 ```powershell
-node scripts/validate-operational-guardrails-authenticated-privilege-supplement.mjs "C:\\Users\\1\\Downloads\\operational-guardrails-authenticated-privilege-supplement.csv"
+node scripts/validate-operational-guardrails-authenticated-privilege-supplement.mjs "C:\Users\1\Downloads\operational-guardrails-authenticated-privilege-supplement.csv"
 ```
 
 The validator requires the exact

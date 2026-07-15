@@ -16,7 +16,7 @@ export const REQUIRED_SECTIONS = [
   "effective_sequence_privileges",
 ];
 
-const parseCsv = (text) => {
+export const parseAuthenticatedPrivilegeSupplementCsv = (text) => {
   if (!text.trim()) throw new Error("truncated CSV: no packet rows");
   const rows = [];
   let row = [];
@@ -82,7 +82,7 @@ export const validateAuthenticatedPrivilegeSupplementRows = (rows) => {
   return { packetVersion: PACKET_VERSION, rowCount: rows.length, sectionCount: sections.size, sections: REQUIRED_SECTIONS, validation: "PASS" };
 };
 
-export const validateAuthenticatedPrivilegeSupplementCsv = (text) => validateAuthenticatedPrivilegeSupplementRows(parseCsv(text));
+export const validateAuthenticatedPrivilegeSupplementCsv = (text) => validateAuthenticatedPrivilegeSupplementRows(parseAuthenticatedPrivilegeSupplementCsv(text));
 
 const csvPath = process.argv[2] ?? "C:\\Users\\1\\Downloads\\operational-guardrails-authenticated-privilege-supplement.csv";
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
