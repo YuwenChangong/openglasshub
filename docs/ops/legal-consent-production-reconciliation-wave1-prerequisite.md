@@ -1,10 +1,17 @@
 # Wave 1 Circle Access Prerequisite
 
-Status: `PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED`. No production SQL was
-executed for this prerequisite package. The one-shot exported catalog evidence
-proves the direct dependencies of `public.can_access_public_circle(uuid)`;
-the exact function-only proposal and read-only postflight are ready for a
-separate Stage 1 approval.
+Status: `PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED`. The separately approved Stage
+1 transaction committed and its postflight verified
+`public.can_access_public_circle(uuid)` with one overload, body MD5
+`67b9d428d658222c17d640a50f0b3127`, owner `postgres`,
+`SECURITY DEFINER=true`, `search_path=public`, and ACL `PUBLIC=false`,
+`anon=true`, `authenticated=true`, `service_role=false`.
+
+The later Wave 1 positive public-post smoke is
+`DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE`. No fixture was created because no
+naturally eligible post existed; the expected body hashes, production negative
+authorization smokes, and `LOCAL_DOCKER_ONLY` positive behavior remain the
+recorded evidence.
 
 ## Failure evidence
 
@@ -15,8 +22,9 @@ The approved Wave 1 transaction from commit
 
 Rollback verification showed the two Wave 1 functions retained their reviewed
 production hashes and broad ACLs. The missing prerequisite, not a Wave 1 body
-or ACL mismatch, prevented execution. The Wave 1 postflight was therefore not
-run.
+or ACL mismatch, prevented that original execution. The prerequisite was later
+applied under separate approval, after which the fresh Wave 1 preflight and
+Stage 2 transaction committed and passed postflight.
 
 ## Authoritative local contract
 
@@ -121,11 +129,11 @@ production compatibility.
 
 ## Dependency evidence and gate
 
-The existing forward-reconciliation manifest proves the function and its
-anon/authenticated grants are missing in production, but labels the `circles`
-dependency `ADDITIONAL_READ_ONLY_PREFLIGHT_REQUIRED`. Historical migration
-presence is not proof that production contains the required table, columns,
-roles, RLS state, or compatible constraints.
+The historical forward-reconciliation manifest preserves evidence that the
+function and its anon/authenticated grants were missing in production, and
+labels the `circles` dependency `ADDITIONAL_READ_ONLY_PREFLIGHT_REQUIRED`.
+Historical migration presence was not proof that production contained the
+required table, columns, roles, RLS state, or compatible constraints.
 
 The original multi-result packet remains available for audit history, but is
 deprecated for manual Dashboard export because the Dashboard conveniently
@@ -161,33 +169,32 @@ seven sections, explicit sentinels, unique rows, and catalog-only content. It
 fails closed for malformed, truncated, duplicate, secret-like, email-like,
 auth-user, or business-row evidence.
 
-The one-shot result must prove the function remains absent with no unexpected
-overload and that `public.circles`, its four referenced columns and types,
+The historical one-shot result had to prove the function was absent with no
+unexpected overload and that `public.circles`, its four referenced columns and types,
 RLS state, and roles `anon`, `authenticated`, and `postgres` are present
 and compatible. A difference is a STOP condition only when it is a direct
 compile or runtime-security dependency of the fixed function. The known
 constraint and policy differences above remain explicitly tracked surrounding
 reconciliation work.
 
-## Authored prerequisite packet
+## Historical prerequisite packet
 
 - [can-access-public-circle-proposal.sql](reconciliation/can-access-public-circle-proposal.sql)
 - [can-access-public-circle-postflight.sql](reconciliation/can-access-public-circle-postflight.sql)
 
-The proposal is unexecuted and contains only the exact helper creation, owner,
+The approved proposal contained only the exact helper creation, owner,
 `SECURITY DEFINER` mode, fixed search path, explicit privilege revocation, and
-anon/authenticated EXECUTE grants. It does not change any table, policy,
+anon/authenticated EXECUTE grants. It changed no table, policy,
 constraint, data, or existing Wave 1 target.
 
 ## Two-stage production sequence
 
-Stage 1 is not approved: attach a fresh one-shot prerequisite preflight output,
-obtain database/security review, execute only the prerequisite proposal as one
-transaction, run its read-only postflight, and stop on any mismatch.
+Stage 1 committed after its fresh one-shot prerequisite preflight and approved
+transaction, then passed its read-only postflight.
 
-Stage 2 is separately approved work: rerun the combined Wave 1 preflight,
-obtain a new explicit approval, then execute the existing exact Wave 1 proposal
-and postflight. Stage 2 must never start automatically after Stage 1.
+Stage 2 was separately approved work: the combined Wave 1 preflight was rerun,
+the exact Wave 1 proposal committed, and its postflight passed. Nothing in this
+historical sequence approves further production work.
 
 If a future prerequisite attempt fails, roll back its transaction. After a
 committed failure, use a reviewed secure forward-fix; never broaden PUBLIC

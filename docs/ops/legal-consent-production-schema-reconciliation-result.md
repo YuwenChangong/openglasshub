@@ -10,6 +10,34 @@
 - Completeness gate: passed. The export is not a 100-row Dashboard truncation, contains all twelve packet-section markers, has no duplicate or malformed packet rows, and passed catalog-only, secret-like, and email-like content validation.
 - Execution boundary: comparison was fully offline. No SQL was run, no Supabase CLI or cloud request was made, and no migration, repair, deployment, or production-data operation occurred.
 
+## Wave 1 production execution addendum
+
+The comparison above is the preserved historical fingerprint snapshot. A later,
+separately approved Stage 1/Stage 2 execution recorded at
+`571c852861b34153885cfa4fcdbf3d8f74ba2fb4` changed only three reviewed
+function objects and passed their postflights:
+
+- `can_access_public_circle(uuid)` is
+  `PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED` with body MD5
+  `67b9d428d658222c17d640a50f0b3127`.
+- `increment_post_view_count(uuid)` is
+  `PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED` with structural SHA-256
+  `5e5d6c9682a32dbb9deb7003be854eaf06700577593c7b7ac108ddecd55fed5d`
+  and body MD5 `26492d2c8a4e9d85533f6ef0d2184789`.
+- `insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)` is
+  `PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED` with structural SHA-256
+  `96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2`
+  and body MD5 `b23bd786e278a0071ae7759b29365df6`.
+
+The historic inventory has 168 actionable entries across 75 logical repair
+objects. After preserving all 17 function-related comparison records as
+execution history, the active inventory has 151 entries across 72 pending
+logical repair objects and 135 security-sensitive findings. The positive
+public-post smoke is `DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE`: no fixture was
+created because hashes and negative authorization behavior passed in production,
+positive behavior passed in `LOCAL_DOCKER_ONLY`, and no naturally eligible post
+existed. This residual note is not a Wave 1 rollback condition.
+
 ## Object comparison
 
 | Classification | Count |
@@ -33,7 +61,8 @@ The comparator found `151` security-sensitive blockers: 120 missing objects, 22 
 The following functions and all four captured ACL facts (`anon`, `authenticated`, `PUBLIC`, and `service_role`) are missing, with their expected grants absent as well:
 
 - `can_access_comment_reaction_target(uuid)`
-- `can_access_public_circle(uuid)`
+- `can_access_public_circle(uuid)` (historically missing in this exported
+  snapshot; subsequently production-applied and postflight-verified)
 - `can_access_public_comment_read_target(uuid)`
 - `can_create_comment_target(uuid,uuid)`
 - `can_create_user_report_target(text,uuid)`
@@ -48,8 +77,13 @@ Also missing are the two `forum_upload_attempts` rate-limit indexes, `posts_view
 
 ### Divergent execution and access control
 
-- `increment_post_view_count(uuid)` has a divergent definition and unexpected `PUBLIC` and `service_role` execution; its expected public-circle visibility guard is absent from the captured definition.
-- `insert_forum_notification(...)` has unexpected `authenticated` and `PUBLIC` execution; the expected `service_role` grant is missing.
+- `increment_post_view_count(uuid)` was divergent in the captured snapshot and
+  is subsequently `PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED`; its historical
+  comparison evidence is retained.
+- `insert_forum_notification(...)` had unexpected `authenticated` and `PUBLIC`
+  execution in the captured snapshot and is subsequently
+  `PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED`; its historical comparison evidence
+  is retained.
 - The following policy families differ from the expected authorization contract: `circles_select_public`; `comment_reactions_insert_self` and `comment_reactions_delete_self`; `comments_insert_self` and `comments_select_public_or_staff`; all three `post_media` policies; all four `posts` policies; `reports_insert_self`; and the four public media/circle-cover storage SELECT policies.
 - The `post-media` bucket configuration differs, and `circles_status_check` differs. These require object-by-object review even where their severity is availability-oriented.
 
@@ -57,7 +91,9 @@ Also missing are the two `forum_upload_attempts` rate-limit indexes, `posts_view
 
 The following unexpected objects are security blockers and must be reviewed individually:
 
-- `PUBLIC:EXECUTE` grants for `increment_post_view_count(uuid)` and `insert_forum_notification(...)`.
+- Historical `PUBLIC:EXECUTE` grants for `increment_post_view_count(uuid)` and
+  `insert_forum_notification(...)`; both are now production-applied and
+  postflight-verified with their reviewed ACL matrices.
 - `anon:SELECT`, `authenticated:INSERT`, and `authenticated:DELETE` grants on `public.comment_reactions`.
 - Extra policies `circles_delete_owner_or_staff`, `comment_reactions_select_public`, `forum_upload_attempts_insert_self`, and `forum_upload_attempts_select_self`.
 
@@ -115,4 +151,9 @@ Summary: 12 migrations are `EFFECTIVELY_PRESENT`, two are `PARTIALLY_PRESENT`, a
 
 ## Decision and next action
 
-Production remains **NO-GO**. Do not replay migrations, run `db push`, or repair migration history. The next safe action is a separately reviewed, object-by-object forward reconciliation plan beginning with the two public function EXECUTE exposures, the notification and view-count function contracts, missing legal-consent persistence, and the divergent RLS/media-provenance policies. That plan must be reviewed before any production operation; no remediation is authorized by this comparison.
+Production remains **NO-GO**. Do not replay migrations, run `db push`, or repair
+migration history. The next safe action is a separately reviewed, read-only
+preflight for the next unresolved repair wave, beginning with the remaining
+circles boundary drift, legal-consent persistence, and divergent
+RLS/media-provenance policies. No further remediation is authorized by this
+comparison.

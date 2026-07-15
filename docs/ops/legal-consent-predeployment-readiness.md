@@ -4,6 +4,18 @@ Status: `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PREDEPLOYMENT_NO_GO`.
 
 Baseline: `feature/legal-trust-consent-foundation-v1` at `e7572fe1d6696d7d5f212a5f9b9d131a7056ab26`. This is an offline source gate only. It did not authorize or perform a main merge, a migration, a configuration change, preview, staging, or production operation.
 
+## Wave 1 production reconciliation record
+
+This source gate remains `NO_GO`. Separately approved production reconciliation
+recorded Stage 1 `can_access_public_circle(uuid)` and Wave 1 Stage 2
+`increment_post_view_count(uuid)` plus `insert_forum_notification(...)` as
+`PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED` under execution record
+`571c852861b34153885cfa4fcdbf3d8f74ba2fb4`. That narrow execution does not
+execute or reconcile the twelve canonical migrations, repair migration history,
+or satisfy the remaining runtime, configuration, operator/contact, legal-review,
+and deployment prerequisites. The positive public-post smoke remains
+`DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE`; no production fixture was created.
+
 ## Source completion
 
 | Gate | Result |

@@ -2,7 +2,19 @@
 
 Status: `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PRODUCTION_RECONCILIATION_NO_GO`.
 
-This is a deterministic planning artifact, not an authorization to mutate production. Wave 1's consolidated proposal remains `PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED` and is now `BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT`: the failed approved transaction proved production lacks `public.can_access_public_circle(uuid)`, and the subsequent one-shot preflight now supports a separately authored, function-only prerequisite proposal. Do not use `db push`, blind historical replay, or migration-history repair.
+This is a deterministic planning artifact, not an authorization to mutate
+production. Wave 1 is `PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`: Stage 1
+created `can_access_public_circle(uuid)` and the two Stage 2 functions committed
+with verified postflights. The original forensic inventory remains 168
+actionable manifest entries across 75 logical repair objects; the active
+inventory is now 151 entries across 72 pending logical repair objects. Do not
+use `db push`, blind historical replay, or migration-history repair.
+
+Wave 1's positive public-post smoke is
+`DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE`. No production fixture is proposed:
+verified hashes, production negative authorization smokes, and
+`LOCAL_DOCKER_ONLY` positive behavior are sufficient while no naturally eligible
+post exists; a later positive smoke needs separate explicit approval.
 
 ## Evidence baseline
 
@@ -45,7 +57,7 @@ The order keeps a table before its constraints/indexes/RLS/RPC, a predicate func
 | Wave | Objects | Strategy and prerequisites | Stop conditions |
 | --- | ---: | --- | --- |
 | W0 operator gate | 0 | Exact target confirmation, tested backup/restore evidence, maintenance decision, offline manifest approval, and read-only preflight only. | Wrong target, missing backup rehearsal, unresolved operator/legal approval, or preflight anomaly. |
-| W1 ACL/function hardening | 2 | One `PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED` execution packet: `insert_forum_notification(...)` retains its exact body and converges metadata/ACL; `increment_post_view_count(uuid)` restores the reviewed security predicates plus metadata/ACL. Both await fresh preflight and human approval. | Any signature/body/owner/search_path mismatch, unknown caller, grant outside the approved role matrix, or a body change without a completed source-backed semantic review. |
+| W1 ACL/function hardening | 0 pending | `PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`: `can_access_public_circle(uuid)` Stage 1 and both reviewed Stage 2 functions committed and passed postflight. Historical comparison evidence is retained. | Any future drift from the verified signature/body/owner/search_path/ACL record requires a new review; this row authorizes no further SQL. |
 | W2A legal table/columns | 15 | `legal_policy_acceptances` table plus 14 columns; `CREATE_MISSING` only after duplicate/version/source aggregate checks. | Existing table conflict, duplicate user/bundle rows, invalid policy versions, or incomplete backup. |
 | W2B legal constraints/trigger | 13 | Twelve acceptance constraints and updated-at trigger; `ADD_CONSTRAINT_NOT_VALID_THEN_VALIDATE` where data exists. Depends on W2A. | Any violation count is nonzero or trigger target/function differs. |
 | W2C legal indexes | 3 | Primary/unique/bundle-confirmed indexes; `CREATE_INDEX_CONCURRENTLY` where an index operation is separately approved. Depends on W2B. | Duplicate/lock budget failure or wrong index definition. |
@@ -63,7 +75,16 @@ No wave exceeds 15 logical objects or six tables. Every item has a forward-only 
 
 ### SECURITY DEFINER and ACLs
 
-W1 begins with the observed `PUBLIC:EXECUTE` exposure on `increment_post_view_count` and `insert_forum_notification`, plus the divergent authenticated/service-role ACLs. The notification body exactly matches; the post-view [forensic comparison](legal-consent-production-reconciliation-wave1b.md) proves its production body lacks the source-intended moderation and public-circle predicates. The single [Wave 1 proposal](reconciliation/legal-consent-production-wave1-proposal.sql) preserves the notification body while converging its metadata/ACL and restores only the verified post-view body plus its metadata/ACL. Its only direct missing dependency now has the separate [function-only proposal](reconciliation/can-access-public-circle-proposal.sql) and [read-only postflight](reconciliation/can-access-public-circle-postflight.sql). The production `hidden` status constraint, broad `circles_select_public`, and extra delete policy remain separately scheduled circles reconciliation objects; none alters the helper's fixed SECURITY DEFINER boolean result. Only after separately approved prerequisite Stage 1 and postflight may an operator rerun the combined Wave 1 preflight, obtain a new explicit Stage 2 approval, and execute the existing Wave 1 packet. `can_create_user_report_target` is included in W4 with its report-policy dependency. No generic function grant is permitted.
+The historical W1 comparison found `PUBLIC:EXECUTE` exposure on
+`increment_post_view_count` and `insert_forum_notification`, plus divergent
+authenticated/service-role ACLs. Stage 1 and Stage 2 are now
+`PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`: the notification body retained its
+exact reviewed definition, the post-view body restored its moderation and
+public-circle predicates, and the verified ACLs are recorded in the Wave 1
+execution record. The production `hidden` status constraint, broad
+`circles_select_public`, and extra delete policy remain separately scheduled
+circles reconciliation objects. `can_create_user_report_target` remains in W4
+with its report-policy dependency. No generic function grant is permitted.
 
 ### Legal-consent persistence
 
@@ -95,4 +116,7 @@ W5 requires aggregate-only preflight for storage paths with wrong actor/post/cir
 - [ ] Legal/operations owner resolves active policy bundle and public contact/legal-review blockers.
 - [ ] Human approval is recorded for each wave before any non-production or production action.
 
-Production remains `NO_GO`. The next safe action is a fresh, attached W1A and W1B preflight on a verified non-production target and human review of the two isolated proposals. No production SQL, deployment, migration execution, or migration-history operation is authorized.
+Production remains `NO_GO`. The next safe action is human review of a separate
+read-only preflight for the next unresolved repair wave, beginning with the
+remaining circles boundary drift. No production SQL, deployment, migration
+execution, or migration-history operation is authorized by this plan.

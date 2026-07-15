@@ -11,25 +11,25 @@
     "EXTRA_IN_PRODUCTION": 10,
     "INSUFFICIENT_EVIDENCE": 0
   },
-  "securityFindingCount": 151,
-  "actionableManifestItemCount": 168,
-  "uniqueRepairObjectCount": 75,
+  "securityFindingCount": 135,
+  "actionableManifestItemCount": 151,
+  "uniqueRepairObjectCount": 72,
   "sourceMigrationsChanged": false,
   "productionCsvCommitted": false,
   "wave1ExecutionPacket": {
-    "status": "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT",
+    "status": "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED",
     "exactSignatures": [
       "public.increment_post_view_count(uuid)",
       "public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)"
     ],
-    "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+    "proposalStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
     "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
     "preflightFile": "docs/ops/reconciliation/legal-consent-production-wave1-preflight.sql",
     "postflightFile": "docs/ops/reconciliation/legal-consent-production-wave1-postflight.sql",
     "executionChecklistFile": "docs/ops/reconciliation/legal-consent-production-wave1-execution-checklist.md",
     "prerequisite": {
       "identity": "public.can_access_public_circle(uuid)",
-      "status": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+      "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "preflightFile": "docs/ops/reconciliation/can-access-public-circle-preflight.sql",
       "oneShotPreflightFile": "docs/ops/reconciliation/can-access-public-circle-preflight-one-shot.sql",
       "proposalFile": "docs/ops/reconciliation/can-access-public-circle-proposal.sql",
@@ -38,9 +38,12 @@
         "circlesStatusCheck": "SEPARATE_RECONCILIATION_REQUIRED",
         "circlesSelectPublic": "SEPARATE_SECURITY_RECONCILIATION_REQUIRED",
         "circlesDeleteOwnerOrStaff": "HUMAN_REVIEW_OR_LATER_WAVE"
-      }
+      },
+      "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4"
     },
-    "realProductionOperations": 0
+    "realProductionOperations": 2,
+    "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+    "positivePublicPostSmoke": "DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE"
   },
   "waves": [
     {
@@ -50,7 +53,10 @@
       "operationTypes": [
         "NO_SQL"
       ],
-      "maxObjects": 0
+      "maxObjects": 0,
+      "status": "PENDING",
+      "productionAppliedRepairObjectCount": 0,
+      "pendingRepairObjectCount": 0
     },
     {
       "id": "W1_ACL_FUNCTION_HARDENING",
@@ -62,7 +68,10 @@
         "REPLACE_FUNCTION",
         "REVOKE_AND_GRANT"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED",
+      "productionAppliedRepairObjectCount": 2,
+      "pendingRepairObjectCount": 0
     },
     {
       "id": "W2A_LEGAL_TABLE_COLUMNS",
@@ -73,7 +82,10 @@
       "operationTypes": [
         "CREATE_MISSING"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "PENDING",
+      "productionAppliedRepairObjectCount": 0,
+      "pendingRepairObjectCount": 15
     },
     {
       "id": "W2B_LEGAL_CONSTRAINTS_TRIGGER",
@@ -85,7 +97,10 @@
         "ADD_CONSTRAINT_NOT_VALID_THEN_VALIDATE",
         "CREATE_MISSING"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "PENDING",
+      "productionAppliedRepairObjectCount": 0,
+      "pendingRepairObjectCount": 13
     },
     {
       "id": "W2C_LEGAL_INDEXES",
@@ -96,7 +111,10 @@
       "operationTypes": [
         "CREATE_INDEX_CONCURRENTLY"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "PENDING",
+      "productionAppliedRepairObjectCount": 0,
+      "pendingRepairObjectCount": 3
     },
     {
       "id": "W2D_LEGAL_RLS_GRANTS",
@@ -108,7 +126,10 @@
         "DROP_AND_RECREATE_POLICY_IN_TRANSACTION",
         "REVOKE_AND_GRANT"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "PENDING",
+      "productionAppliedRepairObjectCount": 0,
+      "pendingRepairObjectCount": 2
     },
     {
       "id": "W2E_LEGAL_RPC_ACL",
@@ -120,7 +141,10 @@
         "REPLACE_FUNCTION",
         "REVOKE_AND_GRANT"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "PENDING",
+      "productionAppliedRepairObjectCount": 0,
+      "pendingRepairObjectCount": 1
     },
     {
       "id": "W3A_PUBLIC_CIRCLE_BOUNDARY",
@@ -132,7 +156,10 @@
         "REPLACE_FUNCTION",
         "DROP_AND_RECREATE_POLICY_IN_TRANSACTION"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "BLOCKED_PENDING_SURROUNDING_CIRCLES_RECONCILIATION",
+      "productionAppliedRepairObjectCount": 1,
+      "pendingRepairObjectCount": 3
     },
     {
       "id": "W3B_COMMENT_REACTION_AUTHORIZATION",
@@ -145,7 +172,10 @@
         "DROP_AND_RECREATE_POLICY_IN_TRANSACTION",
         "REVOKE_AND_GRANT"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "PENDING",
+      "productionAppliedRepairObjectCount": 0,
+      "pendingRepairObjectCount": 11
     },
     {
       "id": "W4_POST_AND_REPORT_AUTHORIZATION",
@@ -158,7 +188,10 @@
         "REPLACE_FUNCTION",
         "DROP_AND_RECREATE_POLICY_IN_TRANSACTION"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "PENDING",
+      "productionAppliedRepairObjectCount": 0,
+      "pendingRepairObjectCount": 7
     },
     {
       "id": "W5_MEDIA_PROVENANCE_AND_DELIVERY",
@@ -171,7 +204,10 @@
         "REPLACE_FUNCTION",
         "DROP_AND_RECREATE_POLICY_IN_TRANSACTION"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "PENDING",
+      "productionAppliedRepairObjectCount": 0,
+      "pendingRepairObjectCount": 13
     },
     {
       "id": "W6_OPERATIONAL_GUARDRAILS",
@@ -184,7 +220,10 @@
         "ALTER_EXISTING",
         "HUMAN_DECISION_REQUIRED"
       ],
-      "maxObjects": 15
+      "maxObjects": 15,
+      "status": "PENDING",
+      "productionAppliedRepairObjectCount": 0,
+      "pendingRepairObjectCount": 4
     }
   ],
   "items": [
@@ -2000,8 +2039,31 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function can_access_public_circle(uuid) (anon_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function can_access_public_circle(uuid) (anon_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE1_PREREQUISITE",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "MISSING_IN_PRODUCTION",
+        "historicalObservedProductionHash": null,
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+        "postflight": {
+          "stage": "WAVE1_STAGE1_PREREQUISITE",
+          "bodyMd5": "67b9d428d658222c17d640a50f0b3127",
+          "structuralSha256": "7a589d45d7e5896e4d4c2198a3f6346a96bfe86637714df67cd66fb6a2e3b579",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:fde8b8d12ce09a42b41f",
@@ -2045,8 +2107,31 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function can_access_public_circle(uuid) (authenticated_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function can_access_public_circle(uuid) (authenticated_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE1_PREREQUISITE",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "MISSING_IN_PRODUCTION",
+        "historicalObservedProductionHash": null,
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+        "postflight": {
+          "stage": "WAVE1_STAGE1_PREREQUISITE",
+          "bodyMd5": "67b9d428d658222c17d640a50f0b3127",
+          "structuralSha256": "7a589d45d7e5896e4d4c2198a3f6346a96bfe86637714df67cd66fb6a2e3b579",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:25a3009856deee7a26ed",
@@ -2090,8 +2175,31 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function can_access_public_circle(uuid) (PUBLIC_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function can_access_public_circle(uuid) (PUBLIC_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE1_PREREQUISITE",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "MISSING_IN_PRODUCTION",
+        "historicalObservedProductionHash": null,
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+        "postflight": {
+          "stage": "WAVE1_STAGE1_PREREQUISITE",
+          "bodyMd5": "67b9d428d658222c17d640a50f0b3127",
+          "structuralSha256": "7a589d45d7e5896e4d4c2198a3f6346a96bfe86637714df67cd66fb6a2e3b579",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:00d7fb777b13828cc922",
@@ -2135,8 +2243,31 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function can_access_public_circle(uuid) (service_role_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function can_access_public_circle(uuid) (service_role_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE1_PREREQUISITE",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "MISSING_IN_PRODUCTION",
+        "historicalObservedProductionHash": null,
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+        "postflight": {
+          "stage": "WAVE1_STAGE1_PREREQUISITE",
+          "bodyMd5": "67b9d428d658222c17d640a50f0b3127",
+          "structuralSha256": "7a589d45d7e5896e4d4c2198a3f6346a96bfe86637714df67cd66fb6a2e3b579",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:d858958659322dfad7c1",
@@ -3250,7 +3381,7 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function increment_post_view_count(uuid) (PUBLIC_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
       "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
       "bodyEvidence": "FORENSIC_DIFF_SECURITY_BROADENING_NO_PRODUCT_DECISION",
@@ -3258,7 +3389,30 @@
       "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1b-proposal.sql",
       "localSimulationStatus": "LOCAL_DOCKER_ONLY_BODY_METADATA_ACL_AND_BEHAVIOR_CONVERGENCE_VALIDATED",
       "verificationStatus": "FORENSIC_BODY_DIFF_AND_LOCAL_CONVERGENCE_VALIDATED",
-      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE2",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "DIVERGENT_IN_PRODUCTION",
+        "historicalObservedProductionHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+        "postflight": {
+          "stage": "WAVE1_STAGE2",
+          "bodyMd5": "26492d2c8a4e9d85533f6ef0d2184789",
+          "structuralSha256": "5e5d6c9682a32dbb9deb7003be854eaf06700577593c7b7ac108ddecd55fed5d",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:cbfc97459e13c46c20cc",
@@ -3304,7 +3458,7 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function increment_post_view_count(uuid) (service_role_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
       "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
       "bodyEvidence": "FORENSIC_DIFF_SECURITY_BROADENING_NO_PRODUCT_DECISION",
@@ -3312,7 +3466,30 @@
       "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1b-proposal.sql",
       "localSimulationStatus": "LOCAL_DOCKER_ONLY_BODY_METADATA_ACL_AND_BEHAVIOR_CONVERGENCE_VALIDATED",
       "verificationStatus": "FORENSIC_BODY_DIFF_AND_LOCAL_CONVERGENCE_VALIDATED",
-      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE2",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "DIVERGENT_IN_PRODUCTION",
+        "historicalObservedProductionHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+        "postflight": {
+          "stage": "WAVE1_STAGE2",
+          "bodyMd5": "26492d2c8a4e9d85533f6ef0d2184789",
+          "structuralSha256": "5e5d6c9682a32dbb9deb7003be854eaf06700577593c7b7ac108ddecd55fed5d",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:68a0c3c761e017e08d69",
@@ -3361,7 +3538,7 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "conciseReason": "DIVERGENT_IN_PRODUCTION: POSSIBLE_AVAILABILITY_BREAK; function_acl/function insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (anon_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
       "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
       "bodyEvidence": "EXACT_BODY_MATCH",
@@ -3369,7 +3546,30 @@
       "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
       "localSimulationStatus": "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
       "verificationStatus": "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
-      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE2",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "DIVERGENT_IN_PRODUCTION",
+        "historicalObservedProductionHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+        "postflight": {
+          "stage": "WAVE1_STAGE2",
+          "bodyMd5": "b23bd786e278a0071ae7759b29365df6",
+          "structuralSha256": "96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public, pg_temp",
+          "acl": {
+            "PUBLIC": false,
+            "anon": false,
+            "authenticated": false,
+            "service_role": true
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:cc50f3df0a0b4dce6deb",
@@ -3418,7 +3618,7 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (authenticated_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
       "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
       "bodyEvidence": "EXACT_BODY_MATCH",
@@ -3426,7 +3626,30 @@
       "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
       "localSimulationStatus": "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
       "verificationStatus": "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
-      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE2",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "DIVERGENT_IN_PRODUCTION",
+        "historicalObservedProductionHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+        "postflight": {
+          "stage": "WAVE1_STAGE2",
+          "bodyMd5": "b23bd786e278a0071ae7759b29365df6",
+          "structuralSha256": "96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public, pg_temp",
+          "acl": {
+            "PUBLIC": false,
+            "anon": false,
+            "authenticated": false,
+            "service_role": true
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:bda620a4eb00a5f98e08",
@@ -3475,7 +3698,7 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; function_acl/function insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (PUBLIC_execute) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
       "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
       "bodyEvidence": "EXACT_BODY_MATCH",
@@ -3483,7 +3706,30 @@
       "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
       "localSimulationStatus": "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
       "verificationStatus": "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
-      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE2",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "DIVERGENT_IN_PRODUCTION",
+        "historicalObservedProductionHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+        "postflight": {
+          "stage": "WAVE1_STAGE2",
+          "bodyMd5": "b23bd786e278a0071ae7759b29365df6",
+          "structuralSha256": "96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public, pg_temp",
+          "acl": {
+            "PUBLIC": false,
+            "anon": false,
+            "authenticated": false,
+            "service_role": true
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:60bdf4e8ef648aca660e",
@@ -3972,8 +4218,31 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; functions/function can_access_public_circle(uuid) (definition) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; functions/function can_access_public_circle(uuid) (definition) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE1_PREREQUISITE",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "MISSING_IN_PRODUCTION",
+        "historicalObservedProductionHash": null,
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+        "postflight": {
+          "stage": "WAVE1_STAGE1_PREREQUISITE",
+          "bodyMd5": "67b9d428d658222c17d640a50f0b3127",
+          "structuralSha256": "7a589d45d7e5896e4d4c2198a3f6346a96bfe86637714df67cd66fb6a2e3b579",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:27d84689737becc4da78",
@@ -4286,7 +4555,7 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "conciseReason": "DIVERGENT_IN_PRODUCTION: SECURITY_BROADENING; functions/function increment_post_view_count(uuid) (definition) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
       "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
       "bodyEvidence": "FORENSIC_DIFF_SECURITY_BROADENING_NO_PRODUCT_DECISION",
@@ -4294,7 +4563,30 @@
       "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1b-proposal.sql",
       "localSimulationStatus": "LOCAL_DOCKER_ONLY_BODY_METADATA_ACL_AND_BEHAVIOR_CONVERGENCE_VALIDATED",
       "verificationStatus": "FORENSIC_BODY_DIFF_AND_LOCAL_CONVERGENCE_VALIDATED",
-      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE2",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "DIVERGENT_IN_PRODUCTION",
+        "historicalObservedProductionHash": "c29ed210f5aa903e33323aff772130d038f72c42cd6ccae593e33dda5d87b1f2",
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+        "postflight": {
+          "stage": "WAVE1_STAGE2",
+          "bodyMd5": "26492d2c8a4e9d85533f6ef0d2184789",
+          "structuralSha256": "5e5d6c9682a32dbb9deb7003be854eaf06700577593c7b7ac108ddecd55fed5d",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:476dd3fa2ff3e675a833",
@@ -4694,8 +4986,31 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant can_access_public_circle(uuid) (anon:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant can_access_public_circle(uuid) (anon:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE1_PREREQUISITE",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "MISSING_IN_PRODUCTION",
+        "historicalObservedProductionHash": null,
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+        "postflight": {
+          "stage": "WAVE1_STAGE1_PREREQUISITE",
+          "bodyMd5": "67b9d428d658222c17d640a50f0b3127",
+          "structuralSha256": "7a589d45d7e5896e4d4c2198a3f6346a96bfe86637714df67cd66fb6a2e3b579",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:0a8cde2f42adcd1d434d",
@@ -4739,8 +5054,31 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant can_access_public_circle(uuid) (authenticated:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant can_access_public_circle(uuid) (authenticated:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE1_PREREQUISITE",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "MISSING_IN_PRODUCTION",
+        "historicalObservedProductionHash": null,
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+        "postflight": {
+          "stage": "WAVE1_STAGE1_PREREQUISITE",
+          "bodyMd5": "67b9d428d658222c17d640a50f0b3127",
+          "structuralSha256": "7a589d45d7e5896e4d4c2198a3f6346a96bfe86637714df67cd66fb6a2e3b579",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:398cd8e9b2c679c95578",
@@ -4784,8 +5122,31 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant can_access_public_circle(uuid) (postgres:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant can_access_public_circle(uuid) (postgres:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE1_PREREQUISITE",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "MISSING_IN_PRODUCTION",
+        "historicalObservedProductionHash": null,
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+        "postflight": {
+          "stage": "WAVE1_STAGE1_PREREQUISITE",
+          "bodyMd5": "67b9d428d658222c17d640a50f0b3127",
+          "structuralSha256": "7a589d45d7e5896e4d4c2198a3f6346a96bfe86637714df67cd66fb6a2e3b579",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:37066c67fcc61d103890",
@@ -5498,7 +5859,7 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "conciseReason": "EXTRA_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant increment_post_view_count(uuid) (PUBLIC:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
       "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
       "bodyEvidence": "FORENSIC_DIFF_SECURITY_BROADENING_NO_PRODUCT_DECISION",
@@ -5506,7 +5867,30 @@
       "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1b-proposal.sql",
       "localSimulationStatus": "LOCAL_DOCKER_ONLY_BODY_METADATA_ACL_AND_BEHAVIOR_CONVERGENCE_VALIDATED",
       "verificationStatus": "FORENSIC_BODY_DIFF_AND_LOCAL_CONVERGENCE_VALIDATED",
-      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE2",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "EXTRA_IN_PRODUCTION",
+        "historicalObservedProductionHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+        "postflight": {
+          "stage": "WAVE1_STAGE2",
+          "bodyMd5": "26492d2c8a4e9d85533f6ef0d2184789",
+          "structuralSha256": "5e5d6c9682a32dbb9deb7003be854eaf06700577593c7b7ac108ddecd55fed5d",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public",
+          "acl": {
+            "PUBLIC": false,
+            "anon": true,
+            "authenticated": true,
+            "service_role": false
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:d1bdbd1766f35b7c6ce5",
@@ -5551,7 +5935,7 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "conciseReason": "EXTRA_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (PUBLIC:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
       "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
       "bodyEvidence": "EXACT_BODY_MATCH",
@@ -5559,7 +5943,30 @@
       "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
       "localSimulationStatus": "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
       "verificationStatus": "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
-      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE2",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "EXTRA_IN_PRODUCTION",
+        "historicalObservedProductionHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+        "postflight": {
+          "stage": "WAVE1_STAGE2",
+          "bodyMd5": "b23bd786e278a0071ae7759b29365df6",
+          "structuralSha256": "96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public, pg_temp",
+          "acl": {
+            "PUBLIC": false,
+            "anon": false,
+            "authenticated": false,
+            "service_role": true
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:2fdeeb53b44d3a075a68",
@@ -5608,7 +6015,7 @@
         "function definition, owner, search_path, and ACL fingerprint matches",
         "runtime caller role matrix passes in non-production"
       ],
-      "blockerStatus": "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; grants/function_grant insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid) (service_role:EXECUTE) differs from the verified local fingerprint and requires a reviewed forward-only decision.",
       "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
       "bodyEvidence": "EXACT_BODY_MATCH",
@@ -5616,7 +6023,30 @@
       "proposalFile": "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
       "localSimulationStatus": "LOCAL_DOCKER_ONLY_ACL_CONVERGENCE_VALIDATED",
       "verificationStatus": "BODY_HASH_AND_ACL_CONVERGENCE_VALIDATED",
-      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval"
+      "nextApprovalRequired": "Fresh preflight attachment, target verification, backup readiness, and human non-production approval",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
+        "stage": "WAVE1_STAGE2",
+        "status": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+        "historicalComparisonClassification": "MISSING_IN_PRODUCTION",
+        "historicalObservedProductionHash": null,
+        "proposalLifecycle": "PROPOSAL_AUTHORED_LOCAL_VALIDATED",
+        "postflight": {
+          "stage": "WAVE1_STAGE2",
+          "bodyMd5": "b23bd786e278a0071ae7759b29365df6",
+          "structuralSha256": "96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2",
+          "owner": "postgres",
+          "securityDefiner": true,
+          "searchPath": "search_path=public, pg_temp",
+          "acl": {
+            "PUBLIC": false,
+            "anon": false,
+            "authenticated": false,
+            "service_role": true
+          }
+        }
+      }
     },
     {
       "itemId": "reconcile:37d25278e8064458d08e",
@@ -7702,5 +8132,15 @@
       "blockerStatus": "BLOCKED_PENDING_REVIEW",
       "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; triggers/trigger public.legal_policy_acceptances.trg_legal_policy_acceptances_set_updated_at (definition) differs from the verified local fingerprint and requires a reviewed forward-only decision."
     }
-  ]
+  ],
+  "productionExecutionCounts": {
+    "productionAppliedManifestItemCount": 17,
+    "productionAppliedRepairObjectCount": 3,
+    "pendingManifestItemCount": 151,
+    "pendingRepairObjectCount": 72,
+    "pendingSecurityFindingCount": 135
+  },
+  "historicalSecurityFindingCount": 151,
+  "historicalActionableManifestItemCount": 168,
+  "historicalUniqueRepairObjectCount": 75
 }

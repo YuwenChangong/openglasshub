@@ -53,35 +53,24 @@ assert.match(proposal, /DO \$assertions\$/);
 for (const gate of ["Gate A", "Gate B", "Gate C", "Gate D"]) assert.match(checklist, new RegExp(gate));
 assert.match(checklist, /do not restore\s+PUBLIC EXECUTE/i);
 assert.match(checklist, /secure forward-fix/i);
-assert.match(forwardPlan, /BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT/);
+assert.match(forwardPlan, /PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED/);
 
 const waveOne = manifest.items.filter((item) => item.proposedWave === "W1_ACL_FUNCTION_HARDENING");
 assert.deepEqual([...new Set(waveOne.map((item) => item.identity))].sort(), targetIdentities);
 for (const item of waveOne) {
-  assert.equal(item.blockerStatus, "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL");
+  assert.equal(item.blockerStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
+  assert.equal(item.productionExecutionStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
 }
-assert.deepEqual(manifest.wave1ExecutionPacket, {
-  status: "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT",
-  exactSignatures: [viewSignature, notificationSignature],
-  proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
-  proposalFile: "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
-  preflightFile: "docs/ops/reconciliation/legal-consent-production-wave1-preflight.sql",
-  postflightFile: "docs/ops/reconciliation/legal-consent-production-wave1-postflight.sql",
-  executionChecklistFile: "docs/ops/reconciliation/legal-consent-production-wave1-execution-checklist.md",
-  prerequisite: {
-    identity: "public.can_access_public_circle(uuid)",
-    status: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
-    preflightFile: "docs/ops/reconciliation/can-access-public-circle-preflight.sql",
-    oneShotPreflightFile: "docs/ops/reconciliation/can-access-public-circle-preflight-one-shot.sql",
-    proposalFile: "docs/ops/reconciliation/can-access-public-circle-proposal.sql",
-    postflightFile: "docs/ops/reconciliation/can-access-public-circle-postflight.sql",
-    surroundingDomainDrift: {
-      circlesStatusCheck: "SEPARATE_RECONCILIATION_REQUIRED",
-      circlesSelectPublic: "SEPARATE_SECURITY_RECONCILIATION_REQUIRED",
-      circlesDeleteOwnerOrStaff: "HUMAN_REVIEW_OR_LATER_WAVE",
-    },
-  },
-  realProductionOperations: 0,
+assert.equal(manifest.wave1ExecutionPacket.status, "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED");
+assert.equal(manifest.wave1ExecutionPacket.proposalStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
+assert.equal(manifest.wave1ExecutionPacket.realProductionOperations, 2);
+assert.equal(manifest.wave1ExecutionPacket.positivePublicPostSmoke, "DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE");
+assert.deepEqual(manifest.wave1ExecutionPacket.exactSignatures, [viewSignature, notificationSignature]);
+assert.equal(manifest.wave1ExecutionPacket.prerequisite.status, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
+assert.deepEqual(manifest.wave1ExecutionPacket.prerequisite.surroundingDomainDrift, {
+  circlesStatusCheck: "SEPARATE_RECONCILIATION_REQUIRED",
+  circlesSelectPublic: "SEPARATE_SECURITY_RECONCILIATION_REQUIRED",
+  circlesDeleteOwnerOrStaff: "HUMAN_REVIEW_OR_LATER_WAVE",
 });
 
 const expectedView = expected.objects.find((entry) => entry.identity === "increment_post_view_count(uuid)" && entry.attribute === "definition");

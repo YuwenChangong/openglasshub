@@ -8,28 +8,53 @@ const plan = await readFile(path.join(root, "docs", "ops", "legal-consent-produc
 
 assert.equal(manifest.format, "openglass-production-schema-forward-reconciliation-v1");
 assert.deepEqual(manifest.comparisonCounts, { MATCH: 974, MISSING_IN_PRODUCTION: 134, DIVERGENT_IN_PRODUCTION: 25, EXTRA_IN_PRODUCTION: 10, INSUFFICIENT_EVIDENCE: 0 });
-assert.equal(manifest.securityFindingCount, 151);
-assert.equal(manifest.actionableManifestItemCount, 168);
-assert.equal(manifest.uniqueRepairObjectCount, 75);
-assert.equal(manifest.wave1ExecutionPacket?.status, "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT");
-assert.equal(manifest.wave1ExecutionPacket?.proposalStatus, "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED");
+assert.equal(manifest.historicalSecurityFindingCount, 151);
+assert.equal(manifest.historicalActionableManifestItemCount, 168);
+assert.equal(manifest.historicalUniqueRepairObjectCount, 75);
+assert.equal(manifest.securityFindingCount, 135);
+assert.equal(manifest.actionableManifestItemCount, 151);
+assert.equal(manifest.uniqueRepairObjectCount, 72);
+assert.deepEqual(manifest.productionExecutionCounts, {
+  productionAppliedManifestItemCount: 17,
+  productionAppliedRepairObjectCount: 3,
+  pendingManifestItemCount: 151,
+  pendingRepairObjectCount: 72,
+  pendingSecurityFindingCount: 135,
+});
+assert.equal(manifest.wave1ExecutionPacket?.status, "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED");
+assert.equal(manifest.wave1ExecutionPacket?.proposalStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
 assert.deepEqual(manifest.wave1ExecutionPacket?.exactSignatures, [
   "public.increment_post_view_count(uuid)",
   "public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)",
 ]);
 assert.deepEqual(manifest.wave1ExecutionPacket?.prerequisite, {
   identity: "public.can_access_public_circle(uuid)",
-  status: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+  status: "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
   preflightFile: "docs/ops/reconciliation/can-access-public-circle-preflight.sql",
   oneShotPreflightFile: "docs/ops/reconciliation/can-access-public-circle-preflight-one-shot.sql",
   proposalFile: "docs/ops/reconciliation/can-access-public-circle-proposal.sql",
   postflightFile: "docs/ops/reconciliation/can-access-public-circle-postflight.sql",
+  executionCommit: "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
   surroundingDomainDrift: {
     circlesStatusCheck: "SEPARATE_RECONCILIATION_REQUIRED",
     circlesSelectPublic: "SEPARATE_SECURITY_RECONCILIATION_REQUIRED",
     circlesDeleteOwnerOrStaff: "HUMAN_REVIEW_OR_LATER_WAVE",
   },
 });
+assert.equal(manifest.wave1ExecutionPacket?.realProductionOperations, 2);
+assert.equal(manifest.wave1ExecutionPacket?.positivePublicPostSmoke, "DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE");
+const appliedIdentities = new Set(["can_access_public_circle(uuid)", "increment_post_view_count(uuid)", "insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid)"]);
+const appliedItems = manifest.items.filter((item) => appliedIdentities.has(item.identity));
+assert.equal(appliedItems.length, 17);
+for (const item of appliedItems) {
+  assert.equal(item.blockerStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
+  assert.equal(item.productionExecutionStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
+  assert(item.productionExecutionAudit?.historicalComparisonClassification, `${item.itemId} must retain historical comparison evidence`);
+}
+assert.equal(manifest.waves.find((wave) => wave.id === "W1_ACL_FUNCTION_HARDENING")?.status, "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED");
+const circlesWave = manifest.waves.find((wave) => wave.id === "W3A_PUBLIC_CIRCLE_BOUNDARY");
+assert.equal(circlesWave?.status, "BLOCKED_PENDING_SURROUNDING_CIRCLES_RECONCILIATION");
+assert.equal(circlesWave?.pendingRepairObjectCount, 3);
 assert.equal(new Set(manifest.items.map((item) => item.itemId)).size, manifest.items.length, "every mismatch entry has one stable assignment");
 assert.equal(new Set(manifest.items.map((item) => item.comparisonKey)).size, manifest.items.length, "a comparison entry cannot be scheduled twice");
 assert.equal(manifest.items.filter((item) => item.comparisonClassification === "MISSING_IN_PRODUCTION").length, 134);
@@ -52,8 +77,8 @@ for (const wave of manifest.waves) {
 }
 assert.equal(manifest.items.filter((item) => item.comparisonClassification === "EXTRA_IN_PRODUCTION" && item.securityClassification === "HARMLESS_EXTRA_OBJECT").length, 0, "only security-relevant extras are planned");
 assert(!JSON.stringify(manifest).match(/\b(?:db_push|blind_replay|migration_repair)\b/i), "manifest cannot propose prohibited reconciliation operations");
-assert.match(plan, /PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED/);
-assert.match(plan, /BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT/);
-assert.match(plan, /Only after separately approved prerequisite Stage 1 and postflight/i);
+assert.match(plan, /PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED/);
+assert.match(plan, /DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE/);
+assert.match(plan, /72 pending logical repair objects/i);
 assert.match(plan, /Track A[\s\S]*Track B/);
 console.log(JSON.stringify({ manifestItems: manifest.items.length, uniqueRepairObjects: manifest.uniqueRepairObjectCount, waves: manifest.waves.length, realOperations: 0 }));

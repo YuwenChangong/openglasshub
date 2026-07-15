@@ -6,6 +6,38 @@ import { parseExport, compareFingerprint } from "./compare-production-schema-fin
 import { normalize, rowKey, rowsFromFingerprint, sha256, validateProductionExport } from "./production-schema-fingerprint-core.mjs";
 
 const REQUIRED_CLASSIFICATIONS = new Set(["MISSING_IN_PRODUCTION", "DIVERGENT_IN_PRODUCTION"]);
+const PRODUCTION_APPLIED_STATUS = "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED";
+const WAVE_ONE_RECONCILED_STATUS = "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED";
+const WAVE_ONE_EXECUTION_COMMIT = "571c852861b34153885cfa4fcdbf3d8f74ba2fb4";
+const PRODUCTION_APPLIED_FUNCTIONS = {
+  "can_access_public_circle(uuid)": {
+    stage: "WAVE1_STAGE1_PREREQUISITE",
+    bodyMd5: "67b9d428d658222c17d640a50f0b3127",
+    structuralSha256: "7a589d45d7e5896e4d4c2198a3f6346a96bfe86637714df67cd66fb6a2e3b579",
+    owner: "postgres",
+    securityDefiner: true,
+    searchPath: "search_path=public",
+    acl: { PUBLIC: false, anon: true, authenticated: true, service_role: false },
+  },
+  "increment_post_view_count(uuid)": {
+    stage: "WAVE1_STAGE2",
+    bodyMd5: "26492d2c8a4e9d85533f6ef0d2184789",
+    structuralSha256: "5e5d6c9682a32dbb9deb7003be854eaf06700577593c7b7ac108ddecd55fed5d",
+    owner: "postgres",
+    securityDefiner: true,
+    searchPath: "search_path=public",
+    acl: { PUBLIC: false, anon: true, authenticated: true, service_role: false },
+  },
+  "insert_forum_notification(uuid,uuid,text,uuid,uuid,uuid)": {
+    stage: "WAVE1_STAGE2",
+    bodyMd5: "b23bd786e278a0071ae7759b29365df6",
+    structuralSha256: "96b887a7f28df54154c36a0e45790e61bd1cf6f10b96546ceafda8ac2c148fa2",
+    owner: "postgres",
+    securityDefiner: true,
+    searchPath: "search_path=public, pg_temp",
+    acl: { PUBLIC: false, anon: false, authenticated: false, service_role: true },
+  },
+};
 const WAVES = [
   { id: "W0_OPERATOR_GATE", dependencies: [], domain: "operator", operationTypes: ["NO_SQL"], maxObjects: 0 },
   { id: "W1_ACL_FUNCTION_HARDENING", dependencies: ["W0_OPERATOR_GATE"], domain: "function-acl", operationTypes: ["REPLACE_FUNCTION", "REVOKE_AND_GRANT"], maxObjects: 15 },
@@ -123,6 +155,75 @@ function wave1Status(identity) {
   return null;
 }
 
+export function applyProductionExecutionAudit(manifest) {
+  const items = manifest.items.map((item) => {
+    const applied = PRODUCTION_APPLIED_FUNCTIONS[item.identity];
+    if (!applied) return item;
+    return {
+      ...item,
+      blockerStatus: PRODUCTION_APPLIED_STATUS,
+      productionExecutionStatus: PRODUCTION_APPLIED_STATUS,
+      productionExecutionAudit: {
+        executionCommit: WAVE_ONE_EXECUTION_COMMIT,
+        stage: applied.stage,
+        status: PRODUCTION_APPLIED_STATUS,
+        historicalComparisonClassification: item.comparisonClassification,
+        historicalObservedProductionHash: item.observedProductionHash,
+        proposalLifecycle: item.proposalStatus ?? "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+        postflight: applied,
+      },
+    };
+  });
+  const appliedItems = items.filter((item) => item.productionExecutionStatus === PRODUCTION_APPLIED_STATUS);
+  const pendingItems = items.filter((item) => item.productionExecutionStatus !== PRODUCTION_APPLIED_STATUS);
+  const appliedRepairObjects = new Set(appliedItems.map((item) => item.repairObjectId));
+  const pendingRepairObjects = new Set(pendingItems.map((item) => item.repairObjectId));
+  const pendingSecurityFindings = pendingItems.filter((item) => ["P0_SECURITY_BROADENING", "P1_REQUIRED_SECURITY_OBJECT_MISSING"].includes(item.severity)).length;
+  const waves = manifest.waves.map((wave) => {
+    const waveItems = items.filter((item) => item.proposedWave === wave.id);
+    const waveApplied = waveItems.filter((item) => item.productionExecutionStatus === PRODUCTION_APPLIED_STATUS);
+    const wavePending = waveItems.filter((item) => item.productionExecutionStatus !== PRODUCTION_APPLIED_STATUS);
+    if (wave.id === "W1_ACL_FUNCTION_HARDENING") {
+      return { ...wave, status: WAVE_ONE_RECONCILED_STATUS, productionAppliedRepairObjectCount: new Set(waveApplied.map((item) => item.repairObjectId)).size, pendingRepairObjectCount: 0 };
+    }
+    if (wave.id === "W3A_PUBLIC_CIRCLE_BOUNDARY") {
+      return { ...wave, status: "BLOCKED_PENDING_SURROUNDING_CIRCLES_RECONCILIATION", productionAppliedRepairObjectCount: new Set(waveApplied.map((item) => item.repairObjectId)).size, pendingRepairObjectCount: new Set(wavePending.map((item) => item.repairObjectId)).size };
+    }
+    return { ...wave, status: "PENDING", productionAppliedRepairObjectCount: 0, pendingRepairObjectCount: new Set(wavePending.map((item) => item.repairObjectId)).size };
+  });
+  return {
+    ...manifest,
+    historicalSecurityFindingCount: manifest.historicalSecurityFindingCount ?? manifest.securityFindingCount,
+    historicalActionableManifestItemCount: manifest.historicalActionableManifestItemCount ?? manifest.actionableManifestItemCount,
+    historicalUniqueRepairObjectCount: manifest.historicalUniqueRepairObjectCount ?? manifest.uniqueRepairObjectCount,
+    securityFindingCount: pendingSecurityFindings,
+    actionableManifestItemCount: pendingItems.length,
+    uniqueRepairObjectCount: pendingRepairObjects.size,
+    productionExecutionCounts: {
+      productionAppliedManifestItemCount: appliedItems.length,
+      productionAppliedRepairObjectCount: appliedRepairObjects.size,
+      pendingManifestItemCount: pendingItems.length,
+      pendingRepairObjectCount: pendingRepairObjects.size,
+      pendingSecurityFindingCount: pendingSecurityFindings,
+    },
+    wave1ExecutionPacket: {
+      ...manifest.wave1ExecutionPacket,
+      status: WAVE_ONE_RECONCILED_STATUS,
+      proposalStatus: PRODUCTION_APPLIED_STATUS,
+      executionCommit: WAVE_ONE_EXECUTION_COMMIT,
+      realProductionOperations: 2,
+      positivePublicPostSmoke: "DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE",
+      prerequisite: {
+        ...manifest.wave1ExecutionPacket.prerequisite,
+        status: PRODUCTION_APPLIED_STATUS,
+        executionCommit: WAVE_ONE_EXECUTION_COMMIT,
+      },
+    },
+    waves,
+    items,
+  };
+}
+
 export function buildManifest({ expected, actualRows, comparedCommit, exportSha256 }) {
   validateProductionExport(actualRows);
   const report = compareFingerprint(expected, actualRows);
@@ -173,7 +274,7 @@ export function buildManifest({ expected, actualRows, comparedCommit, exportSha2
     };
   }).sort((left, right) => left.comparisonKey.localeCompare(right.comparisonKey));
   const uniqueRepairObjects = [...new Set(items.map((item) => item.repairObjectId))];
-  return {
+  return applyProductionExecutionAudit({
     format: "openglass-production-schema-forward-reconciliation-v1",
     comparedCommit,
     exportSha256,
@@ -213,7 +314,7 @@ export function buildManifest({ expected, actualRows, comparedCommit, exportSha2
     },
     waves: WAVES,
     items,
-  };
+  });
 }
 
 function sectionFor(entry) {

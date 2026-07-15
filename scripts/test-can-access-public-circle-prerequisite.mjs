@@ -20,8 +20,8 @@ assert.match(preflight, /to_regprocedure\('public\.can_access_public_circle\(uui
 for (const required of ["to_regclass('public.circles')", "pg_get_functiondef", "aclexplode", "id", "status", "slug", "name", "anon", "authenticated", "postgres", "pg_constraint", "pg_policy"]) assert.match(preflight, new RegExp(required.replace(/[().]/g, "\\$&")));
 assert.doesNotMatch(preflight, /(?:increment_post_view_count|insert_forum_notification|can_access_public_comment_read_target|post_media|legal_policy_acceptances)/);
 
-assert.match(report, /PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED/);
-assert.match(report, /PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED/);
+assert.match(report, /PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED/);
+assert.match(report, /DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE/);
 assert.match(report, /function public\.can_access_public_circle\(uuid\) does not exist/);
 
 const functionDefinition = expected.objects.find((entry) => entry.objectType === "function" && entry.identity === "can_access_public_circle(uuid)" && entry.attribute === "definition");
@@ -54,8 +54,10 @@ assert.equal(psql("SELECT to_regprocedure('public.can_access_public_circle(uuid)
 const dependencyState = manifest.items.filter((item) => item.identity === "can_access_public_circle(uuid)");
 assert(dependencyState.length >= 3);
 for (const item of dependencyState) assert.equal(item.productionDataState, "ADDITIONAL_READ_ONLY_PREFLIGHT_REQUIRED");
+for (const item of dependencyState) assert.equal(item.productionExecutionStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
+assert.equal(manifest.wave1ExecutionPacket.prerequisite.status, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
 assert.equal(execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations", "src", "package-lock.json"], { cwd: root, encoding: "utf8" }).trim(), "");
 const trackedFiles = execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" });
 assert.doesNotMatch(trackedFiles, /(?:production-schema-fingerprint\.csv|increment-post-view-count-body\.csv|can-access-public-circle-preflight\.csv)/i, "production exports must remain untracked");
 
-console.log(JSON.stringify({ localDockerOnly: true, expectedFunctionHash: functionDefinition.deterministicSha256, productionDependencyState: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED", proposalAuthored: true, realProductionOperations: 0 }));
+console.log(JSON.stringify({ localDockerOnly: true, expectedFunctionHash: functionDefinition.deterministicSha256, productionDependencyState: "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED", proposalAuthored: true, realProductionOperations: 0 }));
