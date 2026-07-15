@@ -4,6 +4,10 @@ import { readFile } from "node:fs/promises";
 const script = await readFile("scripts/run-operational-guardrails-authenticated-privilege-supplement.ps1", "utf8");
 
 assert.match(script, /docker run --rm -it --read-only/);
+assert.match(script, /\[ValidatePattern\("\^\[0-9a-fA-F\]\{40\}\$"\)\]\[string\]\$ExpectedHead/);
+assert.match(script, /\$gitStatus = @\(Invoke-RequiredNativeLines -CommandName "git" -Arguments @\("status", "--porcelain"\)\)/);
+assert.match(script, /Assert-WorktreeClean -StatusLines \$gitStatus/);
+assert.doesNotMatch(script, /\(git status --porcelain\)\.Length/);
 assert.match(script, /public\.ecr\.aws\/supabase\/postgres:17\.6\.1\.143@sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453/);
 assert.match(script, /type=bind,src=\$packet,dst=\$mountedPacket,readonly/);
 assert.match(script, /type=bind,src=\$stagingCsv,dst=\$mountedOutput/);

@@ -1,5 +1,10 @@
+param(
+  [Parameter(Mandatory = $true)][ValidatePattern("^[0-9a-fA-F]{40}$")][string]$ExpectedHead
+)
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot "lib\operational-guardrails-authenticated-privilege-runner.ps1")
 
 $repo = "D:\OpenGlass Hub interaction-release-fresh"
 $branch = "feature/legal-trust-consent-foundation-v1"
@@ -30,15 +35,21 @@ function Quarantine-StagingCsv {
 
 try {
   Set-Location $repo
-  if ((git status --porcelain).Length -ne 0) { throw "Stop: worktree is not clean." }
-  if ((git rev-parse --abbrev-ref HEAD).Trim() -ne $branch -or (git rev-parse HEAD).Trim() -ne (git rev-parse "origin/$branch").Trim()) { throw "Stop: branch or origin state mismatch." }
+  $gitStatus = @(Invoke-RequiredNativeLines -CommandName "git" -Arguments @("status", "--porcelain"))
+  Assert-WorktreeClean -StatusLines $gitStatus
+  $branchName = Get-ExactlyOneNativeLine -CommandName "git rev-parse --abbrev-ref HEAD" -OutputLines @(Invoke-RequiredNativeLines -CommandName "git" -Arguments @("rev-parse", "--abbrev-ref", "HEAD"))
+  if ($branchName -ne $branch) { throw "Stop: expected branch $branch; found $branchName." }
+  $head = Get-ExactlyOneNativeLine -CommandName "git rev-parse HEAD" -OutputLines @(Invoke-RequiredNativeLines -CommandName "git" -Arguments @("rev-parse", "HEAD"))
+  $originHead = Get-ExactlyOneNativeLine -CommandName "git rev-parse origin branch" -OutputLines @(Invoke-RequiredNativeLines -CommandName "git" -Arguments @("rev-parse", "origin/$branch"))
+  Assert-ExpectedGitRefs -ExpectedHead $ExpectedHead.ToLowerInvariant() -Head $head.ToLowerInvariant() -OriginHead $originHead.ToLowerInvariant()
   if ((Get-FileHash -LiteralPath $packet -Algorithm SHA256).Hash.ToLowerInvariant() -ne $packetHash) { throw "Stop: reviewed SQL hash mismatch." }
   if ((Get-Item -LiteralPath $packet).Length -ne $packetBytes) { throw "Stop: reviewed SQL byte-count mismatch." }
   if (Test-Path -LiteralPath $finalCsv) { throw "Stop: approved final CSV already exists; it will not be overwritten." }
   if (-not (Test-Path -LiteralPath $outputDirectory)) { throw "Stop: approved output directory is missing." }
   foreach ($name in "PGPASSWORD", "PGPASSFILE", "PGSERVICE", "PGSERVICEFILE") { if (Test-Path "Env:$name") { throw "Stop: forbidden credential environment variable exists: $name" } }
   foreach ($path in @("$HOME\.pgpass", "$HOME\.pg_service.conf")) { if (Test-Path -LiteralPath $path) { throw "Stop: forbidden credential file exists: $path" } }
-  if (-not ((docker image inspect $image --format "{{json .RepoDigests}}") -match [regex]::Escape($digest))) { throw "Stop: pinned PostgreSQL image digest mismatch." }
+  $imageDigests = Get-ExactlyOneNativeLine -CommandName "docker image inspect" -OutputLines @(Invoke-RequiredNativeLines -CommandName "docker" -Arguments @("image", "inspect", $image, "--format", "{{json .RepoDigests}}"))
+  if ($imageDigests -notmatch [regex]::Escape($digest)) { throw "Stop: pinned PostgreSQL image digest mismatch." }
 
   $projectName = Read-Host "Type the confirmed Dashboard project name"
   $directHost = Read-Host "Paste Dashboard Direct Connection host"
@@ -50,19 +61,25 @@ try {
 
   $handle = [System.IO.File]::Open($stagingCsv, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
   $handle.Dispose()
-  & docker run --rm -it --read-only `
-    --mount "type=bind,src=$packet,dst=$mountedPacket,readonly" `
-    --mount "type=bind,src=$stagingCsv,dst=$mountedOutput" `
-    $image psql -X -W -q --csv -v ON_ERROR_STOP=1 `
-      -h $directHost -p $directPort -U $directUser `
-      -d "dbname=$directDatabase sslmode=require" `
-      -f $mountedPacket -o $mountedOutput
-  if ($LASTEXITCODE -ne 0) { throw "Stopped: psql failed with exit code $LASTEXITCODE. Do not retry." }
-  if ((Get-Item -LiteralPath $stagingCsv).Length -eq 0) { throw "Stopped: psql exited zero but produced no CSV evidence." }
-  & node $validator $stagingCsv
-  if ($LASTEXITCODE -ne 0) { throw "Stopped: offline validator failed. Do not retry." }
-  [System.IO.File]::Move($stagingCsv, $finalCsv)
-  Write-Host "SUCCESS: psql exited zero, the exact eight-section CSV validated, and the final CSV was atomically created."
+  Invoke-OnlyAfterPreflight -Preflight {
+    $true
+  } -Action {
+    & docker run --rm -it --read-only `
+      --mount "type=bind,src=$packet,dst=$mountedPacket,readonly" `
+      --mount "type=bind,src=$stagingCsv,dst=$mountedOutput" `
+      $image psql -X -W -q --csv -v ON_ERROR_STOP=1 `
+        -h $directHost -p $directPort -U $directUser `
+        -d "dbname=$directDatabase sslmode=require" `
+        -f $mountedPacket -o $mountedOutput
+    $psqlExitCode = $LASTEXITCODE
+    if ($psqlExitCode -ne 0) { throw "Stopped: psql failed with exit code $psqlExitCode. Do not retry." }
+    if ((Get-Item -LiteralPath $stagingCsv).Length -eq 0) { throw "Stopped: psql exited zero but produced no CSV evidence." }
+    $validatorOutput = @(& node $validator $stagingCsv)
+    $validatorExitCode = $LASTEXITCODE
+    if ($validatorExitCode -ne 0) { throw "Stopped: offline validator failed with exit code $validatorExitCode. Do not retry." }
+    [System.IO.File]::Move($stagingCsv, $finalCsv)
+    Write-Host "SUCCESS: psql exited zero, the exact eight-section CSV validated, and the final CSV was atomically created."
+  }
 } catch {
   Quarantine-StagingCsv
   throw

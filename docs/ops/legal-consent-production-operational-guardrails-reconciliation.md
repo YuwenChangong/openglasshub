@@ -327,10 +327,11 @@ is removed. The approved final CSV is never overwritten.
 Run the user-operated script only from an interactive terminal:
 
 ```powershell
-& "D:\OpenGlass Hub interaction-release-fresh\scripts\run-operational-guardrails-authenticated-privilege-supplement.ps1"
+& "D:\OpenGlass Hub interaction-release-fresh\scripts\run-operational-guardrails-authenticated-privilege-supplement.ps1" -ExpectedHead "<approved-current-HEAD>"
 ```
 
-It prompts only for non-secret Dashboard direct host, port, database, user,
+It requires the exact operator-approved current HEAD and prompts only for
+non-secret Dashboard direct host, port, database, user,
 and the exact project name. `psql -W` alone prompts for the hidden password;
 the script rejects password environment variables, credential files, poolers,
 an unclean/unmatched branch, an altered reviewed packet, a changed image
