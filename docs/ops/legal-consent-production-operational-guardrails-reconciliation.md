@@ -300,6 +300,34 @@ returns eight sections and ten columns before its explicit `ROLLBACK`.
 also validates the generated manifest. Fresh explicit production approval is
 required; this correction does not authorize another production attempt.
 
+### Dockerized `psql -f` transport
+
+The production retry must use the pinned local image
+`public.ecr.aws/supabase/postgres:17.6.1.143@sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453`.
+`scripts/prepare-operational-guardrails-authenticated-privilege-docker-psql-transport.mjs`
+performs a dry run only: it mounts the exact reviewed source at
+`/reviewed/operational-guardrails-authenticated-privilege-supplemental-preflight.sql`
+with Docker `readonly`, verifies the host and in-container SHA-256 and exact
+8,674-byte count, verifies `psql 17.6`, and emits a redacted manifest outside
+the repository. It refuses an image-digest, source/payload, byte-count, mount,
+target-fingerprint, or connection-mode mismatch. The helper requires separate
+observed and reviewed target identity fingerprints and fails unless they match.
+
+The reviewed execution shape is a separate client container with `psql -X -v
+ON_ERROR_STOP=1 -f /reviewed/...`, a read-only bind mount, and a temporary
+credential env-file that is neither committed, printed, nor placed in a shell
+command. SQL input is only the mounted file; stdout, stderr, process status,
+and the manifest are never SQL input. The local regression proves that exact
+Docker `psql -f` path returns the eight reviewed sections and ten columns and
+reaches the packet's explicit `ROLLBACK`.
+
+The planned production mode is `DIRECT_SSL_REQUIRED`; it must use an explicit
+SSL-required direct PostgreSQL connection only after a fresh approved
+connectivity preflight. If direct reachability is unavailable, execution stops.
+`SUPAVISOR_SESSION_SSL_REQUIRED` is the sole fallback, but it requires a new
+manifest and explicit approval rather than a silent mode switch. No credential,
+production output, or production connection detail is stored in this repository.
+
 Its result can complete the supporting privilege matrix, but it cannot change
 the prior conclusion on its own: table `SELECT`/`INSERT` remains the decisive
 authorization boundary, and the recommended remediation remains a fail-closed,

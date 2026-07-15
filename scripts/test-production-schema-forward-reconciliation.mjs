@@ -125,6 +125,15 @@ assert.deepEqual(operationalWave?.authenticatedPrivilegeSupplementalTransport, {
   localRegressionTest: "scripts/test-operational-guardrails-authenticated-privilege-supplemental-local.mjs",
   manifestTest: "scripts/test-operational-guardrails-authenticated-privilege-supplemental-transport.mjs",
 });
+assert.deepEqual(operationalWave?.authenticatedPrivilegeSupplementalDockerPsqlTransport, {
+  status: "LOCAL_DOCKER_PSQL_FILE_TRANSPORT_VALIDATED_FRESH_PRODUCTION_APPROVAL_REQUIRED",
+  pinnedImage: "public.ecr.aws/supabase/postgres:17.6.1.143@sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453",
+  mountedPath: "/reviewed/operational-guardrails-authenticated-privilege-supplemental-preflight.sql",
+  transportHelper: "scripts/prepare-operational-guardrails-authenticated-privilege-docker-psql-transport.mjs",
+  manifestTest: "scripts/test-operational-guardrails-authenticated-privilege-docker-psql-transport.mjs",
+  connectionMode: "DIRECT_SSL_REQUIRED",
+  fallbackConnectionMode: "SUPAVISOR_SESSION_SSL_REQUIRED_EXPLICIT_REAPPROVAL_REQUIRED",
+});
 assert.deepEqual(operationalWave?.authenticatedPrivilegePreflightResult, {
   productionDataRowsRead: false,
   productionObjectMutation: false,

@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { MOUNTED_REVIEWED_SQL_PATH, PINNED_PSQL_IMAGE, inspectPinnedPsqlImage, resolveReviewedSourcePath, verifyReadOnlyMountedPacket } from "./lib/docker-psql-file-transport.mjs";
 import { assertReviewedPayload, buildExecutionManifest, loadReviewedSupplementalSql } from "./lib/reviewed-sql-transport.mjs";
 
 const root = process.cwd();
@@ -35,6 +39,27 @@ const mustRun = (input, databaseName) => {
   const result = psql(input, databaseName);
   if (result.status !== 0) throw new Error(result.stderr || result.stdout);
   return result.stdout.trim();
+};
+const runDockerPsqlFile = async () => {
+  const passwordResult = spawnSync("docker", ["exec", container, "sh", "-c", "printf %s \"$POSTGRES_PASSWORD\""], { encoding: "utf8" });
+  if (passwordResult.status !== 0 || !passwordResult.stdout) throw new Error("local Docker test credential channel was unavailable");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "openglass-psql-file-transport-"));
+  const envFile = path.join(directory, "client.env");
+  try {
+    await writeFile(envFile, `PGPASSWORD=${passwordResult.stdout}\nPGSSLMODE=disable\n`, { encoding: "utf8", mode: 0o600 });
+    const sourcePath = resolveReviewedSourcePath({ root, packet: reviewedPacket });
+    const result = spawnSync("docker", [
+      "run", "--rm", "--network", `container:${container}`, "--env-file", envFile,
+      "--mount", `type=bind,src=${sourcePath},dst=${MOUNTED_REVIEWED_SQL_PATH},readonly`,
+      PINNED_PSQL_IMAGE,
+      "psql", "-X", "-At", "-F", "\t", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose",
+      "-h", "127.0.0.1", "-U", "postgres", "-d", "postgres", "-f", MOUNTED_REVIEWED_SQL_PATH,
+    ], { encoding: "utf8" });
+    if (result.status !== 0) throw new Error(result.stderr || result.stdout || "Docker psql -f failed");
+    return result;
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 };
 
 try {
@@ -105,7 +130,14 @@ try {
   assert.match(`${contaminatedTransport.stderr}\n${contaminatedTransport.stdout}`, /42601/);
   assert.match(`${contaminatedTransport.stderr}\n${contaminatedTransport.stdout}`, /Exit/);
 
-  const result = psql(packet);
+  const image = inspectPinnedPsqlImage();
+  const mount = verifyReadOnlyMountedPacket({ root, packet: reviewedPacket });
+  assert.equal(image.digest.endsWith("5ee453"), true);
+  assert.equal(mount.containerSha256, reviewedPacket.sourceSha256);
+  assert.equal(mount.containerByteCount, reviewedPacket.sourceByteCount);
+  assert.equal(mount.mountedReadOnly, true);
+
+  const result = await runDockerPsqlFile();
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.doesNotMatch(`${result.stderr}\n${result.stdout}`, /42P21/);
   const outputLines = result.stdout.trim().split(/\r?\n/).filter(Boolean);
@@ -154,4 +186,4 @@ try {
   }
 }
 
-console.log(JSON.stringify({ localDockerOnly: true, legacyCollationFailureReproduced: true, legacyTransportFailureReproduced: true, rawPayloadByteMatch: true, correctedPacketRolledBack: true, productionOperations: 0 }));
+console.log(JSON.stringify({ localDockerOnly: true, legacyCollationFailureReproduced: true, legacyTransportFailureReproduced: true, rawPayloadByteMatch: true, dockerPsqlFileTransport: true, correctedPacketRolledBack: true, productionOperations: 0 }));

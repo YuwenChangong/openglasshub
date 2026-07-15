@@ -25,6 +25,7 @@ export const assertReviewedPayload = ({ sourceBytes, payloadBytes }) => {
   assert(Buffer.isBuffer(sourceBytes), "source must be a byte buffer");
   assert(Buffer.isBuffer(payloadBytes), "payload must be a byte buffer");
   assert.equal(payloadBytes.length, sourceBytes.length, "payload byte length must equal reviewed source byte length");
+  assert(!payloadBytes.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf])), "payload must not contain a UTF-8 BOM");
   const text = payloadBytes.toString("utf8");
   assert(!text.includes("\uFFFD"), "payload must be valid UTF-8 without replacement characters");
   for (const marker of forbiddenTransportMarkers) {
