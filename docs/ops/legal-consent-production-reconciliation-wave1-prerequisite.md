@@ -85,16 +85,45 @@ dependency `ADDITIONAL_READ_ONLY_PREFLIGHT_REQUIRED`. Historical migration
 presence is not proof that production contains the required table, columns,
 roles, RLS state, or compatible constraints.
 
-Run the exact read-only packet before considering a proposal:
+The original multi-result packet remains available for audit history, but is
+deprecated for manual Dashboard export because the Dashboard conveniently
+exports only one result set:
 
 - [can-access-public-circle-preflight.sql](reconciliation/can-access-public-circle-preflight.sql)
 
-It must prove the function remains absent with no unexpected overload and that
-`public.circles`, its four referenced columns and types, relevant constraints,
-RLS state, circle policies, and roles `anon`, `authenticated`, and `postgres`
-are present and compatible. Any missing or divergent dependency is a STOP
-condition. The packet returns catalog data only; it reads no business rows,
-auth-user rows, credentials, or settings.
+Use the one-shot packet for production evidence instead:
+
+- [can-access-public-circle-preflight-one-shot.sql](reconciliation/can-access-public-circle-preflight-one-shot.sql)
+
+It returns one unified table with stable columns
+`packet_version`, `section_order`, `section`, `row_key`,
+`object_schema`, `object_name`, `attribute`, `value`, and
+`evidence_status`. It includes a manifest and all seven required sections,
+including deterministic MISSING sentinels, so a truncated export cannot be
+mistaken for complete evidence.
+
+## One-run operator process
+
+1. Open the one-shot SQL file.
+2. Copy all content.
+3. Run it once in the confirmed production Dashboard SQL Editor.
+4. Export the single complete result as CSV.
+5. Save it exactly as
+   `C:\\Users\\1\\Downloads\\can-access-public-circle-preflight.csv`.
+6. Resume the fully offline review with:
+
+   `node scripts/validate-can-access-public-circle-preflight.mjs "C:\\Users\\1\\Downloads\\can-access-public-circle-preflight.csv"`
+
+The validator requires the exact file name, packet version, manifest, all
+seven sections, explicit sentinels, unique rows, and catalog-only content. It
+fails closed for malformed, truncated, duplicate, secret-like, email-like,
+auth-user, or business-row evidence.
+
+The one-shot result must prove the function remains absent with no unexpected
+overload and that `public.circles`, its four referenced columns and types,
+relevant constraints, RLS state, circle policies, and roles `anon`,
+`authenticated`, and `postgres` are present and compatible. Any missing or
+divergent dependency is a STOP condition.
 
 ## Two-stage production sequence
 

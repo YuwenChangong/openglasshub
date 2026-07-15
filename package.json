@@ -40,6 +40,7 @@
     "test:production-schema-forward-reconciliation": "node scripts/test-production-schema-forward-reconciliation.mjs",
     "test:production-reconciliation-wave1": "node scripts/test-production-reconciliation-wave1.mjs",
     "test:can-access-public-circle-prerequisite": "node scripts/test-can-access-public-circle-prerequisite.mjs",
+    "test:can-access-public-circle-one-shot-preflight": "node scripts/test-can-access-public-circle-one-shot-preflight.mjs",
     "test:production-reconciliation-wave1b": "node scripts/test-production-reconciliation-wave1b.mjs",
     "test:moderation-notification-writer": "node --experimental-strip-types scripts/test-moderation-notification-writer.mjs",
     "test:legal-consent-mutation-inventory": "node scripts/test-legal-consent-mutation-inventory.mjs",
