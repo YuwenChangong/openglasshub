@@ -333,6 +333,23 @@ the prior conclusion on its own: table `SELECT`/`INSERT` remains the decisive
 authorization boundary, and the recommended remediation remains a fail-closed,
 atomic, server-only rate-limit RPC rather than direct browser-role table grants.
 
+The eight-section packet has a dedicated operator export path:
+`C:\\Users\\1\\Downloads\\operational-guardrails-authenticated-privilege-supplement.csv`.
+It must never reuse the distinct ten-section W6 supplemental export. Validate
+the direct `psql --csv` result fully offline with:
+
+```powershell
+node scripts/validate-operational-guardrails-authenticated-privilege-supplement.mjs "C:\\Users\\1\\Downloads\\operational-guardrails-authenticated-privilege-supplement.csv"
+```
+
+The validator requires the exact
+`operational-guardrails-authenticated-privilege-supplemental-preflight-v1`
+packet version, all eight expected sections, the ten-column schema, target-role
+sentinels, and the packet manifest. It fails closed for malformed or duplicate
+rows, truncation, the unrelated ten-section packet, non-allowlisted business
+rows, `auth.users`, secret-like evidence, and email-like evidence. The CSV is
+operator-held evidence and must remain untracked.
+
 ## Supplemental catalog review
 
 The primary packet proves only that the two named indexes are missing and that
