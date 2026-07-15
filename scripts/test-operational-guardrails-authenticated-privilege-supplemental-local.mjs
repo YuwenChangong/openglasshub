@@ -1,26 +1,31 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { assertReviewedPayload, buildExecutionManifest, loadReviewedSupplementalSql } from "./lib/reviewed-sql-transport.mjs";
 
 const root = process.cwd();
-const packet = await readFile(path.join(root, "docs", "ops", "reconciliation", "operational-guardrails-authenticated-privilege-supplemental-preflight.sql"), "utf8");
+const reviewedPacket = await loadReviewedSupplementalSql({ root });
+const packet = reviewedPacket.payloadBytes;
+const packetText = packet.toString("utf8");
 const containers = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" })
   .split(/\r?\n/)
   .filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
 
 assert.equal(containers.length, 1, "LOCAL_DOCKER_ONLY requires exactly one normalized replay PostgreSQL container");
-assert.match(packet, /^--[^\n]*\n--[^\n]*\nBEGIN TRANSACTION READ ONLY;/);
-assert.match(packet, /\nROLLBACK;\s*$/);
-assert.doesNotMatch(packet.replace(/--[^\n]*/g, ""), /(?:^|\n)\s*(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|GRANT|REVOKE|TRUNCATE)\b/im);
-assert.doesNotMatch(packet, /from\s+public\.forum_upload_attempts\b/i, "the packet must not select application attempt rows");
+assert.match(packetText, /^--[^\n]*\n--[^\n]*\nBEGIN TRANSACTION READ ONLY;/);
+assert.match(packetText, /\nROLLBACK;\s*$/);
+assert.doesNotMatch(packetText.replace(/--[^\n]*/g, ""), /(?:^|\n)\s*(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|GRANT|REVOKE|TRUNCATE)\b/im);
+assert.doesNotMatch(packetText, /from\s+public\.forum_upload_attempts\b/i, "the packet must not select application attempt rows");
+const manifest = buildExecutionManifest({ packet: reviewedPacket, targetIdentityFingerprint: "local-docker-normalized-replay" });
+assert.equal(manifest.sourceSha256, manifest.payloadSha256);
+assert.equal(manifest.sourceByteCount, manifest.payloadByteCount);
+assert.equal(manifest.transportMethod, "raw-file-bytes-to-database-client-stdin");
 
 const container = containers[0];
 const database = "openglass_w6_privilege_supplement_sim";
 const parentRole = "w6_privilege_parent";
 const grandparentRole = "w6_privilege_grandparent";
 const psql = (input, databaseName = database) => {
-  const result = spawnSync("docker", ["exec", "-i", container, "psql", "-X", "-At", "-F", "\t", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", databaseName], {
+  const result = spawnSync("docker", ["exec", "-i", container, "psql", "-X", "-At", "-F", "\t", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose", "-U", "postgres", "-d", databaseName], {
     input,
     encoding: "utf8",
   });
@@ -90,6 +95,16 @@ try {
   assert.notEqual(legacy.status, 0, "the legacy mixed-collation recursive CTE must fail");
   assert.match(`${legacy.stderr}\n${legacy.stdout}`, /42P21/, "the legacy query must reproduce PostgreSQL collation error 42P21");
 
+  const contaminatedPayload = Buffer.concat([Buffer.from("Exit code: 0\n", "utf8"), packet]);
+  assert.throws(() => assertReviewedPayload({ sourceBytes: reviewedPacket.sourceBytes, payloadBytes: contaminatedPayload }), /payload byte length must equal reviewed source byte length/);
+  const sameLengthContaminatedPayload = Buffer.from(packet);
+  Buffer.from("Exit code: 0", "utf8").copy(sameLengthContaminatedPayload);
+  assert.throws(() => assertReviewedPayload({ sourceBytes: reviewedPacket.sourceBytes, payloadBytes: sameLengthContaminatedPayload }), /transport marker: Exit code:/);
+  const contaminatedTransport = psql(contaminatedPayload);
+  assert.notEqual(contaminatedTransport.status, 0, "the legacy command-result transport must fail before the packet transaction body");
+  assert.match(`${contaminatedTransport.stderr}\n${contaminatedTransport.stdout}`, /42601/);
+  assert.match(`${contaminatedTransport.stderr}\n${contaminatedTransport.stdout}`, /Exit/);
+
   const result = psql(packet);
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.doesNotMatch(`${result.stderr}\n${result.stdout}`, /42P21/);
@@ -139,4 +154,4 @@ try {
   }
 }
 
-console.log(JSON.stringify({ localDockerOnly: true, legacyCollationFailureReproduced: true, correctedPacketRolledBack: true, productionOperations: 0 }));
+console.log(JSON.stringify({ localDockerOnly: true, legacyCollationFailureReproduced: true, legacyTransportFailureReproduced: true, rawPayloadByteMatch: true, correctedPacketRolledBack: true, productionOperations: 0 }));

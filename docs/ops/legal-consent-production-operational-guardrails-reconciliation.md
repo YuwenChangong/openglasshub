@@ -263,6 +263,43 @@ already-verified valid/ready Stage A and Stage B index postflight state. Do not
 run any policy, grant, index, function, migration, or application operation
 with this packet.
 
+### Supplemental transport correction
+
+The later approved attempt did not run the reviewed packet. Its orchestration
+called the command runner to read the SQL file, treated the runner's formatted
+result output as SQL, and passed that formatted value to the database wrapper.
+The command runner prepended `Exit code: 0`, so PostgreSQL stopped at line one
+with `42601` before `BEGIN TRANSACTION READ ONLY` could run. This was not a
+PowerShell pipeline, clipboard, temporary-file, stderr, or database-client
+rewriting issue: the contamination occurred when the formatted command-result
+object was selected as the SQL payload. No packet transaction body, catalog
+query, or production mutation occurred.
+
+`scripts/lib/reviewed-sql-transport.mjs` now reads only the exact reviewed file
+as bytes and requires its SHA-256 to equal
+`d96e76f9dd3655c03a64dc5d535087fc63f99370b13b246f6529caaf121cd074`.
+It rejects a byte-count mismatch, prefix/suffix difference, invalid UTF-8,
+`Exit code:`, markdown fences, tool annotations, prompts, and shell diagnostics
+before a client can receive a payload. It also confirms the first meaningful
+token is `BEGIN`, the explicit `READ ONLY` transaction and terminal `ROLLBACK`
+remain present, and that no line-ending or encoding transformation has occurred.
+
+The dry-run-only helper
+`scripts/prepare-operational-guardrails-authenticated-privilege-supplemental-transport.mjs`
+creates a non-secret execution manifest at an operator-provided local path. It
+records exact source/payload SHA-256 values and byte counts, raw-stdin transport
+method, timestamp, target identity fingerprint, and dry-run result. It never
+executes SQL. A future approved execution must feed `payloadBytes` directly to
+the selected database client's raw stdin or file-input path; it must not build
+a query from a command-result, stdout, stderr, clipboard, or tool wrapper.
+
+The LOCAL_DOCKER_ONLY regression sends the contaminated legacy prefix and proves
+the expected `42601`, then sends only raw reviewed bytes and proves the packet
+returns eight sections and ten columns before its explicit `ROLLBACK`.
+`scripts/test-operational-guardrails-authenticated-privilege-supplemental-transport.mjs`
+also validates the generated manifest. Fresh explicit production approval is
+required; this correction does not authorize another production attempt.
+
 Its result can complete the supporting privilege matrix, but it cannot change
 the prior conclusion on its own: table `SELECT`/`INSERT` remains the decisive
 authorization boundary, and the recommended remediation remains a fail-closed,

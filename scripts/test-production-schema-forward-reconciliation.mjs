@@ -113,6 +113,18 @@ assert.deepEqual(operationalWave?.authenticatedPrivilegeSupplementalPreflightFai
   correction: "both third-column branches explicitly emit text COLLATE C",
   localDockerValidation: "legacy failure reproduced; corrected packet completed through ROLLBACK",
 });
+assert.deepEqual(operationalWave?.authenticatedPrivilegeSupplementalTransport, {
+  status: "OFFLINE_CORRECTED_FRESH_PRODUCTION_APPROVAL_REQUIRED",
+  failurePath: "formatted shell-command result output passed to database execute wrapper",
+  contaminatingPrefix: "Exit code: 0",
+  sqlState: "42601",
+  packetTransactionBodyExecuted: false,
+  productionMutationPossible: false,
+  sourceSha256: "d96e76f9dd3655c03a64dc5d535087fc63f99370b13b246f6529caaf121cd074",
+  transportHelper: "scripts/prepare-operational-guardrails-authenticated-privilege-supplemental-transport.mjs",
+  localRegressionTest: "scripts/test-operational-guardrails-authenticated-privilege-supplemental-local.mjs",
+  manifestTest: "scripts/test-operational-guardrails-authenticated-privilege-supplemental-transport.mjs",
+});
 assert.deepEqual(operationalWave?.authenticatedPrivilegePreflightResult, {
   productionDataRowsRead: false,
   productionObjectMutation: false,
