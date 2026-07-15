@@ -159,6 +159,64 @@ authenticated table access and replace the broad canonical policies before
 granting it. Until that decision and evidence exist, retain both policies and
 all grants unchanged.
 
+### Production preflight result
+
+The approved packet executed once as `BEGIN TRANSACTION READ ONLY` followed by
+`ROLLBACK`. It returned catalog rows only; no `forum_upload_attempts` rows were
+selected, no production export was committed, and no production object changed.
+
+**Catalog-proven facts**
+
+- `public.forum_upload_attempts` exists, is owned by `postgres`, has RLS
+  enabled, and does not force RLS.
+- `anon`, `authenticated`, and `service_role` each have effective table
+  `SELECT=false` and `INSERT=false`. `has_table_privilege` evaluates inherited
+  privileges, so no direct ACL, inherited role membership, or `PUBLIC` ACL
+  currently confers either operation to `authenticated`.
+- The direct ACL catalog contains no `PUBLIC` entry. `authenticated` has no
+  direct `SELECT` or `INSERT` entry.
+- All four permissive `authenticated` policies remain present. The canonical
+  SELECT policy is `USING true`; canonical INSERT permits `user_id = auth.uid()`
+  or `NULL`. The two extra policies remain unchanged and are RLS-redundant,
+  not independently restrictive.
+- `consume_verification_email_resend_limit(text, integer, integer)` exists,
+  is owned by `postgres`, is `SECURITY DEFINER`, and has
+  `search_path=public, pg_temp`. `anon` and `authenticated` have effective
+  `EXECUTE`; `service_role` does not; there is no `PUBLIC` execute entry.
+
+**Code-proven runtime intent**
+
+- Browser code has no direct `forum_upload_attempts` call.
+- Forum mutation routes create anon-key clients bound to the verified caller's
+  bearer token, then make direct table reads and inserts through
+  `enforceUserRateLimit` or `enforceUploadRateLimit`. The external-video route
+  also directly reads `bytes` for its daily allowance.
+- Those direct calls cannot receive the required table privileges under the
+  catalog-proven authenticated role. The helper currently converts database
+  errors into `allowed: true`; therefore the catalog proves a permission-layer
+  availability failure, while an authenticated smoke still remains necessary
+  to observe the exact production response path end to end.
+- Resend confirmation uses the separate security-definer RPC rather than direct
+  table access. Its catalog contract is present, but no runtime invocation was
+  performed in this review.
+
+**Privacy and remediation assessment**
+
+| Strategy | Assessment |
+| --- | --- |
+| Grant authenticated `SELECT` and `INSERT` | Unsafe. It would activate canonical `USING true` for all authenticated callers and expose attempt rows. |
+| Grant `INSERT` only and remove direct SELECT use | Not sufficient. Direct callers could still create self-or-null attempt rows under the canonical INSERT policy, and the rate-limit check remains non-atomic. |
+| Narrow security-definer RPC | Viable only when executable exclusively by a server-held role, with fixed purpose/limit validation, verified server-derived actor and IP inputs, a locked search path, revoked `PUBLIC`/browser-role execution, and fail-closed callers. |
+| One atomic server-only rate-limit RPC | Preferred minimum design. It should combine scoped counting, decision, and attempt insertion in one transaction with concurrency control, return a narrow decision, keep table privileges private, and cause a server error rather than `allowed: true` on database failure. |
+
+The packet does not inventory schema `USAGE`, sequence ACLs, or the full role
+membership graph. Source migrations use `gen_random_uuid()` rather than a table
+sequence, but fresh catalog evidence is still required before any remediation
+proposal can claim an exact schema/sequence contract. The next approval needed
+is a narrowly scoped **read-only supplemental privilege packet** for those
+three catalog areas, followed by separate approval for the preferred atomic,
+server-only RPC design. No policy removal is currently safe.
+
 ## Supplemental catalog review
 
 The primary packet proves only that the two named indexes are missing and that

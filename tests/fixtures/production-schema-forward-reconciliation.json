@@ -268,11 +268,27 @@
       "supplementalValidatorFile": "scripts/validate-operational-guardrails-production-preflight-supplemental.mjs",
       "authenticatedPrivilegePreflightFile": "docs/ops/reconciliation/operational-guardrails-authenticated-privilege-preflight.sql",
       "authenticatedPrivilegePreflightStaticTest": "scripts/test-operational-guardrails-authenticated-privilege-preflight.mjs",
+      "authenticatedPrivilegePreflightStatus": "CATALOG_ONLY_EXECUTED_REDACTED_SUPPLEMENTAL_EVIDENCE_REQUIRED",
+      "authenticatedPrivilegePreflightResult": {
+        "productionDataRowsRead": false,
+        "productionObjectMutation": false,
+        "authenticatedEffectiveTablePrivileges": { "SELECT": false, "INSERT": false },
+        "directPublicTableAcl": false,
+        "rls": { "enabled": true, "forced": false },
+        "resendRpc": {
+          "securityDefiner": true,
+          "searchPath": "public, pg_temp",
+          "effectiveExecute": { "anon": true, "authenticated": true, "service_role": false },
+          "directPublicExecute": false
+        },
+        "remainingEvidence": ["schema_usage_acl", "sequence_acl", "role_membership_topology"],
+        "runtimeSmokeRequired": true
+      },
       "indexExecutionPreflightFile": "docs/ops/reconciliation/operational-guardrails-index-execution-preflight.sql",
       "indexStageAProposalFile": "docs/ops/reconciliation/operational-guardrails-index-stage-a-proposal.sql",
       "indexStageBProposalFile": "docs/ops/reconciliation/operational-guardrails-index-stage-b-proposal.sql",
       "indexPostflightFile": "docs/ops/reconciliation/operational-guardrails-index-postflight.sql",
-      "policyRemovalStatus": "HELD_PENDING_FRESH_AUTHENTICATED_PRIVILEGE_CONTRACT_PREFLIGHT",
+      "policyRemovalStatus": "HELD_PENDING_SUPPLEMENTAL_PRIVILEGE_EVIDENCE_AND_SERVER_ONLY_ATOMIC_REMEDIATION_DESIGN",
       "status": "INDEX_STAGES_APPLIED_POSTFLIGHT_VERIFIED_POLICY_PRIVILEGE_HOLD",
       "productionAppliedRepairObjectCount": 2,
       "pendingRepairObjectCount": 2

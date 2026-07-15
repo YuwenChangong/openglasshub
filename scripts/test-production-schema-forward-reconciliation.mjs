@@ -99,7 +99,23 @@ assert.equal(operationalWave?.validatorFile, "scripts/validate-operational-guard
 assert.equal(operationalWave?.supplementalPreflightFile, "docs/ops/reconciliation/operational-guardrails-production-preflight-supplemental-one-shot.sql");
 assert.equal(operationalWave?.authenticatedPrivilegePreflightFile, "docs/ops/reconciliation/operational-guardrails-authenticated-privilege-preflight.sql");
 assert.equal(operationalWave?.authenticatedPrivilegePreflightStaticTest, "scripts/test-operational-guardrails-authenticated-privilege-preflight.mjs");
-assert.equal(operationalWave?.policyRemovalStatus, "HELD_PENDING_FRESH_AUTHENTICATED_PRIVILEGE_CONTRACT_PREFLIGHT");
+assert.equal(operationalWave?.authenticatedPrivilegePreflightStatus, "CATALOG_ONLY_EXECUTED_REDACTED_SUPPLEMENTAL_EVIDENCE_REQUIRED");
+assert.deepEqual(operationalWave?.authenticatedPrivilegePreflightResult, {
+  productionDataRowsRead: false,
+  productionObjectMutation: false,
+  authenticatedEffectiveTablePrivileges: { SELECT: false, INSERT: false },
+  directPublicTableAcl: false,
+  rls: { enabled: true, forced: false },
+  resendRpc: {
+    securityDefiner: true,
+    searchPath: "public, pg_temp",
+    effectiveExecute: { anon: true, authenticated: true, service_role: false },
+    directPublicExecute: false,
+  },
+  remainingEvidence: ["schema_usage_acl", "sequence_acl", "role_membership_topology"],
+  runtimeSmokeRequired: true,
+});
+assert.equal(operationalWave?.policyRemovalStatus, "HELD_PENDING_SUPPLEMENTAL_PRIVILEGE_EVIDENCE_AND_SERVER_ONLY_ATOMIC_REMEDIATION_DESIGN");
 const operationalItems = manifest.items.filter((item) => item.proposedWave === "W6_OPERATIONAL_GUARDRAILS");
 assert.equal(new Set(operationalItems.map((item) => item.repairObjectId)).size, 4);
 assert.equal(operationalItems.filter((item) => item.severity === "P0_SECURITY_BROADENING").length, 2);
