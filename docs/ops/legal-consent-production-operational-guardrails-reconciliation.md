@@ -1,6 +1,6 @@
 # Operational Guardrails Reconciliation Preflight
 
-Status: `ONE_SHOT_PREFLIGHT_PACKET_READY`. This is W6 only and remains
+Status: `INDEX_STAGES_UNEXECUTED_REVIEW_READY_POLICY_PRIVILEGE_HOLD`. This is W6 only and remains
 `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PRODUCTION_RECONCILIATION_NO_GO`.
 
 ## Why W6 is next
@@ -36,8 +36,28 @@ by ACL grantee OID `0`, not as a `pg_roles` name. The aggregate purpose contract
 also includes `verification_email_resend`, which is added by the existing
 rate-limit migration.
 
-If either extra policy remains, the validator intentionally requires a human
-security decision to retain or remove it. No proposal or postflight exists yet.
+The supplemental production export is complete: all four existing indexes are
+valid and ready but none is a structural equivalent of either expected
+purpose-leading index. Both extra policies are RLS-redundant: the canonical
+INSERT policy permits every reviewed `insert_self` row, and canonical SELECT
+already uses `USING true` for `authenticated`. The catalog also proves a
+separate availability blocker: `authenticated` has no effective `SELECT` or
+`INSERT` privilege on this table, while the source-backed rate-limit callers
+use bearer-bound anon-key clients. RLS policy removal is therefore held until a
+separate reviewed privilege-contract reconciliation can prove runtime behavior.
+
+The two indexes are independently eligible for review as sequential concurrent
+operations. Their unexecuted packet is:
+
+- [fresh execution preflight](reconciliation/operational-guardrails-index-execution-preflight.sql)
+- [Stage A concurrent index](reconciliation/operational-guardrails-index-stage-a-proposal.sql)
+- [Stage B concurrent index](reconciliation/operational-guardrails-index-stage-b-proposal.sql)
+- [read-only postflight](reconciliation/operational-guardrails-index-postflight.sql)
+- [staged checklist](reconciliation/operational-guardrails-index-execution-checklist.md)
+
+Each `CREATE INDEX CONCURRENTLY` statement is intentionally a single standalone
+statement outside a transaction. The index path requires fresh preflight before
+each stage and explicit production approval; no policy DROP is included.
 
 ## Supplemental catalog review
 

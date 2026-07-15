@@ -261,10 +261,17 @@
         "HUMAN_DECISION_REQUIRED"
       ],
       "maxObjects": 15,
-      "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
+      "preflightStatus": "SUPPLEMENTAL_CATALOG_REVIEW_COMPLETE",
       "preflightFile": "docs/ops/reconciliation/operational-guardrails-production-preflight-one-shot.sql",
       "validatorFile": "scripts/validate-operational-guardrails-production-preflight.mjs",
-      "status": "ONE_SHOT_PREFLIGHT_PACKET_READY",
+      "supplementalPreflightFile": "docs/ops/reconciliation/operational-guardrails-production-preflight-supplemental-one-shot.sql",
+      "supplementalValidatorFile": "scripts/validate-operational-guardrails-production-preflight-supplemental.mjs",
+      "indexExecutionPreflightFile": "docs/ops/reconciliation/operational-guardrails-index-execution-preflight.sql",
+      "indexStageAProposalFile": "docs/ops/reconciliation/operational-guardrails-index-stage-a-proposal.sql",
+      "indexStageBProposalFile": "docs/ops/reconciliation/operational-guardrails-index-stage-b-proposal.sql",
+      "indexPostflightFile": "docs/ops/reconciliation/operational-guardrails-index-postflight.sql",
+      "policyRemovalStatus": "HELD_PENDING_AUTHENTICATED_SELECT_INSERT_PRIVILEGE_RECONCILIATION",
+      "status": "INDEX_STAGES_UNEXECUTED_REVIEW_READY_POLICY_PRIVILEGE_HOLD",
       "productionAppliedRepairObjectCount": 0,
       "pendingRepairObjectCount": 4
     }
@@ -1472,8 +1479,8 @@
       "dependentObjects": [
         "forum_upload_attempts"
       ],
-      "productionDataState": "ADDITIONAL_READ_ONLY_PREFLIGHT_REQUIRED",
-      "safeReplacement": false,
+      "productionDataState": "SUPPLEMENTAL_CATALOG_REVIEW_COMPLETE_NO_EQUIVALENT_INDEX",
+      "safeReplacement": true,
       "forwardOnlyRequired": true,
       "reconciliationStrategy": "CREATE_INDEX_CONCURRENTLY",
       "rollbackClass": "FORWARD_FIX_ONLY",
@@ -1481,8 +1488,8 @@
         "rate-limit indexes and policies match",
         "aggregate duplicate operational rows is reviewed"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; constraints_and_indexes/index public.forum_upload_attempts.forum_upload_attempts_purpose_ip_created_idx (definition) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "UNEXECUTED_INDEX_STAGE_A_REVIEW_READY",
+      "conciseReason": "Supplemental catalog evidence proves no valid, ready exact structural equivalent exists. The standalone Stage A CREATE INDEX CONCURRENTLY review packet is ready; it requires a fresh execution preflight and explicit production approval."
     },
     {
       "itemId": "reconcile:98790483b316066e9bbd",
@@ -1513,8 +1520,8 @@
       "dependentObjects": [
         "forum_upload_attempts"
       ],
-      "productionDataState": "ADDITIONAL_READ_ONLY_PREFLIGHT_REQUIRED",
-      "safeReplacement": false,
+      "productionDataState": "SUPPLEMENTAL_CATALOG_REVIEW_COMPLETE_NO_EQUIVALENT_INDEX",
+      "safeReplacement": true,
       "forwardOnlyRequired": true,
       "reconciliationStrategy": "CREATE_INDEX_CONCURRENTLY",
       "rollbackClass": "FORWARD_FIX_ONLY",
@@ -1522,8 +1529,8 @@
         "rate-limit indexes and policies match",
         "aggregate duplicate operational rows is reviewed"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "MISSING_IN_PRODUCTION: SECURITY_BROADENING; constraints_and_indexes/index public.forum_upload_attempts.forum_upload_attempts_purpose_user_created_idx (definition) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "UNEXECUTED_INDEX_STAGE_B_REVIEW_READY",
+      "conciseReason": "Supplemental catalog evidence proves no valid, ready exact structural equivalent exists. The standalone Stage B CREATE INDEX CONCURRENTLY review packet is ready only after fresh preflight and verified Stage A completion."
     },
     {
       "itemId": "reconcile:ba96cd37e6722199ba57",
@@ -7482,17 +7489,17 @@
       "dependentObjects": [
         "forum_upload_attempts"
       ],
-      "productionDataState": "ADDITIONAL_READ_ONLY_PREFLIGHT_REQUIRED",
+      "productionDataState": "SUPPLEMENTAL_CATALOG_REVIEW_COMPLETE_RLS_REDUNDANT_PRIVILEGE_HOLD",
       "safeReplacement": false,
       "forwardOnlyRequired": true,
-      "reconciliationStrategy": "HUMAN_DECISION_REQUIRED",
+      "reconciliationStrategy": "HELD_FOR_AUTHENTICATED_TABLE_PRIVILEGE_RECONCILIATION",
       "rollbackClass": "FORWARD_FIX_ONLY",
       "verificationRequirements": [
         "rate-limit indexes and policies match",
         "aggregate duplicate operational rows is reviewed"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "EXTRA_IN_PRODUCTION: POSSIBLE_SECURITY_BROADENING; policies/policy public.forum_upload_attempts.forum_upload_attempts_insert_self (INSERT) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "HELD_PENDING_AUTHENTICATED_SELECT_INSERT_PRIVILEGE_RECONCILIATION",
+      "conciseReason": "Supplemental evidence proves this permissive INSERT policy is RLS-redundant because the canonical authenticated policy allows every reviewed extra-policy row. Policy removal is held because authenticated currently lacks effective INSERT and SELECT privileges, so runtime behavior cannot be certified."
     },
     {
       "itemId": "reconcile:1fd9ed29b3ff463e796e",
@@ -7523,17 +7530,17 @@
       "dependentObjects": [
         "forum_upload_attempts"
       ],
-      "productionDataState": "ADDITIONAL_READ_ONLY_PREFLIGHT_REQUIRED",
+      "productionDataState": "SUPPLEMENTAL_CATALOG_REVIEW_COMPLETE_RLS_REDUNDANT_PRIVILEGE_HOLD",
       "safeReplacement": false,
       "forwardOnlyRequired": true,
-      "reconciliationStrategy": "HUMAN_DECISION_REQUIRED",
+      "reconciliationStrategy": "HELD_FOR_AUTHENTICATED_TABLE_PRIVILEGE_RECONCILIATION",
       "rollbackClass": "FORWARD_FIX_ONLY",
       "verificationRequirements": [
         "rate-limit indexes and policies match",
         "aggregate duplicate operational rows is reviewed"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
-      "conciseReason": "EXTRA_IN_PRODUCTION: POSSIBLE_SECURITY_BROADENING; policies/policy public.forum_upload_attempts.forum_upload_attempts_select_self (SELECT) differs from the verified local fingerprint and requires a reviewed forward-only decision."
+      "blockerStatus": "HELD_PENDING_AUTHENTICATED_SELECT_INSERT_PRIVILEGE_RECONCILIATION",
+      "conciseReason": "Supplemental evidence proves this restrictive SELECT policy is RLS-redundant because the canonical authenticated policy already uses USING true. Policy removal is held because authenticated currently lacks effective SELECT and INSERT privileges, so runtime behavior cannot be certified."
     },
     {
       "itemId": "reconcile:7fa41ba7b8f5702cdaf4",

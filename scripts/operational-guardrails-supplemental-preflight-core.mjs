@@ -7,6 +7,8 @@ const TARGETS = {
   forum_upload_attempts_purpose_ip_created_idx: ["purpose", "ip_hash", "created_at DESC"],
   forum_upload_attempts_purpose_user_created_idx: ["purpose", "user_id", "created_at DESC"],
 };
+const expectedIndexDefinition = (name) => `create index ${name} on public.forum_upload_attempts using btree (${TARGETS[name].join(", ")})`;
+const structuralIndexDefinition = (definition) => norm(definition).replace(/^create index [^ ]+ on /, "create index on ");
 const TARGET_POLICIES = ["forum_upload_attempts_insert_authenticated", "forum_upload_attempts_select_authenticated", "forum_upload_attempts_insert_self", "forum_upload_attempts_select_self"];
 const rowsFor = (rows, section, rowKey) => rows.filter((row) => row.section === section && (rowKey === undefined || row.row_key === rowKey));
 const absent = (rows, section, key) => rowsFor(rows, section, key).some((row) => row.evidence_status === "MISSING");
@@ -19,7 +21,7 @@ function classifyIndex(name, indexes, relationMissing) {
   if (!indexes.length) return "INDEX_MISSING";
   const expectedKeys = TARGETS[name];
   const usable = indexes.filter((index) => index.valid && index.ready);
-  const exactShape = (index) => index.method === "btree" && index.unique === false && same(index.key_parts, expectedKeys) && !index.predicate && same(index.included_parts, []);
+  const exactShape = (index) => index.method === "btree" && index.unique === false && structuralIndexDefinition(index.definition) === structuralIndexDefinition(expectedIndexDefinition(name)) && !index.predicate && same(index.included_parts, []);
   const named = usable.find((index) => index.name === name);
   if (named && exactShape(named)) return "EXACT_INDEX_PRESENT";
   if (usable.some(exactShape)) return "EQUIVALENT_INDEX_PRESENT";
@@ -68,7 +70,9 @@ export function validateSupplementalRows(rows) {
     forum_upload_attempts_insert_self: classifyPolicy("insert", policies.forum_upload_attempts_insert_authenticated, policies.forum_upload_attempts_insert_self, rls, effectiveRows.authenticated),
     forum_upload_attempts_select_self: classifyPolicy("select", policies.forum_upload_attempts_select_authenticated, policies.forum_upload_attempts_select_self, rls, effectiveRows.authenticated),
   };
-  const policyRemovalBehaviorPreserving = Object.values(policyFindings).every((status) => status === "REDUNDANT_SAFE_TO_REMOVE");
+  const policyRemovalRlsRedundant = Object.values(policyFindings).every((status) => status === "REDUNDANT_SAFE_TO_REMOVE");
+  const runtimePrivilegeBlockers = ["SELECT", "INSERT"].filter((privilege) => effectiveRows.authenticated?.[privilege] !== true);
+  const policyRemovalBehaviorPreserving = policyRemovalRlsRedundant && runtimePrivilegeBlockers.length === 0;
   const indexProposalEligible = Object.values(indexFindings).every((status) => status === "INDEX_MISSING");
-  return { packetVersion: PACKET_VERSION, rowCount: rows.length, sectionCount: REQUIRED_SECTIONS.length, indexFindings, policyFindings, publicAclCatalog: aclRows.filter((row) => row.grantee === "PUBLIC"), effectiveRolePrivileges: effectiveRows, policyRemovalBehaviorPreserving, indexProposalEligible, createIndexConcurrentlyRequired: indexProposalEligible ? Object.keys(TARGETS) : [], overallProposalEligible: indexProposalEligible && policyRemovalBehaviorPreserving, preflightStatus: "SUPPLEMENTAL_CATALOG_REVIEW_COMPLETE" };
+  return { packetVersion: PACKET_VERSION, rowCount: rows.length, sectionCount: REQUIRED_SECTIONS.length, indexFindings, policyFindings, publicAclCatalog: aclRows.filter((row) => row.grantee === "PUBLIC"), effectiveRolePrivileges: effectiveRows, policyRemovalRlsRedundant, runtimePrivilegeBlockers, policyRemovalBehaviorPreserving, indexProposalEligible, createIndexConcurrentlyRequired: indexProposalEligible ? Object.keys(TARGETS) : [], overallProposalEligible: indexProposalEligible && policyRemovalBehaviorPreserving, preflightStatus: "SUPPLEMENTAL_CATALOG_REVIEW_COMPLETE" };
 }

@@ -93,9 +93,11 @@ for (const item of circlePreflightItems) {
   assert(item.productionExecutionAudit?.historicalComparisonClassification, `${item.itemId} must retain historical comparison evidence`);
 }
 const operationalWave = manifest.waves.find((wave) => wave.id === "W6_OPERATIONAL_GUARDRAILS");
-assert.equal(operationalWave?.status, "ONE_SHOT_PREFLIGHT_PACKET_READY");
+assert.equal(operationalWave?.status, "INDEX_STAGES_UNEXECUTED_REVIEW_READY_POLICY_PRIVILEGE_HOLD");
 assert.equal(operationalWave?.preflightFile, "docs/ops/reconciliation/operational-guardrails-production-preflight-one-shot.sql");
 assert.equal(operationalWave?.validatorFile, "scripts/validate-operational-guardrails-production-preflight.mjs");
+assert.equal(operationalWave?.supplementalPreflightFile, "docs/ops/reconciliation/operational-guardrails-production-preflight-supplemental-one-shot.sql");
+assert.equal(operationalWave?.policyRemovalStatus, "HELD_PENDING_AUTHENTICATED_SELECT_INSERT_PRIVILEGE_RECONCILIATION");
 const operationalItems = manifest.items.filter((item) => item.proposedWave === "W6_OPERATIONAL_GUARDRAILS");
 assert.equal(new Set(operationalItems.map((item) => item.repairObjectId)).size, 4);
 assert.equal(operationalItems.filter((item) => item.severity === "P0_SECURITY_BROADENING").length, 2);
@@ -137,7 +139,7 @@ assert.match(plan, /PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED/);
 assert.match(plan, /DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE/);
 assert.match(plan, /69 pending logical repair objects/i);
 assert.match(plan, /CIRCLES_VISIBILITY_FOUNDATION/);
-assert.match(plan, /W6 operational guardrails[\s\S]*ONE_SHOT_PREFLIGHT_PACKET_READY/);
+assert.match(plan, /W6 operational guardrails[\s\S]*INDEX_STAGES_UNEXECUTED_REVIEW_READY_POLICY_PRIVILEGE_HOLD/);
 assert.match(plan, /REMOVE_DIRECT_HARD_DELETE_POLICY/);
 assert.match(plan, /Track A[\s\S]*Track B/);
 console.log(JSON.stringify({ manifestItems: manifest.items.length, uniqueRepairObjects: manifest.uniqueRepairObjectCount, waves: manifest.waves.length, realOperations: 0 }));
