@@ -353,6 +353,27 @@ the prior conclusion on its own: table `SELECT`/`INSERT` remains the decisive
 authorization boundary, and the recommended remediation remains a fail-closed,
 atomic, server-only rate-limit RPC rather than direct browser-role table grants.
 
+### Windows-native Direct Connection transport
+
+The Docker direct transport is not reusable for IPv6-only Direct Connection
+hosts: Windows resolved the exact `db.<project>.supabase.co` hostname to an
+AAAA record, while Docker Desktop's resolver returned no address and `psql`
+stopped before a database connection or SQL. The separate
+`run-operational-guardrails-authenticated-privilege-supplement-native.ps1`
+runner preserves Direct Connection only and never falls back to Session or
+Transaction Pooler. It requires a native PostgreSQL 17 `psql.exe`, exact AAAA
+DNS evidence, a successful native TCP reachability probe, the reviewed packet
+hash and byte count, and a clean exact HEAD/origin match before its hidden
+`psql.exe -W` prompt. It writes first to a unique Downloads temporary file,
+validates it offline, atomically moves it only to the approved final CSV, and
+quarantines non-empty failures.
+
+If the client is absent, stop for **A. install/configure a native PostgreSQL
+17 client**. If AAAA DNS or the native IPv6 TCP probe fails, stop for **B.
+restore native IPv6 connectivity**. Selecting or purchasing the Supabase IPv4
+Add-on is **C. explicitly approve the Supabase IPv4 Add-on** and requires a
+separate human decision; this runner never enables it.
+
 The eight-section packet has a dedicated operator export path:
 `C:\Users\1\Downloads\operational-guardrails-authenticated-privilege-supplement.csv`.
 It must never reuse the distinct ten-section W6 supplemental export. Validate
