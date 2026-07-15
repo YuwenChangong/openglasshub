@@ -97,7 +97,9 @@ assert.equal(operationalWave?.status, "INDEX_STAGES_APPLIED_POSTFLIGHT_VERIFIED_
 assert.equal(operationalWave?.preflightFile, "docs/ops/reconciliation/operational-guardrails-production-preflight-one-shot.sql");
 assert.equal(operationalWave?.validatorFile, "scripts/validate-operational-guardrails-production-preflight.mjs");
 assert.equal(operationalWave?.supplementalPreflightFile, "docs/ops/reconciliation/operational-guardrails-production-preflight-supplemental-one-shot.sql");
-assert.equal(operationalWave?.policyRemovalStatus, "HELD_PENDING_AUTHENTICATED_SELECT_INSERT_PRIVILEGE_RECONCILIATION");
+assert.equal(operationalWave?.authenticatedPrivilegePreflightFile, "docs/ops/reconciliation/operational-guardrails-authenticated-privilege-preflight.sql");
+assert.equal(operationalWave?.authenticatedPrivilegePreflightStaticTest, "scripts/test-operational-guardrails-authenticated-privilege-preflight.mjs");
+assert.equal(operationalWave?.policyRemovalStatus, "HELD_PENDING_FRESH_AUTHENTICATED_PRIVILEGE_CONTRACT_PREFLIGHT");
 const operationalItems = manifest.items.filter((item) => item.proposedWave === "W6_OPERATIONAL_GUARDRAILS");
 assert.equal(new Set(operationalItems.map((item) => item.repairObjectId)).size, 4);
 assert.equal(operationalItems.filter((item) => item.severity === "P0_SECURITY_BROADENING").length, 2);

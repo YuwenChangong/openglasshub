@@ -87,6 +87,78 @@ catalog change was made. The next safe action is a separately reviewed policy
 and authenticated-privilege reconciliation; it is not authorized by this index
 execution record. W6 and the overall reconciliation remain `NO_GO`.
 
+## Authenticated privilege-contract review
+
+This review is read-only. It does not authorize policy removal, table grants,
+or runtime changes. Both production indexes are complete and outside this
+scope.
+
+### Runtime access-path inventory
+
+| Path | Intended role | Required privilege | Applicable RLS | Source-backed behavior | Current evidence / gap |
+| --- | --- | --- | --- | --- | --- |
+| Browser client | No direct table role | None | None | No browser source calls `forum_upload_attempts`. | Source search finds no browser-table client. |
+| Authenticated forum API: post, comment, and circle creation | Caller bearer token via anon-key client | `SELECT`, then `INSERT` | Canonical `forum_upload_attempts_select_authenticated` (`USING true`) and `forum_upload_attempts_insert_authenticated` (`user_id = auth.uid() OR user_id IS NULL`) | `enforceUserRateLimit` counts then inserts a caller-derived record. | Prior catalog evidence reports effective authenticated `SELECT=false`, `INSERT=false`; helper returns `allowed: true` on either DB error. Fresh ACL/RLS evidence is required. |
+| Authenticated forum API: media guard and external video upload | Caller bearer token via anon-key client | `SELECT`, then `INSERT` | Same canonical policies | `enforceUploadRateLimit` counts then inserts; external-video also directly reads `bytes` for its daily cap. | Same privilege gap; both failure paths treat unavailable attempt data as zero/allowed. |
+| Unauthenticated resend-confirmation API | `anon` RPC caller | `EXECUTE` on one RPC, not table `SELECT`/`INSERT` | RLS/table grants bypassed only inside the reviewed security-definer RPC | `consumeVerificationEmailResendLimit` calls `consume_verification_email_resend_limit`; the function reads and inserts the `verification_email_resend` attempt. | Source migration grants RPC execute to `anon` and `authenticated`; fresh function ACL/metadata evidence is required. |
+| Service-role server client | None for this table | None established | Not applicable | Repository service-role factories are used for legal-consent and moderation-notification work, but no `forum_upload_attempts` caller uses one. | No service-role bypass is source-backed for this table. |
+| Background job / direct database function | Resend RPC only | RPC `EXECUTE` | Function is `SECURITY DEFINER` with `search_path = public, pg_temp` in source | No worker, cron, or other RPC/table reference is present in repository search. | Fresh RPC catalog evidence must confirm production still matches the reviewed contract. |
+
+### Current grant and RLS matrix
+
+The last redacted supplemental catalog review established RLS enabled (not
+forced), all four policies present, and effective authenticated `SELECT=false`
+and `INSERT=false`. It also established that the two extra policies are
+RLS-redundant: permissive policies compose with `OR`, so the canonical INSERT
+policy already covers the narrower `insert_self` rows and canonical SELECT is
+already `USING true`.
+
+RLS is not a grant. With the observed effective table privileges, the bearer
+clients used by forum APIs cannot rely on either RLS policy to access the table.
+The helper deliberately turns a table error into an available result, so this
+is a rate-limit enforcement gap rather than evidence that the protected route
+itself fails.
+
+Granting `authenticated` table access is not currently an approved remedy:
+
+- an authenticated `SELECT` grant would activate canonical `USING true` and
+  expose every readable upload-attempt row to any authenticated REST/browser
+  caller;
+- an authenticated `INSERT` grant would activate a permissive self-or-null
+  insert path for direct callers, not only the server route;
+- no source-backed service-role path currently provides a separate privileged
+  boundary for forum rate-limit reads or writes.
+
+Therefore neither `forum_upload_attempts_insert_self` nor
+`forum_upload_attempts_select_self` is safe to remove now. Removal is
+RLS-redundant but not behavior-preserving until the table/RPC privilege
+contract is freshly verified and a security reviewer selects an intended
+server-side enforcement boundary.
+
+### Required fresh evidence
+
+The existing snapshot is insufficient to confirm the current direct ACL,
+PUBLIC/inherited privilege contribution, policy definitions, and resend RPC
+ACL after the index stages. Use this new catalog-only packet; it returns no
+application rows and executes no write SQL:
+
+```powershell
+Get-Content -Raw "D:\OpenGlass Hub interaction-release-fresh\docs\ops\reconciliation\operational-guardrails-authenticated-privilege-preflight.sql" | Set-Clipboard
+```
+
+Run it once in the confirmed production Dashboard, export its sole result set,
+and obtain explicit approval before any later review or remediation. Do not
+run a policy DROP, GRANT, REVOKE, or proposal from this packet.
+
+### Recommended next action
+
+Obtain and validate the fresh read-only ACL/RLS/RPC packet, then make one
+explicit product/security decision: either introduce a narrowly authorized
+server-side rate-limit boundary (preferred), or explicitly accept direct
+authenticated table access and replace the broad canonical policies before
+granting it. Until that decision and evidence exist, retain both policies and
+all grants unchanged.
+
 ## Supplemental catalog review
 
 The primary packet proves only that the two named indexes are missing and that
