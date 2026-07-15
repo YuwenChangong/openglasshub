@@ -11,7 +11,7 @@ assert.deepEqual(manifest.comparisonCounts, { MATCH: 974, MISSING_IN_PRODUCTION:
 assert.equal(manifest.securityFindingCount, 151);
 assert.equal(manifest.actionableManifestItemCount, 168);
 assert.equal(manifest.uniqueRepairObjectCount, 75);
-assert.equal(manifest.wave1ExecutionPacket?.status, "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT");
+assert.equal(manifest.wave1ExecutionPacket?.status, "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT");
 assert.equal(manifest.wave1ExecutionPacket?.proposalStatus, "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED");
 assert.deepEqual(manifest.wave1ExecutionPacket?.exactSignatures, [
   "public.increment_post_view_count(uuid)",
@@ -19,10 +19,16 @@ assert.deepEqual(manifest.wave1ExecutionPacket?.exactSignatures, [
 ]);
 assert.deepEqual(manifest.wave1ExecutionPacket?.prerequisite, {
   identity: "public.can_access_public_circle(uuid)",
-  status: "ADDITIONAL_PREFLIGHT_REQUIRED",
+  status: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
   preflightFile: "docs/ops/reconciliation/can-access-public-circle-preflight.sql",
-  proposalAuthored: false,
-  postflightAuthored: false,
+  oneShotPreflightFile: "docs/ops/reconciliation/can-access-public-circle-preflight-one-shot.sql",
+  proposalFile: "docs/ops/reconciliation/can-access-public-circle-proposal.sql",
+  postflightFile: "docs/ops/reconciliation/can-access-public-circle-postflight.sql",
+  surroundingDomainDrift: {
+    circlesStatusCheck: "SEPARATE_RECONCILIATION_REQUIRED",
+    circlesSelectPublic: "SEPARATE_SECURITY_RECONCILIATION_REQUIRED",
+    circlesDeleteOwnerOrStaff: "HUMAN_REVIEW_OR_LATER_WAVE",
+  },
 });
 assert.equal(new Set(manifest.items.map((item) => item.itemId)).size, manifest.items.length, "every mismatch entry has one stable assignment");
 assert.equal(new Set(manifest.items.map((item) => item.comparisonKey)).size, manifest.items.length, "a comparison entry cannot be scheduled twice");
@@ -47,7 +53,7 @@ for (const wave of manifest.waves) {
 assert.equal(manifest.items.filter((item) => item.comparisonClassification === "EXTRA_IN_PRODUCTION" && item.securityClassification === "HARMLESS_EXTRA_OBJECT").length, 0, "only security-relevant extras are planned");
 assert(!JSON.stringify(manifest).match(/\b(?:db_push|blind_replay|migration_repair)\b/i), "manifest cannot propose prohibited reconciliation operations");
 assert.match(plan, /PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED/);
-assert.match(plan, /BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT/);
-assert.match(plan, /do not author or execute a prerequisite proposal until its direct dependencies are proven/i);
+assert.match(plan, /BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT/);
+assert.match(plan, /Only after separately approved prerequisite Stage 1 and postflight/i);
 assert.match(plan, /Track A[\s\S]*Track B/);
 console.log(JSON.stringify({ manifestItems: manifest.items.length, uniqueRepairObjects: manifest.uniqueRepairObjectCount, waves: manifest.waves.length, realOperations: 0 }));

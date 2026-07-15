@@ -1,8 +1,9 @@
 # Production Reconciliation Wave 1 Review
 
-Status: `BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT`. Wave 1 remains
-`PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED`, but its approved production
-attempt proved `public.can_access_public_circle(uuid)` is absent; overall production
+Status: `BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT`.
+Wave 1 remains `PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED`; its approved
+production attempt proved `public.can_access_public_circle(uuid)` is absent,
+and the function-only prerequisite is now authored and locally validated; overall production
 reconciliation remains `NO_GO`.
 
 This packet combines the already reviewed Wave 1A and Wave 1B evidence without
@@ -43,11 +44,13 @@ overload, metadata, ACL, or unexpected direct-grantee mismatch.
 
 ## Prerequisite stop condition
 
-Production execution must not retry until the dedicated
-[circle-access prerequisite preflight](reconciliation/can-access-public-circle-preflight.sql)
-proves the direct `public.circles` catalog dependencies. The missing function
-was encountered before commit, so both Wave 1 target functions remained
-unchanged. No prerequisite proposal has been authored and no Stage 2 retry is
+Production execution must not retry until the separately approved
+[circle-access prerequisite proposal](reconciliation/can-access-public-circle-proposal.sql)
+has completed its [read-only postflight](reconciliation/can-access-public-circle-postflight.sql).
+The one-shot preflight proved direct helper dependencies; the `hidden` status
+constraint, broad public SELECT policy, and extra delete policy remain separate
+circles reconciliation objects. The missing function was encountered before
+commit, so both Wave 1 target functions remained unchanged. No Stage 2 retry is
 authorized by this document.
 
 ## LOCAL_DOCKER_ONLY validation

@@ -17,7 +17,7 @@
   "sourceMigrationsChanged": false,
   "productionCsvCommitted": false,
   "wave1ExecutionPacket": {
-    "status": "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT",
+    "status": "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT",
     "exactSignatures": [
       "public.increment_post_view_count(uuid)",
       "public.insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)"
@@ -29,10 +29,16 @@
     "executionChecklistFile": "docs/ops/reconciliation/legal-consent-production-wave1-execution-checklist.md",
     "prerequisite": {
       "identity": "public.can_access_public_circle(uuid)",
-      "status": "ADDITIONAL_PREFLIGHT_REQUIRED",
+      "status": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
       "preflightFile": "docs/ops/reconciliation/can-access-public-circle-preflight.sql",
-      "proposalAuthored": false,
-      "postflightAuthored": false
+      "oneShotPreflightFile": "docs/ops/reconciliation/can-access-public-circle-preflight-one-shot.sql",
+      "proposalFile": "docs/ops/reconciliation/can-access-public-circle-proposal.sql",
+      "postflightFile": "docs/ops/reconciliation/can-access-public-circle-postflight.sql",
+      "surroundingDomainDrift": {
+        "circlesStatusCheck": "SEPARATE_RECONCILIATION_REQUIRED",
+        "circlesSelectPublic": "SEPARATE_SECURITY_RECONCILIATION_REQUIRED",
+        "circlesDeleteOwnerOrStaff": "HUMAN_REVIEW_OR_LATER_WAVE"
+      }
     },
     "realProductionOperations": 0
   },

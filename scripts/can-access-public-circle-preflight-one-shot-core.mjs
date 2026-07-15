@@ -212,18 +212,37 @@ export function validatePacketRows(rows) {
   }
 
   const constraintValues = Object.fromEntries(constraints.filter((row) => row.evidence_status === "PRESENT").map((row) => [row.attribute, jsonValue(row)]));
+  const statusConstraintAllowsHidden = constraintValues.circles_status_check?.constraint_type === "c"
+    && constraintValues.circles_status_check?.definition === "CHECK (status = ANY (ARRAY['active'::text, 'hidden'::text, 'deleted'::text]))";
+  const otherConstraintsMatch = sameJson(
+    Object.fromEntries(Object.entries(constraintValues).filter(([name]) => name !== "circles_status_check")),
+    Object.fromEntries(Object.entries(expectedConstraints).filter(([name]) => name !== "circles_status_check")),
+  );
   dependencyClassification["public.circles constraints"] = constraints.some((row) => row.evidence_status === "MISSING")
     ? "MISSING"
     : sameJson(constraintValues, expectedConstraints)
       ? "PRESENT_AND_MATCHING"
-      : "PRESENT_BUT_DIVERGENT";
+      : statusConstraintAllowsHidden && otherConstraintsMatch
+        ? "SURROUNDING_DOMAIN_DRIFT_NON_BLOCKING"
+        : "SURROUNDING_DOMAIN_DRIFT_BLOCKING";
 
   const policyValues = Object.fromEntries(policies.filter((row) => row.evidence_status === "PRESENT").map((row) => [row.attribute, jsonValue(row)]));
+  const expectedNonSelectPolicies = Object.fromEntries(Object.entries(expectedPolicies).filter(([name]) => name !== "circles_select_public"));
+  const observedNonSelectPolicies = Object.fromEntries(Object.entries(policyValues).filter(([name]) => name !== "circles_select_public" && name !== "circles_delete_owner_or_staff"));
+  const productionSelectIsBroad = policyValues.circles_select_public?.command === "r"
+    && policyValues.circles_select_public?.using_expression === "true"
+    && policyValues.circles_select_public?.with_check_expression === null;
+  const extraDeletePolicy = policyValues.circles_delete_owner_or_staff;
+  const productionDeleteIsOwnerOrStaff = extraDeletePolicy?.command === "d"
+    && extraDeletePolicy?.using_expression === "((owner_id = auth.uid()) OR ( SELECT is_moderator_or_admin() AS is_moderator_or_admin))"
+    && extraDeletePolicy?.with_check_expression === null;
   dependencyClassification["public.circles policies"] = policies.some((row) => row.evidence_status === "MISSING")
     ? "MISSING"
     : sameJson(policyValues, expectedPolicies)
       ? "PRESENT_AND_MATCHING"
-      : "PRESENT_BUT_DIVERGENT";
+      : productionSelectIsBroad && productionDeleteIsOwnerOrStaff && sameJson(observedNonSelectPolicies, expectedNonSelectPolicies)
+        ? "SURROUNDING_DOMAIN_DRIFT_NON_BLOCKING"
+        : "SURROUNDING_DOMAIN_DRIFT_BLOCKING";
 
   for (const row of roles) {
     dependencyClassification[`role:${row.attribute}`] = row.evidence_status === "MISSING"
@@ -233,14 +252,27 @@ export function validatePacketRows(rows) {
         : "PRESENT_BUT_DIVERGENT";
   }
 
-  const nonFunctionStatuses = Object.entries(dependencyClassification)
-    .filter(([identity]) => identity !== "public.can_access_public_circle(uuid)")
+  const directDependencyStatuses = Object.entries(dependencyClassification)
+    .filter(([identity]) => identity === "public.circles" || identity.startsWith("public.circles.") || identity.startsWith("role:"))
     .map(([, status]) => status);
   return {
     packetVersion: PACKET_VERSION,
     rowCount: rows.length,
     dependencyClassification,
-    prerequisiteProposalEligible: functionMissing && nonFunctionStatuses.every((status) => status === "PRESENT_AND_MATCHING"),
+    dependencyBoundary: {
+      "public.circles": "DIRECT_COMPILE_DEPENDENCY",
+      "public.circles.id": "DIRECT_COMPILE_DEPENDENCY",
+      "public.circles.status": "DIRECT_RUNTIME_SECURITY_DEPENDENCY",
+      "public.circles.slug": "DIRECT_RUNTIME_SECURITY_DEPENDENCY",
+      "public.circles.name": "DIRECT_RUNTIME_SECURITY_DEPENDENCY",
+      "role:postgres": "DIRECT_RUNTIME_SECURITY_DEPENDENCY",
+      "role:anon": "DIRECT_RUNTIME_SECURITY_DEPENDENCY",
+      "role:authenticated": "DIRECT_RUNTIME_SECURITY_DEPENDENCY",
+      "public.circles.circles_status_check": dependencyClassification["public.circles constraints"],
+      "public.circles.circles_select_public": dependencyClassification["public.circles policies"],
+      "public.circles.circles_delete_owner_or_staff": dependencyClassification["public.circles policies"],
+    },
+    prerequisiteProposalEligible: functionMissing && directDependencyStatuses.every((status) => status === "PRESENT_AND_MATCHING"),
   };
 }
 

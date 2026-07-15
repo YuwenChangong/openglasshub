@@ -53,7 +53,7 @@ assert.match(proposal, /DO \$assertions\$/);
 for (const gate of ["Gate A", "Gate B", "Gate C", "Gate D"]) assert.match(checklist, new RegExp(gate));
 assert.match(checklist, /do not restore\s+PUBLIC EXECUTE/i);
 assert.match(checklist, /secure forward-fix/i);
-assert.match(forwardPlan, /BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT/);
+assert.match(forwardPlan, /BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT/);
 
 const waveOne = manifest.items.filter((item) => item.proposedWave === "W1_ACL_FUNCTION_HARDENING");
 assert.deepEqual([...new Set(waveOne.map((item) => item.identity))].sort(), targetIdentities);
@@ -61,7 +61,7 @@ for (const item of waveOne) {
   assert.equal(item.blockerStatus, "BLOCKED_PENDING_NON_PRODUCTION_APPROVAL");
 }
 assert.deepEqual(manifest.wave1ExecutionPacket, {
-  status: "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_PREFLIGHT",
+  status: "BLOCKED_PENDING_CIRCLE_ACCESS_PREREQUISITE_EXECUTION_AND_POSTFLIGHT",
   exactSignatures: [viewSignature, notificationSignature],
   proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
   proposalFile: "docs/ops/reconciliation/legal-consent-production-wave1-proposal.sql",
@@ -70,10 +70,16 @@ assert.deepEqual(manifest.wave1ExecutionPacket, {
   executionChecklistFile: "docs/ops/reconciliation/legal-consent-production-wave1-execution-checklist.md",
   prerequisite: {
     identity: "public.can_access_public_circle(uuid)",
-    status: "ADDITIONAL_PREFLIGHT_REQUIRED",
+    status: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
     preflightFile: "docs/ops/reconciliation/can-access-public-circle-preflight.sql",
-    proposalAuthored: false,
-    postflightAuthored: false,
+    oneShotPreflightFile: "docs/ops/reconciliation/can-access-public-circle-preflight-one-shot.sql",
+    proposalFile: "docs/ops/reconciliation/can-access-public-circle-proposal.sql",
+    postflightFile: "docs/ops/reconciliation/can-access-public-circle-postflight.sql",
+    surroundingDomainDrift: {
+      circlesStatusCheck: "SEPARATE_RECONCILIATION_REQUIRED",
+      circlesSelectPublic: "SEPARATE_SECURITY_RECONCILIATION_REQUIRED",
+      circlesDeleteOwnerOrStaff: "HUMAN_REVIEW_OR_LATER_WAVE",
+    },
   },
   realProductionOperations: 0,
 });

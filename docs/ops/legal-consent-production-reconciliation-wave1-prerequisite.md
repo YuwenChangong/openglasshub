@@ -1,9 +1,10 @@
 # Wave 1 Circle Access Prerequisite
 
-Status: `ADDITIONAL_PREFLIGHT_REQUIRED`. No production SQL was executed for
-this prerequisite package. No proposal or postflight has been authored because
-the existing offline production export does not prove the direct production
-dependencies of `public.can_access_public_circle(uuid)`.
+Status: `PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED`. No production SQL was
+executed for this prerequisite package. The one-shot exported catalog evidence
+proves the direct dependencies of `public.can_access_public_circle(uuid)`;
+the exact function-only proposal and read-only postflight are ready for a
+separate Stage 1 approval.
 
 ## Failure evidence
 
@@ -37,10 +38,11 @@ and the verified local normalized replay catalog:
 The function references only `public.circles.id`, `.status`, `.slug`, and
 `.name`, plus built-in `exists`, `lower`, and `coalesce`. It uses no dynamic
 SQL, caller-selected relation/column, membership lookup, data mutation, or
-external call. It returns only a boolean. `NULL`, a missing circle, an inactive
-circle, or a canonical QA/test-hidden circle yield `false`; an active canonical
-public circle yields `true`. The schema has no private-circle membership
-relation, so authentication and membership do not alter this function's result.
+external call. It returns only a boolean. `NULL`, a missing circle, an inactive,
+`hidden`, `deleted`, or canonical QA/test-hidden circle yield `false`; an
+active canonical public circle yields `true`. The schema has no private-circle
+membership relation, so authentication and membership do not alter this
+function's result.
 The read-only predicate is safe for its source-proven SECURITY DEFINER use only
 with the exact fixed `public` search path and the reviewed ACL.
 
@@ -66,16 +68,56 @@ Exact source-proven definition:
 The expected ACL is `REVOKE ALL ... FROM public`, followed only by EXECUTE
 grants to `anon` and `authenticated`; the owner remains `postgres`.
 
+## Dependency boundary review
+
+The one-shot production CSV is complete: 32 rows, manifest present, all seven
+sections present, and no malformed, secret-like, email-like, auth-user, or
+business-row evidence. It proves the target signature is absent with zero
+overloads; `public.circles`, its id/status/slug/name columns and types, RLS
+state, owner/ACL, and roles `postgres`, `anon`, and `authenticated` match
+the verified local contract.
+
+The following production differences remain real reconciliation work but do
+not block this exact function:
+
+- `circles_status_check` additionally permits `hidden`. The helper has the
+  fixed `status = 'active'` predicate, so it compiles against that constraint
+  and returns false for hidden rows. Narrowing the constraint is neither
+  necessary nor safe here because production may contain hidden rows. Status
+  reconciliation remains `SEPARATE_RECONCILIATION_REQUIRED`.
+- `circles_select_public` uses `USING true`. The helper is
+  `SECURITY DEFINER`, has a fixed `search_path=public`, reads only the fixed
+  `public.circles` relation, and applies its own predicate. The broad SELECT
+  policy therefore does not change the helper's boolean result and creating
+  the helper does not broaden it. The policy remains
+  `SEPARATE_SECURITY_RECONCILIATION_REQUIRED`, including as an independent
+  public-visibility blocker.
+- `circles_delete_owner_or_staff` is an extra DELETE policy. It has no effect
+  on function compilation, fixed SELECT behavior, boolean output, caller ACL,
+  or the post-view RPC. It remains `HUMAN_REVIEW_OR_LATER_WAVE`.
+
+These objects are surrounding domain drift, not direct compile or runtime
+security dependencies of the helper. The separately authored
+`20260714_circle_cover_public_visibility_authorization.sql` is the later
+source-backed policy reconciliation; it is not included in this prerequisite.
+
 ## Local-only simulation
 
 The disposable normalized local replay has the exact expected catalog contract
 and deterministic definition hash
 `7a589d45d7e5896e4d4c2198a3f6346a96bfe86637714df67cd66fb6a2e3b579`.
-Inside a rolled-back local transaction, removing only this signature makes the
-existing exact Wave 1 proposal fail with the same missing-function message;
-the rollback restores the verified local baseline. The existing combined Wave 1
-simulation continues to converge when the prerequisite is present. These are
-LOCAL_DOCKER_ONLY checks, not evidence of production compatibility.
+Inside a rolled-back local transaction, the simulation removes only this
+signature, retains the production-compatible `hidden` status constraint,
+retains `circles_select_public USING true`, and retains the extra delete
+policy. The existing exact Wave 1 proposal then fails only for the missing
+helper. Applying the function-only proposal and postflight yields the expected
+body hash, owner, `SECURITY DEFINER`, search path, and ACL; active circles are
+allowed while hidden, deleted, NULL, and nonexistent circles are denied.
+Calling as `anon` yields the same boolean result despite the broad policy.
+The complete existing Wave 1 proposal and postflight then converge, while the
+three surrounding drift definitions remain unchanged. The transaction rolls
+back all local test state. These are LOCAL_DOCKER_ONLY checks, not evidence of
+production compatibility.
 
 ## Dependency evidence and gate
 
@@ -121,17 +163,27 @@ auth-user, or business-row evidence.
 
 The one-shot result must prove the function remains absent with no unexpected
 overload and that `public.circles`, its four referenced columns and types,
-relevant constraints, RLS state, circle policies, and roles `anon`,
-`authenticated`, and `postgres` are present and compatible. Any missing or
-divergent dependency is a STOP condition.
+RLS state, and roles `anon`, `authenticated`, and `postgres` are present
+and compatible. A difference is a STOP condition only when it is a direct
+compile or runtime-security dependency of the fixed function. The known
+constraint and policy differences above remain explicitly tracked surrounding
+reconciliation work.
+
+## Authored prerequisite packet
+
+- [can-access-public-circle-proposal.sql](reconciliation/can-access-public-circle-proposal.sql)
+- [can-access-public-circle-postflight.sql](reconciliation/can-access-public-circle-postflight.sql)
+
+The proposal is unexecuted and contains only the exact helper creation, owner,
+`SECURITY DEFINER` mode, fixed search path, explicit privilege revocation, and
+anon/authenticated EXECUTE grants. It does not change any table, policy,
+constraint, data, or existing Wave 1 target.
 
 ## Two-stage production sequence
 
-Stage 1 is not approved: attach fresh prerequisite preflight output, obtain
-database/security review, and decide whether the exact function-only proposal
-is eligible. The prerequisite proposal and postflight do not yet exist. If
-approved later, author and validate only those two exact function-scoped files,
-then seek separate execution approval.
+Stage 1 is not approved: attach a fresh one-shot prerequisite preflight output,
+obtain database/security review, execute only the prerequisite proposal as one
+transaction, run its read-only postflight, and stop on any mismatch.
 
 Stage 2 is separately approved work: rerun the combined Wave 1 preflight,
 obtain a new explicit approval, then execute the existing exact Wave 1 proposal
