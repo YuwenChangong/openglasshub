@@ -31,6 +31,10 @@ Source-backed runtime callers are `src/lib/server/rate-limit.ts` and
 the table, its five rate-limit columns, the two indexes, and the two reviewed
 policy names. The packet returns catalog definitions plus aggregate-only safety
 counts; it returns no user identifiers, IP values, timestamps, or attempt rows.
+Its ACL section reads catalog ACL entries with `aclexplode`; PUBLIC is represented
+by ACL grantee OID `0`, not as a `pg_roles` name. The aggregate purpose contract
+also includes `verification_email_resend`, which is added by the existing
+rate-limit migration.
 
 If either extra policy remains, the validator intentionally requires a human
 security decision to retain or remove it. No proposal or postflight exists yet.

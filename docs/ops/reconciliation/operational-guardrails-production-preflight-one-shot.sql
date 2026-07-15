@@ -25,9 +25,34 @@ target_policies AS (
   SELECT * FROM (VALUES ('forum_upload_attempts_insert_self', 'INSERT'), ('forum_upload_attempts_select_self', 'SELECT')) AS value(policy_name, command_name)
 ),
 relation_ref AS (
-  SELECT c.oid, c.relrowsecurity, c.relforcerowsecurity, pg_get_userbyid(c.relowner) AS owner
+  SELECT c.oid, c.relacl, c.relowner AS owner_oid, c.relrowsecurity, c.relforcerowsecurity, pg_get_userbyid(c.relowner) AS owner
   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
   WHERE n.nspname = 'public' AND c.relname = 'forum_upload_attempts' AND c.relkind = 'r'
+),
+acl_entries AS (
+  SELECT entry.grantee, entry.privilege_type
+  FROM relation_ref relation_ref
+  CROSS JOIN LATERAL aclexplode(coalesce(relation_ref.relacl, acldefault('r', relation_ref.owner_oid))) AS entry
+  WHERE entry.privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
+),
+acl_targets AS (
+  SELECT target.role_name,
+    CASE WHEN target.role_name = 'PUBLIC' THEN 0::oid ELSE role_ref.oid END AS role_oid
+  FROM (VALUES ('PUBLIC'::text), ('anon'), ('authenticated'), ('service_role'), ('postgres')) AS target(role_name)
+  LEFT JOIN pg_roles role_ref ON target.role_name <> 'PUBLIC' AND role_ref.rolname = target.role_name
+),
+acl_matrix AS (
+  SELECT json_object_agg(
+    target.role_name,
+    json_build_object(
+      'role_exists', target.role_name = 'PUBLIC' OR target.role_oid IS NOT NULL,
+      'SELECT', EXISTS (SELECT 1 FROM acl_entries entry WHERE entry.grantee = target.role_oid AND entry.privilege_type = 'SELECT'),
+      'INSERT', EXISTS (SELECT 1 FROM acl_entries entry WHERE entry.grantee = target.role_oid AND entry.privilege_type = 'INSERT'),
+      'UPDATE', EXISTS (SELECT 1 FROM acl_entries entry WHERE entry.grantee = target.role_oid AND entry.privilege_type = 'UPDATE'),
+      'DELETE', EXISTS (SELECT 1 FROM acl_entries entry WHERE entry.grantee = target.role_oid AND entry.privilege_type = 'DELETE')
+    )
+  ) AS value
+  FROM acl_targets target
 ),
 packet_rows AS (
   SELECT 1 AS section_order, 'packet_manifest' AS section, row_key, 'public' AS object_schema, 'forum_upload_attempts' AS object_name, attribute, value, 'PRESENT' AS evidence_status, 'NON_SECURITY_DRIFT' AS security_classification FROM packet_manifest
@@ -42,10 +67,10 @@ packet_rows AS (
   SELECT 4, 'expected_indexes', ti.index_name, 'public', 'forum_upload_attempts', 'definition', CASE WHEN pi.indexrelid IS NULL THEN NULL ELSE pg_get_indexdef(pi.indexrelid) END, CASE WHEN pi.indexrelid IS NULL THEN 'MISSING' ELSE 'PRESENT' END, 'SECURITY_BROADENING'
   FROM target_indexes ti LEFT JOIN pg_class idx ON idx.relname = ti.index_name LEFT JOIN pg_namespace ns ON ns.oid = idx.relnamespace AND ns.nspname = 'public' LEFT JOIN pg_index pi ON pi.indexrelid = idx.oid AND pi.indrelid = 'public.forum_upload_attempts'::regclass
   UNION ALL
-  SELECT 5, 'extra_policies', tp.policy_name, 'public', 'forum_upload_attempts', 'definition', CASE WHEN p.polname IS NULL THEN NULL ELSE json_build_object('command', p.polcmd, 'permissive', p.polpermissive, 'roles', array_to_string(ARRAY(SELECT rolname FROM pg_roles WHERE oid = ANY (p.polroles) ORDER BY rolname), ','), 'using', pg_get_expr(p.polqual, p.polrelid), 'with_check', pg_get_expr(p.polwithcheck, p.polrelid))::text END, CASE WHEN p.polname IS NULL THEN 'MISSING' ELSE 'PRESENT' END, 'SECURITY_BROADENING'
+  SELECT 5, 'extra_policies', tp.policy_name, 'public', 'forum_upload_attempts', 'definition', CASE WHEN p.polname IS NULL THEN NULL ELSE json_build_object('command', p.polcmd, 'permissive', p.polpermissive, 'roles', array_to_string(ARRAY(SELECT CASE WHEN policy_role.role_oid = 0 THEN 'PUBLIC' ELSE coalesce(role_ref.rolname, 'UNKNOWN_ROLE_OID_' || policy_role.role_oid::text) END FROM unnest(p.polroles) AS policy_role(role_oid) LEFT JOIN pg_roles role_ref ON role_ref.oid = policy_role.role_oid ORDER BY CASE WHEN policy_role.role_oid = 0 THEN 'PUBLIC' ELSE coalesce(role_ref.rolname, 'UNKNOWN_ROLE_OID_' || policy_role.role_oid::text) END), ','), 'using', pg_get_expr(p.polqual, p.polrelid), 'with_check', pg_get_expr(p.polwithcheck, p.polrelid))::text END, CASE WHEN p.polname IS NULL THEN 'MISSING' ELSE 'PRESENT' END, 'SECURITY_BROADENING'
   FROM target_policies tp LEFT JOIN pg_policy p ON p.polrelid = 'public.forum_upload_attempts'::regclass AND p.polname = tp.policy_name
   UNION ALL
-  SELECT 6, 'attempts_table_acl', 'public.forum_upload_attempts', 'public', 'forum_upload_attempts', 'acl', CASE WHEN EXISTS (SELECT 1 FROM relation_ref) THEN json_build_object('PUBLIC', has_table_privilege('PUBLIC', 'public.forum_upload_attempts', 'SELECT,INSERT,UPDATE,DELETE'), 'anon', has_table_privilege('anon', 'public.forum_upload_attempts', 'SELECT,INSERT,UPDATE,DELETE'), 'authenticated', has_table_privilege('authenticated', 'public.forum_upload_attempts', 'SELECT,INSERT,UPDATE,DELETE'), 'service_role', has_table_privilege('service_role', 'public.forum_upload_attempts', 'SELECT,INSERT,UPDATE,DELETE'))::text ELSE NULL END, CASE WHEN EXISTS (SELECT 1 FROM relation_ref) THEN 'PRESENT' ELSE 'MISSING' END, 'SECURITY_BROADENING'
+  SELECT 6, 'attempts_table_acl', 'public.forum_upload_attempts', 'public', 'forum_upload_attempts', 'acl', CASE WHEN EXISTS (SELECT 1 FROM relation_ref) THEN (SELECT value::text FROM acl_matrix) ELSE NULL END, CASE WHEN EXISTS (SELECT 1 FROM relation_ref) THEN 'PRESENT' ELSE 'MISSING' END, 'SECURITY_BROADENING'
   UNION ALL
   SELECT 7, 'aggregate_safety_counts', metric, 'public', 'forum_upload_attempts', metric, value::text, 'PRESENT', 'NON_SECURITY_DRIFT'
   FROM (
@@ -54,14 +79,14 @@ packet_rows AS (
     UNION ALL SELECT 'null_purpose_count', count(*) FILTER (WHERE purpose IS NULL) FROM public.forum_upload_attempts
     UNION ALL SELECT 'null_ip_hash_count', count(*) FILTER (WHERE ip_hash IS NULL) FROM public.forum_upload_attempts
     UNION ALL SELECT 'negative_bytes_count', count(*) FILTER (WHERE bytes < 0) FROM public.forum_upload_attempts
-    UNION ALL SELECT 'unknown_purpose_count', count(*) FILTER (WHERE purpose IS NOT NULL AND purpose NOT IN ('post_media_upload', 'external_video_upload', 'post_create', 'comment_create', 'circle_create')) FROM public.forum_upload_attempts
+    UNION ALL SELECT 'unknown_purpose_count', count(*) FILTER (WHERE purpose IS NOT NULL AND purpose NOT IN ('post_media_upload', 'external_video_upload', 'post_create', 'comment_create', 'circle_create', 'verification_email_resend')) FROM public.forum_upload_attempts
   ) aggregate_counts
   UNION ALL
   SELECT 8, 'runtime_dependency_contract', row_key, 'public', 'forum_upload_attempts', attribute, value, 'PRESENT', 'SECURITY_BROADENING'
   FROM (VALUES
     ('rate_limit', 'runtime_caller', 'src/lib/server/rate-limit.ts'),
     ('external_video_upload', 'runtime_caller', 'src/pages/api/forum/external-video-upload.ts'),
-    ('purposes', 'allowed_purposes', 'post_media_upload,external_video_upload,post_create,comment_create,circle_create'),
+    ('purposes', 'allowed_purposes', 'post_media_upload,external_video_upload,post_create,comment_create,circle_create,verification_email_resend'),
     ('policy_intent', 'expected_extra_policies', 'forum_upload_attempts_insert_self and forum_upload_attempts_select_self are expected absent')
   ) AS value(row_key, attribute, value)
   UNION ALL
