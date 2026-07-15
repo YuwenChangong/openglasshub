@@ -63,7 +63,7 @@ The order keeps a table before its constraints/indexes/RLS/RPC, a predicate func
 | W2C legal indexes | 3 | Primary/unique/bundle-confirmed indexes; `CREATE_INDEX_CONCURRENTLY` where an index operation is separately approved. Depends on W2B. | Duplicate/lock budget failure or wrong index definition. |
 | W2D legal RLS/grants | 2 | Own-row policy and table ACL set; `DROP_AND_RECREATE_POLICY_IN_TRANSACTION` and `REVOKE_AND_GRANT`. Depends on W2A. | RLS not enabled, unexpected broad grant, or actor-isolation test failure. |
 | W2E legal RPC/ACL | 1 | `record_current_legal_policy_acceptance(...)`; exact signature, owner, search_path, service-role-only ACL, and renewal idempotency. Depends on W2A. | RPC duplicate/renewal aggregate check fails or any browser role gains execution. |
-| W3A `CIRCLES_VISIBILITY_FOUNDATION` | 3 pending | `ONE_SHOT_PREFLIGHT_PACKET_READY`: `circles_status_check`, `circles_select_public`, and `circles_delete_owner_or_staff` await one catalog-and-aggregate-only CSV review. `can_access_public_circle(uuid)` is already production-applied in Wave 1 Stage 1 and is evidence-only here. | Hidden/null/unknown status rows, broad anonymous visibility, a missing helper, uncertain DELETE-policy equivalence, or an incomplete packet. |
+| W3A `CIRCLES_VISIBILITY_FOUNDATION` | 3 pending | `PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED`: the three-object proposal narrows `circles_status_check`, replaces broad `circles_select_public`, and drops `circles_delete_owner_or_staff` under the explicit `REMOVE_DIRECT_HARD_DELETE_POLICY` decision. `can_access_public_circle(uuid)` remains Wave 1 production-applied evidence only. | Fresh preflight differs, hidden/null/unknown rows appear, helper/table ACL/RLS assumptions drift, an unexpected SELECT/DELETE policy exists, or explicit production approval is absent. |
 | W3B comments/reactions | 11 | Comment-create/read/reaction predicates, comment/reaction policies, and unexpected direct grants. Depends on W3A. | Published comment/post/circle ancestry mismatch, zero-write denied-path test failure, or extra policy intent unresolved. |
 | W4 posts/reports | 7 | Posts RLS set, `can_create_user_report_target`, reports INSERT policy, and view-count index. Depends on W3A and W1. | Public post/report target can bypass moderation/circle visibility, or view count caller cannot use the narrowed ACL. |
 | W5 media provenance/delivery | 13 | Canonical media-key and delivery predicates, post-media/storage policies, and bucket configuration. Depends on W3A and W4. | Cross-user/post media key, private-circle object, or malformed storage path is accepted; bucket state differs from reviewed target. |
@@ -84,7 +84,8 @@ public-circle predicates, and the verified ACLs are recorded in the Wave 1
 execution record. The production `hidden` status constraint, broad
 `circles_select_public`, and extra delete policy are the dedicated next
 `CIRCLES_VISIBILITY_FOUNDATION` preflight scope. Its one-shot packet returns
-only catalog evidence and aggregate circle counts; no proposal is authored.
+only catalog evidence and aggregate circle counts. The resulting three-object
+proposal is locally validated but unexecuted; it does not alter Wave 1 status.
 `can_create_user_report_target` remains in W4 with its report-policy dependency.
 No generic function grant is permitted.
 

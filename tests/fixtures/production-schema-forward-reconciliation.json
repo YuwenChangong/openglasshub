@@ -46,7 +46,7 @@
     "positivePublicPostSmoke": "DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE"
   },
   "circlesVisibilityPreflight": {
-    "status": "ONE_SHOT_PREFLIGHT_PACKET_READY",
+    "status": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
     "wave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
     "label": "CIRCLES_VISIBILITY_FOUNDATION",
     "sqlFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
@@ -57,7 +57,12 @@
       "public.circles.circles_select_public",
       "public.circles.circles_delete_owner_or_staff"
     ],
-    "proposalStatus": "NOT_AUTHORED",
+    "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+    "hardDeleteProductDecision": "REMOVE_DIRECT_HARD_DELETE_POLICY",
+    "executionPreflightFile": "docs/ops/reconciliation/circles-visibility-production-execution-preflight.sql",
+    "proposalFile": "docs/ops/reconciliation/circles-visibility-production-proposal.sql",
+    "postflightFile": "docs/ops/reconciliation/circles-visibility-production-postflight.sql",
+    "localValidationStatus": "LOCAL_DOCKER_ONLY_CONVERGED",
     "productionExportCommitted": false
   },
   "waves": [
@@ -169,13 +174,14 @@
       ],
       "domain": "circle-visibility",
       "operationTypes": [
+        "ADD_CONSTRAINT_NOT_VALID_THEN_VALIDATE",
         "DROP_AND_RECREATE_POLICY_IN_TRANSACTION",
-        "HUMAN_DECISION_REQUIRED"
+        "DROP_REVIEWED_DIRECT_DELETE_POLICY"
       ],
       "maxObjects": 15,
       "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
       "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
-      "status": "BLOCKED_PENDING_SURROUNDING_CIRCLES_RECONCILIATION",
+      "status": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
       "productionAppliedRepairObjectCount": 1,
       "pendingRepairObjectCount": 3
     },
@@ -859,7 +865,11 @@
       "proposedWave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
       "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
       "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
-      "proposalStatus": "NOT_AUTHORED",
+      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+      "proposalFile": "docs/ops/reconciliation/circles-visibility-production-proposal.sql",
+      "executionPreflightFile": "docs/ops/reconciliation/circles-visibility-production-execution-preflight.sql",
+      "postflightFile": "docs/ops/reconciliation/circles-visibility-production-postflight.sql",
+      "productionExecutionStatus": "NOT_EXECUTED",
       "objectType": "constraint",
       "schema": "public",
       "name": "circles",
@@ -7004,7 +7014,11 @@
       "proposedWave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
       "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
       "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
-      "proposalStatus": "NOT_AUTHORED",
+      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+      "proposalFile": "docs/ops/reconciliation/circles-visibility-production-proposal.sql",
+      "executionPreflightFile": "docs/ops/reconciliation/circles-visibility-production-execution-preflight.sql",
+      "postflightFile": "docs/ops/reconciliation/circles-visibility-production-postflight.sql",
+      "productionExecutionStatus": "NOT_EXECUTED",
       "objectType": "policy",
       "schema": "public",
       "name": "circles",
@@ -7025,7 +7039,7 @@
       "productionDataState": "ADDITIONAL_READ_ONLY_PREFLIGHT_REQUIRED",
       "safeReplacement": false,
       "forwardOnlyRequired": true,
-      "reconciliationStrategy": "HUMAN_DECISION_REQUIRED",
+      "reconciliationStrategy": "DROP_REVIEWED_DIRECT_DELETE_POLICY",
       "rollbackClass": "FORWARD_FIX_ONLY",
       "verificationRequirements": [
         "circle status/visibility catalog fingerprint matches",
@@ -7046,7 +7060,11 @@
       "proposedWave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
       "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
       "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
-      "proposalStatus": "NOT_AUTHORED",
+      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+      "proposalFile": "docs/ops/reconciliation/circles-visibility-production-proposal.sql",
+      "executionPreflightFile": "docs/ops/reconciliation/circles-visibility-production-execution-preflight.sql",
+      "postflightFile": "docs/ops/reconciliation/circles-visibility-production-postflight.sql",
+      "productionExecutionStatus": "NOT_EXECUTED",
       "objectType": "policy",
       "schema": "public",
       "name": "circles",
