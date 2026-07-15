@@ -11,9 +11,9 @@
     "EXTRA_IN_PRODUCTION": 10,
     "INSUFFICIENT_EVIDENCE": 0
   },
-  "securityFindingCount": 135,
-  "actionableManifestItemCount": 151,
-  "uniqueRepairObjectCount": 72,
+  "securityFindingCount": 133,
+  "actionableManifestItemCount": 148,
+  "uniqueRepairObjectCount": 69,
   "sourceMigrationsChanged": false,
   "productionCsvCommitted": false,
   "wave1ExecutionPacket": {
@@ -46,7 +46,7 @@
     "positivePublicPostSmoke": "DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE"
   },
   "circlesVisibilityPreflight": {
-    "status": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+    "status": "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED",
     "wave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
     "label": "CIRCLES_VISIBILITY_FOUNDATION",
     "sqlFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
@@ -57,13 +57,29 @@
       "public.circles.circles_select_public",
       "public.circles.circles_delete_owner_or_staff"
     ],
-    "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+    "proposalStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
     "hardDeleteProductDecision": "REMOVE_DIRECT_HARD_DELETE_POLICY",
     "executionPreflightFile": "docs/ops/reconciliation/circles-visibility-production-execution-preflight.sql",
     "proposalFile": "docs/ops/reconciliation/circles-visibility-production-proposal.sql",
     "postflightFile": "docs/ops/reconciliation/circles-visibility-production-postflight.sql",
     "localValidationStatus": "LOCAL_DOCKER_ONLY_CONVERGED",
-    "productionExportCommitted": false
+    "productionExportCommitted": false,
+    "productionExecutionStatus": "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED",
+    "executionAudit": {
+      "freshExecutionPreflight": "PASS",
+      "proposalSentOnceUnmodified": true,
+      "transaction": "COMMITTED",
+      "postflight": "PASS",
+      "circleDataMutation": "NONE",
+      "unrelatedCatalogDrift": "NONE",
+      "anonymousSmoke": {
+        "visible": 7,
+        "activeVisible": 7,
+        "deletedVisible": 0,
+        "inaccessibleActive": 1,
+        "writeProbeCreated": false
+      }
+    }
   },
   "waves": [
     {
@@ -181,9 +197,9 @@
       "maxObjects": 15,
       "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
       "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
-      "status": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
-      "productionAppliedRepairObjectCount": 1,
-      "pendingRepairObjectCount": 3
+      "status": "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED",
+      "productionAppliedRepairObjectCount": 4,
+      "pendingRepairObjectCount": 0
     },
     {
       "id": "W3B_COMMENT_REACTION_AUTHORIZATION",
@@ -245,7 +261,10 @@
         "HUMAN_DECISION_REQUIRED"
       ],
       "maxObjects": 15,
-      "status": "PENDING",
+      "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
+      "preflightFile": "docs/ops/reconciliation/operational-guardrails-production-preflight-one-shot.sql",
+      "validatorFile": "scripts/validate-operational-guardrails-production-preflight.mjs",
+      "status": "ONE_SHOT_PREFLIGHT_PACKET_READY",
       "productionAppliedRepairObjectCount": 0,
       "pendingRepairObjectCount": 4
     }
@@ -865,11 +884,11 @@
       "proposedWave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
       "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
       "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
-      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+      "proposalStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "proposalFile": "docs/ops/reconciliation/circles-visibility-production-proposal.sql",
       "executionPreflightFile": "docs/ops/reconciliation/circles-visibility-production-execution-preflight.sql",
       "postflightFile": "docs/ops/reconciliation/circles-visibility-production-postflight.sql",
-      "productionExecutionStatus": "NOT_EXECUTED",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "objectType": "constraint",
       "schema": "public",
       "name": "circles",
@@ -898,7 +917,14 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "historicalComparisonClassification": "DIVERGENT_IN_PRODUCTION",
+        "freshExecutionPreflight": "PASS",
+        "transaction": "COMMITTED",
+        "postflight": "PASS",
+        "productionDataMutation": "NONE"
+      },
       "conciseReason": "DIVERGENT_IN_PRODUCTION: POSSIBLE_AVAILABILITY_BREAK; constraints_and_indexes/constraint public.circles.circles_status_check (c) differs from the verified local fingerprint and requires a reviewed forward-only decision."
     },
     {
@@ -7014,11 +7040,11 @@
       "proposedWave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
       "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
       "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
-      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+      "proposalStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "proposalFile": "docs/ops/reconciliation/circles-visibility-production-proposal.sql",
       "executionPreflightFile": "docs/ops/reconciliation/circles-visibility-production-execution-preflight.sql",
       "postflightFile": "docs/ops/reconciliation/circles-visibility-production-postflight.sql",
-      "productionExecutionStatus": "NOT_EXECUTED",
+      "productionExecutionStatus": "PRODUCTION_REMOVED_POSTFLIGHT_VERIFIED",
       "objectType": "policy",
       "schema": "public",
       "name": "circles",
@@ -7045,7 +7071,14 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
+      "blockerStatus": "PRODUCTION_REMOVED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "historicalComparisonClassification": "EXTRA_IN_PRODUCTION",
+        "freshExecutionPreflight": "PASS",
+        "transaction": "COMMITTED",
+        "postflight": "PASS",
+        "productionDataMutation": "NONE"
+      },
       "conciseReason": "EXTRA_IN_PRODUCTION: POSSIBLE_SECURITY_BROADENING; policies/policy public.circles.circles_delete_owner_or_staff (DELETE) differs from the verified local fingerprint and requires a reviewed forward-only decision."
     },
     {
@@ -7060,11 +7093,11 @@
       "proposedWave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
       "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
       "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
-      "proposalStatus": "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+      "proposalStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "proposalFile": "docs/ops/reconciliation/circles-visibility-production-proposal.sql",
       "executionPreflightFile": "docs/ops/reconciliation/circles-visibility-production-execution-preflight.sql",
       "postflightFile": "docs/ops/reconciliation/circles-visibility-production-postflight.sql",
-      "productionExecutionStatus": "NOT_EXECUTED",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
       "objectType": "policy",
       "schema": "public",
       "name": "circles",
@@ -7094,7 +7127,14 @@
         "circle status/visibility catalog fingerprint matches",
         "public-circle non-production smoke passes"
       ],
-      "blockerStatus": "BLOCKED_PENDING_REVIEW",
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "historicalComparisonClassification": "DIVERGENT_IN_PRODUCTION",
+        "freshExecutionPreflight": "PASS",
+        "transaction": "COMMITTED",
+        "postflight": "PASS",
+        "productionDataMutation": "NONE"
+      },
       "conciseReason": "DIVERGENT_IN_PRODUCTION: POSSIBLE_SECURITY_BROADENING; policies/policy public.circles.circles_select_public (SELECT) differs from the verified local fingerprint and requires a reviewed forward-only decision."
     },
     {
@@ -8179,11 +8219,11 @@
     }
   ],
   "productionExecutionCounts": {
-    "productionAppliedManifestItemCount": 17,
-    "productionAppliedRepairObjectCount": 3,
-    "pendingManifestItemCount": 151,
-    "pendingRepairObjectCount": 72,
-    "pendingSecurityFindingCount": 135
+    "productionAppliedManifestItemCount": 20,
+    "productionAppliedRepairObjectCount": 6,
+    "pendingManifestItemCount": 148,
+    "pendingRepairObjectCount": 69,
+    "pendingSecurityFindingCount": 133
   },
   "historicalSecurityFindingCount": 151,
   "historicalActionableManifestItemCount": 168,

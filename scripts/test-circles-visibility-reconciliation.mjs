@@ -44,13 +44,16 @@ for (const sql of [preflight, postflight]) {
 
 const targetIdentities = ["public.circles.circles_status_check", "public.circles.circles_select_public", "public.circles.circles_delete_owner_or_staff"];
 assert.deepEqual(manifest.circlesVisibilityPreflight.repairObjects, targetIdentities);
-assert.equal(manifest.circlesVisibilityPreflight.proposalStatus, "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED");
+assert.equal(manifest.circlesVisibilityPreflight.proposalStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
+assert.equal(manifest.circlesVisibilityPreflight.productionExecutionStatus, "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED");
+assert.equal(manifest.circlesVisibilityPreflight.executionAudit.transaction, "COMMITTED");
 for (const item of manifest.items.filter((item) => targetIdentities.includes(item.identity))) {
-  assert.equal(item.proposalStatus, "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED");
-  assert.equal(item.productionExecutionStatus, "NOT_EXECUTED");
+  assert.equal(item.proposalStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
+  assert.match(item.productionExecutionStatus, /^PRODUCTION_(?:APPLIED|REMOVED)_POSTFLIGHT_VERIFIED$/);
+  assert(item.productionExecutionAudit?.historicalComparisonClassification, "forensic comparison evidence must remain preserved");
 }
 assert.match(documentation, /REMOVE_DIRECT_HARD_DELETE_POLICY/);
-assert.match(documentation, /PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED/);
+assert.match(documentation, /PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED/);
 
 const changedMigrations = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations"], { cwd: root, encoding: "utf8" }).trim();
 const changedRuntime = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "src"], { cwd: root, encoding: "utf8" }).trim();

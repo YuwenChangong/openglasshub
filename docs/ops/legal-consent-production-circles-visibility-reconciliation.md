@@ -1,8 +1,9 @@
 # Circles Visibility Reconciliation Preflight
 
-Status: `PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED`. This is the next dedicated
-`CIRCLES_VISIBILITY_FOUNDATION` review wave. Wave 1 remains
-`PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`; this packet does not reopen it.
+Status: `PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`. This dedicated
+`CIRCLES_VISIBILITY_FOUNDATION` wave committed once after a matching fresh
+execution preflight. Wave 1 remains `PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`;
+this record does not reopen it.
 Production remains `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PRODUCTION_RECONCILIATION_NO_GO`.
 
 ## Exact scope
@@ -86,6 +87,30 @@ with eight active and 53 deleted synthetic rows, converged all three objects,
 retained owner/staff reads and supported soft delete, denied direct hard DELETE,
 and left Wave 1 contracts unchanged. No production or cloud operation occurred.
 
+## Production execution record
+
+The original divergent evidence, one-shot preflight, reviewed proposal, and
+local Docker-only simulation remain preserved above. The approved proposal was
+sent once without modification, committed as one transaction, and immediately
+passed its read-only postflight.
+
+- `circles_status_check`: `PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED` with exactly
+  `active` and `deleted` accepted.
+- `circles_select_public`: `PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED` with the
+  reviewed public-helper, owner, and staff predicate for `anon,authenticated`.
+- `circles_delete_owner_or_staff`:
+  `PRODUCTION_REMOVED_POSTFLIGHT_VERIFIED`; no replacement direct hard-DELETE
+  policy exists. The product decision remains
+  `REMOVE_DIRECT_HARD_DELETE_POLICY`.
+- RLS, table owner, table ACL, helper hashes, and the Wave 1 function contracts
+  remained unchanged. No circle rows or other production data were mutated.
+
+The read-only smoke returned seven anonymously visible active circles, zero
+anonymously visible deleted circles, and one inaccessible active circle.
+Owner/staff read branches and the supported soft-delete update policy remain;
+no production write probe or fixture was created. This closes Wave 3A only.
+The wider reconciliation remains `NO_GO`.
+
 ## Rollback and incident stance
 
 | Operation | Classification | Incident stance |
@@ -94,8 +119,7 @@ and left Wave 1 contracts unchanged. No production or cloud operation occurred.
 | Replace the broad SELECT policy | Secure forward-fix preferred | Never restore `USING true` as emergency rollback. Investigate any denied access and apply a narrowly reviewed forward fix. |
 | Drop direct hard DELETE | Manual incident decision required | Never restore broad direct DELETE merely to reproduce insecure state. A future permanent-deletion workflow needs separate server-only design and approval. |
 
-No migration-history change is permitted during incident handling. Wave 1 remains
-`PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`; none of these three circles objects
-has been executed or repaired in production. A fresh execution preflight that
-matches the reviewed evidence, followed by explicit production approval for the
-exact proposal, is the next safe action.
+No migration-history change is permitted during incident handling. Wave 1 and
+Wave 3A are `PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`. The next safe action is
+the separate W6 operational-guardrails read-only preflight; it authorizes no
+repair SQL.

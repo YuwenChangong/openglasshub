@@ -4,6 +4,15 @@ Status: `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PREDEPLOYMENT_NO_GO`.
 
 Baseline: `feature/legal-trust-consent-foundation-v1` at `e7572fe1d6696d7d5f212a5f9b9d131a7056ab26`. This is an offline source gate only. It did not authorize or perform a main merge, a migration, a configuration change, preview, staging, or production operation.
 
+## Reconciliation Update
+
+Circles Visibility / Wave 3A is now
+`PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`: the reviewed status constraint and
+public SELECT policy are applied, the direct hard-DELETE policy is removed, and
+read-only postflight/smoke found no circle-data mutation or unrelated catalog
+drift. This does not make the release ready. W6 operational guardrails is the
+next read-only preflight-only review; no W6 proposal has been authored.
+
 ## Wave 1 production reconciliation record
 
 This source gate remains `NO_GO`. Separately approved production reconciliation

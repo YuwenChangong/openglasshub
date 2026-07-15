@@ -31,8 +31,8 @@ function objects and passed their postflights:
 
 The historic inventory has 168 actionable entries across 75 logical repair
 objects. After preserving all 17 function-related comparison records as
-execution history, the active inventory has 151 entries across 72 pending
-logical repair objects and 135 security-sensitive findings. The positive
+execution history, the active inventory has 148 entries across 69 pending
+logical repair objects and 133 security-sensitive findings. The positive
 public-post smoke is `DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE`: no fixture was
 created because hashes and negative authorization behavior passed in production,
 positive behavior passed in `LOCAL_DOCKER_ONLY`, and no naturally eligible post
@@ -149,11 +149,20 @@ The remaining extra `authenticated:SELECT` grant on `public.comment_reactions` i
 
 Summary: 12 migrations are `EFFECTIVELY_PRESENT`, two are `PARTIALLY_PRESENT`, and 29 are `DIVERGENT`. The production ledger records only `20260518 | forum_phase1_schema` and `20260703 | moderation_action_notifications`; both are divergent by object evidence. Forty-one unrecorded migrations are not thereby absent: object evidence proves twelve effectively present and two partially present.
 
+## Wave 3A production record
+
+Circles Visibility / Wave 3A is
+`PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED`. After a matching fresh preflight,
+the reviewed transaction committed once: `circles_status_check` now permits
+exactly `active, deleted`; `circles_select_public` now uses the reviewed public
+visibility helper plus owner/staff branches; and the direct hard-DELETE policy
+is absent. Read-only smoke verified seven anonymous active reads, zero deleted
+reads, and no circle-data mutation or unrelated catalog drift. The original
+forensic evidence remains retained in the manifest.
+
 ## Decision and next action
 
 Production remains **NO-GO**. Do not replay migrations, run `db push`, or repair
 migration history. The next safe action is a separately reviewed, read-only
-preflight for the next unresolved repair wave, beginning with the remaining
-circles boundary drift, legal-consent persistence, and divergent
-RLS/media-provenance policies. No further remediation is authorized by this
-comparison.
+preflight for W6 operational guardrails. No further remediation is authorized
+by this comparison.

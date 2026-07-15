@@ -11,15 +11,15 @@ assert.deepEqual(manifest.comparisonCounts, { MATCH: 974, MISSING_IN_PRODUCTION:
 assert.equal(manifest.historicalSecurityFindingCount, 151);
 assert.equal(manifest.historicalActionableManifestItemCount, 168);
 assert.equal(manifest.historicalUniqueRepairObjectCount, 75);
-assert.equal(manifest.securityFindingCount, 135);
-assert.equal(manifest.actionableManifestItemCount, 151);
-assert.equal(manifest.uniqueRepairObjectCount, 72);
+assert.equal(manifest.securityFindingCount, 133);
+assert.equal(manifest.actionableManifestItemCount, 148);
+assert.equal(manifest.uniqueRepairObjectCount, 69);
 assert.deepEqual(manifest.productionExecutionCounts, {
-  productionAppliedManifestItemCount: 17,
-  productionAppliedRepairObjectCount: 3,
-  pendingManifestItemCount: 151,
-  pendingRepairObjectCount: 72,
-  pendingSecurityFindingCount: 135,
+  productionAppliedManifestItemCount: 20,
+  productionAppliedRepairObjectCount: 6,
+  pendingManifestItemCount: 148,
+  pendingRepairObjectCount: 69,
+  pendingSecurityFindingCount: 133,
 });
 assert.equal(manifest.wave1ExecutionPacket?.status, "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED");
 assert.equal(manifest.wave1ExecutionPacket?.proposalStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
@@ -53,33 +53,53 @@ for (const item of appliedItems) {
 }
 assert.equal(manifest.waves.find((wave) => wave.id === "W1_ACL_FUNCTION_HARDENING")?.status, "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED");
 const circlesWave = manifest.waves.find((wave) => wave.id === "W3A_PUBLIC_CIRCLE_BOUNDARY");
-assert.equal(circlesWave?.status, "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED");
+assert.equal(circlesWave?.status, "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED");
 assert.equal(circlesWave?.label, "CIRCLES_VISIBILITY_FOUNDATION");
 assert.equal(circlesWave?.preflightStatus, "ONE_SHOT_PREFLIGHT_PACKET_READY");
-assert.equal(circlesWave?.pendingRepairObjectCount, 3);
+assert.equal(circlesWave?.productionAppliedRepairObjectCount, 4);
+assert.equal(circlesWave?.pendingRepairObjectCount, 0);
 assert.deepEqual(manifest.circlesVisibilityPreflight, {
-  status: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+  status: "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED",
   wave: "W3A_PUBLIC_CIRCLE_BOUNDARY",
   label: "CIRCLES_VISIBILITY_FOUNDATION",
   sqlFile: "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
   validatorFile: "scripts/validate-circles-visibility-production-preflight.mjs",
   documentationFile: "docs/ops/legal-consent-production-circles-visibility-reconciliation.md",
   repairObjects: ["public.circles.circles_status_check", "public.circles.circles_select_public", "public.circles.circles_delete_owner_or_staff"],
-  proposalStatus: "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED",
+  proposalStatus: "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
   hardDeleteProductDecision: "REMOVE_DIRECT_HARD_DELETE_POLICY",
   executionPreflightFile: "docs/ops/reconciliation/circles-visibility-production-execution-preflight.sql",
   proposalFile: "docs/ops/reconciliation/circles-visibility-production-proposal.sql",
   postflightFile: "docs/ops/reconciliation/circles-visibility-production-postflight.sql",
   localValidationStatus: "LOCAL_DOCKER_ONLY_CONVERGED",
   productionExportCommitted: false,
+  productionExecutionStatus: "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED",
+  executionAudit: {
+    freshExecutionPreflight: "PASS",
+    proposalSentOnceUnmodified: true,
+    transaction: "COMMITTED",
+    postflight: "PASS",
+    circleDataMutation: "NONE",
+    unrelatedCatalogDrift: "NONE",
+    anonymousSmoke: { visible: 7, activeVisible: 7, deletedVisible: 0, inaccessibleActive: 1, writeProbeCreated: false },
+  },
 });
 const circlePreflightItems = manifest.items.filter((item) => manifest.circlesVisibilityPreflight.repairObjects.includes(item.identity));
 assert.equal(circlePreflightItems.length, 3);
 for (const item of circlePreflightItems) {
   assert.equal(item.preflightStatus, "ONE_SHOT_PREFLIGHT_PACKET_READY");
-  assert.equal(item.proposalStatus, "PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED");
-  assert.equal(item.productionExecutionStatus, "NOT_EXECUTED");
+  assert.equal(item.proposalStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
+  assert.match(item.productionExecutionStatus, /^PRODUCTION_(?:APPLIED|REMOVED)_POSTFLIGHT_VERIFIED$/);
+  assert(item.productionExecutionAudit?.historicalComparisonClassification, `${item.itemId} must retain historical comparison evidence`);
 }
+const operationalWave = manifest.waves.find((wave) => wave.id === "W6_OPERATIONAL_GUARDRAILS");
+assert.equal(operationalWave?.status, "ONE_SHOT_PREFLIGHT_PACKET_READY");
+assert.equal(operationalWave?.preflightFile, "docs/ops/reconciliation/operational-guardrails-production-preflight-one-shot.sql");
+assert.equal(operationalWave?.validatorFile, "scripts/validate-operational-guardrails-production-preflight.mjs");
+const operationalItems = manifest.items.filter((item) => item.proposedWave === "W6_OPERATIONAL_GUARDRAILS");
+assert.equal(new Set(operationalItems.map((item) => item.repairObjectId)).size, 4);
+assert.equal(operationalItems.filter((item) => item.severity === "P0_SECURITY_BROADENING").length, 2);
+assert.equal(operationalItems.filter((item) => item.severity === "P1_REQUIRED_SECURITY_OBJECT_MISSING").length, 2);
 assert.equal(new Set(manifest.items.map((item) => item.itemId)).size, manifest.items.length, "every mismatch entry has one stable assignment");
 assert.equal(new Set(manifest.items.map((item) => item.comparisonKey)).size, manifest.items.length, "a comparison entry cannot be scheduled twice");
 assert.equal(manifest.items.filter((item) => item.comparisonClassification === "MISSING_IN_PRODUCTION").length, 134);
@@ -88,6 +108,17 @@ assert.equal(manifest.items.filter((item) => item.comparisonClassification === "
 assert.equal(manifest.items.filter((item) => item.comparisonClassification === "MATCH").length, 0);
 assert.equal(manifest.items.filter((item) => item.severity === "P0_SECURITY_BROADENING").length, 31);
 assert.equal(manifest.items.filter((item) => item.severity === "P1_REQUIRED_SECURITY_OBJECT_MISSING").length, 120);
+const productionComplete = new Set(["PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED", "PRODUCTION_REMOVED_POSTFLIGHT_VERIFIED"]);
+const activeItems = manifest.items.filter((item) => !productionComplete.has(item.productionExecutionStatus) && !productionComplete.has(item.blockerStatus));
+assert.equal(activeItems.length, manifest.actionableManifestItemCount);
+assert.equal(new Set(activeItems.map((item) => item.repairObjectId)).size, manifest.uniqueRepairObjectCount);
+assert.equal(activeItems.filter((item) => item.securityClassification !== "POSSIBLE_AVAILABILITY_BREAK").length, manifest.securityFindingCount);
+assert.deepEqual(Object.fromEntries(["P0_SECURITY_BROADENING", "P1_REQUIRED_SECURITY_OBJECT_MISSING", "P2_SECURITY_AVAILABILITY_DIVERGENCE", "P3_NON_SECURITY_SCHEMA_DRIFT"].map((severity) => [severity, activeItems.filter((item) => item.severity === severity).length])), {
+  P0_SECURITY_BROADENING: 22,
+  P1_REQUIRED_SECURITY_OBJECT_MISSING: 111,
+  P2_SECURITY_AVAILABILITY_DIVERGENCE: 1,
+  P3_NON_SECURITY_SCHEMA_DRIFT: 14,
+});
 for (const item of manifest.items) {
   assert(item.proposedWave, `${item.itemId} lacks a wave`);
   assert(item.verificationRequirements.length, `${item.itemId} lacks verification`);
@@ -104,9 +135,9 @@ assert.equal(manifest.items.filter((item) => item.comparisonClassification === "
 assert(!JSON.stringify(manifest).match(/\b(?:db_push|blind_replay|migration_repair)\b/i), "manifest cannot propose prohibited reconciliation operations");
 assert.match(plan, /PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED/);
 assert.match(plan, /DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE/);
-assert.match(plan, /72 pending logical repair objects/i);
+assert.match(plan, /69 pending logical repair objects/i);
 assert.match(plan, /CIRCLES_VISIBILITY_FOUNDATION/);
-assert.match(plan, /PROPOSAL_AUTHORED_LOCAL_VALIDATED_UNEXECUTED/);
+assert.match(plan, /W6 operational guardrails[\s\S]*ONE_SHOT_PREFLIGHT_PACKET_READY/);
 assert.match(plan, /REMOVE_DIRECT_HARD_DELETE_POLICY/);
 assert.match(plan, /Track A[\s\S]*Track B/);
 console.log(JSON.stringify({ manifestItems: manifest.items.length, uniqueRepairObjects: manifest.uniqueRepairObjectCount, waves: manifest.waves.length, realOperations: 0 }));
