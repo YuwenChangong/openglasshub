@@ -9,6 +9,7 @@ const REQUIRED_CLASSIFICATIONS = new Set(["MISSING_IN_PRODUCTION", "DIVERGENT_IN
 const PRODUCTION_APPLIED_STATUS = "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED";
 const WAVE_ONE_RECONCILED_STATUS = "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED";
 const WAVE_ONE_EXECUTION_COMMIT = "571c852861b34153885cfa4fcdbf3d8f74ba2fb4";
+const CIRCLES_VISIBILITY_PREFLIGHT_STATUS = "ONE_SHOT_PREFLIGHT_PACKET_READY";
 const PRODUCTION_APPLIED_FUNCTIONS = {
   "can_access_public_circle(uuid)": {
     stage: "WAVE1_STAGE1_PREREQUISITE",
@@ -46,7 +47,7 @@ const WAVES = [
   { id: "W2C_LEGAL_INDEXES", dependencies: ["W2B_LEGAL_CONSTRAINTS_TRIGGER"], domain: "legal-consent", operationTypes: ["CREATE_INDEX_CONCURRENTLY"], maxObjects: 15 },
   { id: "W2D_LEGAL_RLS_GRANTS", dependencies: ["W2A_LEGAL_TABLE_COLUMNS"], domain: "legal-consent", operationTypes: ["DROP_AND_RECREATE_POLICY_IN_TRANSACTION", "REVOKE_AND_GRANT"], maxObjects: 15 },
   { id: "W2E_LEGAL_RPC_ACL", dependencies: ["W2A_LEGAL_TABLE_COLUMNS"], domain: "legal-consent", operationTypes: ["REPLACE_FUNCTION", "REVOKE_AND_GRANT"], maxObjects: 15 },
-  { id: "W3A_PUBLIC_CIRCLE_BOUNDARY", dependencies: ["W0_OPERATOR_GATE"], domain: "circle-visibility", operationTypes: ["REPLACE_FUNCTION", "DROP_AND_RECREATE_POLICY_IN_TRANSACTION"], maxObjects: 15 },
+  { id: "W3A_PUBLIC_CIRCLE_BOUNDARY", label: "CIRCLES_VISIBILITY_FOUNDATION", dependencies: ["W0_OPERATOR_GATE"], domain: "circle-visibility", operationTypes: ["DROP_AND_RECREATE_POLICY_IN_TRANSACTION", "HUMAN_DECISION_REQUIRED"], maxObjects: 15, preflightStatus: CIRCLES_VISIBILITY_PREFLIGHT_STATUS, preflightFile: "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql" },
   { id: "W3B_COMMENT_REACTION_AUTHORIZATION", dependencies: ["W3A_PUBLIC_CIRCLE_BOUNDARY"], domain: "comments", operationTypes: ["REPLACE_FUNCTION", "DROP_AND_RECREATE_POLICY_IN_TRANSACTION", "REVOKE_AND_GRANT"], maxObjects: 15 },
   { id: "W4_POST_AND_REPORT_AUTHORIZATION", dependencies: ["W3A_PUBLIC_CIRCLE_BOUNDARY", "W1_ACL_FUNCTION_HARDENING"], domain: "posts-reports", operationTypes: ["REPLACE_FUNCTION", "DROP_AND_RECREATE_POLICY_IN_TRANSACTION"], maxObjects: 15 },
   { id: "W5_MEDIA_PROVENANCE_AND_DELIVERY", dependencies: ["W3A_PUBLIC_CIRCLE_BOUNDARY", "W4_POST_AND_REPORT_AUTHORIZATION"], domain: "media", operationTypes: ["REPLACE_FUNCTION", "DROP_AND_RECREATE_POLICY_IN_TRANSACTION"], maxObjects: 15 },
@@ -158,9 +159,13 @@ function wave1Status(identity) {
 export function applyProductionExecutionAudit(manifest) {
   const items = manifest.items.map((item) => {
     const applied = PRODUCTION_APPLIED_FUNCTIONS[item.identity];
-    if (!applied) return item;
+    const circlesPreflight = item.proposedWave === "W3A_PUBLIC_CIRCLE_BOUNDARY" && !PRODUCTION_APPLIED_FUNCTIONS[item.identity]
+      ? { preflightStatus: CIRCLES_VISIBILITY_PREFLIGHT_STATUS, preflightFile: "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql", proposalStatus: "NOT_AUTHORED" }
+      : {};
+    if (!applied) return { ...item, ...circlesPreflight };
     return {
       ...item,
+      ...circlesPreflight,
       blockerStatus: PRODUCTION_APPLIED_STATUS,
       productionExecutionStatus: PRODUCTION_APPLIED_STATUS,
       productionExecutionAudit: {
@@ -187,7 +192,7 @@ export function applyProductionExecutionAudit(manifest) {
       return { ...wave, status: WAVE_ONE_RECONCILED_STATUS, productionAppliedRepairObjectCount: new Set(waveApplied.map((item) => item.repairObjectId)).size, pendingRepairObjectCount: 0 };
     }
     if (wave.id === "W3A_PUBLIC_CIRCLE_BOUNDARY") {
-      return { ...wave, status: "BLOCKED_PENDING_SURROUNDING_CIRCLES_RECONCILIATION", productionAppliedRepairObjectCount: new Set(waveApplied.map((item) => item.repairObjectId)).size, pendingRepairObjectCount: new Set(wavePending.map((item) => item.repairObjectId)).size };
+      return { ...wave, status: "BLOCKED_PENDING_SURROUNDING_CIRCLES_RECONCILIATION", preflightStatus: CIRCLES_VISIBILITY_PREFLIGHT_STATUS, productionAppliedRepairObjectCount: new Set(waveApplied.map((item) => item.repairObjectId)).size, pendingRepairObjectCount: new Set(wavePending.map((item) => item.repairObjectId)).size };
     }
     return { ...wave, status: "PENDING", productionAppliedRepairObjectCount: 0, pendingRepairObjectCount: new Set(wavePending.map((item) => item.repairObjectId)).size };
   });
@@ -218,6 +223,17 @@ export function applyProductionExecutionAudit(manifest) {
         status: PRODUCTION_APPLIED_STATUS,
         executionCommit: WAVE_ONE_EXECUTION_COMMIT,
       },
+    },
+    circlesVisibilityPreflight: {
+      status: CIRCLES_VISIBILITY_PREFLIGHT_STATUS,
+      wave: "W3A_PUBLIC_CIRCLE_BOUNDARY",
+      label: "CIRCLES_VISIBILITY_FOUNDATION",
+      sqlFile: "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
+      validatorFile: "scripts/validate-circles-visibility-production-preflight.mjs",
+      documentationFile: "docs/ops/legal-consent-production-circles-visibility-reconciliation.md",
+      repairObjects: ["public.circles.circles_status_check", "public.circles.circles_select_public", "public.circles.circles_delete_owner_or_staff"],
+      proposalStatus: "NOT_AUTHORED",
+      productionExportCommitted: false,
     },
     waves,
     items,

@@ -45,6 +45,21 @@
     "executionCommit": "571c852861b34153885cfa4fcdbf3d8f74ba2fb4",
     "positivePublicPostSmoke": "DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE"
   },
+  "circlesVisibilityPreflight": {
+    "status": "ONE_SHOT_PREFLIGHT_PACKET_READY",
+    "wave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
+    "label": "CIRCLES_VISIBILITY_FOUNDATION",
+    "sqlFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
+    "validatorFile": "scripts/validate-circles-visibility-production-preflight.mjs",
+    "documentationFile": "docs/ops/legal-consent-production-circles-visibility-reconciliation.md",
+    "repairObjects": [
+      "public.circles.circles_status_check",
+      "public.circles.circles_select_public",
+      "public.circles.circles_delete_owner_or_staff"
+    ],
+    "proposalStatus": "NOT_AUTHORED",
+    "productionExportCommitted": false
+  },
   "waves": [
     {
       "id": "W0_OPERATOR_GATE",
@@ -148,15 +163,18 @@
     },
     {
       "id": "W3A_PUBLIC_CIRCLE_BOUNDARY",
+      "label": "CIRCLES_VISIBILITY_FOUNDATION",
       "dependencies": [
         "W0_OPERATOR_GATE"
       ],
       "domain": "circle-visibility",
       "operationTypes": [
-        "REPLACE_FUNCTION",
-        "DROP_AND_RECREATE_POLICY_IN_TRANSACTION"
+        "DROP_AND_RECREATE_POLICY_IN_TRANSACTION",
+        "HUMAN_DECISION_REQUIRED"
       ],
       "maxObjects": 15,
+      "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
+      "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
       "status": "BLOCKED_PENDING_SURROUNDING_CIRCLES_RECONCILIATION",
       "productionAppliedRepairObjectCount": 1,
       "pendingRepairObjectCount": 3
@@ -839,6 +857,9 @@
       "availabilityClassification": "POSSIBLE_AVAILABILITY_BREAK",
       "domain": "circles",
       "proposedWave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
+      "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
+      "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
+      "proposalStatus": "NOT_AUTHORED",
       "objectType": "constraint",
       "schema": "public",
       "name": "circles",
@@ -6981,6 +7002,9 @@
       "availabilityClassification": "REVIEW_REQUIRED",
       "domain": "circles",
       "proposedWave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
+      "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
+      "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
+      "proposalStatus": "NOT_AUTHORED",
       "objectType": "policy",
       "schema": "public",
       "name": "circles",
@@ -7020,6 +7044,9 @@
       "availabilityClassification": "REVIEW_REQUIRED",
       "domain": "circles",
       "proposedWave": "W3A_PUBLIC_CIRCLE_BOUNDARY",
+      "preflightStatus": "ONE_SHOT_PREFLIGHT_PACKET_READY",
+      "preflightFile": "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
+      "proposalStatus": "NOT_AUTHORED",
       "objectType": "policy",
       "schema": "public",
       "name": "circles",

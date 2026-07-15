@@ -54,7 +54,26 @@ for (const item of appliedItems) {
 assert.equal(manifest.waves.find((wave) => wave.id === "W1_ACL_FUNCTION_HARDENING")?.status, "PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED");
 const circlesWave = manifest.waves.find((wave) => wave.id === "W3A_PUBLIC_CIRCLE_BOUNDARY");
 assert.equal(circlesWave?.status, "BLOCKED_PENDING_SURROUNDING_CIRCLES_RECONCILIATION");
+assert.equal(circlesWave?.label, "CIRCLES_VISIBILITY_FOUNDATION");
+assert.equal(circlesWave?.preflightStatus, "ONE_SHOT_PREFLIGHT_PACKET_READY");
 assert.equal(circlesWave?.pendingRepairObjectCount, 3);
+assert.deepEqual(manifest.circlesVisibilityPreflight, {
+  status: "ONE_SHOT_PREFLIGHT_PACKET_READY",
+  wave: "W3A_PUBLIC_CIRCLE_BOUNDARY",
+  label: "CIRCLES_VISIBILITY_FOUNDATION",
+  sqlFile: "docs/ops/reconciliation/circles-visibility-production-preflight-one-shot.sql",
+  validatorFile: "scripts/validate-circles-visibility-production-preflight.mjs",
+  documentationFile: "docs/ops/legal-consent-production-circles-visibility-reconciliation.md",
+  repairObjects: ["public.circles.circles_status_check", "public.circles.circles_select_public", "public.circles.circles_delete_owner_or_staff"],
+  proposalStatus: "NOT_AUTHORED",
+  productionExportCommitted: false,
+});
+const circlePreflightItems = manifest.items.filter((item) => manifest.circlesVisibilityPreflight.repairObjects.includes(item.identity));
+assert.equal(circlePreflightItems.length, 3);
+for (const item of circlePreflightItems) {
+  assert.equal(item.preflightStatus, "ONE_SHOT_PREFLIGHT_PACKET_READY");
+  assert.equal(item.proposalStatus, "NOT_AUTHORED");
+}
 assert.equal(new Set(manifest.items.map((item) => item.itemId)).size, manifest.items.length, "every mismatch entry has one stable assignment");
 assert.equal(new Set(manifest.items.map((item) => item.comparisonKey)).size, manifest.items.length, "a comparison entry cannot be scheduled twice");
 assert.equal(manifest.items.filter((item) => item.comparisonClassification === "MISSING_IN_PRODUCTION").length, 134);
@@ -80,5 +99,7 @@ assert(!JSON.stringify(manifest).match(/\b(?:db_push|blind_replay|migration_repa
 assert.match(plan, /PRODUCTION_RECONCILED_POSTFLIGHT_VERIFIED/);
 assert.match(plan, /DEFERRED_NO_ELIGIBLE_PRODUCTION_CANDIDATE/);
 assert.match(plan, /72 pending logical repair objects/i);
+assert.match(plan, /CIRCLES_VISIBILITY_FOUNDATION/);
+assert.match(plan, /ONE_SHOT_PREFLIGHT_PACKET_READY/);
 assert.match(plan, /Track A[\s\S]*Track B/);
 console.log(JSON.stringify({ manifestItems: manifest.items.length, uniqueRepairObjects: manifest.uniqueRepairObjectCount, waves: manifest.waves.length, realOperations: 0 }));
