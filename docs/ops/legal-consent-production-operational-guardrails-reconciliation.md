@@ -217,6 +217,34 @@ is a narrowly scoped **read-only supplemental privilege packet** for those
 three catalog areas, followed by separate approval for the preferred atomic,
 server-only RPC design. No policy removal is currently safe.
 
+### Authenticated privilege supplemental packet
+
+The first privilege packet is complete, but it did not collect schema `USAGE`,
+sequence ACL, or membership-topology evidence. The following packet fills only
+those gaps. It reads PostgreSQL catalogs, returns no application-table rows,
+walks only the four execution roles and their parent-role closure, uses an
+explicit read-only transaction, and rolls back.
+
+- [supplemental privilege preflight](reconciliation/operational-guardrails-authenticated-privilege-supplemental-preflight.sql)
+- [static packet contract](../../scripts/test-operational-guardrails-authenticated-privilege-supplemental-preflight.mjs)
+
+It reports direct ACL entries, role-closure membership edges labeled `DIRECT`
+or `TRANSITIVE`, and final effective schema/sequence privileges separately.
+It also emits `NO_REFERENCED_SEQUENCE` when the table has no sequence-backed
+default. The source migration currently uses `gen_random_uuid()`, so that is
+the expected outcome, but the catalog packet is the authority for production.
+
+This packet has not been executed. The current task did not include explicit
+operator approval for this new production query. Before execution, reconfirm
+the exact production project, clean matching branch, and the already-verified
+valid/ready Stage A and Stage B index postflight state. Do not run any policy,
+grant, index, function, migration, or application operation with this packet.
+
+Its result can complete the supporting privilege matrix, but it cannot change
+the prior conclusion on its own: table `SELECT`/`INSERT` remains the decisive
+authorization boundary, and the recommended remediation remains a fail-closed,
+atomic, server-only rate-limit RPC rather than direct browser-role table grants.
+
 ## Supplemental catalog review
 
 The primary packet proves only that the two named indexes are missing and that

@@ -100,6 +100,9 @@ assert.equal(operationalWave?.supplementalPreflightFile, "docs/ops/reconciliatio
 assert.equal(operationalWave?.authenticatedPrivilegePreflightFile, "docs/ops/reconciliation/operational-guardrails-authenticated-privilege-preflight.sql");
 assert.equal(operationalWave?.authenticatedPrivilegePreflightStaticTest, "scripts/test-operational-guardrails-authenticated-privilege-preflight.mjs");
 assert.equal(operationalWave?.authenticatedPrivilegePreflightStatus, "CATALOG_ONLY_EXECUTED_REDACTED_SUPPLEMENTAL_EVIDENCE_REQUIRED");
+assert.equal(operationalWave?.authenticatedPrivilegeSupplementalPreflightFile, "docs/ops/reconciliation/operational-guardrails-authenticated-privilege-supplemental-preflight.sql");
+assert.equal(operationalWave?.authenticatedPrivilegeSupplementalPreflightStaticTest, "scripts/test-operational-guardrails-authenticated-privilege-supplemental-preflight.mjs");
+assert.equal(operationalWave?.authenticatedPrivilegeSupplementalPreflightStatus, "READ_ONLY_PACKET_READY_EXECUTION_REQUIRES_EXPLICIT_OPERATOR_APPROVAL");
 assert.deepEqual(operationalWave?.authenticatedPrivilegePreflightResult, {
   productionDataRowsRead: false,
   productionObjectMutation: false,

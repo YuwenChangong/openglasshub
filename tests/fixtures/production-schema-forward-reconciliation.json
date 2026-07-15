@@ -269,6 +269,9 @@
       "authenticatedPrivilegePreflightFile": "docs/ops/reconciliation/operational-guardrails-authenticated-privilege-preflight.sql",
       "authenticatedPrivilegePreflightStaticTest": "scripts/test-operational-guardrails-authenticated-privilege-preflight.mjs",
       "authenticatedPrivilegePreflightStatus": "CATALOG_ONLY_EXECUTED_REDACTED_SUPPLEMENTAL_EVIDENCE_REQUIRED",
+      "authenticatedPrivilegeSupplementalPreflightFile": "docs/ops/reconciliation/operational-guardrails-authenticated-privilege-supplemental-preflight.sql",
+      "authenticatedPrivilegeSupplementalPreflightStaticTest": "scripts/test-operational-guardrails-authenticated-privilege-supplemental-preflight.mjs",
+      "authenticatedPrivilegeSupplementalPreflightStatus": "READ_ONLY_PACKET_READY_EXECUTION_REQUIRES_EXPLICIT_OPERATOR_APPROVAL",
       "authenticatedPrivilegePreflightResult": {
         "productionDataRowsRead": false,
         "productionObjectMutation": false,
