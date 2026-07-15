@@ -11,7 +11,8 @@ function Assert-DirectDnsAaaaResults {
     $recordHost -ieq $ExpectedHost -and ([string]$_.Type -eq "AAAA") -and -not [string]::IsNullOrWhiteSpace([string]$_.IPAddress)
   })
   if ($aaaa.Count -eq 0) { throw "Stop: Direct Connection DNS has no usable AAAA record for $ExpectedHost. Next human decision: B. restore native IPv6 connectivity." }
-  return @($aaaa)
+  # Emit one array object so strict-mode callers get a collection for one or many AAAA records.
+  return ,$aaaa
 }
 
 function Get-Postgres17ClientVersion {

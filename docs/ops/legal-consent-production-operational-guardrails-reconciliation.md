@@ -3,6 +3,15 @@
 Status: `INDEX_STAGES_APPLIED_POSTFLIGHT_VERIFIED_POLICY_PRIVILEGE_HOLD`. This is W6 only and remains
 `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PRODUCTION_RECONCILIATION_NO_GO`.
 
+The human security/product decision approves only the architecture direction of
+a server-only atomic fail-closed rate-limit RPC. It does not authorize a
+function, migration, runtime change, policy removal, grant, production SQL, or
+deployment. The decision record is
+[operational-guardrails-rate-limit-rpc-architecture.md](reconciliation/operational-guardrails-rate-limit-rpc-architecture.md).
+The dedicated current-state packet is
+[operational-guardrails-current-catalog-refresh.sql](reconciliation/operational-guardrails-current-catalog-refresh.sql);
+its CSV must not reuse any earlier W6 export.
+
 ## Why W6 is next
 
 W6 is dependency-complete after W0 and is the smallest unresolved bounded

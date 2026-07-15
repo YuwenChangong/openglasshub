@@ -1,0 +1,27 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+
+const script = await readFile("scripts/run-operational-guardrails-current-catalog-refresh-native.ps1", "utf8");
+const packet = await readFile("docs/ops/reconciliation/operational-guardrails-current-catalog-refresh.sql");
+const hash = createHash("sha256").update(packet).digest("hex");
+assert.match(script, /\[ValidatePattern\("\^\[0-9a-fA-F\]\{40\}\$"\)\]\[string\]\$ExpectedHead/);
+assert.match(script, /\$gitStatus = @\(Invoke-RequiredNativeLines -CommandName "git" -Arguments @\("status", "--porcelain"\)\)/);
+assert.doesNotMatch(script, /\(git status --porcelain\)\.Length/);
+assert.match(script, /operational-guardrails-current-catalog-refresh\.sql/);
+assert.match(script, /validate-operational-guardrails-current-catalog-refresh\.mjs/);
+assert.match(script, new RegExp(`\\$packetHash = "${hash}"`));
+assert.match(script, new RegExp(`\\$packetBytes = ${packet.byteLength}`));
+assert.match(script, /Resolve-DnsName -Name \$directHost -Type AAAA -DnsOnly/);
+assert.match(script, /Get-Command psql\.exe -CommandType Application/);
+assert.match(script, /Test-NetConnection -ComputerName \$directHost -Port/);
+assert.match(script, /& \$psqlPath -X -W -q --csv -v ON_ERROR_STOP=1/);
+assert.match(script, /sslmode=require/);
+assert.match(script, /New-CurrentCatalogTemporaryOutputFile/);
+assert.match(script, /Move-ValidatedCurrentCatalogOutput/);
+assert.match(script, /Quarantine-OrDeleteCurrentCatalogTemporaryOutput/);
+assert.match(script, /pooler\|supavisor/);
+assert.match(script, /PGPASSWORD/);
+assert.doesNotMatch(script, /docker run|PGPASSWORD=|PGPASSFILE=|postgresql:\/\//i);
+assert.doesNotMatch(script, /Exit code:|markdown fence|tool annotation/i);
+console.log("operational-guardrails current catalog refresh native transport static contract: PASS");
