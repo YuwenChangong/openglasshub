@@ -39,6 +39,32 @@ rate-limit migration.
 If either extra policy remains, the validator intentionally requires a human
 security decision to retain or remove it. No proposal or postflight exists yet.
 
+## Supplemental catalog review
+
+The primary packet proves only that the two named indexes are missing and that
+the two extra policies exist. Before any W6 remediation, run the supplemental
+catalog packet. It records every table index, all overlapping policies, direct
+ACL entries, effective privileges for real roles, RLS state, and safe catalog
+dependencies. It returns no table rows and creates no proposal.
+
+1. Copy the supplemental packet:
+
+   ```powershell
+   Get-Content -Raw "D:\OpenGlass Hub interaction-release-fresh\docs\ops\reconciliation\operational-guardrails-production-preflight-supplemental-one-shot.sql" | Set-Clipboard
+   ```
+
+2. Run it once in the confirmed production Dashboard and export its only result
+   set to `C:\Users\1\Downloads\operational-guardrails-production-preflight-supplemental.csv`.
+3. Validate fully offline:
+
+   ```powershell
+   node scripts/validate-operational-guardrails-production-preflight-supplemental.mjs "C:\Users\1\Downloads\operational-guardrails-production-preflight-supplemental.csv"
+   ```
+
+4. Resume W6 proposal review only with that validator result. A later missing
+   index must use sequential `CREATE INDEX CONCURRENTLY` outside a transaction;
+   the supplemental packet itself contains no executable remediation SQL.
+
 ## One-run operator workflow
 
 1. Copy the one-shot SQL:

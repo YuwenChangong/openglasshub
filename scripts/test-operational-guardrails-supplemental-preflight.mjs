@@ -1,0 +1,58 @@
+import assert from "node:assert/strict";
+import { access, readFile } from "node:fs/promises";
+import path from "node:path";
+import { OUTPUT_COLUMNS, PACKET_VERSION, REQUIRED_SECTIONS, parseCsv, serializeCsv, validateSupplementalRows } from "./operational-guardrails-supplemental-preflight-core.mjs";
+
+const root = process.cwd();
+const sql = await readFile(path.join(root, "docs", "ops", "reconciliation", "operational-guardrails-production-preflight-supplemental-one-shot.sql"), "utf8");
+const executable = sql.replace(/--[^\n]*/g, "");
+assert.match(executable, /^\s*BEGIN TRANSACTION READ ONLY;/);
+assert.match(executable, /\nROLLBACK;\s*$/);
+assert.doesNotMatch(executable, /^\s*(?:CREATE|ALTER|DROP|GRANT|REVOKE|INSERT|UPDATE|DELETE|MERGE|TRUNCATE|COPY|DO|CALL|EXECUTE)\b/im);
+assert.equal((sql.match(/SELECT 'operational-guardrails-supplemental-preflight-v1' AS packet_version/g) ?? []).length, 1);
+assert.doesNotMatch(sql, /FROM public\.forum_upload_attempts|auth\.users|to_regrole|has_table_privilege\(\s*'PUBLIC'/i);
+assert.doesNotMatch(sql, /insert_forum_notification|increment_post_view_count|circles_status_check|circles_select_public|circles_delete_owner_or_staff/i);
+assert.match(sql, /CASE WHEN acl\.grantee = 0 THEN 'PUBLIC'/);
+assert.match(sql, /CASE WHEN policy_role\.role_oid = 0 THEN 'PUBLIC'/);
+assert.match(sql, /normalized_definition/);
+await assert.rejects(access(path.join(root, "docs", "ops", "reconciliation", "operational-guardrails-production-proposal.sql")));
+
+const row = (section, order, key, attribute, value, status = "PRESENT") => Object.fromEntries(OUTPUT_COLUMNS.map((column) => [column, { packet_version: PACKET_VERSION, section_order: String(order), section, row_key: key, object_schema: "public", object_name: "forum_upload_attempts", attribute, value: typeof value === "string" ? value : JSON.stringify(value), evidence_status: status, security_classification: "SECURITY_BROADENING" }[column]]));
+const index = (name, keys, options = {}) => ({ name, method: "btree", unique: false, valid: true, ready: true, primary: false, exclusion: false, definition: `CREATE INDEX ${name}`, key_parts: keys, predicate: null, included_parts: [], constraint_backed: false, size_bytes: 8192, ...options });
+function fixture({ indexes = [index("forum_upload_attempts_purpose_ip_created_idx", ["purpose", "ip_hash", "created_at DESC"]), index("forum_upload_attempts_purpose_user_created_idx", ["purpose", "user_id", "created_at DESC"])], canonical = true, canonicalSelect = "true", extraInsert = "((purpose = ANY (ARRAY['post_create'])) AND (user_id = auth.uid())) OR ((purpose = ANY (ARRAY['external_video_upload'])) AND ((user_id = auth.uid()) OR (user_id IS NULL)))", extraSelect = "((user_id = auth.uid()) OR (user_id IS NULL))", authenticatedExists = true } = {}) {
+  const rows = [row("packet_manifest", 1, "packet", "packet_identifier", "operational-guardrails-production-preflight-supplemental"), row("packet_manifest", 1, "packet", "packet_version", PACKET_VERSION), row("packet_manifest", 1, "packet", "expected_section_count", "10"), row("packet_manifest", 1, "packet", "target_relation", "public.forum_upload_attempts")];
+  if (indexes.length) for (const item of indexes) rows.push(row("all_table_indexes", 2, item.name, "catalog", item)); else rows.push(row("all_table_indexes", 2, "NO_TABLE_INDEXES", "catalog", null, "MISSING"));
+  for (const name of ["forum_upload_attempts_purpose_ip_created_idx", "forum_upload_attempts_purpose_user_created_idx"]) rows.push(row("target_index_equivalence_evidence", 3, `${name}|fixture`, "candidate", { expected_name: name }));
+  const policy = (name, command, using, withCheck) => ({ name, command, permissive: true, roles: "authenticated", role_oids: ["16384"], using, with_check: withCheck });
+  const policyValues = { forum_upload_attempts_insert_authenticated: policy("forum_upload_attempts_insert_authenticated", "a", null, "((user_id = auth.uid()) OR (user_id IS NULL))"), forum_upload_attempts_select_authenticated: policy("forum_upload_attempts_select_authenticated", "r", canonicalSelect, null), forum_upload_attempts_insert_self: policy("forum_upload_attempts_insert_self", "a", null, extraInsert), forum_upload_attempts_select_self: policy("forum_upload_attempts_select_self", "r", extraSelect, null) };
+  for (const [name, value] of Object.entries(policyValues)) rows.push(row("relevant_policies", 4, name, "definition", value, canonical || name.includes("_self") ? "PRESENT" : "MISSING"));
+  for (const value of Object.values(policyValues)) rows.push(row("all_table_policies", 5, value.name, "definition", value));
+  rows.push(row("relation_acl_catalog", 6, "PUBLIC", "entry", { grantee_oid: 0, grantee: "PUBLIC", grantor_oid: 10, privilege: "SELECT", grantable: false }));
+  for (const role of ["anon", "authenticated", "service_role", "postgres"]) rows.push(row("effective_role_privileges", 7, role, "effective", { role_exists: role === "authenticated" ? authenticatedExists : true, SELECT: false, INSERT: false, UPDATE: false, DELETE: false, TRUNCATE: false, REFERENCES: false, TRIGGER: false }, role === "authenticated" && !authenticatedExists ? "MISSING" : "PRESENT"));
+  rows.push(row("rls_state", 8, "public.forum_upload_attempts", "state", { exists: true, rls_enabled: true, rls_forced: false, owner: "postgres", relation_kind: "r" }));
+  for (const name of Object.keys(policyValues)) rows.push(row("policy_dependency_catalog", 9, `${name}|NO_FUNCTION_DEPENDENCY`, "dependency", { policy_present: true, referenced_function: null }));
+  rows.push(row("runtime_contract_manifest", 10, "purposes", "valid_values", "post_media_upload,external_video_upload,post_create,comment_create,circle_create,verification_email_resend"));
+  return rows;
+}
+
+const exact = validateSupplementalRows(parseCsv(serializeCsv(fixture())));
+assert.equal(exact.indexFindings.forum_upload_attempts_purpose_ip_created_idx, "EXACT_INDEX_PRESENT");
+assert.equal(exact.policyFindings.forum_upload_attempts_insert_self, "REDUNDANT_SAFE_TO_REMOVE");
+assert.equal(exact.policyFindings.forum_upload_attempts_select_self, "REDUNDANT_SAFE_TO_REMOVE");
+const equivalent = validateSupplementalRows(fixture({ indexes: [index("renamed_ip", ["purpose", "ip_hash", "created_at DESC"]), index("renamed_user", ["purpose", "user_id", "created_at DESC"])] }));
+assert.equal(equivalent.indexFindings.forum_upload_attempts_purpose_ip_created_idx, "EQUIVALENT_INDEX_PRESENT");
+const partial = validateSupplementalRows(fixture({ indexes: [index("partial", ["purpose", "ip_hash"])] }));
+assert.equal(partial.indexFindings.forum_upload_attempts_purpose_ip_created_idx, "PARTIAL_OR_CONFLICTING_INDEX_PRESENT");
+const invalid = validateSupplementalRows(fixture({ indexes: [index("forum_upload_attempts_purpose_ip_created_idx", ["purpose", "ip_hash", "created_at DESC"], { valid: false, ready: false })] }));
+assert.equal(invalid.indexFindings.forum_upload_attempts_purpose_ip_created_idx, "PARTIAL_OR_CONFLICTING_INDEX_PRESENT");
+const none = validateSupplementalRows(fixture({ indexes: [] }));
+assert.equal(none.indexFindings.forum_upload_attempts_purpose_ip_created_idx, "INDEX_MISSING");
+assert.equal(validateSupplementalRows(fixture({ canonical: false })).policyFindings.forum_upload_attempts_insert_self, "INSUFFICIENT_EVIDENCE");
+assert.equal(validateSupplementalRows(fixture({ canonicalSelect: "(user_id = auth.uid())", extraSelect: "true" })).policyFindings.forum_upload_attempts_select_self, "SECURITY_BROADENING");
+assert.equal(validateSupplementalRows(fixture({ authenticatedExists: false })).policyFindings.forum_upload_attempts_select_self, "INSUFFICIENT_EVIDENCE");
+assert.throws(() => validateSupplementalRows(fixture().filter((item) => item.section !== "all_table_policies")), /required section/);
+assert.throws(() => validateSupplementalRows([...fixture(), { ...fixture()[0] }]), /duplicate/);
+assert.throws(() => validateSupplementalRows(fixture().map((item) => item.row_key === "PUBLIC" ? { ...item, value: JSON.stringify({ grantee_oid: 9, grantee: "PUBLIC" }) } : item)), /OID 0/);
+assert.throws(() => validateSupplementalRows(fixture().map((item, index) => index === 0 ? { ...item, value: "person@example.test" } : item)), /unsafe/);
+assert.deepEqual(new Set(fixture().map((item) => item.section)), new Set(REQUIRED_SECTIONS));
+console.log(JSON.stringify({ packetVersion: PACKET_VERSION, requiredSections: REQUIRED_SECTIONS.length, exactAndEquivalentIndexCases: true, publicOidZero: true, noRealOperations: true }));

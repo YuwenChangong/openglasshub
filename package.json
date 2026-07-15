@@ -45,6 +45,7 @@
     "test:circles-visibility-reconciliation": "node scripts/test-circles-visibility-reconciliation.mjs",
     "test:operational-guardrails-production-preflight": "node scripts/test-operational-guardrails-production-preflight.mjs",
     "test:operational-guardrails-public-acl": "node scripts/test-operational-guardrails-public-acl.mjs",
+    "test:operational-guardrails-supplemental-preflight": "node scripts/test-operational-guardrails-supplemental-preflight.mjs",
     "test:production-reconciliation-wave1b": "node scripts/test-production-reconciliation-wave1b.mjs",
     "test:moderation-notification-writer": "node --experimental-strip-types scripts/test-moderation-notification-writer.mjs",
     "test:legal-consent-mutation-inventory": "node scripts/test-legal-consent-mutation-inventory.mjs",
