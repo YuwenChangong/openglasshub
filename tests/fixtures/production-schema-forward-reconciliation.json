@@ -11,9 +11,9 @@
     "EXTRA_IN_PRODUCTION": 10,
     "INSUFFICIENT_EVIDENCE": 0
   },
-  "securityFindingCount": 133,
-  "actionableManifestItemCount": 148,
-  "uniqueRepairObjectCount": 69,
+  "securityFindingCount": 132,
+  "actionableManifestItemCount": 147,
+  "uniqueRepairObjectCount": 68,
   "sourceMigrationsChanged": false,
   "productionCsvCommitted": false,
   "wave1ExecutionPacket": {
@@ -271,9 +271,9 @@
       "indexStageBProposalFile": "docs/ops/reconciliation/operational-guardrails-index-stage-b-proposal.sql",
       "indexPostflightFile": "docs/ops/reconciliation/operational-guardrails-index-postflight.sql",
       "policyRemovalStatus": "HELD_PENDING_AUTHENTICATED_SELECT_INSERT_PRIVILEGE_RECONCILIATION",
-      "status": "INDEX_STAGES_UNEXECUTED_REVIEW_READY_POLICY_PRIVILEGE_HOLD",
-      "productionAppliedRepairObjectCount": 0,
-      "pendingRepairObjectCount": 4
+      "status": "INDEX_STAGE_A_APPLIED_POSTFLIGHT_VERIFIED_STAGE_B_REVIEW_READY_POLICY_PRIVILEGE_HOLD",
+      "productionAppliedRepairObjectCount": 1,
+      "pendingRepairObjectCount": 3
     }
   ],
   "items": [
@@ -1488,8 +1488,25 @@
         "rate-limit indexes and policies match",
         "aggregate duplicate operational rows is reviewed"
       ],
-      "blockerStatus": "UNEXECUTED_INDEX_STAGE_A_REVIEW_READY",
-      "conciseReason": "Supplemental catalog evidence proves no valid, ready exact structural equivalent exists. The standalone Stage A CREATE INDEX CONCURRENTLY review packet is ready; it requires a fresh execution preflight and explicit production approval."
+      "blockerStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "conciseReason": "Historical production comparison found the index missing. Fresh Stage A preflight passed, the reviewed standalone concurrent build completed once, and redacted postflight verified the exact valid/ready non-unique btree shape while Stage B and both policy holds remained unchanged.",
+      "productionExecutionStatus": "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED",
+      "productionExecutionAudit": {
+        "executionBaselineCommit": "005fd1e9d7bf109181ecd392cfe1840a00cf89c8",
+        "stage": "W6_INDEX_STAGE_A",
+        "historicalComparisonClassification": "MISSING_IN_PRODUCTION",
+        "freshExecutionPreflight": "PASS",
+        "proposalSentOnceUnmodified": true,
+        "transaction": "NOT_APPLICABLE_CREATE_INDEX_CONCURRENTLY_OUTSIDE_TRANSACTION",
+        "postflight": "PASS",
+        "exactIndexShape": "PASS",
+        "invalidOrUnfinishedIndexResidue": "NONE",
+        "stageB": "STILL_MISSING",
+        "extraPolicies": "UNCHANGED",
+        "authenticatedPrivilegeHold": "UNCHANGED",
+        "productionDataMutation": "NONE",
+        "productionExportCommitted": false
+      }
     },
     {
       "itemId": "reconcile:98790483b316066e9bbd",
@@ -8226,11 +8243,11 @@
     }
   ],
   "productionExecutionCounts": {
-    "productionAppliedManifestItemCount": 20,
-    "productionAppliedRepairObjectCount": 6,
-    "pendingManifestItemCount": 148,
-    "pendingRepairObjectCount": 69,
-    "pendingSecurityFindingCount": 133
+    "productionAppliedManifestItemCount": 21,
+    "productionAppliedRepairObjectCount": 7,
+    "pendingManifestItemCount": 147,
+    "pendingRepairObjectCount": 68,
+    "pendingSecurityFindingCount": 132
   },
   "historicalSecurityFindingCount": 151,
   "historicalActionableManifestItemCount": 168,

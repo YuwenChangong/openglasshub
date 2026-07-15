@@ -1,9 +1,11 @@
 # W6 Index-Only Execution Checklist
 
-Status: `UNEXECUTED_REVIEW_PACKET_READY`. This packet is limited to the two
-missing `forum_upload_attempts` indexes. The two extra policies are not part of
-this approval path because the supplemental production export reports that the
-`authenticated` role lacks effective `SELECT` and `INSERT` privileges.
+Status: `STAGE_A_APPLIED_POSTFLIGHT_VERIFIED_STAGE_B_REVIEW_READY`. Stage A
+created `forum_upload_attempts_purpose_ip_created_idx` with a fresh matching
+preflight and verified postflight. Stage B remains missing and requires its own
+fresh preflight and explicit approval. The two extra policies remain outside
+this approval path because `authenticated` still lacks effective `SELECT` and
+`INSERT` privileges.
 
 1. Confirm the reviewed commit and the intended production target, backup
    readiness, and incident owner.

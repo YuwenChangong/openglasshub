@@ -1,6 +1,6 @@
 # Operational Guardrails Reconciliation Preflight
 
-Status: `INDEX_STAGES_UNEXECUTED_REVIEW_READY_POLICY_PRIVILEGE_HOLD`. This is W6 only and remains
+Status: `INDEX_STAGE_A_APPLIED_POSTFLIGHT_VERIFIED_STAGE_B_REVIEW_READY_POLICY_PRIVILEGE_HOLD`. This is W6 only and remains
 `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PRODUCTION_RECONCILIATION_NO_GO`.
 
 ## Why W6 is next
@@ -16,8 +16,8 @@ Wave 1 or Wave 3A.
 Exact scope:
 
 - `public.forum_upload_attempts.forum_upload_attempts_purpose_ip_created_idx`
-  (`MISSING_IN_PRODUCTION`, P1), from
-  `20260605_forum_rate_limit_purposes.sql`.
+  (`PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED`; historical classification
+  `MISSING_IN_PRODUCTION`, P1), from `20260605_forum_rate_limit_purposes.sql`.
 - `public.forum_upload_attempts.forum_upload_attempts_purpose_user_created_idx`
   (`MISSING_IN_PRODUCTION`, P1), from the same migration.
 - `public.forum_upload_attempts.forum_upload_attempts_insert_self`
@@ -58,6 +58,22 @@ operations. Their unexecuted packet is:
 Each `CREATE INDEX CONCURRENTLY` statement is intentionally a single standalone
 statement outside a transaction. The index path requires fresh preflight before
 each stage and explicit production approval; no policy DROP is included.
+
+## Stage A production execution record
+
+Stage A executed the reviewed standalone
+`CREATE INDEX CONCURRENTLY forum_upload_attempts_purpose_ip_created_idx ON
+public.forum_upload_attempts (purpose, ip_hash, created_at DESC)` statement
+once, outside a transaction. Fresh preflight confirmed the target was missing,
+no structural equivalent or invalid/unfinished candidate existed, and the
+policy/privilege hold matched the reviewed state.
+
+Redacted postflight verified one valid, ready, non-unique `btree` index with the
+exact reviewed key order and descending `created_at`. Stage B remains missing;
+`forum_upload_attempts_insert_self` and `forum_upload_attempts_select_self`
+remain unchanged; no grant, privilege, policy, application-data, or unrelated
+catalog change was made. The next safe action is a separately approved Stage B
+fresh preflight and review. W6 and the overall reconciliation remain `NO_GO`.
 
 ## Supplemental catalog review
 
