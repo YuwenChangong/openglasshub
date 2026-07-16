@@ -61,7 +61,7 @@ function psql(database, sql) {
 }
 
 async function waitForDatabase(database) {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     try {
       psql(database, "SELECT 1;");
       return;
