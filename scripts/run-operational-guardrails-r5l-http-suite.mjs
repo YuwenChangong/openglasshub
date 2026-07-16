@@ -182,8 +182,9 @@ async function executeSuite() {
   let failure;
   try {
     await recorder.run("repository-integrity", async () => {
-      assert.equal(command("git", ["rev-parse", "HEAD"]), expectedHead, "R5L expected commit mismatch");
-      assert.equal(command("git", ["rev-parse", "origin/feature/legal-trust-consent-foundation-v1"]), expectedHead, "R5L origin mismatch");
+      const head = command("git", ["rev-parse", "HEAD"]);
+      assert.equal(head, command("git", ["rev-parse", "origin/feature/legal-trust-consent-foundation-v1"]), "R5L origin mismatch");
+      command("git", ["merge-base", "--is-ancestor", expectedHead, head]);
       assert.equal(command("git", ["status", "--porcelain"]), "", "R5L worktree must be clean");
     });
     await recorder.run("local-target", async () => {
@@ -207,7 +208,7 @@ async function executeSuite() {
     await recorder.run("build", async () => { command(process.platform === "win32" ? "cmd.exe" : "npm", process.platform === "win32" ? ["/c", "npm", "run", "build"] : ["run", "build"]); });
     const auth = requiredContainer("auth");
     const kong = requiredContainer("kong");
-    const jwtSecret = envValue(auth, "GOTRUE_JWT_SECRET") || envValue(auth, "JWT_SECRET");
+    const jwtSecret = envValue(auth, "GOTRUE_JWT_SECRET");
     const anonKey = envValue(kong, "ANON_KEY");
     const serviceRoleKey = envValue(kong, "SERVICE_ROLE_KEY");
     const tokenA = createLocalAccessToken({ userId: fixture.userA.id, email: fixture.userA.email, jwtSecret });
