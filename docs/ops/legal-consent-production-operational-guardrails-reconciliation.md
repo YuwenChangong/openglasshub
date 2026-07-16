@@ -531,3 +531,12 @@ dependencies. It returns no table rows and creates no proposal.
 
 6. Resume proposal review only with the CSV and validator result. The packet is
    read-only and creates no fixture, migration, proposal, or postflight.
+
+## R6 repository-only readiness packet
+
+`docs/ops/reconciliation/operational-guardrails-r6-production-rollout.md`
+records `R6_PRODUCTION_ROLLOUT_PACKET_READY`, not Production readiness.
+Production binding remains `BINDING_ABSENT_PRODUCTION_BLOCKED`, hosted Preview
+remains `R5_PREVIEW_BLOCKED_TARGET_IDENTITY`, and Stage C remains
+`BLOCKED_RUNTIME_MIGRATION_REQUIRED` until separately approved R6 execution,
+runtime verification, canary cleanup, and the later R7 policy-cleanup approval.

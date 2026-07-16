@@ -49,3 +49,13 @@ different IP-only contract.
 | R7 | Separately deploy verified runtime. | Runtime smoke failure or 503/429 contract mismatch stops; roll back deployment. | Production deployment approval. |
 | R8 | Read-only production postflight and residue verification. | Direct access, unexpected grants, or row-exposure evidence stops. | Security/operator review. |
 | R9 | Reconsider only `forum_upload_attempts_insert_self` and `forum_upload_attempts_select_self` after R7-R8 prove no direct caller. | No proof of runtime migration or policy equivalence means retain both. | Separate policy-removal approval. |
+
+## R6 rollout packet status
+
+Repository-only R6 planning is `R6_PRODUCTION_ROLLOUT_PACKET_READY` in
+`operational-guardrails-r6-production-rollout.md`. It preserves
+`R5_PREVIEW_BLOCKED_TARGET_IDENTITY`, the absent Production service-role
+binding, and the overall no-go state. Future execution requires the exact
+`APPROVE_R6_PRODUCTION_STAGED_EXECUTION_WITH_LOCAL_STAGING_ONLY_RISK_ACCEPTANCE`
+approval; Stage C separately requires R7 approval after R6 runtime and canary
+success.

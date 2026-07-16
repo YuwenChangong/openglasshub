@@ -1,0 +1,6 @@
+-- UNEXECUTED R6-5 OPERATOR WRAPPER. Requires fresh explicit R6 approval.
+-- Verify SHA-256 of operational-guardrails-rate-limit-r2-unexecuted-proposal.sql
+-- is 10a1848e33097a9bb79e5cb1f1107a86bac6c724b352a13948665b90559011bb
+-- before passing its exact bytes to psql with ON_ERROR_STOP=1. Do not paste,
+-- rewrite, retry after ambiguity, run a migration, alter policies, or grant tables.
+-- This wrapper intentionally contains no executable proposal copy.
