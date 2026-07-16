@@ -83,10 +83,11 @@ export function createLocalAccessToken({ userId, email, jwtSecret, audience = "a
   return `${header}.${payload}.${createHmac("sha256", jwtSecret).update(`${header}.${payload}`).digest("base64url")}`;
 }
 
-function createLocalServiceToken({ role, jwtSecret }) {
+function createLocalServiceToken({ role, jwtSecret, audience, issuer }) {
   assert.ok(["anon", "service_role"].includes(role), "local service token role is invalid");
   const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payload = base64url(JSON.stringify({ role, iss: "supabase", exp: Math.floor(Date.now() / 1000) + 300 }));
+  const now = Math.floor(Date.now() / 1000);
+  const payload = base64url(JSON.stringify({ role, aud: audience, iss: issuer, iat: now, exp: now + 300 }));
   return `${header}.${payload}.${createHmac("sha256", jwtSecret).update(`${header}.${payload}`).digest("base64url")}`;
 }
 
@@ -228,8 +229,10 @@ async function executeSuite() {
     await recorder.run("build", async () => { command(process.platform === "win32" ? "cmd.exe" : "npm", process.platform === "win32" ? ["/c", "npm", "run", "build"] : ["run", "build"]); });
     const auth = requiredContainer("auth");
     const jwtSecret = envValue(auth, "GOTRUE_JWT_SECRET");
-    const anonKey = createLocalServiceToken({ role: "anon", jwtSecret });
-    const serviceRoleKey = createLocalServiceToken({ role: "service_role", jwtSecret });
+    const audience = envValue(auth, "GOTRUE_JWT_AUD");
+    const issuer = envValue(auth, "GOTRUE_JWT_ISSUER");
+    const anonKey = createLocalServiceToken({ role: "anon", jwtSecret, audience, issuer });
+    const serviceRoleKey = createLocalServiceToken({ role: "service_role", jwtSecret, audience, issuer });
     const tokenA = await localAuthToken({ email: fixture.userA.email, password: fixture.userA.password, anonKey });
     const tokenB = await localAuthToken({ email: fixture.userB.email, password: fixture.userB.password, anonKey });
     const port = await availablePort();
