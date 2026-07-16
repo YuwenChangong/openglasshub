@@ -175,6 +175,17 @@ async function createLocalAuthFixture({ email, password, anonKey }) {
   return { token: payload.access_token, userId: payload.user.id };
 }
 
+async function waitForLocalAuth(anonKey) {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    try {
+      const response = await fetch("http://127.0.0.1:54321/auth/v1/health", { headers: { apikey: anonKey } });
+      if (response.status === 200) return;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error("R5L local GoTrue did not become ready");
+}
+
 function cleanupSql() {
   return `BEGIN;
 DELETE FROM public.forum_upload_attempts WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'r5l-%@local.test');
@@ -234,6 +245,7 @@ async function executeSuite() {
     let tokenA;
     let tokenB;
     await recorder.run("fixtures", async () => {
+      await waitForLocalAuth(anonKey);
       const [authA, authB] = await Promise.all([
         createLocalAuthFixture({ email: fixture.userA.email, password: fixture.userA.password, anonKey }),
         createLocalAuthFixture({ email: fixture.userB.email, password: fixture.userB.password, anonKey }),
