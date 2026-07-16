@@ -381,7 +381,7 @@ assert.equal(resolvedExternalVideoOrdering?.sourceFile, "src/pages/api/forum/ext
 assert.equal(resolvedExternalVideoOrdering?.method, "POST");
 assert.equal(resolvedExternalVideoOrdering?.firstExternalEffect?.symbol, "validateTurnstileToken");
 assert.equal(resolvedExternalVideoOrdering?.targetAuthorizationEvidence?.symbol, "POST#post.lookup,POST#post.authorize");
-assert.equal(resolvedExternalVideoOrdering?.firstPersistentEffect?.symbol, "enforceUploadRateLimit");
+assert.equal(resolvedExternalVideoOrdering?.firstPersistentEffect?.symbol, "consumeForumRateLimit");
 assert.equal(resolvedExternalVideoOrdering?.runtimeRemediationStatus, "implemented-source-reaudited");
 assert.equal(resolvedExternalVideoOrdering?.targetAuthorizationBeforeTurnstile, true);
 assert.equal(resolvedExternalVideoOrdering?.migrationRequired, false);

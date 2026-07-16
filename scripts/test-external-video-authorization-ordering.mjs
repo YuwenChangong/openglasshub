@@ -32,6 +32,7 @@ async function runScenario({
   turnstileResult = { ok: true },
   malformedPostId = false,
   consentOutcome = "current",
+  postLookupError = null,
 } = {}) {
   const calls = [];
   const effects = {
@@ -68,7 +69,7 @@ async function runScenario({
         },
         maybeSingle() {
           calls.push("post lookup");
-          return Promise.resolve({ data: post, error: null });
+          return Promise.resolve({ data: post, error: postLookupError });
         },
         insert() {
           effects.directMutation += 1;
@@ -221,6 +222,31 @@ async function main() {
   assert.deepEqual(missing.calls, ["authenticate", "consent repository", `consent guard:${ACTOR_ID}`, "safety authorization", "post lookup"]);
   assertNoLaterEffects(missing);
 
+  // R5L checkpoint: this records the current public-error leak so local
+  // staging cannot be misclassified as verified before a separate runtime fix.
+  const rawDatabaseFailure = await runScenario({
+    postLookupError: {
+      message: "R5L_DATABASE_MESSAGE_SENTINEL",
+      code: "R5L_DATABASE_CODE_SENTINEL",
+      details: "R5L_DATABASE_DETAILS_SENTINEL",
+      hint: "R5L_DATABASE_HINT_SENTINEL",
+    },
+  });
+  assert.equal(rawDatabaseFailure.response.status, 500);
+  const rawDatabaseBody = await rawDatabaseFailure.response.json();
+  assert.match(rawDatabaseBody.error, /R5L_DATABASE_MESSAGE_SENTINEL/);
+  assert.match(rawDatabaseBody.error, /R5L_DATABASE_CODE_SENTINEL/);
+  assert.match(rawDatabaseBody.error, /R5L_DATABASE_DETAILS_SENTINEL/);
+  assert.match(rawDatabaseBody.error, /R5L_DATABASE_HINT_SENTINEL/);
+  assert.deepEqual(rawDatabaseFailure.calls, [
+    "authenticate",
+    "consent repository",
+    `consent guard:${ACTOR_ID}`,
+    "safety authorization",
+    "post lookup",
+  ]);
+  assertNoLaterEffects(rawDatabaseFailure);
+
   const wrongOwner = await runScenario({ postAuthorId: OTHER_USER_ID });
   assert.equal(wrongOwner.response.status, 403);
   assert.deepEqual(wrongOwner.calls, ["authenticate", "consent repository", `consent guard:${ACTOR_ID}`, "safety authorization", "post lookup", "ownership comparison"]);
@@ -298,6 +324,7 @@ async function main() {
     wrongOwnerTurnstileCalls: wrongOwner.effects.turnstile,
     invalidTurnstileRateAttemptInserts: invalidTurnstile.effects.rateAttemptInsert,
     consentDenials: [403, 503],
+    r5lRawDatabaseErrorExposure: true,
     successfulOrder: owner.calls,
     turnstileDisabledOwnershipBeforeLaterProcessing: true,
     deployedPostSelectPolicy: "published-or-own-or-staff",

@@ -69,6 +69,19 @@ Until that approval and verified staged execution, Preview is unbound,
 Production is `BINDING_ABSENT_PRODUCTION_BLOCKED`, and Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED`.
 
+R5L local full-stack staging is
+`R5_LOCAL_STAGING_BLOCKED_RUNTIME_ERROR_SANITIZATION`. The closest local
+source-backed baseline is the normalized Docker migration mirror; the reviewed
+R2 RPC proposal and catalog postflight converged there and were then removed
+again during teardown. A deterministic route test proves that
+`external-video-upload` currently returns PostgREST message, code, details,
+and hint fields, plus caught internal-stage messages, to public error
+responses. That fails the R5L public-error contract before authenticated local
+fixtures or protected-action HTTP results can be certified. No cloud target,
+binding, deployment, secret, or production data was used. The separate
+`R5_PREVIEW_BLOCKED_TARGET_IDENTITY` status remains unchanged; a reviewed
+runtime sanitization fix is required before a fresh R5L attempt.
+
 R1 now has a repository-only binding contract: the active server name is
 `SUPABASE_SERVICE_ROLE_KEY`. The external Preview proof transition is
 `BINDING_ABSENT` to `SECRET_BINDING_PRESENT`; its metadata-only JSON remains
