@@ -158,7 +158,7 @@ function fixtureSql(fixture) {
   const users = [fixture.userA, fixture.userB];
   return `BEGIN;
 ${users.map((user) => `INSERT INTO public.profiles (id,username,display_name,role) VALUES (${sqlLiteral(user.id)}::uuid,${sqlLiteral(user.username)},${sqlLiteral(user.username)},'user') ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username;`).join("\n")}
-${users.map((user) => `INSERT INTO public.legal_policy_acceptances (user_id,bundle_version,privacy_version,terms_version,guidelines_version,minimum_age,first_acceptance_source,last_confirmation_source,confirmation_count) VALUES (${sqlLiteral(user.id)}::uuid,'2026-07','2026-07','2026-07','2026-07',18,'registration','registration',1);`).join("\n")}
+${users.map((user) => `INSERT INTO public.legal_policy_acceptances (user_id,bundle_version,privacy_version,terms_version,guidelines_version,minimum_age,first_acceptance_source,last_confirmation_source,confirmation_count) VALUES (${sqlLiteral(user.id)}::uuid,'2026-07','2026-07','2026-07','2026-07',16,'registration','registration',1);`).join("\n")}
 INSERT INTO public.circles (id,slug,name,description,type,owner_id,status) VALUES (${sqlLiteral(fixture.circleId)}::uuid,${sqlLiteral(fixture.circleSlug)},'R5L local circle','Disposable local fixture','topic',${sqlLiteral(fixture.userA.id)}::uuid,'active');
 COMMIT;`;
 }
