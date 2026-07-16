@@ -201,7 +201,7 @@ async function executeSuite() {
     });
     await recorder.run("r2-install", async () => { psql(database, await readFile(proposalPath, "utf8")); });
     await recorder.run("r2-postflight", async () => {
-      const row = psql(database, "SELECT prosecdef::text || '|' || provolatile || '|' || proparallel || '|' || proleakproof || '|' || pg_get_userbyid(proowner) FROM pg_proc WHERE oid='public.consume_forum_rate_limit(uuid,text,text,bigint)'::regprocedure;");
+      const row = psql(database, "SELECT prosecdef::text || '|' || provolatile::text || '|' || proparallel::text || '|' || proleakproof::text || '|' || pg_get_userbyid(proowner) FROM pg_proc WHERE oid='public.consume_forum_rate_limit(uuid,text,text,bigint)'::regprocedure;");
       assert.equal(row, "true|v|u|false|postgres", "R5L RPC catalog contract mismatch");
     });
     await recorder.run("fixtures", async () => { psql(database, fixtureSql(fixture)); });
