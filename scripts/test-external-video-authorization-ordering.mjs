@@ -33,8 +33,13 @@ async function runScenario({
   malformedPostId = false,
   consentOutcome = "current",
   postLookupError = null,
+  signingError = null,
+  rateLimitResult = { allowed: true, backendAvailable: true },
+  mimeType = "video/mp4",
+  sizeBytes = 1024,
 } = {}) {
   const calls = [];
+  const logs = [];
   const effects = {
     turnstile: 0,
     cloudflareFetch: 0,
@@ -103,6 +108,7 @@ async function runScenario({
     async signR2PutUrl() {
       effects.r2Signing += 1;
       calls.push("r2 URL signing");
+      if (signingError) throw signingError;
       return "https://r2.example/upload";
     },
     getRequestIp() {
@@ -111,7 +117,7 @@ async function runScenario({
     async enforceUploadRateLimit() {
       effects.rateAttemptInsert += 1;
       calls.push("rate-attempt insert");
-      return { allowed: true, backendAvailable: true };
+      return rateLimitResult;
     },
     async hashRateLimitIp() {
       calls.push("daily-rate hash");
@@ -158,25 +164,30 @@ async function runScenario({
     body: JSON.stringify({
       post_id: malformedPostId ? "not-a-uuid" : POST_ID,
       file_name: "test.mp4",
-      mime_type: "video/mp4",
-      size_bytes: 1024,
+      mime_type: mimeType,
+      size_bytes: sizeBytes,
       turnstile_token: "offline-token",
     }),
   });
-  const response = await handler({
-    request,
-    locals: {
-      runtime: {
-        env: {
-          SUPABASE_URL: "https://supabase.example",
-          SUPABASE_ANON_KEY: "anon-key",
-          RATE_LIMIT_SALT: "rate-salt",
+  const originalWarn = console.warn;
+  console.warn = (...args) => logs.push(args);
+  try {
+    const response = await handler({
+      request,
+      locals: {
+        runtime: {
+          env: {
+            SUPABASE_URL: "https://supabase.example",
+            SUPABASE_ANON_KEY: "anon-key",
+            RATE_LIMIT_SALT: "rate-salt",
+          },
         },
       },
-    },
-  });
-
-  return { response, calls, effects };
+    });
+    return { response, calls, effects, logs };
+  } finally {
+    console.warn = originalWarn;
+  }
 }
 
 function assertNoLaterEffects(result) {
@@ -187,6 +198,18 @@ function assertNoLaterEffects(result) {
   assert.equal(result.effects.directMutation, 0);
   assert.equal(result.effects.keyBuild, 0);
   assert(!result.calls.some((call) => call.startsWith("daily-rate")));
+}
+
+function assertSanitizedFailure(result, expectedStatus, markers) {
+  assert.equal(result.response.status, expectedStatus);
+  return result.response.json().then((body) => {
+    const serialized = JSON.stringify(body);
+    assert.equal(body.error, "EXTERNAL_VIDEO_UPLOAD_FAILED");
+    for (const marker of markers) assert.doesNotMatch(serialized, new RegExp(marker));
+    assert.doesNotMatch(serialized, /stage|stack|details|hint|service.?role/i);
+    assert.equal(JSON.stringify(result.logs).includes(markers.join("")), false);
+    for (const marker of markers) assert.equal(JSON.stringify(result.logs).includes(marker), false);
+  });
 }
 
 async function main() {
@@ -214,6 +237,11 @@ async function main() {
   assert(postLookup < ownershipComparison && ownershipComparison < keyBuild && keyBuild < turnstile);
   assert(turnstile < rateReads && rateReads < rateConsume && rateConsume < r2Signing);
   assert.doesNotMatch(source, /forum_upload_attempts/);
+  assert.doesNotMatch(source, /SUPABASE_SERVICE_ROLE_KEY|createServiceClient|service_role/);
+  assert.doesNotMatch(source, /formatDbError|error\.message|error\.details|error\.hint|\[\$\{stage\}\]/);
+  assert.match(source, /function unavailableResponse\(\)/);
+  assert.match(source, /function logUnavailableFailure\(stage: string, quotaReserved: boolean\)/);
+  assert.doesNotMatch(source, /console\.warn\([^\n]*error/);
   assert(/create policy "posts_select_published_public"[\s\S]*?status = 'published'[\s\S]*?or author_id = auth\.uid\(\)[\s\S]*?or \(select public\.is_moderator_or_admin\(\)\)/.test(deployedPostSelectPolicy));
   assert(/create policy "posts_select_published_public"[\s\S]*?moderation_status = 'published'[\s\S]*?public\.can_access_public_circle\(circle_id\)[\s\S]*?or author_id = auth\.uid\(\)/.test(authoredPostSelectPolicy));
 
@@ -222,22 +250,30 @@ async function main() {
   assert.deepEqual(missing.calls, ["authenticate", "consent repository", `consent guard:${ACTOR_ID}`, "safety authorization", "post lookup"]);
   assertNoLaterEffects(missing);
 
-  // R5L checkpoint: this records the current public-error leak so local
-  // staging cannot be misclassified as verified before a separate runtime fix.
+  const rawMarkers = [
+    "R5L_DATABASE_MESSAGE_SENTINEL",
+    "R5L_DATABASE_CODE_SENTINEL",
+    "R5L_DATABASE_DETAILS_SENTINEL",
+    "R5L_DATABASE_HINT_SENTINEL",
+    "R5L_DATABASE_STACK_SENTINEL",
+    "R5L_DATABASE_NESTED_SENTINEL",
+    "r5l-project.supabase.example",
+    ACTOR_ID,
+    "r5l-ip-hash-sentinel",
+    "r5l-signed-upload-sentinel",
+    "service_role",
+  ];
   const rawDatabaseFailure = await runScenario({
     postLookupError: {
-      message: "R5L_DATABASE_MESSAGE_SENTINEL",
+      message: "R5L_DATABASE_MESSAGE_SENTINEL https://r5l-project.supabase.example service_role",
       code: "R5L_DATABASE_CODE_SENTINEL",
-      details: "R5L_DATABASE_DETAILS_SENTINEL",
-      hint: "R5L_DATABASE_HINT_SENTINEL",
+      details: `R5L_DATABASE_DETAILS_SENTINEL ${ACTOR_ID} r5l-ip-hash-sentinel`,
+      hint: "R5L_DATABASE_HINT_SENTINEL r5l-signed-upload-sentinel",
+      stack: "R5L_DATABASE_STACK_SENTINEL",
+      nested: { message: "R5L_DATABASE_NESTED_SENTINEL" },
     },
   });
-  assert.equal(rawDatabaseFailure.response.status, 500);
-  const rawDatabaseBody = await rawDatabaseFailure.response.json();
-  assert.match(rawDatabaseBody.error, /R5L_DATABASE_MESSAGE_SENTINEL/);
-  assert.match(rawDatabaseBody.error, /R5L_DATABASE_CODE_SENTINEL/);
-  assert.match(rawDatabaseBody.error, /R5L_DATABASE_DETAILS_SENTINEL/);
-  assert.match(rawDatabaseBody.error, /R5L_DATABASE_HINT_SENTINEL/);
+  await assertSanitizedFailure(rawDatabaseFailure, 500, rawMarkers);
   assert.deepEqual(rawDatabaseFailure.calls, [
     "authenticate",
     "consent repository",
@@ -246,6 +282,26 @@ async function main() {
     "post lookup",
   ]);
   assertNoLaterEffects(rawDatabaseFailure);
+
+  const signingFailure = await runScenario({
+    signingError: Object.assign(new Error("R5L_SIGNING_MESSAGE_SENTINEL https://r5l-project.supabase.example"), {
+      code: "R5L_SIGNING_CODE_SENTINEL",
+      details: "R5L_SIGNING_DETAILS_SENTINEL",
+      hint: "R5L_SIGNING_HINT_SENTINEL",
+      stack: "R5L_SIGNING_STACK_SENTINEL",
+    }),
+  });
+  await assertSanitizedFailure(signingFailure, 500, [
+    "R5L_SIGNING_MESSAGE_SENTINEL",
+    "R5L_SIGNING_CODE_SENTINEL",
+    "R5L_SIGNING_DETAILS_SENTINEL",
+    "R5L_SIGNING_HINT_SENTINEL",
+    "R5L_SIGNING_STACK_SENTINEL",
+    "r5l-project.supabase.example",
+  ]);
+  assert.equal(signingFailure.effects.rateAttemptInsert, 1);
+  assert.equal(signingFailure.effects.r2Signing, 1);
+  assert.equal(signingFailure.effects.directMutation, 0);
 
   const wrongOwner = await runScenario({ postAuthorId: OTHER_USER_ID });
   assert.equal(wrongOwner.response.status, 403);
@@ -256,6 +312,14 @@ async function main() {
   assert.equal(malformed.response.status, 400);
   assert.deepEqual(malformed.calls, ["authenticate", "consent repository", `consent guard:${ACTOR_ID}`, "safety authorization"]);
   assertNoLaterEffects(malformed);
+
+  const unsupportedType = await runScenario({ mimeType: "application/octet-stream" });
+  assert.equal(unsupportedType.response.status, 400);
+  assertNoLaterEffects(unsupportedType);
+
+  const oversized = await runScenario({ sizeBytes: 150 * 1024 * 1024 + 1 });
+  assert.equal(oversized.response.status, 400);
+  assertNoLaterEffects(oversized);
 
   const unauthenticated = await runScenario({ authenticated: false });
   assert.equal(unauthenticated.response.status, 401);
@@ -293,6 +357,22 @@ async function main() {
   assert.equal(invalidTurnstile.effects.r2Signing, 0);
   assert.equal(invalidTurnstile.effects.directMutation, 0);
 
+  for (const reason of ["RATE_LIMIT_TIMEOUT", "RATE_LIMIT_MALFORMED_RESULT", "RATE_LIMIT_CONFIGURATION_MISSING", "RATE_LIMIT_SERVICE_UNAVAILABLE"]) {
+    const rateUnavailable = await runScenario({ rateLimitResult: { allowed: false, reason } });
+    assert.equal(rateUnavailable.response.status, 503);
+    assert.deepEqual(await rateUnavailable.response.json(), { error: "Rate limit service temporarily unavailable", code: reason });
+    assert.equal(rateUnavailable.effects.r2Signing, 0);
+    assert.equal(rateUnavailable.effects.directMutation, 0);
+    assert.equal(rateUnavailable.effects.rateAttemptInsert, 1);
+  }
+
+  const rateLimited = await runScenario({ rateLimitResult: { allowed: false, reason: "RATE_LIMITED" } });
+  assert.equal(rateLimited.response.status, 429);
+  assert.deepEqual(await rateLimited.response.json(), { error: "Too many upload attempts from this IP", code: "RATE_LIMITED" });
+  assert.equal(rateLimited.effects.r2Signing, 0);
+  assert.equal(rateLimited.effects.directMutation, 0);
+  assert.equal(rateLimited.effects.rateAttemptInsert, 1);
+
   const owner = await runScenario();
   assert.equal(owner.response.status, 200);
   assert.deepEqual(owner.calls, [
@@ -324,7 +404,8 @@ async function main() {
     wrongOwnerTurnstileCalls: wrongOwner.effects.turnstile,
     invalidTurnstileRateAttemptInserts: invalidTurnstile.effects.rateAttemptInsert,
     consentDenials: [403, 503],
-    r5lRawDatabaseErrorExposure: true,
+    r5lRawDatabaseErrorExposure: false,
+    r5lSanitizedFailureClasses: ["database", "signing", "rate-limit-timeout", "rate-limit-malformed", "rate-limit-configuration", "rate-limit-unavailable"],
     successfulOrder: owner.calls,
     turnstileDisabledOwnershipBeforeLaterProcessing: true,
     deployedPostSelectPolicy: "published-or-own-or-staff",

@@ -1,6 +1,6 @@
 # W6 R5L Local Full-Stack Staging Review
 
-Status: `R5_LOCAL_STAGING_BLOCKED_RUNTIME_ERROR_SANITIZATION`.
+Status: `R5L_BLOCKED_RUNTIME_READINESS`.
 
 This review is a local-only checkpoint. It does not create a Cloudflare
 Preview deployment, bind any hosted Supabase project, or change the separate
@@ -20,7 +20,7 @@ postflight. The local postflight found one expected overload with the reviewed
 owner, security-definer, search-path, and execute-ACL contract. No cloud
 connection, SQL, secret, credential, or production data was used.
 
-## R5L hard stop
+## Resolved public-error exposure
 
 `src/pages/api/forum/external-video-upload.ts` fails R5L's public error
 sanitization requirement before authenticated fixtures or action tests can be
@@ -35,19 +35,38 @@ classified as successful:
   reach the HTTP response while no later Turnstile, rate-limit, R2-signing, or
   direct mutation effect occurs.
 
-This violates the approved R5L requirement that no raw database or Supabase
-error reaches a public response. It also means the required local HTTP,
+The approved route repair replaces those paths with the stable public
+`EXTERNAL_VIDEO_UPLOAD_FAILED` response, logs only route-local redacted
+metadata, and preserves the existing rate-limit `429` and `503` contracts. The
+same deterministic test now injects message, code, details, hint, stack,
+nested error, URL, UUID, IP-hash, signing, and service-role markers and fails
+if any marker reaches a public response or log fixture. The source static guard
+also rejects raw-error JSON, raw PostgREST fields, internal-stage JSON, direct
+attempt-table access, generic privileged-client imports, and raw-error logging.
+
+## R5L hard stop
+
+The supported local Pages runtime cannot reach readiness with the generated
+Astro Cloudflare Worker:
+
+- `wrangler pages dev` re-bundles the emitted Worker and fails resolving Node
+  `fs` from `detect-libc` in the generated dependency graph.
+- the supported `--no-bundle` retry then refuses the generated Worker because
+  it imports its emitted companion modules.
+
+Both failures occur before a listener, HTTP request, Auth fixture, database
+operation, or external request. Therefore the required actual local HTTP,
 429/503, concurrency, secret-exposure, and residue suite cannot be reported as
-verified. A runtime sanitization change and review are required before a new
-R5L attempt.
+verified. A separately reviewed local runtime packaging/harness fix is
+required before another R5L attempt.
 
 ## Containment and cleanup
 
-One credential-free local Worker startup smoke was attempted with temporary
-configuration and a protected route. It did not reach readiness within its
-bounded startup window. Its listener check found no remaining listener and its
-temporary directory was removed. No local Auth user, browser session, business
-fixture, external request, or local configuration file was created or retained.
+The local runtime attempts used only temporary configuration and a protected
+route readiness probe. Their listener checks found no remaining listener and
+their temporary directories were removed. No local Auth user, browser session,
+business fixture, external request, or local configuration file was created or
+retained.
 
 The local RPC is removed again during R5L teardown so the pre-existing
 normalized mirror returns to its observed pre-R5L function-absent state. The
@@ -56,8 +75,7 @@ predated this staging task and is not an R5L-created resource.
 
 ## Required next action
 
-Create a separately reviewed runtime change that maps database and unexpected
-exceptions in `external-video-upload.ts` to stable public error codes without
-returning database messages, codes, details, hints, or internal stage names.
-Then rerun R5L from a clean local baseline. Remote Cloudflare network,
-bindings, deployment, and environment behavior remain unverified.
+Create a separately reviewed local Cloudflare Pages harness or packaging fix
+that can execute Astro's emitted multi-module Worker without introducing Node
+runtime modules. Then rerun R5L from a clean local baseline. Remote Cloudflare
+network, bindings, deployment, and environment behavior remain unverified.

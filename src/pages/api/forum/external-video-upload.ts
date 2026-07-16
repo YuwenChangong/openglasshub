@@ -7,7 +7,6 @@ import { shouldRequireUploadTurnstile, validateTurnstileToken } from "../../../l
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 import { requireAuthenticatedLegalConsent } from "../../../lib/server/legal-consent-mutation.server";
 import { createLegalConsentReadRepository } from "../../../lib/server/legal-consent-repository.server";
-import type { PostgrestError } from "@supabase/supabase-js";
 
 export const prerender = false;
 
@@ -35,15 +34,19 @@ function requireEnv(env: Record<string, string | undefined>, key: string): strin
   return value;
 }
 
-function formatDbError(stage: string, error: PostgrestError | null): string {
-  if (!error) return `[${stage}] Unknown database error`;
-  const parts = [
-    error.message?.trim() || "Unknown database error",
-    error.code ? `code=${error.code}` : "",
-    error.details ? `details=${error.details}` : "",
-    error.hint ? `hint=${error.hint}` : "",
-  ].filter(Boolean);
-  return `[${stage}] ${parts.join(" | ")}`;
+function unavailableResponse(): Response {
+  return json({ error: "EXTERNAL_VIDEO_UPLOAD_FAILED" }, 500);
+}
+
+function logUnavailableFailure(stage: string, quotaReserved: boolean) {
+  // Keep diagnostics operationally useful without retaining request or provider data.
+  console.warn("[external-video-upload] unavailable", {
+    route: "external-video-upload",
+    stage,
+    classification: "EXTERNAL_VIDEO_UPLOAD_FAILED",
+    statusCategory: 500,
+    quotaReserved,
+  });
 }
 
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
@@ -103,6 +106,7 @@ export function createExternalVideoUploadPost(
 
   return async ({ request, locals }) => {
   let stage = "init";
+  let quotaReserved = false;
   try {
     stage = "env";
     const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
@@ -154,7 +158,10 @@ export function createExternalVideoUploadPost(
       .select("id, author_id")
       .eq("id", postId)
       .maybeSingle();
-    if (postError) return json({ error: formatDbError(stage, postError) }, 500);
+    if (postError) {
+      logUnavailableFailure(stage, quotaReserved);
+      return unavailableResponse();
+    }
     if (!post) return json({ error: "Post not found" }, 404);
 
     stage = "post.authorize";
@@ -190,6 +197,7 @@ export function createExternalVideoUploadPost(
       if (uploadLimit.reason === "RATE_LIMITED") return json({ error: "Too many upload attempts from this IP", code: "RATE_LIMITED" }, 429);
       return json({ error: "Rate limit service temporarily unavailable", code: uploadLimit.reason }, 503);
     }
+    quotaReserved = true;
 
     stage = "r2.sign";
     const uploadUrl = await signR2PutUrl({
@@ -204,12 +212,9 @@ export function createExternalVideoUploadPost(
       storage_path: objectKey,
       expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     });
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? (error.message?.trim() || error.name || "Unexpected server error")
-        : "Unexpected server error";
-    return json({ error: `[${stage}] ${message}` }, 500);
+  } catch {
+    logUnavailableFailure(stage, quotaReserved);
+    return unavailableResponse();
   }
 };
 }
