@@ -1,6 +1,10 @@
 # W6 Server-Only Atomic Rate-Limit Architecture
 
-Status: `APPROVED_ARCHITECTURE_NOT_IMPLEMENTED`. This is a security/product decision record, not executable production SQL and not approval to alter a database.
+Status: `APPROVED_ARCHITECTURE_NOT_IMPLEMENTED`. The repository-only design
+phase is complete, but R1 trusted identity configuration and the explicit
+remaining decisions still block implementation. This is a security/product
+decision record, not executable production SQL and not approval to alter a
+database.
 
 ## Decision
 
@@ -30,3 +34,20 @@ The canonical SELECT policy uses `USING true`, so granting broad authenticated S
 6. Deploy the function and migrated runtime callers under a separate approval. Verify no direct client table access remains before separately reviewing removal of either legacy policy.
 
 No index, policy, grant, function, runtime, migration, or production change is authorized by this record.
+
+## Design package
+
+The detailed, static-only package is intentionally split so it can be reviewed
+without accidentally becoming executable database material:
+
+- [trusted server identity evidence](operational-guardrails-rate-limit-rpc-trusted-identity.md)
+- [exact interface contract](operational-guardrails-rate-limit-rpc-contract.md)
+- [concurrency decision](operational-guardrails-rate-limit-rpc-concurrency.md)
+- [fail-closed runtime and R1-R9 migration plan](operational-guardrails-rate-limit-rpc-runtime-plan.md)
+- [implementation-readiness checklist](operational-guardrails-rate-limit-rpc-readiness.md)
+
+The identity classification is `SERVICE_ROLE_CONFIGURATION_REQUIRED`: two
+server-only service-role factories exist, but no checked-in deployment binding
+proves one for this rate-limit path. The proposed contract is
+`public.consume_forum_rate_limit`, but no executable function SQL exists and no
+role is authorized to call it yet.

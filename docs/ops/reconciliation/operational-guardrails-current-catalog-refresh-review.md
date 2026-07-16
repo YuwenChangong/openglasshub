@@ -85,6 +85,14 @@ RLS-redundant but their removal is not behavior-preserving until the direct
 callers are migrated, a server-only contract is deployed and verified, and no
 direct table access remains. No policy-removal SQL is authored.
 
+The subsequent repository-only design package selects an atomic fail-closed
+server-only direction, but classifies its identity as
+`SERVICE_ROLE_CONFIGURATION_REQUIRED`; the existing source factories do not
+prove a preview/production rate-limit binding. See
+`operational-guardrails-rate-limit-rpc-architecture.md`. This does not change
+the Stage C hold or authorize a function, grant, migration, deployment, or
+policy removal.
+
 ## Approved Architecture Readiness Sequence
 
 1. Source-prove the trusted server execution identity for this table; do not
