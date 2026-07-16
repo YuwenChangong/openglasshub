@@ -37,8 +37,10 @@ assert.doesNotMatch(source.rateLimit, /SUPABASE_SERVICE_ROLE_KEY|createClient\(/
 assert.doesNotMatch(`${source.legal}\n${source.moderation}`, /console\.(?:log|warn|error).*SUPABASE_SERVICE_ROLE_KEY/);
 assert.match(source.identity, /EXISTING_BINDING_NAME_SOURCE_PROVEN/);
 assert.match(source.readiness, /Local[\s\S]*CONFIGURATION_REQUIRED/);
-assert.match(source.readiness, /Preview[\s\S]*BINDING_PROOF_REQUIRED/);
-assert.match(source.readiness, /Production[\s\S]*BINDING_PROOF_REQUIRED/);
+assert.match(source.readiness, /Preview[\s\S]*PREVIEW_R1_READY/);
+assert.match(source.readiness, /Production[\s\S]*BINDING_ABSENT_PRODUCTION_BLOCKED/);
+assert.match(source.readiness, /openglasshub-service-role-binding-preview-postcreation-proof\.json/);
+assert.match(source.readiness, /proof files remain\s+outside Git/);
 assert.match(source.readiness, /BLOCKED_RUNTIME_MIGRATION_REQUIRED/);
 
 for (const environment of ENVIRONMENTS) assert.equal(validateServiceRoleBindingPacket(validPacket(environment)).environment, environment);

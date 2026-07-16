@@ -1,8 +1,13 @@
 # W6 Rate-Limit Trusted Server Identity Evidence
 
-Status: `SERVICE_ROLE_CONFIGURATION_REQUIRED`. The exact binding name is now
-classified `EXISTING_BINDING_NAME_SOURCE_PROVEN`; it is still not proof of a
-deployed secret and is not authority to configure one.
+Status: `SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY`. The exact binding name
+is `EXISTING_BINDING_NAME_SOURCE_PROVEN`. Operator-held metadata-only Preview
+proofs at source commit `b4f55642407420f56f0b677d4de37a4022fbfbff` establish
+the transition from `BINDING_ABSENT` to `SECRET_BINDING_PRESENT` for the exact
+Preview binding, with no plaintext, `PUBLIC_`, browser-exposed, or duplicate
+metadata conflict. Preview is therefore
+`PREVIEW_SERVICE_ROLE_BINDING_READY`. The proof files remain outside Git and
+contain no value, hash, token, or credential.
 
 ## Client inventory
 
@@ -37,12 +42,12 @@ the two narrow factories above. That is only static evidence:
   checked-in evidence proves that this particular server-only secret is bound
   in preview or production.
 
-Therefore the approved server-only design cannot yet name a deployable trusted
-execution identity. It must not reuse the anonymous bearer client, and it must
-not assume that a service-role key is already installed. R1 requires a separate
-operator/security approval for a server-only binding, with its name, scope,
-rotation owner, preview policy, and production presence verified without
-printing its value.
+The Preview binding can support the existing narrow service-role factories, but
+it does not prove the secret value is correct, belongs to the intended Supabase
+project, or is currently valid. Local configuration remains unproven and the
+separately validated Production proof remains `BINDING_ABSENT_PRODUCTION_BLOCKED`.
+The approved server-only design therefore cannot yet name a production-ready
+trusted execution identity, and no current rate-limit caller uses this key.
 
 ## Consequence
 
@@ -54,4 +59,6 @@ already use its key, but it is not approved for rate limits by this record.
 The R1 binding contract, metadata-only proof specification, rotation plan, and
 environment checklist are in the sibling
 `operational-guardrails-service-role-binding-*.md` records. Their static test
-proves that metadata proof does not authorize RPC SQL or unblock Stage C.
+proves that Preview metadata proof does not authorize RPC SQL or unblock Stage
+C. The next safe approval is repository-only R2 proposal design; Production
+secret creation remains separately blocked.

@@ -46,8 +46,9 @@ without accidentally becoming executable database material:
 - [fail-closed runtime and R1-R9 migration plan](operational-guardrails-rate-limit-rpc-runtime-plan.md)
 - [implementation-readiness checklist](operational-guardrails-rate-limit-rpc-readiness.md)
 
-The identity classification is `SERVICE_ROLE_CONFIGURATION_REQUIRED`: two
-server-only service-role factories exist, but no checked-in deployment binding
-proves one for this rate-limit path. The proposed contract is
-`public.consume_forum_rate_limit`, but no executable function SQL exists and no
-role is authorized to call it yet.
+The identity classification is `SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY`:
+operator-held metadata-only proof establishes the encrypted Preview binding
+record, while local configuration is unproven and Production remains
+`BINDING_ABSENT_PRODUCTION_BLOCKED`. No current rate-limit caller uses the
+binding. The proposed contract is `public.consume_forum_rate_limit`, but no
+executable function SQL exists and no role is authorized to call it yet.
