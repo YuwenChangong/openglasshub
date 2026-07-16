@@ -30,12 +30,15 @@ Use a dedicated non-repository output path, never a shared W6 CSV:
 - Preview: `C:\Users\1\Downloads\openglasshub-service-role-binding-preview-proof.json`
 - Production: `C:\Users\1\Downloads\openglasshub-service-role-binding-production-proof.json`
 
-The offline writer emits only the attested metadata classification after the
-operator's inspection. It has no network, Cloudflare CLI, credential, or value
-input:
+The offline runner invokes the writer and then the validator only after a
+successful write. If the writer fails, it stops before the validator; if the
+packet is a valid non-secret result, it preserves the packet and returns the
+validator's intentional nonzero status. It has no network, Cloudflare CLI,
+credential, or value input. Its output parent must already exist and must be
+strictly outside the repository, including after realpath/symlink resolution:
 
 ```powershell
-node scripts/write-operational-guardrails-service-role-binding-proof.mjs --environment preview --classification SECRET_BINDING_PRESENT --source-commit <approved-40-character-sha> --output "C:\Users\1\Downloads\openglasshub-service-role-binding-preview-proof.json"
+& ".\scripts\run-operational-guardrails-service-role-binding-proof.ps1" -Environment preview -Classification SECRET_BINDING_PRESENT -SourceCommit <approved-40-character-sha> -OutputPath "C:\Users\1\Downloads\openglasshub-service-role-binding-preview-proof.json"
 ```
 
 Validate it separately:

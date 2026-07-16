@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import {
   BINDING_NAME,
   CLASSIFICATIONS,
@@ -8,6 +8,7 @@ import {
   PACKET_VERSION,
 } from "../tests/fixtures/operational-guardrails-service-role-binding-proof.mjs";
 import { inspectServiceRoleBindingPacket } from "./operational-guardrails-service-role-binding-proof-core.mjs";
+import { resolveSafeProofOutputPath } from "./operational-guardrails-service-role-binding-proof-paths.mjs";
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, index, values) => {
   if (value.startsWith("--")) pairs.push([value.slice(2), values[index + 1]]);
@@ -22,7 +23,7 @@ const classification = args.classification;
 if (!ENVIRONMENTS.includes(environment)) throw new Error("environment must be preview or production");
 if (!/^[0-9a-f]{40}$/i.test(sourceCommit ?? "")) throw new Error("source-commit must be a 40-character Git SHA");
 if (!CLASSIFICATIONS.includes(classification)) throw new Error("classification must be one approved metadata result");
-if (!output || !isAbsolute(output) || !relative(root, resolve(output)).startsWith("..")) throw new Error("output must be an absolute path outside the repository");
+if (!output) throw new Error("output must be an absolute path outside the repository");
 
 const packet = {
   packet_version: PACKET_VERSION,
@@ -45,6 +46,6 @@ if (classification === "CONFLICTING_BINDINGS_PRESENT") Object.assign(packet, { e
 if (classification === "BROWSER_EXPOSURE_CONFLICT") Object.assign(packet, { browser_exposed_binding_count: 1 });
 if (classification === "INSUFFICIENT_EVIDENCE") Object.assign(packet, { binding_exists: false, binding_storage_kind: "unknown", exact_binding_count: 0 });
 inspectServiceRoleBindingPacket(packet);
-await mkdir(dirname(resolve(output)), { recursive: true });
-await writeFile(output, `${JSON.stringify(packet, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+const safeOutput = await resolveSafeProofOutputPath({ repositoryRoot: root, outputPath: output });
+await writeFile(safeOutput, `${JSON.stringify(packet, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
 console.log(JSON.stringify({ packetVersion: PACKET_VERSION, environment, binding: BINDING_NAME, classification, outputWritten: true, metadataOnly: true }));
