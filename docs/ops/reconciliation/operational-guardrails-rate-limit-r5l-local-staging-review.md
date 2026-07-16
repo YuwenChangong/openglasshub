@@ -1,6 +1,6 @@
 # W6 R5L Local Full-Stack Staging Review
 
-Status: `R5L_BLOCKED_RUNTIME_READINESS`.
+Status: `R5L_LOCAL_WORKER_READINESS_PROVEN_HTTP_MATRIX_PENDING`.
 
 This review is a local-only checkpoint. It does not create a Cloudflare
 Preview deployment, bind any hosted Supabase project, or change the separate
@@ -59,6 +59,36 @@ operation, or external request. Therefore the required actual local HTTP,
 429/503, concurrency, secret-exposure, and residue suite cannot be reported as
 verified. A separately reviewed local runtime packaging/harness fix is
 required before another R5L attempt.
+
+## 2026-07-16 multi-module harness correction
+
+The readiness blocker was classified as `HARNESS_INVOCATION_DEFECT`. Astro
+emits an advanced-mode ES-module Worker at `dist/_worker.js/index.js`, with a
+490-module generated graph. `wrangler pages dev` re-bundles that graph and
+fails while resolving `fs`; its `--no-bundle` mode rejects the Worker because
+the entrypoint imports generated sibling modules. Neither behavior proves an
+application `node:fs` runtime dependency.
+
+The local-only replacement is `scripts/lib/r5l-pages-multimodule-harness.mjs`.
+It loads every generated `.js` and `.mjs` module explicitly through Miniflare,
+uses the checked-in compatibility date without adding `nodejs_compat`, permits
+only loopback Supabase bindings, and starts an actual Worker listener on an
+explicit loopback port. The artifact does contain the guarded local lexicon
+fallback import from `src/lib/moderation/sensitive-lexicon-loader.server.ts`;
+the local runner sets `SENSITIVE_LEXICON_DISABLE_NODE_LOCAL=true`, so that
+fallback is not executed in the Worker request path. Browser assets are
+checked for service-role material before startup.
+
+A fresh normalized local stack and temporary local JWTs were used only to
+prove actual Worker readiness: `/api/forum/search?q=open` returned `200`
+through the built graph. The Worker and all ten normalized local Supabase
+containers were then stopped, with no listener residue. No user, business,
+RPC, migration, Preview, or Production operation occurred.
+
+This is not the complete R5L HTTP staging matrix. The authenticated fixture,
+rate-limit proposal/replay, route, failure-mode, and concurrency runner still
+must be executed from a new clean local environment before claiming
+`R5_LOCAL_STAGING_VERIFIED`.
 
 ## Containment and cleanup
 
