@@ -62,6 +62,9 @@ assert.equal(result.indexFindings.forum_upload_attempts_purpose_ip_created_idx, 
 assert.equal(result.policyFindings.forum_upload_attempts_insert_self, "RLS_REDUNDANT_PRIVILEGE_HOLD");
 assert.equal(result.authenticatedDirectPathAuthorized, false);
 assert.equal(result.policyRemovalEligible, false);
+assert.equal(result.indexStageClassifications.W6_INDEX_STAGE_A, "CLOSED_ALREADY_SATISFIED");
+assert.equal(result.indexStageClassifications.W6_INDEX_STAGE_B, "CLOSED_ALREADY_SATISFIED");
+assert.equal(result.indexCreationProposalEligible, false);
 assert.throws(() => validateCurrentCatalogRefreshRows(rows.filter((entry) => entry.section !== "object_fingerprints")), /required section/);
 assert.throws(() => validateCurrentCatalogRefreshRows([...rows, { ...rows[0] }]), /duplicate/);
 assert.throws(() => validateCurrentCatalogRefreshRows(rows.map((entry) => entry.section === "packet_manifest" && entry.attribute === "packet_version" ? { ...entry, value: "wrong" } : entry)), /operational-guardrails-current-catalog-refresh-v1/);

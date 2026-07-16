@@ -85,6 +85,10 @@ export function validateCurrentCatalogRefreshRows(rows) {
   const fingerprints = rowsFor(rows, "object_fingerprints");
   for (const name of ["relation_metadata_md5", "all_index_catalog_md5", "all_policy_catalog_md5"]) if (!fingerprints.some((row) => row.attribute === name && /^[a-f0-9]{32}$/.test(row.value ?? ""))) throw new Error(`fingerprint missing: ${name}`);
   const authenticated = effective.authenticated;
+  const indexStageClassifications = {
+    W6_INDEX_STAGE_A: ["EXACT_INDEX_PRESENT", "EQUIVALENT_INDEX_PRESENT"].includes(indexFindings.forum_upload_attempts_purpose_ip_created_idx) ? "CLOSED_ALREADY_SATISFIED" : indexFindings.forum_upload_attempts_purpose_ip_created_idx === "INDEX_MISSING" ? "ELIGIBLE" : "BLOCKED",
+    W6_INDEX_STAGE_B: ["EXACT_INDEX_PRESENT", "EQUIVALENT_INDEX_PRESENT"].includes(indexFindings.forum_upload_attempts_purpose_user_created_idx) ? "CLOSED_ALREADY_SATISFIED" : indexFindings.forum_upload_attempts_purpose_user_created_idx === "INDEX_MISSING" ? "ELIGIBLE" : "BLOCKED",
+  };
   return {
     packetVersion: PACKET_VERSION,
     rowCount: rows.length,
@@ -95,7 +99,8 @@ export function validateCurrentCatalogRefreshRows(rows) {
     rls,
     authenticatedDirectPathAuthorized: authenticated.SELECT === true && authenticated.INSERT === true,
     policyRemovalEligible: false,
-    stagedProposalEligible: Object.values(indexFindings).every((finding) => finding === "EXACT_INDEX_PRESENT" || finding === "EQUIVALENT_INDEX_PRESENT") && authenticated.SELECT === false && authenticated.INSERT === false,
+    indexStageClassifications,
+    indexCreationProposalEligible: Object.values(indexFindings).every((finding) => finding === "INDEX_MISSING"),
     reviewStatus: "CURRENT_CATALOG_REFRESH_COMPLETE",
   };
 }

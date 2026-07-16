@@ -12,6 +12,12 @@ The dedicated current-state packet is
 [operational-guardrails-current-catalog-refresh.sql](reconciliation/operational-guardrails-current-catalog-refresh.sql);
 its CSV must not reuse any earlier W6 export.
 
+The approved fresh catalog-only execution has now resolved the historical
+missing-index conflict. Both index stages are closed already satisfied; the
+extra-policy hold remains because the direct runtime path is non-atomic and
+fail-open. See the deterministic offline review in
+[operational-guardrails-current-catalog-refresh-review.md](reconciliation/operational-guardrails-current-catalog-refresh-review.md).
+
 ## Why W6 is next
 
 W6 is dependency-complete after W0 and is the smallest unresolved bounded
