@@ -170,7 +170,7 @@ async function localAuthToken({ email, password, anonKey }) {
     headers: { apikey: anonKey, "content-type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  if (!response.ok) throw new Error("R5L local GoTrue fixture authentication failed");
+  if (!response.ok) throw new Error(`R5L local GoTrue fixture authentication failed with HTTP ${response.status}`);
   const payload = await response.json();
   if (typeof payload?.access_token !== "string" || payload.access_token.split(".").length !== 3) throw new Error("R5L local GoTrue returned no access token");
   return payload.access_token;
