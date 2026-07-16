@@ -69,7 +69,7 @@ export function validateLocalBindings(bindings) {
     if (typeof value !== "string") throw new Error(`${name} must be a string binding`);
     if (cloudTargetPattern.test(value)) throw new Error(`${name} contains a cloud or production target`);
   }
-  if (!bindings.SUPABASE_ANON_KEY || !bindings.SUPABASE_SERVICE_ROLE_KEY) throw new Error("R5L local Supabase bindings are required");
+  if (!bindings.SUPABASE_ANON_KEY || (!bindings.SUPABASE_SERVICE_ROLE_KEY && bindings.R5L_ALLOW_MISSING_SERVICE_ROLE_FOR_FAULT !== "true")) throw new Error("R5L local Supabase bindings are required");
 }
 
 export async function assertBrowserAssetsHaveNoServiceRole(repositoryRoot) {

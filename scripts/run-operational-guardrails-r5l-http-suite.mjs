@@ -333,6 +333,24 @@ async function executeSuite() {
       assert.equal(tableCount(database, "forum_upload_attempts"), before, "R5L missing RPC continued protected action");
       safeJson(failed);
       psql(database, await readFile(proposalPath, "utf8"));
+      psql(database, "REVOKE EXECUTE ON FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint) FROM service_role;");
+      const revoked = await postJson(worker.origin, "/api/forum/media-upload-guard", { token: tokenA, ip: "127.0.0.51", body: { upload_kind: "post_media", size_bytes: 1 } });
+      assert.equal(revoked.status, 503, "R5L revoked service-role execute must fail closed");
+      assert.equal(tableCount(database, "forum_upload_attempts"), before, "R5L revoked execute continued protected action");
+      safeJson(revoked);
+      psql(database, "GRANT EXECUTE ON FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint) TO service_role;");
+      const missingBinding = buildLocalBindings({ anonKey, serviceRoleKey, rateLimitSalt: `r5l-${runId}-missing-binding` });
+      delete missingBinding.SUPABASE_SERVICE_ROLE_KEY;
+      missingBinding.R5L_ALLOW_MISSING_SERVICE_ROLE_FOR_FAULT = "true";
+      const faultWorker = await startBuiltPagesWorker({ repositoryRoot: root, bindings: missingBinding, port: await availablePort() });
+      try {
+        const bindingFailure = await postJson(faultWorker.origin, "/api/forum/media-upload-guard", { token: tokenA, ip: "127.0.0.51", body: { upload_kind: "post_media", size_bytes: 1 } });
+        assert.equal(bindingFailure.status, 503, "R5L missing service binding must fail closed");
+        assert.equal(tableCount(database, "forum_upload_attempts"), before, "R5L missing binding continued protected action");
+        safeJson(bindingFailure);
+      } finally {
+        await faultWorker.dispose();
+      }
     });
     await recorder.run("http-concurrency", async () => {
       const seedUser = fixture.userA.id;
