@@ -1,7 +1,8 @@
 # W6 Rate-Limit Trusted Server Identity Evidence
 
-Status: `SERVICE_ROLE_CONFIGURATION_REQUIRED`. This is an offline source review,
-not proof of a deployed secret and not authority to configure one.
+Status: `SERVICE_ROLE_CONFIGURATION_REQUIRED`. The exact binding name is now
+classified `EXISTING_BINDING_NAME_SOURCE_PROVEN`; it is still not proof of a
+deployed secret and is not authority to configure one.
 
 ## Client inventory
 
@@ -49,3 +50,8 @@ The future function may grant execution only to the R1-proven trusted server
 role. `service_role` is a candidate because the two audited server factories
 already use its key, but it is not approved for rate limits by this record.
 `PUBLIC`, `anon`, and `authenticated` remain ineligible.
+
+The R1 binding contract, metadata-only proof specification, rotation plan, and
+environment checklist are in the sibling
+`operational-guardrails-service-role-binding-*.md` records. Their static test
+proves that metadata proof does not authorize RPC SQL or unblock Stage C.

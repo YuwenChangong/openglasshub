@@ -15,6 +15,12 @@ interface and advisory-lock design, and leaves R1 configuration plus the
 media-byte, timeout, duplicate, owner, and external-video daily-quota decisions
 approval-gated. The direct rate-limit paths remain fail-open and Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED`; no policy is removable.
+
+R1 now has a repository-only binding contract: the active server name is
+`SUPABASE_SERVICE_ROLE_KEY`, but local configuration is required and Preview
+and Production each require an independently approved metadata-only proof before
+any secret creation or runtime work. The proof workflow stores no value or hash
+and does not make Stage C eligible.
 The dedicated current-state packet is
 [operational-guardrails-current-catalog-refresh.sql](reconciliation/operational-guardrails-current-catalog-refresh.sql);
 its CSV must not reuse any earlier W6 export.
