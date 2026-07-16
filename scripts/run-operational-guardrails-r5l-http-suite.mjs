@@ -75,10 +75,11 @@ async function waitForDatabase(database) {
 function sqlLiteral(value) { return `'${String(value).replaceAll("'", "''")}'`; }
 function base64url(value) { return Buffer.from(value).toString("base64url"); }
 
-export function createLocalAccessToken({ userId, email, jwtSecret }) {
+export function createLocalAccessToken({ userId, email, jwtSecret, audience = "authenticated", issuer = "supabase" }) {
   assert.match(userId, /^[0-9a-f-]{36}$/i, "local fixture user id must be a UUID");
   const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payload = base64url(JSON.stringify({ sub: userId, role: "authenticated", aud: "authenticated", email, exp: Math.floor(Date.now() / 1000) + 300 }));
+  const now = Math.floor(Date.now() / 1000);
+  const payload = base64url(JSON.stringify({ sub: userId, role: "authenticated", aud: audience, iss: issuer, email, iat: now, exp: now + 300 }));
   return `${header}.${payload}.${createHmac("sha256", jwtSecret).update(`${header}.${payload}`).digest("base64url")}`;
 }
 
@@ -217,8 +218,10 @@ async function executeSuite() {
     const jwtSecret = envValue(auth, "GOTRUE_JWT_SECRET");
     const anonKey = createLocalServiceToken({ role: "anon", jwtSecret });
     const serviceRoleKey = createLocalServiceToken({ role: "service_role", jwtSecret });
-    const tokenA = createLocalAccessToken({ userId: fixture.userA.id, email: fixture.userA.email, jwtSecret });
-    const tokenB = createLocalAccessToken({ userId: fixture.userB.id, email: fixture.userB.email, jwtSecret });
+    const audience = envValue(auth, "GOTRUE_JWT_AUD");
+    const issuer = envValue(auth, "GOTRUE_JWT_ISSUER");
+    const tokenA = createLocalAccessToken({ userId: fixture.userA.id, email: fixture.userA.email, jwtSecret, audience, issuer });
+    const tokenB = createLocalAccessToken({ userId: fixture.userB.id, email: fixture.userB.email, jwtSecret, audience, issuer });
     const port = await availablePort();
     await recorder.run("worker-start", async () => { worker = await startBuiltPagesWorker({ repositoryRoot: root, bindings: buildLocalBindings({ anonKey, serviceRoleKey, rateLimitSalt: `r5l-${runId}` }), port }); });
     await recorder.run("worker-readiness", async () => { assert.equal((await waitForWorkerResponse(worker.origin, { pathname: "/api/forum/search?q=open" })).status, 200); });
