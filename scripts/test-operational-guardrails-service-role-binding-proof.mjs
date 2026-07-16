@@ -3,11 +3,13 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
   BINDING_NAME,
+  CLASSIFICATIONS,
   ENVIRONMENTS,
+  packetForClassification,
   proofCases,
   validPacket,
 } from "../tests/fixtures/operational-guardrails-service-role-binding-proof.mjs";
-import { validateServiceRoleBindingPacket } from "./operational-guardrails-service-role-binding-proof-core.mjs";
+import { inspectServiceRoleBindingPacket, validateServiceRoleBindingPacket } from "./operational-guardrails-service-role-binding-proof-core.mjs";
 
 const files = {
   legal: "src/lib/server/legal-consent-repository.server.ts",
@@ -35,11 +37,13 @@ assert.match(source.readiness, /Production[\s\S]*BINDING_PROOF_REQUIRED/);
 assert.match(source.readiness, /BLOCKED_RUNTIME_MIGRATION_REQUIRED/);
 
 for (const environment of ENVIRONMENTS) assert.equal(validateServiceRoleBindingPacket(validPacket(environment)).environment, environment);
+for (const classification of CLASSIFICATIONS) assert.equal(inspectServiceRoleBindingPacket(packetForClassification(classification)).classification, classification);
 for (const packet of Object.values(proofCases)) assert.throws(() => validateServiceRoleBindingPacket(packet));
 assert.throws(() => validateServiceRoleBindingPacket({ ...validPacket(), secret_value: "forbidden" }));
 for (const text of [source.writer, source.validator, source.core]) assert.doesNotMatch(text, /fetch\(|https?:\/\/|wrangler|child_process|exec\(/i);
 assert.match(source.writer, /flag: "wx"/);
 assert.match(source.writer, /outside the repository/);
+assert.match(source.writer, /classification must be one approved metadata result/);
 
 async function collectClientSources(directory) {
   const entries = await readdir(directory, { withFileTypes: true });

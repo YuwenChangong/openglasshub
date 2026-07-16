@@ -10,7 +10,8 @@ Packet version: `openglasshub-service-role-binding-proof-v1`.
 
 After a Cloudflare Pages operator opens the exact `openglasshub` project,
 selects either Preview or Production, and inspects Variables and Secrets without
-opening or editing a value, they attest only that:
+opening or editing a value, they classify the evidence as exactly one approved
+result. `SECRET_BINDING_PRESENT` requires all of the following:
 
 - exactly one `SUPABASE_SERVICE_ROLE_KEY` binding exists;
 - Cloudflare marks it as a secret, not a plaintext variable;
@@ -18,16 +19,23 @@ opening or editing a value, they attest only that:
 - no browser-exposed equivalent exists; and
 - the project/environment match this packet.
 
+Otherwise select the matching `BINDING_ABSENT`,
+`PLAINTEXT_BINDING_PRESENT`, `CONFLICTING_BINDINGS_PRESENT`,
+`BROWSER_EXPOSURE_CONFLICT`, or `INSUFFICIENT_EVIDENCE` result. No binding
+name, account identifier, secret value, or secret hash beyond the fixed expected
+name is written into the packet.
+
 Use a dedicated non-repository output path, never a shared W6 CSV:
 
 - Preview: `C:\Users\1\Downloads\openglasshub-service-role-binding-preview-proof.json`
 - Production: `C:\Users\1\Downloads\openglasshub-service-role-binding-production-proof.json`
 
-The offline writer emits only the fixed attested metadata after the operator's
-inspection. It has no network, Cloudflare CLI, credential, or value input:
+The offline writer emits only the attested metadata classification after the
+operator's inspection. It has no network, Cloudflare CLI, credential, or value
+input:
 
 ```powershell
-node scripts/write-operational-guardrails-service-role-binding-proof.mjs --environment preview --source-commit <approved-40-character-sha> --output "C:\Users\1\Downloads\openglasshub-service-role-binding-preview-proof.json"
+node scripts/write-operational-guardrails-service-role-binding-proof.mjs --environment preview --classification SECRET_BINDING_PRESENT --source-commit <approved-40-character-sha> --output "C:\Users\1\Downloads\openglasshub-service-role-binding-preview-proof.json"
 ```
 
 Validate it separately:
@@ -36,8 +44,10 @@ Validate it separately:
 node scripts/validate-operational-guardrails-service-role-binding-proof.mjs "C:\Users\1\Downloads\openglasshub-service-role-binding-preview-proof.json"
 ```
 
-The packet validator fails closed for a missing binding, duplicate, conflicting
-name, plaintext classification, name mismatch, browser-exposed count, malformed
-schema, wrong project/environment/version, or any secret-like field. The packet
-is an operator-attested metadata record, not an automated Cloudflare API result;
-an independent reviewer must compare it to the dashboard before R2.
+The packet validator emits only the redacted classification for a structurally
+valid packet, but exits nonzero unless it is `SECRET_BINDING_PRESENT`. It fails
+closed for a missing binding, duplicate, conflicting name, plaintext
+classification, name mismatch, browser-exposed count, malformed schema, wrong
+project/environment/version, or any secret-like field. The packet is an
+operator-attested metadata record, not an automated Cloudflare API result; an
+independent reviewer must compare it to the dashboard before R2.
