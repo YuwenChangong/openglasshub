@@ -150,7 +150,7 @@ function fixtureSql(fixture) {
   return `BEGIN;
 ${users.map((user) => `INSERT INTO auth.users (id,instance_id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES (${sqlLiteral(user.id)}::uuid,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',${sqlLiteral(user.email)},'',now(),'{"provider":"email","providers":["email"]}','{}',now(),now());`).join("\n")}
 ${users.map((user) => `INSERT INTO public.profiles (id,username,display_name,role) VALUES (${sqlLiteral(user.id)}::uuid,${sqlLiteral(user.username)},${sqlLiteral(user.username)},'user') ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username;`).join("\n")}
-${users.map((user) => `INSERT INTO public.legal_policy_acceptances (user_id,privacy_version,terms_version,community_version,minimum_age,source) VALUES (${sqlLiteral(user.id)}::uuid,'2026-07','2026-07','2026-07',18,'registration');`).join("\n")}
+${users.map((user) => `INSERT INTO public.legal_policy_acceptances (user_id,bundle_version,privacy_version,terms_version,guidelines_version,minimum_age,first_acceptance_source,last_confirmation_source,confirmation_count) VALUES (${sqlLiteral(user.id)}::uuid,'2026-07','2026-07','2026-07','2026-07',18,'registration','registration',1);`).join("\n")}
 INSERT INTO public.circles (id,slug,name,description,type,owner_id,status) VALUES (${sqlLiteral(fixture.circleId)}::uuid,${sqlLiteral(fixture.circleSlug)},'R5L local circle','Disposable local fixture','topic',${sqlLiteral(fixture.userA.id)}::uuid,'active');
 COMMIT;`;
 }
