@@ -31,5 +31,7 @@ for (const role of ["PUBLIC", "anon", "authenticated", "service_role", "postgres
   for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) assert.equal(typeof acl[role]?.[privilege], "boolean", `${role} ${privilege} must be catalog-derived`);
 }
 
-assert.equal(execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations", "src"], { cwd: root, encoding: "utf8" }).trim(), "", "canonical migrations and runtime files must remain unchanged");
+const changedFiles = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations", "src"], { cwd: root, encoding: "utf8" }).trim().split(/\r?\n/).filter(Boolean);
+const approvedR4RuntimeFiles = new Set(["src/lib/server/rate-limit.ts", "src/pages/api/forum/posts.ts", "src/pages/api/forum/comments.ts", "src/pages/api/forum/circles.ts", "src/pages/api/forum/media-upload-guard.ts", "src/pages/api/forum/external-video-upload.ts"]);
+assert.deepEqual(changedFiles.filter((file) => !approvedR4RuntimeFiles.has(file)), [], "canonical migrations and unrelated runtime files must remain unchanged");
 console.log(JSON.stringify({ localDockerOnly: true, publicPgRoleCount: 0, packetRows: rows.length, requiredSections: REQUIRED_SECTIONS.length, oneResultSet: true, noMutation: true }));

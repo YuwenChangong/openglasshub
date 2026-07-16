@@ -331,16 +331,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
     const ipHash = await hashRateLimitIp(getRequestIp(request), rateSalt);
     const rateLimit = await enforceUserRateLimit({
-      client: userClient,
+      env,
       userId: authData.user.id,
       ipHash,
       purpose: "post_create",
-      maxAttempts: 10,
-      windowMs: 60 * 60 * 1000,
       bytes: 0,
     });
-    if (!rateLimit.allowed && rateLimit.reason === "RATE_LIMITED") {
-      return json({ error: "Too many posts created", code: "RATE_LIMITED" }, 429);
+    if (!rateLimit.allowed) {
+      if (rateLimit.reason === "RATE_LIMITED") return json({ error: "Too many posts created", code: "RATE_LIMITED" }, 429);
+      return json({ error: "Rate limit service temporarily unavailable", code: rateLimit.reason }, 503);
     }
 
     const moderation = await moderateContent(env, {

@@ -5,6 +5,7 @@ const LEGAL_REPOSITORY = "src/lib/server/legal-consent-repository.server.ts";
 const LEGAL_ROUTE = "src/pages/api/legal/consent.ts";
 const LEGAL_API = "src/lib/server/legal-consent-api.server.ts";
 const MODERATION_REPOSITORY = "src/lib/server/moderation-notifications.server.ts";
+const RATE_LIMIT_REPOSITORY = "src/lib/server/consume-forum-rate-limit.server.ts";
 const MODERATION_ROUTES = [
   "src/pages/api/admin/users/[id]/ban.ts",
   "src/pages/api/admin/users/[id]/clear-warning.ts",
@@ -103,6 +104,21 @@ function moderationNotificationServiceRoleFinding({ relativePath, repositorySour
   return "moderation notification writer is missing the exact authenticated actor-bound fixed-RPC boundary";
 }
 
+function rateLimitServiceRoleFinding({ relativePath, repositorySource }) {
+  if (relativePath !== RATE_LIMIT_REPOSITORY) return "service-role usage is not a narrowly audited writer";
+  const safe = [
+    /createClient\(requireEnv\(env, "SUPABASE_URL"\), requireEnv\(env, "SUPABASE_SERVICE_ROLE_KEY"\)/.test(repositorySource),
+    /client\.rpc\("consume_forum_rate_limit", \{[\s\S]*p_user_id: input\.userId[\s\S]*p_ip_hash: input\.ipHash[\s\S]*p_purpose: input\.purpose[\s\S]*p_bytes: input\.bytes/s.test(repositorySource),
+    !/client\.(?:from|storage|functions)\(/.test(repositorySource),
+    (repositorySource.match(/\.rpc\(/g) ?? []).length === 1,
+    (repositorySource.match(/SUPABASE_SERVICE_ROLE_KEY/g) ?? []).length === 1,
+    /RATE_LIMIT_RUNTIME_DEADLINE_MS = 4_000/.test(repositorySource),
+    /controller\.abort\(\)/.test(repositorySource),
+    !/(?:console\.|logger\.|throw new Error\([^)]*SUPABASE_SERVICE_ROLE_KEY)/.test(repositorySource),
+  ].every(Boolean);
+  return safe ? null : "rate-limit service-role wrapper is not a narrow fail-closed fixed-RPC boundary";
+}
+
 function findUnsafeServiceRoleUsage(rootDir, srcDir) {
   const routeSource = read(rootDir, LEGAL_ROUTE);
   const apiSource = read(rootDir, LEGAL_API);
@@ -112,9 +128,11 @@ function findUnsafeServiceRoleUsage(rootDir, srcDir) {
     const repositorySource = read(rootDir, relativePath);
     const finding = relativePath === LEGAL_REPOSITORY
       ? legalConsentServiceRoleFinding({ relativePath, repositorySource, routeSource, apiSource })
-      : moderationNotificationServiceRoleFinding({ relativePath, repositorySource, routeSources });
+      : relativePath === RATE_LIMIT_REPOSITORY
+        ? rateLimitServiceRoleFinding({ relativePath, repositorySource })
+        : moderationNotificationServiceRoleFinding({ relativePath, repositorySource, routeSources });
     return finding ? [`${relativePath}: ${finding}`] : [];
   });
 }
 
-module.exports = { findUnsafeServiceRoleUsage, legalConsentServiceRoleFinding, moderationNotificationServiceRoleFinding };
+module.exports = { findUnsafeServiceRoleUsage, legalConsentServiceRoleFinding, moderationNotificationServiceRoleFinding, rateLimitServiceRoleFinding };

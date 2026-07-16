@@ -208,10 +208,11 @@ async function main() {
   const turnstile = source.indexOf('stage = "turnstile";');
   const rateReads = source.indexOf('stage = "rate.ip";');
   const r2Signing = source.indexOf('stage = "r2.sign";');
-  const rateAttemptInsert = source.indexOf('stage = "attempt.insert";');
+  const rateConsume = source.indexOf('stage = "rate.consume";');
   assert(consent >= 0 && consent < postIdValidation && postIdValidation < postLookup);
   assert(postLookup < ownershipComparison && ownershipComparison < keyBuild && keyBuild < turnstile);
-  assert(turnstile < rateReads && rateReads < r2Signing && r2Signing < rateAttemptInsert);
+  assert(turnstile < rateReads && rateReads < rateConsume && rateConsume < r2Signing);
+  assert.doesNotMatch(source, /forum_upload_attempts/);
   assert(/create policy "posts_select_published_public"[\s\S]*?status = 'published'[\s\S]*?or author_id = auth\.uid\(\)[\s\S]*?or \(select public\.is_moderator_or_admin\(\)\)/.test(deployedPostSelectPolicy));
   assert(/create policy "posts_select_published_public"[\s\S]*?moderation_status = 'published'[\s\S]*?public\.can_access_public_circle\(circle_id\)[\s\S]*?or author_id = auth\.uid\(\)/.test(authoredPostSelectPolicy));
 
@@ -278,10 +279,8 @@ async function main() {
     "post-bound key generation",
     "Turnstile validation",
     "daily-rate hash",
-    "daily-rate attempt read",
-    "daily-rate media read",
-    "r2 URL signing",
     "rate-attempt insert",
+    "r2 URL signing",
   ]);
   assert.equal(owner.effects.rateAttemptInsert, 1);
   assert.equal(owner.effects.r2Signing, 1);

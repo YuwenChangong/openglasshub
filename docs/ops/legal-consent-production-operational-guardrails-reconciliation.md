@@ -16,8 +16,7 @@ configuration is unproven and Production remains
 `BINDING_ABSENT_PRODUCTION_BLOCKED`. It fixes a non-executable five-purpose
 interface, advisory-lock design, complete V1 quota matrix, and fail-closed
 retry/timeout contract. Production function-owner confirmation and binding,
-plus separately approved R3/R4 work, remain required. The direct rate-limit
-paths remain fail-open and Stage C remains
+plus separately approved R3/R4 work, remain required. Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED`; no policy is removable.
 
 R2 has authored an unexecuted, `COMPLETE_STATICALLY_VALID` proposal for the
@@ -43,8 +42,32 @@ R3 changes no production state: `public.consume_forum_rate_limit` remains
 unexecuted outside the disposable fixture; production identity remains
 `BINDING_ABSENT_PRODUCTION_BLOCKED`; Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED`; and both extra policies remain unchanged.
-The next possible approval is
-`APPROVE_R4_REPOSITORY_ONLY_FAIL_CLOSED_RUNTIME_MIGRATION_PROPOSAL`.
+The R4 repository-only migration is now complete; it still creates no Preview
+or Production binding and does not make Stage C eligible.
+
+## R4 runtime migration and R5 Preview readiness
+
+R4 is `R4_IMPLEMENTATION_READY` in this repository only. The five protected
+forum mutation paths now call the fixed, server-only
+`consume_forum_rate_limit` RPC wrapper. The wrapper constructs its privileged
+client privately, supplies only server-derived actor/IP/purpose/byte inputs,
+uses one four-second abortable call, accepts only the exact one-row
+`ALLOWED`/`RATE_LIMITED` contract, and treats every configuration, permission,
+transport, timeout, or malformed-result failure as a sanitized `503`. No
+browser receives the service-role key and no caller retains a direct
+`forum_upload_attempts` table query. The external-video route reserves rate
+limit capacity before R2 signing, so later signing or media failure cannot
+retroactively erase an accepted reservation.
+
+R5 is `R5_READINESS_PACKET_COMPLETE_UNEXECUTED`. Its Preview-only catalog
+preflight, exact-R2-proposal reference, postflight, and staged checklist are
+in `docs/ops/reconciliation/operational-guardrails-rate-limit-r5-preview-*`.
+They do not create a Preview binding, execute SQL, deploy the branch, or remove
+either reviewed policy. The sole next approval is
+`APPROVE_R5_PREVIEW_RPC_SQL_RUNTIME_DEPLOYMENT_AND_VERIFICATION_STAGED_EXECUTION`.
+Until that approval and verified staged execution, Preview is unbound,
+Production is `BINDING_ABSENT_PRODUCTION_BLOCKED`, and Stage C remains
+`BLOCKED_RUNTIME_MIGRATION_REQUIRED`.
 
 R1 now has a repository-only binding contract: the active server name is
 `SUPABASE_SERVICE_ROLE_KEY`. The external Preview proof transition is
@@ -86,8 +109,8 @@ Exact scope:
 - `public.forum_upload_attempts.forum_upload_attempts_select_self`
   (`EXTRA_IN_PRODUCTION`, P0), from the same migration.
 
-Source-backed runtime callers are `src/lib/server/rate-limit.ts` and
-`src/pages/api/forum/external-video-upload.ts`. Direct dependencies are only
+Source-backed runtime callers are `src/lib/server/consume-forum-rate-limit.server.ts`
+and the five guarded forum mutation routes. Direct dependencies are only
 the table, its five rate-limit columns, the two indexes, and the two reviewed
 policy names. The packet returns catalog definitions plus aggregate-only safety
 counts; it returns no user identifiers, IP values, timestamps, or attempt rows.
@@ -157,8 +180,8 @@ scope.
 | Path | Intended role | Required privilege | Applicable RLS | Source-backed behavior | Current evidence / gap |
 | --- | --- | --- | --- | --- | --- |
 | Browser client | No direct table role | None | None | No browser source calls `forum_upload_attempts`. | Source search finds no browser-table client. |
-| Authenticated forum API: post, comment, and circle creation | Caller bearer token via anon-key client | `SELECT`, then `INSERT` | Canonical `forum_upload_attempts_select_authenticated` (`USING true`) and `forum_upload_attempts_insert_authenticated` (`user_id = auth.uid() OR user_id IS NULL`) | `enforceUserRateLimit` counts then inserts a caller-derived record. | Prior catalog evidence reports effective authenticated `SELECT=false`, `INSERT=false`; helper returns `allowed: true` on either DB error. Fresh ACL/RLS evidence is required. |
-| Authenticated forum API: media guard and external video upload | Caller bearer token via anon-key client | `SELECT`, then `INSERT` | Same canonical policies | `enforceUploadRateLimit` counts then inserts; external-video also directly reads `bytes` for its daily cap. | Same privilege gap; both failure paths treat unavailable attempt data as zero/allowed. |
+| Authenticated forum API: post, comment, and circle creation | Verified bearer actor, then server-only RPC | No authenticated table privilege | Table access occurs only inside reviewed `consume_forum_rate_limit` | `enforceUserRateLimit` delegates one server-derived request and maps only `RATE_LIMITED` to `429`; every other failure is `503`. | Preview RPC/binding and runtime deployment remain unverified. |
+| Authenticated forum API: media guard and external video upload | Verified bearer actor, then server-only RPC | No authenticated table privilege | Same fixed RPC | `enforceUploadRateLimit` delegates one server-derived request. External-video reserves before R2 signing. | Preview RPC/binding and runtime deployment remain unverified. |
 | Unauthenticated resend-confirmation API | `anon` RPC caller | `EXECUTE` on one RPC, not table `SELECT`/`INSERT` | RLS/table grants bypassed only inside the reviewed security-definer RPC | `consumeVerificationEmailResendLimit` calls `consume_verification_email_resend_limit`; the function reads and inserts the `verification_email_resend` attempt. | Source migration grants RPC execute to `anon` and `authenticated`; fresh function ACL/metadata evidence is required. |
 | Service-role server client | None for this table | None established | Not applicable | Repository service-role factories are used for legal-consent and moderation-notification work, but no `forum_upload_attempts` caller uses one. | No service-role bypass is source-backed for this table. |
 | Background job / direct database function | Resend RPC only | RPC `EXECUTE` | Function is `SECURITY DEFINER` with `search_path = public, pg_temp` in source | No worker, cron, or other RPC/table reference is present in repository search. | Fresh RPC catalog evidence must confirm production still matches the reviewed contract. |

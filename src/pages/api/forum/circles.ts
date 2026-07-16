@@ -162,18 +162,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
     const ipHash = await hashRateLimitIp(getRequestIp(request), rateSalt);
     const rateLimit = await enforceUserRateLimit({
-      client: auth.client,
+      env,
       userId: auth.user.id,
       ipHash,
       purpose: "circle_create",
-      maxAttempts: 5,
-      windowMs: 24 * 60 * 60 * 1000,
       bytes: 0,
     });
     if (!rateLimit.allowed) {
-      if (rateLimit.reason === "RATE_LIMITED") {
-        return jsonResponse({ error: "Too many circles created", code: "RATE_LIMITED" }, 429);
-      }
+      if (rateLimit.reason === "RATE_LIMITED") return jsonResponse({ error: "Too many circles created", code: "RATE_LIMITED" }, 429);
+      return jsonResponse({ error: "Rate limit service temporarily unavailable", code: rateLimit.reason }, 503);
     }
 
     const duplicate = await findDuplicateCircle(auth.client, { name });

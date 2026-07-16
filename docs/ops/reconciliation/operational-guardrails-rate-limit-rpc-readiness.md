@@ -2,6 +2,11 @@
 
 Current status: `R2_CORRECTED_R3_PASSED_LOCAL_DISPOSABLE_ONLY`.
 
+R4 runtime integration is `R4_IMPLEMENTATION_READY` in the repository only;
+the staged R5 Preview packet is complete but unexecuted. Production remains
+`BINDING_ABSENT_PRODUCTION_BLOCKED` and Stage C remains blocked pending later
+Preview and Production verification.
+
 The R2 proposal package is repository-only and unexecuted:
 
 - [unexecuted SQL proposal](operational-guardrails-rate-limit-r2-unexecuted-proposal.sql)

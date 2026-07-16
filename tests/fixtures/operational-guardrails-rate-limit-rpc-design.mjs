@@ -7,9 +7,9 @@ export const trustedIdentity = {
     "src/lib/server/legal-consent-repository.server.ts#createLegalConsentServiceClient",
     "src/lib/server/moderation-notifications.server.ts#createModerationNotificationServiceClient",
   ],
-  activeRateLimitServiceRoleCaller: null,
-  declaredRuntimeBindings: ["SUPABASE_URL", "SUPABASE_ANON_KEY"],
-  missingDocumentedBinding: "SUPABASE_SERVICE_ROLE_KEY",
+  activeRateLimitServiceRoleCaller: "src/lib/server/consume-forum-rate-limit.server.ts#consumeForumRateLimit",
+  declaredRuntimeBindings: ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
+  missingDocumentedBinding: "production binding remains absent",
   conclusion:
     "The approved metadata-only Preview proof records one encrypted SUPABASE_SERVICE_ROLE_KEY binding with no conflict, but local configuration remains unproven and Production remains binding-absent. No current rate-limit caller uses the key, so the server-only rate-limit boundary remains unimplemented.",
 };
@@ -55,7 +55,7 @@ export const rateLimitRpcContract = {
     leakproof: false,
   },
   r2Status: "COMPLETE_STATICALLY_VALID",
-  r3Eligible: true,
+  r3Eligible: false,
   timeoutContract: { lockTimeout: "1s", statementTimeout: "3s", runtimeDeadlineMs: 4000 },
   retryPolicy: "NO_AUTOMATIC_RETRY",
   idempotencyPolicy: "NO_V1_IDEMPOTENCY_GUARANTEE",
@@ -63,11 +63,11 @@ export const rateLimitRpcContract = {
 };
 
 export const rateLimitRouteInventory = [
-  { route: "src/pages/api/forum/posts.ts#POST", purpose: "post_create", identity: "user+ip", bytes: 0, failure: "fails_open", denyStatus: 429, errorStatus: 503 },
-  { route: "src/pages/api/forum/comments.ts#POST", purpose: "comment_create", identity: "user+ip", bytes: 0, failure: "fails_open", denyStatus: 429, errorStatus: 503 },
-  { route: "src/pages/api/forum/circles.ts#POST", purpose: "circle_create", identity: "user+ip", bytes: 0, failure: "fails_open", denyStatus: 429, errorStatus: 503 },
-  { route: "src/pages/api/forum/media-upload-guard.ts#POST", purpose: "post_media_upload", identity: "user+ip", bytes: "request.size_bytes", failure: "fails_open", denyStatus: 429, errorStatus: 503 },
-  { route: "src/pages/api/forum/external-video-upload.ts#POST", purpose: "external_video_upload", identity: "user+ip", bytes: "request.size_bytes", failure: "fails_open_and_daily_attempt_bytes_zero", denyStatus: 429, errorStatus: 503 },
+  { route: "src/pages/api/forum/posts.ts#POST", purpose: "post_create", identity: "user+ip", bytes: 0, failure: "fails_closed", denyStatus: 429, errorStatus: 503 },
+  { route: "src/pages/api/forum/comments.ts#POST", purpose: "comment_create", identity: "user+ip", bytes: 0, failure: "fails_closed", denyStatus: 429, errorStatus: 503 },
+  { route: "src/pages/api/forum/circles.ts#POST", purpose: "circle_create", identity: "user+ip", bytes: 0, failure: "fails_closed", denyStatus: 429, errorStatus: 503 },
+  { route: "src/pages/api/forum/media-upload-guard.ts#POST", purpose: "post_media_upload", identity: "user+ip", bytes: "request.size_bytes", failure: "fails_closed", denyStatus: 429, errorStatus: 503 },
+  { route: "src/pages/api/forum/external-video-upload.ts#POST", purpose: "external_video_upload", identity: "user+ip", bytes: "request.size_bytes", failure: "fails_closed_atomic_reservation", denyStatus: 429, errorStatus: 503 },
 ];
 
 export const implementationStages = ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9"];

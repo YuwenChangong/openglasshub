@@ -640,18 +640,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
     const ipHash = await hashRateLimitIp(getRequestIp(request), rateSalt);
     const rateLimit = await enforceUserRateLimit({
-      client: userClient,
+      env,
       userId: authData.user.id,
       ipHash,
       purpose: "comment_create",
-      maxAttempts: 60,
-      windowMs: 60 * 60 * 1000,
       bytes: 0,
     });
     if (!rateLimit.allowed) {
-      if (rateLimit.reason === "RATE_LIMITED") {
-        return json({ error: "Too many comments created", code: "RATE_LIMITED" }, 429);
-      }
+      if (rateLimit.reason === "RATE_LIMITED") return json({ error: "Too many comments created", code: "RATE_LIMITED" }, 429);
+      return json({ error: "Rate limit service temporarily unavailable", code: rateLimit.reason }, 503);
     }
 
     const requiresReview = moderation.decision === "review";

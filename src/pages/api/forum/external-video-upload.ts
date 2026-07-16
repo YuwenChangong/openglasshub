@@ -176,39 +176,19 @@ export function createExternalVideoUploadPost(
     }
 
     stage = "rate.ip";
-    const previewBypass = env.DEV_TURNSTILE_BYPASS === "true";
-    let ipHash = "";
-    if (!previewBypass) {
-      const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
-      ipHash = await hashRateLimitIp(remoteIp, rateSalt);
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
-      stage = "rate.daily.attempts";
-      const { data: dailyRows, error: dailyError } = await supabase
-        .from("forum_upload_attempts")
-        .select("bytes")
-        .eq("user_id", authData.user.id)
-        .gte("created_at", oneDayAgo);
-      if (dailyError) {
-        console.warn("[rate-limit] backend unavailable", {
-          purpose: "external_video_upload",
-          message: formatDbError(stage, dailyError),
-        });
-      }
-      const usedAttemptBytes = dailyError ? 0 : (dailyRows ?? []).reduce((sum, row) => sum + Number(row.bytes ?? 0), 0);
-
-      stage = "rate.daily.media";
-      const { data: mediaRows, error: mediaBytesError } = await supabase
-        .from("post_media")
-        .select("size_bytes")
-        .eq("user_id", authData.user.id)
-        .gte("created_at", oneDayAgo);
-      if (mediaBytesError) return json({ error: formatDbError(stage, mediaBytesError) }, 500);
-      const usedMediaBytes = (mediaRows ?? []).reduce((sum, row) => sum + Number(row.size_bytes ?? 0), 0);
-      const usedBytes = Math.max(usedAttemptBytes, usedMediaBytes);
-      if (usedBytes + sizeBytes > 300 * 1024 * 1024) {
-        return json({ error: "Daily upload limit exceeded", code: "DAILY_UPLOAD_LIMIT_EXCEEDED" }, 429);
-      }
+    const rateSalt = requireEnv(env, "RATE_LIMIT_SALT");
+    const ipHash = await hashRateLimitIp(remoteIp, rateSalt);
+    stage = "rate.consume";
+    const uploadLimit = await enforceUploadRateLimit({
+      env,
+      userId: authData.user.id,
+      ipHash,
+      purpose: "external_video_upload",
+      bytes: sizeBytes,
+    });
+    if (!uploadLimit.allowed) {
+      if (uploadLimit.reason === "RATE_LIMITED") return json({ error: "Too many upload attempts from this IP", code: "RATE_LIMITED" }, 429);
+      return json({ error: "Rate limit service temporarily unavailable", code: uploadLimit.reason }, 503);
     }
 
     stage = "r2.sign";
@@ -217,24 +197,6 @@ export function createExternalVideoUploadPost(
       objectKey,
       contentType: mimeType,
     });
-
-    if (!previewBypass) {
-      stage = "attempt.insert";
-      const uploadLimit = await enforceUploadRateLimit({
-        client: supabase,
-        userId: authData.user.id,
-        ipHash,
-        purpose: "external_video_upload",
-        maxAttempts: 10,
-        windowMs: 60 * 60 * 1000,
-        bytes: sizeBytes,
-      });
-      if (!uploadLimit.allowed) {
-        if (uploadLimit.reason === "RATE_LIMITED") {
-          return json({ error: "Too many upload attempts from this IP", code: "RATE_LIMITED" }, 429);
-        }
-      }
-    }
 
     return json({
       upload_url: uploadUrl,

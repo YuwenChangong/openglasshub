@@ -25,7 +25,7 @@ assert.equal(trustedIdentity.classification, "SERVICE_ROLE_CONFIGURATION_PARTIAL
 assert.equal(trustedIdentity.previewBindingStatus, "PREVIEW_SERVICE_ROLE_BINDING_READY");
 assert.equal(trustedIdentity.productionBindingStatus, "BINDING_ABSENT_PRODUCTION_BLOCKED");
 assert.equal(trustedIdentity.proofEvidence, "operator-held-metadata-only-outside-git");
-assert.equal(trustedIdentity.activeRateLimitServiceRoleCaller, null);
+assert.equal(trustedIdentity.activeRateLimitServiceRoleCaller, "src/lib/server/consume-forum-rate-limit.server.ts#consumeForumRateLimit");
 assert.match(source.identity, /SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY/);
 assert.match(source.identity, /PREVIEW_SERVICE_ROLE_BINDING_READY/);
 assert.match(source.identity, /BINDING_ABSENT_PRODUCTION_BLOCKED/);
@@ -49,15 +49,15 @@ assert.equal(rateLimitRpcContract.purposes.post_media_upload.bytes, "1..15728640
 assert.equal(rateLimitRpcContract.purposes.external_video_upload.dailyByteMaximum, 314572800);
 assert.equal(rateLimitRpcContract.purposes.external_video_upload.dailyWindowSeconds, 86400);
 assert.equal(rateLimitRpcContract.r2Status, "COMPLETE_STATICALLY_VALID");
-assert.equal(rateLimitRpcContract.r3Eligible, true);
+assert.equal(rateLimitRpcContract.r3Eligible, false);
 assert.equal(rateLimitRpcContract.timeoutContract.runtimeDeadlineMs, 4000);
 assert.equal(rateLimitRpcContract.retryPolicy, "NO_AUTOMATIC_RETRY");
 assert.equal(rateLimitRpcContract.idempotencyPolicy, "NO_V1_IDEMPOTENCY_GUARANTEE");
 assert.match(source.contract, /314572800[\s\S]*rolling 24 hours/s);
 
 assert.equal(rateLimitRouteInventory.length, 5);
-assert(rateLimitRouteInventory.every((entry) => entry.failure.includes("fails_open") && entry.denyStatus === 429 && entry.errorStatus === 503));
-assert.match(source.rateLimit, /allowed: true,[\s\S]*backendAvailable: false/);
+assert(rateLimitRouteInventory.every((entry) => entry.failure.includes("fails_closed") && entry.denyStatus === 429 && entry.errorStatus === 503));
+assert.doesNotMatch(source.rateLimit, /forum_upload_attempts|allowed: true,[\s\S]*backendAvailable: false/);
 assert.match(source.runtime, /malformed data[\s\S]*fixed `503`/);
 assert.match(source.runtime, /external-video[\s\S]*one atomic RPC ledger/i);
 

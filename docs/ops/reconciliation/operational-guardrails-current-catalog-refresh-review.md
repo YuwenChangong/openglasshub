@@ -1,6 +1,6 @@
 # W6 Current Catalog Refresh Review
 
-Status: `INDEX_STAGES_CLOSED_CURRENT_CATALOG_VERIFIED_POLICY_RUNTIME_HOLD`.
+Status: `INDEX_STAGES_CLOSED_CURRENT_CATALOG_VERIFIED_R4_IMPLEMENTED_PREVIEW_HOLD`.
 The review is fully offline and remains
 `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PRODUCTION_RECONCILIATION_NO_GO`.
 
@@ -68,22 +68,23 @@ boundary. `auth.uid()` is security invoker and is not a rate-limit RPC.
 
 ## Runtime and Stage C
 
-`src/lib/server/rate-limit.ts` performs separate direct table count reads and
-attempt inserts in `enforceUserRateLimit` and `enforceUploadRateLimit`. The
-callers are the post, comment, circle, media-upload, and external-video forum
-APIs. Each builds an anon-key Supabase client bound to the verified bearer, so
-the production table privileges deny the direct path. The read and insert are
-not atomic. On a database error the helper returns `allowed: true` with
-`RATE_LIMIT_BACKEND_UNAVAILABLE`, which is fail-open.
+The historical direct count/insert path has been removed in the approved R4
+repository-only migration. `src/lib/server/rate-limit.ts` now delegates the
+five guarded forum APIs to a narrow server-only
+`consume_forum_rate_limit` wrapper; it has no direct table query or fail-open
+branch. The wrapper accepts only an exact single-row result and maps every
+unavailable, malformed, permission, configuration, transport, or timeout case
+to a sanitized `503`; only `RATE_LIMITED` maps to `429`. The external-video
+reservation occurs before R2 signing.
 
-No browser source directly calls this table. The repository has service-role
-factories for legal-consent and moderation-notification operations, but no
-source-proven service-role rate-limit caller or RPC contract for this table.
+No browser source directly calls this table or the new RPC. The server-only
+binding and function remain unverified in Preview, and the Production binding
+remains absent, so the runtime change is not deployed evidence.
 
-Stage C is `BLOCKED_RUNTIME_MIGRATION_REQUIRED`. The extra policies are
-RLS-redundant but their removal is not behavior-preserving until the direct
-callers are migrated, a server-only contract is deployed and verified, and no
-direct table access remains. No policy-removal SQL is authored.
+Stage C remains `BLOCKED_RUNTIME_MIGRATION_REQUIRED`. The extra policies are
+RLS-redundant but their removal is not behavior-preserving until the
+server-only contract is deployed and verified in Preview and later Production.
+No policy-removal SQL is authored.
 
 The subsequent repository-only design package selects an atomic fail-closed
 server-only direction. Its identity is now
@@ -117,7 +118,7 @@ approval; Stage C remains blocked pending runtime migration.
 7. Deploy and verify the migrated runtime before separately reviewing either
    legacy policy for removal.
 
-The architecture direction is approved, but the trusted role, exact signature,
-concurrency primitive, ownership/ACL contract, and runtime migration are not
-yet source-proven. Those are the remaining prerequisites for a separate
-implementation approval.
+The architecture direction, exact signature, concurrency primitive, and R4
+runtime migration are source-proven locally. Preview binding correctness,
+Preview function execution/postflight, and Preview runtime deployment remain
+separate prerequisites for a later approval.

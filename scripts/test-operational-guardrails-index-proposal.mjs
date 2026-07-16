@@ -32,9 +32,10 @@ assert.match(checklist, /No policy is dropped/);
 await assert.rejects(access(path.join(directory, "operational-guardrails-policy-proposal.sql")));
 
 const changedMigrations = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations"], { cwd: root, encoding: "utf8" }).trim();
-const changedRuntime = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "src"], { cwd: root, encoding: "utf8" }).trim();
+const changedRuntime = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "src"], { cwd: root, encoding: "utf8" }).trim().split(/\r?\n/).filter(Boolean);
+const approvedR4RuntimeFiles = new Set(["src/lib/server/rate-limit.ts", "src/pages/api/forum/posts.ts", "src/pages/api/forum/comments.ts", "src/pages/api/forum/circles.ts", "src/pages/api/forum/media-upload-guard.ts", "src/pages/api/forum/external-video-upload.ts"]);
 assert.equal(changedMigrations, "", "canonical migrations must remain unchanged");
-assert.equal(changedRuntime, "", "runtime application files must remain unchanged");
+assert.deepEqual(changedRuntime.filter((file) => !approvedR4RuntimeFiles.has(file)), [], "only approved R4 runtime files may change");
 
 const containers = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" }).split(/\r?\n/).filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
 assert.equal(containers.length, 1, "LOCAL_DOCKER_ONLY requires exactly one normalized replay container");

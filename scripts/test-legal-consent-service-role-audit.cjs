@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { legalConsentServiceRoleFinding, moderationNotificationServiceRoleFinding } = require("./profile-service-role-audit.cjs");
+const { legalConsentServiceRoleFinding, moderationNotificationServiceRoleFinding, rateLimitServiceRoleFinding } = require("./profile-service-role-audit.cjs");
 
 const root = path.join(__dirname, "..");
 const relativePath = "src/lib/server/legal-consent-repository.server.ts";
@@ -50,5 +50,11 @@ assert.notEqual(moderationFinding({ repositorySource: moderationSource.replace('
 assert.notEqual(moderationFinding({ repositorySource: `${moderationSource}\nclient.from("forum_notifications");` }), null, "unscoped privileged table access must fail");
 assert.notEqual(moderationFinding({ repositorySource: moderationSource.replace("const client = createServiceClient(env);", "const client = createServiceClient(env);\nconsole.log(requireEnv(env, \"SUPABASE_SERVICE_ROLE_KEY\"));") }), null, "service-key exposure must fail");
 assert.notEqual(moderationFinding({ routeSources: { ...moderationRouteSources, [moderationRoutes[0]]: "const notificationWriter = createModerationNotificationWriter(env, requestActorId);\nconst auth = await requireModerator(request, env);\nconst consent = await requireAuthenticatedLegalConsent({});\nnotificationWriter," } }), null, "pre-auth writer construction must fail");
+
+const rateLimitRelativePath = "src/lib/server/consume-forum-rate-limit.server.ts";
+const rateLimitSource = fs.readFileSync(path.join(root, rateLimitRelativePath), "utf8");
+assert.equal(rateLimitServiceRoleFinding({ relativePath: rateLimitRelativePath, repositorySource: rateLimitSource }), null, "the rate-limit wrapper must be the exact safe exception");
+assert.notEqual(rateLimitServiceRoleFinding({ relativePath: rateLimitRelativePath, repositorySource: `${rateLimitSource}\nclient.from("forum_upload_attempts");` }), null, "rate-limit wrapper cannot expose table access");
+assert.notEqual(rateLimitServiceRoleFinding({ relativePath: rateLimitRelativePath, repositorySource: rateLimitSource.replace('"consume_forum_rate_limit"', "rpcName") }), null, "rate-limit wrapper cannot select an arbitrary RPC");
 
 console.log("LEGAL_CONSENT_SERVICE_ROLE_AUDIT_OK safe=2 unsafe-patterns=10 offline-only");
