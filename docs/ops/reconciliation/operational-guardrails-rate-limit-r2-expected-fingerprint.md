@@ -4,7 +4,7 @@ Status: `STATIC_REVIEW_ONLY`. This is a fingerprint of the unexecuted proposal
 file, not evidence of any local, Preview, or Production database object.
 
 - Proposal: `operational-guardrails-rate-limit-r2-unexecuted-proposal.sql`
-- SHA-256: `d5dd4a2f5baa55120107930398838c09214154a20a29bcd2bc874efde2837a6a`
+- SHA-256: `10a1848e33097a9bb79e5cb1f1107a86bac6c724b352a13948665b90559011bb`
 - Identity: `public.consume_forum_rate_limit(uuid, text, text, bigint)`
 - Return: `TABLE(allowed boolean, decision text)` with only `ALLOWED` and
   `RATE_LIMITED`
@@ -20,3 +20,8 @@ file, not evidence of any local, Preview, or Production database object.
 Any future R3 or R6 review must recompute this source fingerprint before using
 the proposal. A catalog postflight is required to prove actual function
 metadata, ACLs, and overload count after a separately approved execution.
+
+R3 corrected the original static proposal after an isolated local execution
+proved the former schema-qualified `coalesce` form invalid. This fingerprint is
+the corrected source file; it is still not evidence of a Preview or Production
+function.

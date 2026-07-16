@@ -13,9 +13,10 @@ WITH target AS (
          p.prosecdef,
          p.provolatile,
          p.proparallel,
-         p.proleakproof,
-         p.proconfig,
-         pg_get_userbyid(p.proowner) AS owner_name,
+          p.proleakproof,
+          p.proconfig,
+          p.proowner,
+          pg_get_userbyid(p.proowner) AS owner_name,
          p.proacl
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace

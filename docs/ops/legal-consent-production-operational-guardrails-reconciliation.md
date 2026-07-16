@@ -26,6 +26,26 @@ not a migration or execution authorization. R3 is eligible only after separate
 approval for disposable local behavior and concurrency simulation; Stage C
 remains blocked.
 
+## R3 local disposable simulation
+
+R3 has now passed only in a unique, no-network, tmpfs-backed local PostgreSQL
+17 container. The source-backed fixture was intentionally minimal and did not
+claim full-schema or production equivalence. It proved all approved quota
+boundaries, exact-threshold concurrency, lock and caller-deadline rollback,
+forced-insert rollback, service-role-only execute, catalog postflight, and
+container/database teardown. It found and corrected the unexecuted proposal's
+invalid schema-qualified `coalesce` expression and the static postflight's
+missing `proowner` CTE field before a fresh final run. No Supabase, Cloudflare,
+Preview, or Production operation occurred. See
+[the local R3 review](reconciliation/operational-guardrails-rate-limit-r3-local-simulation-review.md).
+
+R3 changes no production state: `public.consume_forum_rate_limit` remains
+unexecuted outside the disposable fixture; production identity remains
+`BINDING_ABSENT_PRODUCTION_BLOCKED`; Stage C remains
+`BLOCKED_RUNTIME_MIGRATION_REQUIRED`; and both extra policies remain unchanged.
+The next possible approval is
+`APPROVE_R4_REPOSITORY_ONLY_FAIL_CLOSED_RUNTIME_MIGRATION_PROPOSAL`.
+
 R1 now has a repository-only binding contract: the active server name is
 `SUPABASE_SERVICE_ROLE_KEY`. The external Preview proof transition is
 `BINDING_ABSENT` to `SECRET_BINDING_PRESENT`; its metadata-only JSON remains

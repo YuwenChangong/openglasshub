@@ -26,7 +26,8 @@ assert.equal(r2Function.owner, "postgres");
 assert.equal(r2Function.trustedRole, "service_role");
 assert.deepEqual(r2Function.rejectedRoles, ["PUBLIC", "anon", "authenticated"]);
 assert.equal(r2ExecutionStatus.r2StaticDesign, "COMPLETE_STATICALLY_VALID");
-assert.equal(r2ExecutionStatus.r3Eligible, true);
+assert.equal(r2ExecutionStatus.r3Eligible, false);
+assert.equal(r2ExecutionStatus.r3LocalSimulation, "R3_PASSED_LOCAL_DISPOSABLE_ONLY");
 assert.equal(r2ExecutionStatus.stageC, "BLOCKED_RUNTIME_MIGRATION_REQUIRED");
 assert.equal(r2ExecutionStatus.productionIdentity, "BINDING_ABSENT_PRODUCTION_BLOCKED");
 assert.deepEqual(r2PurposeMatrix.map((row) => row.purpose), ["post_create", "comment_create", "circle_create", "post_media_upload", "external_video_upload", "verification_email_resend"]);
@@ -44,11 +45,12 @@ assertR2ProposalStaticContract(source.proposal);
 assert.match(source.review, /post_media_upload[\s\S]*1\.\.157286400[\s\S]*APPROVED/s);
 assert.match(source.review, /external_video_upload[\s\S]*314572800[\s\S]*APPROVED/s);
 assert.match(source.review, /No SQL has been executed[\s\S]*Cloudflare or Supabase/s);
-assert.match(source.r3, /ELIGIBLE_PENDING_SEPARATE_APPROVAL/);
+assert.match(source.r3, /R3_PASSED_LOCAL_DISPOSABLE_ONLY/);
 assert.match(source.postflight, /pg_proc[\s\S]*prosecdef[\s\S]*provolatile[\s\S]*proparallel[\s\S]*proleakproof[\s\S]*proconfig/s);
+assert.match(source.postflight, /p\.proconfig,[\s\S]*p\.proowner,[\s\S]*pg_get_userbyid\(p\.proowner\)[\s\S]*acldefault\('f', functions\.proowner\)/s);
 assert.match(source.postflight, /grantee = 0[\s\S]*PUBLIC[\s\S]*aclexplode/s);
 assert.match(source.manifest, /UNEXECUTED_REPOSITORY_DESIGN_ONLY/);
-assert.match(source.manifest, /R3 eligible only with separate approval/);
+assert.match(source.manifest, /R3 passed only in a disposable local database/);
 assert.match(source.manifest, /no operator runner/);
 assert.match(source.review, /Stage C[\s\S]*BLOCKED_RUNTIME_MIGRATION_REQUIRED/s);
 assert.match(source.runtime, /4s maximum[\s\S]*no automatic (?:RPC )?retry/is);
@@ -69,6 +71,7 @@ const mutations = {
   "wrong-binary-post-media-cap": (value) => value.replace("WHEN 'post_media_upload' THEN\n      v_max_attempts := 10;\n      v_window_seconds := 3600;\n      v_upload_scope := true;\n      IF p_bytes < 1 OR p_bytes > 157286400", "WHEN 'post_media_upload' THEN\n      v_max_attempts := 10;\n      v_window_seconds := 3600;\n      v_upload_scope := true;\n      IF p_bytes < 1 OR p_bytes > 157286399"),
   "wrong-binary-external-video-cap": (value) => value.replace("WHEN 'external_video_upload' THEN\n      v_max_attempts := 10;\n      v_window_seconds := 3600;\n      v_upload_scope := true;\n      v_external_video_daily_bytes := true;\n      IF p_bytes < 1 OR p_bytes > 157286400", "WHEN 'external_video_upload' THEN\n      v_max_attempts := 10;\n      v_window_seconds := 3600;\n      v_upload_scope := true;\n      v_external_video_daily_bytes := true;\n      IF p_bytes < 1 OR p_bytes > 157286399"),
   "wrong-daily-byte-quota": (value) => value.replace("314572800 - p_bytes", "300000000 - p_bytes"),
+  "untyped-byte-sum-zero": (value) => value.replace("COALESCE(pg_catalog.sum(bytes), 0::numeric)", "COALESCE(pg_catalog.sum(bytes), 0)"),
   "calendar-day-window": (value) => value.replace("INTERVAL '24 hours'", "INTERVAL '1 day'"),
   "cross-table-byte-calculation": (value) => value.replace("FROM public.forum_upload_attempts\n      WHERE purpose = 'external_video_upload'", "FROM public.forum_upload_attempts JOIN public.post_media ON true\n      WHERE purpose = 'external_video_upload'"),
   "byte-sum-outside-lock": (value) => value.replace("PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_lock_material, 0));", "-- lock removed"),
@@ -86,4 +89,4 @@ const mutations = {
 assert.deepEqual(Object.keys(mutations), negativeFixtureNames);
 for (const [name, mutate] of Object.entries(mutations)) assert.throws(() => assertR2ProposalStaticContract(mutate(source.proposal)), undefined, name);
 
-console.log(JSON.stringify({ staticOnly: true, negativeFixtures: negativeFixtureNames.length, proposalSha256: sha256Hex(source.proposal), r3Eligible: r2ExecutionStatus.r3Eligible }));
+console.log(JSON.stringify({ staticOnly: true, negativeFixtures: negativeFixtureNames.length, proposalSha256: sha256Hex(source.proposal), r3LocalSimulation: r2ExecutionStatus.r3LocalSimulation }));

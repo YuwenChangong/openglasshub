@@ -29,7 +29,8 @@ export const r2PurposeMatrix = [
 
 export const r2ExecutionStatus = {
   r2StaticDesign: "COMPLETE_STATICALLY_VALID",
-  r3Eligible: true,
+  r3Eligible: false,
+  r3LocalSimulation: "R3_PASSED_LOCAL_DISPOSABLE_ONLY",
   stageC: "BLOCKED_RUNTIME_MIGRATION_REQUIRED",
   productionIdentity: "BINDING_ABSENT_PRODUCTION_BLOCKED",
   unresolvedDecisions: [],
@@ -56,6 +57,7 @@ export const negativeFixtureNames = [
   "wrong-binary-post-media-cap",
   "wrong-binary-external-video-cap",
   "wrong-daily-byte-quota",
+  "untyped-byte-sum-zero",
   "calendar-day-window",
   "cross-table-byte-calculation",
   "byte-sum-outside-lock",

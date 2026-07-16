@@ -34,7 +34,7 @@ DECLARE
   v_external_video_daily_bytes boolean := false;
   v_lock_material text;
   v_current_count bigint;
-  v_current_bytes bigint;
+  v_current_bytes numeric;
 BEGIN
   IF p_user_id IS NULL OR p_user_id = '00000000-0000-0000-0000-000000000000'::uuid THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'rate-limit identity is required';
@@ -122,7 +122,7 @@ BEGIN
   -- inserted here by this RPC. It remains charged even if later upload/media
   -- work fails; no cross-table read, reservation status, or cleanup exists.
   IF v_external_video_daily_bytes THEN
-    SELECT pg_catalog.coalesce(pg_catalog.sum(bytes), 0)
+    SELECT COALESCE(pg_catalog.sum(bytes), 0::numeric)
       INTO v_current_bytes
       FROM public.forum_upload_attempts
       WHERE purpose = 'external_video_upload'

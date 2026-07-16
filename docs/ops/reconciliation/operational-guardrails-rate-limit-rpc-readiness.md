@@ -1,6 +1,6 @@
 # W6 Atomic Rate-Limit RPC Readiness Checklist
 
-Current status: `R2_COMPLETE_STATICALLY_VALID_R3_PENDING_APPROVAL`.
+Current status: `R2_CORRECTED_R3_PASSED_LOCAL_DISPOSABLE_ONLY`.
 
 The R2 proposal package is repository-only and unexecuted:
 
@@ -45,8 +45,8 @@ before R7/R8 verification.
 
 ## Remaining deployment prerequisites
 
-1. Run R3 only after separate approval in a disposable local database; it must
-   prove quota, concurrency, rollback, ACL, and timeout behavior.
+1. R3 passed in a disposable local database; its evidence is local-only and
+   does not authorize a runtime or production change.
 2. Reconfirm the proposed `postgres` function owner or introduce a separately
    reviewed owner role before any production execution review.
 3. Establish and separately prove the Production server-only binding. It
