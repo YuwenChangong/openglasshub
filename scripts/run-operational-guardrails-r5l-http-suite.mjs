@@ -25,7 +25,7 @@ const localPrefix = "local-supabase-normalized-replay-";
 export const R5L_STAGE_IDS = [
   "repository-integrity", "local-target", "mirror-start", "schema-readiness", "r2-fingerprint",
   "r2-install", "r2-postflight", "fixtures", "build", "worker-start", "worker-readiness",
-  "auth-readiness", "http-post-matrix", "http-media-matrix", "security-audit", "regression-gates",
+  "auth-readiness", "http-post-matrix", "http-comment-matrix", "http-circle-matrix", "http-media-matrix", "http-external-video-matrix", "fault-injection", "http-concurrency", "security-audit", "regression-gates",
   "fixture-cleanup", "r2-removal", "worker-shutdown", "mirror-shutdown", "residue-check", "report",
 ];
 
@@ -103,6 +103,11 @@ export function buildLocalBindings({ anonKey, serviceRoleKey, rateLimitSalt }) {
     SENSITIVE_LEXICON_DISABLE_NODE_LOCAL: "true",
     DEV_TURNSTILE_BYPASS: "true",
     OPENAI_MODERATION_ENABLED: "false",
+    R2_ACCOUNT_ID: "local-r5l-account",
+    R2_ACCESS_KEY_ID: "local-r5l-access",
+    R2_SECRET_ACCESS_KEY: "local-r5l-secret",
+    R2_BUCKET_NAME: "local-r5l-bucket",
+    R2_PUBLIC_BASE_URL: "http://127.0.0.1:8788/r5l-media",
   };
 }
 
@@ -152,6 +157,14 @@ export function createStageRecorder() {
 function safeJson(response) {
   if (/service_role|postgres|supabase|uuid|[0-9a-f]{8}-[0-9a-f-]{27}/i.test(response.body)) throw new Error("R5L public response leaked internal material");
   return response.body;
+}
+
+function responseJson(response, label) {
+  try { return JSON.parse(response.body); } catch { throw new Error(`R5L ${label} returned invalid JSON`); }
+}
+
+function tableCount(database, table, where = "true") {
+  return Number.parseInt(psql(database, `SELECT count(*) FROM public.${table} WHERE ${where};`), 10);
 }
 
 function fixtureSql(fixture) {
@@ -260,9 +273,12 @@ async function executeSuite() {
     const port = await availablePort();
     await recorder.run("worker-start", async () => { worker = await startBuiltPagesWorker({ repositoryRoot: root, bindings: buildLocalBindings({ anonKey, serviceRoleKey, rateLimitSalt: `r5l-${runId}` }), port }); });
     await recorder.run("worker-readiness", async () => { assert.equal((await waitForWorkerResponse(worker.origin, { pathname: "/api/forum/search?q=open" })).status, 200); });
+    let fixturePostId;
     await recorder.run("auth-readiness", async () => {
       const response = await postJson(worker.origin, "/api/forum/posts", { token: tokenA, body: { circle_slug: fixture.circleSlug, title: "R5L authenticated readiness", body: "local fixture", type: "experience" } });
       assert.equal(response.status, 201, "R5L authenticated post readiness failed");
+      fixturePostId = String(responseJson(response, "authenticated readiness").post?.id ?? "");
+      assert.match(fixturePostId, /^[0-9a-f-]{36}$/i, "R5L readiness post id is missing");
     });
     await recorder.run("http-post-matrix", async () => {
       const responses = [];
@@ -272,11 +288,59 @@ async function executeSuite() {
       assert.equal(limited.status, 429, "R5L eleventh post must be limited");
       safeJson(limited);
     });
+    await recorder.run("http-comment-matrix", async () => {
+      const before = tableCount(database, "comments", `author_id=${sqlLiteral(fixture.userA.id)}::uuid`);
+      const responses = [];
+      for (let index = 0; index < 60; index += 1) responses.push(await postJson(worker.origin, "/api/forum/comments", { token: tokenA, ip: "127.0.0.32", body: { post_id: fixturePostId, body: `R5L comment ${index}` } }));
+      assert.deepEqual(responses.map(({ status }) => status), Array(60).fill(201), "R5L first sixty comments must be accepted");
+      const limited = await postJson(worker.origin, "/api/forum/comments", { token: tokenA, ip: "127.0.0.32", body: { post_id: fixturePostId, body: "R5L comment limited" } });
+      assert.equal(limited.status, 429, "R5L sixty-first comment must be limited");
+      assert.equal(tableCount(database, "comments", `author_id=${sqlLiteral(fixture.userA.id)}::uuid`) - before, 60, "R5L limited comment continued to write");
+      safeJson(limited);
+    });
+    await recorder.run("http-circle-matrix", async () => {
+      const before = tableCount(database, "circles", `owner_id=${sqlLiteral(fixture.userB.id)}::uuid`);
+      const responses = [];
+      for (let index = 0; index < 5; index += 1) responses.push(await postJson(worker.origin, "/api/forum/circles", { token: tokenB, ip: "127.0.0.33", body: { name: `R5L Circle ${runId.slice(0, 8)} ${index}`, description: "local fixture", type: "topic" } }));
+      assert.deepEqual(responses.map(({ status }) => status), Array(5).fill(201), "R5L first five circles must be accepted");
+      const limited = await postJson(worker.origin, "/api/forum/circles", { token: tokenB, ip: "127.0.0.33", body: { name: `R5L Circle ${runId.slice(0, 8)} limited`, description: "local fixture", type: "topic" } });
+      assert.equal(limited.status, 429, "R5L sixth circle must be limited");
+      assert.equal(tableCount(database, "circles", `owner_id=${sqlLiteral(fixture.userB.id)}::uuid`) - before, 5, "R5L limited circle continued to write");
+      safeJson(limited);
+    });
     await recorder.run("http-media-matrix", async () => {
       const oneByte = await postJson(worker.origin, "/api/forum/media-upload-guard", { token: tokenA, ip: "127.0.0.31", body: { upload_kind: "post_media", size_bytes: 1 } });
       const invalid = await postJson(worker.origin, "/api/forum/media-upload-guard", { token: tokenA, ip: "127.0.0.31", body: { upload_kind: "post_media", size_bytes: 157286401 } });
       assert.equal(oneByte.status, 200, "R5L one-byte media reservation failed");
       assert.equal(invalid.status, 400, "R5L oversized media must fail before protected action");
+    });
+    await recorder.run("http-external-video-matrix", async () => {
+      const video = (size) => ({ post_id: fixturePostId, file_name: "r5l-video.mp4", mime_type: "video/mp4", size_bytes: size });
+      const responses = [];
+      for (let index = 0; index < 10; index += 1) responses.push(await postJson(worker.origin, "/api/forum/external-video-upload", { token: tokenA, ip: "127.0.0.41", body: video(1) }));
+      assert.deepEqual(responses.map(({ status }) => status), Array(10).fill(200), "R5L first ten external-video reservations must sign locally");
+      const limited = await postJson(worker.origin, "/api/forum/external-video-upload", { token: tokenA, ip: "127.0.0.41", body: video(1) });
+      const oversized = await postJson(worker.origin, "/api/forum/external-video-upload", { token: tokenA, ip: "127.0.0.42", body: video(157286401) });
+      assert.equal(limited.status, 429, "R5L eleventh external-video reservation must be limited");
+      assert.equal(oversized.status, 400, "R5L oversized external video must stop before reservation");
+      safeJson(limited);
+    });
+    await recorder.run("fault-injection", async () => {
+      psql(database, "DROP FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint);");
+      const before = tableCount(database, "forum_upload_attempts");
+      const failed = await postJson(worker.origin, "/api/forum/media-upload-guard", { token: tokenA, ip: "127.0.0.51", body: { upload_kind: "post_media", size_bytes: 1 } });
+      assert.equal(failed.status, 503, "R5L missing RPC must fail closed");
+      assert.equal(tableCount(database, "forum_upload_attempts"), before, "R5L missing RPC continued protected action");
+      safeJson(failed);
+      psql(database, await readFile(proposalPath, "utf8"));
+    });
+    await recorder.run("http-concurrency", async () => {
+      const seedUser = fixture.userA.id;
+      const ipHash = "a".repeat(64);
+      psql(database, `INSERT INTO public.forum_upload_attempts (user_id,ip_hash,bytes,purpose) SELECT ${sqlLiteral(seedUser)}::uuid,${sqlLiteral(ipHash)},0,'post_create' FROM generate_series(1,8);`);
+      const responses = await Promise.all(Array.from({ length: 5 }, (_, index) => postJson(worker.origin, "/api/forum/posts", { token: tokenA, ip: "127.0.0.52", body: { circle_slug: fixture.circleSlug, title: `R5L concurrent ${index}`, body: "local fixture", type: "experience" } })));
+      const statuses = responses.map(({ status }) => status).sort((left, right) => left - right);
+      assert.deepEqual(statuses, [201, 429, 429, 429, 429], "R5L one-slot concurrent post contract failed");
     });
     await recorder.run("security-audit", async () => {
       const assets = await readFile(path.join(root, "dist", "_worker.js", "index.js"), "utf8");
