@@ -1,6 +1,6 @@
 # W6 R5L Local Full-Stack Staging Review
 
-Status: `R5L_LOCAL_WORKER_READINESS_PROVEN_HTTP_MATRIX_PENDING`.
+Status: `R5L_LOCAL_HTTP_CORE_VERIFIED_FULL_MATRIX_PENDING`.
 
 This review is a local-only checkpoint. It does not create a Cloudflare
 Preview deployment, bind any hosted Supabase project, or change the separate
@@ -121,7 +121,34 @@ predated this staging task and is not an R5L-created resource.
 
 ## Required next action
 
-Create a separately reviewed local Cloudflare Pages harness or packaging fix
-that can execute Astro's emitted multi-module Worker without introducing Node
-runtime modules. Then rerun R5L from a clean local baseline. Remote Cloudflare
-network, bindings, deployment, and environment behavior remain unverified.
+Extend the checked-in local runner with the remaining real Worker-bound route,
+fault-injection, and concurrency matrices, then rerun it from a fresh
+normalized baseline. Remote Cloudflare network, bindings, deployment, and
+environment behavior remain unverified.
+
+## 2026-07-16 fresh normalized local core run
+
+The checked-in R5L runner completed a fresh local run after the harness and
+fixture corrections. It used only the stopped, ten-container
+`NORMALIZED_LOCAL_MIGRATION_MIRROR`; it started the mirror, installed the
+reviewed R2 proposal, created disposable local GoTrue users and application
+fixtures, built the application, and served the emitted 490-module Worker on a
+loopback listener.
+
+The R2 proposal SHA-256 was exactly
+`10a1848e33097a9bb79e5cb1f1107a86bac6c724b352a13948665b90559011bb`.
+The local catalog check found the expected one function with `postgres` owner,
+`SECURITY DEFINER`, volatile, parallel-unsafe, non-leakproof metadata. The
+authenticated Worker route created one readiness post, accepted ten additional
+post creations for a separate local user, and returned `429` for the eleventh.
+The media guard accepted the one-byte boundary and rejected 157286401 bytes
+before a reservation. Built Worker assets passed the service-role exposure
+check. Fixture rows, the temporary R2 function, the Worker, and all running
+mirror containers were removed or stopped; the final residue check passed.
+
+This is deliberately not `R5_LOCAL_STAGING_VERIFIED`: the runner still needs
+the complete application-boundary comment, circle, external-video, fault
+injection, and concurrent HTTP matrices required by the R5L closure approval.
+The existing R3 database-level concurrency simulation passed independently,
+but it is not a substitute for those Worker-bound requests. Remote Preview
+remains `R5_PREVIEW_BLOCKED_TARGET_IDENTITY`.
