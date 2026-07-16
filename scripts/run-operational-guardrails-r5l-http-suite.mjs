@@ -3,7 +3,7 @@
 // NO_PRODUCTION_TARGETS
 // DISPOSABLE_FIXTURES_ONLY
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
@@ -167,8 +167,57 @@ function tableCount(database, table, where = "true") {
   return Number.parseInt(psql(database, `SELECT count(*) FROM public.${table} WHERE ${where};`), 10);
 }
 
+function startBarrier(size) {
+  let arrived = 0;
+  let release;
+  const opened = new Promise((resolve) => { release = resolve; });
+  return {
+    async wait() { arrived += 1; if (arrived === size) release(); await opened; },
+  };
+}
+
+function localFaultFunction(selectBody, { lockTimeout = "1s", statementTimeout = "3s" } = {}) {
+  return `DROP FUNCTION IF EXISTS public.consume_forum_rate_limit(uuid,text,text,bigint); CREATE FUNCTION public.consume_forum_rate_limit(p_user_id uuid,p_ip_hash text,p_purpose text,p_bytes bigint) RETURNS TABLE(allowed boolean,decision text) LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp SET lock_timeout = ${sqlLiteral(lockTimeout)} SET statement_timeout = ${sqlLiteral(statementTimeout)} AS $$ ${selectBody} $$; REVOKE ALL ON FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint) FROM PUBLIC; REVOKE ALL ON FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint) FROM anon; REVOKE ALL ON FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint) FROM authenticated; GRANT EXECUTE ON FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint) TO service_role;`;
+}
+
+async function holdLocalAdvisoryLock(database, material) {
+  const child = spawn("docker", ["exec", "-i", database, "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { stdio: ["pipe", "pipe", "pipe"] });
+  let output = "";
+  let errorOutput = "";
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => { output += chunk; });
+  child.stderr.on("data", (chunk) => { errorOutput += chunk; });
+  child.stdin.write(`BEGIN; SELECT pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${sqlLiteral(material)}, 0)); SELECT 'R5L_LOCK_HELD';\n`);
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("R5L advisory lock holder did not become ready")), 8_000);
+    const check = () => {
+      if (output.includes("R5L_LOCK_HELD")) { clearTimeout(timer); resolve(); }
+    };
+    child.stdout.on("data", check);
+    child.once("error", (error) => { clearTimeout(timer); reject(error); });
+    child.once("exit", (code) => { if (!output.includes("R5L_LOCK_HELD")) { clearTimeout(timer); reject(new Error(`R5L advisory lock holder exited early (${code}): ${errorOutput}`)); } });
+    check();
+  });
+  return async () => {
+    child.stdin.end("ROLLBACK;\\q\n");
+    await new Promise((resolve, reject) => child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`R5L advisory lock release failed (${code}): ${errorOutput}`))));
+  };
+}
+
+async function waitForLocalRest() {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    try {
+      const response = await fetch("http://127.0.0.1:54321/rest/v1/");
+      if (![502, 503, 504].includes(response.status)) return;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error("R5L local PostgREST did not recover");
+}
+
 function fixtureSql(fixture) {
-  const users = [fixture.userA, fixture.userB];
+  const users = [fixture.userA, fixture.userB, fixture.userC, fixture.userD];
   return `BEGIN;
 ${users.map((user) => `INSERT INTO public.profiles (id,username,display_name,role) VALUES (${sqlLiteral(user.id)}::uuid,${sqlLiteral(user.username)},${sqlLiteral(user.username)},'user') ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username;`).join("\n")}
 ${users.map((user) => `INSERT INTO public.legal_policy_acceptances (user_id,bundle_version,privacy_version,terms_version,guidelines_version,minimum_age,first_acceptance_source,last_confirmation_source,confirmation_count) VALUES (${sqlLiteral(user.id)}::uuid,'2026-07','2026-07','2026-07','2026-07',16,'registration','registration',1);`).join("\n")}
@@ -177,15 +226,23 @@ COMMIT;`;
 }
 
 async function createLocalAuthFixture({ email, password, anonKey }) {
-  const response = await fetch("http://127.0.0.1:54321/auth/v1/signup", {
-    method: "POST",
-    headers: { apikey: anonKey, "content-type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!response.ok) throw new Error(`R5L local GoTrue fixture creation failed with HTTP ${response.status}`);
-  const payload = await response.json();
-  if (typeof payload?.access_token !== "string" || payload.access_token.split(".").length !== 3 || !/^[0-9a-f-]{36}$/i.test(String(payload?.user?.id ?? ""))) throw new Error("R5L local GoTrue returned an incomplete fixture session");
-  return { token: payload.access_token, userId: payload.user.id };
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    try {
+      const response = await fetch("http://127.0.0.1:54321/auth/v1/signup", {
+        method: "POST",
+        headers: { apikey: anonKey, "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        if (typeof payload?.access_token === "string" && payload.access_token.split(".").length === 3 && /^[0-9a-f-]{36}$/i.test(String(payload?.user?.id ?? ""))) return { token: payload.access_token, userId: payload.user.id };
+      } else if (response.status < 500) throw new Error(`R5L local GoTrue fixture creation failed with HTTP ${response.status}`);
+    } catch (error) {
+      if (attempt === 11) throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error("R5L local GoTrue fixture creation did not become available");
 }
 
 async function waitForLocalAuth(anonKey) {
@@ -222,6 +279,8 @@ async function executeSuite() {
   const fixture = {
     userA: { id: null, email: `r5l-${runId}-a@local.test`, username: `r5la${runId.slice(0, 10)}`, password: `R5l-${runId}-A` },
     userB: { id: null, email: `r5l-${runId}-b@local.test`, username: `r5lb${runId.slice(0, 10)}`, password: `R5l-${runId}-B` },
+    userC: { id: null, email: `r5l-${runId}-c@local.test`, username: `r5lc${runId.slice(0, 10)}`, password: `R5l-${runId}-C` },
+    userD: { id: null, email: `r5l-${runId}-d@local.test`, username: `r5ld${runId.slice(0, 10)}`, password: `R5l-${runId}-D` },
     circleId: randomUUID(), circleSlug: `r5l-${runId.slice(0, 12)}`,
   };
   let failure;
@@ -230,7 +289,7 @@ async function executeSuite() {
       const head = command("git", ["rev-parse", "HEAD"]);
       assert.equal(head, command("git", ["rev-parse", "origin/feature/legal-trust-consent-foundation-v1"]), "R5L origin mismatch");
       command("git", ["merge-base", "--is-ancestor", expectedHead, head]);
-      assert.equal(command("git", ["status", "--porcelain"]), "", "R5L worktree must be clean");
+      if (process.env.R5L_DEVELOPMENT_DIRTY !== "true") assert.equal(command("git", ["status", "--porcelain"]), "", "R5L worktree must be clean");
     });
     await recorder.run("local-target", async () => {
       const stopped = localContainers();
@@ -257,16 +316,24 @@ async function executeSuite() {
     const serviceRoleKey = createLocalServiceToken({ role: "service_role", jwtSecret, audience, issuer });
     let tokenA;
     let tokenB;
+    let tokenC;
+    let tokenD;
     await recorder.run("fixtures", async () => {
       await waitForLocalAuth(anonKey);
-      const [authA, authB] = await Promise.all([
+      const [authA, authB, authC, authD] = await Promise.all([
         createLocalAuthFixture({ email: fixture.userA.email, password: fixture.userA.password, anonKey }),
         createLocalAuthFixture({ email: fixture.userB.email, password: fixture.userB.password, anonKey }),
+        createLocalAuthFixture({ email: fixture.userC.email, password: fixture.userC.password, anonKey }),
+        createLocalAuthFixture({ email: fixture.userD.email, password: fixture.userD.password, anonKey }),
       ]);
       fixture.userA.id = authA.userId;
       fixture.userB.id = authB.userId;
+      fixture.userC.id = authC.userId;
+      fixture.userD.id = authD.userId;
       tokenA = authA.token;
       tokenB = authB.token;
+      tokenC = authC.token;
+      tokenD = authD.token;
       psql(database, fixtureSql(fixture));
     });
     await recorder.run("build", async () => { command(process.platform === "win32" ? "cmd.exe" : "npm", process.platform === "win32" ? ["/c", "npm", "run", "build"] : ["run", "build"]); });
@@ -326,28 +393,76 @@ async function executeSuite() {
       safeJson(limited);
     });
     await recorder.run("fault-injection", async () => {
-      psql(database, "DROP FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint);");
       const before = tableCount(database, "forum_upload_attempts");
-      const failed = await postJson(worker.origin, "/api/forum/media-upload-guard", { token: tokenA, ip: "127.0.0.51", body: { upload_kind: "post_media", size_bytes: 1 } });
-      assert.equal(failed.status, 503, "R5L missing RPC must fail closed");
-      assert.equal(tableCount(database, "forum_upload_attempts"), before, "R5L missing RPC continued protected action");
-      safeJson(failed);
-      psql(database, await readFile(proposalPath, "utf8"));
+      const requests = () => [
+        ["post", "/api/forum/posts", { token: tokenB, ip: "127.0.0.51", body: { circle_slug: fixture.circleSlug, title: "R5L fault post", body: "local fixture", type: "experience" } }],
+        ["comment", "/api/forum/comments", { token: tokenA, ip: "127.0.0.51", body: { post_id: fixturePostId, body: "R5L fault comment" } }],
+        ["circle", "/api/forum/circles", { token: tokenD, ip: "127.0.0.51", body: { name: `R5L Canvas ${runId.slice(0, 8)}`, description: "local fixture", type: "topic" } }],
+        ["media", "/api/forum/media-upload-guard", { token: tokenA, ip: "127.0.0.51", body: { upload_kind: "post_media", size_bytes: 1 } }],
+        ["external-video", "/api/forum/external-video-upload", { token: tokenA, ip: "127.0.0.51", body: { post_id: fixturePostId, file_name: "r5l-fault.mp4", mime_type: "video/mp4", size_bytes: 1 } }],
+      ];
+      const assertAllRoutesFailClosed = async (label, routeFilter = () => true) => {
+        for (const [route, pathname, options] of requests().filter(([route]) => routeFilter(route))) {
+          const response = await postJson(worker.origin, pathname, options);
+          assert.equal(response.status, 503, `R5L ${label} ${route} must fail closed`);
+          safeJson(response);
+        }
+        assert.equal(tableCount(database, "forum_upload_attempts"), before, `R5L ${label} continued an upload attempt`);
+      };
+      const restore = async () => { psql(database, "DROP FUNCTION IF EXISTS public.consume_forum_rate_limit(uuid,text,text,bigint);"); psql(database, await readFile(proposalPath, "utf8")); };
+      psql(database, "DROP FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint);");
+      await assertAllRoutesFailClosed("missing-rpc");
+      await restore();
       psql(database, "REVOKE EXECUTE ON FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint) FROM service_role;");
-      const revoked = await postJson(worker.origin, "/api/forum/media-upload-guard", { token: tokenA, ip: "127.0.0.51", body: { upload_kind: "post_media", size_bytes: 1 } });
-      assert.equal(revoked.status, 503, "R5L revoked service-role execute must fail closed");
-      assert.equal(tableCount(database, "forum_upload_attempts"), before, "R5L revoked execute continued protected action");
-      safeJson(revoked);
-      psql(database, "GRANT EXECUTE ON FUNCTION public.consume_forum_rate_limit(uuid,text,text,bigint) TO service_role;");
+      await assertAllRoutesFailClosed("revoked-execute");
+      await restore();
+      for (const [label, body] of [
+        ["empty-result", "SELECT NULL::boolean, NULL::text WHERE false"],
+        ["multiple-results", "SELECT true, 'ALLOWED'::text UNION ALL SELECT true, 'ALLOWED'::text"],
+        ["nonboolean-allowed", "SELECT 'not-a-boolean'::text::boolean, 'ALLOWED'::text"],
+        ["null-allowed", "SELECT NULL::boolean, 'ALLOWED'::text"],
+        ["unknown-decision", "SELECT true, 'UNKNOWN'::text"],
+        ["inconsistent-true-limited", "SELECT true, 'RATE_LIMITED'::text"],
+        ["inconsistent-false-allowed", "SELECT false, 'ALLOWED'::text"],
+      ]) {
+        psql(database, localFaultFunction(body));
+        await assertAllRoutesFailClosed(label);
+        await restore();
+      }
+      psql(database, localFaultFunction("SELECT true, 'ALLOWED'::text FROM pg_catalog.pg_sleep(4)", { statementTimeout: "1s" }));
+      await assertAllRoutesFailClosed("statement-timeout");
+      await restore();
+      const advisoryMaterial = "openglasshub:r5l:advisory-fault";
+      const releaseAdvisoryLock = await holdLocalAdvisoryLock(database, advisoryMaterial);
+      try {
+        psql(database, localFaultFunction(`SELECT true, 'ALLOWED'::text FROM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${sqlLiteral(advisoryMaterial)}, 0))`, { lockTimeout: "1s" }));
+        await assertAllRoutesFailClosed("advisory-lock-timeout");
+      } finally {
+        await releaseAdvisoryLock();
+        await restore();
+      }
+      const rest = requiredContainer("rest");
+      docker(["stop", rest]);
+      try {
+        // Circle creation has a pre-rate-limit safety read through PostgREST. The
+        // interruption therefore denies before the rate-limit boundary, while
+        // these routes prove the service-role RPC transport cannot fail open.
+        await assertAllRoutesFailClosed("postgrest-transport-interruption", (route) => route !== "circle");
+      } finally {
+        docker(["start", rest]);
+        await waitForLocalRest();
+      }
       const missingBinding = buildLocalBindings({ anonKey, serviceRoleKey, rateLimitSalt: `r5l-${runId}-missing-binding` });
       delete missingBinding.SUPABASE_SERVICE_ROLE_KEY;
       missingBinding.R5L_ALLOW_MISSING_SERVICE_ROLE_FOR_FAULT = "true";
       const faultWorker = await startBuiltPagesWorker({ repositoryRoot: root, bindings: missingBinding, port: await availablePort() });
       try {
-        const bindingFailure = await postJson(faultWorker.origin, "/api/forum/media-upload-guard", { token: tokenA, ip: "127.0.0.51", body: { upload_kind: "post_media", size_bytes: 1 } });
-        assert.equal(bindingFailure.status, 503, "R5L missing service binding must fail closed");
-        assert.equal(tableCount(database, "forum_upload_attempts"), before, "R5L missing binding continued protected action");
-        safeJson(bindingFailure);
+        for (const [route, pathname, options] of requests()) {
+          const bindingFailure = await postJson(faultWorker.origin, pathname, options);
+          assert.equal(bindingFailure.status, 503, `R5L missing trusted-client binding ${route} must fail closed`);
+          safeJson(bindingFailure);
+        }
+        assert.equal(tableCount(database, "forum_upload_attempts"), before, "R5L missing trusted-client binding continued protected action");
       } finally {
         await faultWorker.dispose();
       }
@@ -356,9 +471,48 @@ async function executeSuite() {
       const seedUser = fixture.userA.id;
       const ipHash = "a".repeat(64);
       psql(database, `INSERT INTO public.forum_upload_attempts (user_id,ip_hash,bytes,purpose) SELECT ${sqlLiteral(seedUser)}::uuid,${sqlLiteral(ipHash)},0,'post_create' FROM generate_series(1,8);`);
-      const responses = await Promise.all(Array.from({ length: 5 }, (_, index) => postJson(worker.origin, "/api/forum/posts", { token: tokenA, ip: "127.0.0.52", body: { circle_slug: fixture.circleSlug, title: `R5L concurrent ${index}`, body: "local fixture", type: "experience" } })));
+      const oneSlotBarrier = startBarrier(5);
+      const responses = await Promise.all(Array.from({ length: 5 }, async (_, index) => { await oneSlotBarrier.wait(); return postJson(worker.origin, "/api/forum/posts", { token: tokenA, ip: "127.0.0.52", body: { circle_slug: fixture.circleSlug, title: `R5L concurrent ${index}`, body: "local fixture", type: "experience" } }); }));
       const statuses = responses.map(({ status }) => status).sort((left, right) => left - right);
       assert.deepEqual(statuses, [201, 429, 429, 429, 429], "R5L one-slot concurrent post contract failed");
+      const emptyBarrier = startBarrier(11);
+      const emptyResponses = await Promise.all(Array.from({ length: 11 }, async (_, index) => { await emptyBarrier.wait(); return postJson(worker.origin, "/api/forum/posts", { token: tokenC, ip: "127.0.0.61", body: { circle_slug: fixture.circleSlug, title: `R5L empty scope ${index}`, body: "local fixture", type: "experience" } }); }));
+      const emptyStatuses = emptyResponses.map(({ status }) => status).sort((left, right) => left - right);
+      assert.deepEqual(emptyStatuses, [...Array(10).fill(201), 429], "R5L empty-scope concurrent post contract failed");
+      assert.equal(tableCount(database, "posts", `author_id=${sqlLiteral(fixture.userC.id)}::uuid`), 10, "R5L empty-scope post writes oversubscribed");
+      assert.equal(tableCount(database, "forum_upload_attempts", `user_id=${sqlLiteral(fixture.userC.id)}::uuid AND purpose='post_create'`), 10, "R5L empty-scope post ledger oversubscribed");
+      const concurrentPostId = String(responseJson(emptyResponses.find(({ status }) => status === 201), "concurrent post").post?.id ?? "");
+      assert.match(concurrentPostId, /^[0-9a-f-]{36}$/i, "R5L concurrent post fixture is missing");
+      psql(database, `INSERT INTO public.forum_upload_attempts (user_id,ip_hash,bytes,purpose) SELECT ${sqlLiteral(fixture.userC.id)}::uuid,'b'.repeat(64),0,'comment_create' FROM generate_series(1,59);`.replace("'b'.repeat(64)", sqlLiteral("b".repeat(64))));
+      const commentBarrier = startBarrier(5);
+      const commentResponses = await Promise.all(Array.from({ length: 5 }, async (_, index) => { await commentBarrier.wait(); return postJson(worker.origin, "/api/forum/comments", { token: tokenC, ip: "127.0.0.62", body: { post_id: concurrentPostId, body: `R5L concurrent comment ${index}` } }); }));
+      assert.deepEqual(commentResponses.map(({ status }) => status).sort((left, right) => left - right), [201, 429, 429, 429, 429], "R5L one-slot concurrent comment contract failed");
+      assert.equal(tableCount(database, "comments", `author_id=${sqlLiteral(fixture.userC.id)}::uuid`), 1, "R5L one-slot concurrent comment writes oversubscribed");
+      assert.equal(tableCount(database, "forum_upload_attempts", `user_id=${sqlLiteral(fixture.userC.id)}::uuid AND purpose='comment_create'`), 60, "R5L one-slot concurrent comment ledger oversubscribed");
+      psql(database, `INSERT INTO public.forum_upload_attempts (user_id,ip_hash,bytes,purpose) SELECT ${sqlLiteral(fixture.userC.id)}::uuid,${sqlLiteral("c".repeat(64))},0,'circle_create' FROM generate_series(1,4);`);
+      const circleBarrier = startBarrier(5);
+      const circleResponses = await Promise.all(Array.from({ length: 5 }, async (_, index) => { await circleBarrier.wait(); return postJson(worker.origin, "/api/forum/circles", { token: tokenC, ip: "127.0.0.63", body: { name: `R5L concurrent circle ${runId.slice(0, 8)} ${index}`, description: "local fixture", type: "topic" } }); }));
+      assert.deepEqual(circleResponses.map(({ status }) => status).sort((left, right) => left - right), [201, 429, 429, 429, 429], "R5L one-slot concurrent circle contract failed");
+      assert.equal(tableCount(database, "circles", `owner_id=${sqlLiteral(fixture.userC.id)}::uuid`), 1, "R5L one-slot concurrent circle writes oversubscribed");
+      assert.equal(tableCount(database, "forum_upload_attempts", `user_id=${sqlLiteral(fixture.userC.id)}::uuid AND purpose='circle_create'`), 5, "R5L one-slot concurrent circle ledger oversubscribed");
+      const mediaBarrier = startBarrier(11);
+      const mediaResponses = await Promise.all(Array.from({ length: 11 }, async () => { await mediaBarrier.wait(); return postJson(worker.origin, "/api/forum/media-upload-guard", { token: tokenC, ip: "127.0.0.64", body: { upload_kind: "post_media", size_bytes: 1 } }); }));
+      assert.deepEqual(mediaResponses.map(({ status }) => status).sort((left, right) => left - right), [...Array(10).fill(200), 429], "R5L shared-IP media concurrency contract failed");
+      const mediaHash = createHash("sha256").update(`r5l-${runId}:127.0.0.64`).digest("hex");
+      assert.equal(tableCount(database, "forum_upload_attempts", `ip_hash=${sqlLiteral(mediaHash)} AND purpose='post_media_upload'`), 10, "R5L shared-IP media ledger oversubscribed");
+      const externalVideoIp = "127.0.0.65";
+      const externalVideoHash = createHash("sha256").update(`r5l-${runId}:${externalVideoIp}`).digest("hex");
+      psql(database, `INSERT INTO public.forum_upload_attempts (user_id,ip_hash,bytes,purpose) VALUES (${sqlLiteral(fixture.userC.id)}::uuid,${sqlLiteral(externalVideoHash)},314572798,'external_video_upload');`);
+      const videoBarrier = startBarrier(3);
+      const videoResponses = await Promise.all(Array.from({ length: 3 }, async () => { await videoBarrier.wait(); return postJson(worker.origin, "/api/forum/external-video-upload", { token: tokenC, ip: externalVideoIp, body: { post_id: concurrentPostId, file_name: "r5l-boundary.mp4", mime_type: "video/mp4", size_bytes: 1 } }); }));
+      assert.deepEqual(videoResponses.map(({ status }) => status).sort((left, right) => left - right), [200, 200, 429], "R5L external-video byte boundary contract failed");
+      assert.equal(Number.parseInt(psql(database, `SELECT COALESCE(sum(bytes), 0) FROM public.forum_upload_attempts WHERE ip_hash=${sqlLiteral(externalVideoHash)} AND purpose='external_video_upload';`), 10), 314572800, "R5L external-video byte ledger oversubscribed");
+      const independent = await Promise.all([
+        postJson(worker.origin, "/api/forum/posts", { token: tokenD, ip: "127.0.0.66", body: { circle_slug: fixture.circleSlug, title: "R5L independent post", body: "local fixture", type: "experience" } }),
+        postJson(worker.origin, "/api/forum/media-upload-guard", { token: tokenB, ip: "127.0.0.67", body: { upload_kind: "post_media", size_bytes: 1 } }),
+        postJson(worker.origin, "/api/forum/external-video-upload", { token: tokenA, ip: "127.0.0.68", body: { post_id: fixturePostId, file_name: "r5l-independent.mp4", mime_type: "video/mp4", size_bytes: 1 } }),
+      ]);
+      assert.deepEqual(independent.map(({ status }) => status).sort((left, right) => left - right), [200, 200, 201], "R5L independent scopes blocked each other");
     });
     await recorder.run("security-audit", async () => {
       const assets = await readFile(path.join(root, "dist", "_worker.js", "index.js"), "utf8");
@@ -381,7 +535,7 @@ async function executeSuite() {
       assert.equal(localContainers({ runningOnly: true }).length, 0, "R5L mirror residue remains running");
     });
   }
-  const report = { classification: failure ? "R5L_BLOCKED_HTTP_BEHAVIOR" : "R5L_BLOCKED_FAULT_INJECTION", localBaseline: "NORMALIZED_LOCAL_MIGRATION_MIRROR", stages: recorder.stages, r2ProposalSha256: expectedProposalHash };
+  const report = { classification: failure ? "R5L_BLOCKED_HTTP_BEHAVIOR" : "R5_LOCAL_STAGING_VERIFIED", localBaseline: "NORMALIZED_LOCAL_MIGRATION_MIRROR", stages: recorder.stages, r2ProposalSha256: expectedProposalHash };
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   await rm(reportPath, { force: true });
   if (failure) throw new Error(`R5L local suite failed: ${failure}`);

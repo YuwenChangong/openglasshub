@@ -166,9 +166,35 @@ the local R2 function was removed, then restored the exact reviewed R2 SQL
 before continuing. Five simultaneous post requests with one quota slot left
 returned exactly one `201` and four `429` responses.
 
-The suite remains `R5L_BLOCKED_FAULT_INJECTION`: only the missing-function
-fault is exercised through the Worker. The required execute-revocation,
-malformed-result, timeout, transport, missing-binding, and trusted-client
-faults, plus the remaining route-bound concurrency cases, must still execute
-before R5L can be closed. This is a local-only verification gap, not evidence
-of a production defect.
+## 2026-07-16 final local fault and concurrency closure
+
+Status: `R5_LOCAL_STAGING_VERIFIED`. This classification is strictly for the
+disposable `NORMALIZED_LOCAL_MIGRATION_MIRROR`; it does not change the separate
+`R5_PREVIEW_BLOCKED_TARGET_IDENTITY` status.
+
+A fresh run of the real 490-module loopback Worker completed all route quota,
+fault, concurrency, cleanup, and residue stages. The reviewed R2 proposal
+SHA-256 remained exactly
+`10a1848e33097a9bb79e5cb1f1107a86bac6c724b352a13948665b90559011bb`.
+
+Every protected route was checked for sanitized `503` and zero rate-limit
+ledger continuation when the local RPC was missing, execute was revoked, the
+result was empty/multiple/malformed/null/unknown/inconsistent, the temporary
+function statement timed out, the shared one-second advisory lock timed out,
+or the local trusted service binding was absent. The temporary function and
+ACL were restored after each case. A PostgREST interruption also returned
+sanitized `503` for post, comment, media, and external-video rate-limit RPC
+paths; circle creation correctly denied earlier at its required safety read,
+before it could reach the RPC boundary.
+
+Worker-bound barriers proved: post one-slot `1x201/4x429`; post empty scope
+`10x201/1x429`; comment one-slot `1x201/4x429`; circle one-slot
+`1x201/4x429`; shared-IP media `10x200/1x429`; and external-video byte
+boundary `2x200/1x429`, with accepted bytes exactly `314572800`. Independent
+post, media, and external-video scopes completed concurrently without
+cross-blocking. R3's separate database concurrency regression also passed.
+
+All disposable GoTrue users, application fixtures, temporary function and ACL
+changes, Worker listener, and running local mirror containers were removed or
+stopped. The residue stage passed. No cloud, Preview, production, deployment,
+or external evidence operation occurred.
