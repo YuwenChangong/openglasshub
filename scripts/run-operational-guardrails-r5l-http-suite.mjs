@@ -156,11 +156,23 @@ function safeJson(response) {
 function fixtureSql(fixture) {
   const users = [fixture.userA, fixture.userB];
   return `BEGIN;
-${users.map((user) => `INSERT INTO auth.users (id,instance_id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES (${sqlLiteral(user.id)}::uuid,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',${sqlLiteral(user.email)},'',now(),'{"provider":"email","providers":["email"]}','{}',now(),now());`).join("\n")}
+${users.map((user) => `INSERT INTO auth.users (id,instance_id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES (${sqlLiteral(user.id)}::uuid,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',${sqlLiteral(user.email)},crypt(${sqlLiteral(user.password)}, gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{}',now(),now());`).join("\n")}
 ${users.map((user) => `INSERT INTO public.profiles (id,username,display_name,role) VALUES (${sqlLiteral(user.id)}::uuid,${sqlLiteral(user.username)},${sqlLiteral(user.username)},'user') ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username;`).join("\n")}
 ${users.map((user) => `INSERT INTO public.legal_policy_acceptances (user_id,bundle_version,privacy_version,terms_version,guidelines_version,minimum_age,first_acceptance_source,last_confirmation_source,confirmation_count) VALUES (${sqlLiteral(user.id)}::uuid,'2026-07','2026-07','2026-07','2026-07',18,'registration','registration',1);`).join("\n")}
 INSERT INTO public.circles (id,slug,name,description,type,owner_id,status) VALUES (${sqlLiteral(fixture.circleId)}::uuid,${sqlLiteral(fixture.circleSlug)},'R5L local circle','Disposable local fixture','topic',${sqlLiteral(fixture.userA.id)}::uuid,'active');
 COMMIT;`;
+}
+
+async function localAuthToken({ email, password, anonKey }) {
+  const response = await fetch("http://127.0.0.1:54321/auth/v1/token?grant_type=password", {
+    method: "POST",
+    headers: { apikey: anonKey, "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) throw new Error("R5L local GoTrue fixture authentication failed");
+  const payload = await response.json();
+  if (typeof payload?.access_token !== "string" || payload.access_token.split(".").length !== 3) throw new Error("R5L local GoTrue returned no access token");
+  return payload.access_token;
 }
 
 function cleanupSql() {
@@ -183,8 +195,8 @@ async function executeSuite() {
   let worker;
   let mirrorStarted = false;
   const fixture = {
-    userA: { id: randomUUID(), email: `r5l-${runId}-a@local.test`, username: `r5la${runId.slice(0, 10)}` },
-    userB: { id: randomUUID(), email: `r5l-${runId}-b@local.test`, username: `r5lb${runId.slice(0, 10)}` },
+    userA: { id: randomUUID(), email: `r5l-${runId}-a@local.test`, username: `r5la${runId.slice(0, 10)}`, password: `R5l-${runId}-A` },
+    userB: { id: randomUUID(), email: `r5l-${runId}-b@local.test`, username: `r5lb${runId.slice(0, 10)}`, password: `R5l-${runId}-B` },
     circleId: randomUUID(), circleSlug: `r5l-${runId.slice(0, 12)}`,
   };
   let failure;
@@ -218,10 +230,8 @@ async function executeSuite() {
     const jwtSecret = envValue(auth, "GOTRUE_JWT_SECRET");
     const anonKey = createLocalServiceToken({ role: "anon", jwtSecret });
     const serviceRoleKey = createLocalServiceToken({ role: "service_role", jwtSecret });
-    const audience = envValue(auth, "GOTRUE_JWT_AUD");
-    const issuer = envValue(auth, "GOTRUE_JWT_ISSUER");
-    const tokenA = createLocalAccessToken({ userId: fixture.userA.id, email: fixture.userA.email, jwtSecret, audience, issuer });
-    const tokenB = createLocalAccessToken({ userId: fixture.userB.id, email: fixture.userB.email, jwtSecret, audience, issuer });
+    const tokenA = await localAuthToken({ email: fixture.userA.email, password: fixture.userA.password, anonKey });
+    const tokenB = await localAuthToken({ email: fixture.userB.email, password: fixture.userB.password, anonKey });
     const port = await availablePort();
     await recorder.run("worker-start", async () => { worker = await startBuiltPagesWorker({ repositoryRoot: root, bindings: buildLocalBindings({ anonKey, serviceRoleKey, rateLimitSalt: `r5l-${runId}` }), port }); });
     await recorder.run("worker-readiness", async () => { assert.equal((await waitForWorkerResponse(worker.origin, { pathname: "/api/forum/search?q=open" })).status, 200); });
