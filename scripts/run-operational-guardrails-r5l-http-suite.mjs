@@ -61,7 +61,7 @@ function psql(database, sql) {
 }
 
 async function waitForDatabase(database) {
-  for (let attempt = 0; attempt < 240; attempt += 1) {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
     try {
       psql(database, "SELECT 1;");
       return;
@@ -176,7 +176,7 @@ async function createLocalAuthFixture({ email, password, anonKey }) {
 }
 
 async function waitForLocalAuth(anonKey) {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     try {
       const response = await fetch("http://127.0.0.1:54321/auth/v1/health", { headers: { apikey: anonKey } });
       if (![502, 503, 504].includes(response.status)) return;
