@@ -152,3 +152,23 @@ injection, and concurrent HTTP matrices required by the R5L closure approval.
 The existing R3 database-level concurrency simulation passed independently,
 but it is not a substitute for those Worker-bound requests. Remote Preview
 remains `R5_PREVIEW_BLOCKED_TARGET_IDENTITY`.
+
+## 2026-07-16 expanded Worker-bound run
+
+The same checked-in local runner was extended and run again from a clean,
+stopped normalized mirror. The actual Worker accepted 60 comments and returned
+`429` for the sixty-first without adding another comment; accepted five circle
+creations and returned `429` for the sixth without adding another circle; and
+accepted ten local external-video quota reservations, returned `429` for the
+eleventh, and rejected the 157286401-byte request before quota continuation.
+The Worker also returned a sanitized `503` with no ledger continuation when
+the local R2 function was removed, then restored the exact reviewed R2 SQL
+before continuing. Five simultaneous post requests with one quota slot left
+returned exactly one `201` and four `429` responses.
+
+The suite remains `R5L_BLOCKED_FAULT_INJECTION`: only the missing-function
+fault is exercised through the Worker. The required execute-revocation,
+malformed-result, timeout, transport, missing-binding, and trusted-client
+faults, plus the remaining route-bound concurrency cases, must still execute
+before R5L can be closed. This is a local-only verification gap, not evidence
+of a production defect.

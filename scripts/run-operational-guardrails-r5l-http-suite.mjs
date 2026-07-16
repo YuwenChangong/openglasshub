@@ -363,7 +363,7 @@ async function executeSuite() {
       assert.equal(localContainers({ runningOnly: true }).length, 0, "R5L mirror residue remains running");
     });
   }
-  const report = { classification: failure ? "R5L_BLOCKED_HTTP_BEHAVIOR" : "R5_LOCAL_STAGING_VERIFIED", localBaseline: "NORMALIZED_LOCAL_MIGRATION_MIRROR", stages: recorder.stages, r2ProposalSha256: expectedProposalHash };
+  const report = { classification: failure ? "R5L_BLOCKED_HTTP_BEHAVIOR" : "R5L_BLOCKED_FAULT_INJECTION", localBaseline: "NORMALIZED_LOCAL_MIGRATION_MIRROR", stages: recorder.stages, r2ProposalSha256: expectedProposalHash };
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   await rm(reportPath, { force: true });
   if (failure) throw new Error(`R5L local suite failed: ${failure}`);
