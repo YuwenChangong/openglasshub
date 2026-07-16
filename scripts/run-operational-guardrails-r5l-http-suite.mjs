@@ -179,7 +179,7 @@ async function waitForLocalAuth(anonKey) {
   for (let attempt = 0; attempt < 80; attempt += 1) {
     try {
       const response = await fetch("http://127.0.0.1:54321/auth/v1/health", { headers: { apikey: anonKey } });
-      if (response.status === 200) return;
+      if (![502, 503, 504].includes(response.status)) return;
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
