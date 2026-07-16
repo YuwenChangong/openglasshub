@@ -33,7 +33,12 @@ The canonical SELECT policy uses `USING true`, so granting broad authenticated S
 5. Add deterministic concurrency, malformed-input, unauthorized-role, backend-failure, no-row-exposure, and rollback tests.
 6. Deploy the function and migrated runtime callers under a separate approval. Verify no direct client table access remains before separately reviewing removal of either legacy policy.
 
-No index, policy, grant, function, runtime, migration, or production change is authorized by this record.
+The R2 static proposal package now records the exact proposed function identity,
+metadata, ACL, advisory-lock model, expected fingerprint, and catalog
+postflight query. It remains unexecuted and is not a canonical migration. The
+generic upload byte cap and external-video daily cross-table quota still block
+R3. No index, policy, grant, function, runtime, migration, or production
+change is authorized by this record.
 
 ## Design package
 

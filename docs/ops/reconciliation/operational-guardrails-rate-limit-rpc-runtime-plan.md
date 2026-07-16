@@ -35,7 +35,7 @@ different IP-only contract.
 | Stage | Prerequisites and allowed work | Stop condition / evidence / rollback | Approval |
 | --- | --- | --- | --- |
 | R1 | Preview is `PREVIEW_R1_READY`: redacted operator-held metadata proves the encrypted Preview binding record. Local configuration and Production remain separately required; document rotation/owner. No code or database write. | Missing, ambiguous, plaintext, browser-exposed, or duplicate binding stops. Preview metadata does not prove value validity or authorize runtime/deployment work. | Security/operator approval. |
-| R2 | Author unexecuted RPC forward proposal and static ACL/owner/search-path validation. | Any public/browser execute path, dynamic SQL, missing revoke, or unapproved byte policy stops. No execution. | Security review. |
+| R2 | Static proposal, fingerprint, catalog postflight, and ACL/owner/search-path validation are complete and unexecuted. | R3 is blocked by the generic upload byte cap and external-video daily cross-table quota decisions; no execution. | Human quota decisions, then local-test approval. |
 | R3 | Apply only to disposable local DB; run behavior, race, rollback, and ACL tests. | Any non-atomic result, unexpected exposure, or failed cleanup stops. Tear down local DB. | Local-test approval. |
 | R4 | Propose runtime helper/route migration only after R1-R3; remove all direct attempt reads/writes and resolve external daily bytes. | Missing trusted identity, unresolved media cap, or direct table dependency stops. Revert runtime commit only. | Code/security review. |
 | R5 | Preview deployment with authenticated, non-destructive verification. | Preview identity/RPC mismatch or any fail-open path stops. Roll back preview. | Preview approval. |

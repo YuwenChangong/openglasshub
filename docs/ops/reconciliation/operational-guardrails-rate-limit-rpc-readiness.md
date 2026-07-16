@@ -1,6 +1,18 @@
 # W6 Atomic Rate-Limit RPC Readiness Checklist
 
-Current status: `DESIGN_COMPLETE_IMPLEMENTATION_BLOCKED`.
+Current status: `R2_STATIC_PROPOSAL_COMPLETE_R3_BLOCKED`.
+
+The R2 proposal package is repository-only and unexecuted:
+
+- [unexecuted SQL proposal](operational-guardrails-rate-limit-r2-unexecuted-proposal.sql)
+- [static catalog postflight](operational-guardrails-rate-limit-r2-static-postflight.sql)
+- [proposal review](operational-guardrails-rate-limit-r2-proposal-review.md)
+- [expected static fingerprint](operational-guardrails-rate-limit-r2-expected-fingerprint.md)
+- [R3 simulation readiness](operational-guardrails-rate-limit-r3-simulation-readiness.md)
+
+It is not a canonical migration, must not be executed anywhere, and does not
+unblock Stage C. R3 remains ineligible until the two function-relevant quota
+decisions below are approved.
 
 ## Proposed security contract
 
@@ -32,16 +44,15 @@ before R7/R8 verification.
 
 ## Remaining human decisions
 
-1. Approve the exact trusted server identity, its `SUPABASE_SERVICE_ROLE_KEY`
-   binding scope, and its preview/production rotation procedure; do not infer
-   it from the existing legal-consent factory.
-2. Approve an upper byte cap for `post_media_upload` by upload kind.
+1. Approve an upper byte cap for `post_media_upload` by upload kind.
+2. Decide whether the external-video daily 300 MiB cross-table quota becomes a
+   companion atomic server-only boundary or is redesigned; it cannot retain a
+   fail-open direct attempt read.
 3. Decide whether duplicate network requests intentionally consume multiple
    attempts or require a new idempotency key contract.
 4. Approve a lock/statement timeout after local contention measurements.
-5. Approve the proposed `postgres` function owner or introduce a separately
+5. Reconfirm the proposed `postgres` function owner or introduce a separately
    reviewed owner role.
-6. Decide whether external-video's daily 300 MiB cross-table quota becomes a
-   companion atomic server-only boundary or is redesigned; it cannot retain a
-   fail-open direct attempt read.
+6. Approve a separately required local configuration path and keep Production
+   binding creation separately blocked.
 7. Approve R6 and R7 independently. Neither follows from this design record.

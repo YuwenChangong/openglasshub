@@ -95,6 +95,11 @@ configuration is unproven and Production remains
 the Stage C hold or authorize a function, grant, migration, deployment, or
 policy removal.
 
+The repository-only R2 proposal is now statically complete but deliberately
+unexecuted. It defines the atomic hourly attempt boundary only; the generic
+upload byte cap and external-video daily cross-table quota remain human
+decisions, so R3 and Stage C remain blocked.
+
 ## Approved Architecture Readiness Sequence
 
 1. Source-prove the trusted server execution identity for this table; do not

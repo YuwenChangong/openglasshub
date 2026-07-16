@@ -19,6 +19,11 @@ duplicate, owner, and external-video daily-quota decisions approval-gated. The
 direct rate-limit paths remain fail-open and Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED`; no policy is removable.
 
+R2 has authored an unexecuted static proposal for the source-backed hourly
+attempt boundary. It is not a migration or execution authorization. The
+generic upload byte cap and external-video daily cross-table quota remain
+`HUMAN_DECISION_REQUIRED`; R3 cannot begin and Stage C remains blocked.
+
 R1 now has a repository-only binding contract: the active server name is
 `SUPABASE_SERVICE_ROLE_KEY`. The external Preview proof transition is
 `BINDING_ABSENT` to `SECRET_BINDING_PRESENT`; its metadata-only JSON remains
