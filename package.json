@@ -17,6 +17,7 @@
     "test:external-video-authorization-ordering": "node scripts/test-external-video-authorization-ordering.mjs",
     "test:r5l-pages-harness": "node scripts/test-r5l-pages-multimodule-harness.mjs",
     "test:r5l-http-runner": "node scripts/test-operational-guardrails-r5l-http-runner.mjs",
+    "test:r5l-http-local": "node scripts/run-operational-guardrails-r5l-http-suite.mjs",
     "test:user-safety-audit": "node scripts/audit-user-safety.mjs --strict --verbose",
     "test:device-library": "node scripts/test-device-library.mjs",
     "test:products": "node scripts/test-product-page.mjs",
