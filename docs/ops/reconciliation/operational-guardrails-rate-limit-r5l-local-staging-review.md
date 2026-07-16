@@ -90,6 +90,22 @@ rate-limit proposal/replay, route, failure-mode, and concurrency runner still
 must be executed from a new clean local environment before claiming
 `R5_LOCAL_STAGING_VERIFIED`.
 
+## 2026-07-16 deterministic HTTP runner correction
+
+The stopped probe was classified as `HTTP_RUNNER_TEMPLATE_SYNTAX_DEFECT`. A
+large one-line ES module was generated inside a PowerShell here-string; the
+parser stopped at its final response-sanitization expression with `SyntaxError:
+missing ) after argument list`. The process failed before it started Miniflare
+or sent an HTTP request, so it was not an authentication or route defect.
+
+`scripts/run-operational-guardrails-r5l-http-suite.mjs` replaces that generated
+source with a checked-in local-only module. Its static companion,
+`scripts/test-operational-guardrails-r5l-http-runner.mjs`, runs `node --check`,
+imports the module without starting services, rejects the historical malformed
+template shape, and verifies local loopback binding construction. Ephemeral
+credentials remain configuration inputs in ignored local files or process
+memory and are never emitted by the runner.
+
 ## Containment and cleanup
 
 The local runtime attempts used only temporary configuration and a protected

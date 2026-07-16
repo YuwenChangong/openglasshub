@@ -1,0 +1,20 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { buildLocalBindings, createLocalAccessToken } from "./run-operational-guardrails-r5l-http-suite.mjs";
+
+const runner = fileURLToPath(new URL("./run-operational-guardrails-r5l-http-suite.mjs", import.meta.url));
+const check = spawnSync(process.execPath, ["--check", runner], { encoding: "utf8" });
+assert.equal(check.status, 0, check.stderr);
+const source = await readFile(runner, "utf8");
+assert.match(source, /LOCAL_R5L_ONLY[\s\S]*NO_CLOUD_CONTACT[\s\S]*NO_PRODUCTION_TARGETS/);
+assert.doesNotMatch(source, /supabase\.co|pages\.dev|cloudflare\.com/i);
+const token = createLocalAccessToken({ userId: "00000000-0000-0000-0000-000000000001", email: "r5l@local.test", jwtSecret: "local-only-test-secret" });
+assert.equal(token.split(".").length, 3);
+const bindings = buildLocalBindings({ anonKey: token, serviceRoleKey: token, rateLimitSalt: "local-only-salt" });
+assert.equal(bindings.SUPABASE_URL, "http://127.0.0.1:54321");
+assert.equal(bindings.PUBLIC_SUPABASE_SERVICE_ROLE_KEY, undefined);
+const priorMalformedProbe = 'console.log("POST_BODY_SAFE="+(/service_role|supabase\\.co/i.test(await response.text())===false)}finally';
+assert.throws(() => new Function(priorMalformedProbe), SyntaxError);
+console.log(JSON.stringify({ status: "PASS", checks: ["syntax", "module-import", "local-bindings", "no-cloud-target", "prior-template-syntax-regression"] }));
