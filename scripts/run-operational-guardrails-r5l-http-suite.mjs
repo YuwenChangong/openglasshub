@@ -157,24 +157,22 @@ function safeJson(response) {
 function fixtureSql(fixture) {
   const users = [fixture.userA, fixture.userB];
   return `BEGIN;
-${users.map((user) => `INSERT INTO auth.users (id,instance_id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES (${sqlLiteral(user.id)}::uuid,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',${sqlLiteral(user.email)},crypt(${sqlLiteral(user.password)}, gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{}',now(),now());`).join("\n")}
-${users.map((user) => `INSERT INTO auth.identities (id,provider_id,user_id,identity_data,provider,last_sign_in_at,created_at,updated_at) VALUES (${sqlLiteral(randomUUID())}::uuid,${sqlLiteral(user.email)},${sqlLiteral(user.id)}::uuid,${sqlLiteral(JSON.stringify({ sub: user.email, email: user.email }))}::jsonb,'email',now(),now(),now());`).join("\n")}
 ${users.map((user) => `INSERT INTO public.profiles (id,username,display_name,role) VALUES (${sqlLiteral(user.id)}::uuid,${sqlLiteral(user.username)},${sqlLiteral(user.username)},'user') ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username;`).join("\n")}
 ${users.map((user) => `INSERT INTO public.legal_policy_acceptances (user_id,bundle_version,privacy_version,terms_version,guidelines_version,minimum_age,first_acceptance_source,last_confirmation_source,confirmation_count) VALUES (${sqlLiteral(user.id)}::uuid,'2026-07','2026-07','2026-07','2026-07',18,'registration','registration',1);`).join("\n")}
 INSERT INTO public.circles (id,slug,name,description,type,owner_id,status) VALUES (${sqlLiteral(fixture.circleId)}::uuid,${sqlLiteral(fixture.circleSlug)},'R5L local circle','Disposable local fixture','topic',${sqlLiteral(fixture.userA.id)}::uuid,'active');
 COMMIT;`;
 }
 
-async function localAuthToken({ email, password, anonKey }) {
-  const response = await fetch("http://127.0.0.1:54321/auth/v1/token?grant_type=password", {
+async function createLocalAuthFixture({ email, password, anonKey }) {
+  const response = await fetch("http://127.0.0.1:54321/auth/v1/signup", {
     method: "POST",
     headers: { apikey: anonKey, "content-type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  if (!response.ok) throw new Error(`R5L local GoTrue fixture authentication failed with HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`R5L local GoTrue fixture creation failed with HTTP ${response.status}`);
   const payload = await response.json();
-  if (typeof payload?.access_token !== "string" || payload.access_token.split(".").length !== 3) throw new Error("R5L local GoTrue returned no access token");
-  return payload.access_token;
+  if (typeof payload?.access_token !== "string" || payload.access_token.split(".").length !== 3 || !/^[0-9a-f-]{36}$/i.test(String(payload?.user?.id ?? ""))) throw new Error("R5L local GoTrue returned an incomplete fixture session");
+  return { token: payload.access_token, userId: payload.user.id };
 }
 
 function cleanupSql() {
@@ -198,8 +196,8 @@ async function executeSuite() {
   let worker;
   let mirrorStarted = false;
   const fixture = {
-    userA: { id: randomUUID(), email: `r5l-${runId}-a@local.test`, username: `r5la${runId.slice(0, 10)}`, password: `R5l-${runId}-A` },
-    userB: { id: randomUUID(), email: `r5l-${runId}-b@local.test`, username: `r5lb${runId.slice(0, 10)}`, password: `R5l-${runId}-B` },
+    userA: { id: null, email: `r5l-${runId}-a@local.test`, username: `r5la${runId.slice(0, 10)}`, password: `R5l-${runId}-A` },
+    userB: { id: null, email: `r5l-${runId}-b@local.test`, username: `r5lb${runId.slice(0, 10)}`, password: `R5l-${runId}-B` },
     circleId: randomUUID(), circleSlug: `r5l-${runId.slice(0, 12)}`,
   };
   let failure;
@@ -227,16 +225,26 @@ async function executeSuite() {
       const row = psql(database, "SELECT prosecdef::text || '|' || provolatile::text || '|' || proparallel::text || '|' || proleakproof::text || '|' || pg_get_userbyid(proowner) FROM pg_proc WHERE oid='public.consume_forum_rate_limit(uuid,text,text,bigint)'::regprocedure;");
       assert.equal(row, "true|v|u|false|postgres", "R5L RPC catalog contract mismatch");
     });
-    await recorder.run("fixtures", async () => { psql(database, fixtureSql(fixture)); });
-    await recorder.run("build", async () => { command(process.platform === "win32" ? "cmd.exe" : "npm", process.platform === "win32" ? ["/c", "npm", "run", "build"] : ["run", "build"]); });
     const auth = requiredContainer("auth");
     const jwtSecret = envValue(auth, "GOTRUE_JWT_SECRET");
     const audience = envValue(auth, "GOTRUE_JWT_AUD");
     const issuer = envValue(auth, "GOTRUE_JWT_ISSUER");
     const anonKey = createLocalServiceToken({ role: "anon", jwtSecret, audience, issuer });
     const serviceRoleKey = createLocalServiceToken({ role: "service_role", jwtSecret, audience, issuer });
-    const tokenA = await localAuthToken({ email: fixture.userA.email, password: fixture.userA.password, anonKey });
-    const tokenB = await localAuthToken({ email: fixture.userB.email, password: fixture.userB.password, anonKey });
+    let tokenA;
+    let tokenB;
+    await recorder.run("fixtures", async () => {
+      const [authA, authB] = await Promise.all([
+        createLocalAuthFixture({ email: fixture.userA.email, password: fixture.userA.password, anonKey }),
+        createLocalAuthFixture({ email: fixture.userB.email, password: fixture.userB.password, anonKey }),
+      ]);
+      fixture.userA.id = authA.userId;
+      fixture.userB.id = authB.userId;
+      tokenA = authA.token;
+      tokenB = authB.token;
+      psql(database, fixtureSql(fixture));
+    });
+    await recorder.run("build", async () => { command(process.platform === "win32" ? "cmd.exe" : "npm", process.platform === "win32" ? ["/c", "npm", "run", "build"] : ["run", "build"]); });
     const port = await availablePort();
     await recorder.run("worker-start", async () => { worker = await startBuiltPagesWorker({ repositoryRoot: root, bindings: buildLocalBindings({ anonKey, serviceRoleKey, rateLimitSalt: `r5l-${runId}` }), port }); });
     await recorder.run("worker-readiness", async () => { assert.equal((await waitForWorkerResponse(worker.origin, { pathname: "/api/forum/search?q=open" })).status, 200); });
