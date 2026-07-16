@@ -5,10 +5,8 @@
 -- DO NOT RUN
 -- R3 LOCAL SIMULATION APPROVAL REQUIRED BEFORE EXECUTION ANYWHERE
 --
--- This proposal deliberately covers only the fixed hourly/daily ATTEMPT-count
--- contract. It does not implement the unresolved generic-upload byte ceiling
--- or the external-video 300 MiB daily cross-table quota. Those decisions block
--- R3 and runtime migration; this file is static review material only.
+-- R2 decision closure: this static proposal defines the complete V1 quota,
+-- retry, and timeout contract. It remains non-executable review material.
 
 -- CREATE FUNCTION is intentional: a future approved executor must fail closed
 -- if this exact identity or any overload already exists, rather than replacing
@@ -25,14 +23,18 @@ SECURITY DEFINER
 VOLATILE
 PARALLEL UNSAFE
 SET search_path = pg_catalog, public, pg_temp
+SET lock_timeout = '1s'
+SET statement_timeout = '3s'
 AS $function$
 DECLARE
   v_now timestamptz := pg_catalog.now();
   v_window_seconds integer;
   v_max_attempts integer;
   v_upload_scope boolean := false;
+  v_external_video_daily_bytes boolean := false;
   v_lock_material text;
   v_current_count bigint;
+  v_current_bytes bigint;
 BEGIN
   IF p_user_id IS NULL OR p_user_id = '00000000-0000-0000-0000-000000000000'::uuid THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'rate-limit identity is required';
@@ -42,8 +44,8 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'rate-limit IP hash is invalid';
   END IF;
 
-  IF p_bytes IS NULL OR p_bytes < 0 THEN
-    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'rate-limit bytes are invalid';
+  IF p_bytes IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'rate-limit bytes are required';
   END IF;
 
   CASE p_purpose
@@ -69,10 +71,14 @@ BEGIN
       v_max_attempts := 10;
       v_window_seconds := 3600;
       v_upload_scope := true;
+      IF p_bytes < 1 OR p_bytes > 157286400 THEN
+        RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'post media bytes are invalid';
+      END IF;
     WHEN 'external_video_upload' THEN
       v_max_attempts := 10;
       v_window_seconds := 3600;
       v_upload_scope := true;
+      v_external_video_daily_bytes := true;
       IF p_bytes < 1 OR p_bytes > 157286400 THEN
         RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'external video bytes are invalid';
       END IF;
@@ -80,9 +86,9 @@ BEGIN
       RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'rate-limit purpose is invalid';
   END CASE;
 
-  -- Rolling windows intentionally use a stable scope lock, not a time-bucket
-  -- lock. A bucket-specific lock would permit overlapping requests around a
-  -- bucket boundary to bypass a rolling quota.
+  -- Every current invocation has exactly one quota scope. Both external-video
+  -- constraints use this same shared-IP lock, so their deterministic lock
+  -- order is this one acquisition before any count, sum, or insert.
   IF v_upload_scope THEN
     v_lock_material := 'openglasshub:forum-rate-limit:v1:upload-ip:' || p_ip_hash;
   ELSE
@@ -111,9 +117,28 @@ BEGIN
     RETURN;
   END IF;
 
-  -- A function call is atomic in its caller transaction. Any insert, timeout,
-  -- or validation error aborts the call and releases the transaction lock; no
-  -- accepted attempt is recorded after a failed decision.
+  -- The V1 external-video daily ledger is this table only. Once the runtime
+  -- migration cuts over, every row for this purpose is an accepted reservation
+  -- inserted here by this RPC. It remains charged even if later upload/media
+  -- work fails; no cross-table read, reservation status, or cleanup exists.
+  IF v_external_video_daily_bytes THEN
+    SELECT pg_catalog.coalesce(pg_catalog.sum(bytes), 0)
+      INTO v_current_bytes
+      FROM public.forum_upload_attempts
+      WHERE purpose = 'external_video_upload'
+        AND ip_hash = p_ip_hash
+        AND created_at >= v_now - INTERVAL '24 hours';
+
+    IF v_current_bytes > 314572800 - p_bytes THEN
+      RETURN QUERY SELECT false, 'RATE_LIMITED'::text;
+      RETURN;
+    END IF;
+  END IF;
+
+  -- A function call is atomic in its caller transaction. Both external-video
+  -- limits have passed under the same lock before this one accepted-row insert.
+  -- Validation, permission, timeout, or insert failure rolls back the call and
+  -- releases the transaction lock without recording an accepted attempt.
   INSERT INTO public.forum_upload_attempts (user_id, ip_hash, bytes, purpose, created_at)
   VALUES (p_user_id, p_ip_hash, p_bytes, p_purpose, v_now);
 

@@ -45,18 +45,26 @@ assert.equal(rateLimitRpcContract.security.anonExecute, false);
 assert.equal(rateLimitRpcContract.security.authenticatedExecute, false);
 assert.match(source.contract, /no count, limit,[\s\S]*remaining quota, reset timestamp/i);
 assert.match(source.contract, /150 MiB/);
-assert.match(source.contract, /pending an approved upper cap/i);
+assert.equal(rateLimitRpcContract.purposes.post_media_upload.bytes, "1..157286400");
+assert.equal(rateLimitRpcContract.purposes.external_video_upload.dailyByteMaximum, 314572800);
+assert.equal(rateLimitRpcContract.purposes.external_video_upload.dailyWindowSeconds, 86400);
+assert.equal(rateLimitRpcContract.r2Status, "COMPLETE_STATICALLY_VALID");
+assert.equal(rateLimitRpcContract.r3Eligible, true);
+assert.equal(rateLimitRpcContract.timeoutContract.runtimeDeadlineMs, 4000);
+assert.equal(rateLimitRpcContract.retryPolicy, "NO_AUTOMATIC_RETRY");
+assert.equal(rateLimitRpcContract.idempotencyPolicy, "NO_V1_IDEMPOTENCY_GUARANTEE");
+assert.match(source.contract, /314572800[\s\S]*rolling 24 hours/s);
 
 assert.equal(rateLimitRouteInventory.length, 5);
 assert(rateLimitRouteInventory.every((entry) => entry.failure.includes("fails_open") && entry.denyStatus === 429 && entry.errorStatus === 503));
 assert.match(source.rateLimit, /allowed: true,[\s\S]*backendAvailable: false/);
 assert.match(source.runtime, /malformed data[\s\S]*fixed `503`/);
-assert.match(source.runtime, /external-video[\s\S]*daily-byte replacement/i);
+assert.match(source.runtime, /external-video[\s\S]*one atomic RPC ledger/i);
 
 assert.equal(rateLimitRpcContract.concurrency, "transaction_scoped_advisory_lock_per_fixed_scope");
 assert.match(source.concurrency, /Transaction-scoped advisory lock/);
 assert.match(source.concurrency, /no multi-lock ordering[\s\S]*or deadlock cycle/i);
-assert.match(source.concurrency, /R3 must prove exact-threshold races/i);
+assert.match(source.concurrency, /R3 must use a disposable local database to prove exact-threshold races/i);
 
 assert.deepEqual(implementationStages, ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9"]);
 for (const stage of implementationStages) assert.match(source.runtime, new RegExp(`\\| ${stage} \\|`));

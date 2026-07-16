@@ -14,15 +14,17 @@ as `SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY`: operator-held, metadata-only
 Preview evidence proves the reviewed encrypted binding record, while local
 configuration is unproven and Production remains
 `BINDING_ABSENT_PRODUCTION_BLOCKED`. It fixes a non-executable five-purpose
-interface and advisory-lock design, and leaves the media-byte, timeout,
-duplicate, owner, and external-video daily-quota decisions approval-gated. The
-direct rate-limit paths remain fail-open and Stage C remains
+interface, advisory-lock design, complete V1 quota matrix, and fail-closed
+retry/timeout contract. Production function-owner confirmation and binding,
+plus separately approved R3/R4 work, remain required. The direct rate-limit
+paths remain fail-open and Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED`; no policy is removable.
 
-R2 has authored an unexecuted static proposal for the source-backed hourly
-attempt boundary. It is not a migration or execution authorization. The
-generic upload byte cap and external-video daily cross-table quota remain
-`HUMAN_DECISION_REQUIRED`; R3 cannot begin and Stage C remains blocked.
+R2 has authored an unexecuted, `COMPLETE_STATICALLY_VALID` proposal for the
+approved V1 hourly attempt and external-video rolling-byte boundaries. It is
+not a migration or execution authorization. R3 is eligible only after separate
+approval for disposable local behavior and concurrency simulation; Stage C
+remains blocked.
 
 R1 now has a repository-only binding contract: the active server name is
 `SUPABASE_SERVICE_ROLE_KEY`. The external Preview proof transition is

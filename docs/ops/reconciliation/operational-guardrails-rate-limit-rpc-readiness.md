@@ -1,6 +1,6 @@
 # W6 Atomic Rate-Limit RPC Readiness Checklist
 
-Current status: `R2_STATIC_PROPOSAL_COMPLETE_R3_BLOCKED`.
+Current status: `R2_COMPLETE_STATICALLY_VALID_R3_PENDING_APPROVAL`.
 
 The R2 proposal package is repository-only and unexecuted:
 
@@ -11,8 +11,8 @@ The R2 proposal package is repository-only and unexecuted:
 - [R3 simulation readiness](operational-guardrails-rate-limit-r3-simulation-readiness.md)
 
 It is not a canonical migration, must not be executed anywhere, and does not
-unblock Stage C. R3 remains ineligible until the two function-relevant quota
-decisions below are approved.
+unblock Stage C. All function-relevant quota decisions are approved; R3 is
+eligible only after separate approval for a disposable local simulation.
 
 ## Proposed security contract
 
@@ -29,8 +29,9 @@ decisions below are approved.
   enabled and not forced; R2 must prove that owner/definer behavior remains
   compatible without disabling RLS globally. Do not set `row_security` unless a
   reviewed local test shows it is necessary and safe.
-- A finite statement/lock timeout must be chosen in R2 and mapped to a fixed
-  route `503`. No current source proves an appropriate duration.
+- The approved function settings are `lock_timeout = '1s'` and
+  `statement_timeout = '3s'`; the future runtime deadline is at most 4s and
+  maps listed infrastructure/result failures to fixed `503` without retry.
 
 ## Required deterministic checks
 
@@ -42,17 +43,12 @@ transport error, no browser direct table use, ACL denial for PUBLIC/anon/
 authenticated, safe owner/search path, no resend reuse, and no policy removal
 before R7/R8 verification.
 
-## Remaining human decisions
+## Remaining deployment prerequisites
 
-1. Approve an upper byte cap for `post_media_upload` by upload kind.
-2. Decide whether the external-video daily 300 MiB cross-table quota becomes a
-   companion atomic server-only boundary or is redesigned; it cannot retain a
-   fail-open direct attempt read.
-3. Decide whether duplicate network requests intentionally consume multiple
-   attempts or require a new idempotency key contract.
-4. Approve a lock/statement timeout after local contention measurements.
-5. Reconfirm the proposed `postgres` function owner or introduce a separately
-   reviewed owner role.
-6. Approve a separately required local configuration path and keep Production
-   binding creation separately blocked.
-7. Approve R6 and R7 independently. Neither follows from this design record.
+1. Run R3 only after separate approval in a disposable local database; it must
+   prove quota, concurrency, rollback, ACL, and timeout behavior.
+2. Reconfirm the proposed `postgres` function owner or introduce a separately
+   reviewed owner role before any production execution review.
+3. Establish and separately prove the Production server-only binding. It
+   remains `BINDING_ABSENT_PRODUCTION_BLOCKED`.
+4. Approve R4, R6, and R7 independently. None follows from this design record.

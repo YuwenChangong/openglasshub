@@ -7,8 +7,8 @@
 | `posts.ts#POST` | Create post, `post_create` | 10/user/hour | Helper returns `allowed: true`. | `ALLOWED` continues; `RATE_LIMITED` is existing `429 RATE_LIMITED`; RPC failure is sanitized `503`. |
 | `comments.ts#POST` | Create comment, `comment_create` | 60/user/hour | Helper returns `allowed: true`. | Same fail-closed mapping. |
 | `circles.ts#POST` | Create circle, `circle_create` | 5/user/day | Helper returns `allowed: true`. | Same fail-closed mapping. |
-| `media-upload-guard.ts#POST` | Guard media upload, `post_media_upload` | 10/shared-IP/hour | Helper returns `allowed: true`. | Same fail-closed mapping after a per-kind byte cap is approved. |
-| `external-video-upload.ts#POST` | Sign external video upload, `external_video_upload` | 10/shared-IP/hour | Helper returns `allowed: true`; daily attempt-byte read becomes zero on error. | Same attempt mapping plus a separately approved atomic daily-byte replacement. |
+| `media-upload-guard.ts#POST` | Guard media upload, `post_media_upload` | 10/shared-IP/hour, 1..157286400 bytes | Helper returns `allowed: true`. | Same fail-closed mapping with the RPC's defense-in-depth cap; a lower source-proven route cap remains authoritative. |
+| `external-video-upload.ts#POST` | Sign external video upload, `external_video_upload` | 10/shared-IP/hour, 1..157286400 bytes, 314572800 accepted bytes/shared-IP/rolling 24h | Helper returns `allowed: true`; daily attempt-byte read becomes zero on error. | Same fail-closed mapping through the one atomic RPC ledger; accepted reservations remain charged if later upload/media work fails. |
 
 Every caller presently has a verified bearer actor, hashes the request IP with
 `RATE_LIMIT_SALT`, and passes a server-derived byte value. The direct table
@@ -26,6 +26,12 @@ The only permitted future state machine is:
    or the trusted identity is unavailable: return a fixed `503` and do not
    continue the protected action.
 
+The future RPC deadline is 4s maximum. The proposed database function has a 1s
+lock timeout and 3s statement timeout. No automatic RPC retry is permitted:
+timeout, connection loss, or any ambiguous transport outcome returns `503` and
+the runtime must not infer whether an accepted reservation committed. V1 has no
+idempotency token; a later user-initiated request is a new attempt.
+
 No browser code receives direct table access. The current resend RPC is not a
 replacement because it is executable by `anon` and `authenticated` and has a
 different IP-only contract.
@@ -35,7 +41,7 @@ different IP-only contract.
 | Stage | Prerequisites and allowed work | Stop condition / evidence / rollback | Approval |
 | --- | --- | --- | --- |
 | R1 | Preview is `PREVIEW_R1_READY`: redacted operator-held metadata proves the encrypted Preview binding record. Local configuration and Production remain separately required; document rotation/owner. No code or database write. | Missing, ambiguous, plaintext, browser-exposed, or duplicate binding stops. Preview metadata does not prove value validity or authorize runtime/deployment work. | Security/operator approval. |
-| R2 | Static proposal, fingerprint, catalog postflight, and ACL/owner/search-path validation are complete and unexecuted. | R3 is blocked by the generic upload byte cap and external-video daily cross-table quota decisions; no execution. | Human quota decisions, then local-test approval. |
+| R2 | Static proposal, fingerprint, catalog postflight, ACL/owner/search-path validation, complete quota matrix, timeout, and retry contract are complete and unexecuted. | No SQL execution. R3 is eligible only for separately approved disposable local simulation. | Local-test approval. |
 | R3 | Apply only to disposable local DB; run behavior, race, rollback, and ACL tests. | Any non-atomic result, unexpected exposure, or failed cleanup stops. Tear down local DB. | Local-test approval. |
 | R4 | Propose runtime helper/route migration only after R1-R3; remove all direct attempt reads/writes and resolve external daily bytes. | Missing trusted identity, unresolved media cap, or direct table dependency stops. Revert runtime commit only. | Code/security review. |
 | R5 | Preview deployment with authenticated, non-destructive verification. | Preview identity/RPC mismatch or any fail-open path stops. Roll back preview. | Preview approval. |

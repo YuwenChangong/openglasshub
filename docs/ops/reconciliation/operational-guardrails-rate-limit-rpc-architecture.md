@@ -1,8 +1,8 @@
 # W6 Server-Only Atomic Rate-Limit Architecture
 
 Status: `APPROVED_ARCHITECTURE_NOT_IMPLEMENTED`. The repository-only design
-phase is complete, but R1 trusted identity configuration and the explicit
-remaining decisions still block implementation. This is a security/product
+phase is complete, but R1 trusted identity configuration and separate R3/R4
+approval still block implementation. This is a security/product
 decision record, not executable production SQL and not approval to alter a
 database.
 
@@ -34,11 +34,11 @@ The canonical SELECT policy uses `USING true`, so granting broad authenticated S
 6. Deploy the function and migrated runtime callers under a separate approval. Verify no direct client table access remains before separately reviewing removal of either legacy policy.
 
 The R2 static proposal package now records the exact proposed function identity,
-metadata, ACL, advisory-lock model, expected fingerprint, and catalog
-postflight query. It remains unexecuted and is not a canonical migration. The
-generic upload byte cap and external-video daily cross-table quota still block
-R3. No index, policy, grant, function, runtime, migration, or production
-change is authorized by this record.
+metadata, ACL, advisory-lock model, complete V1 quota matrix, retry/timeout
+contract, expected fingerprint, and catalog postflight query. It remains
+unexecuted and is not a canonical migration. R3 is eligible only after a
+separate local-simulation approval. No index, policy, grant, function, runtime,
+migration, or production change is authorized by this record.
 
 ## Design package
 

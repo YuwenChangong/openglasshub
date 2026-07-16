@@ -95,10 +95,11 @@ configuration is unproven and Production remains
 the Stage C hold or authorize a function, grant, migration, deployment, or
 policy removal.
 
-The repository-only R2 proposal is now statically complete but deliberately
-unexecuted. It defines the atomic hourly attempt boundary only; the generic
-upload byte cap and external-video daily cross-table quota remain human
-decisions, so R3 and Stage C remain blocked.
+The repository-only R2 proposal is `COMPLETE_STATICALLY_VALID` but deliberately
+unexecuted. It defines the atomic hourly attempt boundary, the 150 MiB upload
+ceiling, and the external-video 300 MiB rolling-24-hour `forum_upload_attempts`
+ledger under one shared-IP advisory lock. R3 needs separate local-simulation
+approval; Stage C remains blocked pending runtime migration.
 
 ## Approved Architecture Readiness Sequence
 

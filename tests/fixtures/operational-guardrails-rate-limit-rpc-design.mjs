@@ -35,8 +35,8 @@ export const rateLimitRpcContract = {
     post_create: { scope: "user", maxAttempts: 10, windowSeconds: 3600, bytes: "zero" },
     comment_create: { scope: "user", maxAttempts: 60, windowSeconds: 3600, bytes: "zero" },
     circle_create: { scope: "user", maxAttempts: 5, windowSeconds: 86400, bytes: "zero" },
-    post_media_upload: { scope: "shared_upload_ip", maxAttempts: 10, windowSeconds: 3600, bytes: "nonnegative-approved-cap" },
-    external_video_upload: { scope: "shared_upload_ip", maxAttempts: 10, windowSeconds: 3600, bytes: "1..157286400" },
+    post_media_upload: { scope: "shared_upload_ip", maxAttempts: 10, windowSeconds: 3600, bytes: "1..157286400" },
+    external_video_upload: { scope: "shared_upload_ip", maxAttempts: 10, windowSeconds: 3600, bytes: "1..157286400", dailyByteMaximum: 314572800, dailyWindowSeconds: 86400 },
   },
   requiredIdentity: "both_user_uuid_and_sha256_ip_hash",
   rejected: ["verification_email_resend", "null_user_id", "blank_ip_hash", "invalid_ip_hash", "negative_bytes", "unknown_purpose"],
@@ -54,14 +54,12 @@ export const rateLimitRpcContract = {
     parallel: "UNSAFE",
     leakproof: false,
   },
-  unresolvedDecisions: [
-    "trusted_server_identity_deployment_binding",
-    "post_media_upload_byte_ceiling",
-    "external_video_daily_byte_quota_atomic_boundary",
-    "lock_wait_and_statement_timeout",
-    "duplicate_request_idempotency",
-    "production_function_owner_confirmation",
-  ],
+  r2Status: "COMPLETE_STATICALLY_VALID",
+  r3Eligible: true,
+  timeoutContract: { lockTimeout: "1s", statementTimeout: "3s", runtimeDeadlineMs: 4000 },
+  retryPolicy: "NO_AUTOMATIC_RETRY",
+  idempotencyPolicy: "NO_V1_IDEMPOTENCY_GUARANTEE",
+  unresolvedDecisions: ["trusted_server_identity_deployment_binding", "production_function_owner_confirmation"],
 };
 
 export const rateLimitRouteInventory = [
