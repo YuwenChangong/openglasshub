@@ -77,20 +77,22 @@ export async function resolveSignedPostMedia(
   const isR2TempMedia = (item: PostMediaRow) =>
     Boolean(item.storage_path && item.storage_path.startsWith("tmp/"));
   const cache = getSignedMediaCache(supabase);
-  const storagePaths = [...new Set(
-    sortedRows
-      .flatMap((item) => {
-        const values: string[] = [];
-        if ((item.kind === "image" || item.kind === "video") && item.storage_path && !isR2TempMedia(item)) {
-          values.push(item.storage_path);
-        }
-        if (item.thumbnail_url && !/^https?:\/\//i.test(item.thumbnail_url) && !item.thumbnail_url.startsWith("tmp/")) {
-          values.push(item.thumbnail_url);
-        }
-        return values;
-      })
-      .filter(Boolean),
-  )];
+  const storagePaths = options?.publicProxy
+    ? []
+    : [...new Set(
+        sortedRows
+          .flatMap((item) => {
+            const values: string[] = [];
+            if ((item.kind === "image" || item.kind === "video") && item.storage_path && !isR2TempMedia(item)) {
+              values.push(item.storage_path);
+            }
+            if (item.thumbnail_url && !/^https?:\/\//i.test(item.thumbnail_url) && !item.thumbnail_url.startsWith("tmp/")) {
+              values.push(item.thumbnail_url);
+            }
+            return values;
+          })
+          .filter(Boolean),
+      )];
 
   const uncachedPaths = storagePaths.filter((path) => !cache.has(`${expiresIn}:${path}`));
   if (uncachedPaths.length > 0) {

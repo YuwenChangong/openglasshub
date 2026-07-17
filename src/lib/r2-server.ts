@@ -31,9 +31,19 @@ export function getR2BucketName(env: Record<string, string | undefined>): string
   return requireEnv(env, "R2_BUCKET_NAME");
 }
 
-export function buildTmpVideoKey(userId: string, fileName: string): string {
+function requireCanonicalUuidSegment(value: string, label: string): string {
+  const normalized = String(value).trim().toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(normalized)) {
+    throw new Error(`Invalid ${label} for temporary media key`);
+  }
+  return normalized;
+}
+
+export function buildTmpVideoKey(userId: string, postId: string, fileName: string): string {
+  const actorId = requireCanonicalUuidSegment(userId, "user id");
+  const targetPostId = requireCanonicalUuidSegment(postId, "post id");
   const safeName = normalizeFileName(fileName) || "video.mp4";
-  return `tmp/${userId}/${crypto.randomUUID()}-${safeName}`;
+  return `tmp/${actorId}/${targetPostId}/${crypto.randomUUID()}-${safeName}`;
 }
 
 export async function signR2PutUrl(params: {

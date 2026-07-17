@@ -2,6 +2,8 @@ import type { APIRoute } from "astro";
 import { sanitizeBodyForDisplay } from "../../../../lib/post-body";
 import { deletePostMediaObjects } from "../../../../lib/server/media-cleanup";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
+import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../../lib/server/legal-consent-repository.server";
 
 export const prerender = false;
 
@@ -122,7 +124,9 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     const env = (locals as RuntimeLocals).runtime?.env;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
-    const { client } = await requireModerator(request, env);
+    const { client, user } = await requireModerator(request, env);
+    const consent = await requireAuthenticatedLegalConsent({ identity: { userId: user.id }, repository: createLegalConsentReadRepository(client) });
+    if (!consent.ok) return consent.response;
     const payload = (await request.json().catch(() => null)) as
       | { id?: string; action?: "hide" | "restore" }
       | null;
@@ -155,7 +159,9 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     const env = (locals as RuntimeLocals).runtime?.env;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
-    const { client } = await requireModerator(request, env);
+    const { client, user } = await requireModerator(request, env);
+    const consent = await requireAuthenticatedLegalConsent({ identity: { userId: user.id }, repository: createLegalConsentReadRepository(client) });
+    if (!consent.ok) return consent.response;
 
     const url = new URL(request.url);
     const postId = String(url.searchParams.get("id") ?? url.searchParams.get("post_id") ?? "").trim();

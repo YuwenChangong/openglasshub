@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getCollection } from "astro:content";
 import { brandCatalog, getDeviceBySlug } from "../lib/device-catalog";
+import { LEGAL_POLICY } from "../lib/legal-policy";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { isPublicVisibleCircle } from "../lib/site-navigation";
 
@@ -66,6 +67,12 @@ export const GET: APIRoute = async ({ locals }) => {
     { loc: absoluteUrl("/guides/"), changefreq: "weekly", priority: "0.8" },
     { loc: absoluteUrl("/developers/"), changefreq: "weekly", priority: "0.75" },
     { loc: absoluteUrl("/gaze-launcher/"), changefreq: "weekly", priority: "0.75" },
+    { loc: absoluteUrl(LEGAL_POLICY.routes.terms), changefreq: "monthly", priority: "0.42" },
+    { loc: absoluteUrl(LEGAL_POLICY.routes.privacy), changefreq: "monthly", priority: "0.42" },
+    { loc: absoluteUrl(LEGAL_POLICY.routes.guidelines), changefreq: "monthly", priority: "0.4" },
+    { loc: absoluteUrl(LEGAL_POLICY.routes.safety), changefreq: "monthly", priority: "0.38" },
+    { loc: absoluteUrl(LEGAL_POLICY.routes.accountDeletion), changefreq: "monthly", priority: "0.35" },
+    { loc: absoluteUrl(LEGAL_POLICY.routes.contact), changefreq: "monthly", priority: "0.35" },
   ];
 
   for (const brand of brandCatalog) {

@@ -1,0 +1,137 @@
+---
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import { LEGAL_POLICY, LEGAL_POLICY_LINKS } from "../../lib/legal-policy";
+
+interface Props {
+  pageTitle: string;
+  description: string;
+  routeKey: "terms" | "privacy" | "guidelines" | "safety" | "accountDeletion" | "contact" | "consent";
+  version: string;
+  headingZh: string;
+  headingEn: string;
+  zh: string;
+  en: string;
+  noindex?: boolean;
+}
+
+const {
+  pageTitle,
+  description,
+  routeKey,
+  version,
+  headingZh,
+  headingEn,
+  zh,
+  en,
+  noindex = false,
+} = Astro.props;
+---
+<CommunityLayout
+  title={pageTitle}
+  description={description}
+  canonical={`https://openglasshub.pages.dev${Astro.url.pathname}`}
+  pageClass="legal-shell"
+  noindex={noindex}
+>
+  <article class="legal-page">
+    <nav class="legal-page__policy-nav" aria-label="Legal policy navigation">
+      {
+        LEGAL_POLICY_LINKS.map((link) => (
+          <a href={link.href} aria-current={routeKey === link.key ? "page" : undefined}>
+            <span>{link.labelZh}</span>
+            <span lang="en">{link.labelEn}</span>
+          </a>
+        ))
+      }
+    </nav>
+    <div class="legal-page__meta-row">
+      <p class="legal-page__meta">版本 {version} · 生效日期 {LEGAL_POLICY.effectiveDate}</p>
+      <p class="legal-page__meta" lang="en">Version {version} · Effective {LEGAL_POLICY.effectiveDate}</p>
+    </div>
+    <nav class="legal-page__language-nav" aria-label="Language navigation">
+      <a href="#legal-zh">中文</a>
+      <a href="#legal-en" lang="en">English</a>
+    </nav>
+    <section id="legal-zh" class="legal-page__section" lang="zh-CN" aria-labelledby="legal-heading-zh">
+      <h1 id="legal-heading-zh">{headingZh}</h1>
+      <Fragment set:html={zh} />
+    </section>
+    <section id="legal-en" class="legal-page__section" lang="en" aria-labelledby="legal-heading-en">
+      <h2 id="legal-heading-en">{headingEn}</h2>
+      <Fragment set:html={en} />
+    </section>
+  </article>
+</CommunityLayout>
+<style>
+  .legal-page {
+    width: min(100%, 860px);
+    margin: 2rem auto 4rem;
+    padding: clamp(1rem, 3vw, 2rem);
+    background: rgba(18, 31, 48, 0.72);
+    border: 1px solid rgba(156, 194, 231, 0.16);
+    border-radius: 8px;
+    line-height: 1.75;
+  }
+
+  .legal-page__policy-nav,
+  .legal-page__language-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .legal-page__policy-nav a,
+  .legal-page__language-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+
+  .legal-page__policy-nav a[aria-current="page"] {
+    color: #f2f4f5;
+  }
+
+  .legal-page__meta-row {
+    display: grid;
+    gap: 0.2rem;
+    margin: 1rem 0;
+  }
+
+  .legal-page__meta {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .legal-page__section + .legal-page__section {
+    margin-top: 3rem;
+  }
+
+  .legal-page h1 {
+    margin: 0 0 1rem;
+    font-size: clamp(1.7rem, 3vw, 2.25rem);
+  }
+
+  .legal-page h2 {
+    margin: 0 0 1rem;
+    font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+  }
+
+  .legal-page h3 {
+    margin-top: 1.7rem;
+  }
+
+  .legal-page :global(a) {
+    color: #8fc6ff;
+  }
+
+  @media (max-width: 640px) {
+    .legal-page {
+      margin-top: 1.5rem;
+      margin-bottom: 3rem;
+      padding: 1rem;
+    }
+  }
+</style>

@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { findUnsafeServiceRoleUsage } = require("./profile-service-role-audit.cjs");
 
 const rootDir = path.join(__dirname, "..");
 const srcDir = path.join(rootDir, "src");
@@ -101,7 +102,7 @@ check("edit profile does not directly update profiles table", !editProfile.inclu
 
 const profileApi = read("src/pages/api/users/me/profile.ts");
 check("profile API rejects forbidden fields", profileApi.includes("PROFILE_FORBIDDEN_FIELD_UPDATE"));
-check("profile API defines explicit forbidden fields", profileApi.includes('const FORBIDDEN_PROFILE_FIELDS = ["role", "id", "email", "created_at", "updated_at", "updated_by"]'));
+check("profile API defines explicit mutable field allowlist", profileApi.includes("PROFILE_MUTABLE_FIELDS") && profileApi.includes('"display_name", "username", "bio", "avatar_url", "banner_url"'));
 
 const profileMedia = read("src/lib/profile-media.ts");
 check("profile media uses post-media bucket", profileMedia.includes('PROFILE_MEDIA_BUCKET = "post-media"'));
@@ -168,8 +169,8 @@ const promptHits = search(srcDir, (content) =>
 );
 check("no native confirm/alert/prompt in src", promptHits.length === 0, promptHits.join(", "));
 
-const serviceRoleHits = search(srcDir, (content) => content.includes("SUPABASE_SERVICE_ROLE_KEY"));
-check("no service role usage in src", serviceRoleHits.length === 0, serviceRoleHits.join(", "));
+const serviceRoleHits = findUnsafeServiceRoleUsage(rootDir, srcDir);
+check("no unsafe service role usage in src", serviceRoleHits.length === 0, serviceRoleHits.join(", "));
 
 const roleLockMigration = read("supabase/migrations/20260620_lock_profile_role_updates.sql");
 check("role lockdown migration revokes broad profile updates", /revoke update on table public\.profiles from authenticated;/i.test(roleLockMigration));

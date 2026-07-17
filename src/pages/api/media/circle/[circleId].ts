@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { createSSRClient, type CloudflareEnv } from "../../../../lib/supabase-server";
 import {
   CIRCLE_COVER_BUCKET,
-  isCircleCoverPath,
+  resolvePublicCircleCoverTarget,
 } from "../../../../lib/circle-cover";
 import { streamStorageObjectViaSignedUrl } from "../../../../lib/media-proxy";
 
@@ -25,20 +25,13 @@ export const GET: APIRoute = async ({ params, locals }) => {
   const env = locals.runtime.env as CloudflareEnv;
   const supabase = createSSRClient(env);
 
-  const { data, error } = await supabase
-    .from("circles")
-    .select("image_path,status")
-    .eq("id", circleId)
-    .maybeSingle();
-
-  if (error || !data) return json({ error: "MEDIA_NOT_FOUND" }, 404);
-  if (data.status && data.status !== "active") return json({ error: "MEDIA_NOT_FOUND" }, 404);
-  if (!isCircleCoverPath(data.image_path)) return json({ error: "MEDIA_NOT_FOUND" }, 404);
+  const coverTarget = await resolvePublicCircleCoverTarget(supabase, circleId);
+  if (!coverTarget) return json({ error: "MEDIA_NOT_FOUND" }, 404);
 
   return streamStorageObjectViaSignedUrl({
     client: supabase,
     bucket: CIRCLE_COVER_BUCKET,
-    path: data.image_path,
+    path: coverTarget.imagePath,
     cacheSeconds: 300,
   });
 };

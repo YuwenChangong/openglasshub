@@ -1,6 +1,9 @@
 import type { APIRoute } from "astro";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../../lib/server/admin-auth";
 import { applyUserSafetyAction, sanitizeSafetyReason } from "../../../../../lib/server/user-safety.server";
+import { requireAuthenticatedLegalConsent } from "../../../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../../../lib/server/legal-consent-repository.server";
+import { createModerationNotificationWriter } from "../../../../../lib/server/moderation-notifications.server";
 
 export const prerender = false;
 
@@ -15,6 +18,13 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
     if (!targetUserId) return jsonResponse({ error: "USER_ID_REQUIRED" }, 400);
 
     const auth = await requireModerator(request, env);
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: auth.user.id },
+      repository: createLegalConsentReadRepository(auth.client),
+    });
+    if (!consent.ok) return consent.response;
+    const notificationWriter = createModerationNotificationWriter(env, auth.user.id);
+
     const payload = (await request.json().catch(() => null)) as { reason?: string } | null;
     const reason = sanitizeSafetyReason(payload?.reason);
 
@@ -24,6 +34,7 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
       targetUserId,
       action: "clear_warning",
       reason: reason || null,
+      notificationWriter,
     });
 
     if (!result.ok) return jsonResponse({ error: result.error }, result.status);

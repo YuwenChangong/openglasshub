@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isNewsStoragePath } from "./news-media";
 
 export type NewsCategoryKey =
   | "industry"
@@ -43,6 +44,13 @@ export const NEWS_CATEGORY_LABELS: Record<NewsCategoryKey, string> = {
   community: "社区",
   openglass: "OpenGlass",
 };
+
+const NEWS_CATEGORY_KEYS = new Set<NewsCategoryKey>(Object.keys(NEWS_CATEGORY_LABELS) as NewsCategoryKey[]);
+const MAX_PUBLIC_NEWS_TITLE_LENGTH = 180;
+const MAX_PUBLIC_NEWS_SUMMARY_LENGTH = 280;
+const MAX_PUBLIC_NEWS_CONTENT_LENGTH = 50_000;
+const MAX_PUBLIC_NEWS_SOURCE_NAME_LENGTH = 120;
+export const MAX_PUBLIC_NEWS_PAGE = 1_000;
 
 export const NEWS_FILTERS: Array<{ key: NewsFilterKey; label: string }> = [
   { key: "recommended", label: "推荐" },
@@ -229,17 +237,27 @@ export function slugifyNewsTitle(title: string) {
 
 export function normalizeNewsUrl(value: unknown) {
   const text = String(value ?? "").trim();
-  if (!text) return null;
+  if (!text || text.length > 2_048 || /[\u0000-\u001f\u007f]/.test(text)) return null;
 
   const candidate = /^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(text) ? `https://${text}` : text;
 
   try {
     const parsed = new URL(candidate);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    if (parsed.username || parsed.password || isPrivateOrLocalHostname(parsed.hostname)) return null;
     return parsed.toString();
   } catch {
     return null;
   }
+}
+
+function isPrivateOrLocalHostname(hostname: string) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (!host || host === "localhost" || host.endsWith(".localhost") || host === "::1" || host === "0.0.0.0") return true;
+  if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^169\.254\./.test(host)) return true;
+  const private172 = host.match(/^172\.(\d{1,3})\./);
+  if (private172 && Number(private172[1]) >= 16 && Number(private172[1]) <= 31) return true;
+  return /^(?:fc|fd)[0-9a-f]{2}:/i.test(host);
 }
 
 export async function buildUniqueNewsSlug(
@@ -313,19 +331,53 @@ function normalizeNewsRow(row: NewsArticleRow): NewsArticle | null {
   };
 }
 
+function sanitizePublicNewsText(value: unknown, maxLength: number) {
+  return String(value ?? "")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+    .replace(/<[^>]*>/g, "")
+    .trim()
+    .slice(0, maxLength);
+}
+
+export function normalizePublicNewsArticle(row: NewsArticleRow): NewsArticle | null {
+  const article = normalizeNewsRow(row);
+  if (!article || article.status !== "published" || !isValidNewsSlug(article.slug) || !NEWS_CATEGORY_KEYS.has(article.category)) return null;
+
+  const title = sanitizePublicNewsText(article.title, MAX_PUBLIC_NEWS_TITLE_LENGTH);
+  if (!title) return null;
+
+  const coverImage = isNewsStoragePath(article.cover_image_url)
+    ? article.cover_image_url
+    : normalizeNewsUrl(article.cover_image_url);
+
+  return {
+    ...article,
+    title,
+    summary: sanitizePublicNewsText(article.summary, MAX_PUBLIC_NEWS_SUMMARY_LENGTH),
+    content: sanitizePublicNewsText(article.content, MAX_PUBLIC_NEWS_CONTENT_LENGTH),
+    cover_image_url: coverImage,
+    source_name: sanitizePublicNewsText(article.source_name, MAX_PUBLIC_NEWS_SOURCE_NAME_LENGTH) || null,
+    source_url: normalizeNewsUrl(article.source_url),
+    author_id: null,
+  };
+}
+
 function fallbackArticlesFor(filter: NewsFilterKey) {
   const filtered = filter === "recommended"
     ? FALLBACK_NEWS_ARTICLES
     : FALLBACK_NEWS_ARTICLES.filter((item) => item.category === filter);
 
-  return [...filtered].sort(sortPublishedNews);
+  return filtered
+    .map(normalizePublicNewsArticle)
+    .filter((item): item is NewsArticle => Boolean(item))
+    .sort(sortPublishedNews);
 }
 
 export async function listPublicNewsFeed(
   client: SupabaseClient,
   options: { filter: NewsFilterKey; page: number; limit: number },
 ): Promise<PublicNewsFeedResult> {
-  const page = Math.max(1, Math.trunc(options.page || 1));
+  const page = Math.min(MAX_PUBLIC_NEWS_PAGE, Math.max(1, Math.trunc(options.page || 1)));
   const limit = Math.min(Math.max(Math.trunc(options.limit || 5), 1), 12);
   const filter = options.filter;
   const featuredQuery = client
@@ -409,14 +461,14 @@ export async function listPublicNewsFeed(
   if (hotResult.error) throw new Error(hotResult.error.message);
 
   const featuredArticle = ((featuredResult.data as NewsArticleRow[] | null) ?? [])
-    .map(normalizeNewsRow)
+    .map(normalizePublicNewsArticle)
     .filter(Boolean)[0]
     ?? ((latestPublishedResult.data as NewsArticleRow[] | null) ?? [])
-      .map(normalizeNewsRow)
+      .map(normalizePublicNewsArticle)
       .filter(Boolean)[0]
     ?? null;
   const hotArticles = ((hotResult.data as NewsArticleRow[] | null) ?? [])
-    .map(normalizeNewsRow)
+    .map(normalizePublicNewsArticle)
     .filter(Boolean) as NewsArticle[];
   const allZeroViews = hotArticles.every((item) => (item.view_count ?? 0) === 0);
   const normalizedHotArticles = allZeroViews
@@ -465,7 +517,7 @@ export async function listPublicNewsFeed(
   if (mainResult.error) throw new Error(mainResult.error.message);
 
   const articles = ((mainResult.data as NewsArticleRow[] | null) ?? [])
-    .map(normalizeNewsRow)
+    .map(normalizePublicNewsArticle)
     .filter(Boolean) as NewsArticle[];
   const total = Number(mainResult.count ?? articles.length);
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -491,14 +543,14 @@ export async function getPublicNewsArticleBySlug(client: SupabaseClient, slug: s
     .maybeSingle();
 
   if (isMissingNewsTableError(result.error)) {
-    return FALLBACK_NEWS_ARTICLES.find((item) => item.slug === slug) ?? null;
+    return normalizePublicNewsArticle(FALLBACK_NEWS_ARTICLES.find((item) => item.slug === slug) ?? {});
   }
 
   if (result.error) {
     throw new Error(result.error.message);
   }
 
-  return normalizeNewsRow((result.data as NewsArticleRow | null) ?? null);
+  return normalizePublicNewsArticle((result.data as NewsArticleRow | null) ?? {});
 }
 
 export async function incrementPublishedNewsViewCount(client: SupabaseClient, slug: string) {
@@ -523,6 +575,7 @@ export async function listRelatedPublicNews(
   client: SupabaseClient,
   options: { category: NewsCategoryKey; excludeSlug: string; limit: number },
 ) {
+  const limit = Math.min(Math.max(Number.isFinite(options.limit) ? Math.trunc(options.limit) : 4, 1), 4);
   const result = await client
     .from("news_articles")
     .select("*")
@@ -530,12 +583,14 @@ export async function listRelatedPublicNews(
     .eq("category", options.category)
     .neq("slug", options.excludeSlug)
     .order("published_at", { ascending: false, nullsFirst: false })
-    .limit(options.limit);
+    .limit(limit);
 
   if (isMissingNewsTableError(result.error)) {
     return FALLBACK_NEWS_ARTICLES
       .filter((item) => item.category === options.category && item.slug !== options.excludeSlug)
-      .slice(0, options.limit);
+      .map(normalizePublicNewsArticle)
+      .filter((item): item is NewsArticle => Boolean(item))
+      .slice(0, limit);
   }
 
   if (result.error) {
@@ -543,7 +598,7 @@ export async function listRelatedPublicNews(
   }
 
   return ((result.data as NewsArticleRow[] | null) ?? [])
-    .map(normalizeNewsRow)
+    .map(normalizePublicNewsArticle)
     .filter(Boolean) as NewsArticle[];
 }
 

@@ -1,0 +1,17 @@
+---
+import LegalPage from "../../components/legal/LegalPage.astro";
+import { getLegalPolicyVersion } from "../../lib/legal-policy";
+
+const zh = `<h3>删除请求</h3><p>当前请通过已配置的公开联系渠道提出账户删除请求，并准备完成必要的身份核验。删除流程、处理时长和保留义务应以当时的实际实现与适用法律为准。</p><h3>可能保留的记录</h3><p>公开内容、举报、审核、安全事件和反滥用记录可能需要单独处理、匿名化，或因安全、反滥用、审核和法律义务而保留。本页面不承诺未实现的自动即时删除。</p>`;
+const en = `<h3>Deletion requests</h3><p>For now, account deletion requests must use configured public contact channels and may require identity verification. Processing steps, timing, and retention obligations depend on the actual implementation and applicable law at the time.</p><h3>Records that may remain</h3><p>Public content, reports, moderation history, security events, and anti-abuse records may require separate handling, anonymisation, or retention for safety, abuse prevention, moderation, and legal obligations. This page does not promise unsupported automatic immediate deletion.</p>`;
+---
+<LegalPage
+  pageTitle="账户删除"
+  description="OpenGlass Hub 账户删除说明。"
+  routeKey="accountDeletion"
+  version={getLegalPolicyVersion("accountDeletion")}
+  headingZh="账户删除"
+  headingEn="Account Deletion"
+  zh={zh}
+  en={en}
+/>

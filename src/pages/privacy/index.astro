@@ -1,0 +1,17 @@
+---
+import LegalPage from "../../components/legal/LegalPage.astro";
+import { LEGAL_POLICY, getLegalPolicyVersion } from "../../lib/legal-policy";
+
+const zh = `<h3>处理的信息</h3><p>平台会处理账户标识、资料信息、公开帖子、评论、圈子、媒体、举报与审核记录、通知、会话信息以及安全技术日志，用于提供、保护、维护和审核服务。</p><h3>所用服务</h3><p>当前实现涉及 Supabase、Cloudflare Pages/R2、邮件投递，以及在启用时的 OpenAI 审核能力。国际处理可能发生。公开内容可被其他用户查看；平台不会承诺绝对安全，也不会承诺尚未实现的固定保留期限。</p><h3>用户请求</h3><p>访问、更正、删除和相关隐私请求需通过已配置的公开联系渠道提出。账户删除、社区规则与政策更新说明见相关页面。平台规则为 ${LEGAL_POLICY.minimumAge}+。</p>`;
+const en = `<h3>Information we process</h3><p>We process account identifiers, profile information, public posts, comments, circles, media, reports and moderation records, notifications, session information, and security logs to provide, protect, maintain, and moderate the service.</p><h3>Services used</h3><p>The current implementation relies on Supabase, Cloudflare Pages/R2, email delivery, and OpenAI moderation when enabled. International processing may occur. Public content is visible to other users; we do not promise absolute security or unimplemented fixed retention periods.</p><h3>User requests</h3><p>Access, correction, deletion, and related privacy requests must use configured public contact channels. See related pages for account deletion, community rules, and policy updates. The platform policy is ${LEGAL_POLICY.minimumAge}+.</p>`;
+---
+<LegalPage
+  pageTitle="隐私政策"
+  description="OpenGlass Hub 隐私政策。"
+  routeKey="privacy"
+  version={getLegalPolicyVersion("privacy")}
+  headingZh="隐私政策"
+  headingEn="Privacy Policy"
+  zh={zh}
+  en={en}
+/>

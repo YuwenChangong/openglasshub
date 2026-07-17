@@ -1,0 +1,8 @@
+* { box-sizing: border-box; }
+html, body, #root { min-width: 0; margin: 0; background: #08111f; }
+.legal-harness { min-width: 0; padding: 1rem; color: #e8edf6; }
+.legal-harness > nav { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: 1rem; }
+.legal-harness > nav button { max-width: 100%; overflow-wrap: anywhere; }
+.legal-harness__surface { width: min(100%, 560px); margin: 0 auto; min-width: 0; }
+.legal-harness output { display: block; margin-top: 1rem; overflow-wrap: anywhere; color: #9eb0ca; }
+@media (max-width: 430px) { .legal-harness { padding: .65rem; } }

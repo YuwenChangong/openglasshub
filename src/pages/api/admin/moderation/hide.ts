@@ -1,5 +1,7 @@
 import type { APIRoute } from "astro";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
+import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../../lib/server/legal-consent-repository.server";
 import { applyModerationAdminAction, parseModerationActionPayload } from "../../../../lib/server/moderation-admin";
 
 export const prerender = false;
@@ -10,6 +12,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const env = (locals as RuntimeLocals).runtime?.env;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
     const { client, user } = await requireModerator(request, env);
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: user.id },
+      repository: createLegalConsentReadRepository(client),
+    });
+    if (!consent.ok) return consent.response;
     const payload = await request.json().catch(() => null);
     const parsed = parseModerationActionPayload(payload);
     if (!parsed.ok) return parsed.response;

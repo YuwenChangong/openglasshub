@@ -1,8 +1,7 @@
 import type { APIRoute } from "astro";
 import { createSSRClient, type CloudflareEnv } from "../../../../../lib/supabase-server";
 import {
-  isProfileAvatarPath,
-  isProfileBannerPath,
+  isProfileMediaPathForUser,
   PROFILE_MEDIA_BUCKET,
 } from "../../../../../lib/profile-media";
 import { streamStorageObjectViaSignedUrl } from "../../../../../lib/media-proxy";
@@ -19,34 +18,68 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-export const GET: APIRoute = async ({ params, locals }) => {
-  const userId = String(params.userId ?? "").trim();
-  const kind = String(params.kind ?? "").trim();
-  if (!userId || (kind !== "avatar" && kind !== "banner")) {
-    return json({ error: "MEDIA_NOT_FOUND" }, 404);
-  }
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PROFILE_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 
-  const env = locals.runtime.env as CloudflareEnv;
-  const supabase = createSSRClient(env);
+type ProfileMediaKind = "avatar" | "banner";
+type PublicProfileMediaRow = { id: string; avatar_url?: string | null; banner_url?: string | null };
+
+export function isProfileMediaUserId(value?: string | null): value is string {
+  return typeof value === "string" && UUID_PATTERN.test(value);
+}
+
+export function isProfileMediaKind(value?: string | null): value is ProfileMediaKind {
+  return value === "avatar" || value === "banner";
+}
+
+export async function resolvePublicProfileMediaTarget(
+  supabase: ReturnType<typeof createSSRClient>,
+  userId: string,
+  kind: ProfileMediaKind,
+): Promise<string | null> {
+  const normalizedUserId = userId.toLowerCase();
+  if (!isProfileMediaUserId(normalizedUserId)) return null;
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("avatar_url, banner_url")
-    .eq("id", userId)
+    .select("id,avatar_url,banner_url")
+    .eq("id", normalizedUserId)
     .maybeSingle();
+  const profile = data as PublicProfileMediaRow | null;
+  if (error || !profile || profile.id !== normalizedUserId) return null;
 
-  if (error || !data) return json({ error: "MEDIA_NOT_FOUND" }, 404);
+  const path = kind === "avatar" ? profile.avatar_url : profile.banner_url;
+  return isProfileMediaPathForUser(path, profile.id, kind) ? path : null;
+}
 
-  const path = kind === "avatar" ? data.avatar_url : data.banner_url;
-  if (kind === "avatar" && !isProfileAvatarPath(path)) return json({ error: "MEDIA_NOT_FOUND" }, 404);
-  if (kind === "banner" && !isProfileBannerPath(path)) return json({ error: "MEDIA_NOT_FOUND" }, 404);
+type ProfileMediaDependencies = {
+  createSSRClient: typeof createSSRClient;
+  streamStorageObjectViaSignedUrl: typeof streamStorageObjectViaSignedUrl;
+};
 
-  return streamStorageObjectViaSignedUrl({
+const productionDependencies: ProfileMediaDependencies = { createSSRClient, streamStorageObjectViaSignedUrl };
+
+export function createProfileMediaGet(dependencies: ProfileMediaDependencies = productionDependencies): APIRoute {
+  return async ({ params, locals }) => {
+  const userId = String(params.userId ?? "").toLowerCase();
+  const kind = String(params.kind ?? "");
+  if (!isProfileMediaUserId(userId) || !isProfileMediaKind(kind)) return json({ error: "MEDIA_NOT_FOUND" }, 404);
+
+  const env = locals.runtime.env as CloudflareEnv;
+  const supabase = dependencies.createSSRClient(env);
+  const path = await resolvePublicProfileMediaTarget(supabase, userId, kind);
+  if (!path) return json({ error: "MEDIA_NOT_FOUND" }, 404);
+
+  return dependencies.streamStorageObjectViaSignedUrl({
     client: supabase,
     bucket: PROFILE_MEDIA_BUCKET,
     path,
     cacheSeconds: 300,
+    allowedContentTypes: PROFILE_IMAGE_CONTENT_TYPES,
   });
 };
+}
+
+export const GET: APIRoute = createProfileMediaGet();
 
 export const ALL: APIRoute = () => json({ error: "Method not allowed" }, 405);

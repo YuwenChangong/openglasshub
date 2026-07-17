@@ -1,6 +1,8 @@
 import type { APIRoute } from "astro";
-import { jsonResponse, requireManagedCircleBySlug } from "../../../../../lib/server/circle-management";
+import { jsonResponse, requireForumUser, requireManagedCircleBySlug, requireManagedCircleForAuthenticatedUser } from "../../../../../lib/server/circle-management";
 import { isModeratorRole } from "../../../../../lib/server/admin-auth";
+import { requireAuthenticatedLegalConsent } from "../../../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../../../lib/server/legal-consent-repository.server";
 
 export const prerender = false;
 
@@ -76,7 +78,13 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);
 
-    const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const forumAuth = await requireForumUser(request, env);
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: forumAuth.user.id },
+      repository: createLegalConsentReadRepository(forumAuth.client),
+    });
+    if (!consent.ok) return consent.response;
+    const auth = await requireManagedCircleForAuthenticatedUser({ auth: forumAuth, slug });
     const isStaff = isModeratorRole(auth.profile.role);
     const payload = (await request.json().catch(() => null)) as { id?: string; status?: string } | null;
     const commentId = String(payload?.id ?? "").trim();
@@ -139,7 +147,13 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);
 
-    const auth = await requireManagedCircleBySlug({ request, env, slug });
+    const forumAuth = await requireForumUser(request, env);
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: forumAuth.user.id },
+      repository: createLegalConsentReadRepository(forumAuth.client),
+    });
+    if (!consent.ok) return consent.response;
+    const auth = await requireManagedCircleForAuthenticatedUser({ auth: forumAuth, slug });
     const isStaff = isModeratorRole(auth.profile.role);
     const url = new URL(request.url);
     const commentId = String(url.searchParams.get("id") ?? "").trim();

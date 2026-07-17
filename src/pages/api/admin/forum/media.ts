@@ -1,6 +1,8 @@
 import type { APIRoute } from "astro";
 import { deleteMediaObject } from "../../../../lib/server/media-cleanup";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
+import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../../lib/server/legal-consent-repository.server";
 
 export const prerender = false;
 
@@ -87,7 +89,9 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     const env = (locals as RuntimeLocals).runtime?.env;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
-    const { client } = await requireModerator(request, env);
+    const { client, user } = await requireModerator(request, env);
+    const consent = await requireAuthenticatedLegalConsent({ identity: { userId: user.id }, repository: createLegalConsentReadRepository(client) });
+    if (!consent.ok) return consent.response;
     const url = new URL(request.url);
     const mediaId = String(url.searchParams.get("id") ?? "").trim();
     if (!uuidRegex.test(mediaId)) return jsonResponse({ error: "Invalid media id" }, 400);

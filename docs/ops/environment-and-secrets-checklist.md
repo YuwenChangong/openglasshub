@@ -48,6 +48,14 @@
 - `R2_ACCESS_KEY_ID`
 - `R2_SECRET_ACCESS_KEY`
 
+## Approval-gated server-only secret
+
+- `SUPABASE_SERVICE_ROLE_KEY` is a server-only encrypted secret for the narrow
+  legal-consent and moderation-notification RPC writers. A future rate-limit RPC
+  wrapper may use it only after its separate R1 proof and implementation
+  approvals. It is not a public runtime variable, browser setting, or generic
+  privileged client credential.
+
 ## Required preview secrets by name only
 
 - `TURNSTILE_SECRET_KEY`
@@ -55,6 +63,9 @@
 - `OPENAI_API_KEY`
 - `R2_ACCESS_KEY_ID`
 - `R2_SECRET_ACCESS_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` only when the separately approved narrow
+  server-side RPC callers are deployed and the Preview metadata proof confirms
+  an encrypted binding.
 
 ## Required bindings
 

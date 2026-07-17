@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { findUnsafeServiceRoleUsage } = require("./profile-service-role-audit.cjs");
 
 const root = path.join(__dirname, "..");
 const srcDir = path.join(root, "src");
@@ -25,19 +26,15 @@ function fail(message) {
 
 const failures = [];
 const passes = [];
-
 const srcFiles = walk(srcDir).filter((file) => fs.statSync(file).isFile());
 for (const file of srcFiles) {
   const text = fs.readFileSync(file, "utf8");
-  const rel = path.relative(root, file);
-  if (/SUPABASE_SERVICE_ROLE_KEY|service_role/i.test(text)) {
-    fail(`${rel}: contains service role usage`);
-  }
   if (/window\.confirm|window\.alert|window\.prompt/i.test(text)) {
     fail(`${rel}: contains native browser dialog usage`);
   }
 }
-passes.push("No service role usage in src");
+for (const finding of findUnsafeServiceRoleUsage(root, srcDir)) fail(finding);
+passes.push("No unapproved service role usage in src");
 passes.push("No native browser dialogs in src");
 
 const criticalChecks = [
@@ -55,7 +52,7 @@ const criticalChecks = [
   },
   {
     label: "Post delete API checks owner or staff",
-    ok: /post\.author_id !== authData\.user\.id && !isStaff/.test(read("src/pages/api/forum/posts.ts")),
+    ok: /target\.target\.authorId !== authData\.user\.id && !isStaff/.test(read("src/pages/api/forum/posts.ts")),
   },
   {
     label: "Post moderation UI gates delete button",
@@ -71,11 +68,11 @@ const criticalChecks = [
   },
   {
     label: "Notifications API only updates own notifications",
-    ok: /\.update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]*?\.eq\("id", notificationId\)[\s\S]*?\.eq\("recipient_id", auth\.userId\)/.test(read("src/pages/api/users/me/notifications.ts")),
+    ok: /\.update\(\{ read_at: readAt \}\)\.eq\("recipient_id", auth\.userId\)\.is\("read_at", null\)[\s\S]*?\.eq\("id", action\.notificationId\)/.test(read("src/pages/api/users/me/notifications.ts")),
   },
   {
     label: "Notifications API only updates own notifications for mark all",
-    ok: /\.update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]*?\.eq\("recipient_id", auth\.userId\)[\s\S]*?\.is\("read_at", null\)/.test(read("src/pages/api/users/me/notifications.ts")),
+    ok: /\.update\(\{ read_at: readAt \}\)\.eq\("recipient_id", auth\.userId\)\.is\("read_at", null\)/.test(read("src/pages/api/users/me/notifications.ts")),
   },
   {
     label: "Post detail links author profile",

@@ -1,0 +1,44 @@
+import assert from "node:assert/strict";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync, spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { OUTPUT_COLUMNS, PACKET_VERSION, REQUIRED_SECTIONS, parseCsv, serializeCsv, validatePacketRows } from "./operational-guardrails-preflight-core.mjs";
+
+const root = process.cwd();
+const sql = await readFile(path.join(root, "docs", "ops", "reconciliation", "operational-guardrails-production-preflight-one-shot.sql"), "utf8");
+const uncommented = sql.replace(/--[^\n]*/g, "");
+assert.match(uncommented, /^\s*BEGIN TRANSACTION READ ONLY;/);
+assert.match(uncommented, /\nROLLBACK;\s*$/);
+assert.doesNotMatch(uncommented, /^\s*(?:CREATE|ALTER|DROP|GRANT|REVOKE|INSERT|UPDATE|DELETE|MERGE|TRUNCATE|COPY|DO|CALL|EXECUTE)\b/im);
+assert.equal((sql.match(/SELECT 'operational-guardrails-preflight-v1' AS packet_version/g) ?? []).length, 1);
+assert.match(sql, /FROM public\.forum_upload_attempts/);
+assert.doesNotMatch(sql, /auth\.users|storage\.objects|public\.(?:posts|comments|post_media|reports)/i);
+assert.doesNotMatch(sql, /proposal|postflight/i);
+assert.match(sql, /aclexplode\(coalesce\(relation_ref\.relacl, acldefault\('r', relation_ref\.owner_oid\)\)\)/);
+assert.match(sql, /CASE WHEN target\.role_name = 'PUBLIC' THEN 0::oid ELSE role_ref\.oid END AS role_oid/);
+assert.match(sql, /CASE WHEN policy_role\.role_oid = 0 THEN 'PUBLIC'/);
+assert.doesNotMatch(sql, /(?:has_(?:table|function)_privilege|pg_has_role|to_regrole)\s*\(\s*'PUBLIC'/i);
+assert.doesNotMatch(sql, /FROM pg_roles WHERE oid = ANY \(p\.polroles\)/);
+assert.match(sql, /verification_email_resend/);
+await assert.rejects(access(path.join(root, "docs", "ops", "reconciliation", "operational-guardrails-production-proposal.sql")));
+await assert.rejects(access(path.join(root, "docs", "ops", "reconciliation", "operational-guardrails-production-postflight.sql")));
+
+const row = (section, order, key, attribute, value, status = "PRESENT") => Object.fromEntries(OUTPUT_COLUMNS.map((column) => [column, { packet_version: PACKET_VERSION, section_order: String(order), section, row_key: key, object_schema: "public", object_name: "forum_upload_attempts", attribute, value, evidence_status: status, security_classification: "SECURITY_BROADENING" }[column]]));
+function fixture() { const rows = [row("packet_manifest", 1, "packet", "packet_identifier", "operational-guardrails-production-preflight"), row("packet_manifest", 1, "packet", "packet_version", PACKET_VERSION), row("packet_manifest", 1, "packet", "expected_section_count", "9"), row("packet_manifest", 1, "packet", "target_relation", "public.forum_upload_attempts"), row("attempts_relation_rls_acl", 2, "public.forum_upload_attempts", "present", "true")]; for (const column of ["user_id", "purpose", "ip_hash", "bytes", "created_at"]) rows.push(row("attempts_columns", 3, column, "definition", "type=text")); for (const index of ["forum_upload_attempts_purpose_ip_created_idx", "forum_upload_attempts_purpose_user_created_idx"]) rows.push(row("expected_indexes", 4, index, "definition", null, "MISSING")); for (const policy of ["forum_upload_attempts_insert_self", "forum_upload_attempts_select_self"]) rows.push(row("extra_policies", 5, policy, "definition", "permissive=PERMISSIVE;roles=authenticated")); rows.push(row("attempts_table_acl", 6, "public.forum_upload_attempts", "acl", '{"PUBLIC":{"role_exists":true,"SELECT":false},"anon":{"role_exists":true,"SELECT":false},"authenticated":{"role_exists":true,"SELECT":true},"service_role":{"role_exists":true,"SELECT":true},"postgres":{"role_exists":true,"SELECT":true}}')); for (const metric of ["total_attempt_count", "null_user_id_count", "null_purpose_count", "null_ip_hash_count", "negative_bytes_count", "unknown_purpose_count"]) rows.push(row("aggregate_safety_counts", 7, metric, metric, "0")); rows.push(row("runtime_dependency_contract", 8, "rate_limit", "runtime_caller", "src/lib/server/rate-limit.ts"), row("runtime_dependency_contract", 8, "purposes", "allowed_purposes", "post_media_upload,external_video_upload,post_create,comment_create,circle_create,verification_email_resend"), row("dependent_catalog_objects", 9, "table", "required_relation", "public.forum_upload_attempts")); return rows; }
+const rows = fixture();
+assert.deepEqual(new Set(rows.map((item) => item.section)), new Set(REQUIRED_SECTIONS));
+const result = validatePacketRows(parseCsv(serializeCsv(rows)));
+assert.deepEqual(Object.values(result.repairObjects).sort(), ["EXTRA_REQUIRES_SECURITY_REVIEW", "EXTRA_REQUIRES_SECURITY_REVIEW", "MISSING", "MISSING"]);
+assert.equal(result.proposalEligible, false);
+assert.equal(result.humanDecisions.length, 2);
+assert.match(rows.find((item) => item.section === "attempts_table_acl")?.value ?? "", /"PUBLIC":\{"role_exists":true/);
+assert.throws(() => validatePacketRows(rows.filter((item) => item.section !== "extra_policies")), /required section/);
+assert.throws(() => validatePacketRows([...rows, { ...rows[0] }]), /duplicate/);
+assert.throws(() => validatePacketRows(rows.map((item, index) => index === 0 ? { ...item, value: "person@example.test" } : item)), /unsafe/);
+const temporary = await mkdtemp(path.join(tmpdir(), "openglass-operational-preflight-")); const csv = path.join(temporary, "operational-guardrails-production-preflight.csv"); await writeFile(csv, serializeCsv(rows)); const validator = spawnSync(process.execPath, [path.join(root, "scripts", "validate-operational-guardrails-production-preflight.mjs"), csv], { encoding: "utf8" }); await rm(temporary, { recursive: true, force: true }); assert.equal(validator.status, 0, validator.stderr); assert.match(validator.stdout, /ONE_SHOT_PREFLIGHT_PACKET_READY/);
+const changedFiles = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations", "src"], { cwd: root, encoding: "utf8" }).trim().split(/\r?\n/).filter(Boolean);
+const approvedRuntimeFiles = new Set(["src/lib/server/rate-limit.ts", "src/pages/api/forum/posts.ts", "src/pages/api/forum/comments.ts", "src/pages/api/forum/circles.ts", "src/pages/api/forum/media-upload-guard.ts", "src/pages/api/forum/external-video-upload.ts", "src/lib/server/legal-consent-repository.server.ts", "src/pages/api/legal/consent.ts"]);
+assert.deepEqual(changedFiles.filter((file) => !approvedRuntimeFiles.has(file)), [], "canonical migrations and unrelated runtime files must remain unchanged");
+assert.equal(execFileSync("git", ["ls-files", "--", "**/operational-guardrails-production-preflight.csv"], { cwd: root, encoding: "utf8" }).trim(), "", "production CSV must remain untracked");
+console.log(JSON.stringify({ packetVersion: PACKET_VERSION, requiredSections: REQUIRED_SECTIONS.length, noRealOperations: true }));

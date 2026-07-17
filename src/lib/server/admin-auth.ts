@@ -38,9 +38,8 @@ export function requireEnv(env: RuntimeEnv, key: string): string {
 export function getBearerToken(request: Request): string | null {
   const authHeader = request.headers.get("authorization");
   if (!authHeader) return null;
-  const [scheme, token] = authHeader.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
-  return token.trim();
+  const match = /^Bearer[ \t]+([^\s]+)$/i.exec(authHeader.trim());
+  return match?.[1] ?? null;
 }
 
 export function createUserClient(env: RuntimeEnv, bearerToken: string): SupabaseClient {

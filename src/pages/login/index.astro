@@ -4,8 +4,11 @@ export const prerender = false;
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import AuthPanel from "../../components/forum/AuthPanel";
 import { getSafeNext } from "../../lib/auth-redirect";
+import { LEGAL_POLICY } from "../../lib/legal-policy";
 
 const next = getSafeNext(Astro.url.searchParams.get("next"));
+const modeParam = Astro.url.searchParams.get("mode");
+const initialMode = modeParam === "register" || modeParam === "signup" ? "signup" : "login";
 ---
 
 <CommunityLayout
@@ -19,7 +22,14 @@ const next = getSafeNext(Astro.url.searchParams.get("next"));
       <h1>登录 / 注册</h1>
       <p>浏览设备、指南、动态和帖子无需登录。只有发帖、评论和后续互动操作需要认证。</p>
     </div>
-    <AuthPanel next={next} client:only="react" />
+    <AuthPanel next={next} initialMode={initialMode} client:only="react" />
+    <p class="auth-page__legal-copy">
+      使用 {LEGAL_POLICY.platformName} 前，请阅读
+      <a href={LEGAL_POLICY.routes.terms}>服务条款</a>
+      <a href={LEGAL_POLICY.routes.privacy}>隐私政策</a>
+      <a href={LEGAL_POLICY.routes.guidelines}>社区准则</a>。
+      <span lang="en">Before using {LEGAL_POLICY.platformName}, please review the <a href={LEGAL_POLICY.routes.terms}>Terms</a>, <a href={LEGAL_POLICY.routes.privacy}>Privacy Policy</a>, and <a href={LEGAL_POLICY.routes.guidelines}>Community Guidelines</a>.</span>
+    </p>
   </section>
 </CommunityLayout>
 
@@ -43,5 +53,20 @@ const next = getSafeNext(Astro.url.searchParams.get("next"));
   .auth-page__intro p {
     margin: 0;
     color: var(--text-muted);
+  }
+  .auth-page__legal-copy {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    line-height: 1.7;
+    text-align: center;
+  }
+  .auth-page__legal-copy a {
+    margin: 0 0.28rem;
+    color: #8fc6ff;
+  }
+  .auth-page__legal-copy span {
+    display: block;
+    margin-top: 0.45rem;
   }
 </style>

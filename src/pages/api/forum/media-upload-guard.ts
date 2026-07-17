@@ -4,6 +4,8 @@ import { getRequestIp } from "../../../lib/request-ip";
 import { enforceUploadRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { shouldRequireUploadTurnstile, validateTurnstileToken } from "../../../lib/server/turnstile";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
+import { requireAuthenticatedLegalConsent } from "../../../lib/server/legal-consent-mutation.server";
+import { createLegalConsentReadRepository } from "../../../lib/server/legal-consent-repository.server";
 
 export const prerender = false;
 
@@ -47,6 +49,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const { data: authData, error: authError } = await supabase.auth.getUser(token);
     if (authError || !authData.user) return json({ error: "Invalid auth token" }, 401);
 
+    const consent = await requireAuthenticatedLegalConsent({
+      identity: { userId: authData.user.id },
+      repository: createLegalConsentReadRepository(supabase),
+    });
+    if (!consent.ok) return consent.response;
+
     const payload = (await request.json().catch(() => null)) as
       | { upload_kind?: string; size_bytes?: number; turnstile_token?: string }
       | null;
@@ -57,6 +65,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "Invalid upload_kind" }, 400);
     }
     const sizeBytes = Number(payload.size_bytes ?? 0);
+    if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > 157286400) {
+      return json({ error: "Invalid upload size" }, 400);
+    }
     const safetyDecision = await assertUserCanWrite(supabase, authData.user.id, "media_upload");
     if (!safetyDecision.allowed) {
       return getSafetyWriteBlockResponse(safetyDecision);
@@ -76,24 +87,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const salt = requireEnv(env, "RATE_LIMIT_SALT");
     const ipHash = await hashRateLimitIp(getRequestIp(request), salt);
     const limit = await enforceUploadRateLimit({
-      client: supabase,
+      env,
       userId: authData.user.id,
       ipHash,
       purpose: "post_media_upload",
-      maxAttempts: 10,
-      windowMs: 60 * 60 * 1000,
       bytes: sizeBytes,
     });
 
     if (!limit.allowed) {
-      if (limit.reason === "RATE_LIMITED") {
-        return json({ error: "Too many upload requests", code: "RATE_LIMITED" }, 429);
-      }
+      if (limit.reason === "RATE_LIMITED") return json({ error: "Too many upload requests", code: "RATE_LIMITED" }, 429);
+      return json({ error: "Rate limit service temporarily unavailable", code: limit.reason }, 503);
     }
 
     return json({ ok: true });
-  } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
+  } catch {
+    return json({ error: "UPLOAD_GUARD_FAILED" }, 500);
   }
 };
 

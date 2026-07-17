@@ -1,0 +1,17 @@
+---
+import LegalPage from "../../components/legal/LegalPage.astro";
+import { getLegalPolicyVersion } from "../../lib/legal-policy";
+
+const zh = `<h3>讨论范围</h3><p>请围绕 AR/AI 眼镜进行真实、尊重且有信息量的讨论。欢迎经验分享、产品比较、开发交流和问题求助，但请避免误导性标题、刷屏、灌水和重复发布。</p><h3>禁止行为</h3><p>骚扰、仇恨、威胁、隐私侵犯、冒充、欺诈、垃圾信息、商业引流、恶意链接、违法或剥削性内容，以及操纵举报或投票均被禁止。</p><h3>举报与处置</h3><p>请举报违规内容。平台可采取提醒、限制、移除或账户措施；申诉和联系渠道取决于已配置的公开联系方式。</p>`;
+const en = `<h3>Discussion scope</h3><p>Keep discussion truthful, respectful, and meaningfully related to AR/AI glasses. Experience sharing, product comparisons, developer discussion, and troubleshooting are welcome, while misleading titles, spam bursts, low-value filler, and repeated posting are not.</p><h3>Prohibited behavior</h3><p>Harassment, hate, threats, privacy invasion, impersonation, fraud, spam, commercial solicitation, malicious links, illegal or exploitative content, and report or vote manipulation are prohibited.</p><h3>Reporting and enforcement</h3><p>Please report violations. We may warn, restrict, remove, or take account action; appeals and contact depend on configured public contact channels.</p>`;
+---
+<LegalPage
+  pageTitle="社区准则"
+  description="OpenGlass Hub 社区准则。"
+  routeKey="guidelines"
+  version={getLegalPolicyVersion("guidelines")}
+  headingZh="社区准则"
+  headingEn="Community Guidelines"
+  zh={zh}
+  en={en}
+/>

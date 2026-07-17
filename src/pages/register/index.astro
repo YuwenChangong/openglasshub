@@ -1,0 +1,13 @@
+---
+import { getSafeNext } from "../../lib/auth-redirect";
+
+const requestedNext = Astro.url.searchParams.get("next");
+const safeNext = getSafeNext(requestedNext);
+const redirectUrl = new URL("/login/?mode=register", Astro.url);
+
+if (requestedNext) {
+  redirectUrl.searchParams.set("next", safeNext);
+}
+
+return Astro.redirect(`${redirectUrl.pathname}${redirectUrl.search}`, 302);
+---

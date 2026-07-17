@@ -1,0 +1,17 @@
+---
+import LegalPage from "../../components/legal/LegalPage.astro";
+import { getLegalPolicyVersion } from "../../lib/legal-policy";
+
+const zh = `<h3>举报入口</h3><p>在支持的位置，您可以举报帖子、评论、用户或圈子。举报会进入审核流程；请勿提交虚假、报复性或恶意举报。</p><h3>安全问题</h3><p>如遇隐私泄露、恶意媒体、账户风险或其他安全问题，请优先使用对应举报入口；无法通过站内入口处理时，再使用已配置的公开联系渠道。</p><h3>紧急情况</h3><p>本平台不是紧急服务，也不承诺全天候实时人工监看。若存在即时危险，请联系您所在地适当的紧急服务。</p>`;
+const en = `<h3>Reporting channels</h3><p>Where available, you can report posts, comments, users, or circles. Reports enter moderation review; do not submit false, retaliatory, or abusive reports.</p><h3>Safety issues</h3><p>For privacy exposure, abusive media, account risk, or other safety concerns, use the relevant reporting controls first and use configured public contact channels when the in-product controls are not enough.</p><h3>Emergencies</h3><p>This platform is not an emergency service and does not promise around-the-clock live human monitoring. For immediate danger, contact appropriate local emergency services.</p>`;
+---
+<LegalPage
+  pageTitle="安全与举报"
+  description="OpenGlass Hub 安全与举报说明。"
+  routeKey="safety"
+  version={getLegalPolicyVersion("safety")}
+  headingZh="安全与举报"
+  headingEn="Safety and Reporting"
+  zh={zh}
+  en={en}
+/>

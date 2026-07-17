@@ -35,7 +35,7 @@ type SearchPostRow = {
   type: string | null;
   author_id?: string | null;
   view_count?: number | null;
-  circles?: { slug?: string | null; name?: string | null } | null;
+  circles?: { id?: string | null; slug?: string | null; name?: string | null; status?: string | null } | null;
   profiles?: { username?: string | null; display_name?: string | null } | null;
   post_media?: PostMediaRow[] | null;
 };
@@ -52,10 +52,11 @@ type SearchProfileRow = {
 export function sanitizeSearchInput(raw: string): string {
   return raw
     .trim()
-    .replace(/[%_]+/g, " ")
+    // PostgREST .or() is a small query language, so keep user text out of
+    // its operators instead of trying to escape every grammar variant.
+    .replace(/[^\p{L}\p{N}\s-]+/gu, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_QUERY_LENGTH);
+    .trim();
 }
 
 function sanitizeCircleSlug(raw: string | null | undefined): string | null {
@@ -90,8 +91,8 @@ export function parseForumSearchParams(
   };
 }
 
-function isMissingCircleStatusError(message: string) {
-  return /status/i.test(message) && /does not exist/i.test(message);
+function isActivePublicSearchCircle(input: { slug?: string | null; name?: string | null; status?: string | null } | null | undefined) {
+  return input?.status?.toLowerCase() === "active" && isPublicVisibleCircle(input);
 }
 
 export function normalizeSearchText(value: string | null | undefined) {
@@ -159,6 +160,10 @@ function normalizePostRow(post: Record<string, unknown>): SearchPostRow {
     circles:
       post.circles && typeof post.circles === "object"
         ? {
+            id:
+              typeof (post.circles as Record<string, unknown>).id === "string"
+                ? ((post.circles as Record<string, unknown>).id as string)
+                : null,
             slug:
               typeof (post.circles as Record<string, unknown>).slug === "string"
                 ? ((post.circles as Record<string, unknown>).slug as string)
@@ -166,6 +171,10 @@ function normalizePostRow(post: Record<string, unknown>): SearchPostRow {
             name:
               typeof (post.circles as Record<string, unknown>).name === "string"
                 ? ((post.circles as Record<string, unknown>).name as string)
+                : null,
+            status:
+              typeof (post.circles as Record<string, unknown>).status === "string"
+                ? ((post.circles as Record<string, unknown>).status as string)
                 : null,
           }
         : null,
@@ -187,24 +196,14 @@ function normalizePostRow(post: Record<string, unknown>): SearchPostRow {
 }
 
 async function resolveCircleIdForSearch(supabase: SupabaseClient, circleSlug: string): Promise<string | null> {
-  let { data: circle, error } = await supabase
+  const { data: circle, error } = await supabase
     .from("circles")
     .select("id, slug, name, status")
     .eq("slug", circleSlug)
     .eq("status", "active")
     .maybeSingle();
 
-  if (error && isMissingCircleStatusError(error.message)) {
-    const fallback = await supabase
-      .from("circles")
-      .select("id, slug, name")
-      .eq("slug", circleSlug)
-      .maybeSingle();
-    circle = fallback.data ? { ...fallback.data, status: "active" } : null;
-    error = fallback.error;
-  }
-
-  if (error || !circle || !isPublicVisibleCircle(circle)) {
+  if (error || !circle || !isActivePublicSearchCircle(circle)) {
     return null;
   }
 
@@ -235,9 +234,9 @@ async function fetchPublishedPosts(
   },
 ): Promise<{ rows: SearchPostRow[]; supportsViewCount: boolean }> {
   const selectWithViewCount =
-    "id,title,body,created_at,type,author_id,view_count,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)";
+    "id,title,body,created_at,type,author_id,view_count,circles:circle_id(id,slug,name,status),profiles:author_id(username,display_name),post_media(*)";
   const selectWithoutViewCount =
-    "id,title,body,created_at,type,author_id,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)";
+    "id,title,body,created_at,type,author_id,circles:circle_id(id,slug,name,status),profiles:author_id(username,display_name),post_media(*)";
 
   const buildQuery = (selectClause: string) => {
     let query = supabase
@@ -271,6 +270,7 @@ async function fetchPublishedPosts(
   const merged = new Map<string, SearchPostRow>();
   for (const row of (textResult.data ?? []) as Array<Record<string, unknown>>) {
     const normalized = normalizePostRow(row);
+    if (!isActivePublicSearchCircle(normalized.circles)) continue;
     merged.set(normalized.id, normalized);
   }
 
@@ -307,6 +307,7 @@ async function fetchPublishedPosts(
       if (fallbackAuthorResult.error) throw fallbackAuthorResult.error;
       for (const row of (fallbackAuthorResult.data ?? []) as Array<Record<string, unknown>>) {
         const normalized = normalizePostRow(row);
+        if (!isActivePublicSearchCircle(normalized.circles)) continue;
         merged.set(normalized.id, normalized);
       }
     } else if (authorResult.error) {
@@ -314,6 +315,7 @@ async function fetchPublishedPosts(
     } else {
       for (const row of (authorResult.data ?? []) as Array<Record<string, unknown>>) {
         const normalized = normalizePostRow(row);
+        if (!isActivePublicSearchCircle(normalized.circles)) continue;
         merged.set(normalized.id, normalized);
       }
     }
@@ -369,7 +371,7 @@ async function fetchPublicProfiles(
   const [postsResult, circlesResult] = await Promise.all([
     supabase
       .from("posts")
-      .select("author_id")
+      .select("author_id,circles:circle_id(slug,name,status)")
       .eq("status", "published")
       .eq("moderation_status", "published")
       .in("author_id", profileIds)
@@ -377,13 +379,14 @@ async function fetchPublicProfiles(
     supabase
       .from("circles")
       .select("id,owner_id,slug,name,status")
-      .or("status.is.null,status.eq.active")
+      .eq("status", "active")
       .in("owner_id", profileIds)
       .limit(200),
   ]);
 
   const postCountMap = new Map<string, number>();
-  for (const row of (postsResult.data ?? []) as Array<{ author_id: string | null }>) {
+  for (const row of (postsResult.data ?? []) as Array<{ author_id: string | null; circles?: { slug?: string | null; name?: string | null; status?: string | null } | null }>) {
+    if (!isActivePublicSearchCircle(row.circles)) continue;
     const authorId = row.author_id;
     if (!authorId) continue;
     postCountMap.set(authorId, (postCountMap.get(authorId) ?? 0) + 1);
@@ -400,7 +403,7 @@ async function fetchPublicProfiles(
         name: typeof row.name === "string" ? row.name : "",
         status: typeof row.status === "string" ? row.status : null,
       };
-      if (!isPublicVisibleCircle(circleCandidate)) continue;
+      if (!isActivePublicSearchCircle(circleCandidate)) continue;
       circleCountMap.set(ownerId, (circleCountMap.get(ownerId) ?? 0) + 1);
     }
   }
@@ -572,18 +575,10 @@ export async function runForumSearch(
                     status: typeof circle.status === "string" ? circle.status : statusFallback,
                     post_count: 0,
                   }))
-                  .filter((circle) => isPublicVisibleCircle(circle));
+                  .filter((circle) => isActivePublicSearchCircle(circle));
 
               let circles = [] as ForumSearchCircleResult[];
-              if (error && isMissingCircleStatusError(error.message)) {
-                const fallback = await supabase
-                  .from("circles")
-                  .select("id,slug,name,description,created_at,image_path")
-                  .or(`name.ilike.${parsed.pattern},description.ilike.${parsed.pattern}`)
-                  .limit(Math.max(limitCircles * 3, 24));
-                if (fallback.error) throw fallback.error;
-                circles = mapRows((fallback.data ?? []) as Array<Record<string, unknown>>, "active");
-              } else if (error) {
+              if (error) {
                 throw error;
               } else {
                 circles = mapRows((data ?? []) as Array<Record<string, unknown>>, null);

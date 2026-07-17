@@ -3,7 +3,6 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 type EnvLike = {
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
 };
 
 export function getEnvValue(env: EnvLike, key: keyof EnvLike): string {
@@ -30,19 +29,4 @@ export function createUserClient(env: EnvLike, bearerToken: string): SupabaseCli
       autoRefreshToken: false,
     },
   });
-}
-
-// ⚠️ Service role bypasses RLS. Do NOT use for user post creation.
-// Use only for future admin/moderation endpoints.
-export function createServiceClient(env: EnvLike): SupabaseClient {
-  return createClient(
-    getEnvValue(env, "SUPABASE_URL"),
-    getEnvValue(env, "SUPABASE_SERVICE_ROLE_KEY"),
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    },
-  );
 }

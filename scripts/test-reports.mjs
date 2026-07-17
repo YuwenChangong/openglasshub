@@ -66,41 +66,39 @@ async function main() {
   assert.equal(buildNotificationHref("post_moderated", "00000000-0000-0000-0000-000000000010", null), "/notifications/");
   assert.equal(isSystemNotificationType("user_restricted"), true);
 
-  const rpcCalls = [];
-  const fakeClient = {
-    async rpc(name, payload) {
-      rpcCalls.push({ name, payload });
-      return { error: null };
+  const commands = [];
+  const fakeWriter = {
+    async send(command) {
+      commands.push(command);
+      return true;
     },
   };
 
-  assert.equal(await notifyPostModerated({
-    client: fakeClient,
+  assert.equal(await notifyPostModerated(fakeWriter, {
     recipientId: "00000000-0000-0000-0000-000000000011",
     postId: "00000000-0000-0000-0000-000000000012",
-    actingAdminId: "00000000-0000-0000-0000-000000000013",
   }), true);
-  assert.equal(rpcCalls.length, 1);
-  assert.equal(rpcCalls[0].name, "insert_forum_notification");
-  assert.equal(rpcCalls[0].payload.p_actor_id, null);
-  assert.equal(rpcCalls[0].payload.p_type, "post_moderated");
+  assert.equal(commands.length, 1);
+  assert.equal(commands[0].type, "post_moderated");
+  assert.equal(commands[0].recipientId, "00000000-0000-0000-0000-000000000011");
 
-  assert.equal(await notifyCommentModerated({
-    client: fakeClient,
+  assert.equal(await notifyCommentModerated(fakeWriter, {
     recipientId: "",
     commentId: "00000000-0000-0000-0000-000000000014",
     postId: "00000000-0000-0000-0000-000000000015",
-    actingAdminId: "00000000-0000-0000-0000-000000000016",
-  }), false);
-  assert.equal(rpcCalls.length, 1);
+  }), true);
+  assert.equal(commands.length, 2);
+  assert.equal(commands[1].recipientId, "");
 
   assert.equal(await notifyPostModerated({
-    client: fakeClient,
+    async send() {
+      return false;
+    },
+  }, {
     recipientId: "00000000-0000-0000-0000-000000000017",
     postId: "00000000-0000-0000-0000-000000000018",
-    actingAdminId: "00000000-0000-0000-0000-000000000017",
   }), false);
-  assert.equal(rpcCalls.length, 1);
+  assert.equal(commands.length, 2);
 
   const userApi = await read("src/pages/api/forum/reports.ts");
   const adminListApi = await read("src/pages/api/admin/reports.ts");
@@ -135,7 +133,7 @@ async function main() {
   assert(/notifyPostModerated/.test(helperSource), "report helper should notify moderated post authors");
   assert(/notifyCommentModerated/.test(helperSource), "report helper should notify moderated comment authors");
   assert(/post_moderated/.test(notificationSource) && /user_restricted/.test(notificationSource), "notification types should include moderation variants");
-  assert(/p_actor_id:\s*null/.test(notificationHelperSource), "moderation notifications should not expose admin identity");
+  assert(/p_actor_id:\s*verifiedActorId/.test(notificationHelperSource), "moderation notifications should bind the verified actor");
   assert(!/reporter/i.test(notificationHelperSource), "moderation notification helper should not expose reporter identity");
   assert(!/note:|reason:|metadata:/i.test(notificationHelperSource), "moderation notification helper should avoid admin notes and raw metadata");
 

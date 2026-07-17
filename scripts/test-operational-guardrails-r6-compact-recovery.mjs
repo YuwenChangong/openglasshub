@@ -1,0 +1,151 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import os from "node:os";
+import path from "node:path";
+import { describeRecoveryConnectorShape, persistRecoveryPacket } from "./capture-operational-guardrails-r6-compact-recovery.mjs";
+import { classifyRecovery, loadBaseline, parseRecoveryPacket } from "./validate-operational-guardrails-r6-compact-recovery.mjs";
+import { baselineMap, baselineRows, createRecoveryPacket, withFailedChecks } from "../tests/fixtures/operational-guardrails-r6-compact-recovery.mjs";
+import { wrapRowsInExactEnvelope } from "../tests/fixtures/operational-guardrails-r6-exact-envelope.mjs";
+
+const baselineDocument = `${JSON.stringify({ capture_version: "r6-schema-aware-capture-v1", kind: "preflight", rows: baselineRows.map(([check_id, actual_value_redacted], index) => ({ packet_version: "r6-single-result-preflight-v3", phase: "R6-2", section_order: "1", check_order: String(index + 1), check_id, object_identity: "public.forum_upload_attempts", expected_value: "redacted", actual_value_redacted, status: "PASS", blocking: "false", classification: "FUNCTION_ABSENT_SAFE_TO_CREATE", evidence_fingerprint: createHash("md5").update(check_id).digest("hex") })) })}\n`;
+const baselineHash = createHash("sha256").update(baselineDocument).digest("hex");
+const exact = createRecoveryPacket();
+assert.equal(classifyRecovery(exact, baselineMap()), "COMMITTED_EXACTLY");
+
+const absentBase = createRecoveryPacket({ target_state: "ABSENT", overload_count: 0, signature_exact: false, return_identity: false, owner_postgres: false, security_definer: false, volatile: false, parallel_unsafe: false, non_leakproof: false, search_path_exact: false, lock_timeout_exact: false, statement_timeout_exact: false, service_role_execute: false });
+const absent = withFailedChecks(absentBase, ["target_acl_exact", "target_lock_timeout", "target_non_leakproof", "target_owner_postgres", "target_parallel_unsafe", "target_return_identity", "target_search_path", "target_security_definer", "target_signature", "target_statement_timeout", "target_volatile"]);
+assert.equal(classifyRecovery(absent, baselineMap()), "NOT_COMMITTED");
+
+for (const [name, mutate, failures] of [
+  ["wrong owner", (packet) => ({ ...packet, owner_postgres: false, target_state: "CONFLICTING" }), ["target_owner_postgres"]],
+  ["security invoker", (packet) => ({ ...packet, security_definer: false, target_state: "CONFLICTING" }), ["target_security_definer"]],
+  ["wrong signature", (packet) => ({ ...packet, signature_exact: false, target_state: "CONFLICTING" }), ["target_signature"]],
+  ["wrong return", (packet) => ({ ...packet, return_identity: false, target_state: "CONFLICTING" }), ["target_return_identity"]],
+  ["extra overload", (packet) => ({ ...packet, overload_count: 2, target_state: "CONFLICTING" }), ["target_signature"]],
+  ["wrong search path", (packet) => ({ ...packet, search_path_exact: false, target_state: "CONFLICTING" }), ["target_search_path"]],
+  ["missing lock timeout", (packet) => ({ ...packet, lock_timeout_exact: false, target_state: "CONFLICTING" }), ["target_lock_timeout"]],
+  ["missing statement timeout", (packet) => ({ ...packet, statement_timeout_exact: false, target_state: "CONFLICTING" }), ["target_statement_timeout"]],
+  ["PUBLIC execute", (packet) => ({ ...packet, public_execute: true, target_state: "CONFLICTING" }), ["target_acl_exact"]],
+  ["anon execute", (packet) => ({ ...packet, anon_execute: true, target_state: "CONFLICTING" }), ["target_acl_exact"]],
+  ["authenticated execute", (packet) => ({ ...packet, authenticated_execute: true, target_state: "CONFLICTING" }), ["target_acl_exact"]],
+  ["service role absent", (packet) => ({ ...packet, service_role_execute: false, target_state: "CONFLICTING" }), ["target_acl_exact"]],
+  ["policy drift", (packet) => ({ ...packet, policy_inventory_fingerprint: "cccccccccccccccccccccccccccccccc" }), []],
+  ["table grant drift", (packet) => ({ ...packet, table_privileges_fingerprint: "dddddddddddddddddddddddddddddddd" }), []],
+  ["index drift", (packet) => ({ ...packet, index_inventory_fingerprint: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }), []],
+  ["invalid index", (packet) => ({ ...packet, index_ip_exact: false, target_state: "CONFLICTING" }), ["index_ip_exact"]],
+  ["unready index", (packet) => ({ ...packet, index_user_exact: false, target_state: "CONFLICTING" }), ["index_user_exact"]],
+  ["resend metadata drift", (packet) => ({ ...packet, resend_metadata_fingerprint: "ffffffffffffffffffffffffffffffff" }), []],
+  ["resend ACL drift", (packet) => ({ ...packet, resend_acl_fingerprint: "99999999999999999999999999999999" }), []],
+  ["resend missing", (packet) => ({ ...packet, resend_identity_exact: false, target_state: "CONFLICTING" }), ["resend_identity_exact"]],
+  ["identity collision", (packet) => ({ ...packet, target_resend_identity_separate: false, target_state: "CONFLICTING" }), ["target_resend_identity_separate"]],
+]) {
+  const changed = mutate(createRecoveryPacket());
+  const failed = withFailedChecks({ ...changed, evidence_fingerprint: "" }, failures);
+  assert.equal(classifyRecovery(failed, baselineMap()), "CONFLICTING_OR_PARTIAL", name);
+}
+assert.equal(classifyRecovery(exact, new Map()), "INSUFFICIENT_EVIDENCE");
+assert.equal(classifyRecovery({ ...exact, blocking_count: 1 }, baselineMap()), "INSUFFICIENT_EVIDENCE");
+
+const temporary = await mkdtemp(path.join(os.tmpdir(), "openglass-r6-recovery-"));
+const baselinePath = path.join(temporary, "baseline.json");
+await writeFile(baselinePath, baselineDocument, "utf8");
+assert.equal((await loadBaseline(baselinePath, baselineHash)).get("index_inventory_fingerprint"), baselineMap().get("index_inventory_fingerprint"));
+const outputPath = path.join(temporary, "recovery.json");
+const connector = { isError: false, content: [{ type: "text", text: JSON.stringify([exact]) }] };
+assert.deepEqual(describeRecoveryConnectorShape(connector).candidate, { candidate_type: "array", candidate_count: 1, entry_types: ["object"], normalized_row_count: 1 });
+const persisted = await persistRecoveryPacket({ connectorResponse: connector, outputPath, baselinePath, baselineSha256: baselineHash });
+assert.equal(persisted.classification, "COMMITTED_EXACTLY");
+assert.equal(parseRecoveryPacket(await readFile(outputPath, "utf8")).packet_version, exact.packet_version);
+const exactEnvelopeOutput = path.join(temporary, "exact-envelope.json");
+await persistRecoveryPacket({ connectorResponse: wrapRowsInExactEnvelope([exact]), outputPath: exactEnvelopeOutput, baselinePath, baselineSha256: baselineHash });
+assert.equal(describeRecoveryConnectorShape(wrapRowsInExactEnvelope([exact])).fenced_wrapper_matched, true);
+const cliOutput = path.join(temporary, "cli.json");
+const cliFailureOutput = path.join(temporary, "cli-failure.json");
+const cliFailureShaOutput = path.join(temporary, "cli-failure.sha256");
+const cli = spawnSync(process.execPath, ["scripts/capture-operational-guardrails-r6-compact-recovery.mjs", "--output", cliOutput, "--baseline", baselinePath, "--baseline-sha256", baselineHash, "--failure-output", cliFailureOutput, "--failure-sha-output", cliFailureShaOutput], { cwd: process.cwd(), encoding: "utf8", input: JSON.stringify(connector) });
+assert.equal(cli.status, 0, cli.stderr);
+assert.match(cli.stdout, /"classification":"COMMITTED_EXACTLY"/);
+assert.doesNotMatch(`${cli.stdout}\n${cli.stderr}`, /target_metadata_fingerprint|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/);
+await assert.rejects(() => readFile(cliFailureOutput), /ENOENT/);
+
+const explicitDirectory = path.join(temporary, "exact failure path with spaces");
+const explicitSuccessPath = path.join(explicitDirectory, "recovery.json");
+const explicitFailurePath = path.join(explicitDirectory, "recovery-failure.json");
+const explicitFailureShaPath = path.join(explicitDirectory, "recovery-failure.sha256");
+const explicitDirectObject = { isError: false, content: [{ type: "text", text: JSON.stringify(exact) }] };
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: explicitDirectObject, outputPath: explicitSuccessPath, failureOutputPath: explicitFailurePath, failureShaOutputPath: explicitFailureShaPath, baselinePath, baselineSha256: baselineHash }), /ROW_COUNT/);
+const explicitFailure = await readFile(explicitFailurePath, "utf8");
+assert.equal(JSON.parse(explicitFailure).stage, "packet-candidate-row-count");
+assert.equal((await readFile(explicitFailureShaPath, "utf8")).trim().split(/\s+/)[0], createHash("sha256").update(explicitFailure).digest("hex"));
+await assert.rejects(() => readFile(explicitSuccessPath), /ENOENT/);
+await assert.rejects(() => readFile(`${explicitSuccessPath}.capture-error.json`), /ENOENT/);
+assert.doesNotMatch(explicitFailure, /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|target_metadata_fingerprint/);
+assert.equal((await readdir(explicitDirectory)).filter((name) => name.endsWith(".tmp")).length, 0);
+
+const explicitSuccessOnlyPath = path.join(temporary, "success-with-explicit-failure.json");
+const explicitSuccessFailurePath = path.join(temporary, "success-with-explicit-failure-failure.json");
+const explicitSuccessFailureShaPath = path.join(temporary, "success-with-explicit-failure-failure.sha256");
+await persistRecoveryPacket({ connectorResponse: connector, outputPath: explicitSuccessOnlyPath, failureOutputPath: explicitSuccessFailurePath, failureShaOutputPath: explicitSuccessFailureShaPath, baselinePath, baselineSha256: baselineHash });
+await assert.rejects(() => readFile(explicitSuccessFailurePath), /ENOENT/);
+await writeFile(path.join(temporary, "stale-failure.json"), "stale", "utf8");
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: connector, outputPath: path.join(temporary, "stale-success.json"), failureOutputPath: path.join(temporary, "stale-failure.json"), failureShaOutputPath: path.join(temporary, "stale-failure.sha256"), baselinePath, baselineSha256: baselineHash }), /OUTPUT_EXISTS/);
+
+for (const [name, options, error] of [
+  ["relative-failure", { failureOutputPath: "relative.json", failureShaOutputPath: path.join(temporary, "relative.sha256") }, /ABSOLUTE/],
+  ["inside-worktree", { failureOutputPath: path.join(process.cwd(), "failure.json"), failureShaOutputPath: path.join(temporary, "outside.sha256") }, /INSIDE_WORKTREE/],
+  ["missing-failure-sha", { failureOutputPath: path.join(temporary, "missing-sha.json") }, /PAIR_REQUIRED/],
+  ["only-failure-sha", { failureShaOutputPath: path.join(temporary, "only-sha.sha256") }, /PAIR_REQUIRED/],
+  ["path-collision", { failureOutputPath: path.join(temporary, "collision.json"), failureShaOutputPath: path.join(temporary, "collision.json") }, /EXTENSION|COLLISION/],
+  ["success-failure-collision", { failureOutputPath: path.join(temporary, "same.json"), failureShaOutputPath: path.join(temporary, "same.sha256") }, /OUTPUT_PATH_COLLISION/],
+  ["bad-extension", { failureOutputPath: path.join(temporary, "bad.txt"), failureShaOutputPath: path.join(temporary, "bad.sha256") }, /EXTENSION/],
+]) {
+  const successPath = name === "success-failure-collision" ? path.join(temporary, "same.json") : path.join(temporary, `${name}-success.json`);
+  await assert.rejects(() => persistRecoveryPacket({ connectorResponse: connector, outputPath: successPath, baselinePath, baselineSha256: baselineHash, ...options }), error, name);
+}
+const directoryFailurePath = path.join(temporary, "directory-failure.json");
+await mkdir(directoryFailurePath);
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: connector, outputPath: path.join(temporary, "directory-success.json"), failureOutputPath: directoryFailurePath, failureShaOutputPath: path.join(temporary, "directory-failure.sha256"), baselinePath, baselineSha256: baselineHash }), /IS_DIRECTORY/);
+const malformedCli = spawnSync(process.execPath, ["scripts/capture-operational-guardrails-r6-compact-recovery.mjs", "--output", cliOutput, "raw-response-not-stdin"], { cwd: process.cwd(), encoding: "utf8", input: JSON.stringify(connector) });
+assert.notEqual(malformedCli.status, 0);
+assert.doesNotMatch(`${malformedCli.stdout}\n${malformedCli.stderr}`, /raw-response-not-stdin|target_metadata_fingerprint/);
+
+for (const [name, packet, error] of [
+  ["oversized", { ...exact, check_statuses_compact: exact.check_statuses_compact + "x".repeat(9000) }, /CHECK_STATUSES|TOO_LARGE/],
+  ["missing", Object.fromEntries(Object.entries(exact).filter(([key]) => key !== "phase")), /SCHEMA/],
+  ["duplicate-check", { ...exact, check_statuses_compact: exact.check_statuses_compact.replace('{', '{"target_acl_exact":true,') }, /DUPLICATE/],
+  ["bad-evidence", { ...exact, evidence_fingerprint: "0".repeat(32) }, /FINGERPRINT/],
+]) {
+  const target = path.join(temporary, `${name}.json`);
+  await assert.rejects(() => persistRecoveryPacket({ connectorResponse: { isError: false, content: [{ type: "text", text: JSON.stringify([packet]) }] }, outputPath: target, baselinePath, baselineSha256: baselineHash }), error);
+  await assert.rejects(() => readFile(target), /ENOENT/);
+}
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: { isError: false, content: [{ type: "text", text: JSON.stringify([exact, exact]) }] }, outputPath: path.join(temporary, "two-rows.json"), baselinePath, baselineSha256: baselineHash }), /ROW_COUNT/);
+const directObject = { isError: false, content: [{ type: "text", text: JSON.stringify(exact) }] };
+const directObjectPath = path.join(temporary, "direct-object.json");
+assert.equal(describeRecoveryConnectorShape(directObject).candidate?.candidate_type, "object");
+assert.equal(describeRecoveryConnectorShape(directObject).candidate?.exact_compact_schema, true);
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: directObject, outputPath: directObjectPath, baselinePath, baselineSha256: baselineHash }), /ROW_COUNT/);
+const directObjectDiagnostic = JSON.parse(await readFile(`${directObjectPath}.capture-error.json`, "utf8"));
+assert.equal(directObjectDiagnostic.stage, "packet-candidate-row-count");
+assert.equal(directObjectDiagnostic.structure.candidate.candidate_type, "object");
+assert.equal(directObjectDiagnostic.structure.candidate.normalized_row_count, null);
+assert.doesNotMatch(JSON.stringify(directObjectDiagnostic), /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|target_metadata_fingerprint/);
+assert.match(await readFile(`${directObjectPath}.capture-error.sha256`, "utf8"), /^[0-9a-f]{64}  direct-object\.json\.capture-error\.json\n$/);
+const multiContentPath = path.join(temporary, "multi-content.json");
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: { isError: false, content: [{ type: "text", text: JSON.stringify([exact]) }, { type: "text", text: JSON.stringify([exact]) }] }, outputPath: multiContentPath, baselinePath, baselineSha256: baselineHash }), /CONNECTOR_RESPONSE/);
+const nestedArrayPath = path.join(temporary, "nested-array.json");
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: { isError: false, content: [{ type: "text", text: JSON.stringify([[exact]]) }] }, outputPath: nestedArrayPath, baselinePath, baselineSha256: baselineHash }), /ROW_COUNT/);
+for (const [name, response] of [
+  ["metadata-object", { isError: false, content: [{ type: "text", text: JSON.stringify({ result: "metadata" }) }] }],
+  ["scalar-result", { isError: false, content: [{ type: "text", text: JSON.stringify("scalar") }] }],
+  ["null-result", { isError: false, content: [{ type: "text", text: "null" }] }],
+  ["error-wrapper", { isError: true, content: [] }],
+]) {
+  await assert.rejects(() => persistRecoveryPacket({ connectorResponse: response, outputPath: path.join(temporary, `${name}.json`), baselinePath, baselineSha256: baselineHash }), /ROW_COUNT|CONNECTOR_RESPONSE/);
+}
+const truncatedEnvelope = wrapRowsInExactEnvelope([exact]);
+truncatedEnvelope[0].text = truncatedEnvelope[0].text.slice(0, -12);
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: truncatedEnvelope, outputPath: path.join(temporary, "truncated-envelope.json"), baselinePath, baselineSha256: baselineHash }), /INVALID_CONNECTOR_JSON|WRAPPER/);
+console.log(JSON.stringify({ status: "PASS", exactCommitted: true, notCommitted: true, conflictingStates: 21, insufficientEvidenceStates: 3, semanticMatrixStates: 26, captureBudgetBytes: Buffer.byteLength(`${JSON.stringify(exact)}\n`), durableCapture: true, exactEnvelope: true, cliCapture: true }));

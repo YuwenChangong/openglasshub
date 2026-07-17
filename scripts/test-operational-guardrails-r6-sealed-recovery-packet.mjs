@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { RECOVERY_COLUMNS } from "./validate-operational-guardrails-r6-compact-recovery.mjs";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const sql = await readFile(path.join(root, "docs", "ops", "reconciliation", "operational-guardrails-r6-production-postflight-recovery-sealed.sql"), "utf8");
+const executable = sql.split(/\r?\n/).filter((line) => !line.trimStart().startsWith("--")).join("\n").trim();
+const withoutLiterals = executable.replace(/'(?:''|[^'])*'/g, "''");
+assert.match(executable, /^WITH\s+/i);
+assert.equal((executable.match(/;/g) ?? []).length, 1);
+assert.doesNotMatch(withoutLiterals, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE|TRUNCATE|COPY|CALL|DO)\b/i);
+assert.doesNotMatch(executable, /pg_get_functiondef|\bprosrc\b|auth\.users|FROM\s+public\.forum_upload_attempts/i);
+assert.match(executable, /encode\(sha256\(convert_to\(payload_text, 'UTF8'\)\), 'hex'\)/);
+assert.match(executable, /'R6SEALED2'/);
+assert.match(executable, /json_build_array/);
+assert.match(executable, /E'\+\/\\n\\r='/);
+assert.match(executable, /SELECT 'R6SEALED1\.'/);
+assert.match(executable, /AS sealed_token/);
+for (const column of RECOVERY_COLUMNS) assert.match(executable, new RegExp(`\\b${column}\\b`));
+console.log(JSON.stringify({ status: "PASS", oneStatement: true, oneColumn: "sealed_token", readOnlyCatalogOnly: true, compactColumns: RECOVERY_COLUMNS.length }));

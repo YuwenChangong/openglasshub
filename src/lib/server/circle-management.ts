@@ -87,12 +87,14 @@ function isCircleManageRlsError(error: { message?: string } | null | undefined) 
   return message.includes("row-level security") || message.includes("permission denied");
 }
 
-export async function requireForumUser(request: Request, env: ForumRuntimeEnv): Promise<{
+export type ForumUserAuth = {
   token: string;
   client: SupabaseClient;
   user: User;
   profile: ForumProfile;
-}> {
+};
+
+export async function requireForumUser(request: Request, env: ForumRuntimeEnv): Promise<ForumUserAuth> {
   const token = getBearerToken(request);
   if (!token) {
     throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
@@ -125,18 +127,13 @@ export async function requireForumUser(request: Request, env: ForumRuntimeEnv): 
   };
 }
 
-export async function requireManagedCircleBySlug(params: {
-  request: Request;
-  env: ForumRuntimeEnv;
+export async function requireManagedCircleForAuthenticatedUser(params: {
+  auth: ForumUserAuth;
   slug: string;
-}): Promise<{
-  token: string;
-  client: SupabaseClient;
-  user: User;
-  profile: ForumProfile;
+}): Promise<ForumUserAuth & {
   circle: ManagedCircleRow;
 }> {
-  const auth = await requireForumUser(params.request, params.env);
+  const { auth } = params;
   let { data: circle, error } = await auth.client
     .from("circles")
     .select("id, slug, name, description, type, status, created_at, updated_at, image_path, owner_id")
@@ -178,4 +175,13 @@ export async function requireManagedCircleBySlug(params: {
     ...auth,
     circle: circle as ManagedCircleRow,
   };
+}
+
+export async function requireManagedCircleBySlug(params: {
+  request: Request;
+  env: ForumRuntimeEnv;
+  slug: string;
+}) {
+  const auth = await requireForumUser(params.request, params.env);
+  return requireManagedCircleForAuthenticatedUser({ auth, slug: params.slug });
 }
