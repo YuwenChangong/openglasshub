@@ -1,4 +1,4 @@
--- UNEXECUTED R6-5 OPERATOR WRAPPER. Requires fresh explicit R6 approval.
+-- UNEXECUTED R6-5 OPERATOR WRAPPER. Requires APPROVE_R6_STAGE1_RESTART_WITH_RESEND_RECONCILED_PACKETS.
 -- First run the corrected single-result R6-2 packet and preserve its redacted
 -- rows outside Git. Only FUNCTION_ABSENT_SAFE_TO_CREATE may reach this wrapper.
 -- EXACT_FUNCTION_ALREADY_PRESENT skips creation and continues to corrected R6-6.

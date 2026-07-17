@@ -1,6 +1,6 @@
 # R6 Production Rollout Packet
 
-Status: `R6_SINGLE_RESULT_PACKET_READY` (repository-only). This packet
+Status: `R6_RESEND_IDENTITY_PACKET_READY` (repository-only). This packet
 does not authorize a cloud connection, secret creation, SQL execution, merge,
 or deployment. `R5_PREVIEW_BLOCKED_TARGET_IDENTITY` remains in force because
 hosted Preview uses Production data; local R5L is evidence, not Preview
@@ -56,6 +56,12 @@ unchanged. Runtime value correctness is proved only by the canary.
 The former R6-2 packet was connector-incompatible: the available connector
 discarded every result set except the last, leaving relation, index, RLS,
 privilege, and function evidence incomplete. No Production mutation occurred.
+The once-executed corrected R6-2 packet returned 15 redacted rows: 14 passed and
+the blocking `resend_separation` check failed because it named
+`public.consume_verification_email_resend`, not the exact source-backed
+`public.consume_verification_email_resend_limit(text,integer,integer)` contract.
+No Production mutation, secret creation, deployment, or policy change occurred.
+The R6 resend identity review records this source-backed expectation defect.
 The corrected R6-2 and R6-6 packets each use one catalog-only CTE statement and
 emit one ordered redacted check table. Capture R6-2 outside Git and validate it
 with `scripts/validate-operational-guardrails-r6-single-result.mjs` using the
@@ -66,7 +72,7 @@ Only `FUNCTION_ABSENT_SAFE_TO_CREATE` permits the unexecuted R2 proposal through
 the execution wrapper. `EXACT_FUNCTION_ALREADY_PRESENT` skips creation and runs
 R6-6; `CONFLICTING_FUNCTION_PRESENT` and `INSUFFICIENT_EVIDENCE` stop. The
 previous execution approval is not reusable. The next possible approval is
-`APPROVE_R6_STAGE1_RESUME_WITH_CORRECTED_SINGLE_RESULT_PACKETS`.
+`APPROVE_R6_STAGE1_RESTART_WITH_RESEND_RECONCILED_PACKETS`.
 
 The expected function is
 one overload owned by `postgres`, `SECURITY DEFINER`, `VOLATILE`, `PARALLEL

@@ -52,12 +52,15 @@ different IP-only contract.
 
 ## R6 rollout packet status
 
-Repository-only R6 planning is `R6_SINGLE_RESULT_PACKET_READY` in
+Repository-only R6 planning is `R6_RESEND_IDENTITY_PACKET_READY` in
 `operational-guardrails-r6-production-rollout.md`. The previous multi-result
 R6 packet was connector-incompatible and did not mutate Production. Corrected
 R6-2/R6-6 packets return one deterministic redacted result set each; their
 offline validator binds the safe target marker and compares postflight baseline
-fingerprints. Fresh approval `APPROVE_R6_STAGE1_RESUME_WITH_CORRECTED_SINGLE_RESULT_PACKETS`
+fingerprints. The prior R6-2 attempt stopped with 14 of 15 checks passing because
+its resend check used the wrong identity; the source-backed resend correction is
+recorded in `operational-guardrails-r6-resend-rpc-identity-review.md`. Fresh
+approval `APPROVE_R6_STAGE1_RESTART_WITH_RESEND_RECONCILED_PACKETS`
 is required before any future R6-2 execution. This preserves
 `R5_PREVIEW_BLOCKED_TARGET_IDENTITY`, the absent Production service-role
 binding, and the overall no-go state. Future execution requires the exact

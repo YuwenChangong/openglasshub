@@ -8,18 +8,21 @@ export const OUTPUT_COLUMNS = [
 
 export const CONTRACTS = {
   preflight: {
-    version: "r6-single-result-preflight-v2",
+    version: "r6-single-result-preflight-v3",
     phase: "R6-2",
     classifications: new Set(["FUNCTION_ABSENT_SAFE_TO_CREATE", "EXACT_FUNCTION_ALREADY_PRESENT", "CONFLICTING_FUNCTION_PRESENT", "INSUFFICIENT_EVIDENCE"]),
-    checks: ["target_database_fingerprint", "attempts_relation", "required_columns", "index_ip_exact", "index_user_exact", "index_no_equivalent_conflict", "rls_enabled", "force_rls_state", "policy_inventory_fingerprint", "table_privileges_fingerprint", "target_function_overloads", "target_function_signature", "target_function_metadata_fingerprint", "target_function_acl_fingerprint", "resend_separation"],
+    checks: ["target_database_fingerprint", "attempts_relation", "required_columns", "index_ip_exact", "index_user_exact", "index_no_equivalent_conflict", "index_inventory_fingerprint", "rls_enabled", "force_rls_state", "policy_inventory_fingerprint", "table_privileges_fingerprint", "target_function_overloads", "target_function_signature", "target_function_metadata_fingerprint", "target_function_acl_fingerprint", "resend_source_contract", "resend_acl_contract", "resend_target_identity_separation", "resend_metadata_fingerprint", "resend_acl_fingerprint"],
   },
   postflight: {
-    version: "r6-single-result-postflight-v2",
+    version: "r6-single-result-postflight-v3",
     phase: "R6-6",
     classifications: new Set(["PRODUCTION_RPC_POSTFLIGHT_PASSED", "PRODUCTION_RPC_POSTFLIGHT_FAILED", "PRODUCTION_RPC_STATE_AMBIGUOUS"]),
-    checks: ["target_relation_present", "target_function_overloads", "target_function_signature", "target_function_owner", "target_function_security", "target_function_return", "target_function_settings", "target_function_acl", "target_function_fingerprint", "baseline_policy_fingerprint", "baseline_index_fingerprint", "baseline_grant_fingerprint", "resend_separation"],
+    checks: ["target_relation_present", "target_function_overloads", "target_function_signature", "target_function_owner", "target_function_security", "target_function_return", "target_function_settings", "target_function_acl", "target_function_fingerprint", "baseline_policy_fingerprint", "baseline_index_fingerprint", "baseline_grant_fingerprint", "resend_source_contract", "resend_acl_contract", "resend_target_identity_separation", "baseline_resend_metadata_fingerprint", "baseline_resend_acl_fingerprint"],
   },
 };
+
+const RESEND_IDENTITY = "public.consume_verification_email_resend_limit(text,integer,integer)";
+const resendChecks = new Set(["resend_source_contract", "resend_acl_contract", "resend_target_identity_separation", "resend_metadata_fingerprint", "resend_acl_fingerprint", "baseline_resend_metadata_fingerprint", "baseline_resend_acl_fingerprint"]);
 
 const forbidden = /(?:\b(?:password|secret|token|connection_string|service_role_key)\b|\b(?:auth\.users|forum_upload_attempts\s+where)\b|@)/i;
 const parseCsv = (text) => {
@@ -72,14 +75,16 @@ export function validateRows(kind, rows, options = {}) {
     if (!new Set(["PASS", "FAIL"]).has(row.status) || !new Set(["true", "false"]).has(row.blocking)) throw new Error("unknown status or blocking value");
     if (!/^[0-9a-f]{32}$/.test(row.evidence_fingerprint)) throw new Error("invalid evidence fingerprint");
     if (forbidden.test([row.object_identity, row.expected_value, row.actual_value_redacted].join("\n"))) throw new Error("forbidden sensitive or row-level evidence");
+    if (resendChecks.has(row.check_id) && row.object_identity !== RESEND_IDENTITY) throw new Error("resend identity must be the exact source-backed signature");
   }
   if (kind === "preflight") {
     if (!options.expectedTargetMarker || rows.find((row) => row.check_id === "target_database_fingerprint")?.actual_value_redacted !== options.expectedTargetMarker) throw new Error("safe expected target marker missing or mismatched");
   }
   if (kind === "postflight") {
+    if (rows.some((row) => row.status === "FAIL") && [...classifications][0] === "PRODUCTION_RPC_POSTFLIGHT_PASSED") throw new Error("postflight cannot pass with a failed check");
     if (!options.baseline) throw new Error("redacted baseline packet is required for postflight");
     const baseline = new Map(options.baseline.map((row) => [row.check_id, row.actual_value_redacted]));
-    const pairs = [["policy_inventory_fingerprint", "baseline_policy_fingerprint"], ["index_no_equivalent_conflict", "baseline_index_fingerprint"], ["table_privileges_fingerprint", "baseline_grant_fingerprint"]];
+    const pairs = [["policy_inventory_fingerprint", "baseline_policy_fingerprint"], ["index_inventory_fingerprint", "baseline_index_fingerprint"], ["table_privileges_fingerprint", "baseline_grant_fingerprint"], ["resend_metadata_fingerprint", "baseline_resend_metadata_fingerprint"], ["resend_acl_fingerprint", "baseline_resend_acl_fingerprint"]];
     for (const [before, after] of pairs) {
       const expected = baseline.get(before);
       const actual = rows.find((row) => row.check_id === after)?.actual_value_redacted;

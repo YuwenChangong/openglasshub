@@ -31,6 +31,10 @@ for (const sql of [preflight, postflight]) {
 }
 assert.match(preflight, /forum_upload_attempts/);
 assert.match(preflight, /consume_forum_rate_limit/);
+assert.match(preflight, /consume_verification_email_resend_limit\(text,integer,integer\)/);
+assert.match(postflight, /consume_verification_email_resend_limit\(text,integer,integer\)/);
+assert.doesNotMatch(preflight, /consume_verification_email_resend'(?!_)/);
+assert.doesNotMatch(postflight, /consume_verification_email_resend'(?!_)/);
 assert.match(postflight, /service_role/);
 assert.match(execution, /ON_ERROR_STOP=1/);
 assert.match(execution, /FUNCTION_ABSENT_SAFE_TO_CREATE/);
