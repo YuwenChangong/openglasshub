@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, realpath, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { RECOVERY_COLUMNS, classifyRecovery, loadBaseline, parseRecoveryPacket } from "./validate-operational-guardrails-r6-compact-recovery.mjs";
@@ -73,8 +73,18 @@ async function atomicWrite(targetPath, content) {
   await mkdir(path.dirname(targetPath), { recursive: true });
   const temporary = path.join(path.dirname(targetPath), `.${path.basename(targetPath)}.${process.pid}.${randomUUID()}.tmp`);
   const handle = await open(temporary, "wx", 0o600);
-  try { await handle.writeFile(content, "utf8"); await handle.sync(); } finally { await handle.close(); }
-  await rename(temporary, targetPath);
+  let closed = false;
+  try {
+    await handle.writeFile(content, "utf8");
+    await handle.sync();
+    await handle.close();
+    closed = true;
+    await rename(temporary, targetPath);
+  } catch (error) {
+    if (!closed) await handle.close().catch(() => undefined);
+    await rm(temporary, { force: true });
+    throw error;
+  }
 }
 
 async function requireUnused(targetPath) {
@@ -82,9 +92,62 @@ async function requireUnused(targetPath) {
   throw safeError("RECOVERY_CAPTURE_OUTPUT_EXISTS");
 }
 
-async function writeFailureDiagnostic({ outputPath, classification, connectorResponse }) {
-  const diagnosticPath = `${outputPath}.capture-error.json`;
-  const sidecarPath = `${outputPath}.capture-error.sha256`;
+const isWithin = (candidate, root) => {
+  const relative = path.relative(root, candidate);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
+};
+
+async function canonicalParent(targetPath) {
+  const missing = [];
+  let current = path.dirname(targetPath);
+  while (true) {
+    try {
+      return path.join(await realpath(current), ...missing);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+      const parent = path.dirname(current);
+      if (parent === current) throw safeError("RECOVERY_CAPTURE_OUTPUT_PARENT_INVALID");
+      missing.unshift(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+async function validateOutputPath(targetPath, extension, worktreeRoot) {
+  if (typeof targetPath !== "string" || !path.isAbsolute(targetPath)) throw safeError("RECOVERY_CAPTURE_OUTPUT_PATH_ABSOLUTE_REQUIRED");
+  const absolute = path.resolve(targetPath);
+  if (!absolute.toLowerCase().endsWith(extension)) throw safeError("RECOVERY_CAPTURE_OUTPUT_EXTENSION_INVALID");
+  const resolvedParent = await canonicalParent(absolute);
+  if (isWithin(absolute, worktreeRoot) || isWithin(path.join(resolvedParent, path.basename(absolute)), await realpath(worktreeRoot))) throw safeError("RECOVERY_CAPTURE_OUTPUT_INSIDE_WORKTREE");
+  try {
+    if ((await lstat(absolute)).isDirectory()) throw safeError("RECOVERY_CAPTURE_OUTPUT_IS_DIRECTORY");
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  return absolute;
+}
+
+function assertDistinctOutputPaths(paths) {
+  const normalized = paths.map((targetPath) => path.resolve(targetPath).toLowerCase());
+  if (new Set(normalized).size !== normalized.length) throw safeError("RECOVERY_CAPTURE_OUTPUT_PATH_COLLISION");
+}
+
+async function prepareOutputPaths({ outputPath, failureOutputPath, failureShaOutputPath }) {
+  const hasFailureOutput = failureOutputPath !== undefined;
+  const hasFailureShaOutput = failureShaOutputPath !== undefined;
+  if (hasFailureOutput !== hasFailureShaOutput) throw safeError("RECOVERY_CAPTURE_FAILURE_PATH_PAIR_REQUIRED");
+  const worktreeRoot = path.resolve(process.cwd());
+  const successPath = await validateOutputPath(outputPath, ".json", worktreeRoot);
+  const successShaPath = successPath.replace(/\.json$/i, ".sha256");
+  const structurePath = successPath.replace(/\.json$/i, "-structure.json");
+  const failurePath = await validateOutputPath(hasFailureOutput ? failureOutputPath : `${successPath}.capture-error.json`, ".json", worktreeRoot);
+  const failureShaPath = await validateOutputPath(hasFailureShaOutput ? failureShaOutputPath : `${successPath}.capture-error.sha256`, ".sha256", worktreeRoot);
+  assertDistinctOutputPaths([successPath, successShaPath, structurePath, failurePath, failureShaPath]);
+  return { successPath, successShaPath, structurePath, failurePath, failureShaPath };
+}
+
+async function writeFailureDiagnostic({ outputPath, sidecarPath, classification, connectorResponse }) {
+  const diagnosticPath = outputPath;
   const diagnostic = {
     record_version: "r6-compact-recovery-capture-error-v2",
     classification,
@@ -125,39 +188,64 @@ export function extractRecoveryPacket(connectorResponse) {
   return parseRecoveryPacket(rows[0]);
 }
 
-export async function persistRecoveryPacket({ connectorResponse, outputPath, baselinePath, baselineSha256 }) {
+export async function persistRecoveryPacket({ connectorResponse, outputPath, failureOutputPath, failureShaOutputPath, baselinePath, baselineSha256 }) {
+  const paths = await prepareOutputPaths({ outputPath, failureOutputPath, failureShaOutputPath });
+  await Promise.all([requireUnused(paths.successPath), requireUnused(paths.successShaPath), requireUnused(paths.structurePath), requireUnused(paths.failurePath), requireUnused(paths.failureShaPath)]);
   let packet;
   try { packet = extractRecoveryPacket(connectorResponse); } catch (error) {
-    await writeFailureDiagnostic({ outputPath, classification: error.message, connectorResponse });
+    await writeFailureDiagnostic({ outputPath: paths.failurePath, sidecarPath: paths.failureShaPath, classification: error.message, connectorResponse });
     throw error;
   }
   const baseline = await loadBaseline(baselinePath, baselineSha256);
   const classification = classifyRecovery(packet, baseline);
   const content = `${JSON.stringify(packet)}\n`;
   const hash = sha256(content);
-  const sidecarPath = outputPath.replace(/\.json$/i, ".sha256");
-  const structurePath = outputPath.replace(/\.json$/i, "-structure.json");
-  await Promise.all([requireUnused(outputPath), requireUnused(sidecarPath), requireUnused(structurePath)]);
   let wrote = [];
   try {
-    await atomicWrite(outputPath, content); wrote.push(outputPath);
-    await atomicWrite(sidecarPath, `${hash}  ${path.basename(outputPath)}\n`); wrote.push(sidecarPath);
-    await atomicWrite(structurePath, `${JSON.stringify({ record_version: "r6-compact-recovery-structure-v1", row_count: 1, canonical_bytes: Buffer.byteLength(content, "utf8"), classification, raw_connector_envelope_persisted: false }, null, 2)}\n`); wrote.push(structurePath);
-    const [reopened, sidecar] = await Promise.all([readFile(outputPath, "utf8"), readFile(sidecarPath, "utf8")]);
-    if (sha256(reopened) !== hash || sidecar !== `${hash}  ${path.basename(outputPath)}\n`) throw safeError("RECOVERY_CAPTURE_SHA_MISMATCH");
+    await atomicWrite(paths.successPath, content); wrote.push(paths.successPath);
+    await atomicWrite(paths.successShaPath, `${hash}  ${path.basename(paths.successPath)}\n`); wrote.push(paths.successShaPath);
+    await atomicWrite(paths.structurePath, `${JSON.stringify({ record_version: "r6-compact-recovery-structure-v1", row_count: 1, canonical_bytes: Buffer.byteLength(content, "utf8"), classification, raw_connector_envelope_persisted: false }, null, 2)}\n`); wrote.push(paths.structurePath);
+    const [reopened, sidecar] = await Promise.all([readFile(paths.successPath, "utf8"), readFile(paths.successShaPath, "utf8")]);
+    if (sha256(reopened) !== hash || sidecar !== `${hash}  ${path.basename(paths.successPath)}\n`) throw safeError("RECOVERY_CAPTURE_SHA_MISMATCH");
     if (classifyRecovery(parseRecoveryPacket(reopened), baseline) !== classification) throw safeError("RECOVERY_CAPTURE_REREAD_MISMATCH");
-    return { classification, evidenceHash: hash, canonicalBytes: Buffer.byteLength(content, "utf8"), outputPath, sidecarPath, structurePath };
+    return { classification, evidenceHash: hash, canonicalBytes: Buffer.byteLength(content, "utf8"), outputPath: paths.successPath, sidecarPath: paths.successShaPath, structurePath: paths.structurePath };
   } catch (error) {
     await Promise.all(wrote.map((file) => rm(file, { force: true })));
     throw error;
   }
 }
 
-const [outputPath, baselinePath, baselineSha256, encodedResponse] = process.argv.slice(2);
-if (process.argv[1] === fileURLToPath(import.meta.url) && outputPath && baselinePath && baselineSha256 && encodedResponse) {
+function parseCliArguments(argumentsList) {
+  const options = new Map();
+  const supported = new Set(["--output", "--baseline", "--baseline-sha256", "--failure-output", "--failure-sha-output"]);
+  if (argumentsList.length % 2 !== 0) throw safeError("RECOVERY_CAPTURE_CLI_ARGUMENTS_INVALID");
+  for (let index = 0; index < argumentsList.length; index += 2) {
+    const option = argumentsList[index];
+    const value = argumentsList[index + 1];
+    if (!supported.has(option) || options.has(option) || typeof value !== "string" || value.startsWith("--")) throw safeError("RECOVERY_CAPTURE_CLI_ARGUMENTS_INVALID");
+    options.set(option, value);
+  }
+  for (const required of ["--output", "--baseline", "--baseline-sha256"]) if (!options.has(required)) throw safeError("RECOVERY_CAPTURE_CLI_ARGUMENTS_INVALID");
+  return {
+    outputPath: options.get("--output"),
+    baselinePath: options.get("--baseline"),
+    baselineSha256: options.get("--baseline-sha256"),
+    failureOutputPath: options.get("--failure-output"),
+    failureShaOutputPath: options.get("--failure-sha-output"),
+  };
+}
+
+async function readConnectorResponseFromStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    const connectorResponse = JSON.parse(Buffer.from(encodedResponse, "base64url").toString("utf8"));
-    const result = await persistRecoveryPacket({ connectorResponse, outputPath, baselinePath, baselineSha256 });
+    const options = parseCliArguments(process.argv.slice(2));
+    const connectorResponse = await readConnectorResponseFromStdin();
+    const result = await persistRecoveryPacket({ connectorResponse, ...options });
     console.log(JSON.stringify({ status: "PASS", classification: result.classification, rowCount: 1, canonicalBytes: result.canonicalBytes, evidenceHash: result.evidenceHash }));
   } catch (error) {
     console.error(JSON.stringify({ status: "FAIL", classification: error.message }));

@@ -80,3 +80,9 @@ value-blind shape record. Its exact connector form is therefore unproven.
 R6I adds SHA-bound structural diagnostics for future rejection but does not
 normalize direct row objects or change any reviewed SQL. See
 `operational-guardrails-r6-compact-recovery-capture.md`.
+
+R6K reconciles the R6J failure-output contract repository-only. The hardened
+runner now directly writes the separately approved `-failure.json` and
+`-failure.sha256` paths when explicit path flags are supplied, takes connector
+response only on stdin, and rejects path collisions or stale artifacts before
+capture. R6J stopped before dispatch; no Production SQL occurred.

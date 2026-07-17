@@ -141,6 +141,13 @@ adds a value-blind diagnostic record for a future separately approved query but
 does not infer or accept an unproven direct-object result shape. Production
 catalog state remains unverified.
 
+R6J then stopped before dispatch because the runner's derived failure filename
+did not match the separately approved R6 recovery evidence path. R6K changes
+only the repository capture contract: an operator can now provide exact
+outside-Git failure JSON/SHA destinations and send the connector response only
+on stdin. The runner writes those names directly and never uses a post-capture
+rename. No Production SQL, mutation, deployment, or binding change occurred.
+
 Runtime deployment is blocked until binding and SQL postflight pass. It must
 deploy the approved merge commit only, confirm target/ref equality with SQL,
 and prove no direct `forum_upload_attempts` runtime access or client

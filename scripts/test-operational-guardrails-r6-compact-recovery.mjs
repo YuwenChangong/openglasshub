@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -62,9 +62,54 @@ const exactEnvelopeOutput = path.join(temporary, "exact-envelope.json");
 await persistRecoveryPacket({ connectorResponse: wrapRowsInExactEnvelope([exact]), outputPath: exactEnvelopeOutput, baselinePath, baselineSha256: baselineHash });
 assert.equal(describeRecoveryConnectorShape(wrapRowsInExactEnvelope([exact])).fenced_wrapper_matched, true);
 const cliOutput = path.join(temporary, "cli.json");
-const cli = spawnSync(process.execPath, ["scripts/capture-operational-guardrails-r6-compact-recovery.mjs", cliOutput, baselinePath, baselineHash, Buffer.from(JSON.stringify(connector)).toString("base64url")], { cwd: process.cwd(), encoding: "utf8" });
+const cliFailureOutput = path.join(temporary, "cli-failure.json");
+const cliFailureShaOutput = path.join(temporary, "cli-failure.sha256");
+const cli = spawnSync(process.execPath, ["scripts/capture-operational-guardrails-r6-compact-recovery.mjs", "--output", cliOutput, "--baseline", baselinePath, "--baseline-sha256", baselineHash, "--failure-output", cliFailureOutput, "--failure-sha-output", cliFailureShaOutput], { cwd: process.cwd(), encoding: "utf8", input: JSON.stringify(connector) });
 assert.equal(cli.status, 0, cli.stderr);
 assert.match(cli.stdout, /"classification":"COMMITTED_EXACTLY"/);
+assert.doesNotMatch(`${cli.stdout}\n${cli.stderr}`, /target_metadata_fingerprint|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/);
+await assert.rejects(() => readFile(cliFailureOutput), /ENOENT/);
+
+const explicitDirectory = path.join(temporary, "exact failure path with spaces");
+const explicitSuccessPath = path.join(explicitDirectory, "recovery.json");
+const explicitFailurePath = path.join(explicitDirectory, "recovery-failure.json");
+const explicitFailureShaPath = path.join(explicitDirectory, "recovery-failure.sha256");
+const explicitDirectObject = { isError: false, content: [{ type: "text", text: JSON.stringify(exact) }] };
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: explicitDirectObject, outputPath: explicitSuccessPath, failureOutputPath: explicitFailurePath, failureShaOutputPath: explicitFailureShaPath, baselinePath, baselineSha256: baselineHash }), /ROW_COUNT/);
+const explicitFailure = await readFile(explicitFailurePath, "utf8");
+assert.equal(JSON.parse(explicitFailure).stage, "packet-candidate-row-count");
+assert.equal((await readFile(explicitFailureShaPath, "utf8")).trim().split(/\s+/)[0], createHash("sha256").update(explicitFailure).digest("hex"));
+await assert.rejects(() => readFile(explicitSuccessPath), /ENOENT/);
+await assert.rejects(() => readFile(`${explicitSuccessPath}.capture-error.json`), /ENOENT/);
+assert.doesNotMatch(explicitFailure, /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|target_metadata_fingerprint/);
+assert.equal((await readdir(explicitDirectory)).filter((name) => name.endsWith(".tmp")).length, 0);
+
+const explicitSuccessOnlyPath = path.join(temporary, "success-with-explicit-failure.json");
+const explicitSuccessFailurePath = path.join(temporary, "success-with-explicit-failure-failure.json");
+const explicitSuccessFailureShaPath = path.join(temporary, "success-with-explicit-failure-failure.sha256");
+await persistRecoveryPacket({ connectorResponse: connector, outputPath: explicitSuccessOnlyPath, failureOutputPath: explicitSuccessFailurePath, failureShaOutputPath: explicitSuccessFailureShaPath, baselinePath, baselineSha256: baselineHash });
+await assert.rejects(() => readFile(explicitSuccessFailurePath), /ENOENT/);
+await writeFile(path.join(temporary, "stale-failure.json"), "stale", "utf8");
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: connector, outputPath: path.join(temporary, "stale-success.json"), failureOutputPath: path.join(temporary, "stale-failure.json"), failureShaOutputPath: path.join(temporary, "stale-failure.sha256"), baselinePath, baselineSha256: baselineHash }), /OUTPUT_EXISTS/);
+
+for (const [name, options, error] of [
+  ["relative-failure", { failureOutputPath: "relative.json", failureShaOutputPath: path.join(temporary, "relative.sha256") }, /ABSOLUTE/],
+  ["inside-worktree", { failureOutputPath: path.join(process.cwd(), "failure.json"), failureShaOutputPath: path.join(temporary, "outside.sha256") }, /INSIDE_WORKTREE/],
+  ["missing-failure-sha", { failureOutputPath: path.join(temporary, "missing-sha.json") }, /PAIR_REQUIRED/],
+  ["only-failure-sha", { failureShaOutputPath: path.join(temporary, "only-sha.sha256") }, /PAIR_REQUIRED/],
+  ["path-collision", { failureOutputPath: path.join(temporary, "collision.json"), failureShaOutputPath: path.join(temporary, "collision.json") }, /EXTENSION|COLLISION/],
+  ["success-failure-collision", { failureOutputPath: path.join(temporary, "same.json"), failureShaOutputPath: path.join(temporary, "same.sha256") }, /OUTPUT_PATH_COLLISION/],
+  ["bad-extension", { failureOutputPath: path.join(temporary, "bad.txt"), failureShaOutputPath: path.join(temporary, "bad.sha256") }, /EXTENSION/],
+]) {
+  const successPath = name === "success-failure-collision" ? path.join(temporary, "same.json") : path.join(temporary, `${name}-success.json`);
+  await assert.rejects(() => persistRecoveryPacket({ connectorResponse: connector, outputPath: successPath, baselinePath, baselineSha256: baselineHash, ...options }), error, name);
+}
+const directoryFailurePath = path.join(temporary, "directory-failure.json");
+await mkdir(directoryFailurePath);
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: connector, outputPath: path.join(temporary, "directory-success.json"), failureOutputPath: directoryFailurePath, failureShaOutputPath: path.join(temporary, "directory-failure.sha256"), baselinePath, baselineSha256: baselineHash }), /IS_DIRECTORY/);
+const malformedCli = spawnSync(process.execPath, ["scripts/capture-operational-guardrails-r6-compact-recovery.mjs", "--output", cliOutput, "raw-response-not-stdin"], { cwd: process.cwd(), encoding: "utf8", input: JSON.stringify(connector) });
+assert.notEqual(malformedCli.status, 0);
+assert.doesNotMatch(`${malformedCli.stdout}\n${malformedCli.stderr}`, /raw-response-not-stdin|target_metadata_fingerprint/);
 
 for (const [name, packet, error] of [
   ["oversized", { ...exact, check_statuses_compact: exact.check_statuses_compact + "x".repeat(9000) }, /CHECK_STATUSES|TOO_LARGE/],
