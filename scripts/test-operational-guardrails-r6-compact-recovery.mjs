@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { persistRecoveryPacket } from "./capture-operational-guardrails-r6-compact-recovery.mjs";
@@ -58,6 +59,10 @@ assert.equal(persisted.classification, "COMMITTED_EXACTLY");
 assert.equal(parseRecoveryPacket(await readFile(outputPath, "utf8")).packet_version, exact.packet_version);
 const exactEnvelopeOutput = path.join(temporary, "exact-envelope.json");
 await persistRecoveryPacket({ connectorResponse: wrapRowsInExactEnvelope([exact]), outputPath: exactEnvelopeOutput, baselinePath, baselineSha256: baselineHash });
+const cliOutput = path.join(temporary, "cli.json");
+const cli = spawnSync(process.execPath, ["scripts/capture-operational-guardrails-r6-compact-recovery.mjs", cliOutput, baselinePath, baselineHash, Buffer.from(JSON.stringify(connector)).toString("base64url")], { cwd: process.cwd(), encoding: "utf8" });
+assert.equal(cli.status, 0, cli.stderr);
+assert.match(cli.stdout, /"classification":"COMMITTED_EXACTLY"/);
 
 for (const [name, packet, error] of [
   ["oversized", { ...exact, check_statuses_compact: exact.check_statuses_compact + "x".repeat(9000) }, /CHECK_STATUSES|TOO_LARGE/],
@@ -73,4 +78,4 @@ await assert.rejects(() => persistRecoveryPacket({ connectorResponse: { isError:
 const truncatedEnvelope = wrapRowsInExactEnvelope([exact]);
 truncatedEnvelope[0].text = truncatedEnvelope[0].text.slice(0, -12);
 await assert.rejects(() => persistRecoveryPacket({ connectorResponse: truncatedEnvelope, outputPath: path.join(temporary, "truncated-envelope.json"), baselinePath, baselineSha256: baselineHash }), /INVALID_CONNECTOR_JSON|WRAPPER/);
-console.log(JSON.stringify({ status: "PASS", exactCommitted: true, notCommitted: true, conflictingStates: 21, insufficientEvidenceStates: 3, semanticMatrixStates: 26, captureBudgetBytes: Buffer.byteLength(`${JSON.stringify(exact)}\n`), durableCapture: true, exactEnvelope: true }));
+console.log(JSON.stringify({ status: "PASS", exactCommitted: true, notCommitted: true, conflictingStates: 21, insufficientEvidenceStates: 3, semanticMatrixStates: 26, captureBudgetBytes: Buffer.byteLength(`${JSON.stringify(exact)}\n`), durableCapture: true, exactEnvelope: true, cliCapture: true }));

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { classifyRecovery, loadBaseline, parseRecoveryPacket } from "./validate-operational-guardrails-r6-compact-recovery.mjs";
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -63,5 +64,17 @@ export async function persistRecoveryPacket({ connectorResponse, outputPath, bas
   } catch (error) {
     await Promise.all(wrote.map((file) => rm(file, { force: true })));
     throw error;
+  }
+}
+
+const [outputPath, baselinePath, baselineSha256, encodedResponse] = process.argv.slice(2);
+if (process.argv[1] === fileURLToPath(import.meta.url) && outputPath && baselinePath && baselineSha256 && encodedResponse) {
+  try {
+    const connectorResponse = JSON.parse(Buffer.from(encodedResponse, "base64url").toString("utf8"));
+    const result = await persistRecoveryPacket({ connectorResponse, outputPath, baselinePath, baselineSha256 });
+    console.log(JSON.stringify({ status: "PASS", classification: result.classification, rowCount: 1, canonicalBytes: result.canonicalBytes, evidenceHash: result.evidenceHash }));
+  } catch (error) {
+    console.error(JSON.stringify({ status: "FAIL", classification: error.message }));
+    process.exitCode = 1;
   }
 }
