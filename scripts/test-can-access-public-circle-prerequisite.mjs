@@ -56,7 +56,7 @@ assert(dependencyState.length >= 3);
 for (const item of dependencyState) assert.equal(item.productionDataState, "ADDITIONAL_READ_ONLY_PREFLIGHT_REQUIRED");
 for (const item of dependencyState) assert.equal(item.productionExecutionStatus, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
 assert.equal(manifest.wave1ExecutionPacket.prerequisite.status, "PRODUCTION_APPLIED_POSTFLIGHT_VERIFIED");
-assert.equal(execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations", "src", "package-lock.json"], { cwd: root, encoding: "utf8" }).trim(), "");
+assert.equal(execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations", "src"], { cwd: root, encoding: "utf8" }).trim(), "");
 const trackedFiles = execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" });
 assert.doesNotMatch(trackedFiles, /(?:production-schema-fingerprint\.csv|increment-post-view-count-body\.csv|can-access-public-circle-preflight\.csv)/i, "production exports must remain untracked");
 

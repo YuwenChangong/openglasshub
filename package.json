@@ -9,6 +9,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
+    "test:astro-check-ratchet": "node scripts/test-astro-check-baseline-ratchet.mjs",
+    "test:astro-check-ratchet-unit": "node scripts/test-astro-check-baseline-ratchet-unit.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
     "test": "node --experimental-strip-types scripts/test-moderation.mjs",
     "test:reports": "node --experimental-strip-types scripts/test-reports.mjs",
@@ -88,5 +90,9 @@
   "overrides": {
     "vite": "6.4.3",
     "wrangler": "4.106.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.4",
+    "typescript": "5.7.3"
   }
 }

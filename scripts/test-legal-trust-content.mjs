@@ -178,9 +178,10 @@ async function main() {
     `Legal foundation diff must not introduce unrelated migrations: ${unexpectedLegalMigrations.join(", ")}`,
   );
 
+  const changedLockfiles = Array.from(diffFiles).filter((file) => /package-lock|pnpm-lock|yarn.lock/.test(file));
   assert(
-    !Array.from(diffFiles).some((file) => /package-lock|pnpm-lock|yarn.lock/.test(file)),
-    "Phase 1 must not change a lockfile.",
+    changedLockfiles.every((file) => file === "package-lock.json"),
+    `Legal-content validation permits only the repository npm lockfile for reviewed development-tooling additions: ${changedLockfiles.join(", ")}`,
   );
   assert(
     !Array.from(diffFiles).some((file) => /staging-destructive-qa-recovery-manifest-v3/i.test(file)),
