@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { PINNED_PSQL_IMAGE } from "./lib/docker-psql-file-transport.mjs";
 import { CONTRACTS, OUTPUT_COLUMNS, validateRows } from "./validate-operational-guardrails-r6-single-result.mjs";
 import { RECOVERY_COLUMNS, classifyRecovery, parseRecoveryPacket } from "./validate-operational-guardrails-r6-compact-recovery.mjs";
+import { decodeSealedRecoveryToken } from "./lib/operational-guardrails-r6-sealed-token.mjs";
 
 const root = process.cwd();
 const container = `openglass-r6-mirror-${process.pid}-${randomUUID().replaceAll("-", "")}`;
@@ -45,10 +46,11 @@ const compactPacket = (text) => {
   return Object.fromEntries(RECOVERY_COLUMNS.map((column, index) => [column, booleans.has(column) ? values[index] === "t" : ["blocking_count", "overload_count"].includes(column) ? Number(values[index]) : values[index]]));
 };
 
-const [preflight, postflight, recovery, proposal] = await Promise.all([
+const [preflight, postflight, recovery, sealedRecovery, proposal] = await Promise.all([
   readFile(`${root}/docs/ops/reconciliation/operational-guardrails-r6-production-preflight.sql`, "utf8"),
   readFile(`${root}/docs/ops/reconciliation/operational-guardrails-r6-production-postflight.sql`, "utf8"),
   readFile(`${root}/docs/ops/reconciliation/operational-guardrails-r6-production-postflight-recovery.sql`, "utf8"),
+  readFile(`${root}/docs/ops/reconciliation/operational-guardrails-r6-production-postflight-recovery-sealed.sql`, "utf8"),
   readFile(`${root}/docs/ops/reconciliation/operational-guardrails-rate-limit-r2-unexecuted-proposal.sql`, "utf8"),
 ]);
 
@@ -91,7 +93,13 @@ try {
   const recoveryPacket = parseRecoveryPacket(compactPacket(psql(recovery)));
   const baseline = new Map(preflightRows.map((row) => [row.check_id, row.actual_value_redacted]));
   assert.equal(classifyRecovery(recoveryPacket, baseline), "COMMITTED_EXACTLY");
-  console.log(JSON.stringify({ status: "PASS", mode: "LOCAL_DOCKER_ONLY", preflightChecks: preflightRows.length, postflightChecks: postflightRows.length, compactRecoveryBytes: Buffer.byteLength(`${JSON.stringify(recoveryPacket)}\n`), productionOperations: 0 }));
+  const sealedRows = psql(sealedRecovery).trim().split(/\r?\n/).filter(Boolean);
+  assert.equal(sealedRows.length, 1, "sealed recovery returns exactly one row");
+  const sealed = decodeSealedRecoveryToken(sealedRows[0]);
+  const sealedPacket = parseRecoveryPacket(sealed.payloadText);
+  assert.deepEqual(sealedPacket, recoveryPacket, "sealed payload is the compact recovery packet");
+  assert.equal(classifyRecovery(sealedPacket, baseline), "COMMITTED_EXACTLY");
+  console.log(JSON.stringify({ status: "PASS", mode: "LOCAL_DOCKER_ONLY", preflightChecks: preflightRows.length, postflightChecks: postflightRows.length, compactRecoveryBytes: Buffer.byteLength(`${JSON.stringify(recoveryPacket)}\n`), sealedPayloadBytes: sealed.declaredLength, productionOperations: 0 }));
 } finally {
   if (started) spawnSync("docker", ["rm", "-f", container], { encoding: "utf8" });
 }
