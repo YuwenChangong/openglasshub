@@ -116,7 +116,6 @@ async function main() {
   const privacyPage = await read("src/pages/privacy/index.astro");
   const accountDeletionPage = await read("src/pages/account-deletion/index.astro");
   const safetyPage = await read("src/pages/safety/index.astro");
-  const contactPage = await read("src/pages/contact/index.astro");
   const legalConsentPage = await read("src/pages/legal-consent/index.astro");
 
   assert(termsPage.includes("用户保留其提交内容的权利"), "Terms must preserve user ownership in Chinese.");
@@ -131,7 +130,7 @@ async function main() {
   assert(safetyPage.includes("not an emergency service"), "Safety page must retain the emergency-service limitation.");
 
   for (const contactLabel of ["支持", "滥用与安全", "隐私请求", "知识产权投诉", "Support", "Abuse and safety", "Privacy requests", "Intellectual property complaints"]) {
-    assert(contactPage.includes(contactLabel), `Contact page must include ${contactLabel}.`);
+    assert(legalPageComponent.includes(contactLabel), `Shared legal contact surface must include ${contactLabel}.`);
   }
 
   assert(legalConsentPage.includes("LegalConsentPage"), "Legal consent page must mount the authenticated consent surface.");
@@ -179,9 +178,10 @@ async function main() {
     `Legal foundation diff must not introduce unrelated migrations: ${unexpectedLegalMigrations.join(", ")}`,
   );
 
+  const changedLockfiles = Array.from(diffFiles).filter((file) => /package-lock|pnpm-lock|yarn.lock/.test(file));
   assert(
-    !Array.from(diffFiles).some((file) => /package-lock|pnpm-lock|yarn.lock/.test(file)),
-    "Phase 1 must not change a lockfile.",
+    changedLockfiles.every((file) => file === "package-lock.json"),
+    `Legal-content validation permits only the repository npm lockfile for reviewed development-tooling additions: ${changedLockfiles.join(", ")}`,
   );
   assert(
     !Array.from(diffFiles).some((file) => /staging-destructive-qa-recovery-manifest-v3/i.test(file)),

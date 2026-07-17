@@ -9,6 +9,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
+    "test:astro-check-ratchet": "node scripts/test-astro-check-baseline-ratchet.mjs",
+    "test:astro-check-ratchet-unit": "node scripts/test-astro-check-baseline-ratchet-unit.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
     "test": "node --experimental-strip-types scripts/test-moderation.mjs",
     "test:reports": "node --experimental-strip-types scripts/test-reports.mjs",
@@ -37,6 +39,7 @@
     "test:legal-consent-phase4b-wave3": "node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs",
     "test:legal-consent-phase4b-wave4": "node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs",
     "test:legal-consent-predeployment-readiness": "node scripts/test-legal-consent-predeployment-readiness.mjs",
+    "test:legal-public-rendering": "node --experimental-strip-types scripts/test-legal-public-rendering.mjs",
     "test:local-supabase-replay-mirror": "node scripts/test-local-supabase-replay-mirror.mjs",
     "generate:production-schema-fingerprint": "node scripts/generate-local-production-schema-fingerprint.mjs",
     "test:production-schema-fingerprint": "node scripts/test-production-schema-fingerprint.mjs",
@@ -87,5 +90,9 @@
   "overrides": {
     "vite": "6.4.3",
     "wrangler": "4.106.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.4",
+    "typescript": "5.7.3"
   }
 }

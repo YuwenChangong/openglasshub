@@ -85,10 +85,13 @@ for (const route of [
 }
 
 const legalPolicy = await readFile(path.join(root, "src/lib/legal-policy.ts"), "utf8");
-for (const name of ["PUBLIC_LEGAL_OPERATOR_NAME", "PUBLIC_SUPPORT_EMAIL", "PUBLIC_ABUSE_EMAIL", "PUBLIC_PRIVACY_EMAIL", "PUBLIC_IP_EMAIL"]) assert(legalPolicy.includes(name), `${name} is a public launch prerequisite.`);
+const publicLegalContacts = await readFile(path.join(root, "src/lib/public-legal-contacts.ts"), "utf8");
+for (const name of ["PUBLIC_LEGAL_OPERATOR_NAME", "PUBLIC_SUPPORT_EMAIL", "PUBLIC_ABUSE_EMAIL", "PUBLIC_PRIVACY_EMAIL", "PUBLIC_IP_EMAIL"]) assert(publicLegalContacts.includes(name), `${name} is a public launch prerequisite.`);
 assert(legalPolicy.includes('bundleVersion: "2026-07"'), "The active legal bundle must remain server-defined.");
 const contactPage = await readFile(path.join(root, "src/pages/contact/index.astro"), "utf8");
-assert(contactPage.includes("pending configuration") && contactPage.includes("待配置"), "Missing legal contacts must remain explicit and non-fabricated.");
+assert(contactPage.includes("showPublicContacts={true}"), "Contact page must render the validated public legal contact surface.");
+const legalContacts = await readFile(path.join(root, "src/lib/public-legal-contacts.ts"), "utf8");
+assert(legalContacts.includes("validatePublicLegalContacts"), "Public legal contacts must be validated before rendering.");
 
 assert.equal(PHASE4A2_STATUS.integratedRepresentativeCount, 5);
 assert.equal(PHASE4A2_STATUS.pendingRepresentativeCount, 0);

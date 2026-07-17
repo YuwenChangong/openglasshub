@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
-export function sha256Hex(text) {
-  return createHash("sha256").update(text, "utf8").digest("hex");
+export function sha256Hex(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 function requirePattern(text, pattern, finding) {

@@ -37,7 +37,7 @@ Chinese and English parity is required for every public legal page in this phase
 
 ## Public contact configuration
 
-Public operator and contact configuration is read from public environment variables, not secrets:
+Public operator and contact configuration is stored in the narrow, checked-in `src/lib/public-legal-contacts.ts` module so static legal pages contain the reviewed public values in the deployed artifact. `wrangler.toml` production values remain an exact consistency contract for runtime consumers; neither source contains secrets:
 
 - `PUBLIC_LEGAL_OPERATOR_NAME`
 - `PUBLIC_SUPPORT_EMAIL`

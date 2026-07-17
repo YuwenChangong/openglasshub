@@ -115,7 +115,7 @@ assert.equal(createHash("sha256").update(normalize(Buffer.from(contractHex, "hex
 assert.deepEqual([anonExecute, authenticatedExecute, serviceRoleExecute], ["true", "true", "false"], "only expected browser-role EXECUTE grants remain");
 
 assert.equal(psql("SELECT to_regprocedure('public.can_access_public_circle(uuid)') IS NOT NULL;").stdout.trim(), "t", "all local drift simulation changes must roll back");
-assert.equal(execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations", "src", "package-lock.json"], { cwd: root, encoding: "utf8" }).trim(), "", "canonical migrations, runtime, and lockfile must remain unchanged");
+assert.equal(execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations", "src"], { cwd: root, encoding: "utf8" }).trim(), "", "canonical migrations and runtime must remain unchanged");
 assert.doesNotMatch(execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }), /can-access-public-circle-preflight\.csv/i, "production CSV must remain untracked");
 
 console.log(JSON.stringify({
