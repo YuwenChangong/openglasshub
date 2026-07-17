@@ -81,6 +81,13 @@ rejection. Its output is a safe status/classification summary, never connector
 content. The base64url argument is transport-only and must not be logged or
 retained after capture.
 
+Connector envelope structure capture uses the separate Node-only bridge at
+`scripts/capture-operational-guardrails-r6-envelope-structure.mjs`. That bridge
+accepts only one UTF-8 JSON payload on stdin or one in-process object handoff,
+never raw connector JSON on argv, never PowerShell interpolation, and never
+browser globals such as `btoa` or `atob`. It writes only a safe status summary
+and passes the response directly to the value-blind structure recorder.
+
 Only `FUNCTION_ABSENT_SAFE_TO_CREATE` permits the unexecuted R2 proposal through
 the execution wrapper. `EXACT_FUNCTION_ALREADY_PRESENT` skips creation and runs
 R6-6; `CONFLICTING_FUNCTION_PRESENT` and `INSUFFICIENT_EVIDENCE` stop. The

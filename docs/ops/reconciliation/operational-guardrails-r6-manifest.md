@@ -12,6 +12,8 @@
 | R6 single-result validator | `scripts/validate-operational-guardrails-r6-single-result.mjs` |
 | R6 connector emulation | `scripts/test-operational-guardrails-r6-single-result-packets.mjs` |
 | R6 schema-aware capture | `scripts/capture-operational-guardrails-r6-single-result.mjs` and `scripts/test-operational-guardrails-r6-schema-aware-capture.mjs` |
+| R6 envelope structure recorder | `scripts/record-operational-guardrails-r6-envelope-structure.mjs` and `scripts/test-operational-guardrails-r6-envelope-structure.mjs` |
+| R6 envelope bridge | `scripts/capture-operational-guardrails-r6-envelope-structure.mjs` and `scripts/test-operational-guardrails-r6-envelope-bridge.mjs` |
 | R7 Stage C | `operational-guardrails-r7-stage-c-{preflight,policy-cleanup,postflight,rollback}.sql` |
 
 This manifest contains no secret values, cloud target identifiers, or exported
@@ -29,3 +31,14 @@ anything is written. The capture helper preserves catalog role labels such as
 `service_role`, but rejects credential-shaped content, writes a canonical JSON
 packet and SHA-256 sidecar atomically outside Git, then reopens and revalidates
 the saved evidence. A rejected capture produces only safe error metadata.
+
+Before an envelope-specific adapter is accepted, the separately approved
+constant-only connector probe records only the response shape: keys, JSON types,
+array/string lengths, candidate paths, and the fixed probe marker location. It
+never records ordinary scalar values or a raw connector envelope. The structural
+record is written atomically outside Git with its own SHA-256 sidecar.
+
+The envelope bridge is Node-only. It accepts a connector response either as an
+in-process object or one UTF-8 JSON payload on stdin, invokes the recorder once,
+prints only a safe status summary, and rejects browser globals such as `btoa`
+or `atob`, extra argv payloads, malformed UTF-8, and credential-like content.
