@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, writeFile, access } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createSealedRecoveryToken, decodeSealedRecoveryToken, SEALED_PAYLOAD_MAX_BYTES } from "./lib/operational-guardrails-r6-sealed-token.mjs";
+import { createCompactSealedRecoveryPayload, createSealedRecoveryToken, decodeSealedRecoveryToken, SEALED_PAYLOAD_MAX_BYTES } from "./lib/operational-guardrails-r6-sealed-token.mjs";
 import { persistSealedRecoveryToken } from "./persist-operational-guardrails-r6-sealed-recovery-token.mjs";
 import { verifySealedRecoveryToken } from "./verify-operational-guardrails-r6-sealed-recovery-token.mjs";
 import { baselineRows, createRecoveryPacket, withFailedChecks } from "../tests/fixtures/operational-guardrails-r6-compact-recovery.mjs";
@@ -42,12 +42,8 @@ invalid("length-mismatch", token.replace(/^R6SEALED1\.\d+\./, "R6SEALED1.1."), "
 invalid("oversized", createSealedRecoveryToken(JSON.stringify(packet)).replace(/^R6SEALED1\.\d+\./, `R6SEALED1.${SEALED_PAYLOAD_MAX_BYTES + 1}.`), "LENGTH");
 const unknownPacket = { ...packet, unknown: true };
 const unknownToken = createSealedRecoveryToken(JSON.stringify(unknownPacket));
-const unknownRoot = await mkdtemp(path.join(os.tmpdir(), "openglass r6 sealed unknown "));
-const unknownTokenPath = path.join(unknownRoot, "token.txt");
-const unknownTokenSha = path.join(unknownRoot, "token.sha256");
-await persistSealedRecoveryToken({ token: unknownToken, outputPath: unknownTokenPath, shaOutputPath: unknownTokenSha });
-await assert.rejects(() => verifySealedRecoveryToken({ tokenPath: unknownTokenPath, tokenShaPath: unknownTokenSha, outputPath: path.join(unknownRoot, "evidence.json"), outputShaPath: path.join(unknownRoot, "evidence.sha256"), verificationPath: path.join(unknownRoot, "verification.json"), baselinePath, baselineSha256: baselineHash, approvedCommit: "5ab57dc7e597ffd16616108eb5ad60e58d966605" }), /PAYLOAD_SCHEMA/);
-const conflicting = withFailedChecks({ ...createRecoveryPacket({ target_state: "CONFLICTING" }), evidence_fingerprint: "" }, ["target_owner_postgres"]);
+assert.throws(() => decodeSealedRecoveryToken(unknownToken), /RECOVERY_PACKET_SCHEMA_MISMATCH/);
+const conflicting = withFailedChecks({ ...createRecoveryPacket({ target_state: "CONFLICTING", owner_postgres: false }), evidence_fingerprint: "" }, ["target_owner_postgres"]);
 assert.equal(decodeSealedRecoveryToken(createSealedRecoveryToken(JSON.stringify(conflicting))).payloadText, JSON.stringify(conflicting));
 
 const baseline = new Map(baselineRows);
@@ -82,7 +78,11 @@ const equivalenceCases = [
   ["contradictory-evidence", { ...createRecoveryPacket(), blocking_count: 1 }, "INSUFFICIENT_EVIDENCE"],
 ];
 for (const [name, value, expected, caseBaseline = baseline] of equivalenceCases) {
-  const decoded = decodeSealedRecoveryToken(createSealedRecoveryToken(JSON.stringify(value)));
-  assert.equal(classifyRecovery(decoded.payloadText, caseBaseline), expected, name);
+  if (name === "contradictory-evidence") {
+    assert.throws(() => decodeSealedRecoveryToken(createSealedRecoveryToken(JSON.stringify(value))), /RECOVERY_CHECK_STATUS_CONTRADICTION/, name);
+    continue;
+  }
+  const decoded = decodeSealedRecoveryToken(createSealedRecoveryToken(createCompactSealedRecoveryPayload(value)));
+  assert.equal(classifyRecovery(decoded.packet, caseBaseline), expected, name);
 }
 console.log(JSON.stringify({ status: "PASS", tokenOnlyPersistence: true, exactEvidence: true, negativeCases: 14, semanticEquivalenceStates: equivalenceCases.length, rawEnvelopePersisted: false }));

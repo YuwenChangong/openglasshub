@@ -172,14 +172,46 @@ table_privileges AS (
 ), packet_complete AS (
   SELECT p.*, md5(regexp_replace(row_to_json(p)::text, '[[:space:]]+', '', 'g')) AS evidence_fingerprint
   FROM packet p
-), payload AS (
-  SELECT row_to_json(packet_complete)::text AS payload_text FROM packet_complete
+), compact_payload AS (
+  SELECT regexp_replace(json_build_array(
+    'R6SEALED2',
+    CASE p.target_state WHEN 'ABSENT' THEN 'A' WHEN 'EXACT_CANDIDATE' THEN 'E' ELSE 'C' END,
+    p.overload_count,
+    concat(
+      CASE WHEN p.relation_present THEN '1' ELSE '0' END,
+      CASE WHEN p.signature_exact THEN '1' ELSE '0' END,
+      CASE WHEN p.return_identity THEN '1' ELSE '0' END,
+      CASE WHEN p.owner_postgres THEN '1' ELSE '0' END,
+      CASE WHEN p.security_definer THEN '1' ELSE '0' END,
+      CASE WHEN p.volatile THEN '1' ELSE '0' END,
+      CASE WHEN p.parallel_unsafe THEN '1' ELSE '0' END,
+      CASE WHEN p.non_leakproof THEN '1' ELSE '0' END,
+      CASE WHEN p.search_path_exact THEN '1' ELSE '0' END,
+      CASE WHEN p.lock_timeout_exact THEN '1' ELSE '0' END,
+      CASE WHEN p.statement_timeout_exact THEN '1' ELSE '0' END,
+      CASE WHEN p.public_execute THEN '1' ELSE '0' END,
+      CASE WHEN p.anon_execute THEN '1' ELSE '0' END,
+      CASE WHEN p.authenticated_execute THEN '1' ELSE '0' END,
+      CASE WHEN p.service_role_execute THEN '1' ELSE '0' END,
+      CASE WHEN p.index_ip_exact THEN '1' ELSE '0' END,
+      CASE WHEN p.index_user_exact THEN '1' ELSE '0' END,
+      CASE WHEN p.index_no_equivalent_conflict THEN '1' ELSE '0' END,
+      CASE WHEN p.resend_identity_exact THEN '1' ELSE '0' END,
+      CASE WHEN p.resend_acl_exact THEN '1' ELSE '0' END,
+      CASE WHEN p.target_resend_identity_separate THEN '1' ELSE '0' END
+    ),
+    p.target_metadata_fingerprint, p.target_acl_fingerprint,
+    p.index_inventory_fingerprint, p.policy_inventory_fingerprint,
+    p.table_privileges_fingerprint, p.resend_metadata_fingerprint,
+    p.resend_acl_fingerprint
+  )::text, '[[:space:]]+', '', 'g') AS payload_text
+  FROM packet_complete p
 ), sealed AS (
   SELECT payload_text,
     octet_length(convert_to(payload_text, 'UTF8')) AS payload_byte_length,
     encode(sha256(convert_to(payload_text, 'UTF8')), 'hex') AS payload_sha256_hex,
-    translate(encode(convert_to(payload_text, 'UTF8'), 'base64'), E'+/\n=', '-_') AS payload_base64url
-  FROM payload
+    translate(encode(convert_to(payload_text, 'UTF8'), 'base64'), E'+/\n\r=', '-_') AS payload_base64url
+  FROM compact_payload
 )
 SELECT 'R6SEALED1.' || payload_byte_length::text || '.' || payload_sha256_hex || '.' || payload_base64url AS sealed_token
 FROM sealed;

@@ -1,7 +1,8 @@
 # R6 Sealed Recovery
 
-Status: `R6N_REPOSITORY_READY`. Production dispatch remains limited to the one
-approved sealed query and must stop after local token verification.
+Status: `R6_SEALED_TOKEN_EXTRACTION_READY` (repository-only). The previous
+single sealed query returned no extractable token. R6O replaces its
+source-proven oversized payload before any future, separately approved query.
 
 The sealed recovery path exists because the Production connector exposes a
 result to the agent layer but has no byte-safe object-to-local-stdin bridge for
@@ -17,9 +18,11 @@ that one packet as one bounded ASCII token.
 | Reviewed full postflight | `e7082fe8e25dd13a454c3b8a41aff5ded2aba4e8f499bd2afe5999222feb857e` |
 | Reviewed R2 proposal | `10a1848e33097a9bb79e5cb1f1107a86bac6c724b352a13948665b90559011bb` |
 
-The new query is
+The original R6N query SHA-256 was
+`1cce650d890fe481a5c9d83033ab88ea189ee28168a6ff91df24513d2d65f819`.
+Its current R6O replacement is
 `operational-guardrails-r6-production-postflight-recovery-sealed.sql` with
-SHA-256 `1cce650d890fe481a5c9d83033ab88ea189ee28168a6ff91df24513d2d65f819`. It is
+SHA-256 `7062795128ba2bdff6d06cb5ead8492120f9b1a226005ebfc57c1fa007f46c28`. It is
 one read-only catalog statement with one `sealed_token` result column. It never
 reads application rows, auth-user rows, function bodies, credentials, or IP
 hashes. PostgreSQL core `sha256(bytea)` is proven by the repository-supported
@@ -31,12 +34,12 @@ Only this exact token is transferable from a future approved connector result:
 
 `R6SEALED1.<payload_byte_length>.<payload_sha256_hex>.<payload_base64url>`
 
-The canonical JSON payload is the exact existing compact recovery packet. It is
-limited to 4,096 UTF-8 bytes; the ASCII token is limited to 6,144 bytes. The
-server supplies the byte length and SHA-256. The local verifier checks the
-strict single-token format, canonical base64url encoding, decoded byte length,
-SHA-256, UTF-8, exact compact-packet schema, evidence fingerprint, and the
-operator-held R6-2 baseline before it writes evidence.
+The payload is a fixed-order `R6SEALED2` JSON array: target state, overload
+count, all 21 required boolean facts as a fixed bit field, and all seven
+required fingerprints. The verifier reconstructs and validates the exact
+existing compact-packet schema, including derived failed-check IDs and evidence
+fingerprint, before classification. No catalog check is removed. The payload is
+limited to 4,096 UTF-8 bytes; the ASCII token is limited to 6,144 bytes.
 
 The agent may persist only the exact token through
 `persist-operational-guardrails-r6-sealed-recovery-token.mjs`. It must never
@@ -63,9 +66,30 @@ The disposable Docker mirror runs full postflight, compact recovery, and sealed
 recovery on one catalog state and proves their packets and classifications are
 identical. The token test suite covers 26 catalog-decision states and rejects
 format, length, digest, encoding, JSON, schema, baseline, and contradiction
-failures.
+failures. The exact local PostgreSQL scalar is `text`, 463 ASCII bytes with a
+288-byte payload and no CR, LF, whitespace, or base64 padding; the file-based
+verifier accepts that database-produced scalar. The historic redacted response
+was 1,067 characters, so it could not have contained the former multi-kilobyte
+token. The source-proven extraction classification is
+`SEALED_TOKEN_SIZE_BUDGET_DEFECT`; this does not prove whether the historic SQL
+statement otherwise succeeded.
 
 No Production query is permitted until this repository checkpoint is committed,
 pushed, and separately authorized. A sealed `NOT_COMMITTED` result never
 authorizes replaying R6-5. Any token extraction or verification failure is a
 mandatory stop with no supplementary query.
+
+## Wrapper and diagnostics contract
+
+`scripts/lib/operational-guardrails-r6-sealed-extraction.mjs` accepts only an
+exact standalone scalar, `{ "sealed_token": ... }`, a one-row
+`sealed_token` result array, the recorded connector `content` text wrapper, or
+its exact fenced JSON form. It rejects discovery through arbitrary nested
+objects. Its value-blind diagnostics record response type and size, line shape,
+prefix and token-like counts, JSON parseability, the supported wrapper type,
+error state, and probable truncation. They never retain a connector response,
+excerpt, token, payload, credential, or business value.
+
+No Production or cloud action is authorized by this repository checkpoint. The
+next possible approval is
+`APPROVE_R6P_ONE_SEALED_READ_ONLY_RECOVERY_EXECUTION_WITH_PROVEN_TOKEN_CONTRACT`.

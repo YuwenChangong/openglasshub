@@ -40,10 +40,10 @@ export async function verifySealedRecoveryToken({ tokenPath, tokenShaPath, outpu
   if (new Set([evidenceFile.toLowerCase(), evidenceShaFile.toLowerCase(), metadataFile.toLowerCase(), tokenFile.toLowerCase(), tokenShaFile.toLowerCase()]).size !== 5) throw safeError("R6_SEALED_EVIDENCE_OUTPUT_PATH_COLLISION");
   const [token, tokenSidecar] = await Promise.all([readFile(tokenFile, "utf8"), readFile(tokenShaFile, "utf8")]);
   if (tokenSidecar !== `${sha256(token)}  ${path.basename(tokenFile)}\n`) throw safeError("R6_SEALED_TOKEN_FILE_SHA_MISMATCH");
-  const sealed = decodeSealedRecoveryToken(token);
+  let sealed;
+  try { sealed = decodeSealedRecoveryToken(token); } catch { throw safeError("R6_SEALED_PAYLOAD_SCHEMA_INVALID"); }
   let packet;
-  try { packet = parseRecoveryPacket(sealed.payloadText); } catch { throw safeError("R6_SEALED_PAYLOAD_SCHEMA_INVALID"); }
-  if (`${JSON.stringify(packet)}` !== sealed.payloadText) throw safeError("R6_SEALED_PAYLOAD_NONCANONICAL");
+  try { packet = parseRecoveryPacket(sealed.packet); } catch { throw safeError("R6_SEALED_PAYLOAD_SCHEMA_INVALID"); }
   const baseline = await loadBaseline(baselinePath, baselineSha256);
   const classification = classifyRecovery(packet, baseline);
   const evidence = `${JSON.stringify(packet)}\n`;

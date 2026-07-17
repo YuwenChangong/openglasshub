@@ -160,6 +160,15 @@ atomic value-blind pre-parse failure evidence, and deterministic synthetic
 tests. No Production or cloud action occurred. The next action needs fresh
 approval: `APPROVE_R6M_ONE_COMPACT_READ_ONLY_RECOVERY_EXECUTION_WITH_HARDENED_TRANSPORT`.
 
+R6N submitted exactly one distinct sealed read-only recovery query after its
+repository checkpoint. The redacted result had zero exact tokens and was only
+1,067 characters long; no raw connector envelope was retained. R6O proves the
+former database-produced token was too large for that observed transfer budget.
+It replaces only the sealed payload serialization with a fixed-order compact
+array, reconstructs the complete packet locally, and pins strict known-wrapper
+extraction with value-blind diagnostics. No Production or cloud action occurs
+in R6O. A future query requires the separate R6P approval.
+
 Runtime deployment is blocked until binding and SQL postflight pass. It must
 deploy the approved merge commit only, confirm target/ref equality with SQL,
 and prove no direct `forum_upload_attempts` runtime access or client

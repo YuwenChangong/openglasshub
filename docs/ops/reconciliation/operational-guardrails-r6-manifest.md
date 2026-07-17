@@ -16,7 +16,7 @@
 | R6 envelope structure recorder | `scripts/record-operational-guardrails-r6-envelope-structure.mjs` and `scripts/test-operational-guardrails-r6-envelope-structure.mjs` |
 | R6 envelope bridge | `scripts/capture-operational-guardrails-r6-envelope-structure.mjs` and `scripts/test-operational-guardrails-r6-envelope-bridge.mjs` |
 | R6 compact stdin transport | `scripts/run-operational-guardrails-r6-compact-recovery-transport.mjs` and `scripts/test-operational-guardrails-r6-compact-recovery-transport.mjs` |
-| R6 sealed recovery | `operational-guardrails-r6-production-postflight-recovery-sealed.sql`, `scripts/verify-operational-guardrails-r6-sealed-recovery-token.mjs`, and `scripts/test-operational-guardrails-r6-sealed-recovery.mjs` |
+| R6 sealed recovery | `operational-guardrails-r6-production-postflight-recovery-sealed.sql` SHA-256 `7062795128ba2bdff6d06cb5ead8492120f9b1a226005ebfc57c1fa007f46c28`, `scripts/lib/operational-guardrails-r6-sealed-extraction.mjs`, `scripts/verify-operational-guardrails-r6-sealed-recovery-token.mjs`, and exact-PostgreSQL/local wrapper tests |
 | R6 exact envelope fixture | `tests/fixtures/operational-guardrails-r6-exact-envelope.mjs` |
 | R7 Stage C | `operational-guardrails-r7-stage-c-{preflight,policy-cleanup,postflight,rollback}.sql` |
 

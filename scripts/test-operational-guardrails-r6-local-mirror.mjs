@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import os from "node:os";
+import path from "node:path";
 import { PINNED_PSQL_IMAGE } from "./lib/docker-psql-file-transport.mjs";
 import { CONTRACTS, OUTPUT_COLUMNS, validateRows } from "./validate-operational-guardrails-r6-single-result.mjs";
 import { RECOVERY_COLUMNS, classifyRecovery, parseRecoveryPacket } from "./validate-operational-guardrails-r6-compact-recovery.mjs";
 import { decodeSealedRecoveryToken } from "./lib/operational-guardrails-r6-sealed-token.mjs";
+import { persistSealedRecoveryToken } from "./persist-operational-guardrails-r6-sealed-recovery-token.mjs";
+import { verifySealedRecoveryToken } from "./verify-operational-guardrails-r6-sealed-recovery-token.mjs";
 
 const root = process.cwd();
 const container = `openglass-r6-mirror-${process.pid}-${randomUUID().replaceAll("-", "")}`;
@@ -55,6 +59,7 @@ const [preflight, postflight, recovery, sealedRecovery, proposal] = await Promis
 ]);
 
 let started = false;
+let proofRoot;
 try {
   run(["run", "-d", "--name", container, "--network", "none", "--env", "POSTGRES_HOST_AUTH_METHOD=trust", "--tmpfs", "/var/lib/postgresql/data:rw,noexec,nosuid,size=128m", PINNED_PSQL_IMAGE]);
   started = true;
@@ -95,11 +100,32 @@ try {
   assert.equal(classifyRecovery(recoveryPacket, baseline), "COMMITTED_EXACTLY");
   const sealedRows = psql(sealedRecovery).trim().split(/\r?\n/).filter(Boolean);
   assert.equal(sealedRows.length, 1, "sealed recovery returns exactly one row");
-  const sealed = decodeSealedRecoveryToken(sealedRows[0]);
-  const sealedPacket = parseRecoveryPacket(sealed.payloadText);
+  const sealedToken = sealedRows[0];
+  assert.equal(Buffer.from(sealedToken, "ascii").toString("ascii"), sealedToken, "sealed scalar is ASCII-only");
+  assert.equal((sealedToken.match(/\./g) ?? []).length, 3, "sealed scalar has four segments");
+  assert.equal((sealedToken.match(/\r/g) ?? []).length, 0, "sealed scalar has no CR");
+  assert.equal((sealedToken.match(/\n/g) ?? []).length, 0, "sealed scalar has no LF");
+  assert.equal((sealedToken.match(/\s/g) ?? []).length, 0, "sealed scalar has no whitespace");
+  assert.equal((sealedToken.match(/=/g) ?? []).length, 0, "sealed scalar has no base64 padding");
+  assert.ok(Buffer.byteLength(sealedToken, "ascii") < 900, "sealed scalar fits beneath the proven connector response budget");
+  const scalarType = psql(`SELECT pg_typeof(sealed_token)::text FROM (${sealedRecovery.trim().replace(/;$/, "")}) sealed_result;`).trim();
+  assert.equal(scalarType, "text", "sealed scalar type is text");
+  const sealed = decodeSealedRecoveryToken(sealedToken);
+  assert.equal(sealed.declaredLength, sealed.payloadBytes.byteLength, "declared payload length matches decoded bytes");
+  const sealedPacket = parseRecoveryPacket(sealed.packet);
   assert.deepEqual(sealedPacket, recoveryPacket, "sealed payload is the compact recovery packet");
   assert.equal(classifyRecovery(sealedPacket, baseline), "COMMITTED_EXACTLY");
-  console.log(JSON.stringify({ status: "PASS", mode: "LOCAL_DOCKER_ONLY", preflightChecks: preflightRows.length, postflightChecks: postflightRows.length, compactRecoveryBytes: Buffer.byteLength(`${JSON.stringify(recoveryPacket)}\n`), sealedPayloadBytes: sealed.declaredLength, productionOperations: 0 }));
+  proofRoot = await mkdtemp(path.join(os.tmpdir(), "openglass-r6-sealed-pg-"));
+  const baselineText = `${JSON.stringify({ capture_version: "r6-schema-aware-capture-v1", kind: "preflight", rows: preflightRows })}\n`;
+  const baselinePath = path.join(proofRoot, "baseline.json");
+  const tokenPath = path.join(proofRoot, "token.txt");
+  const tokenShaPath = path.join(proofRoot, "token.sha256");
+  await writeFile(baselinePath, baselineText, "utf8");
+  await persistSealedRecoveryToken({ token: sealedToken, outputPath: tokenPath, shaOutputPath: tokenShaPath });
+  const verification = await verifySealedRecoveryToken({ tokenPath, tokenShaPath, outputPath: path.join(proofRoot, "evidence.json"), outputShaPath: path.join(proofRoot, "evidence.sha256"), verificationPath: path.join(proofRoot, "verification.json"), baselinePath, baselineSha256: createHash("sha256").update(baselineText).digest("hex"), approvedCommit: "a25d6e298375582674a730e3d589240c555a34f5" });
+  assert.equal(verification.classification, "COMMITTED_EXACTLY", "local verifier accepts the database-produced token");
+  console.log(JSON.stringify({ status: "PASS", mode: "LOCAL_DOCKER_ONLY", preflightChecks: preflightRows.length, postflightChecks: postflightRows.length, compactRecoveryBytes: Buffer.byteLength(`${JSON.stringify(recoveryPacket)}\n`), sealedTokenBytes: Buffer.byteLength(sealedToken, "ascii"), sealedPayloadBytes: sealed.declaredLength, scalarType, productionOperations: 0 }));
 } finally {
+  if (proofRoot) await rm(proofRoot, { recursive: true, force: true });
   if (started) spawnSync("docker", ["rm", "-f", container], { encoding: "utf8" });
 }
