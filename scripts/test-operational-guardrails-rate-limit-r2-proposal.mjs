@@ -17,7 +17,19 @@ const paths = {
   fingerprint: "docs/ops/reconciliation/operational-guardrails-rate-limit-r2-expected-fingerprint.md",
   runtime: "docs/ops/reconciliation/operational-guardrails-rate-limit-rpc-runtime-plan.md",
 };
-const source = Object.fromEntries(await Promise.all(Object.entries(paths).map(async ([key, file]) => [key, await readFile(file, "utf8")])));
+const proposalBytes = await readFile(paths.proposal);
+const source = Object.fromEntries(await Promise.all(Object.entries(paths).map(async ([key, file]) => [key, key === "proposal" ? proposalBytes.toString("utf8") : await readFile(file, "utf8")])));
+const approvedProposalSha256 = "10a1848e33097a9bb79e5cb1f1107a86bac6c724b352a13948665b90559011bb";
+
+assert.equal(sha256Hex(proposalBytes), approvedProposalSha256, "proposal must use the reviewed raw LF bytes");
+assert.equal(proposalBytes.includes(0x0d), false, "proposal must not contain CR bytes");
+assert.equal(proposalBytes.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf])), false, "proposal must not contain a UTF-8 BOM");
+assert.equal(proposalBytes.at(-1), 0x0a, "proposal must retain its reviewed final newline");
+assert.notEqual(sha256Hex(Buffer.concat([proposalBytes, Buffer.from(" ")])), approvedProposalSha256, "added whitespace must change the fingerprint");
+assert.notEqual(sha256Hex(proposalBytes.subarray(0, -1)), approvedProposalSha256, "removed final newline must change the fingerprint");
+assert.notEqual(sha256Hex(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), proposalBytes])), approvedProposalSha256, "BOM insertion must change the fingerprint");
+assert.notEqual(sha256Hex(Buffer.from(source.proposal.replace("UNEXECUTED", "UNEXECUTED "), "utf8")), approvedProposalSha256, "one-byte SQL mutation must change the fingerprint");
+assert.notEqual(sha256Hex(Buffer.from(source.proposal.replace(/\n/g, "\r\n"), "utf8")), approvedProposalSha256, "different newline bytes must change the fingerprint");
 
 assert.equal(r2Function.identity, "public.consume_forum_rate_limit(uuid, text, text, bigint)");
 assert.deepEqual(r2Function.arguments, [["p_user_id", "uuid"], ["p_ip_hash", "text"], ["p_purpose", "text"], ["p_bytes", "bigint"]]);
@@ -54,7 +66,7 @@ assert.match(source.manifest, /R3 passed only in a disposable local database/);
 assert.match(source.manifest, /no operator runner/);
 assert.match(source.review, /Stage C[\s\S]*BLOCKED_RUNTIME_MIGRATION_REQUIRED/s);
 assert.match(source.runtime, /4s maximum[\s\S]*no automatic (?:RPC )?retry/is);
-assert.match(source.fingerprint, new RegExp("SHA-256: `" + sha256Hex(source.proposal) + "`"));
+assert.match(source.fingerprint, new RegExp("SHA-256: `" + approvedProposalSha256 + "`"));
 
 const mutations = {
   "missing-public-revoke": (value) => value.replace("REVOKE ALL ON FUNCTION public.consume_forum_rate_limit(uuid, text, text, bigint) FROM PUBLIC;", ""),
@@ -89,4 +101,4 @@ const mutations = {
 assert.deepEqual(Object.keys(mutations), negativeFixtureNames);
 for (const [name, mutate] of Object.entries(mutations)) assert.throws(() => assertR2ProposalStaticContract(mutate(source.proposal)), undefined, name);
 
-console.log(JSON.stringify({ staticOnly: true, negativeFixtures: negativeFixtureNames.length, proposalSha256: sha256Hex(source.proposal), r3LocalSimulation: r2ExecutionStatus.r3LocalSimulation }));
+console.log(JSON.stringify({ staticOnly: true, negativeFixtures: negativeFixtureNames.length, proposalSha256: sha256Hex(proposalBytes), r3LocalSimulation: r2ExecutionStatus.r3LocalSimulation }));

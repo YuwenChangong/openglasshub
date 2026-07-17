@@ -1,6 +1,7 @@
 ---
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import { LEGAL_POLICY, LEGAL_POLICY_LINKS } from "../../lib/legal-policy";
+import { PUBLIC_LEGAL_CONTACTS } from "../../lib/public-legal-contacts";
 
 interface Props {
   pageTitle: string;
@@ -12,6 +13,7 @@ interface Props {
   zh: string;
   en: string;
   noindex?: boolean;
+  showPublicContacts?: boolean;
 }
 
 const {
@@ -24,6 +26,7 @@ const {
   zh,
   en,
   noindex = false,
+  showPublicContacts = false,
 } = Astro.props;
 ---
 <CommunityLayout
@@ -52,6 +55,28 @@ const {
       <a href="#legal-zh">中文</a>
       <a href="#legal-en" lang="en">English</a>
     </nav>
+    {
+      showPublicContacts && (
+        <aside class="legal-page__contacts" aria-label="Public legal contacts">
+          <h2>公开联系渠道</h2>
+          <ul lang="zh-CN">
+            <li><strong>运营方：</strong>{PUBLIC_LEGAL_CONTACTS.operator}</li>
+            <li><strong>支持：</strong><a href={`mailto:${PUBLIC_LEGAL_CONTACTS.support}`}>{PUBLIC_LEGAL_CONTACTS.support}</a></li>
+            <li><strong>滥用与安全：</strong><a href={`mailto:${PUBLIC_LEGAL_CONTACTS.abuse}`}>{PUBLIC_LEGAL_CONTACTS.abuse}</a></li>
+            <li><strong>隐私请求：</strong><a href={`mailto:${PUBLIC_LEGAL_CONTACTS.privacy}`}>{PUBLIC_LEGAL_CONTACTS.privacy}</a></li>
+            <li><strong>知识产权投诉：</strong><a href={`mailto:${PUBLIC_LEGAL_CONTACTS.intellectualProperty}`}>{PUBLIC_LEGAL_CONTACTS.intellectualProperty}</a></li>
+          </ul>
+          <h2 lang="en">Public contacts</h2>
+          <ul lang="en">
+            <li><strong>Operator:</strong> {PUBLIC_LEGAL_CONTACTS.operator}</li>
+            <li><strong>Support:</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.support}`}>{PUBLIC_LEGAL_CONTACTS.support}</a></li>
+            <li><strong>Abuse and safety:</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.abuse}`}>{PUBLIC_LEGAL_CONTACTS.abuse}</a></li>
+            <li><strong>Privacy requests:</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.privacy}`}>{PUBLIC_LEGAL_CONTACTS.privacy}</a></li>
+            <li><strong>Intellectual property complaints:</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.intellectualProperty}`}>{PUBLIC_LEGAL_CONTACTS.intellectualProperty}</a></li>
+          </ul>
+        </aside>
+      )
+    }
     <section id="legal-zh" class="legal-page__section" lang="zh-CN" aria-labelledby="legal-heading-zh">
       <h1 id="legal-heading-zh">{headingZh}</h1>
       <Fragment set:html={zh} />
@@ -103,6 +128,27 @@ const {
     margin: 0;
     color: var(--text-muted);
     font-size: 0.9rem;
+  }
+
+  .legal-page__contacts {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border: 1px solid rgba(156, 194, 231, 0.16);
+    background: rgba(9, 18, 30, 0.3);
+  }
+
+  .legal-page__contacts h2 {
+    margin: 0 0 0.65rem;
+    font-size: 1rem;
+  }
+
+  .legal-page__contacts ul {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+
+  .legal-page__contacts h2 + ul + h2 {
+    margin-top: 1rem;
   }
 
   .legal-page__section + .legal-page__section {

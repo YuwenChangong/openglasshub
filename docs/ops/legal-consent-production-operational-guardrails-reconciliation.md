@@ -375,6 +375,10 @@ query, or production mutation occurred.
 `scripts/lib/reviewed-sql-transport.mjs` now reads only the exact reviewed file
 as bytes and requires its SHA-256 to equal
 `d96e76f9dd3655c03a64dc5d535087fc63f99370b13b246f6529caaf121cd074`.
+The reviewed supplemental preflight is an immutable 8,674-byte raw UTF-8
+artifact: LF-only, no BOM, and one final LF. Its exact-path `.gitattributes`
+rule and transport test reject CRLF checkout conversion, whitespace, BOM, and
+final-newline mutations before any operator transport can read the packet.
 It rejects a byte-count mismatch, prefix/suffix difference, invalid UTF-8,
 `Exit code:`, markdown fences, tool annotations, prompts, and shell diagnostics
 before a client can receive a payload. It also confirms the first meaningful

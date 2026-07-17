@@ -1,3 +1,9 @@
+import {
+  PUBLIC_LEGAL_CONTACT_ENV,
+  PUBLIC_LEGAL_CONTACTS,
+  type PublicLegalContactKey,
+} from "./public-legal-contacts.ts";
+
 export const LEGAL_POLICY = {
   platformName: "OpenGlass Hub",
   minimumAge: 16,
@@ -19,15 +25,8 @@ export const LEGAL_POLICY = {
 } as const;
 
 export type LegalRouteKey = keyof typeof LEGAL_POLICY.routes;
-export type PublicLegalContactKey = "operator" | "support" | "abuse" | "privacy" | "intellectualProperty";
-
-export const PUBLIC_LEGAL_CONTACT_ENV = {
-  operator: "PUBLIC_LEGAL_OPERATOR_NAME",
-  support: "PUBLIC_SUPPORT_EMAIL",
-  abuse: "PUBLIC_ABUSE_EMAIL",
-  privacy: "PUBLIC_PRIVACY_EMAIL",
-  intellectualProperty: "PUBLIC_IP_EMAIL",
-} as const;
+export { PUBLIC_LEGAL_CONTACT_ENV };
+export type { PublicLegalContactKey };
 
 export const LEGAL_POLICY_LINKS = [
   { key: "terms", href: LEGAL_POLICY.routes.terms, labelZh: "服务条款", labelEn: "Terms" },
@@ -50,21 +49,8 @@ export function getLegalPolicyVersion(routeKey: LegalRouteKey): string {
   return LEGAL_POLICY.bundleVersion;
 }
 
-function readPublicValue(value: string | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
 export function getPublicLegalContacts() {
-  const env = ((import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {});
-
-  return {
-    operator: readPublicValue(env.PUBLIC_LEGAL_OPERATOR_NAME),
-    support: readPublicValue(env.PUBLIC_SUPPORT_EMAIL),
-    abuse: readPublicValue(env.PUBLIC_ABUSE_EMAIL),
-    privacy: readPublicValue(env.PUBLIC_PRIVACY_EMAIL),
-    intellectualProperty: readPublicValue(env.PUBLIC_IP_EMAIL),
-  } as const;
+  return PUBLIC_LEGAL_CONTACTS;
 }
 
 export function getMissingPublicLegalContactKeys(): PublicLegalContactKey[] {

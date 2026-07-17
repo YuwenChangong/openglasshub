@@ -5,6 +5,11 @@ file, not evidence of any local, Preview, or Production database object.
 
 - Proposal: `operational-guardrails-rate-limit-r2-unexecuted-proposal.sql`
 - SHA-256: `10a1848e33097a9bb79e5cb1f1107a86bac6c724b352a13948665b90559011bb`
+- Canonical bytes: exact Git blob / raw UTF-8 file bytes, 6033 bytes, LF-only,
+  no UTF-8 BOM, and one final LF. The narrow `.gitattributes` contract keeps
+  this reviewed artifact LF on every supported checkout; the static test hashes
+  raw bytes and rejects CRLF conversion, whitespace, BOM insertion, or a
+  missing final newline.
 - Identity: `public.consume_forum_rate_limit(uuid, text, text, bigint)`
 - Return: `TABLE(allowed boolean, decision text)` with only `ALLOWED` and
   `RATE_LIMITED`
