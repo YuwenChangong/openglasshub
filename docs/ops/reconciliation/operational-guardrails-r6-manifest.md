@@ -74,3 +74,9 @@ the SHA-bound operator-held R6-2 baseline. It can classify only
 authorizes a replay. Capture writes the canonical one-row packet, SHA sidecar,
 and safe structure record atomically outside Git, or writes only safe failure
 metadata.
+
+The historical compact recovery rejection has only a row-count code and no
+value-blind shape record. Its exact connector form is therefore unproven.
+R6I adds SHA-bound structural diagnostics for future rejection but does not
+normalize direct row objects or change any reviewed SQL. See
+`operational-guardrails-r6-compact-recovery-capture.md`.

@@ -4,7 +4,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import { persistRecoveryPacket } from "./capture-operational-guardrails-r6-compact-recovery.mjs";
+import { describeRecoveryConnectorShape, persistRecoveryPacket } from "./capture-operational-guardrails-r6-compact-recovery.mjs";
 import { classifyRecovery, loadBaseline, parseRecoveryPacket } from "./validate-operational-guardrails-r6-compact-recovery.mjs";
 import { baselineMap, baselineRows, createRecoveryPacket, withFailedChecks } from "../tests/fixtures/operational-guardrails-r6-compact-recovery.mjs";
 import { wrapRowsInExactEnvelope } from "../tests/fixtures/operational-guardrails-r6-exact-envelope.mjs";
@@ -54,11 +54,13 @@ await writeFile(baselinePath, baselineDocument, "utf8");
 assert.equal((await loadBaseline(baselinePath, baselineHash)).get("index_inventory_fingerprint"), baselineMap().get("index_inventory_fingerprint"));
 const outputPath = path.join(temporary, "recovery.json");
 const connector = { isError: false, content: [{ type: "text", text: JSON.stringify([exact]) }] };
+assert.deepEqual(describeRecoveryConnectorShape(connector).candidate, { candidate_type: "array", candidate_count: 1, entry_types: ["object"], normalized_row_count: 1 });
 const persisted = await persistRecoveryPacket({ connectorResponse: connector, outputPath, baselinePath, baselineSha256: baselineHash });
 assert.equal(persisted.classification, "COMMITTED_EXACTLY");
 assert.equal(parseRecoveryPacket(await readFile(outputPath, "utf8")).packet_version, exact.packet_version);
 const exactEnvelopeOutput = path.join(temporary, "exact-envelope.json");
 await persistRecoveryPacket({ connectorResponse: wrapRowsInExactEnvelope([exact]), outputPath: exactEnvelopeOutput, baselinePath, baselineSha256: baselineHash });
+assert.equal(describeRecoveryConnectorShape(wrapRowsInExactEnvelope([exact])).fenced_wrapper_matched, true);
 const cliOutput = path.join(temporary, "cli.json");
 const cli = spawnSync(process.execPath, ["scripts/capture-operational-guardrails-r6-compact-recovery.mjs", cliOutput, baselinePath, baselineHash, Buffer.from(JSON.stringify(connector)).toString("base64url")], { cwd: process.cwd(), encoding: "utf8" });
 assert.equal(cli.status, 0, cli.stderr);
@@ -75,6 +77,29 @@ for (const [name, packet, error] of [
   await assert.rejects(() => readFile(target), /ENOENT/);
 }
 await assert.rejects(() => persistRecoveryPacket({ connectorResponse: { isError: false, content: [{ type: "text", text: JSON.stringify([exact, exact]) }] }, outputPath: path.join(temporary, "two-rows.json"), baselinePath, baselineSha256: baselineHash }), /ROW_COUNT/);
+const directObject = { isError: false, content: [{ type: "text", text: JSON.stringify(exact) }] };
+const directObjectPath = path.join(temporary, "direct-object.json");
+assert.equal(describeRecoveryConnectorShape(directObject).candidate?.candidate_type, "object");
+assert.equal(describeRecoveryConnectorShape(directObject).candidate?.exact_compact_schema, true);
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: directObject, outputPath: directObjectPath, baselinePath, baselineSha256: baselineHash }), /ROW_COUNT/);
+const directObjectDiagnostic = JSON.parse(await readFile(`${directObjectPath}.capture-error.json`, "utf8"));
+assert.equal(directObjectDiagnostic.stage, "packet-candidate-row-count");
+assert.equal(directObjectDiagnostic.structure.candidate.candidate_type, "object");
+assert.equal(directObjectDiagnostic.structure.candidate.normalized_row_count, null);
+assert.doesNotMatch(JSON.stringify(directObjectDiagnostic), /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|target_metadata_fingerprint/);
+assert.match(await readFile(`${directObjectPath}.capture-error.sha256`, "utf8"), /^[0-9a-f]{64}  direct-object\.json\.capture-error\.json\n$/);
+const multiContentPath = path.join(temporary, "multi-content.json");
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: { isError: false, content: [{ type: "text", text: JSON.stringify([exact]) }, { type: "text", text: JSON.stringify([exact]) }] }, outputPath: multiContentPath, baselinePath, baselineSha256: baselineHash }), /CONNECTOR_RESPONSE/);
+const nestedArrayPath = path.join(temporary, "nested-array.json");
+await assert.rejects(() => persistRecoveryPacket({ connectorResponse: { isError: false, content: [{ type: "text", text: JSON.stringify([[exact]]) }] }, outputPath: nestedArrayPath, baselinePath, baselineSha256: baselineHash }), /ROW_COUNT/);
+for (const [name, response] of [
+  ["metadata-object", { isError: false, content: [{ type: "text", text: JSON.stringify({ result: "metadata" }) }] }],
+  ["scalar-result", { isError: false, content: [{ type: "text", text: JSON.stringify("scalar") }] }],
+  ["null-result", { isError: false, content: [{ type: "text", text: "null" }] }],
+  ["error-wrapper", { isError: true, content: [] }],
+]) {
+  await assert.rejects(() => persistRecoveryPacket({ connectorResponse: response, outputPath: path.join(temporary, `${name}.json`), baselinePath, baselineSha256: baselineHash }), /ROW_COUNT|CONNECTOR_RESPONSE/);
+}
 const truncatedEnvelope = wrapRowsInExactEnvelope([exact]);
 truncatedEnvelope[0].text = truncatedEnvelope[0].text.slice(0, -12);
 await assert.rejects(() => persistRecoveryPacket({ connectorResponse: truncatedEnvelope, outputPath: path.join(temporary, "truncated-envelope.json"), baselinePath, baselineSha256: baselineHash }), /INVALID_CONNECTOR_JSON|WRAPPER/);

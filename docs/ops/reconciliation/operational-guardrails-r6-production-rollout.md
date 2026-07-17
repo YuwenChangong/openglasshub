@@ -135,6 +135,12 @@ captured immediately by the dedicated bridge outside Git, and compared to the
 operator-held R6-2 baseline. Any capture, schema, baseline, or classification
 failure stops without a supplementary query or R6-5 replay.
 
+The first compact recovery capture rejection retained only a row-count
+classification, not structural connector evidence. R6I is repository-only: it
+adds a value-blind diagnostic record for a future separately approved query but
+does not infer or accept an unproven direct-object result shape. Production
+catalog state remains unverified.
+
 Runtime deployment is blocked until binding and SQL postflight pass. It must
 deploy the approved merge commit only, confirm target/ref equality with SQL,
 and prove no direct `forum_upload_attempts` runtime access or client
