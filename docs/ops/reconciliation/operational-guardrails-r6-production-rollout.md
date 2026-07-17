@@ -1,6 +1,6 @@
 # R6 Production Rollout Packet
 
-Status: `R6_PRODUCTION_ROLLOUT_PACKET_READY` (repository-only). This packet
+Status: `R6_SINGLE_RESULT_PACKET_READY` (repository-only). This packet
 does not authorize a cloud connection, secret creation, SQL execution, merge,
 or deployment. `R5_PREVIEW_BLOCKED_TARGET_IDENTITY` remains in force because
 hosted Preview uses Production data; local R5L is evidence, not Preview
@@ -53,8 +53,22 @@ unchanged. Runtime value correctness is proved only by the canary.
 
 ## SQL and runtime gates
 
-Use the read-only preflight, the unexecuted R2 proposal only through the
-execution wrapper, and postflight in this directory. The expected function is
+The former R6-2 packet was connector-incompatible: the available connector
+discarded every result set except the last, leaving relation, index, RLS,
+privilege, and function evidence incomplete. No Production mutation occurred.
+The corrected R6-2 and R6-6 packets each use one catalog-only CTE statement and
+emit one ordered redacted check table. Capture R6-2 outside Git and validate it
+with `scripts/validate-operational-guardrails-r6-single-result.mjs` using the
+safe operator-bound target marker. R6-6 must be validated against those saved
+redacted baseline fingerprints; a missing or mismatched baseline fails closed.
+
+Only `FUNCTION_ABSENT_SAFE_TO_CREATE` permits the unexecuted R2 proposal through
+the execution wrapper. `EXACT_FUNCTION_ALREADY_PRESENT` skips creation and runs
+R6-6; `CONFLICTING_FUNCTION_PRESENT` and `INSUFFICIENT_EVIDENCE` stop. The
+previous execution approval is not reusable. The next possible approval is
+`APPROVE_R6_STAGE1_RESUME_WITH_CORRECTED_SINGLE_RESULT_PACKETS`.
+
+The expected function is
 one overload owned by `postgres`, `SECURITY DEFINER`, `VOLATILE`, `PARALLEL
 UNSAFE`, non-leakproof, with `pg_catalog, public, pg_temp`, 1s lock timeout, 3s
 statement timeout, service-role-only execute, and no table grant or policy

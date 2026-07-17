@@ -535,7 +535,14 @@ dependencies. It returns no table rows and creates no proposal.
 ## R6 repository-only readiness packet
 
 `docs/ops/reconciliation/operational-guardrails-r6-production-rollout.md`
-records `R6_PRODUCTION_ROLLOUT_PACKET_READY`, not Production readiness.
+records `R6_SINGLE_RESULT_PACKET_READY`, not Production readiness. The original
+R6 catalog packets were connector-incompatible because the connector retained
+only their final result set; no Production mutation occurred. R6-2 and R6-6
+now each emit one deterministic redacted check result set. The saved R6-2
+capture remains outside Git and is mandatory baseline input to the R6-6
+validator. A fresh approval,
+`APPROVE_R6_STAGE1_RESUME_WITH_CORRECTED_SINGLE_RESULT_PACKETS`, is required;
+the earlier R6 execution approval is not reusable.
 Production binding remains `BINDING_ABSENT_PRODUCTION_BLOCKED`, hosted Preview
 remains `R5_PREVIEW_BLOCKED_TARGET_IDENTITY`, and Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED` until separately approved R6 execution,

@@ -1,4 +1,10 @@
 -- UNEXECUTED R6-5 OPERATOR WRAPPER. Requires fresh explicit R6 approval.
+-- First run the corrected single-result R6-2 packet and preserve its redacted
+-- rows outside Git. Only FUNCTION_ABSENT_SAFE_TO_CREATE may reach this wrapper.
+-- EXACT_FUNCTION_ALREADY_PRESENT skips creation and continues to corrected R6-6.
+-- CONFLICTING_FUNCTION_PRESENT or INSUFFICIENT_EVIDENCE stops without retry.
+-- Always validate the one-result R6-6 packet against the R6-2 fingerprint rows.
+-- Any transport or connection ambiguity stops; inspect catalog before any retry.
 -- Verify SHA-256 of operational-guardrails-rate-limit-r2-unexecuted-proposal.sql
 -- is 10a1848e33097a9bb79e5cb1f1107a86bac6c724b352a13948665b90559011bb
 -- before passing its exact bytes to psql with ON_ERROR_STOP=1. Do not paste,

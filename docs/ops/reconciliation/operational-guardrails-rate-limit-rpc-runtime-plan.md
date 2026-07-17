@@ -52,8 +52,13 @@ different IP-only contract.
 
 ## R6 rollout packet status
 
-Repository-only R6 planning is `R6_PRODUCTION_ROLLOUT_PACKET_READY` in
-`operational-guardrails-r6-production-rollout.md`. It preserves
+Repository-only R6 planning is `R6_SINGLE_RESULT_PACKET_READY` in
+`operational-guardrails-r6-production-rollout.md`. The previous multi-result
+R6 packet was connector-incompatible and did not mutate Production. Corrected
+R6-2/R6-6 packets return one deterministic redacted result set each; their
+offline validator binds the safe target marker and compares postflight baseline
+fingerprints. Fresh approval `APPROVE_R6_STAGE1_RESUME_WITH_CORRECTED_SINGLE_RESULT_PACKETS`
+is required before any future R6-2 execution. This preserves
 `R5_PREVIEW_BLOCKED_TARGET_IDENTITY`, the absent Production service-role
 binding, and the overall no-go state. Future execution requires the exact
 `APPROVE_R6_PRODUCTION_STAGED_EXECUTION_WITH_LOCAL_STAGING_ONLY_RISK_ACCEPTANCE`

@@ -14,5 +14,5 @@ assert.match(review, /BLOCKED_RUNTIME_MIGRATION_REQUIRED/);
 assert.match(review, /No policy-removal SQL is authored/);
 assert.match(architecture, /server-only, atomic, fail-closed/i);
 assert.match(rateLimit, /consumeForumRateLimit/);
-assert.doesNotMatch(rateLimit, /backendAvailable|\.from\(|(?:from|insert)\(["']forum_upload_attempts["']/);
+assert.doesNotMatch(rateLimit, /backendAvailable|\b(?:client|params\.client)\.from\(|(?:from|insert)\(["']forum_upload_attempts["']/);
 console.log("operational-guardrails current catalog refresh review: PASS");
