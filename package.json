@@ -67,6 +67,7 @@
     "test:user-summary-api-safety": "node scripts/test-user-summary-api-safety.mjs",
     "test:profile-role-security": "node scripts/audit-profile-role-security.mjs --strict --verbose",
     "test:qa-orchestrator": "node scripts/test-destructive-qa-orchestrator.mjs",
+    "test:production-minimal-canary": "node scripts/test-production-minimal-canary.mjs",
     "test:forum-permissions": "node scripts/verify-forum-permissions.cjs",
     "test:moderation-audit": "node scripts/audit-moderation.mjs --strict --verbose",
     "test:sensitive-lexicon": "node scripts/audit-sensitive-lexicon.mjs --strict --verbose",
