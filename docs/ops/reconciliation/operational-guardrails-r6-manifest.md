@@ -15,6 +15,7 @@
 | R6 schema-aware capture | `scripts/capture-operational-guardrails-r6-single-result.mjs` and `scripts/test-operational-guardrails-r6-schema-aware-capture.mjs` |
 | R6 envelope structure recorder | `scripts/record-operational-guardrails-r6-envelope-structure.mjs` and `scripts/test-operational-guardrails-r6-envelope-structure.mjs` |
 | R6 envelope bridge | `scripts/capture-operational-guardrails-r6-envelope-structure.mjs` and `scripts/test-operational-guardrails-r6-envelope-bridge.mjs` |
+| R6 compact stdin transport | `scripts/run-operational-guardrails-r6-compact-recovery-transport.mjs` and `scripts/test-operational-guardrails-r6-compact-recovery-transport.mjs` |
 | R6 exact envelope fixture | `tests/fixtures/operational-guardrails-r6-exact-envelope.mjs` |
 | R7 Stage C | `operational-guardrails-r7-stage-c-{preflight,policy-cleanup,postflight,rollback}.sql` |
 
@@ -86,3 +87,13 @@ runner now directly writes the separately approved `-failure.json` and
 `-failure.sha256` paths when explicit path flags are supplied, takes connector
 response only on stdin, and rejects path collisions or stale artifacts before
 capture. R6J stopped before dispatch; no Production SQL occurred.
+
+R6J2 later submitted exactly one compact, read-only recovery query. Its ad hoc
+PowerShell stdin bridge failed before JSON parsing. The parser error cannot prove
+a particular pipe mechanism, so the root cause remains
+`TRANSPORT_ROOT_CAUSE_INSUFFICIENT`. It separately proves
+`RUNNER_PREPARSE_FAILURE_EVIDENCE_DEFECT`: the old runner initialized failure
+handling too late. R6L corrects that ordering repository-only and adds a
+checked-in shell-free Node Buffer transport. No R6-5 replay, full postflight,
+Production query, cloud action, or deployment occurred. A future recovery needs
+fresh approval for `APPROVE_R6M_ONE_COMPACT_READ_ONLY_RECOVERY_EXECUTION_WITH_HARDENED_TRANSPORT`.

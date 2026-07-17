@@ -148,6 +148,18 @@ outside-Git failure JSON/SHA destinations and send the connector response only
 on stdin. The runner writes those names directly and never uses a post-capture
 rename. No Production SQL, mutation, deployment, or binding change occurred.
 
+R6J2 subsequently submitted exactly one compact, read-only recovery query. Its
+ad hoc PowerShell stdin handoff failed before JSON parsing, leaving all five
+approved v2 evidence paths absent. The available parser error cannot establish
+whether the pipe truncated, closed early, skipped a write, or transformed UTF-8,
+so the root cause remains `TRANSPORT_ROOT_CAUSE_INSUFFICIENT`. It separately
+exposes `RUNNER_PREPARSE_FAILURE_EVIDENCE_DEFECT`: the old runner initialized
+its failure path after parsing. R6L is repository-only and corrects that order
+with a checked-in Node Buffer/stdin transport, hard size/UTF-8/EOF checks,
+atomic value-blind pre-parse failure evidence, and deterministic synthetic
+tests. No Production or cloud action occurred. The next action needs fresh
+approval: `APPROVE_R6M_ONE_COMPACT_READ_ONLY_RECOVERY_EXECUTION_WITH_HARDENED_TRANSPORT`.
+
 Runtime deployment is blocked until binding and SQL postflight pass. It must
 deploy the approved merge commit only, confirm target/ref equality with SQL,
 and prove no direct `forum_upload_attempts` runtime access or client
