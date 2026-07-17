@@ -68,6 +68,19 @@ with `scripts/validate-operational-guardrails-r6-single-result.mjs` using the
 safe operator-bound target marker. R6-6 must be validated against those saved
 redacted baseline fingerprints; a missing or mismatched baseline fails closed.
 
+Use `scripts/capture-operational-guardrails-r6-single-result.mjs` for connector
+responses. It accepts only the exact committed output columns and safe catalog
+identifiers, including `service_role`; it rejects actual credential-shaped
+content before writing any evidence. The durable operator-held artifact is a
+canonical JSON packet plus SHA-256 sidecar, reopened and validated before a
+later checkpoint may rely on it.
+
+The helper's CLI accepts the connector response only as base64url JSON, performs
+the schema and sensitive-content checks in memory, and writes no packet on a
+rejection. Its output is a safe status/classification summary, never connector
+content. The base64url argument is transport-only and must not be logged or
+retained after capture.
+
 Only `FUNCTION_ABSENT_SAFE_TO_CREATE` permits the unexecuted R2 proposal through
 the execution wrapper. `EXACT_FUNCTION_ALREADY_PRESENT` skips creation and runs
 R6-6; `CONFLICTING_FUNCTION_PRESENT` and `INSUFFICIENT_EVIDENCE` stop. The

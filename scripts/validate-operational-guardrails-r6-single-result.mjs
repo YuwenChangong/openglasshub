@@ -1,10 +1,13 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const OUTPUT_COLUMNS = [
   "packet_version", "phase", "section_order", "check_order", "check_id", "object_identity",
   "expected_value", "actual_value_redacted", "status", "blocking", "classification", "evidence_fingerprint",
 ];
+
+export const CAPTURE_VERSION = "r6-schema-aware-capture-v1";
 
 export const CONTRACTS = {
   preflight: {
@@ -57,6 +60,28 @@ export function parsePacketCsv(text) {
   });
 }
 
+export function parsePacketDocument(text) {
+  const trimmed = text.trimStart();
+  if (!trimmed.startsWith("{")) return parsePacketCsv(text);
+  let capture;
+  try {
+    capture = JSON.parse(text);
+  } catch {
+    throw new Error("invalid capture JSON");
+  }
+  if (!capture || typeof capture !== "object" || Array.isArray(capture)) throw new Error("invalid capture document");
+  const keys = Object.keys(capture).sort();
+  if (keys.join("\u0000") !== ["capture_version", "kind", "rows"].join("\u0000")) throw new Error("capture document schema mismatch");
+  if (capture.capture_version !== CAPTURE_VERSION || typeof capture.kind !== "string" || !Array.isArray(capture.rows)) throw new Error("capture document metadata mismatch");
+  return capture.rows.map((row) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error("malformed capture row");
+    const rowKeys = Object.keys(row).sort();
+    if (rowKeys.join("\u0000") !== [...OUTPUT_COLUMNS].sort().join("\u0000")) throw new Error("capture row schema mismatch");
+    if (Object.values(row).some((value) => typeof value !== "string")) throw new Error("capture row value must be text");
+    return Object.fromEntries(OUTPUT_COLUMNS.map((column) => [column, row[column]]));
+  });
+}
+
 export function validateRows(kind, rows, options = {}) {
   const contract = CONTRACTS[kind];
   if (!contract) throw new Error(`unsupported packet kind: ${kind}`);
@@ -95,9 +120,9 @@ export function validateRows(kind, rows, options = {}) {
 }
 
 const [kind, packetPath, baselinePath, expectedTargetMarker] = process.argv.slice(2);
-if (kind && packetPath) {
-  const rows = parsePacketCsv(await readFile(path.resolve(packetPath), "utf8"));
-  const baseline = baselinePath ? parsePacketCsv(await readFile(path.resolve(baselinePath), "utf8")) : undefined;
+if (process.argv[1] === fileURLToPath(import.meta.url) && kind && packetPath) {
+  const rows = parsePacketDocument(await readFile(path.resolve(packetPath), "utf8"));
+  const baseline = baselinePath ? parsePacketDocument(await readFile(path.resolve(baselinePath), "utf8")) : undefined;
   const result = validateRows(kind, rows, { baseline, expectedTargetMarker });
   console.log(JSON.stringify({ status: "PASS", kind, ...result }));
 }

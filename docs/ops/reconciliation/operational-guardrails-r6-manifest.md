@@ -11,6 +11,7 @@
 | R6 execution instructions | `operational-guardrails-r6-production-rpc-execution.sql` |
 | R6 single-result validator | `scripts/validate-operational-guardrails-r6-single-result.mjs` |
 | R6 connector emulation | `scripts/test-operational-guardrails-r6-single-result-packets.mjs` |
+| R6 schema-aware capture | `scripts/capture-operational-guardrails-r6-single-result.mjs` and `scripts/test-operational-guardrails-r6-schema-aware-capture.mjs` |
 | R7 Stage C | `operational-guardrails-r7-stage-c-{preflight,policy-cleanup,postflight,rollback}.sql` |
 
 This manifest contains no secret values, cloud target identifiers, or exported
@@ -22,3 +23,9 @@ The R6-2 and R6-6 packet hashes are updated only after their offline
 single-result validator and connector-emulation tests pass. The redacted
 preflight capture is operator-held and never committed; it is the required
 baseline for the postflight policy, index, and grant fingerprint comparison.
+
+Connector output must be parsed in memory as exactly one 12-column packet before
+anything is written. The capture helper preserves catalog role labels such as
+`service_role`, but rejects credential-shaped content, writes a canonical JSON
+packet and SHA-256 sidecar atomically outside Git, then reopens and revalidates
+the saved evidence. A rejected capture produces only safe error metadata.
