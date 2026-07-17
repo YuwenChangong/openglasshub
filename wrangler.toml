@@ -51,6 +51,11 @@ id = "1aececb7c13140909c240bfafbd9d29d"
 [env.production]
 
 [env.production.vars]
+PUBLIC_LEGAL_OPERATOR_NAME = "YuwenChangong"
+PUBLIC_SUPPORT_EMAIL = "openglasshub@gmail.com"
+PUBLIC_ABUSE_EMAIL = "openglasshub@gmail.com"
+PUBLIC_PRIVACY_EMAIL = "openglasshub@gmail.com"
+PUBLIC_IP_EMAIL = "openglasshub@gmail.com"
 SUPABASE_URL = "https://xcbnxzjlsvtgzixurcof.supabase.co"
 PUBLIC_SUPABASE_URL = "https://xcbnxzjlsvtgzixurcof.supabase.co"
 PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjYm54empsc3Z0Z3ppeHVyY29mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMDA3NTYsImV4cCI6MjA5NDY3Njc1Nn0.GoeNXcUtCkx1k7HhBMJYs90M_A1cZDKzNsFe6gwfzwY"
