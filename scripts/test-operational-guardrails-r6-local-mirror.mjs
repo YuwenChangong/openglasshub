@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { PINNED_PSQL_IMAGE } from "./lib/docker-psql-file-transport.mjs";
 import { CONTRACTS, OUTPUT_COLUMNS, validateRows } from "./validate-operational-guardrails-r6-single-result.mjs";
+import { RECOVERY_COLUMNS, classifyRecovery, parseRecoveryPacket } from "./validate-operational-guardrails-r6-compact-recovery.mjs";
 
 const root = process.cwd();
 const container = `openglass-r6-mirror-${process.pid}-${randomUUID().replaceAll("-", "")}`;
@@ -35,10 +36,19 @@ const packetRows = (text) => text.trim().split(/\r?\n/).filter(Boolean).map((lin
   assert.equal(values.length, OUTPUT_COLUMNS.length, "R6 mirror packet has the reviewed output schema");
   return Object.fromEntries(OUTPUT_COLUMNS.map((column, index) => [column, column === "blocking" ? (values[index] === "t" ? "true" : values[index] === "f" ? "false" : values[index]) : values[index]]));
 });
+const compactPacket = (text) => {
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  assert.equal(lines.length, 1, "R6 compact recovery returns exactly one row");
+  const values = lines[0].split("\t");
+  assert.equal(values.length, RECOVERY_COLUMNS.length, "R6 compact recovery has the committed output schema");
+  const booleans = new Set(RECOVERY_COLUMNS.filter((column) => /^(relation_present|signature_exact|return_identity|owner_postgres|security_definer|volatile|parallel_unsafe|non_leakproof|search_path_exact|lock_timeout_exact|statement_timeout_exact|public_execute|anon_execute|authenticated_execute|service_role_execute|index_ip_exact|index_user_exact|index_no_equivalent_conflict|resend_identity_exact|resend_acl_exact|target_resend_identity_separate)$/.test(column)));
+  return Object.fromEntries(RECOVERY_COLUMNS.map((column, index) => [column, booleans.has(column) ? values[index] === "t" : ["blocking_count", "overload_count"].includes(column) ? Number(values[index]) : values[index]]));
+};
 
-const [preflight, postflight, proposal] = await Promise.all([
+const [preflight, postflight, recovery, proposal] = await Promise.all([
   readFile(`${root}/docs/ops/reconciliation/operational-guardrails-r6-production-preflight.sql`, "utf8"),
   readFile(`${root}/docs/ops/reconciliation/operational-guardrails-r6-production-postflight.sql`, "utf8"),
+  readFile(`${root}/docs/ops/reconciliation/operational-guardrails-r6-production-postflight-recovery.sql`, "utf8"),
   readFile(`${root}/docs/ops/reconciliation/operational-guardrails-rate-limit-r2-unexecuted-proposal.sql`, "utf8"),
 ]);
 
@@ -78,7 +88,10 @@ try {
   const postflightRows = packetRows(psql(postflight));
   assert.equal(postflightRows.length, CONTRACTS.postflight.checks.length);
   assert.equal(validateRows("postflight", postflightRows, { baseline: preflightRows }).classification, "PRODUCTION_RPC_POSTFLIGHT_PASSED");
-  console.log(JSON.stringify({ status: "PASS", mode: "LOCAL_DOCKER_ONLY", preflightChecks: preflightRows.length, postflightChecks: postflightRows.length, productionOperations: 0 }));
+  const recoveryPacket = parseRecoveryPacket(compactPacket(psql(recovery)));
+  const baseline = new Map(preflightRows.map((row) => [row.check_id, row.actual_value_redacted]));
+  assert.equal(classifyRecovery(recoveryPacket, baseline), "COMMITTED_EXACTLY");
+  console.log(JSON.stringify({ status: "PASS", mode: "LOCAL_DOCKER_ONLY", preflightChecks: preflightRows.length, postflightChecks: postflightRows.length, compactRecoveryBytes: Buffer.byteLength(`${JSON.stringify(recoveryPacket)}\n`), productionOperations: 0 }));
 } finally {
   if (started) spawnSync("docker", ["rm", "-f", container], { encoding: "utf8" });
 }

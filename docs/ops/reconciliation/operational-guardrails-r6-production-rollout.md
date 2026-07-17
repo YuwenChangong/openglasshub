@@ -113,6 +113,28 @@ statement timeout, service-role-only execute, and no table grant or policy
 change. A lost/ambiguous connection is never retried: inspect catalog and
 classify committed, not committed, or conflicting.
 
+## R6-6 compact evidence recovery
+
+The approved R6-5 mutation was submitted once and must never be replayed. The
+original full R6-6 result was not persisted after connector output exceeded the
+capture budget, so its state is
+`CATALOG_STATE_UNVERIFIED_AFTER_SINGLE_MUTATION_SUBMISSION`. The recovery query
+is a distinct one-row, read-only catalog packet. It reports only fixed
+booleans, counts, and redacted MD5 fingerprints for the target function,
+protected table inventory, prerequisite indexes, and resend RPC. It excludes
+function bodies, application rows, auth-user fields, credentials, and raw
+catalog source text.
+
+Before a recovery query is issued, the repository packet guard, capture-budget
+test, validator, and local Docker mirror must pass. The mirror runs the full
+reviewed postflight and compact packet on the same disposable committed state;
+the semantic matrix separately covers exact, absent, all defined unsafe/drift
+states, and insufficient/contradictory evidence. The compact packet remains
+below 8 KiB. One query may then be submitted through the proven envelope path,
+captured immediately by the dedicated bridge outside Git, and compared to the
+operator-held R6-2 baseline. Any capture, schema, baseline, or classification
+failure stops without a supplementary query or R6-5 replay.
+
 Runtime deployment is blocked until binding and SQL postflight pass. It must
 deploy the approved merge commit only, confirm target/ref equality with SQL,
 and prove no direct `forum_upload_attempts` runtime access or client

@@ -8,6 +8,7 @@
 | R6 packet | `operational-guardrails-r6-production-rollout.md` |
 | R6 preflight | `operational-guardrails-r6-production-preflight.sql` SHA-256 `ee809d751a3fdd1f906116316e0b9deeb7c9321138ec69b9ec84ef9dfd877736` |
 | R6 postflight | `operational-guardrails-r6-production-postflight.sql` SHA-256 `e7082fe8e25dd13a454c3b8a41aff5ded2aba4e8f499bd2afe5999222feb857e` |
+| R6 compact postflight recovery | `operational-guardrails-r6-production-postflight-recovery.sql` SHA-256 `a82c692a1d3569d4fe94134c613b2382d2cb11589bbc3135c4f883ca120bd3f8` |
 | R6 execution instructions | `operational-guardrails-r6-production-rpc-execution.sql` |
 | R6 single-result validator | `scripts/validate-operational-guardrails-r6-single-result.mjs` |
 | R6 connector emulation | `scripts/test-operational-guardrails-r6-single-result-packets.mjs` |
@@ -54,3 +55,22 @@ The approved constant-only probe proved the exact connector path
 `$[0].text#json.result#wrapped_json`. The single-result adapter accepts only
 that fenced wrapper path plus the pre-existing direct row-array path used by
 local synthetic tests.
+
+## R6-6 recovery hold
+
+`R6-5` was submitted exactly once. Its connector returned a success empty
+result, but the once-submitted full R6-6 postflight exceeded the capture budget
+before the committed bridge could persist its packet. The state is therefore
+`CATALOG_STATE_UNVERIFIED_AFTER_SINGLE_MUTATION_SUBMISSION`; the operator-held
+failure marker is outside Git and must not be overwritten. The original full
+postflight and R2 proposal hashes above remain immutable.
+
+The recovery packet is a single catalog-only row containing no function body,
+application row, auth-user field, credential, or raw connector envelope. Its
+dedicated validator compares current protected-table and resend fingerprints to
+the SHA-bound operator-held R6-2 baseline. It can classify only
+`COMMITTED_EXACTLY`, `NOT_COMMITTED`, `CONFLICTING_OR_PARTIAL`, or
+`INSUFFICIENT_EVIDENCE`. An absent target function is evidence only; it never
+authorizes a replay. Capture writes the canonical one-row packet, SHA sidecar,
+and safe structure record atomically outside Git, or writes only safe failure
+metadata.

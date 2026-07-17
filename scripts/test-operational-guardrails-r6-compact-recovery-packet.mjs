@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { RECOVERY_COLUMNS } from "./validate-operational-guardrails-r6-compact-recovery.mjs";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const sql = await readFile(path.join(root, "docs", "ops", "reconciliation", "operational-guardrails-r6-production-postflight-recovery.sql"), "utf8");
+const executable = sql.split(/\r?\n/).filter((line) => !line.trimStart().startsWith("--")).join("\n").trim();
+const withoutLiterals = executable.replace(/'(?:''|[^'])*'/g, "''");
+assert.match(executable, /^WITH\s+/i);
+assert.equal((executable.match(/;/g) ?? []).length, 1, "compact recovery remains one statement");
+assert.doesNotMatch(withoutLiterals, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE|TRUNCATE|COPY|CALL|DO)\b/i);
+assert.doesNotMatch(executable, /pg_get_functiondef|\bprosrc\b|auth\.users|FROM\s+public\.forum_upload_attempts/i);
+assert.match(executable, /row_to_json\(p\)/);
+assert.match(executable, /r6-compact-postflight-recovery-v1/);
+assert.match(executable, /consume_forum_rate_limit/);
+assert.match(executable, /consume_verification_email_resend_limit/);
+assert.match(executable, /forum_upload_attempts_purpose_ip_created_idx/);
+assert.match(executable, /forum_upload_attempts_purpose_user_created_idx/);
+for (const column of RECOVERY_COLUMNS) assert.match(executable, new RegExp(`\\b${column}\\b`), `missing compact column ${column}`);
+console.log(JSON.stringify({ status: "PASS", oneStatement: true, readOnlyCatalogOnly: true, compactColumns: RECOVERY_COLUMNS.length }));
