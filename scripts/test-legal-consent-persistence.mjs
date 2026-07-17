@@ -171,10 +171,12 @@ async function main() {
 
   assert.match(route, /getBearerToken\(request\)/);
   assert.match(route, /client\.auth\.getUser\(token\)/);
-  assert.match(route, /createLegalConsentServiceClient\(env\)/);
   assert.match(route, /createWriteRepository:\s*\(verifiedUserId\)[\s\S]*?createLegalConsentWriteRepository\([\s\S]*?verifiedUserId/);
-  assert(route.indexOf("client.auth.getUser(token)") < route.indexOf("createLegalConsentServiceClient(env)"));
+  assert.match(route, /createLegalConsentWriteRepository\(env, verifiedUserId\)/);
+  assert(route.indexOf("client.auth.getUser(token)") < route.indexOf("createLegalConsentWriteRepository(env, verifiedUserId)"));
   assert.match(repository, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(repository, /function createLegalConsentWriteClient\(env: RuntimeEnv\): Pick<SupabaseClient, "rpc">/);
+  assert.doesNotMatch(repository, /export function createLegalConsent(?:Service|Write)Client/);
   assert.match(repository, /p_user_id:\s*verifiedUserId/);
   assert.doesNotMatch(route, /signIn|signUp|redirect|requireCurrentLegalConsent/);
 

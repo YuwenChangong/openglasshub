@@ -3,11 +3,11 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import {
   ACTIVE_CONSUMERS,
-  LEGACY_SERVICE_ROLE_FACTORY,
-  PROVISIONAL_EXACT_ALLOWLIST,
+  EXACT_APPROVED_ALLOWLIST,
   SERVICE_ROLE_BINDING,
   assertExactConsumerAllowlist,
 } from "../tests/fixtures/operational-guardrails-service-role-consumer-scope.mjs";
+import { findPrivilegedClientSurfaceFindings } from "./lib/operational-guardrails-privileged-client-surface.mjs";
 
 const root = process.cwd();
 
@@ -36,14 +36,14 @@ async function walkIfPresent(directory) {
 const sourceFiles = (await Promise.all([walk("src"), walk("functions")])).flat().filter((relativePath) => /\.(?:ts|tsx|astro)$/.test(relativePath));
 const sourceByPath = Object.fromEntries(await Promise.all(sourceFiles.map(async (relativePath) => [relativePath, await sourceText(relativePath)])));
 const directConsumers = sourceFiles.filter((relativePath) => sourceByPath[relativePath].includes(SERVICE_ROLE_BINDING)).sort();
-const expectedDirectConsumers = [...ACTIVE_CONSUMERS.map((consumer) => consumer.path), LEGACY_SERVICE_ROLE_FACTORY].sort();
+const expectedDirectConsumers = ACTIVE_CONSUMERS.map((consumer) => consumer.path).sort();
 
 assert.deepEqual(directConsumers, expectedDirectConsumers, "complete source inventory must change on any new, moved, or removed direct service-role consumer");
-assertExactConsumerAllowlist(PROVISIONAL_EXACT_ALLOWLIST);
-assert.throws(() => assertExactConsumerAllowlist([...PROVISIONAL_EXACT_ALLOWLIST, "src/lib/server/new-consumer.server.ts"]), /exact reviewed/);
-assert.throws(() => assertExactConsumerAllowlist(["src/lib/server/**", ...PROVISIONAL_EXACT_ALLOWLIST.slice(1)]), /exact reviewed/);
-assert.throws(() => assertExactConsumerAllowlist(["src/lib/server/", ...PROVISIONAL_EXACT_ALLOWLIST.slice(1)]), /exact reviewed/);
-assert.throws(() => assertExactConsumerAllowlist(PROVISIONAL_EXACT_ALLOWLIST.map((entry) => entry.replace("consume-forum-rate-limit", "moved-rate-limit"))), /exact reviewed/);
+assertExactConsumerAllowlist(EXACT_APPROVED_ALLOWLIST);
+assert.throws(() => assertExactConsumerAllowlist([...EXACT_APPROVED_ALLOWLIST, "src/lib/server/new-consumer.server.ts"]), /exact reviewed/);
+assert.throws(() => assertExactConsumerAllowlist(["src/lib/server/**", ...EXACT_APPROVED_ALLOWLIST.slice(1)]), /exact reviewed/);
+assert.throws(() => assertExactConsumerAllowlist(["src/lib/server/", ...EXACT_APPROVED_ALLOWLIST.slice(1)]), /exact reviewed/);
+assert.throws(() => assertExactConsumerAllowlist(EXACT_APPROVED_ALLOWLIST.map((entry) => entry.replace("consume-forum-rate-limit", "moved-rate-limit"))), /exact reviewed/);
 
 for (const consumer of ACTIVE_CONSUMERS) {
   const source = sourceByPath[consumer.path];
@@ -77,29 +77,26 @@ for (const relativePath of renderedHtml) {
 const legalSource = sourceByPath[ACTIVE_CONSUMERS[0].path];
 const moderationSource = sourceByPath[ACTIVE_CONSUMERS[1].path];
 const rateLimitSource = sourceByPath[ACTIVE_CONSUMERS[2].path];
-const legacySource = sourceByPath[LEGACY_SERVICE_ROLE_FACTORY];
-assert.match(legalSource, /export function createLegalConsentServiceClient\([^)]*\): SupabaseClient/);
+const legacySource = await sourceText("functions/_lib/supabase.ts");
+assert.match(legalSource, /function createLegalConsentWriteClient\(env: RuntimeEnv\): Pick<SupabaseClient, "rpc">/);
 assert.match(legalSource, /return createClient\(requireEnv\(env, "SUPABASE_URL"\), requireEnv\(env, "SUPABASE_SERVICE_ROLE_KEY"\)/);
+assert.doesNotMatch(legalSource, /export function createLegalConsent(?:Service|Write)Client/);
 assert.doesNotMatch(moderationSource, /export function createModerationNotificationServiceClient/);
 assert.doesNotMatch(rateLimitSource, /export function createRateLimitRpcClient/);
 assert.match(moderationSource, /type NotificationRpcClient = Pick<SupabaseClient, "rpc">/);
 assert.match(rateLimitSource, /type RateLimitRpcClient = Pick<SupabaseClient, "rpc">/);
 assert.match(rateLimitSource, /client\.rpc\("consume_forum_rate_limit"/);
 assert.doesNotMatch(rateLimitSource, /client\.(?:from|storage|functions)\(/);
-assert.match(legacySource, /export function createServiceClient\([^)]*\): SupabaseClient/);
-
-const findings = [
-  "src/lib/server/legal-consent-repository.server.ts#createLegalConsentServiceClient",
-  "functions/_lib/supabase.ts#createServiceClient",
-];
+assert.doesNotMatch(legacySource, /SUPABASE_SERVICE_ROLE_KEY|createServiceClient|createServiceRoleClient/i);
+for (const consumer of ACTIVE_CONSUMERS) assert.deepEqual(findPrivilegedClientSurfaceFindings(sourceByPath[consumer.path], consumer.path), []);
+assert.deepEqual(findPrivilegedClientSurfaceFindings(legacySource, "functions/_lib/supabase.ts"), []);
 console.log(JSON.stringify({
   status: "PASS",
-  classification: "R6_GENERIC_PRIVILEGED_CLIENT_EXPOSURE_FOUND",
+  classification: "R6_STAGE1_BINDING_READY",
   activeDirectConsumers: ACTIVE_CONSUMERS.map((consumer) => consumer.path),
-  legacyDirectConsumer: LEGACY_SERVICE_ROLE_FACTORY,
-  findings,
+  deprecatedFunctionsClassification: "DEPRECATED_GENERIC_FACTORY_UNUSED_SAFE_TO_REMOVE",
   browserExposure: false,
   generatedClientAssetFiles: generatedClientAssets.length,
   renderedHtmlFiles: renderedHtml.length,
-  allowlistPolicy: "provisional-exact-only-not-approved-until-raw-factories-are-removed",
+  allowlistPolicy: "exact-approved-three-consumer-allowlist",
 }));

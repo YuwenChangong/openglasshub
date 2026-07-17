@@ -1,15 +1,14 @@
 # R6 Production Rollout Packet
 
-Status: `R6_RESEND_IDENTITY_PACKET_READY` (repository-only). This packet
+Status: `R6_STAGE1_BINDING_READY` (repository-only). This packet
 does not authorize a cloud connection, secret creation, SQL execution, merge,
 or deployment. `R5_PREVIEW_BLOCKED_TARGET_IDENTITY` remains in force because
 hosted Preview uses Production data; local R5L is evidence, not Preview
 verification. `SUPABASE_SERVICE_ROLE_KEY` is present as an encrypted Production
-secret under operator-held metadata proof. R6 remains blocked by
-`R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`: the repository has not yet eliminated
-the exported raw legal-consent client factory and deprecated generic legacy
-factory documented in `operational-guardrails-service-role-consumer-scope-reconciliation.md`.
-Binding metadata classification: `PRODUCTION_BINDING_METADATA_READY`.
+secret under operator-held metadata proof. The repository has removed the raw
+legal-consent and deprecated generic factories; its exact narrow-consumer
+allowlist is `R6_STAGE1_BINDING_READY`. Binding metadata classification remains
+`PRODUCTION_BINDING_METADATA_READY`.
 
 ## Immutable inputs
 

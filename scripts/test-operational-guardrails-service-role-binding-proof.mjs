@@ -31,7 +31,8 @@ const files = {
 const source = Object.fromEntries(await Promise.all(Object.entries(files).map(async ([key, file]) => [key, await readFile(file, "utf8")])));
 
 assert.equal(BINDING_NAME, "SUPABASE_SERVICE_ROLE_KEY");
-assert.match(source.legal, /createLegalConsentServiceClient[\s\S]*SUPABASE_SERVICE_ROLE_KEY/);
+assert.match(source.legal, /function createLegalConsentWriteClient[\s\S]*SUPABASE_SERVICE_ROLE_KEY/);
+assert.doesNotMatch(source.legal, /export function createLegalConsent(?:Service|Write)Client/);
 assert.match(source.moderation, /createModerationNotificationServiceClient[\s\S]*SUPABASE_SERVICE_ROLE_KEY/);
 assert.match(source.rateLimitConsumer, /SUPABASE_SERVICE_ROLE_KEY/);
 assert.match(source.rateLimitConsumer, /export async function consumeForumRateLimit/);
@@ -42,7 +43,7 @@ assert.match(source.identity, /EXISTING_BINDING_NAME_SOURCE_PROVEN/);
 assert.match(source.readiness, /Local[\s\S]*CONFIGURATION_REQUIRED/);
 assert.match(source.readiness, /Preview[\s\S]*PREVIEW_R1_READY/);
 assert.match(source.readiness, /Production[\s\S]*PRODUCTION_BINDING_METADATA_READY/);
-assert.match(source.readiness, /R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT/);
+assert.match(source.readiness, /R6_STAGE1_BINDING_READY/);
 assert.match(source.readiness, /openglasshub-service-role-binding-preview-postcreation-proof\.json/);
 assert.match(source.readiness, /proof files remain\s+outside Git/);
 assert.match(source.readiness, /BLOCKED_RUNTIME_MIGRATION_REQUIRED/);

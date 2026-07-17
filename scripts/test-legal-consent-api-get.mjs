@@ -59,7 +59,7 @@ async function main() {
 
   assert.match(route, /getBearerToken\(request\)/);
   assert.match(route, /client\.auth\.getUser\(token\)/);
-  assert.match(route, /createWriteRepository:\s*\(verifiedUserId\)\s*=>\s*createLegalConsentWriteRepository\([\s\S]*?createLegalConsentServiceClient\(env\),[\s\S]*?verifiedUserId/);
+  assert.match(route, /createWriteRepository:\s*\(verifiedUserId\)\s*=>\s*createLegalConsentWriteRepository\(env, verifiedUserId\)/);
   assert.match(api, /handleLegalConsentGet[\s\S]*?dependencies\.authenticate\(request\)[\s\S]*?getCurrentConsentStatus/);
   assert.doesNotMatch(api.match(/export async function handleLegalConsentGet[\s\S]*?\n}\n/)?.[0] ?? "", /createWriteRepository|recordCurrentLegalConsent|\.rpc\(/);
   assert.match(repository, /\.eq\("user_id", userId\)[\s\S]*?\.eq\("bundle_version", bundleVersion\)/);

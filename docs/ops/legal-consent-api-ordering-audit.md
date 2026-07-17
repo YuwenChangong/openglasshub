@@ -334,7 +334,7 @@ The response is closed to self id, username, display name, internal profile href
 
 The 16 KiB JSON body accepts only `display_name`, `username`, `bio`, `avatar_url`, and `banner_url`; unknown URL/social/location/preferences fields are rejected, as are identity, role, safety, moderation, trust, consent, timestamp, and report fields. Text is NFC-trimmed, rejects controls and literal markup, and is bounded. Username is lower-case canonical under the existing grammar, with the `profiles_username_unique_ci` lower-case index as the race-safe authority and a fixed conflict response. There is no source-defined reserved-name registry. Submitted media must be the exact canonical verified-user and matching avatar/banner key before any signed moderation URL or provider effect; external, foreign, cross-kind, traversal, encoded-separator, backslash, and malformed values fail closed. Invalid legacy stored media is normalized to null rather than re-saved or emitted raw.
 
-After the actor-bound current-profile read, text and changed-image moderation are the first external effects; `profiles.update(...).eq("id", auth.userId)` is the first persistent domain effect. The response allowlists only public profile fields and same-user proxy URLs. The existing profile RLS owner predicates, update column grant, role trigger, and unique index align with the runtime boundary. No migration was needed or executed. `test:profile-audit` intentionally remains 48/1: its service-role observation is `createLegalConsentServiceClient` in `src/lib/server/legal-consent-repository.server.ts`, which this route does not import or execute. Phase 4A1 is **64/66 traced** with **2 pending**; Batch 6 remains pending and the next source is `src/pages/api/users/me/summary.ts#GET`. Overall status remains `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PHASE4A1_NO_GO`.
+After the actor-bound current-profile read, text and changed-image moderation are the first external effects; `profiles.update(...).eq("id", auth.userId)` is the first persistent domain effect. The response allowlists only public profile fields and same-user proxy URLs. The existing profile RLS owner predicates, update column grant, role trigger, and unique index align with the runtime boundary. No migration was needed or executed. R6 now allows only the narrow `createLegalConsentWriteRepository` boundary in `legal-consent-repository.server.ts`; this route does not import or execute it. Overall status remains `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PHASE4A1_NO_GO`.
 
 ## Final Phase 4A1 Legal Consent POST and Inventory Closure
 
@@ -431,9 +431,10 @@ service-role exposure was found. The three active direct consumers are the
 legal-consent writer, moderation-notification writer, and fixed forum
 rate-limit RPC wrapper. The first two traces remain actor-bound and
 purpose-specific; the rate-limit wrapper is one fixed RPC with no direct table
-API, retry, or public error leakage. R6 nevertheless remains
-`R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT` because the legal-consent module exports
-a raw `SupabaseClient` factory and deprecated `functions/_lib/supabase.ts`
-exports a generic service-role factory. This is a repository-only boundary
-blocker, not a consent-ordering change. No production SQL, secret mutation,
-deployment, or runtime behavior change occurred.
+API, retry, or public error leakage. The historical
+`R6_GENERIC_PRIVILEGED_CLIENT_EXPOSURE_FOUND` was remediated by R6G: the legal
+writer is now actor-bound with a private RPC-only client constructor and the
+deprecated `functions/` helper has no service-role factory. The repository
+boundary is `R6_STAGE1_BINDING_READY`, not a consent-ordering change. No
+production SQL, secret mutation, deployment, or runtime behavior change
+occurred.

@@ -53,7 +53,9 @@ function legalConsentServiceRoleFinding({ relativePath, repositorySource, routeS
 
   const repositoryIsNarrow = [
     /createClient\(requireEnv\(env, "SUPABASE_URL"\), requireEnv\(env, "SUPABASE_SERVICE_ROLE_KEY"\)/.test(repositorySource),
-    /createLegalConsentWriteRepository\(\s*client: SupabaseClient,\s*verifiedUserId: string,\s*\)/s.test(repositorySource),
+    /function createLegalConsentWriteClient\(env: RuntimeEnv\): Pick<SupabaseClient, "rpc">/.test(repositorySource),
+    /export function createLegalConsentWriteRepository\(\s*env: RuntimeEnv,\s*verifiedUserId: string,\s*\)/s.test(repositorySource),
+    /const client = createLegalConsentWriteClient\(env\);/.test(repositorySource),
     /client\.rpc\("record_current_legal_policy_acceptance", \{[\s\S]*?p_user_id: verifiedUserId/.test(repositorySource),
     !/client\.(?:from|storage|functions)\(/.test(repositorySource),
     (repositorySource.match(/\.rpc\(/g) ?? []).length === 1,
@@ -64,7 +66,7 @@ function legalConsentServiceRoleFinding({ relativePath, repositorySource, routeS
   const routeBindsActor = [
     /const token = getBearerToken\(request\);[\s\S]*?const client = createUserClient\(env, token\);[\s\S]*?client\.auth\.getUser\(token\)/.test(routeSource),
     /userId: data\.user\.id,/.test(routeSource),
-    /createWriteRepository:\s*\(verifiedUserId\)\s*=>\s*createLegalConsentWriteRepository\(\s*createLegalConsentServiceClient\(env\),\s*verifiedUserId,\s*\)/s.test(routeSource),
+    /createWriteRepository:\s*\(verifiedUserId\)\s*=>\s*createLegalConsentWriteRepository\(env, verifiedUserId\)/.test(routeSource),
   ].every(Boolean);
 
   const apiOrdersWriterAfterAuthAndPayload = authIndex !== -1

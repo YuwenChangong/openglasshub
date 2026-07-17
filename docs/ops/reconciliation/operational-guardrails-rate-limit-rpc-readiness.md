@@ -4,7 +4,7 @@ Current status: `R2_CORRECTED_R3_PASSED_LOCAL_DISPOSABLE_ONLY`.
 
 R4 runtime integration is `R4_IMPLEMENTATION_READY` in the repository only;
 the staged R5 Preview packet is complete but unexecuted. Production binding
-metadata is ready but R6 remains `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`, and Stage C remains blocked pending later
+metadata is ready and R6 source review is `R6_STAGE1_BINDING_READY`; Stage C remains blocked pending later
 Preview and Production verification.
 
 The R2 proposal package is repository-only and unexecuted:
@@ -56,5 +56,5 @@ before R7/R8 verification.
    reviewed owner role before any production execution review.
 3. Remediate and re-audit the raw privileged-client boundary. The Production
    server-only binding metadata is already ready, but R6 remains
-   `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`.
+   `R6_STAGE1_BINDING_READY`.
 4. Approve R4, R6, and R7 independently. None follows from this design record.

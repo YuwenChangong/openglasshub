@@ -1,17 +1,17 @@
 export const trustedIdentity = {
-  classification: "R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT",
+  classification: "R6_STAGE1_BINDING_READY",
   previewBindingStatus: "PREVIEW_SERVICE_ROLE_BINDING_READY",
   productionBindingStatus: "PRODUCTION_BINDING_METADATA_READY",
   proofEvidence: "operator-held-metadata-only-outside-git",
   sourceServiceRoleFactories: [
-    "src/lib/server/legal-consent-repository.server.ts#createLegalConsentServiceClient",
+    "src/lib/server/legal-consent-repository.server.ts#createLegalConsentWriteRepository",
     "src/lib/server/moderation-notifications.server.ts#createModerationNotificationServiceClient",
   ],
   activeRateLimitServiceRoleCaller: "src/lib/server/consume-forum-rate-limit.server.ts#consumeForumRateLimit",
   declaredRuntimeBindings: ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
-  blockingBoundary: "exported raw privileged-client factories remain",
+  blockingBoundary: "no generic privileged-client export remains; future consumers require separate review",
   conclusion:
-    "Preview and Production metadata proofs record one encrypted SUPABASE_SERVICE_ROLE_KEY binding with no conflict. The active rate-limit wrapper uses the key through a narrow fixed-RPC boundary, but R6 remains blocked until the exported raw legal-consent and legacy generic privileged-client factories are removed and re-audited.",
+    "Preview and Production metadata proofs record one encrypted SUPABASE_SERVICE_ROLE_KEY binding with no conflict. The three active consumers are narrow server-only boundaries: legal-consent uses one actor-bound RPC, moderation uses one validated notification RPC, and rate limiting uses one fixed fail-closed RPC. New consumers fail closed until separately reviewed.",
 };
 
 export const rateLimitRpcContract = {

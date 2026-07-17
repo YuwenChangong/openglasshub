@@ -1,10 +1,10 @@
 # W6 Service-Role Binding Contract
 
-Binding-contract classification: `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`.
+Binding-contract classification: `R6_STAGE1_BINDING_READY`.
 
 The active Astro/Cloudflare server runtime contract uses exactly
 `SUPABASE_SERVICE_ROLE_KEY`. `src/lib/server/legal-consent-repository.server.ts`
-constructs `createLegalConsentServiceClient`; `src/lib/server/moderation-notifications.server.ts`
+keeps its service-role client construction private behind `createLegalConsentWriteRepository`; `src/lib/server/moderation-notifications.server.ts`
 constructs the internal `createModerationNotificationServiceClient`. Both read
 the key only through `requireEnv(env, ...)`, where route handlers receive `env`
 from Cloudflare runtime locals. The key is runtime-read, not build-time captured.
@@ -12,8 +12,8 @@ from Cloudflare runtime locals. The key is runtime-read, not build-time captured
 `QA_SUPABASE_SERVICE_ROLE_KEY` occurs in isolated QA account scripts only. It is
 not imported by active Astro routes and is not an alternative runtime binding.
 
-The active callers are intentionally finite but are not yet an approved
-allowlist. `createLegalConsentServiceClient` is reached only by
+The active callers are intentionally finite and form the exact approved
+allowlist. `createLegalConsentWriteRepository` is reached only by
 `src/pages/api/legal/consent.ts` through its fixed
 `record_current_legal_policy_acceptance` writer. The notification factory is
 reachable only through the six verified moderator action routes: ban,
@@ -22,11 +22,11 @@ is reached through `src/lib/server/rate-limit.ts` and the five guarded forum
 mutation routes. Each route creates the privileged boundary only after its
 verified authentication, authorization, and validation stages.
 
-The former single-consumer expectation was over-restrictive, but this does not
-permit a broader allowlist yet. The legal-consent module exports a raw
-`SupabaseClient` factory and deprecated `functions/_lib/supabase.ts` retains an
-exported generic service-role factory. Both are R6 blockers until separately
-remediated. The exact source-backed inventory and smallest remediation are in
+The prior generic privileged-client finding was remediated: the legal-consent
+module now exports only a narrow actor-bound writer and the deprecated
+`functions/_lib/supabase.ts` path has no service-role factory. A fourth
+consumer, wildcard, generic helper, client exposure, or raw-client export fails
+the exact scope audit. The source-backed inventory is in
 `operational-guardrails-service-role-consumer-scope-reconciliation.md`.
 
 The `.server.ts` locations and API-only imports keep the two existing factories

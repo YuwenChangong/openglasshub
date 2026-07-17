@@ -54,7 +54,7 @@ without accidentally becoming executable database material:
 The identity classification is `SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY`:
 operator-held metadata-only proof establishes the encrypted Preview and
 Production binding records, while local configuration is unproven and
-Production remains `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`. The current
+Production source review is `R6_STAGE1_BINDING_READY`. The current
 rate-limit wrapper uses the binding only through its fixed RPC boundary. The
 proposed contract is `public.consume_forum_rate_limit`, but no
 executable function SQL exists and no role is authorized to call it yet.

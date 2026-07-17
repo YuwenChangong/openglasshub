@@ -22,12 +22,11 @@ production evidence. It is a repository linkage record only. The source-backed
 resend identity correction is recorded in
 `operational-guardrails-r6-resend-rpc-identity-review.md`.
 
-R6 binding metadata is now `PRODUCTION_BINDING_METADATA_READY`, but the next
-R6 checkpoint is blocked by `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`. The
-repository-only consumer-scope review found no browser exposure and no
-unapproved fourth active consumer, yet it found an exported raw legal-consent
-client factory and a deprecated exported generic factory under `functions/`.
-See `operational-guardrails-service-role-consumer-scope-reconciliation.md`.
+R6 binding metadata is `PRODUCTION_BINDING_METADATA_READY` and the repository
+consumer boundary is `R6_STAGE1_BINDING_READY`. The exact three-consumer
+allowlist has no browser exposure or unapproved fourth active consumer; the
+former raw legal-consent and deprecated generic factories were removed. See
+`operational-guardrails-service-role-consumer-scope-reconciliation.md`.
 
 The R6-2 and R6-6 packet hashes are updated only after their offline
 single-result validator and connector-emulation tests pass. The redacted

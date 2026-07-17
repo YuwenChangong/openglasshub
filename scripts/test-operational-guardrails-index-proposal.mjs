@@ -33,9 +33,9 @@ await assert.rejects(access(path.join(directory, "operational-guardrails-policy-
 
 const changedMigrations = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations"], { cwd: root, encoding: "utf8" }).trim();
 const changedRuntime = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "src"], { cwd: root, encoding: "utf8" }).trim().split(/\r?\n/).filter(Boolean);
-const approvedR4RuntimeFiles = new Set(["src/lib/server/rate-limit.ts", "src/pages/api/forum/posts.ts", "src/pages/api/forum/comments.ts", "src/pages/api/forum/circles.ts", "src/pages/api/forum/media-upload-guard.ts", "src/pages/api/forum/external-video-upload.ts"]);
+const approvedRuntimeFiles = new Set(["src/lib/server/rate-limit.ts", "src/pages/api/forum/posts.ts", "src/pages/api/forum/comments.ts", "src/pages/api/forum/circles.ts", "src/pages/api/forum/media-upload-guard.ts", "src/pages/api/forum/external-video-upload.ts", "src/lib/server/legal-consent-repository.server.ts", "src/pages/api/legal/consent.ts"]);
 assert.equal(changedMigrations, "", "canonical migrations must remain unchanged");
-assert.deepEqual(changedRuntime.filter((file) => !approvedR4RuntimeFiles.has(file)), [], "only approved R4 runtime files may change");
+assert.deepEqual(changedRuntime.filter((file) => !approvedRuntimeFiles.has(file)), [], "only approved R4/R6G runtime files may change");
 
 const containers = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" }).split(/\r?\n/).filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
 assert.equal(containers.length, 1, "LOCAL_DOCKER_ONLY requires exactly one normalized replay container");

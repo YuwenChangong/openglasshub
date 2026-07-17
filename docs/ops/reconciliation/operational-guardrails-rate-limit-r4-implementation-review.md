@@ -21,4 +21,4 @@ separate RPC.
 
 Stage C remains `BLOCKED_RUNTIME_MIGRATION_REQUIRED`: source integration does
 not prove a Preview function, binding value, or deployment. Production binding
-metadata is ready, but R6 remains `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`.
+metadata is ready, and R6 source review is `R6_STAGE1_BINDING_READY`.

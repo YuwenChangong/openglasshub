@@ -25,8 +25,6 @@ export const ACTIVE_CONSUMERS = [
   },
 ];
 
-export const LEGACY_SERVICE_ROLE_FACTORY = "functions/_lib/supabase.ts";
-
 export function assertExactConsumerAllowlist(allowlist) {
   if (!Array.isArray(allowlist) || allowlist.length !== ACTIVE_CONSUMERS.length) {
     throw new Error("service-role consumer allowlist must contain the exact reviewed paths");
@@ -46,4 +44,4 @@ export function assertExactConsumerAllowlist(allowlist) {
   return true;
 }
 
-export const PROVISIONAL_EXACT_ALLOWLIST = ACTIVE_CONSUMERS.map((consumer) => consumer.path);
+export const EXACT_APPROVED_ALLOWLIST = ACTIVE_CONSUMERS.map((consumer) => consumer.path);

@@ -43,16 +43,17 @@ export function createLegalConsentReadRepository(client: SupabaseClient): LegalC
   };
 }
 
-export function createLegalConsentServiceClient(env: RuntimeEnv): SupabaseClient {
+function createLegalConsentWriteClient(env: RuntimeEnv): Pick<SupabaseClient, "rpc"> {
   return createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_SERVICE_ROLE_KEY"), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
 export function createLegalConsentWriteRepository(
-  client: SupabaseClient,
+  env: RuntimeEnv,
   verifiedUserId: string,
 ): LegalConsentWriteRepository {
+  const client = createLegalConsentWriteClient(env);
   return {
     async recordCurrentAcceptance(params) {
       const { error } = await client.rpc("record_current_legal_policy_acceptance", {
