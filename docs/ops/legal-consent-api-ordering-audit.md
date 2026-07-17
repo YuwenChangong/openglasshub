@@ -423,3 +423,17 @@ Phase 4A1 remains `66/66` traced, Phase 4A2 remains `5/5`, Phase 4B remains `37/
 The former authenticated direct RPC path was removed: `requireModerator` and the Phase 4B consent guard complete in each affected user-safety/report action before `createModerationNotificationWriter` captures the verified actor. The writer remains server-only, has a closed post/comment/user notification command union, lazily creates a service-role client only when the authorized primary action reaches notification dispatch, and calls only `insert_forum_notification` with server-derived actor, recipient, and target ids. It neither accepts a request-selected actor/recipient/type/RPC/table nor exposes service credentials. The call sites are ban, suspend, warn, unban, clear-warning, and report action flows; notification failure remains non-fatal and sanitized.
 
 `20260717_security_definer_execute_hardening.sql` is prerequisite 12 and remains unexecuted. It revokes `PUBLIC` from `insert_forum_notification(uuid, uuid, text, uuid, uuid, uuid)`, `increment_post_view_count(uuid)`, and `can_create_user_report_target(text, uuid)`; grants only `service_role`, `anon` plus `authenticated`, and `authenticated`, respectively. Function bodies, signatures, ownership, RLS policies, tables, and data are unchanged. Static ACL evidence is resolved, while non-production ACL inspection and all other release blockers remain outstanding. Classification remains `LEGAL_TRUST_CONSENT_FOUNDATION_V1_PREDEPLOYMENT_NO_GO`.
+
+## R6 Service-Role Consumer Scope
+
+The R6 Production binding metadata is ready and no browser or rendered-HTML
+service-role exposure was found. The three active direct consumers are the
+legal-consent writer, moderation-notification writer, and fixed forum
+rate-limit RPC wrapper. The first two traces remain actor-bound and
+purpose-specific; the rate-limit wrapper is one fixed RPC with no direct table
+API, retry, or public error leakage. R6 nevertheless remains
+`R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT` because the legal-consent module exports
+a raw `SupabaseClient` factory and deprecated `functions/_lib/supabase.ts`
+exports a generic service-role factory. This is a repository-only boundary
+blocker, not a consent-ordering change. No production SQL, secret mutation,
+deployment, or runtime behavior change occurred.

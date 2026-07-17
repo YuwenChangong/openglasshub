@@ -20,5 +20,5 @@ upload failure does not refund the accepted reservation. Resend remains on its
 separate RPC.
 
 Stage C remains `BLOCKED_RUNTIME_MIGRATION_REQUIRED`: source integration does
-not prove a Preview function, binding value, or deployment. Production remains
-`BINDING_ABSENT_PRODUCTION_BLOCKED`.
+not prove a Preview function, binding value, or deployment. Production binding
+metadata is ready, but R6 remains `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`.

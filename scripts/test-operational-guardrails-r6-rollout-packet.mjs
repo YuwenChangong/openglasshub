@@ -20,7 +20,7 @@ const [packet, preflight, postflight, execution, stageC, r2, stageCPreflight, st
 ]);
 assert.equal(createHash("sha256").update(r2).digest("hex"), expectedHash, "R6 must bind the reviewed R2 proposal exactly");
 for (const checkpoint of Array.from({ length: 13 }, (_, index) => `R6-${index}`)) assert.match(packet, new RegExp(`\\b${checkpoint}\\b`));
-for (const marker of ["APPROVE_R6_PRODUCTION_STAGED_EXECUTION_WITH_LOCAL_STAGING_ONLY_RISK_ACCEPTANCE", "R5_PREVIEW_BLOCKED_TARGET_IDENTITY", "BINDING_ABSENT_PRODUCTION_BLOCKED", "APPROVE_R7_PRODUCTION_STAGE_C_REDUNDANT_POLICY_CLEANUP_STAGED_EXECUTION"]) assert.match(packet, new RegExp(marker));
+for (const marker of ["APPROVE_R6_PRODUCTION_STAGED_EXECUTION_WITH_LOCAL_STAGING_ONLY_RISK_ACCEPTANCE", "R5_PREVIEW_BLOCKED_TARGET_IDENTITY", "PRODUCTION_BINDING_METADATA_READY", "R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT", "APPROVE_R7_PRODUCTION_STAGE_C_REDUNDANT_POLICY_CLEANUP_STAGED_EXECUTION"]) assert.match(packet, new RegExp(marker));
 for (const sql of [preflight, postflight]) {
   const executable = sql.split(/\r?\n/).filter((line) => !line.trimStart().startsWith("--")).join("\n").trim();
   const withoutLiterals = executable.replace(/'(?:''|[^'])*'/g, "");

@@ -1,7 +1,7 @@
 export const trustedIdentity = {
-  classification: "SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY",
+  classification: "R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT",
   previewBindingStatus: "PREVIEW_SERVICE_ROLE_BINDING_READY",
-  productionBindingStatus: "BINDING_ABSENT_PRODUCTION_BLOCKED",
+  productionBindingStatus: "PRODUCTION_BINDING_METADATA_READY",
   proofEvidence: "operator-held-metadata-only-outside-git",
   sourceServiceRoleFactories: [
     "src/lib/server/legal-consent-repository.server.ts#createLegalConsentServiceClient",
@@ -9,9 +9,9 @@ export const trustedIdentity = {
   ],
   activeRateLimitServiceRoleCaller: "src/lib/server/consume-forum-rate-limit.server.ts#consumeForumRateLimit",
   declaredRuntimeBindings: ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
-  missingDocumentedBinding: "production binding remains absent",
+  blockingBoundary: "exported raw privileged-client factories remain",
   conclusion:
-    "The approved metadata-only Preview proof records one encrypted SUPABASE_SERVICE_ROLE_KEY binding with no conflict, but local configuration remains unproven and Production remains binding-absent. No current rate-limit caller uses the key, so the server-only rate-limit boundary remains unimplemented.",
+    "Preview and Production metadata proofs record one encrypted SUPABASE_SERVICE_ROLE_KEY binding with no conflict. The active rate-limit wrapper uses the key through a narrow fixed-RPC boundary, but R6 remains blocked until the exported raw legal-consent and legacy generic privileged-client factories are removed and re-audited.",
 };
 
 export const rateLimitRpcContract = {

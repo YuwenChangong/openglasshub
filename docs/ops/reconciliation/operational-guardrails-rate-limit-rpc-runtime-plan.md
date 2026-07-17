@@ -62,8 +62,10 @@ its resend check used the wrong identity; the source-backed resend correction is
 recorded in `operational-guardrails-r6-resend-rpc-identity-review.md`. Fresh
 approval `APPROVE_R6_STAGE1_RESTART_WITH_RESEND_RECONCILED_PACKETS`
 is required before any future R6-2 execution. This preserves
-`R5_PREVIEW_BLOCKED_TARGET_IDENTITY`, the absent Production service-role
-binding, and the overall no-go state. Future execution requires the exact
+`R5_PREVIEW_BLOCKED_TARGET_IDENTITY`, the encrypted Production binding metadata
+record, and the overall no-go state. R6 is currently stopped at
+`R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT` pending repository-only removal of raw
+privileged-client exports. Future execution requires the exact
 `APPROVE_R6_PRODUCTION_STAGED_EXECUTION_WITH_LOCAL_STAGING_ONLY_RISK_ACCEPTANCE`
 approval; Stage C separately requires R7 approval after R6 runtime and canary
 success.

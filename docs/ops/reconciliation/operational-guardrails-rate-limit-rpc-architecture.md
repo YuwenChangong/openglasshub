@@ -52,8 +52,9 @@ without accidentally becoming executable database material:
 - [implementation-readiness checklist](operational-guardrails-rate-limit-rpc-readiness.md)
 
 The identity classification is `SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY`:
-operator-held metadata-only proof establishes the encrypted Preview binding
-record, while local configuration is unproven and Production remains
-`BINDING_ABSENT_PRODUCTION_BLOCKED`. No current rate-limit caller uses the
-binding. The proposed contract is `public.consume_forum_rate_limit`, but no
+operator-held metadata-only proof establishes the encrypted Preview and
+Production binding records, while local configuration is unproven and
+Production remains `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`. The current
+rate-limit wrapper uses the binding only through its fixed RPC boundary. The
+proposed contract is `public.consume_forum_rate_limit`, but no
 executable function SQL exists and no role is authorized to call it yet.

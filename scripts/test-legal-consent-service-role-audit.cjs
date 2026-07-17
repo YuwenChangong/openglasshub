@@ -57,4 +57,4 @@ assert.equal(rateLimitServiceRoleFinding({ relativePath: rateLimitRelativePath, 
 assert.notEqual(rateLimitServiceRoleFinding({ relativePath: rateLimitRelativePath, repositorySource: `${rateLimitSource}\nclient.from("forum_upload_attempts");` }), null, "rate-limit wrapper cannot expose table access");
 assert.notEqual(rateLimitServiceRoleFinding({ relativePath: rateLimitRelativePath, repositorySource: rateLimitSource.replace('"consume_forum_rate_limit"', "rpcName") }), null, "rate-limit wrapper cannot select an arbitrary RPC");
 
-console.log("LEGAL_CONSENT_SERVICE_ROLE_AUDIT_OK safe=2 unsafe-patterns=10 offline-only");
+console.log("LEGAL_CONSENT_SERVICE_ROLE_AUDIT_OK safe=3 unsafe-patterns=10 offline-only");

@@ -4,11 +4,12 @@
 | --- | --- | --- |
 | Local | `CONFIGURATION_REQUIRED` | `.env.example` intentionally has no service-role value. A local operator must provide a secret only through approved local secret handling before privileged local tests. |
 | Preview | `PREVIEW_R1_READY` | Operator-held metadata-only proofs at source commit `b4f55642407420f56f0b677d4de37a4022fbfbff` show the reviewed transition `BINDING_ABSENT` to exactly one encrypted `SECRET_BINDING_PRESENT` record for `SUPABASE_SERVICE_ROLE_KEY`. No plaintext, `PUBLIC_`, browser-exposed, or duplicate binding is attested. |
-| Production | `BINDING_ABSENT_PRODUCTION_BLOCKED` | The separately validated production metadata-only proof remains `BINDING_ABSENT`. Production secret creation is not implied or approved by the Preview result. |
+| Production | `PRODUCTION_BINDING_METADATA_READY` | One exact encrypted `SECRET_BINDING_PRESENT` record was created under separate approval and verified metadata-only. R6 remains blocked by the repository-level `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT` boundary, not by binding absence. |
 
 Preview R1 is `PREVIEW_R1_READY`, while the overall trusted-identity state is
-`SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY`: the local binding and separately
-required Production binding remain unproven. The three proof files remain
+`R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`: local configuration remains separately
+unproven, while Production binding metadata is ready but raw privileged-client
+exports remain unresolved. The three proof files remain
 outside Git:
 
 - `C:\Users\1\Downloads\openglasshub-service-role-binding-preview-proof.json`
@@ -23,8 +24,6 @@ unexecuted proposal design. Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED`; no RPC SQL, runtime migration, policy
 removal, grant, or deployment follows from this checklist.
 
-The next safe approval is R2: repository-only design of an unexecuted atomic,
-server-only, fail-closed rate-limit RPC proposal and static ACL/owner/
-search-path validation. Production secret creation remains deferred. If a
-future proof reports absent, duplicate, plaintext, or browser-exposed metadata,
-stop for separate conflict remediation approval.
+The next safe approval is repository-only raw privileged-client boundary
+remediation. If a future proof reports absent, duplicate, plaintext, or
+browser-exposed metadata, stop for separate conflict remediation approval.

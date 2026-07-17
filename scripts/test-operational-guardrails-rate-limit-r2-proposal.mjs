@@ -29,7 +29,7 @@ assert.equal(r2ExecutionStatus.r2StaticDesign, "COMPLETE_STATICALLY_VALID");
 assert.equal(r2ExecutionStatus.r3Eligible, false);
 assert.equal(r2ExecutionStatus.r3LocalSimulation, "R3_PASSED_LOCAL_DISPOSABLE_ONLY");
 assert.equal(r2ExecutionStatus.stageC, "BLOCKED_RUNTIME_MIGRATION_REQUIRED");
-assert.equal(r2ExecutionStatus.productionIdentity, "BINDING_ABSENT_PRODUCTION_BLOCKED");
+assert.equal(r2ExecutionStatus.productionIdentity, "PRODUCTION_BINDING_METADATA_READY_R6_SCOPE_BLOCKED");
 assert.deepEqual(r2PurposeMatrix.map((row) => row.purpose), ["post_create", "comment_create", "circle_create", "post_media_upload", "external_video_upload", "verification_email_resend"]);
 assert.deepEqual(r2PurposeMatrix.filter((row) => row.status === "HUMAN_DECISION_REQUIRED").map((row) => row.purpose), []);
 assert.equal(r2PurposeMatrix.find((row) => row.purpose === "post_media_upload")?.bytes, "1..157286400");

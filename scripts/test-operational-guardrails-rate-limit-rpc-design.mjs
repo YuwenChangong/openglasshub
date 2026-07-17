@@ -21,14 +21,14 @@ const files = {
 };
 const source = Object.fromEntries(await Promise.all(Object.entries(files).map(async ([key, file]) => [key, await readFile(file, "utf8")])));
 
-assert.equal(trustedIdentity.classification, "SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY");
+assert.equal(trustedIdentity.classification, "R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT");
 assert.equal(trustedIdentity.previewBindingStatus, "PREVIEW_SERVICE_ROLE_BINDING_READY");
-assert.equal(trustedIdentity.productionBindingStatus, "BINDING_ABSENT_PRODUCTION_BLOCKED");
+assert.equal(trustedIdentity.productionBindingStatus, "PRODUCTION_BINDING_METADATA_READY");
 assert.equal(trustedIdentity.proofEvidence, "operator-held-metadata-only-outside-git");
 assert.equal(trustedIdentity.activeRateLimitServiceRoleCaller, "src/lib/server/consume-forum-rate-limit.server.ts#consumeForumRateLimit");
-assert.match(source.identity, /SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY/);
+assert.match(source.identity, /R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT/);
 assert.match(source.identity, /PREVIEW_SERVICE_ROLE_BINDING_READY/);
-assert.match(source.identity, /BINDING_ABSENT_PRODUCTION_BLOCKED/);
+assert.match(source.identity, /PRODUCTION_BINDING_METADATA_READY/);
 assert.match(source.identity, /SUPABASE_SERVICE_ROLE_KEY/);
 assert.doesNotMatch(source.wrangler, /SUPABASE_SERVICE_ROLE_KEY/);
 assert.doesNotMatch(source.envExample, /^SUPABASE_SERVICE_ROLE_KEY=/m);

@@ -4,8 +4,12 @@ Status: `R6_RESEND_IDENTITY_PACKET_READY` (repository-only). This packet
 does not authorize a cloud connection, secret creation, SQL execution, merge,
 or deployment. `R5_PREVIEW_BLOCKED_TARGET_IDENTITY` remains in force because
 hosted Preview uses Production data; local R5L is evidence, not Preview
-verification. `SUPABASE_SERVICE_ROLE_KEY` remains
-`BINDING_ABSENT_PRODUCTION_BLOCKED`.
+verification. `SUPABASE_SERVICE_ROLE_KEY` is present as an encrypted Production
+secret under operator-held metadata proof. R6 remains blocked by
+`R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`: the repository has not yet eliminated
+the exported raw legal-consent client factory and deprecated generic legacy
+factory documented in `operational-guardrails-service-role-consumer-scope-reconciliation.md`.
+Binding metadata classification: `PRODUCTION_BINDING_METADATA_READY`.
 
 ## Immutable inputs
 
@@ -45,11 +49,13 @@ otherwise classify `PRODUCTION_TARGET_IDENTITY_AMBIGUOUS`,
 
 ## Binding checkpoints
 
-R6-B1 records Production-only metadata preflight. R6-B2 creates the encrypted
-server-only secret only under explicit approval. R6-B3 proves metadata only;
-it never logs, hashes, reads, or exports the value. R6-B4 verifies that browser
-assets and logs expose neither the key nor service-role terminology. Preview is
-unchanged. Runtime value correctness is proved only by the canary.
+R6-B1 records Production-only metadata preflight. R6-B2 created the encrypted
+server-only secret under separate explicit approval. R6-B3 proved metadata
+only; it never logged, hashed, read, or exported the value. R6-B4 found no
+browser asset or rendered-HTML exposure and Preview remained unchanged. R6-F
+now blocks the next checkpoint until every direct source consumer keeps the raw
+client within a purpose-specific server-only operation boundary. Runtime value
+correctness is still proved only by the canary.
 
 ## SQL and runtime gates
 

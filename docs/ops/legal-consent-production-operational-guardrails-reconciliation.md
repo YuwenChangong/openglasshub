@@ -12,8 +12,8 @@ deployment. The decision record is
 The completed repository-only design phase now classifies the trusted identity
 as `SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY`: operator-held, metadata-only
 Preview evidence proves the reviewed encrypted binding record, while local
-configuration is unproven and Production remains
-`BINDING_ABSENT_PRODUCTION_BLOCKED`. It fixes a non-executable five-purpose
+configuration is unproven while Production binding metadata is ready but R6 is
+blocked by `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`. It fixes a non-executable five-purpose
 interface, advisory-lock design, complete V1 quota matrix, and fail-closed
 retry/timeout contract. Production function-owner confirmation and binding,
 plus separately approved R3/R4 work, remain required. Stage C remains
@@ -39,8 +39,8 @@ Preview, or Production operation occurred. See
 [the local R3 review](reconciliation/operational-guardrails-rate-limit-r3-local-simulation-review.md).
 
 R3 changes no production state: `public.consume_forum_rate_limit` remains
-unexecuted outside the disposable fixture; production identity remains
-`BINDING_ABSENT_PRODUCTION_BLOCKED`; Stage C remains
+unexecuted outside the disposable fixture; production binding metadata is ready
+but the raw-client boundary remains `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`; Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED`; and both extra policies remain unchanged.
 The R4 repository-only migration is now complete; it still creates no Preview
 or Production binding and does not make Stage C eligible.
@@ -66,7 +66,7 @@ They do not create a Preview binding, execute SQL, deploy the branch, or remove
 either reviewed policy. The sole next approval is
 `APPROVE_R5_PREVIEW_RPC_SQL_RUNTIME_DEPLOYMENT_AND_VERIFICATION_STAGED_EXECUTION`.
 Until that approval and verified staged execution, Preview is unbound,
-Production is `BINDING_ABSENT_PRODUCTION_BLOCKED`, and Stage C remains
+Production is `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`, and Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED`.
 
 R5L local full-stack staging is `R5L_BLOCKED_RUNTIME_READINESS`. The closest
@@ -85,8 +85,10 @@ runtime harness/packaging fix is required before a fresh R5L attempt.
 R1 now has a repository-only binding contract: the active server name is
 `SUPABASE_SERVICE_ROLE_KEY`. The external Preview proof transition is
 `BINDING_ABSENT` to `SECRET_BINDING_PRESENT`; its metadata-only JSON remains
-outside Git and stores no value or hash. Local configuration remains required,
-and Production remains independently blocked by `BINDING_ABSENT`. The Preview
+outside Git and stores no value or hash. Production now also has one encrypted
+binding confirmed by metadata-only proof. R6 remains blocked instead by
+`R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`, recorded in
+`operational-guardrails-service-role-consumer-scope-reconciliation.md`. The Preview
 result does not make Stage C eligible.
 The dedicated current-state packet is
 [operational-guardrails-current-catalog-refresh.sql](reconciliation/operational-guardrails-current-catalog-refresh.sql);
@@ -543,7 +545,8 @@ capture remains outside Git and is mandatory baseline input to the R6-6
 validator. A fresh approval,
 `APPROVE_R6_STAGE1_RESTART_WITH_RESEND_RECONCILED_PACKETS`, is required;
 the earlier R6 execution approval is not reusable.
-Production binding remains `BINDING_ABSENT_PRODUCTION_BLOCKED`, hosted Preview
+Production binding metadata remains ready, while the repository-level
+`R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT` gate remains active. Hosted Preview
 remains `R5_PREVIEW_BLOCKED_TARGET_IDENTITY`, and Stage C remains
 `BLOCKED_RUNTIME_MIGRATION_REQUIRED` until separately approved R6 execution,
 runtime verification, canary cleanup, and the later R7 policy-cleanup approval.

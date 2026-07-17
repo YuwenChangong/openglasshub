@@ -90,8 +90,8 @@ The subsequent repository-only design package selects an atomic fail-closed
 server-only direction. Its identity is now
 `SERVICE_ROLE_CONFIGURATION_PARTIALLY_READY`: the validated external Preview
 metadata transition proves the encrypted binding record only, while local
-configuration is unproven and Production remains
-`BINDING_ABSENT_PRODUCTION_BLOCKED`. See
+configuration is unproven and Production is blocked at
+`R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`. See
 `operational-guardrails-rate-limit-rpc-architecture.md`. This does not change
 the Stage C hold or authorize a function, grant, migration, deployment, or
 policy removal.

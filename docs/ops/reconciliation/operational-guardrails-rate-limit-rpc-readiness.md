@@ -3,8 +3,8 @@
 Current status: `R2_CORRECTED_R3_PASSED_LOCAL_DISPOSABLE_ONLY`.
 
 R4 runtime integration is `R4_IMPLEMENTATION_READY` in the repository only;
-the staged R5 Preview packet is complete but unexecuted. Production remains
-`BINDING_ABSENT_PRODUCTION_BLOCKED` and Stage C remains blocked pending later
+the staged R5 Preview packet is complete but unexecuted. Production binding
+metadata is ready but R6 remains `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`, and Stage C remains blocked pending later
 Preview and Production verification.
 
 The R2 proposal package is repository-only and unexecuted:
@@ -54,6 +54,7 @@ before R7/R8 verification.
    does not authorize a runtime or production change.
 2. Reconfirm the proposed `postgres` function owner or introduce a separately
    reviewed owner role before any production execution review.
-3. Establish and separately prove the Production server-only binding. It
-   remains `BINDING_ABSENT_PRODUCTION_BLOCKED`.
+3. Remediate and re-audit the raw privileged-client boundary. The Production
+   server-only binding metadata is already ready, but R6 remains
+   `R6_BLOCKED_GENERIC_PRIVILEGED_CLIENT`.
 4. Approve R4, R6, and R7 independently. None follows from this design record.
