@@ -14,6 +14,7 @@
 | R6 schema-aware capture | `scripts/capture-operational-guardrails-r6-single-result.mjs` and `scripts/test-operational-guardrails-r6-schema-aware-capture.mjs` |
 | R6 envelope structure recorder | `scripts/record-operational-guardrails-r6-envelope-structure.mjs` and `scripts/test-operational-guardrails-r6-envelope-structure.mjs` |
 | R6 envelope bridge | `scripts/capture-operational-guardrails-r6-envelope-structure.mjs` and `scripts/test-operational-guardrails-r6-envelope-bridge.mjs` |
+| R6 exact envelope fixture | `tests/fixtures/operational-guardrails-r6-exact-envelope.mjs` |
 | R7 Stage C | `operational-guardrails-r7-stage-c-{preflight,policy-cleanup,postflight,rollback}.sql` |
 
 This manifest contains no secret values, cloud target identifiers, or exported
@@ -42,3 +43,8 @@ The envelope bridge is Node-only. It accepts a connector response either as an
 in-process object or one UTF-8 JSON payload on stdin, invokes the recorder once,
 prints only a safe status summary, and rejects browser globals such as `btoa`
 or `atob`, extra argv payloads, malformed UTF-8, and credential-like content.
+
+The approved constant-only probe proved the exact connector path
+`$[0].text#json.result#wrapped_json`. The single-result adapter accepts only
+that fenced wrapper path plus the pre-existing direct row-array path used by
+local synthetic tests.

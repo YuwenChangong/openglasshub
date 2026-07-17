@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { OUTPUT_COLUMNS } from "./validate-operational-guardrails-r6-single-result.mjs";
 import { PROBE_MARKER, describeConnectorEnvelope, persistConnectorEnvelopeStructure } from "./record-operational-guardrails-r6-envelope-structure.mjs";
+import { wrapRowsInExactEnvelope } from "../tests/fixtures/operational-guardrails-r6-exact-envelope.mjs";
 
 const row = (order, role) => Object.fromEntries(OUTPUT_COLUMNS.map((column) => [column, {
   packet_version: PROBE_MARKER,
@@ -37,6 +38,10 @@ assert.deepEqual(describeConnectorEnvelope(wrapped).packet_candidates, [{ path: 
 const nested = { isError: false, content: [{ type: "text", text: JSON.stringify({ envelope: { result: rows } }) }] };
 assert.deepEqual(describeConnectorEnvelope(nested).packet_candidates, [{ path: "$.content[0].text#json.envelope.result", array_length: 2, row_shape: "r6-output-columns" }]);
 assert.equal(describeConnectorEnvelope({ isError: false, content: [{ type: "text", text: JSON.stringify({ payload: JSON.stringify(rows) }) }] }).packet_candidate_count, 1);
+assert.deepEqual(
+  describeConnectorEnvelope(wrapRowsInExactEnvelope(rows)).packet_candidates,
+  [{ path: "$[0].text#json.result#wrapped_json", array_length: 2, row_shape: "r6-output-columns" }],
+);
 
 for (const [name, response] of [
   ["multiple candidates", { isError: false, content: [{ type: "text", text: JSON.stringify({ left: rows, right: rows }) }] }],

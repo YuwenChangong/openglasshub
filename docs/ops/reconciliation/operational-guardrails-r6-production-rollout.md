@@ -88,6 +88,13 @@ never raw connector JSON on argv, never PowerShell interpolation, and never
 browser globals such as `btoa` or `atob`. It writes only a safe status summary
 and passes the response directly to the value-blind structure recorder.
 
+The approved constant-only probe proved one exact connector wrapper path:
+`$[0].text#json.result#wrapped_json`. The adapter in
+`scripts/capture-operational-guardrails-r6-single-result.mjs` accepts only that
+exact fenced wrapper path and the existing direct local row-array path; any
+other text prefix/suffix, wrapper key, or contradictory result shape fails
+closed.
+
 Only `FUNCTION_ABSENT_SAFE_TO_CREATE` permits the unexecuted R2 proposal through
 the execution wrapper. `EXACT_FUNCTION_ALREADY_PRESENT` skips creation and runs
 R6-6; `CONFLICTING_FUNCTION_PRESENT` and `INSUFFICIENT_EVIDENCE` stop. The

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { captureEnvelopeStructureFromObject, BRIDGE_VERSION } from "./capture-operational-guardrails-r6-envelope-structure.mjs";
 import { OUTPUT_COLUMNS } from "./validate-operational-guardrails-r6-single-result.mjs";
 import { PROBE_MARKER } from "./record-operational-guardrails-r6-envelope-structure.mjs";
+import { wrapRowsInExactEnvelope } from "../tests/fixtures/operational-guardrails-r6-exact-envelope.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bridgePath = path.join(root, "scripts", "capture-operational-guardrails-r6-envelope-structure.mjs");
@@ -35,6 +36,7 @@ const rows = [
 
 const direct = { isError: false, content: [{ type: "text", text: JSON.stringify(rows) }] };
 const nested = { isError: false, content: [{ type: "text", text: JSON.stringify({ envelope: { result: rows } }) }] };
+const exactConnectorEnvelope = wrapRowsInExactEnvelope(rows);
 const structureContains = async (targetPath, pattern) => pattern.test(await readFile(targetPath, "utf8"));
 const fileMissing = async (targetPath) => {
   try {
@@ -87,6 +89,11 @@ assert.equal(cli.stderr, "");
 assert.match(cli.stdout, /"status":"PASS"/);
 assert.doesNotMatch(cli.stdout, /service_role|authenticated|synthetic\.object|UTF-8: 圈子🌐/);
 assert.equal(await structureContains(cliOutput, /"\$\.content\[0\]\.text#json"/), true);
+
+const wrappedOutput = path.join(temporaryRoot, "wrapped proof", "structure.json");
+const wrappedResult = await captureEnvelopeStructureFromObject({ connectorResponse: exactConnectorEnvelope, outputPath: wrappedOutput });
+assert.equal(wrappedResult.candidateCount, 1);
+assert.equal(await structureContains(wrappedOutput, /"\$\[0\]\.text#json\.result#wrapped_json"/), true);
 
 for (const [name, input, expected] of [
   ["empty input", Buffer.alloc(0), /BRIDGE_REJECTED_EMPTY_INPUT/],

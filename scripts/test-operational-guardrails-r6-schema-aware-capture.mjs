@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { CONTRACTS, parsePacketDocument, validateRows } from "./validate-operational-guardrails-r6-single-result.mjs";
 import { canonicalizeConnectorPacket, persistCanonicalPacket, verifyPersistedPacket } from "./capture-operational-guardrails-r6-single-result.mjs";
+import { wrapRowsInExactEnvelope } from "../tests/fixtures/operational-guardrails-r6-exact-envelope.mjs";
 
 const md5 = (value) => createHash("md5").update(value).digest("hex");
 const targetMarker = md5("operator-bound-target");
@@ -24,11 +25,15 @@ const rows = CONTRACTS.preflight.checks.map((check_id, index) => ({
   evidence_fingerprint: md5(`evidence:${check_id}`),
 }));
 const connector = (packet = rows) => ({ isError: false, content: [{ type: "text", text: JSON.stringify(packet) }] });
+const exactEnvelope = wrapRowsInExactEnvelope(rows);
 
 const canonical = canonicalizeConnectorPacket("preflight", connector(), targetMarker);
 assert.equal(canonical.checks, 20);
 assert.match(JSON.stringify(canonical.document), /service_role/);
 assert.equal(validateRows("preflight", canonical.document.rows, { expectedTargetMarker: targetMarker }).classification, "FUNCTION_ABSENT_SAFE_TO_CREATE");
+const exactCanonical = canonicalizeConnectorPacket("preflight", exactEnvelope, targetMarker);
+assert.equal(exactCanonical.checks, 20);
+assert.equal(validateRows("preflight", exactCanonical.document.rows, { expectedTargetMarker: targetMarker }).classification, "FUNCTION_ABSENT_SAFE_TO_CREATE");
 
 const temp = await mkdtemp(path.join(os.tmpdir(), "openglass-r6-capture-"));
 const outputPath = path.join(temp, "r6-2-schema-aware-preflight.json");
@@ -42,6 +47,10 @@ const cliOutput = path.join(temp, "cli.json");
 const cli = spawnSync(process.execPath, ["scripts/capture-operational-guardrails-r6-single-result.mjs", "preflight", cliOutput, targetMarker, Buffer.from(JSON.stringify(connector())).toString("base64url")], { cwd: process.cwd(), encoding: "utf8" });
 assert.equal(cli.status, 0, cli.stderr);
 assert.match(cli.stdout, /"status":"PASS"/);
+const exactCliOutput = path.join(temp, "exact-cli.json");
+const exactCli = spawnSync(process.execPath, ["scripts/capture-operational-guardrails-r6-single-result.mjs", "preflight", exactCliOutput, targetMarker, Buffer.from(JSON.stringify(exactEnvelope)).toString("base64url")], { cwd: process.cwd(), encoding: "utf8" });
+assert.equal(exactCli.status, 0, exactCli.stderr);
+assert.match(exactCli.stdout, /"status":"PASS"/);
 await writeFile(persisted.sidecarPath, "0".repeat(64) + "  r6-2-schema-aware-preflight.json\n");
 await assert.rejects(() => verifyPersistedPacket({ kind: "preflight", outputPath, expectedTargetMarker: targetMarker }), /SHA/);
 
@@ -70,8 +79,14 @@ await assert.rejects(() => persistCanonicalPacket({ kind: "preflight", connector
 await assert.rejects(() => persistCanonicalPacket({ kind: "preflight", connectorResponse: connector([]), expectedTargetMarker: targetMarker, outputPath: path.join(temp, "empty.json") }), /missing/);
 await assert.rejects(() => persistCanonicalPacket({ kind: "preflight", connectorResponse: connector(rows.slice(0, -1)), expectedTargetMarker: targetMarker, outputPath: path.join(temp, "truncated.json") }), /missing/);
 await assert.rejects(() => persistCanonicalPacket({ kind: "preflight", connectorResponse: { isError: false, content: [{ type: "text", text: "{" }] }, expectedTargetMarker: targetMarker, outputPath: path.join(temp, "invalid-json.json") }), /INVALID/);
+const wrappedPrefix = structuredClone(exactEnvelope);
+wrappedPrefix[0].text = JSON.stringify({ result: `prefix ${JSON.parse(wrappedPrefix[0].text).result}` });
+await assert.rejects(() => persistCanonicalPacket({ kind: "preflight", connectorResponse: wrappedPrefix, expectedTargetMarker: targetMarker, outputPath: path.join(temp, "wrapped-prefix.json") }), /WRAPPER/);
+const wrappedSuffix = structuredClone(exactEnvelope);
+wrappedSuffix[0].text = JSON.stringify({ result: `${JSON.parse(wrappedSuffix[0].text).result} suffix` });
+await assert.rejects(() => persistCanonicalPacket({ kind: "preflight", connectorResponse: wrappedSuffix, expectedTargetMarker: targetMarker, outputPath: path.join(temp, "wrapped-suffix.json") }), /WRAPPER/);
 await assert.rejects(() => persistCanonicalPacket({ kind: "preflight", connectorResponse: connector(), expectedTargetMarker: targetMarker, outputPath }), /OUTPUT_PATH_EXISTS/);
 const blockedOutput = path.join(temp, "partial.json");
 await mkdir(blockedOutput);
 await assert.rejects(() => persistCanonicalPacket({ kind: "preflight", connectorResponse: connector(), expectedTargetMarker: targetMarker, outputPath: blockedOutput }), /OUTPUT_PATH_EXISTS/);
-console.log(JSON.stringify({ status: "PASS", schemaAwareCapture: true, validRows: 20, safeRoleLabels: 5, rejectedCases: 15, durableReread: true, cliCapture: true }));
+console.log(JSON.stringify({ status: "PASS", schemaAwareCapture: true, validRows: 20, safeRoleLabels: 5, rejectedCases: 17, durableReread: true, cliCapture: true, exactEnvelope: true }));
