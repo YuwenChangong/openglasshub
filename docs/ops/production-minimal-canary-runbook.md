@@ -238,6 +238,10 @@ liveness path in which `stdin.resume()` remained active after the atomic
 value-blind terminal result was written and `process.exitCode` was set. A local
 bounded child-process test proves the aliases-null terminal result is persisted
 before Node exits with status `1`; it performs no provider request or mutation.
+The stable local liveness failure classification is
+`R6_METADATA_POST_RESULT_PROCESS_EXIT_FAILED`; it is reserved for a bounded
+controller or regression assertion that observes a child remain live after its
+terminal result has been safely written.
 No additional Pages GET is authorized by this remediation.
 
 ## Commands

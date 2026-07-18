@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { validateMetadataPreparationTerminalResult } from "./qa/run-cloudflare-pages-metadata-preparation.mjs";
+import { R6_METADATA_POST_RESULT_PROCESS_EXIT_FAILED, validateMetadataPreparationTerminalResult } from "./qa/run-cloudflare-pages-metadata-preparation.mjs";
 
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
 const runnerUrl = pathToFileURL(path.join(scriptsRoot, "qa", "run-cloudflare-pages-metadata-preparation.mjs")).href;
@@ -17,7 +17,7 @@ function runChild(program) {
     const stdout = []; const stderr = [];
     child.stdout.on("data", (chunk) => stdout.push(chunk));
     child.stderr.on("data", (chunk) => stderr.push(chunk));
-    const timer = setTimeout(() => { child.kill(); reject(new Error("R6_METADATA_POST_RESULT_EXIT_TIMEOUT")); }, 2_000);
+    const timer = setTimeout(() => { child.kill(); reject(new Error(R6_METADATA_POST_RESULT_PROCESS_EXIT_FAILED)); }, 2_000);
     child.once("error", (error) => { clearTimeout(timer); reject(error); });
     child.once("exit", (code, signal) => { clearTimeout(timer); resolve({ code, signal, stdout: Buffer.concat(stdout).toString("utf8"), stderr: Buffer.concat(stderr).toString("utf8") }); });
   });
