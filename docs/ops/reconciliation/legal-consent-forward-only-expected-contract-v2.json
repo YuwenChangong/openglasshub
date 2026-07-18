@@ -1,0 +1,13 @@
+{
+  "contractVersion": "legal-consent-forward-only-v2",
+  "supersedes": "legal-consent-forward-only-v1",
+  "expectedObjectCount": 53,
+  "table": "public.legal_policy_acceptances",
+  "columns": 14,
+  "constraints": 12,
+  "indexes": 3,
+  "dedicatedHelper": {"identity":"public.set_legal_policy_acceptance_updated_at()","returnType":"trigger","language":"plpgsql","owner":"postgres","securityDefiner":false,"volatility":"volatile","parallel":"unsafe","leakproof":false,"strict":false,"searchPath":"pg_catalog, public","normalizedBodySha256":"37a6687cead2e980d97b09ae3f5d5a35379f4db24d10b83768421803a8c29a8f","normalizedBodyMd5":"f019c2a85daf0ed4058b77a7a14664a9","execute":[]},
+  "trigger": {"name":"trg_legal_policy_acceptances_set_updated_at","table":"public.legal_policy_acceptances","timing":"BEFORE UPDATE","helper":"public.set_legal_policy_acceptance_updated_at()","sharedHelperDependency":false},
+  "rpc": {"identity":"public.record_current_legal_policy_acceptance(uuid,text,text,text,text,smallint,text)","owner":"postgres","securityDefiner":true,"searchPath":"public, pg_temp","execute":["service_role"]},
+  "invariants":{"createOnly":true,"sharedHelperUntouched":true,"migrationLedgerUnchanged":true,"v1Ineligible":true}
+}

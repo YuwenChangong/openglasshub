@@ -16,6 +16,15 @@ docs/ops/reconciliation/legal-consent-forward-only-rollback-analysis-v1.md text 
 docs/ops/reconciliation/legal-consent-forward-only-production-runbook-v1.md text eol=lf
 scripts/test-legal-consent-forward-only-repair.mjs text eol=lf
 scripts/test-legal-consent-forward-only-fingerprint.mjs text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-preflight-v2.sql text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-repair-v2.sql text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-postflight-v2.sql text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-expected-contract-v2.json text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-v1-superseded-by-v2.md text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-production-runbook-v2.md text eol=lf
+scripts/test-legal-consent-forward-only-v2.mjs text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-fingerprint-v2.json text eol=lf
+scripts/test-legal-consent-forward-only-v2-fingerprint.mjs text eol=lf
 supabase/migrations/20260713_comment_creation_circle_authorization.sql text eol=lf
 supabase/migrations/20260713_comment_reaction_visibility_authorization.sql text eol=lf
 supabase/migrations/20260713_comment_read_circle_visibility_authorization.sql text eol=lf

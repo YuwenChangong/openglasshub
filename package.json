@@ -65,6 +65,8 @@
     "test:legal-consent-service-role-audit": "node scripts/test-legal-consent-service-role-audit.cjs",
     "test:legal-consent-forward-only-repair": "node scripts/test-legal-consent-forward-only-repair.mjs",
     "test:legal-consent-forward-only-fingerprint": "node scripts/test-legal-consent-forward-only-fingerprint.mjs",
+    "test:legal-consent-forward-only-v2": "node scripts/test-legal-consent-forward-only-v2.mjs",
+    "test:legal-consent-forward-only-v2-fingerprint": "node scripts/test-legal-consent-forward-only-v2-fingerprint.mjs",
     "test:user-profile-api-safety": "node scripts/test-user-profile-api-safety.mjs",
     "test:user-summary-api-safety": "node scripts/test-user-summary-api-safety.mjs",
     "test:profile-role-security": "node scripts/audit-profile-role-security.mjs --strict --verbose",
