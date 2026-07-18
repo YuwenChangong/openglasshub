@@ -59,7 +59,7 @@ export function readConfirmRunArgument(argv) {
   return confirmRun;
 }
 
-export function validateQaWriteTarget({ targetUrl, expectedTargetRef, productionRef, allowProductionWrites, confirmRun }) {
+export function validateQaWriteTarget({ targetUrl, expectedTargetRef, productionRef, allowProductionWrites, confirmRun, deferProductionAcknowledgement = false }) {
   const actualRef = refFromSupabaseUrl(targetUrl);
   const expectedRef = requireRef(expectedTargetRef, "QA_EXPECTED_TARGET_REF_REQUIRED");
   const knownProductionRef = requireRef(productionRef, "QA_PRODUCTION_REF_REQUIRED");
@@ -68,11 +68,8 @@ export function validateQaWriteTarget({ targetUrl, expectedTargetRef, production
 
   const productionTarget = actualRef === knownProductionRef;
   let safeRunLabel = null;
-  if (productionTarget) {
-    if (String(allowProductionWrites ?? "") !== "1") {
-      throw new QaWriteGuardError("QA_PRODUCTION_WRITES_DISABLED");
-    }
-    safeRunLabel = validateConfirmRun(confirmRun);
+  if (productionTarget && !deferProductionAcknowledgement) {
+    safeRunLabel = validateProductionWriteAcknowledgement({ productionTarget, allowProductionWrites, confirmRun });
   } else if (confirmRun) {
     // A confirmation is harmless for a non-production dry run, but keep its format strict.
     safeRunLabel = validateConfirmRun(confirmRun);
@@ -84,6 +81,14 @@ export function validateQaWriteTarget({ targetUrl, expectedTargetRef, production
     productionTarget,
     safeRunLabel,
   };
+}
+
+export function validateProductionWriteAcknowledgement({ productionTarget, allowProductionWrites, confirmRun }) {
+  if (!productionTarget) return null;
+  if (String(allowProductionWrites ?? "") !== "1") {
+    throw new QaWriteGuardError("QA_PRODUCTION_WRITES_DISABLED");
+  }
+  return validateConfirmRun(confirmRun);
 }
 
 export function readQaWriteGuardConfig(env = process.env, confirmRun = null) {

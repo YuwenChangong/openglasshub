@@ -68,6 +68,8 @@
     "test:profile-role-security": "node scripts/audit-profile-role-security.mjs --strict --verbose",
     "test:qa-orchestrator": "node scripts/test-destructive-qa-orchestrator.mjs",
     "test:production-minimal-canary": "node scripts/test-production-minimal-canary.mjs",
+    "test:production-minimal-canary-contract": "node scripts/test-production-minimal-canary-runner-contract.mjs && node scripts/test-production-deployment-attestation.mjs",
+    "test:production-minimal-canary-bundle-nonimpact": "node scripts/test-production-minimal-canary-bundle-nonimpact.mjs",
     "test:forum-permissions": "node scripts/verify-forum-permissions.cjs",
     "test:moderation-audit": "node scripts/audit-moderation.mjs --strict --verbose",
     "test:sensitive-lexicon": "node scripts/audit-sensitive-lexicon.mjs --strict --verbose",
