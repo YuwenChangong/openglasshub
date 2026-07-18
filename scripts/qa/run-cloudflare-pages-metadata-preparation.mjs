@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { prepareFixedPagesDeploymentMetadata } from "./prepare-cloudflare-pages-deployment-get.mjs";
 import { assertRunIdNotConsumed, validateConsumedRunId } from "./production-minimal-canary-consumed-run-registry.mjs";
 import { validateDeploymentAttestation } from "./production-deployment-attestation.mjs";
@@ -10,6 +11,7 @@ import { resolvePagesAccountId } from "./cloudflare-pages-account-resolver.mjs";
 export const R6_METADATA_PREPARATION_OPERATION = "PREPARE_AUTH_DRY_RUN_ATTESTATION";
 export const R6_METADATA_PREPARATION_VERSION = "r6-pages-metadata-preparation-v1";
 export const R6_METADATA_PREPARATION_SUCCESS = "R6_HARDENED_AUTH_AND_DRY_RUN_ATTESTATION_READY_FOR_HUMAN_EXECUTION";
+export const R6_METADATA_TERMINAL_RESULT_VERSION = "r6-metadata-preparation-terminal-result-v1";
 const MINIMUM_REMAINING_MS = 13 * 60 * 1000;
 const MAX_WINDOW_MS = 15 * 60 * 1000;
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -69,10 +71,11 @@ export function emitAuthDryRunCommands({ wrapperPath, executionWorktree, attesta
 }
 
 export async function prepareAuthDryRunAttestation(options) {
-  const { requestSentinel = createSingleRequestSentinel(), validateOnly, registryRoot, journalRoot, evidenceRoot, wrapperPath, executionWorktree, toolingCommit, wrapperSha256, transportSha256, parserSelectorSha256, endpointSha256, clock = () => new Date(), assertOAuthReady = () => undefined } = options;
+  const { requestSentinel = createSingleRequestSentinel(), validateOnly, registryRoot, journalRoot, evidenceRoot, wrapperPath, executionWorktree, toolingCommit, wrapperSha256, transportSha256, parserSelectorSha256, endpointSha256, clock = () => new Date(), assertOAuthReady = () => undefined, onRequestSentinel = () => undefined, onTransportStart = () => undefined } = options;
   if (typeof validateOnly !== "function") fail("R6_HARDENED_OFFICIAL_GET_VALIDATE_ONLY_FAILED");
   assertOAuthReady();
-  requestSentinel();
+  requestSentinel(); onRequestSentinel();
+  onTransportStart();
   const metadata = await prepareFixedPagesDeploymentMetadata(options);
   const attestation = await sealMetadataAttestation({ attestationRoot: options.attestationRoot, selection: metadata.deployment, accountSource: metadata.accountSource, toolingCommit, wrapperSha256, transportSha256, parserSelectorSha256, endpointSha256, now: clock });
   try { await validateOnly({ attestationPath: attestation.path, attestationSha256: attestation.sha256 }); }
@@ -100,6 +103,81 @@ export function metadataPreparationTerminalLines(value) {
 
 export function emitMetadataPreparationTerminalOutput(value, output = process.stdout) {
   for (const line of metadataPreparationTerminalLines(value)) output.write(`${line}\n`);
+}
+
+function terminalResultDigest(value) {
+  const copy = { ...value, resultSha256: null };
+  return hash(JSON.stringify(copy));
+}
+
+function terminalResultPath(values) {
+  const candidate = values.get("--terminal-result-path");
+  if (!candidate) return null;
+  const evidenceRoot = requiredFlag(values, "--evidence-root");
+  if (!inside(evidenceRoot, candidate) || path.basename(candidate) !== "metadata-preparation-terminal-result.json") {
+    fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  }
+  return path.resolve(candidate);
+}
+
+export function createMetadataPreparationTerminalResult({ terminalResultPath: resultPath, toolingCommit, outerClassification, innerClassification = null, childExitCode, promptReached = false, requestSentinelReached = false, transportReached = false, attestationCreated = false, validateOnlyCompleted = false, commands = [] }) {
+  if (!resultPath || !/^[a-f0-9]{40}$/.test(String(toolingCommit)) || !Number.isInteger(childExitCode) || typeof outerClassification !== "string" || (innerClassification !== null && typeof innerClassification !== "string")) {
+    fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  }
+  if (!Array.isArray(commands) || commands.some((command) => typeof command !== "string" || command.includes("ExecuteApprovedPhase"))) {
+    fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  }
+  const value = {
+    schemaVersion: R6_METADATA_TERMINAL_RESULT_VERSION,
+    toolingCommit,
+    outerClassification,
+    innerClassification,
+    childExitCode,
+    promptReached: Boolean(promptReached),
+    requestSentinelReached: Boolean(requestSentinelReached),
+    transportReached: Boolean(transportReached),
+    attestationCreated: Boolean(attestationCreated),
+    validateOnlyCompleted: Boolean(validateOnlyCompleted),
+    commandsEmittedCount: commands.length,
+    commands,
+    sanitizedEvidencePath: resultPath,
+    sanitizedEvidenceDigest: hash(resultPath),
+    resultSha256: null,
+  };
+  value.resultSha256 = terminalResultDigest(value);
+  return value;
+}
+
+export async function writeMetadataPreparationTerminalResult(value, resultPath) {
+  if (path.resolve(value.sanitizedEvidencePath) !== path.resolve(resultPath) || value.resultSha256 !== terminalResultDigest(value)) {
+    fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  }
+  const raw = Buffer.from(`${JSON.stringify(value)}\n`);
+  const temporary = `${resultPath}.${process.pid}.${randomUUID()}.tmp`;
+  await mkdir(path.dirname(resultPath), { recursive: true }).catch(() => fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID"));
+  let resultAlreadyExists = false;
+  try { await stat(resultPath); resultAlreadyExists = true; }
+  catch (error) { if (error?.code !== "ENOENT") throw error; }
+  if (resultAlreadyExists) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  try {
+    const handle = await open(temporary, "wx", 0o600);
+    try { await handle.writeFile(raw); await handle.sync(); } finally { await handle.close(); }
+    await rename(temporary, resultPath);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
+  return { path: resultPath, sha256: hash(raw), byteLength: raw.length };
+}
+
+export function validateMetadataPreparationTerminalResult(value, { resultPath, toolingCommit } = {}) {
+  if (!value || value.schemaVersion !== R6_METADATA_TERMINAL_RESULT_VERSION || value.toolingCommit !== toolingCommit || path.resolve(value.sanitizedEvidencePath ?? "") !== path.resolve(resultPath ?? "") || value.sanitizedEvidenceDigest !== hash(path.resolve(resultPath ?? "")) || value.resultSha256 !== terminalResultDigest(value)) {
+    fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  }
+  if (!Number.isInteger(value.childExitCode) || typeof value.outerClassification !== "string" || !Array.isArray(value.commands) || value.commands.length !== value.commandsEmittedCount || value.commands.some((command) => typeof command !== "string" || command.includes("ExecuteApprovedPhase"))) {
+    fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  }
+  return value;
 }
 
 function requiredFlag(values, name) { const value = values.get(name); if (!value) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID"); return value; }
@@ -136,32 +214,52 @@ export async function readHiddenCloudflareAccountId({ input = process.stdin, out
 }
 
 /** The executable surface accepts no secrets as arguments. Hidden account input arrives once through stdin from the wrapper. */
-export async function runMetadataPreparationCli(argv = process.argv.slice(2), { oauthProfileValidator = validateOfflineWranglerOAuthProfile, accountResolver = resolvePagesAccountId, secureInput = readHiddenCloudflareAccountId, prepare = prepareAuthDryRunAttestation } = {}) {
+export async function runMetadataPreparationCli(argv = process.argv.slice(2), { oauthProfileValidator = validateOfflineWranglerOAuthProfile, accountResolver = resolvePagesAccountId, secureInput = readHiddenCloudflareAccountId, prepare = prepareAuthDryRunAttestation, terminalState = {} } = {}) {
   const values = new Map();
   for (let index = 0; index < argv.length; index += 2) { if (!argv[index]?.startsWith("--") || values.has(argv[index]) || index + 1 >= argv.length) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID"); values.set(argv[index], argv[index + 1]); }
-  const allowed = new Set(["--operation", "--repository-root", "--attestation-root", "--registry-root", "--journal-root", "--evidence-root", "--wrapper-path", "--execution-worktree", "--tooling-commit", "--wrapper-sha256", "--transport-sha256", "--parser-selector-sha256", "--deployment-id", "--source-commit"]);
+  const allowed = new Set(["--operation", "--repository-root", "--attestation-root", "--registry-root", "--journal-root", "--evidence-root", "--wrapper-path", "--execution-worktree", "--tooling-commit", "--wrapper-sha256", "--transport-sha256", "--parser-selector-sha256", "--deployment-id", "--source-commit", "--terminal-result-path"]);
   for (const key of values.keys()) if (!allowed.has(key)) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
   if (requiredFlag(values, "--operation") !== R6_METADATA_PREPARATION_OPERATION) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
-  const repositoryRoot = requiredFlag(values, "--repository-root"); const attestationRoot = requiredFlag(values, "--attestation-root"); const sourceCommit = requiredFlag(values, "--source-commit");
+  const repositoryRoot = requiredFlag(values, "--repository-root"); const attestationRoot = requiredFlag(values, "--attestation-root"); const sourceCommit = requiredFlag(values, "--source-commit"); terminalResultPath(values);
   let auth = null; let account = null;
   try {
     try { auth = await oauthProfileValidator(); }
     catch (error) { failOAuth(error?.code ?? "R6_OAUTH_PROFILE_NOT_READY"); }
-    try { account = await accountResolver({ repositoryRoot, requestHiddenInput: secureInput }); }
+    try { account = await accountResolver({ repositoryRoot, requestHiddenInput: async () => { terminalState.promptReached = true; return secureInput(); } }); }
     catch (error) { fail(error?.code === "PAGES_ACCOUNT_ID_SOURCE_ABSENT" ? "R6_METADATA_PREPARATION_ACCOUNT_PROMPT_BLOCKED" : error?.code ?? "R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED"); }
     const deploymentId = requiredFlag(values, "--deployment-id");
     const endpointSha256 = hash(`https://api.cloudflare.com/client/v4/accounts/${account.accountId}/pages/projects/openglasshub/deployments/${deploymentId}`);
-    const result = await prepare({ repositoryRoot, resolvedAccount: account, auth, deploymentId, sourceCommit, attestationRoot, registryRoot: requiredFlag(values, "--registry-root"), journalRoot: requiredFlag(values, "--journal-root"), evidenceRoot: requiredFlag(values, "--evidence-root"), wrapperPath: requiredFlag(values, "--wrapper-path"), executionWorktree: requiredFlag(values, "--execution-worktree"), toolingCommit: requiredFlag(values, "--tooling-commit"), wrapperSha256: requiredFlag(values, "--wrapper-sha256"), transportSha256: requiredFlag(values, "--transport-sha256"), parserSelectorSha256: requiredFlag(values, "--parser-selector-sha256"), endpointSha256, assertOAuthReady: () => {
+    const result = await prepare({ repositoryRoot, resolvedAccount: account, auth, deploymentId, sourceCommit, attestationRoot, registryRoot: requiredFlag(values, "--registry-root"), journalRoot: requiredFlag(values, "--journal-root"), evidenceRoot: requiredFlag(values, "--evidence-root"), wrapperPath: requiredFlag(values, "--wrapper-path"), executionWorktree: requiredFlag(values, "--execution-worktree"), toolingCommit: requiredFlag(values, "--tooling-commit"), wrapperSha256: requiredFlag(values, "--wrapper-sha256"), transportSha256: requiredFlag(values, "--transport-sha256"), parserSelectorSha256: requiredFlag(values, "--parser-selector-sha256"), endpointSha256, onRequestSentinel: () => { terminalState.requestSentinelReached = true; }, onTransportStart: () => { terminalState.transportReached = true; }, assertOAuthReady: () => {
       try { return assertOfflineOAuthProfileReady(auth); }
       catch (error) {
         if (error instanceof OAuthProfileReadinessError) failOAuth(error.code);
         throw error;
       }
     }, validateOnly: async ({ attestationPath, attestationSha256 }) => validateDeploymentAttestation({ attestationPath, expectedSha256: attestationSha256, expectedCommit: sourceCommit, root: attestationRoot }) });
+    terminalState.attestationCreated = true; terminalState.validateOnlyCompleted = true;
     return { classification: R6_METADATA_PREPARATION_SUCCESS, attestation: { path: result.attestation.path, sha256: result.attestation.sha256, observedAt: result.attestation.observedAt, expiresAt: result.attestation.expiresAt }, remainingValidityMilliseconds: result.remainingValidityMilliseconds, dryRunId: result.dryRunId, commands: result.commands };
   } finally { if (auth) auth.token = null; if (account) account.accountId = null; }
 }
 
-if (import.meta.url === new URL(process.argv[1], "file:").href) {
-  runMetadataPreparationCli().then((value) => emitMetadataPreparationTerminalOutput(value)).catch((error) => { process.stderr.write(`${error.code ?? error.message}${error.innerCode ? `:${error.innerCode}` : ""}\n`); process.exitCode = 1; });
+export function isMetadataPreparationEntrypoint(argvPath, moduleUrl = import.meta.url) {
+  return Boolean(argvPath) && moduleUrl === pathToFileURL(argvPath).href;
+}
+
+if (isMetadataPreparationEntrypoint(process.argv[1])) {
+  const argv = process.argv.slice(2);
+  const resultIndex = argv.indexOf("--terminal-result-path");
+  const resultPath = resultIndex >= 0 ? argv[resultIndex + 1] : null;
+  const toolingIndex = argv.indexOf("--tooling-commit");
+  const toolingCommit = toolingIndex >= 0 ? argv[toolingIndex + 1] : null;
+  const terminalState = {};
+  runMetadataPreparationCli(argv, { terminalState }).then(async (value) => {
+    if (resultPath) await writeMetadataPreparationTerminalResult(createMetadataPreparationTerminalResult({ terminalResultPath: resultPath, toolingCommit, outerClassification: value.classification, childExitCode: 0, ...terminalState, commands: metadataPreparationTerminalLines(value).slice(1) }), resultPath);
+    else emitMetadataPreparationTerminalOutput(value);
+  }).catch(async (error) => {
+    if (resultPath && toolingCommit) {
+      try { await writeMetadataPreparationTerminalResult(createMetadataPreparationTerminalResult({ terminalResultPath: resultPath, toolingCommit, outerClassification: error.code ?? "R6_HARDENED_OFFICIAL_GET_CHILD_PROCESS_FAILED", innerClassification: error.innerCode ?? null, childExitCode: 1, ...terminalState }), resultPath); }
+      catch { /* The wrapper converts an absent or invalid result into a stable blocker. */ }
+    } else process.stderr.write(`${error.code ?? error.message}${error.innerCode ? `:${error.innerCode}` : ""}\n`);
+    process.exitCode = 1;
+  });
 }

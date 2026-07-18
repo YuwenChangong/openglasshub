@@ -20,10 +20,16 @@ assert.match(metadataMode, /\$entrypoint = Join-Path \$Worktree 'scripts\\qa\\ru
 assert.match(metadataMode, /Push-Location -LiteralPath \$Worktree[\s\S]*& node \$entrypoint @arguments[\s\S]*Pop-Location/, "Node must receive the absolute entrypoint through an argument array from the validated worktree");
 assert.doesNotMatch(metadataMode, /& node @arguments/, "a relative CLI entrypoint must never depend on the caller's PowerShell directory");
 assert.match(metadataMode, /R6_HARDENED_OFFICIAL_GET_NODE_ENTRYPOINT_LOAD_FAILED/, "sanitized Node loader failures must have a stable outer classification");
+assert.match(metadataMode, /metadata-preparation-terminal-result\.json/, "the wrapper must allocate one contained terminal result record");
+assert.match(metadataMode, /'--terminal-result-path'/, "the child must receive its exact terminal result path");
+assert.match(metadataMode, /& node \$entrypoint @arguments/, "the child must retain the inherited interactive console");
+assert.doesNotMatch(metadataMode, /& node \$entrypoint @arguments 1>/, "the wrapper must not redirect the hidden prompt away from the terminal");
 assert.match(metadataMode, /\$previousErrorActionPreference = \$ErrorActionPreference/, "the wrapper must preserve the native-command error preference before invoking Node");
 assert.match(metadataMode, /\$ErrorActionPreference = 'Continue'/, "native stderr must not terminate PowerShell before the Node exit code is captured");
 assert.match(metadataMode, /\$exitCode = \$LASTEXITCODE/, "the wrapper must capture the Node exit code immediately");
-assert.match(metadataMode, /R6_HARDENED_OFFICIAL_GET_EMPTY_OUTPUT_FAILED/, "empty Node output must fail closed with a stable classification");
+assert.match(metadataMode, /R6_HARDENED_OFFICIAL_GET_RESULT_MISSING/, "missing terminal results must fail closed");
+assert.match(metadataMode, /R6_HARDENED_OFFICIAL_GET_RESULT_INVALID/, "invalid terminal results must fail closed");
+assert.match(metadataMode, /R6_HARDENED_OFFICIAL_GET_CHILD_PROCESS_FAILED/, "nonzero child exits must fail closed");
 assert.match(metadataMode, /Write-MetadataPreparationFailureEvidence/, "metadata failures must attempt sanitized evidence capture");
 const quotedWrapper = wrapper.replace(/'/g, "''");
 execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference='Stop'; [void][scriptblock]::Create((Get-Content -Raw -LiteralPath '${quotedWrapper}'))`], { stdio: "pipe" });

@@ -166,16 +166,19 @@ and exactly two later commands: `AuthCheckOnly` and `DryRunOnly`.
 
 ### Metadata preparation terminal contract
 
-The metadata wrapper treats its Node child as a line-oriented, fail-closed
-process. It captures stdout and stderr separately, records `$LASTEXITCODE`
-immediately after the child returns, and restores the caller's native-command
-error preference before evaluating the result. A zero exit with no terminal
-output, a nonzero exit, an unknown terminal classification, or a missing
-success classification is a hard stop. Where its evidence root is writable,
-the wrapper writes a sanitized failure record containing only the stage,
-stable classification, process exit code, stream line counts, and artifact
-booleans; it never writes OAuth material, account IDs, provider values, or
-commands.
+The metadata wrapper preserves the Node child's inherited console so its
+non-echoing account prompt remains a TTY. It does not redirect stdout or stderr
+into a capture pipe. Instead, every child invocation writes exactly one atomic,
+restricted, contained `metadata-preparation-terminal-result.json` record. The
+record is value-blind: schema and tooling binding, outer/inner classification,
+exit code, prompt/request/transport/attestation/ValidateOnly booleans, command
+count, safe follow-up commands, and path/digest only. It never contains OAuth
+material, account IDs, provider values, or QA credentials. The wrapper captures
+`$LASTEXITCODE` immediately, waits for the result record, and rejects missing,
+partial, malformed, path-escaping, digest-invalid, conflicting, or nonzero
+results with a stable blocker. This avoids the Windows `new URL(path, "file:")`
+entrypoint mismatch and prevents the wrapper from swallowing an interactive
+prompt.
 
 The only successful terminal output is ordered as: the stable
 `R6_HARDENED_AUTH_AND_DRY_RUN_ATTESTATION_READY_FOR_HUMAN_EXECUTION`
@@ -183,7 +186,10 @@ classification, then exactly one `AuthCheckOnly` command and one `DryRunOnly`
 command. No failure emits later executable commands. The wrapper maps OAuth,
 account-input, transport, target, attestation, and ValidateOnly failures to
 their corresponding `R6_HARDENED_OFFICIAL_GET_*` classification and does not
-retry automatically.
+retry automatically. Required result-channel blockers include
+`R6_HARDENED_OFFICIAL_GET_RESULT_MISSING`,
+`R6_HARDENED_OFFICIAL_GET_RESULT_INVALID`, and
+`R6_HARDENED_OFFICIAL_GET_CHILD_PROCESS_FAILED`.
 
 The source-proven minimum sufficient attestation set is deployment ID, project
 name, production environment, immutable Pages URL, canonical alias, `main`
