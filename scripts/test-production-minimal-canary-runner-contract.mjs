@@ -6,11 +6,13 @@ import os from "node:os";
 import path from "node:path";
 import { main, parse, RUNNER_REPOSITORY_ROOT, validateIdentityGuards } from "./qa/run-production-minimal-canary.mjs";
 import { ATTESTATION_ENVIRONMENT, ATTESTATION_PROJECT, ATTESTATION_PROVIDER, ATTESTATION_SCHEMA_VERSION, CANONICAL_PRODUCTION_URL, PRODUCTION_TARGET_IDENTITY_HASH } from "./qa/production-deployment-attestation.mjs";
+import { backfillHistoricalConsumedRuns, reserveConsumedRun } from "./qa/production-minimal-canary-consumed-run-registry.mjs";
 
 const runnerCommit = execFileSync("git", ["-C", RUNNER_REPOSITORY_ROOT, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const now = Date.now();
 const root = await mkdtemp(path.join(os.tmpdir(), "qa-runner-contract-"));
 const journalRoot = path.join(root, "journals");
+const registryRoot = path.join(root, "consumed-runs");
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const runId = (suffix) => `qa-canary-${suffix}`;
 const exactRunId = runId("11111111-1111-4111-8111-111111111111");
@@ -51,10 +53,18 @@ const baseEnv = (attestation) => ({
   QA_CANARY_CIRCLE_SLUG: "qa-circle",
   QA_ALLOW_PRODUCTION_WRITES: "1",
   QA_CANARY_JOURNAL_ROOT: journalRoot,
+  QA_CANARY_CONSUMED_RUN_REGISTRY_ROOT: registryRoot,
 });
 const dryArgs = (id = exactRunId) => ["--dry-run", "--run-id", id, "--confirm-run", id];
+async function withReservation(env, id, mode) {
+  const childCommandDigest = hash(JSON.stringify(mode === "live" ? ["node", "scripts/qa/run-production-minimal-canary.mjs", "--execute", "--run-id", id, "--confirm-run", id] : ["node", "scripts/qa/run-production-minimal-canary.mjs", "--dry-run", "--run-id", id, "--confirm-run", id]));
+  const reservation = await reserveConsumedRun({ root: registryRoot, runId: id, mode, confirmationTokenSha256: hash(`token:${id}`), runnerCommit, wrapperVersion: "r6-consumed-run-wrapper-v1", wrapperSha256: "a".repeat(64), childCommandDigest });
+  return { ...env, QA_CANARY_CONSUMED_RUN_RECEIPT_PATH: reservation.receiptPath, QA_CANARY_CONSUMED_RUN_RECEIPT_SHA256: reservation.receiptSha256, QA_CANARY_CONSUMED_RUN_NONCE: reservation.invocationNonce, QA_CANARY_WRAPPER_VERSION: "r6-consumed-run-wrapper-v1", QA_CANARY_WRAPPER_SHA256: "a".repeat(64), QA_CANARY_CHILD_COMMAND_SHA256: childCommandDigest };
+}
 
 try {
+  const historicalIds = ["qa-canary-d5d9eed0-a599-4cf6-be98-39e2060d2340", "qa-canary-cf466ba5-5eb1-48ba-b18c-f20b60193a07", "qa-canary-e61e9405-8fab-4570-8a6b-a23a0841ac37", "qa-canary-76c5e82b-e601-4ccc-b571-b949f35c28d2", "qa-canary-60622b81-6c5f-40fd-a73b-bfb0cf559f9d"];
+  await backfillHistoricalConsumedRuns({ root: registryRoot, records: historicalIds.map((runId) => ({ runId, legacyBlock: true })) });
   const attestation = await writeAttestation();
   const env = baseEnv(attestation);
   const options = parse(dryArgs());
@@ -68,7 +78,7 @@ try {
     process.chdir(RUNNER_REPOSITORY_ROOT);
     const second = await validateIdentityGuards({ options, env, now, attestationRoot: root });
     assert.equal(second.runnerCommit, runnerCommit);
-    await main(dryArgs(), env, { attestationRoot: root, createAdapter: () => { adapterCalls += 1; throw new Error("ADAPTER_CONSTRUCTED"); } });
+    await main(dryArgs(), await withReservation(env, exactRunId, "dry-run"), { attestationRoot: root, createAdapter: () => { adapterCalls += 1; throw new Error("ADAPTER_CONSTRUCTED"); } });
     assert.equal(adapterCalls, 0, "dry-run must not construct the live adapter");
   } finally {
     process.chdir(originalCwd);
@@ -79,16 +89,21 @@ try {
   await assert.rejects(validateIdentityGuards({ options, env: { ...env, QA_DEPLOYMENT_ATTESTATION_PATH: path.join(root, "absent.json") }, now, attestationRoot: root }), /QA_CANARY_DEPLOYMENT_ATTESTATION_MISSING/);
   await assert.rejects(validateIdentityGuards({ options, env: { ...env, QA_DEPLOYMENT_ATTESTATION_SHA256: "a".repeat(64) }, now, attestationRoot: root }), /QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID/);
   await assert.rejects(validateIdentityGuards({ options, env: { ...env, QA_EXPECTED_DEPLOYED_COMMIT: "a".repeat(40) }, now, attestationRoot: root }), /QA_CANARY_DEPLOYED_COMMIT_MISMATCH/);
-  await assert.rejects(main(dryArgs("qa-canary-d5d9eed0-a599-4cf6-be98-39e2060d2340"), env, { attestationRoot: root }), /QA_CANARY_RUN_ID_PREVIOUSLY_FAILED/);
+  for (const historicalId of historicalIds) {
+    let adapters = 0;
+    await assert.rejects(main(dryArgs(historicalId), env, { attestationRoot: root, createReadAdapter: () => { adapters += 1; throw new Error("NETWORK_CONSTRUCTED"); } }), /QA_CANARY_RUN_ID_ALREADY_CONSUMED/);
+    assert.equal(adapters, 0, "consumed historical IDs must reject before adapters or network");
+  }
   let liveAdapterCalls = 0;
-  await assert.rejects(main(["--execute", "--run-id", runId("22222222-2222-4222-8222-222222222222"), "--confirm-run", runId("22222222-2222-4222-8222-222222222222")], { ...env, QA_CANARY_APPROVAL: "APPROVE_R6Y_BUILD_CRASH_SAFE_MINIMAL_PRODUCTION_CANARY_AND_COMPLETE_R6", QA_DEPLOYMENT_ATTESTATION_SHA256: "a".repeat(64) }, { attestationRoot: root, createAdapter: () => { liveAdapterCalls += 1; return {}; } }), /QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID/);
+  const invalidAttestationRunId = runId("22222222-2222-4222-8222-222222222222");
+  await assert.rejects(main(["--execute", "--run-id", invalidAttestationRunId, "--confirm-run", invalidAttestationRunId], await withReservation({ ...env, QA_CANARY_APPROVAL: "APPROVE_R6Y_BUILD_CRASH_SAFE_MINIMAL_PRODUCTION_CANARY_AND_COMPLETE_R6", QA_DEPLOYMENT_ATTESTATION_SHA256: "a".repeat(64) }, invalidAttestationRunId, "live"), { attestationRoot: root, createAdapter: () => { liveAdapterCalls += 1; return {}; } }), /QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID/);
   assert.equal(liveAdapterCalls, 0, "identity rejection must precede live adapter construction");
   const liveRunId = runId("33333333-3333-4333-8333-333333333333");
   const events = [];
-  await main(["--execute", "--run-id", liveRunId, "--confirm-run", liveRunId], {
+  await main(["--execute", "--run-id", liveRunId, "--confirm-run", liveRunId], await withReservation({
     ...env,
     QA_CANARY_APPROVAL: "APPROVE_R6_HARDENED_WRITE_AHEAD_FRESH_ATTESTATION_AUTH_DRY_RUN_AND_CANARY_EXECUTION",
-  }, {
+  }, liveRunId, "live"), {
     attestationRoot: root,
     createReadAdapter: () => ({
       async authenticate() { events.push("authenticate"); return { id: "11111111-1111-4111-8111-111111111111" }; },

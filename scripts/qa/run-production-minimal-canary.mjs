@@ -7,11 +7,11 @@ import { CANARY_APPROVAL, RECOVERY_APPROVAL, COMMENT_TEMPLATE_VERSION, POST_TEMP
 import { createProductionMinimalCanaryHttpAdapter, createProductionMinimalCanaryReadAdapter, createProductionMinimalCanaryRecoveryAdapter } from "./production-minimal-canary-http-adapter.mjs";
 import { validateProductionWriteAcknowledgement, readQaWriteGuardConfig, validateQaWriteTarget } from "./target-write-guard.mjs";
 import { validateDeploymentAttestation, validateExpectedRunnerCommit } from "./production-deployment-attestation.mjs";
+import { assertReservedRunMayUseReceipt, consumeReservationReceipt } from "./production-minimal-canary-consumed-run-registry.mjs";
 
 const CANONICAL_PRODUCTION_URL = "https://openglasshub.pages.dev";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MIN_ATTESTATION_VALIDITY_MS = 12 * 60 * 1000;
-const PREVIOUSLY_FAILED_RUN_IDS = new Set(["qa-canary-d5d9eed0-a599-4cf6-be98-39e2060d2340", "qa-canary-60622b81-6c5f-40fd-a73b-bfb0cf559f9d"]);
 export const RUNNER_REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 function arg(name, argv) { const index = argv.indexOf(name); return index < 0 ? null : String(argv[index + 1] ?? "").trim() || null; }
@@ -26,10 +26,30 @@ function requireFullLowerSha(value, code) { const text = String(value ?? ""); if
 function redact(value) { const text = String(value ?? ""); return text.length < 12 ? "[redacted]" : `${text.slice(0, 6)}...${text.slice(-4)}`; }
 function sha256(value) { return createHash("sha256").update(value).digest("hex"); }
 function requestTimeoutMs(env) { const value = Number.parseInt(String(env.QA_CANARY_REQUEST_TIMEOUT_MS ?? "30000"), 10); if (!Number.isInteger(value) || value < 1000 || value > 120000) throw new Error("QA_CANARY_TIMEOUT_INVALID"); return value; }
+function protectedMode(options) { return options.recoverRun ? "recovery" : (options.execute ? "live" : "dry-run"); }
+function handoffConfig(env = process.env) {
+  return {
+    root: requireEnv("QA_CANARY_CONSUMED_RUN_REGISTRY_ROOT", env),
+    receiptPath: requireEnv("QA_CANARY_CONSUMED_RUN_RECEIPT_PATH", env),
+    receiptSha256: requireEnv("QA_CANARY_CONSUMED_RUN_RECEIPT_SHA256", env),
+    invocationNonce: requireEnv("QA_CANARY_CONSUMED_RUN_NONCE", env),
+    wrapperVersion: requireEnv("QA_CANARY_WRAPPER_VERSION", env),
+    wrapperSha256: requireEnv("QA_CANARY_WRAPPER_SHA256", env),
+    childCommandDigest: requireEnv("QA_CANARY_CHILD_COMMAND_SHA256", env),
+  };
+}
 
 export function resolveRunnerRepositoryRoot() { return RUNNER_REPOSITORY_ROOT; }
 export function readRunnerCommit(repositoryRoot = RUNNER_REPOSITORY_ROOT) { return requireFullLowerSha(execFileSync("git", ["-C", repositoryRoot, "rev-parse", "HEAD"], { encoding: "utf8" }).trim(), "QA_CANARY_RUNNER_COMMIT_MISMATCH"); }
 export function validateRunnerCommit({ expectedRunnerCommit, repositoryRoot = RUNNER_REPOSITORY_ROOT }) { const expected = validateExpectedRunnerCommit(expectedRunnerCommit); const observed = readRunnerCommit(repositoryRoot); if (observed !== expected) throw new Error("QA_CANARY_RUNNER_COMMIT_MISMATCH"); return observed; }
+
+export async function consumeWrapperReservation({ runId, options, env = process.env, repositoryRoot = RUNNER_REPOSITORY_ROOT }) {
+  const runnerCommit = readRunnerCommit(repositoryRoot);
+  const root = requireEnv("QA_CANARY_CONSUMED_RUN_REGISTRY_ROOT", env);
+  await assertReservedRunMayUseReceipt({ root, runId });
+  const handoff = handoffConfig(env);
+  return consumeReservationReceipt({ root: handoff.root, receiptPath: handoff.receiptPath, receiptSha256: handoff.receiptSha256, invocationNonce: handoff.invocationNonce, runId, mode: protectedMode(options), runnerCommit, wrapperVersion: handoff.wrapperVersion, wrapperSha256: handoff.wrapperSha256, childCommandDigest: handoff.childCommandDigest });
+}
 
 function readIdentityConfig(env = process.env) { return { expectedRunnerCommit: validateExpectedRunnerCommit(requireEnv("QA_EXPECTED_RUNNER_COMMIT", env)), expectedDeployedCommit: requireFullLowerSha(requireEnv("QA_EXPECTED_DEPLOYED_COMMIT", env), "QA_CANARY_DEPLOYED_COMMIT_MISMATCH"), attestationPath: requireEnv("QA_DEPLOYMENT_ATTESTATION_PATH", env), attestationSha256: requireEnv("QA_DEPLOYMENT_ATTESTATION_SHA256", env) }; }
 export function config(options, identities, env = process.env) {
@@ -61,8 +81,11 @@ function preparedRecord({ cfg, runnerCommit, attestation, attestationSha256, act
   return { actorId: actor.id, circleId: circle.id, circleSlug: cfg.circleSlug, resolvedCircleSlug: circle.slug, runnerCommit, attestationSha256, deploymentId: attestation.deploymentId, deployedCommit: attestation.sourceCommit, baseUrl: cfg.target.baseUrl, supabaseRefDigest: sha256(cfg.target.supabaseRef), postMarker: markers.post, commentMarker: markers.comment, postTitleSha256: sha256(content.title), postBodySha256: sha256(content.body), commentBodySha256: sha256(content.comment), encodingVersion: CANONICAL_ENCODING_VERSION, postTemplateVersion: POST_TEMPLATE_VERSION, commentTemplateVersion: COMMENT_TEMPLATE_VERSION, recoveryQueryContractVersion: RECOVERY_QUERY_CONTRACT_VERSION, paginationContractVersion: PAGINATION_CONTRACT_VERSION, requestTimeoutMs: cfg.requestTimeoutMs, creationEnabled: true, recoveryOnly: false, plannedPostCount: 1, plannedCommentCount: 1, cleanupOrder: "comment-then-post", networkRetryPolicy: "zero" };
 }
 export async function main(argv = process.argv.slice(2), env = process.env, dependencies = {}) {
-  const options = parse(argv); const { cfg, runnerCommit, attestation, attestationSha256 } = await validateIdentityGuards({ options, env, attestationRoot: dependencies.attestationRoot }); const runId = options.recoverRun ?? options.runId;
-  if (!runId) throw new Error("QA_CANARY_RUN_ID_REQUIRED"); validateCanaryRunId(runId); if (PREVIOUSLY_FAILED_RUN_IDS.has(runId)) throw new Error("QA_CANARY_RUN_ID_PREVIOUSLY_FAILED");
+  const options = parse(argv); const runId = options.recoverRun ?? options.runId;
+  if (!runId) throw new Error("QA_CANARY_RUN_ID_REQUIRED"); validateCanaryRunId(runId);
+  // Receipt consumption is deliberately before target/attestation, credentials, adapters, or journal preparation.
+  await consumeWrapperReservation({ runId, options, env, repositoryRoot: dependencies.repositoryRoot ?? RUNNER_REPOSITORY_ROOT });
+  const { cfg, runnerCommit, attestation, attestationSha256 } = await validateIdentityGuards({ options, env, attestationRoot: dependencies.attestationRoot });
   const store = (dependencies.createStore ?? createFileJournalStore)(env.QA_CANARY_JOURNAL_ROOT, runId);
   if (options.dryRun) { if (await store.exists()) throw new Error("QA_CANARY_RUN_ID_REUSED"); console.log(JSON.stringify({ phase: "PLAN", runId, runnerCommit, deploymentId: attestation.deploymentId, target: { baseUrl: cfg.target.baseUrl, supabaseRef: redact(cfg.target.supabaseRef) }, scope: ["one post", "one attached comment", "exact soft-delete cleanup", "complete exact recovery only"], journalPath: store.path, noWrites: true }, null, 2)); return; }
   enforceLiveConfirmation(options, cfg, env);

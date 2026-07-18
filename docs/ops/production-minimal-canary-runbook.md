@@ -16,6 +16,28 @@ markers, canonical content hashes, templates, timeout, zero-retry policy, and
 the exact comment-then-post cleanup contract. A timed out or otherwise ambiguous
 create is never retried automatically and never advances to a dependent comment.
 
+## Consumed Run Registry V1
+
+Every protected canary identity is globally single-use. The local
+`CONSUMED_RUN_REGISTRY_V1` records dry-run, live, and allocated recovery run IDs
+as permanently ineligible before the wrapper asks for account credentials or
+allows the committed runner to inspect an attestation. It has a paired
+SHA-256-only confirmation-token ledger and rejects missing, malformed,
+duplicate, partially written, or inconsistent state. A dry-run identity can
+never be reused as a live identity, and a failed, stale, ambiguous, successful,
+or recovered run remains consumed.
+
+The wrapper first rejects an existing identity, accepts a fresh hidden
+confirmation token only for a new ID, atomically records the ID and token hash,
+then creates a receipt bound to the exact ID, protected mode, runner commit,
+wrapper version and hash, registry/ledger entry digests, nonce, and child-command
+digest. The runner consumes that receipt once before any target, attestation,
+credential, adapter, journal, or network operation. Direct runner invocation,
+receipt replay, path escape/reparse, receipt mismatch, and registry/ledger
+disagreement fail closed. Historical confirmation ledgers are copied only as
+SHA-256 evidence into the canonical registry; the original ledger files are not
+rewritten or deleted.
+
 ## Preconditions
 
 - The reviewed application commit is deployed from `main`, production smoke

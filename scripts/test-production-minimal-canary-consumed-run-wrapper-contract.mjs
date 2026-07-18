@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+
+const wrapper = process.env.R6_CONSUMED_RUN_WRAPPER_PATH ?? "C:\\Users\\1\\OpenGlassHub-R6-Proof\\start-r6-detached-secure.ps1";
+const originalLauncher = "C:\\Users\\1\\OpenGlassHub-R6-Proof\\start-r6y-canary-codex.ps1";
+const source = await readFile(wrapper, "utf8");
+assert.doesNotMatch(source, /PreviousBlockedRunIds|R6_PREVIOUS_BLOCKED_RUN_ID_REJECTED/);
+for (const marker of ["CONSUMED_RUN_REGISTRY_V1", "QA_CANARY_RUN_ID_ALREADY_CONSUMED", "Invoke-ConsumedRunTool", "Reserve-ConsumedRun", "QA_CANARY_CONSUMED_RUN_RECEIPT_PATH", "QA_CANARY_WRAPPER_VERSION", "QA_CANARY_CHILD_COMMAND_SHA256", "R6_CONSUMED_RUN_REGISTRY_BACKFILL_REQUIRED"]) assert.match(source, new RegExp(marker));
+assert.match(source, /Assert-RunIdEligible[\s\S]*Assert-DeploymentAttestation/, "run-ID rejection must occur before attestation use");
+assert.match(source, /Assert-RunIdEligible[\s\S]*Read-Host 'Fresh (dry-run-only|live canary) confirmation token/, "run-ID rejection must occur before hidden confirmation input");
+assert.match(source, /Reserve-ConsumedRun[\s\S]*Get-FutureInputs/, "reservation must precede credential prompts");
+const quotedWrapper = wrapper.replace(/'/g, "''");
+execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference='Stop'; [void][scriptblock]::Create((Get-Content -Raw -LiteralPath '${quotedWrapper}'))`], { stdio: "pipe" });
+const launcherHash = createHash("sha256").update(await readFile(originalLauncher)).digest("hex");
+assert.equal(launcherHash, "ea3ccf119d69a552cf7c945aa872fed4734ce4916095819734e1c1839b727e46");
+console.log("PRODUCTION_MINIMAL_CANARY_CONSUMED_RUN_WRAPPER_CONTRACT_OK parser, pre-credential ordering, receipt handoff, and original-launcher immutability passed with zero network");
