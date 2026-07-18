@@ -83,6 +83,21 @@ sealed hash locally, run AuthCheckOnly, run DryRunOnly, then obtain separate
 approval before ExecuteApprovedPhase. Never reuse a failed run ID or prior
 confirmation token.
 
+## Wrangler Deployment List Evidence Boundary
+
+Wrangler `4.106.0` serializes `pages deployment list --json` as a table-projection
+array with `Id`, `Environment`, `Branch`, `Source`, `Deployment`, `Status`, and
+`Build`. Its own command source applies `shortSha(commit_hash)`, formats a
+successful stage into display text, and omits aliases. Therefore this command is
+not sufficient by itself to attest the exact full deployed commit, a canonical
+Production alias, or a machine-readable active status. The QA-only parser in
+`scripts/qa/parse-wrangler-pages-deployments.mjs` accepts only that exact array
+shape, rejects null/unknown shapes without coercion, emits value-free structural
+diagnostics, and refuses attestation selection with
+`WRANGLER_JSON_REQUIRED_FIELD_MISSING`. A future provider route must supply the
+missing full-identity fields; a short SHA, dashboard build link, or immutable URL
+is never a substitute.
+
 ## Commands
 
 Generate a fresh `qa-canary-<uuid>` run ID. The redacted plan must pass first:
