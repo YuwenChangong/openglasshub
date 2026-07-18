@@ -74,6 +74,8 @@
     "test:production-minimal-canary-bundle-nonimpact": "node scripts/test-production-minimal-canary-bundle-nonimpact.mjs",
     "test:wrangler-pages-deployments": "node scripts/test-wrangler-pages-deployments.mjs",
     "test:wrangler-pages-deployments-source-contract": "node scripts/test-wrangler-pages-deployments-source-contract.mjs",
+    "test:cloudflare-pages-deployment-get": "node scripts/test-cloudflare-pages-deployment-get.mjs",
+    "test:cloudflare-pages-deployment-get-source-contract": "node scripts/test-cloudflare-pages-deployment-get-source-contract.mjs",
     "test:forum-permissions": "node scripts/verify-forum-permissions.cjs",
     "test:moderation-audit": "node scripts/audit-moderation.mjs --strict --verbose",
     "test:sensitive-lexicon": "node scripts/audit-sensitive-lexicon.mjs --strict --verbose",

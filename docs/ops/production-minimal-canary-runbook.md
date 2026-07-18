@@ -98,6 +98,27 @@ diagnostics, and refuses attestation selection with
 missing full-identity fields; a short SHA, dashboard build link, or immutable URL
 is never a substitute.
 
+## Official Deployment Get Evidence Boundary
+
+The QA-only `scripts/qa/cloudflare-pages-deployment-get.mjs` is reserved for a
+separately approved, single official Cloudflare Pages deployment `GET`. It has
+one fixed method, API origin, project name, endpoint shape, timeout, response
+limit, and no retry path. It reads only a currently valid existing Wrangler
+OAuth profile in process memory and refuses environment credentials, login,
+refresh, redirects, untrusted account identifiers, and untrusted deployment
+identifiers.
+
+The source-proven minimum sufficient attestation set is deployment ID, project
+name, production environment, immutable Pages URL, canonical alias, `main`
+branch, full lowercase source commit, `is_skipped: false`, and the exact
+`latest_stage` pair `deploy` / `success`. Required fields must exist, be
+non-null, have the exact JSON type, and meet the exact value contract.
+`commit_dirty`, unproven response-wide nullability, and a complete provider
+state taxonomy are deliberately excluded. Unknown optional fields are ignored
+and never become attestation evidence. Raw bytes are parsed before cleanup and
+are removed after either sanitized metadata or a value-free structural
+diagnostic exists.
+
 ## Commands
 
 Generate a fresh `qa-canary-<uuid>` run ID. The redacted plan must pass first:
