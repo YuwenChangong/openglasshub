@@ -1,0 +1,13 @@
+{
+  "recordVersion": "legal-consent-forward-only-dependency-review-v1",
+  "canonicalMigration": "supabase/migrations/20260712_legal_policy_acceptances.sql",
+  "dependencies": [
+    { "identity": "auth.users(id)", "classification": "MUST_BE_PREFLIGHTED_IN_PRODUCTION", "reason": "user_id foreign key" },
+    { "identity": "gen_random_uuid()", "classification": "MUST_BE_PREFLIGHTED_IN_PRODUCTION", "reason": "primary-key default" },
+    { "identity": "public.set_updated_at()", "classification": "MUST_BE_PREFLIGHTED_IN_PRODUCTION", "reason": "BEFORE UPDATE trigger helper; packet never creates or replaces it", "canonicalOwner": "postgres", "canonicalSecurityDefiner": false, "canonicalVolatility": "volatile", "canonicalParallelSafety": "unsafe", "normalizedBodyMd5": "077bb7aa35a4fed76f447b242607c205" },
+    { "identity": "roles anon/authenticated/service_role/postgres", "classification": "MUST_BE_PREFLIGHTED_IN_PRODUCTION", "reason": "RLS and exact ACL boundary" },
+    { "identity": "supabase_migrations.schema_migrations", "classification": "REQUIRED_AND_PRESENT_IN_LOCAL_BASELINE", "reason": "version 20260712 must remain absent and unchanged" },
+    { "identity": "sequence privileges", "classification": "OPTIONAL", "reason": "UUID default uses gen_random_uuid(), not a sequence" }
+  ],
+  "conclusion": "The helper is required but not self-contained. Production execution must stop unless its reviewed preflight proves the canonical helper contract; the forward packet does not modify it."
+}

@@ -6,6 +6,16 @@ docs/ops/reconciliation/operational-guardrails-r6-production-preflight.sql text 
 docs/ops/reconciliation/operational-guardrails-r6-production-postflight.sql text eol=lf
 docs/ops/reconciliation/operational-guardrails-r6-production-postflight-recovery.sql text eol=lf
 docs/ops/reconciliation/operational-guardrails-r6-production-postflight-recovery-sealed.sql text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-repair-v1.sql text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-preflight-v1.sql text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-postflight-v1.sql text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-expected-contract-v1.json text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-dependency-review-v1.json text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-fingerprint-v1.json text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-rollback-analysis-v1.md text eol=lf
+docs/ops/reconciliation/legal-consent-forward-only-production-runbook-v1.md text eol=lf
+scripts/test-legal-consent-forward-only-repair.mjs text eol=lf
+scripts/test-legal-consent-forward-only-fingerprint.mjs text eol=lf
 supabase/migrations/20260713_comment_creation_circle_authorization.sql text eol=lf
 supabase/migrations/20260713_comment_reaction_visibility_authorization.sql text eol=lf
 supabase/migrations/20260713_comment_read_circle_visibility_authorization.sql text eol=lf

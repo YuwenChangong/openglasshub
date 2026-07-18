@@ -1,0 +1,16 @@
+{
+  "contractVersion": "legal-consent-forward-only-v1",
+  "canonicalMigration": "supabase/migrations/20260712_legal_policy_acceptances.sql",
+  "canonicalMigrationSha256": "839d5394aabdd0301ea2c98f58799e66ec1abedd7c8cff9e4c8f55c1b06d33df",
+  "expectedObjectCount": 52,
+  "table": "public.legal_policy_acceptances",
+  "columns": ["id", "user_id", "bundle_version", "terms_version", "privacy_version", "guidelines_version", "minimum_age", "accepted_at", "first_acceptance_source", "last_confirmed_at", "last_confirmation_source", "confirmation_count", "created_at", "updated_at"],
+  "constraints": ["legal_policy_acceptances_pkey", "legal_policy_acceptances_user_bundle_key", "legal_policy_acceptances_user_id_fkey", "legal_policy_acceptances_bundle_version_nonempty", "legal_policy_acceptances_terms_version_nonempty", "legal_policy_acceptances_privacy_version_nonempty", "legal_policy_acceptances_guidelines_version_nonempty", "legal_policy_acceptances_minimum_age_positive", "legal_policy_acceptances_confirmation_count_positive", "legal_policy_acceptances_confirmation_after_acceptance", "legal_policy_acceptances_first_source_check", "legal_policy_acceptances_last_source_check"],
+  "indexes": ["legal_policy_acceptances_pkey", "legal_policy_acceptances_user_bundle_key", "legal_policy_acceptances_bundle_last_confirmed_idx"],
+  "rls": { "enabled": true, "forced": false, "policy": "legal_policy_acceptances_select_own" },
+  "trigger": "trg_legal_policy_acceptances_set_updated_at",
+  "helper": { "identity": "public.set_updated_at()", "owner": "postgres", "securityDefiner": false, "volatility": "volatile", "parallel": "unsafe", "normalizedBodyMd5": "077bb7aa35a4fed76f447b242607c205" },
+  "rpc": { "identity": "public.record_current_legal_policy_acceptance(uuid,text,text,text,text,smallint,text)", "owner": "postgres", "securityDefiner": true, "searchPath": "public, pg_temp", "execute": ["service_role"] },
+  "bundle": { "bundleVersion": "2026-07", "termsVersion": "2026-07", "privacyVersion": "2026-07", "guidelinesVersion": "2026-07", "minimumAge": 16 },
+  "invariants": { "createOnly": true, "noMigrationLedgerMutation": true, "noRepairOrReplacement": true, "reexecutionFails": true, "unexecutedProductionProposal": true }
+}
