@@ -24,7 +24,7 @@ const attestationValue = (patch = {}) => ({
   deploymentId: "6f11bcf1-65a7-4e9c-aa25-30ec1fd7fb8a",
   sourceCommit: runnerCommit,
   observedAt: new Date(now - 60_000).toISOString(),
-  expiresAt: new Date(now + 10 * 60_000).toISOString(),
+  expiresAt: new Date(now + 13 * 60_000).toISOString(),
   queryOrProviderEvidenceSha256: "d".repeat(64),
   targetIdentityHash: PRODUCTION_TARGET_IDENTITY_HASH,
   classification: "PRODUCTION_DEPLOYMENT_IDENTITY_EXACT",
@@ -83,6 +83,24 @@ try {
   let liveAdapterCalls = 0;
   await assert.rejects(main(["--execute", "--run-id", runId("22222222-2222-4222-8222-222222222222"), "--confirm-run", runId("22222222-2222-4222-8222-222222222222")], { ...env, QA_CANARY_APPROVAL: "APPROVE_R6Y_BUILD_CRASH_SAFE_MINIMAL_PRODUCTION_CANARY_AND_COMPLETE_R6", QA_DEPLOYMENT_ATTESTATION_SHA256: "a".repeat(64) }, { attestationRoot: root, createAdapter: () => { liveAdapterCalls += 1; return {}; } }), /QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID/);
   assert.equal(liveAdapterCalls, 0, "identity rejection must precede live adapter construction");
+  const liveRunId = runId("33333333-3333-4333-8333-333333333333");
+  const events = [];
+  await main(["--execute", "--run-id", liveRunId, "--confirm-run", liveRunId], {
+    ...env,
+    QA_CANARY_APPROVAL: "APPROVE_R6_HARDENED_WRITE_AHEAD_FRESH_ATTESTATION_AUTH_DRY_RUN_AND_CANARY_EXECUTION",
+  }, {
+    attestationRoot: root,
+    createReadAdapter: () => ({
+      async authenticate() { events.push("authenticate"); return { id: "11111111-1111-4111-8111-111111111111" }; },
+      async resolveCircle() { events.push("resolveCircle"); return { id: "22222222-2222-4222-8222-222222222222", slug: "qa-circle" }; },
+    }),
+    createAdapter: () => ({
+      async createPost({ marker }) { events.push("createPost"); return { id: "33333333-3333-4333-8333-333333333333", ownerId: "11111111-1111-4111-8111-111111111111", circleId: "22222222-2222-4222-8222-222222222222", circleSlug: "qa-circle", marker }; },
+      async createComment({ marker, postId }) { events.push("createComment"); return { id: "44444444-4444-4444-8444-444444444444", ownerId: "11111111-1111-4111-8111-111111111111", circleId: "22222222-2222-4222-8222-222222222222", circleSlug: "qa-circle", postId, marker }; },
+      async deleteComment() { events.push("deleteComment"); }, async deletePost() { events.push("deletePost"); }, async verifyCommentAbsent() { return true; }, async verifyPostAbsent() { return true; }, async verifyResidue() { return { ok: true }; },
+    }),
+  });
+  assert.deepEqual(events, ["authenticate", "resolveCircle", "createPost", "createComment", "deleteComment", "deletePost"], "read-only actor/circle resolution and durable journal must precede mutation adapter use");
   console.log("PRODUCTION_MINIMAL_CANARY_RUNNER_CONTRACT_OK CWD-independent runner commit and sealed deployment attestation guards passed with no network");
 } finally {
   await rm(root, { recursive: true, force: true });

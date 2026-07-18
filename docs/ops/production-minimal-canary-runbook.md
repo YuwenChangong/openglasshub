@@ -2,11 +2,19 @@
 
 ## Scope
 
-This is the only R6 production-write canary. It uses the deployed bearer-bound
-forum APIs to create one temporary post and one attached temporary comment, then
-soft-deletes those exact recorded artifacts. It never creates circles, media,
-external video, users, profiles, reports, or relationships. The older broad
-destructive orchestrator remains disabled for real adapters.
+This is the only R6 production-write canary. It creates one temporary post and
+one attached temporary comment, then soft-deletes only those exact journaled
+artifacts. It never creates circles, media, external video, users, profiles,
+reports, or relationships. The older broad destructive orchestrator remains
+disabled for real adapters.
+
+The V2 runner has a strict write-ahead boundary: it resolves the authenticated
+actor and exact writable circle through read-only requests, writes and rereads a
+sealed `PREPARED` journal, then permits the first create request. The journal
+binds the actor, circle ID and slug, deployment attestation, runner commit,
+markers, canonical content hashes, templates, timeout, zero-retry policy, and
+the exact comment-then-post cleanup contract. A timed out or otherwise ambiguous
+create is never retried automatically and never advances to a dependent comment.
 
 ## Preconditions
 
@@ -61,19 +69,25 @@ Generate a fresh `qa-canary-<uuid>` run ID. The redacted plan must pass first:
 node scripts/qa/run-production-minimal-canary.mjs --dry-run --run-id <run-id> --confirm-run <run-id>
 ```
 
-Only after the approved plan, set `QA_ALLOW_PRODUCTION_WRITES=1` and
-`QA_CANARY_APPROVAL=APPROVE_R6Y_BUILD_CRASH_SAFE_MINIMAL_PRODUCTION_CANARY_AND_COMPLETE_R6`, then run:
+Only after a separate explicit approval, set `QA_ALLOW_PRODUCTION_WRITES=1` and
+`QA_CANARY_APPROVAL=APPROVE_R6_HARDENED_WRITE_AHEAD_FRESH_ATTESTATION_AUTH_DRY_RUN_AND_CANARY_EXECUTION`, then run:
 
 ```powershell
 node scripts/qa/run-production-minimal-canary.mjs --execute --run-id <run-id> --confirm-run <run-id>
 ```
 
-The journal is written before authentication or a create request at
+The journal is written and reread after read-only authentication/circle
+resolution and before a create request at
 `C:\Users\1\OpenGlassHub-R6-Proof\production-canary\<run-id>\journal.json`.
 It contains no credentials and is sealed with a SHA-256 integrity value.
 
-For an interrupted run, do not repeat creation. Generate a new
-`qa-recover-<uuid>` confirmation and use exact recovery only:
+For an interrupted run, do not repeat creation. Recovery requires a separately
+approved recovery-only adapter with no create capability and complete,
+deterministic enumeration of exact candidates. The shipped production adapter
+intentionally fails closed because it cannot prove complete enumeration; it does
+not fall back to search, pagination guesses, broad deletion, or automatic
+cleanup. Generate a new `qa-recover-<uuid>` confirmation only after a new
+recovery approval:
 
 ```powershell
 node scripts/qa/run-production-minimal-canary.mjs --recover-run <run-id> --confirm-run <run-id> --confirm-recovery <fresh-recovery-token>
@@ -81,11 +95,13 @@ node scripts/qa/run-production-minimal-canary.mjs --recover-run <run-id> --confi
 
 ## Stop Conditions
 
-Stop for a target, QA-account, marker, journal-integrity, ambiguous-multiple
-match, cleanup, or residue error. Never retry a create. Recovery may look up
-only the exact high-entropy marker, verified QA owner, and known parent post;
-it performs no broad query or delete. A complete journal is already-clean and
-performs no data mutation on repeat recovery.
+Stop for a target, QA-account, circle resolution, marker, journal-integrity,
+ambiguous transport, incomplete enumeration, cleanup, or residue error. Never
+retry a create. Recovery may adopt only one fully exact candidate after a
+complete result proves that all candidate pages were inspected; zero, multiple,
+partial, malformed, or ambiguous results block. It performs no broad query,
+no broad deletion, and no automatic cleanup. A complete journal is already
+clean and performs no data mutation on repeat recovery.
 
 The normal post/comment delete APIs are soft deletes. The cleanup contract
 requires their success, no public marker search result, no readable comment

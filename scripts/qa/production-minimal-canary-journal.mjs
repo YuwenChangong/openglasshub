@@ -17,6 +17,11 @@ async function durableWrite(file, payload) {
   const handle = await open(tmp, "wx", 0o600);
   try { await handle.writeFile(payload, "utf8"); await handle.sync(); } finally { await handle.close(); }
   await rename(tmp, file);
+  // Windows does not permit fsync on directory handles; the sealed file has already
+  // been flushed and replace is atomic on the same volume.
+  if (process.platform === "win32") return;
+  const directory = await open(path.dirname(file), "r");
+  try { await directory.sync(); } finally { await directory.close(); }
 }
 function integrityFor(journal) {
   const copy = { ...journal };
@@ -44,7 +49,7 @@ export async function findUnfinishedJournals(root, qaUserId) {
     try {
       const journal = JSON.parse(await readFile(file, "utf8"));
       if (journal.integrity !== integrityFor(journal)) throw new Error("QA_CANARY_JOURNAL_INTEGRITY_INVALID");
-      if (journal.qaUserId === qaUserId && journal.state !== "COMPLETE") result.push({ runId: journal.runId, state: journal.state });
+      if (journal.prepared?.actorId === qaUserId && journal.state !== "COMPLETE") result.push({ runId: journal.runId, state: journal.state });
     } catch (error) { if (error?.code === "ENOENT") continue; throw error; }
   }
   return result;
