@@ -138,6 +138,15 @@ when local resolution is absent, use non-echoing input, pass it by a one-shot
 protected handoff rather than command line or environment, clear it immediately,
 and run ValidateOnly only after the response produces a sealed attestation.
 
+`scripts/qa/run-cloudflare-pages-metadata-preparation.mjs` is the sole
+executable metadata-preparation surface. It accepts only the fixed
+`PREPARE_AUTH_DRY_RUN_ATTESTATION` operation and reviewed non-secret paths and
+hashes. The hidden account ID is accepted once through wrapper stdin, never an
+argument or environment value. A one-request sentinel rejects a second GET.
+Only a successful fixed GET, exact selector, sealed fifteen-minute attestation,
+and shared attestation validation may produce a fresh but unreserved dry-run ID
+and exactly two later commands: `AuthCheckOnly` and `DryRunOnly`.
+
 The source-proven minimum sufficient attestation set is deployment ID, project
 name, production environment, immutable Pages URL, canonical alias, `main`
 branch, full lowercase source commit, `is_skipped: false`, and the exact
