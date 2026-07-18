@@ -196,6 +196,23 @@ name, production environment, immutable Pages URL, canonical alias, `main`
 branch, full lowercase source commit, `is_skipped: false`, and the exact
 `latest_stage` pair `deploy` / `success`. Required fields must exist, be
 non-null, have the exact JSON type, and meet the exact value contract.
+
+### Required-field diagnostics
+
+The parser keeps the minimum deployment identity contract unchanged. For every
+required provider field, missing, null, and wrong-type cases now carry a
+value-blind diagnostic reference in the form
+`PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_<KIND>:result.<path>`. The diagnostic
+contains only JSON path, observed type, expected type, parser version, and raw
+response digest; it never contains a field value, account identifier, token,
+header, or raw response. The terminal-result `innerClassification` preserves
+that safe reference for a future local forensic review.
+
+Three digests intentionally differ: the terminal-result file SHA-256 hashes
+its raw bytes, `resultSha256` hashes the canonical result object with its own
+digest field set to `null`, and `sanitizedEvidenceDigest` hashes the absolute
+contained result path. Equality between those three values is neither expected
+nor accepted as a validation rule.
 `commit_dirty`, unproven response-wide nullability, and a complete provider
 state taxonomy are deliberately excluded. Unknown optional fields are ignored
 and never become attestation evidence. Raw bytes are parsed before cleanup and

@@ -17,7 +17,7 @@ const deployment = (patch = {}) => ({
 });
 const envelope = (patch = {}) => ({ success: true, errors: [], messages: [], result: deployment(), ...patch });
 const bytes = (value) => Buffer.from(typeof value === "string" ? value : JSON.stringify(value), "utf8");
-const fail = (value, code) => assert.throws(() => parsePagesDeploymentGet(bytes(value)), (error) => error instanceof PagesDeploymentGetError && error.code === code);
+const fail = (value, code, jsonPath = null) => assert.throws(() => parsePagesDeploymentGet(bytes(value)), (error) => error instanceof PagesDeploymentGetError && error.code === code && (jsonPath === null || (error.jsonPath === jsonPath && error.diagnosticReference === `${code}:${jsonPath}`)));
 const exact = () => selectExactProductionDeployment(parsePagesDeploymentGet(bytes(envelope())), { deploymentId, sourceCommit: commit });
 
 assert.equal(exact().classification, "PAGES_DEPLOYMENT_GET_TARGET_VERIFIED");
@@ -34,6 +34,24 @@ for (const [patch, code] of [
   [{ id: undefined }, "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_MISSING"], [{ id: null }, "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL"], [{ id: 3 }, "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID"],
   [{ aliases: null }, "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL"], [{ aliases: "x" }, "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID"],
 ]) fail(envelope({ result: deployment(patch) }), code);
+const setAt = (value, jsonPath, replacement, remove = false) => {
+  const copy = structuredClone(value); const keys = jsonPath.split("."); let target = copy;
+  for (const key of keys.slice(0, -1)) target = target[key];
+  if (remove) delete target[keys.at(-1)]; else target[keys.at(-1)] = replacement;
+  return copy;
+};
+const requiredPaths = [
+  "result.id", "result.project_name", "result.environment", "result.url", "result.aliases", "result.deployment_trigger",
+  "result.deployment_trigger.metadata", "result.deployment_trigger.metadata.branch", "result.deployment_trigger.metadata.commit_hash",
+  "result.latest_stage", "result.latest_stage.name", "result.latest_stage.status", "result.is_skipped",
+];
+for (const jsonPath of requiredPaths) {
+  fail(setAt(envelope(), jsonPath, undefined, true), "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_MISSING", jsonPath);
+  fail(setAt(envelope(), jsonPath, null), "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL", jsonPath);
+}
+for (const [jsonPath, replacement] of [["result.id", 1], ["result.aliases", "not-array"], ["result.latest_stage", []], ["result.is_skipped", "false"]]) {
+  fail(setAt(envelope(), jsonPath, replacement), "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID", jsonPath);
+}
 const mismatch = (patch, code) => assert.throws(() => selectExactProductionDeployment(parsePagesDeploymentGet(bytes(envelope({ result: deployment(patch) }))), { deploymentId, sourceCommit: commit }), new RegExp(code));
 mismatch({ id: "11111111-1111-4111-8111-111111111111" }, "PAGES_DEPLOYMENT_GET_DEPLOYMENT_ID_MISMATCH");
 mismatch({ project_name: "other" }, "PAGES_DEPLOYMENT_GET_PROJECT_MISMATCH");
@@ -52,6 +70,12 @@ mismatch({ is_skipped: null }, "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL");
 const diagnostic = pagesDeploymentGetStructuralDiagnostic(bytes({ result: { id: "private-value", token: "not-for-output" } }));
 assert.equal(JSON.stringify(diagnostic).includes("private-value"), false);
 assert.equal(JSON.stringify(diagnostic).includes("not-for-output"), false);
+const nullDiagnostic = pagesDeploymentGetStructuralDiagnostic(bytes(envelope({ result: deployment({ latest_stage: null }) })));
+assert.equal(nullDiagnostic.classification, "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL");
+assert.equal(nullDiagnostic.jsonPath, "result.latest_stage");
+assert.equal(nullDiagnostic.observedType, "null");
+assert.equal(nullDiagnostic.expectedType, "object");
+assert.equal(JSON.stringify(nullDiagnostic).includes("private-value"), false);
 assert.throws(() => fixedDeploymentGetRequest({ accountId: "not-account", deploymentId }), /PAGES_DEPLOYMENT_GET_TARGET_MISMATCH/);
 assert.throws(() => fixedDeploymentGetRequest({ accountId: "a".repeat(32), deploymentId: "not-uuid" }), /PAGES_DEPLOYMENT_GET_DEPLOYMENT_ID_MISMATCH/);
 const request = fixedDeploymentGetRequest({ accountId: "a".repeat(32), deploymentId });

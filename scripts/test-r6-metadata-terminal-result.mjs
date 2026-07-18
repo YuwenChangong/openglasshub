@@ -8,6 +8,7 @@ import {
   R6_METADATA_TERMINAL_RESULT_VERSION,
   createMetadataPreparationTerminalResult,
   isMetadataPreparationEntrypoint,
+  metadataPreparationInnerClassification,
   validateMetadataPreparationTerminalResult,
   writeMetadataPreparationTerminalResult,
 } from "./qa/run-cloudflare-pages-metadata-preparation.mjs";
@@ -64,6 +65,9 @@ try {
   equal(parsed.transportReached, true, "transport evidence is boolean");
   equal(parsed.attestationCreated, true, "attestation evidence is boolean");
   equal(parsed.validateOnlyCompleted, true, "ValidateOnly evidence is boolean");
+  equal(metadataPreparationInnerClassification({ diagnosticReference: "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL:result.latest_stage" }), "PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL:result.latest_stage", "terminal results retain the sanitized path-specific diagnostic reference");
+  equal(metadataPreparationInnerClassification({ innerCode: "R6_INNER" }), "R6_INNER", "legacy inner classifications remain available");
+  equal(metadataPreparationInnerClassification({}), null, "errors without a safe inner classification remain value blind");
   equal(assertions >= 40, true, "the terminal-result matrix retains at least forty deterministic assertions");
   console.log(`R6_METADATA_TERMINAL_RESULT_CONTRACT_OK ${assertions} assertions across ${scenarios.length} fake/no-network scenarios`);
 } finally {

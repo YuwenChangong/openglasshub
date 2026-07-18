@@ -27,39 +27,45 @@ const AUTH_ENVIRONMENT_NAMES = [
 ];
 
 export class PagesDeploymentGetError extends Error {
-  constructor(code) {
+  constructor(code, diagnostic = {}) {
     super(code);
     this.code = code;
+    this.jsonPath = diagnostic.jsonPath ?? null;
+    this.observedType = diagnostic.observedType ?? null;
+    this.expectedType = diagnostic.expectedType ?? null;
+    this.diagnosticReference = this.jsonPath ? `${code}:${this.jsonPath}` : code;
   }
 }
 
-const fail = (code) => { throw new PagesDeploymentGetError(code); };
+const fail = (code, diagnostic) => { throw new PagesDeploymentGetError(code, diagnostic); };
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const string = (value) => typeof value === "string" && value.length > 0 ? value : null;
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
-function required(record, key) {
-  if (!own(record, key)) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_MISSING");
-  if (record[key] === null) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL");
+function observedType(value) { return value === null ? "null" : Array.isArray(value) ? "array" : typeof value; }
+
+function required(record, key, jsonPath, expectedType = "present") {
+  if (!own(record, key)) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_MISSING", { jsonPath, observedType: "missing", expectedType });
+  if (record[key] === null) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL", { jsonPath, observedType: "null", expectedType });
   return record[key];
 }
 
-function requiredString(record, key) {
-  const value = required(record, key);
-  if (!string(value)) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID");
+function requiredString(record, key, jsonPath) {
+  const value = required(record, key, jsonPath, "non-empty-string");
+  if (!string(value)) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID", { jsonPath, observedType: observedType(value), expectedType: "non-empty-string" });
   return value;
 }
 
-function requiredObject(record, key) {
-  const value = required(record, key);
-  if (!object(value)) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID");
+function requiredObject(record, key, jsonPath) {
+  const value = required(record, key, jsonPath, "object");
+  if (!object(value)) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID", { jsonPath, observedType: observedType(value), expectedType: "object" });
   return value;
 }
 
-function requiredArray(record, key) {
-  const value = required(record, key);
-  if (!Array.isArray(value)) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID");
+function requiredArray(record, key, jsonPath) {
+  const value = required(record, key, jsonPath, "array");
+  if (!Array.isArray(value)) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID", { jsonPath, observedType: observedType(value), expectedType: "array" });
   return value;
 }
 
@@ -85,21 +91,21 @@ function normalizeImmutableUrl(value) {
 
 function normalizeDeployment(result) {
   if (!object(result)) fail("PAGES_DEPLOYMENT_GET_RESULT_INVALID");
-  const id = requiredString(result, "id").toLowerCase();
-  const projectName = requiredString(result, "project_name");
-  const environment = requiredString(result, "environment");
-  const immutableDeploymentUrl = normalizeImmutableUrl(requiredString(result, "url"));
-  const aliases = requiredArray(result, "aliases");
-  if (!aliases.every((alias) => typeof alias === "string")) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID");
-  const trigger = requiredObject(result, "deployment_trigger");
-  const metadata = requiredObject(trigger, "metadata");
-  const branch = requiredString(metadata, "branch");
-  const commitHash = requiredString(metadata, "commit_hash");
-  const latestStage = requiredObject(result, "latest_stage");
-  const stageName = requiredString(latestStage, "name");
-  const stageStatus = requiredString(latestStage, "status");
-  const isSkipped = required(result, "is_skipped");
-  if (typeof isSkipped !== "boolean") fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID");
+  const id = requiredString(result, "id", "result.id").toLowerCase();
+  const projectName = requiredString(result, "project_name", "result.project_name");
+  const environment = requiredString(result, "environment", "result.environment");
+  const immutableDeploymentUrl = normalizeImmutableUrl(requiredString(result, "url", "result.url"));
+  const aliases = requiredArray(result, "aliases", "result.aliases");
+  if (!aliases.every((alias) => typeof alias === "string")) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID", { jsonPath: "result.aliases[]", observedType: "array", expectedType: "array-of-strings" });
+  const trigger = requiredObject(result, "deployment_trigger", "result.deployment_trigger");
+  const metadata = requiredObject(trigger, "metadata", "result.deployment_trigger.metadata");
+  const branch = requiredString(metadata, "branch", "result.deployment_trigger.metadata.branch");
+  const commitHash = requiredString(metadata, "commit_hash", "result.deployment_trigger.metadata.commit_hash");
+  const latestStage = requiredObject(result, "latest_stage", "result.latest_stage");
+  const stageName = requiredString(latestStage, "name", "result.latest_stage.name");
+  const stageStatus = requiredString(latestStage, "status", "result.latest_stage.status");
+  const isSkipped = required(result, "is_skipped", "result.is_skipped", "boolean");
+  if (typeof isSkipped !== "boolean") fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_TYPE_INVALID", { jsonPath: "result.is_skipped", observedType: observedType(isSkipped), expectedType: "boolean" });
   if (!UUID.test(id)) fail("PAGES_DEPLOYMENT_GET_RESULT_INVALID");
   return { id, projectName, environment, immutableDeploymentUrl, aliases: [...new Set(aliases)], branch, commitHash, stageName, stageStatus, isSkipped };
 }
@@ -111,8 +117,8 @@ export function parsePagesDeploymentGet(rawBytes) {
   if (envelope.success !== true) fail("PAGES_DEPLOYMENT_GET_API_ERROR");
   if (own(envelope, "errors") && (!Array.isArray(envelope.errors) || envelope.errors.length !== 0)) fail("PAGES_DEPLOYMENT_GET_API_ERROR");
   if (own(envelope, "messages") && !Array.isArray(envelope.messages)) fail("PAGES_DEPLOYMENT_GET_RESULT_INVALID");
-  if (!own(envelope, "result")) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_MISSING");
-  if (envelope.result === null) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL");
+  if (!own(envelope, "result")) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_MISSING", { jsonPath: "result", observedType: "missing", expectedType: "present" });
+  if (envelope.result === null) fail("PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL", { jsonPath: "result", observedType: "null", expectedType: "object" });
   const deployment = normalizeDeployment(envelope.result);
   return { parserVersion: PAGES_DEPLOYMENT_GET_PARSER_VERSION, rawResponseSha256: sha256(rawBytes), deployment };
 }
@@ -175,8 +181,14 @@ function structure(value, location = "$", depth = 0, entries = []) {
 
 export function pagesDeploymentGetStructuralDiagnostic(rawBytes) {
   const raw = Buffer.isBuffer(rawBytes) ? rawBytes : Buffer.from(rawBytes);
-  try { return { parserVersion: PAGES_DEPLOYMENT_GET_PARSER_VERSION, structure: structure(decode(raw)), rawResponseSha256: sha256(raw) }; }
-  catch (error) { return { parserVersion: PAGES_DEPLOYMENT_GET_PARSER_VERSION, classification: error.code ?? "PAGES_DEPLOYMENT_GET_RESULT_INVALID", structure: ["$: invalid-json-or-utf8"], rawResponseSha256: sha256(raw) }; }
+  try {
+    parsePagesDeploymentGet(raw);
+    return { parserVersion: PAGES_DEPLOYMENT_GET_PARSER_VERSION, structure: structure(decode(raw)), rawResponseSha256: sha256(raw) };
+  }
+  catch (error) {
+    const diagnostic = error instanceof PagesDeploymentGetError && error.jsonPath ? { jsonPath: error.jsonPath, observedType: error.observedType, expectedType: error.expectedType, diagnosticReference: error.diagnosticReference } : {};
+    return { parserVersion: PAGES_DEPLOYMENT_GET_PARSER_VERSION, classification: error.code ?? "PAGES_DEPLOYMENT_GET_RESULT_INVALID", ...diagnostic, structure: ["$: invalid-json-or-utf8"], rawResponseSha256: sha256(raw) };
+  }
 }
 
 /** The only permitted endpoint constructor. It cannot represent another method, host, path, project, or query. */

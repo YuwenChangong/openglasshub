@@ -180,6 +180,10 @@ export function validateMetadataPreparationTerminalResult(value, { resultPath, t
   return value;
 }
 
+export function metadataPreparationInnerClassification(error) {
+  return error?.diagnosticReference ?? error?.innerCode ?? null;
+}
+
 function requiredFlag(values, name) { const value = values.get(name); if (!value) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID"); return value; }
 export async function readHiddenCloudflareAccountId({ input = process.stdin, output = process.stdout } = {}) {
   if (!input.isTTY || !output.isTTY || typeof input.setRawMode !== "function") fail("R6_METADATA_PREPARATION_ACCOUNT_PROMPT_BLOCKED");
@@ -257,7 +261,7 @@ if (isMetadataPreparationEntrypoint(process.argv[1])) {
     else emitMetadataPreparationTerminalOutput(value);
   }).catch(async (error) => {
     if (resultPath && toolingCommit) {
-      try { await writeMetadataPreparationTerminalResult(createMetadataPreparationTerminalResult({ terminalResultPath: resultPath, toolingCommit, outerClassification: error.code ?? "R6_HARDENED_OFFICIAL_GET_CHILD_PROCESS_FAILED", innerClassification: error.innerCode ?? null, childExitCode: 1, ...terminalState }), resultPath); }
+      try { await writeMetadataPreparationTerminalResult(createMetadataPreparationTerminalResult({ terminalResultPath: resultPath, toolingCommit, outerClassification: error.code ?? "R6_HARDENED_OFFICIAL_GET_CHILD_PROCESS_FAILED", innerClassification: metadataPreparationInnerClassification(error), childExitCode: 1, ...terminalState }), resultPath); }
       catch { /* The wrapper converts an absent or invalid result into a stable blocker. */ }
     } else process.stderr.write(`${error.code ?? error.message}${error.innerCode ? `:${error.innerCode}` : ""}\n`);
     process.exitCode = 1;
