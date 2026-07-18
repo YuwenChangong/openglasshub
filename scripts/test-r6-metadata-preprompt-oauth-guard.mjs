@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { OAuthProfileReadinessError, OAUTH_PROFILE_MINIMUM_REMAINING_MS, validateOfflineWranglerOAuthProfile } from "./qa/cloudflare-pages-oauth-profile-readiness.mjs";
-import { readHiddenCloudflareAccountId, runMetadataPreparationCli } from "./qa/run-cloudflare-pages-metadata-preparation.mjs";
+import { R6_METADATA_PREPARATION_SUCCESS, emitMetadataPreparationTerminalOutput, metadataPreparationTerminalLines, readHiddenCloudflareAccountId, runMetadataPreparationCli } from "./qa/run-cloudflare-pages-metadata-preparation.mjs";
 
 const token = "test_token.value";
 const now = Date.parse("2099-01-01T00:00:00.000Z");
@@ -55,7 +55,12 @@ try {
     secureInput: async () => { prompts += 1; return "a".repeat(32); },
     prepare: async ({ auth, resolvedAccount, assertOAuthReady }) => { assertOAuthReady(); requests += 1; assert.equal(auth.token, token); assert.equal(resolvedAccount.accountId, "a".repeat(32)); return { attestation: { path: "C:\\safe\\attestation.json", sha256: "f".repeat(64), observedAt: "2099-01-01T00:00:00.000Z", expiresAt: "2099-01-01T00:15:00.000Z" }, remainingValidityMilliseconds: 14 * 60 * 1000, dryRunId: "qa-canary-11111111-1111-4111-8111-111111111111", commands: { authCheckOnly: "auth", dryRunOnly: "dry" } }; },
   });
-  assert.equal(result.classification, "R6_HARDENED_AUTH_AND_DRY_RUN_ATTESTATION_READY_FOR_HUMAN_EXECUTION"); assert.equal(prompts, 1); assert.equal(requests, 1);
+  assert.equal(result.classification, R6_METADATA_PREPARATION_SUCCESS); assert.equal(prompts, 1); assert.equal(requests, 1);
+  const terminalLines = metadataPreparationTerminalLines(result);
+  assert.deepEqual(terminalLines, [R6_METADATA_PREPARATION_SUCCESS, "auth", "dry"]);
+  const emitted = []; emitMetadataPreparationTerminalOutput(result, { write: (line) => emitted.push(line) });
+  assert.deepEqual(emitted, [`${R6_METADATA_PREPARATION_SUCCESS}\n`, "auth\n", "dry\n"], "successful terminal output must be ordered and contain only the stable classification plus two safe commands");
+  assert.throws(() => metadataPreparationTerminalLines({ classification: R6_METADATA_PREPARATION_SUCCESS, commands: { authCheckOnly: "auth", dryRunOnly: "ExecuteApprovedPhase" } }), /R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID/);
 
   const promptCountBeforeExpiry = prompts;
   await assert.rejects(runMetadataPreparationCli(args, {

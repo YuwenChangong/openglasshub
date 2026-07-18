@@ -9,6 +9,7 @@ import { resolvePagesAccountId } from "./cloudflare-pages-account-resolver.mjs";
 
 export const R6_METADATA_PREPARATION_OPERATION = "PREPARE_AUTH_DRY_RUN_ATTESTATION";
 export const R6_METADATA_PREPARATION_VERSION = "r6-pages-metadata-preparation-v1";
+export const R6_METADATA_PREPARATION_SUCCESS = "R6_HARDENED_AUTH_AND_DRY_RUN_ATTESTATION_READY_FOR_HUMAN_EXECUTION";
 const MINIMUM_REMAINING_MS = 13 * 60 * 1000;
 const MAX_WINDOW_MS = 15 * 60 * 1000;
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -82,6 +83,25 @@ export async function prepareAuthDryRunAttestation(options) {
   return { classification: "R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_OK", metadata, attestation, remainingValidityMilliseconds: remaining, dryRunId, commands };
 }
 
+/**
+ * The PowerShell wrapper consumes line-oriented terminal output. Keep the
+ * successful surface deliberately small so it can reject missing or reordered
+ * output without parsing provider evidence or credentials.
+ */
+export function metadataPreparationTerminalLines(value) {
+  if (!value || value.classification !== R6_METADATA_PREPARATION_SUCCESS) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  const commands = value.commands;
+  if (!commands || typeof commands.authCheckOnly !== "string" || typeof commands.dryRunOnly !== "string" || commands.authCheckOnly.length === 0 || commands.dryRunOnly.length === 0) {
+    fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  }
+  if (commands.authCheckOnly.includes("ExecuteApprovedPhase") || commands.dryRunOnly.includes("ExecuteApprovedPhase")) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  return [R6_METADATA_PREPARATION_SUCCESS, commands.authCheckOnly, commands.dryRunOnly];
+}
+
+export function emitMetadataPreparationTerminalOutput(value, output = process.stdout) {
+  for (const line of metadataPreparationTerminalLines(value)) output.write(`${line}\n`);
+}
+
 function requiredFlag(values, name) { const value = values.get(name); if (!value) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID"); return value; }
 export async function readHiddenCloudflareAccountId({ input = process.stdin, output = process.stdout } = {}) {
   if (!input.isTTY || !output.isTTY || typeof input.setRawMode !== "function") fail("R6_METADATA_PREPARATION_ACCOUNT_PROMPT_BLOCKED");
@@ -138,10 +158,10 @@ export async function runMetadataPreparationCli(argv = process.argv.slice(2), { 
         throw error;
       }
     }, validateOnly: async ({ attestationPath, attestationSha256 }) => validateDeploymentAttestation({ attestationPath, expectedSha256: attestationSha256, expectedCommit: sourceCommit, root: attestationRoot }) });
-    return { classification: "R6_HARDENED_AUTH_AND_DRY_RUN_ATTESTATION_READY_FOR_HUMAN_EXECUTION", attestation: { path: result.attestation.path, sha256: result.attestation.sha256, observedAt: result.attestation.observedAt, expiresAt: result.attestation.expiresAt }, remainingValidityMilliseconds: result.remainingValidityMilliseconds, dryRunId: result.dryRunId, commands: result.commands };
+    return { classification: R6_METADATA_PREPARATION_SUCCESS, attestation: { path: result.attestation.path, sha256: result.attestation.sha256, observedAt: result.attestation.observedAt, expiresAt: result.attestation.expiresAt }, remainingValidityMilliseconds: result.remainingValidityMilliseconds, dryRunId: result.dryRunId, commands: result.commands };
   } finally { if (auth) auth.token = null; if (account) account.accountId = null; }
 }
 
 if (import.meta.url === new URL(process.argv[1], "file:").href) {
-  runMetadataPreparationCli().then((value) => process.stdout.write(`${JSON.stringify(value)}\n`)).catch((error) => { process.stderr.write(`${error.code ?? error.message}${error.innerCode ? `:${error.innerCode}` : ""}\n`); process.exitCode = 1; });
+  runMetadataPreparationCli().then((value) => emitMetadataPreparationTerminalOutput(value)).catch((error) => { process.stderr.write(`${error.code ?? error.message}${error.innerCode ? `:${error.innerCode}` : ""}\n`); process.exitCode = 1; });
 }

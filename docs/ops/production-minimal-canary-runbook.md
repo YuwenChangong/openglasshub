@@ -164,6 +164,27 @@ Only a successful fixed GET, exact selector, sealed fifteen-minute attestation,
 and shared attestation validation may produce a fresh but unreserved dry-run ID
 and exactly two later commands: `AuthCheckOnly` and `DryRunOnly`.
 
+### Metadata preparation terminal contract
+
+The metadata wrapper treats its Node child as a line-oriented, fail-closed
+process. It captures stdout and stderr separately, records `$LASTEXITCODE`
+immediately after the child returns, and restores the caller's native-command
+error preference before evaluating the result. A zero exit with no terminal
+output, a nonzero exit, an unknown terminal classification, or a missing
+success classification is a hard stop. Where its evidence root is writable,
+the wrapper writes a sanitized failure record containing only the stage,
+stable classification, process exit code, stream line counts, and artifact
+booleans; it never writes OAuth material, account IDs, provider values, or
+commands.
+
+The only successful terminal output is ordered as: the stable
+`R6_HARDENED_AUTH_AND_DRY_RUN_ATTESTATION_READY_FOR_HUMAN_EXECUTION`
+classification, then exactly one `AuthCheckOnly` command and one `DryRunOnly`
+command. No failure emits later executable commands. The wrapper maps OAuth,
+account-input, transport, target, attestation, and ValidateOnly failures to
+their corresponding `R6_HARDENED_OFFICIAL_GET_*` classification and does not
+retry automatically.
+
 The source-proven minimum sufficient attestation set is deployment ID, project
 name, production environment, immutable Pages URL, canonical alias, `main`
 branch, full lowercase source commit, `is_skipped: false`, and the exact
