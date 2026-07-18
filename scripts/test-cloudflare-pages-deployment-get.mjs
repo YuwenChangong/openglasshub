@@ -73,14 +73,19 @@ try {
     const result = await processEphemeralDeploymentResponse(file); assert.equal(result.classification, code); await assert.rejects(readFile(file), /ENOENT/);
   }
   const profileRoot = path.join(temp, "appdata", "xdg.config", ".wrangler");
+  const profileRepo = path.join(temp, "profile-repo");
+  await mkdir(profileRepo, { recursive: true });
   await mkdir(path.join(profileRoot, "config"), { recursive: true });
   await writeFile(path.join(profileRoot, "config", "default.toml"), 'oauth_token = "test_token.value"\nexpiration_time = "2099-01-01T00:00:00.000Z"\n');
-  await writeFile(path.join(profileRoot, "wrangler-account.json"), JSON.stringify({ account: { id: "a".repeat(32) } }));
-  const profile = await readExistingWranglerAuth({ home: path.join(temp, "no-legacy"), appData: path.join(temp, "appdata") });
+  await writeFile(path.join(profileRepo, "wrangler.toml"), `account_id = "${"a".repeat(32)}"\n`);
+  const profile = await readExistingWranglerAuth({ repositoryRoot: profileRepo, home: path.join(temp, "no-legacy"), appData: path.join(temp, "appdata") });
   assert.equal(profile.accountId, "a".repeat(32));
   assert.equal(profile.token, "test_token.value");
+  await rm(path.join(profileRepo, "wrangler.toml"));
+  const hiddenProfile = await readExistingWranglerAuth({ repositoryRoot: profileRepo, home: path.join(temp, "no-legacy"), appData: path.join(temp, "appdata"), requestHiddenInput: async () => "a".repeat(32) });
+  assert.equal(hiddenProfile.accountResolution, "PAGES_ACCOUNT_ID_RESOLVED_HIDDEN_INPUT");
   await writeFile(path.join(profileRoot, "config", "default.toml"), 'oauth_token = "test_token.value"\nexpiration_time = "2000-01-01T00:00:00.000Z"\n');
-  await assert.rejects(readExistingWranglerAuth({ home: path.join(temp, "no-legacy"), appData: path.join(temp, "appdata") }), /PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE/);
+  await assert.rejects(readExistingWranglerAuth({ repositoryRoot: profileRepo, home: path.join(temp, "no-legacy"), appData: path.join(temp, "appdata"), requestHiddenInput: async () => "a".repeat(32) }), /PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE/);
 } finally { await rm(temp, { recursive: true, force: true }); }
 const cleanup = { CLOUDFLARE_API_TOKEN: "value", CLOUDFLARE_EMAIL: "value" }; clearCloudflareAuthEnvironment(cleanup); assert.equal(Object.keys(cleanup).length, 0);
 console.log("PAGES_DEPLOYMENT_GET_MINIMUM_CONTRACT_OK parser, selector, fixed GET transport, no retry, diagnostics, and raw lifecycle passed with fake local responses only");

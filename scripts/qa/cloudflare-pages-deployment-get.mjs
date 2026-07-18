@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile, rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
+import {
+  getWranglerStatePaths,
+  PagesAccountIdResolverError,
+  resolvePagesAccountId,
+} from "./cloudflare-pages-account-resolver.mjs";
 
 export const PAGES_DEPLOYMENT_GET_PARSER_VERSION = "cloudflare-pages-deployment-get-v1";
 export const PAGES_DEPLOYMENT_GET_TRANSPORT_VERSION = "cloudflare-pages-deployment-get-v1";
@@ -185,17 +188,6 @@ export function fixedDeploymentGetRequest({ accountId, deploymentId }) {
   return Object.freeze({ method: "GET", url: endpoint.toString(), redirect: "error", timeoutMs: REQUEST_TIMEOUT_MS, maxResponseBytes: MAX_RESPONSE_BYTES });
 }
 
-function profilePaths({ home = os.homedir(), appData = process.env.APPDATA } = {}) {
-  const legacy = path.join(home, ".wrangler");
-  const xdg = typeof appData === "string" && appData.length > 0 ? path.join(appData, "xdg.config", ".wrangler") : null;
-  return { legacy, xdg };
-}
-
-async function existingDirectory(candidate) {
-  if (!candidate) return false;
-  try { const info = await lstat(candidate); return info.isDirectory() && !info.isSymbolicLink(); } catch { return false; }
-}
-
 async function readRegularFile(candidate, readFileImpl) {
   try {
     const info = await lstat(candidate);
@@ -207,23 +199,28 @@ async function readRegularFile(candidate, readFileImpl) {
   }
 }
 
-/** Uses only the Wrangler default profile and cached selected account, never an environment token. */
-export async function readExistingWranglerAuth({ home, appData, readFileImpl = readFile } = {}) {
-  const paths = profilePaths({ home, appData });
-  const root = await existingDirectory(paths.legacy) ? paths.legacy : paths.xdg;
-  if (!root) fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
-  const authPath = path.join(root, "config", "default.toml");
-  const accountPath = path.join(root, "wrangler-account.json");
-  let authText; let accountText;
-  [authText, accountText] = await Promise.all([readRegularFile(authPath, readFileImpl), readRegularFile(accountPath, readFileImpl)]);
+/** Reads only the Wrangler default OAuth credential. OAuth secret material is never an account-ID source. */
+export async function readExistingWranglerOAuthProfile({ home, appData, readFileImpl = readFile } = {}) {
+  const paths = await getWranglerStatePaths({ home, appData });
+  if (!paths) fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
+  const authText = await readRegularFile(paths.oauthProfile, readFileImpl);
   const tokenMatch = /^oauth_token\s*=\s*"([A-Za-z0-9._~-]+)"\s*$/m.exec(authText);
   const expiryMatch = /^expiration_time\s*=\s*"([^"\r\n]+)"\s*$/m.exec(authText);
   if (!tokenMatch || !TOKEN.test(tokenMatch[1]) || !expiryMatch || !Number.isFinite(Date.parse(expiryMatch[1])) || Date.parse(expiryMatch[1]) <= Date.now()) fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
+  return { token: tokenMatch[1] };
+}
+
+/** Resolves account routing separately from OAuth and never requires wrangler-account.json when another trusted source exists. */
+export async function readExistingWranglerAuth({ repositoryRoot = process.cwd(), home, appData, requestHiddenInput, suppliedHiddenInput, readFileImpl = readFile } = {}) {
   let account;
-  try { account = JSON.parse(accountText); } catch { fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE"); }
-  const accountId = String(account?.account?.id ?? "").toLowerCase();
-  if (!ACCOUNT_ID.test(accountId)) fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
-  return { accountId, token: tokenMatch[1] };
+  try {
+    account = await resolvePagesAccountId({ repositoryRoot, home, appData, requestHiddenInput, suppliedHiddenInput, readFileImpl });
+  } catch (error) {
+    if (error instanceof PagesAccountIdResolverError) fail(error.code);
+    throw error;
+  }
+  const profile = await readExistingWranglerOAuthProfile({ home, appData, readFileImpl });
+  return { accountId: account.accountId, token: profile.token, accountResolution: account.classification };
 }
 
 export function clearCloudflareAuthEnvironment(env = process.env) {
@@ -231,13 +228,14 @@ export function clearCloudflareAuthEnvironment(env = process.env) {
 }
 
 /** Executes exactly one authenticated GET when a future approval supplies the native fetch implementation. */
-export async function executeFixedDeploymentGet({ deploymentId, fetchImpl = globalThis.fetch, auth = null, environment = process.env } = {}) {
+export async function executeFixedDeploymentGet({ deploymentId, fetchImpl = globalThis.fetch, auth = null, accountId = null, environment = process.env } = {}) {
   if (typeof fetchImpl !== "function") fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
   if (AUTH_ENVIRONMENT_NAMES.some((name) => environment[name])) fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
   let credentials = auth;
   try {
     credentials ??= await readExistingWranglerAuth();
-    const request = fixedDeploymentGetRequest({ accountId: credentials.accountId, deploymentId });
+    const resolvedAccountId = accountId ?? credentials.accountId;
+    const request = fixedDeploymentGetRequest({ accountId: resolvedAccountId, deploymentId });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), request.timeoutMs);
     let response;
@@ -249,7 +247,7 @@ export async function executeFixedDeploymentGet({ deploymentId, fetchImpl = glob
     if (response.status === 401 || response.status === 403) fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
     const raw = Buffer.from(await response.arrayBuffer());
     if (raw.length > request.maxResponseBytes) fail("PAGES_DEPLOYMENT_GET_RESULT_INVALID");
-    return { request: { method: request.method, endpointSha256: sha256(request.url), accountIdSha256: sha256(credentials.accountId) }, raw };
+    return { request: { method: request.method, endpointSha256: sha256(request.url), accountIdSha256: sha256(resolvedAccountId) }, raw };
   } finally {
     clearCloudflareAuthEnvironment(environment);
     credentials = null;

@@ -108,6 +108,36 @@ OAuth profile in process memory and refuses environment credentials, login,
 refresh, redirects, untrusted account identifiers, and untrusted deployment
 identifiers.
 
+### Account Routing Source Contract
+
+`scripts/qa/cloudflare-pages-account-resolver.mjs` separates the account routing
+identifier from the Wrangler OAuth credential. Wrangler 4.106.0 resolves an
+explicit project `account_id` before `CLOUDFLARE_ACCOUNT_ID` and its selected
+account cache; the Pages project-list command also persists its selected account
+as `pages.json`. The QA resolver intentionally does not accept the ambient
+environment variable: it is not a durable local ownership proof and must not
+cross a child-process boundary. OAuth material is authentication secret material,
+not an account-ID source.
+
+The resolver accepts only these sources, in order: exact project-local
+`wrangler.json`, `wrangler.jsonc`, or `wrangler.toml` `account_id`; an existing
+regular Wrangler cache (`wrangler-account.json` or `pages.json`) bound to a
+regular existing default OAuth profile; then one hidden operator input for a
+future separately approved metadata operation. Multiple local values, or a
+local value that disagrees with supplied hidden input, fail closed. It never
+creates a cache, reads a command-line account ID, writes the account ID to
+evidence, or permits the OAuth token to substitute for it. The only retained
+routing metadata is an account-ID SHA-256 digest.
+
+The future metadata-preparation library at
+`scripts/qa/prepare-cloudflare-pages-deployment-get.mjs` receives the resolved
+account ID only in process memory, performs one fixed GET only when separately
+approved, and returns sanitized deployment evidence. It neither authenticates a
+QA user nor allocates a canary run ID. A future human launcher must prompt only
+when local resolution is absent, use non-echoing input, pass it by a one-shot
+protected handoff rather than command line or environment, clear it immediately,
+and run ValidateOnly only after the response produces a sealed attestation.
+
 The source-proven minimum sufficient attestation set is deployment ID, project
 name, production environment, immutable Pages URL, canonical alias, `main`
 branch, full lowercase source commit, `is_skipped: false`, and the exact

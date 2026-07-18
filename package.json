@@ -75,6 +75,8 @@
     "test:wrangler-pages-deployments": "node scripts/test-wrangler-pages-deployments.mjs",
     "test:wrangler-pages-deployments-source-contract": "node scripts/test-wrangler-pages-deployments-source-contract.mjs",
     "test:cloudflare-pages-deployment-get": "node scripts/test-cloudflare-pages-deployment-get.mjs",
+    "test:cloudflare-pages-account-resolver": "node scripts/test-cloudflare-pages-account-resolver.mjs",
+    "test:cloudflare-pages-metadata-preparation": "node scripts/test-cloudflare-pages-metadata-preparation.mjs",
     "test:cloudflare-pages-deployment-get-source-contract": "node scripts/test-cloudflare-pages-deployment-get-source-contract.mjs",
     "test:forum-permissions": "node scripts/verify-forum-permissions.cjs",
     "test:moderation-audit": "node scripts/audit-moderation.mjs --strict --verbose",
