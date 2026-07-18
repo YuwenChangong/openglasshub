@@ -143,6 +143,14 @@ executable metadata-preparation surface. It accepts only the fixed
 `PREPARE_AUTH_DRY_RUN_ATTESTATION` operation and reviewed non-secret paths and
 hashes. Before an account source is resolved, it validates the regular local
 Wrangler default OAuth profile with a five-minute remaining-validity minimum.
+Wrangler 4.106.0 binds `expiration_time` to `oauth_token`; its persisted
+`refresh_token` is optional capability metadata. A refresh field therefore does
+not block a currently valid access credential. At exactly five minutes of UTC
+validity the profile is ready; below that threshold it stops before account
+input or the provider request. An expired or below-threshold profile with a
+non-empty refresh capability is classified as refresh-required, but this tool
+never refreshes automatically. It rechecks the same UTC validity immediately
+before its future fixed GET.
 The CLI itself, not the PowerShell wrapper, requests the hidden account ID once
 only when no trusted source exists. It rejects redirected stdin, never accepts
 the account ID as an argument or environment value, and restores TTY state on

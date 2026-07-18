@@ -21,23 +21,51 @@ try {
   await writeFile(profilePath, `oauth_token = "${token}"\nexpiration_time = "2099-01-01T00:06:00.000Z"\n`);
   const valid = await validateOfflineWranglerOAuthProfile(options);
   assert.equal(valid.classification, "R6_OAUTH_PROFILE_READY_OFFLINE"); assert.equal(valid.remainingValidityMilliseconds, 6 * 60 * 1000);
+  await writeFile(profilePath, `oauth_token = "${token}"\nrefresh_token = "refresh-capability"\nexpiration_time = "2099-01-01T00:06:00.000Z"\n`);
+  const validWithRefresh = await validateOfflineWranglerOAuthProfile(options);
+  assert.equal(validWithRefresh.classification, "R6_OAUTH_PROFILE_READY_OFFLINE"); assert.equal(validWithRefresh.hasRefreshCapability, true);
+  await writeFile(profilePath, `oauth_token = "${token}"\nrefresh_token = "refresh-capability"\nscopes = ["account:read", "pages:read"]\nexpiration_time = "2099-01-01T00:06:00.000Z"\n`);
+  assert.equal((await validateOfflineWranglerOAuthProfile(options)).classification, "R6_OAUTH_PROFILE_READY_OFFLINE");
   await writeFile(profilePath, `oauth_token = "${token}"\n`); await expect("R6_OAUTH_PROFILE_EXPIRY_UNPROVEN", () => validateOfflineWranglerOAuthProfile(options));
+  await writeFile(profilePath, `oauth_token = "${token}"\nexpiration_time = null\n`); await expect("R6_OAUTH_PROFILE_EXPIRY_UNPROVEN", () => validateOfflineWranglerOAuthProfile(options));
   await writeFile(profilePath, `oauth_token = "${token}"\nexpiration_time = "not-a-date"\n`); await expect("R6_OAUTH_PROFILE_EXPIRY_UNPROVEN", () => validateOfflineWranglerOAuthProfile(options));
   await writeFile(profilePath, `oauth_token = "${token}"\nexpiration_time = "2099-01-01T00:00:00.000Z"\n`); await expect("R6_OAUTH_PROFILE_EXPIRED", () => validateOfflineWranglerOAuthProfile(options));
   await writeFile(profilePath, `oauth_token = "${token}"\nexpiration_time = "2099-01-01T00:04:59.999Z"\n`); await expect("R6_OAUTH_PROFILE_INSUFFICIENT_REMAINING_VALIDITY", () => validateOfflineWranglerOAuthProfile(options));
   await writeFile(profilePath, `oauth_token = "${token}"\nexpiration_time = "2099-01-01T00:05:00.000Z"\n`); assert.equal((await validateOfflineWranglerOAuthProfile(options)).remainingValidityMilliseconds, OAUTH_PROFILE_MINIMUM_REMAINING_MS);
-  await writeFile(profilePath, `oauth_token = "${token}"\nrefresh_token = "never-use"\nexpiration_time = "2099-01-01T00:06:00.000Z"\n`); await expect("R6_OAUTH_PROFILE_REFRESH_REQUIRED", () => validateOfflineWranglerOAuthProfile(options));
+  await writeFile(profilePath, `oauth_token = "${token}"\nrefresh_token = "refresh-capability"\nexpiration_time = "2099-01-01T00:00:00.000Z"\n`); await expect("R6_OAUTH_PROFILE_REFRESH_REQUIRED", () => validateOfflineWranglerOAuthProfile(options));
+  await writeFile(profilePath, `oauth_token = "${token}"\nrefresh_token = "refresh-capability"\nexpiration_time = "2099-01-01T00:04:59.999Z"\n`); await expect("R6_OAUTH_PROFILE_REFRESH_REQUIRED", () => validateOfflineWranglerOAuthProfile(options));
+  await writeFile(profilePath, `oauth_token = "${token}"\nrefresh_token = { invalid = true }\nexpiration_time = "2099-01-01T00:06:00.000Z"\n`); await expect("R6_OAUTH_PROFILE_FORMAT_INVALID", () => validateOfflineWranglerOAuthProfile(options));
+  await writeFile(profilePath, `profile_version = "2"\noauth_token = "${token}"\nexpiration_time = "2099-01-01T00:06:00.000Z"\n`); await expect("R6_OAUTH_PROFILE_FORMAT_INVALID", () => validateOfflineWranglerOAuthProfile(options));
 
   let prompts = 0; let requests = 0;
-  await assert.rejects(runMetadataPreparationCli(args, { oauthProfileValidator: async () => { throw Object.assign(new Error("expired"), { code: "R6_OAUTH_PROFILE_EXPIRED" }); }, accountResolver: async () => { prompts += 1; }, secureInput: async () => { prompts += 1; } }), (error) => error.code === "R6_METADATA_PREPARATION_OAUTH_PROFILE_EXPIRED" && error.innerCode === "R6_OAUTH_PROFILE_EXPIRED");
-  assert.equal(prompts, 0, "invalid OAuth must fail before account resolution or prompt"); assert.equal(requests, 0);
+  for (const [innerCode, outerCode] of [
+    ["R6_OAUTH_PROFILE_REFRESH_REQUIRED", "R6_METADATA_PREPARATION_OAUTH_PROFILE_NOT_READY"],
+    ["R6_OAUTH_PROFILE_EXPIRED", "R6_METADATA_PREPARATION_OAUTH_PROFILE_EXPIRED"],
+    ["R6_OAUTH_PROFILE_INSUFFICIENT_REMAINING_VALIDITY", "R6_METADATA_PREPARATION_OAUTH_PROFILE_VALIDITY_INSUFFICIENT"],
+    ["R6_OAUTH_PROFILE_EXPIRY_UNPROVEN", "R6_METADATA_PREPARATION_OAUTH_PROFILE_NOT_READY"],
+    ["R6_OAUTH_PROFILE_FORMAT_INVALID", "R6_METADATA_PREPARATION_OAUTH_PROFILE_NOT_READY"],
+    ["R6_OAUTH_PROFILE_CONFLICTING", "R6_METADATA_PREPARATION_OAUTH_PROFILE_NOT_READY"],
+  ]) {
+    await assert.rejects(runMetadataPreparationCli(args, { oauthProfileValidator: async () => { throw Object.assign(new Error(innerCode), { code: innerCode }); }, accountResolver: async () => { prompts += 1; }, secureInput: async () => { prompts += 1; } }), (error) => error.code === outerCode && error.innerCode === innerCode);
+  }
+  assert.equal(prompts, 0, "not-ready OAuth states must fail before account resolution or prompt"); assert.equal(requests, 0);
   const result = await runMetadataPreparationCli(args, {
-    oauthProfileValidator: async () => ({ token, classification: "R6_OAUTH_PROFILE_READY_OFFLINE" }),
+    oauthProfileValidator: async () => ({ token, expiresAt: "2099-01-01T00:06:00.000Z", hasRefreshCapability: true, classification: "R6_OAUTH_PROFILE_READY_OFFLINE" }),
     accountResolver: async ({ requestHiddenInput }) => ({ accountId: await requestHiddenInput(), accountIdSha256: "f".repeat(64), classification: "PAGES_ACCOUNT_ID_RESOLVED_HIDDEN_INPUT" }),
     secureInput: async () => { prompts += 1; return "a".repeat(32); },
-    prepare: async ({ auth, resolvedAccount }) => { requests += 1; assert.equal(auth.token, token); assert.equal(resolvedAccount.accountId, "a".repeat(32)); return { attestation: { path: "C:\\safe\\attestation.json", sha256: "f".repeat(64), observedAt: "2099-01-01T00:00:00.000Z", expiresAt: "2099-01-01T00:15:00.000Z" }, remainingValidityMilliseconds: 14 * 60 * 1000, dryRunId: "qa-canary-11111111-1111-4111-8111-111111111111", commands: { authCheckOnly: "auth", dryRunOnly: "dry" } }; },
+    prepare: async ({ auth, resolvedAccount, assertOAuthReady }) => { assertOAuthReady(); requests += 1; assert.equal(auth.token, token); assert.equal(resolvedAccount.accountId, "a".repeat(32)); return { attestation: { path: "C:\\safe\\attestation.json", sha256: "f".repeat(64), observedAt: "2099-01-01T00:00:00.000Z", expiresAt: "2099-01-01T00:15:00.000Z" }, remainingValidityMilliseconds: 14 * 60 * 1000, dryRunId: "qa-canary-11111111-1111-4111-8111-111111111111", commands: { authCheckOnly: "auth", dryRunOnly: "dry" } }; },
   });
   assert.equal(result.classification, "R6_HARDENED_AUTH_AND_DRY_RUN_ATTESTATION_READY_FOR_HUMAN_EXECUTION"); assert.equal(prompts, 1); assert.equal(requests, 1);
+
+  const promptCountBeforeExpiry = prompts;
+  await assert.rejects(runMetadataPreparationCli(args, {
+    oauthProfileValidator: async () => ({ token, expiresAt: "2099-01-01T00:06:00.000Z", hasRefreshCapability: false, classification: "R6_OAUTH_PROFILE_READY_OFFLINE" }),
+    accountResolver: async ({ requestHiddenInput }) => ({ accountId: await requestHiddenInput(), accountIdSha256: "f".repeat(64), classification: "PAGES_ACCOUNT_ID_RESOLVED_HIDDEN_INPUT" }),
+    secureInput: async () => { prompts += 1; return "a".repeat(32); },
+    prepare: async ({ auth, assertOAuthReady }) => { auth.expiresAt = "2000-01-01T00:00:00.000Z"; assertOAuthReady(); requests += 1; },
+  }), (error) => error.code === "R6_METADATA_PREPARATION_OAUTH_PROFILE_EXPIRED" && error.innerCode === "R6_OAUTH_PROFILE_EXPIRED");
+  assert.equal(prompts, promptCountBeforeExpiry + 1, "credential expiry after account resolution must not prompt a second time");
+  assert.equal(requests, 1, "credential expiry immediately before request must prevent fake HTTP");
 
   const input = new EventEmitter(); input.isTTY = true; const rawStates = []; input.setRawMode = (value) => rawStates.push(value); input.resume = () => {};
   const writes = []; const output = { isTTY: true, write: (value) => writes.push(value) };

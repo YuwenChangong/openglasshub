@@ -4,7 +4,7 @@ import path from "node:path";
 import { prepareFixedPagesDeploymentMetadata } from "./prepare-cloudflare-pages-deployment-get.mjs";
 import { assertRunIdNotConsumed, validateConsumedRunId } from "./production-minimal-canary-consumed-run-registry.mjs";
 import { validateDeploymentAttestation } from "./production-deployment-attestation.mjs";
-import { validateOfflineWranglerOAuthProfile } from "./cloudflare-pages-oauth-profile-readiness.mjs";
+import { assertOfflineOAuthProfileReady, OAuthProfileReadinessError, validateOfflineWranglerOAuthProfile } from "./cloudflare-pages-oauth-profile-readiness.mjs";
 import { resolvePagesAccountId } from "./cloudflare-pages-account-resolver.mjs";
 
 export const R6_METADATA_PREPARATION_OPERATION = "PREPARE_AUTH_DRY_RUN_ATTESTATION";
@@ -68,8 +68,9 @@ export function emitAuthDryRunCommands({ wrapperPath, executionWorktree, attesta
 }
 
 export async function prepareAuthDryRunAttestation(options) {
-  const { requestSentinel = createSingleRequestSentinel(), validateOnly, registryRoot, journalRoot, evidenceRoot, wrapperPath, executionWorktree, toolingCommit, wrapperSha256, transportSha256, parserSelectorSha256, endpointSha256, clock = () => new Date() } = options;
+  const { requestSentinel = createSingleRequestSentinel(), validateOnly, registryRoot, journalRoot, evidenceRoot, wrapperPath, executionWorktree, toolingCommit, wrapperSha256, transportSha256, parserSelectorSha256, endpointSha256, clock = () => new Date(), assertOAuthReady = () => undefined } = options;
   if (typeof validateOnly !== "function") fail("R6_HARDENED_OFFICIAL_GET_VALIDATE_ONLY_FAILED");
+  assertOAuthReady();
   requestSentinel();
   const metadata = await prepareFixedPagesDeploymentMetadata(options);
   const attestation = await sealMetadataAttestation({ attestationRoot: options.attestationRoot, selection: metadata.deployment, accountSource: metadata.accountSource, toolingCommit, wrapperSha256, transportSha256, parserSelectorSha256, endpointSha256, now: clock });
@@ -130,7 +131,13 @@ export async function runMetadataPreparationCli(argv = process.argv.slice(2), { 
     catch (error) { fail(error?.code === "PAGES_ACCOUNT_ID_SOURCE_ABSENT" ? "R6_METADATA_PREPARATION_ACCOUNT_PROMPT_BLOCKED" : error?.code ?? "R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED"); }
     const deploymentId = requiredFlag(values, "--deployment-id");
     const endpointSha256 = hash(`https://api.cloudflare.com/client/v4/accounts/${account.accountId}/pages/projects/openglasshub/deployments/${deploymentId}`);
-    const result = await prepare({ repositoryRoot, resolvedAccount: account, auth, deploymentId, sourceCommit, attestationRoot, registryRoot: requiredFlag(values, "--registry-root"), journalRoot: requiredFlag(values, "--journal-root"), evidenceRoot: requiredFlag(values, "--evidence-root"), wrapperPath: requiredFlag(values, "--wrapper-path"), executionWorktree: requiredFlag(values, "--execution-worktree"), toolingCommit: requiredFlag(values, "--tooling-commit"), wrapperSha256: requiredFlag(values, "--wrapper-sha256"), transportSha256: requiredFlag(values, "--transport-sha256"), parserSelectorSha256: requiredFlag(values, "--parser-selector-sha256"), endpointSha256, validateOnly: async ({ attestationPath, attestationSha256 }) => validateDeploymentAttestation({ attestationPath, expectedSha256: attestationSha256, expectedCommit: sourceCommit, root: attestationRoot }) });
+    const result = await prepare({ repositoryRoot, resolvedAccount: account, auth, deploymentId, sourceCommit, attestationRoot, registryRoot: requiredFlag(values, "--registry-root"), journalRoot: requiredFlag(values, "--journal-root"), evidenceRoot: requiredFlag(values, "--evidence-root"), wrapperPath: requiredFlag(values, "--wrapper-path"), executionWorktree: requiredFlag(values, "--execution-worktree"), toolingCommit: requiredFlag(values, "--tooling-commit"), wrapperSha256: requiredFlag(values, "--wrapper-sha256"), transportSha256: requiredFlag(values, "--transport-sha256"), parserSelectorSha256: requiredFlag(values, "--parser-selector-sha256"), endpointSha256, assertOAuthReady: () => {
+      try { return assertOfflineOAuthProfileReady(auth); }
+      catch (error) {
+        if (error instanceof OAuthProfileReadinessError) failOAuth(error.code);
+        throw error;
+      }
+    }, validateOnly: async ({ attestationPath, attestationSha256 }) => validateDeploymentAttestation({ attestationPath, expectedSha256: attestationSha256, expectedCommit: sourceCommit, root: attestationRoot }) });
     return { classification: "R6_HARDENED_AUTH_AND_DRY_RUN_ATTESTATION_READY_FOR_HUMAN_EXECUTION", attestation: { path: result.attestation.path, sha256: result.attestation.sha256, observedAt: result.attestation.observedAt, expiresAt: result.attestation.expiresAt }, remainingValidityMilliseconds: result.remainingValidityMilliseconds, dryRunId: result.dryRunId, commands: result.commands };
   } finally { if (auth) auth.token = null; if (account) account.accountId = null; }
 }
