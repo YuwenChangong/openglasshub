@@ -3,8 +3,9 @@ import { mkdir, open, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prepareFixedPagesDeploymentMetadata } from "./prepare-cloudflare-pages-deployment-get.mjs";
 import { assertRunIdNotConsumed, validateConsumedRunId } from "./production-minimal-canary-consumed-run-registry.mjs";
-import { readExistingWranglerOAuthProfile } from "./cloudflare-pages-deployment-get.mjs";
 import { validateDeploymentAttestation } from "./production-deployment-attestation.mjs";
+import { validateOfflineWranglerOAuthProfile } from "./cloudflare-pages-oauth-profile-readiness.mjs";
+import { resolvePagesAccountId } from "./cloudflare-pages-account-resolver.mjs";
 
 export const R6_METADATA_PREPARATION_OPERATION = "PREPARE_AUTH_DRY_RUN_ATTESTATION";
 export const R6_METADATA_PREPARATION_VERSION = "r6-pages-metadata-preparation-v1";
@@ -13,6 +14,18 @@ const MAX_WINDOW_MS = 15 * 60 * 1000;
 const SHA256 = /^[a-f0-9]{64}$/;
 const fail = (code) => { const error = new Error(code); error.code = code; throw error; };
 const hash = (value) => createHash("sha256").update(value).digest("hex");
+const oauthOuterCode = (innerCode) => {
+  if (innerCode === "R6_OAUTH_PROFILE_EXPIRED") return "R6_METADATA_PREPARATION_OAUTH_PROFILE_EXPIRED";
+  if (innerCode === "R6_OAUTH_PROFILE_INSUFFICIENT_REMAINING_VALIDITY") return "R6_METADATA_PREPARATION_OAUTH_PROFILE_VALIDITY_INSUFFICIENT";
+  return "R6_METADATA_PREPARATION_OAUTH_PROFILE_NOT_READY";
+};
+const failOAuth = (innerCode) => {
+  const outerCode = oauthOuterCode(innerCode);
+  const error = new Error(`${outerCode}:${innerCode}`);
+  error.code = outerCode;
+  error.innerCode = innerCode;
+  throw error;
+};
 
 function inside(root, candidate) { const relative = path.relative(path.resolve(root), path.resolve(candidate)); return !relative.startsWith("..") && !path.isAbsolute(relative); }
 function utc(value) { if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) || !Number.isFinite(Date.parse(value))) fail("R6_HARDENED_OFFICIAL_GET_ATTESTATION_SEAL_FAILED"); return Date.parse(value); }
@@ -69,23 +82,59 @@ export async function prepareAuthDryRunAttestation(options) {
 }
 
 function requiredFlag(values, name) { const value = values.get(name); if (!value) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID"); return value; }
-async function readOneStdinLine() { const chunks = []; for await (const chunk of process.stdin) chunks.push(chunk); const value = Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/, ""); if (value.includes("\n") || value.includes("\r")) fail("R6_HARDENED_OFFICIAL_GET_ACCOUNT_INPUT_FAILED"); return value; }
+export async function readHiddenCloudflareAccountId({ input = process.stdin, output = process.stdout } = {}) {
+  if (!input.isTTY || !output.isTTY || typeof input.setRawMode !== "function") fail("R6_METADATA_PREPARATION_ACCOUNT_PROMPT_BLOCKED");
+  output.write("Cloudflare account ID (hidden): ");
+  let raw = false;
+  const characters = [];
+  try {
+    input.setRawMode(true); raw = true; input.resume();
+    const value = await new Promise((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => { input.off("data", onData); input.off("end", onEnd); };
+      const settle = (callback, payload) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        callback(payload);
+      };
+      const onData = (chunk) => {
+        for (const byte of Buffer.from(chunk)) {
+          if (byte === 3) { settle(reject, Object.assign(new Error("R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED"), { code: "R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED" })); return; }
+          if (byte === 13 || byte === 10) { settle(resolve, Buffer.from(characters).toString("utf8")); return; }
+          if (byte === 8 || byte === 127) { characters.pop(); continue; }
+          if (byte >= 32 && byte <= 126) characters.push(byte);
+        }
+      };
+      const onEnd = () => settle(reject, Object.assign(new Error("R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED"), { code: "R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED" }));
+      input.once("end", onEnd); input.on("data", onData);
+    });
+    return value;
+  } catch (error) { fail(error?.code ?? "R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED"); }
+  finally { if (raw) input.setRawMode(false); characters.fill(0); output.write("\n"); }
+}
 
 /** The executable surface accepts no secrets as arguments. Hidden account input arrives once through stdin from the wrapper. */
-export async function runMetadataPreparationCli(argv = process.argv.slice(2)) {
+export async function runMetadataPreparationCli(argv = process.argv.slice(2), { oauthProfileValidator = validateOfflineWranglerOAuthProfile, accountResolver = resolvePagesAccountId, secureInput = readHiddenCloudflareAccountId, prepare = prepareAuthDryRunAttestation } = {}) {
   const values = new Map();
   for (let index = 0; index < argv.length; index += 2) { if (!argv[index]?.startsWith("--") || values.has(argv[index]) || index + 1 >= argv.length) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID"); values.set(argv[index], argv[index + 1]); }
-  const allowed = new Set(["--operation", "--repository-root", "--attestation-root", "--registry-root", "--journal-root", "--evidence-root", "--wrapper-path", "--execution-worktree", "--tooling-commit", "--wrapper-sha256", "--transport-sha256", "--parser-selector-sha256", "--endpoint-sha256", "--deployment-id", "--source-commit", "--account-id-stdin"]);
+  const allowed = new Set(["--operation", "--repository-root", "--attestation-root", "--registry-root", "--journal-root", "--evidence-root", "--wrapper-path", "--execution-worktree", "--tooling-commit", "--wrapper-sha256", "--transport-sha256", "--parser-selector-sha256", "--deployment-id", "--source-commit"]);
   for (const key of values.keys()) if (!allowed.has(key)) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
-  if (requiredFlag(values, "--operation") !== R6_METADATA_PREPARATION_OPERATION || requiredFlag(values, "--account-id-stdin") !== "1") fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
-  const accountId = await readOneStdinLine(); const repositoryRoot = requiredFlag(values, "--repository-root"); const attestationRoot = requiredFlag(values, "--attestation-root"); const sourceCommit = requiredFlag(values, "--source-commit");
-  const auth = await readExistingWranglerOAuthProfile();
+  if (requiredFlag(values, "--operation") !== R6_METADATA_PREPARATION_OPERATION) fail("R6_HARDENED_OFFICIAL_GET_METADATA_PREPARATION_INVALID");
+  const repositoryRoot = requiredFlag(values, "--repository-root"); const attestationRoot = requiredFlag(values, "--attestation-root"); const sourceCommit = requiredFlag(values, "--source-commit");
+  let auth = null; let account = null;
   try {
-    const result = await prepareAuthDryRunAttestation({ repositoryRoot, suppliedHiddenInput: accountId, auth, deploymentId: requiredFlag(values, "--deployment-id"), sourceCommit, attestationRoot, registryRoot: requiredFlag(values, "--registry-root"), journalRoot: requiredFlag(values, "--journal-root"), evidenceRoot: requiredFlag(values, "--evidence-root"), wrapperPath: requiredFlag(values, "--wrapper-path"), executionWorktree: requiredFlag(values, "--execution-worktree"), toolingCommit: requiredFlag(values, "--tooling-commit"), wrapperSha256: requiredFlag(values, "--wrapper-sha256"), transportSha256: requiredFlag(values, "--transport-sha256"), parserSelectorSha256: requiredFlag(values, "--parser-selector-sha256"), endpointSha256: requiredFlag(values, "--endpoint-sha256"), validateOnly: async ({ attestationPath, attestationSha256 }) => validateDeploymentAttestation({ attestationPath, expectedSha256: attestationSha256, expectedCommit: sourceCommit, root: attestationRoot }) });
+    try { auth = await oauthProfileValidator(); }
+    catch (error) { failOAuth(error?.code ?? "R6_OAUTH_PROFILE_NOT_READY"); }
+    try { account = await accountResolver({ repositoryRoot, requestHiddenInput: secureInput }); }
+    catch (error) { fail(error?.code === "PAGES_ACCOUNT_ID_SOURCE_ABSENT" ? "R6_METADATA_PREPARATION_ACCOUNT_PROMPT_BLOCKED" : error?.code ?? "R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED"); }
+    const deploymentId = requiredFlag(values, "--deployment-id");
+    const endpointSha256 = hash(`https://api.cloudflare.com/client/v4/accounts/${account.accountId}/pages/projects/openglasshub/deployments/${deploymentId}`);
+    const result = await prepare({ repositoryRoot, resolvedAccount: account, auth, deploymentId, sourceCommit, attestationRoot, registryRoot: requiredFlag(values, "--registry-root"), journalRoot: requiredFlag(values, "--journal-root"), evidenceRoot: requiredFlag(values, "--evidence-root"), wrapperPath: requiredFlag(values, "--wrapper-path"), executionWorktree: requiredFlag(values, "--execution-worktree"), toolingCommit: requiredFlag(values, "--tooling-commit"), wrapperSha256: requiredFlag(values, "--wrapper-sha256"), transportSha256: requiredFlag(values, "--transport-sha256"), parserSelectorSha256: requiredFlag(values, "--parser-selector-sha256"), endpointSha256, validateOnly: async ({ attestationPath, attestationSha256 }) => validateDeploymentAttestation({ attestationPath, expectedSha256: attestationSha256, expectedCommit: sourceCommit, root: attestationRoot }) });
     return { classification: "R6_HARDENED_AUTH_AND_DRY_RUN_ATTESTATION_READY_FOR_HUMAN_EXECUTION", attestation: { path: result.attestation.path, sha256: result.attestation.sha256, observedAt: result.attestation.observedAt, expiresAt: result.attestation.expiresAt }, remainingValidityMilliseconds: result.remainingValidityMilliseconds, dryRunId: result.dryRunId, commands: result.commands };
-  } finally { auth.token = null; }
+  } finally { if (auth) auth.token = null; if (account) account.accountId = null; }
 }
 
 if (import.meta.url === new URL(process.argv[1], "file:").href) {
-  runMetadataPreparationCli().then((value) => process.stdout.write(`${JSON.stringify(value)}\n`)).catch((error) => { process.stderr.write(`${error.code ?? error.message}\n`); process.exitCode = 1; });
+  runMetadataPreparationCli().then((value) => process.stdout.write(`${JSON.stringify(value)}\n`)).catch((error) => { process.stderr.write(`${error.code ?? error.message}${error.innerCode ? `:${error.innerCode}` : ""}\n`); process.exitCode = 1; });
 }

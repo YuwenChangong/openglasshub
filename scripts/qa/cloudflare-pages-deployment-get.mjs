@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import { lstat, readFile, rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import {
-  getWranglerStatePaths,
   PagesAccountIdResolverError,
   resolvePagesAccountId,
 } from "./cloudflare-pages-account-resolver.mjs";
+import { OAuthProfileReadinessError, validateOfflineWranglerOAuthProfile } from "./cloudflare-pages-oauth-profile-readiness.mjs";
 
 export const PAGES_DEPLOYMENT_GET_PARSER_VERSION = "cloudflare-pages-deployment-get-v1";
 export const PAGES_DEPLOYMENT_GET_TRANSPORT_VERSION = "cloudflare-pages-deployment-get-v1";
@@ -19,7 +19,6 @@ export const REQUEST_TIMEOUT_MS = 15_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ACCOUNT_ID = /^[a-f0-9]{32}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
-const TOKEN = /^[A-Za-z0-9._~-]+$/;
 const AUTH_ENVIRONMENT_NAMES = [
   "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_API_KEY",
@@ -188,26 +187,15 @@ export function fixedDeploymentGetRequest({ accountId, deploymentId }) {
   return Object.freeze({ method: "GET", url: endpoint.toString(), redirect: "error", timeoutMs: REQUEST_TIMEOUT_MS, maxResponseBytes: MAX_RESPONSE_BYTES });
 }
 
-async function readRegularFile(candidate, readFileImpl) {
-  try {
-    const info = await lstat(candidate);
-    if (!info.isFile() || info.isSymbolicLink()) fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
-    return await readFileImpl(candidate, "utf8");
-  } catch (error) {
-    if (error instanceof PagesDeploymentGetError) throw error;
-    fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
-  }
-}
-
 /** Reads only the Wrangler default OAuth credential. OAuth secret material is never an account-ID source. */
 export async function readExistingWranglerOAuthProfile({ home, appData, readFileImpl = readFile } = {}) {
-  const paths = await getWranglerStatePaths({ home, appData });
-  if (!paths) fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
-  const authText = await readRegularFile(paths.oauthProfile, readFileImpl);
-  const tokenMatch = /^oauth_token\s*=\s*"([A-Za-z0-9._~-]+)"\s*$/m.exec(authText);
-  const expiryMatch = /^expiration_time\s*=\s*"([^"\r\n]+)"\s*$/m.exec(authText);
-  if (!tokenMatch || !TOKEN.test(tokenMatch[1]) || !expiryMatch || !Number.isFinite(Date.parse(expiryMatch[1])) || Date.parse(expiryMatch[1]) <= Date.now()) fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
-  return { token: tokenMatch[1] };
+  try {
+    const profile = await validateOfflineWranglerOAuthProfile({ home, appData, readFileImpl });
+    return { token: profile.token };
+  } catch (error) {
+    if (error instanceof OAuthProfileReadinessError) fail("PAGES_DEPLOYMENT_GET_AUTH_TRANSPORT_UNAVAILABLE");
+    throw error;
+  }
 }
 
 /** Resolves account routing separately from OAuth and never requires wrangler-account.json when another trusted source exists. */

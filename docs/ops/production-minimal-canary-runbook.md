@@ -141,8 +141,12 @@ and run ValidateOnly only after the response produces a sealed attestation.
 `scripts/qa/run-cloudflare-pages-metadata-preparation.mjs` is the sole
 executable metadata-preparation surface. It accepts only the fixed
 `PREPARE_AUTH_DRY_RUN_ATTESTATION` operation and reviewed non-secret paths and
-hashes. The hidden account ID is accepted once through wrapper stdin, never an
-argument or environment value. A one-request sentinel rejects a second GET.
+hashes. Before an account source is resolved, it validates the regular local
+Wrangler default OAuth profile with a five-minute remaining-validity minimum.
+The CLI itself, not the PowerShell wrapper, requests the hidden account ID once
+only when no trusted source exists. It rejects redirected stdin, never accepts
+the account ID as an argument or environment value, and restores TTY state on
+all input outcomes. A one-request sentinel rejects a second GET.
 Only a successful fixed GET, exact selector, sealed fifteen-minute attestation,
 and shared attestation validation may produce a fresh but unreserved dry-run ID
 and exactly two later commands: `AuthCheckOnly` and `DryRunOnly`.

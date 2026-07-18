@@ -11,6 +11,12 @@ for (const marker of ["CONSUMED_RUN_REGISTRY_V1", "QA_CANARY_RUN_ID_ALREADY_CONS
 assert.match(source, /Assert-RunIdEligible[\s\S]*Assert-DeploymentAttestation/, "run-ID rejection must occur before attestation use");
 assert.match(source, /Assert-RunIdEligible[\s\S]*Read-Host 'Fresh (dry-run-only|live canary) confirmation token/, "run-ID rejection must occur before hidden confirmation input");
 assert.match(source, /Reserve-ConsumedRun[\s\S]*Get-FutureInputs/, "reservation must precede credential prompts");
+assert.match(source, /\[switch\]\$PrepareAuthDryRunAttestation/, "the dedicated metadata mode must remain distinct from canary modes");
+assert.doesNotMatch(source, /function Get-HiddenCloudflareAccountId/, "the wrapper must not prompt for an account ID before the CLI validates OAuth readiness");
+const metadataMode = /function Invoke-PrepareAuthDryRunAttestation[\s\S]*?\n}\r?\n\r?\nfunction/.exec(source)?.[0] ?? "";
+assert.equal(metadataMode.includes("account-id-stdin"), false, "the wrapper must not pass account input through stdin");
+assert.equal(metadataMode.includes("Get-HiddenCloudflareAccountId"), false, "the wrapper must not receive the account ID");
+assert.match(metadataMode, /& node @arguments/, "the CLI owns offline OAuth validation and interactive account input");
 const quotedWrapper = wrapper.replace(/'/g, "''");
 execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference='Stop'; [void][scriptblock]::Create((Get-Content -Raw -LiteralPath '${quotedWrapper}'))`], { stdio: "pipe" });
 const launcherHash = createHash("sha256").update(await readFile(originalLauncher)).digest("hex");

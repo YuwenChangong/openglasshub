@@ -24,8 +24,9 @@ export async function prepareFixedPagesDeploymentMetadata({
   environment,
   home,
   appData,
+  resolvedAccount = null,
 } = {}) {
-  const account = await resolvePagesAccountId({ repositoryRoot, requestHiddenInput, suppliedHiddenInput, home, appData });
+  const account = resolvedAccount ?? await resolvePagesAccountId({ repositoryRoot, requestHiddenInput, suppliedHiddenInput, home, appData });
   try {
     const executed = await executeFixedDeploymentGet({ deploymentId, fetchImpl, auth, accountId: account.accountId, environment });
     const selected = selectExactProductionDeployment(parsePagesDeploymentGet(executed.raw), { deploymentId, sourceCommit });
