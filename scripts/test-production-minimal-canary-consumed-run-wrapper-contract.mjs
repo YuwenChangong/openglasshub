@@ -16,9 +16,12 @@ assert.doesNotMatch(source, /function Get-HiddenCloudflareAccountId/, "the wrapp
 const metadataMode = /function Invoke-PrepareAuthDryRunAttestation[\s\S]*?\n}\r?\n\r?\nfunction/.exec(source)?.[0] ?? "";
 assert.equal(metadataMode.includes("account-id-stdin"), false, "the wrapper must not pass account input through stdin");
 assert.equal(metadataMode.includes("Get-HiddenCloudflareAccountId"), false, "the wrapper must not receive the account ID");
-assert.match(metadataMode, /& node @arguments/, "the CLI owns offline OAuth validation and interactive account input");
+assert.match(metadataMode, /\$entrypoint = Join-Path \$Worktree 'scripts\\qa\\run-cloudflare-pages-metadata-preparation\.mjs'/, "the metadata CLI entrypoint must be derived from the validated detached worktree");
+assert.match(metadataMode, /Push-Location -LiteralPath \$Worktree[\s\S]*& node \$entrypoint @arguments[\s\S]*Pop-Location/, "Node must receive the absolute entrypoint through an argument array from the validated worktree");
+assert.doesNotMatch(metadataMode, /& node @arguments/, "a relative CLI entrypoint must never depend on the caller's PowerShell directory");
+assert.match(metadataMode, /R6_HARDENED_OFFICIAL_GET_NODE_ENTRYPOINT_LOAD_FAILED/, "sanitized Node loader failures must have a stable outer classification");
 const quotedWrapper = wrapper.replace(/'/g, "''");
 execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference='Stop'; [void][scriptblock]::Create((Get-Content -Raw -LiteralPath '${quotedWrapper}'))`], { stdio: "pipe" });
 const launcherHash = createHash("sha256").update(await readFile(originalLauncher)).digest("hex");
 assert.equal(launcherHash, "ea3ccf119d69a552cf7c945aa872fed4734ce4916095819734e1c1839b727e46");
-console.log("PRODUCTION_MINIMAL_CANARY_CONSUMED_RUN_WRAPPER_CONTRACT_OK parser, pre-credential ordering, receipt handoff, and original-launcher immutability passed with zero network");
+console.log("PRODUCTION_MINIMAL_CANARY_CONSUMED_RUN_WRAPPER_CONTRACT_OK parser, absolute metadata entrypoint, pre-credential ordering, receipt handoff, and original-launcher immutability passed with zero network");

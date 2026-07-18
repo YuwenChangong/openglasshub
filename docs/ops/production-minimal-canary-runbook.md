@@ -155,6 +155,11 @@ The CLI itself, not the PowerShell wrapper, requests the hidden account ID once
 only when no trusted source exists. It rejects redirected stdin, never accepts
 the account ID as an argument or environment value, and restores TTY state on
 all input outcomes. A one-request sentinel rejects a second GET.
+The wrapper resolves the CLI to the exact absolute path below its already
+validated detached worktree and invokes Node through an argument array while
+that worktree is the explicit working directory. A Node loader failure is
+reported as `R6_HARDENED_OFFICIAL_GET_NODE_ENTRYPOINT_LOAD_FAILED`; it cannot
+fall through to account input, a request, an attestation, or a later command.
 Only a successful fixed GET, exact selector, sealed fifteen-minute attestation,
 and shared attestation validation may produce a fresh but unreserved dry-run ID
 and exactly two later commands: `AuthCheckOnly` and `DryRunOnly`.
