@@ -72,10 +72,13 @@ try {
   assert.equal(prompts, promptCountBeforeExpiry + 1, "credential expiry after account resolution must not prompt a second time");
   assert.equal(requests, 1, "credential expiry immediately before request must prevent fake HTTP");
 
-  const input = new EventEmitter(); input.isTTY = true; const rawStates = []; input.setRawMode = (value) => rawStates.push(value); input.resume = () => {};
+  const input = new EventEmitter(); input.isTTY = true; const rawStates = []; let pauses = 0; input.setRawMode = (value) => rawStates.push(value); input.resume = () => {}; input.pause = () => { pauses += 1; };
   const writes = []; const output = { isTTY: true, write: (value) => writes.push(value) };
   const hidden = readHiddenCloudflareAccountId({ input, output }); process.nextTick(() => input.emit("data", Buffer.from(`${"a".repeat(32)}\r`)));
-  assert.equal(await hidden, "a".repeat(32)); assert.deepEqual(rawStates, [true, false]); assert.equal(writes.join("").includes("a".repeat(32)), false);
+  assert.equal(await hidden, "a".repeat(32)); assert.deepEqual(rawStates, [true, false]); assert.equal(pauses, 1, "hidden input pauses stdin after successful collection"); assert.equal(writes.join("").includes("a".repeat(32)), false);
+  const canceledInput = new EventEmitter(); canceledInput.isTTY = true; const canceledRawStates = []; let canceledPauses = 0; canceledInput.setRawMode = (value) => canceledRawStates.push(value); canceledInput.resume = () => {}; canceledInput.pause = () => { canceledPauses += 1; };
+  const canceled = readHiddenCloudflareAccountId({ input: canceledInput, output }); process.nextTick(() => canceledInput.emit("data", Buffer.from([3])));
+  await assert.rejects(canceled, /R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED/); assert.deepEqual(canceledRawStates, [true, false]); assert.equal(canceledPauses, 1, "hidden input pauses stdin after cancellation");
   await assert.rejects(readHiddenCloudflareAccountId({ input: { isTTY: false }, output }), /R6_METADATA_PREPARATION_ACCOUNT_PROMPT_BLOCKED/);
   console.log("R6_METADATA_PREPROMPT_OAUTH_GUARD_OK offline profile readiness, zero-prompt failures, CLI ordering, hidden TTY input, and zero-network fake execution passed");
 } finally { await rm(temp, { recursive: true, force: true }); }

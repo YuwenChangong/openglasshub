@@ -80,6 +80,7 @@
     "test:r6-metadata-preparation": "node scripts/test-r6-metadata-preparation.mjs",
     "test:r6-metadata-preprompt-oauth-guard": "node scripts/test-r6-metadata-preprompt-oauth-guard.mjs",
     "test:r6-metadata-entrypoint-load-only": "node scripts/test-r6-metadata-entrypoint-load-only.mjs",
+    "test:r6-metadata-post-result-exit": "node scripts/test-r6-metadata-post-result-exit.mjs",
     "qa:prepare-auth-dry-run-attestation": "node scripts/qa/run-cloudflare-pages-metadata-preparation.mjs",
     "test:cloudflare-pages-deployment-get-source-contract": "node scripts/test-cloudflare-pages-deployment-get-source-contract.mjs",
     "test:forum-permissions": "node scripts/verify-forum-permissions.cjs",

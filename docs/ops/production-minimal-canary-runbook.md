@@ -219,6 +219,27 @@ and never become attestation evidence. Raw bytes are parsed before cleanup and
 are removed after either sanitized metadata or a value-free structural
 diagnostic exists.
 
+### Aliases-null and terminal-process boundary
+
+The second reviewed official Pages deployment GET reached the provider and
+returned the value-blind failure
+`PAGES_DEPLOYMENT_GET_REQUIRED_FIELD_NULL:result.aliases`. The installed
+Wrangler `4.106.0` deployment type models `aliases` as `string[]`, not a
+nullable canonical-target substitute, and its locally installed model provides
+no other response field that proves the canonical Production URL. The response
+is therefore insufficient for target attestation. `result.aliases` remains a
+required non-null string array and the selector still requires the exact
+canonical alias; an immutable deployment URL, matching commit, or production
+environment is not equivalent proof.
+
+The metadata child now pauses hidden TTY stdin after success, cancellation, or
+end-of-input, after restoring raw mode. This closes the source-proven event-loop
+liveness path in which `stdin.resume()` remained active after the atomic
+value-blind terminal result was written and `process.exitCode` was set. A local
+bounded child-process test proves the aliases-null terminal result is persisted
+before Node exits with status `1`; it performs no provider request or mutation.
+No additional Pages GET is authorized by this remediation.
+
 ## Commands
 
 Generate a fresh `qa-canary-<uuid>` run ID. The redacted plan must pass first:

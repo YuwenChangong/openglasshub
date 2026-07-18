@@ -214,7 +214,12 @@ export async function readHiddenCloudflareAccountId({ input = process.stdin, out
     });
     return value;
   } catch (error) { fail(error?.code ?? "R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED"); }
-  finally { if (raw) input.setRawMode(false); characters.fill(0); output.write("\n"); }
+  finally {
+    if (raw) input.setRawMode(false);
+    if (typeof input.pause === "function") input.pause();
+    characters.fill(0);
+    output.write("\n");
+  }
 }
 
 /** The executable surface accepts no secrets as arguments. Hidden account input arrives once through stdin from the wrapper. */
