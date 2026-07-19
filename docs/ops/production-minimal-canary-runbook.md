@@ -244,6 +244,32 @@ controller or regression assertion that observes a child remain live after its
 terminal result has been safely written.
 No additional Pages GET is authorized by this remediation.
 
+## Pages Project Get Source Contract
+
+The public Cloudflare TypeScript SDK Project GET source contract is bound outside
+Git by SHA-256 `7d3a3650c5c6c47296164335aa41f4020ca5d34e148f9045fe62ef86d6ba81a0`.
+It documents `GET /accounts/{account_id}/pages/projects/{project_name}` as an
+envelope containing `result: Project`. `Project.canonical_deployment` is
+documented as the most recent production deployment and is typed
+`Deployment | null`; `latest_deployment` is also nullable. The QA-only
+`scripts/qa/cloudflare-pages-project-get.mjs` deliberately fails closed when
+either target field is missing or null, then requires the canonical deployment
+to prove the existing minimum deployment identity contract.
+
+The fixed future request is GET-only at
+`/client/v4/accounts/{resolved-account-id}/pages/projects/openglasshub`, carries
+no query string, rejects redirects, uses a 15-second timeout and a 1 MiB body
+limit, and has no retry path. `selectExactCanonicalProjectTarget` requires the
+project name, `main` production branch, expected canonical deployment ID,
+production environment, exact immutable URL, canonical Pages alias, `main`
+trigger branch, full expected commit, `is_skipped: false`, and `deploy` /
+`success`. A distinct `latest_deployment.id` is a conflict only when it also
+claims to be production; a preview latest deployment is not substituted for the
+canonical target.
+
+This module is inert. No Project GET, account prompt, OAuth load, attestation,
+or canary action is authorized until a separately approved execution phase.
+
 ## Commands
 
 Generate a fresh `qa-canary-<uuid>` run ID. The redacted plan must pass first:
