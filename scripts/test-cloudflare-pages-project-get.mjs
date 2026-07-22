@@ -61,6 +61,8 @@ for (const jsonPath of [
   expectFailure(setAt(envelope(), jsonPath, undefined, true), "PAGES_PROJECT_GET_REQUIRED_FIELD_MISSING", jsonPath);
   expectFailure(setAt(envelope(), jsonPath, null), "PAGES_PROJECT_GET_REQUIRED_FIELD_NULL", jsonPath);
 }
+expectFailure(setAt(envelope(), "result.canonical_deployment.aliases", null), "PAGES_PROJECT_GET_REQUIRED_FIELD_NULL", "result.canonical_deployment.aliases");
+expectFailure(setAt(envelope(), "result.canonical_deployment.aliases", undefined, true), "PAGES_PROJECT_GET_REQUIRED_FIELD_MISSING", "result.canonical_deployment.aliases");
 for (const [jsonPath, replacement] of [
   ["result", []], ["result.name", 1], ["result.canonical_deployment", []], ["result.canonical_deployment.aliases", "not-array"],
   ["result.canonical_deployment.latest_stage", []], ["result.canonical_deployment.is_skipped", "false"],

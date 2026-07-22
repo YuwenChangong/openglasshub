@@ -25,6 +25,19 @@ const hash = (value) => createHash("sha256").update(value).digest("hex");
 const fail = (code, innerCode = null) => { const error = new Error(code); error.code = code; error.innerCode = innerCode; throw error; };
 const inside = (root, candidate) => { const relative = path.relative(path.resolve(root), path.resolve(candidate)); return !relative.startsWith("..") && !path.isAbsolute(relative); };
 const quote = (value) => `'${String(value).replace(/'/g, "''")}'`;
+const PROJECT_PHASES = Object.freeze(["promptReached", "requestSentinelReached", "transportReached", "attestationCreated", "validateOnlyCompleted"]);
+
+/** A single mutable state object records only monotonic workflow milestones. */
+export function createProjectPhaseState() {
+  return { promptReached: false, requestSentinelReached: false, transportReached: false, attestationCreated: false, validateOnlyCompleted: false };
+}
+
+export function markProjectPhase(state, phase) {
+  if (!state || !PROJECT_PHASES.includes(phase)) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_FAILED");
+  if ((phase === "transportReached" && !state.requestSentinelReached) || (phase === "attestationCreated" && !state.transportReached) || (phase === "validateOnlyCompleted" && !state.attestationCreated)) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_FAILED");
+  state[phase] = true;
+  return state;
+}
 
 export function createProjectSingleRequestSentinel() { let used = false; return () => { if (used) fail("R6_PAGES_PROJECT_TRANSPORT_FAILED"); used = true; }; }
 
@@ -75,15 +88,16 @@ function mapOAuthError(error) {
 }
 
 export async function prepareProjectAuthDryRunAttestation(options) {
-  const { assertOAuthReady = () => undefined, requestSentinel = createProjectSingleRequestSentinel(), validateOnly, clock = () => new Date(), onRequestSentinel = () => undefined, onTransportStart = () => undefined } = options;
+  const { assertOAuthReady = () => undefined, requestSentinel = createProjectSingleRequestSentinel(), validateOnly, clock = () => new Date(), onRequestSentinel = () => undefined, onTransportStart = () => undefined, onAttestationCreated = () => undefined, onValidateOnlyCompleted = () => undefined } = options;
   if (typeof validateOnly !== "function") fail("R6_PAGES_PROJECT_VALIDATE_ONLY_FAILED");
   try { assertOAuthReady(); } catch (error) { fail(mapOAuthError(error), error?.code ?? null); }
-  requestSentinel(); onRequestSentinel(); onTransportStart();
+  requestSentinel(); onRequestSentinel();
   let metadata;
-  try { metadata = await prepareFixedPagesProjectMetadata({ ...options, deploymentId: EXPECTED_DEPLOYMENT_ID, sourceCommit: EXPECTED_SOURCE_COMMIT, accountId: options.resolvedAccount.accountId }); }
+  try { metadata = await prepareFixedPagesProjectMetadata({ ...options, deploymentId: EXPECTED_DEPLOYMENT_ID, sourceCommit: EXPECTED_SOURCE_COMMIT, accountId: options.resolvedAccount.accountId, onTransportStart }); }
   catch (error) { fail(error?.code?.includes("TARGET") || error?.code?.includes("REQUIRED_FIELD") || error?.code?.includes("CONFLICT") ? "R6_PAGES_PROJECT_TARGET_MISMATCH" : "R6_PAGES_PROJECT_TRANSPORT_FAILED", error?.diagnosticReference ?? error?.code ?? null); }
   const attestation = await sealProjectMetadataAttestation({ attestationRoot: options.attestationRoot, selection: metadata.selection, accountSource: metadata.request, toolingCommit: options.toolingCommit, wrapperSha256: options.wrapperSha256, transportSha256: options.transportSha256, parserSelectorSha256: options.parserSelectorSha256, endpointSha256: metadata.request.endpointSha256, now: clock });
-  try { await validateOnly({ attestationPath: attestation.path, attestationSha256: attestation.sha256 }); }
+  onAttestationCreated();
+  try { await validateOnly({ attestationPath: attestation.path, attestationSha256: attestation.sha256 }); onValidateOnlyCompleted(); }
   catch { fail("R6_PAGES_PROJECT_VALIDATE_ONLY_FAILED"); }
   const remaining = Date.parse(attestation.expiresAt) - clock().getTime();
   if (remaining < MINIMUM_REMAINING_MS) fail("R6_HARDENED_PREFLIGHT_ATTESTATION_VALIDITY_INSUFFICIENT");
@@ -118,25 +132,44 @@ export async function writeProjectTerminalResult(value, resultPath) {
   return { path: resultPath, sha256: hash(raw), byteLength: raw.length };
 }
 
-export async function runProjectMetadataPreparationCli(argv = process.argv.slice(2), { oauthProfileValidator = validateOfflineWranglerOAuthProfile, accountResolver = resolvePagesAccountId, secureInput = readHiddenCloudflareAccountId, prepare = prepareProjectAuthDryRunAttestation } = {}) {
-  const values = parseFlags(argv); const state = {}; let auth = null; let account = null;
+/** Validates the terminal result itself before a wrapper decides whether to emit commands or surface a safe failure. */
+export function validateProjectTerminalResult(value, { resultPath, toolingCommit } = {}) {
+  if (!value || value.schemaVersion !== R6_PAGES_PROJECT_METADATA_TERMINAL_RESULT_VERSION || value.toolingCommit !== toolingCommit || path.resolve(value.sanitizedEvidencePath ?? "") !== path.resolve(resultPath ?? "") || value.resultSha256 !== terminalDigest(value) || !Number.isInteger(value.childExitCode) || !Array.isArray(value.commands) || value.commands.length !== value.commandsEmittedCount || !PROJECT_PHASES.every((phase) => typeof value[phase] === "boolean")) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_UNSAFE");
+  const phases = value;
+  const success = value.outerClassification === R6_PAGES_PROJECT_METADATA_SUCCESS;
+  if (success) {
+    if (value.childExitCode !== 0 || value.innerClassification !== null || !phases.promptReached || !phases.requestSentinelReached || !phases.transportReached || !phases.attestationCreated || !phases.validateOnlyCompleted || value.commands.length !== 2) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_UNSAFE");
+    return Object.freeze({ kind: "success", classification: value.outerClassification });
+  }
+  const knownFailures = new Set(["R6_PAGES_PROJECT_OAUTH_NOT_READY", "R6_PAGES_PROJECT_ACCOUNT_INPUT_FAILED", "R6_PAGES_PROJECT_TARGET_MISMATCH", "R6_PAGES_PROJECT_TRANSPORT_FAILED", "R6_PAGES_PROJECT_ATTESTATION_SEAL_FAILED", "R6_PAGES_PROJECT_VALIDATE_ONLY_FAILED", "R6_HARDENED_PREFLIGHT_ATTESTATION_VALIDITY_INSUFFICIENT", "R6_PAGES_PROJECT_DRY_RUN_ID_ALLOCATION_FAILED"]);
+  if (!knownFailures.has(value.outerClassification) || value.childExitCode !== 1 || value.commands.length !== 0) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_UNSAFE");
+  if (value.outerClassification === "R6_PAGES_PROJECT_OAUTH_NOT_READY" && (phases.promptReached || phases.requestSentinelReached || phases.transportReached)) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_UNSAFE");
+  if (value.outerClassification === "R6_PAGES_PROJECT_ACCOUNT_INPUT_FAILED" && (!phases.promptReached || phases.requestSentinelReached || phases.transportReached)) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_UNSAFE");
+  if (["R6_PAGES_PROJECT_TARGET_MISMATCH", "R6_PAGES_PROJECT_TRANSPORT_FAILED", "R6_PAGES_PROJECT_ATTESTATION_SEAL_FAILED"].includes(value.outerClassification) && (!phases.requestSentinelReached || !phases.transportReached || phases.attestationCreated || phases.validateOnlyCompleted)) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_UNSAFE");
+  if (value.outerClassification === "R6_PAGES_PROJECT_TARGET_MISMATCH" && !value.innerClassification) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_UNSAFE");
+  if (value.outerClassification === "R6_PAGES_PROJECT_VALIDATE_ONLY_FAILED" && (!phases.requestSentinelReached || !phases.transportReached || !phases.attestationCreated || phases.validateOnlyCompleted)) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_UNSAFE");
+  if (["R6_HARDENED_PREFLIGHT_ATTESTATION_VALIDITY_INSUFFICIENT", "R6_PAGES_PROJECT_DRY_RUN_ID_ALLOCATION_FAILED"].includes(value.outerClassification) && (!phases.requestSentinelReached || !phases.transportReached || !phases.attestationCreated || !phases.validateOnlyCompleted)) fail("R6_PAGES_PROJECT_TERMINAL_RESULT_UNSAFE");
+  return Object.freeze({ kind: "failure", classification: value.outerClassification });
+}
+
+export async function runProjectMetadataPreparationCli(argv = process.argv.slice(2), { oauthProfileValidator = validateOfflineWranglerOAuthProfile, accountResolver = resolvePagesAccountId, secureInput = readHiddenCloudflareAccountId, prepare = prepareProjectAuthDryRunAttestation, phaseState = createProjectPhaseState() } = {}) {
+  const values = parseFlags(argv); const state = phaseState; let auth = null; let account = null;
   const terminalResultPath = requiredFlag(values, "--terminal-result-path"); const evidenceRoot = requiredFlag(values, "--evidence-root");
   if (!inside(evidenceRoot, terminalResultPath) || path.basename(terminalResultPath) !== "project-metadata-preparation-terminal-result.json") fail("R6_PAGES_PROJECT_TERMINAL_RESULT_FAILED");
   try {
     try { auth = await oauthProfileValidator(); assertOfflineOAuthProfileReady(auth); } catch (error) { fail(mapOAuthError(error), error?.code ?? null); }
-    try { account = await accountResolver({ repositoryRoot: requiredFlag(values, "--repository-root"), requestHiddenInput: async () => { state.promptReached = true; return secureInput(); } }); }
+    try { account = await accountResolver({ repositoryRoot: requiredFlag(values, "--repository-root"), requestHiddenInput: async () => { markProjectPhase(state, "promptReached"); return secureInput(); } }); }
     catch (error) { fail("R6_PAGES_PROJECT_ACCOUNT_INPUT_FAILED", error?.code ?? null); }
     const toolingCommit = requiredFlag(values, "--tooling-commit");
-    const result = await prepare({ resolvedAccount: account, auth, attestationRoot: requiredFlag(values, "--attestation-root"), registryRoot: requiredFlag(values, "--registry-root"), journalRoot: requiredFlag(values, "--journal-root"), evidenceRoot, wrapperPath: requiredFlag(values, "--wrapper-path"), executionWorktree: requiredFlag(values, "--execution-worktree"), toolingCommit, wrapperSha256: requiredFlag(values, "--wrapper-sha256"), transportSha256: requiredFlag(values, "--transport-sha256"), parserSelectorSha256: requiredFlag(values, "--parser-selector-sha256"), onRequestSentinel: () => { state.requestSentinelReached = true; }, onTransportStart: () => { state.transportReached = true; }, validateOnly: async ({ attestationPath, attestationSha256 }) => validateDeploymentAttestation({ attestationPath, expectedSha256: attestationSha256, expectedCommit: EXPECTED_SOURCE_COMMIT, expectedToolingCommit: toolingCommit, root: requiredFlag(values, "--attestation-root") }) });
-    state.attestationCreated = true; state.validateOnlyCompleted = true;
-    return { classification: R6_PAGES_PROJECT_METADATA_SUCCESS, ...result };
+    const result = await prepare({ resolvedAccount: account, auth, attestationRoot: requiredFlag(values, "--attestation-root"), registryRoot: requiredFlag(values, "--registry-root"), journalRoot: requiredFlag(values, "--journal-root"), evidenceRoot, wrapperPath: requiredFlag(values, "--wrapper-path"), executionWorktree: requiredFlag(values, "--execution-worktree"), toolingCommit, wrapperSha256: requiredFlag(values, "--wrapper-sha256"), transportSha256: requiredFlag(values, "--transport-sha256"), parserSelectorSha256: requiredFlag(values, "--parser-selector-sha256"), onRequestSentinel: () => markProjectPhase(state, "requestSentinelReached"), onTransportStart: () => markProjectPhase(state, "transportReached"), onAttestationCreated: () => markProjectPhase(state, "attestationCreated"), onValidateOnlyCompleted: () => markProjectPhase(state, "validateOnlyCompleted"), validateOnly: async ({ attestationPath, attestationSha256 }) => validateDeploymentAttestation({ attestationPath, expectedSha256: attestationSha256, expectedCommit: EXPECTED_SOURCE_COMMIT, expectedToolingCommit: toolingCommit, root: requiredFlag(values, "--attestation-root") }) });
+    return { classification: R6_PAGES_PROJECT_METADATA_SUCCESS, phaseState: state, ...result };
   } finally { if (auth) auth.token = null; if (account) account.accountId = null; }
 }
 
 export function isProjectMetadataEntrypoint(argvPath, moduleUrl = import.meta.url) { return Boolean(argvPath) && moduleUrl === pathToFileURL(argvPath).href; }
 
 if (isProjectMetadataEntrypoint(process.argv[1])) {
-  let values; let resultPath = null; let toolingCommit = "0000000000000000000000000000000000000000"; let state = {};
-  try { values = parseFlags(process.argv.slice(2)); resultPath = requiredFlag(values, "--terminal-result-path"); toolingCommit = requiredFlag(values, "--tooling-commit"); const result = await runProjectMetadataPreparationCli(process.argv.slice(2)); await writeProjectTerminalResult(createProjectTerminalResult({ resultPath, toolingCommit, outerClassification: result.classification, childExitCode: 0, promptReached: true, requestSentinelReached: true, transportReached: true, attestationCreated: true, validateOnlyCompleted: true, commands: [result.commands.authCheckOnly, result.commands.dryRunOnly] }), resultPath); process.stdout.write(`${R6_PAGES_PROJECT_METADATA_SUCCESS}\n${result.commands.authCheckOnly}\n${result.commands.dryRunOnly}\n`); }
-  catch (error) { const code = error?.code ?? "R6_PAGES_PROJECT_TERMINAL_RESULT_FAILED"; if (resultPath && COMMIT.test(toolingCommit)) { try { await writeProjectTerminalResult(createProjectTerminalResult({ resultPath, toolingCommit, outerClassification: code, innerClassification: error?.innerCode ?? null, childExitCode: 1, promptReached: Boolean(state.promptReached), requestSentinelReached: Boolean(state.requestSentinelReached), transportReached: Boolean(state.transportReached), commands: [] }), resultPath); } catch {} } process.stderr.write(`${code}\n`); process.exitCode = 1; }
+  let values; let resultPath = null; let toolingCommit = "0000000000000000000000000000000000000000"; const state = createProjectPhaseState();
+  try { values = parseFlags(process.argv.slice(2)); resultPath = requiredFlag(values, "--terminal-result-path"); toolingCommit = requiredFlag(values, "--tooling-commit"); const result = await runProjectMetadataPreparationCli(process.argv.slice(2), { phaseState: state }); await writeProjectTerminalResult(createProjectTerminalResult({ resultPath, toolingCommit, outerClassification: result.classification, childExitCode: 0, ...state, commands: [result.commands.authCheckOnly, result.commands.dryRunOnly] }), resultPath); process.stdout.write(`${R6_PAGES_PROJECT_METADATA_SUCCESS}\n${result.commands.authCheckOnly}\n${result.commands.dryRunOnly}\n`); }
+  catch (error) { const code = error?.code ?? "R6_PAGES_PROJECT_TERMINAL_RESULT_FAILED"; if (resultPath && COMMIT.test(toolingCommit)) { try { await writeProjectTerminalResult(createProjectTerminalResult({ resultPath, toolingCommit, outerClassification: code, innerClassification: error?.innerCode ?? null, childExitCode: 1, ...state, commands: [] }), resultPath); } catch {} } process.stderr.write(`${code}\n`); process.exitCode = 1; }
 }
