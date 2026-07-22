@@ -191,6 +191,35 @@ retry automatically. Required result-channel blockers include
 `R6_HARDENED_OFFICIAL_GET_RESULT_INVALID`, and
 `R6_HARDENED_OFFICIAL_GET_CHILD_PROCESS_FAILED`.
 
+## Pages Project Human Query Mode
+
+`scripts/qa/run-cloudflare-pages-project-metadata-preparation.mjs` is a second,
+mutually exclusive QA-only metadata entrypoint. Its only operation is
+`PREPARE_PROJECT_AUTH_DRY_RUN_ATTESTATION`; it cannot receive an account ID,
+credential, provider path, method, query, dry-run ID, or live ID as a command
+line argument. After offline OAuth readiness succeeds, it uses the existing
+trusted account resolver and, only if every trusted local source is absent,
+requests one non-echoing inherited-TTY account value. No account value reaches
+the command line, environment, result channel, or attestation.
+
+The only future request it can represent is the fixed official Project request
+`GET /accounts/{resolved-account-id}/pages/projects/openglasshub`. It never
+invokes deployment GET, follows redirects, refreshes OAuth, retries, or accepts
+an arbitrary project/host/path. Its one-request sentinel is process-local and
+rejects a second invocation before network access.
+
+After the committed Model A selector proves the canonical deployment contract,
+the mode seals `CLOUDFLARE_PAGES_PROJECT_GET_V1` evidence using the existing
+`r6-production-deployment-attestation-v1` container. Project evidence adds the
+fixed transport, parser/selector, public-source-contract, endpoint, account
+digest, canonical branch/stage, and raw/sanitized response bindings. Shared
+ValidateOnly accepts this explicit type without weakening legacy
+`CLOUDFLARE_PAGES_DEPLOYMENT_GET_V1` validation. A future sealed attestation is
+valid for at most 15 minutes and must retain at least 13 minutes after
+ValidateOnly; only then can a fresh, unreserved dry-run ID and exactly two
+commands (`AuthCheckOnly`, `DryRunOnly`) be emitted. No live, recovery, or
+execution command is emitted by this mode.
+
 The source-proven minimum sufficient attestation set is deployment ID, project
 name, production environment, immutable Pages URL, canonical alias, `main`
 branch, full lowercase source commit, `is_skipped: false`, and the exact

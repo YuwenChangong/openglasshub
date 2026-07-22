@@ -12,6 +12,8 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const DEPLOYMENT_HOST = /^[a-z0-9-]+\.openglasshub\.pages\.dev$/;
 const MAX_ATTESTATION_WINDOW_MS = 15 * 60 * 1000;
+const PROJECT_EVIDENCE_TYPE = "CLOUDFLARE_PAGES_PROJECT_GET_V1";
+const DEPLOYMENT_EVIDENCE_TYPE = "CLOUDFLARE_PAGES_DEPLOYMENT_GET_V1";
 
 export const PRODUCTION_TARGET_IDENTITY_HASH = createHash("sha256")
   .update(`${ATTESTATION_PROVIDER}|${ATTESTATION_PROJECT}|${ATTESTATION_ENVIRONMENT}|${CANONICAL_PRODUCTION_URL}`)
@@ -58,6 +60,21 @@ function validateAttestationShape(value) {
   requireExactSha(value.queryOrProviderEvidenceSha256, "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
   if (value.targetIdentityHash !== PRODUCTION_TARGET_IDENTITY_HASH) throw new Error("QA_CANARY_DEPLOYMENT_TARGET_MISMATCH");
   if (value.classification !== "PRODUCTION_DEPLOYMENT_IDENTITY_EXACT") throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
+  // Legacy deployment attestations predate the explicit evidence discriminator.
+  // Project evidence is deliberately stricter because it becomes a shared
+  // ValidateOnly input without changing the legacy deployment contract.
+  if (value.evidenceType !== undefined && value.evidenceType !== DEPLOYMENT_EVIDENCE_TYPE && value.evidenceType !== PROJECT_EVIDENCE_TYPE) {
+    throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
+  }
+  if (value.evidenceType === PROJECT_EVIDENCE_TYPE) {
+    for (const key of ["toolingCommit", "wrapperSha256", "transportSha256", "parserSelectorSha256", "endpointSha256", "accountIdSha256", "projectSourceContractSha256", "sanitizedMetadataSha256"]) {
+      if (key === "toolingCommit") requireExactCommit(value[key], "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
+      else requireExactSha(value[key], "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
+    }
+    if (value.productionBranch !== "main" || value.triggerBranch !== "main" || value.isSkipped !== false || value.latestStageName !== "deploy" || value.latestStageStatus !== "success") {
+      throw new Error("QA_CANARY_DEPLOYMENT_TARGET_MISMATCH");
+    }
+  }
   return value;
 }
 
@@ -81,7 +98,7 @@ export function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-export async function validateDeploymentAttestation({ attestationPath, expectedSha256, expectedCommit, now = Date.now(), root = DEPLOYMENT_ATTESTATION_ROOT }) {
+export async function validateDeploymentAttestation({ attestationPath, expectedSha256, expectedCommit, expectedToolingCommit = null, now = Date.now(), root = DEPLOYMENT_ATTESTATION_ROOT }) {
   const expectedHash = requireExactSha(expectedSha256, "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
   const expectedSourceCommit = requireExactCommit(expectedCommit, "QA_CANARY_DEPLOYED_COMMIT_MISMATCH");
   const actualPath = await assertAttestationPath(attestationPath, root);
@@ -93,11 +110,16 @@ export async function validateDeploymentAttestation({ attestationPath, expectedS
   try { attestation = JSON.parse(text); } catch { throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID"); }
   validateAttestationShape(attestation);
   if (attestation.sourceCommit !== expectedSourceCommit) throw new Error("QA_CANARY_DEPLOYED_COMMIT_MISMATCH");
+  if (attestation.evidenceType === PROJECT_EVIDENCE_TYPE) {
+    if (expectedToolingCommit === null || attestation.toolingCommit !== requireExactCommit(expectedToolingCommit, "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID")) {
+      throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
+    }
+  }
   const observedAt = requireUtcTimestamp(attestation.observedAt, "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
   const expiresAt = requireUtcTimestamp(attestation.expiresAt, "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
   if (expiresAt <= observedAt || expiresAt - observedAt > MAX_ATTESTATION_WINDOW_MS || observedAt > now) throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_STALE");
   if (now > expiresAt) throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_STALE");
-  return { path: actualPath, sourceCommit: attestation.sourceCommit, deploymentId: attestation.deploymentId, immutableDeploymentUrl: attestation.immutableDeploymentUrl, observedAt: attestation.observedAt, expiresAt: attestation.expiresAt };
+  return { path: actualPath, evidenceType: attestation.evidenceType ?? DEPLOYMENT_EVIDENCE_TYPE, sourceCommit: attestation.sourceCommit, toolingCommit: attestation.toolingCommit ?? null, deploymentId: attestation.deploymentId, immutableDeploymentUrl: attestation.immutableDeploymentUrl, observedAt: attestation.observedAt, expiresAt: attestation.expiresAt };
 }
 
 export function validateExpectedRunnerCommit(value) {
