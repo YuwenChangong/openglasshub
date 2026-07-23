@@ -1,0 +1,19 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+
+const wrapper = process.env.R6_PROJECT_R2_WRAPPER_PATH ?? "C:\\Users\\1\\OpenGlassHub-R6-Proof\\start-r6-detached-secure.ps1";
+const source = await readFile(wrapper, "utf8");
+assert.match(source, /\[switch\]\$PreparePagesProjectR2AuthDryRunAttestation/);
+assert.match(source, /function Invoke-PreparePagesProjectR2AuthDryRunAttestation[\s\S]*?run-cloudflare-pages-project-r2-metadata-preparation\.mjs/);
+assert.match(source, /PREPARE_PROJECT_R2_AUTH_DRY_RUN_ATTESTATION/);
+assert.match(source, /cloudflare-pages-project-r2-get\.mjs/);
+assert.match(source, /validate-r6-pages-project-r2-terminal-result\.mjs/);
+assert.match(source, /r6-pages-project-r2-metadata-terminal-result-v1/);
+assert.match(source, /R6_HARDENED_PAGES_PROJECT_R2_CAPTURE_HUMAN_COMMAND_READY/);
+assert.match(source, /feature\/r6-project-r2-binding-capture-v1/);
+assert.match(source, /\$selected = @\(\$ValidateOnly, \$AuthCheckOnly, \$DryRunOnly, \$ExecuteApprovedPhase, \$PrepareAuthDryRunAttestation, \$PreparePagesProjectAuthDryRunAttestation, \$PreparePagesProjectR2AuthDryRunAttestation/);
+assert.doesNotMatch(/function Invoke-PreparePagesProjectR2AuthDryRunAttestation[\s\S]*?\n}\r?\n\r?\nfunction/.exec(source)?.[0] ?? "", /account-id-stdin|Get-HiddenCloudflareAccountId|--account-id|ExecuteApprovedPhase/);
+const quoted = wrapper.replace(/'/g, "''");
+execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference='Stop'; [void][scriptblock]::Create((Get-Content -Raw -LiteralPath '${quoted}'))`], { stdio: "pipe" });
+console.log("R6_PAGES_PROJECT_R2_WRAPPER_MODE_CONTRACT_OK distinct R2 Project mode, fixed V2 entrypoint, no account parameter, no execute emission, and PowerShell parse contract passed without execution");

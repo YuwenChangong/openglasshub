@@ -299,6 +299,34 @@ canonical target.
 This module is inert. No Project GET, account prompt, OAuth load, attestation,
 or canary action is authorized until a separately approved execution phase.
 
+### R2 value-minimized Project capture
+
+`scripts/qa/run-cloudflare-pages-project-r2-metadata-preparation.mjs` is a
+separate, QA-only preparation entrypoint. Its only supported operation is
+`PREPARE_PROJECT_R2_AUTH_DRY_RUN_ATTESTATION`; it accepts no account ID,
+credential, arbitrary endpoint, deployment ID, or positional arguments.
+
+The future, separately approved request is fixed to one `GET` at the official
+Cloudflare API Project endpoint for `openglasshub`, with no query, redirect, or
+retry. Raw response bytes are held only in memory, hashed, parsed, and cleared.
+Only the exact Project/deployment facts needed to prove one of these modes are
+sealed:
+
+- `CANONICAL_DEPLOYMENT_ALIASES_V1`: a non-null aliases array contains the
+  canonical Production URL.
+- `PROJECT_SUBDOMAIN_PRODUCTION_BINDING_V1`: aliases is exactly null and the
+  Project subdomain, production branch, canonical deployment, project binding,
+  immutable URL, branch, commit, skip, and stage all exactly match the reviewed
+  Production identity.
+
+The V2 attestation never stores raw JSON, account ID plaintext, headers,
+credentials, custom domains, build configuration, environment variables, or
+unrelated deployments. It is accepted by shared `ValidateOnly` only when every
+observed field, source-contract hash, proof-mode discriminator, account digest,
+and fifteen-minute validity window is exact. The preparation flow emits only
+`AuthCheckOnly` and `DryRunOnly` commands; it never emits a live or recovery
+command.
+
 ## Commands
 
 Generate a fresh `qa-canary-<uuid>` run ID. The redacted plan must pass first:
