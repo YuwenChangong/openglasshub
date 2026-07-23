@@ -327,6 +327,13 @@ and fifteen-minute validity window is exact. The preparation flow emits only
 `AuthCheckOnly` and `DryRunOnly` commands; it never emits a live or recovery
 command.
 
+Canonical deployment URLs use `canonical-deployment-url-v1`. It accepts only
+the fixed HTTPS deployment hostname with an empty/root path (both serialize to
+the same root URL), and rejects credentials, non-default ports, another host,
+non-root paths, queries, and fragments. A rejected URL is represented only by
+the normalization version, a structural reason, and expected/observed normalized
+URL digests. The original provider URL is neither persisted nor emitted.
+
 ## Commands
 
 Generate a fresh `qa-canary-<uuid>` run ID. The redacted plan must pass first:

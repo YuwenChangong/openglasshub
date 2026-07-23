@@ -11,7 +11,7 @@ assert.match(source, /cloudflare-pages-project-r2-get\.mjs/);
 assert.match(source, /validate-r6-pages-project-r2-terminal-result\.mjs/);
 assert.match(source, /r6-pages-project-r2-metadata-terminal-result-v1/);
 assert.match(source, /R6_HARDENED_PAGES_PROJECT_R2_CAPTURE_HUMAN_COMMAND_READY/);
-assert.match(source, /r6-project-r2-binding-capture\\execution-worktree/);
+assert.match(source, /r6-project-canonical-url-remediation\\execution-worktree/);
 assert.match(source, /\$selected = @\(\$ValidateOnly, \$AuthCheckOnly, \$DryRunOnly, \$ExecuteApprovedPhase, \$PrepareAuthDryRunAttestation, \$PreparePagesProjectAuthDryRunAttestation, \$PreparePagesProjectR2AuthDryRunAttestation/);
 const modeBody = /function Invoke-PreparePagesProjectR2AuthDryRunAttestation[\s\S]*?\n}\r?\n\r?\nfunction/.exec(source)?.[0] ?? "";
 assert.doesNotMatch(modeBody, /account-id-stdin|Get-HiddenCloudflareAccountId|--account-id/);

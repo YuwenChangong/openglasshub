@@ -61,7 +61,7 @@ async function atomicSeal({ attestationRoot, selection, accountSource, toolingCo
     schemaVersion: "r6-production-deployment-attestation-v1", evidenceType: "CLOUDFLARE_PAGES_PROJECT_GET_V2", provider: "cloudflare-pages", classification: "PRODUCTION_DEPLOYMENT_IDENTITY_EXACT",
     projectName: selection.projectName, projectId: selection.projectId, projectSubdomain: selection.projectSubdomain, productionBranch: selection.productionBranch,
     deploymentId: selection.deploymentId, canonicalDeploymentProjectId: selection.canonicalDeploymentProjectId, canonicalDeploymentProjectName: selection.canonicalDeploymentProjectName,
-    environment: selection.environment, canonicalBaseUrl: "https://openglasshub.pages.dev", immutableDeploymentUrl: selection.immutableDeploymentUrl,
+    environment: selection.environment, canonicalBaseUrl: "https://openglasshub.pages.dev", immutableDeploymentUrl: selection.immutableDeploymentUrl, immutableDeploymentUrlNormalizationVersion: selection.immutableDeploymentUrlNormalizationVersion,
     aliasesObservedType: selection.aliasesObservedType, ...(selection.canonicalAlias ? { canonicalAlias: selection.canonicalAlias } : {}), canonicalTargetProofMode: selection.canonicalTargetProofMode,
     triggerBranch: selection.triggerBranch, sourceCommit: selection.sourceCommit, isSkipped: selection.isSkipped, latestStageName: selection.latestStageName, latestStageStatus: selection.latestStageStatus,
     queryOrProviderEvidenceSha256: selection.rawResponseSha256, sanitizedMetadataSha256: hash(JSON.stringify(selection)), projectSourceContractSha256s: selection.sourceContractSha256s,

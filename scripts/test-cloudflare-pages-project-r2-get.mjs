@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   PAGES_PROJECT_R2_COMMIT, PAGES_PROJECT_R2_DEPLOYMENT_ID, PAGES_PROJECT_R2_PROOF_R1, PAGES_PROJECT_R2_PROOF_R2,
-  PagesProjectR2Error, executeFixedProjectR2Get, fixedProjectR2GetRequest, parsePagesProjectR2Get, selectExactProjectR2Target,
+  PAGES_PROJECT_R2_URL_NORMALIZATION_VERSION, PagesProjectR2Error, executeFixedProjectR2Get, fixedProjectR2GetRequest, parsePagesProjectR2Get, selectExactProjectR2Target,
 } from "./qa/cloudflare-pages-project-r2-get.mjs";
 
 const projectId = "project-r2-id";
@@ -13,6 +13,9 @@ const exact = (value = envelope()) => selectExactProjectR2Target(parsePagesProje
 const expect = (value, path) => assert.throws(() => exact(value), (error) => error instanceof PagesProjectR2Error && error.jsonPath === path);
 
 assert.equal(exact().canonicalTargetProofMode, PAGES_PROJECT_R2_PROOF_R1);
+assert.equal(exact(envelope({ canonical_deployment: deployment({ url: `https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev` }) })).immutableDeploymentUrl, `https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev/`);
+assert.equal(exact(envelope({ canonical_deployment: deployment({ url: `https://${PAGES_PROJECT_R2_DEPLOYMENT_ID.toUpperCase()}.OPENGLASSHUB.PAGES.DEV/` }) })).immutableDeploymentUrlNormalizationVersion, PAGES_PROJECT_R2_URL_NORMALIZATION_VERSION);
+assert.equal(exact(envelope({ canonical_deployment: deployment({ url: `https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev:443/` }) })).immutableDeploymentUrl, `https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev/`);
 assert.equal(exact(envelope({ subdomain: null })).canonicalTargetProofMode, PAGES_PROJECT_R2_PROOF_R1);
 assert.equal(exact(envelope({ subdomain: undefined })).canonicalTargetProofMode, PAGES_PROJECT_R2_PROOF_R1);
 assert.equal(exact(envelope({ canonical_deployment: deployment({ aliases: null }), latest_deployment: { id: PAGES_PROJECT_R2_DEPLOYMENT_ID, environment: "production" } })).canonicalTargetProofMode, PAGES_PROJECT_R2_PROOF_R2);
@@ -26,10 +29,25 @@ for (const [patch, path] of [
 ]) expect(envelope(patch), path);
 expect(envelope({ subdomain: null, canonical_deployment: deployment({ aliases: null }), latest_deployment: { id: PAGES_PROJECT_R2_DEPLOYMENT_ID, environment: "production" } }), "result.subdomain");
 assert.throws(() => parsePagesProjectR2Get(bytes(envelope({ canonical_deployment: null }))), /PAGES_PROJECT_R2_REQUIRED_FIELD_NULL/);
+for (const [url, reason] of [
+  [`http://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev/`, "URL_SCHEME_MISMATCH"],
+  [`https://user@${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev/`, "URL_CREDENTIALS_PRESENT"],
+  [`https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev:8443/`, "URL_PORT_MISMATCH"],
+  [`https://other.openglasshub.pages.dev/`, "URL_HOSTNAME_MISMATCH"],
+  [`https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.other.pages.dev/`, "URL_HOSTNAME_MISMATCH"],
+  [`https://branch.openglasshub.pages.dev/`, "URL_HOSTNAME_MISMATCH"],
+  [`https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev/path`, "URL_ROOT_PATH_MISMATCH"],
+  [`https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev/?q=private`, "URL_QUERY_PRESENT"],
+  [`https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev/#private`, "URL_FRAGMENT_PRESENT"],
+  [`https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev./`, "URL_HOSTNAME_MISMATCH"],
+  [`https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglassh\u00fcb.pages.dev/`, "URL_HOSTNAME_MISMATCH"],
+]) {
+  assert.throws(() => exact(envelope({ canonical_deployment: deployment({ url }) })), (error) => error instanceof PagesProjectR2Error && error.jsonPath === "result.canonical_deployment.url" && error.diagnosticReference.includes(reason) && !error.diagnosticReference.includes(url));
+}
 assert.throws(() => fixedProjectR2GetRequest({ accountId: "bad" }), /PAGES_PROJECT_R2_TARGET_MISMATCH/);
 const request = fixedProjectR2GetRequest({ accountId: "a".repeat(32) }); assert.equal(request.method, "GET"); assert.equal(new URL(request.url).pathname, `/client/v4/accounts/${"a".repeat(32)}/pages/projects/openglasshub`); assert.equal(new URL(request.url).search, ""); assert.equal(request.redirect, "error"); assert.equal(request.retryCount, 0);
 let requests = 0;
 const response = await executeFixedProjectR2Get({ accountId: "a".repeat(32), auth: { token: "test-token" }, environment: {}, fetchImpl: async () => { requests += 1; return new Response(bytes(envelope()), { status: 200 }); } });
 assert.equal(requests, 1); assert.equal(createHash("sha256").update(response.raw).digest("hex"), parsePagesProjectR2Get(response.raw).rawResponseSha256);
 await assert.rejects(executeFixedProjectR2Get({ accountId: "a".repeat(32), auth: { token: "test-token" }, environment: {}, fetchImpl: async () => { throw new Error("offline"); } }), /PAGES_PROJECT_R2_AUTH_TRANSPORT_UNAVAILABLE/);
-console.log("PAGES_PROJECT_R2_GET_OK fake R1/R2 parsing, strict subdomain and project binding, fixed one-request transport, conflict policy, and zero-provider-network test passed");
+console.log("PAGES_PROJECT_R2_GET_OK fake R1/R2 parsing, root-path normalization, value-blind structural URL diagnostics, strict project binding, fixed one-request transport, conflict policy, and zero-provider-network test passed");

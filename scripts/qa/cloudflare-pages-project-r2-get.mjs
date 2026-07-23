@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 
-export const PAGES_PROJECT_R2_GET_PARSER_VERSION = "cloudflare-pages-project-r2-get-v1";
+export const PAGES_PROJECT_R2_GET_PARSER_VERSION = "cloudflare-pages-project-r2-get-v2";
 export const PAGES_PROJECT_R2_GET_TRANSPORT_VERSION = "cloudflare-pages-project-r2-get-v1";
+export const PAGES_PROJECT_R2_URL_NORMALIZATION_VERSION = "canonical-deployment-url-v1";
 export const PAGES_PROJECT_R2_SOURCE_CONTRACT_HASHES = Object.freeze([
   "7d3a3650c5c6c47296164335aa41f4020ca5d34e148f9045fe62ef86d6ba81a0",
   "10d35dd1fa3d42e48a0abf9b585d93673941f5336fa18f66bec09d2d222c0793",
@@ -26,11 +27,13 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const hash = (value) => createHash("sha256").update(value).digest("hex");
+const EXPECTED_IMMUTABLE_HOST = `${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev`;
+const EXPECTED_IMMUTABLE_URL = `https://${EXPECTED_IMMUTABLE_HOST}/`;
 
 export class PagesProjectR2Error extends Error {
-  constructor(code, jsonPath = null) { super(code); this.code = code; this.jsonPath = jsonPath; this.diagnosticReference = jsonPath ? `${code}:${jsonPath}` : code; }
+  constructor(code, jsonPath = null, safeDiagnostic = null) { super(code); this.code = code; this.jsonPath = jsonPath; this.safeDiagnostic = safeDiagnostic; this.diagnosticReference = [code, jsonPath, safeDiagnostic].filter(Boolean).join(":"); }
 }
-const fail = (code, jsonPath = null) => { throw new PagesProjectR2Error(code, jsonPath); };
+const fail = (code, jsonPath = null, safeDiagnostic = null) => { throw new PagesProjectR2Error(code, jsonPath, safeDiagnostic); };
 function required(record, key, path) { if (!own(record, key)) fail("PAGES_PROJECT_R2_REQUIRED_FIELD_MISSING", path); if (record[key] === null) fail("PAGES_PROJECT_R2_REQUIRED_FIELD_NULL", path); return record[key]; }
 function requiredObject(record, key, path) { const value = required(record, key, path); if (!object(value)) fail("PAGES_PROJECT_R2_REQUIRED_FIELD_TYPE_INVALID", path); return value; }
 function requiredString(record, key, path) { const value = required(record, key, path); if (typeof value !== "string" || value.length === 0) fail("PAGES_PROJECT_R2_REQUIRED_FIELD_TYPE_INVALID", path); return value; }
@@ -45,10 +48,24 @@ export function normalizeProjectSubdomain(value) {
   return value;
 }
 
-function normalizeImmutableUrl(value, path) {
-  let url; try { url = new URL(value); } catch { fail("PAGES_PROJECT_R2_TARGET_MISMATCH", path); }
-  if (url.protocol !== "https:" || url.username || url.password || url.port || url.pathname !== "/" || url.search || url.hash || url.hostname !== `${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev`) fail("PAGES_PROJECT_R2_TARGET_MISMATCH", path);
-  return url.toString();
+function urlDiagnostic(reason, normalizedObserved = null) {
+  const expected = `expected=${hash(EXPECTED_IMMUTABLE_URL)}`;
+  const observed = normalizedObserved === null ? null : `observed=${hash(normalizedObserved)}`;
+  return [PAGES_PROJECT_R2_URL_NORMALIZATION_VERSION, reason, expected, observed].filter(Boolean).join(":");
+}
+function failUrl(reason, path, normalizedObserved = null) { fail("PAGES_PROJECT_R2_TARGET_MISMATCH", path, urlDiagnostic(reason, normalizedObserved)); }
+export function normalizeImmutableDeploymentUrl(value, path = "result.canonical_deployment.url") {
+  let url; try { url = new URL(value); } catch { failUrl("URL_PARSE_FAILED", path); }
+  const normalized = url.toString();
+  if (url.protocol !== "https:") failUrl("URL_SCHEME_MISMATCH", path, normalized);
+  if (url.username || url.password) failUrl("URL_CREDENTIALS_PRESENT", path, normalized);
+  if (url.port) failUrl("URL_PORT_MISMATCH", path, normalized);
+  if (url.hostname !== EXPECTED_IMMUTABLE_HOST) failUrl("URL_HOSTNAME_MISMATCH", path, normalized);
+  if (url.pathname !== "/") failUrl("URL_ROOT_PATH_MISMATCH", path, normalized);
+  if (url.search) failUrl("URL_QUERY_PRESENT", path, normalized);
+  if (url.hash) failUrl("URL_FRAGMENT_PRESENT", path, normalized);
+  if (normalized !== EXPECTED_IMMUTABLE_URL) failUrl("URL_NORMALIZATION_MISMATCH", path, normalized);
+  return normalized;
 }
 function aliases(record, path) {
   if (!own(record, "aliases")) fail("PAGES_PROJECT_R2_REQUIRED_FIELD_MISSING", path);
@@ -66,7 +83,8 @@ function deployment(record, path) {
     projectId: requiredString(record, "project_id", `${path}.project_id`),
     projectName: requiredString(record, "project_name", `${path}.project_name`),
     environment: requiredString(record, "environment", `${path}.environment`),
-    immutableDeploymentUrl: normalizeImmutableUrl(requiredString(record, "url", `${path}.url`), `${path}.url`),
+    immutableDeploymentUrl: normalizeImmutableDeploymentUrl(requiredString(record, "url", `${path}.url`), `${path}.url`),
+    immutableDeploymentUrlNormalizationVersion: PAGES_PROJECT_R2_URL_NORMALIZATION_VERSION,
     aliasesObservedType: alias.observedType,
     canonicalAlias: alias.canonicalAlias,
     triggerBranch: requiredString(metadata, "branch", `${path}.deployment_trigger.metadata.branch`),
@@ -102,14 +120,14 @@ export function selectExactProjectR2Target(parsed) {
   if (!parsed?.project) fail("PAGES_PROJECT_R2_RESULT_INVALID");
   const { project } = parsed; const canonical = project.canonical;
   if (project.name !== PAGES_PROJECT_R2 || project.productionBranch !== "main") fail("PAGES_PROJECT_R2_TARGET_MISMATCH", "result");
-  if (canonical.id !== PAGES_PROJECT_R2_DEPLOYMENT_ID || canonical.projectId !== project.id || canonical.projectName !== project.name || canonical.environment !== "production" || canonical.immutableDeploymentUrl !== `https://${PAGES_PROJECT_R2_DEPLOYMENT_ID}.openglasshub.pages.dev/` || canonical.triggerBranch !== "main" || !COMMIT.test(canonical.sourceCommit) || canonical.sourceCommit !== PAGES_PROJECT_R2_COMMIT || canonical.isSkipped || canonical.latestStageName !== "deploy" || canonical.latestStageStatus !== "success") fail("PAGES_PROJECT_R2_TARGET_MISMATCH", "result.canonical_deployment");
+  if (canonical.id !== PAGES_PROJECT_R2_DEPLOYMENT_ID || canonical.projectId !== project.id || canonical.projectName !== project.name || canonical.environment !== "production" || canonical.immutableDeploymentUrl !== EXPECTED_IMMUTABLE_URL || canonical.immutableDeploymentUrlNormalizationVersion !== PAGES_PROJECT_R2_URL_NORMALIZATION_VERSION || canonical.triggerBranch !== "main" || !COMMIT.test(canonical.sourceCommit) || canonical.sourceCommit !== PAGES_PROJECT_R2_COMMIT || canonical.isSkipped || canonical.latestStageName !== "deploy" || canonical.latestStageStatus !== "success") fail("PAGES_PROJECT_R2_TARGET_MISMATCH", "result.canonical_deployment");
   if (project.latest?.environment === "production" && project.latest.id !== canonical.id) fail("PAGES_PROJECT_R2_REQUIRED_FIELD_CONFLICT", "result.latest_deployment.id");
   let canonicalTargetProofMode;
   if (canonical.aliasesObservedType === "array") { if (canonical.canonicalAlias !== PAGES_PROJECT_R2_CANONICAL_URL) fail("PAGES_PROJECT_R2_TARGET_MISMATCH", "result.canonical_deployment.aliases"); canonicalTargetProofMode = PAGES_PROJECT_R2_PROOF_R1; }
   else if (canonical.aliasesObservedType === "null") canonicalTargetProofMode = PAGES_PROJECT_R2_PROOF_R2;
   else fail("PAGES_PROJECT_R2_REQUIRED_FIELD_TYPE_INVALID", "result.canonical_deployment.aliases");
   if (canonicalTargetProofMode === PAGES_PROJECT_R2_PROOF_R2 && project.subdomain !== PAGES_PROJECT_R2_SUBDOMAIN) fail("PAGES_PROJECT_R2_TARGET_MISMATCH", "result.subdomain");
-  return Object.freeze({ classification: "PAGES_PROJECT_R2_TARGET_VERIFIED", canonicalTargetProofMode, parserVersion: PAGES_PROJECT_R2_GET_PARSER_VERSION, transportVersion: PAGES_PROJECT_R2_GET_TRANSPORT_VERSION, sourceContractSha256s: PAGES_PROJECT_R2_SOURCE_CONTRACT_HASHES, rawResponseSha256: parsed.rawResponseSha256, projectName: project.name, projectId: project.id, projectSubdomain: project.subdomain, productionBranch: project.productionBranch, deploymentId: canonical.id, canonicalDeploymentProjectId: canonical.projectId, canonicalDeploymentProjectName: canonical.projectName, environment: canonical.environment, immutableDeploymentUrl: canonical.immutableDeploymentUrl, aliasesObservedType: canonical.aliasesObservedType, canonicalAlias: canonical.canonicalAlias, triggerBranch: canonical.triggerBranch, sourceCommit: canonical.sourceCommit, isSkipped: canonical.isSkipped, latestStageName: canonical.latestStageName, latestStageStatus: canonical.latestStageStatus });
+  return Object.freeze({ classification: "PAGES_PROJECT_R2_TARGET_VERIFIED", canonicalTargetProofMode, parserVersion: PAGES_PROJECT_R2_GET_PARSER_VERSION, transportVersion: PAGES_PROJECT_R2_GET_TRANSPORT_VERSION, sourceContractSha256s: PAGES_PROJECT_R2_SOURCE_CONTRACT_HASHES, rawResponseSha256: parsed.rawResponseSha256, projectName: project.name, projectId: project.id, projectSubdomain: project.subdomain, productionBranch: project.productionBranch, deploymentId: canonical.id, canonicalDeploymentProjectId: canonical.projectId, canonicalDeploymentProjectName: canonical.projectName, environment: canonical.environment, immutableDeploymentUrl: canonical.immutableDeploymentUrl, immutableDeploymentUrlNormalizationVersion: canonical.immutableDeploymentUrlNormalizationVersion, aliasesObservedType: canonical.aliasesObservedType, canonicalAlias: canonical.canonicalAlias, triggerBranch: canonical.triggerBranch, sourceCommit: canonical.sourceCommit, isSkipped: canonical.isSkipped, latestStageName: canonical.latestStageName, latestStageStatus: canonical.latestStageStatus });
 }
 
 export function fixedProjectR2GetRequest({ accountId }) {

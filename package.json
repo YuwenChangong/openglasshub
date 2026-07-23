@@ -90,6 +90,7 @@
     "test:r6-pages-project-wrapper-contract": "node scripts/test-r6-pages-project-wrapper-contract.mjs",
     "test:r6-pages-project-terminal-phase-state": "node scripts/test-r6-pages-project-terminal-phase-state.mjs",
     "test:cloudflare-pages-project-r2-get": "node scripts/test-cloudflare-pages-project-r2-get.mjs",
+    "test:r6-canonical-url-diagnostics": "node scripts/test-cloudflare-pages-project-r2-get.mjs",
     "test:r6-pages-project-r2-metadata-preparation": "node scripts/test-r6-pages-project-r2-metadata-preparation.mjs",
     "test:r6-pages-project-r2-entrypoint-load-only": "node scripts/test-r6-pages-project-r2-entrypoint-load-only.mjs",
     "test:r6-pages-project-r2-wrapper-contract": "node scripts/test-r6-pages-project-r2-wrapper-contract.mjs",

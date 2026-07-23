@@ -24,7 +24,7 @@ const PROJECT_R2_SOURCE_CONTRACT_HASHES = Object.freeze([
 ]);
 const PROJECT_R2_COMMON_KEYS = Object.freeze([
   "schemaVersion", "evidenceType", "provider", "classification", "projectName", "projectId", "projectSubdomain", "productionBranch",
-  "deploymentId", "canonicalDeploymentProjectId", "canonicalDeploymentProjectName", "environment", "canonicalBaseUrl", "immutableDeploymentUrl",
+  "deploymentId", "canonicalDeploymentProjectId", "canonicalDeploymentProjectName", "environment", "canonicalBaseUrl", "immutableDeploymentUrl", "immutableDeploymentUrlNormalizationVersion",
   "aliasesObservedType", "canonicalTargetProofMode", "triggerBranch", "sourceCommit", "isSkipped", "latestStageName", "latestStageStatus",
   "queryOrProviderEvidenceSha256", "sanitizedMetadataSha256", "projectSourceContractSha256s", "targetIdentityHash", "toolingCommit", "wrapperSha256",
   "wrapperVersion", "transportSha256", "parserSelectorSha256", "endpointSha256", "accountIdSha256", "observedAt", "expiresAt",
@@ -104,6 +104,7 @@ function validateAttestationShape(value) {
       else requireExactSha(value[key], "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
     }
     if (value.wrapperVersion !== "r6-consumed-run-wrapper-v1") throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
+    if (value.immutableDeploymentUrlNormalizationVersion !== "canonical-deployment-url-v1") throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
     if (value.productionBranch !== "main" || value.triggerBranch !== "main" || value.isSkipped !== false || value.latestStageName !== "deploy" || value.latestStageStatus !== "success" || value.projectName !== ATTESTATION_PROJECT || value.canonicalDeploymentProjectName !== ATTESTATION_PROJECT || value.canonicalDeploymentProjectId !== value.projectId) {
       throw new Error("QA_CANARY_DEPLOYMENT_TARGET_MISMATCH");
     }
