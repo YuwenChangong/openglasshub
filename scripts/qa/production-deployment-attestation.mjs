@@ -14,6 +14,7 @@ const DEPLOYMENT_HOST = /^[a-z0-9-]+\.openglasshub\.pages\.dev$/;
 const MAX_ATTESTATION_WINDOW_MS = 15 * 60 * 1000;
 const PROJECT_EVIDENCE_TYPE = "CLOUDFLARE_PAGES_PROJECT_GET_V1";
 const PROJECT_R2_EVIDENCE_TYPE = "CLOUDFLARE_PAGES_PROJECT_GET_V2";
+const PROJECT_V3_EVIDENCE_TYPE = "CLOUDFLARE_PAGES_PROJECT_GET_V3";
 const DEPLOYMENT_EVIDENCE_TYPE = "CLOUDFLARE_PAGES_DEPLOYMENT_GET_V1";
 const PROJECT_R2_SOURCE_CONTRACT_HASHES = Object.freeze([
   "7d3a3650c5c6c47296164335aa41f4020ca5d34e148f9045fe62ef86d6ba81a0",
@@ -84,7 +85,7 @@ function validateAttestationShape(value) {
   // Legacy deployment attestations predate the explicit evidence discriminator.
   // Project evidence is deliberately stricter because it becomes a shared
   // ValidateOnly input without changing the legacy deployment contract.
-  if (value.evidenceType !== undefined && value.evidenceType !== DEPLOYMENT_EVIDENCE_TYPE && value.evidenceType !== PROJECT_EVIDENCE_TYPE && value.evidenceType !== PROJECT_R2_EVIDENCE_TYPE) {
+  if (value.evidenceType !== undefined && value.evidenceType !== DEPLOYMENT_EVIDENCE_TYPE && value.evidenceType !== PROJECT_EVIDENCE_TYPE && value.evidenceType !== PROJECT_R2_EVIDENCE_TYPE && value.evidenceType !== PROJECT_V3_EVIDENCE_TYPE) {
     throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
   }
   if (value.evidenceType === PROJECT_EVIDENCE_TYPE) {
@@ -96,7 +97,7 @@ function validateAttestationShape(value) {
       throw new Error("QA_CANARY_DEPLOYMENT_TARGET_MISMATCH");
     }
   }
-  if (value.evidenceType === PROJECT_R2_EVIDENCE_TYPE) {
+  if (value.evidenceType === PROJECT_R2_EVIDENCE_TYPE || value.evidenceType === PROJECT_V3_EVIDENCE_TYPE) {
     const expectedKeys = value.aliasesObservedType === "array" ? [...PROJECT_R2_COMMON_KEYS, "canonicalAlias"] : PROJECT_R2_COMMON_KEYS;
     requireExactKeys(value, expectedKeys);
     for (const key of ["toolingCommit", "wrapperSha256", "transportSha256", "parserSelectorSha256", "endpointSha256", "accountIdSha256", "sanitizedMetadataSha256"]) {
@@ -104,7 +105,8 @@ function validateAttestationShape(value) {
       else requireExactSha(value[key], "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
     }
     if (value.wrapperVersion !== "r6-consumed-run-wrapper-v1") throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
-    if (value.immutableDeploymentUrlNormalizationVersion !== "canonical-deployment-url-v1") throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
+    const expectedNormalization = value.evidenceType === PROJECT_V3_EVIDENCE_TYPE ? "canonical-deployment-url-v2-observed-current" : "canonical-deployment-url-v1";
+    if (value.immutableDeploymentUrlNormalizationVersion !== expectedNormalization) throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
     if (value.productionBranch !== "main" || value.triggerBranch !== "main" || value.isSkipped !== false || value.latestStageName !== "deploy" || value.latestStageStatus !== "success" || value.projectName !== ATTESTATION_PROJECT || value.canonicalDeploymentProjectName !== ATTESTATION_PROJECT || value.canonicalDeploymentProjectId !== value.projectId) {
       throw new Error("QA_CANARY_DEPLOYMENT_TARGET_MISMATCH");
     }
@@ -148,7 +150,7 @@ export async function validateDeploymentAttestation({ attestationPath, expectedS
   try { attestation = JSON.parse(text); } catch { throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID"); }
   validateAttestationShape(attestation);
   if (attestation.sourceCommit !== expectedSourceCommit) throw new Error("QA_CANARY_DEPLOYED_COMMIT_MISMATCH");
-  if (attestation.evidenceType === PROJECT_EVIDENCE_TYPE || attestation.evidenceType === PROJECT_R2_EVIDENCE_TYPE) {
+  if (attestation.evidenceType === PROJECT_EVIDENCE_TYPE || attestation.evidenceType === PROJECT_R2_EVIDENCE_TYPE || attestation.evidenceType === PROJECT_V3_EVIDENCE_TYPE) {
     if (expectedToolingCommit === null || attestation.toolingCommit !== requireExactCommit(expectedToolingCommit, "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID")) {
       throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
     }
