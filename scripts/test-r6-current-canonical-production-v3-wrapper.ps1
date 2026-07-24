@@ -63,7 +63,7 @@ try {
   Invoke-Fixture 'success' 'R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_SUCCESS'
   Invoke-Fixture 'target' 'R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TARGET_MISMATCH'
   Invoke-Fixture 'source' 'R6_CURRENT_CANONICAL_PRODUCTION_SOURCE_COMMIT_MISMATCH'
-  foreach ($kind in @('success-zero-commands','failure-two-commands','wrong-order','third-command','transport-without-sentinel','validate-without-attestation','secret')) { Invoke-Fixture $kind 'R6_CURRENT_CANONICAL_V3_WRAPPER_IMPOSSIBLE_STATE' }
+  foreach ($kind in @('success-zero-commands','failure-two-commands','wrong-order','third-command','transport-without-sentinel','validate-without-attestation','expired-success','secret')) { Invoke-Fixture $kind 'R6_CURRENT_CANONICAL_V3_WRAPPER_IMPOSSIBLE_STATE' }
   Invoke-CopiedWrapperMismatch 'V3FinalCommitBinding' 'R6_CURRENT_CANONICAL_V3_COMMIT_MISMATCH'
   Invoke-CopiedWrapperMismatch 'V3GitBlobBinding' 'R6_CURRENT_CANONICAL_V3_GIT_BLOB_MISMATCH'
   Invoke-CopiedWrapperMismatch 'V3RuntimeRawSha256Binding' 'R6_CURRENT_CANONICAL_V3_RUNTIME_RAW_SHA256_MISMATCH'

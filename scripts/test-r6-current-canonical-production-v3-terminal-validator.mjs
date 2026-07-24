@@ -16,6 +16,8 @@ const evidenceRoot = path.join(root, "evidence");
 const attestationRoot = path.join(root, "attestations");
 const terminalPath = path.join(evidenceRoot, "current-canonical-production-v3-metadata-preparation-terminal-result.json");
 const attestationPath = path.join(attestationRoot, "sealed", "production-deployment-attestation.json");
+const validationNow = Date.parse("2099-01-01T00:00:00.000Z");
+const freshness = () => ({ attestationIssuedAt: "2099-01-01T00:00:00.000Z", attestationExpiresAt: "2099-01-01T00:15:00.000Z", freshnessValidatedAt: "2099-01-01T00:02:00.000Z", remainingValidityMilliseconds: 13 * 60 * 1000, minimumValidityMilliseconds: 13 * 60 * 1000, freshnessCheckPassed: true });
 
 function withDigest(value) {
   value.resultSha256 = sha256(JSON.stringify({ ...value, resultSha256: null }));
@@ -47,11 +49,12 @@ try {
     attestationPath,
     attestationSha256: "a".repeat(64),
     validateOnlyCompleted: true,
+    ...freshness(),
     commands: ["& 'C:\\safe\\wrapper.ps1' -AuthCheckOnly", "& 'C:\\safe\\wrapper.ps1' -DryRunOnly -RunId 'qa-canary-11111111-1111-4111-8111-111111111111'"],
   });
   const accepted = success();
   await writeTerminal(accepted);
-  assert.equal((await validateCurrentCanonicalProductionV3TerminalFile({ terminalResultPath: terminalPath, toolingCommit, evidenceRoot, attestationRoot })).kind, "success");
+  assert.equal((await validateCurrentCanonicalProductionV3TerminalFile({ terminalResultPath: terminalPath, toolingCommit, evidenceRoot, attestationRoot, now: validationNow })).kind, "success");
 
   const targetFailure = createCurrentCanonicalProductionV3TerminalResult({
     resultPath: terminalPath,
@@ -63,7 +66,7 @@ try {
     transportReached: true,
   });
   await writeTerminal(targetFailure);
-  assert.equal((await validateCurrentCanonicalProductionV3TerminalFile({ terminalResultPath: terminalPath, toolingCommit, evidenceRoot, attestationRoot })).classification, "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TARGET_MISMATCH");
+  assert.equal((await validateCurrentCanonicalProductionV3TerminalFile({ terminalResultPath: terminalPath, toolingCommit, evidenceRoot, attestationRoot, now: validationNow })).classification, "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TARGET_MISMATCH");
 
   const sourceFailure = createCurrentCanonicalProductionV3TerminalResult({
     resultPath: terminalPath,
@@ -75,8 +78,9 @@ try {
     transportReached: true,
   });
   await writeTerminal(sourceFailure);
-  assert.equal((await validateCurrentCanonicalProductionV3TerminalFile({ terminalResultPath: terminalPath, toolingCommit, evidenceRoot, attestationRoot })).classification, "R6_CURRENT_CANONICAL_PRODUCTION_SOURCE_COMMIT_MISMATCH");
+  assert.equal((await validateCurrentCanonicalProductionV3TerminalFile({ terminalResultPath: terminalPath, toolingCommit, evidenceRoot, attestationRoot, now: validationNow })).classification, "R6_CURRENT_CANONICAL_PRODUCTION_SOURCE_COMMIT_MISMATCH");
 
+  const staleSuccess = () => ({ ...success(), attestationIssuedAt: "2026-07-23T21:17:50.205Z", attestationExpiresAt: "2026-07-23T21:32:50.205Z", freshnessValidatedAt: "2026-07-23T21:19:50.205Z", remainingValidityMilliseconds: 13 * 60 * 1000 });
   const cases = [
     ["failure-with-commands", () => ({ ...targetFailure, commandsEmittedCount: 2, commands: success().commands })],
     ["success-with-zero-commands", () => ({ ...success(), commandsEmittedCount: 0, commands: [] })],
@@ -97,6 +101,10 @@ try {
     ["terminal-path-escape", () => ({ ...success(), sanitizedEvidencePath: path.join(root, "outside.json") })],
     ["malformed-attestation-sha", () => ({ ...success(), attestationSha256: "not-a-sha" })],
     ["secret-like-terminal", () => ({ ...targetFailure, innerClassification: "access_token=denied" })],
+    ["success-expired-at-current-validation", staleSuccess],
+    ["success-expiry-before-issued", () => ({ ...success(), attestationExpiresAt: "2098-12-31T23:59:59.999Z", freshnessValidatedAt: "2098-12-31T23:59:59.999Z", remainingValidityMilliseconds: 0 })],
+    ["success-one-millisecond-short", () => ({ ...success(), freshnessValidatedAt: "2099-01-01T00:02:00.001Z", remainingValidityMilliseconds: 779999, freshnessCheckPassed: false })],
+    ["success-ambiguous-local-time", () => ({ ...success(), attestationIssuedAt: "2099-01-01T00:00:00" })],
   ];
   for (const [name, build] of cases) await assertReject(build(), /^R6_CURRENT_CANONICAL_V3_TERMINAL_/, name);
   console.log("R6_CURRENT_CANONICAL_V3_TERMINAL_VALIDATOR_OK strict schema, safe failures, command contract, and impossible-state rejection passed with zero network");

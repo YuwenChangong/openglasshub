@@ -22,6 +22,16 @@ No public-response header, HTML content, immutable hostname, repository HEAD,
 or cache metadata is a deployed-commit fallback. The attestation contains no
 credentials, user data, or provider tokens.
 
+For Current Canonical V3 evidence, `observedAt` is the issuance instant and is
+created from the local UTC sealing clock after the provider response has been
+parsed. `expiresAt` is exactly fifteen minutes later; provider deployment
+timestamps remain provider evidence and are never an issuance or expiry input.
+The V3 terminal record re-evaluates this interval at command emission, requires
+at least thirteen minutes remaining, and integrity-binds issuance, expiry,
+validation time, remaining validity, the minimum, and the pass result. A later
+AuthCheckOnly invocation independently rejects expired, malformed, or
+less-than-twelve-minute attestations before it can authenticate.
+
 The runner completes runner commit, target, base URL, deployment attestation,
 write acknowledgement, run-ID, and journal-eligibility guards before it can
 construct a mutation-capable HTTP adapter or write a canary journal.

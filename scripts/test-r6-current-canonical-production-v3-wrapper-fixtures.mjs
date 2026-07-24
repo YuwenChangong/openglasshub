@@ -20,6 +20,7 @@ const kind = required(values, "--kind");
 const terminalPath = path.join(root, "current-canonical-production-v3-metadata-preparation-terminal-result.json");
 const attestationRoot = path.join(root, "attestations");
 const attestationPath = path.join(attestationRoot, "production-deployment-attestation.json");
+const freshness = () => ({ attestationIssuedAt: "2099-01-01T00:00:00.000Z", attestationExpiresAt: "2099-01-01T00:15:00.000Z", freshnessValidatedAt: "2099-01-01T00:02:00.000Z", remainingValidityMilliseconds: 13 * 60 * 1000, minimumValidityMilliseconds: 13 * 60 * 1000, freshnessCheckPassed: true });
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const redigest = (value) => ({ ...value, resultSha256: sha(JSON.stringify({ ...value, resultSha256: null })) });
 
@@ -37,6 +38,7 @@ const success = () => createCurrentCanonicalProductionV3TerminalResult({
   attestationPath,
   attestationSha256: "a".repeat(64),
   validateOnlyCompleted: true,
+  ...freshness(),
   commands: ["& 'C:\\safe\\wrapper.ps1' -AuthCheckOnly", "& 'C:\\safe\\wrapper.ps1' -DryRunOnly -RunId 'qa-canary-11111111-1111-4111-8111-111111111111'"],
 });
 const target = () => createCurrentCanonicalProductionV3TerminalResult({
@@ -67,6 +69,7 @@ const fixture = {
   "third-command": () => redigest({ ...success(), commandsEmittedCount: 3, commands: [...success().commands, "& 'C:\\safe\\wrapper.ps1' -ValidateOnly"] }),
   "transport-without-sentinel": () => redigest({ ...target(), requestSentinelReached: false }),
   "validate-without-attestation": () => redigest({ ...target(), validateOnlyCompleted: true }),
+  "expired-success": () => redigest({ ...success(), attestationIssuedAt: "2026-07-23T21:17:50.205Z", attestationExpiresAt: "2026-07-23T21:32:50.205Z", freshnessValidatedAt: "2026-07-23T21:19:50.205Z", remainingValidityMilliseconds: 13 * 60 * 1000 }),
   secret: () => redigest({ ...target(), innerClassification: "access_token=forbidden" }),
 };
 if (!Object.hasOwn(fixture, kind)) throw new Error("R6_CURRENT_CANONICAL_V3_WRAPPER_FIXTURE_INPUT_INVALID");

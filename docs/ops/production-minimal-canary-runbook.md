@@ -217,8 +217,17 @@ ValidateOnly accepts this explicit type without weakening legacy
 `CLOUDFLARE_PAGES_DEPLOYMENT_GET_V1` validation. A future sealed attestation is
 valid for at most 15 minutes and must retain at least 13 minutes after
 ValidateOnly; only then can a fresh, unreserved dry-run ID and exactly two
-commands (`AuthCheckOnly`, `DryRunOnly`) be emitted. No live, recovery, or
-execution command is emitted by this mode.
+commands (`AuthCheckOnly`, `DryRunOnly`) be emitted. For Current Canonical V3,
+`observedAt` is also the attestation issuance time: it is sampled from the
+local UTC clock at sealing, and `expiresAt` is exactly fifteen minutes later.
+Provider deployment timestamps are evidence only and cannot determine this
+short-lived window. Immediately before command emission, V3 records the UTC
+validation instant, remaining milliseconds, its thirteen-minute minimum, and a
+freshness-pass boolean in the integrity-hashed terminal result. It emits zero
+commands if the remaining window is below that boundary. The downstream
+AuthCheckOnly guard independently requires a twelve-minute window before any
+authentication, preserving defense in depth after a human handoff delay. No
+live, recovery, or execution command is emitted by this mode.
 
 The source-proven minimum sufficient attestation set is deployment ID, project
 name, production environment, immutable Pages URL, canonical alias, `main`

@@ -5,6 +5,8 @@ import { pathToFileURL } from "node:url";
 import {
   R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_SUCCESS,
   R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TERMINAL_VERSION,
+  R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_MINIMUM_COMMAND_VALIDITY_MS,
+  assessCurrentCanonicalProductionV3AttestationFreshness,
   validateCurrentCanonicalProductionV3TerminalResult,
 } from "./run-cloudflare-pages-current-canonical-production-v3-preparation.mjs";
 
@@ -19,13 +21,14 @@ const SAFE_FAILURES = new Set([
   "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TRANSPORT_FAILED",
   "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_ATTESTATION_SCHEMA_UNSAFE",
   "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_VALIDATE_ONLY_FAILED",
-  "R6_HARDENED_PREFLIGHT_ATTESTATION_VALIDITY_INSUFFICIENT",
+  "R6_CURRENT_CANONICAL_PRODUCTION_V3_ATTESTATION_VALIDITY_INSUFFICIENT",
   "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_COMMAND_PREPARATION_FAILED",
 ]);
 const KEYS = Object.freeze([
   "schemaVersion", "toolingCommit", "outerClassification", "innerClassification", "childExitCode",
   "promptReached", "requestSentinelReached", "transportReached", "attestationCreated", "attestationPath",
-  "attestationSha256", "validateOnlyCompleted", "commandsEmittedCount", "commands", "sanitizedEvidencePath",
+  "attestationSha256", "validateOnlyCompleted", "attestationIssuedAt", "attestationExpiresAt", "freshnessValidatedAt",
+  "remainingValidityMilliseconds", "minimumValidityMilliseconds", "freshnessCheckPassed", "commandsEmittedCount", "commands", "sanitizedEvidencePath",
   "sanitizedEvidenceDigest", "resultSha256",
 ]);
 
@@ -77,7 +80,23 @@ function assertCommands(value) {
   if (value.commands.length === 2 && (value.commands[1].match(/-DryRunOnly\b/g) ?? []).length !== 1) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_COMMAND_ORDER_INVALID");
 }
 
-function assertClassificationState(value) {
+function assertFreshness(value, now) {
+  const fields = [value.attestationIssuedAt, value.attestationExpiresAt, value.freshnessValidatedAt, value.remainingValidityMilliseconds, value.minimumValidityMilliseconds];
+  const hasAny = fields.some((field) => field !== null);
+  if (!hasAny) {
+    if (value.freshnessCheckPassed !== false) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID");
+    return null;
+  }
+  if (fields.some((field) => field === null) || typeof value.freshnessCheckPassed !== "boolean") reject("R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID");
+  let assessed;
+  try { assessed = assessCurrentCanonicalProductionV3AttestationFreshness({ issuedAt: value.attestationIssuedAt, expiresAt: value.attestationExpiresAt, validationNow: Date.parse(value.freshnessValidatedAt), minimumValidityMilliseconds: value.minimumValidityMilliseconds }); }
+  catch { reject("R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID"); }
+  if (assessed.remainingValidityMilliseconds !== value.remainingValidityMilliseconds || assessed.freshnessCheckPassed !== value.freshnessCheckPassed || value.minimumValidityMilliseconds !== R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_MINIMUM_COMMAND_VALIDITY_MS) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID");
+  if (value.outerClassification === SUCCESS && (!value.freshnessCheckPassed || Date.parse(value.attestationExpiresAt) - now < value.minimumValidityMilliseconds)) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID");
+  return assessed;
+}
+
+function assertClassificationState(value, now) {
   if (value.schemaVersion !== R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TERMINAL_VERSION || !COMMIT.test(String(value.toolingCommit))) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_SCHEMA_INVALID");
   if (!Number.isInteger(value.childExitCode) || !Number.isInteger(value.commandsEmittedCount) || value.commands.length !== value.commandsEmittedCount) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE");
   for (const key of ["promptReached", "requestSentinelReached", "transportReached", "attestationCreated", "validateOnlyCompleted"]) if (typeof value[key] !== "boolean") reject("R6_CURRENT_CANONICAL_V3_TERMINAL_SCHEMA_INVALID");
@@ -89,18 +108,20 @@ function assertClassificationState(value) {
   if (value.validateOnlyCompleted && !value.attestationCreated) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE");
   const hasAttestation = typeof value.attestationPath === "string" && SHA256.test(String(value.attestationSha256));
   if (value.attestationCreated !== hasAttestation) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE");
+  const freshness = assertFreshness(value, now);
   if (value.outerClassification === SUCCESS) {
-    if (value.childExitCode !== 0 || value.innerClassification !== null || !value.requestSentinelReached || !value.transportReached || !value.attestationCreated || !value.validateOnlyCompleted || value.commands.length !== 2) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE");
+    if (value.childExitCode !== 0 || value.innerClassification !== null || !value.requestSentinelReached || !value.transportReached || !value.attestationCreated || !value.validateOnlyCompleted || value.commands.length !== 2 || !freshness?.freshnessCheckPassed) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE");
     return "success";
   }
-  if (!SAFE_FAILURES.has(value.outerClassification) || value.childExitCode === 0 || value.commands.length !== 0 || value.validateOnlyCompleted) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE");
+  if (!SAFE_FAILURES.has(value.outerClassification) || value.childExitCode === 0 || value.commands.length !== 0 || (value.validateOnlyCompleted && value.outerClassification !== "R6_CURRENT_CANONICAL_PRODUCTION_V3_ATTESTATION_VALIDITY_INSUFFICIENT")) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE");
   if (["R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TARGET_MISMATCH", "R6_CURRENT_CANONICAL_PRODUCTION_SOURCE_COMMIT_MISMATCH", "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TRANSPORT_FAILED", "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_ATTESTATION_SCHEMA_UNSAFE"].includes(value.outerClassification) && (value.attestationCreated || value.validateOnlyCompleted)) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE");
   if (value.outerClassification === "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TARGET_MISMATCH" && !/^PAGES_PROJECT_V3_TARGET_MISMATCH:result\.canonical_deployment\.url:canonical-deployment-url-v2-observed-current:URL_HOSTNAME_MISMATCH:observed=[a-f0-9]{64}$/.test(String(value.innerClassification ?? ""))) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_CLASSIFICATION_INVALID");
   if (value.outerClassification === "R6_CURRENT_CANONICAL_PRODUCTION_SOURCE_COMMIT_MISMATCH" && !String(value.innerClassification ?? "").startsWith("R6_CURRENT_CANONICAL_PRODUCTION_SOURCE_COMMIT_MISMATCH:")) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_CLASSIFICATION_INVALID");
+  if (value.outerClassification === "R6_CURRENT_CANONICAL_PRODUCTION_V3_ATTESTATION_VALIDITY_INSUFFICIENT" && (!freshness || freshness.freshnessCheckPassed || !value.attestationCreated || !value.validateOnlyCompleted)) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE");
   return "failure";
 }
 
-export async function validateCurrentCanonicalProductionV3TerminalFile({ terminalResultPath, toolingCommit, evidenceRoot, attestationRoot }) {
+export async function validateCurrentCanonicalProductionV3TerminalFile({ terminalResultPath, toolingCommit, evidenceRoot, attestationRoot, now = Date.now() }) {
   if (!COMMIT.test(String(toolingCommit)) || !terminalResultPath || !evidenceRoot || !attestationRoot) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_INPUT_INVALID");
   const terminalPath = await assertRegularFileWithin(evidenceRoot, terminalResultPath, "R6_CURRENT_CANONICAL_V3_TERMINAL_PATH_REJECTED");
   if (path.basename(terminalPath) !== "current-canonical-production-v3-metadata-preparation-terminal-result.json") reject("R6_CURRENT_CANONICAL_V3_TERMINAL_PATH_REJECTED");
@@ -110,7 +131,7 @@ export async function validateCurrentCanonicalProductionV3TerminalFile({ termina
   if (path.resolve(value.sanitizedEvidencePath ?? "") !== terminalPath || value.sanitizedEvidenceDigest !== createHash("sha256").update(terminalPath).digest("hex")) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_PATH_REJECTED");
   if (value.toolingCommit !== toolingCommit) reject("R6_CURRENT_CANONICAL_V3_TERMINAL_TOOLING_COMMIT_MISMATCH");
   let kind;
-  try { validateCurrentCanonicalProductionV3TerminalResult(value, { resultPath: terminalPath, toolingCommit }); kind = assertClassificationState(value); } catch (error) { if (String(error?.code ?? "").startsWith("R6_CURRENT_CANONICAL_V3_")) throw error; reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE"); }
+  try { validateCurrentCanonicalProductionV3TerminalResult(value, { resultPath: terminalPath, toolingCommit }); kind = assertClassificationState(value, now); } catch (error) { if (String(error?.code ?? "").startsWith("R6_CURRENT_CANONICAL_V3_")) throw error; reject("R6_CURRENT_CANONICAL_V3_TERMINAL_IMPOSSIBLE_STATE"); }
   assertCommands(value);
   if (kind === "success") await assertRegularFileWithin(attestationRoot, value.attestationPath, "R6_CURRENT_CANONICAL_V3_TERMINAL_ATTESTATION_PATH_REJECTED");
   return Object.freeze({ kind, classification: value.outerClassification, terminalSha256: createHash("sha256").update(raw).digest("hex") });
