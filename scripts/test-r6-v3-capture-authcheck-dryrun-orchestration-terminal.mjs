@@ -12,6 +12,14 @@ const base = () => ({
   pagesProjectGetCount: 1, deploymentGetCount: 0, supabaseReadCount: 0, supabaseWriteCount: 0, productionMutationCount: 0, retryCount: 0,
 });
 assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(base()).classification, "R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY");
+const receiptBindingFailure = base();
+receiptBindingFailure.success = false;
+receiptBindingFailure.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED";
+receiptBindingFailure.innerClassification = "QA_CANARY_CONSUMED_RUN_RECEIPT_BINDING_MISMATCH";
+receiptBindingFailure.failureStage = "DRY_RUN_RECEIPT_BINDING";
+receiptBindingFailure.dryRunSuccess = false;
+receiptBindingFailure.dryRunChildExitCode = 1;
+assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(receiptBindingFailure).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED");
 for (const [name, mutate] of Object.entries({ capture: (v) => { v.captureSuccess = false; }, auth: (v) => { v.authCheckSuccess = false; }, dry: (v) => { v.dryRunSuccess = false; }, order: (v) => { v.authCheckSuccess = false; }, mutation: (v) => { v.productionMutationCount = 1; }, pages: (v) => { v.pagesProjectGetCount = 2; }, runId: (v) => { v.runId = "bad"; } })) {
   const value = base(); mutate(value); assert.throws(() => validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(value), /^Error: R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_/, name);
 }

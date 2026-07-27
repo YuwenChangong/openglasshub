@@ -49,6 +49,8 @@ try {
   }
 
   const reservation = await reserveConsumedRun({ root, runId: ids.fresh, mode: "dry-run", confirmationTokenSha256: token, runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest, now, nonce: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
+  await assert.rejects(reserveConsumedRun({ root, runId: "qa-canary-55555555-5555-4555-8555-555555555555", mode: "dry-run", confirmationTokenSha256: "5".repeat(64), runnerCommit: "", wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest, now }), /QA_CANARY_CONSUMED_RUN_RESERVATION_INVALID/);
+  await assert.rejects(reserveConsumedRun({ root, runId: "qa-canary-66666666-6666-4666-8666-666666666666", mode: "dry-run", confirmationTokenSha256: "6".repeat(64), runnerCommit: "not-a-commit", wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest, now }), /QA_CANARY_CONSUMED_RUN_RESERVATION_INVALID/);
   await assert.rejects(reserveConsumedRun({ root, runId: ids.fresh, mode: "live", confirmationTokenSha256: "e".repeat(64), runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest, now }), /QA_CANARY_RUN_ID_ALREADY_CONSUMED/);
   await assert.rejects(reserveConsumedRun({ root, runId: ids.second, mode: "live", confirmationTokenSha256: token, runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest, now }), /QA_CANARY_CONFIRMATION_TOKEN_REUSED/);
   await assert.rejects(consumeReservationReceipt({ root, receiptPath: reservation.receiptPath, receiptSha256: reservation.receiptSha256, invocationNonce: reservation.invocationNonce, runId: ids.fresh, mode: "live", runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest }), /BINDING_MISMATCH/);

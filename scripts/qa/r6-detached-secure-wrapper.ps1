@@ -393,7 +393,7 @@ function Get-CurrentCanonicalProductionV3DownstreamParent([string]$Mode, [string
 
 function Get-ValueBlindFailureCode([object]$ErrorRecord) {
   foreach ($value in @([string]$ErrorRecord.Exception.Message, [string]$ErrorRecord.FullyQualifiedErrorId, [string]$ErrorRecord)) {
-    if ($value -match '(R6_[A-Z0-9_]+)') { return $Matches[1] }
+    if ($value -match '(QA_CANARY_[A-Z0-9_]+|R6_[A-Z0-9_]+)') { return $Matches[1] }
   }
   return 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE'
 }
@@ -847,7 +847,7 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
     } else {
       $state['failureStage'] = 'run_id_validation'; Assert-RunIdEligible $Validation.Path $RequestedRunId | Out-Null; Assert-RunIdJournalAbsent $RequestedRunId
       Assert-TranscriptSafe; $confirmation = Read-Host 'Fresh dry-run-only confirmation token (hidden)' -AsSecureString; $confirmationHash = Get-ConfirmationHash $confirmation
-      $reservation = Reserve-ConsumedRun $Validation.Path $RequestedRunId 'dry-run' $confirmationHash
+      $reservation = Reserve-ConsumedRun $Validation $RequestedRunId 'dry-run' $confirmationHash
       $state['failureStage'] = 'authentication'; $inputs = Get-FutureInputs; $auth = Invoke-PasswordGrant $inputs
       $auth | Add-Member -NotePropertyName AttestationPath -NotePropertyValue $attestation.Path
       $auth | Add-Member -NotePropertyName AttestationSha256 -NotePropertyValue $attestation.Sha256
@@ -857,6 +857,7 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
     $state['failureStage'] = 'complete'; $state['outerClassification'] = 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY'; $state['success'] = $true
   } catch {
     $state['innerClassification'] = Get-ValueBlindFailureCode $_
+    if ($state['innerClassification'] -eq 'QA_CANARY_CONSUMED_RUN_RECEIPT_BINDING_MISMATCH') { $state['failureStage'] = 'DRY_RUN_RECEIPT_BINDING' }
     $state['outerClassification'] = 'R6_CURRENT_CANONICAL_V3_DRY_RUN_FAILED'
   } finally {
     Clear-RunnerEnvironment; $auth=$null; $confirmationHash=$null; Write-CurrentCanonicalProductionV3DryRunTerminal $terminalPath $state
@@ -1009,12 +1010,20 @@ function Assert-RunIdJournalAbsent([string]$RequestedRunId) {
   if (Test-Path -LiteralPath $journal) { throw 'R6_RUN_ID_JOURNAL_EXISTS' }
 }
 
-function Reserve-ConsumedRun([string]$Worktree, [string]$RequestedRunId, [ValidateSet('dry-run', 'live')][string]$Domain, [string]$ConfirmationHash) {
+function Get-ValidatedExecutionCommit([pscustomobject]$Validation) {
+  if ($null -eq $Validation -or [string]::IsNullOrWhiteSpace([string]$Validation.Path) -or [string]$Validation.Head -notmatch '^[a-f0-9]{40}$') { throw 'R6_EXECUTION_COMMIT_BINDING_INVALID' }
+  $head = Invoke-GitLines ([string]$Validation.Path) @('rev-parse', 'HEAD')
+  if ($head.Lines.Count -ne 1 -or $head.Lines[0].Trim().ToLowerInvariant() -ne [string]$Validation.Head) { throw 'R6_EXECUTION_COMMIT_CHANGED' }
+  return [string]$Validation.Head
+}
+
+function Reserve-ConsumedRun([pscustomobject]$Validation, [string]$RequestedRunId, [ValidateSet('dry-run', 'live')][string]$Domain, [string]$ConfirmationHash) {
+  $runnerCommit = Get-ValidatedExecutionCommit $Validation
   $wrapperHash = Get-Sha256 $PSCommandPath
   $childCommandDigest = Get-ChildCommandDigest $Domain $RequestedRunId
-  $result = Invoke-ConsumedRunTool $Worktree @('--registry-root', $script:ConsumedRunRegistryRoot, '--run-id', $RequestedRunId, '--mode', $Domain, '--confirmation-token-sha256', $ConfirmationHash, '--runner-commit', $script:ExpectedRunnerCommit, '--wrapper-version', $script:ConsumedRunWrapperVersion, '--wrapper-sha256', $wrapperHash, '--child-command-digest', $childCommandDigest)
+  $result = Invoke-ConsumedRunTool ([string]$Validation.Path) @('--registry-root', $script:ConsumedRunRegistryRoot, '--run-id', $RequestedRunId, '--mode', $Domain, '--confirmation-token-sha256', $ConfirmationHash, '--runner-commit', $runnerCommit, '--wrapper-version', $script:ConsumedRunWrapperVersion, '--wrapper-sha256', $wrapperHash, '--child-command-digest', $childCommandDigest)
   if ([string]::IsNullOrWhiteSpace([string]$result.receiptPath) -or [string]$result.receiptSha256 -notmatch '^[a-f0-9]{64}$' -or [string]$result.invocationNonce -notmatch '^[a-f0-9-]{36}$') { throw 'R6_CONSUMED_RUN_RESERVATION_OUTPUT_INVALID' }
-  return [pscustomobject]@{ RegistryRoot = $script:ConsumedRunRegistryRoot; ReceiptPath = [string]$result.receiptPath; ReceiptSha256 = [string]$result.receiptSha256; InvocationNonce = [string]$result.invocationNonce; WrapperSha256 = $wrapperHash; ChildCommandDigest = $childCommandDigest }
+  return [pscustomobject]@{ RegistryRoot = $script:ConsumedRunRegistryRoot; ReceiptPath = [string]$result.receiptPath; ReceiptSha256 = [string]$result.receiptSha256; InvocationNonce = [string]$result.invocationNonce; RunnerCommit = $runnerCommit; WrapperSha256 = $wrapperHash; ChildCommandDigest = $childCommandDigest }
 }
 
 function Assert-ExecutionWorktree([string]$Worktree, [string]$RequestedRunId) {
@@ -1199,7 +1208,9 @@ function Set-RunnerEnvironment([pscustomobject]$Auth, [string]$Mode, [string]$Re
   [Environment]::SetEnvironmentVariable('QA_EXPECTED_SUPABASE_REF', $Auth.ProjectRef, 'Process')
   [Environment]::SetEnvironmentVariable('QA_PRODUCTION_SUPABASE_REF', $Auth.ProjectRef, 'Process')
   [Environment]::SetEnvironmentVariable('QA_BASE_URL', $script:ExpectedBaseUrl, 'Process')
-  [Environment]::SetEnvironmentVariable('QA_EXPECTED_RUNNER_COMMIT', $script:ExpectedRunnerCommit, 'Process')
+  $expectedRunnerCommit = if ($null -ne $Reservation) { [string]$Reservation.RunnerCommit } else { $script:ExpectedRunnerCommit }
+  if ($expectedRunnerCommit -notmatch '^[a-f0-9]{40}$') { throw 'R6_EXECUTION_COMMIT_BINDING_INVALID' }
+  [Environment]::SetEnvironmentVariable('QA_EXPECTED_RUNNER_COMMIT', $expectedRunnerCommit, 'Process')
   [Environment]::SetEnvironmentVariable('QA_EXPECTED_DEPLOYED_COMMIT', $script:ExpectedDeployedCommit, 'Process')
   [Environment]::SetEnvironmentVariable('QA_DEPLOYMENT_ATTESTATION_PATH', $Auth.AttestationPath, 'Process')
   [Environment]::SetEnvironmentVariable('QA_DEPLOYMENT_ATTESTATION_SHA256', $Auth.AttestationSha256, 'Process')
@@ -1225,8 +1236,14 @@ function Set-RunnerEnvironment([pscustomobject]$Auth, [string]$Mode, [string]$Re
 function Invoke-CommittedRunner([string]$Worktree, [string[]]$Arguments) {
   Push-Location -LiteralPath $Worktree
   try {
-    & node $script:RunnerRelativePath @Arguments
-    if ($LASTEXITCODE -ne 0) { throw 'R6_COMMITTED_RUNNER_FAILED' }
+    $lines = @(& node $script:RunnerRelativePath @Arguments 2>&1)
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+      $codes = @($lines | ForEach-Object { [string]$_ } | ForEach-Object { [regex]::Matches($_, 'QA_CANARY_[A-Z0-9_]+') } | ForEach-Object { $_.Value } | Where-Object { $_ -ne 'QA_CANARY_FAILED' } | Select-Object -Unique)
+      if ($codes.Count -eq 1) { throw $codes[0] }
+      throw 'R6_COMMITTED_RUNNER_FAILED'
+    }
+    $lines | ForEach-Object { Write-Output $_ }
   } finally { Pop-Location }
 }
 
@@ -1340,7 +1357,7 @@ function Invoke-Main {
     $confirmation = Read-Host 'Fresh live canary confirmation token (hidden)' -AsSecureString
     $confirmationHash = Get-ConfirmationHash $confirmation
   }
-  if ($null -ne $confirmationHash) { $reservation = Reserve-ConsumedRun $validation.Path $RunId $confirmationDomain $confirmationHash }
+  if ($null -ne $confirmationHash) { $reservation = Reserve-ConsumedRun $validation $RunId $confirmationDomain $confirmationHash }
   $inputs = Get-FutureInputs
   $auth = $null
   try {

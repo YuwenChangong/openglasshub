@@ -80,3 +80,21 @@ After the operator command returns, only hash and path summaries from the
 capture parent evidence root should be reported. Do not copy an Account ID,
 OAuth callback, token, password, session, raw terminal JSON, attestation body,
 or transcript into chat.
+# Receipt Commit Binding
+
+The DryRun receipt field is `runnerCommit`. Its only canonical source is the
+already validated `ExecutionWorktree` HEAD. The wrapper rereads that worktree's
+HEAD immediately before reservation and fails closed if it differs from the
+validated value. It then binds the same full lowercase SHA to both the receipt
+and `QA_EXPECTED_RUNNER_COMMIT` passed to `run-production-minimal-canary.mjs`.
+
+The canary runner independently reads its own execution-worktree HEAD and
+continues to reject any receipt mismatch with
+`QA_CANARY_CONSUMED_RUN_RECEIPT_BINDING_MISMATCH`. A historical mismatch using
+`1d558a54d07a9f425b98e9bcab501b4e644b7ef6` is retained only as a negative
+test example, never as an approved V3 binding.
+
+Receipts are immutable once created. A failed `PENDING` receipt, its Run ID,
+attestation, commands, and evidence root must not be repaired or reused. A new
+attempt requires a new Run ID, a new attestation, a new evidence root, and a
+fresh explicit approval.
