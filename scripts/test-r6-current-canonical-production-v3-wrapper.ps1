@@ -132,7 +132,9 @@ try {
   Require ($mutualExit -eq 1 -and (($mutual | ForEach-Object { $_.ToString() }) -join "`n") -match 'R6_MODE_REQUIRED_EXACTLY_ONCE') 'R6_CURRENT_CANONICAL_V3_R2_MODE_REGRESSION'
   $wrapperText = Get-Content -LiteralPath $WrapperPath -Raw
   Require ($wrapperText -match 'function Invoke-PreparePagesProjectR2AuthDryRunAttestation' -and $wrapperText -match 'run-cloudflare-pages-project-r2-metadata-preparation\.mjs') 'R6_CURRENT_CANONICAL_V3_R2_PATH_REGRESSION'
-  Write-Output 'R6_CURRENT_CANONICAL_V3_WRAPPER_OK PowerShell-5.1 local fixtures, safe failures, impossible states, fingerprint guards, and R2-mode isolation passed with zero network'
+  Require ($wrapperText -match '\$childOutput = @\(& node \$entrypoint @arguments 2>&1\)' -and $wrapperText -match 'foreach \(\$command in \$commands\) \{ Write-Output \$command \}') 'R6_CURRENT_CANONICAL_V3_CAPTURE_OUTPUT_ORDERING_REGRESSION'
+  Require ($wrapperText -match 'foreach \(\$key in \$parsed\.Keys\) \{ \$properties\[\[string\]\$key\] = \$parsed\[\$key\] \}' -and $wrapperText -match 'return \[pscustomobject\]\$properties') 'R6_CURRENT_CANONICAL_V3_PS51_JSON_NORMALIZATION_REGRESSION'
+  Write-Output 'R6_CURRENT_CANONICAL_V3_WRAPPER_OK PowerShell-5.1 JSON normalization, buffered capture output, local fixtures, safe failures, impossible states, fingerprint guards, and R2-mode isolation passed with zero network'
 } finally {
   Remove-Item Env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE -ErrorAction SilentlyContinue
   Remove-Item Env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT -ErrorAction SilentlyContinue

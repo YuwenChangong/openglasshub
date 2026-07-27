@@ -544,7 +544,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthDryRunAttestation([pscust
   $arguments = @('--operation','PREPARE_CURRENT_CANONICAL_PRODUCTION_V3_AUTH_DRY_RUN_ATTESTATION','--repository-root',$Validation.Path,'--attestation-root',$script:ExpectedAttestationRoot,'--registry-root',$script:ConsumedRunRegistryRoot,'--journal-root',(Get-ExpectedJournalRoot),'--evidence-root',$root,'--terminal-result-path',$terminalResultPath,'--wrapper-path',$PSCommandPath,'--execution-worktree',$Validation.Path,'--tooling-commit',$script:V3FinalCommitBinding,'--wrapper-sha256',(Get-Sha256 $PSCommandPath),'--transport-sha256',$transport,'--parser-selector-sha256',$transport)
   $exitCode = $null
   Push-Location -LiteralPath $Validation.Path
-  try { $previousErrorActionPreference = $ErrorActionPreference; try { $ErrorActionPreference = 'Continue'; & node $entrypoint @arguments; $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previousErrorActionPreference } } finally { Pop-Location }
+  try { $previousErrorActionPreference = $ErrorActionPreference; try { $ErrorActionPreference = 'Continue'; $childOutput = @(& node $entrypoint @arguments 2>&1); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previousErrorActionPreference } } finally { Pop-Location }
   if (-not (Test-Path -LiteralPath $terminalResultPath -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_TERMINAL_MISSING' }
   $validatorResult = Invoke-CurrentCanonicalProductionV3TerminalValidator $Validation $terminalResultPath $root
   $terminal = Read-AttestationJson $terminalResultPath
@@ -552,7 +552,10 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthDryRunAttestation([pscust
   if ($validatorResult -eq 'R6_CURRENT_CANONICAL_V3_TERMINAL_FAILURE') { throw ([string]$terminal.outerClassification) }
   if ($terminal.outerClassification -ne 'R6_HARDENED_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_CAPTURE_HUMAN_COMMAND_READY') { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_IMPOSSIBLE_STATE' }
   Assert-CurrentCanonicalProductionV3TerminalFreshness $terminal | Out-Null
+  $commands = @($terminal.commands | ForEach-Object { [string]$_ })
+  if ($commands.Count -ne 2) { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_IMPOSSIBLE_STATE' }
   Write-Output 'R6_HARDENED_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_CAPTURE_HUMAN_COMMAND_READY'
+  foreach ($command in $commands) { Write-Output $command }
 }
 
 function Invoke-CurrentCanonicalProductionV3FixtureTest([pscustomobject]$Validation) {
@@ -704,7 +707,11 @@ function Read-AttestationJson([string]$Path) {
     return ($raw | ConvertFrom-Json -DateKind String)
   }
   Add-Type -AssemblyName System.Web.Extensions
-  return [pscustomobject]([System.Web.Script.Serialization.JavaScriptSerializer]::new().DeserializeObject($raw))
+  $parsed = [System.Web.Script.Serialization.JavaScriptSerializer]::new().DeserializeObject($raw)
+  if (-not ($parsed -is [System.Collections.IDictionary])) { throw 'R6_ATTESTATION_JSON_INVALID' }
+  $properties = [ordered]@{}
+  foreach ($key in $parsed.Keys) { $properties[[string]$key] = $parsed[$key] }
+  return [pscustomobject]$properties
 }
 
 function Get-OptionalJsonProperty([object]$Value, [string]$Name) {

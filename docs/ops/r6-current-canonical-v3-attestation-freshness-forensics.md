@@ -85,3 +85,21 @@ post-terminal wrapper failure rather than a
 `r6-operator-launch-preterminal-result-v1` record. The launch transcript is
 hashed and scanned locally only; it is never committed or copied into this
 repository.
+
+### Windows PowerShell 5.1 Serialization And Output Ordering
+
+The subsequent consumed capture confirmed that `JavaScriptSerializer` returns
+the terminal root as a .NET dictionary under Windows PowerShell 5.1. Casting
+that dictionary directly to `[pscustomobject]` preserves dictionary members
+(`Keys`, `Values`, and `Count`) rather than exposing the JSON keys. The
+freshness reader consequently treated every required terminal field as absent.
+The reader now copies the parsed dictionary keys into an ordered object before
+any terminal or attestation contract access.
+
+The same capture also showed that the Node preparation child wrote its success
+classification and downstream commands directly to stdout before the wrapper's
+post-child validation ran. The wrapper now captures child stdout and emits only
+the terminal-derived success classification and exactly two commands after all
+terminal, integrity, and freshness guards pass. A failure emits no downstream
+command. This is verified by the PowerShell wrapper regression suite without
+making a provider request.
