@@ -102,6 +102,55 @@ function Invoke-AuthCheckFixture([bool]$MismatchAttestationSha = $false) {
   }
 }
 
+function Invoke-OrchestrationFixture([string]$Kind, [string]$NowUtc, [bool]$ExpectedSuccess) {
+  $parent = Join-Path 'C:\Users\1\OpenGlassHub-R6-Proof\r6-current-canonical-production-v3-evidence' ('test-r6-v3-orchestration-' + [guid]::NewGuid().ToString())
+  $attestationRoot = Join-Path ([IO.Path]::GetTempPath()) ('r6-v3-orchestration-attestations-' + [guid]::NewGuid().ToString())
+  try {
+    New-Item -ItemType Directory -Path $attestationRoot -Force | Out-Null
+    $env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE = '1'
+    $env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT = $attestationRoot
+    $env:R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE = '1'
+    $env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE = '1'
+    $env:R6_V3_ORCHESTRATION_TEST_NOW_UTC = $NowUtc
+    $env:R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR = $fixtureGenerator
+    $env:R6_V3_ORCHESTRATION_WRAPPER_TEST_ORCHESTRATION_VALIDATOR = Join-Path $PSScriptRoot 'qa\validate-r6-v3-capture-auth-check-orchestration-terminal.mjs'
+    $env:R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR = Join-Path $PSScriptRoot 'qa\validate-r6-v3-auth-check-terminal.mjs'
+    [Environment]::SetEnvironmentVariable('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE', '1', 'Process')
+    [Environment]::SetEnvironmentVariable('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT', $attestationRoot, 'Process')
+    [Environment]::SetEnvironmentVariable('R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE', '1', 'Process')
+    [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE', '1', 'Process')
+    [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_TEST_NOW_UTC', $NowUtc, 'Process')
+    [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR', $fixtureGenerator, 'Process')
+    [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_WRAPPER_TEST_ORCHESTRATION_VALIDATOR', $env:R6_V3_ORCHESTRATION_WRAPPER_TEST_ORCHESTRATION_VALIDATOR, 'Process')
+    [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR', $env:R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR, 'Process')
+    $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    $output = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $WrapperPath -ExecutionWorktree $ExecutionWorktree -PrepareCurrentCanonicalProductionV3AndAuthCheckOnly -EvidenceRoot $parent -V3OrchestrationFixtureKind $Kind 2>&1)
+    $exitCode = $LASTEXITCODE; $ErrorActionPreference = $old
+    $terminalPath = Join-Path $parent 'capture-auth-check-orchestration-terminal-result.json'
+    Require (Test-Path -LiteralPath $terminalPath -PathType Leaf) 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_TERMINAL_MISSING'
+    $terminal = Get-Content -LiteralPath $terminalPath -Raw | ConvertFrom-Json
+    $validator = Join-Path $PSScriptRoot 'qa\validate-r6-v3-capture-auth-check-orchestration-terminal.mjs'
+    $previous = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $validated = @(& node $validator $terminalPath 2>&1); $validationExit = $LASTEXITCODE } finally { $ErrorActionPreference = $previous }
+    Require ($validationExit -eq 0 -and $validated.Count -eq 1 -and $validated[0].ToString().Trim() -eq 'R6_V3_CAPTURE_AUTH_CHECK_ORCHESTRATION_TERMINAL_OK') ("R6_CURRENT_CANONICAL_V3_ORCHESTRATION_VALIDATOR_FAILED:" + ($validated -join '|'))
+    $text = ($output | ForEach-Object { $_.ToString() }) -join "`n"
+    Require ($text -notmatch '\-AuthCheckOnly|\-DryRunOnly|qa-canary') 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_COMMAND_LEAK'
+    Require (-not [bool]$terminal.dryRunStarted -and [int]$terminal.dryRunExecutionCount -eq 0 -and [int]$terminal.retryCount -eq 0 -and [int]$terminal.productionMutationCount -eq 0 -and [int]$terminal.supabaseWriteCount -eq 0) 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_SAFETY_CONTRACT_FAILED'
+    if ($ExpectedSuccess) {
+      Require ($exitCode -eq 0 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_CAPTURE_AND_AUTH_CHECK_ONLY_READY' -and [bool]$terminal.captureSuccess -and [bool]$terminal.authCheckStarted -and [bool]$terminal.authCheckSuccess -and [int64]$terminal.remainingValidityMs -ge 720000) ("R6_CURRENT_CANONICAL_V3_ORCHESTRATION_SUCCESS_CONTRACT_FAILED:exit=$exitCode:outer=$($terminal.outerClassification):inner=$($terminal.innerClassification):stage=$($terminal.failureStage):capture=$($terminal.captureSuccess):authStarted=$($terminal.authCheckStarted):authSuccess=$($terminal.authCheckSuccess):remaining=$($terminal.remainingValidityMs)")
+    } else {
+      Require ($exitCode -eq 1 -and -not [bool]$terminal.authCheckStarted -and -not [bool]$terminal.authCheckSuccess) 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_FAIL_CLOSED_CONTRACT_FAILED'
+    }
+  } finally {
+    foreach ($name in @('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE','R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT','R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_TEST_NOW_UTC','R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_ORCHESTRATION_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR')) {
+      Remove-Item ("Env:" + $name) -ErrorAction SilentlyContinue
+      [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+    }
+    Remove-Item -LiteralPath $parent -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $attestationRoot -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
 try {
   Require (Test-Path -LiteralPath $fixtureGenerator -PathType Leaf) 'R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_FIXTURE_MISSING'
   if ([string]::IsNullOrWhiteSpace($WrapperPath)) {
@@ -127,13 +176,16 @@ try {
   Invoke-CopiedWrapperMismatch 'V3RuntimeRawSha256Binding' 'R6_CURRENT_CANONICAL_V3_RUNTIME_RAW_SHA256_MISMATCH'
   Invoke-AuthCheckFixture
   Invoke-AuthCheckFixture $true
+  Invoke-OrchestrationFixture 'authcheck-orchestration-success' '2099-01-01T00:03:00.000Z' $true
+  Invoke-OrchestrationFixture 'authcheck-orchestration-success' '2099-01-01T00:03:00.001Z' $false
+  Invoke-OrchestrationFixture 'target' '2099-01-01T00:03:00.000Z' $false
   $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
   $mutual = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $WrapperPath -ExecutionWorktree $ExecutionWorktree -PrepareCurrentCanonicalProductionV3AuthDryRunAttestation -PreparePagesProjectR2AuthDryRunAttestation 2>&1); $mutualExit = $LASTEXITCODE; $ErrorActionPreference = $old
   Require ($mutualExit -eq 1 -and (($mutual | ForEach-Object { $_.ToString() }) -join "`n") -match 'R6_MODE_REQUIRED_EXACTLY_ONCE') 'R6_CURRENT_CANONICAL_V3_R2_MODE_REGRESSION'
   $wrapperText = Get-Content -LiteralPath $WrapperPath -Raw
   Require ($wrapperText -match 'function Invoke-PreparePagesProjectR2AuthDryRunAttestation' -and $wrapperText -match 'run-cloudflare-pages-project-r2-metadata-preparation\.mjs') 'R6_CURRENT_CANONICAL_V3_R2_PATH_REGRESSION'
   $captureRunnerText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'qa\run-cloudflare-pages-current-canonical-production-v3-preparation.mjs') -Raw
-  Require ($wrapperText -match "'--command-output-mode','wrapper-buffered'" -and $wrapperText -match '& node \$entrypoint @arguments; \$exitCode = \$LASTEXITCODE' -and $wrapperText -notmatch '\$childOutput = @\(& node \$entrypoint' -and $wrapperText -match 'foreach \(\$command in \$commands\) \{ Write-Output \$command \}') 'R6_CURRENT_CANONICAL_V3_CAPTURE_OUTPUT_ORDERING_REGRESSION'
+  Require ($wrapperText -match "'--command-output-mode','wrapper-buffered'" -and $wrapperText -match '& node \$entrypoint @arguments; \$exitCode = \$LASTEXITCODE' -and $wrapperText -notmatch '\$childOutput = @\(& node \$entrypoint' -and $wrapperText -match 'PrepareCurrentCanonicalProductionV3AndAuthCheckOnly' -and $wrapperText -match '\$null = Invoke-CurrentCanonicalProductionV3AuthCheckOnly') 'R6_CURRENT_CANONICAL_V3_CAPTURE_OUTPUT_ORDERING_REGRESSION'
   Require ($captureRunnerText -match 'values\.get\("--command-output-mode"\) !== "wrapper-buffered"' -and $captureRunnerText -match 'process\.stdout\.write\(`\$\{R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_SUCCESS\}') 'R6_CURRENT_CANONICAL_V3_CAPTURE_TTY_OUTPUT_MODE_REGRESSION'
   Require ($wrapperText -match 'foreach \(\$key in \$parsed\.Keys\) \{ \$properties\[\[string\]\$key\] = \$parsed\[\$key\] \}' -and $wrapperText -match 'return \[pscustomobject\]\$properties') 'R6_CURRENT_CANONICAL_V3_PS51_JSON_NORMALIZATION_REGRESSION'
   Write-Output 'R6_CURRENT_CANONICAL_V3_WRAPPER_OK PowerShell-5.1 JSON normalization, TTY-preserving capture output control, local fixtures, safe failures, impossible states, fingerprint guards, and R2-mode isolation passed with zero network'

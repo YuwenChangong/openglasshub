@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 export const R6_V3_AUTH_CHECK_TERMINAL_VERSION = "r6-auth-check-only-terminal-result-v1";
 const REQUIRED = [
@@ -27,7 +28,7 @@ export function validateR6V3AuthCheckTerminal(value) {
   } else if (value.outerClassification !== "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_FAILED" || typeof value.innerClassification !== "string" || value.innerClassification === "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE" || value.exceptionType === null || value.childExitCode === 0) fail("R6_V3_AUTH_CHECK_TERMINAL_FAILURE_CONTRADICTION");
   return Object.freeze({ classification: value.outerClassification, sha256: createHash("sha256").update(JSON.stringify(value)).digest("hex") });
 }
-if (process.argv[1] === new URL(import.meta.url).pathname) {
+if (process.argv[1] && fileURLToPath(import.meta.url).replaceAll("\\", "/") === process.argv[1].replaceAll("\\", "/")) {
   try { const value = JSON.parse(await readFile(process.argv[2], "utf8")); validateR6V3AuthCheckTerminal(value); process.stdout.write("R6_V3_AUTH_CHECK_TERMINAL_OK\n"); }
   catch (error) { process.stderr.write(`${error?.code ?? "R6_V3_AUTH_CHECK_TERMINAL_INVALID"}\n`); process.exitCode = 1; }
 }

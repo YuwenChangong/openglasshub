@@ -60,11 +60,11 @@ const source = () => createCurrentCanonicalProductionV3TerminalResult({
   requestSentinelReached: true,
   transportReached: true,
 });
-const authcheckSuccess = async () => {
+const authcheckSuccess = async (fixedClock = false) => {
   const wrapperPath = required(values, "--wrapper-path");
   const authRoot = required(values, "--auth-root");
   const wrapperSha256 = required(values, "--wrapper-sha256");
-  const now = new Date();
+  const now = fixedClock ? new Date("2099-01-01T00:00:00.000Z") : new Date();
   const observedAt = now.toISOString();
   const expiresAt = new Date(now.getTime() + 15 * 60 * 1000).toISOString();
   const attestation = {
@@ -97,6 +97,7 @@ const fixture = {
   secret: () => redigest({ ...target(), innerClassification: "access_token=forbidden" }),
 };
 if (kind === "authcheck-success") fixture[kind] = authcheckSuccess;
+if (kind === "authcheck-orchestration-success") fixture[kind] = () => authcheckSuccess(true);
 if (!Object.hasOwn(fixture, kind)) throw new Error("R6_CURRENT_CANONICAL_V3_WRAPPER_FIXTURE_INPUT_INVALID");
 const result = await fixture[kind]();
 await writeFile(terminalPath, `${JSON.stringify(result)}\n`);

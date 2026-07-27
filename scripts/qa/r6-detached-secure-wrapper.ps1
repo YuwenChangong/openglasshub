@@ -15,7 +15,9 @@ param(
   [switch]$PreparePagesProjectAuthDryRunAttestation,
   [switch]$PreparePagesProjectR2AuthDryRunAttestation,
   [switch]$PrepareCurrentCanonicalProductionV3AuthDryRunAttestation,
+  [switch]$PrepareCurrentCanonicalProductionV3AndAuthCheckOnly,
   [string]$V3TerminalFixturePath,
+  [string]$V3OrchestrationFixtureKind,
   [string]$RunId,
   [string]$PhaseApproval,
   [string]$EvidenceRoot = 'C:\Users\1\OpenGlassHub-R6-Proof\r6-detached-secure-input-transport'
@@ -23,6 +25,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$script:WrapperPath = $PSCommandPath
 
 $script:ExpectedExecutionWorktree = 'C:\Users\1\OpenGlassHub-R6-Proof\r6-project-canonical-url-remediation\execution-worktree'
 $script:ExpectedRunnerCommit = '1d558a54d07a9f425b98e9bcab501b4e644b7ef6'
@@ -397,12 +400,24 @@ function Get-ValueBlindFailureCode([object]$ErrorRecord) {
 function Convert-StrictUtcTimestamp([string]$Value, [string]$FailureCode) {
   if ($Value -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$') { throw $FailureCode }
   try {
-    return [DateTimeOffset]::Parse(
+    return ([DateTimeOffset]::Parse(
       $Value,
       [Globalization.CultureInfo]::InvariantCulture,
       ([Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
-    )
+    )).ToUniversalTime()
   } catch { throw $FailureCode }
+}
+
+function Format-StrictUtcTimestamp([DateTimeOffset]$Value) {
+  return $Value.ToUniversalTime().UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Get-CurrentCanonicalProductionV3UtcNow {
+  if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -eq '1') {
+    $value = [string]$env:R6_V3_ORCHESTRATION_TEST_NOW_UTC
+    return Convert-StrictUtcTimestamp $value 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_TEST_CLOCK_INVALID'
+  }
+  return [DateTimeOffset]::UtcNow
 }
 
 function Assert-CurrentCanonicalProductionV3CaptureProvenance([pscustomobject]$Downstream, [pscustomobject]$Validation, [System.Collections.IDictionary]$State) {
@@ -516,7 +531,7 @@ function Invoke-CurrentCanonicalProductionV3TerminalValidator([pscustomobject]$V
   return $lines[0].ToString().Trim()
 }
 
-function Assert-CurrentCanonicalProductionV3TerminalFreshness([pscustomobject]$Terminal) {
+function Assert-CurrentCanonicalProductionV3TerminalFreshness([pscustomobject]$Terminal, [int64]$MinimumCurrentValidityMilliseconds = -1) {
   foreach ($name in @('attestationIssuedAt','attestationExpiresAt','freshnessValidatedAt','remainingValidityMilliseconds','minimumValidityMilliseconds','freshnessCheckPassed')) {
     if ($null -eq $Terminal.PSObject.Properties[$name]) { throw 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID' }
   }
@@ -528,34 +543,200 @@ function Assert-CurrentCanonicalProductionV3TerminalFreshness([pscustomobject]$T
   if ($issued.Offset -ne [TimeSpan]::Zero -or $expires.Offset -ne [TimeSpan]::Zero -or $validated.Offset -ne [TimeSpan]::Zero -or $expires -le $issued -or ($expires - $issued).TotalMilliseconds -ne 900000 -or [int64]$Terminal.minimumValidityMilliseconds -ne 780000 -or -not [bool]$Terminal.freshnessCheckPassed) { throw 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID' }
   $recordedRemaining = [int64][math]::Round(($expires - $validated).TotalMilliseconds)
   if ([int64]$Terminal.remainingValidityMilliseconds -ne $recordedRemaining -or $recordedRemaining -lt [int64]$Terminal.minimumValidityMilliseconds) { throw 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID' }
-  $remainingNow = ($expires - [DateTimeOffset]::UtcNow).TotalMilliseconds
-  if ($remainingNow -lt [int64]$Terminal.minimumValidityMilliseconds) { throw 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID' }
+  $minimumNow = if ($MinimumCurrentValidityMilliseconds -ge 0) { $MinimumCurrentValidityMilliseconds } else { [int64]$Terminal.minimumValidityMilliseconds }
+  $remainingNow = ($expires - (Get-CurrentCanonicalProductionV3UtcNow)).TotalMilliseconds
+  if ($remainingNow -lt $minimumNow) { throw 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID' }
   return [math]::Floor($remainingNow)
 }
 
-function Invoke-PrepareCurrentCanonicalProductionV3AuthDryRunAttestation([pscustomobject]$Validation) {
+function Invoke-PrepareCurrentCanonicalProductionV3AuthDryRunAttestation([pscustomobject]$Validation, [switch]$SuppressDownstreamCommands, [string]$FixtureKind, [switch]$RootAlreadyCreated, [int64]$MinimumCurrentValidityMilliseconds = -1) {
   if (-not [string]::IsNullOrWhiteSpace($V3TerminalFixturePath)) { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE_REQUIRED' }
   Assert-TranscriptSafe
-  $root = Assert-CurrentCanonicalProductionV3EvidenceRoot $EvidenceRoot
+  if ($RootAlreadyCreated) {
+    $base = [IO.Path]::GetFullPath($script:V3EvidenceRootBase)
+    $root = [IO.Path]::GetFullPath($EvidenceRoot)
+    if (-not (Test-WindowsFullyQualifiedPath $root) -or -not (Test-PathContainedWithin $base $root) -or -not (Test-Path -LiteralPath $root -PathType Container)) { throw 'R6_CURRENT_CANONICAL_V3_EVIDENCE_ROOT_UNSAFE' }
+  } else {
+    $root = Assert-CurrentCanonicalProductionV3EvidenceRoot $EvidenceRoot
+  }
   $transport = Get-Sha256 (Join-Path $Validation.Path 'scripts\qa\cloudflare-pages-project-v3-get.mjs')
   $entrypoint = $Validation.Runner
   New-Item -ItemType Directory -Force -Path $root | Out-Null
   $terminalResultPath = Join-Path $root 'current-canonical-production-v3-metadata-preparation-terminal-result.json'
-  $arguments = @('--operation','PREPARE_CURRENT_CANONICAL_PRODUCTION_V3_AUTH_DRY_RUN_ATTESTATION','--repository-root',$Validation.Path,'--attestation-root',$script:ExpectedAttestationRoot,'--registry-root',$script:ConsumedRunRegistryRoot,'--journal-root',(Get-ExpectedJournalRoot),'--evidence-root',$root,'--terminal-result-path',$terminalResultPath,'--wrapper-path',$PSCommandPath,'--execution-worktree',$Validation.Path,'--tooling-commit',$script:V3FinalCommitBinding,'--wrapper-sha256',(Get-Sha256 $PSCommandPath),'--transport-sha256',$transport,'--parser-selector-sha256',$transport,'--command-output-mode','wrapper-buffered')
   $exitCode = $null
-  Push-Location -LiteralPath $Validation.Path
-  try { $previousErrorActionPreference = $ErrorActionPreference; try { $ErrorActionPreference = 'Continue'; & node $entrypoint @arguments; $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previousErrorActionPreference } } finally { Pop-Location }
+  if (-not [string]::IsNullOrWhiteSpace($FixtureKind)) {
+    if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -ne '1' -or $FixtureKind -notin @('authcheck-orchestration-success','target')) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_TEST_FIXTURE_INVALID' }
+    $fixtureGenerator = [string]$env:R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR
+    if (-not (Test-WindowsFullyQualifiedPath $fixtureGenerator) -or -not (Test-Path -LiteralPath $fixtureGenerator -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_TEST_FIXTURE_INVALID' }
+    $attestationRoot = [string]$env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT
+    $authRoot = Join-Path $root 'auth-check'
+    $wrapperSha256 = Get-Sha256 $script:WrapperPath
+    $fixtureLines = @(& node $fixtureGenerator '--root' $root '--attestation-root' $attestationRoot '--tooling-commit' $script:V3FinalCommitBinding '--kind' $FixtureKind '--wrapper-path' $script:WrapperPath '--auth-root' $authRoot '--wrapper-sha256' $wrapperSha256 2>&1)
+    if ($LASTEXITCODE -ne 0 -or $fixtureLines.Count -ne 1) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_TEST_FIXTURE_INVALID' }
+  } else {
+    $arguments = @('--operation','PREPARE_CURRENT_CANONICAL_PRODUCTION_V3_AUTH_DRY_RUN_ATTESTATION','--repository-root',$Validation.Path,'--attestation-root',$script:ExpectedAttestationRoot,'--registry-root',$script:ConsumedRunRegistryRoot,'--journal-root',(Get-ExpectedJournalRoot),'--evidence-root',$root,'--terminal-result-path',$terminalResultPath,'--wrapper-path',$PSCommandPath,'--execution-worktree',$Validation.Path,'--tooling-commit',$script:V3FinalCommitBinding,'--wrapper-sha256',(Get-Sha256 $PSCommandPath),'--transport-sha256',$transport,'--parser-selector-sha256',$transport,'--command-output-mode','wrapper-buffered')
+    Push-Location -LiteralPath $Validation.Path
+    try { $previousErrorActionPreference = $ErrorActionPreference; try { $ErrorActionPreference = 'Continue'; & node $entrypoint @arguments; $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previousErrorActionPreference } } finally { Pop-Location }
+  }
   if (-not (Test-Path -LiteralPath $terminalResultPath -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_TERMINAL_MISSING' }
   $validatorResult = Invoke-CurrentCanonicalProductionV3TerminalValidator $Validation $terminalResultPath $root
   $terminal = Read-AttestationJson $terminalResultPath
+  if (-not [string]::IsNullOrWhiteSpace($FixtureKind)) { $exitCode = [int]$terminal.childExitCode }
   if ($null -eq $exitCode -or $exitCode -ne [int]$terminal.childExitCode) { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_IMPOSSIBLE_STATE' }
   if ($validatorResult -eq 'R6_CURRENT_CANONICAL_V3_TERMINAL_FAILURE') { throw ([string]$terminal.outerClassification) }
   if ($terminal.outerClassification -ne 'R6_HARDENED_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_CAPTURE_HUMAN_COMMAND_READY') { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_IMPOSSIBLE_STATE' }
-  Assert-CurrentCanonicalProductionV3TerminalFreshness $terminal | Out-Null
+  Assert-CurrentCanonicalProductionV3TerminalFreshness $terminal $MinimumCurrentValidityMilliseconds | Out-Null
   $commands = @($terminal.commands | ForEach-Object { [string]$_ })
   if ($commands.Count -ne 2) { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_IMPOSSIBLE_STATE' }
-  Write-Output 'R6_HARDENED_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_CAPTURE_HUMAN_COMMAND_READY'
-  foreach ($command in $commands) { Write-Output $command }
+  if (-not $SuppressDownstreamCommands) {
+    Write-Output 'R6_HARDENED_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_CAPTURE_HUMAN_COMMAND_READY'
+    foreach ($command in $commands) { Write-Output $command }
+  }
+}
+
+function Write-CurrentCanonicalProductionV3OrchestrationTerminal([string]$Path, [System.Collections.IDictionary]$State) {
+  $State['completedAt'] = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow)
+  $State['schemaVersion'] = 'r6-v3-capture-auth-check-orchestration-terminal-result-v1'
+  $raw = [Text.Encoding]::UTF8.GetBytes(($State | ConvertTo-Json -Depth 6 -Compress) + [Environment]::NewLine)
+  $temporary = "$Path.$PID.$([guid]::NewGuid().ToString()).tmp"
+  try {
+    [IO.File]::WriteAllBytes($temporary, $raw)
+    Move-Item -LiteralPath $temporary -Destination $Path -ErrorAction Stop
+  } finally {
+    Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+    [Array]::Clear($raw, 0, $raw.Length)
+  }
+}
+
+function Invoke-CurrentCanonicalProductionV3OrchestrationTerminalValidator([string]$Path) {
+  $validator = Join-Path $ExecutionWorktree 'scripts\qa\validate-r6-v3-capture-auth-check-orchestration-terminal.mjs'
+  if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -eq '1') { $validator = [string]$env:R6_V3_ORCHESTRATION_WRAPPER_TEST_ORCHESTRATION_VALIDATOR }
+  if (-not (Test-WindowsFullyQualifiedPath $validator) -or -not (Test-Path -LiteralPath $validator -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_TERMINAL_VALIDATOR_MISSING' }
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $lines = @(& node $validator $Path 2>&1)
+    $exitCode = $LASTEXITCODE
+  } finally { $ErrorActionPreference = $previousErrorActionPreference }
+  if ($exitCode -ne 0 -or $lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne 'R6_V3_CAPTURE_AUTH_CHECK_ORCHESTRATION_TERMINAL_OK') {
+    throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_TERMINAL_INVALID'
+  }
+}
+
+function Invoke-CurrentCanonicalProductionV3AuthCheckTerminalValidator([string]$Path) {
+  $validator = Join-Path $ExecutionWorktree 'scripts\qa\validate-r6-v3-auth-check-terminal.mjs'
+  if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -eq '1') { $validator = [string]$env:R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR }
+  if (-not (Test-WindowsFullyQualifiedPath $validator) -or -not (Test-Path -LiteralPath $validator -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_AUTH_CHECK_TERMINAL_VALIDATOR_MISSING' }
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $lines = @(& node $validator $Path 2>&1)
+    $exitCode = $LASTEXITCODE
+  } finally { $ErrorActionPreference = $previousErrorActionPreference }
+  if ($exitCode -ne 0 -or $lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne 'R6_V3_AUTH_CHECK_TERMINAL_OK') {
+    throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_AUTH_CHECK_TERMINAL_INVALID'
+  }
+}
+
+function Sync-CurrentCanonicalProductionV3OrchestrationCaptureState([System.Collections.IDictionary]$State, [string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+  $State['captureTerminalPath'] = $Path
+  $State['captureTerminalSha256'] = Get-Sha256 $Path
+  try { $terminal = Read-AttestationJson $Path } catch { return }
+  $State['captureOuterClassification'] = $terminal.outerClassification
+  $State['captureInnerClassification'] = $terminal.innerClassification
+  $State['captureChildExitCode'] = [int]$terminal.childExitCode
+  $State['capturePagesRequestCount'] = if ([bool]$terminal.requestSentinelReached) { 1 } else { 0 }
+  $State['pagesProjectGetCount'] = $State['capturePagesRequestCount']
+  $State['captureCompleted'] = $true
+}
+
+function Sync-CurrentCanonicalProductionV3OrchestrationAuthState([System.Collections.IDictionary]$State, [string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+  $State['authCheckTerminalPath'] = $Path
+  $State['authCheckTerminalSha256'] = Get-Sha256 $Path
+  try { $terminal = Read-AttestationJson $Path } catch { return }
+  $State['authCheckOuterClassification'] = $terminal.outerClassification
+  $State['authCheckInnerClassification'] = $terminal.innerClassification
+  $State['authCheckChildExitCode'] = [int]$terminal.childExitCode
+  $State['authCheckCompleted'] = $true
+  $State['authCheckSuccess'] = [bool]$terminal.success
+  $State['supabaseReadCount'] = [int]$terminal.supabaseReadCount
+  $State['supabaseWriteCount'] = [int]$terminal.supabaseWriteCount
+  $State['productionMutationCount'] = [int]$terminal.productionMutationCount
+}
+
+function Invoke-PrepareCurrentCanonicalProductionV3AndAuthCheckOnly([pscustomobject]$Validation) {
+  if (-not [string]::IsNullOrWhiteSpace($V3TerminalFixturePath)) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_TEST_FIXTURE_INVALID' }
+  $root = Assert-CurrentCanonicalProductionV3EvidenceRoot $EvidenceRoot
+  New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
+  $captureTerminalPath = Join-Path $root 'current-canonical-production-v3-metadata-preparation-terminal-result.json'
+  $authRoot = Join-Path $root 'auth-check'
+  $authTerminalPath = Join-Path $authRoot 'auth-check-only-terminal-result.json'
+  $terminalPath = Join-Path $root 'capture-auth-check-orchestration-terminal-result.json'
+  $state = [ordered]@{
+    schemaVersion = $null; startedAt = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow); completedAt = $null; executionCommit = $null; worktreeContract = 'current-canonical-production-v3'
+    outerClassification = $null; innerClassification = $null; success = $false; failureStage = 'worktree_validation'
+    captureStarted = $false; captureCompleted = $false; captureSuccess = $false; captureTerminalPath = $null; captureTerminalSha256 = $null; captureOuterClassification = $null; captureInnerClassification = $null; captureChildExitCode = $null; capturePagesRequestCount = 0
+    attestationPath = $null; attestationSha256 = $null; attestationType = $null; attestationIssuedAt = $null; attestationExpiresAt = $null; attestationFreshnessPassed = $false; remainingValidityMs = $null; minimumRequiredValidityMs = $script:MinimumAttestationValidityMilliseconds
+    authCheckAuthorizedByMode = $true; authCheckStarted = $false; authCheckCompleted = $false; authCheckSuccess = $false; authCheckTerminalPath = $null; authCheckTerminalSha256 = $null; authCheckOuterClassification = $null; authCheckInnerClassification = $null; authCheckChildExitCode = $null
+    dryRunStarted = $false; dryRunExecutionCount = 0; pagesProjectGetCount = 0; deploymentGetCount = 0; supabaseReadCount = 0; supabaseWriteCount = 0; productionMutationCount = 0; retryCount = 0
+  }
+  try {
+    Assert-CurrentCanonicalProductionV3Bindings
+    $state['executionCommit'] = $Validation.Head
+    $state['failureStage'] = 'capture_execution'
+    $state['captureStarted'] = $true
+    $fixtureKind = if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -eq '1') { $V3OrchestrationFixtureKind } else { $null }
+    $null = Invoke-PrepareCurrentCanonicalProductionV3AuthDryRunAttestation $Validation -SuppressDownstreamCommands -FixtureKind $fixtureKind -RootAlreadyCreated -MinimumCurrentValidityMilliseconds $script:MinimumAttestationValidityMilliseconds
+    Sync-CurrentCanonicalProductionV3OrchestrationCaptureState $state $captureTerminalPath
+    $state['failureStage'] = 'capture_terminal_validation'
+    if ($state['captureTerminalPath'] -ne $captureTerminalPath -or $state['captureOuterClassification'] -ne 'R6_HARDENED_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_CAPTURE_HUMAN_COMMAND_READY' -or $null -ne $state['captureInnerClassification'] -or $state['captureChildExitCode'] -ne 0) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_CAPTURE_TERMINAL_INVALID' }
+    $capture = Read-AttestationJson $captureTerminalPath
+    if (@($capture.commands).Count -ne 2) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_CAPTURE_TERMINAL_INVALID' }
+    $state['captureSuccess'] = $true
+    $state['failureStage'] = 'capture_provenance'
+    $remaining = Assert-CurrentCanonicalProductionV3TerminalFreshness $capture $script:MinimumAttestationValidityMilliseconds
+    $state['attestationPath'] = [string]$capture.attestationPath
+    $state['attestationSha256'] = [string]$capture.attestationSha256
+    $state['failureStage'] = 'attestation_validation'
+    $attestation = Assert-DeploymentAttestation $state['attestationPath'] $state['attestationSha256']
+    $state['attestationType'] = 'CLOUDFLARE_PAGES_PROJECT_GET_V3'
+    $state['attestationIssuedAt'] = (Read-AttestationJson $attestation.Path).observedAt
+    $state['attestationExpiresAt'] = Format-StrictUtcTimestamp $attestation.ExpiresAt
+    $state['remainingValidityMs'] = Assert-MinimumAttestationValidity $attestation
+    if ($state['remainingValidityMs'] -lt $script:MinimumAttestationValidityMilliseconds -or $remaining -lt $script:MinimumAttestationValidityMilliseconds) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_AUTH_CHECK_FRESHNESS_INSUFFICIENT' }
+    $state['attestationFreshnessPassed'] = $true
+    $state['failureStage'] = 'auth_check_invocation'
+    if (Test-Path -LiteralPath $authRoot) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_AUTH_CHECK_ROOT_UNSAFE' }
+    $DeploymentAttestationPath = $state['attestationPath']
+    $DeploymentAttestationSha256 = $state['attestationSha256']
+    $EvidenceRoot = $authRoot
+    $state['authCheckStarted'] = $true
+    $null = Invoke-CurrentCanonicalProductionV3AuthCheckOnly
+    Sync-CurrentCanonicalProductionV3OrchestrationAuthState $state $authTerminalPath
+    $state['failureStage'] = 'auth_check_terminal_validation'
+    Invoke-CurrentCanonicalProductionV3AuthCheckTerminalValidator $authTerminalPath
+    if (-not $state['authCheckSuccess'] -or $state['authCheckOuterClassification'] -ne 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK' -or $state['authCheckChildExitCode'] -ne 0) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_AUTH_CHECK_FAILED' }
+    $state['failureStage'] = 'complete'
+    $state['outerClassification'] = 'R6_CURRENT_CANONICAL_V3_CAPTURE_AND_AUTH_CHECK_ONLY_READY'
+    $state['success'] = $true
+  } catch {
+    Sync-CurrentCanonicalProductionV3OrchestrationCaptureState $state $captureTerminalPath
+    Sync-CurrentCanonicalProductionV3OrchestrationAuthState $state $authTerminalPath
+    $code = Get-ValueBlindFailureCode $_
+    $state['innerClassification'] = $code
+    if ($state['authCheckStarted']) { $state['outerClassification'] = 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_AUTH_CHECK_FAILED' }
+    elseif ($state['failureStage'] -eq 'attestation_validation') { $state['outerClassification'] = 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_ATTESTATION_SCHEMA_INVALID' }
+    elseif ($state['failureStage'] -eq 'capture_provenance') { $state['outerClassification'] = 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_CAPTURE_PROVENANCE_INVALID' }
+    elseif ($state['failureStage'] -match '^capture_') { $state['outerClassification'] = 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_CAPTURE_FAILED' }
+    else { $state['outerClassification'] = 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_UNEXPECTED_FAILURE' }
+  } finally {
+    Write-CurrentCanonicalProductionV3OrchestrationTerminal $terminalPath $state
+  }
+  Invoke-CurrentCanonicalProductionV3OrchestrationTerminalValidator $terminalPath
+  if (-not $state['success']) { throw $state['outerClassification'] }
+  Write-Output $state['outerClassification']
 }
 
 function Invoke-CurrentCanonicalProductionV3FixtureTest([pscustomobject]$Validation) {
@@ -582,7 +763,7 @@ function Test-ServiceRoleLookingKey([string]$Key) {
 }
 
 function Get-Mode {
-  $selected = @($ValidateOnly, $AuthCheckOnly, $DryRunOnly, $ExecuteApprovedPhase, $PrepareAuthDryRunAttestation, $PreparePagesProjectAuthDryRunAttestation, $PreparePagesProjectR2AuthDryRunAttestation, $PrepareCurrentCanonicalProductionV3AuthDryRunAttestation | Where-Object { $_ })
+  $selected = @($ValidateOnly, $AuthCheckOnly, $DryRunOnly, $ExecuteApprovedPhase, $PrepareAuthDryRunAttestation, $PreparePagesProjectAuthDryRunAttestation, $PreparePagesProjectR2AuthDryRunAttestation, $PrepareCurrentCanonicalProductionV3AuthDryRunAttestation, $PrepareCurrentCanonicalProductionV3AndAuthCheckOnly | Where-Object { $_ })
   if ($selected.Count -ne 1) { throw 'R6_MODE_REQUIRED_EXACTLY_ONCE' }
   if ($ValidateOnly) { return 'ValidateOnly' }
   if ($AuthCheckOnly) { return 'AuthCheckOnly' }
@@ -591,6 +772,7 @@ function Get-Mode {
   if ($PreparePagesProjectAuthDryRunAttestation) { return 'PreparePagesProjectAuthDryRunAttestation' }
   if ($PreparePagesProjectR2AuthDryRunAttestation) { return 'PreparePagesProjectR2AuthDryRunAttestation' }
   if ($PrepareCurrentCanonicalProductionV3AuthDryRunAttestation) { return 'PrepareCurrentCanonicalProductionV3AuthDryRunAttestation' }
+  if ($PrepareCurrentCanonicalProductionV3AndAuthCheckOnly) { return 'PrepareCurrentCanonicalProductionV3AndAuthCheckOnly' }
   return 'ExecuteApprovedPhase'
 }
 
@@ -767,13 +949,13 @@ function Assert-DeploymentAttestation([string]$Path, [string]$ExpectedHash) {
     $observed = Convert-StrictUtcTimestamp ([string]$value.observedAt) 'R6_ATTESTATION_TIME_INVALID'
     $expires = Convert-StrictUtcTimestamp ([string]$value.expiresAt) 'R6_ATTESTATION_TIME_INVALID'
   } catch { throw 'R6_ATTESTATION_TIME_INVALID' }
-  $now = [DateTimeOffset]::UtcNow
+  $now = Get-CurrentCanonicalProductionV3UtcNow
   if ($observed.Offset -ne [TimeSpan]::Zero -or $expires.Offset -ne [TimeSpan]::Zero -or $observed -gt $now -or $expires -le $observed -or ($expires - $observed).TotalMinutes -gt 15 -or $expires -lt $now) { throw 'R6_ATTESTATION_STALE' }
   return [pscustomobject]@{ Path = $resolved; Sha256 = $actualHash; DeploymentId = [string]$value.deploymentId; SourceCommit = [string]$value.sourceCommit; ExpiresAt = $expires }
 }
 
 function Assert-MinimumAttestationValidity([pscustomobject]$Attestation) {
-  $remaining = ($Attestation.ExpiresAt - [DateTimeOffset]::UtcNow).TotalMilliseconds
+  $remaining = ($Attestation.ExpiresAt - (Get-CurrentCanonicalProductionV3UtcNow)).TotalMilliseconds
   if ($remaining -lt $script:MinimumAttestationValidityMilliseconds) { throw 'R6_ATTESTATION_VALIDITY_TOO_SHORT' }
   return [math]::Floor($remaining)
 }
@@ -893,6 +1075,14 @@ function Invoke-DryRunRunner([string]$Worktree, [string]$RequestedRunId, [script
 
 function Invoke-Main {
   $mode = Get-Mode
+  if ($mode -eq 'PrepareCurrentCanonicalProductionV3AndAuthCheckOnly') {
+    Assert-CurrentCanonicalProductionV3Bindings
+    if (-not [string]::IsNullOrWhiteSpace($DeploymentAttestationPath) -or -not [string]::IsNullOrWhiteSpace($DeploymentAttestationSha256) -or -not [string]::IsNullOrWhiteSpace($RunId) -or -not [string]::IsNullOrWhiteSpace($PhaseApproval) -or -not [string]::IsNullOrWhiteSpace($V3TerminalFixturePath)) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_MODE_UNSAFE' }
+    $v3Validation = Assert-CurrentCanonicalProductionV3ExecutionWorktree $ExecutionWorktree
+    if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -ne '1' -and -not [string]::IsNullOrWhiteSpace($V3OrchestrationFixtureKind)) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_TEST_FIXTURE_INVALID' }
+    Invoke-PrepareCurrentCanonicalProductionV3AndAuthCheckOnly $v3Validation
+    return
+  }
   if ($mode -eq 'PrepareCurrentCanonicalProductionV3AuthDryRunAttestation') {
     Assert-CurrentCanonicalProductionV3Bindings
     if (-not [string]::IsNullOrWhiteSpace($DeploymentAttestationPath) -or -not [string]::IsNullOrWhiteSpace($DeploymentAttestationSha256) -or -not [string]::IsNullOrWhiteSpace($RunId) -or -not [string]::IsNullOrWhiteSpace($PhaseApproval)) { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_MODE_UNSAFE' }
