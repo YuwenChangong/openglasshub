@@ -382,14 +382,69 @@ function Get-CurrentCanonicalProductionV3DownstreamParent([string]$Mode, [string
   $parent = Split-Path -Parent $candidate
   if (-not (Test-Path -LiteralPath $parent -PathType Container) -or (Test-Path -LiteralPath $candidate)) { throw 'R6_CURRENT_CANONICAL_V3_DOWNSTREAM_EVIDENCE_ROOT_REJECTED' }
   $terminal = Join-Path $parent 'current-canonical-production-v3-metadata-preparation-terminal-result.json'
-  if (-not (Test-Path -LiteralPath $terminal -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_DOWNSTREAM_CAPTURE_TERMINAL_MISSING' }
+  # The child terminal must record a missing parent terminal as a classified
+  # provenance failure, so only derive the exact path here.
   return [pscustomobject]@{ Root = $candidate; Parent = $parent; CaptureTerminal = $terminal }
 }
 
 function Get-ValueBlindFailureCode([object]$ErrorRecord) {
-  $value = [string]$ErrorRecord.Exception.Message
-  if ($value -match '^(R6_[A-Z0-9_]+)') { return $Matches[1] }
+  foreach ($value in @([string]$ErrorRecord.Exception.Message, [string]$ErrorRecord.FullyQualifiedErrorId, [string]$ErrorRecord)) {
+    if ($value -match '(R6_[A-Z0-9_]+)') { return $Matches[1] }
+  }
   return 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE'
+}
+
+function Convert-StrictUtcTimestamp([string]$Value, [string]$FailureCode) {
+  if ($Value -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$') { throw $FailureCode }
+  try {
+    return [DateTimeOffset]::Parse(
+      $Value,
+      [Globalization.CultureInfo]::InvariantCulture,
+      ([Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
+    )
+  } catch { throw $FailureCode }
+}
+
+function Assert-CurrentCanonicalProductionV3CaptureProvenance([pscustomobject]$Downstream, [pscustomobject]$Validation, [System.Collections.IDictionary]$State) {
+  $State['failureStage'] = 'capture_terminal_locate'
+  if (-not (Test-Path -LiteralPath $Downstream.CaptureTerminal -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_TERMINAL_NOT_FOUND' }
+  $State['captureTerminalLocated'] = $true
+
+  $State['failureStage'] = 'capture_terminal_validate'
+  $validationResult = Invoke-CurrentCanonicalProductionV3TerminalValidator $Validation $Downstream.CaptureTerminal $Downstream.Parent
+  if ($validationResult -ne 'R6_CURRENT_CANONICAL_V3_TERMINAL_SUCCESS') { throw 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_TERMINAL_SCHEMA_INVALID' }
+  $State['captureTerminalShaValidated'] = $true
+  $State['captureTerminalSchemaAccepted'] = $true
+
+  try { $capture = Read-AttestationJson $Downstream.CaptureTerminal } catch { throw 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_TERMINAL_SCHEMA_INVALID' }
+  $State['failureStage'] = 'capture_terminal_classification'
+  if ($capture.outerClassification -ne 'R6_HARDENED_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_CAPTURE_HUMAN_COMMAND_READY' -or $null -ne $capture.innerClassification -or [int]$capture.childExitCode -ne 0) { throw 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_TERMINAL_CLASSIFICATION_INVALID' }
+  $State['captureTerminalClassificationAccepted'] = $true
+
+  $State['failureStage'] = 'capture_terminal_freshness'
+  if (-not [bool]$capture.freshnessCheckPassed -or [int64]$capture.minimumValidityMilliseconds -ne 780000 -or [int64]$capture.remainingValidityMilliseconds -lt [int64]$capture.minimumValidityMilliseconds) { throw 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_TERMINAL_FRESHNESS_INVALID' }
+  [void](Convert-StrictUtcTimestamp ([string]$capture.attestationIssuedAt) 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_TERMINAL_FRESHNESS_INVALID')
+  [void](Convert-StrictUtcTimestamp ([string]$capture.attestationExpiresAt) 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_TERMINAL_FRESHNESS_INVALID')
+  [void](Convert-StrictUtcTimestamp ([string]$capture.freshnessValidatedAt) 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_TERMINAL_FRESHNESS_INVALID')
+  $State['captureTerminalFreshnessAccepted'] = $true
+
+  $State['failureStage'] = 'capture_parent_root'
+  if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Downstream.CaptureTerminal)) -ne $Downstream.Parent) { throw 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_PARENT_ROOT_MISMATCH' }
+  $State['captureParentRootMatched'] = $true
+
+  $State['failureStage'] = 'capture_command'
+  $commands = @($capture.commands | ForEach-Object { [string]$_ })
+  if ($commands.Count -ne 2 -or $commands[0] -notmatch [regex]::Escape('-AuthCheckOnly') -or $commands[0] -notmatch [regex]::Escape($Downstream.Root)) { throw 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_TERMINAL_SCHEMA_INVALID' }
+  $State['captureCommandProvenanceMatched'] = $true
+
+  $State['failureStage'] = 'attestation_binding'
+  if ($capture.attestationPath -ne $DeploymentAttestationPath) { throw 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ATTESTATION_PATH_MISMATCH' }
+  $State['attestationPathMatched'] = $true
+  if ($capture.attestationSha256 -ne $DeploymentAttestationSha256) { throw 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ATTESTATION_SHA_MISMATCH' }
+  $State['attestationShaMatched'] = $true
+  $State['captureProvenancePassed'] = $true
+  $State['failureStage'] = 'attestation_read'
+  return $capture
 }
 
 function Write-CurrentCanonicalProductionV3AuthCheckTerminal([string]$Path, [hashtable]$State) {
@@ -416,28 +471,28 @@ function Invoke-CurrentCanonicalProductionV3AuthCheckOnly {
     executionWorktree = $ExecutionWorktree; executionCommit = $null; worktreeContract = 'current-canonical-production-v3'; worktreeValidationPassed = $false
     evidenceRoot = $downstream.Root; evidenceRootFresh = $true
     deploymentAttestationPath = $DeploymentAttestationPath; deploymentAttestationSha256 = $DeploymentAttestationSha256
+    captureTerminalLocated = $false; captureTerminalShaValidated = $false; captureTerminalSchemaAccepted = $false; captureTerminalClassificationAccepted = $false; captureTerminalFreshnessAccepted = $false; captureParentRootMatched = $false; captureCommandProvenanceMatched = $false; attestationPathMatched = $false; attestationShaMatched = $false; captureProvenancePassed = $false
     attestationType = $null; attestationIssuedAt = $null; attestationExpiresAt = $null; attestationValidatedAt = $null; remainingValidityMs = $null; minimumRequiredValidityMs = $script:MinimumAttestationValidityMilliseconds; attestationFreshnessPassed = $false
     credentialPromptReached = $false; otpPromptReached = $false; authenticationAttempted = $false; authenticationCompleted = $false; sessionCreated = $false; sessionValidated = $false; authenticatedCheckReached = $false; authenticatedCheckCompleted = $false
     pagesRequestCount = 0; deploymentRequestCount = 0; supabaseReadCount = 0; supabaseWriteCount = 0; productionMutationCount = 0
-    childStarted = $false; childExitCode = 1; outerClassification = $null; innerClassification = $null; success = $false
+    childStarted = $false; childExitCode = 1; outerClassification = $null; innerClassification = $null; failureStage = 'worktree_validation'; exceptionType = $null; success = $false
   }
   try {
     Assert-CurrentCanonicalProductionV3Bindings
     $validation = Assert-CurrentCanonicalProductionV3ExecutionWorktree $ExecutionWorktree
     $state.executionWorktree = $validation.Path; $state.executionCommit = $validation.Head; $state.worktreeValidationPassed = $true
-    $capture = Read-AttestationJson $downstream.CaptureTerminal
-    if ($capture.outerClassification -ne 'R6_HARDENED_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_CAPTURE_HUMAN_COMMAND_READY' -or $capture.attestationPath -ne $DeploymentAttestationPath -or $capture.attestationSha256 -ne $DeploymentAttestationSha256 -or @($capture.commands).Count -ne 2 -or [string]$capture.commands[0] -notmatch [regex]::Escape('-AuthCheckOnly') -or [string]$capture.commands[0] -notmatch [regex]::Escape($downstream.Root)) { throw 'R6_CURRENT_CANONICAL_V3_DOWNSTREAM_PROVENANCE_REJECTED' }
+    $capture = Assert-CurrentCanonicalProductionV3CaptureProvenance $downstream $validation $state
     $attestation = Assert-DeploymentAttestation $DeploymentAttestationPath $DeploymentAttestationSha256
-    $state.attestationType = 'CLOUDFLARE_PAGES_PROJECT_GET_V3'; $state.attestationIssuedAt = (Read-AttestationJson $attestation.Path).observedAt; $state.attestationExpiresAt = $attestation.ExpiresAt.ToString('o'); $state.attestationValidatedAt = [DateTime]::UtcNow.ToString('o')
+    $state.attestationType = 'CLOUDFLARE_PAGES_PROJECT_GET_V3'; $state.attestationIssuedAt = (Read-AttestationJson $attestation.Path).observedAt; $state.attestationExpiresAt = $attestation.ExpiresAt.ToUniversalTime().ToString('o'); $state.attestationValidatedAt = [DateTime]::UtcNow.ToString('o')
     $state.remainingValidityMs = Assert-MinimumAttestationValidity $attestation; $state.attestationFreshnessPassed = $true
     if ($env:R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE -eq '1') {
       $state.credentialPromptReached = $true; $state.authenticationAttempted = $true; $state.authenticationCompleted = $true; $state.sessionCreated = $true; $state.sessionValidated = $true; $state.authenticatedCheckReached = $true; $state.authenticatedCheckCompleted = $true; $state.childStarted = $true; $state.childExitCode = 0
     } else {
       $state.credentialPromptReached = $true; $inputs = Get-FutureInputs; $state.authenticationAttempted = $true; $auth = Invoke-PasswordGrant $inputs; $state.authenticationCompleted = $true; $state.sessionCreated = $true; $state.sessionValidated = $true; $state.authenticatedCheckReached = $true; $state.authenticatedCheckCompleted = $true; $state.childStarted = $true; $state.childExitCode = 0; $auth = $null
     }
-    $state.outerClassification = 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK'; $state.success = $true
+    $state.failureStage = 'complete'; $state.exceptionType = $null; $state.outerClassification = 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK'; $state.success = $true
   } catch {
-    $state.outerClassification = 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_FAILED'; $state.innerClassification = Get-ValueBlindFailureCode $_
+    $state.outerClassification = 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_FAILED'; $state.innerClassification = Get-ValueBlindFailureCode $_; $state.exceptionType = $_.Exception.GetType().FullName
   } finally {
     Write-CurrentCanonicalProductionV3AuthCheckTerminal $terminalPath $state
   }
@@ -465,13 +520,10 @@ function Assert-CurrentCanonicalProductionV3TerminalFreshness([pscustomobject]$T
   foreach ($name in @('attestationIssuedAt','attestationExpiresAt','freshnessValidatedAt','remainingValidityMilliseconds','minimumValidityMilliseconds','freshnessCheckPassed')) {
     if ($null -eq $Terminal.PSObject.Properties[$name]) { throw 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID' }
   }
-  foreach ($timestamp in @([string]$Terminal.attestationIssuedAt, [string]$Terminal.attestationExpiresAt, [string]$Terminal.freshnessValidatedAt)) {
-    if ($timestamp -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$') { throw 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID' }
-  }
   try {
-    $issued = [DateTimeOffset]::Parse([string]$Terminal.attestationIssuedAt)
-    $expires = [DateTimeOffset]::Parse([string]$Terminal.attestationExpiresAt)
-    $validated = [DateTimeOffset]::Parse([string]$Terminal.freshnessValidatedAt)
+    $issued = Convert-StrictUtcTimestamp ([string]$Terminal.attestationIssuedAt) 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID'
+    $expires = Convert-StrictUtcTimestamp ([string]$Terminal.attestationExpiresAt) 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID'
+    $validated = Convert-StrictUtcTimestamp ([string]$Terminal.freshnessValidatedAt) 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID'
   } catch { throw 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID' }
   if ($issued.Offset -ne [TimeSpan]::Zero -or $expires.Offset -ne [TimeSpan]::Zero -or $validated.Offset -ne [TimeSpan]::Zero -or $expires -le $issued -or ($expires - $issued).TotalMilliseconds -ne 900000 -or [int64]$Terminal.minimumValidityMilliseconds -ne 780000 -or -not [bool]$Terminal.freshnessCheckPassed) { throw 'R6_CURRENT_CANONICAL_V3_TERMINAL_FRESHNESS_INVALID' }
   $recordedRemaining = [int64][math]::Round(($expires - $validated).TotalMilliseconds)
@@ -655,11 +707,22 @@ function Read-AttestationJson([string]$Path) {
   return [pscustomobject]([System.Web.Script.Serialization.JavaScriptSerializer]::new().DeserializeObject($raw))
 }
 
+function Get-OptionalJsonProperty([object]$Value, [string]$Name) {
+  $property = $Value.PSObject.Properties[$Name]
+  if ($null -eq $property) { return $null }
+  return $property.Value
+}
+
 function Assert-DeploymentAttestation([string]$Path, [string]$ExpectedHash) {
   if ($ExpectedHash -notmatch '^[a-f0-9]{64}$') { throw 'R6_ATTESTATION_HASH_INVALID' }
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw 'R6_ATTESTATION_MISSING' }
   $resolved = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path
-  $root = (Resolve-Path -LiteralPath $script:ExpectedAttestationRoot -ErrorAction Stop).Path.TrimEnd('\\')
+  $attestationRoot = $script:ExpectedAttestationRoot
+  if ($env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE -eq '1') {
+    $attestationRoot = [string]$env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT
+    if (-not (Test-WindowsFullyQualifiedPath $attestationRoot) -or $attestationRoot -notlike "$([IO.Path]::GetTempPath().TrimEnd('\'))*") { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_FIXTURE_INVALID' }
+  }
+  $root = (Resolve-Path -LiteralPath $attestationRoot -ErrorAction Stop).Path.TrimEnd('\\')
   if (-not (Test-PathContainedWithin $root $resolved)) { throw 'R6_ATTESTATION_PATH_REJECTED' }
   if ((Get-Item -LiteralPath $resolved -Force).LinkType) { throw 'R6_ATTESTATION_REPARSE_REJECTED' }
   $actualHash = Get-Sha256 $resolved
@@ -683,7 +746,8 @@ function Assert-DeploymentAttestation([string]$Path, [string]$ExpectedHash) {
     if ($value.aliasesObservedType -eq 'array') {
       if ($value.canonicalTargetProofMode -ne 'CANONICAL_DEPLOYMENT_ALIASES_V1' -or $value.canonicalAlias -ne $script:ExpectedBaseUrl -or ($null -ne $value.projectSubdomain -and $value.projectSubdomain -ne 'openglasshub.pages.dev')) { throw 'R6_ATTESTATION_TARGET_MISMATCH' }
     } elseif ($value.aliasesObservedType -eq 'null') {
-      if ($value.canonicalTargetProofMode -ne 'PROJECT_SUBDOMAIN_PRODUCTION_BINDING_V1' -or $null -ne $value.canonicalAlias -or $value.projectSubdomain -ne 'openglasshub.pages.dev') { throw 'R6_ATTESTATION_SCHEMA_INVALID' }
+      $canonicalAlias = Get-OptionalJsonProperty $value 'canonicalAlias'
+      if ($value.canonicalTargetProofMode -ne 'PROJECT_SUBDOMAIN_PRODUCTION_BINDING_V1' -or $null -ne $canonicalAlias -or $value.projectSubdomain -ne 'openglasshub.pages.dev') { throw 'R6_ATTESTATION_SCHEMA_INVALID' }
     } else { throw 'R6_ATTESTATION_SCHEMA_INVALID' }
     $expectedSourceHashes = @('7d3a3650c5c6c47296164335aa41f4020ca5d34e148f9045fe62ef86d6ba81a0','10d35dd1fa3d42e48a0abf9b585d93673941f5336fa18f66bec09d2d222c0793','2ab54ab5f18040ec80caeaa2dea7cd202f3f696ac4b589fc4874282a74590d63','d663755d742e7f75c22a6aa77ddda4fb9401ae23815b7d50a23d0f80be4b771d','89beea55ff2cee9ffeac79703ee56558761dbbbe34dc68d52a2a7e563519b27e')
     $actualSourceHashes = @($value.projectSourceContractSha256s | ForEach-Object { [string]$_ })
@@ -692,7 +756,10 @@ function Assert-DeploymentAttestation([string]$Path, [string]$ExpectedHash) {
     foreach ($digest in @($value.transportSha256, $value.parserSelectorSha256, $value.endpointSha256, $value.accountIdSha256, $value.sanitizedMetadataSha256)) { if ([string]$digest -notmatch '^[a-f0-9]{64}$') { throw 'R6_ATTESTATION_SCHEMA_INVALID' } }
   }
   if ([string]$value.observedAt -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$' -or [string]$value.expiresAt -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$') { throw 'R6_ATTESTATION_TIME_INVALID' }
-  try { $observed = [DateTimeOffset]::Parse([string]$value.observedAt); $expires = [DateTimeOffset]::Parse([string]$value.expiresAt) } catch { throw 'R6_ATTESTATION_TIME_INVALID' }
+  try {
+    $observed = Convert-StrictUtcTimestamp ([string]$value.observedAt) 'R6_ATTESTATION_TIME_INVALID'
+    $expires = Convert-StrictUtcTimestamp ([string]$value.expiresAt) 'R6_ATTESTATION_TIME_INVALID'
+  } catch { throw 'R6_ATTESTATION_TIME_INVALID' }
   $now = [DateTimeOffset]::UtcNow
   if ($observed.Offset -ne [TimeSpan]::Zero -or $expires.Offset -ne [TimeSpan]::Zero -or $observed -gt $now -or $expires -le $observed -or ($expires - $observed).TotalMinutes -gt 15 -or $expires -lt $now) { throw 'R6_ATTESTATION_STALE' }
   return [pscustomobject]@{ Path = $resolved; Sha256 = $actualHash; DeploymentId = [string]$value.deploymentId; SourceCommit = [string]$value.sourceCommit; ExpiresAt = $expires }
