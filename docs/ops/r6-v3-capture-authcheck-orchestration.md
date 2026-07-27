@@ -44,6 +44,38 @@ workflow and leave a value-blind orchestration terminal. The mode does not
 authorize `DryRunOnly`, `ExecuteApprovedPhase`, Supabase writes, or production
 mutations.
 
+## Capture, AuthCheck, And DryRun
+
+`-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly` is the extended
+single-command mode. It accepts an operator-approved `qa-canary-*` run ID and
+uses the exact parent evidence root with two fixed children: `auth-check` and
+`dry-run`. It never prints or parses downstream command text.
+
+The wrapper performs Capture once, validates its structured terminal and
+attestation binding, recomputes UTC freshness, runs `AuthCheckOnly`, validates
+the AuthCheck terminal, recomputes UTC freshness again, and finally invokes the
+existing protected `DryRunOnly` path. The DryRun terminal records a planned
+scope of one post plus one comment (`plannedMutationCount = 2`) and an actual
+mutation count of zero. The normal dry-run runner exits before adapter creation;
+no migration, deployment, or `ExecuteApprovedPhase` path is reachable.
+
+Both downstream gates use the existing 720000 ms minimum validity contract.
+This is deliberately not weakened: the capture attestation has a 15-minute TTL,
+and keeping twelve minutes at each start leaves the operator no unsafe
+best-effort continuation if authentication or evidence finalization consumes the
+remaining window.
+
+The only Account ID transport remains `Read-Host -AsSecureString` followed by a
+single in-memory stdin line. It is never an argument, environment variable,
+terminal value, evidence value, or transcript value. Auth and DryRun prompts
+also stay hidden and short-lived. Any failure writes a value-blind terminal,
+does not retry, and prevents every later stage.
+
+The successful terminal classification is
+`R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY`. It proves
+pre-execution readiness only. `ExecuteApprovedPhase` remains separately
+approval-gated.
+
 After the operator command returns, only hash and path summaries from the
 capture parent evidence root should be reported. Do not copy an Account ID,
 OAuth callback, token, password, session, raw terminal JSON, attestation body,
