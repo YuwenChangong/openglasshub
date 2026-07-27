@@ -6,6 +6,21 @@ single-command mode for the R6 V3 metadata capture followed immediately by
 window and manually copying the emitted downstream command can consume that
 window before authenticated verification begins.
 
+## Windows hidden-input transport
+
+Some Windows PowerShell hosts do not expose an inherited Node.js stdin as a
+TTY. The V3 wrapper first performs the existing local OAuth readiness check,
+then requests the account ID once with PowerShell `Read-Host -AsSecureString`.
+It starts the reviewed Node capture through a restricted `ProcessStartInfo`
+transport and writes only the exact lower-case 32-character account ID plus a
+newline to redirected stdin. The value is never supplied in arguments, an
+environment variable, a file, evidence, or captured output.
+
+The Node capture accepts that input only with the explicit
+`--account-input-mode wrapper-stdin` contract. It rejects TTY input, malformed
+input, multiple lines, and oversized input. OAuth failure occurs before any
+account prompt; account-input failure occurs before a Pages request.
+
 The mode must be started by an operator in a real interactive Windows
 PowerShell host. It preserves the capture runner's real stdin, stdout, and
 stderr, so the Cloudflare Account ID remains a local hidden prompt. Account IDs,

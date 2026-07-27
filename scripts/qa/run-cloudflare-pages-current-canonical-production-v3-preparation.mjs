@@ -8,11 +8,12 @@ import { allocateProjectUnreservedDryRunId, createProjectPhaseState, createProje
 import { validateDeploymentAttestation } from "./production-deployment-attestation.mjs";
 import { assertOfflineOAuthProfileReady, validateOfflineWranglerOAuthProfile } from "./cloudflare-pages-oauth-profile-readiness.mjs";
 import { resolvePagesAccountId } from "./cloudflare-pages-account-resolver.mjs";
-import { readHiddenCloudflareAccountId } from "./run-cloudflare-pages-metadata-preparation.mjs";
 
 export const R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OPERATION = "PREPARE_CURRENT_CANONICAL_PRODUCTION_V3_AUTH_DRY_RUN_ATTESTATION";
+export const R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_OPERATION = "VALIDATE_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PROFILE";
 export const R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TERMINAL_VERSION = "r6-pages-current-canonical-production-v3-metadata-terminal-result-v3";
 export const R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_SUCCESS = "R6_HARDENED_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_CAPTURE_HUMAN_COMMAND_READY";
+export const R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_SUCCESS = "R6_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_READY";
 export const R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_ENTRYPOINT_LOAD_ONLY = "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_METADATA_ENTRYPOINT_LOAD_ONLY_OK";
 const COMMIT = /^[a-f0-9]{40}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -124,8 +125,29 @@ export async function prepareCurrentCanonicalProductionV3AuthDryRunAttestation(o
   return Object.freeze({ classification: "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_METADATA_PREPARATION_OK", metadata, attestation, freshness, dryRunId, commands: emitCurrentCanonicalProductionV3Commands({ wrapperPath: options.wrapperPath, executionWorktree: options.executionWorktree, attestation, dryRunId, evidenceRoot: options.evidenceRoot }) });
 }
 function requiredFlag(values, name) { const value = values.get(name); if (!value) fail("R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_COMMAND_PREPARATION_FAILED"); return value; }
-export function parseFlags(argv) { const values = new Map(); const allowed = new Set(["--operation", "--repository-root", "--attestation-root", "--registry-root", "--journal-root", "--evidence-root", "--wrapper-path", "--execution-worktree", "--tooling-commit", "--wrapper-sha256", "--transport-sha256", "--parser-selector-sha256", "--terminal-result-path", "--command-output-mode"]); for (let i = 0; i < argv.length; i += 2) { if (!argv[i]?.startsWith("--") || values.has(argv[i]) || i + 1 >= argv.length || !allowed.has(argv[i])) fail("R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_COMMAND_PREPARATION_FAILED"); values.set(argv[i], argv[i + 1]); } if (requiredFlag(values, "--operation") !== R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OPERATION || (values.has("--command-output-mode") && values.get("--command-output-mode") !== "wrapper-buffered")) fail("R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_COMMAND_PREPARATION_FAILED"); return values; }
-export async function runCurrentCanonicalProductionV3MetadataPreparationCli(argv = process.argv.slice(2), { oauthProfileValidator = validateOfflineWranglerOAuthProfile, accountResolver = resolvePagesAccountId, secureInput = readHiddenCloudflareAccountId, prepare = prepareCurrentCanonicalProductionV3AuthDryRunAttestation, phaseState = createProjectPhaseState() } = {}) {
+export function parseFlags(argv) { const values = new Map(); const allowed = new Set(["--operation", "--repository-root", "--attestation-root", "--registry-root", "--journal-root", "--evidence-root", "--wrapper-path", "--execution-worktree", "--tooling-commit", "--wrapper-sha256", "--transport-sha256", "--parser-selector-sha256", "--terminal-result-path", "--command-output-mode", "--account-input-mode"]); for (let i = 0; i < argv.length; i += 2) { if (!argv[i]?.startsWith("--") || values.has(argv[i]) || i + 1 >= argv.length || !allowed.has(argv[i])) fail("R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_COMMAND_PREPARATION_FAILED"); values.set(argv[i], argv[i + 1]); } if (requiredFlag(values, "--operation") !== R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OPERATION || values.get("--command-output-mode") !== "wrapper-buffered" || values.get("--account-input-mode") !== "wrapper-stdin") fail("R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_COMMAND_PREPARATION_FAILED"); return values; }
+export async function readWrapperProvidedCloudflareAccountId({ input = process.stdin } = {}) {
+  if (input?.isTTY || typeof input?.[Symbol.asyncIterator] !== "function") fail("R6_METADATA_PREPARATION_ACCOUNT_PROMPT_BLOCKED");
+  let raw = Buffer.alloc(0);
+  try {
+    for await (const chunk of input) {
+      const next = Buffer.from(chunk);
+      if (raw.length + next.length > 34) fail("R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED");
+      raw = Buffer.concat([raw, next]);
+    }
+    const value = raw.toString("utf8");
+    if (!/^[a-f0-9]{32}\r?\n$/.test(value)) fail("R6_METADATA_PREPARATION_ACCOUNT_INPUT_FAILED");
+    return value.slice(0, 32);
+  } finally { raw.fill(0); }
+}
+export async function validateCurrentCanonicalProductionV3OAuthPreflight({ oauthProfileValidator = validateOfflineWranglerOAuthProfile } = {}) {
+  let auth = null;
+  try { auth = await oauthProfileValidator(); assertOfflineOAuthProfileReady(auth); }
+  catch (error) { fail("R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_NOT_READY", error?.code ?? null); }
+  finally { if (auth) auth.token = null; }
+  return R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_SUCCESS;
+}
+export async function runCurrentCanonicalProductionV3MetadataPreparationCli(argv = process.argv.slice(2), { oauthProfileValidator = validateOfflineWranglerOAuthProfile, accountResolver = resolvePagesAccountId, secureInput = readWrapperProvidedCloudflareAccountId, prepare = prepareCurrentCanonicalProductionV3AuthDryRunAttestation, phaseState = createProjectPhaseState() } = {}) {
   const values = parseFlags(argv); const state = phaseState; let auth = null; let account = null; const evidenceRoot = requiredFlag(values, "--evidence-root"); const terminalResultPath = requiredFlag(values, "--terminal-result-path");
   if (!inside(evidenceRoot, terminalResultPath) || path.basename(terminalResultPath) !== "current-canonical-production-v3-metadata-preparation-terminal-result.json") fail("R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TERMINAL_CONTRACT_UNSAFE");
   try { try { auth = await oauthProfileValidator(); assertOfflineOAuthProfileReady(auth); } catch (error) { fail("R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_NOT_READY", error?.code ?? null); }
@@ -134,6 +156,15 @@ export async function runCurrentCanonicalProductionV3MetadataPreparationCli(argv
   } finally { if (auth) auth.token = null; if (account) account.accountId = null; }
 }
 export function isCurrentCanonicalProductionV3MetadataEntrypoint(argvPath, moduleUrl = import.meta.url) { return Boolean(argvPath) && moduleUrl === pathToFileURL(argvPath).href; }
-if (isCurrentCanonicalProductionV3MetadataEntrypoint(process.argv[1])) { let values; let resultPath = null; let toolingCommit = "0000000000000000000000000000000000000000"; const state = createProjectPhaseState(); try { values = parseFlags(process.argv.slice(2)); resultPath = requiredFlag(values, "--terminal-result-path"); toolingCommit = requiredFlag(values, "--tooling-commit"); const result = await runCurrentCanonicalProductionV3MetadataPreparationCli(process.argv.slice(2), { phaseState: state }); await writeCurrentCanonicalProductionV3TerminalResult(createCurrentCanonicalProductionV3TerminalResult({ resultPath, toolingCommit, outerClassification: R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_SUCCESS, childExitCode: 0, ...state, ...result.freshness, attestationPath: result.attestation.path, attestationSha256: result.attestation.sha256, commands: [result.commands.authCheckOnly, result.commands.dryRunOnly] }), resultPath); if (values.get("--command-output-mode") !== "wrapper-buffered") process.stdout.write(`${R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_SUCCESS}\n${result.commands.authCheckOnly}\n${result.commands.dryRunOnly}\n`); } catch (error) { const code = error?.code ?? "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TERMINAL_CONTRACT_UNSAFE"; if (resultPath && COMMIT.test(toolingCommit)) { try { await writeCurrentCanonicalProductionV3TerminalResult(createCurrentCanonicalProductionV3TerminalResult({ resultPath, toolingCommit, outerClassification: code, innerClassification: error?.innerCode ?? null, childExitCode: 1, ...state, commands: [] }), resultPath); } catch {} } process.stderr.write(`${code}\n`); process.exitCode = 1; } }
+if (isCurrentCanonicalProductionV3MetadataEntrypoint(process.argv[1])) {
+  const argv = process.argv.slice(2);
+  if (argv.length === 2 && argv[0] === "--operation" && argv[1] === R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_OPERATION) {
+    try { process.stdout.write(`${await validateCurrentCanonicalProductionV3OAuthPreflight()}\n`); }
+    catch (error) { process.stderr.write(`${error?.code ?? "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_NOT_READY"}\n`); process.exitCode = 1; }
+  } else {
+    let values; let resultPath = null; let toolingCommit = "0000000000000000000000000000000000000000"; const state = createProjectPhaseState();
+    try { values = parseFlags(argv); resultPath = requiredFlag(values, "--terminal-result-path"); toolingCommit = requiredFlag(values, "--tooling-commit"); const result = await runCurrentCanonicalProductionV3MetadataPreparationCli(argv, { phaseState: state }); await writeCurrentCanonicalProductionV3TerminalResult(createCurrentCanonicalProductionV3TerminalResult({ resultPath, toolingCommit, outerClassification: R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_SUCCESS, childExitCode: 0, ...state, ...result.freshness, attestationPath: result.attestation.path, attestationSha256: result.attestation.sha256, commands: [result.commands.authCheckOnly, result.commands.dryRunOnly] }), resultPath); } catch (error) { const code = error?.code ?? "R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TERMINAL_CONTRACT_UNSAFE"; if (resultPath && COMMIT.test(toolingCommit)) { try { await writeCurrentCanonicalProductionV3TerminalResult(createCurrentCanonicalProductionV3TerminalResult({ resultPath, toolingCommit, outerClassification: code, innerClassification: error?.innerCode ?? null, childExitCode: 1, ...state, commands: [] }), resultPath); } catch {} } process.stderr.write(`${code}\n`); process.exitCode = 1; }
+  }
+}
 
 export { PAGES_CURRENT_CANONICAL_PRODUCTION_V3_SOURCE_CONTRACT_HASHES };

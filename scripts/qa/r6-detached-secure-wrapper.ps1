@@ -420,6 +420,58 @@ function Get-CurrentCanonicalProductionV3UtcNow {
   return [DateTimeOffset]::UtcNow
 }
 
+function Invoke-CurrentCanonicalProductionV3OAuthPreflight([pscustomobject]$Validation) {
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $lines = @(& node $Validation.Runner '--operation' 'VALIDATE_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PROFILE' 2>&1)
+    $exitCode = $LASTEXITCODE
+  } finally { $ErrorActionPreference = $previousErrorActionPreference }
+  if ($exitCode -ne 0 -or $lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne 'R6_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_READY') {
+    throw 'R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_NOT_READY'
+  }
+}
+
+function ConvertTo-RestrictedNativeArgument([string]$Value) {
+  if ($null -eq $Value -or $Value -match '["\r\n]') { throw 'R6_CURRENT_CANONICAL_V3_INPUT_TRANSPORT_ARGUMENT_UNSAFE' }
+  return '"' + $Value + '"'
+}
+
+function Invoke-CurrentCanonicalProductionV3RunnerWithHiddenAccountInput([string]$Entrypoint, [string[]]$Arguments) {
+  Assert-TranscriptSafe
+  $secure = Read-Host 'Cloudflare account ID (hidden)' -AsSecureString
+  $plaintext = $null
+  $process = $null
+  try {
+    $plaintext = Convert-SecureStringToPlaintext $secure
+    if ($plaintext -notmatch '^[a-f0-9]{32}$') { throw 'R6_CURRENT_CANONICAL_V3_ACCOUNT_INPUT_INVALID' }
+    $node = (Get-Command node -CommandType Application -ErrorAction Stop).Source
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $node
+    $startInfo.Arguments = ((@($Entrypoint) + @($Arguments) | ForEach-Object { ConvertTo-RestrictedNativeArgument ([string]$_) }) -join ' ')
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $false
+    $startInfo.RedirectStandardError = $false
+    $startInfo.CreateNoWindow = $false
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) { throw 'R6_CURRENT_CANONICAL_V3_INPUT_TRANSPORT_START_FAILED' }
+    $process.StandardInput.Write($plaintext)
+    $process.StandardInput.Write("`n")
+    $process.StandardInput.Close()
+    $process.WaitForExit()
+    return $process.ExitCode
+  } catch {
+    if ($_.Exception.Message -match '^R6_CURRENT_CANONICAL_V3_') { throw $_.Exception.Message }
+    throw 'R6_CURRENT_CANONICAL_V3_INPUT_TRANSPORT_FAILED'
+  } finally {
+    if ($null -ne $process) { $process.Dispose() }
+    $plaintext = $null
+    if ($null -ne $secure) { $secure.Dispose() }
+  }
+}
+
 function Assert-CurrentCanonicalProductionV3CaptureProvenance([pscustomobject]$Downstream, [pscustomobject]$Validation, [System.Collections.IDictionary]$State) {
   $State['failureStage'] = 'capture_terminal_locate'
   if (-not (Test-Path -LiteralPath $Downstream.CaptureTerminal -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_CAPTURE_TERMINAL_NOT_FOUND' }
@@ -574,9 +626,10 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthDryRunAttestation([pscust
     $fixtureLines = @(& node $fixtureGenerator '--root' $root '--attestation-root' $attestationRoot '--tooling-commit' $script:V3FinalCommitBinding '--kind' $FixtureKind '--wrapper-path' $script:WrapperPath '--auth-root' $authRoot '--wrapper-sha256' $wrapperSha256 2>&1)
     if ($LASTEXITCODE -ne 0 -or $fixtureLines.Count -ne 1) { throw 'R6_CURRENT_CANONICAL_V3_ORCHESTRATION_TEST_FIXTURE_INVALID' }
   } else {
-    $arguments = @('--operation','PREPARE_CURRENT_CANONICAL_PRODUCTION_V3_AUTH_DRY_RUN_ATTESTATION','--repository-root',$Validation.Path,'--attestation-root',$script:ExpectedAttestationRoot,'--registry-root',$script:ConsumedRunRegistryRoot,'--journal-root',(Get-ExpectedJournalRoot),'--evidence-root',$root,'--terminal-result-path',$terminalResultPath,'--wrapper-path',$PSCommandPath,'--execution-worktree',$Validation.Path,'--tooling-commit',$script:V3FinalCommitBinding,'--wrapper-sha256',(Get-Sha256 $PSCommandPath),'--transport-sha256',$transport,'--parser-selector-sha256',$transport,'--command-output-mode','wrapper-buffered')
+    Invoke-CurrentCanonicalProductionV3OAuthPreflight $Validation
+    $arguments = @('--operation','PREPARE_CURRENT_CANONICAL_PRODUCTION_V3_AUTH_DRY_RUN_ATTESTATION','--repository-root',$Validation.Path,'--attestation-root',$script:ExpectedAttestationRoot,'--registry-root',$script:ConsumedRunRegistryRoot,'--journal-root',(Get-ExpectedJournalRoot),'--evidence-root',$root,'--terminal-result-path',$terminalResultPath,'--wrapper-path',$PSCommandPath,'--execution-worktree',$Validation.Path,'--tooling-commit',$script:V3FinalCommitBinding,'--wrapper-sha256',(Get-Sha256 $PSCommandPath),'--transport-sha256',$transport,'--parser-selector-sha256',$transport,'--command-output-mode','wrapper-buffered','--account-input-mode','wrapper-stdin')
     Push-Location -LiteralPath $Validation.Path
-    try { $previousErrorActionPreference = $ErrorActionPreference; try { $ErrorActionPreference = 'Continue'; & node $entrypoint @arguments; $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previousErrorActionPreference } } finally { Pop-Location }
+    try { $exitCode = Invoke-CurrentCanonicalProductionV3RunnerWithHiddenAccountInput $entrypoint $arguments } finally { Pop-Location }
   }
   if (-not (Test-Path -LiteralPath $terminalResultPath -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_TERMINAL_MISSING' }
   $validatorResult = Invoke-CurrentCanonicalProductionV3TerminalValidator $Validation $terminalResultPath $root
