@@ -541,10 +541,10 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthDryRunAttestation([pscust
   $entrypoint = $Validation.Runner
   New-Item -ItemType Directory -Force -Path $root | Out-Null
   $terminalResultPath = Join-Path $root 'current-canonical-production-v3-metadata-preparation-terminal-result.json'
-  $arguments = @('--operation','PREPARE_CURRENT_CANONICAL_PRODUCTION_V3_AUTH_DRY_RUN_ATTESTATION','--repository-root',$Validation.Path,'--attestation-root',$script:ExpectedAttestationRoot,'--registry-root',$script:ConsumedRunRegistryRoot,'--journal-root',(Get-ExpectedJournalRoot),'--evidence-root',$root,'--terminal-result-path',$terminalResultPath,'--wrapper-path',$PSCommandPath,'--execution-worktree',$Validation.Path,'--tooling-commit',$script:V3FinalCommitBinding,'--wrapper-sha256',(Get-Sha256 $PSCommandPath),'--transport-sha256',$transport,'--parser-selector-sha256',$transport)
+  $arguments = @('--operation','PREPARE_CURRENT_CANONICAL_PRODUCTION_V3_AUTH_DRY_RUN_ATTESTATION','--repository-root',$Validation.Path,'--attestation-root',$script:ExpectedAttestationRoot,'--registry-root',$script:ConsumedRunRegistryRoot,'--journal-root',(Get-ExpectedJournalRoot),'--evidence-root',$root,'--terminal-result-path',$terminalResultPath,'--wrapper-path',$PSCommandPath,'--execution-worktree',$Validation.Path,'--tooling-commit',$script:V3FinalCommitBinding,'--wrapper-sha256',(Get-Sha256 $PSCommandPath),'--transport-sha256',$transport,'--parser-selector-sha256',$transport,'--command-output-mode','wrapper-buffered')
   $exitCode = $null
   Push-Location -LiteralPath $Validation.Path
-  try { $previousErrorActionPreference = $ErrorActionPreference; try { $ErrorActionPreference = 'Continue'; $childOutput = @(& node $entrypoint @arguments 2>&1); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previousErrorActionPreference } } finally { Pop-Location }
+  try { $previousErrorActionPreference = $ErrorActionPreference; try { $ErrorActionPreference = 'Continue'; & node $entrypoint @arguments; $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previousErrorActionPreference } } finally { Pop-Location }
   if (-not (Test-Path -LiteralPath $terminalResultPath -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_WRAPPER_TERMINAL_MISSING' }
   $validatorResult = Invoke-CurrentCanonicalProductionV3TerminalValidator $Validation $terminalResultPath $root
   $terminal = Read-AttestationJson $terminalResultPath

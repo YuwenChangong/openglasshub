@@ -98,8 +98,17 @@ any terminal or attestation contract access.
 
 The same capture also showed that the Node preparation child wrote its success
 classification and downstream commands directly to stdout before the wrapper's
-post-child validation ran. The wrapper now captures child stdout and emits only
-the terminal-derived success classification and exactly two commands after all
-terminal, integrity, and freshness guards pass. A failure emits no downstream
-command. This is verified by the PowerShell wrapper regression suite without
-making a provider request.
+post-child validation ran. The wrapper now controls final command emission: it
+emits the terminal-derived success classification and exactly two commands only
+after all terminal, integrity, and freshness guards pass. A failure emits no
+downstream command. This is verified by the PowerShell wrapper regression suite
+without making a provider request.
+
+The initial stdout-buffering implementation was then found to make Node's
+stdout non-TTY, correctly causing the hidden Account ID reader to fail closed
+before any provider request. The final contract keeps the child attached to
+the operator's TTY for the hidden prompt, passes an explicit
+`wrapper-buffered` output mode, and suppresses only the child's final success
+and command emission. The wrapper performs its terminal checks and emits those
+three controlled lines itself. This preserves hidden input while preventing a
+post-validation terminal contradiction.

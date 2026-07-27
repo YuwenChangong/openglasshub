@@ -132,9 +132,11 @@ try {
   Require ($mutualExit -eq 1 -and (($mutual | ForEach-Object { $_.ToString() }) -join "`n") -match 'R6_MODE_REQUIRED_EXACTLY_ONCE') 'R6_CURRENT_CANONICAL_V3_R2_MODE_REGRESSION'
   $wrapperText = Get-Content -LiteralPath $WrapperPath -Raw
   Require ($wrapperText -match 'function Invoke-PreparePagesProjectR2AuthDryRunAttestation' -and $wrapperText -match 'run-cloudflare-pages-project-r2-metadata-preparation\.mjs') 'R6_CURRENT_CANONICAL_V3_R2_PATH_REGRESSION'
-  Require ($wrapperText -match '\$childOutput = @\(& node \$entrypoint @arguments 2>&1\)' -and $wrapperText -match 'foreach \(\$command in \$commands\) \{ Write-Output \$command \}') 'R6_CURRENT_CANONICAL_V3_CAPTURE_OUTPUT_ORDERING_REGRESSION'
+  $captureRunnerText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'qa\run-cloudflare-pages-current-canonical-production-v3-preparation.mjs') -Raw
+  Require ($wrapperText -match "'--command-output-mode','wrapper-buffered'" -and $wrapperText -match '& node \$entrypoint @arguments; \$exitCode = \$LASTEXITCODE' -and $wrapperText -notmatch '\$childOutput = @\(& node \$entrypoint' -and $wrapperText -match 'foreach \(\$command in \$commands\) \{ Write-Output \$command \}') 'R6_CURRENT_CANONICAL_V3_CAPTURE_OUTPUT_ORDERING_REGRESSION'
+  Require ($captureRunnerText -match 'values\.get\("--command-output-mode"\) !== "wrapper-buffered"' -and $captureRunnerText -match 'process\.stdout\.write\(`\$\{R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_SUCCESS\}') 'R6_CURRENT_CANONICAL_V3_CAPTURE_TTY_OUTPUT_MODE_REGRESSION'
   Require ($wrapperText -match 'foreach \(\$key in \$parsed\.Keys\) \{ \$properties\[\[string\]\$key\] = \$parsed\[\$key\] \}' -and $wrapperText -match 'return \[pscustomobject\]\$properties') 'R6_CURRENT_CANONICAL_V3_PS51_JSON_NORMALIZATION_REGRESSION'
-  Write-Output 'R6_CURRENT_CANONICAL_V3_WRAPPER_OK PowerShell-5.1 JSON normalization, buffered capture output, local fixtures, safe failures, impossible states, fingerprint guards, and R2-mode isolation passed with zero network'
+  Write-Output 'R6_CURRENT_CANONICAL_V3_WRAPPER_OK PowerShell-5.1 JSON normalization, TTY-preserving capture output control, local fixtures, safe failures, impossible states, fingerprint guards, and R2-mode isolation passed with zero network'
 } finally {
   Remove-Item Env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE -ErrorAction SilentlyContinue
   Remove-Item Env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT -ErrorAction SilentlyContinue
