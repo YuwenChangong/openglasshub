@@ -1,12 +1,14 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$ExecutionWorktree,
-  [string]$WrapperPath = 'C:\Users\1\OpenGlassHub-R6-Proof\start-r6-detached-secure.ps1'
+  [string]$WrapperPath = ''
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+$sourceWrapper = Join-Path $PSScriptRoot 'qa\r6-detached-secure-wrapper.ps1'
+if ([string]::IsNullOrWhiteSpace($WrapperPath)) { $WrapperPath = $sourceWrapper }
 $fixtureGenerator = Join-Path $PSScriptRoot 'test-r6-current-canonical-production-v3-wrapper-fixtures.mjs'
 $originalLauncher = 'C:\Users\1\OpenGlassHub-R6-Proof\start-r6y-canary-codex.ps1'
 $expectedLauncherSha = 'ea3ccf119d69a552cf7c945aa872fed4734ce4916095819734e1c1839b727e46'

@@ -1,5 +1,25 @@
 # R6 Current Canonical V3 Attestation Freshness Forensics
 
+## Downstream Wrapper Contract
+
+The repository source of truth for the external secure wrapper is
+`scripts/qa/r6-detached-secure-wrapper.ps1`. The external copy is rebound only
+after this source and its offline PowerShell fixtures pass.
+
+V3 capture uses the V3 detached-worktree contract. V3-generated
+`AuthCheckOnly` and `DryRunOnly` invocations use that same contract only when
+their evidence roots are the fresh `auth-check` or `dry-run` child of a V3
+capture parent. They must also match the capture terminal's attestation path
+and SHA-256. Legacy modes continue to use the legacy detached-worktree
+contract.
+
+`AuthCheckOnly` now seals `r6-auth-check-only-terminal-result-v1` for every
+safe downstream start after a fresh child evidence root is accepted. The
+terminal is value-blind: it contains state, classifications, counters, and
+timestamps but never credentials, tokens, cookies, account IDs, or raw
+responses. A successful result requires zero production mutations and zero
+Supabase writes.
+
 This offline review examined two sealed V3 attestations and their terminal
 results without issuing a provider request, OAuth operation, AuthCheckOnly,
 DryRunOnly, or Production request.
