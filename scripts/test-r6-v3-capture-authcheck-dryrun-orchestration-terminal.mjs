@@ -30,6 +30,28 @@ reservationFailure.dryRunSuccess = false;
 reservationFailure.dryRunChildExitCode = 1;
 reservationFailure.dryRunInnerClassification = "R6_CONSUMED_RUN_TOOL_FAILED";
 assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(reservationFailure).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED");
+const authFailure = base();
+authFailure.success = false;
+authFailure.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_FAILED";
+authFailure.innerClassification = "R6_AUTH_HTTP_UNAUTHORIZED";
+authFailure.failureStage = "AUTH_PASSWORD_GRANT_REQUEST";
+authFailure.authCheckCompleted = true;
+authFailure.authCheckSuccess = false;
+authFailure.authCheckOuterClassification = "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_FAILED";
+authFailure.authCheckInnerClassification = "R6_AUTH_HTTP_UNAUTHORIZED";
+authFailure.authCheckChildExitCode = 1;
+authFailure.authenticationCompleted = false;
+authFailure.sessionValidated = false;
+authFailure.authenticatedCheckCompleted = false;
+authFailure.dryRunStarted = false;
+authFailure.dryRunCompleted = false;
+authFailure.dryRunSuccess = false;
+authFailure.dryRunTerminalPath = null;
+authFailure.dryRunTerminalSha256 = null;
+authFailure.dryRunOuterClassification = null;
+authFailure.dryRunInnerClassification = null;
+authFailure.dryRunChildExitCode = 1;
+assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(authFailure).classification, authFailure.outerClassification);
 for (const [name, mutate] of Object.entries({ capture: (v) => { v.captureSuccess = false; }, auth: (v) => { v.authCheckSuccess = false; }, authState: (v) => { v.sessionValidated = false; }, dry: (v) => { v.dryRunSuccess = false; }, order: (v) => { v.authCheckSuccess = false; }, mutation: (v) => { v.productionMutationCount = 1; }, pages: (v) => { v.pagesProjectGetCount = 2; }, runId: (v) => { v.runId = "bad"; }, authLeak: (v) => { v.success = false; v.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED"; v.innerClassification = "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE"; v.dryRunSuccess = false; v.dryRunChildExitCode = 1; v.dryRunInnerClassification = "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE"; } })) {
   const value = base(); mutate(value); assert.throws(() => validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(value), /^Error: R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_/, name);
 }

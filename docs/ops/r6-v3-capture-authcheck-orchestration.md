@@ -37,6 +37,56 @@ The mode uses structured evidence, never console command parsing:
 5. Invoke the existing `AuthCheckOnly` path internally with `<parent>\auth-check`.
 6. Write `capture-auth-check-orchestration-terminal-result.json`.
 
+## Auth Password-Grant Diagnostics
+
+AuthCheckOnly uses the Production password-grant endpoint only after the
+captured attestation, endpoint binding, project reference, and hidden-input
+contracts pass. The terminal is value-blind: it never records the endpoint,
+email, password, anon key, account ID, request body, response body, provider
+message, token, refresh token, cookie, session, or stack trace.
+
+The v2 Auth terminal records only the request lifecycle booleans, a bounded
+network/TLS enum, an optional integer HTTP status, and a provider error-code
+class from a fixed allowlist. `authenticationAttempted` means the password grant
+was handed to the HTTP client; `requestDispatched` means `Invoke-RestMethod` was
+entered. An endpoint or project-configuration failure therefore leaves both
+false. Every password-grant request has a fixed 20 second timeout and keeps
+normal certificate validation. It never downgrades TLS or installs a permissive
+certificate callback.
+
+The current value-blind classifications are:
+
+| Failure family | Inner classification |
+| --- | --- |
+| DNS/name resolution | `R6_AUTH_DNS_RESOLUTION_FAILED` |
+| TCP connection | `R6_AUTH_CONNECTION_FAILED` |
+| Timeout | `R6_AUTH_CONNECTION_TIMEOUT` |
+| TLS/certificate/secure channel | `R6_AUTH_TLS_NEGOTIATION_FAILED` |
+| HTTP 400, 401, 403, 404, 429, 5xx, other | `R6_AUTH_HTTP_BAD_REQUEST`, `R6_AUTH_HTTP_UNAUTHORIZED`, `R6_AUTH_HTTP_FORBIDDEN`, `R6_AUTH_HTTP_NOT_FOUND`, `R6_AUTH_HTTP_RATE_LIMITED`, `R6_AUTH_HTTP_SERVER_ERROR`, `R6_AUTH_HTTP_OTHER_REJECTION` |
+| Successful HTTP response with invalid session shape | `R6_AUTH_RESPONSE_MALFORMED` |
+| Local endpoint or project configuration | `R6_AUTH_ENDPOINT_BINDING_INVALID`, `R6_AUTH_PROJECT_CONFIGURATION_INVALID` |
+| Any unclassified failure | `R6_AUTH_UNEXPECTED_FAILURE` |
+
+When an HTTP error carries JSON in PowerShell's error details, the implementation
+parses at most 4096 characters and retains only one allowlisted code class:
+`invalid_grant`, `invalid_credentials`, `email_not_confirmed`, `user_not_found`,
+`rate_limit`, `provider_rejection_other`, or `not_observed`. It does not write
+the body or message to evidence. An HTTP response is always classified by its
+status first; a 401 cannot be recorded as a network failure.
+
+The historic terminal with `R6_AUTH_NETWORK_OR_REJECTED` is immutable and still
+accepted by the validator as a v1 record. Its exact cause is **not recoverable
+from immutable evidence**: it proves only that the password-grant stage raised a
+network-or-rejection exception before authentication completed. New v2 terminals
+must not emit that legacy classification.
+
+An Auth failure is terminal for the three-stage mode. The orchestration terminal
+retains successful Capture state and copies the exact `AUTH_PASSWORD_GRANT_*`
+stage and inner classification. It does not create a DryRun evidence directory,
+receipt, registry entry, journal, canary child, Supabase write, or Production
+mutation. A later live attempt always requires a new approval, attestation, run
+ID, parent evidence root, and child roots.
+
 The mode never starts or creates `dry-run`, never exposes a downstream command,
 and never retries either phase. Capture failure, missing or malformed evidence,
 attestation mismatch, insufficient freshness, or AuthCheck failure all stop the

@@ -517,7 +517,7 @@ function Assert-CurrentCanonicalProductionV3CaptureProvenance([pscustomobject]$D
 
 function Write-CurrentCanonicalProductionV3AuthCheckTerminal([string]$Path, [hashtable]$State) {
   $State.completedAt = [DateTime]::UtcNow.ToString('o')
-  $State.schemaVersion = 'r6-auth-check-only-terminal-result-v1'
+  $State.schemaVersion = 'r6-auth-check-only-terminal-result-v2'
   $State.mode = 'AuthCheckOnly'
   $raw = [Text.Encoding]::UTF8.GetBytes(($State | ConvertTo-Json -Depth 5 -Compress) + [Environment]::NewLine)
   $temporary = "$Path.$PID.$([guid]::NewGuid().ToString()).tmp"
@@ -541,7 +541,7 @@ function Invoke-CurrentCanonicalProductionV3AuthCheckOnly {
     deploymentAttestationPath = $DeploymentAttestationPath; deploymentAttestationSha256 = $DeploymentAttestationSha256
     captureTerminalLocated = $false; captureTerminalShaValidated = $false; captureTerminalSchemaAccepted = $false; captureTerminalClassificationAccepted = $false; captureTerminalFreshnessAccepted = $false; captureParentRootMatched = $false; captureCommandProvenanceMatched = $false; attestationPathMatched = $false; attestationShaMatched = $false; captureProvenancePassed = $false
     attestationType = $null; attestationIssuedAt = $null; attestationExpiresAt = $null; attestationValidatedAt = $null; remainingValidityMs = $null; minimumRequiredValidityMs = $script:MinimumAttestationValidityMilliseconds; attestationFreshnessPassed = $false
-    credentialPromptReached = $false; otpPromptReached = $false; authenticationAttempted = $false; authenticationCompleted = $false; sessionCreated = $false; sessionValidated = $false; authenticatedCheckReached = $false; authenticatedCheckCompleted = $false
+    credentialPromptReached = $false; otpPromptReached = $false; authenticationStageReached = $false; endpointBindingPassed = $false; projectConfigurationPassed = $false; requestAttempted = $false; requestDispatched = $false; responseReceived = $false; networkFailureKind = 'none'; tlsFailureKind = 'none'; httpStatusCode = $null; providerErrorCodeClass = 'not_observed'; authenticationAttempted = $false; authenticationCompleted = $false; sessionCreated = $false; sessionValidated = $false; authenticatedCheckReached = $false; authenticatedCheckCompleted = $false
     pagesRequestCount = 0; deploymentRequestCount = 0; supabaseReadCount = 0; supabaseWriteCount = 0; productionMutationCount = 0
     childStarted = $false; childExitCode = 1; outerClassification = $null; innerClassification = $null; failureStage = 'worktree_validation'; exceptionType = $null; success = $false
   }
@@ -554,9 +554,9 @@ function Invoke-CurrentCanonicalProductionV3AuthCheckOnly {
     $state.attestationType = 'CLOUDFLARE_PAGES_PROJECT_GET_V3'; $state.attestationIssuedAt = (Read-AttestationJson $attestation.Path).observedAt; $state.attestationExpiresAt = $attestation.ExpiresAt.ToUniversalTime().ToString('o'); $state.attestationValidatedAt = [DateTime]::UtcNow.ToString('o')
     $state.remainingValidityMs = Assert-MinimumAttestationValidity $attestation; $state.attestationFreshnessPassed = $true
     if ($env:R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE -eq '1') {
-      $state.credentialPromptReached = $true; $state.authenticationAttempted = $true; $state.authenticationCompleted = $true; $state.sessionCreated = $true; $state.sessionValidated = $true; $state.authenticatedCheckReached = $true; $state.authenticatedCheckCompleted = $true; $state.childStarted = $true; $state.childExitCode = 0
+      Invoke-AuthPasswordGrantFixture $state ([string]$env:R6_V3_AUTH_FAILURE_FIXTURE_KIND)
     } else {
-      $state.credentialPromptReached = $true; $inputs = Get-FutureInputs; $state.authenticationAttempted = $true; $auth = Invoke-PasswordGrant $inputs; $state.authenticationCompleted = $true; $state.sessionCreated = $true; $state.sessionValidated = $true; $state.authenticatedCheckReached = $true; $state.authenticatedCheckCompleted = $true; $state.childStarted = $true; $state.childExitCode = 0; $auth = $null
+      $state.credentialPromptReached = $true; $state.authenticationStageReached = $true; $inputs = Get-FutureInputs; $auth = Invoke-PasswordGrant $inputs $state; $state.authenticationCompleted = $true; $state.sessionCreated = $true; $state.sessionValidated = $true; $state.authenticatedCheckReached = $true; $state.authenticatedCheckCompleted = $true; $state.childStarted = $true; $state.childExitCode = 0; $auth = $null
     }
     $state.failureStage = 'complete'; $state.exceptionType = $null; $state.outerClassification = 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK'; $state.success = $true
   } catch {
@@ -902,6 +902,13 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
     if (-not $state['dryRunSuccess'] -or $state['dryRunOuterClassification'] -ne 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY' -or $state['dryRunChildExitCode'] -ne 0) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_TERMINAL_INVALID' }
     $state['failureStage']='complete'; $state['outerClassification']='R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY'; $state['success']=$true
   } catch {
+    if (Test-Path -LiteralPath $authTerminalPath -PathType Leaf) {
+      try {
+        Sync-CurrentCanonicalProductionV3OrchestrationAuthState $state $authTerminalPath
+        $authFailure = Read-AttestationJson $authTerminalPath
+        if (-not [bool]$authFailure.success) { $state['failureStage'] = [string]$authFailure.failureStage }
+      } catch {}
+    }
     if (Test-Path -LiteralPath $dryTerminalPath -PathType Leaf) {
       try {
         $dryFailure = Read-AttestationJson $dryTerminalPath
@@ -911,10 +918,10 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
         $state['failureStage'] = [string]$dryFailure.failureStage
       } catch {}
     }
-    $state['innerClassification']=if (-not [string]::IsNullOrWhiteSpace([string]$state['dryRunInnerClassification'])) { [string]$state['dryRunInnerClassification'] } else { Get-ValueBlindFailureCode $_ 'R6_CURRENT_CANONICAL_V3_DRY_RUN_UNEXPECTED_FAILURE' }
+    $state['innerClassification']=if (-not [string]::IsNullOrWhiteSpace([string]$state['dryRunInnerClassification'])) { [string]$state['dryRunInnerClassification'] } elseif (-not [string]::IsNullOrWhiteSpace([string]$state['authCheckInnerClassification'])) { [string]$state['authCheckInnerClassification'] } else { Get-ValueBlindFailureCode $_ 'R6_CURRENT_CANONICAL_V3_DRY_RUN_UNEXPECTED_FAILURE' }
     if ($state['failureStage'] -eq 'auth_freshness') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_FRESHNESS_INSUFFICIENT' }
     elseif ($state['failureStage'] -eq 'dry_run_freshness') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FRESHNESS_INSUFFICIENT' }
-    elseif ($state['failureStage'] -eq 'auth_check') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_FAILED' }
+    elseif ($state['failureStage'] -eq 'auth_check' -or $state['failureStage'] -match '^AUTH_PASSWORD_GRANT_') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_FAILED' }
     elseif ($state['failureStage'] -eq 'dry_run' -or $state['failureStage'] -match '^(RUN_ID_|RECEIPT_|MINIMAL_CANARY_)') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED' }
     elseif ($state['failureStage'] -eq 'capture') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_CAPTURE_FAILED' }
     else { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_UNEXPECTED_FAILURE' }
@@ -1179,21 +1186,119 @@ function Get-FutureInputs {
   return [pscustomobject]@{ ProjectRef = $projectRef; AnonSecure = $anonSecure; Email = $email; PasswordSecure = $passwordSecure; CircleSlug = $circleSlug }
 }
 
-function Invoke-PasswordGrant([pscustomobject]$Inputs) {
+function Get-AuthProviderErrorCodeClass([string]$Candidate) {
+  if ([string]::IsNullOrWhiteSpace($Candidate) -or $Candidate.Length -gt 4096) { return 'not_observed' }
+  try {
+    $parsed = $Candidate | ConvertFrom-Json -ErrorAction Stop
+    $value = $null
+    foreach ($name in @('error','code')) {
+      if ($null -ne $parsed.PSObject.Properties[$name]) { $value = [string]$parsed.$name; break }
+    }
+    switch ($value) {
+      'invalid_grant' { return 'invalid_grant' }
+      'invalid_credentials' { return 'invalid_credentials' }
+      'email_not_confirmed' { return 'email_not_confirmed' }
+      'user_not_found' { return 'user_not_found' }
+      'rate_limit' { return 'rate_limit' }
+      default { if ([string]::IsNullOrWhiteSpace($value)) { return 'not_observed' }; return 'provider_rejection_other' }
+    }
+  } catch { return 'not_observed' }
+}
+
+function Get-AuthHttpFailureDetails([int]$StatusCode, [string]$ProviderCodeClass = 'not_observed') {
+  $classification = if ($StatusCode -eq 400) { 'R6_AUTH_HTTP_BAD_REQUEST' } elseif ($StatusCode -eq 401) { 'R6_AUTH_HTTP_UNAUTHORIZED' } elseif ($StatusCode -eq 403) { 'R6_AUTH_HTTP_FORBIDDEN' } elseif ($StatusCode -eq 404) { 'R6_AUTH_HTTP_NOT_FOUND' } elseif ($StatusCode -eq 429) { 'R6_AUTH_HTTP_RATE_LIMITED' } elseif ($StatusCode -ge 500 -and $StatusCode -le 599) { 'R6_AUTH_HTTP_SERVER_ERROR' } else { 'R6_AUTH_HTTP_OTHER_REJECTION' }
+  return [pscustomobject]@{ Classification = $classification; NetworkFailureKind = 'none'; TlsFailureKind = 'none'; HttpStatusCode = $StatusCode; ProviderErrorCodeClass = $ProviderCodeClass; ResponseReceived = $true }
+}
+
+function Get-AuthPasswordGrantFailureDetails([object]$ErrorRecord) {
+  $exception = $ErrorRecord.Exception
+  $details = if ($null -ne $ErrorRecord.ErrorDetails) { [string]$ErrorRecord.ErrorDetails.Message } else { '' }
+  for ($depth = 0; $depth -lt 8 -and $null -ne $exception; $depth += 1) {
+    $response = $exception.PSObject.Properties['Response']
+    if ($null -ne $response -and $null -ne $response.Value) {
+      $statusProperty = $response.Value.PSObject.Properties['StatusCode']
+      if ($null -ne $statusProperty) {
+        try { return Get-AuthHttpFailureDetails ([int]$statusProperty.Value) (Get-AuthProviderErrorCodeClass $details) } catch { }
+      }
+    }
+    if ($exception -is [System.Net.WebException]) {
+      switch ($exception.Status) {
+        ([System.Net.WebExceptionStatus]::NameResolutionFailure) { return [pscustomobject]@{ Classification='R6_AUTH_DNS_RESOLUTION_FAILED'; NetworkFailureKind='dns'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+        ([System.Net.WebExceptionStatus]::ConnectFailure) { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_FAILED'; NetworkFailureKind='connection'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+        ([System.Net.WebExceptionStatus]::Timeout) { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_TIMEOUT'; NetworkFailureKind='timeout'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+        ([System.Net.WebExceptionStatus]::TrustFailure) { return [pscustomobject]@{ Classification='R6_AUTH_TLS_NEGOTIATION_FAILED'; NetworkFailureKind='tls'; TlsFailureKind='trust'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+        ([System.Net.WebExceptionStatus]::SecureChannelFailure) { return [pscustomobject]@{ Classification='R6_AUTH_TLS_NEGOTIATION_FAILED'; NetworkFailureKind='tls'; TlsFailureKind='secure_channel'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+      }
+    }
+    $message = [string]$exception.Message
+    if ($message -match '(?i)(trust relationship|certificate|secure channel|tls|ssl)') { return [pscustomobject]@{ Classification='R6_AUTH_TLS_NEGOTIATION_FAILED'; NetworkFailureKind='tls'; TlsFailureKind='other'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+    if ($message -match '(?i)(name resolution|name.*not.*resolved|no such host)') { return [pscustomobject]@{ Classification='R6_AUTH_DNS_RESOLUTION_FAILED'; NetworkFailureKind='dns'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+    if ($message -match '(?i)(timed out|timeout)') { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_TIMEOUT'; NetworkFailureKind='timeout'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+    if ($message -match '(?i)(connect.*fail|connection.*refused)') { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_FAILED'; NetworkFailureKind='connection'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+    $exception = $exception.InnerException
+  }
+  return [pscustomobject]@{ Classification='R6_AUTH_UNEXPECTED_FAILURE'; NetworkFailureKind='unknown'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false }
+}
+
+function Set-AuthPasswordGrantFailureState([System.Collections.IDictionary]$State, [pscustomobject]$Details) {
+  $State['responseReceived'] = [bool]$Details.ResponseReceived
+  $State['networkFailureKind'] = [string]$Details.NetworkFailureKind
+  $State['tlsFailureKind'] = [string]$Details.TlsFailureKind
+  $State['httpStatusCode'] = $Details.HttpStatusCode
+  $State['providerErrorCodeClass'] = [string]$Details.ProviderErrorCodeClass
+  $State['failureStage'] = 'AUTH_PASSWORD_GRANT_REQUEST'
+}
+
+function Assert-AuthPasswordGrantEndpointBinding([pscustomobject]$Inputs, [System.Collections.IDictionary]$State) {
+  try {
+    $uri = [Uri]("https://$($Inputs.ProjectRef).supabase.co/auth/v1/token?grant_type=password")
+    if ($uri.Scheme -ne 'https' -or $uri.Host -ne ($Inputs.ProjectRef + '.supabase.co') -or $uri.Port -ne 443 -or -not [string]::IsNullOrWhiteSpace($uri.UserInfo) -or $uri.AbsolutePath -ne '/auth/v1/token' -or $uri.Query -ne '?grant_type=password') { throw 'invalid' }
+    $State['endpointBindingPassed'] = $true; $State['projectConfigurationPassed'] = $true
+    return $uri.AbsoluteUri
+  } catch {
+    $State['failureStage'] = 'AUTH_PASSWORD_GRANT_ENDPOINT_BINDING'
+    throw 'R6_AUTH_ENDPOINT_BINDING_INVALID'
+  }
+}
+
+function Invoke-AuthPasswordGrantFixture([System.Collections.IDictionary]$State, [string]$FixtureKind) {
+  $State['credentialPromptReached'] = $true; $State['authenticationStageReached'] = $true; $State['endpointBindingPassed'] = $true; $State['projectConfigurationPassed'] = $true
+  $kind = if ([string]::IsNullOrWhiteSpace($FixtureKind)) { 'success' } else { $FixtureKind }
+  if ($kind -eq 'success') {
+    $State['requestAttempted'] = $true; $State['requestDispatched'] = $true; $State['responseReceived'] = $true; $State['authenticationAttempted'] = $true; $State['authenticationCompleted'] = $true; $State['sessionCreated'] = $true; $State['sessionValidated'] = $true; $State['authenticatedCheckReached'] = $true; $State['authenticatedCheckCompleted'] = $true; $State['childStarted'] = $true; $State['childExitCode'] = 0
+    return
+  }
+  if ($kind -eq 'endpoint') { $State['endpointBindingPassed'] = $false; $State['projectConfigurationPassed'] = $false; $State['failureStage'] = 'AUTH_PASSWORD_GRANT_ENDPOINT_BINDING'; throw 'R6_AUTH_ENDPOINT_BINDING_INVALID' }
+  if ($kind -eq 'project') { $State['projectConfigurationPassed'] = $false; $State['failureStage'] = 'AUTH_PASSWORD_GRANT_PROJECT_CONFIGURATION'; throw 'R6_AUTH_PROJECT_CONFIGURATION_INVALID' }
+  $State['requestAttempted'] = $true; $State['requestDispatched'] = $true; $State['authenticationAttempted'] = $true
+  if ($kind -match '^http(400|401|403|404|429|500|502|503|418)$') {
+    $status = [int]$Matches[1]; $providerFixture = if ($kind -eq 'http401') { '{"error":"invalid_credentials"}' } elseif ($kind -eq 'http429') { '{"error":"rate_limit"}' } elseif ($kind -eq 'http400') { '{"error":"invalid_grant"}' } elseif ($kind -eq 'http418') { '{"code":"unknown_provider_code"}' } else { '' }; $provider = Get-AuthProviderErrorCodeClass $providerFixture
+    $details = Get-AuthHttpFailureDetails $status $provider; Set-AuthPasswordGrantFailureState $State $details; throw $details.Classification
+  }
+  if ($kind -eq 'malformed') { $State['responseReceived'] = $true; $State['failureStage'] = 'AUTH_PASSWORD_GRANT_RESPONSE'; throw 'R6_AUTH_RESPONSE_MALFORMED' }
+  if ($kind -eq 'unexpected') { $details = [pscustomobject]@{ Classification='R6_AUTH_UNEXPECTED_FAILURE'; NetworkFailureKind='unknown'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false }; Set-AuthPasswordGrantFailureState $State $details; throw $details.Classification }
+  $webStatus = switch ($kind) { 'dns' { [System.Net.WebExceptionStatus]::NameResolutionFailure }; 'connection' { [System.Net.WebExceptionStatus]::ConnectFailure }; 'timeout' { [System.Net.WebExceptionStatus]::Timeout }; 'tls-trust' { [System.Net.WebExceptionStatus]::TrustFailure }; 'tls-channel' { [System.Net.WebExceptionStatus]::SecureChannelFailure }; default { throw 'R6_AUTH_TEST_FIXTURE_INVALID' } }
+  try { throw [System.Net.WebException]::new('fixture', $webStatus) } catch { $details = Get-AuthPasswordGrantFailureDetails $_; Set-AuthPasswordGrantFailureState $State $details; throw $details.Classification }
+}
+
+function Invoke-PasswordGrant([pscustomobject]$Inputs, [System.Collections.IDictionary]$State = $null) {
   $anon = $null; $password = $null
   try {
+    if ($null -eq $State) { $State = [ordered]@{} }
     $anon = Convert-SecureStringToPlaintext $Inputs.AnonSecure
     $password = Convert-SecureStringToPlaintext $Inputs.PasswordSecure
-    if ([string]::IsNullOrWhiteSpace($anon) -or (Test-ServiceRoleLookingKey $anon)) { throw 'R6_ANON_KEY_REJECTED' }
-    $endpoint = "https://$($Inputs.ProjectRef).supabase.co/auth/v1/token?grant_type=password"
+    if ([string]::IsNullOrWhiteSpace($anon) -or (Test-ServiceRoleLookingKey $anon)) { $State['projectConfigurationPassed'] = $false; $State['failureStage'] = 'AUTH_PASSWORD_GRANT_PROJECT_CONFIGURATION'; throw 'R6_AUTH_PROJECT_CONFIGURATION_INVALID' }
+    $endpoint = Assert-AuthPasswordGrantEndpointBinding $Inputs $State
     $body = @{ email = $Inputs.Email; password = $password } | ConvertTo-Json -Compress
     $headers = @{ apikey = $anon; 'Content-Type' = 'application/json' }
-    try { $response = Invoke-RestMethod -Method Post -Uri $endpoint -Headers $headers -Body $body -ErrorAction Stop }
-    catch { throw 'R6_AUTH_NETWORK_OR_REJECTED' }
+    $State['requestAttempted'] = $true; $State['requestDispatched'] = $true; $State['authenticationAttempted'] = $true
+    try { $response = Invoke-RestMethod -Method Post -Uri $endpoint -Headers $headers -Body $body -TimeoutSec 20 -ErrorAction Stop }
+    catch { $details = Get-AuthPasswordGrantFailureDetails $_; Set-AuthPasswordGrantFailureState $State $details; throw $details.Classification }
+    $State['responseReceived'] = $true
     $accessToken = [string]$response.access_token
     $userId = [string]$response.user.id
     $confirmed = -not [string]::IsNullOrWhiteSpace([string]$response.user.email_confirmed_at)
-    if ([string]::IsNullOrWhiteSpace($accessToken) -or $userId -notmatch '^[0-9a-f]{8}-[0-9a-f-]{27,}$' -or -not $confirmed) { throw 'R6_AUTH_RESPONSE_MALFORMED_OR_UNCONFIRMED' }
+    if ([string]::IsNullOrWhiteSpace($accessToken) -or $userId -notmatch '^[0-9a-f]{8}-[0-9a-f-]{27,}$' -or -not $confirmed) { $State['failureStage'] = 'AUTH_PASSWORD_GRANT_RESPONSE'; throw 'R6_AUTH_RESPONSE_MALFORMED' }
     return [pscustomobject]@{ AccessToken = $accessToken; UserId = $userId; AnonKey = $anon; ProjectRef = $Inputs.ProjectRef; CircleSlug = $Inputs.CircleSlug }
   } finally {
     $anon = $null; $password = $null

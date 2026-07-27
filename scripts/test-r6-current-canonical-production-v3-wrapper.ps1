@@ -55,7 +55,7 @@ function Invoke-CopiedWrapperMismatch([string]$Binding, [string]$Expected) {
     Invoke-Fixture 'success' $Expected $copy
   } finally { Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue }
 }
-function Invoke-AuthCheckFixture([bool]$MismatchAttestationSha = $false) {
+function Invoke-AuthCheckFixture([bool]$MismatchAttestationSha = $false, [string]$FixtureKind = 'success') {
   $parent = Join-Path 'C:\Users\1\OpenGlassHub-R6-Proof\r6-current-canonical-production-v3-evidence' ('test-r6-v3-auth-' + [guid]::NewGuid().ToString())
   $child = Join-Path $parent 'auth-check'
   $attestationRoot = Join-Path ([IO.Path]::GetTempPath()) ('r6-v3-auth-attestations-' + [guid]::NewGuid().ToString())
@@ -72,9 +72,11 @@ function Invoke-AuthCheckFixture([bool]$MismatchAttestationSha = $false) {
     $env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE = '1'
     $env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT = $metadata.attestationRoot
     $env:R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE = '1'
+    $env:R6_V3_AUTH_FAILURE_FIXTURE_KIND = $FixtureKind
     [Environment]::SetEnvironmentVariable('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE', '1', 'Process')
     [Environment]::SetEnvironmentVariable('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT', $metadata.attestationRoot, 'Process')
     [Environment]::SetEnvironmentVariable('R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE', '1', 'Process')
+    [Environment]::SetEnvironmentVariable('R6_V3_AUTH_FAILURE_FIXTURE_KIND', $FixtureKind, 'Process')
     $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     $output = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $WrapperPath -ExecutionWorktree $ExecutionWorktree -AuthCheckOnly -DeploymentAttestationPath $metadata.attestationPath -DeploymentAttestationSha256 $sha -EvidenceRoot $child 2>&1)
     $exitCode = $LASTEXITCODE; $ErrorActionPreference = $old
@@ -87,16 +89,24 @@ function Invoke-AuthCheckFixture([bool]$MismatchAttestationSha = $false) {
     Require ($validationExit -eq 0 -and $validated.Count -eq 1 -and $validated[0].ToString().Trim() -eq 'R6_V3_AUTH_CHECK_TERMINAL_OK') ("R6_CURRENT_CANONICAL_V3_AUTH_TERMINAL_VALIDATOR_FAILED:$($terminal.outerClassification):$($terminal.innerClassification):$($terminal.failureStage):$($terminal.exceptionType):worktree=$($terminal.worktreeValidationPassed):$($validated -join ',')")
     if ($MismatchAttestationSha) {
       Require ($exitCode -eq 1 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_FAILED' -and $terminal.innerClassification -eq 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ATTESTATION_SHA_MISMATCH' -and -not [bool]$terminal.captureProvenancePassed -and $terminal.failureStage -eq 'attestation_binding' -and -not [bool]$terminal.credentialPromptReached) 'R6_CURRENT_CANONICAL_V3_AUTH_SHA_MISMATCH_CONTRACT_FAILED'
-    } else {
+    } elseif ($FixtureKind -eq 'success') {
       Require ($exitCode -eq 0 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK' -and [bool]$terminal.captureProvenancePassed -and $terminal.attestationType -eq 'CLOUDFLARE_PAGES_PROJECT_GET_V3' -and [int64]$terminal.remainingValidityMs -ge 720000 -and [bool]$terminal.credentialPromptReached -and [bool]$terminal.childStarted -and [bool]$terminal.success) ("R6_CURRENT_CANONICAL_V3_AUTH_SUCCESS_CONTRACT_FAILED:exit=${exitCode}:outer=$($terminal.outerClassification):inner=$($terminal.innerClassification):stage=$($terminal.failureStage):provenance=$($terminal.captureProvenancePassed):remaining=$($terminal.remainingValidityMs):child=$($terminal.childStarted):success=$($terminal.success)")
+    } else {
+      $expected = @{ dns='R6_AUTH_DNS_RESOLUTION_FAILED'; connection='R6_AUTH_CONNECTION_FAILED'; timeout='R6_AUTH_CONNECTION_TIMEOUT'; 'tls-trust'='R6_AUTH_TLS_NEGOTIATION_FAILED'; 'tls-channel'='R6_AUTH_TLS_NEGOTIATION_FAILED'; http400='R6_AUTH_HTTP_BAD_REQUEST'; http401='R6_AUTH_HTTP_UNAUTHORIZED'; http403='R6_AUTH_HTTP_FORBIDDEN'; http404='R6_AUTH_HTTP_NOT_FOUND'; http429='R6_AUTH_HTTP_RATE_LIMITED'; http500='R6_AUTH_HTTP_SERVER_ERROR'; http502='R6_AUTH_HTTP_SERVER_ERROR'; http503='R6_AUTH_HTTP_SERVER_ERROR'; http418='R6_AUTH_HTTP_OTHER_REJECTION'; malformed='R6_AUTH_RESPONSE_MALFORMED'; endpoint='R6_AUTH_ENDPOINT_BINDING_INVALID'; project='R6_AUTH_PROJECT_CONFIGURATION_INVALID'; unexpected='R6_AUTH_UNEXPECTED_FAILURE' }
+      Require ($exitCode -eq 1 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_FAILED' -and $terminal.innerClassification -eq $expected[$FixtureKind] -and -not [bool]$terminal.success -and [bool]$terminal.authenticationStageReached -and -not [bool]$terminal.authenticationCompleted -and -not [bool]$terminal.sessionCreated -and -not [bool]$terminal.sessionValidated -and -not [bool]$terminal.authenticatedCheckReached -and -not [bool]$terminal.authenticatedCheckCompleted -and -not [bool]$terminal.childStarted -and [int]$terminal.supabaseWriteCount -eq 0 -and [int]$terminal.productionMutationCount -eq 0 -and $terminal.innerClassification -ne 'R6_AUTH_NETWORK_OR_REJECTED') ("R6_CURRENT_CANONICAL_V3_AUTH_FAILURE_CONTRACT_FAILED:${FixtureKind}:$($terminal.innerClassification):$($terminal.failureStage)")
+      if ($FixtureKind -in @('endpoint','project')) { Require (-not [bool]$terminal.requestAttempted -and -not [bool]$terminal.requestDispatched -and -not [bool]$terminal.responseReceived) 'R6_CURRENT_CANONICAL_V3_AUTH_PRE_DISPATCH_CONTRACT_FAILED' }
+      if ($FixtureKind -eq 'http401') { Require ([bool]$terminal.responseReceived -and [int]$terminal.httpStatusCode -eq 401 -and $terminal.providerErrorCodeClass -eq 'invalid_credentials') 'R6_CURRENT_CANONICAL_V3_AUTH_HTTP_401_CONTRACT_FAILED' }
+      if ($FixtureKind -eq 'http418') { Require ([bool]$terminal.responseReceived -and [int]$terminal.httpStatusCode -eq 418 -and $terminal.providerErrorCodeClass -eq 'provider_rejection_other') 'R6_CURRENT_CANONICAL_V3_AUTH_PROVIDER_ALLOWLIST_CONTRACT_FAILED' }
     }
   } finally {
     Remove-Item Env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE -ErrorAction SilentlyContinue
     Remove-Item Env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT -ErrorAction SilentlyContinue
     Remove-Item Env:R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE -ErrorAction SilentlyContinue
+    Remove-Item Env:R6_V3_AUTH_FAILURE_FIXTURE_KIND -ErrorAction SilentlyContinue
     [Environment]::SetEnvironmentVariable('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE', $null, 'Process')
     [Environment]::SetEnvironmentVariable('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT', $null, 'Process')
     [Environment]::SetEnvironmentVariable('R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE', $null, 'Process')
+    [Environment]::SetEnvironmentVariable('R6_V3_AUTH_FAILURE_FIXTURE_KIND', $null, 'Process')
     Remove-Item -LiteralPath $parent -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $attestationRoot -Recurse -Force -ErrorAction SilentlyContinue
   }
@@ -151,14 +161,16 @@ function Invoke-OrchestrationFixture([string]$Kind, [string]$NowUtc, [bool]$Expe
   }
 }
 
-function Invoke-ThreeStageOrchestrationFixture([string]$ReservationFailure = '') {
+function Invoke-ThreeStageOrchestrationFixture([string]$ReservationFailure = '', [string]$AuthFixtureKind = '') {
   $parent = Join-Path 'C:\Users\1\OpenGlassHub-R6-Proof\r6-current-canonical-production-v3-evidence' ('test-r6-v3-three-stage-' + [guid]::NewGuid().ToString())
+  $dryTerminalPath = Join-Path $parent 'dry-run\dry-run-only-terminal-result.json'
   $attestationRoot = Join-Path ([IO.Path]::GetTempPath()) ('r6-v3-three-stage-attestations-' + [guid]::NewGuid().ToString())
   try {
     New-Item -ItemType Directory -Path $attestationRoot -Force | Out-Null
     $settings = @{ R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE='1'; R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT=$attestationRoot; R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE='1'; R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE='1'; R6_V3_ORCHESTRATION_TEST_NOW_UTC='2099-01-01T00:03:00.000Z'; R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR=$fixtureGenerator; R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR=(Join-Path $PSScriptRoot 'qa\validate-r6-v3-auth-check-terminal.mjs'); R6_V3_ORCHESTRATION_WRAPPER_TEST_DRY_RUN_VALIDATOR=(Join-Path $PSScriptRoot 'qa\validate-r6-v3-dry-run-terminal.mjs'); R6_V3_ORCHESTRATION_WRAPPER_TEST_THREE_STAGE_VALIDATOR=(Join-Path $PSScriptRoot 'qa\validate-r6-v3-capture-authcheck-dryrun-orchestration-terminal.mjs') }
     foreach ($key in $settings.Keys) { [Environment]::SetEnvironmentVariable($key, [string]$settings[$key], 'Process') }
     if (-not [string]::IsNullOrWhiteSpace($ReservationFailure)) { [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE', $ReservationFailure, 'Process') }
+    if (-not [string]::IsNullOrWhiteSpace($AuthFixtureKind)) { [Environment]::SetEnvironmentVariable('R6_V3_AUTH_FAILURE_FIXTURE_KIND', $AuthFixtureKind, 'Process') }
     $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     $output = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $WrapperPath -ExecutionWorktree $ExecutionWorktree -PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly -RunId 'qa-canary-11111111-1111-4111-8111-111111111111' -EvidenceRoot $parent 2>&1)
     $exitCode = $LASTEXITCODE; $ErrorActionPreference = $old
@@ -167,7 +179,9 @@ function Invoke-ThreeStageOrchestrationFixture([string]$ReservationFailure = '')
     $validator = Join-Path $PSScriptRoot 'qa\validate-r6-v3-capture-authcheck-dryrun-orchestration-terminal.mjs'; $validated = @(& node $validator $terminalPath 2>&1)
     Require ($LASTEXITCODE -eq 0 -and $validated.Count -eq 1 -and $validated[0].ToString().Trim() -eq 'R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_OK') 'R6_CURRENT_CANONICAL_V3_THREE_STAGE_VALIDATOR_FAILED'
     $terminal = Get-Content -LiteralPath $terminalPath -Raw | ConvertFrom-Json
-    if ([string]::IsNullOrWhiteSpace($ReservationFailure)) {
+    if (-not [string]::IsNullOrWhiteSpace($AuthFixtureKind)) {
+      Require ($exitCode -eq 1 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_FAILED' -and $terminal.innerClassification -eq 'R6_AUTH_HTTP_UNAUTHORIZED' -and $terminal.failureStage -eq 'AUTH_PASSWORD_GRANT_REQUEST' -and [bool]$terminal.captureSuccess -and [bool]$terminal.authCheckStarted -and [bool]$terminal.authCheckCompleted -and -not [bool]$terminal.authCheckSuccess -and -not [bool]$terminal.dryRunStarted -and -not [bool]$terminal.dryRunCompleted -and -not [bool]$terminal.dryRunSuccess -and -not (Test-Path -LiteralPath $dryTerminalPath)) 'R6_CURRENT_CANONICAL_V3_THREE_STAGE_AUTH_FAILURE_CONTRACT_FAILED'
+    } elseif ([string]::IsNullOrWhiteSpace($ReservationFailure)) {
       Require ($exitCode -eq 0 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY' -and [bool]$terminal.captureSuccess -and [bool]$terminal.authCheckSuccess -and [bool]$terminal.dryRunSuccess -and [int]$terminal.dryRunActualMutationCount -eq 0 -and [int]$terminal.productionMutationCount -eq 0 -and [int]$terminal.retryCount -eq 0) ("R6_CURRENT_CANONICAL_V3_THREE_STAGE_SUCCESS_CONTRACT_FAILED:exit=$exitCode:outer=$($terminal.outerClassification):inner=$($terminal.innerClassification):stage=$($terminal.failureStage):capture=$($terminal.captureSuccess):auth=$($terminal.authCheckSuccess):dry=$($terminal.dryRunSuccess)")
     } else {
       $dryTerminal = Get-Content -LiteralPath (Join-Path $parent 'dry-run\\dry-run-only-terminal-result.json') -Raw | ConvertFrom-Json
@@ -176,7 +190,7 @@ function Invoke-ThreeStageOrchestrationFixture([string]$ReservationFailure = '')
     $text = ($output | ForEach-Object { $_.ToString() }) -join "`n"
     Require ($text -notmatch '\-AuthCheckOnly|\-DryRunOnly|\-ExecuteApprovedPhase') 'R6_CURRENT_CANONICAL_V3_THREE_STAGE_COMMAND_LEAK'
   } finally {
-    foreach ($name in @('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE','R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT','R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_TEST_NOW_UTC','R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_DRY_RUN_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_THREE_STAGE_VALIDATOR','R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+    foreach ($name in @('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE','R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT','R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_TEST_NOW_UTC','R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_DRY_RUN_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_THREE_STAGE_VALIDATOR','R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE','R6_V3_AUTH_FAILURE_FIXTURE_KIND')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
     Remove-Item -LiteralPath $parent -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $attestationRoot -Recurse -Force -ErrorAction SilentlyContinue
   }
@@ -207,11 +221,13 @@ try {
   Invoke-CopiedWrapperMismatch 'V3RuntimeRawSha256Binding' 'R6_CURRENT_CANONICAL_V3_RUNTIME_RAW_SHA256_MISMATCH'
   Invoke-AuthCheckFixture
   Invoke-AuthCheckFixture $true
+  foreach ($kind in @('dns','connection','timeout','tls-trust','tls-channel','http400','http401','http403','http404','http429','http500','http502','http503','http418','malformed','endpoint','project','unexpected')) { Invoke-AuthCheckFixture $false $kind }
   Invoke-OrchestrationFixture 'authcheck-orchestration-success' '2099-01-01T00:03:00.000Z' $true
   Invoke-OrchestrationFixture 'authcheck-orchestration-success' '2099-01-01T00:03:00.001Z' $false
   Invoke-OrchestrationFixture 'target' '2099-01-01T00:03:00.000Z' $false
   Invoke-ThreeStageOrchestrationFixture
   Invoke-ThreeStageOrchestrationFixture 'R6_CONSUMED_RUN_TOOL_FAILED'
+  Invoke-ThreeStageOrchestrationFixture '' 'http401'
   $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
   $mutual = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $WrapperPath -ExecutionWorktree $ExecutionWorktree -PrepareCurrentCanonicalProductionV3AuthDryRunAttestation -PreparePagesProjectR2AuthDryRunAttestation 2>&1); $mutualExit = $LASTEXITCODE; $ErrorActionPreference = $old
   Require ($mutualExit -eq 1 -and (($mutual | ForEach-Object { $_.ToString() }) -join "`n") -match 'R6_MODE_REQUIRED_EXACTLY_ONCE') 'R6_CURRENT_CANONICAL_V3_R2_MODE_REGRESSION'
