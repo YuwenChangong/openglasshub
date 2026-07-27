@@ -98,3 +98,38 @@ Receipts are immutable once created. A failed `PENDING` receipt, its Run ID,
 attestation, commands, and evidence root must not be repaired or reused. A new
 attempt requires a new Run ID, a new attestation, a new evidence root, and a
 fresh explicit approval.
+
+## DryRun Reservation Lifecycle
+
+A fresh, unregistered Run ID is the normal starting state. The wrapper first
+performs registry lookup and journal-absence checks; the reservation helper then
+atomically records the Run ID and creates the immutable `PENDING` receipt. The
+minimal canary starts only after that receipt is returned and bound to the same
+validated execution-worktree commit.
+
+Any live wrapper start consumes its human approval and Run ID even when failure
+occurs before a receipt exists. A missing receipt is not permission to retry,
+pre-register, repair, or reuse the Run ID. A reservation failure before receipt
+return leaves the canary child, adapter, journal, Supabase writes, and
+production mutations at zero.
+
+DryRun preserves the value-blind code emitted by the registry/reservation
+helper. `RUN_ID_FORMAT_VALIDATION`, `RUN_ID_REGISTRY_LOOKUP`,
+`RUN_ID_RESERVATION`, `RECEIPT_BINDING_VALIDATION`, and
+`MINIMAL_CANARY_CHILD_LAUNCH` are distinct terminal stages. An unclassified
+DryRun exception is `R6_CURRENT_CANONICAL_V3_DRY_RUN_UNEXPECTED_FAILURE`; it
+must never be reported through an AuthCheck fallback classification.
+
+The three-stage terminal retains Capture and AuthCheck success when a later
+DryRun fails, including authentication completion, session validation, and the
+authenticated check. It inherits the DryRun's inner classification and exact
+stage without overwriting the earlier outcomes.
+
+## Freshness Audit Semantics
+
+The live Capture validator deliberately requires the attestation to remain
+fresh at validation time. A later validation after the 15-minute window rejects
+the terminal by design; that does not reinterpret a successful Capture as a
+failure. Historical review reads the immutable terminal's recorded issue,
+expiry, validation-time remaining validity, and freshness result without
+relaxing the live gate or authorizing reuse of an expired attestation.

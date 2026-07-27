@@ -151,13 +151,14 @@ function Invoke-OrchestrationFixture([string]$Kind, [string]$NowUtc, [bool]$Expe
   }
 }
 
-function Invoke-ThreeStageOrchestrationFixture {
+function Invoke-ThreeStageOrchestrationFixture([string]$ReservationFailure = '') {
   $parent = Join-Path 'C:\Users\1\OpenGlassHub-R6-Proof\r6-current-canonical-production-v3-evidence' ('test-r6-v3-three-stage-' + [guid]::NewGuid().ToString())
   $attestationRoot = Join-Path ([IO.Path]::GetTempPath()) ('r6-v3-three-stage-attestations-' + [guid]::NewGuid().ToString())
   try {
     New-Item -ItemType Directory -Path $attestationRoot -Force | Out-Null
     $settings = @{ R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE='1'; R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT=$attestationRoot; R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE='1'; R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE='1'; R6_V3_ORCHESTRATION_TEST_NOW_UTC='2099-01-01T00:03:00.000Z'; R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR=$fixtureGenerator; R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR=(Join-Path $PSScriptRoot 'qa\validate-r6-v3-auth-check-terminal.mjs'); R6_V3_ORCHESTRATION_WRAPPER_TEST_DRY_RUN_VALIDATOR=(Join-Path $PSScriptRoot 'qa\validate-r6-v3-dry-run-terminal.mjs'); R6_V3_ORCHESTRATION_WRAPPER_TEST_THREE_STAGE_VALIDATOR=(Join-Path $PSScriptRoot 'qa\validate-r6-v3-capture-authcheck-dryrun-orchestration-terminal.mjs') }
     foreach ($key in $settings.Keys) { [Environment]::SetEnvironmentVariable($key, [string]$settings[$key], 'Process') }
+    if (-not [string]::IsNullOrWhiteSpace($ReservationFailure)) { [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE', $ReservationFailure, 'Process') }
     $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     $output = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $WrapperPath -ExecutionWorktree $ExecutionWorktree -PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly -RunId 'qa-canary-11111111-1111-4111-8111-111111111111' -EvidenceRoot $parent 2>&1)
     $exitCode = $LASTEXITCODE; $ErrorActionPreference = $old
@@ -166,11 +167,16 @@ function Invoke-ThreeStageOrchestrationFixture {
     $validator = Join-Path $PSScriptRoot 'qa\validate-r6-v3-capture-authcheck-dryrun-orchestration-terminal.mjs'; $validated = @(& node $validator $terminalPath 2>&1)
     Require ($LASTEXITCODE -eq 0 -and $validated.Count -eq 1 -and $validated[0].ToString().Trim() -eq 'R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_OK') 'R6_CURRENT_CANONICAL_V3_THREE_STAGE_VALIDATOR_FAILED'
     $terminal = Get-Content -LiteralPath $terminalPath -Raw | ConvertFrom-Json
-    Require ($exitCode -eq 0 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY' -and [bool]$terminal.captureSuccess -and [bool]$terminal.authCheckSuccess -and [bool]$terminal.dryRunSuccess -and [int]$terminal.dryRunActualMutationCount -eq 0 -and [int]$terminal.productionMutationCount -eq 0 -and [int]$terminal.retryCount -eq 0) ("R6_CURRENT_CANONICAL_V3_THREE_STAGE_SUCCESS_CONTRACT_FAILED:exit=$exitCode:outer=$($terminal.outerClassification):inner=$($terminal.innerClassification):stage=$($terminal.failureStage):capture=$($terminal.captureSuccess):auth=$($terminal.authCheckSuccess):dry=$($terminal.dryRunSuccess)")
+    if ([string]::IsNullOrWhiteSpace($ReservationFailure)) {
+      Require ($exitCode -eq 0 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY' -and [bool]$terminal.captureSuccess -and [bool]$terminal.authCheckSuccess -and [bool]$terminal.dryRunSuccess -and [int]$terminal.dryRunActualMutationCount -eq 0 -and [int]$terminal.productionMutationCount -eq 0 -and [int]$terminal.retryCount -eq 0) ("R6_CURRENT_CANONICAL_V3_THREE_STAGE_SUCCESS_CONTRACT_FAILED:exit=$exitCode:outer=$($terminal.outerClassification):inner=$($terminal.innerClassification):stage=$($terminal.failureStage):capture=$($terminal.captureSuccess):auth=$($terminal.authCheckSuccess):dry=$($terminal.dryRunSuccess)")
+    } else {
+      $dryTerminal = Get-Content -LiteralPath (Join-Path $parent 'dry-run\\dry-run-only-terminal-result.json') -Raw | ConvertFrom-Json
+      Require ($exitCode -eq 1 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED' -and $terminal.innerClassification -eq $ReservationFailure -and $terminal.failureStage -eq 'RUN_ID_RESERVATION' -and [bool]$terminal.captureSuccess -and [bool]$terminal.authCheckSuccess -and -not [bool]$terminal.dryRunSuccess -and $dryTerminal.innerClassification -eq $ReservationFailure -and $dryTerminal.failureStage -eq 'RUN_ID_RESERVATION' -and -not [bool]$dryTerminal.canaryChildStarted -and -not [bool]$dryTerminal.receiptCreated -and [int]$dryTerminal.actualMutationCount -eq 0) 'R6_CURRENT_CANONICAL_V3_THREE_STAGE_RESERVATION_FAILURE_CONTRACT_FAILED'
+    }
     $text = ($output | ForEach-Object { $_.ToString() }) -join "`n"
     Require ($text -notmatch '\-AuthCheckOnly|\-DryRunOnly|\-ExecuteApprovedPhase') 'R6_CURRENT_CANONICAL_V3_THREE_STAGE_COMMAND_LEAK'
   } finally {
-    foreach ($name in @('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE','R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT','R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_TEST_NOW_UTC','R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_DRY_RUN_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_THREE_STAGE_VALIDATOR')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+    foreach ($name in @('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE','R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT','R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_TEST_NOW_UTC','R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_DRY_RUN_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_THREE_STAGE_VALIDATOR','R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
     Remove-Item -LiteralPath $parent -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $attestationRoot -Recurse -Force -ErrorAction SilentlyContinue
   }
@@ -205,10 +211,12 @@ try {
   Invoke-OrchestrationFixture 'authcheck-orchestration-success' '2099-01-01T00:03:00.001Z' $false
   Invoke-OrchestrationFixture 'target' '2099-01-01T00:03:00.000Z' $false
   Invoke-ThreeStageOrchestrationFixture
+  Invoke-ThreeStageOrchestrationFixture 'R6_CONSUMED_RUN_TOOL_FAILED'
   $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
   $mutual = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $WrapperPath -ExecutionWorktree $ExecutionWorktree -PrepareCurrentCanonicalProductionV3AuthDryRunAttestation -PreparePagesProjectR2AuthDryRunAttestation 2>&1); $mutualExit = $LASTEXITCODE; $ErrorActionPreference = $old
   Require ($mutualExit -eq 1 -and (($mutual | ForEach-Object { $_.ToString() }) -join "`n") -match 'R6_MODE_REQUIRED_EXACTLY_ONCE') 'R6_CURRENT_CANONICAL_V3_R2_MODE_REGRESSION'
   $wrapperText = Get-Content -LiteralPath $WrapperPath -Raw
+  Require ((@([regex]::Matches($wrapperText, '\$PSCommandPath'))).Count -eq 1 -and $wrapperText -match '\$script:WrapperPath\s*=\s*\$PSCommandPath' -and $wrapperText -match 'function Reserve-ConsumedRun[\s\S]*Get-Sha256 \$script:WrapperPath') 'R6_CURRENT_CANONICAL_V3_WRAPPER_PATH_BINDING_REGRESSION'
   Require ($wrapperText -match 'function Invoke-PreparePagesProjectR2AuthDryRunAttestation' -and $wrapperText -match 'run-cloudflare-pages-project-r2-metadata-preparation\.mjs') 'R6_CURRENT_CANONICAL_V3_R2_PATH_REGRESSION'
   $captureRunnerText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'qa\run-cloudflare-pages-current-canonical-production-v3-preparation.mjs') -Raw
   Require ($wrapperText -match "'--command-output-mode','wrapper-buffered','--account-input-mode','wrapper-stdin'" -and $wrapperText -match 'Invoke-CurrentCanonicalProductionV3OAuthPreflight \$Validation' -and $wrapperText -match 'Invoke-CurrentCanonicalProductionV3RunnerWithHiddenAccountInput \$entrypoint \$arguments' -and $wrapperText -match 'Read-Host ''Cloudflare account ID \(hidden\)'' -AsSecureString' -and $wrapperText -match 'RedirectStandardInput = \$true' -and $wrapperText -notmatch '\$childOutput = @\(& node \$entrypoint' -and $wrapperText -match 'PrepareCurrentCanonicalProductionV3AndAuthCheckOnly' -and $wrapperText -match '\$null = Invoke-CurrentCanonicalProductionV3AuthCheckOnly') 'R6_CURRENT_CANONICAL_V3_CAPTURE_INPUT_TRANSPORT_REGRESSION'
