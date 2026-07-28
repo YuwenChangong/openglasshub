@@ -455,3 +455,26 @@ under the deleted post, no media or circle operation in the fixed adapter, and
 zero reported residue. The comment notification trigger ignores self-notices,
 so the single QA owner acting as both post and comment author creates no normal
 notification record.
+
+## Final Same-Commit Entry Point
+
+The final Production entry point is
+`-PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight`. It is a
+single wrapper mode: local binding preflight, fresh V3 capture, fresh
+AuthCheckOnly, the existing write-ahead ExecuteApprovedPhase path, and its
+GET-only postflight remain in one process. It never chains operator commands
+or silently adopts the legacy worktree profile.
+
+Before a separately approved final run, create a new same-commit DryRun and
+then create a fresh `final-execution-binding.json` with
+`scripts/qa/prepare-r6-final-execution-binding.mjs`. The binding records the
+canonical detached worktree, one equal execution/runner/tooling commit, the
+external wrapper hash, required Git blobs, and the new DryRun authorization
+and consumed receipt hashes. The final mode rejects a missing or altered
+binding, a dirty or non-detached worktree, `node_modules`, a stale parent
+authorization, a non-CONSUMED parent receipt, a nonzero parent mutation count,
+or any commit/plan/operation mismatch before credential prompts or provider
+requests.
+
+An authorization from an earlier commit remains historical evidence only. It
+must not be copied, resigned, or used to authorize a later commit.

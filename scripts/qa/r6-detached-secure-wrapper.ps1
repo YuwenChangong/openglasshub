@@ -17,12 +17,15 @@ param(
   [switch]$PrepareCurrentCanonicalProductionV3AuthDryRunAttestation,
   [switch]$PrepareCurrentCanonicalProductionV3AndAuthCheckOnly,
   [switch]$PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly,
+  [switch]$PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight,
   [string]$V3TerminalFixturePath,
   [string]$V3OrchestrationFixtureKind,
   [string]$RunId,
   [string]$PhaseApproval,
   [string]$FinalAuthorizationBindingPath,
   [string]$FinalAuthorizationBindingSha256,
+  [string]$FinalExecutionBindingPath,
+  [string]$FinalExecutionBindingSha256,
   [string]$EvidenceRoot = 'C:\Users\1\OpenGlassHub-R6-Proof\r6-detached-secure-input-transport'
 )
 
@@ -52,6 +55,7 @@ $script:V3GitBlobBinding = '5ce532ad04115738c5e79ab7ec020f31a23a9a64'
 $script:V3RunnerRelativePath = 'scripts\qa\run-cloudflare-pages-current-canonical-production-v3-preparation.mjs'
 $script:V3TerminalValidatorRelativePath = 'scripts\qa\validate-r6-current-canonical-production-v3-terminal.mjs'
 $script:V3EvidenceRootBase = 'C:\Users\1\OpenGlassHub-R6-Proof\r6-current-canonical-production-v3-evidence'
+$script:FinalExecutionBinding = $null
 $script:ReviewedHashes = [ordered]@{
   'scripts\qa\run-production-minimal-canary.mjs' = 'ce1dc9227f8378e198c65151fb1ad679be595d482a97b65700b4ae37f1991a3c'
   'scripts\qa\production-minimal-canary-consumed-run-registry.mjs' = '703d6694dcb68d9628a3ea5cdcc6cd79364e167c8e21fe7d5ecbfff684daf538'
@@ -985,7 +989,7 @@ function Test-ServiceRoleLookingKey([string]$Key) {
 }
 
 function Get-Mode {
-  $selected = @($ValidateOnly, $AuthCheckOnly, $DryRunOnly, $ExecuteApprovedPhase, $PrepareAuthDryRunAttestation, $PreparePagesProjectAuthDryRunAttestation, $PreparePagesProjectR2AuthDryRunAttestation, $PrepareCurrentCanonicalProductionV3AuthDryRunAttestation, $PrepareCurrentCanonicalProductionV3AndAuthCheckOnly, $PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly | Where-Object { $_ })
+  $selected = @($ValidateOnly, $AuthCheckOnly, $DryRunOnly, $ExecuteApprovedPhase, $PrepareAuthDryRunAttestation, $PreparePagesProjectAuthDryRunAttestation, $PreparePagesProjectR2AuthDryRunAttestation, $PrepareCurrentCanonicalProductionV3AuthDryRunAttestation, $PrepareCurrentCanonicalProductionV3AndAuthCheckOnly, $PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly, $PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight | Where-Object { $_ })
   if ($selected.Count -ne 1) { throw 'R6_MODE_REQUIRED_EXACTLY_ONCE' }
   if ($ValidateOnly) { return 'ValidateOnly' }
   if ($AuthCheckOnly) { return 'AuthCheckOnly' }
@@ -996,6 +1000,7 @@ function Get-Mode {
   if ($PrepareCurrentCanonicalProductionV3AuthDryRunAttestation) { return 'PrepareCurrentCanonicalProductionV3AuthDryRunAttestation' }
   if ($PrepareCurrentCanonicalProductionV3AndAuthCheckOnly) { return 'PrepareCurrentCanonicalProductionV3AndAuthCheckOnly' }
   if ($PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly) { return 'PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly' }
+  if ($PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight) { return 'PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight' }
   return 'ExecuteApprovedPhase'
 }
 
@@ -1105,6 +1110,65 @@ function Assert-ExecutionWorktree([string]$Worktree, [string]$RequestedRunId) {
     if ($RequestedRunId -notmatch '^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') { throw 'R6_RUN_ID_INVALID' }
   }
   return [pscustomobject]@{ Path = $resolved; Head = $head.Lines[0].Trim(); Detached = $true; JournalRoot = Get-ExpectedJournalRoot }
+}
+
+function Get-FinalExecutionBinding([string]$BindingPath, [string]$BindingSha256, [string]$Worktree) {
+  if (-not (Test-WindowsFullyQualifiedPath $BindingPath) -or -not (Test-Path -LiteralPath $BindingPath -PathType Leaf) -or $BindingSha256 -notmatch '^[a-f0-9]{64}$' -or (Get-Sha256 $BindingPath) -ne $BindingSha256) { throw 'R6_FINAL_LOCAL_BINDING_INVALID' }
+  $validator = Join-Path $Worktree 'scripts\qa\validate-r6-final-execution-binding.mjs'
+  if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) { throw 'R6_FINAL_LOCAL_BINDING_VALIDATOR_MISSING' }
+  $previous = $ErrorActionPreference
+  try { $ErrorActionPreference = 'Continue'; $lines = @(& node $validator '--binding' $BindingPath '--sha256' $BindingSha256); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previous }
+  if ($exitCode -ne 0 -or $lines.Count -ne 1) { throw 'R6_FINAL_LOCAL_BINDING_INVALID' }
+  try { $binding = $lines[0] | ConvertFrom-Json -ErrorAction Stop } catch { throw 'R6_FINAL_LOCAL_BINDING_INVALID' }
+  return $binding
+}
+
+function Assert-FinalExecutionWorktree([string]$Worktree, [pscustomobject]$Binding, [string]$RequestedRunId) {
+  if ($null -eq $Binding) { throw 'R6_FINAL_LOCAL_BINDING_REQUIRED' }
+  foreach ($name in @('executionWorktree','executionCommit','runnerCommit','toolingCommit','wrapperPath','wrapperSha256','finalContractGitBlob','executeRunnerGitBlob','postflightRunnerGitBlob','bindingValidatorGitBlob','bindingLibraryGitBlob','parentDryRunRunId')) {
+    if ($null -eq $Binding.PSObject.Properties[$name] -or [string]::IsNullOrWhiteSpace([string]$Binding.PSObject.Properties[$name].Value)) { throw 'R6_FINAL_LOCAL_BINDING_REQUIRED' }
+  }
+  $resolved = (Resolve-Path -LiteralPath $Worktree -ErrorAction Stop).Path.TrimEnd('\\')
+  $expected = (Resolve-Path -LiteralPath ([string]$Binding.executionWorktree) -ErrorAction Stop).Path.TrimEnd('\\')
+  if (-not $resolved.Equals($expected, [StringComparison]::OrdinalIgnoreCase)) { throw 'R6_FINAL_EXECUTION_WORKTREE_PATH_REJECTED' }
+  if (Test-Path -LiteralPath (Join-Path $resolved 'node_modules')) { throw 'R6_FINAL_EXECUTION_NODE_MODULES_PRESENT' }
+  $gitRoot = Invoke-GitLines $resolved @('rev-parse', '--show-toplevel')
+  $gitCanonicalRoot = if ($gitRoot.Lines.Count -eq 1) { [IO.Path]::GetFullPath($gitRoot.Lines[0].Trim()).TrimEnd('\\') } else { '' }
+  if ($gitRoot.Lines.Count -ne 1 -or -not $gitCanonicalRoot.Equals($resolved, [StringComparison]::OrdinalIgnoreCase)) { throw 'R6_FINAL_EXECUTION_WORKTREE_NOT_GIT' }
+  $status = Invoke-GitLines $resolved @('status', '--porcelain=v1', '--untracked-files=all')
+  if ($status.Lines.Count -ne 0) { throw ('R6_FINAL_EXECUTION_WORKTREE_DIRTY:' + ($status.Lines -join ' | ')) }
+  $head = Invoke-GitLines $resolved @('rev-parse', 'HEAD')
+  if ($head.Lines.Count -ne 1 -or $head.Lines[0].Trim() -ne [string]$Binding.executionCommit -or [string]$Binding.runnerCommit -ne [string]$Binding.executionCommit -or [string]$Binding.toolingCommit -ne [string]$Binding.executionCommit) { throw 'R6_FINAL_EXECUTION_COMMIT_MISMATCH' }
+  $branch = Invoke-GitLines $resolved @('symbolic-ref', '-q', '--short', 'HEAD') -AllowFailure
+  if ($branch.ExitCode -eq 0 -or $branch.Lines.Count -ne 0) { throw 'R6_FINAL_EXECUTION_HEAD_NOT_DETACHED' }
+  if ((Resolve-Path -LiteralPath ([string]$Binding.wrapperPath) -ErrorAction Stop).Path -ne (Resolve-Path -LiteralPath $script:WrapperPath -ErrorAction Stop).Path -or (Get-Sha256 $script:WrapperPath) -ne [string]$Binding.wrapperSha256) { throw 'R6_FINAL_WRAPPER_BINDING_MISMATCH' }
+  $blobBindings = [ordered]@{
+    'scripts/qa/r6-final-canary-execution-contract.mjs' = [string]$Binding.finalContractGitBlob
+    'scripts/qa/run-production-minimal-canary.mjs' = [string]$Binding.executeRunnerGitBlob
+    'scripts/qa/run-r6-final-canary-read-only-postflight.mjs' = [string]$Binding.postflightRunnerGitBlob
+    'scripts/qa/validate-r6-final-execution-binding.mjs' = [string]$Binding.bindingValidatorGitBlob
+    'scripts/qa/r6-final-execution-binding.mjs' = [string]$Binding.bindingLibraryGitBlob
+  }
+  foreach ($entry in $blobBindings.GetEnumerator()) {
+    $blob = Invoke-GitLines $resolved @('rev-parse', "HEAD:$($entry.Key)")
+    if ($blob.Lines.Count -ne 1 -or $blob.Lines[0].Trim() -ne $entry.Value) { throw "R6_FINAL_GIT_BLOB_MISMATCH:$($entry.Key)" }
+  }
+  if ($RequestedRunId -notmatch '^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' -or $RequestedRunId -eq [string]$Binding.parentDryRunRunId) { throw 'R6_FINAL_PRODUCTION_RUN_ID_INVALID' }
+  return [pscustomobject]@{ Path = $resolved; Head = $head.Lines[0].Trim(); Detached = $true; JournalRoot = Get-ExpectedJournalRoot; Binding = $Binding }
+}
+
+function Assert-FinalParentDryRunAuthorization([pscustomobject]$Binding, [string]$ProductionRunId) {
+  if (-not (Test-WindowsFullyQualifiedPath ([string]$Binding.parentAuthorizationPath)) -or -not (Test-Path -LiteralPath ([string]$Binding.parentAuthorizationPath) -PathType Leaf) -or (Get-Sha256 ([string]$Binding.parentAuthorizationPath)) -ne [string]$Binding.parentAuthorizationSha256) { throw 'R6_PARENT_DRY_RUN_AUTHORIZATION_INVALID' }
+  if (-not (Test-WindowsFullyQualifiedPath ([string]$Binding.parentReceiptPath)) -or -not (Test-Path -LiteralPath ([string]$Binding.parentReceiptPath) -PathType Leaf) -or (Get-Sha256 ([string]$Binding.parentReceiptPath)) -ne [string]$Binding.parentReceiptSha256) { throw 'R6_PARENT_DRY_RUN_RECEIPT_INVALID' }
+  $receipt = Read-AttestationJson ([string]$Binding.parentReceiptPath)
+  if ([string]$receipt.state -ne 'CONSUMED' -or [string]$receipt.runId -ne [string]$Binding.parentDryRunRunId -or [string]$receipt.runnerCommit -ne [string]$Binding.executionCommit) { throw 'R6_PARENT_DRY_RUN_RECEIPT_INVALID' }
+  $authorization = Read-AttestationJson ([string]$Binding.parentAuthorizationPath)
+  if ([string]$authorization.dryRunRunId -ne [string]$Binding.parentDryRunRunId -or [string]$authorization.executionCommit -ne [string]$Binding.executionCommit -or [string]$authorization.toolingCommit -ne [string]$Binding.toolingCommit -or [string]$authorization.plan.schemaVersion -ne [string]$Binding.planSchema -or [string]$authorization.plan.planSha256 -ne [string]$Binding.planSha256 -or [int]$authorization.plannedMutationCount -ne [int]$Binding.plannedMutationCount -or [int]$authorization.actualMutationCount -ne [int]$Binding.parentActualMutationCount) { throw 'R6_PARENT_DRY_RUN_AUTHORIZATION_INVALID' }
+  foreach ($name in @('dryRunTerminalPath','dryRunTerminalSha256','dryRunOrchestrationTerminalPath','dryRunOrchestrationTerminalSha256')) {
+    if ($null -eq $authorization.PSObject.Properties[$name] -or [string]::IsNullOrWhiteSpace([string]$authorization.PSObject.Properties[$name].Value)) { throw 'R6_PARENT_DRY_RUN_AUTHORIZATION_INVALID' }
+  }
+  if (-not (Test-Path -LiteralPath ([string]$authorization.dryRunTerminalPath) -PathType Leaf) -or -not (Test-Path -LiteralPath ([string]$authorization.dryRunOrchestrationTerminalPath) -PathType Leaf) -or (Get-Sha256 ([string]$authorization.dryRunTerminalPath)) -ne [string]$authorization.dryRunTerminalSha256 -or (Get-Sha256 ([string]$authorization.dryRunOrchestrationTerminalPath)) -ne [string]$authorization.dryRunOrchestrationTerminalSha256) { throw 'R6_PARENT_DRY_RUN_AUTHORIZATION_INVALID' }
+  return $authorization
 }
 
 function Test-PathContainedWithin([string]$Root, [string]$Candidate) {
@@ -1470,8 +1534,68 @@ function Invoke-FinalNodeValidator([string]$Worktree, [string]$RelativeValidator
   if ($exitCode -ne 0 -or $lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne $SuccessMarker) { throw $FailureCode }
 }
 
+function Invoke-PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight([pscustomobject]$Validation, [pscustomobject]$Binding) {
+  $root = Assert-CurrentCanonicalProductionV3EvidenceRoot $EvidenceRoot
+  $captureTerminalPath = Join-Path $root 'capture-auth-check-orchestration-terminal-result.json'
+  $finalModeTerminalPath = Join-Path $root 'final-capture-auth-execute-postflight-binding-terminal-result.json'
+  $state = [ordered]@{
+    schemaVersion = 'r6-final-capture-auth-execute-postflight-binding-terminal-result-v1'; startedAt = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); completedAt = $null
+    outerClassification = $null; innerClassification = $null; success = $false; failureStage = 'FRESH_CAPTURE'
+    executionWorktree = $Validation.Path; executionCommit = $Validation.Head; runnerCommit = $Binding.runnerCommit; toolingCommit = $Binding.toolingCommit
+    bindingPath = $FinalExecutionBindingPath; bindingFileHash = $FinalExecutionBindingSha256; bindingValidated = $true
+    parentDryRunRunId = $Binding.parentDryRunRunId; parentBindingFileHash = $Binding.parentAuthorizationSha256; parentReceiptState = 'CONSUMED'; parentDryRunValidated = $true
+    captureCompleted = $false; captureSuccess = $false; authCheckCompleted = $false; authCheckSuccess = $false; freshAttestationPath = $null; freshAttestationSha256 = $null
+    executeCompleted = $false; postflightCompleted = $false; productionMutationCount = 0; retryCount = 0
+  }
+  try {
+    New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
+    $null = Invoke-PrepareCurrentCanonicalProductionV3AndAuthCheckOnly $Validation
+    $state.captureCompleted = $true; $state.captureSuccess = $true; $state.authCheckCompleted = $true; $state.authCheckSuccess = $true
+    $capture = Read-AttestationJson $captureTerminalPath
+    if (-not [bool]$capture.success -or [string]$capture.outerClassification -ne 'R6_CURRENT_CANONICAL_V3_CAPTURE_AND_AUTH_CHECK_ONLY_READY') { throw 'R6_FINAL_FRESH_CAPTURE_OR_AUTH_CHECK_INVALID' }
+    $state.freshAttestationPath = [string]$capture.attestationPath; $state.freshAttestationSha256 = [string]$capture.attestationSha256
+    $state.failureStage = 'FRESH_ATTESTATION'
+    $attestation = Assert-DeploymentAttestation $state.freshAttestationPath $state.freshAttestationSha256
+    Assert-MinimumAttestationValidity $attestation | Out-Null
+    $script:FinalExecutionBinding = $Binding
+    $script:DeploymentAttestationPath = $state.freshAttestationPath
+    $script:DeploymentAttestationSha256 = $state.freshAttestationSha256
+    $script:FinalAuthorizationBindingPath = [string]$Binding.parentAuthorizationPath
+    $script:FinalAuthorizationBindingSha256 = [string]$Binding.parentAuthorizationSha256
+    $script:PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight = $false
+    $script:ExecuteApprovedPhase = $true
+    $state.failureStage = 'LIVE_RECEIPT_CREATION'
+    Invoke-Main
+    $state.executeCompleted = $true; $state.postflightCompleted = $true; $state.productionMutationCount = 2
+    $state.failureStage = $null; $state.outerClassification = 'R6_FINAL_CAPTURE_AUTH_EXECUTE_AND_POSTFLIGHT_COMPLETE'; $state.success = $true
+  } catch {
+    $state.innerClassification = Get-ValueBlindFailureCode $_ 'R6_FINAL_ORCHESTRATION_UNEXPECTED_FAILURE'
+    if ($state.failureStage -eq 'FRESH_CAPTURE' -and $state.captureCompleted) { $state.failureStage = 'FRESH_AUTH_CHECK' }
+    $state.outerClassification = 'R6_FINAL_CAPTURE_AUTH_EXECUTE_AND_POSTFLIGHT_FAILED'
+  } finally {
+    $state.completedAt = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+    if (Test-Path -LiteralPath $root) { $null = Write-FinalCanaryEvidence $root (Split-Path -Leaf $finalModeTerminalPath) $state }
+    $script:FinalExecutionBinding = $null
+  }
+  if (-not $state.success) { throw $state.outerClassification }
+  Write-Output $state.outerClassification
+}
+
 function Invoke-Main {
   $mode = Get-Mode
+  if ($mode -eq 'PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight') {
+    Assert-CurrentCanonicalProductionV3Bindings
+    if (-not [string]::IsNullOrWhiteSpace($DeploymentAttestationPath) -or -not [string]::IsNullOrWhiteSpace($DeploymentAttestationSha256) -or -not [string]::IsNullOrWhiteSpace($FinalAuthorizationBindingPath) -or -not [string]::IsNullOrWhiteSpace($FinalAuthorizationBindingSha256) -or -not [string]::IsNullOrWhiteSpace($V3TerminalFixturePath)) { throw 'R6_FINAL_MODE_INPUTS_UNSAFE' }
+    Assert-PhaseApproval $PhaseApproval
+    if ([string]::IsNullOrWhiteSpace($FinalExecutionBindingPath) -or [string]::IsNullOrWhiteSpace($FinalExecutionBindingSha256)) { throw 'R6_FINAL_LOCAL_BINDING_REQUIRED' }
+    $binding = Get-FinalExecutionBinding $FinalExecutionBindingPath $FinalExecutionBindingSha256 $ExecutionWorktree
+    $validation = Assert-FinalExecutionWorktree $ExecutionWorktree $binding $RunId
+    $null = Assert-FinalParentDryRunAuthorization $binding $RunId
+    Assert-RunIdEligible $validation.Path $RunId | Out-Null
+    Assert-RunIdJournalAbsent $RunId
+    Invoke-PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight $validation $binding
+    return
+  }
   if ($mode -eq 'PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly') {
     Assert-CurrentCanonicalProductionV3Bindings
     if (-not [string]::IsNullOrWhiteSpace($DeploymentAttestationPath) -or -not [string]::IsNullOrWhiteSpace($DeploymentAttestationSha256) -or -not [string]::IsNullOrWhiteSpace($PhaseApproval) -or -not [string]::IsNullOrWhiteSpace($V3TerminalFixturePath)) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_MODE_UNSAFE' }
@@ -1511,6 +1635,8 @@ function Invoke-Main {
     if ($capture.outerClassification -ne 'R6_HARDENED_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_CAPTURE_HUMAN_COMMAND_READY' -or $capture.attestationPath -ne $DeploymentAttestationPath -or $capture.attestationSha256 -ne $DeploymentAttestationSha256 -or [string]$capture.commands[1] -notmatch [regex]::Escape('-DryRunOnly') -or [string]$capture.commands[1] -notmatch [regex]::Escape($v3Downstream.Root)) { throw 'R6_CURRENT_CANONICAL_V3_DOWNSTREAM_PROVENANCE_REJECTED' }
     # The existing dry-run approval, run-ID, and mutation guards remain unchanged.
     $validation = $v3Validation
+  } elseif ($mode -eq 'ExecuteApprovedPhase' -and $null -ne $script:FinalExecutionBinding) {
+    $validation = Assert-FinalExecutionWorktree $ExecutionWorktree $script:FinalExecutionBinding $RunId
   } else {
     $validation = Assert-ExecutionWorktree $ExecutionWorktree $RunId
   }
@@ -1594,6 +1720,7 @@ function Invoke-Main {
       $receiptFinalSha256 = $reservation.ReceiptSha256
       $receiptFinalState = 'PENDING'
       $executionFailure = $null
+      $executionFailureStage = 'EXECUTE_CHILD_LAUNCH'
       try {
         Set-RunnerEnvironment $auth $mode $RunId $reservation $childTerminalPath (Get-ValidatedExecutionCommit $validation)
         $child = Invoke-LiveRunner $validation.Path $RunId $childTerminalPath
@@ -1602,12 +1729,12 @@ function Invoke-Main {
           $receiptFinalSha256 = Get-Sha256 $reservation.ReceiptPath
           $receiptFinalState = [string](Read-AttestationJson $reservation.ReceiptPath).state
         }
-        if (-not (Test-Path -LiteralPath $childTerminalPath -PathType Leaf)) { $executionFailure = 'CHILD_TERMINAL_VALIDATION' }
+        if (-not (Test-Path -LiteralPath $childTerminalPath -PathType Leaf)) { $executionFailure = 'CHILD_TERMINAL_VALIDATION'; $executionFailureStage = 'EXECUTION_CHILD_TERMINAL' }
         else {
-          try { Invoke-FinalNodeValidator $validation.Path 'scripts/qa/validate-production-minimal-canary-child-terminal.mjs' $childTerminalPath 'QA_MINIMAL_CANARY_CHILD_TERMINAL_OK' 'CHILD_TERMINAL_VALIDATION' } catch { $executionFailure = $_.Exception.Message }
+          try { Invoke-FinalNodeValidator $validation.Path 'scripts/qa/validate-production-minimal-canary-child-terminal.mjs' $childTerminalPath 'QA_MINIMAL_CANARY_CHILD_TERMINAL_OK' 'CHILD_TERMINAL_VALIDATION' } catch { $executionFailure = $_.Exception.Message; $executionFailureStage = 'EXECUTION_CHILD_TERMINAL' }
         }
         if ($null -eq $executionFailure -and ($child.ChildTimedOut -or $child.ChildExitCode -ne 0)) { $executionFailure = if ($child.ChildTimedOut) { 'MINIMAL_CANARY_CHILD_LAUNCH' } else { [string]$child.StderrClassification } }
-      } catch { $executionFailure = $_.Exception.Message; $journal = Get-ExecutionJournalEvidence (Get-ExpectedJournalRoot) $RunId }
+      } catch { $executionFailure = $_.Exception.Message; $executionFailureStage = 'EXECUTE_CHILD_LAUNCH'; $journal = Get-ExecutionJournalEvidence (Get-ExpectedJournalRoot) $RunId }
       $childStarted = $null -ne $child -and [bool]$child.ChildStarted
       $childCompleted = $null -ne $child -and [bool]$child.ChildCompleted
       $childExitCode = if ($null -ne $child) { [int]$child.ChildExitCode } else { 1 }
@@ -1616,7 +1743,7 @@ function Invoke-Main {
       $executionSuccess = $null -eq $executionFailure -and $childExitCode -eq 0 -and $journal.Complete -and $journal.ActualMutationCount -eq 2
       $finalAuthorization = Read-AttestationJson $FinalAuthorizationBindingPath
       $finalReceipt = Read-AttestationJson $reservation.ReceiptPath
-      $executionData = [ordered]@{ schemaVersion='r6-final-canary-execution-terminal-result-v1'; startedAt=$startedAt; completedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); outerClassification=(if ($executionSuccess) {'R6_FINAL_CANARY_EXECUTION_COMPLETE'} else {'R6_FINAL_CANARY_EXECUTION_FAILED'}); innerClassification=(if ($executionSuccess) {$null} else {$executionFailure}); failureStage=(if ($executionSuccess) {$null} else {'EXECUTION'}); success=[bool]$executionSuccess; productionRunId=$RunId; parentDryRunRunId=$finalAuthorization.dryRunRunId; executionCommit=$validation.Head; toolingCommit=$validation.Head; actualExecutionWorktreeHead=$validation.Head; dryRunTerminalPath=$finalAuthorization.dryRunTerminalPath; dryRunTerminalSha256=$finalAuthorization.dryRunTerminalSha256; dryRunOrchestrationTerminalPath=$finalAuthorization.dryRunOrchestrationTerminalPath; dryRunOrchestrationTerminalSha256=$finalAuthorization.dryRunOrchestrationTerminalSha256; dryRunBindingPassed=$true; mutationPlanSchema='qa-minimal-canary-mutation-plan-v1'; mutationPlanHash=$finalReceipt.finalAuthorizationBinding.planSha256; approvedMutationCount=2; plannedMutationCount=2; freshAttestationPath=$attestation.Path; freshAttestationSha256=$attestation.Sha256; freshAttestationIssuedAt=[string]$attestationDocument.observedAt; freshAttestationExpiresAt=$attestation.ExpiresAt.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); attestationFreshnessPassed=$true; liveReceiptPath=$reservation.ReceiptPath; liveReceiptSha256=$receiptFinalSha256; liveReceiptInitialState='PENDING'; liveReceiptFinalState=$receiptFinalState; receiptBindingPassed=($receiptFinalState -eq 'CONSUMED'); executeStarted=$true; executeCompleted=$childCompleted; childStarted=$childStarted; childCompleted=$childCompleted; childExitCode=$childExitCode; childTimedOut=$childTimedOut; childTerminalPath=(if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {$childTerminalPath} else {$null}); childTerminalSha256=(if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {Get-Sha256 $childTerminalPath} else {$null}); childTerminalValidated=$childValidated; adapterReached=$journal.AdapterReached; journalCreated=$journal.Exists; journalPath=$journal.Path; journalSha256=$journal.Sha256; actualMutationCount=$journal.ActualMutationCount; unexpectedMutationCount=0; retryCount=0; supabaseReadCount=0; supabaseWriteCount=$journal.ActualMutationCount; productionMutationCount=$journal.ActualMutationCount }
+      $executionData = [ordered]@{ schemaVersion='r6-final-canary-execution-terminal-result-v1'; startedAt=$startedAt; completedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); outerClassification=(if ($executionSuccess) {'R6_FINAL_CANARY_EXECUTION_COMPLETE'} else {'R6_FINAL_CANARY_EXECUTION_FAILED'}); innerClassification=(if ($executionSuccess) {$null} else {$executionFailure}); failureStage=(if ($executionSuccess) {$null} else {$executionFailureStage}); success=[bool]$executionSuccess; productionRunId=$RunId; parentDryRunRunId=$finalAuthorization.dryRunRunId; executionCommit=$validation.Head; toolingCommit=$validation.Head; actualExecutionWorktreeHead=$validation.Head; dryRunTerminalPath=$finalAuthorization.dryRunTerminalPath; dryRunTerminalSha256=$finalAuthorization.dryRunTerminalSha256; dryRunOrchestrationTerminalPath=$finalAuthorization.dryRunOrchestrationTerminalPath; dryRunOrchestrationTerminalSha256=$finalAuthorization.dryRunOrchestrationTerminalSha256; dryRunBindingPassed=$true; mutationPlanSchema='qa-minimal-canary-mutation-plan-v1'; mutationPlanHash=$finalReceipt.finalAuthorizationBinding.planSha256; approvedMutationCount=2; plannedMutationCount=2; freshAttestationPath=$attestation.Path; freshAttestationSha256=$attestation.Sha256; freshAttestationIssuedAt=[string]$attestationDocument.observedAt; freshAttestationExpiresAt=$attestation.ExpiresAt.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); attestationFreshnessPassed=$true; liveReceiptPath=$reservation.ReceiptPath; liveReceiptSha256=$receiptFinalSha256; liveReceiptInitialState='PENDING'; liveReceiptFinalState=$receiptFinalState; receiptBindingPassed=($receiptFinalState -eq 'CONSUMED'); executeStarted=$true; executeCompleted=$childCompleted; childStarted=$childStarted; childCompleted=$childCompleted; childExitCode=$childExitCode; childTimedOut=$childTimedOut; childTerminalPath=(if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {$childTerminalPath} else {$null}); childTerminalSha256=(if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {Get-Sha256 $childTerminalPath} else {$null}); childTerminalValidated=$childValidated; adapterReached=$journal.AdapterReached; journalCreated=$journal.Exists; journalPath=$journal.Path; journalSha256=$journal.Sha256; actualMutationCount=$journal.ActualMutationCount; unexpectedMutationCount=0; retryCount=0; supabaseReadCount=0; supabaseWriteCount=$journal.ActualMutationCount; productionMutationCount=$journal.ActualMutationCount }
       $executionTerminal = Write-FinalCanaryEvidence $executionRoot 'final-canary-execution-terminal-result.json' $executionData
       if ($executionSuccess) {
         try { Invoke-FinalNodeValidator $validation.Path 'scripts/qa/validate-r6-final-canary-execution-terminal.mjs' $executionTerminal 'R6_FINAL_CANARY_EXECUTION_TERMINAL_OK' 'EXECUTION_TERMINAL_FINALIZATION' } catch { $executionFailure = $_.Exception.Message; $executionSuccess = $false }

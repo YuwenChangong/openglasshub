@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { normalize, parseCsv, validateProductionExport } from "./production-schema-fingerprint-core.mjs";
+import { discoverTaskScopedNormalizedReplay } from "./lib/task-scoped-normalized-replay.mjs";
 
 const root = process.cwd();
 const csvPath = "C:/Users/1/Downloads/increment-post-view-count-body.csv";
@@ -72,9 +73,7 @@ const incrementInvocation = detailPage.indexOf("await safeIncrementPostViewCount
 assert(detailPage.indexOf('.eq("status", "published")') < incrementInvocation);
 assert(detailPage.indexOf('.eq("moderation_status", "published")') < incrementInvocation);
 
-const containerNames = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" }).split(/\r?\n/).filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
-assert.equal(containerNames.length, 1, "LOCAL_DOCKER_ONLY requires one disposable normalized replay database container");
-const container = containerNames[0];
+const container = discoverTaskScopedNormalizedReplay().containerId;
 const runLocalPsql = (sql) => execFileSync("docker", ["exec", "-i", container, "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: sql, encoding: "utf8" }).trim();
 const contractExpression = `'returns=' || pg_get_function_result(p.oid) || ';security_definer=' || CASE WHEN p.prosecdef THEN 'true' ELSE 'false' END || ';owner=' || pg_get_userbyid(p.proowner) || ';search_path=' || coalesce(array_to_string(p.proconfig, ', '), '') || ';body=' || pg_get_functiondef(p.oid)`;
 const contractSql = `SELECT ${contractExpression} FROM pg_proc p WHERE p.oid = '${signature}'::regprocedure;`;
