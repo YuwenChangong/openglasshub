@@ -1548,7 +1548,8 @@ function Invoke-PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight([ps
     executeCompleted = $false; postflightCompleted = $false; productionMutationCount = 0; retryCount = 0
   }
   try {
-    New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
+    # The capture/auth helper owns initial evidence-root creation. Creating it
+    # here would make that helper fail before its first local/network boundary.
     $null = Invoke-PrepareCurrentCanonicalProductionV3AndAuthCheckOnly $Validation
     $state.captureCompleted = $true; $state.captureSuccess = $true; $state.authCheckCompleted = $true; $state.authCheckSuccess = $true
     $capture = Read-AttestationJson $captureTerminalPath

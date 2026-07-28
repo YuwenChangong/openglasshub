@@ -25,4 +25,5 @@ Require ($source -match '\$mode -eq ''ExecuteApprovedPhase'' -and \$null -ne \$s
 Require ($source -match '\$validation = Assert-ExecutionWorktree \$ExecutionWorktree \$RunId') 'R6_FINAL_WRAPPER_LEGACY_PROFILE_REGRESSION_MISSING'
 $finalFunction = [regex]::Match($source, 'function Invoke-PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight[\s\S]*?\nfunction Invoke-Main')
 Require ($finalFunction.Success -and $finalFunction.Value -notmatch '\$script:ExpectedExecutionWorktree|\$script:ExpectedRunnerCommit') 'R6_FINAL_WRAPPER_FINAL_MODE_LEGACY_WORKTREE_LEAK'
+Require ($finalFunction.Success -and $finalFunction.Value -notmatch 'New-Item -ItemType Directory -Path \$root') 'R6_FINAL_WRAPPER_FINAL_MODE_CAPTURE_ROOT_OWNERSHIP_REGRESSION'
 Write-Output 'R6_FINAL_CANARY_WRAPPER_CONTRACT_OK PowerShell-5.1 static fake contract validates separated child channels, atomic evidence, strict validators, read-only postflight, and no legacy live invocation'
