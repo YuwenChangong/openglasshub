@@ -38,6 +38,60 @@ disagreement fail closed. Historical confirmation ledgers are copied only as
 SHA-256 evidence into the canonical registry; the original ledger files are not
 rewritten or deleted.
 
+### Final Execution Lifecycle
+
+The protected receipt is deliberately a one-shot handoff, not a durable
+authorization token. `PENDING` is the state at reservation creation. The child
+must consume the same sealed receipt before identity guards, credentials,
+adapter creation, journal creation, or a request; its terminal may therefore
+record the creation snapshot while the registry receipt is correctly
+`CONSUMED` after a successful dry-run. Historical V3 dry-run terminals remain
+readable with that interpretation and must never be rewritten.
+
+R6 uses model B: a dry-run Run ID is permanently consumed plan evidence and is
+not eligible for live execution. A final live Run ID is new and independently
+reserved. Before its live receipt is created, it must bind the successful
+dry-run terminal and orchestration SHA-256 values, exact execution/tooling
+commit, canonical two-operation mutation-plan hash, and a new fresh deployment
+attestation hash. The receipt stores this value-blind binding under
+`finalAuthorizationBinding`; a binding mismatch, stale attestation, reused Run
+ID, nonzero dry-run writes, plan mismatch, or a count other than two stops
+before the live child starts.
+
+After live execution, `validate-r6-final-canary-execution-terminal.mjs` and
+`validate-r6-final-canary-postflight.mjs` are mandatory. A final success
+requires a consumed live receipt, complete journal, exactly two verified
+mutations, zero unexpected or duplicate mutations, zero retries, and a
+strictly read-only postflight with at least one read and zero writes. Partial
+execution, absent postflight, or any discrepancy is a no-go and requires a
+separate incident approval; it never auto-retries, resumes, or cleans up.
+
+### Execute Terminal And Read-Only Postflight
+
+`ExecuteApprovedPhase` is the only live entry point. It keeps the existing
+one-shot receipt, child runner, journal, mutation plan, two write operations,
+and cleanup state machine. The wrapper invokes the child through the native
+stdout/stderr-separated helper and gives it an exclusive child-terminal path.
+It atomically seals `final-canary-execution-terminal-result.json` before any
+postflight. A successful execution terminal requires the fresh live Run ID,
+the consumed receipt binding, a validated child terminal, a complete journal,
+exactly two mutations, no unexpected operation, and zero retry.
+
+The next process is `run-r6-final-canary-read-only-postflight.mjs`. It first
+validates the sealed execution terminal, receipt and journal locally, then uses
+only its dedicated GET-only adapter to verify the cleaned post/comment and
+marker residue. The adapter has no create, update, delete, SQL, RPC, or cleanup
+capability. Its terminal records `supabaseWriteCount: 0` and
+`productionMutationCountDuringPostflight: 0`; validators reject any other
+value. A final orchestration terminal can pass only if both terminal validators
+pass, the postflight has at least one read, and all counts remain exactly two,
+zero unexpected, zero duplicate, zero retry, and zero postflight writes.
+
+Any child failure, timeout, invalid/missing terminal, partial result, third
+mutation, receipt/journal mismatch, or postflight discrepancy seals a failed
+terminal and stops. It does not retry, resume, repair, rollback, or perform a
+second write.
+
 ## Preconditions
 
 - The reviewed application commit is deployed from `main`, production smoke

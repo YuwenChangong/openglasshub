@@ -59,6 +59,29 @@ export function createProductionMinimalCanaryHttpAdapter({ baseUrl, accessToken,
   };
 }
 
+export function createProductionMinimalCanaryPostflightReadAdapter({ baseUrl, accessToken, requestTimeoutMs }) {
+  let readCount = 0;
+  const read = async (route) => {
+    const { response, payload } = await request(baseUrl, route, { headers: authHeaders(accessToken), timeoutMs: requestTimeoutMs });
+    readCount += 1;
+    if (!response.ok && response.status !== 404) throw safeError("QA_CANARY_POSTFLIGHT_READ_FAILED", response, { headersReceived: true, statusReceived: true });
+    return { response, payload };
+  };
+  return {
+    async verifyCompletedJournal(journal) {
+      const post = journal?.artifacts?.post; const comment = journal?.artifacts?.comment;
+      if (!post?.id || !comment?.id) throw new Error("QA_CANARY_POSTFLIGHT_JOURNAL_ARTIFACTS_INVALID");
+      const commentResult = await read(`/api/forum/comments?post_id=${encodeURIComponent(comment.postId)}`);
+      const postResult = await read(`/api/forum/posts?circle=${encodeURIComponent(post.circleSlug)}&limit=50`);
+      const residueResult = await read(`/api/forum/posts?circle=${encodeURIComponent(post.circleSlug)}&limit=50&q=${encodeURIComponent(journal.markers.post)}`);
+      const commentAbsent = commentResult.response.status === 404 || !(commentResult.payload?.comments ?? []).some((row) => row.id === comment.id);
+      const postAbsent = postResult.response.status === 404 || !(postResult.payload?.posts ?? []).some((row) => row.id === post.id);
+      const residueAbsent = residueResult.response.status === 404 || !(residueResult.payload?.posts ?? []).some((row) => String(row.title ?? "").includes(journal.markers.post) || String(row.body ?? "").includes(journal.markers.post));
+      return { verifiedMutationCount: commentAbsent && postAbsent ? 2 : 0, unexpectedMutationCount: residueAbsent ? 0 : 1, duplicateExecutionCount: 0, readCount };
+    },
+  };
+}
+
 export function createProductionMinimalCanaryRecoveryAdapter() {
   return {
     async enumeratePosts() { throw new Error("QA_CANARY_RECOVERY_ENUMERATION_UNAVAILABLE"); },

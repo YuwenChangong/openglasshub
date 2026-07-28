@@ -58,8 +58,14 @@ try {
   await consumeReservationReceipt({ root, receiptPath: reservation.receiptPath, receiptSha256: reservation.receiptSha256, invocationNonce: reservation.invocationNonce, runId: ids.fresh, mode: "dry-run", runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest });
   await assert.rejects(consumeReservationReceipt({ root, receiptPath: reservation.receiptPath, receiptSha256: sha256(await readFile(reservation.receiptPath)), invocationNonce: reservation.invocationNonce, runId: ids.fresh, mode: "dry-run", runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest }), /RECEIPT_REPLAY/);
 
+  const finalBinding = { schemaVersion: "r6-final-canary-authorization-binding-v1", dryRunRunId: ids.fresh, dryRunTerminalSha256: "1".repeat(64), dryRunOrchestrationTerminalSha256: "2".repeat(64), planSha256: "3".repeat(64), attestationSha256: "4".repeat(64), executionCommit: runnerCommit };
+  const finalReservation = await reserveConsumedRun({ root, runId: ids.second, mode: "live", confirmationTokenSha256: "e".repeat(64), runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest, finalAuthorizationBinding: finalBinding, now, nonce: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" });
+  const finalReceipt = JSON.parse(await readFile(finalReservation.receiptPath, "utf8"));
+  assert.deepEqual(finalReceipt.finalAuthorizationBinding, finalBinding, "a live receipt must seal the dry-run authorization binding");
+  await assert.rejects(reserveConsumedRun({ root, runId: "qa-canary-77777777-7777-4777-8777-777777777777", mode: "dry-run", confirmationTokenSha256: "7".repeat(64), runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest, finalAuthorizationBinding: finalBinding, now }), /FINAL_AUTHORIZATION_BINDING_INVALID/);
+
   const state = await loadConsumedRunRegistry({ root });
-  assert.equal(state.registry.entries.length, 6);
+  assert.equal(state.registry.entries.length, 7);
   await writeFile(path.join(root, "consumed-run-registry-v1.json"), "{", "utf8");
   await assert.rejects(loadConsumedRunRegistry({ root }), /REGISTRY_INVALID/);
 } finally { await rm(root, { recursive: true, force: true }); }

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { normalize } from "./production-schema-fingerprint-core.mjs";
+import { discoverTaskScopedNormalizedReplay } from "./lib/task-scoped-normalized-replay.mjs";
 
 const root = process.cwd();
 const packetDirectory = path.join(root, "docs", "ops", "reconciliation");
@@ -83,11 +84,7 @@ const approvedR4RuntimeFiles = new Set(["src/lib/server/rate-limit.ts", "src/pag
 assert.equal(changedMigrations, "", "canonical migrations must remain unchanged");
 assert.deepEqual(changedRuntime.filter((file) => !approvedR4RuntimeFiles.has(file)), [], "only approved R4 runtime files may change");
 
-const containers = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" })
-  .split(/\r?\n/)
-  .filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
-assert.equal(containers.length, 1, "LOCAL_DOCKER_ONLY requires one disposable normalized replay database container");
-const container = containers[0];
+const container = discoverTaskScopedNormalizedReplay().containerId;
 const psql = (sql) => execFileSync("docker", ["exec", "-i", container, "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: sql, encoding: "utf8" }).trim();
 const contract = (signature) => psql(`SELECT 'returns=' || pg_get_function_result(p.oid) || ';security_definer=' || CASE WHEN p.prosecdef THEN 'true' ELSE 'false' END || ';owner=' || pg_get_userbyid(p.proowner) || ';search_path=' || coalesce(array_to_string(p.proconfig, ', '), '') || ';body=' || pg_get_functiondef(p.oid) FROM pg_proc p WHERE p.oid = '${signature}'::regprocedure;`);
 assert.equal(hash(contract(viewSignature)), expectedView.deterministicSha256, "local view-count baseline must match the verified expected contract");

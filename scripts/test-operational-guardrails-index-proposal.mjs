@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
+import { discoverTaskScopedNormalizedReplay } from "./lib/task-scoped-normalized-replay.mjs";
 
 const root = process.cwd();
 const directory = path.join(root, "docs", "ops", "reconciliation");
@@ -37,9 +38,7 @@ const approvedRuntimeFiles = new Set(["src/lib/server/rate-limit.ts", "src/pages
 assert.equal(changedMigrations, "", "canonical migrations must remain unchanged");
 assert.deepEqual(changedRuntime.filter((file) => !approvedRuntimeFiles.has(file)), [], "only approved R4/R6G runtime files may change");
 
-const containers = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" }).split(/\r?\n/).filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
-assert.equal(containers.length, 1, "LOCAL_DOCKER_ONLY requires exactly one normalized replay container");
-const container = containers[0];
+const container = discoverTaskScopedNormalizedReplay().containerId;
 const database = "openglass_w6_index_sim";
 const psql = (input, databaseName = database) => {
   const result = spawnSync("docker", ["exec", "-i", container, "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", databaseName], { input, encoding: "utf8" });

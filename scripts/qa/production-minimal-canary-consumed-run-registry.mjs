@@ -149,6 +149,18 @@ export async function loadConsumedRunRegistry({ root }) {
   return { ...state, registrySha256: sha256(await readFile(state.paths.registry)), ledgerSha256: sha256(await readFile(state.paths.ledger)) };
 }
 
+export async function readConsumedRunReceipt({ root, receiptPath, expectedSha256 }) {
+  const paths = registryPaths(root);
+  const candidate = path.resolve(String(receiptPath ?? ""));
+  assertPathInside(paths.receipts, candidate, "QA_CANARY_CONSUMED_RUN_RECEIPT_PATH_INVALID");
+  await assertNoReparse(candidate, "QA_CANARY_CONSUMED_RUN_RECEIPT_PATH_INVALID");
+  const raw = await readFile(candidate).catch(() => { throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_REQUIRED"); });
+  if (expectedSha256 && sha256(raw) !== expectedSha256) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
+  let receipt;
+  try { receipt = JSON.parse(raw.toString("utf8")); } catch { throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID"); }
+  return { receipt: validateReceiptShape(receipt), raw, sha256: sha256(raw) };
+}
+
 export async function assertRunIdNotConsumed({ root, runId }) {
   const id = validateConsumedRunId(runId);
   const state = await loadState(root);
@@ -215,15 +227,24 @@ function receiptFile(paths, runId, nonce) {
 function validateReceiptShape(receipt) {
   if (!receipt || receipt.schemaVersion !== CONSUMED_RUN_REGISTRY_VERSION || !["PENDING", "CONSUMED"].includes(receipt.state) || !RUN_ID.test(String(receipt.runId ?? "")) || !MODES.has(receipt.mode) || !COMMIT.test(String(receipt.runnerCommit ?? "")) || receipt.wrapperVersion !== "r6-consumed-run-wrapper-v1" || !SHA256.test(String(receipt.wrapperSha256 ?? "")) || !SHA256.test(String(receipt.tokenLedgerEntryDigest ?? "")) || !SHA256.test(String(receipt.registryEntryDigest ?? "")) || !SHA256.test(String(receipt.childCommandDigest ?? "")) || !/^[a-f0-9-]{36}$/.test(String(receipt.invocationNonce ?? "")) || !SHA256.test(String(receipt.integrity ?? ""))) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
   assertTimestamp(receipt.createdAt, "QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
+  validateFinalAuthorizationBinding(receipt.finalAuthorizationBinding);
   const copy = { ...receipt }; delete copy.integrity;
   if (sha256(canonical(copy)) !== receipt.integrity) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
   return receipt;
 }
 
-export async function reserveConsumedRun({ root, runId, mode, confirmationTokenSha256, runnerCommit, wrapperVersion, wrapperSha256, childCommandDigest, now = new Date().toISOString(), nonce = randomUUID() }) {
+function validateFinalAuthorizationBinding(binding) {
+  if (binding === undefined) return null;
+  if (!binding || typeof binding !== "object" || Array.isArray(binding) || Object.keys(binding).length !== 7 || binding.schemaVersion !== "r6-final-canary-authorization-binding-v1" || !RUN_ID.test(String(binding.dryRunRunId ?? "")) || !SHA256.test(String(binding.dryRunTerminalSha256 ?? "")) || !SHA256.test(String(binding.dryRunOrchestrationTerminalSha256 ?? "")) || !SHA256.test(String(binding.planSha256 ?? "")) || !SHA256.test(String(binding.attestationSha256 ?? "")) || !COMMIT.test(String(binding.executionCommit ?? ""))) throw new Error("QA_CANARY_FINAL_AUTHORIZATION_BINDING_INVALID");
+  return binding;
+}
+
+export async function reserveConsumedRun({ root, runId, mode, confirmationTokenSha256, runnerCommit, wrapperVersion, wrapperSha256, childCommandDigest, finalAuthorizationBinding, now = new Date().toISOString(), nonce = randomUUID() }) {
   const id = validateConsumedRunId(runId);
   if (!MODES.has(mode) || !SHA256.test(String(confirmationTokenSha256 ?? "")) || !COMMIT.test(String(runnerCommit ?? "")) || wrapperVersion !== "r6-consumed-run-wrapper-v1" || !SHA256.test(String(wrapperSha256 ?? "")) || !SHA256.test(String(childCommandDigest ?? "")) || !/^[a-f0-9-]{36}$/.test(nonce)) throw new Error("QA_CANARY_CONSUMED_RUN_RESERVATION_INVALID");
   assertTimestamp(now, "QA_CANARY_CONSUMED_RUN_RESERVATION_INVALID");
+  const binding = validateFinalAuthorizationBinding(finalAuthorizationBinding);
+  if (binding && (mode !== "live" || binding.executionCommit !== runnerCommit || binding.dryRunRunId === id)) throw new Error("QA_CANARY_FINAL_AUTHORIZATION_BINDING_INVALID");
   return withLock(root, async (paths) => {
     const state = await loadState(paths.root);
     if (state.registry.entries.some((entry) => entry.runId === id)) throw new Error("QA_CANARY_RUN_ID_ALREADY_CONSUMED");
@@ -234,7 +255,7 @@ export async function reserveConsumedRun({ root, runId, mode, confirmationTokenS
     ledger.entries.push(tokenLedgerEntry); registry.entries.push(registryEntry);
     const sealedRegistry = await writeState(paths, registry, ledger);
     const target = receiptFile(paths, id, nonce); await mkdir(target.directory, { recursive: true });
-    const base = { schemaVersion: CONSUMED_RUN_REGISTRY_VERSION, state: "PENDING", runId: id, mode, runnerCommit, wrapperVersion, wrapperSha256, tokenLedgerEntryDigest: tokenLedgerEntry.entryDigest, registryEntryDigest: registryEntry.entryDigest, invocationNonce: nonce, createdAt: now, childCommandDigest };
+    const base = { schemaVersion: CONSUMED_RUN_REGISTRY_VERSION, state: "PENDING", runId: id, mode, runnerCommit, wrapperVersion, wrapperSha256, tokenLedgerEntryDigest: tokenLedgerEntry.entryDigest, registryEntryDigest: registryEntry.entryDigest, invocationNonce: nonce, createdAt: now, childCommandDigest, ...(binding ? { finalAuthorizationBinding: binding } : {}) };
     const receipt = { ...base, integrity: sha256(canonical(base)) };
     await durableWrite(target.file, `${JSON.stringify(receipt, null, 2)}\n`);
     return { receiptPath: target.file, receiptSha256: sha256(await readFile(target.file)), invocationNonce: nonce, registrySha256: sha256(await readFile(paths.registry)), registryEntryDigest: registryEntry.entryDigest };

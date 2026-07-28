@@ -21,6 +21,8 @@ param(
   [string]$V3OrchestrationFixtureKind,
   [string]$RunId,
   [string]$PhaseApproval,
+  [string]$FinalAuthorizationBindingPath,
+  [string]$FinalAuthorizationBindingSha256,
   [string]$EvidenceRoot = 'C:\Users\1\OpenGlassHub-R6-Proof\r6-detached-secure-input-transport'
 )
 
@@ -1062,11 +1064,16 @@ function Get-ValidatedExecutionCommit([pscustomobject]$Validation) {
   return [string]$Validation.Head
 }
 
-function Reserve-ConsumedRun([pscustomobject]$Validation, [string]$RequestedRunId, [ValidateSet('dry-run', 'live')][string]$Domain, [string]$ConfirmationHash) {
+function Reserve-ConsumedRun([pscustomobject]$Validation, [string]$RequestedRunId, [ValidateSet('dry-run', 'live')][string]$Domain, [string]$ConfirmationHash, [string]$FinalAuthorizationBindingPath = '', [string]$FinalAuthorizationBindingSha256 = '') {
   $runnerCommit = Get-ValidatedExecutionCommit $Validation
   $wrapperHash = Get-Sha256 $script:WrapperPath
   $childCommandDigest = Get-ChildCommandDigest $Domain $RequestedRunId
-  $result = Invoke-ConsumedRunTool ([string]$Validation.Path) @('--registry-root', $script:ConsumedRunRegistryRoot, '--run-id', $RequestedRunId, '--mode', $Domain, '--confirmation-token-sha256', $ConfirmationHash, '--runner-commit', $runnerCommit, '--wrapper-version', $script:ConsumedRunWrapperVersion, '--wrapper-sha256', $wrapperHash, '--child-command-digest', $childCommandDigest)
+  $arguments = @('--registry-root', $script:ConsumedRunRegistryRoot, '--run-id', $RequestedRunId, '--mode', $Domain, '--confirmation-token-sha256', $ConfirmationHash, '--runner-commit', $runnerCommit, '--wrapper-version', $script:ConsumedRunWrapperVersion, '--wrapper-sha256', $wrapperHash, '--child-command-digest', $childCommandDigest)
+  if (-not [string]::IsNullOrWhiteSpace($FinalAuthorizationBindingPath) -or -not [string]::IsNullOrWhiteSpace($FinalAuthorizationBindingSha256)) {
+    if ($Domain -ne 'live' -or -not (Test-WindowsFullyQualifiedPath $FinalAuthorizationBindingPath) -or -not (Test-Path -LiteralPath $FinalAuthorizationBindingPath -PathType Leaf) -or $FinalAuthorizationBindingSha256 -notmatch '^[a-f0-9]{64}$' -or (Get-Sha256 $FinalAuthorizationBindingPath) -ne $FinalAuthorizationBindingSha256) { throw 'R6_FINAL_AUTHORIZATION_BINDING_INVALID' }
+    $arguments += @('--final-authorization-binding', $FinalAuthorizationBindingPath, '--attestation-sha256', $script:CurrentExecutionAttestationSha256)
+  }
+  $result = Invoke-ConsumedRunTool ([string]$Validation.Path) $arguments
   if ([string]::IsNullOrWhiteSpace([string]$result.receiptPath) -or [string]$result.receiptSha256 -notmatch '^[a-f0-9]{64}$' -or [string]$result.invocationNonce -notmatch '^[a-f0-9-]{36}$') { throw 'R6_CONSUMED_RUN_RESERVATION_OUTPUT_INVALID' }
   return [pscustomobject]@{ RegistryRoot = $script:ConsumedRunRegistryRoot; ReceiptPath = [string]$result.receiptPath; ReceiptSha256 = [string]$result.receiptSha256; InvocationNonce = [string]$result.invocationNonce; RunnerCommit = $runnerCommit; WrapperSha256 = $wrapperHash; ChildCommandDigest = $childCommandDigest }
 }
@@ -1126,6 +1133,10 @@ function Read-AttestationJson([string]$Path) {
 }
 
 function Get-OptionalJsonProperty([object]$Value, [string]$Name) {
+  if ($Value -is [System.Collections.IDictionary]) {
+    if ($Value.Contains($Name)) { return $Value[$Name] }
+    return $null
+  }
   $property = $Value.PSObject.Properties[$Name]
   if ($null -eq $property) { return $null }
   return $property.Value
@@ -1420,6 +1431,45 @@ function Invoke-DryRunRunner([string]$Worktree, [string]$RequestedRunId, [string
   }
 }
 
+function Write-FinalCanaryEvidence([string]$Root, [string]$Name, [System.Collections.IDictionary]$Data) {
+  if (-not (Test-WindowsFullyQualifiedPath $Root) -or [string]::IsNullOrWhiteSpace($Name) -or $Name -match '[\\/]') { throw 'R6_FINAL_EVIDENCE_PATH_INVALID' }
+  foreach ($key in $Data.Keys) { if ([string]$key -match '(?i)(password|access[_-]?token|refresh[_-]?token|authorization|anon[_-]?key|account[_-]?id)') { throw 'R6_EVIDENCE_SECRET_PATTERN_REJECTED' } }
+  New-Item -ItemType Directory -Force -Path $Root | Out-Null
+  $file = Join-Path $Root $Name
+  if (Test-Path -LiteralPath $file) { throw 'R6_FINAL_EVIDENCE_EXISTS' }
+  $temporary = $file + '.' + [guid]::NewGuid().ToString() + '.tmp'
+  $json = $Data | ConvertTo-Json -Depth 8
+  try {
+    [IO.File]::WriteAllText($temporary, $json + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+    [IO.File]::Move($temporary, $file)
+  } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue } }
+  return $file
+}
+
+function Invoke-LiveRunner([string]$Worktree, [string]$RequestedRunId, [string]$ChildTerminalPath) {
+  if ($RequestedRunId -notmatch '^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') { throw 'R6_RUN_ID_INVALID' }
+  if (-not (Test-WindowsFullyQualifiedPath $ChildTerminalPath) -or (Split-Path -Leaf $ChildTerminalPath) -ne 'minimal-canary-child-terminal-result.json' -or (Test-Path -LiteralPath $ChildTerminalPath)) { throw 'QA_CANARY_CHILD_TERMINAL_PATH_INVALID' }
+  Import-R6NativeChildProcessHelper $Worktree
+  $node = (Get-Command node -CommandType Application -ErrorAction Stop).Source
+  return Invoke-R6NativeChildProcess -FileName $node -Arguments @($script:RunnerRelativePath, '--execute', '--run-id', $RequestedRunId, '--confirm-run', $RequestedRunId, '--child-terminal-path', $ChildTerminalPath) -WorkingDirectory $Worktree -TimeoutMilliseconds $script:ChildProcessTimeoutMilliseconds
+}
+
+function Get-ExecutionJournalEvidence([string]$JournalRoot, [string]$RequestedRunId) {
+  $path = Join-Path (Join-Path $JournalRoot $RequestedRunId) 'journal.json'
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return [pscustomobject]@{ Exists=$false; Path=$null; Sha256=$null; ActualMutationCount=0; AdapterReached=$false; Complete=$false } }
+  $journal = Read-AttestationJson $path
+  $count = 0
+  if ($null -ne (Get-OptionalJsonProperty $journal.artifacts 'post')) { $count += 1 }
+  if ($null -ne (Get-OptionalJsonProperty $journal.artifacts 'comment')) { $count += 1 }
+  return [pscustomobject]@{ Exists=$true; Path=$path; Sha256=(Get-Sha256 $path); ActualMutationCount=$count; AdapterReached=$true; Complete=([string]$journal.state -eq 'COMPLETE') }
+}
+
+function Invoke-FinalNodeValidator([string]$Worktree, [string]$RelativeValidator, [string]$Path, [string]$SuccessMarker, [string]$FailureCode) {
+  Push-Location -LiteralPath $Worktree
+  try { $lines = @(& node $RelativeValidator $Path 2>&1); $exitCode = $LASTEXITCODE } finally { Pop-Location }
+  if ($exitCode -ne 0 -or $lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne $SuccessMarker) { throw $FailureCode }
+}
+
 function Invoke-Main {
   $mode = Get-Mode
   if ($mode -eq 'PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly') {
@@ -1491,12 +1541,14 @@ function Invoke-Main {
   if ($mode -eq 'ExecuteApprovedPhase') {
     Assert-PhaseApproval $PhaseApproval
     if ([string]::IsNullOrWhiteSpace($RunId)) { throw 'R6_RUN_ID_REQUIRED' }
+    if ([string]::IsNullOrWhiteSpace($FinalAuthorizationBindingPath) -or [string]::IsNullOrWhiteSpace($FinalAuthorizationBindingSha256)) { throw 'R6_FINAL_AUTHORIZATION_BINDING_REQUIRED' }
     $confirmationDomain = 'live'
     Assert-RunIdEligible $validation.Path $RunId | Out-Null
     Assert-RunIdJournalAbsent $RunId
   }
   $attestation = Assert-DeploymentAttestation $DeploymentAttestationPath $DeploymentAttestationSha256
   $remainingAttestationMilliseconds = Assert-MinimumAttestationValidity $attestation
+  $script:CurrentExecutionAttestationSha256 = $attestation.Sha256
   if ($mode -eq 'ValidateOnly') {
     $evidence = Write-SanitizedEvidence $EvidenceRoot 'validate-only.json' ([ordered]@{ mode = $mode; networkRequests = 0; secretPrompts = 0; runnerInvoked = $false; worktreeHead = $validation.Head; detached = $validation.Detached; baseUrl = $script:ExpectedBaseUrl; attestationSha256 = $attestation.Sha256; deploymentId = $attestation.DeploymentId; attestationRemainingMilliseconds = $remainingAttestationMilliseconds })
     Write-Output "R6_VALIDATE_ONLY_OK:$evidence"
@@ -1512,7 +1564,10 @@ function Invoke-Main {
     $confirmation = Read-Host 'Fresh live canary confirmation token (hidden)' -AsSecureString
     $confirmationHash = Get-ConfirmationHash $confirmation
   }
-  if ($null -ne $confirmationHash) { $reservation = Reserve-ConsumedRun $validation $RunId $confirmationDomain $confirmationHash }
+  if ($null -ne $confirmationHash) {
+    if ($mode -eq 'ExecuteApprovedPhase') { $reservation = Reserve-ConsumedRun $validation $RunId $confirmationDomain $confirmationHash $FinalAuthorizationBindingPath $FinalAuthorizationBindingSha256 }
+    else { $reservation = Reserve-ConsumedRun $validation $RunId $confirmationDomain $confirmationHash }
+  }
   $inputs = Get-FutureInputs
   $auth = $null
   try {
@@ -1527,12 +1582,64 @@ function Invoke-Main {
       return
     }
     if ($mode -eq 'ExecuteApprovedPhase') {
-      Invoke-CommittedRunner $validation.Path @('--execute', '--run-id', $RunId, '--confirm-run', $RunId)
+      $executionRoot = $EvidenceRoot
+      $childTerminalPath = Join-Path $executionRoot 'minimal-canary-child-terminal-result.json'
+      $executionTerminalPath = Join-Path $executionRoot 'final-canary-execution-terminal-result.json'
+      $postflightTerminalPath = Join-Path $executionRoot 'final-canary-read-only-postflight-terminal-result.json'
+      $orchestrationTerminalPath = Join-Path $executionRoot 'final-canary-execute-and-postflight-orchestration-terminal-result.json'
+      $attestationDocument = Read-AttestationJson $attestation.Path
+      $startedAt = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+      $child = $null
+      $journal = $null
+      $receiptFinalSha256 = $reservation.ReceiptSha256
+      $receiptFinalState = 'PENDING'
+      $executionFailure = $null
+      try {
+        Set-RunnerEnvironment $auth $mode $RunId $reservation $childTerminalPath (Get-ValidatedExecutionCommit $validation)
+        $child = Invoke-LiveRunner $validation.Path $RunId $childTerminalPath
+        $journal = Get-ExecutionJournalEvidence (Get-ExpectedJournalRoot) $RunId
+        if (Test-Path -LiteralPath $reservation.ReceiptPath -PathType Leaf) {
+          $receiptFinalSha256 = Get-Sha256 $reservation.ReceiptPath
+          $receiptFinalState = [string](Read-AttestationJson $reservation.ReceiptPath).state
+        }
+        if (-not (Test-Path -LiteralPath $childTerminalPath -PathType Leaf)) { $executionFailure = 'CHILD_TERMINAL_VALIDATION' }
+        else {
+          try { Invoke-FinalNodeValidator $validation.Path 'scripts/qa/validate-production-minimal-canary-child-terminal.mjs' $childTerminalPath 'QA_MINIMAL_CANARY_CHILD_TERMINAL_OK' 'CHILD_TERMINAL_VALIDATION' } catch { $executionFailure = $_.Exception.Message }
+        }
+        if ($null -eq $executionFailure -and ($child.ChildTimedOut -or $child.ChildExitCode -ne 0)) { $executionFailure = if ($child.ChildTimedOut) { 'MINIMAL_CANARY_CHILD_LAUNCH' } else { [string]$child.StderrClassification } }
+      } catch { $executionFailure = $_.Exception.Message; $journal = Get-ExecutionJournalEvidence (Get-ExpectedJournalRoot) $RunId }
+      $childStarted = $null -ne $child -and [bool]$child.ChildStarted
+      $childCompleted = $null -ne $child -and [bool]$child.ChildCompleted
+      $childExitCode = if ($null -ne $child) { [int]$child.ChildExitCode } else { 1 }
+      $childTimedOut = $null -ne $child -and [bool]$child.ChildTimedOut
+      $childValidated = $null -eq $executionFailure -and (Test-Path -LiteralPath $childTerminalPath -PathType Leaf)
+      $executionSuccess = $null -eq $executionFailure -and $childExitCode -eq 0 -and $journal.Complete -and $journal.ActualMutationCount -eq 2
+      $finalAuthorization = Read-AttestationJson $FinalAuthorizationBindingPath
+      $finalReceipt = Read-AttestationJson $reservation.ReceiptPath
+      $executionData = [ordered]@{ schemaVersion='r6-final-canary-execution-terminal-result-v1'; startedAt=$startedAt; completedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); outerClassification=(if ($executionSuccess) {'R6_FINAL_CANARY_EXECUTION_COMPLETE'} else {'R6_FINAL_CANARY_EXECUTION_FAILED'}); innerClassification=(if ($executionSuccess) {$null} else {$executionFailure}); failureStage=(if ($executionSuccess) {$null} else {'EXECUTION'}); success=[bool]$executionSuccess; productionRunId=$RunId; parentDryRunRunId=$finalAuthorization.dryRunRunId; executionCommit=$validation.Head; toolingCommit=$validation.Head; actualExecutionWorktreeHead=$validation.Head; dryRunTerminalPath=$finalAuthorization.dryRunTerminalPath; dryRunTerminalSha256=$finalAuthorization.dryRunTerminalSha256; dryRunOrchestrationTerminalPath=$finalAuthorization.dryRunOrchestrationTerminalPath; dryRunOrchestrationTerminalSha256=$finalAuthorization.dryRunOrchestrationTerminalSha256; dryRunBindingPassed=$true; mutationPlanSchema='qa-minimal-canary-mutation-plan-v1'; mutationPlanHash=$finalReceipt.finalAuthorizationBinding.planSha256; approvedMutationCount=2; plannedMutationCount=2; freshAttestationPath=$attestation.Path; freshAttestationSha256=$attestation.Sha256; freshAttestationIssuedAt=[string]$attestationDocument.observedAt; freshAttestationExpiresAt=$attestation.ExpiresAt.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); attestationFreshnessPassed=$true; liveReceiptPath=$reservation.ReceiptPath; liveReceiptSha256=$receiptFinalSha256; liveReceiptInitialState='PENDING'; liveReceiptFinalState=$receiptFinalState; receiptBindingPassed=($receiptFinalState -eq 'CONSUMED'); executeStarted=$true; executeCompleted=$childCompleted; childStarted=$childStarted; childCompleted=$childCompleted; childExitCode=$childExitCode; childTimedOut=$childTimedOut; childTerminalPath=(if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {$childTerminalPath} else {$null}); childTerminalSha256=(if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {Get-Sha256 $childTerminalPath} else {$null}); childTerminalValidated=$childValidated; adapterReached=$journal.AdapterReached; journalCreated=$journal.Exists; journalPath=$journal.Path; journalSha256=$journal.Sha256; actualMutationCount=$journal.ActualMutationCount; unexpectedMutationCount=0; retryCount=0; supabaseReadCount=0; supabaseWriteCount=$journal.ActualMutationCount; productionMutationCount=$journal.ActualMutationCount }
+      $executionTerminal = Write-FinalCanaryEvidence $executionRoot 'final-canary-execution-terminal-result.json' $executionData
+      if ($executionSuccess) {
+        try { Invoke-FinalNodeValidator $validation.Path 'scripts/qa/validate-r6-final-canary-execution-terminal.mjs' $executionTerminal 'R6_FINAL_CANARY_EXECUTION_TERMINAL_OK' 'EXECUTION_TERMINAL_FINALIZATION' } catch { $executionFailure = $_.Exception.Message; $executionSuccess = $false }
+      }
+      $postflightSuccess = $false
+      if ($executionSuccess) {
+        Push-Location -LiteralPath $validation.Path
+        try { $postflightLines = @(& node 'scripts/qa/run-r6-final-canary-read-only-postflight.mjs' '--execution-terminal' $executionTerminal '--execution-terminal-sha256' (Get-Sha256 $executionTerminal) '--receipt' $reservation.ReceiptPath '--receipt-sha256' $receiptFinalSha256 '--registry-root' $reservation.RegistryRoot '--journal-root' (Get-ExpectedJournalRoot) '--output' $postflightTerminalPath '--verify-remote' 2>&1); $postflightExit = $LASTEXITCODE } finally { Pop-Location }
+        if ($postflightExit -eq 0 -and (Test-Path -LiteralPath $postflightTerminalPath -PathType Leaf)) {
+          try { Invoke-FinalNodeValidator $validation.Path 'scripts/qa/validate-r6-final-canary-postflight.mjs' $postflightTerminalPath 'R6_FINAL_CANARY_POSTFLIGHT_OK' 'POSTFLIGHT_TERMINAL_VALIDATION'; $postflightSuccess = $true } catch { $executionFailure = $_.Exception.Message }
+        } else { $executionFailure = 'POSTFLIGHT_EXECUTION' }
+      }
+      $postflight = if ($postflightSuccess) { Read-AttestationJson $postflightTerminalPath } else { $null }
+      $orchestration = [ordered]@{ schemaVersion='r6-final-canary-execute-and-postflight-orchestration-terminal-result-v1'; startedAt=$startedAt; completedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); outerClassification=(if ($executionSuccess -and $postflightSuccess) {'R6_FINAL_CANARY_EXECUTE_AND_POSTFLIGHT_COMPLETE'} else {'R6_FINAL_CANARY_EXECUTE_AND_POSTFLIGHT_FAILED'}); innerClassification=(if ($executionSuccess -and $postflightSuccess) {$null} else {$executionFailure}); failureStage=(if ($executionSuccess -and $postflightSuccess) {$null} else {'FINAL_ORCHESTRATION'}); success=[bool]($executionSuccess -and $postflightSuccess); parentDryRunRunId=$executionData.parentDryRunRunId; productionRunId=$RunId; dryRunAuthorizationValidated=$true; freshCaptureSuccess=$true; freshAuthCheckSuccess=$true; freshAttestationFreshnessPassed=$true; executeStarted=$true; executeCompleted=$childCompleted; executeSuccess=[bool]$executionSuccess; executionTerminalPath=$executionTerminal; executionTerminalSha256=(Get-Sha256 $executionTerminal); postflightStarted=$executionSuccess; postflightCompleted=$postflightSuccess; postflightSuccess=$postflightSuccess; postflightTerminalPath=(if ($postflightSuccess) {$postflightTerminalPath} else {$null}); postflightTerminalSha256=(if ($postflightSuccess) {Get-Sha256 $postflightTerminalPath} else {$null}); approvedMutationCount=2; actualMutationCount=$journal.ActualMutationCount; verifiedMutationCount=(if ($postflightSuccess) {[int]$postflight.verifiedMutationCount} else {0}); unexpectedMutationCount=(if ($postflightSuccess) {[int]$postflight.unexpectedMutationCount} else {0}); duplicateExecutionCount=(if ($postflightSuccess) {[int]$postflight.duplicateExecutionCount} else {0}); retryCount=0; supabaseReadCount=(if ($postflightSuccess) {[int]$postflight.supabaseReadCount} else {0}); supabaseWriteCount=$journal.ActualMutationCount; productionMutationCount=$journal.ActualMutationCount; postflightWriteCount=(if ($postflightSuccess) {[int]$postflight.supabaseWriteCount} else {0}) }
+      $orchestrationTerminal = Write-FinalCanaryEvidence $executionRoot 'final-canary-execute-and-postflight-orchestration-terminal-result.json' $orchestration
+      if ($executionSuccess -and $postflightSuccess) { Invoke-FinalNodeValidator $validation.Path 'scripts/qa/validate-r6-final-canary-orchestration-terminal.mjs' $orchestrationTerminal 'R6_FINAL_CANARY_ORCHESTRATION_TERMINAL_OK' 'FINAL_ORCHESTRATION_TERMINAL_VALIDATION'; Write-Output 'R6_FINAL_CANARY_EXECUTE_AND_POSTFLIGHT_COMPLETE'; return }
+      throw ('R6_FINAL_CANARY_EXECUTE_AND_POSTFLIGHT_FAILED:' + $executionFailure)
     }
   } finally {
     Clear-RunnerEnvironment
     $auth = $null
     $confirmationHash = $null
+    $script:CurrentExecutionAttestationSha256 = $null
   }
 }
 
