@@ -45,6 +45,7 @@ const baseEnv = (attestation) => ({
   QA_BASE_URL: "https://openglasshub.pages.dev",
   QA_CANARY_USER_ID: "11111111-1111-4111-8111-111111111111",
   QA_EXPECTED_RUNNER_COMMIT: runnerCommit,
+  QA_EXPECTED_TOOLING_COMMIT: runnerCommit,
   QA_EXPECTED_DEPLOYED_COMMIT: runnerCommit,
   QA_DEPLOYMENT_ATTESTATION_PATH: attestation.file,
   QA_DEPLOYMENT_ATTESTATION_SHA256: attestation.sha256,
@@ -75,6 +76,7 @@ try {
     process.chdir(temporaryCwd);
     const first = await validateIdentityGuards({ options, env, now, attestationRoot: root });
     assert.equal(first.runnerCommit, runnerCommit);
+    assert.equal(first.expectedToolingCommit, runnerCommit);
     process.chdir(RUNNER_REPOSITORY_ROOT);
     const second = await validateIdentityGuards({ options, env, now, attestationRoot: root });
     assert.equal(second.runnerCommit, runnerCommit);
@@ -84,7 +86,8 @@ try {
     process.chdir(originalCwd);
     await rm(temporaryCwd, { recursive: true, force: true });
   }
-  await assert.rejects(validateIdentityGuards({ options, env: { ...env, QA_EXPECTED_RUNNER_COMMIT: "a".repeat(40) }, now, attestationRoot: root }), /QA_CANARY_RUNNER_COMMIT_MISMATCH/);
+  await assert.rejects(validateIdentityGuards({ options, env: { ...env, QA_EXPECTED_RUNNER_COMMIT: "a".repeat(40), QA_EXPECTED_TOOLING_COMMIT: "a".repeat(40) }, now, attestationRoot: root }), /QA_CANARY_RUNNER_COMMIT_MISMATCH/);
+  await assert.rejects(validateIdentityGuards({ options, env: { ...env, QA_EXPECTED_TOOLING_COMMIT: "a".repeat(40) }, now, attestationRoot: root }), /QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH/);
   await assert.rejects(validateIdentityGuards({ options, env: { ...env, QA_EXPECTED_RUNNER_COMMIT: "" }, now, attestationRoot: root }), /QA_CANARY_ENV_REQUIRED:QA_EXPECTED_RUNNER_COMMIT/);
   await assert.rejects(validateIdentityGuards({ options, env: { ...env, QA_DEPLOYMENT_ATTESTATION_PATH: path.join(root, "absent.json") }, now, attestationRoot: root }), /QA_CANARY_DEPLOYMENT_ATTESTATION_MISSING/);
   await assert.rejects(validateIdentityGuards({ options, env: { ...env, QA_DEPLOYMENT_ATTESTATION_SHA256: "a".repeat(64) }, now, attestationRoot: root }), /QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID/);

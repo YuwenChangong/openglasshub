@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 function fail(code) { throw Object.assign(new Error(code), { code }); }
@@ -28,5 +29,20 @@ for (const [name, value] of [["V3FinalCommitBinding", commit], ["V3RuntimeRawSha
   if (!pattern.test(rendered)) fail("R6_WRAPPER_RENDER_TEMPLATE_INVALID");
   rendered = rendered.replace(pattern, `$1${value}$2`);
 }
+function bindReviewedMap(text, mapName, valueForPath) {
+  const mapPattern = new RegExp(`(\\$script:${mapName}\\s*=\\s*\\[ordered\\]@\\{)([\\s\\S]*?)(\\n\\})`);
+  const match = text.match(mapPattern);
+  if (!match) fail("R6_WRAPPER_RENDER_TEMPLATE_INVALID");
+  const body = match[2].replace(/('([^']+)'\s*=\s*')[a-f0-9]+(')/g, (entry, prefix, relative, suffix) => {
+    const value = valueForPath(relative.replaceAll("\\", "/"));
+    if (!/^[a-f0-9]{40,64}$/.test(value)) fail("R6_WRAPPER_RENDER_TEMPLATE_INVALID");
+    return `${prefix}${value}${suffix}`;
+  });
+  return text.replace(mapPattern, `${match[1]}${body}${match[3]}`);
+}
+const sourceHashForPath = (relative) => createHash("sha256").update(readFileSync(path.join(worktree, relative))).digest("hex");
+const sourceBlobForPath = (relative) => execFileSync("git", ["-C", worktree, "rev-parse", `${commit}:${relative}`], { encoding: "utf8" }).trim();
+rendered = bindReviewedMap(rendered, "ReviewedHashes", sourceHashForPath);
+rendered = bindReviewedMap(rendered, "ReviewedGitBlobHashes", sourceBlobForPath);
 await writeFile(destination, rendered, "utf8");
 process.stdout.write(`${JSON.stringify({ destination, sha256: createHash("sha256").update(rendered).digest("hex"), v3Commit: commit, runnerSha256: raw, runnerBlob: blob })}\n`);

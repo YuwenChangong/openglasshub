@@ -50,6 +50,7 @@ rewritten or deleted.
   `QA_EXPECTED_SUPABASE_REF`, `QA_PRODUCTION_SUPABASE_REF`, `QA_BASE_URL`,
   `QA_CANARY_USER_ID`, `QA_CANARY_ACCESS_TOKEN`, `QA_CANARY_SUPABASE_ANON_KEY`,
   `QA_CANARY_CIRCLE_SLUG`, `QA_EXPECTED_RUNNER_COMMIT`,
+  `QA_EXPECTED_TOOLING_COMMIT`,
   `QA_EXPECTED_DEPLOYED_COMMIT`, `QA_DEPLOYMENT_ATTESTATION_PATH`,
   `QA_DEPLOYMENT_ATTESTATION_SHA256`, `QA_ALLOW_PRODUCTION_WRITES`, and
   `QA_CANARY_APPROVAL`.
@@ -82,6 +83,15 @@ Future sequence: generate a fresh read-only provider attestation, validate its
 sealed hash locally, run AuthCheckOnly, run DryRunOnly, then obtain separate
 approval before ExecuteApprovedPhase. Never reuse a failed run ID or prior
 confirmation token.
+
+For V3 attestations, the wrapper passes its validated detached-worktree commit
+as both `QA_EXPECTED_RUNNER_COMMIT` and `QA_EXPECTED_TOOLING_COMMIT`; the latter
+is required by the attestation validator. The canary process reports a
+value-blind, atomic child terminal record rather than relying on a merged
+PowerShell stdout/stderr pipeline. The parent accepts it only when its run ID,
+mode, tooling/receipt/execution commit binding, exit state, and allowlisted
+classification match. Missing or inconsistent records fail before any adapter,
+journal, or mutation.
 
 ## Wrangler Deployment List Evidence Boundary
 

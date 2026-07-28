@@ -9,7 +9,7 @@ const base = () => ({
   authenticationCompleted: true, sessionValidated: true, authenticatedCheckCompleted: true,
   authCheckAuthorizedByMode: true, authCheckStarted: true, authCheckCompleted: true, authCheckSuccess: true, authCheckTerminalPath: "C:\\safe\\auth.json", authCheckTerminalSha256: "c".repeat(64), authCheckOuterClassification: "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK", authCheckInnerClassification: null, authCheckChildExitCode: 0,
   dryRunFreshnessCheckedAt: "2099-01-01T00:00:00.000Z", dryRunRemainingValidityMs: 720000, dryRunMinimumRequiredValidityMs: 720000, dryRunAttestationFreshnessPassed: true,
-  dryRunAuthorizedByMode: true, dryRunStarted: true, dryRunCompleted: true, dryRunSuccess: true, dryRunTerminalPath: "C:\\safe\\dry.json", dryRunTerminalSha256: "d".repeat(64), dryRunOuterClassification: "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY", dryRunInnerClassification: null, dryRunChildExitCode: 0, dryRunPlannedMutationCount: 2, dryRunActualMutationCount: 0,
+  dryRunAuthorizedByMode: true, dryRunStarted: true, dryRunCompleted: true, dryRunSuccess: true, dryRunTerminalPath: "C:\\safe\\dry.json", dryRunTerminalSha256: "d".repeat(64), dryRunOuterClassification: "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY", dryRunInnerClassification: null, dryRunChildExitCode: 0, dryRunExecutionCommit: "a".repeat(40), dryRunReceiptRunnerCommit: "a".repeat(40), dryRunExpectedToolingCommit: "a".repeat(40), dryRunPlannedMutationCount: 2, dryRunActualMutationCount: 0,
   pagesProjectGetCount: 1, deploymentGetCount: 0, supabaseReadCount: 0, supabaseWriteCount: 0, productionMutationCount: 0, retryCount: 0,
 });
 assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(base()).classification, "R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY");
@@ -29,7 +29,18 @@ reservationFailure.failureStage = "RUN_ID_RESERVATION";
 reservationFailure.dryRunSuccess = false;
 reservationFailure.dryRunChildExitCode = 1;
 reservationFailure.dryRunInnerClassification = "R6_CONSUMED_RUN_TOOL_FAILED";
+reservationFailure.dryRunReceiptRunnerCommit = null;
+reservationFailure.dryRunExpectedToolingCommit = null;
 assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(reservationFailure).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED");
+const toolingFailure = base();
+toolingFailure.success = false;
+toolingFailure.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED";
+toolingFailure.innerClassification = "QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH";
+toolingFailure.failureStage = "V3_ATTESTATION_VALIDATION";
+toolingFailure.dryRunSuccess = false;
+toolingFailure.dryRunChildExitCode = 1;
+toolingFailure.dryRunInnerClassification = toolingFailure.innerClassification;
+assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(toolingFailure).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED");
 const authFailure = base();
 authFailure.success = false;
 authFailure.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_FAILED";
@@ -51,8 +62,11 @@ authFailure.dryRunTerminalSha256 = null;
 authFailure.dryRunOuterClassification = null;
 authFailure.dryRunInnerClassification = null;
 authFailure.dryRunChildExitCode = 1;
+authFailure.dryRunExecutionCommit = null;
+authFailure.dryRunReceiptRunnerCommit = null;
+authFailure.dryRunExpectedToolingCommit = null;
 assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(authFailure).classification, authFailure.outerClassification);
-for (const [name, mutate] of Object.entries({ capture: (v) => { v.captureSuccess = false; }, auth: (v) => { v.authCheckSuccess = false; }, authState: (v) => { v.sessionValidated = false; }, dry: (v) => { v.dryRunSuccess = false; }, order: (v) => { v.authCheckSuccess = false; }, mutation: (v) => { v.productionMutationCount = 1; }, pages: (v) => { v.pagesProjectGetCount = 2; }, runId: (v) => { v.runId = "bad"; }, authLeak: (v) => { v.success = false; v.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED"; v.innerClassification = "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE"; v.dryRunSuccess = false; v.dryRunChildExitCode = 1; v.dryRunInnerClassification = "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE"; } })) {
+for (const [name, mutate] of Object.entries({ capture: (v) => { v.captureSuccess = false; }, auth: (v) => { v.authCheckSuccess = false; }, authState: (v) => { v.sessionValidated = false; }, dry: (v) => { v.dryRunSuccess = false; }, order: (v) => { v.authCheckSuccess = false; }, mutation: (v) => { v.productionMutationCount = 1; }, pages: (v) => { v.pagesProjectGetCount = 2; }, runId: (v) => { v.runId = "bad"; }, tooling: (v) => { v.dryRunExpectedToolingCommit = "b".repeat(40); }, authLeak: (v) => { v.success = false; v.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED"; v.innerClassification = "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE"; v.dryRunSuccess = false; v.dryRunChildExitCode = 1; v.dryRunInnerClassification = "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE"; } })) {
   const value = base(); mutate(value); assert.throws(() => validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(value), /^Error: R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_/, name);
 }
 process.stdout.write("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TEST_OK\n");

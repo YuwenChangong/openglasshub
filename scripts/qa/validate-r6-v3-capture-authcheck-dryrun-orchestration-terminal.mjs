@@ -9,7 +9,7 @@ const REQUIRED = [
   "authFreshnessCheckedAt", "authRemainingValidityMs", "authMinimumRequiredValidityMs", "authAttestationFreshnessPassed",
   "authCheckAuthorizedByMode", "authCheckStarted", "authCheckCompleted", "authCheckSuccess", "authenticationCompleted", "sessionValidated", "authenticatedCheckCompleted", "authCheckTerminalPath", "authCheckTerminalSha256", "authCheckOuterClassification", "authCheckInnerClassification", "authCheckChildExitCode",
   "dryRunFreshnessCheckedAt", "dryRunRemainingValidityMs", "dryRunMinimumRequiredValidityMs", "dryRunAttestationFreshnessPassed",
-  "dryRunAuthorizedByMode", "dryRunStarted", "dryRunCompleted", "dryRunSuccess", "dryRunTerminalPath", "dryRunTerminalSha256", "dryRunOuterClassification", "dryRunInnerClassification", "dryRunChildExitCode", "dryRunPlannedMutationCount", "dryRunActualMutationCount",
+  "dryRunAuthorizedByMode", "dryRunStarted", "dryRunCompleted", "dryRunSuccess", "dryRunTerminalPath", "dryRunTerminalSha256", "dryRunOuterClassification", "dryRunInnerClassification", "dryRunChildExitCode", "dryRunExecutionCommit", "dryRunReceiptRunnerCommit", "dryRunExpectedToolingCommit", "dryRunPlannedMutationCount", "dryRunActualMutationCount",
   "pagesProjectGetCount", "deploymentGetCount", "supabaseReadCount", "supabaseWriteCount", "productionMutationCount", "retryCount",
 ];
 const HASH = /^[a-f0-9]{64}$/;
@@ -32,12 +32,15 @@ export function validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(value) {
   if (value.authCheckSuccess && (!value.authenticationCompleted || !value.sessionValidated || !value.authenticatedCheckCompleted)) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_AUTH_STATE_INVALID");
   if (!value.authCheckSuccess && (value.dryRunStarted || value.dryRunCompleted || value.dryRunSuccess || value.dryRunTerminalPath !== null || value.dryRunTerminalSha256 !== null || value.dryRunOuterClassification !== null || value.dryRunInnerClassification !== null)) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_AUTH_ISOLATION_INVALID");
   if (value.dryRunInnerClassification === "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE") fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_STAGE_LEAK");
+  const dryRunBindingStarted = value.dryRunReceiptRunnerCommit !== null || value.dryRunExpectedToolingCommit !== null;
+  if ((!value.dryRunStarted && dryRunBindingStarted) || (dryRunBindingStarted && (value.dryRunExecutionCommit !== value.executionCommit || value.dryRunReceiptRunnerCommit !== value.executionCommit || value.dryRunExpectedToolingCommit !== value.executionCommit))) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TOOLING_BINDING_INVALID");
   for (const [pathKey, hashKey] of [["captureTerminalPath", "captureTerminalSha256"], ["authCheckTerminalPath", "authCheckTerminalSha256"], ["dryRunTerminalPath", "dryRunTerminalSha256"]]) if (value.success && !pathHash(value, pathKey, hashKey)) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_EVIDENCE_INVALID");
   if (value.success) {
     if (value.outerClassification !== "R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY" || value.innerClassification !== null || value.failureStage !== "complete" || !value.captureSuccess || !value.authCheckSuccess || !value.dryRunSuccess || value.capturePagesRequestCount !== 1 || value.pagesProjectGetCount !== 1 || value.authCheckChildExitCode !== 0 || value.dryRunChildExitCode !== 0) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_SUCCESS_CONTRADICTION");
   } else if (value.outerClassification === "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_FAILED") {
     if (!value.captureSuccess || !value.authCheckStarted || !value.authCheckCompleted || value.authCheckSuccess || value.authCheckInnerClassification !== value.innerClassification || !/^AUTH_PASSWORD_GRANT_/.test(String(value.failureStage)) || value.dryRunStarted || value.dryRunSuccess) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_FAILURE_CONTRADICTION");
   } else if (!/^R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_[A-Z0-9_]+$/.test(String(value.outerClassification)) || typeof value.innerClassification !== "string" || !value.innerClassification || typeof value.failureStage !== "string" || !value.failureStage) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_FAILURE_CONTRADICTION");
+  if (["QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISSING", "QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH"].includes(value.innerClassification) && (!value.captureSuccess || !value.authCheckSuccess || value.dryRunSuccess || value.failureStage !== "V3_ATTESTATION_VALIDATION")) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TOOLING_FAILURE_CONTRADICTION");
   return Object.freeze({ classification: value.outerClassification });
 }
 if (process.argv[1] && fileURLToPath(import.meta.url).replaceAll("\\", "/") === process.argv[1].replaceAll("\\", "/")) {

@@ -150,7 +150,15 @@ export async function validateDeploymentAttestation({ attestationPath, expectedS
   try { attestation = JSON.parse(text); } catch { throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID"); }
   validateAttestationShape(attestation);
   if (attestation.sourceCommit !== expectedSourceCommit) throw new Error("QA_CANARY_DEPLOYED_COMMIT_MISMATCH");
-  if (attestation.evidenceType === PROJECT_EVIDENCE_TYPE || attestation.evidenceType === PROJECT_R2_EVIDENCE_TYPE || attestation.evidenceType === PROJECT_V3_EVIDENCE_TYPE) {
+  if (attestation.evidenceType === PROJECT_V3_EVIDENCE_TYPE) {
+    if (expectedToolingCommit === null || expectedToolingCommit === undefined || expectedToolingCommit === "") {
+      throw new Error("QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISSING");
+    }
+    const expectedTooling = requireExactCommit(expectedToolingCommit, "QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISSING");
+    if (attestation.toolingCommit !== expectedTooling) {
+      throw new Error("QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH");
+    }
+  } else if (attestation.evidenceType === PROJECT_EVIDENCE_TYPE || attestation.evidenceType === PROJECT_R2_EVIDENCE_TYPE) {
     if (expectedToolingCommit === null || attestation.toolingCommit !== requireExactCommit(expectedToolingCommit, "QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID")) {
       throw new Error("QA_CANARY_DEPLOYMENT_ATTESTATION_INVALID");
     }

@@ -144,6 +144,26 @@ continues to reject any receipt mismatch with
 `1d558a54d07a9f425b98e9bcab501b4e644b7ef6` is retained only as a negative
 test example, never as an approved V3 binding.
 
+## V3 Tooling And Child Diagnostics
+
+The same already validated execution-worktree commit is also passed as
+`QA_EXPECTED_TOOLING_COMMIT`. For a V3 attestation, the minimal-canary runner
+requires that value and supplies it to the shared attestation validator. A
+missing or non-matching value fails before an adapter, journal, or mutation can
+be created with `QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISSING` or
+`QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH`.
+
+The wrapper does not merge a native Node child's stderr into a PowerShell
+pipeline. It launches the child with `System.Diagnostics.Process`, drains
+stdout and stderr separately, and records only allowlisted `QA_CANARY_*`
+classifications. Each DryRun child is given one fixed, absent output path for
+an atomically written `qa-minimal-canary-child-terminal-result-v1` record. The
+parent validates the run ID, mode, execution/receipt/tooling commit binding,
+exit state, stage, classification, and result digest shape before accepting a
+success result. A timeout, missing terminal, malformed terminal, mismatch, or
+unclassified child failure fails closed and cannot be reinterpreted as an
+AuthCheck result.
+
 Receipts are immutable once created. A failed `PENDING` receipt, its Run ID,
 attestation, commands, and evidence root must not be repaired or reused. A new
 attempt requires a new Run ID, a new attestation, a new evidence root, and a
