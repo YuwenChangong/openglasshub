@@ -169,6 +169,18 @@ attestation, commands, and evidence root must not be repaired or reused. A new
 attempt requires a new Run ID, a new attestation, a new evidence root, and a
 fresh explicit approval.
 
+### Pre-Tooling Authentication Failure
+
+After a receipt is atomically reserved, the wrapper may still stop during
+value-blind future-input validation or password-grant authentication. In this
+state, the receipt remains `PENDING` and bound to the execution commit, while
+`expectedToolingCommit` is intentionally `null`: the validated tooling commit,
+runner environment, canary child, adapter, and journal have not been reached.
+The terminal must classify this as a dry-run failure, preserve the exact
+value-blind input or authentication classification, and prove zero actual
+mutations. It must not be relabeled as a tooling-binding failure and the
+receipt remains consumed.
+
 ## DryRun Reservation Lifecycle
 
 A fresh, unregistered Run ID is the normal starting state. The wrapper first

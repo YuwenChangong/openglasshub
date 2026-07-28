@@ -856,6 +856,10 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
         $state['failureStage'] = 'RUN_ID_RESERVATION'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true
         throw ([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE)
       }
+      if (-not [string]::IsNullOrWhiteSpace([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_PRE_TOOLING_FAILURE)) {
+        $state['failureStage'] = 'authentication'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = $Validation.Head
+        throw ([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_PRE_TOOLING_FAILURE)
+      }
       $state['failureStage'] = 'MINIMAL_CANARY_CHILD_LAUNCH'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = $Validation.Head; $state['expectedToolingCommit'] = $Validation.Head; $state['childStarted'] = $true; $state['canaryChildStarted'] = $true; $state['childCompleted'] = $true; $state['childExitCode'] = 0
     } else {
       $state['failureStage'] = 'RUN_ID_REGISTRY_LOOKUP'; Assert-RunIdEligible $Validation.Path $RequestedRunId | Out-Null; Assert-RunIdJournalAbsent $RequestedRunId; $state['runIdValidationPassed'] = $true
@@ -945,6 +949,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
     if ($state['failureStage'] -eq 'auth_freshness') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_FRESHNESS_INSUFFICIENT' }
     elseif ($state['failureStage'] -eq 'dry_run_freshness') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FRESHNESS_INSUFFICIENT' }
     elseif ($state['failureStage'] -eq 'auth_check' -or $state['failureStage'] -match '^AUTH_PASSWORD_GRANT_') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_FAILED' }
+    elseif ($state['dryRunStarted'] -and $state['dryRunCompleted']) { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED' }
     elseif ($state['failureStage'] -eq 'dry_run' -or $state['failureStage'] -match '^(RUN_ID_|RECEIPT_|MINIMAL_CANARY_)') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED' }
     elseif ($state['failureStage'] -eq 'capture') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_CAPTURE_FAILED' }
     else { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_UNEXPECTED_FAILURE' }

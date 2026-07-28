@@ -32,8 +32,13 @@ export function validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(value) {
   if (value.authCheckSuccess && (!value.authenticationCompleted || !value.sessionValidated || !value.authenticatedCheckCompleted)) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_AUTH_STATE_INVALID");
   if (!value.authCheckSuccess && (value.dryRunStarted || value.dryRunCompleted || value.dryRunSuccess || value.dryRunTerminalPath !== null || value.dryRunTerminalSha256 !== null || value.dryRunOuterClassification !== null || value.dryRunInnerClassification !== null)) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_AUTH_ISOLATION_INVALID");
   if (value.dryRunInnerClassification === "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE") fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_STAGE_LEAK");
-  const dryRunBindingStarted = value.dryRunReceiptRunnerCommit !== null || value.dryRunExpectedToolingCommit !== null;
-  if ((!value.dryRunStarted && dryRunBindingStarted) || (dryRunBindingStarted && (value.dryRunExecutionCommit !== value.executionCommit || value.dryRunReceiptRunnerCommit !== value.executionCommit || value.dryRunExpectedToolingCommit !== value.executionCommit))) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TOOLING_BINDING_INVALID");
+  const receiptBindingStarted = value.dryRunReceiptRunnerCommit !== null;
+  const toolingBindingStarted = value.dryRunExpectedToolingCommit !== null;
+  if ((!value.dryRunStarted && (receiptBindingStarted || toolingBindingStarted)) ||
+      (receiptBindingStarted && (value.dryRunExecutionCommit !== value.executionCommit || value.dryRunReceiptRunnerCommit !== value.executionCommit)) ||
+      (toolingBindingStarted && (value.dryRunExecutionCommit !== value.executionCommit || value.dryRunExpectedToolingCommit !== value.executionCommit)) ||
+      (toolingBindingStarted && !receiptBindingStarted) ||
+      (value.dryRunSuccess && (!receiptBindingStarted || !toolingBindingStarted))) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TOOLING_BINDING_INVALID");
   for (const [pathKey, hashKey] of [["captureTerminalPath", "captureTerminalSha256"], ["authCheckTerminalPath", "authCheckTerminalSha256"], ["dryRunTerminalPath", "dryRunTerminalSha256"]]) if (value.success && !pathHash(value, pathKey, hashKey)) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_EVIDENCE_INVALID");
   if (value.success) {
     if (value.outerClassification !== "R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY" || value.innerClassification !== null || value.failureStage !== "complete" || !value.captureSuccess || !value.authCheckSuccess || !value.dryRunSuccess || value.capturePagesRequestCount !== 1 || value.pagesProjectGetCount !== 1 || value.authCheckChildExitCode !== 0 || value.dryRunChildExitCode !== 0) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_SUCCESS_CONTRADICTION");
