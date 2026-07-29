@@ -489,6 +489,28 @@ If resolution fails before a receipt is reserved, the failed DryRun terminal
 records no receipt runner commit, no expected tooling commit, and no target
 binding. Those fields begin together only after the reservation is bound.
 
+### Target-resolution diagnostics
+
+New DryRun and three-stage orchestration terminals use schema version `v3` and
+record target resolution as a separate `TARGET_RESOLUTION` phase after password
+grant authentication. They record only value-blind structural fields:
+`targetResolutionStarted`, `targetResolutionCompleted`,
+`targetResolutionSucceeded`, `targetResolutionFailureCategory`, a result-count
+class (`ZERO`, `ONE`, `MULTIPLE`, or `UNKNOWN`), eligibility state, canonical-ID
+and canonical-slug resolution booleans, and target-binding artifact and hash
+booleans. The diagnostics never record the requested slug, canonical UUID,
+provider response, token, email, or credential on a failed resolution.
+
+Failure categories distinguish invalid input, not found, non-unique,
+ineligible, incomplete catalog data, provider/read failure, existing/missing/
+invalid binding artifact, resolver process failure, and resolver-output failure.
+Any failed target-resolution lifecycle must have `failureStage:
+TARGET_RESOLUTION`, no receipt, no tooling binding, no child launch, no journal,
+and zero writes or mutations. `validate-canonical-canary-target-binding.mjs`
+validates a successful binding before its hash can be recorded. Historical v1
+and v2 terminals remain readable for forensic evidence but cannot be rewritten
+or treated as v3 diagnostics.
+
 Final execution accepts only a validated final authorization. It never prompts
 for a circle slug and never reads `QA_CANARY_CIRCLE_SLUG`; `CREATE_POST` uses the
 sealed canonical UUID and `CREATE_COMMENT` uses only the post created in that

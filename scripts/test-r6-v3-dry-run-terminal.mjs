@@ -3,8 +3,42 @@ import { R6_V3_DRY_RUN_TERMINAL_VERSION, validateR6V3DryRunTerminal } from "./qa
 import { createCanonicalCanaryTargetBinding } from "./qa/canonical-canary-target-binding.mjs";
 
 const target = () => createCanonicalCanaryTargetBinding({ resolvedAtUtc: "2099-01-01T00:00:00.000Z", canonicalCircleId: "11111111-1111-4111-8111-111111111111", canonicalCircleSlug: "canonical-circle", baseMutationPlanSchema: "qa-minimal-canary-mutation-plan-v1", baseMutationPlanHash: "b".repeat(64), executionCommit: "a".repeat(40), toolingCommit: "a".repeat(40) });
-const base = () => ({ schemaVersion: R6_V3_DRY_RUN_TERMINAL_VERSION, startedAt: "2099-01-01T00:00:00.000Z", completedAt: "2099-01-01T00:00:01.000Z", runId: "qa-canary-11111111-1111-4111-8111-111111111111", outerClassification: "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY", innerClassification: null, success: true, failureStage: "complete", captureProvenancePassed: true, authProvenancePassed: true, attestationFreshnessPassed: true, minimumRequiredValidityMs: 720000, remainingValidityMs: 720000, runIdValidationPassed: true, reservationAttempted: true, reservationCompleted: true, receiptCreated: true, receiptState: "PENDING", executionCommit: "a".repeat(40), receiptRunnerCommit: "a".repeat(40), expectedToolingCommit: "a".repeat(40), targetBinding: target(), targetBindingPath: "C:\\safe\\canonical-canary-target-binding.json", targetBindingSha256: "c".repeat(64), childStarted: true, canaryChildStarted: true, childCompleted: true, childTimedOut: false, stdoutClassification: null, stderrClassification: null, childTerminalPath: null, childTerminalSha256: null, childTerminalLocated: false, childTerminalValidated: false, adapterReached: false, journalCreated: false, childExitCode: 0, plannedMutationCount: 2, actualMutationCount: 0, supabaseWriteCount: 0, productionMutationCount: 0, retryCount: 0 });
+const base = () => ({ schemaVersion: R6_V3_DRY_RUN_TERMINAL_VERSION, startedAt: "2099-01-01T00:00:00.000Z", completedAt: "2099-01-01T00:00:01.000Z", runId: "qa-canary-11111111-1111-4111-8111-111111111111", outerClassification: "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY", innerClassification: null, success: true, failureStage: "complete", captureProvenancePassed: true, authProvenancePassed: true, attestationFreshnessPassed: true, minimumRequiredValidityMs: 720000, remainingValidityMs: 720000, runIdValidationPassed: true, reservationAttempted: true, reservationCompleted: true, receiptCreated: true, receiptState: "PENDING", executionCommit: "a".repeat(40), receiptRunnerCommit: "a".repeat(40), expectedToolingCommit: "a".repeat(40), targetBinding: target(), targetBindingPath: "C:\\safe\\canonical-canary-target-binding.json", targetBindingSha256: "c".repeat(64), childStarted: true, canaryChildStarted: true, childCompleted: true, childTimedOut: false, stdoutClassification: null, stderrClassification: null, childTerminalPath: null, childTerminalSha256: null, childTerminalLocated: false, childTerminalValidated: false, adapterReached: false, journalCreated: false, childExitCode: 0, plannedMutationCount: 2, actualMutationCount: 0, supabaseWriteCount: 0, productionMutationCount: 0, retryCount: 0, authenticationCompleted: true, targetResolutionStarted: true, targetResolutionCompleted: true, targetResolutionSucceeded: true, targetResolutionFailureCategory: null, targetResultCountClass: "ONE", targetEligibleState: "ELIGIBLE", canonicalCircleIdResolved: true, canonicalCircleSlugResolved: true, targetBindingArtifactPresent: true, targetBindingValidationPassed: true, targetBindingCreated: true, targetBindingHashCreated: true, targetBoundExecutionPlanHashCreated: true });
 assert.equal(validateR6V3DryRunTerminal(base()).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY");
+const historicV2 = base();
+historicV2.schemaVersion = "r6-v3-dry-run-terminal-result-v2";
+for (const key of ["authenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "targetResolutionFailureCategory", "targetResultCountClass", "targetEligibleState", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated"]) delete historicV2[key];
+assert.equal(validateR6V3DryRunTerminal(historicV2).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY");
+const targetResolutionFailure = base();
+targetResolutionFailure.success = false;
+targetResolutionFailure.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_FAILED";
+targetResolutionFailure.innerClassification = "QA_CANARY_TARGET_NOT_FOUND";
+targetResolutionFailure.failureStage = "TARGET_RESOLUTION";
+targetResolutionFailure.targetResolutionSucceeded = false;
+targetResolutionFailure.targetResolutionFailureCategory = "TARGET_NOT_FOUND";
+targetResolutionFailure.targetResultCountClass = "ZERO";
+targetResolutionFailure.targetEligibleState = "UNKNOWN";
+targetResolutionFailure.canonicalCircleIdResolved = false;
+targetResolutionFailure.canonicalCircleSlugResolved = false;
+targetResolutionFailure.targetBindingArtifactPresent = false;
+targetResolutionFailure.targetBindingValidationPassed = false;
+targetResolutionFailure.targetBindingCreated = false;
+targetResolutionFailure.targetBindingHashCreated = false;
+targetResolutionFailure.targetBoundExecutionPlanHashCreated = false;
+targetResolutionFailure.targetBinding = null;
+targetResolutionFailure.targetBindingPath = null;
+targetResolutionFailure.targetBindingSha256 = null;
+targetResolutionFailure.reservationAttempted = false;
+targetResolutionFailure.reservationCompleted = false;
+targetResolutionFailure.receiptCreated = false;
+targetResolutionFailure.receiptState = "NOT_CREATED_OR_UNCONFIRMED";
+targetResolutionFailure.receiptRunnerCommit = null;
+targetResolutionFailure.expectedToolingCommit = null;
+targetResolutionFailure.childStarted = false;
+targetResolutionFailure.canaryChildStarted = false;
+targetResolutionFailure.childCompleted = false;
+targetResolutionFailure.childExitCode = 1;
+assert.equal(validateR6V3DryRunTerminal(targetResolutionFailure).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_FAILED");
 const receiptBindingFailure = base();
 receiptBindingFailure.success = false;
 receiptBindingFailure.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_FAILED";
@@ -32,7 +66,7 @@ toolingFailure.innerClassification = "QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MI
 toolingFailure.failureStage = "V3_ATTESTATION_VALIDATION";
 toolingFailure.childExitCode = 1;
 assert.equal(validateR6V3DryRunTerminal(toolingFailure).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_FAILED");
-for (const [name, mutate] of Object.entries({ mutation: (v) => { v.actualMutationCount = 1; }, write: (v) => { v.supabaseWriteCount = 1; }, retry: (v) => { v.retryCount = 1; }, stale: (v) => { v.remainingValidityMs = 719999; }, runId: (v) => { v.runId = "bad"; }, authLeak: (v) => { v.success = false; v.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_FAILED"; v.innerClassification = "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE"; }, receipt: (v) => { v.receiptCreated = false; }, adapter: (v) => { v.adapterReached = true; }, toolingMismatch: (v) => { v.receiptRunnerCommit = "b".repeat(40); }, childFailureSuccess: (v) => { v.childExitCode = 1; }, toolingFailureWrongStage: (v) => { v.success = false; v.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_FAILED"; v.innerClassification = "QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH"; v.failureStage = "MINIMAL_CANARY_CHILD_LAUNCH"; v.childExitCode = 1; } })) {
+for (const [name, mutate] of Object.entries({ mutation: (v) => { v.actualMutationCount = 1; }, write: (v) => { v.supabaseWriteCount = 1; }, retry: (v) => { v.retryCount = 1; }, stale: (v) => { v.remainingValidityMs = 719999; }, runId: (v) => { v.runId = "bad"; }, authLeak: (v) => { v.success = false; v.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_FAILED"; v.innerClassification = "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_UNEXPECTED_FAILURE"; }, receipt: (v) => { v.receiptCreated = false; }, adapter: (v) => { v.adapterReached = true; }, toolingMismatch: (v) => { v.receiptRunnerCommit = "b".repeat(40); }, childFailureSuccess: (v) => { v.childExitCode = 1; }, targetFailureWrongStage: (v) => { Object.assign(v, targetResolutionFailure); v.failureStage = "AUTHENTICATION"; }, targetPrivacyLeak: (v) => { v.targetResolutionFailureCategory = "target-slug@example.com"; }, toolingFailureWrongStage: (v) => { v.success = false; v.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_FAILED"; v.innerClassification = "QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH"; v.failureStage = "MINIMAL_CANARY_CHILD_LAUNCH"; v.childExitCode = 1; } })) {
   const value = base(); mutate(value); assert.throws(() => validateR6V3DryRunTerminal(value), /^Error: R6_V3_DRY_RUN_TERMINAL_/, name);
 }
 process.stdout.write("R6_V3_DRY_RUN_TERMINAL_TEST_OK\n");

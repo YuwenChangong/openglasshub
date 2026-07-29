@@ -9,7 +9,13 @@ async function request(baseUrl, route, options = {}) {
   return { response, payload };
 }
 function authHeaders(accessToken, operationId = null) { return { authorization: `Bearer ${accessToken}`, "content-type": "application/json", ...(operationId ? { "x-qa-canary-operation-id": operationId } : {}) }; }
-function exactCircle(payload, slug) { const matches = (payload?.circles ?? []).filter((circle) => circle?.slug === slug); if (matches.length !== 1 || !matches[0]?.id) throw new Error("QA_CANARY_CIRCLE_RESOLUTION_INCOMPLETE"); return { id: String(matches[0].id), slug: String(matches[0].slug) }; }
+function exactCircle(payload, slug) {
+  const matches = (payload?.circles ?? []).filter((circle) => circle?.slug === slug);
+  if (matches.length === 0) throw new Error("QA_CANARY_TARGET_NOT_FOUND");
+  if (matches.length > 1) throw new Error("QA_CANARY_TARGET_AMBIGUOUS");
+  if (!matches[0]?.id) throw new Error("QA_CANARY_TARGET_CIRCLE_ID_MISSING");
+  return { id: String(matches[0].id), slug: String(matches[0].slug) };
+}
 
 export function createProductionMinimalCanaryReadAdapter({ baseUrl, supabaseUrl, anonKey, accessToken, requestTimeoutMs }) {
   return {

@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
 import {
   CANONICAL_CANARY_TARGET_BINDING_VERSION,
   createCanonicalCanaryTargetBinding,
   validateCanonicalCanaryTargetBinding,
 } from "./qa/canonical-canary-target-binding.mjs";
+import { validateCanonicalCanaryTargetBindingFile } from "./qa/validate-canonical-canary-target-binding.mjs";
 
 const input = () => ({
   resolvedAtUtc: "2099-01-01T00:00:00.000Z",
@@ -53,5 +57,16 @@ expectReject(mismatchedPlan, "base mutation plan mismatch");
 
 const historicalSchema = { ...valid(), schemaVersion: "qa-canary-target-binding-v0" };
 expectReject(historicalSchema, "historical target binding cannot authorize current production");
+
+const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "canonical-canary-target-binding-"));
+try {
+  const bindingPath = path.join(temporaryRoot, "binding.json");
+  await writeFile(bindingPath, `${JSON.stringify(valid())}\n`, "utf8");
+  assert.deepEqual(await validateCanonicalCanaryTargetBindingFile(bindingPath), valid());
+  await writeFile(bindingPath, "{}\n", "utf8");
+  await assert.rejects(() => validateCanonicalCanaryTargetBindingFile(bindingPath), /^Error: QA_CANARY_TARGET_BINDING_/);
+} finally {
+  await rm(temporaryRoot, { recursive: true, force: true });
+}
 
 process.stdout.write("CANONICAL_CANARY_TARGET_BINDING_TEST_OK\n");
