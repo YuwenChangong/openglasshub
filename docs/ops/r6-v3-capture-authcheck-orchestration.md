@@ -45,9 +45,11 @@ contracts pass. The terminal is value-blind: it never records the endpoint,
 email, password, anon key, account ID, request body, response body, provider
 message, token, refresh token, cookie, session, or stack trace.
 
-The v2 Auth terminal records only the request lifecycle booleans, a bounded
-network/TLS enum, an optional integer HTTP status, and a provider error-code
-class from a fixed allowlist. `authenticationAttempted` means the password grant
+The v3 Auth terminal records only the request lifecycle booleans, a bounded
+network/TLS enum, an optional integer HTTP status, `providerReasonClass`, and
+`providerReasonRecognized`. The reason class is a fixed value-blind allowlist;
+the raw provider code, response body, and message are discarded in-process.
+`authenticationAttempted` means the password grant
 was handed to the HTTP client; `requestDispatched` means `Invoke-RestMethod` was
 entered. An endpoint or project-configuration failure therefore leaves both
 false. Every password-grant request has a fixed 20 second timeout and keeps
@@ -62,17 +64,25 @@ The current value-blind classifications are:
 | TCP connection | `R6_AUTH_CONNECTION_FAILED` |
 | Timeout | `R6_AUTH_CONNECTION_TIMEOUT` |
 | TLS/certificate/secure channel | `R6_AUTH_TLS_NEGOTIATION_FAILED` |
-| HTTP 400, 401, 403, 404, 429, 5xx, other | `R6_AUTH_HTTP_BAD_REQUEST`, `R6_AUTH_HTTP_UNAUTHORIZED`, `R6_AUTH_HTTP_FORBIDDEN`, `R6_AUTH_HTTP_NOT_FOUND`, `R6_AUTH_HTTP_RATE_LIMITED`, `R6_AUTH_HTTP_SERVER_ERROR`, `R6_AUTH_HTTP_OTHER_REJECTION` |
+| HTTP 400 credential rejection | `R6_AUTH_CREDENTIAL_REJECTED` |
+| HTTP 400 email confirmation / account state | `R6_AUTH_EMAIL_CONFIRMATION_REQUIRED`, `R6_AUTH_ACCOUNT_DISABLED_OR_BANNED` |
+| HTTP 400 project/public-key or verification | `R6_AUTH_PROJECT_OR_PUBLIC_KEY_REJECTED`, `R6_AUTH_VERIFICATION_REQUIRED` |
+| HTTP 400 rate / temporary provider rejection | `R6_AUTH_RATE_LIMITED`, `R6_AUTH_TEMPORARY_PROVIDER_REJECTION` |
+| Unknown HTTP 400; HTTP 401, 403, 404, 429, 5xx, other | `R6_AUTH_HTTP_BAD_REQUEST`, `R6_AUTH_HTTP_UNAUTHORIZED`, `R6_AUTH_HTTP_FORBIDDEN`, `R6_AUTH_HTTP_NOT_FOUND`, `R6_AUTH_HTTP_RATE_LIMITED`, `R6_AUTH_HTTP_SERVER_ERROR`, `R6_AUTH_HTTP_OTHER_REJECTION` |
 | Successful HTTP response with invalid session shape | `R6_AUTH_RESPONSE_MALFORMED` |
 | Local endpoint or project configuration | `R6_AUTH_ENDPOINT_BINDING_INVALID`, `R6_AUTH_PROJECT_CONFIGURATION_INVALID` |
 | Any unclassified failure | `R6_AUTH_UNEXPECTED_FAILURE` |
 
 When an HTTP error carries JSON in PowerShell's error details, the implementation
-parses at most 4096 characters and retains only one allowlisted code class:
-`invalid_grant`, `invalid_credentials`, `email_not_confirmed`, `user_not_found`,
-`rate_limit`, `provider_rejection_other`, or `not_observed`. It does not write
-the body or message to evidence. An HTTP response is always classified by its
-status first; a 401 cannot be recorded as a network failure.
+parses at most 4096 characters and reads only the structured `code`, `error`,
+`error_code`, or `status` field. Exact allowlisted values map to one of
+`credential_rejection`, `email_confirmation_required`,
+`account_disabled_or_banned`, `project_or_public_key_rejection`,
+`verification_required`, `rate_limited`, or `temporary_provider_rejection`.
+Unknown, absent, or malformed structured values remain `provider_rejection_other`
+or `not_observed` with `providerReasonRecognized=false`. It never writes the body,
+message, raw provider code, or a hash of either to evidence. Historical v1 and v2
+terminals remain validator-supported; only new terminals use v3.
 
 The historic terminal with `R6_AUTH_NETWORK_OR_REJECTED` is immutable and still
 accepted by the validator as a v1 record. Its exact cause is **not recoverable

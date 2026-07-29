@@ -527,7 +527,7 @@ function Assert-CurrentCanonicalProductionV3CaptureProvenance([pscustomobject]$D
 
 function Write-CurrentCanonicalProductionV3AuthCheckTerminal([string]$Path, [hashtable]$State) {
   $State.completedAt = [DateTime]::UtcNow.ToString('o')
-  $State.schemaVersion = 'r6-auth-check-only-terminal-result-v2'
+  $State.schemaVersion = 'r6-auth-check-only-terminal-result-v3'
   $State.mode = 'AuthCheckOnly'
   $raw = [Text.Encoding]::UTF8.GetBytes(($State | ConvertTo-Json -Depth 5 -Compress) + [Environment]::NewLine)
   $temporary = "$Path.$PID.$([guid]::NewGuid().ToString()).tmp"
@@ -551,7 +551,7 @@ function Invoke-CurrentCanonicalProductionV3AuthCheckOnly {
     deploymentAttestationPath = $DeploymentAttestationPath; deploymentAttestationSha256 = $DeploymentAttestationSha256
     captureTerminalLocated = $false; captureTerminalShaValidated = $false; captureTerminalSchemaAccepted = $false; captureTerminalClassificationAccepted = $false; captureTerminalFreshnessAccepted = $false; captureParentRootMatched = $false; captureCommandProvenanceMatched = $false; attestationPathMatched = $false; attestationShaMatched = $false; captureProvenancePassed = $false
     attestationType = $null; attestationIssuedAt = $null; attestationExpiresAt = $null; attestationValidatedAt = $null; remainingValidityMs = $null; minimumRequiredValidityMs = $script:MinimumAttestationValidityMilliseconds; attestationFreshnessPassed = $false
-    credentialPromptReached = $false; otpPromptReached = $false; authenticationStageReached = $false; endpointBindingPassed = $false; projectConfigurationPassed = $false; requestAttempted = $false; requestDispatched = $false; responseReceived = $false; networkFailureKind = 'none'; tlsFailureKind = 'none'; httpStatusCode = $null; providerErrorCodeClass = 'not_observed'; authenticationAttempted = $false; authenticationCompleted = $false; sessionCreated = $false; sessionValidated = $false; authenticatedCheckReached = $false; authenticatedCheckCompleted = $false
+    credentialPromptReached = $false; otpPromptReached = $false; authenticationStageReached = $false; endpointBindingPassed = $false; projectConfigurationPassed = $false; requestAttempted = $false; requestDispatched = $false; responseReceived = $false; networkFailureKind = 'none'; tlsFailureKind = 'none'; httpStatusCode = $null; providerReasonClass = 'not_observed'; providerReasonRecognized = $false; authenticationAttempted = $false; authenticationCompleted = $false; sessionCreated = $false; sessionValidated = $false; authenticatedCheckReached = $false; authenticatedCheckCompleted = $false
     pagesRequestCount = 0; deploymentRequestCount = 0; supabaseReadCount = 0; supabaseWriteCount = 0; productionMutationCount = 0
     childStarted = $false; childExitCode = 1; outerClassification = $null; innerClassification = $null; failureStage = 'worktree_validation'; exceptionType = $null; success = $false
   }
@@ -1289,28 +1289,43 @@ function Get-FutureInputs {
   return [pscustomobject]@{ ProjectRef = $projectRef; AnonSecure = $anonSecure; Email = $email; PasswordSecure = $passwordSecure; CircleSlug = $circleSlug }
 }
 
-function Get-AuthProviderErrorCodeClass([string]$Candidate) {
-  if ([string]::IsNullOrWhiteSpace($Candidate) -or $Candidate.Length -gt 4096) { return 'not_observed' }
+function Get-AuthProviderRejectionDetails([string]$Candidate) {
+  $fallback = [pscustomobject]@{ ReasonClass = 'not_observed'; Recognized = $false }
+  if ([string]::IsNullOrWhiteSpace($Candidate) -or $Candidate.Length -gt 4096) { return $fallback }
   try {
     $parsed = $Candidate | ConvertFrom-Json -ErrorAction Stop
     $value = $null
-    foreach ($name in @('error','code')) {
-      if ($null -ne $parsed.PSObject.Properties[$name]) { $value = [string]$parsed.$name; break }
+    foreach ($name in @('code','error','error_code','status')) {
+      if ($null -ne $parsed.PSObject.Properties[$name] -and -not [string]::IsNullOrWhiteSpace([string]$parsed.$name)) { $value = ([string]$parsed.$name).Trim().ToLowerInvariant(); break }
     }
     switch ($value) {
-      'invalid_grant' { return 'invalid_grant' }
-      'invalid_credentials' { return 'invalid_credentials' }
-      'email_not_confirmed' { return 'email_not_confirmed' }
-      'user_not_found' { return 'user_not_found' }
-      'rate_limit' { return 'rate_limit' }
-      default { if ([string]::IsNullOrWhiteSpace($value)) { return 'not_observed' }; return 'provider_rejection_other' }
+      { $_ -in @('invalid_grant','invalid_credentials','invalid_login_credentials','user_not_found') } { return [pscustomobject]@{ ReasonClass = 'credential_rejection'; Recognized = $true } }
+      { $_ -in @('email_not_confirmed','email_confirmation_required') } { return [pscustomobject]@{ ReasonClass = 'email_confirmation_required'; Recognized = $true } }
+      { $_ -in @('user_disabled','user_banned','account_disabled','account_banned') } { return [pscustomobject]@{ ReasonClass = 'account_disabled_or_banned'; Recognized = $true } }
+      { $_ -in @('invalid_api_key','invalid_anon_key','api_key_invalid','project_mismatch') } { return [pscustomobject]@{ ReasonClass = 'project_or_public_key_rejection'; Recognized = $true } }
+      { $_ -in @('captcha_required','verification_required','security_challenge_required') } { return [pscustomobject]@{ ReasonClass = 'verification_required'; Recognized = $true } }
+      { $_ -in @('rate_limit','rate_limited','too_many_requests') } { return [pscustomobject]@{ ReasonClass = 'rate_limited'; Recognized = $true } }
+      { $_ -in @('temporarily_unavailable','temporary_unavailable','request_temporarily_rejected') } { return [pscustomobject]@{ ReasonClass = 'temporary_provider_rejection'; Recognized = $true } }
+      default { if ([string]::IsNullOrWhiteSpace($value)) { return $fallback }; return [pscustomobject]@{ ReasonClass = 'provider_rejection_other'; Recognized = $false } }
     }
-  } catch { return 'not_observed' }
+  } catch { return $fallback }
 }
 
-function Get-AuthHttpFailureDetails([int]$StatusCode, [string]$ProviderCodeClass = 'not_observed') {
-  $classification = if ($StatusCode -eq 400) { 'R6_AUTH_HTTP_BAD_REQUEST' } elseif ($StatusCode -eq 401) { 'R6_AUTH_HTTP_UNAUTHORIZED' } elseif ($StatusCode -eq 403) { 'R6_AUTH_HTTP_FORBIDDEN' } elseif ($StatusCode -eq 404) { 'R6_AUTH_HTTP_NOT_FOUND' } elseif ($StatusCode -eq 429) { 'R6_AUTH_HTTP_RATE_LIMITED' } elseif ($StatusCode -ge 500 -and $StatusCode -le 599) { 'R6_AUTH_HTTP_SERVER_ERROR' } else { 'R6_AUTH_HTTP_OTHER_REJECTION' }
-  return [pscustomobject]@{ Classification = $classification; NetworkFailureKind = 'none'; TlsFailureKind = 'none'; HttpStatusCode = $StatusCode; ProviderErrorCodeClass = $ProviderCodeClass; ResponseReceived = $true }
+function Get-AuthHttpFailureDetails([int]$StatusCode, [pscustomobject]$ProviderReason = $null) {
+  if ($null -eq $ProviderReason) { $ProviderReason = [pscustomobject]@{ ReasonClass = 'not_observed'; Recognized = $false } }
+  $classification = if ($StatusCode -eq 400 -and [bool]$ProviderReason.Recognized) {
+    switch ([string]$ProviderReason.ReasonClass) {
+      'credential_rejection' { 'R6_AUTH_CREDENTIAL_REJECTED' }
+      'email_confirmation_required' { 'R6_AUTH_EMAIL_CONFIRMATION_REQUIRED' }
+      'account_disabled_or_banned' { 'R6_AUTH_ACCOUNT_DISABLED_OR_BANNED' }
+      'project_or_public_key_rejection' { 'R6_AUTH_PROJECT_OR_PUBLIC_KEY_REJECTED' }
+      'verification_required' { 'R6_AUTH_VERIFICATION_REQUIRED' }
+      'rate_limited' { 'R6_AUTH_RATE_LIMITED' }
+      'temporary_provider_rejection' { 'R6_AUTH_TEMPORARY_PROVIDER_REJECTION' }
+      default { 'R6_AUTH_HTTP_BAD_REQUEST' }
+    }
+  } elseif ($StatusCode -eq 400) { 'R6_AUTH_HTTP_BAD_REQUEST' } elseif ($StatusCode -eq 401) { 'R6_AUTH_HTTP_UNAUTHORIZED' } elseif ($StatusCode -eq 403) { 'R6_AUTH_HTTP_FORBIDDEN' } elseif ($StatusCode -eq 404) { 'R6_AUTH_HTTP_NOT_FOUND' } elseif ($StatusCode -eq 429) { 'R6_AUTH_HTTP_RATE_LIMITED' } elseif ($StatusCode -ge 500 -and $StatusCode -le 599) { 'R6_AUTH_HTTP_SERVER_ERROR' } else { 'R6_AUTH_HTTP_OTHER_REJECTION' }
+  return [pscustomobject]@{ Classification = $classification; NetworkFailureKind = 'none'; TlsFailureKind = 'none'; HttpStatusCode = $StatusCode; ProviderReasonClass = [string]$ProviderReason.ReasonClass; ProviderReasonRecognized = [bool]$ProviderReason.Recognized; ResponseReceived = $true }
 }
 
 function Get-AuthPasswordGrantFailureDetails([object]$ErrorRecord) {
@@ -1321,26 +1336,26 @@ function Get-AuthPasswordGrantFailureDetails([object]$ErrorRecord) {
     if ($null -ne $response -and $null -ne $response.Value) {
       $statusProperty = $response.Value.PSObject.Properties['StatusCode']
       if ($null -ne $statusProperty) {
-        try { return Get-AuthHttpFailureDetails ([int]$statusProperty.Value) (Get-AuthProviderErrorCodeClass $details) } catch { }
+        try { return Get-AuthHttpFailureDetails ([int]$statusProperty.Value) (Get-AuthProviderRejectionDetails $details) } catch { }
       }
     }
     if ($exception -is [System.Net.WebException]) {
       switch ($exception.Status) {
-        ([System.Net.WebExceptionStatus]::NameResolutionFailure) { return [pscustomobject]@{ Classification='R6_AUTH_DNS_RESOLUTION_FAILED'; NetworkFailureKind='dns'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
-        ([System.Net.WebExceptionStatus]::ConnectFailure) { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_FAILED'; NetworkFailureKind='connection'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
-        ([System.Net.WebExceptionStatus]::Timeout) { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_TIMEOUT'; NetworkFailureKind='timeout'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
-        ([System.Net.WebExceptionStatus]::TrustFailure) { return [pscustomobject]@{ Classification='R6_AUTH_TLS_NEGOTIATION_FAILED'; NetworkFailureKind='tls'; TlsFailureKind='trust'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
-        ([System.Net.WebExceptionStatus]::SecureChannelFailure) { return [pscustomobject]@{ Classification='R6_AUTH_TLS_NEGOTIATION_FAILED'; NetworkFailureKind='tls'; TlsFailureKind='secure_channel'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+        ([System.Net.WebExceptionStatus]::NameResolutionFailure) { return [pscustomobject]@{ Classification='R6_AUTH_DNS_RESOLUTION_FAILED'; NetworkFailureKind='dns'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false } }
+        ([System.Net.WebExceptionStatus]::ConnectFailure) { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_FAILED'; NetworkFailureKind='connection'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false } }
+        ([System.Net.WebExceptionStatus]::Timeout) { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_TIMEOUT'; NetworkFailureKind='timeout'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false } }
+        ([System.Net.WebExceptionStatus]::TrustFailure) { return [pscustomobject]@{ Classification='R6_AUTH_TLS_NEGOTIATION_FAILED'; NetworkFailureKind='tls'; TlsFailureKind='trust'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false } }
+        ([System.Net.WebExceptionStatus]::SecureChannelFailure) { return [pscustomobject]@{ Classification='R6_AUTH_TLS_NEGOTIATION_FAILED'; NetworkFailureKind='tls'; TlsFailureKind='secure_channel'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false } }
       }
     }
     $message = [string]$exception.Message
-    if ($message -match '(?i)(trust relationship|certificate|secure channel|tls|ssl)') { return [pscustomobject]@{ Classification='R6_AUTH_TLS_NEGOTIATION_FAILED'; NetworkFailureKind='tls'; TlsFailureKind='other'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
-    if ($message -match '(?i)(name resolution|name.*not.*resolved|no such host)') { return [pscustomobject]@{ Classification='R6_AUTH_DNS_RESOLUTION_FAILED'; NetworkFailureKind='dns'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
-    if ($message -match '(?i)(timed out|timeout)') { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_TIMEOUT'; NetworkFailureKind='timeout'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
-    if ($message -match '(?i)(connect.*fail|connection.*refused)') { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_FAILED'; NetworkFailureKind='connection'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false } }
+    if ($message -match '(?i)(trust relationship|certificate|secure channel|tls|ssl)') { return [pscustomobject]@{ Classification='R6_AUTH_TLS_NEGOTIATION_FAILED'; NetworkFailureKind='tls'; TlsFailureKind='other'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false } }
+    if ($message -match '(?i)(name resolution|name.*not.*resolved|no such host)') { return [pscustomobject]@{ Classification='R6_AUTH_DNS_RESOLUTION_FAILED'; NetworkFailureKind='dns'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false } }
+    if ($message -match '(?i)(timed out|timeout)') { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_TIMEOUT'; NetworkFailureKind='timeout'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false } }
+    if ($message -match '(?i)(connect.*fail|connection.*refused)') { return [pscustomobject]@{ Classification='R6_AUTH_CONNECTION_FAILED'; NetworkFailureKind='connection'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false } }
     $exception = $exception.InnerException
   }
-  return [pscustomobject]@{ Classification='R6_AUTH_UNEXPECTED_FAILURE'; NetworkFailureKind='unknown'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false }
+  return [pscustomobject]@{ Classification='R6_AUTH_UNEXPECTED_FAILURE'; NetworkFailureKind='unknown'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false }
 }
 
 function Set-AuthPasswordGrantFailureState([System.Collections.IDictionary]$State, [pscustomobject]$Details) {
@@ -1348,7 +1363,8 @@ function Set-AuthPasswordGrantFailureState([System.Collections.IDictionary]$Stat
   $State['networkFailureKind'] = [string]$Details.NetworkFailureKind
   $State['tlsFailureKind'] = [string]$Details.TlsFailureKind
   $State['httpStatusCode'] = $Details.HttpStatusCode
-  $State['providerErrorCodeClass'] = [string]$Details.ProviderErrorCodeClass
+  $State['providerReasonClass'] = [string]$Details.ProviderReasonClass
+  $State['providerReasonRecognized'] = [bool]$Details.ProviderReasonRecognized
   $State['failureStage'] = 'AUTH_PASSWORD_GRANT_REQUEST'
 }
 
@@ -1374,12 +1390,12 @@ function Invoke-AuthPasswordGrantFixture([System.Collections.IDictionary]$State,
   if ($kind -eq 'endpoint') { $State['endpointBindingPassed'] = $false; $State['projectConfigurationPassed'] = $false; $State['failureStage'] = 'AUTH_PASSWORD_GRANT_ENDPOINT_BINDING'; throw 'R6_AUTH_ENDPOINT_BINDING_INVALID' }
   if ($kind -eq 'project') { $State['projectConfigurationPassed'] = $false; $State['failureStage'] = 'AUTH_PASSWORD_GRANT_PROJECT_CONFIGURATION'; throw 'R6_AUTH_PROJECT_CONFIGURATION_INVALID' }
   $State['requestAttempted'] = $true; $State['requestDispatched'] = $true; $State['authenticationAttempted'] = $true
-  if ($kind -match '^http(400|401|403|404|429|500|502|503|418)$') {
-    $status = [int]$Matches[1]; $providerFixture = if ($kind -eq 'http401') { '{"error":"invalid_credentials"}' } elseif ($kind -eq 'http429') { '{"error":"rate_limit"}' } elseif ($kind -eq 'http400') { '{"error":"invalid_grant"}' } elseif ($kind -eq 'http418') { '{"code":"unknown_provider_code"}' } else { '' }; $provider = Get-AuthProviderErrorCodeClass $providerFixture
+  if ($kind -match '^http(400|401|403|404|429|500|502|503|418)(?:-(credential|email-confirmation|account-disabled|project-key|verification|rate-limited|temporary|malformed-json|empty))?$') {
+    $status = [int]$Matches[1]; $providerFixture = if ($kind -eq 'http401') { '{"error":"invalid_credentials"}' } elseif ($kind -eq 'http429') { '{"error":"rate_limit"}' } elseif ($kind -eq 'http400') { '{"error":"unknown_provider_code"}' } elseif ($kind -eq 'http418') { '{"code":"unknown_provider_code"}' } elseif ($kind -eq 'http400-credential') { '{"error_code":"invalid_credentials"}' } elseif ($kind -eq 'http400-email-confirmation') { '{"code":"email_not_confirmed"}' } elseif ($kind -eq 'http400-account-disabled') { '{"error":"account_disabled"}' } elseif ($kind -eq 'http400-project-key') { '{"error_code":"invalid_api_key"}' } elseif ($kind -eq 'http400-verification') { '{"code":"captcha_required"}' } elseif ($kind -eq 'http400-rate-limited') { '{"code":"rate_limited"}' } elseif ($kind -eq 'http400-temporary') { '{"status":"temporarily_unavailable"}' } elseif ($kind -eq 'http400-malformed-json') { '{' } else { '' }; $provider = Get-AuthProviderRejectionDetails $providerFixture
     $details = Get-AuthHttpFailureDetails $status $provider; Set-AuthPasswordGrantFailureState $State $details; throw $details.Classification
   }
   if ($kind -eq 'malformed') { $State['responseReceived'] = $true; $State['failureStage'] = 'AUTH_PASSWORD_GRANT_RESPONSE'; throw 'R6_AUTH_RESPONSE_MALFORMED' }
-  if ($kind -eq 'unexpected') { $details = [pscustomobject]@{ Classification='R6_AUTH_UNEXPECTED_FAILURE'; NetworkFailureKind='unknown'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderErrorCodeClass='not_observed'; ResponseReceived=$false }; Set-AuthPasswordGrantFailureState $State $details; throw $details.Classification }
+  if ($kind -eq 'unexpected') { $details = [pscustomobject]@{ Classification='R6_AUTH_UNEXPECTED_FAILURE'; NetworkFailureKind='unknown'; TlsFailureKind='none'; HttpStatusCode=$null; ProviderReasonClass='not_observed'; ProviderReasonRecognized=$false; ResponseReceived=$false }; Set-AuthPasswordGrantFailureState $State $details; throw $details.Classification }
   $webStatus = switch ($kind) { 'dns' { [System.Net.WebExceptionStatus]::NameResolutionFailure }; 'connection' { [System.Net.WebExceptionStatus]::ConnectFailure }; 'timeout' { [System.Net.WebExceptionStatus]::Timeout }; 'tls-trust' { [System.Net.WebExceptionStatus]::TrustFailure }; 'tls-channel' { [System.Net.WebExceptionStatus]::SecureChannelFailure }; default { throw 'R6_AUTH_TEST_FIXTURE_INVALID' } }
   try { throw [System.Net.WebException]::new('fixture', $webStatus) } catch { $details = Get-AuthPasswordGrantFailureDetails $_; Set-AuthPasswordGrantFailureState $State $details; throw $details.Classification }
 }
