@@ -2,7 +2,7 @@
 
 The reconciliation gates require exactly one disposable normalized-replay database for the current test task. They do not require global uniqueness across every historical Docker Compose project on the host.
 
-`OPENGLASS_NORMALIZED_REPLAY_TASK_ID` is mandatory for the two replay-backed reconciliation gates. The accepted value is a fresh `r6-final-contract-<uuid>` identifier. Discovery fails closed unless Docker context is `desktop-linux` and exactly one container has all of these labels:
+`OPENGLASS_NORMALIZED_REPLAY_TASK_ID` is mandatory for the replay-backed reconciliation gates. The accepted value is a fresh `r6-final-contract-<uuid>` identifier. Discovery fails closed unless Docker context is `desktop-linux`, exactly one container is running and `healthy`, and it has all of these labels:
 
 - `io.openglasshub.replay.project=openglasshub`
 - `io.openglasshub.replay.role=normalized-replay`

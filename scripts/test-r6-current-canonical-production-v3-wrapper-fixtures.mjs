@@ -5,6 +5,7 @@ import {
   R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_SUCCESS,
   createCurrentCanonicalProductionV3TerminalResult,
 } from "./qa/run-cloudflare-pages-current-canonical-production-v3-preparation.mjs";
+import { createCanonicalCanaryTargetBinding } from "./qa/canonical-canary-target-binding.mjs";
 
 function required(values, name) {
   const value = values.get(name);
@@ -24,6 +25,24 @@ const attestationPath = path.join(attestationRoot, "production-deployment-attest
 const freshness = () => ({ attestationIssuedAt: "2099-01-01T00:00:00.000Z", attestationExpiresAt: "2099-01-01T00:15:00.000Z", freshnessValidatedAt: "2099-01-01T00:02:00.000Z", remainingValidityMilliseconds: 13 * 60 * 1000, minimumValidityMilliseconds: 13 * 60 * 1000, freshnessCheckPassed: true });
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const redigest = (value) => ({ ...value, resultSha256: sha(JSON.stringify({ ...value, resultSha256: null })) });
+
+if (kind === "target-binding") {
+  const targetBindingPath = path.join(root, "canonical-canary-target-binding.json");
+  const targetBinding = createCanonicalCanaryTargetBinding({
+    resolvedAtUtc: "2099-01-01T00:03:00.000Z",
+    canonicalCircleId: "11111111-1111-4111-8111-111111111111",
+    canonicalCircleSlug: "synthetic-canonical-circle",
+    baseMutationPlanSchema: "qa-minimal-canary-mutation-plan-v1",
+    baseMutationPlanHash: "b".repeat(64),
+    executionCommit: toolingCommit,
+    toolingCommit,
+  });
+  const raw = `${JSON.stringify(targetBinding)}\n`;
+  await mkdir(root, { recursive: true });
+  await writeFile(targetBindingPath, raw, { flag: "wx" });
+  process.stdout.write(`${JSON.stringify({ targetBindingPath, targetBindingSha256: sha(raw) })}\n`);
+  process.exit(0);
+}
 
 await mkdir(attestationRoot, { recursive: true });
 await writeFile(attestationPath, "{}\n");

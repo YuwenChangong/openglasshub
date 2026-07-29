@@ -844,6 +844,19 @@ function Invoke-CurrentCanonicalProductionV3DryRunOrchestrationTerminalValidator
   if ($exitCode -ne 0 -or $lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne 'R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_OK') { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_TERMINAL_INVALID' }
 }
 
+function New-SyntheticDryRunTargetBinding([string]$Root, [string]$ToolingCommit) {
+  if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -ne '1') { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_BINDING_UNSAFE' }
+  $generator = [string]$env:R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR
+  if (-not (Test-WindowsFullyQualifiedPath $generator) -or -not (Test-Path -LiteralPath $generator -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_BINDING_FIXTURE_INVALID' }
+  $previous = $ErrorActionPreference
+  try { $ErrorActionPreference = 'Continue'; $lines = @(& node $generator '--root' $Root '--tooling-commit' $ToolingCommit '--kind' 'target-binding' 2>&1); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previous }
+  if ($exitCode -ne 0 -or $lines.Count -ne 1) { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_BINDING_FIXTURE_INVALID' }
+  try { $metadata = $lines[0].ToString() | ConvertFrom-Json -ErrorAction Stop } catch { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_BINDING_FIXTURE_INVALID' }
+  $path = [string]$metadata.targetBindingPath
+  if (-not (Test-WindowsFullyQualifiedPath $path) -or $path -ne (Join-Path $Root 'canonical-canary-target-binding.json') -or -not (Test-Path -LiteralPath $path -PathType Leaf) -or [string]$metadata.targetBindingSha256 -ne (Get-Sha256 $path)) { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_BINDING_FIXTURE_INVALID' }
+  return [pscustomobject]@{ Path = $path; Sha256 = [string]$metadata.targetBindingSha256; Binding = Read-AttestationJson $path }
+}
+
 function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validation, [string]$Root, [string]$RequestedRunId, [string]$AttestationPath, [string]$AttestationSha256) {
   if (Test-Path -LiteralPath $Root) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ROOT_UNSAFE' }
   New-Item -ItemType Directory -Path $Root -ErrorAction Stop | Out-Null
@@ -866,6 +879,12 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
         $state['failureStage'] = 'authentication'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = $Validation.Head
         throw ([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_PRE_TOOLING_FAILURE)
       }
+      if (-not [string]::IsNullOrWhiteSpace([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_TARGET_RESOLUTION_FAILURE)) {
+        $state['failureStage'] = 'authentication'; $state['runIdValidationPassed'] = $true
+        throw ([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_TARGET_RESOLUTION_FAILURE)
+      }
+      $syntheticTargetBinding = New-SyntheticDryRunTargetBinding $Root $Validation.Head
+      $state['targetBindingPath'] = $syntheticTargetBinding.Path; $state['targetBindingSha256'] = $syntheticTargetBinding.Sha256; $state['targetBinding'] = $syntheticTargetBinding.Binding
       $state['failureStage'] = 'MINIMAL_CANARY_CHILD_LAUNCH'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = $Validation.Head; $state['expectedToolingCommit'] = $Validation.Head; $state['childStarted'] = $true; $state['canaryChildStarted'] = $true; $state['childCompleted'] = $true; $state['childExitCode'] = 0
     } else {
       $state['failureStage'] = 'RUN_ID_REGISTRY_LOOKUP'; Assert-RunIdEligible $Validation.Path $RequestedRunId | Out-Null; Assert-RunIdJournalAbsent $RequestedRunId; $state['runIdValidationPassed'] = $true
@@ -875,11 +894,11 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
       $auth | Add-Member -NotePropertyName AttestationSha256 -NotePropertyValue $attestation.Sha256
       $validatedExecutionCommit = Get-ValidatedExecutionCommit $Validation
       if ($validatedExecutionCommit -ne [string]$Validation.Head) { throw 'QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH' }
-      $state['expectedToolingCommit'] = $validatedExecutionCommit
       $targetBindingPath = Resolve-DryRunCanonicalTarget $auth $inputs.RequestedCircleSlug $Root $validatedExecutionCommit
       $state['targetBindingPath'] = $targetBindingPath; $state['targetBindingSha256'] = Get-Sha256 $targetBindingPath; $state['targetBinding'] = Read-AttestationJson $targetBindingPath
       $state['failureStage'] = 'RUN_ID_RESERVATION'; $state['reservationAttempted'] = $true; $reservation = Reserve-ConsumedRun $Validation $RequestedRunId 'dry-run' $confirmationHash '' '' $targetBindingPath; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = [string]$reservation.RunnerCommit
       if ($validatedExecutionCommit -ne [string]$reservation.RunnerCommit -or $validatedExecutionCommit -ne [string]$Validation.Head) { throw 'QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH' }
+      $state['expectedToolingCommit'] = $validatedExecutionCommit
       $childTerminalPath = Join-Path $Root 'minimal-canary-child-terminal-result.json'
       Set-RunnerEnvironment $auth 'DryRunOnly' $RequestedRunId $reservation $childTerminalPath $validatedExecutionCommit $targetBindingPath
       $state['failureStage'] = 'MINIMAL_CANARY_CHILD_LAUNCH'; $state['childStarted'] = $true; $state['canaryChildStarted'] = $true

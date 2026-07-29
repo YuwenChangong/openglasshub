@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { discoverTaskScopedNormalizedReplay } from "./lib/task-scoped-normalized-replay.mjs";
 
 const root = process.cwd();
 const reconciliationDirectory = path.join(root, "docs", "ops", "reconciliation");
@@ -62,10 +63,7 @@ assert.equal(changedMigrations, "", "canonical migrations must remain unchanged"
 assert.deepEqual(changedRuntime.filter((file) => !approvedR4RuntimeFiles.has(file)), [], "only approved R4 runtime files may change");
 assert.equal(execFileSync("git", ["ls-files", "--", "**/circles-visibility-production-preflight.csv"], { cwd: root, encoding: "utf8" }).trim(), "", "production CSV must not be tracked");
 
-const containers = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" })
-  .split(/\r?\n/).filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
-assert.equal(containers.length, 1, "LOCAL_DOCKER_ONLY requires exactly one disposable normalized replay container");
-const container = containers[0];
+const { containerId: container } = discoverTaskScopedNormalizedReplay();
 const psql = (input, stop = true) => {
   const result = spawnSync("docker", ["exec", "-i", container, "psql", "-X", "-qAt", "-v", `ON_ERROR_STOP=${stop ? 1 : 0}`, "-U", "postgres", "-d", "postgres"], { input, encoding: "utf8" });
   if (stop && result.status !== 0) throw new Error(result.stderr || result.stdout);

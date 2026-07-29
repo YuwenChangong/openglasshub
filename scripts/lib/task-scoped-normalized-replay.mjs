@@ -45,14 +45,15 @@ function labelsMatch(labels, required) {
 }
 
 function inspectContainer(id, run) {
-  const format = "{{json .Config.Labels}}\t{{.State.Running}}\t{{.Image}}\t{{json .NetworkSettings.Networks}}\t{{json .Mounts}}";
+  const format = "{{json .Config.Labels}}\t{{.State.Running}}\t{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}\t{{.Image}}\t{{json .NetworkSettings.Networks}}\t{{json .Mounts}}";
   const row = String(run("docker", ["inspect", "--format", format, id], { encoding: "utf8" })).trim();
-  const [labelsRaw, runningRaw, imageId, networksRaw, mountsRaw] = row.split("\t");
+  const [labelsRaw, runningRaw, healthRaw, imageId, networksRaw, mountsRaw] = row.split("\t");
   try {
     return {
       id,
       labels: JSON.parse(labelsRaw),
       running: runningRaw === "true",
+      health: healthRaw,
       imageId,
       networks: JSON.parse(networksRaw),
       mounts: JSON.parse(mountsRaw),
@@ -72,6 +73,7 @@ export function discoverTaskScopedNormalizedReplay({ taskId = process.env[NORMAL
   const container = inspectContainer(candidates[0], run);
   if (!labelsMatch(container.labels, labels)) fail("NORMALIZED_REPLAY_TASK_CONTAINER_LABELS_INVALID");
   if (!container.running) fail("NORMALIZED_REPLAY_TASK_CONTAINER_NOT_RUNNING");
+  if (container.health !== "healthy") fail("NORMALIZED_REPLAY_TASK_CONTAINER_HEALTH_INVALID");
   if (!container.imageId.startsWith("sha256:")) fail("NORMALIZED_REPLAY_TASK_CONTAINER_IMAGE_INVALID");
   const networkNames = Object.keys(container.networks ?? {});
   const volumes = (container.mounts ?? []).filter((mount) => mount.Type === "volume");

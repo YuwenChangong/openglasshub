@@ -15,7 +15,26 @@ const exactKeys = (value, keys, code) => {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== keys.length || keys.some((key) => !(key in value))) fail(code);
 };
 
-export function canonicalTargetBindingPayload({ resolvedAtUtc, canonicalCircleId, canonicalCircleSlug, baseMutationPlanSchema, baseMutationPlanHash, executionCommit, toolingCommit }) {
+function canonicalOperationMappings(value, canonicalCircleId) {
+  const circleId = String(canonicalCircleId).toLowerCase();
+  const expected = {
+    CREATE_POST: { operationId: "CREATE_POST", targetKind: "circle", canonicalCircleId: circleId },
+    CREATE_COMMENT: { operationId: "CREATE_COMMENT", targetKind: "created-canary-post" },
+  };
+  const mappings = value === undefined ? Object.values(expected) : value;
+  if (!Array.isArray(mappings) || mappings.length !== 2) fail("QA_CANARY_TARGET_BINDING_OPERATION_MAPPINGS_INVALID");
+  const byOperation = new Map();
+  for (const mapping of mappings) {
+    if (!mapping || typeof mapping !== "object" || Array.isArray(mapping) || typeof mapping.operationId !== "string" || byOperation.has(mapping.operationId)) fail("QA_CANARY_TARGET_BINDING_OPERATION_MAPPINGS_INVALID");
+    byOperation.set(mapping.operationId, mapping);
+  }
+  for (const operationId of ["CREATE_POST", "CREATE_COMMENT"]) {
+    if (JSON.stringify(byOperation.get(operationId)) !== JSON.stringify(expected[operationId])) fail("QA_CANARY_TARGET_BINDING_OPERATION_MAPPINGS_INVALID");
+  }
+  return [expected.CREATE_POST, expected.CREATE_COMMENT];
+}
+
+export function canonicalTargetBindingPayload({ resolvedAtUtc, canonicalCircleId, canonicalCircleSlug, baseMutationPlanSchema, baseMutationPlanHash, executionCommit, toolingCommit, operationMappings }) {
   if (!ISO.test(String(resolvedAtUtc)) || !Number.isFinite(Date.parse(resolvedAtUtc))) fail("QA_CANARY_TARGET_BINDING_TIMESTAMP_INVALID");
   if (!UUID.test(String(canonicalCircleId))) fail("QA_CANARY_TARGET_BINDING_CIRCLE_ID_INVALID");
   text(canonicalCircleSlug, "QA_CANARY_TARGET_BINDING_CIRCLE_SLUG_INVALID");
@@ -31,10 +50,7 @@ export function canonicalTargetBindingPayload({ resolvedAtUtc, canonicalCircleId
     baseMutationPlanHash: hash(baseMutationPlanHash, "QA_CANARY_TARGET_BINDING_PLAN_INVALID"),
     executionCommit: commit(executionCommit, "QA_CANARY_TARGET_BINDING_COMMIT_INVALID"),
     toolingCommit: commit(toolingCommit, "QA_CANARY_TARGET_BINDING_COMMIT_INVALID"),
-    operationMappings: [
-      { operationId: "CREATE_POST", targetKind: "circle", canonicalCircleId: String(canonicalCircleId).toLowerCase() },
-      { operationId: "CREATE_COMMENT", targetKind: "created-canary-post" },
-    ],
+    operationMappings: canonicalOperationMappings(operationMappings, canonicalCircleId),
   };
   return Object.freeze(payload);
 }
