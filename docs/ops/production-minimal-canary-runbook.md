@@ -478,3 +478,16 @@ requests.
 
 An authorization from an earlier commit remains historical evidence only. It
 must not be copied, resigned, or used to authorize a later commit.
+# Canonical Target Binding
+
+Every fresh R6 DryRun resolves the operator-provided slug exactly once through the
+authenticated read-only circle catalog. The result is sealed as
+`qa-canary-target-binding-v1`: its immutable `canonicalCircleId`, confirmed slug,
+operation mapping, base-plan hash, and target-bound-plan hash are persisted in
+the DryRun receipt, terminal, orchestration terminal, and final authorization.
+
+Final execution accepts only a validated final authorization. It never prompts
+for a circle slug and never reads `QA_CANARY_CIRCLE_SLUG`; `CREATE_POST` uses the
+sealed canonical UUID and `CREATE_COMMENT` uses only the post created in that
+same execution. Historical v1 artifacts remain readable for forensics but are
+not eligible to generate a new final authorization.

@@ -32,6 +32,10 @@ function assertPrepared(prepared, { recovery = false } = {}) {
   for (const key of ["runnerCommit", "attestationSha256", "deploymentId", "deployedCommit", "baseUrl", "supabaseRefDigest", "postMarker", "commentMarker", "postTitleSha256", "postBodySha256", "commentBodySha256", "encodingVersion", "postTemplateVersion", "commentTemplateVersion", "recoveryQueryContractVersion", "paginationContractVersion"]) require(prepared[key], `QA_CANARY_PREPARED_${key.toUpperCase()}_REQUIRED`);
   assertHash(prepared.attestationSha256, "QA_CANARY_ATTESTATION_HASH_INVALID");
   for (const key of ["postTitleSha256", "postBodySha256", "commentBodySha256"]) assertHash(prepared[key], `QA_CANARY_PREPARED_${key.toUpperCase()}_INVALID`);
+  if (prepared.targetBindingHash !== undefined || prepared.targetBoundExecutionPlanHash !== undefined) {
+    require(prepared.targetBindingHash, "QA_CANARY_PREPARED_TARGETBINDINGHASH_REQUIRED"); require(prepared.targetBoundExecutionPlanHash, "QA_CANARY_PREPARED_TARGETBOUNDEXECUTIONPLANHASH_REQUIRED");
+    for (const key of ["targetBindingHash", "targetBoundExecutionPlanHash"]) assertHash(prepared[key], `QA_CANARY_PREPARED_${key.toUpperCase()}_INVALID`);
+  }
   if (!Number.isInteger(prepared.requestTimeoutMs) || prepared.requestTimeoutMs < 1000 || prepared.requestTimeoutMs > 120000) throw new Error("QA_CANARY_TIMEOUT_INVALID");
   const expectedRecovery = recovery ? [false, true] : [true, false];
   if (prepared.creationEnabled !== expectedRecovery[0] || prepared.recoveryOnly !== expectedRecovery[1] || prepared.plannedPostCount !== 1 || prepared.plannedCommentCount !== 1 || prepared.cleanupOrder !== "comment-then-post" || prepared.networkRetryPolicy !== "zero") throw new Error("QA_CANARY_PREPARED_SCOPE_INVALID");

@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rename, writeFile, access } from "node:fs/promises";
 import path from "node:path";
 import { validateFinalExecutionBinding, FINAL_EXECUTION_BINDING_VERSION } from "./r6-final-execution-binding.mjs";
+import { validateDryRunAuthorization } from "./r6-final-canary-execution-contract.mjs";
 
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -24,7 +25,8 @@ try { await access(output); fail("R6_FINAL_EXECUTION_BINDING_OUTPUT_EXISTS"); } 
 const [wrapperBytes, authorizationBytes, receiptBytes] = await Promise.all([readFile(wrapper), readFile(parentAuthorizationPath), readFile(parentReceiptPath)]);
 const authorization = JSON.parse(authorizationBytes.toString("utf8"));
 const receipt = JSON.parse(receiptBytes.toString("utf8"));
-if (receipt.state !== "CONSUMED" || receipt.runId !== authorization.dryRunRunId || receipt.runnerCommit !== head || authorization.executionCommit !== head || authorization.toolingCommit !== head || authorization.plannedMutationCount !== 2 || authorization.actualMutationCount !== 0 || authorization.productionMutationCount !== 0 || authorization.retryCount !== 0) fail("R6_FINAL_EXECUTION_BINDING_PARENT_INVALID");
+validateDryRunAuthorization(authorization, { executionCommit: head, toolingCommit: head });
+if (receipt.state !== "CONSUMED" || receipt.runId !== authorization.dryRunRunId || receipt.runnerCommit !== head || authorization.executionCommit !== head || authorization.toolingCommit !== head || authorization.plannedMutationCount !== 2 || authorization.actualMutationCount !== 0 || authorization.productionMutationCount !== 0 || authorization.retryCount !== 0 || JSON.stringify(receipt.targetBinding) !== JSON.stringify(authorization.targetBinding)) fail("R6_FINAL_EXECUTION_BINDING_PARENT_INVALID");
 const plan = authorization.plan;
 if (!plan || plan.schemaVersion !== "qa-minimal-canary-mutation-plan-v1" || plan.operationCount !== 2 || plan.operations?.map((operation) => operation.id).join(",") !== "CREATE_POST,CREATE_COMMENT") fail("R6_FINAL_EXECUTION_BINDING_PARENT_INVALID");
 const blob = (relative) => git("rev-parse", `HEAD:${relative}`);
@@ -48,6 +50,7 @@ const binding = validateFinalExecutionBinding({
   parentDryRunRunId: authorization.dryRunRunId,
   planSchema: plan.schemaVersion,
   planSha256: plan.planSha256,
+  targetBinding: authorization.targetBinding,
   approvedOperationIds: plan.operations.map((operation) => operation.id),
   plannedMutationCount: authorization.plannedMutationCount,
   parentActualMutationCount: authorization.actualMutationCount,

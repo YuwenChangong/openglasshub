@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, open, rename, rm, stat } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createFileJournalStore, findUnfinishedJournals } from "./production-minimal-canary-journal.mjs";
@@ -9,6 +9,7 @@ import { createProductionMinimalCanaryHttpAdapter, createProductionMinimalCanary
 import { validateProductionWriteAcknowledgement, readQaWriteGuardConfig, validateQaWriteTarget } from "./target-write-guard.mjs";
 import { validateDeploymentAttestation, validateExpectedRunnerCommit } from "./production-deployment-attestation.mjs";
 import { assertReservedRunMayUseReceipt, consumeReservationReceipt } from "./production-minimal-canary-consumed-run-registry.mjs";
+import { validateCanonicalCanaryTargetBinding } from "./canonical-canary-target-binding.mjs";
 
 const CANONICAL_PRODUCTION_URL = "https://openglasshub.pages.dev";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -70,7 +71,14 @@ export function config(options, identities, env = process.env) {
   const target = validateQaWriteTarget({ ...readQaWriteGuardConfig(env, options.confirmRun), deferProductionAcknowledgement: true });
   const baseUrl = requireEnv("QA_BASE_URL", env).replace(/\/+$/, "");
   if (baseUrl !== CANONICAL_PRODUCTION_URL || !target.productionTarget) throw new Error("QA_CANARY_PRODUCTION_TARGET_REQUIRED");
-  return { target: { baseUrl, supabaseRef: target.actualRef }, expectedCommit: identities.expectedDeployedCommit, circleSlug: requireEnv("QA_CANARY_CIRCLE_SLUG", env), productionTarget: target.productionTarget, requestTimeoutMs: requestTimeoutMs(env) };
+  const targetBindingPath = String(env.QA_CANARY_TARGET_BINDING_PATH ?? "").trim() || null;
+  return { target: { baseUrl, supabaseRef: target.actualRef }, expectedCommit: identities.expectedDeployedCommit, targetBindingPath, productionTarget: target.productionTarget, requestTimeoutMs: requestTimeoutMs(env) };
+}
+async function readTargetBinding(cfg, identities) {
+  if (!cfg.targetBindingPath) throw new Error("QA_CANARY_TARGET_BINDING_REQUIRED");
+  const raw = await readFile(cfg.targetBindingPath).catch(() => { throw new Error("QA_CANARY_TARGET_BINDING_REQUIRED"); });
+  let value; try { value = JSON.parse(raw.toString("utf8")); } catch { throw new Error("QA_CANARY_TARGET_BINDING_INVALID"); }
+  return validateCanonicalCanaryTargetBinding(value, { executionCommit: identities.expectedRunnerCommit, toolingCommit: identities.expectedToolingCommit ?? identities.expectedRunnerCommit });
 }
 function liveCredentials(cfg, env) { return { ...cfg, supabaseUrl: requireEnv("QA_SUPABASE_URL", env), anonKey: requireEnv("QA_CANARY_SUPABASE_ANON_KEY", env), accessToken: requireEnv("QA_CANARY_ACCESS_TOKEN", env) }; }
 function enforceLiveConfirmation(options, cfg, env = process.env) {
@@ -90,9 +98,9 @@ export async function validateIdentityGuards({ options, env = process.env, now =
   assertFreshAttestation(attestation, now);
   return { cfg, runnerCommit, expectedToolingCommit: identities.expectedToolingCommit, attestation, attestationSha256: identities.attestationSha256 };
 }
-function preparedRecord({ cfg, runnerCommit, attestation, attestationSha256, actor, circle, markers }) {
+function preparedRecord({ cfg, targetBinding, runnerCommit, attestation, attestationSha256, actor, markers }) {
   const content = contentFor(markers);
-  return { actorId: actor.id, circleId: circle.id, circleSlug: cfg.circleSlug, resolvedCircleSlug: circle.slug, runnerCommit, attestationSha256, deploymentId: attestation.deploymentId, deployedCommit: attestation.sourceCommit, baseUrl: cfg.target.baseUrl, supabaseRefDigest: sha256(cfg.target.supabaseRef), postMarker: markers.post, commentMarker: markers.comment, postTitleSha256: sha256(content.title), postBodySha256: sha256(content.body), commentBodySha256: sha256(content.comment), encodingVersion: CANONICAL_ENCODING_VERSION, postTemplateVersion: POST_TEMPLATE_VERSION, commentTemplateVersion: COMMENT_TEMPLATE_VERSION, recoveryQueryContractVersion: RECOVERY_QUERY_CONTRACT_VERSION, paginationContractVersion: PAGINATION_CONTRACT_VERSION, requestTimeoutMs: cfg.requestTimeoutMs, creationEnabled: true, recoveryOnly: false, plannedPostCount: 1, plannedCommentCount: 1, cleanupOrder: "comment-then-post", networkRetryPolicy: "zero" };
+  return { actorId: actor.id, circleId: targetBinding.canonicalCircleId, circleSlug: targetBinding.canonicalCircleSlug, resolvedCircleSlug: targetBinding.canonicalCircleSlug, targetBindingHash: targetBinding.targetBindingHash, targetBoundExecutionPlanHash: targetBinding.targetBoundExecutionPlanHash, runnerCommit, attestationSha256, deploymentId: attestation.deploymentId, deployedCommit: attestation.sourceCommit, baseUrl: cfg.target.baseUrl, supabaseRefDigest: sha256(cfg.target.supabaseRef), postMarker: markers.post, commentMarker: markers.comment, postTitleSha256: sha256(content.title), postBodySha256: sha256(content.body), commentBodySha256: sha256(content.comment), encodingVersion: CANONICAL_ENCODING_VERSION, postTemplateVersion: POST_TEMPLATE_VERSION, commentTemplateVersion: COMMENT_TEMPLATE_VERSION, recoveryQueryContractVersion: RECOVERY_QUERY_CONTRACT_VERSION, paginationContractVersion: PAGINATION_CONTRACT_VERSION, requestTimeoutMs: cfg.requestTimeoutMs, creationEnabled: true, recoveryOnly: false, plannedPostCount: 1, plannedCommentCount: 1, cleanupOrder: "comment-then-post", networkRetryPolicy: "zero" };
 }
 export async function main(argv = process.argv.slice(2), env = process.env, dependencies = {}) {
   const options = parse(argv); const runId = options.recoverRun ?? options.runId;
@@ -100,14 +108,16 @@ export async function main(argv = process.argv.slice(2), env = process.env, depe
   // Receipt consumption is deliberately before target/attestation, credentials, adapters, or journal preparation.
   await consumeWrapperReservation({ runId, options, env, repositoryRoot: dependencies.repositoryRoot ?? RUNNER_REPOSITORY_ROOT });
   const { cfg, runnerCommit, expectedToolingCommit, attestation, attestationSha256 } = await validateIdentityGuards({ options, env, attestationRoot: dependencies.attestationRoot });
+  const targetBinding = cfg.targetBindingPath ? await readTargetBinding(cfg, { expectedRunnerCommit: runnerCommit, expectedToolingCommit }) : null;
   const store = (dependencies.createStore ?? createFileJournalStore)(env.QA_CANARY_JOURNAL_ROOT, runId);
-  if (options.dryRun) { if (await store.exists()) throw new Error("QA_CANARY_RUN_ID_REUSED"); console.log(JSON.stringify({ phase: "PLAN", runId, runnerCommit, deploymentId: attestation.deploymentId, target: { baseUrl: cfg.target.baseUrl, supabaseRef: redact(cfg.target.supabaseRef) }, scope: ["one post", "one attached comment", "exact soft-delete cleanup", "complete exact recovery only"], journalPath: store.path, noWrites: true }, null, 2)); return { runId, mode: "dry-run", runnerCommit, expectedToolingCommit, classification: "QA_CANARY_DRY_RUN_PLAN_READY", failureStage: "complete" }; }
+  if (options.dryRun) { if (await store.exists()) throw new Error("QA_CANARY_RUN_ID_REUSED"); console.log(JSON.stringify({ phase: "PLAN", runId, runnerCommit, deploymentId: attestation.deploymentId, target: { baseUrl: cfg.target.baseUrl, ...(targetBinding ? { canonicalCircleId: targetBinding.canonicalCircleId, targetBindingHash: targetBinding.targetBindingHash } : {}) }, scope: ["one post", "one attached comment", "exact soft-delete cleanup", "complete exact recovery only"], journalPath: store.path, noWrites: true }, null, 2)); return { runId, mode: "dry-run", runnerCommit, expectedToolingCommit, targetBinding, classification: "QA_CANARY_DRY_RUN_PLAN_READY", failureStage: "complete" }; }
+  if (!targetBinding) throw new Error("QA_CANARY_TARGET_BINDING_REQUIRED");
   enforceLiveConfirmation(options, cfg, env);
   const credentials = liveCredentials(cfg, env);
   if (options.recoverRun) { if (!(await store.exists())) throw new Error("QA_CANARY_JOURNAL_NOT_FOUND"); const recoveryAdapter = (dependencies.createRecoveryAdapter ?? createProductionMinimalCanaryRecoveryAdapter)(credentials); const result = await recoverMinimalCanary({ recoveryAdapter, store, journal: await store.read(), recoveryConfirmationHash: sha256(options.confirmRecovery) }); console.log(JSON.stringify({ phase: "RECOVERY", ...safeSummary(result), noWrites: true }, null, 2)); return { runId, mode: "recovery", runnerCommit, expectedToolingCommit, classification: "QA_CANARY_RECOVERY_COMPLETE", failureStage: "complete" }; }
-  const readAdapter = (dependencies.createReadAdapter ?? createProductionMinimalCanaryReadAdapter)(credentials); const actor = await readAdapter.authenticate(); if (!UUID.test(String(actor?.id ?? ""))) throw new Error("QA_CANARY_ACTOR_INVALID"); const circle = await readAdapter.resolveCircle({ slug: cfg.circleSlug }); if (!UUID.test(String(circle?.id ?? "")) || circle.slug !== cfg.circleSlug) throw new Error("QA_CANARY_CIRCLE_SCOPE_MISMATCH");
+  const readAdapter = (dependencies.createReadAdapter ?? createProductionMinimalCanaryReadAdapter)(credentials); const actor = await readAdapter.authenticate(); if (!UUID.test(String(actor?.id ?? ""))) throw new Error("QA_CANARY_ACTOR_INVALID");
   if ((await findUnfinishedJournals(env.QA_CANARY_JOURNAL_ROOT, actor.id)).length > 0) throw new Error("QA_CANARY_UNFINISHED_RUN_EXISTS"); if (await store.exists()) throw new Error("QA_CANARY_RUN_ID_REUSED");
-  const markers = createMarkers(runId); const journal = createJournal({ runId, prepared: preparedRecord({ cfg, runnerCommit, attestation, attestationSha256, actor, circle, markers }), markers }); await store.write(journal); const persisted = await store.read(); if (persisted.state !== "PREPARED" || persisted.prepared.actorId !== actor.id) throw new Error("QA_CANARY_PREPARED_JOURNAL_REREAD_MISMATCH");
+  const markers = createMarkers(runId); const journal = createJournal({ runId, prepared: preparedRecord({ cfg, targetBinding, runnerCommit, attestation, attestationSha256, actor, markers }), markers }); await store.write(journal); const persisted = await store.read(); if (persisted.state !== "PREPARED" || persisted.prepared.actorId !== actor.id || persisted.prepared.circleId !== targetBinding.canonicalCircleId) throw new Error("QA_CANARY_PREPARED_JOURNAL_REREAD_MISMATCH");
   const adapter = (dependencies.createAdapter ?? createProductionMinimalCanaryHttpAdapter)(credentials); const completed = await executeMinimalCanary({ adapter, store, journal: persisted }); console.log(JSON.stringify({ phase: "COMPLETE", ...safeSummary(completed), journalSha256: sha256(JSON.stringify(completed)) }, null, 2)); return { runId, mode: "live", runnerCommit, expectedToolingCommit, classification: "QA_CANARY_EXECUTION_COMPLETE", failureStage: "complete" };
 }
 

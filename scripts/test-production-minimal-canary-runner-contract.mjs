@@ -7,13 +7,18 @@ import path from "node:path";
 import { main, parse, RUNNER_REPOSITORY_ROOT, validateIdentityGuards } from "./qa/run-production-minimal-canary.mjs";
 import { ATTESTATION_ENVIRONMENT, ATTESTATION_PROJECT, ATTESTATION_PROVIDER, ATTESTATION_SCHEMA_VERSION, CANONICAL_PRODUCTION_URL, PRODUCTION_TARGET_IDENTITY_HASH } from "./qa/production-deployment-attestation.mjs";
 import { backfillHistoricalConsumedRuns, reserveConsumedRun } from "./qa/production-minimal-canary-consumed-run-registry.mjs";
+import { createCanonicalCanaryTargetBinding } from "./qa/canonical-canary-target-binding.mjs";
+import { getMinimalCanaryMutationPlan } from "./qa/r6-final-canary-execution-contract.mjs";
 
 const runnerCommit = execFileSync("git", ["-C", RUNNER_REPOSITORY_ROOT, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const now = Date.now();
 const root = await mkdtemp(path.join(os.tmpdir(), "qa-runner-contract-"));
 const journalRoot = path.join(root, "journals");
 const registryRoot = path.join(root, "consumed-runs");
+const targetBindingPath = path.join(root, "canonical-canary-target-binding.json");
 const hash = (value) => createHash("sha256").update(value).digest("hex");
+const targetPlan = getMinimalCanaryMutationPlan();
+await writeFile(targetBindingPath, JSON.stringify(createCanonicalCanaryTargetBinding({ resolvedAtUtc: "2099-01-01T00:00:00.000Z", canonicalCircleId: "22222222-2222-4222-8222-222222222222", canonicalCircleSlug: "qa-circle", baseMutationPlanSchema: targetPlan.schemaVersion, baseMutationPlanHash: targetPlan.planSha256, executionCommit: runnerCommit, toolingCommit: runnerCommit })));
 const runId = (suffix) => `qa-canary-${suffix}`;
 const exactRunId = runId("11111111-1111-4111-8111-111111111111");
 const attestationValue = (patch = {}) => ({
@@ -51,7 +56,7 @@ const baseEnv = (attestation) => ({
   QA_DEPLOYMENT_ATTESTATION_SHA256: attestation.sha256,
   QA_CANARY_SUPABASE_ANON_KEY: "public-test-key",
   QA_CANARY_ACCESS_TOKEN: "test-token",
-  QA_CANARY_CIRCLE_SLUG: "qa-circle",
+  QA_CANARY_TARGET_BINDING_PATH: targetBindingPath,
   QA_ALLOW_PRODUCTION_WRITES: "1",
   QA_CANARY_JOURNAL_ROOT: journalRoot,
   QA_CANARY_CONSUMED_RUN_REGISTRY_ROOT: registryRoot,
@@ -118,7 +123,7 @@ try {
       async deleteComment() { events.push("deleteComment"); }, async deletePost() { events.push("deletePost"); }, async verifyCommentAbsent() { return true; }, async verifyPostAbsent() { return true; }, async verifyResidue() { return { ok: true }; },
     }),
   });
-  assert.deepEqual(events, ["authenticate", "resolveCircle", "createPost", "createComment", "deleteComment", "deletePost"], "read-only actor/circle resolution and durable journal must precede mutation adapter use");
+  assert.deepEqual(events, ["authenticate", "createPost", "createComment", "deleteComment", "deletePost"], "the live runner must consume the prevalidated canonical target without resolving a circle again");
   console.log("PRODUCTION_MINIMAL_CANARY_RUNNER_CONTRACT_OK CWD-independent runner commit and sealed deployment attestation guards passed with no network");
 } finally {
   await rm(root, { recursive: true, force: true });

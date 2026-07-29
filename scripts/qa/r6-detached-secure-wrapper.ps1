@@ -115,7 +115,7 @@ $script:RunnerEnvironmentNames = @(
   'QA_SUPABASE_URL', 'QA_EXPECTED_SUPABASE_REF', 'QA_PRODUCTION_SUPABASE_REF',
   'QA_BASE_URL', 'QA_EXPECTED_RUNNER_COMMIT', 'QA_EXPECTED_DEPLOYED_COMMIT',
   'QA_DEPLOYMENT_ATTESTATION_PATH', 'QA_DEPLOYMENT_ATTESTATION_SHA256',
-  'QA_CANARY_ACCESS_TOKEN', 'QA_CANARY_SUPABASE_ANON_KEY', 'QA_CANARY_CIRCLE_SLUG',
+  'QA_CANARY_ACCESS_TOKEN', 'QA_CANARY_SUPABASE_ANON_KEY', 'QA_CANARY_TARGET_BINDING_PATH', 'QA_CANARY_REQUESTED_CIRCLE_SLUG',
   'QA_ALLOW_PRODUCTION_WRITES', 'QA_CANARY_APPROVAL', 'QA_CANARY_JOURNAL_ROOT',
   'QA_CANARY_CONSUMED_RUN_REGISTRY_ROOT', 'QA_CANARY_CONSUMED_RUN_RECEIPT_PATH',
   'QA_CANARY_CONSUMED_RUN_RECEIPT_SHA256', 'QA_CANARY_CONSUMED_RUN_NONCE',
@@ -810,7 +810,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AndAuthCheckOnly([pscustomobj
 
 function Write-CurrentCanonicalProductionV3DryRunTerminal([string]$Path, [System.Collections.IDictionary]$State) {
   $State['completedAt'] = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow)
-  $State['schemaVersion'] = 'r6-v3-dry-run-terminal-result-v1'
+  $State['schemaVersion'] = 'r6-v3-dry-run-terminal-result-v2'
   $raw = [Text.Encoding]::UTF8.GetBytes(($State | ConvertTo-Json -Depth 6 -Compress) + [Environment]::NewLine)
   $temporary = "$Path.$PID.$([guid]::NewGuid().ToString()).tmp"
   try { [IO.File]::WriteAllBytes($temporary, $raw); Move-Item -LiteralPath $temporary -Destination $Path -ErrorAction Stop }
@@ -828,7 +828,7 @@ function Invoke-CurrentCanonicalProductionV3DryRunTerminalValidator([string]$Pat
 
 function Write-CurrentCanonicalProductionV3DryRunOrchestrationTerminal([string]$Path, [System.Collections.IDictionary]$State) {
   $State['completedAt'] = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow)
-  $State['schemaVersion'] = 'r6-v3-capture-authcheck-dryrun-orchestration-terminal-result-v1'
+  $State['schemaVersion'] = 'r6-v3-capture-authcheck-dryrun-orchestration-terminal-result-v2'
   $raw = [Text.Encoding]::UTF8.GetBytes(($State | ConvertTo-Json -Depth 7 -Compress) + [Environment]::NewLine)
   $temporary = "$Path.$PID.$([guid]::NewGuid().ToString()).tmp"
   try { [IO.File]::WriteAllBytes($temporary, $raw); Move-Item -LiteralPath $temporary -Destination $Path -ErrorAction Stop }
@@ -849,7 +849,7 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
   New-Item -ItemType Directory -Path $Root -ErrorAction Stop | Out-Null
   $terminalPath = Join-Path $Root 'dry-run-only-terminal-result.json'
   $now = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow)
-  $state = [ordered]@{ schemaVersion=$null; startedAt=$now; completedAt=$null; runId=$RequestedRunId; outerClassification=$null; innerClassification=$null; success=$false; failureStage='RUN_ID_FORMAT_VALIDATION'; captureProvenancePassed=$true; authProvenancePassed=$true; attestationFreshnessPassed=$false; minimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; remainingValidityMs=0; runIdValidationPassed=$false; reservationAttempted=$false; reservationCompleted=$false; receiptCreated=$false; receiptState='NOT_CREATED_OR_UNCONFIRMED'; executionCommit=$Validation.Head; receiptRunnerCommit=$null; expectedToolingCommit=$null; childStarted=$false; canaryChildStarted=$false; childCompleted=$false; childTimedOut=$false; stdoutClassification=$null; stderrClassification=$null; childTerminalPath=$null; childTerminalSha256=$null; childTerminalLocated=$false; childTerminalValidated=$false; adapterReached=$false; journalCreated=$false; childExitCode=1; plannedMutationCount=2; actualMutationCount=0; supabaseWriteCount=0; productionMutationCount=0; retryCount=0 }
+  $state = [ordered]@{ schemaVersion=$null; startedAt=$now; completedAt=$null; runId=$RequestedRunId; outerClassification=$null; innerClassification=$null; success=$false; failureStage='RUN_ID_FORMAT_VALIDATION'; captureProvenancePassed=$true; authProvenancePassed=$true; attestationFreshnessPassed=$false; minimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; remainingValidityMs=0; runIdValidationPassed=$false; reservationAttempted=$false; reservationCompleted=$false; receiptCreated=$false; receiptState='NOT_CREATED_OR_UNCONFIRMED'; executionCommit=$Validation.Head; receiptRunnerCommit=$null; expectedToolingCommit=$null; targetBinding=$null; targetBindingPath=$null; targetBindingSha256=$null; childStarted=$false; canaryChildStarted=$false; childCompleted=$false; childTimedOut=$false; stdoutClassification=$null; stderrClassification=$null; childTerminalPath=$null; childTerminalSha256=$null; childTerminalLocated=$false; childTerminalValidated=$false; adapterReached=$false; journalCreated=$false; childExitCode=1; plannedMutationCount=2; actualMutationCount=0; supabaseWriteCount=0; productionMutationCount=0; retryCount=0 }
   $confirmationHash = $null; $auth = $null
   try {
     if ($RequestedRunId -notmatch '^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_RUN_ID_INVALID' }
@@ -870,15 +870,18 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
     } else {
       $state['failureStage'] = 'RUN_ID_REGISTRY_LOOKUP'; Assert-RunIdEligible $Validation.Path $RequestedRunId | Out-Null; Assert-RunIdJournalAbsent $RequestedRunId; $state['runIdValidationPassed'] = $true
       Assert-TranscriptSafe; $confirmation = Read-Host 'Fresh dry-run-only confirmation token (hidden)' -AsSecureString; $confirmationHash = Get-ConfirmationHash $confirmation
-      $state['failureStage'] = 'RUN_ID_RESERVATION'; $state['reservationAttempted'] = $true; $reservation = Reserve-ConsumedRun $Validation $RequestedRunId 'dry-run' $confirmationHash; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = [string]$reservation.RunnerCommit
-      $state['failureStage'] = 'authentication'; $inputs = Get-FutureInputs; $auth = Invoke-PasswordGrant $inputs
+      $state['failureStage'] = 'authentication'; $inputs = Get-FutureInputs -IncludeDryRunTarget; $auth = Invoke-PasswordGrant $inputs
       $auth | Add-Member -NotePropertyName AttestationPath -NotePropertyValue $attestation.Path
       $auth | Add-Member -NotePropertyName AttestationSha256 -NotePropertyValue $attestation.Sha256
       $validatedExecutionCommit = Get-ValidatedExecutionCommit $Validation
-      if ($validatedExecutionCommit -ne [string]$reservation.RunnerCommit -or $validatedExecutionCommit -ne [string]$Validation.Head) { throw 'QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH' }
+      if ($validatedExecutionCommit -ne [string]$Validation.Head) { throw 'QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH' }
       $state['expectedToolingCommit'] = $validatedExecutionCommit
+      $targetBindingPath = Resolve-DryRunCanonicalTarget $auth $inputs.RequestedCircleSlug $Root $validatedExecutionCommit
+      $state['targetBindingPath'] = $targetBindingPath; $state['targetBindingSha256'] = Get-Sha256 $targetBindingPath; $state['targetBinding'] = Read-AttestationJson $targetBindingPath
+      $state['failureStage'] = 'RUN_ID_RESERVATION'; $state['reservationAttempted'] = $true; $reservation = Reserve-ConsumedRun $Validation $RequestedRunId 'dry-run' $confirmationHash '' '' $targetBindingPath; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = [string]$reservation.RunnerCommit
+      if ($validatedExecutionCommit -ne [string]$reservation.RunnerCommit -or $validatedExecutionCommit -ne [string]$Validation.Head) { throw 'QA_CANARY_V3_ATTESTATION_TOOLING_COMMIT_MISMATCH' }
       $childTerminalPath = Join-Path $Root 'minimal-canary-child-terminal-result.json'
-      Set-RunnerEnvironment $auth 'DryRunOnly' $RequestedRunId $reservation $childTerminalPath $validatedExecutionCommit
+      Set-RunnerEnvironment $auth 'DryRunOnly' $RequestedRunId $reservation $childTerminalPath $validatedExecutionCommit $targetBindingPath
       $state['failureStage'] = 'MINIMAL_CANARY_CHILD_LAUNCH'; $state['childStarted'] = $true; $state['canaryChildStarted'] = $true
       $child = Invoke-DryRunRunner $Validation.Path $RequestedRunId $childTerminalPath
       $state['childCompleted'] = [bool]$child.ChildCompleted; $state['childTimedOut'] = [bool]$child.ChildTimedOut; $state['childExitCode'] = [int]$child.ChildExitCode; $state['stdoutClassification'] = $child.StdoutClassification; $state['stderrClassification'] = $child.StderrClassification
@@ -918,7 +921,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
   $dryRoot = Join-Path $root 'dry-run'; $dryTerminalPath = Join-Path $dryRoot 'dry-run-only-terminal-result.json'
   $terminalPath = Join-Path $root 'capture-authcheck-dryrun-orchestration-terminal-result.json'
   $started = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow)
-  $state = [ordered]@{ schemaVersion=$null; startedAt=$started; completedAt=$null; executionCommit=$Validation.Head; worktreeContract='current-canonical-production-v3'; runId=$RunId; outerClassification=$null; innerClassification=$null; success=$false; failureStage='oauth_readiness'; captureAuthorizedByMode=$true; captureStarted=$false; captureCompleted=$false; captureSuccess=$false; captureTerminalPath=$null; captureTerminalSha256=$null; captureOuterClassification=$null; captureInnerClassification=$null; captureChildExitCode=1; capturePagesRequestCount=0; attestationPath=$null; attestationSha256=$null; attestationType=$null; attestationIssuedAt=$null; attestationExpiresAt=$null; authFreshnessCheckedAt=$started; authRemainingValidityMs=0; authMinimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; authAttestationFreshnessPassed=$false; authCheckAuthorizedByMode=$true; authCheckStarted=$false; authCheckCompleted=$false; authCheckSuccess=$false; authenticationCompleted=$false; sessionValidated=$false; authenticatedCheckCompleted=$false; authCheckTerminalPath=$null; authCheckTerminalSha256=$null; authCheckOuterClassification=$null; authCheckInnerClassification=$null; authCheckChildExitCode=1; dryRunFreshnessCheckedAt=$started; dryRunRemainingValidityMs=0; dryRunMinimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; dryRunAttestationFreshnessPassed=$false; dryRunAuthorizedByMode=$true; dryRunStarted=$false; dryRunCompleted=$false; dryRunSuccess=$false; dryRunTerminalPath=$null; dryRunTerminalSha256=$null; dryRunOuterClassification=$null; dryRunInnerClassification=$null; dryRunChildExitCode=1; dryRunExecutionCommit=$null; dryRunReceiptRunnerCommit=$null; dryRunExpectedToolingCommit=$null; dryRunPlannedMutationCount=2; dryRunActualMutationCount=0; pagesProjectGetCount=0; deploymentGetCount=0; supabaseReadCount=0; supabaseWriteCount=0; productionMutationCount=0; retryCount=0 }
+  $state = [ordered]@{ schemaVersion=$null; startedAt=$started; completedAt=$null; executionCommit=$Validation.Head; worktreeContract='current-canonical-production-v3'; runId=$RunId; outerClassification=$null; innerClassification=$null; success=$false; failureStage='oauth_readiness'; captureAuthorizedByMode=$true; captureStarted=$false; captureCompleted=$false; captureSuccess=$false; captureTerminalPath=$null; captureTerminalSha256=$null; captureOuterClassification=$null; captureInnerClassification=$null; captureChildExitCode=1; capturePagesRequestCount=0; attestationPath=$null; attestationSha256=$null; attestationType=$null; attestationIssuedAt=$null; attestationExpiresAt=$null; authFreshnessCheckedAt=$started; authRemainingValidityMs=0; authMinimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; authAttestationFreshnessPassed=$false; authCheckAuthorizedByMode=$true; authCheckStarted=$false; authCheckCompleted=$false; authCheckSuccess=$false; authenticationCompleted=$false; sessionValidated=$false; authenticatedCheckCompleted=$false; authCheckTerminalPath=$null; authCheckTerminalSha256=$null; authCheckOuterClassification=$null; authCheckInnerClassification=$null; authCheckChildExitCode=1; dryRunFreshnessCheckedAt=$started; dryRunRemainingValidityMs=0; dryRunMinimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; dryRunAttestationFreshnessPassed=$false; dryRunAuthorizedByMode=$true; dryRunStarted=$false; dryRunCompleted=$false; dryRunSuccess=$false; dryRunTerminalPath=$null; dryRunTerminalSha256=$null; dryRunOuterClassification=$null; dryRunInnerClassification=$null; dryRunChildExitCode=1; dryRunExecutionCommit=$null; dryRunReceiptRunnerCommit=$null; dryRunExpectedToolingCommit=$null; dryRunPlannedMutationCount=2; dryRunActualMutationCount=0; targetBinding=$null; targetBindingPath=$null; targetBindingSha256=$null; pagesProjectGetCount=0; deploymentGetCount=0; supabaseReadCount=0; supabaseWriteCount=0; productionMutationCount=0; retryCount=0 }
   try {
     Assert-CurrentCanonicalProductionV3Bindings
     $state['failureStage']='capture'; $state['captureStarted']=$true
@@ -931,7 +934,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
     $state['failureStage']='auth_check'; $script:DeploymentAttestationPath=$state['attestationPath']; $script:DeploymentAttestationSha256=$state['attestationSha256']; $script:EvidenceRoot=$authRoot; $state['authCheckStarted']=$true; $null=Invoke-CurrentCanonicalProductionV3AuthCheckOnly; Sync-CurrentCanonicalProductionV3OrchestrationAuthState $state $authTerminalPath; Invoke-CurrentCanonicalProductionV3AuthCheckTerminalValidator $authTerminalPath
     if (-not $state['authCheckSuccess'] -or $state['authCheckOuterClassification'] -ne 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK' -or $state['authCheckChildExitCode'] -ne 0) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_TERMINAL_INVALID' }
     $state['failureStage']='dry_run_freshness'; $state['dryRunFreshnessCheckedAt']=Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow); $state['dryRunRemainingValidityMs']=Assert-MinimumAttestationValidity $attestation; $state['dryRunAttestationFreshnessPassed']=$true
-    $state['failureStage']='dry_run'; $state['dryRunStarted']=$true; $dry=Invoke-CurrentCanonicalProductionV3DryRunOnly $Validation $dryRoot $RunId $state['attestationPath'] $state['attestationSha256']; $dryTerminal=Read-AttestationJson $dry.Path; $state['dryRunCompleted']=$true; $state['dryRunSuccess']=[bool]$dryTerminal.success; $state['dryRunTerminalPath']=$dry.Path; $state['dryRunTerminalSha256']=Get-Sha256 $dry.Path; $state['dryRunOuterClassification']=$dryTerminal.outerClassification; $state['dryRunInnerClassification']=$dryTerminal.innerClassification; $state['dryRunChildExitCode']=[int]$dryTerminal.childExitCode; $state['dryRunExecutionCommit']=[string]$dryTerminal.executionCommit; $state['dryRunReceiptRunnerCommit']=$dryTerminal.receiptRunnerCommit; $state['dryRunExpectedToolingCommit']=$dryTerminal.expectedToolingCommit; $state['dryRunPlannedMutationCount']=[int]$dryTerminal.plannedMutationCount; $state['dryRunActualMutationCount']=[int]$dryTerminal.actualMutationCount
+    $state['failureStage']='dry_run'; $state['dryRunStarted']=$true; $dry=Invoke-CurrentCanonicalProductionV3DryRunOnly $Validation $dryRoot $RunId $state['attestationPath'] $state['attestationSha256']; $dryTerminal=Read-AttestationJson $dry.Path; $state['dryRunCompleted']=$true; $state['dryRunSuccess']=[bool]$dryTerminal.success; $state['dryRunTerminalPath']=$dry.Path; $state['dryRunTerminalSha256']=Get-Sha256 $dry.Path; $state['dryRunOuterClassification']=$dryTerminal.outerClassification; $state['dryRunInnerClassification']=$dryTerminal.innerClassification; $state['dryRunChildExitCode']=[int]$dryTerminal.childExitCode; $state['dryRunExecutionCommit']=[string]$dryTerminal.executionCommit; $state['dryRunReceiptRunnerCommit']=$dryTerminal.receiptRunnerCommit; $state['dryRunExpectedToolingCommit']=$dryTerminal.expectedToolingCommit; $state['dryRunPlannedMutationCount']=[int]$dryTerminal.plannedMutationCount; $state['dryRunActualMutationCount']=[int]$dryTerminal.actualMutationCount; $state['targetBinding']=$dryTerminal.targetBinding; $state['targetBindingPath']=$dryTerminal.targetBindingPath; $state['targetBindingSha256']=$dryTerminal.targetBindingSha256
     if (-not $state['dryRunSuccess'] -or $state['dryRunOuterClassification'] -ne 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY' -or $state['dryRunChildExitCode'] -ne 0) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_TERMINAL_INVALID' }
     $state['failureStage']='complete'; $state['outerClassification']='R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY'; $state['success']=$true
   } catch {
@@ -1069,7 +1072,7 @@ function Get-ValidatedExecutionCommit([pscustomobject]$Validation) {
   return [string]$Validation.Head
 }
 
-function Reserve-ConsumedRun([pscustomobject]$Validation, [string]$RequestedRunId, [ValidateSet('dry-run', 'live')][string]$Domain, [string]$ConfirmationHash, [string]$FinalAuthorizationBindingPath = '', [string]$FinalAuthorizationBindingSha256 = '') {
+function Reserve-ConsumedRun([pscustomobject]$Validation, [string]$RequestedRunId, [ValidateSet('dry-run', 'live')][string]$Domain, [string]$ConfirmationHash, [string]$FinalAuthorizationBindingPath = '', [string]$FinalAuthorizationBindingSha256 = '', [string]$TargetBindingPath = '') {
   $runnerCommit = Get-ValidatedExecutionCommit $Validation
   $wrapperHash = Get-Sha256 $script:WrapperPath
   $childCommandDigest = Get-ChildCommandDigest $Domain $RequestedRunId
@@ -1077,6 +1080,10 @@ function Reserve-ConsumedRun([pscustomobject]$Validation, [string]$RequestedRunI
   if (-not [string]::IsNullOrWhiteSpace($FinalAuthorizationBindingPath) -or -not [string]::IsNullOrWhiteSpace($FinalAuthorizationBindingSha256)) {
     if ($Domain -ne 'live' -or -not (Test-WindowsFullyQualifiedPath $FinalAuthorizationBindingPath) -or -not (Test-Path -LiteralPath $FinalAuthorizationBindingPath -PathType Leaf) -or $FinalAuthorizationBindingSha256 -notmatch '^[a-f0-9]{64}$' -or (Get-Sha256 $FinalAuthorizationBindingPath) -ne $FinalAuthorizationBindingSha256) { throw 'R6_FINAL_AUTHORIZATION_BINDING_INVALID' }
     $arguments += @('--final-authorization-binding', $FinalAuthorizationBindingPath, '--attestation-sha256', $script:CurrentExecutionAttestationSha256)
+  }
+  if (-not [string]::IsNullOrWhiteSpace($TargetBindingPath)) {
+    if ($Domain -ne 'dry-run' -or -not (Test-WindowsFullyQualifiedPath $TargetBindingPath) -or -not (Test-Path -LiteralPath $TargetBindingPath -PathType Leaf)) { throw 'QA_CANARY_TARGET_BINDING_INVALID' }
+    $arguments += @('--target-binding', $TargetBindingPath)
   }
   $result = Invoke-ConsumedRunTool ([string]$Validation.Path) $arguments
   if ([string]::IsNullOrWhiteSpace([string]$result.receiptPath) -or [string]$result.receiptSha256 -notmatch '^[a-f0-9]{64}$' -or [string]$result.invocationNonce -notmatch '^[a-f0-9-]{36}$') { throw 'R6_CONSUMED_RUN_RESERVATION_OUTPUT_INVALID' }
@@ -1278,15 +1285,15 @@ function Write-SanitizedEvidence([string]$Root, [string]$Name, [hashtable]$Data)
   return $file
 }
 
-function Get-FutureInputs {
+function Get-FutureInputs([switch]$IncludeDryRunTarget) {
   Assert-TranscriptSafe
   $projectRef = Assert-ProjectRef (Read-Host 'Production Supabase project ref')
   $anonSecure = Read-Host 'Production anon/public key (hidden)' -AsSecureString
   $email = Assert-NonBlank (Read-Host 'Dedicated QA email') 'qa-email'
   Write-Host 'Enter the OpenGlass Hub / Supabase QA account password (not the mailbox password).' -ForegroundColor Yellow
   $passwordSecure = Read-Host 'OpenGlass Hub / Supabase QA account password (not mailbox password)' -AsSecureString
-  $circleSlug = Assert-CircleSlug (Read-Host 'Approved existing circle slug')
-  return [pscustomobject]@{ ProjectRef = $projectRef; AnonSecure = $anonSecure; Email = $email; PasswordSecure = $passwordSecure; CircleSlug = $circleSlug }
+  $requestedCircleSlug = if ($IncludeDryRunTarget) { Assert-CircleSlug (Read-Host 'Approved existing circle slug for fresh DryRun target resolution') } else { $null }
+  return [pscustomobject]@{ ProjectRef = $projectRef; AnonSecure = $anonSecure; Email = $email; PasswordSecure = $passwordSecure; RequestedCircleSlug = $requestedCircleSlug }
 }
 
 function Get-AuthProviderRejectionDetails([string]$Candidate) {
@@ -1418,7 +1425,7 @@ function Invoke-PasswordGrant([pscustomobject]$Inputs, [System.Collections.IDict
     $userId = [string]$response.user.id
     $confirmed = -not [string]::IsNullOrWhiteSpace([string]$response.user.email_confirmed_at)
     if ([string]::IsNullOrWhiteSpace($accessToken) -or $userId -notmatch '^[0-9a-f]{8}-[0-9a-f-]{27,}$' -or -not $confirmed) { $State['failureStage'] = 'AUTH_PASSWORD_GRANT_RESPONSE'; throw 'R6_AUTH_RESPONSE_MALFORMED' }
-    return [pscustomobject]@{ AccessToken = $accessToken; UserId = $userId; AnonKey = $anon; ProjectRef = $Inputs.ProjectRef; CircleSlug = $Inputs.CircleSlug }
+    return [pscustomobject]@{ AccessToken = $accessToken; UserId = $userId; AnonKey = $anon; ProjectRef = $Inputs.ProjectRef }
   } finally {
     $anon = $null; $password = $null
     if ($null -ne $Inputs.AnonSecure) { $Inputs.AnonSecure.Dispose() }
@@ -1436,7 +1443,25 @@ function Assert-NoPreexistingSecrets {
   }
 }
 
-function Set-RunnerEnvironment([pscustomobject]$Auth, [string]$Mode, [string]$RequestedRunId, [pscustomobject]$Reservation, [string]$ChildTerminalPath, [string]$ValidatedExecutionCommit) {
+function Resolve-DryRunCanonicalTarget([pscustomobject]$Auth, [string]$RequestedCircleSlug, [string]$Root, [string]$ValidatedExecutionCommit) {
+  if ([string]::IsNullOrWhiteSpace($RequestedCircleSlug)) { throw 'QA_CANARY_TARGET_REQUESTED_SLUG_INVALID' }
+  $targetPath = Join-Path $Root 'canonical-canary-target-binding.json'
+  if (Test-Path -LiteralPath $targetPath) { throw 'QA_CANARY_TARGET_BINDING_OUTPUT_EXISTS' }
+  [Environment]::SetEnvironmentVariable('QA_SUPABASE_URL', "https://$($Auth.ProjectRef).supabase.co", 'Process')
+  [Environment]::SetEnvironmentVariable('QA_BASE_URL', $script:ExpectedBaseUrl, 'Process')
+  [Environment]::SetEnvironmentVariable('QA_CANARY_ACCESS_TOKEN', $Auth.AccessToken, 'Process')
+  [Environment]::SetEnvironmentVariable('QA_CANARY_SUPABASE_ANON_KEY', $Auth.AnonKey, 'Process')
+  [Environment]::SetEnvironmentVariable('QA_EXPECTED_RUNNER_COMMIT', $ValidatedExecutionCommit, 'Process')
+  [Environment]::SetEnvironmentVariable('QA_EXPECTED_TOOLING_COMMIT', $ValidatedExecutionCommit, 'Process')
+  [Environment]::SetEnvironmentVariable('QA_CANARY_REQUEST_TIMEOUT_MS', '30000', 'Process')
+  $resolver = Join-Path $ExecutionWorktree 'scripts\qa\resolve-canonical-canary-target.mjs'
+  $previous = $ErrorActionPreference
+  try { $ErrorActionPreference = 'Continue'; $lines = @(& node $resolver '--requested-slug' $RequestedCircleSlug '--output' $targetPath 2>&1); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previous }
+  if ($exitCode -ne 0 -or $lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne 'QA_CANARY_TARGET_BINDING_READY' -or -not (Test-Path -LiteralPath $targetPath -PathType Leaf)) { throw 'QA_CANARY_TARGET_RESOLUTION_FAILED' }
+  return $targetPath
+}
+
+function Set-RunnerEnvironment([pscustomobject]$Auth, [string]$Mode, [string]$RequestedRunId, [pscustomobject]$Reservation, [string]$ChildTerminalPath, [string]$ValidatedExecutionCommit, [string]$TargetBindingPath) {
   Assert-NoPreexistingSecrets
   [Environment]::SetEnvironmentVariable('QA_SUPABASE_URL', "https://$($Auth.ProjectRef).supabase.co", 'Process')
   [Environment]::SetEnvironmentVariable('QA_EXPECTED_SUPABASE_REF', $Auth.ProjectRef, 'Process')
@@ -1453,7 +1478,8 @@ function Set-RunnerEnvironment([pscustomobject]$Auth, [string]$Mode, [string]$Re
   [Environment]::SetEnvironmentVariable('QA_DEPLOYMENT_ATTESTATION_SHA256', $Auth.AttestationSha256, 'Process')
   [Environment]::SetEnvironmentVariable('QA_CANARY_ACCESS_TOKEN', $Auth.AccessToken, 'Process')
   [Environment]::SetEnvironmentVariable('QA_CANARY_SUPABASE_ANON_KEY', $Auth.AnonKey, 'Process')
-  [Environment]::SetEnvironmentVariable('QA_CANARY_CIRCLE_SLUG', $Auth.CircleSlug, 'Process')
+  if ([string]::IsNullOrWhiteSpace($TargetBindingPath) -or -not (Test-Path -LiteralPath $TargetBindingPath -PathType Leaf)) { throw 'QA_CANARY_TARGET_BINDING_REQUIRED' }
+  [Environment]::SetEnvironmentVariable('QA_CANARY_TARGET_BINDING_PATH', $TargetBindingPath, 'Process')
   [Environment]::SetEnvironmentVariable('QA_CANARY_JOURNAL_ROOT', (Get-ExpectedJournalRoot), 'Process')
   if ($null -ne $Reservation) {
     [Environment]::SetEnvironmentVariable('QA_CANARY_CONSUMED_RUN_REGISTRY_ROOT', $Reservation.RegistryRoot, 'Process')
@@ -1711,14 +1737,15 @@ function Invoke-Main {
     if ($mode -eq 'ExecuteApprovedPhase') { $reservation = Reserve-ConsumedRun $validation $RunId $confirmationDomain $confirmationHash $FinalAuthorizationBindingPath $FinalAuthorizationBindingSha256 }
     else { $reservation = Reserve-ConsumedRun $validation $RunId $confirmationDomain $confirmationHash }
   }
-  $inputs = Get-FutureInputs
+  $inputs = if ($mode -eq 'DryRunOnly') { Get-FutureInputs -IncludeDryRunTarget } else { Get-FutureInputs }
   $auth = $null
   try {
     $auth = Invoke-PasswordGrant $inputs
     $auth | Add-Member -NotePropertyName AttestationPath -NotePropertyValue $attestation.Path
     $auth | Add-Member -NotePropertyName AttestationSha256 -NotePropertyValue $attestation.Sha256
     if ($mode -eq 'AuthCheckOnly') { Write-Output 'R6_AUTH_CHECK_OK' ; return }
-    Set-RunnerEnvironment $auth $mode $RunId $reservation '' (Get-ValidatedExecutionCommit $validation)
+    $targetBindingPath = if ($mode -eq 'ExecuteApprovedPhase') { $FinalAuthorizationBindingPath } else { throw 'QA_CANARY_TARGET_BINDING_REQUIRED' }
+    Set-RunnerEnvironment $auth $mode $RunId $reservation '' (Get-ValidatedExecutionCommit $validation) $targetBindingPath
     if ($mode -eq 'DryRunOnly') {
       Invoke-DryRunRunner $validation.Path $RunId ''
       Write-Output 'R6_DRY_RUN_OK'
@@ -1739,7 +1766,7 @@ function Invoke-Main {
       $executionFailure = $null
       $executionFailureStage = 'EXECUTE_CHILD_LAUNCH'
       try {
-        Set-RunnerEnvironment $auth $mode $RunId $reservation $childTerminalPath (Get-ValidatedExecutionCommit $validation)
+        Set-RunnerEnvironment $auth $mode $RunId $reservation $childTerminalPath (Get-ValidatedExecutionCommit $validation) $targetBindingPath
         $child = Invoke-LiveRunner $validation.Path $RunId $childTerminalPath
         $journal = Get-ExecutionJournalEvidence (Get-ExpectedJournalRoot) $RunId
         if (Test-Path -LiteralPath $reservation.ReceiptPath -PathType Leaf) {
@@ -1760,7 +1787,7 @@ function Invoke-Main {
       $executionSuccess = $null -eq $executionFailure -and $childExitCode -eq 0 -and $journal.Complete -and $journal.ActualMutationCount -eq 2
       $finalAuthorization = Read-AttestationJson $FinalAuthorizationBindingPath
       $finalReceipt = Read-AttestationJson $reservation.ReceiptPath
-      $executionData = [ordered]@{ schemaVersion='r6-final-canary-execution-terminal-result-v1'; startedAt=$startedAt; completedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); outerClassification=(if ($executionSuccess) {'R6_FINAL_CANARY_EXECUTION_COMPLETE'} else {'R6_FINAL_CANARY_EXECUTION_FAILED'}); innerClassification=(if ($executionSuccess) {$null} else {$executionFailure}); failureStage=(if ($executionSuccess) {$null} else {$executionFailureStage}); success=[bool]$executionSuccess; productionRunId=$RunId; parentDryRunRunId=$finalAuthorization.dryRunRunId; executionCommit=$validation.Head; toolingCommit=$validation.Head; actualExecutionWorktreeHead=$validation.Head; dryRunTerminalPath=$finalAuthorization.dryRunTerminalPath; dryRunTerminalSha256=$finalAuthorization.dryRunTerminalSha256; dryRunOrchestrationTerminalPath=$finalAuthorization.dryRunOrchestrationTerminalPath; dryRunOrchestrationTerminalSha256=$finalAuthorization.dryRunOrchestrationTerminalSha256; dryRunBindingPassed=$true; mutationPlanSchema='qa-minimal-canary-mutation-plan-v1'; mutationPlanHash=$finalReceipt.finalAuthorizationBinding.planSha256; approvedMutationCount=2; plannedMutationCount=2; freshAttestationPath=$attestation.Path; freshAttestationSha256=$attestation.Sha256; freshAttestationIssuedAt=[string]$attestationDocument.observedAt; freshAttestationExpiresAt=$attestation.ExpiresAt.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); attestationFreshnessPassed=$true; liveReceiptPath=$reservation.ReceiptPath; liveReceiptSha256=$receiptFinalSha256; liveReceiptInitialState='PENDING'; liveReceiptFinalState=$receiptFinalState; receiptBindingPassed=($receiptFinalState -eq 'CONSUMED'); executeStarted=$true; executeCompleted=$childCompleted; childStarted=$childStarted; childCompleted=$childCompleted; childExitCode=$childExitCode; childTimedOut=$childTimedOut; childTerminalPath=(if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {$childTerminalPath} else {$null}); childTerminalSha256=(if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {Get-Sha256 $childTerminalPath} else {$null}); childTerminalValidated=$childValidated; adapterReached=$journal.AdapterReached; journalCreated=$journal.Exists; journalPath=$journal.Path; journalSha256=$journal.Sha256; actualMutationCount=$journal.ActualMutationCount; unexpectedMutationCount=0; retryCount=0; supabaseReadCount=0; supabaseWriteCount=$journal.ActualMutationCount; productionMutationCount=$journal.ActualMutationCount }
+      $executionData = [ordered]@{ schemaVersion='r6-final-canary-execution-terminal-result-v2'; startedAt=$startedAt; completedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); outerClassification=(if ($executionSuccess) {'R6_FINAL_CANARY_EXECUTION_COMPLETE'} else {'R6_FINAL_CANARY_EXECUTION_FAILED'}); innerClassification=(if ($executionSuccess) {$null} else {$executionFailure}); failureStage=(if ($executionSuccess) {$null} else {$executionFailureStage}); success=[bool]$executionSuccess; productionRunId=$RunId; parentDryRunRunId=$finalAuthorization.dryRunRunId; executionCommit=$validation.Head; toolingCommit=$validation.Head; actualExecutionWorktreeHead=$validation.Head; dryRunTerminalPath=$finalAuthorization.dryRunTerminalPath; dryRunTerminalSha256=$finalAuthorization.dryRunTerminalSha256; dryRunOrchestrationTerminalPath=$finalAuthorization.dryRunOrchestrationTerminalPath; dryRunOrchestrationTerminalSha256=$finalAuthorization.dryRunOrchestrationTerminalSha256; dryRunBindingPassed=$true; mutationPlanSchema='qa-minimal-canary-mutation-plan-v1'; mutationPlanHash=$finalReceipt.finalAuthorizationBinding.planSha256; targetBinding=$finalAuthorization.targetBinding; approvedMutationCount=2; plannedMutationCount=2; freshAttestationPath=$attestation.Path; freshAttestationSha256=$attestation.Sha256; freshAttestationIssuedAt=[string]$attestationDocument.observedAt; freshAttestationExpiresAt=$attestation.ExpiresAt.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); attestationFreshnessPassed=$true; liveReceiptPath=$reservation.ReceiptPath; liveReceiptSha256=$receiptFinalSha256; liveReceiptInitialState='PENDING'; liveReceiptFinalState=$receiptFinalState; receiptBindingPassed=($receiptFinalState -eq 'CONSUMED'); executeStarted=$true; executeCompleted=$childCompleted; childStarted=$childStarted; childCompleted=$childCompleted; childExitCode=$childExitCode; childTimedOut=$childTimedOut; childTerminalPath=(if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {$childTerminalPath} else {$null}); childTerminalSha256=(if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {Get-Sha256 $childTerminalPath} else {$null}); childTerminalValidated=$childValidated; adapterReached=$journal.AdapterReached; journalCreated=$journal.Exists; journalPath=$journal.Path; journalSha256=$journal.Sha256; actualMutationCount=$journal.ActualMutationCount; unexpectedMutationCount=0; retryCount=0; supabaseReadCount=0; supabaseWriteCount=$journal.ActualMutationCount; productionMutationCount=$journal.ActualMutationCount }
       $executionTerminal = Write-FinalCanaryEvidence $executionRoot 'final-canary-execution-terminal-result.json' $executionData
       if ($executionSuccess) {
         try { Invoke-FinalNodeValidator $validation.Path 'scripts/qa/validate-r6-final-canary-execution-terminal.mjs' $executionTerminal 'R6_FINAL_CANARY_EXECUTION_TERMINAL_OK' 'EXECUTION_TERMINAL_FINALIZATION' } catch { $executionFailure = $_.Exception.Message; $executionSuccess = $false }
@@ -1774,7 +1801,7 @@ function Invoke-Main {
         } else { $executionFailure = 'POSTFLIGHT_EXECUTION' }
       }
       $postflight = if ($postflightSuccess) { Read-AttestationJson $postflightTerminalPath } else { $null }
-      $orchestration = [ordered]@{ schemaVersion='r6-final-canary-execute-and-postflight-orchestration-terminal-result-v1'; startedAt=$startedAt; completedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); outerClassification=(if ($executionSuccess -and $postflightSuccess) {'R6_FINAL_CANARY_EXECUTE_AND_POSTFLIGHT_COMPLETE'} else {'R6_FINAL_CANARY_EXECUTE_AND_POSTFLIGHT_FAILED'}); innerClassification=(if ($executionSuccess -and $postflightSuccess) {$null} else {$executionFailure}); failureStage=(if ($executionSuccess -and $postflightSuccess) {$null} else {'FINAL_ORCHESTRATION'}); success=[bool]($executionSuccess -and $postflightSuccess); parentDryRunRunId=$executionData.parentDryRunRunId; productionRunId=$RunId; dryRunAuthorizationValidated=$true; freshCaptureSuccess=$true; freshAuthCheckSuccess=$true; freshAttestationFreshnessPassed=$true; executeStarted=$true; executeCompleted=$childCompleted; executeSuccess=[bool]$executionSuccess; executionTerminalPath=$executionTerminal; executionTerminalSha256=(Get-Sha256 $executionTerminal); postflightStarted=$executionSuccess; postflightCompleted=$postflightSuccess; postflightSuccess=$postflightSuccess; postflightTerminalPath=(if ($postflightSuccess) {$postflightTerminalPath} else {$null}); postflightTerminalSha256=(if ($postflightSuccess) {Get-Sha256 $postflightTerminalPath} else {$null}); approvedMutationCount=2; actualMutationCount=$journal.ActualMutationCount; verifiedMutationCount=(if ($postflightSuccess) {[int]$postflight.verifiedMutationCount} else {0}); unexpectedMutationCount=(if ($postflightSuccess) {[int]$postflight.unexpectedMutationCount} else {0}); duplicateExecutionCount=(if ($postflightSuccess) {[int]$postflight.duplicateExecutionCount} else {0}); retryCount=0; supabaseReadCount=(if ($postflightSuccess) {[int]$postflight.supabaseReadCount} else {0}); supabaseWriteCount=$journal.ActualMutationCount; productionMutationCount=$journal.ActualMutationCount; postflightWriteCount=(if ($postflightSuccess) {[int]$postflight.supabaseWriteCount} else {0}) }
+      $orchestration = [ordered]@{ schemaVersion='r6-final-canary-execute-and-postflight-orchestration-terminal-result-v2'; startedAt=$startedAt; completedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); outerClassification=(if ($executionSuccess -and $postflightSuccess) {'R6_FINAL_CANARY_EXECUTE_AND_POSTFLIGHT_COMPLETE'} else {'R6_FINAL_CANARY_EXECUTE_AND_POSTFLIGHT_FAILED'}); innerClassification=(if ($executionSuccess -and $postflightSuccess) {$null} else {$executionFailure}); failureStage=(if ($executionSuccess -and $postflightSuccess) {$null} else {'FINAL_ORCHESTRATION'}); success=[bool]($executionSuccess -and $postflightSuccess); parentDryRunRunId=$executionData.parentDryRunRunId; productionRunId=$RunId; targetBinding=$finalAuthorization.targetBinding; dryRunAuthorizationValidated=$true; freshCaptureSuccess=$true; freshAuthCheckSuccess=$true; freshAttestationFreshnessPassed=$true; executeStarted=$true; executeCompleted=$childCompleted; executeSuccess=[bool]$executionSuccess; executionTerminalPath=$executionTerminal; executionTerminalSha256=(Get-Sha256 $executionTerminal); postflightStarted=$executionSuccess; postflightCompleted=$postflightSuccess; postflightSuccess=$postflightSuccess; postflightTerminalPath=(if ($postflightSuccess) {$postflightTerminalPath} else {$null}); postflightTerminalSha256=(if ($postflightSuccess) {Get-Sha256 $postflightTerminalPath} else {$null}); approvedMutationCount=2; actualMutationCount=$journal.ActualMutationCount; verifiedMutationCount=(if ($postflightSuccess) {[int]$postflight.verifiedMutationCount} else {0}); unexpectedMutationCount=(if ($postflightSuccess) {[int]$postflight.unexpectedMutationCount} else {0}); duplicateExecutionCount=(if ($postflightSuccess) {[int]$postflight.duplicateExecutionCount} else {0}); retryCount=0; supabaseReadCount=(if ($postflightSuccess) {[int]$postflight.supabaseReadCount} else {0}); supabaseWriteCount=$journal.ActualMutationCount; productionMutationCount=$journal.ActualMutationCount; postflightWriteCount=(if ($postflightSuccess) {[int]$postflight.supabaseWriteCount} else {0}) }
       $orchestrationTerminal = Write-FinalCanaryEvidence $executionRoot 'final-canary-execute-and-postflight-orchestration-terminal-result.json' $orchestration
       if ($executionSuccess -and $postflightSuccess) { Invoke-FinalNodeValidator $validation.Path 'scripts/qa/validate-r6-final-canary-orchestration-terminal.mjs' $orchestrationTerminal 'R6_FINAL_CANARY_ORCHESTRATION_TERMINAL_OK' 'FINAL_ORCHESTRATION_TERMINAL_VALIDATION'; Write-Output 'R6_FINAL_CANARY_EXECUTE_AND_POSTFLIGHT_COMPLETE'; return }
       throw ('R6_FINAL_CANARY_EXECUTE_AND_POSTFLIGHT_FAILED:' + $executionFailure)

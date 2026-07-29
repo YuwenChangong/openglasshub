@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { CANONICAL_CANARY_TARGET_BINDING_VERSION, validateCanonicalCanaryTargetBinding } from "./canonical-canary-target-binding.mjs";
 
-export const FINAL_EXECUTION_BINDING_VERSION = "r6-final-execution-binding-v1";
+export const FINAL_EXECUTION_BINDING_VERSION = "r6-final-execution-binding-v2";
 const SHA256 = /^[a-f0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const RUN_ID = /^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -15,7 +16,7 @@ const exact = (value, expected, code) => { if (Object.keys(value).length !== exp
 
 export function validateFinalExecutionBinding(value) {
   const item = object(value, "R6_FINAL_EXECUTION_BINDING_INVALID");
-  const keys = ["schemaVersion", "executionWorktree", "executionCommit", "runnerCommit", "toolingCommit", "wrapperPath", "wrapperSha256", "finalContractGitBlob", "executeRunnerGitBlob", "postflightRunnerGitBlob", "bindingValidatorGitBlob", "bindingLibraryGitBlob", "parentAuthorizationPath", "parentAuthorizationSha256", "parentReceiptPath", "parentReceiptSha256", "parentDryRunRunId", "planSchema", "planSha256", "approvedOperationIds", "plannedMutationCount", "parentActualMutationCount"];
+  const keys = ["schemaVersion", "executionWorktree", "executionCommit", "runnerCommit", "toolingCommit", "wrapperPath", "wrapperSha256", "finalContractGitBlob", "executeRunnerGitBlob", "postflightRunnerGitBlob", "bindingValidatorGitBlob", "bindingLibraryGitBlob", "parentAuthorizationPath", "parentAuthorizationSha256", "parentReceiptPath", "parentReceiptSha256", "parentDryRunRunId", "planSchema", "planSha256", "targetBinding", "approvedOperationIds", "plannedMutationCount", "parentActualMutationCount"];
   exact(item, keys, "R6_FINAL_EXECUTION_BINDING_INVALID");
   if (item.schemaVersion !== FINAL_EXECUTION_BINDING_VERSION) fail("R6_FINAL_EXECUTION_BINDING_INVALID");
   for (const key of ["executionWorktree", "wrapperPath", "parentAuthorizationPath", "parentReceiptPath"]) text(item[key], "R6_FINAL_EXECUTION_BINDING_INVALID");
@@ -25,6 +26,7 @@ export function validateFinalExecutionBinding(value) {
   for (const key of ["finalContractGitBlob", "executeRunnerGitBlob", "postflightRunnerGitBlob", "bindingValidatorGitBlob", "bindingLibraryGitBlob"]) commit(item[key], "R6_FINAL_EXECUTION_BINDING_INVALID");
   if (!RUN_ID.test(String(item.parentDryRunRunId))) fail("R6_FINAL_EXECUTION_BINDING_INVALID");
   if (item.planSchema !== "qa-minimal-canary-mutation-plan-v1" || item.plannedMutationCount !== 2 || item.parentActualMutationCount !== 0 || !Array.isArray(item.approvedOperationIds) || item.approvedOperationIds.length !== 2 || item.approvedOperationIds[0] !== "CREATE_POST" || item.approvedOperationIds[1] !== "CREATE_COMMENT") fail("R6_FINAL_EXECUTION_BINDING_SAFETY_INVALID");
+  validateCanonicalCanaryTargetBinding(item.targetBinding, { baseMutationPlanSchema: item.planSchema, baseMutationPlanHash: item.planSha256, executionCommit: item.executionCommit, toolingCommit: item.toolingCommit });
   return Object.freeze({ ...item, bindingSha256: sha256(JSON.stringify(item)) });
 }
 
