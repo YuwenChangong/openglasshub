@@ -108,6 +108,7 @@ function Invoke-AuthCheckFixture([bool]$MismatchAttestationSha = $false, [string
     [Environment]::SetEnvironmentVariable('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT', $null, 'Process')
     [Environment]::SetEnvironmentVariable('R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE', $null, 'Process')
     [Environment]::SetEnvironmentVariable('R6_V3_AUTH_FAILURE_FIXTURE_KIND', $null, 'Process')
+    foreach ($name in @('R6_V3_ORCHESTRATION_TEST_USE_REAL_TARGET_RESOLVER','R6_V3_ORCHESTRATION_TEST_TARGET_RESOLVER_ENTRYPOINT')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
     Remove-Item -LiteralPath $parent -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $attestationRoot -Recurse -Force -ErrorAction SilentlyContinue
   }
@@ -180,7 +181,7 @@ function Require-DryRunLifecycleMirror([object]$OrchestrationTerminal, [object]$
   }
 }
 
-function Invoke-ThreeStageOrchestrationFixture([string]$ReservationFailure = '', [string]$AuthFixtureKind = '', [string]$PreToolingFailure = '', [string]$TargetResolutionFailure = '', [string]$PostReservationFailure = '', [string]$BindingMutation = '', [switch]$PreexistingSecret) {
+function Invoke-ThreeStageOrchestrationFixture([string]$ReservationFailure = '', [string]$AuthFixtureKind = '', [string]$PreToolingFailure = '', [string]$TargetResolutionFailure = '', [string]$PostReservationFailure = '', [string]$BindingMutation = '', [string]$ChildScenario = '', [switch]$UseRealTargetResolver, [switch]$PreexistingSecret) {
   $parent = Join-Path 'C:\Users\1\OpenGlassHub-R6-Proof\r6-current-canonical-production-v3-evidence' ('test-r6-v3-three-stage-' + [guid]::NewGuid().ToString())
   $dryTerminalPath = Join-Path $parent 'dry-run\dry-run-only-terminal-result.json'
   $attestationRoot = Join-Path ([IO.Path]::GetTempPath()) ('r6-v3-three-stage-attestations-' + [guid]::NewGuid().ToString())
@@ -194,6 +195,8 @@ function Invoke-ThreeStageOrchestrationFixture([string]$ReservationFailure = '',
     if (-not [string]::IsNullOrWhiteSpace($TargetResolutionFailure)) { [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_TEST_DRY_RUN_TARGET_RESOLUTION_FAILURE', $TargetResolutionFailure, 'Process') }
     if (-not [string]::IsNullOrWhiteSpace($PostReservationFailure)) { [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_TEST_DRY_RUN_POST_RESERVATION_FAILURE', $PostReservationFailure, 'Process') }
     if (-not [string]::IsNullOrWhiteSpace($BindingMutation)) { [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_TEST_DRY_RUN_TARGET_BINDING_MUTATION', $BindingMutation, 'Process') }
+    if (-not [string]::IsNullOrWhiteSpace($ChildScenario)) { [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_TEST_DRY_RUN_CHILD_SCENARIO', $ChildScenario, 'Process') }
+    if ($UseRealTargetResolver) { [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_TEST_USE_REAL_TARGET_RESOLVER', '1', 'Process') }
     if ($PreexistingSecret) { [Environment]::SetEnvironmentVariable('QA_CANARY_ACCESS_TOKEN', 'fixture-only', 'Process') }
     $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     $output = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $WrapperPath -ExecutionWorktree $ExecutionWorktree -PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly -RunId 'qa-canary-11111111-1111-4111-8111-111111111111' -EvidenceRoot $parent 2>&1)
@@ -233,6 +236,14 @@ function Invoke-ThreeStageOrchestrationFixture([string]$ReservationFailure = '',
     } elseif (-not [string]::IsNullOrWhiteSpace($PostReservationFailure)) {
       $dryTerminal = Get-Content -LiteralPath $dryTerminalPath -Raw | ConvertFrom-Json
       Require ($exitCode -eq 1 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED' -and $terminal.innerClassification -eq $PostReservationFailure -and $terminal.failureStage -eq 'MINIMAL_CANARY_CHILD_LAUNCH' -and [bool]$terminal.targetResolutionSucceeded -and $terminal.dryRunReceiptRunnerCommit -eq $terminal.executionCommit -and $terminal.dryRunExpectedToolingCommit -eq $terminal.executionCommit -and $dryTerminal.receiptState -eq 'PENDING' -and $terminal.targetBindingPath -eq $dryTerminal.targetBindingPath -and $terminal.targetBindingSha256 -eq $dryTerminal.targetBindingSha256 -and (ConvertTo-BindingFixtureJson $terminal.targetBinding) -ceq (ConvertTo-BindingFixtureJson $dryTerminal.targetBinding)) 'R6_CURRENT_CANONICAL_V3_THREE_STAGE_POST_RESERVATION_BINDING_SYNC_FAILED'
+    } elseif (-not [string]::IsNullOrWhiteSpace($ChildScenario)) {
+      $dryTerminal = Get-Content -LiteralPath $dryTerminalPath -Raw | ConvertFrom-Json
+      $expectedInner = @{ 'formal-failure-exit-1'='QA_CANARY_TEST_FORMAL_FAILURE'; 'formal-failure-exit-0'='QA_CANARY_CHILD_TERMINAL_INVALID'; 'missing-terminal'='QA_CANARY_TEST_MISSING_TERMINAL'; 'malformed-terminal'='QA_CANARY_CHILD_TERMINAL_INVALID'; 'sha-mismatch'='QA_CANARY_CHILD_TERMINAL_INVALID' }[$ChildScenario]
+      if ($null -eq $expectedInner) {
+        Require ($exitCode -eq 0 -and [bool]$dryTerminal.childStarted -and [bool]$dryTerminal.childCompleted -and [bool]$dryTerminal.childTerminalLocated -and [bool]$dryTerminal.childTerminalValidated -and $dryTerminal.childExitCode -eq 0) ('R6_CURRENT_CANONICAL_V3_THREE_STAGE_CHILD_SUCCESS_CONTRACT_FAILED:' + $ChildScenario)
+      } else {
+        Require ($exitCode -eq 1 -and $terminal.innerClassification -eq $expectedInner -and $dryTerminal.innerClassification -eq $expectedInner -and [bool]$dryTerminal.reservationCompleted -and $dryTerminal.receiptState -eq 'PENDING' -and [bool]$dryTerminal.targetResolutionSucceeded -and [int]$dryTerminal.actualMutationCount -eq 0 -and [int]$dryTerminal.productionMutationCount -eq 0 -and [int]$dryTerminal.retryCount -eq 0) ('R6_CURRENT_CANONICAL_V3_THREE_STAGE_CHILD_FAILURE_CONTRACT_FAILED:' + $ChildScenario)
+      }
     } elseif ([string]::IsNullOrWhiteSpace($ReservationFailure)) {
       $dryTerminal = Get-Content -LiteralPath $dryTerminalPath -Raw | ConvertFrom-Json
       Require ($exitCode -eq 0 -and $terminal.outerClassification -eq 'R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY' -and [bool]$terminal.captureSuccess -and [bool]$terminal.authCheckSuccess -and [bool]$terminal.dryRunSuccess -and [int]$terminal.dryRunActualMutationCount -eq 0 -and [int]$terminal.productionMutationCount -eq 0 -and [int]$terminal.retryCount -eq 0 -and $terminal.targetBindingPath -eq $dryTerminal.targetBindingPath -and $terminal.targetBindingSha256 -eq $dryTerminal.targetBindingSha256 -and (ConvertTo-BindingFixtureJson $terminal.targetBinding) -ceq (ConvertTo-BindingFixtureJson $dryTerminal.targetBinding)) ("R6_CURRENT_CANONICAL_V3_THREE_STAGE_SUCCESS_CONTRACT_FAILED:exit=$exitCode:outer=$($terminal.outerClassification):inner=$($terminal.innerClassification):stage=$($terminal.failureStage):capture=$($terminal.captureSuccess):auth=$($terminal.authCheckSuccess):dry=$($terminal.dryRunSuccess)")
@@ -243,7 +254,7 @@ function Invoke-ThreeStageOrchestrationFixture([string]$ReservationFailure = '',
     $text = ($output | ForEach-Object { $_.ToString() }) -join "`n"
     Require ($text -notmatch '\-AuthCheckOnly|\-DryRunOnly|\-ExecuteApprovedPhase') 'R6_CURRENT_CANONICAL_V3_THREE_STAGE_COMMAND_LEAK'
   } finally {
-    foreach ($name in @('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE','R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT','R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_TEST_NOW_UTC','R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_DRY_RUN_VALIDATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_THREE_STAGE_VALIDATOR','R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE','R6_V3_ORCHESTRATION_TEST_DRY_RUN_PRE_TOOLING_FAILURE','R6_V3_ORCHESTRATION_TEST_DRY_RUN_TARGET_RESOLUTION_FAILURE','R6_V3_ORCHESTRATION_TEST_DRY_RUN_POST_RESERVATION_FAILURE','R6_V3_ORCHESTRATION_TEST_DRY_RUN_TARGET_BINDING_MUTATION','R6_V3_AUTH_FAILURE_FIXTURE_KIND','QA_CANARY_ACCESS_TOKEN')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+    foreach ($name in @('R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE','R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_ATTESTATION_ROOT','R6_V3_DOWNSTREAM_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE','R6_V3_ORCHESTRATION_TEST_NOW_UTC','R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR','R6_V3_ORCHESTRATION_WRAPPER_TEST_AUTH_VALIDATOR','R6_V3_ORCHESTRATION_TEST_DRY_RUN_VALIDATOR','R6_V3_ORCHESTRATION_TEST_THREE_STAGE_VALIDATOR','R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE','R6_V3_ORCHESTRATION_TEST_DRY_RUN_PRE_TOOLING_FAILURE','R6_V3_ORCHESTRATION_TEST_DRY_RUN_TARGET_RESOLUTION_FAILURE','R6_V3_ORCHESTRATION_TEST_DRY_RUN_POST_RESERVATION_FAILURE','R6_V3_ORCHESTRATION_TEST_DRY_RUN_TARGET_BINDING_MUTATION','R6_V3_ORCHESTRATION_TEST_DRY_RUN_CHILD_SCENARIO','R6_V3_ORCHESTRATION_TEST_DRY_RUN_CHILD_ENTRYPOINT','R6_V3_AUTH_FAILURE_FIXTURE_KIND','QA_CANARY_ACCESS_TOKEN')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
     Remove-Item -LiteralPath $parent -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $attestationRoot -Recurse -Force -ErrorAction SilentlyContinue
   }
@@ -279,11 +290,14 @@ try {
   Invoke-OrchestrationFixture 'authcheck-orchestration-success' '2099-01-01T00:03:00.001Z' $false
   Invoke-OrchestrationFixture 'target' '2099-01-01T00:03:00.000Z' $false
   Invoke-ThreeStageOrchestrationFixture
+  Invoke-ThreeStageOrchestrationFixture -UseRealTargetResolver
   Invoke-ThreeStageOrchestrationFixture 'R6_CONSUMED_RUN_TOOL_FAILED'
   Invoke-ThreeStageOrchestrationFixture '' '' 'R6_PROJECT_REF_INVALID'
   foreach ($targetFailure in @('QA_CANARY_TARGET_REQUESTED_SLUG_INVALID','QA_CANARY_TARGET_NOT_FOUND','QA_CANARY_TARGET_AMBIGUOUS','QA_CANARY_TARGET_INELIGIBLE','QA_CANARY_TARGET_CIRCLE_ID_MISSING','QA_CANARY_TARGET_BINDING_OUTPUT_EXISTS','QA_CANARY_TARGET_BINDING_MISSING','QA_CANARY_TARGET_BINDING_INVALID','QA_CANARY_TARGET_RESOLUTION_OUTPUT_INVALID','QA_CANARY_TARGET_RESOLUTION_PROCESS_FAILED','QA_CANARY_TARGET_UNRECOGNIZED_FAILURE')) { Invoke-ThreeStageOrchestrationFixture '' '' '' $targetFailure }
   Invoke-ThreeStageOrchestrationFixture '' 'http400-credential'
   Invoke-ThreeStageOrchestrationFixture '' '' '' '' 'QA_CANARY_TEST_POST_RESERVATION_FAILURE'
+  foreach ($childScenario in @('stdout-multiline','stderr-warning','delayed-terminal')) { Invoke-ThreeStageOrchestrationFixture '' '' '' '' '' '' $childScenario }
+  foreach ($childScenario in @('formal-failure-exit-1','formal-failure-exit-0','missing-terminal','malformed-terminal','sha-mismatch')) { Invoke-ThreeStageOrchestrationFixture '' '' '' '' '' '' $childScenario }
   foreach ($bindingMutation in @('missing', 'sha', 'path', 'object')) { Invoke-ThreeStageOrchestrationFixture '' '' '' '' '' $bindingMutation }
   Invoke-ThreeStageOrchestrationFixture '' '' '' '' '' '' -PreexistingSecret
   $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'

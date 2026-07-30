@@ -44,6 +44,57 @@ if (kind === "target-binding" || kind === "target-binding-alternate") {
   process.exit(0);
 }
 
+if (kind === "dry-run-child") {
+  const childEntrypoint = path.join(root, "synthetic-dry-run-child.mjs");
+  const source = `import { createHash } from "node:crypto";
+import { writeFile } from "node:fs/promises";
+const value = (name) => { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1] ?? null; };
+const terminalPath = value("--child-terminal-path");
+const runId = value("--run-id");
+const scenario = process.env.R6_V3_ORCHESTRATION_TEST_DRY_RUN_CHILD_SCENARIO ?? "success";
+const runnerCommit = process.env.QA_EXPECTED_RUNNER_COMMIT;
+const expectedToolingCommit = process.env.QA_EXPECTED_TOOLING_COMMIT;
+const sha = (entry) => createHash("sha256").update(entry).digest("hex");
+const writeTerminal = async (entry) => { const terminal = { ...entry, resultSha256: null }; const digestSource = { ...terminal }; delete digestSource.resultSha256; terminal.resultSha256 = scenario === "sha-mismatch" ? "0".repeat(64) : sha(JSON.stringify(digestSource)); await writeFile(terminalPath, JSON.stringify(terminal) + "\\n"); };
+if (!terminalPath || !runId || !runnerCommit || !expectedToolingCommit) process.exitCode = 2;
+else if (scenario === "missing-terminal") { process.stderr.write("QA_CANARY_TEST_MISSING_TERMINAL\\n"); process.exitCode = 1; }
+else if (scenario === "malformed-terminal") { await writeFile(terminalPath, "{}\\n"); process.exitCode = 1; }
+else {
+  const formalFailure = scenario === "formal-failure-exit-1" || scenario === "formal-failure-exit-0";
+  if (scenario === "delayed-terminal") await new Promise((resolve) => setTimeout(resolve, 25));
+  await writeTerminal({ schemaVersion: "qa-minimal-canary-child-terminal-result-v1", runId, mode: "dry-run", runnerCommit, expectedToolingCommit, success: !formalFailure, classification: formalFailure ? "QA_CANARY_TEST_FORMAL_FAILURE" : "QA_CANARY_DRY_RUN_PLAN_READY", failureStage: formalFailure ? "CHILD_EXECUTION" : "complete", childExitCode: scenario === "formal-failure-exit-0" ? 0 : formalFailure ? 1 : 0 });
+  if (scenario === "stdout-multiline") process.stdout.write("first line\\nsecond line\\n");
+  if (scenario === "stderr-warning") process.stderr.write("synthetic warning\\n");
+  if (formalFailure && scenario !== "formal-failure-exit-0") process.exitCode = 1;
+}
+`;
+  await mkdir(root, { recursive: true });
+  await writeFile(childEntrypoint, source, { flag: "wx" });
+  process.stdout.write(`${JSON.stringify({ childEntrypoint })}\n`);
+  process.exit(0);
+}
+
+if (kind === "target-resolver") {
+  const resolverEntrypoint = path.join(root, "synthetic-target-resolver.mjs");
+  const source = `import { createCanonicalCanaryTargetBinding } from ${JSON.stringify(new URL("./qa/canonical-canary-target-binding.mjs", import.meta.url).href)};
+import { writeFile } from "node:fs/promises";
+const value = (name) => { const index = process.argv.indexOf(name); return index < 0 ? null : process.argv[index + 1] ?? null; };
+const output = value("--output");
+const requested = value("--requested-slug");
+const commit = process.env.QA_EXPECTED_RUNNER_COMMIT;
+if (!output || !requested || !commit || process.env.QA_EXPECTED_TOOLING_COMMIT !== commit) process.exitCode = 1;
+else {
+  const binding = createCanonicalCanaryTargetBinding({ resolvedAtUtc: "2099-01-01T00:03:00.000Z", canonicalCircleId: "11111111-1111-4111-8111-111111111111", canonicalCircleSlug: "synthetic-canonical-circle", baseMutationPlanSchema: "qa-minimal-canary-mutation-plan-v1", baseMutationPlanHash: "b".repeat(64), executionCommit: commit, toolingCommit: commit });
+  await writeFile(output, JSON.stringify(binding) + "\\n", { flag: "wx" });
+  process.stdout.write("QA_CANARY_TARGET_BINDING_READY\\n");
+}
+`;
+  await mkdir(root, { recursive: true });
+  await writeFile(resolverEntrypoint, source, { flag: "wx" });
+  process.stdout.write(`${JSON.stringify({ resolverEntrypoint })}\n`);
+  process.exit(0);
+}
+
 await mkdir(attestationRoot, { recursive: true });
 await writeFile(attestationPath, "{}\n");
 const success = () => createCurrentCanonicalProductionV3TerminalResult({

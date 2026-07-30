@@ -857,6 +857,32 @@ function New-SyntheticDryRunTargetBinding([string]$Root, [string]$ToolingCommit,
   return [pscustomobject]@{ Path = $path; Sha256 = [string]$metadata.targetBindingSha256; Binding = Read-AttestationJson $path }
 }
 
+function New-SyntheticDryRunChildEntrypoint([string]$Root, [string]$ToolingCommit) {
+  if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -ne '1') { throw 'R6_CURRENT_CANONICAL_V3_TEST_CHILD_UNSAFE' }
+  $generator = [string]$env:R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR
+  if (-not (Test-WindowsFullyQualifiedPath $generator) -or -not (Test-Path -LiteralPath $generator -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_TEST_CHILD_FIXTURE_INVALID' }
+  $previous = $ErrorActionPreference
+  try { $ErrorActionPreference = 'Continue'; $lines = @(& node $generator '--root' $Root '--tooling-commit' $ToolingCommit '--kind' 'dry-run-child' 2>&1); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previous }
+  if ($exitCode -ne 0 -or $lines.Count -ne 1) { throw 'R6_CURRENT_CANONICAL_V3_TEST_CHILD_FIXTURE_INVALID' }
+  try { $metadata = $lines[0].ToString() | ConvertFrom-Json -ErrorAction Stop } catch { throw 'R6_CURRENT_CANONICAL_V3_TEST_CHILD_FIXTURE_INVALID' }
+  $entrypoint = [string]$metadata.childEntrypoint
+  if (-not (Test-WindowsFullyQualifiedPath $entrypoint) -or $entrypoint -ne (Join-Path $Root 'synthetic-dry-run-child.mjs') -or -not (Test-Path -LiteralPath $entrypoint -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_TEST_CHILD_FIXTURE_INVALID' }
+  return $entrypoint
+}
+
+function New-SyntheticTargetResolverEntrypoint([string]$Root, [string]$ToolingCommit) {
+  if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -ne '1') { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_RESOLVER_UNSAFE' }
+  $generator = [string]$env:R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR
+  if (-not (Test-WindowsFullyQualifiedPath $generator) -or -not (Test-Path -LiteralPath $generator -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_RESOLVER_FIXTURE_INVALID' }
+  $previous = $ErrorActionPreference
+  try { $ErrorActionPreference = 'Continue'; $lines = @(& node $generator '--root' $Root '--tooling-commit' $ToolingCommit '--kind' 'target-resolver' 2>&1); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previous }
+  if ($exitCode -ne 0 -or $lines.Count -ne 1) { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_RESOLVER_FIXTURE_INVALID' }
+  try { $metadata = $lines[0].ToString() | ConvertFrom-Json -ErrorAction Stop } catch { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_RESOLVER_FIXTURE_INVALID' }
+  $entrypoint = [string]$metadata.resolverEntrypoint
+  if (-not (Test-WindowsFullyQualifiedPath $entrypoint) -or $entrypoint -ne (Join-Path $Root 'synthetic-target-resolver.mjs') -or -not (Test-Path -LiteralPath $entrypoint -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_RESOLVER_FIXTURE_INVALID' }
+  return $entrypoint
+}
+
 function Set-TargetResolutionInitialState([System.Collections.IDictionary]$State) {
   $State['authenticationCompleted'] = $false
   $State['targetResolutionStarted'] = $false
@@ -1020,10 +1046,19 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
         Set-TargetResolutionFailureState $state $code (Join-Path $Root 'canonical-canary-target-binding.json')
         throw $code
       }
-      $syntheticTargetBinding = New-SyntheticDryRunTargetBinding $Root $Validation.Head
-      $state['authenticationCompleted'] = $true
-      $state['targetBindingPath'] = $syntheticTargetBinding.Path; $state['targetBindingSha256'] = $syntheticTargetBinding.Sha256; $state['targetBinding'] = $syntheticTargetBinding.Binding
-      Set-TargetResolutionSuccessState $state
+      $auth = [pscustomobject]@{ AccessToken = 'synthetic-access'; AnonKey = 'synthetic-anon'; ProjectRef = 'synthetic-project'; AttestationPath = $AttestationPath; AttestationSha256 = $AttestationSha256 }
+      if ($env:R6_V3_ORCHESTRATION_TEST_USE_REAL_TARGET_RESOLVER -eq '1') {
+        $resolverEntrypoint = New-SyntheticTargetResolverEntrypoint $Root $Validation.Head
+        [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_TEST_TARGET_RESOLVER_ENTRYPOINT', $resolverEntrypoint, 'Process')
+        $state['authenticationCompleted'] = $true
+        $targetBindingPath = Resolve-DryRunCanonicalTarget $auth 'synthetic-canonical-circle' $Root $Validation.Head $state
+        $state['targetBindingPath'] = $targetBindingPath; $state['targetBindingSha256'] = Get-Sha256 $targetBindingPath; $state['targetBinding'] = Read-AttestationJson $targetBindingPath
+      } else {
+        $syntheticTargetBinding = New-SyntheticDryRunTargetBinding $Root $Validation.Head
+        $state['authenticationCompleted'] = $true
+        $state['targetBindingPath'] = $syntheticTargetBinding.Path; $state['targetBindingSha256'] = $syntheticTargetBinding.Sha256; $state['targetBinding'] = $syntheticTargetBinding.Binding
+        Set-TargetResolutionSuccessState $state
+      }
       $bindingMutation = [string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_TARGET_BINDING_MUTATION
       if ($bindingMutation -eq 'missing') {
         $state['targetBinding'] = $null; $state['targetBindingPath'] = $null; $state['targetBindingSha256'] = $null
@@ -1042,7 +1077,14 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
         $state['failureStage'] = 'RUN_ID_RESERVATION'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true
         throw ([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE)
       }
-      $state['failureStage'] = 'MINIMAL_CANARY_CHILD_LAUNCH'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = $Validation.Head; $state['expectedToolingCommit'] = $Validation.Head; $state['childStarted'] = $true; $state['canaryChildStarted'] = $true; $state['childCompleted'] = $true; $state['childExitCode'] = 0
+      $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = $Validation.Head; $state['expectedToolingCommit'] = $Validation.Head
+      $reservation = [pscustomobject]@{ RegistryRoot = $Root; ReceiptPath = (Join-Path $Root 'synthetic-receipt.json'); ReceiptSha256 = ('a' * 64); InvocationNonce = '11111111-1111-4111-8111-111111111111'; RunnerCommit = $Validation.Head; WrapperSha256 = ('b' * 64); ChildCommandDigest = ('c' * 64) }
+      $childTerminalPath = Join-Path $Root 'minimal-canary-child-terminal-result.json'
+      $entrypoint = New-SyntheticDryRunChildEntrypoint $Root $Validation.Head
+      [Environment]::SetEnvironmentVariable('R6_V3_ORCHESTRATION_TEST_DRY_RUN_CHILD_ENTRYPOINT', $entrypoint, 'Process')
+      Set-RunnerEnvironment $auth 'DryRunOnly' $RequestedRunId $reservation $childTerminalPath $Validation.Head $state['targetBindingPath']
+      $state['failureStage'] = 'MINIMAL_CANARY_CHILD_LAUNCH'; $state['childStarted'] = $true; $state['canaryChildStarted'] = $true
+      $null = Invoke-ValidatedDryRunChild $Validation.Path $RequestedRunId $childTerminalPath $Validation.Head $state
       if (-not [string]::IsNullOrWhiteSpace([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_POST_RESERVATION_FAILURE)) {
         $state['failureStage'] = 'MINIMAL_CANARY_CHILD_LAUNCH'
         throw ([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_POST_RESERVATION_FAILURE)
@@ -1063,21 +1105,7 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
       $childTerminalPath = Join-Path $Root 'minimal-canary-child-terminal-result.json'
       Set-RunnerEnvironment $auth 'DryRunOnly' $RequestedRunId $reservation $childTerminalPath $validatedExecutionCommit $targetBindingPath
       $state['failureStage'] = 'MINIMAL_CANARY_CHILD_LAUNCH'; $state['childStarted'] = $true; $state['canaryChildStarted'] = $true
-      $child = Invoke-DryRunRunner $Validation.Path $RequestedRunId $childTerminalPath
-      $state['childCompleted'] = [bool]$child.ChildCompleted; $state['childTimedOut'] = [bool]$child.ChildTimedOut; $state['childExitCode'] = [int]$child.ChildExitCode; $state['stdoutClassification'] = $child.StdoutClassification; $state['stderrClassification'] = $child.StderrClassification
-      if ($state['childTimedOut']) { throw 'QA_CANARY_CHILD_TIMEOUT' }
-      if (Test-Path -LiteralPath $childTerminalPath -PathType Leaf) {
-        $state['childTerminalPath'] = $childTerminalPath; $state['childTerminalSha256'] = Get-Sha256 $childTerminalPath; $state['childTerminalLocated'] = $true
-        $childTerminal = Read-AttestationJson $childTerminalPath
-        if ($childTerminal.schemaVersion -ne 'qa-minimal-canary-child-terminal-result-v1' -or $childTerminal.runId -ne $RequestedRunId -or $childTerminal.mode -ne 'dry-run' -or $childTerminal.runnerCommit -ne $validatedExecutionCommit -or $childTerminal.expectedToolingCommit -ne $validatedExecutionCommit -or [int]$childTerminal.childExitCode -ne [int]$child.ChildExitCode -or [string]$childTerminal.classification -notmatch '^QA_CANARY_[A-Z0-9_]+$' -or [string]$childTerminal.classification -eq 'QA_CANARY_FAILED') { throw 'QA_CANARY_CHILD_TERMINAL_INVALID' }
-        if ((-not [string]::IsNullOrWhiteSpace([string]$child.StdoutClassification) -and $child.StdoutClassification -ne $childTerminal.classification) -or (-not [string]::IsNullOrWhiteSpace([string]$child.StderrClassification) -and $child.StderrClassification -ne $childTerminal.classification)) { throw 'QA_CANARY_CHILD_CONSOLE_CLASSIFICATION_MISMATCH' }
-        $state['childTerminalValidated'] = $true
-        if (-not [bool]$childTerminal.success) { $state['failureStage'] = [string]$childTerminal.failureStage; throw ([string]$childTerminal.classification) }
-        if ([int]$child.ChildExitCode -ne 0 -or $childTerminal.failureStage -ne 'complete') { throw 'QA_CANARY_CHILD_TERMINAL_INVALID' }
-      } elseif ([int]$child.ChildExitCode -ne 0) {
-        $fallback = if (-not [string]::IsNullOrWhiteSpace([string]$child.StderrClassification)) { [string]$child.StderrClassification } elseif (-not [string]::IsNullOrWhiteSpace([string]$child.StdoutClassification)) { [string]$child.StdoutClassification } else { 'QA_CANARY_CHILD_UNEXPECTED_FAILURE' }
-        throw $fallback
-      } else { throw 'QA_CANARY_CHILD_TERMINAL_MISSING' }
+      $null = Invoke-ValidatedDryRunChild $Validation.Path $RequestedRunId $childTerminalPath $validatedExecutionCommit $state
     }
     $state['failureStage'] = 'complete'; $state['outerClassification'] = 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY'; $state['success'] = $true
   } catch {
@@ -1648,6 +1676,12 @@ function Assert-NoPreexistingSecrets {
   }
 }
 
+function Clear-TargetResolverEnvironment {
+  foreach ($name in @('QA_SUPABASE_URL','QA_BASE_URL','QA_CANARY_ACCESS_TOKEN','QA_CANARY_SUPABASE_ANON_KEY','QA_EXPECTED_RUNNER_COMMIT','QA_EXPECTED_TOOLING_COMMIT','QA_CANARY_REQUEST_TIMEOUT_MS')) {
+    Remove-Item -LiteralPath ("Env:$name") -ErrorAction SilentlyContinue
+  }
+}
+
 function Resolve-DryRunCanonicalTarget([pscustomobject]$Auth, [string]$RequestedCircleSlug, [string]$Root, [string]$ValidatedExecutionCommit, [System.Collections.IDictionary]$State) {
   $targetPath = Join-Path $Root 'canonical-canary-target-binding.json'
   $State['failureStage'] = 'TARGET_RESOLUTION'
@@ -1660,38 +1694,48 @@ function Resolve-DryRunCanonicalTarget([pscustomobject]$Auth, [string]$Requested
     Set-TargetResolutionFailureState $State 'QA_CANARY_TARGET_BINDING_OUTPUT_EXISTS' $targetPath
     throw 'QA_CANARY_TARGET_BINDING_OUTPUT_EXISTS'
   }
-  [Environment]::SetEnvironmentVariable('QA_SUPABASE_URL', "https://$($Auth.ProjectRef).supabase.co", 'Process')
-  [Environment]::SetEnvironmentVariable('QA_BASE_URL', $script:ExpectedBaseUrl, 'Process')
-  [Environment]::SetEnvironmentVariable('QA_CANARY_ACCESS_TOKEN', $Auth.AccessToken, 'Process')
-  [Environment]::SetEnvironmentVariable('QA_CANARY_SUPABASE_ANON_KEY', $Auth.AnonKey, 'Process')
-  [Environment]::SetEnvironmentVariable('QA_EXPECTED_RUNNER_COMMIT', $ValidatedExecutionCommit, 'Process')
-  [Environment]::SetEnvironmentVariable('QA_EXPECTED_TOOLING_COMMIT', $ValidatedExecutionCommit, 'Process')
-  [Environment]::SetEnvironmentVariable('QA_CANARY_REQUEST_TIMEOUT_MS', '30000', 'Process')
-  $resolver = Join-Path $ExecutionWorktree 'scripts\qa\resolve-canonical-canary-target.mjs'
-  $previous = $ErrorActionPreference
-  try { $ErrorActionPreference = 'Continue'; $lines = @(& node $resolver '--requested-slug' $RequestedCircleSlug '--output' $targetPath 2>&1); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previous }
-  if ($exitCode -ne 0) {
-    $code = Get-TargetResolutionFailureCode $lines $exitCode
-    Set-TargetResolutionFailureState $State $code $targetPath
-    throw $code
-  }
-  if ($lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne 'QA_CANARY_TARGET_BINDING_READY') {
-    Set-TargetResolutionFailureState $State 'QA_CANARY_TARGET_RESOLUTION_OUTPUT_INVALID' $targetPath
-    throw 'QA_CANARY_TARGET_RESOLUTION_OUTPUT_INVALID'
-  }
-  if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
-    Set-TargetResolutionFailureState $State 'QA_CANARY_TARGET_BINDING_MISSING' $targetPath
-    throw 'QA_CANARY_TARGET_BINDING_MISSING'
-  }
-  $State['targetBindingArtifactPresent'] = $true
-  try { Invoke-CanonicalCanaryTargetBindingValidator $targetPath } catch {
-    Set-TargetResolutionFailureState $State 'QA_CANARY_TARGET_BINDING_INVALID' $targetPath
+  Assert-NoPreexistingSecrets
+  try {
+    [Environment]::SetEnvironmentVariable('QA_SUPABASE_URL', "https://$($Auth.ProjectRef).supabase.co", 'Process')
+    [Environment]::SetEnvironmentVariable('QA_BASE_URL', $script:ExpectedBaseUrl, 'Process')
+    [Environment]::SetEnvironmentVariable('QA_CANARY_ACCESS_TOKEN', $Auth.AccessToken, 'Process')
+    [Environment]::SetEnvironmentVariable('QA_CANARY_SUPABASE_ANON_KEY', $Auth.AnonKey, 'Process')
+    [Environment]::SetEnvironmentVariable('QA_EXPECTED_RUNNER_COMMIT', $ValidatedExecutionCommit, 'Process')
+    [Environment]::SetEnvironmentVariable('QA_EXPECTED_TOOLING_COMMIT', $ValidatedExecutionCommit, 'Process')
+    [Environment]::SetEnvironmentVariable('QA_CANARY_REQUEST_TIMEOUT_MS', '30000', 'Process')
+    $resolver = Join-Path $ExecutionWorktree 'scripts\qa\resolve-canonical-canary-target.mjs'
+    if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -eq '1' -and -not [string]::IsNullOrWhiteSpace([string]$env:R6_V3_ORCHESTRATION_TEST_TARGET_RESOLVER_ENTRYPOINT)) {
+      $candidate = [string]$env:R6_V3_ORCHESTRATION_TEST_TARGET_RESOLVER_ENTRYPOINT
+      if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_RESOLVER_INVALID' }
+      $resolver = $candidate
+    }
+    $previous = $ErrorActionPreference
+    try { $ErrorActionPreference = 'Continue'; $lines = @(& node $resolver '--requested-slug' $RequestedCircleSlug '--output' $targetPath 2>&1); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previous }
+    if ($exitCode -ne 0) {
+      $code = Get-TargetResolutionFailureCode $lines $exitCode
+      Set-TargetResolutionFailureState $State $code $targetPath
+      throw $code
+    }
+    if ($lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne 'QA_CANARY_TARGET_BINDING_READY') {
+      Set-TargetResolutionFailureState $State 'QA_CANARY_TARGET_RESOLUTION_OUTPUT_INVALID' $targetPath
+      throw 'QA_CANARY_TARGET_RESOLUTION_OUTPUT_INVALID'
+    }
+    if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+      Set-TargetResolutionFailureState $State 'QA_CANARY_TARGET_BINDING_MISSING' $targetPath
+      throw 'QA_CANARY_TARGET_BINDING_MISSING'
+    }
     $State['targetBindingArtifactPresent'] = $true
-    $State['targetBindingCreated'] = $true
-    throw 'QA_CANARY_TARGET_BINDING_INVALID'
+    try { Invoke-CanonicalCanaryTargetBindingValidator $targetPath } catch {
+      Set-TargetResolutionFailureState $State 'QA_CANARY_TARGET_BINDING_INVALID' $targetPath
+      $State['targetBindingArtifactPresent'] = $true
+      $State['targetBindingCreated'] = $true
+      throw 'QA_CANARY_TARGET_BINDING_INVALID'
+    }
+    Set-TargetResolutionSuccessState $State
+    return $targetPath
+  } finally {
+    Clear-TargetResolverEnvironment
   }
-  Set-TargetResolutionSuccessState $State
-  return $targetPath
 }
 
 function Set-RunnerEnvironment([pscustomobject]$Auth, [string]$Mode, [string]$RequestedRunId, [pscustomobject]$Reservation, [string]$ChildTerminalPath, [string]$ValidatedExecutionCommit, [string]$TargetBindingPath) {
@@ -1764,10 +1808,37 @@ function Invoke-DryRunRunner([string]$Worktree, [string]$RequestedRunId, [string
     if ([string][Environment]::GetEnvironmentVariable('QA_ALLOW_PRODUCTION_WRITES', 'Process') -ne '1') { throw 'R6_DRY_RUN_FLAG_SET_FAILED' }
     Import-R6NativeChildProcessHelper $Worktree
     $node = (Get-Command node -CommandType Application -ErrorAction Stop).Source
-    return Invoke-R6NativeChildProcess -FileName $node -Arguments (@($script:RunnerRelativePath) + $arguments) -WorkingDirectory $Worktree -TimeoutMilliseconds $script:ChildProcessTimeoutMilliseconds
+    $entrypoint = $script:RunnerRelativePath
+    if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -eq '1' -and -not [string]::IsNullOrWhiteSpace([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_CHILD_ENTRYPOINT)) {
+      $candidate = [string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_CHILD_ENTRYPOINT
+      if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_TEST_CHILD_ENTRYPOINT_INVALID' }
+      $entrypoint = $candidate
+    }
+    return Invoke-R6NativeChildProcess -FileName $node -Arguments (@($entrypoint) + $arguments) -WorkingDirectory $Worktree -TimeoutMilliseconds $script:ChildProcessTimeoutMilliseconds
   } finally {
     Remove-Item -LiteralPath 'Env:QA_ALLOW_PRODUCTION_WRITES' -ErrorAction SilentlyContinue
   }
+}
+
+function Invoke-ValidatedDryRunChild([string]$Worktree, [string]$RequestedRunId, [string]$ChildTerminalPath, [string]$ValidatedExecutionCommit, [System.Collections.IDictionary]$State) {
+  $child = Invoke-DryRunRunner $Worktree $RequestedRunId $ChildTerminalPath
+  $State['childCompleted'] = [bool]$child.ChildCompleted; $State['childTimedOut'] = [bool]$child.ChildTimedOut; $State['childExitCode'] = [int]$child.ChildExitCode; $State['stdoutClassification'] = $child.StdoutClassification; $State['stderrClassification'] = $child.StderrClassification
+  if ($State['childTimedOut']) { throw 'QA_CANARY_CHILD_TIMEOUT' }
+  if (-not (Test-Path -LiteralPath $ChildTerminalPath -PathType Leaf)) {
+    if ([int]$child.ChildExitCode -ne 0) {
+      $fallback = if (-not [string]::IsNullOrWhiteSpace([string]$child.StderrClassification)) { [string]$child.StderrClassification } elseif (-not [string]::IsNullOrWhiteSpace([string]$child.StdoutClassification)) { [string]$child.StdoutClassification } else { 'QA_CANARY_CHILD_UNEXPECTED_FAILURE' }
+      throw $fallback
+    }
+    throw 'QA_CANARY_CHILD_TERMINAL_MISSING'
+  }
+  $State['childTerminalPath'] = $ChildTerminalPath; $State['childTerminalSha256'] = Get-Sha256 $ChildTerminalPath; $State['childTerminalLocated'] = $true
+  Invoke-FinalNodeValidator $Worktree 'scripts/qa/validate-production-minimal-canary-child-terminal.mjs' $ChildTerminalPath 'QA_MINIMAL_CANARY_CHILD_TERMINAL_OK' 'QA_CANARY_CHILD_TERMINAL_INVALID'
+  $childTerminal = Read-AttestationJson $ChildTerminalPath
+  if ($childTerminal.runId -ne $RequestedRunId -or $childTerminal.mode -ne 'dry-run' -or $childTerminal.runnerCommit -ne $ValidatedExecutionCommit -or $childTerminal.expectedToolingCommit -ne $ValidatedExecutionCommit -or [int]$childTerminal.childExitCode -ne [int]$child.ChildExitCode) { throw 'QA_CANARY_CHILD_TERMINAL_INVALID' }
+  $State['childTerminalValidated'] = $true
+  if (-not [bool]$childTerminal.success) { $State['failureStage'] = [string]$childTerminal.failureStage; throw ([string]$childTerminal.classification) }
+  if ([int]$child.ChildExitCode -ne 0 -or $childTerminal.failureStage -ne 'complete') { throw 'QA_CANARY_CHILD_TERMINAL_INVALID' }
+  return $childTerminal
 }
 
 function Write-FinalCanaryEvidence([string]$Root, [string]$Name, [System.Collections.IDictionary]$Data) {
