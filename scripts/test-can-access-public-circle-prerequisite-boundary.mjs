@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { normalize } from "./production-schema-fingerprint-core.mjs";
+import { discoverTaskScopedNormalizedReplay } from "./lib/task-scoped-normalized-replay.mjs";
 
 const root = process.cwd();
 const packetDirectory = path.join(root, "docs", "ops", "reconciliation");
@@ -32,11 +33,7 @@ assert.match(uncommentedPostflight, /\nROLLBACK;\s*$/);
 assert.doesNotMatch(uncommentedPostflight, /^\s*(?:CREATE|ALTER|DROP|GRANT|REVOKE|INSERT|UPDATE|DELETE|MERGE|TRUNCATE|DO|CALL|EXECUTE)\b/im);
 for (const required of ["pg_get_functiondef", "normalized_function_body_hash", "aclexplode", "circles_status_constraint", "circles_select_policy", "circles_delete_policy"]) assert.match(postflight, new RegExp(required));
 
-const containers = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" })
-  .split(/\r?\n/)
-  .filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
-assert.equal(containers.length, 1, "LOCAL_DOCKER_ONLY requires one disposable normalized replay database container");
-const container = containers[0];
+const { containerId: container } = discoverTaskScopedNormalizedReplay();
 const psql = (input, stop = true) => {
   const result = spawnSync("docker", ["exec", "-i", container, "psql", "-X", "-qAt", "-v", `ON_ERROR_STOP=${stop ? 1 : 0}`, "-U", "postgres", "-d", "postgres"], { input, encoding: "utf8" });
   if (stop && result.status !== 0) throw new Error(result.stderr || result.stdout);

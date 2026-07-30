@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION, validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal } from "./qa/validate-r6-v3-capture-authcheck-dryrun-orchestration-terminal.mjs";
+import { R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION, R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION, validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal } from "./qa/validate-r6-v3-capture-authcheck-dryrun-orchestration-terminal.mjs";
 import { createCanonicalCanaryTargetBinding } from "./qa/canonical-canary-target-binding.mjs";
 
 const target = () => createCanonicalCanaryTargetBinding({ resolvedAtUtc: "2099-01-01T00:00:00.000Z", canonicalCircleId: "11111111-1111-4111-8111-111111111111", canonicalCircleSlug: "canonical-circle", baseMutationPlanSchema: "qa-minimal-canary-mutation-plan-v1", baseMutationPlanHash: "b".repeat(64), executionCommit: "a".repeat(40), toolingCommit: "a".repeat(40) });
@@ -17,9 +17,19 @@ const base = () => ({
   pagesProjectGetCount: 1, deploymentGetCount: 0, supabaseReadCount: 0, supabaseWriteCount: 0, productionMutationCount: 0, retryCount: 0,
 });
 assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(base()).classification, "R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY");
+const v4 = base();
+v4.schemaVersion = R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION;
+Object.assign(v4, {
+  dryRunReservationAttempted: true, dryRunReservationCompleted: true, dryRunReceiptCreated: true, dryRunReceiptState: "PENDING",
+  dryRunExecutorStarted: true, dryRunCanaryChildStarted: true, dryRunExecutorCompleted: true, dryRunExecutorTimedOut: false,
+  dryRunJournalCreated: false, dryRunFinalAuthorizationCreated: false, dryRunUnexpectedMutationCount: 0, dryRunSupabaseWriteCount: 0,
+});
+assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(v4).classification, "R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY");
+const v4ReceiptStateMismatch = { ...v4, dryRunReceiptState: "CONSUMED" };
+assert.throws(() => validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(v4ReceiptStateMismatch), { message: "R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_LIFECYCLE_ORDER_INVALID" });
 const historicV2 = base();
 historicV2.schemaVersion = "r6-v3-capture-authcheck-dryrun-orchestration-terminal-result-v2";
-for (const key of ["dryRunAuthenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "targetResolutionFailureCategory", "targetResultCountClass", "targetEligibleState", "canonicalTargetResolved", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated"]) delete historicV2[key];
+for (const key of ["dryRunAuthenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "targetResolutionFailureCategory", "targetResultCountClass", "targetEligibleState", "canonicalTargetResolved", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated", "dryRunReservationAttempted", "dryRunReservationCompleted", "dryRunReceiptCreated", "dryRunReceiptState", "dryRunExecutorStarted", "dryRunCanaryChildStarted", "dryRunExecutorCompleted", "dryRunExecutorTimedOut", "dryRunJournalCreated", "dryRunFinalAuthorizationCreated", "dryRunUnexpectedMutationCount", "dryRunSupabaseWriteCount"]) delete historicV2[key];
 assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(historicV2).classification, "R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY");
 const targetResolutionFailure = base();
 targetResolutionFailure.success = false;

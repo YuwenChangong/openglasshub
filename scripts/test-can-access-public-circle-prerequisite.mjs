@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { normalize } from "./production-schema-fingerprint-core.mjs";
+import { discoverTaskScopedNormalizedReplay } from "./lib/task-scoped-normalized-replay.mjs";
 
 const root = process.cwd();
 const preflight = await readFile(path.join(root, "docs", "ops", "reconciliation", "can-access-public-circle-preflight.sql"), "utf8");
@@ -31,9 +32,8 @@ assert.equal(expectedAcl.get("PUBLIC_execute"), "false");
 assert.equal(expectedAcl.get("anon_execute"), "true");
 assert.equal(expectedAcl.get("authenticated_execute"), "true");
 
-const containers = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" }).split(/\r?\n/).filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
-assert.equal(containers.length, 1, "LOCAL_DOCKER_ONLY requires one disposable normalized replay database container");
-const psql = (sql) => execFileSync("docker", ["exec", "-i", containers[0], "psql", "-X", "-qAt", "-F", "|", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: sql, encoding: "utf8" }).trim();
+const { containerId: container } = discoverTaskScopedNormalizedReplay();
+const psql = (sql) => execFileSync("docker", ["exec", "-i", container, "psql", "-X", "-qAt", "-F", "|", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: sql, encoding: "utf8" }).trim();
 const local = psql(`SELECT 'returns=' || pg_get_function_result(p.oid) || ';security_definer=' || CASE WHEN p.prosecdef THEN 'true' ELSE 'false' END || ';owner=' || pg_get_userbyid(p.proowner) || ';search_path=' || coalesce(array_to_string(p.proconfig, ', '), '') || ';body=' || pg_get_functiondef(p.oid) || '|volatility=' || p.provolatile::text || '|strict=' || p.proisstrict || '|leakproof=' || p.proleakproof || '|parallel=' || p.proparallel::text FROM pg_proc p WHERE p.oid = 'public.can_access_public_circle(uuid)'::regprocedure;`);
 const [contract, volatility, strictness, leakproof, parallel] = local.split("|");
 assert.equal(createHash("sha256").update(normalize(contract)).digest("hex"), functionDefinition.deterministicSha256);
@@ -43,7 +43,7 @@ assert.match(contract, /rls-test-circle/);
 assert.match(contract, /lower\(coalesce\(circle_ref\.name, ''\)\) not like '%rls test%'/);
 
 const proposalOperations = waveOneProposal.replace(/^\s*BEGIN;\s*/m, "").replace(/\s*COMMIT;\s*$/, "");
-const missingPrerequisiteSimulation = spawnSync("docker", ["exec", "-i", containers[0], "psql", "-X", "-q", "-v", "ON_ERROR_STOP=0", "-U", "postgres", "-d", "postgres"], {
+const missingPrerequisiteSimulation = spawnSync("docker", ["exec", "-i", container, "psql", "-X", "-q", "-v", "ON_ERROR_STOP=0", "-U", "postgres", "-d", "postgres"], {
   input: "BEGIN;\nDROP FUNCTION public.can_access_public_circle(uuid) CASCADE;\n" + proposalOperations + "\nROLLBACK;\n",
   encoding: "utf8",
 });

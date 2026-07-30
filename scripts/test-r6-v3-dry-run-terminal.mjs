@@ -1,13 +1,21 @@
 import assert from "node:assert/strict";
-import { R6_V3_DRY_RUN_TERMINAL_VERSION, validateR6V3DryRunTerminal } from "./qa/validate-r6-v3-dry-run-terminal.mjs";
+import { R6_V3_DRY_RUN_TERMINAL_VERSION, R6_V4_DRY_RUN_TERMINAL_VERSION, validateR6V3DryRunTerminal } from "./qa/validate-r6-v3-dry-run-terminal.mjs";
 import { createCanonicalCanaryTargetBinding } from "./qa/canonical-canary-target-binding.mjs";
 
 const target = () => createCanonicalCanaryTargetBinding({ resolvedAtUtc: "2099-01-01T00:00:00.000Z", canonicalCircleId: "11111111-1111-4111-8111-111111111111", canonicalCircleSlug: "canonical-circle", baseMutationPlanSchema: "qa-minimal-canary-mutation-plan-v1", baseMutationPlanHash: "b".repeat(64), executionCommit: "a".repeat(40), toolingCommit: "a".repeat(40) });
 const base = () => ({ schemaVersion: R6_V3_DRY_RUN_TERMINAL_VERSION, startedAt: "2099-01-01T00:00:00.000Z", completedAt: "2099-01-01T00:00:01.000Z", runId: "qa-canary-11111111-1111-4111-8111-111111111111", outerClassification: "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY", innerClassification: null, success: true, failureStage: "complete", captureProvenancePassed: true, authProvenancePassed: true, attestationFreshnessPassed: true, minimumRequiredValidityMs: 720000, remainingValidityMs: 720000, runIdValidationPassed: true, reservationAttempted: true, reservationCompleted: true, receiptCreated: true, receiptState: "PENDING", executionCommit: "a".repeat(40), receiptRunnerCommit: "a".repeat(40), expectedToolingCommit: "a".repeat(40), targetBinding: target(), targetBindingPath: "C:\\safe\\canonical-canary-target-binding.json", targetBindingSha256: "c".repeat(64), childStarted: true, canaryChildStarted: true, childCompleted: true, childTimedOut: false, stdoutClassification: null, stderrClassification: null, childTerminalPath: null, childTerminalSha256: null, childTerminalLocated: false, childTerminalValidated: false, adapterReached: false, journalCreated: false, childExitCode: 0, plannedMutationCount: 2, actualMutationCount: 0, supabaseWriteCount: 0, productionMutationCount: 0, retryCount: 0, authenticationCompleted: true, targetResolutionStarted: true, targetResolutionCompleted: true, targetResolutionSucceeded: true, targetResolutionFailureCategory: null, targetResultCountClass: "ONE", targetEligibleState: "ELIGIBLE", canonicalTargetResolved: true, canonicalCircleIdResolved: true, canonicalCircleSlugResolved: true, targetBindingArtifactPresent: true, targetBindingValidationPassed: true, targetBindingCreated: true, targetBindingHashCreated: true, targetBoundExecutionPlanHashCreated: true });
 assert.equal(validateR6V3DryRunTerminal(base()).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY");
+const v4 = base();
+v4.schemaVersion = R6_V4_DRY_RUN_TERMINAL_VERSION;
+v4.unexpectedMutationCount = 0;
+v4.finalAuthorizationCreated = false;
+assert.equal(validateR6V3DryRunTerminal(v4).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY");
+const missingV4Lifecycle = { ...v4 };
+delete missingV4Lifecycle.finalAuthorizationCreated;
+assert.throws(() => validateR6V3DryRunTerminal(missingV4Lifecycle), { message: "R6_V3_DRY_RUN_TERMINAL_SCHEMA_INVALID" });
 const historicV2 = base();
 historicV2.schemaVersion = "r6-v3-dry-run-terminal-result-v2";
-for (const key of ["authenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "targetResolutionFailureCategory", "targetResultCountClass", "targetEligibleState", "canonicalTargetResolved", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated"]) delete historicV2[key];
+for (const key of ["authenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "targetResolutionFailureCategory", "targetResultCountClass", "targetEligibleState", "canonicalTargetResolved", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated", "unexpectedMutationCount", "finalAuthorizationCreated"]) delete historicV2[key];
 assert.equal(validateR6V3DryRunTerminal(historicV2).classification, "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY");
 const targetResolutionFailure = base();
 targetResolutionFailure.success = false;

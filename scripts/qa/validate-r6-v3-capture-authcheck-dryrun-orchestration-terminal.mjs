@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { validateCanonicalCanaryTargetBinding } from "./canonical-canary-target-binding.mjs";
 
 export const R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION = "r6-v3-capture-authcheck-dryrun-orchestration-terminal-result-v3";
+export const R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION = "r6-v4-capture-authcheck-dryrun-orchestration-terminal-result-v4";
 const V2_VERSION = "r6-v3-capture-authcheck-dryrun-orchestration-terminal-result-v2";
 const LEGACY_VERSION = "r6-v3-capture-authcheck-dryrun-orchestration-terminal-result-v1";
 const BASE_REQUIRED = [
@@ -14,6 +15,11 @@ const BASE_REQUIRED = [
   "dryRunFreshnessCheckedAt", "dryRunRemainingValidityMs", "dryRunMinimumRequiredValidityMs", "dryRunAttestationFreshnessPassed",
   "dryRunAuthorizedByMode", "dryRunStarted", "dryRunCompleted", "dryRunSuccess", "dryRunTerminalPath", "dryRunTerminalSha256", "dryRunOuterClassification", "dryRunInnerClassification", "dryRunChildExitCode", "dryRunExecutionCommit", "dryRunReceiptRunnerCommit", "dryRunExpectedToolingCommit", "dryRunPlannedMutationCount", "dryRunActualMutationCount", "targetBinding", "targetBindingPath", "targetBindingSha256",
   "pagesProjectGetCount", "deploymentGetCount", "supabaseReadCount", "supabaseWriteCount", "productionMutationCount", "retryCount",
+];
+const V4_LIFECYCLE_REQUIRED = [
+  "dryRunReservationAttempted", "dryRunReservationCompleted", "dryRunReceiptCreated", "dryRunReceiptState",
+  "dryRunExecutorStarted", "dryRunCanaryChildStarted", "dryRunExecutorCompleted", "dryRunExecutorTimedOut",
+  "dryRunJournalCreated", "dryRunFinalAuthorizationCreated", "dryRunUnexpectedMutationCount", "dryRunSupabaseWriteCount",
 ];
 const TARGET_DIAGNOSTIC_REQUIRED = [
   "dryRunAuthenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "targetResolutionFailureCategory", "targetResultCountClass", "targetEligibleState", "canonicalTargetResolved", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated",
@@ -34,6 +40,7 @@ function requiredFor(version) {
   if (version === LEGACY_VERSION) return BASE_REQUIRED.filter((key) => !["targetBinding", "targetBindingPath", "targetBindingSha256"].includes(key));
   if (version === V2_VERSION) return BASE_REQUIRED;
   if (version === R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION) return [...BASE_REQUIRED, ...TARGET_DIAGNOSTIC_REQUIRED];
+  if (version === R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION) return [...BASE_REQUIRED, ...TARGET_DIAGNOSTIC_REQUIRED, ...V4_LIFECYCLE_REQUIRED];
   return null;
 }
 function assertTargetDiagnostics(value) {
@@ -56,6 +63,17 @@ function assertTargetDiagnostics(value) {
   if (value.failureStage === "TARGET_RESOLUTION" && (value.dryRunReceiptRunnerCommit !== null || value.dryRunExpectedToolingCommit !== null)) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_RECEIPT_ORDER_INVALID");
 }
 
+function assertDryRunLifecycle(value) {
+  for (const key of ["dryRunReservationAttempted", "dryRunReservationCompleted", "dryRunReceiptCreated", "dryRunExecutorStarted", "dryRunCanaryChildStarted", "dryRunExecutorCompleted", "dryRunExecutorTimedOut", "dryRunJournalCreated", "dryRunFinalAuthorizationCreated"]) if (typeof value[key] !== "boolean") fail("R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_LIFECYCLE_INVALID");
+  for (const key of ["dryRunUnexpectedMutationCount", "dryRunSupabaseWriteCount"]) if (!Number.isInteger(value[key]) || value[key] !== 0) fail("R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_LIFECYCLE_INVALID");
+  if (!["NOT_CREATED_OR_UNCONFIRMED", "PENDING", "CONSUMED"].includes(value.dryRunReceiptState)) fail("R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_LIFECYCLE_INVALID");
+  if (!value.dryRunStarted) {
+    if (value.dryRunReservationAttempted || value.dryRunReservationCompleted || value.dryRunReceiptCreated || value.dryRunReceiptState !== "NOT_CREATED_OR_UNCONFIRMED" || value.dryRunExecutorStarted || value.dryRunCanaryChildStarted || value.dryRunExecutorCompleted || value.dryRunExecutorTimedOut || value.dryRunJournalCreated || value.dryRunFinalAuthorizationCreated) fail("R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_LIFECYCLE_ORDER_INVALID");
+    return;
+  }
+  if ((!value.dryRunReservationAttempted && (value.dryRunReservationCompleted || value.dryRunReceiptCreated || value.dryRunReceiptState !== "NOT_CREATED_OR_UNCONFIRMED")) || (value.dryRunReservationCompleted && (!value.dryRunReceiptCreated || value.dryRunReceiptState !== "PENDING")) || (value.dryRunReceiptCreated && !value.dryRunReservationAttempted) || (value.dryRunExecutorStarted && (!value.dryRunReservationCompleted || !value.dryRunReceiptCreated || !value.dryRunCanaryChildStarted)) || (value.dryRunCanaryChildStarted !== value.dryRunExecutorStarted) || (value.dryRunExecutorCompleted && !value.dryRunExecutorStarted) || (value.dryRunExecutorTimedOut && !value.dryRunExecutorCompleted) || value.dryRunJournalCreated || value.dryRunFinalAuthorizationCreated) fail("R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_LIFECYCLE_ORDER_INVALID");
+}
+
 export function validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(value) {
   const required = requiredFor(value?.schemaVersion);
   if (!required || !value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== required.length || required.some((key) => !(key in value))) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_SCHEMA_INVALID");
@@ -74,7 +92,8 @@ export function validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(value) {
     try { if (value.targetBinding !== null) validateCanonicalCanaryTargetBinding(value.targetBinding, { executionCommit: value.executionCommit, toolingCommit: value.dryRunExpectedToolingCommit ?? value.executionCommit }); }
     catch { fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_BINDING_INVALID"); }
   }
-  if (value.schemaVersion === R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION) assertTargetDiagnostics(value);
+  if ([R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION, R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION].includes(value.schemaVersion)) assertTargetDiagnostics(value);
+  if (value.schemaVersion === R6_V4_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_VERSION) assertDryRunLifecycle(value);
   const receiptBindingStarted = value.dryRunReceiptRunnerCommit !== null;
   const toolingBindingStarted = value.dryRunExpectedToolingCommit !== null;
   if ((!value.dryRunStarted && (receiptBindingStarted || toolingBindingStarted)) ||

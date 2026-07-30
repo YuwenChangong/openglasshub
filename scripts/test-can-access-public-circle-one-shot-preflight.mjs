@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { discoverTaskScopedNormalizedReplay } from "./lib/task-scoped-normalized-replay.mjs";
 import {
   OUTPUT_COLUMNS,
   REQUIRED_SECTIONS,
@@ -26,13 +27,10 @@ assert.match(sql, /WHERE NOT EXISTS \(SELECT 1 FROM function_target\)/, "missing
 assert.match(sql, /WHERE NOT EXISTS \(SELECT 1 FROM circles_constraints\)/, "missing constraints must have a sentinel");
 assert.match(sql, /LEFT JOIN required_roles/, "missing roles must have sentinels");
 
-const containers = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" })
-  .split(/\r?\n/)
-  .filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
-assert.equal(containers.length, 1, "LOCAL_DOCKER_ONLY requires one disposable normalized replay database container");
+const { containerId: container } = discoverTaskScopedNormalizedReplay();
 const runQuery = (prefix = "", suffix = "") => execFileSync(
   "docker",
-  ["exec", "-i", containers[0], "psql", "-X", "-q", "--csv", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"],
+  ["exec", "-i", container, "psql", "-X", "-q", "--csv", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"],
   { input: prefix + sql + suffix, encoding: "utf8" },
 );
 
@@ -92,7 +90,7 @@ const missingFunctionRows = parseCsv(runQuery("BEGIN;\nDROP FUNCTION public.can_
 const missingFunctionResult = validatePacketRows(missingFunctionRows);
 assert.equal(missingFunctionResult.dependencyClassification["public.can_access_public_circle(uuid)"], "MISSING", "the local missing-function state must retain explicit function evidence");
 assert.equal(
-  execFileSync("docker", ["exec", "-i", containers[0], "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: "SELECT to_regprocedure('public.can_access_public_circle(uuid)') IS NOT NULL;", encoding: "utf8" }).trim(),
+  execFileSync("docker", ["exec", "-i", container, "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: "SELECT to_regprocedure('public.can_access_public_circle(uuid)') IS NOT NULL;", encoding: "utf8" }).trim(),
   "t",
   "the missing-function fixture simulation must roll back",
 );

@@ -810,7 +810,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AndAuthCheckOnly([pscustomobj
 
 function Write-CurrentCanonicalProductionV3DryRunTerminal([string]$Path, [System.Collections.IDictionary]$State) {
   $State['completedAt'] = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow)
-  $State['schemaVersion'] = 'r6-v3-dry-run-terminal-result-v3'
+  $State['schemaVersion'] = 'r6-v4-dry-run-terminal-result-v4'
   $raw = [Text.Encoding]::UTF8.GetBytes(($State | ConvertTo-Json -Depth 6 -Compress) + [Environment]::NewLine)
   $temporary = "$Path.$PID.$([guid]::NewGuid().ToString()).tmp"
   try { [IO.File]::WriteAllBytes($temporary, $raw); Move-Item -LiteralPath $temporary -Destination $Path -ErrorAction Stop }
@@ -828,7 +828,7 @@ function Invoke-CurrentCanonicalProductionV3DryRunTerminalValidator([string]$Pat
 
 function Write-CurrentCanonicalProductionV3DryRunOrchestrationTerminal([string]$Path, [System.Collections.IDictionary]$State) {
   $State['completedAt'] = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow)
-  $State['schemaVersion'] = 'r6-v3-capture-authcheck-dryrun-orchestration-terminal-result-v3'
+  $State['schemaVersion'] = 'r6-v4-capture-authcheck-dryrun-orchestration-terminal-result-v4'
   $raw = [Text.Encoding]::UTF8.GetBytes(($State | ConvertTo-Json -Depth 7 -Compress) + [Environment]::NewLine)
   $temporary = "$Path.$PID.$([guid]::NewGuid().ToString()).tmp"
   try { [IO.File]::WriteAllBytes($temporary, $raw); Move-Item -LiteralPath $temporary -Destination $Path -ErrorAction Stop }
@@ -973,12 +973,34 @@ function Sync-VerifiedTargetBindingFromDryRunTerminal([System.Collections.IDicti
   return $dryRunTerminal
 }
 
+function Sync-CurrentCanonicalProductionV3DryRunLifecycleState([System.Collections.IDictionary]$State, [object]$DryRunTerminal) {
+  $State['dryRunExecutionCommit'] = [string]$DryRunTerminal.executionCommit
+  $State['dryRunReceiptRunnerCommit'] = $DryRunTerminal.receiptRunnerCommit
+  $State['dryRunExpectedToolingCommit'] = $DryRunTerminal.expectedToolingCommit
+  $State['dryRunPlannedMutationCount'] = [int]$DryRunTerminal.plannedMutationCount
+  $State['dryRunActualMutationCount'] = [int]$DryRunTerminal.actualMutationCount
+  $State['dryRunReservationAttempted'] = [bool]$DryRunTerminal.reservationAttempted
+  $State['dryRunReservationCompleted'] = [bool]$DryRunTerminal.reservationCompleted
+  $State['dryRunReceiptCreated'] = [bool]$DryRunTerminal.receiptCreated
+  $State['dryRunReceiptState'] = [string]$DryRunTerminal.receiptState
+  $State['dryRunExecutorStarted'] = [bool]$DryRunTerminal.childStarted
+  $State['dryRunCanaryChildStarted'] = [bool]$DryRunTerminal.canaryChildStarted
+  $State['dryRunExecutorCompleted'] = [bool]$DryRunTerminal.childCompleted
+  $State['dryRunExecutorTimedOut'] = [bool]$DryRunTerminal.childTimedOut
+  $State['dryRunJournalCreated'] = [bool]$DryRunTerminal.journalCreated
+  $State['dryRunFinalAuthorizationCreated'] = [bool]$DryRunTerminal.finalAuthorizationCreated
+  $State['dryRunUnexpectedMutationCount'] = [int]$DryRunTerminal.unexpectedMutationCount
+  $State['dryRunSupabaseWriteCount'] = [int]$DryRunTerminal.supabaseWriteCount
+  $State['supabaseWriteCount'] = [int]$DryRunTerminal.supabaseWriteCount
+  $State['productionMutationCount'] = [int]$DryRunTerminal.productionMutationCount
+}
+
 function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validation, [string]$Root, [string]$RequestedRunId, [string]$AttestationPath, [string]$AttestationSha256) {
   if (Test-Path -LiteralPath $Root) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ROOT_UNSAFE' }
   New-Item -ItemType Directory -Path $Root -ErrorAction Stop | Out-Null
   $terminalPath = Join-Path $Root 'dry-run-only-terminal-result.json'
   $now = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow)
-  $state = [ordered]@{ schemaVersion=$null; startedAt=$now; completedAt=$null; runId=$RequestedRunId; outerClassification=$null; innerClassification=$null; success=$false; failureStage='RUN_ID_FORMAT_VALIDATION'; captureProvenancePassed=$true; authProvenancePassed=$true; attestationFreshnessPassed=$false; minimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; remainingValidityMs=0; runIdValidationPassed=$false; reservationAttempted=$false; reservationCompleted=$false; receiptCreated=$false; receiptState='NOT_CREATED_OR_UNCONFIRMED'; executionCommit=$Validation.Head; receiptRunnerCommit=$null; expectedToolingCommit=$null; targetBinding=$null; targetBindingPath=$null; targetBindingSha256=$null; childStarted=$false; canaryChildStarted=$false; childCompleted=$false; childTimedOut=$false; stdoutClassification=$null; stderrClassification=$null; childTerminalPath=$null; childTerminalSha256=$null; childTerminalLocated=$false; childTerminalValidated=$false; adapterReached=$false; journalCreated=$false; childExitCode=1; plannedMutationCount=2; actualMutationCount=0; supabaseWriteCount=0; productionMutationCount=0; retryCount=0 }
+  $state = [ordered]@{ schemaVersion=$null; startedAt=$now; completedAt=$null; runId=$RequestedRunId; outerClassification=$null; innerClassification=$null; success=$false; failureStage='RUN_ID_FORMAT_VALIDATION'; captureProvenancePassed=$true; authProvenancePassed=$true; attestationFreshnessPassed=$false; minimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; remainingValidityMs=0; runIdValidationPassed=$false; reservationAttempted=$false; reservationCompleted=$false; receiptCreated=$false; receiptState='NOT_CREATED_OR_UNCONFIRMED'; executionCommit=$Validation.Head; receiptRunnerCommit=$null; expectedToolingCommit=$null; targetBinding=$null; targetBindingPath=$null; targetBindingSha256=$null; childStarted=$false; canaryChildStarted=$false; childCompleted=$false; childTimedOut=$false; stdoutClassification=$null; stderrClassification=$null; childTerminalPath=$null; childTerminalSha256=$null; childTerminalLocated=$false; childTerminalValidated=$false; adapterReached=$false; journalCreated=$false; childExitCode=1; plannedMutationCount=2; actualMutationCount=0; unexpectedMutationCount=0; supabaseWriteCount=0; productionMutationCount=0; retryCount=0; finalAuthorizationCreated=$false }
   Set-TargetResolutionInitialState $state
   $confirmationHash = $null; $auth = $null
   try {
@@ -1079,7 +1101,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
   $dryRoot = Join-Path $root 'dry-run'; $dryTerminalPath = Join-Path $dryRoot 'dry-run-only-terminal-result.json'
   $terminalPath = Join-Path $root 'capture-authcheck-dryrun-orchestration-terminal-result.json'
   $started = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow)
-  $state = [ordered]@{ schemaVersion=$null; startedAt=$started; completedAt=$null; executionCommit=$Validation.Head; worktreeContract='current-canonical-production-v3'; runId=$RunId; outerClassification=$null; innerClassification=$null; success=$false; failureStage='oauth_readiness'; captureAuthorizedByMode=$true; captureStarted=$false; captureCompleted=$false; captureSuccess=$false; captureTerminalPath=$null; captureTerminalSha256=$null; captureOuterClassification=$null; captureInnerClassification=$null; captureChildExitCode=1; capturePagesRequestCount=0; attestationPath=$null; attestationSha256=$null; attestationType=$null; attestationIssuedAt=$null; attestationExpiresAt=$null; authFreshnessCheckedAt=$started; authRemainingValidityMs=0; authMinimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; authAttestationFreshnessPassed=$false; authCheckAuthorizedByMode=$true; authCheckStarted=$false; authCheckCompleted=$false; authCheckSuccess=$false; authenticationCompleted=$false; sessionValidated=$false; authenticatedCheckCompleted=$false; authCheckTerminalPath=$null; authCheckTerminalSha256=$null; authCheckOuterClassification=$null; authCheckInnerClassification=$null; authCheckChildExitCode=1; dryRunFreshnessCheckedAt=$started; dryRunRemainingValidityMs=0; dryRunMinimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; dryRunAttestationFreshnessPassed=$false; dryRunAuthorizedByMode=$true; dryRunStarted=$false; dryRunCompleted=$false; dryRunSuccess=$false; dryRunTerminalPath=$null; dryRunTerminalSha256=$null; dryRunOuterClassification=$null; dryRunInnerClassification=$null; dryRunChildExitCode=1; dryRunExecutionCommit=$null; dryRunReceiptRunnerCommit=$null; dryRunExpectedToolingCommit=$null; dryRunPlannedMutationCount=2; dryRunActualMutationCount=0; targetBinding=$null; targetBindingPath=$null; targetBindingSha256=$null; pagesProjectGetCount=0; deploymentGetCount=0; supabaseReadCount=0; supabaseWriteCount=0; productionMutationCount=0; retryCount=0 }
+  $state = [ordered]@{ schemaVersion=$null; startedAt=$started; completedAt=$null; executionCommit=$Validation.Head; worktreeContract='current-canonical-production-v3'; runId=$RunId; outerClassification=$null; innerClassification=$null; success=$false; failureStage='oauth_readiness'; captureAuthorizedByMode=$true; captureStarted=$false; captureCompleted=$false; captureSuccess=$false; captureTerminalPath=$null; captureTerminalSha256=$null; captureOuterClassification=$null; captureInnerClassification=$null; captureChildExitCode=1; capturePagesRequestCount=0; attestationPath=$null; attestationSha256=$null; attestationType=$null; attestationIssuedAt=$null; attestationExpiresAt=$null; authFreshnessCheckedAt=$started; authRemainingValidityMs=0; authMinimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; authAttestationFreshnessPassed=$false; authCheckAuthorizedByMode=$true; authCheckStarted=$false; authCheckCompleted=$false; authCheckSuccess=$false; authenticationCompleted=$false; sessionValidated=$false; authenticatedCheckCompleted=$false; authCheckTerminalPath=$null; authCheckTerminalSha256=$null; authCheckOuterClassification=$null; authCheckInnerClassification=$null; authCheckChildExitCode=1; dryRunFreshnessCheckedAt=$started; dryRunRemainingValidityMs=0; dryRunMinimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; dryRunAttestationFreshnessPassed=$false; dryRunAuthorizedByMode=$true; dryRunStarted=$false; dryRunCompleted=$false; dryRunSuccess=$false; dryRunTerminalPath=$null; dryRunTerminalSha256=$null; dryRunOuterClassification=$null; dryRunInnerClassification=$null; dryRunChildExitCode=1; dryRunExecutionCommit=$null; dryRunReceiptRunnerCommit=$null; dryRunExpectedToolingCommit=$null; dryRunPlannedMutationCount=2; dryRunActualMutationCount=0; targetBinding=$null; targetBindingPath=$null; targetBindingSha256=$null; pagesProjectGetCount=0; deploymentGetCount=0; supabaseReadCount=0; supabaseWriteCount=0; productionMutationCount=0; retryCount=0; dryRunReservationAttempted=$false; dryRunReservationCompleted=$false; dryRunReceiptCreated=$false; dryRunReceiptState='NOT_CREATED_OR_UNCONFIRMED'; dryRunExecutorStarted=$false; dryRunCanaryChildStarted=$false; dryRunExecutorCompleted=$false; dryRunExecutorTimedOut=$false; dryRunJournalCreated=$false; dryRunFinalAuthorizationCreated=$false; dryRunUnexpectedMutationCount=0; dryRunSupabaseWriteCount=0 }
   $state['dryRunAuthenticationCompleted'] = $false
   $state['targetResolutionStarted'] = $false
   $state['targetResolutionCompleted'] = $false
@@ -1097,6 +1119,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
   $state['targetBoundExecutionPlanHashCreated'] = $false
   try {
     Assert-CurrentCanonicalProductionV3Bindings
+    $state['failureStage']='preflight_secret_environment'; Assert-NoPreexistingSecrets
     $state['failureStage']='capture'; $state['captureStarted']=$true
     $fixtureKind = if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -eq '1') { 'authcheck-orchestration-success' } else { $null }
     $null = Invoke-PrepareCurrentCanonicalProductionV3AuthDryRunAttestation $Validation -SuppressDownstreamCommands -FixtureKind $fixtureKind -RootAlreadyCreated -MinimumCurrentValidityMilliseconds $script:MinimumAttestationValidityMilliseconds
@@ -1107,7 +1130,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
     $state['failureStage']='auth_check'; $script:DeploymentAttestationPath=$state['attestationPath']; $script:DeploymentAttestationSha256=$state['attestationSha256']; $script:EvidenceRoot=$authRoot; $state['authCheckStarted']=$true; $null=Invoke-CurrentCanonicalProductionV3AuthCheckOnly; Sync-CurrentCanonicalProductionV3OrchestrationAuthState $state $authTerminalPath; Invoke-CurrentCanonicalProductionV3AuthCheckTerminalValidator $authTerminalPath
     if (-not $state['authCheckSuccess'] -or $state['authCheckOuterClassification'] -ne 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK' -or $state['authCheckChildExitCode'] -ne 0) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_TERMINAL_INVALID' }
     $state['failureStage']='dry_run_freshness'; $state['dryRunFreshnessCheckedAt']=Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow); $state['dryRunRemainingValidityMs']=Assert-MinimumAttestationValidity $attestation; $state['dryRunAttestationFreshnessPassed']=$true
-    $state['failureStage']='dry_run'; $state['dryRunStarted']=$true; $dry=Invoke-CurrentCanonicalProductionV3DryRunOnly $Validation $dryRoot $RunId $state['attestationPath'] $state['attestationSha256']; $dryTerminal=Sync-VerifiedTargetBindingFromDryRunTerminal $state $dry.Path; $state['dryRunCompleted']=$true; $state['dryRunSuccess']=[bool]$dryTerminal.success; $state['dryRunTerminalPath']=$dry.Path; $state['dryRunTerminalSha256']=Get-Sha256 $dry.Path; $state['dryRunOuterClassification']=$dryTerminal.outerClassification; $state['dryRunInnerClassification']=$dryTerminal.innerClassification; $state['dryRunChildExitCode']=[int]$dryTerminal.childExitCode; $state['dryRunExecutionCommit']=[string]$dryTerminal.executionCommit; $state['dryRunReceiptRunnerCommit']=$dryTerminal.receiptRunnerCommit; $state['dryRunExpectedToolingCommit']=$dryTerminal.expectedToolingCommit; $state['dryRunPlannedMutationCount']=[int]$dryTerminal.plannedMutationCount; $state['dryRunActualMutationCount']=[int]$dryTerminal.actualMutationCount
+    $state['failureStage']='dry_run'; $state['dryRunStarted']=$true; $dry=Invoke-CurrentCanonicalProductionV3DryRunOnly $Validation $dryRoot $RunId $state['attestationPath'] $state['attestationSha256']; $dryTerminal=Sync-VerifiedTargetBindingFromDryRunTerminal $state $dry.Path; $state['dryRunCompleted']=$true; $state['dryRunSuccess']=[bool]$dryTerminal.success; $state['dryRunTerminalPath']=$dry.Path; $state['dryRunTerminalSha256']=Get-Sha256 $dry.Path; $state['dryRunOuterClassification']=$dryTerminal.outerClassification; $state['dryRunInnerClassification']=$dryTerminal.innerClassification; $state['dryRunChildExitCode']=[int]$dryTerminal.childExitCode; Sync-CurrentCanonicalProductionV3DryRunLifecycleState $state $dryTerminal
     foreach ($key in @('authenticationCompleted','targetResolutionStarted','targetResolutionCompleted','targetResolutionSucceeded','targetResolutionFailureCategory','targetResultCountClass','targetEligibleState','canonicalTargetResolved','canonicalCircleIdResolved','canonicalCircleSlugResolved','targetBindingArtifactPresent','targetBindingValidationPassed','targetBindingCreated','targetBindingHashCreated','targetBoundExecutionPlanHashCreated')) {
       $destinationKey = if ($key -eq 'authenticationCompleted') { 'dryRunAuthenticationCompleted' } else { $key }
       $state[$destinationKey] = $dryTerminal.$key
@@ -1127,7 +1150,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
         $dryFailure = Sync-VerifiedTargetBindingFromDryRunTerminal $state $dryTerminalPath
         $state['dryRunCompleted'] = $true; $state['dryRunTerminalPath'] = $dryTerminalPath; $state['dryRunTerminalSha256'] = Get-Sha256 $dryTerminalPath
         $state['dryRunOuterClassification'] = $dryFailure.outerClassification; $state['dryRunInnerClassification'] = $dryFailure.innerClassification; $state['dryRunChildExitCode'] = [int]$dryFailure.childExitCode
-        $state['dryRunExecutionCommit'] = [string]$dryFailure.executionCommit; $state['dryRunReceiptRunnerCommit'] = $dryFailure.receiptRunnerCommit; $state['dryRunExpectedToolingCommit'] = $dryFailure.expectedToolingCommit; $state['dryRunPlannedMutationCount'] = [int]$dryFailure.plannedMutationCount; $state['dryRunActualMutationCount'] = [int]$dryFailure.actualMutationCount
+        Sync-CurrentCanonicalProductionV3DryRunLifecycleState $state $dryFailure
         foreach ($key in @('authenticationCompleted','targetResolutionStarted','targetResolutionCompleted','targetResolutionSucceeded','targetResolutionFailureCategory','targetResultCountClass','targetEligibleState','canonicalTargetResolved','canonicalCircleIdResolved','canonicalCircleSlugResolved','targetBindingArtifactPresent','targetBindingValidationPassed','targetBindingCreated','targetBindingHashCreated','targetBoundExecutionPlanHashCreated')) {
           $destinationKey = if ($key -eq 'authenticationCompleted') { 'dryRunAuthenticationCompleted' } else { $key }
           $state[$destinationKey] = $dryFailure.$key
@@ -1141,6 +1164,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
     elseif ($state['failureStage'] -eq 'auth_check' -or $state['failureStage'] -match '^AUTH_PASSWORD_GRANT_') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_FAILED' }
     elseif ($state['dryRunStarted'] -and $state['dryRunCompleted']) { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED' }
     elseif ($state['failureStage'] -eq 'dry_run' -or $state['failureStage'] -match '^(RUN_ID_|RECEIPT_|MINIMAL_CANARY_)') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED' }
+    elseif ($state['failureStage'] -eq 'preflight_secret_environment') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_PRE_FLIGHT_UNSAFE' }
     elseif ($state['failureStage'] -eq 'capture') { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_CAPTURE_FAILED' }
     else { $state['outerClassification']='R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_UNEXPECTED_FAILURE' }
   } finally { Write-CurrentCanonicalProductionV3DryRunOrchestrationTerminal $terminalPath $state }
