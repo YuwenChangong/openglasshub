@@ -59,6 +59,20 @@ for (const invalidValue of [null, "true", "false", 0, 1, {}, []]) {
 const missingCanonicalTarget = base();
 delete missingCanonicalTarget.canonicalTargetResolved;
 assert.throws(() => validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(missingCanonicalTarget));
+for (const key of ["targetBinding", "targetBindingPath", "targetBindingSha256"]) {
+  const missingBinding = base();
+  delete missingBinding[key];
+  assert.throws(
+    () => validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(missingBinding),
+    { message: "R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_SCHEMA_INVALID" },
+  );
+}
+const tamperedBindingObject = base();
+tamperedBindingObject.targetBinding = { ...tamperedBindingObject.targetBinding, canonicalCircleSlug: "tampered-circle" };
+assert.throws(
+  () => validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(tamperedBindingObject),
+  { message: "R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_BINDING_INVALID" },
+);
 const receiptBindingFailure = base();
 receiptBindingFailure.success = false;
 receiptBindingFailure.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED";

@@ -26,12 +26,12 @@ const freshness = () => ({ attestationIssuedAt: "2099-01-01T00:00:00.000Z", atte
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const redigest = (value) => ({ ...value, resultSha256: sha(JSON.stringify({ ...value, resultSha256: null })) });
 
-if (kind === "target-binding") {
+if (kind === "target-binding" || kind === "target-binding-alternate") {
   const targetBindingPath = path.join(root, "canonical-canary-target-binding.json");
   const targetBinding = createCanonicalCanaryTargetBinding({
     resolvedAtUtc: "2099-01-01T00:03:00.000Z",
-    canonicalCircleId: "11111111-1111-4111-8111-111111111111",
-    canonicalCircleSlug: "synthetic-canonical-circle",
+    canonicalCircleId: kind === "target-binding" ? "11111111-1111-4111-8111-111111111111" : "22222222-2222-4222-8222-222222222222",
+    canonicalCircleSlug: kind === "target-binding" ? "synthetic-canonical-circle" : "synthetic-alternate-circle",
     baseMutationPlanSchema: "qa-minimal-canary-mutation-plan-v1",
     baseMutationPlanHash: "b".repeat(64),
     executionCommit: toolingCommit,

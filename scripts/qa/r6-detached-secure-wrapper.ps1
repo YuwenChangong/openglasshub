@@ -844,12 +844,12 @@ function Invoke-CurrentCanonicalProductionV3DryRunOrchestrationTerminalValidator
   if ($exitCode -ne 0 -or $lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne 'R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_OK') { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_TERMINAL_INVALID' }
 }
 
-function New-SyntheticDryRunTargetBinding([string]$Root, [string]$ToolingCommit) {
+function New-SyntheticDryRunTargetBinding([string]$Root, [string]$ToolingCommit, [ValidateSet('target-binding', 'target-binding-alternate')][string]$Kind = 'target-binding') {
   if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -ne '1') { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_BINDING_UNSAFE' }
   $generator = [string]$env:R6_V3_ORCHESTRATION_WRAPPER_TEST_FIXTURE_GENERATOR
   if (-not (Test-WindowsFullyQualifiedPath $generator) -or -not (Test-Path -LiteralPath $generator -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_BINDING_FIXTURE_INVALID' }
   $previous = $ErrorActionPreference
-  try { $ErrorActionPreference = 'Continue'; $lines = @(& node $generator '--root' $Root '--tooling-commit' $ToolingCommit '--kind' 'target-binding' 2>&1); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previous }
+  try { $ErrorActionPreference = 'Continue'; $lines = @(& node $generator '--root' $Root '--tooling-commit' $ToolingCommit '--kind' $Kind 2>&1); $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previous }
   if ($exitCode -ne 0 -or $lines.Count -ne 1) { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_BINDING_FIXTURE_INVALID' }
   try { $metadata = $lines[0].ToString() | ConvertFrom-Json -ErrorAction Stop } catch { throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_BINDING_FIXTURE_INVALID' }
   $path = [string]$metadata.targetBindingPath
@@ -944,6 +944,35 @@ function Invoke-CanonicalCanaryTargetBindingValidator([string]$Path) {
   if ($exitCode -ne 0 -or $lines.Count -ne 1 -or $lines[0].ToString().Trim() -ne 'QA_CANARY_TARGET_BINDING_OK') { throw 'QA_CANARY_TARGET_BINDING_INVALID' }
 }
 
+function ConvertTo-TargetBindingComparisonJson([object]$Value) {
+  return ($Value | ConvertTo-Json -Depth 32 -Compress)
+}
+
+function Sync-VerifiedTargetBindingFromDryRunTerminal([System.Collections.IDictionary]$State, [string]$DryRunTerminalPath) {
+  Invoke-CurrentCanonicalProductionV3DryRunTerminalValidator $DryRunTerminalPath
+  $dryRunTerminal = Read-AttestationJson $DryRunTerminalPath
+  $targetResolved = [bool]$dryRunTerminal.canonicalTargetResolved -and [bool]$dryRunTerminal.targetBindingArtifactPresent -and [bool]$dryRunTerminal.targetBindingValidationPassed -and [bool]$dryRunTerminal.targetBindingCreated
+  $hasAnyBindingField = $null -ne $dryRunTerminal.targetBinding -or $null -ne $dryRunTerminal.targetBindingPath -or $null -ne $dryRunTerminal.targetBindingSha256
+  if (-not $targetResolved) {
+    if ($hasAnyBindingField) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_TARGET_BINDING_SYNC_INVALID' }
+    return $dryRunTerminal
+  }
+
+  if (-not [bool]$dryRunTerminal.targetResolutionSucceeded -or -not [bool]$dryRunTerminal.canonicalCircleIdResolved -or -not [bool]$dryRunTerminal.canonicalCircleSlugResolved -or -not [bool]$dryRunTerminal.targetBindingHashCreated -or -not [bool]$dryRunTerminal.targetBoundExecutionPlanHashCreated) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_TARGET_BINDING_SYNC_INVALID' }
+  $bindingPath = [string]$dryRunTerminal.targetBindingPath
+  $expectedPath = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($DryRunTerminalPath)) 'canonical-canary-target-binding.json'))
+  $normalizedPath = if (Test-WindowsFullyQualifiedPath $bindingPath) { [IO.Path]::GetFullPath($bindingPath) } else { '' }
+  $bindingSha256 = [string]$dryRunTerminal.targetBindingSha256
+  if ([string]::IsNullOrWhiteSpace($normalizedPath) -or -not $bindingPath.Equals($normalizedPath, [StringComparison]::OrdinalIgnoreCase) -or -not $normalizedPath.Equals($expectedPath, [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $normalizedPath -PathType Leaf) -or $bindingSha256 -notmatch '^[a-f0-9]{64}$' -or (Get-Sha256 $normalizedPath) -ne $bindingSha256) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_TARGET_BINDING_SYNC_INVALID' }
+  Invoke-CanonicalCanaryTargetBindingValidator $normalizedPath
+  $bindingArtifact = Read-AttestationJson $normalizedPath
+  if ((ConvertTo-TargetBindingComparisonJson $dryRunTerminal.targetBinding) -cne (ConvertTo-TargetBindingComparisonJson $bindingArtifact)) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_TARGET_BINDING_SYNC_INVALID' }
+  $State['targetBinding'] = $dryRunTerminal.targetBinding
+  $State['targetBindingPath'] = $dryRunTerminal.targetBindingPath
+  $State['targetBindingSha256'] = $dryRunTerminal.targetBindingSha256
+  return $dryRunTerminal
+}
+
 function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validation, [string]$Root, [string]$RequestedRunId, [string]$AttestationPath, [string]$AttestationSha256) {
   if (Test-Path -LiteralPath $Root) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ROOT_UNSAFE' }
   New-Item -ItemType Directory -Path $Root -ErrorAction Stop | Out-Null
@@ -959,10 +988,6 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
     $state['remainingValidityMs'] = Assert-MinimumAttestationValidity $attestation
     $state['attestationFreshnessPassed'] = $true
     if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -eq '1') {
-      if (-not [string]::IsNullOrWhiteSpace([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE)) {
-        $state['failureStage'] = 'RUN_ID_RESERVATION'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true
-        throw ([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE)
-      }
       if (-not [string]::IsNullOrWhiteSpace([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_PRE_TOOLING_FAILURE)) {
         $state['failureStage'] = 'AUTHENTICATION'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = $Validation.Head
         throw ([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_PRE_TOOLING_FAILURE)
@@ -977,7 +1002,29 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
       $state['authenticationCompleted'] = $true
       $state['targetBindingPath'] = $syntheticTargetBinding.Path; $state['targetBindingSha256'] = $syntheticTargetBinding.Sha256; $state['targetBinding'] = $syntheticTargetBinding.Binding
       Set-TargetResolutionSuccessState $state
+      $bindingMutation = [string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_TARGET_BINDING_MUTATION
+      if ($bindingMutation -eq 'missing') {
+        $state['targetBinding'] = $null; $state['targetBindingPath'] = $null; $state['targetBindingSha256'] = $null
+      } elseif ($bindingMutation -eq 'sha') {
+        $state['targetBindingSha256'] = ('0' * 64)
+      } elseif ($bindingMutation -eq 'path') {
+        $alternateTargetBinding = New-SyntheticDryRunTargetBinding (Join-Path $Root 'alternate-target-binding') $Validation.Head 'target-binding-alternate'
+        $state['targetBindingPath'] = $alternateTargetBinding.Path; $state['targetBindingSha256'] = $alternateTargetBinding.Sha256; $state['targetBinding'] = $alternateTargetBinding.Binding
+      } elseif ($bindingMutation -eq 'object') {
+        $alternateTargetBinding = New-SyntheticDryRunTargetBinding (Join-Path $Root 'alternate-target-binding') $Validation.Head 'target-binding-alternate'
+        $state['targetBinding'] = $alternateTargetBinding.Binding
+      } elseif (-not [string]::IsNullOrWhiteSpace($bindingMutation)) {
+        throw 'R6_CURRENT_CANONICAL_V3_TEST_TARGET_BINDING_MUTATION_INVALID'
+      }
+      if (-not [string]::IsNullOrWhiteSpace([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE)) {
+        $state['failureStage'] = 'RUN_ID_RESERVATION'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true
+        throw ([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_RESERVATION_FAILURE)
+      }
       $state['failureStage'] = 'MINIMAL_CANARY_CHILD_LAUNCH'; $state['runIdValidationPassed'] = $true; $state['reservationAttempted'] = $true; $state['reservationCompleted'] = $true; $state['receiptCreated'] = $true; $state['receiptState'] = 'PENDING'; $state['receiptRunnerCommit'] = $Validation.Head; $state['expectedToolingCommit'] = $Validation.Head; $state['childStarted'] = $true; $state['canaryChildStarted'] = $true; $state['childCompleted'] = $true; $state['childExitCode'] = 0
+      if (-not [string]::IsNullOrWhiteSpace([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_POST_RESERVATION_FAILURE)) {
+        $state['failureStage'] = 'MINIMAL_CANARY_CHILD_LAUNCH'
+        throw ([string]$env:R6_V3_ORCHESTRATION_TEST_DRY_RUN_POST_RESERVATION_FAILURE)
+      }
     } else {
       $state['failureStage'] = 'RUN_ID_REGISTRY_LOOKUP'; Assert-RunIdEligible $Validation.Path $RequestedRunId | Out-Null; Assert-RunIdJournalAbsent $RequestedRunId; $state['runIdValidationPassed'] = $true
       Assert-TranscriptSafe; $confirmation = Read-Host 'Fresh dry-run-only confirmation token (hidden)' -AsSecureString; $confirmationHash = Get-ConfirmationHash $confirmation
@@ -1060,7 +1107,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
     $state['failureStage']='auth_check'; $script:DeploymentAttestationPath=$state['attestationPath']; $script:DeploymentAttestationSha256=$state['attestationSha256']; $script:EvidenceRoot=$authRoot; $state['authCheckStarted']=$true; $null=Invoke-CurrentCanonicalProductionV3AuthCheckOnly; Sync-CurrentCanonicalProductionV3OrchestrationAuthState $state $authTerminalPath; Invoke-CurrentCanonicalProductionV3AuthCheckTerminalValidator $authTerminalPath
     if (-not $state['authCheckSuccess'] -or $state['authCheckOuterClassification'] -ne 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK' -or $state['authCheckChildExitCode'] -ne 0) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_TERMINAL_INVALID' }
     $state['failureStage']='dry_run_freshness'; $state['dryRunFreshnessCheckedAt']=Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow); $state['dryRunRemainingValidityMs']=Assert-MinimumAttestationValidity $attestation; $state['dryRunAttestationFreshnessPassed']=$true
-    $state['failureStage']='dry_run'; $state['dryRunStarted']=$true; $dry=Invoke-CurrentCanonicalProductionV3DryRunOnly $Validation $dryRoot $RunId $state['attestationPath'] $state['attestationSha256']; $dryTerminal=Read-AttestationJson $dry.Path; $state['dryRunCompleted']=$true; $state['dryRunSuccess']=[bool]$dryTerminal.success; $state['dryRunTerminalPath']=$dry.Path; $state['dryRunTerminalSha256']=Get-Sha256 $dry.Path; $state['dryRunOuterClassification']=$dryTerminal.outerClassification; $state['dryRunInnerClassification']=$dryTerminal.innerClassification; $state['dryRunChildExitCode']=[int]$dryTerminal.childExitCode; $state['dryRunExecutionCommit']=[string]$dryTerminal.executionCommit; $state['dryRunReceiptRunnerCommit']=$dryTerminal.receiptRunnerCommit; $state['dryRunExpectedToolingCommit']=$dryTerminal.expectedToolingCommit; $state['dryRunPlannedMutationCount']=[int]$dryTerminal.plannedMutationCount; $state['dryRunActualMutationCount']=[int]$dryTerminal.actualMutationCount; $state['targetBinding']=$dryTerminal.targetBinding; $state['targetBindingPath']=$dryTerminal.targetBindingPath; $state['targetBindingSha256']=$dryTerminal.targetBindingSha256
+    $state['failureStage']='dry_run'; $state['dryRunStarted']=$true; $dry=Invoke-CurrentCanonicalProductionV3DryRunOnly $Validation $dryRoot $RunId $state['attestationPath'] $state['attestationSha256']; $dryTerminal=Sync-VerifiedTargetBindingFromDryRunTerminal $state $dry.Path; $state['dryRunCompleted']=$true; $state['dryRunSuccess']=[bool]$dryTerminal.success; $state['dryRunTerminalPath']=$dry.Path; $state['dryRunTerminalSha256']=Get-Sha256 $dry.Path; $state['dryRunOuterClassification']=$dryTerminal.outerClassification; $state['dryRunInnerClassification']=$dryTerminal.innerClassification; $state['dryRunChildExitCode']=[int]$dryTerminal.childExitCode; $state['dryRunExecutionCommit']=[string]$dryTerminal.executionCommit; $state['dryRunReceiptRunnerCommit']=$dryTerminal.receiptRunnerCommit; $state['dryRunExpectedToolingCommit']=$dryTerminal.expectedToolingCommit; $state['dryRunPlannedMutationCount']=[int]$dryTerminal.plannedMutationCount; $state['dryRunActualMutationCount']=[int]$dryTerminal.actualMutationCount
     foreach ($key in @('authenticationCompleted','targetResolutionStarted','targetResolutionCompleted','targetResolutionSucceeded','targetResolutionFailureCategory','targetResultCountClass','targetEligibleState','canonicalTargetResolved','canonicalCircleIdResolved','canonicalCircleSlugResolved','targetBindingArtifactPresent','targetBindingValidationPassed','targetBindingCreated','targetBindingHashCreated','targetBoundExecutionPlanHashCreated')) {
       $destinationKey = if ($key -eq 'authenticationCompleted') { 'dryRunAuthenticationCompleted' } else { $key }
       $state[$destinationKey] = $dryTerminal.$key
@@ -1077,7 +1124,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
     }
     if (Test-Path -LiteralPath $dryTerminalPath -PathType Leaf) {
       try {
-        $dryFailure = Read-AttestationJson $dryTerminalPath
+        $dryFailure = Sync-VerifiedTargetBindingFromDryRunTerminal $state $dryTerminalPath
         $state['dryRunCompleted'] = $true; $state['dryRunTerminalPath'] = $dryTerminalPath; $state['dryRunTerminalSha256'] = Get-Sha256 $dryTerminalPath
         $state['dryRunOuterClassification'] = $dryFailure.outerClassification; $state['dryRunInnerClassification'] = $dryFailure.innerClassification; $state['dryRunChildExitCode'] = [int]$dryFailure.childExitCode
         $state['dryRunExecutionCommit'] = [string]$dryFailure.executionCommit; $state['dryRunReceiptRunnerCommit'] = $dryFailure.receiptRunnerCommit; $state['dryRunExpectedToolingCommit'] = $dryFailure.expectedToolingCommit; $state['dryRunPlannedMutationCount'] = [int]$dryFailure.plannedMutationCount; $state['dryRunActualMutationCount'] = [int]$dryFailure.actualMutationCount
