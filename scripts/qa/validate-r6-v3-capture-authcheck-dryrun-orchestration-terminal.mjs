@@ -16,7 +16,7 @@ const BASE_REQUIRED = [
   "pagesProjectGetCount", "deploymentGetCount", "supabaseReadCount", "supabaseWriteCount", "productionMutationCount", "retryCount",
 ];
 const TARGET_DIAGNOSTIC_REQUIRED = [
-  "dryRunAuthenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "targetResolutionFailureCategory", "targetResultCountClass", "targetEligibleState", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated",
+  "dryRunAuthenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "targetResolutionFailureCategory", "targetResultCountClass", "targetEligibleState", "canonicalTargetResolved", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated",
 ];
 const TARGET_FAILURE_CATEGORIES = new Set(["TARGET_INPUT_INVALID", "TARGET_NOT_FOUND", "TARGET_NON_UNIQUE", "TARGET_INELIGIBLE", "TARGET_RESOLUTION_INCOMPLETE", "PROVIDER_OR_READ_FAILURE", "BINDING_ARTIFACT_PRESENT", "BINDING_ARTIFACT_MISSING", "BINDING_ARTIFACT_INVALID", "RESOLVER_PROCESS_FAILURE", "RESOLVER_OUTPUT_INVALID", "UNKNOWN_TARGET_RESOLUTION_FAILURE"]);
 const RESULT_COUNT_CLASSES = new Set(["ZERO", "ONE", "MULTIPLE", "UNKNOWN"]);
@@ -37,9 +37,9 @@ function requiredFor(version) {
   return null;
 }
 function assertTargetDiagnostics(value) {
-  for (const key of ["dryRunAuthenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated"]) if (typeof value[key] !== "boolean") fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_DIAGNOSTIC_INVALID");
+  for (const key of ["dryRunAuthenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "canonicalTargetResolved", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated"]) if (typeof value[key] !== "boolean") fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_DIAGNOSTIC_INVALID");
   if ((value.targetResolutionFailureCategory !== null && !TARGET_FAILURE_CATEGORIES.has(value.targetResolutionFailureCategory)) || !RESULT_COUNT_CLASSES.has(value.targetResultCountClass) || !ELIGIBILITY_STATES.has(value.targetEligibleState)) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_DIAGNOSTIC_INVALID");
-  const canonicalResolved = value.canonicalCircleIdResolved && value.canonicalCircleSlugResolved;
+  const canonicalResolved = value.canonicalTargetResolved && value.canonicalCircleIdResolved && value.canonicalCircleSlugResolved;
   const bindingReady = value.targetBindingArtifactPresent && value.targetBindingValidationPassed && value.targetBindingCreated && value.targetBindingHashCreated && value.targetBoundExecutionPlanHashCreated;
   if (!value.targetResolutionStarted) {
     if (value.targetResolutionCompleted || value.targetResolutionSucceeded || value.targetResolutionFailureCategory !== null || value.targetResultCountClass !== "UNKNOWN" || value.targetEligibleState !== "UNKNOWN" || value.dryRunAuthenticationCompleted || canonicalResolved || bindingReady) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_LIFECYCLE_INVALID");
@@ -52,7 +52,7 @@ function assertTargetDiagnostics(value) {
   }
   const invalidBindingArtifact = value.targetResolutionFailureCategory === "BINDING_ARTIFACT_INVALID" && value.targetBindingArtifactPresent && value.targetBindingCreated;
   if (value.failureStage !== "TARGET_RESOLUTION") fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_STAGE_INVALID");
-  if (value.targetResolutionFailureCategory === null || canonicalResolved || value.targetBindingValidationPassed || (!invalidBindingArtifact && value.targetBindingCreated) || value.targetBindingHashCreated || value.targetBoundExecutionPlanHashCreated || value.targetBinding !== null || value.targetBindingPath !== null || value.targetBindingSha256 !== null) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_LIFECYCLE_INVALID");
+  if (value.targetResolutionFailureCategory === null || value.canonicalTargetResolved || canonicalResolved || value.targetBindingValidationPassed || (!invalidBindingArtifact && value.targetBindingCreated) || value.targetBindingHashCreated || value.targetBoundExecutionPlanHashCreated || value.targetBinding !== null || value.targetBindingPath !== null || value.targetBindingSha256 !== null) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_LIFECYCLE_INVALID");
   if (value.failureStage === "TARGET_RESOLUTION" && (value.dryRunReceiptRunnerCommit !== null || value.dryRunExpectedToolingCommit !== null)) fail("R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_RECEIPT_ORDER_INVALID");
 }
 

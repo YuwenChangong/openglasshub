@@ -13,13 +13,13 @@ const base = () => ({
   authCheckAuthorizedByMode: true, authCheckStarted: true, authCheckCompleted: true, authCheckSuccess: true, authCheckTerminalPath: "C:\\safe\\auth.json", authCheckTerminalSha256: "c".repeat(64), authCheckOuterClassification: "R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK", authCheckInnerClassification: null, authCheckChildExitCode: 0,
   dryRunFreshnessCheckedAt: "2099-01-01T00:00:00.000Z", dryRunRemainingValidityMs: 720000, dryRunMinimumRequiredValidityMs: 720000, dryRunAttestationFreshnessPassed: true,
   dryRunAuthorizedByMode: true, dryRunStarted: true, dryRunCompleted: true, dryRunSuccess: true, dryRunTerminalPath: "C:\\safe\\dry.json", dryRunTerminalSha256: "d".repeat(64), dryRunOuterClassification: "R6_CURRENT_CANONICAL_V3_DRY_RUN_ONLY_READY", dryRunInnerClassification: null, dryRunChildExitCode: 0, dryRunExecutionCommit: "a".repeat(40), dryRunReceiptRunnerCommit: "a".repeat(40), dryRunExpectedToolingCommit: "a".repeat(40), dryRunPlannedMutationCount: 2, dryRunActualMutationCount: 0, targetBinding: target(), targetBindingPath: "C:\\safe\\canonical-canary-target-binding.json", targetBindingSha256: "e".repeat(64),
-  dryRunAuthenticationCompleted: true, targetResolutionStarted: true, targetResolutionCompleted: true, targetResolutionSucceeded: true, targetResolutionFailureCategory: null, targetResultCountClass: "ONE", targetEligibleState: "ELIGIBLE", canonicalCircleIdResolved: true, canonicalCircleSlugResolved: true, targetBindingArtifactPresent: true, targetBindingValidationPassed: true, targetBindingCreated: true, targetBindingHashCreated: true, targetBoundExecutionPlanHashCreated: true,
+  dryRunAuthenticationCompleted: true, targetResolutionStarted: true, targetResolutionCompleted: true, targetResolutionSucceeded: true, targetResolutionFailureCategory: null, targetResultCountClass: "ONE", targetEligibleState: "ELIGIBLE", canonicalTargetResolved: true, canonicalCircleIdResolved: true, canonicalCircleSlugResolved: true, targetBindingArtifactPresent: true, targetBindingValidationPassed: true, targetBindingCreated: true, targetBindingHashCreated: true, targetBoundExecutionPlanHashCreated: true,
   pagesProjectGetCount: 1, deploymentGetCount: 0, supabaseReadCount: 0, supabaseWriteCount: 0, productionMutationCount: 0, retryCount: 0,
 });
 assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(base()).classification, "R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY");
 const historicV2 = base();
 historicV2.schemaVersion = "r6-v3-capture-authcheck-dryrun-orchestration-terminal-result-v2";
-for (const key of ["dryRunAuthenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "targetResolutionFailureCategory", "targetResultCountClass", "targetEligibleState", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated"]) delete historicV2[key];
+for (const key of ["dryRunAuthenticationCompleted", "targetResolutionStarted", "targetResolutionCompleted", "targetResolutionSucceeded", "targetResolutionFailureCategory", "targetResultCountClass", "targetEligibleState", "canonicalTargetResolved", "canonicalCircleIdResolved", "canonicalCircleSlugResolved", "targetBindingArtifactPresent", "targetBindingValidationPassed", "targetBindingCreated", "targetBindingHashCreated", "targetBoundExecutionPlanHashCreated"]) delete historicV2[key];
 assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(historicV2).classification, "R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY");
 const targetResolutionFailure = base();
 targetResolutionFailure.success = false;
@@ -34,6 +34,7 @@ targetResolutionFailure.targetResolutionSucceeded = false;
 targetResolutionFailure.targetResolutionFailureCategory = "TARGET_NOT_FOUND";
 targetResolutionFailure.targetResultCountClass = "ZERO";
 targetResolutionFailure.targetEligibleState = "UNKNOWN";
+targetResolutionFailure.canonicalTargetResolved = false;
 targetResolutionFailure.canonicalCircleIdResolved = false;
 targetResolutionFailure.canonicalCircleSlugResolved = false;
 targetResolutionFailure.targetBindingArtifactPresent = false;
@@ -47,6 +48,17 @@ targetResolutionFailure.targetBindingSha256 = null;
 targetResolutionFailure.dryRunReceiptRunnerCommit = null;
 targetResolutionFailure.dryRunExpectedToolingCommit = null;
 assert.equal(validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(targetResolutionFailure).classification, targetResolutionFailure.outerClassification);
+for (const invalidValue of [null, "true", "false", 0, 1, {}, []]) {
+  const invalidCanonicalTarget = base();
+  invalidCanonicalTarget.canonicalTargetResolved = invalidValue;
+  assert.throws(
+    () => validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(invalidCanonicalTarget),
+    { message: "R6_V3_CAPTURE_AUTHCHECK_DRYRUN_ORCHESTRATION_TERMINAL_TARGET_DIAGNOSTIC_INVALID" },
+  );
+}
+const missingCanonicalTarget = base();
+delete missingCanonicalTarget.canonicalTargetResolved;
+assert.throws(() => validateR6V3CaptureAuthCheckDryRunOrchestrationTerminal(missingCanonicalTarget));
 const receiptBindingFailure = base();
 receiptBindingFailure.success = false;
 receiptBindingFailure.outerClassification = "R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_DRY_RUN_FAILED";

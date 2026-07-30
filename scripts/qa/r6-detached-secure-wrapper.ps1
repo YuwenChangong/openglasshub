@@ -865,6 +865,7 @@ function Set-TargetResolutionInitialState([System.Collections.IDictionary]$State
   $State['targetResolutionFailureCategory'] = $null
   $State['targetResultCountClass'] = 'UNKNOWN'
   $State['targetEligibleState'] = 'UNKNOWN'
+  $State['canonicalTargetResolved'] = $false
   $State['canonicalCircleIdResolved'] = $false
   $State['canonicalCircleSlugResolved'] = $false
   $State['targetBindingArtifactPresent'] = $false
@@ -900,6 +901,7 @@ function Set-TargetResolutionFailureState([System.Collections.IDictionary]$State
   $State['targetResolutionFailureCategory'] = $diagnostic.Category
   $State['targetResultCountClass'] = $diagnostic.ResultCount
   $State['targetEligibleState'] = $diagnostic.Eligible
+  $State['canonicalTargetResolved'] = $false
   $State['canonicalCircleIdResolved'] = $false
   $State['canonicalCircleSlugResolved'] = $false
   $State['targetBindingArtifactPresent'] = Test-Path -LiteralPath $TargetPath -PathType Leaf
@@ -916,6 +918,7 @@ function Set-TargetResolutionSuccessState([System.Collections.IDictionary]$State
   $State['targetResolutionFailureCategory'] = $null
   $State['targetResultCountClass'] = 'ONE'
   $State['targetEligibleState'] = 'ELIGIBLE'
+  $State['canonicalTargetResolved'] = $true
   $State['canonicalCircleIdResolved'] = $true
   $State['canonicalCircleSlugResolved'] = $true
   $State['targetBindingArtifactPresent'] = $true
@@ -1037,6 +1040,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
   $state['targetResolutionFailureCategory'] = $null
   $state['targetResultCountClass'] = 'UNKNOWN'
   $state['targetEligibleState'] = 'UNKNOWN'
+  $state['canonicalTargetResolved'] = $false
   $state['canonicalCircleIdResolved'] = $false
   $state['canonicalCircleSlugResolved'] = $false
   $state['targetBindingArtifactPresent'] = $false
@@ -1057,7 +1061,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
     if (-not $state['authCheckSuccess'] -or $state['authCheckOuterClassification'] -ne 'R6_CURRENT_CANONICAL_V3_AUTH_CHECK_ONLY_OK' -or $state['authCheckChildExitCode'] -ne 0) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_AUTH_CHECK_TERMINAL_INVALID' }
     $state['failureStage']='dry_run_freshness'; $state['dryRunFreshnessCheckedAt']=Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow); $state['dryRunRemainingValidityMs']=Assert-MinimumAttestationValidity $attestation; $state['dryRunAttestationFreshnessPassed']=$true
     $state['failureStage']='dry_run'; $state['dryRunStarted']=$true; $dry=Invoke-CurrentCanonicalProductionV3DryRunOnly $Validation $dryRoot $RunId $state['attestationPath'] $state['attestationSha256']; $dryTerminal=Read-AttestationJson $dry.Path; $state['dryRunCompleted']=$true; $state['dryRunSuccess']=[bool]$dryTerminal.success; $state['dryRunTerminalPath']=$dry.Path; $state['dryRunTerminalSha256']=Get-Sha256 $dry.Path; $state['dryRunOuterClassification']=$dryTerminal.outerClassification; $state['dryRunInnerClassification']=$dryTerminal.innerClassification; $state['dryRunChildExitCode']=[int]$dryTerminal.childExitCode; $state['dryRunExecutionCommit']=[string]$dryTerminal.executionCommit; $state['dryRunReceiptRunnerCommit']=$dryTerminal.receiptRunnerCommit; $state['dryRunExpectedToolingCommit']=$dryTerminal.expectedToolingCommit; $state['dryRunPlannedMutationCount']=[int]$dryTerminal.plannedMutationCount; $state['dryRunActualMutationCount']=[int]$dryTerminal.actualMutationCount; $state['targetBinding']=$dryTerminal.targetBinding; $state['targetBindingPath']=$dryTerminal.targetBindingPath; $state['targetBindingSha256']=$dryTerminal.targetBindingSha256
-    foreach ($key in @('authenticationCompleted','targetResolutionStarted','targetResolutionCompleted','targetResolutionSucceeded','targetResolutionFailureCategory','targetResultCountClass','targetEligibleState','canonicalCircleIdResolved','canonicalCircleSlugResolved','targetBindingArtifactPresent','targetBindingValidationPassed','targetBindingCreated','targetBindingHashCreated','targetBoundExecutionPlanHashCreated')) {
+    foreach ($key in @('authenticationCompleted','targetResolutionStarted','targetResolutionCompleted','targetResolutionSucceeded','targetResolutionFailureCategory','targetResultCountClass','targetEligibleState','canonicalTargetResolved','canonicalCircleIdResolved','canonicalCircleSlugResolved','targetBindingArtifactPresent','targetBindingValidationPassed','targetBindingCreated','targetBindingHashCreated','targetBoundExecutionPlanHashCreated')) {
       $destinationKey = if ($key -eq 'authenticationCompleted') { 'dryRunAuthenticationCompleted' } else { $key }
       $state[$destinationKey] = $dryTerminal.$key
     }
@@ -1077,7 +1081,7 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
         $state['dryRunCompleted'] = $true; $state['dryRunTerminalPath'] = $dryTerminalPath; $state['dryRunTerminalSha256'] = Get-Sha256 $dryTerminalPath
         $state['dryRunOuterClassification'] = $dryFailure.outerClassification; $state['dryRunInnerClassification'] = $dryFailure.innerClassification; $state['dryRunChildExitCode'] = [int]$dryFailure.childExitCode
         $state['dryRunExecutionCommit'] = [string]$dryFailure.executionCommit; $state['dryRunReceiptRunnerCommit'] = $dryFailure.receiptRunnerCommit; $state['dryRunExpectedToolingCommit'] = $dryFailure.expectedToolingCommit; $state['dryRunPlannedMutationCount'] = [int]$dryFailure.plannedMutationCount; $state['dryRunActualMutationCount'] = [int]$dryFailure.actualMutationCount
-        foreach ($key in @('authenticationCompleted','targetResolutionStarted','targetResolutionCompleted','targetResolutionSucceeded','targetResolutionFailureCategory','targetResultCountClass','targetEligibleState','canonicalCircleIdResolved','canonicalCircleSlugResolved','targetBindingArtifactPresent','targetBindingValidationPassed','targetBindingCreated','targetBindingHashCreated','targetBoundExecutionPlanHashCreated')) {
+        foreach ($key in @('authenticationCompleted','targetResolutionStarted','targetResolutionCompleted','targetResolutionSucceeded','targetResolutionFailureCategory','targetResultCountClass','targetEligibleState','canonicalTargetResolved','canonicalCircleIdResolved','canonicalCircleSlugResolved','targetBindingArtifactPresent','targetBindingValidationPassed','targetBindingCreated','targetBindingHashCreated','targetBoundExecutionPlanHashCreated')) {
           $destinationKey = if ($key -eq 'authenticationCompleted') { 'dryRunAuthenticationCompleted' } else { $key }
           $state[$destinationKey] = $dryFailure.$key
         }
