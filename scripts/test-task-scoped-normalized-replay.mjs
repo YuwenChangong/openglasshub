@@ -36,6 +36,8 @@ assert.throws(() => discoverTaskScopedNormalizedReplay({ taskId, run: fakeDocker
 assert.throws(() => discoverTaskScopedNormalizedReplay({ taskId, run: fakeDocker([container("disposable", labels(taskId, { [NORMALIZED_REPLAY_LABELS.disposable]: "false" }))]) }), /NORMALIZED_REPLAY_TASK_CONTAINER_MISSING/);
 assert.throws(() => discoverTaskScopedNormalizedReplay({ taskId, run: fakeDocker([container("version", labels(taskId, { [NORMALIZED_REPLAY_LABELS.contractVersion]: "unsupported" }))]) }), /NORMALIZED_REPLAY_TASK_CONTAINER_MISSING/);
 assert.throws(() => discoverTaskScopedNormalizedReplay({ taskId, run: fakeDocker([container("stopped", labels(taskId), { running: false })]) }), /NORMALIZED_REPLAY_TASK_CONTAINER_NOT_RUNNING/);
+assert.throws(() => discoverTaskScopedNormalizedReplay({ taskId, run: fakeDocker([container("missing-health", labels(taskId), { health: "missing" })]) }), /NORMALIZED_REPLAY_TASK_CONTAINER_HEALTH_INVALID/);
+assert.throws(() => discoverTaskScopedNormalizedReplay({ taskId, run: fakeDocker([container("starting", labels(taskId), { health: "starting" })]) }), /NORMALIZED_REPLAY_TASK_CONTAINER_HEALTH_INVALID/);
 assert.throws(() => discoverTaskScopedNormalizedReplay({ taskId, run: fakeDocker([container("unhealthy", labels(taskId), { health: "unhealthy" })]) }), /NORMALIZED_REPLAY_TASK_CONTAINER_HEALTH_INVALID/);
 assert.throws(() => discoverTaskScopedNormalizedReplay({ taskId, run: fakeDocker([current], "remote-prod") }), /NORMALIZED_REPLAY_DOCKER_CONTEXT_NOT_LOCAL/);
 assert.throws(() => discoverTaskScopedNormalizedReplay({ taskId, run: fakeDocker([container("remote-target", labels(taskId), { networks: { remote: {}, local: {} } })]) }), /NORMALIZED_REPLAY_TASK_CONTAINER_ISOLATION_INVALID/);
@@ -43,4 +45,4 @@ assert.throws(() => validateNormalizedReplayTaskId(""), /NORMALIZED_REPLAY_TASK_
 assert.throws(() => validateNormalizedReplayTaskId("r6-final-contract-not-a-uuid"), /NORMALIZED_REPLAY_TASK_ID_INVALID/);
 assert.throws(() => discoverTaskScopedNormalizedReplay({ taskId, run: fakeDocker([container("prefix-spoof", { name: "supabase_db_local-supabase-normalized-replay-spoof" })]) }), /NORMALIZED_REPLAY_TASK_CONTAINER_MISSING/);
 assert.equal(NORMALIZED_REPLAY_CONTRACT_VERSION, "openglass-normalized-replay-task-v1");
-console.log(JSON.stringify({ classification: "NORMALIZED_REPLAY_TASK_SCOPING_FIXTURES_PASSED", scenarios: 14, realDockerOperations: 0 }));
+console.log(JSON.stringify({ classification: "NORMALIZED_REPLAY_TASK_SCOPING_FIXTURES_PASSED", scenarios: 16, realDockerOperations: 0 }));

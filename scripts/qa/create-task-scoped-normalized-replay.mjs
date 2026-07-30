@@ -5,7 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildLocalSupabaseReplayMirror } from "../build-local-supabase-replay-mirror.mjs";
 import { PINNED_PSQL_DIGEST, PINNED_PSQL_IMAGE } from "../lib/docker-psql-file-transport.mjs";
-import { assertLocalDockerContext, normalizedReplayLabelSet, validateNormalizedReplayTaskId } from "../lib/task-scoped-normalized-replay.mjs";
+import { assertLocalDockerContext, discoverTaskScopedNormalizedReplay, normalizedReplayLabelSet, validateNormalizedReplayTaskId } from "../lib/task-scoped-normalized-replay.mjs";
+import { NORMALIZED_REPLAY_HEALTHCHECK, normalizedReplayHealthcheckDockerArgs, waitForNormalizedReplayHealthy } from "../lib/task-scoped-normalized-replay-health.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const run = (args, options = {}) => {
@@ -36,13 +37,18 @@ const runSupabase = (args) => {
   return result.stdout.trim();
 };
 
-async function waitForReady(container) {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    const ready = spawnSync("docker", ["exec", container, "pg_isready", "-U", "postgres", "-d", "postgres"], { encoding: "utf8" });
-    if (ready.status === 0) return;
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error("NORMALIZED_REPLAY_TASK_CONTAINER_NOT_READY");
+function inspectContainerHealth(container) {
+  const result = spawnSync("docker", ["inspect", "--format", "{{.State.Running}}\t{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}", container], { encoding: "utf8" });
+  if (result.status !== 0) throw new Error("docker inspect failed");
+  const [running, health] = result.stdout.trim().split("\t");
+  return { running: running === "true", health };
+}
+
+async function waitForHealthy(container) {
+  return waitForNormalizedReplayHealthy({
+    inspect: () => inspectContainerHealth(container),
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  });
 }
 
 function removeOwned(names, labels) {
@@ -52,6 +58,15 @@ function removeOwned(names, labels) {
   if (volume) run(["volume", "rm", volume]);
   const network = spawnSync("docker", ["network", "ls", "-q", "--filter", `name=^${names.network}$`, "--filter", `label=io.openglasshub.replay.task-id=${labels["io.openglasshub.replay.task-id"]}`], { encoding: "utf8" }).stdout?.trim();
   if (network) run(["network", "rm", network]);
+}
+
+function removeBootstrapVolumes(projectId) {
+  const volumes = run(["volume", "ls", "-q", "--filter", `label=com.supabase.cli.project=${projectId}`]).split(/\r?\n/).filter(Boolean);
+  for (const volume of volumes) {
+    const attached = run(["ps", "-aq", "--filter", `volume=${volume}`]);
+    if (attached) throw new Error("NORMALIZED_REPLAY_BOOTSTRAP_VOLUME_STILL_ATTACHED");
+    run(["volume", "rm", volume]);
+  }
 }
 
 const taskId = validateNormalizedReplayTaskId(arg("--task-id"));
@@ -68,7 +83,7 @@ for (const name of Object.values(names)) {
 
 let mirrorRoot;
 let bootstrapProjectId;
-let created = false;
+let bootstrapVolume;
 try {
   mirrorRoot = await mkdtemp(path.join(os.tmpdir(), "openglass-normalized-replay-"));
   bootstrapProjectId = `r6p${taskId.slice("r6-final-contract-".length).replaceAll("-", "").slice(0, 12)}`;
@@ -83,24 +98,29 @@ try {
   runSupabase(["db", "reset", "--local", "--no-seed", "--workdir", mirrorRoot]);
   const bootstrapContainer = run(["ps", "-q", "--filter", `name=^/supabase_db_${bootstrapProjectId}$`]);
   if (!bootstrapContainer || bootstrapContainer.includes("\n")) throw new Error("NORMALIZED_REPLAY_BOOTSTRAP_DATABASE_CARDINALITY_INVALID");
-  const bootstrapVolume = run(["inspect", "--format", "{{range .Mounts}}{{if eq .Destination \"/var/lib/postgresql/data\"}}{{.Name}}{{end}}{{end}}", bootstrapContainer]);
+  bootstrapVolume = run(["inspect", "--format", "{{range .Mounts}}{{if eq .Destination \"/var/lib/postgresql/data\"}}{{.Name}}{{end}}{{end}}", bootstrapContainer]);
   if (!bootstrapVolume) throw new Error("NORMALIZED_REPLAY_BOOTSTRAP_VOLUME_MISSING");
   runSupabase(["stop", "--workdir", mirrorRoot]);
   run(["network", "create", ...labelArgs(labels), names.network]);
   run(["volume", "create", ...labelArgs(labels), names.volume]);
   run(["run", "--rm", "--network", "none", "--mount", `type=volume,src=${bootstrapVolume},dst=/from,readonly`, "--mount", `type=volume,src=${names.volume},dst=/to`, "--entrypoint", "sh", PINNED_PSQL_IMAGE, "-ec", "cp -a /from/. /to/"]);
   run(["volume", "rm", bootstrapVolume]);
+  bootstrapVolume = null;
+  removeBootstrapVolumes(bootstrapProjectId);
   bootstrapProjectId = null;
-  run(["run", "-d", "--name", names.container, "--network", names.network, "--mount", `type=volume,src=${names.volume},dst=/var/lib/postgresql/data`, ...labelArgs(labels), "--env", "POSTGRES_HOST_AUTH_METHOD=trust", PINNED_PSQL_IMAGE]);
-  created = true;
-  await waitForReady(names.container);
-  process.stdout.write(`${JSON.stringify({ classification: "NORMALIZED_REPLAY_TASK_CONTAINER_READY", taskId, containerId: run(["inspect", "--format", "{{.Id}}", names.container]), containerName: names.container, imageId, labels, network: names.network, volume: names.volume, migrationCount: report.migrationCount, bomTransformedFiles: report.bomTransformedFiles, dockerPulls: 0, remoteOperations: 0 })}\n`);
+  run(["run", "-d", "--name", names.container, "--network", names.network, "--mount", `type=volume,src=${names.volume},dst=/var/lib/postgresql/data`, ...labelArgs(labels), "--env", "POSTGRES_HOST_AUTH_METHOD=trust", ...normalizedReplayHealthcheckDockerArgs(), PINNED_PSQL_IMAGE]);
+  const health = await waitForHealthy(names.container);
+  const discovered = discoverTaskScopedNormalizedReplay({ taskId });
+  const inspectedContainerId = run(["inspect", "--format", "{{.Id}}", names.container]);
+  if (!inspectedContainerId.startsWith(discovered.containerId) || discovered.network !== names.network || discovered.volume !== names.volume) throw new Error("NORMALIZED_REPLAY_TASK_CONTAINER_DISCOVERY_MISMATCH");
+  process.stdout.write(`${JSON.stringify({ classification: "NORMALIZED_REPLAY_TASK_CONTAINER_READY", taskId, containerId: discovered.containerId, containerName: names.container, imageId, labels, network: names.network, volume: names.volume, healthCommand: NORMALIZED_REPLAY_HEALTHCHECK.command, healthStatus: health.health, healthTransitions: health.transitions, migrationCount: report.migrationCount, bomTransformedFiles: report.bomTransformedFiles, dockerPulls: 0, remoteOperations: 0 })}\n`);
 } catch (error) {
-  if (created) removeOwned(names, labels);
+  try { removeOwned(names, labels); } catch { /* Preserve the creation failure. */ }
   throw error;
 } finally {
   if (bootstrapProjectId && mirrorRoot) {
     try { runSupabase(["stop", "--no-backup", "--workdir", mirrorRoot]); } catch { /* Preserve the original initialization failure. */ }
+    try { removeBootstrapVolumes(bootstrapProjectId); } catch { /* Preserve the original initialization failure. */ }
   }
   if (mirrorRoot) await rm(mirrorRoot, { recursive: true, force: true });
 }

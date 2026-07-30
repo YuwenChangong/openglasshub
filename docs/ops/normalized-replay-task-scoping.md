@@ -12,6 +12,8 @@ The reconciliation gates require exactly one disposable normalized-replay databa
 
 The helper counts all container states before requiring the selected task container to be running. Name prefixes, creation order, and unrelated Compose labels are not identity proof. A missing, duplicate, non-disposable, unsupported-version, wrong-role, or non-local-context target fails closed.
 
+The task factory explicitly configures the pinned image's local PostgreSQL health probe: `pg_isready -U postgres -h localhost`, with a two-second interval and timeout, ten retries, and a zero-second start period. The factory waits for Docker to report `healthy` before discovery; missing health metadata, a continuing `starting` state after 30 seconds, `unhealthy`, container exit, or inspect failure each fail closed and trigger task-scoped cleanup.
+
 `scripts/qa/create-task-scoped-normalized-replay.mjs` uses the offline cached Supabase CLI and its `db reset --local` path to initialize the BOM-safe 43-migration mirror. It clones only that short-lived bootstrap database volume into a separate, labelled disposable task volume, then removes the bootstrap stack. The resulting task container has an isolated network and volume; it does not attach to, read, start, stop, or remove any pre-existing Compose resource.
 
 After gates finish, `scripts/qa/cleanup-task-scoped-normalized-replay.mjs --task-id <task-id>` removes only the exact labelled task container, its exact labelled volume, and its exact labelled network. It has no prune path.

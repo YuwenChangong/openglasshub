@@ -12,6 +12,16 @@ assert.match(source, /type=volume,src=\$\{bootstrapVolume\},dst=\/from,readonly/
 assert.match(source, /type=volume,src=\$\{names\.volume\},dst=\/to/);
 assert.match(source, /"--network", "none"/);
 assert.match(source, /PINNED_PSQL_DIGEST/);
+assert.match(source, /normalizedReplayHealthcheckDockerArgs/);
+assert.match(source, /waitForNormalizedReplayHealthy/);
+assert.match(source, /discoverTaskScopedNormalizedReplay\(\{ taskId \}\)/);
+assert.match(source, /inspectedContainerId\.startsWith\(discovered\.containerId\)/);
+assert.match(source, /healthStatus: health\.health/);
+assert.match(source, /healthTransitions: health\.transitions/);
+assert.match(source, /volume=\$\{volume\}/);
+assert.match(source, /function removeBootstrapVolumes\(projectId\)/);
+assert.match(source, /label=com\.supabase\.cli\.project=\$\{projectId\}/);
+assert.match(source, /removeBootstrapVolumes\(bootstrapProjectId\)/);
 assert.doesNotMatch(source, /docker", \["pull"|supabase login|--linked|--db-url|cloudflare/i);
 assert.match(cleanup, /NORMALIZED_REPLAY_TASK_CONTAINER_CLEANED/);
 assert.doesNotMatch(cleanup, /system prune|container prune|volume prune|network prune/i);
