@@ -1,5 +1,7 @@
-import { createServer as createViteServer } from "vite";
 import { createServer as createHttpServer } from "node:http";
+import { access } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 
 const LOOPBACK_HOST = "127.0.0.1";
 
@@ -7,13 +9,24 @@ function fail(code) {
   throw Object.assign(new Error(code), { code });
 }
 
-export async function startLoopbackViteHarness({ root, configFile, cacheDir, createServer = createViteServer } = {}) {
+async function resolveViteCreateServer() {
+  const explicitEntry = process.env.OPENGLASS_VITE_MODULE_ENTRY;
+  if (explicitEntry) {
+    await access(explicitEntry).catch(() => fail("LOOPBACK_VITE_HARNESS_EXTERNAL_VITE_ENTRY_INVALID"));
+    return (await import(pathToFileURL(explicitEntry).href)).createServer;
+  }
+  const require = createRequire(import.meta.url);
+  return (await import(pathToFileURL(require.resolve("vite")).href)).createServer;
+}
+
+export async function startLoopbackViteHarness({ root, configFile, cacheDir, createServer } = {}) {
   if (typeof root !== "string" || !root || typeof configFile !== "string" || !configFile) fail("LOOPBACK_VITE_HARNESS_INPUT_INVALID");
   let server;
   let httpServer;
   let closed = false;
   try {
-    server = await createServer({
+    const create = createServer ?? await resolveViteCreateServer();
+    server = await create({
       root,
       configFile,
       ...(typeof cacheDir === "string" && cacheDir ? { cacheDir } : {}),
