@@ -1,6 +1,7 @@
 import { createServer as createHttpServer } from "node:http";
 import { access } from "node:fs/promises";
 import { createRequire } from "node:module";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const LOOPBACK_HOST = "127.0.0.1";
@@ -9,14 +10,19 @@ function fail(code) {
   throw Object.assign(new Error(code), { code });
 }
 
-async function resolveViteCreateServer() {
+async function resolveViteTooling() {
   const explicitEntry = process.env.OPENGLASS_VITE_MODULE_ENTRY;
   if (explicitEntry) {
     await access(explicitEntry).catch(() => fail("LOOPBACK_VITE_HARNESS_EXTERNAL_VITE_ENTRY_INVALID"));
-    return (await import(pathToFileURL(explicitEntry).href)).createServer;
+    const externalRequire = createRequire(pathToFileURL(explicitEntry));
+    return {
+      createServer: (await import(pathToFileURL(explicitEntry).href)).createServer,
+      react: (await import(pathToFileURL(externalRequire.resolve("@vitejs/plugin-react")).href)).default,
+      isolatedDependencies: true,
+    };
   }
   const require = createRequire(import.meta.url);
-  return (await import(pathToFileURL(require.resolve("vite")).href)).createServer;
+  return { createServer: (await import(pathToFileURL(require.resolve("vite")).href)).createServer, isolatedDependencies: false };
 }
 
 export async function startLoopbackViteHarness({ root, configFile, cacheDir, createServer } = {}) {
@@ -25,12 +31,13 @@ export async function startLoopbackViteHarness({ root, configFile, cacheDir, cre
   let httpServer;
   let closed = false;
   try {
-    const create = createServer ?? await resolveViteCreateServer();
+    const tooling = createServer ? { createServer, isolatedDependencies: false } : await resolveViteTooling();
+    const create = tooling.createServer;
     server = await create({
       root,
-      configFile,
+      ...(tooling.isolatedDependencies ? { configFile: false, plugins: [tooling.react()], server: { fs: { allow: [path.resolve(root, "../../..")] } } } : { configFile }),
       ...(typeof cacheDir === "string" && cacheDir ? { cacheDir } : {}),
-      server: { middlewareMode: true, host: LOOPBACK_HOST },
+      server: { ...(tooling.isolatedDependencies ? { fs: { allow: [path.resolve(root, "../../..")] } } : {}), middlewareMode: true, host: LOOPBACK_HOST },
       logLevel: "error",
     });
     httpServer = createHttpServer(server.middlewares);
