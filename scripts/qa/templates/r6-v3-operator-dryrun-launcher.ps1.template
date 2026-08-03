@@ -1,0 +1,109 @@
+[CmdletBinding()]
+param([switch]$ValidateOnly, [string]$SyntheticInputKind = '')
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$script:SyntheticInputKind = if ([string]::IsNullOrWhiteSpace($SyntheticInputKind)) { [string]$env:R6_OPERATOR_LAUNCH_TEST_INPUT_KIND } else { $SyntheticInputKind }
+$script:Config = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('__CONFIG_BASE64__')) | ConvertFrom-Json
+$script:TerminalPath = Join-Path $script:Config.operatorRoot 'launcher-terminal-result.json'
+$script:BreadcrumbPath = Join-Path $script:Config.operatorRoot 'launcher-stage-breadcrumb.json'
+$script:State = [ordered]@{ schemaVersion='r6-v3-operator-launch-terminal-result-v1'; success=$false; classification='R6_OPERATOR_LAUNCH_UNEXPECTED_FAILURE'; currentStage='LAUNCHER_ENTRY'; lastCompletedStage='LAUNCHER_ENTRY'; failureStage=$null; failureCategory=$null; errorClass=$null; launcherSha256=$null; manifestSha256=$null; runId=$script:Config.runId; wrapperInvocationStarted=$false; wrapperEntryConfirmed=$false; inputCollectionStarted=$false; inputCollectionCompleted=$false; stdinPayloadConstructed=$false; stdinPayloadDelivered=$false; createdAt=$null }
+
+function Get-Sha256([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { throw 'R6_OPERATOR_LAUNCH_REQUIRED_FILE_MISSING' }
+  $stream=$null; $hasher=$null
+  try { $stream=[IO.File]::OpenRead($Path); $hasher=[Security.Cryptography.SHA256]::Create(); return (-join ($hasher.ComputeHash($stream)|ForEach-Object{$_.ToString('x2')})) }
+  finally { if($null -ne $hasher){$hasher.Dispose()}; if($null -ne $stream){$stream.Dispose()} }
+}
+function Write-AtomicJson([string]$Path, [object]$Value) {
+  $directory = Split-Path -Parent $Path
+  New-Item -ItemType Directory -Force -Path $directory | Out-Null
+  $temporary = Join-Path $directory ('.' + [IO.Path]::GetFileName($Path) + '.' + [guid]::NewGuid().ToString('N') + '.tmp')
+  try { [IO.File]::WriteAllText($temporary, ($Value | ConvertTo-Json -Compress -Depth 5), [Text.UTF8Encoding]::new($false)); Move-Item -LiteralPath $temporary -Destination $Path -Force }
+  finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue } }
+}
+function Set-Stage([string]$Stage) {
+  $script:State.currentStage=$Stage
+  Write-AtomicJson $script:BreadcrumbPath ([ordered]@{schemaVersion='r6-v3-operator-launch-stage-breadcrumb-v1';runId=$script:Config.runId;stage=$Stage;createdAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')})
+}
+function Complete-Stage([string]$Stage) { $script:State.lastCompletedStage=$Stage }
+function Get-Classification([object]$Record) {
+  if ($Record.Exception -is [System.Management.Automation.PipelineStoppedException]) { return 'R6_OPERATOR_LAUNCH_INPUT_CANCELLED' }
+  $message=[string]$Record.Exception.Message
+  if ($message -match 'R6_[A-Z0-9_]+') { return $Matches[0] }
+  if ($script:State.currentStage -match '^READ_') { return 'R6_OPERATOR_LAUNCH_INPUT_EOF' }
+  if ($script:State.currentStage -in @('INVOKE_WRAPPER_INLINE','WAIT_WRAPPER_COMPLETION','VALIDATE_WRAPPER_RESULT')) { return 'R6_OPERATOR_LAUNCH_WRAPPER_INVOCATION_FAILED' }
+  return 'R6_OPERATOR_LAUNCH_UNEXPECTED_FAILURE'
+}
+function Get-ErrorClass([string]$Classification) {
+  if ($Classification -match '^R6_OPERATOR_LAUNCH_INPUT_') { return 'input' }
+  if ($Classification -eq 'R6_OPERATOR_LAUNCH_INTERACTIVE_HOST_REQUIRED') { return 'host' }
+  if ($Classification -match '^R6_OPERATOR_LAUNCH_SECURE_INPUT_') { return 'secure_input' }
+  if ($Classification -match '^R6_OPERATOR_LAUNCH_PACKAGE_' -or $Classification -eq 'R6_OPERATOR_LAUNCH_SINGLE_USE_PATH_CONFLICT') { return 'binding' }
+  if ($Classification -eq 'R6_OPERATOR_LAUNCH_WRAPPER_INVOCATION_FAILED' -or $Classification -match '^R6_CURRENT_CANONICAL') { return 'wrapper' }
+  return 'unexpected'
+}
+function Write-Terminal([bool]$Success,[string]$Classification,[string]$FailureCategory,[string]$ErrorClass) {
+  $script:State.success=$Success; $script:State.classification=$Classification; $script:State.failureStage=if($Success){$null}else{$script:State.currentStage}; $script:State.failureCategory=if([string]::IsNullOrWhiteSpace($FailureCategory)){$null}else{$FailureCategory}; $script:State.errorClass=if([string]::IsNullOrWhiteSpace($ErrorClass)){$null}else{$ErrorClass}; $script:State.createdAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); $script:State.manifestSha256=Get-Sha256 $script:Config.manifestPath
+  Write-AtomicJson $script:TerminalPath $script:State
+}
+function Assert-InteractiveHost { if ($env:R6_OPERATOR_LAUNCH_TEST_MODE -eq '1' -and -not [string]::IsNullOrWhiteSpace($script:SyntheticInputKind)) { return }; if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected -or $Host.Name -ne 'ConsoleHost') { throw 'R6_OPERATOR_LAUNCH_INTERACTIVE_HOST_REQUIRED' } }
+function Read-SecureInput([string]$Stage,[string]$Prompt) {
+  Set-Stage $Stage; $script:State.inputCollectionStarted=$true
+  if (-not [string]::IsNullOrWhiteSpace($script:SyntheticInputKind)) {
+    if ($env:R6_OPERATOR_LAUNCH_TEST_MODE -ne '1') { throw 'R6_OPERATOR_LAUNCH_TEST_MODE_REQUIRED' }
+    if ($script:SyntheticInputKind -eq 'eof') { throw 'R6_OPERATOR_LAUNCH_INPUT_EOF' }
+    if ($script:SyntheticInputKind -eq 'cancel') { throw 'R6_OPERATOR_LAUNCH_INPUT_CANCELLED' }
+    if ($script:SyntheticInputKind -eq 'block') { Start-Sleep -Seconds 30; throw 'R6_OPERATOR_LAUNCH_INPUT_EOF' }
+    if ($script:SyntheticInputKind -eq 'valid') { $synthetic=[Security.SecureString]::new(); foreach($character in 'synthetic-confirmation'.ToCharArray()){$synthetic.AppendChar($character)}; $synthetic.MakeReadOnly(); return $synthetic }
+    throw 'R6_OPERATOR_LAUNCH_TEST_INPUT_INVALID'
+  }
+  $value=Read-Host -Prompt $Prompt -AsSecureString
+  if ($null -eq $value -or $value -isnot [Security.SecureString]) { throw 'R6_OPERATOR_LAUNCH_SECURE_INPUT_INVALID' }
+  return $value
+}
+
+$confirmation=$null
+try {
+  Set-Stage 'LAUNCHER_ENTRY'
+  Set-Stage 'ASSERT_PACKAGE_BINDINGS'
+  $manifest=Get-Content -LiteralPath $script:Config.manifestPath -Raw | ConvertFrom-Json
+  if ($manifest.schemaVersion -ne 'r6-fresh-dryrun-launcher-binding-v2') { throw 'R6_OPERATOR_LAUNCH_PACKAGE_SCHEMA_INVALID' }
+  if ($manifest.runId -ne $script:Config.runId) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_RUN_ID_INVALID' }
+  if ([string]$manifest.launcherSha256 -notmatch '^[a-f0-9]{64}$') { throw 'R6_OPERATOR_LAUNCH_PACKAGE_LAUNCHER_HASH_INVALID' }
+  if ([string]::IsNullOrWhiteSpace($PSCommandPath) -or -not (Test-Path -LiteralPath $PSCommandPath)) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_LAUNCHER_PATH_INVALID' }
+  if ([IO.Path]::GetFullPath($PSCommandPath) -ne [IO.Path]::GetFullPath($script:Config.launcherPath)) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_LAUNCHER_PATH_INVALID' }
+  $script:State.launcherSha256=Get-Sha256 $PSCommandPath
+  if ($script:State.launcherSha256 -ne $manifest.launcherSha256) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_LAUNCHER_HASH_INVALID' }
+  if ($manifest.wrapperSha256 -ne $script:Config.wrapperSha256) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_WRAPPER_HASH_INVALID' }
+  if ($manifest.launcherTerminalPath -ne $script:TerminalPath) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_TERMINAL_PATH_INVALID' }
+  Complete-Stage 'ASSERT_PACKAGE_BINDINGS'
+  Set-Stage 'ASSERT_SINGLE_USE_PATHS'
+  if ((Test-Path -LiteralPath $script:Config.evidenceRoot) -or (Test-Path -LiteralPath $script:TerminalPath)) { throw 'R6_OPERATOR_LAUNCH_SINGLE_USE_PATH_CONFLICT' }
+  Complete-Stage 'ASSERT_SINGLE_USE_PATHS'
+  if ($ValidateOnly) { Write-Terminal $true 'R6_OPERATOR_LAUNCH_VALIDATE_ONLY_READY' $null $null; Write-Output 'R6_OPERATOR_LAUNCH_VALIDATE_ONLY_READY'; exit 0 }
+  Set-Stage 'ASSERT_INTERACTIVE_HOST'; Assert-InteractiveHost; Complete-Stage 'ASSERT_INTERACTIVE_HOST'
+  $confirmation=Read-SecureInput 'READ_CONFIRMATION' 'Enter the exact approved confirmation phrase'
+  try {
+    $pointer=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($confirmation)
+    try { $plain=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer); $bytes=[Text.Encoding]::UTF8.GetBytes($plain); $hash=(-join ([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)|ForEach-Object{$_.ToString('x2')})) }
+    finally { if($pointer -ne [IntPtr]::Zero){[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)}; if($null -ne $bytes){[Array]::Clear($bytes,0,$bytes.Length)}; $plain=$null }
+  } catch { throw 'R6_OPERATOR_LAUNCH_SECURE_INPUT_PROCESSING_FAILED' }
+  if($hash -ne $manifest.confirmationSha256){throw 'R6_OPERATOR_LAUNCH_CONFIRMATION_INVALID'}
+  Complete-Stage 'READ_CONFIRMATION'; $script:State.inputCollectionCompleted=$true
+  Set-Stage 'INVOKE_WRAPPER_INLINE'; $script:State.wrapperInvocationStarted=$true
+  $env:R6_OPERATOR_LAUNCHER_BREADCRUMB_PATH=$script:BreadcrumbPath; $env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH=(Join-Path $script:Config.operatorRoot 'wrapper-entry-marker.json')
+  & $script:Config.wrapperPath -ExecutionWorktree $script:Config.executionWorktree -PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly -RunId $script:Config.runId -EvidenceRoot $script:Config.evidenceRoot
+  Set-Stage 'WAIT_WRAPPER_COMPLETION'; $script:State.wrapperEntryConfirmed=(Test-Path -LiteralPath $env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH)
+  if(-not $script:State.wrapperEntryConfirmed){throw 'R6_OPERATOR_LAUNCH_WRAPPER_INVOCATION_FAILED'}
+  Set-Stage 'VALIDATE_WRAPPER_RESULT'; Complete-Stage 'VALIDATE_WRAPPER_RESULT'; Set-Stage 'COMPLETE'; Complete-Stage 'COMPLETE'; Write-Terminal $true 'R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY' $null $null; Write-Output 'R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY'; exit 0
+} catch {
+  $code=Get-Classification $_
+  try { Write-Terminal $false $code 'pre_wrapper_or_wrapper_failure' (Get-ErrorClass $code) } catch {}
+  Write-Output $code
+  exit 1
+} finally {
+  if($null -ne $confirmation){$confirmation.Dispose()}
+  Remove-Item Env:R6_OPERATOR_LAUNCHER_BREADCRUMB_PATH -ErrorAction SilentlyContinue
+  Remove-Item Env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH -ErrorAction SilentlyContinue
+}

@@ -148,6 +148,30 @@ function Assert-NonBlank([string]$Value, [string]$Name) {
   return $Value.Trim()
 }
 
+function Write-OperatorLauncherAtomicMarker([string]$Path, [string]$Kind, [string]$Stage) {
+  if ([string]::IsNullOrWhiteSpace($Path)) { return }
+  $full = [IO.Path]::GetFullPath($Path)
+  $directory = Split-Path -Parent $full
+  if ([string]::IsNullOrWhiteSpace($directory)) { throw 'R6_OPERATOR_LAUNCH_MARKER_PATH_INVALID' }
+  New-Item -ItemType Directory -Force -Path $directory | Out-Null
+  $temporary = Join-Path $directory ('.' + [IO.Path]::GetFileName($full) + '.' + [guid]::NewGuid().ToString('N') + '.tmp')
+  try {
+    $payload = [ordered]@{ schemaVersion='r6-v3-operator-launch-marker-v1'; kind=$Kind; stage=$Stage; createdAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ') } | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText($temporary, $payload, [Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $temporary -Destination $full -Force
+  } finally {
+    if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue }
+  }
+}
+
+function Set-OperatorLauncherStage([string]$Stage) {
+  Write-OperatorLauncherAtomicMarker $env:R6_OPERATOR_LAUNCHER_BREADCRUMB_PATH 'stage' $Stage
+}
+
+function Confirm-OperatorLauncherWrapperEntry {
+  Write-OperatorLauncherAtomicMarker $env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH 'wrapper-entry' 'INVOKE_WRAPPER_INLINE'
+}
+
 function Assert-ProjectRef([string]$Value) {
   $ref = Assert-NonBlank $Value 'production-project-ref'
   if ($ref -notmatch '^[a-z0-9]{6,64}$' -or $ref -match '(preview|local|localhost)') { throw 'R6_PROJECT_REF_INVALID' }
@@ -450,6 +474,7 @@ function ConvertTo-RestrictedNativeArgument([string]$Value) {
 
 function Invoke-CurrentCanonicalProductionV3RunnerWithHiddenAccountInput([string]$Entrypoint, [string[]]$Arguments) {
   Assert-TranscriptSafe
+  Set-OperatorLauncherStage 'READ_CLOUDFLARE_ACCOUNT'
   $secure = Read-Host 'Cloudflare account ID (hidden)' -AsSecureString
   $plaintext = $null
   $process = $null
@@ -1520,11 +1545,16 @@ function Write-SanitizedEvidence([string]$Root, [string]$Name, [hashtable]$Data)
 
 function Get-FutureInputs([switch]$IncludeDryRunTarget) {
   Assert-TranscriptSafe
+  Set-OperatorLauncherStage 'READ_SUPABASE_PROJECT_REF'
   $projectRef = Assert-ProjectRef (Read-Host 'Production Supabase project ref')
+  Set-OperatorLauncherStage 'READ_SUPABASE_PUBLIC_KEY'
   $anonSecure = Read-Host 'Production anon/public key (hidden)' -AsSecureString
+  Set-OperatorLauncherStage 'READ_QA_EMAIL'
   $email = Assert-NonBlank (Read-Host 'Dedicated QA email') 'qa-email'
   Write-Host 'Enter the OpenGlass Hub / Supabase QA account password (not the mailbox password).' -ForegroundColor Yellow
+  Set-OperatorLauncherStage 'READ_QA_PASSWORD'
   $passwordSecure = Read-Host 'OpenGlass Hub / Supabase QA account password (not mailbox password)' -AsSecureString
+  if ($IncludeDryRunTarget) { Set-OperatorLauncherStage 'READ_TARGET_SLUG' }
   $requestedCircleSlug = if ($IncludeDryRunTarget) { Assert-CircleSlug (Read-Host 'Approved existing circle slug for fresh DryRun target resolution') } else { $null }
   return [pscustomobject]@{ ProjectRef = $projectRef; AnonSecure = $anonSecure; Email = $email; PasswordSecure = $passwordSecure; RequestedCircleSlug = $requestedCircleSlug }
 }
@@ -2029,6 +2059,7 @@ function Invoke-Main {
   }
   if ($mode -eq 'DryRunOnly') {
     Assert-TranscriptSafe
+    Set-OperatorLauncherStage 'READ_DRYRUN_TOKEN'
     $confirmation = Read-Host 'Fresh dry-run-only confirmation token (hidden)' -AsSecureString
     $confirmationHash = Get-ConfirmationHash $confirmation
   }
@@ -2119,6 +2150,7 @@ function Invoke-Main {
 }
 
 if ($env:R6_DETACHED_TRANSPORT_LIBRARY_MODE -ne '1') {
+  Confirm-OperatorLauncherWrapperEntry
   Invoke-Main
   $global:LASTEXITCODE = 0
 }
