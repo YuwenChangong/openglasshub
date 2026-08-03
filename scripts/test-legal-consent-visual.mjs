@@ -2,12 +2,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { LEGAL_CONSENT_STATE_MATRIX, REQUIRED_VIEWPORTS } from "../tests/visual/legal-consent-state-matrix.mjs";
+import { startLoopbackViteHarness } from "./lib/start-loopback-vite-harness.mjs";
 
 const root = process.cwd();
-const port = 4387;
 const harness = path.join(root, "tests", "visual", "legal-consent-harness");
 const runId = new Date().toISOString().replace(/[:.]/g, "-");
 const evidence = path.join(os.tmpdir(), `openglass-legal-consent-phase3b1-matrix-${runId}`);
@@ -25,9 +24,9 @@ async function loadPlaywright() {
   throw new Error("Playwright runtime unavailable");
 }
 
-async function waitForServer() {
+async function waitForServer(origin) {
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    try { const response = await fetch(`http://127.0.0.1:${port}/`); if (response.ok) return; } catch { /* wait */ }
+    try { const response = await fetch(`${origin}/`); if (response.ok) return; } catch { /* wait */ }
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
   throw new Error("Harness server did not start");
@@ -35,14 +34,15 @@ async function waitForServer() {
 
 async function main() {
   await fs.mkdir(evidence, { recursive: true });
-  const vite = spawn(process.execPath, [path.join(root, "node_modules", "vite", "bin", "vite.js"), "--config", "vite.config.ts", "--port", String(port), "--strictPort"], { cwd: harness, stdio: "ignore", windowsHide: true });
+  let vite;
   const ids = states.map(({ id }) => id);
   assert(ids.length === 30, "manifest must contain exactly 30 states");
   assert(new Set(ids).size === 30, "manifest state IDs must be unique");
   const report = { expectedStateCount: 30, executedStateCount: 0, passedStateCount: 0, failedStateCount: 0, missingStateIds: [], duplicateStateIds: [], screenshotRequiredStateCount: 25, requiredViewportCount: 3, expectedScreenshotCount: 75, actualScreenshotCount: 0, redirectAssertionStateCount: 5, passedRedirectAssertionCount: 0, unexpectedExternalRequestCount: 0, states: ids, screenshots: [], interaction: [], accessibility: [], layout: [], blockedNetwork: [] };
   let redirects = [];
   try {
-    await waitForServer();
+    vite = await startLoopbackViteHarness({ root: harness, configFile: path.join(harness, "vite.config.ts") });
+    await waitForServer(vite.origin);
     const { chromium } = await loadPlaywright();
     const browser = await chromium.launch({ headless: true });
     try {
@@ -50,11 +50,11 @@ async function main() {
         const page = await browser.newPage({ viewport });
         await page.route("**/*", async (route) => {
           const url = route.request().url();
-          if (url.startsWith(`http://127.0.0.1:${port}`) || url.startsWith("data:")) return route.continue();
+          if (url.startsWith(vite.origin) || url.startsWith("data:")) return route.continue();
           report.blockedNetwork.push(new URL(url).origin);
           await route.abort();
         });
-        await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+        await page.goto(`${vite.origin}/`, { waitUntil: "networkidle" });
         for (const state of states.filter(({ screenshotRequired }) => screenshotRequired)) {
           await page.getByRole("button", { name: state.id, exact: true }).click();
           await page.waitForTimeout(25);
@@ -82,7 +82,7 @@ async function main() {
       }
       const page = await browser.newPage({ viewport: viewports[0] });
       for (const state of states.filter(({ screenshotRequired }) => !screenshotRequired)) {
-        await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+        await page.goto(`${vite.origin}/`, { waitUntil: "networkidle" });
         await page.getByRole("button", { name: state.id, exact: true }).click(); await page.waitForTimeout(25);
         const trace = await page.locator("output").textContent();
         assert(trace?.includes("replace:"), `${state.id} must use recorded replace navigation`);
@@ -93,14 +93,15 @@ async function main() {
     } finally { await browser.close(); }
     report.passedStateCount = 30; report.actualScreenshotCount = report.screenshots.length; report.unexpectedExternalRequestCount = report.blockedNetwork.length;
     assert(report.actualScreenshotCount >= 75 && report.passedRedirectAssertionCount === 5 && report.unexpectedExternalRequestCount === 0, "matrix evidence invariants failed");
+    report.listenerAddress = vite.host; report.assignedPort = vite.port;
     await fs.writeFile(path.join(evidence, "matrix.json"), JSON.stringify(report, null, 2));
     await fs.writeFile(path.join(evidence, "matrix.md"), `# Legal consent matrix\n\n30/30 states passed. ${report.actualScreenshotCount} screenshots.\n`);
     await fs.writeFile(path.join(evidence, "redirect-results.json"), JSON.stringify(redirects, null, 2));
-    for (const [name, value] of Object.entries({ "interaction-results.json": report.interaction, "accessibility-results.json": report.accessibility, "layout-results.json": report.layout, "network-results.json": { allowedLocalOrigin: `http://127.0.0.1:${port}`, blockedExternal: report.blockedNetwork, unexpectedExternalRequestCount: 0 }, "console-results.json": [] })) await fs.writeFile(path.join(evidence, name), JSON.stringify(value, null, 2));
+    for (const [name, value] of Object.entries({ "interaction-results.json": report.interaction, "accessibility-results.json": report.accessibility, "layout-results.json": report.layout, "network-results.json": { allowedLocalOrigin: vite.origin, blockedExternal: report.blockedNetwork, unexpectedExternalRequestCount: 0 }, "console-results.json": [] })) await fs.writeFile(path.join(evidence, name), JSON.stringify(value, null, 2));
     await fs.writeFile(path.join(evidence, "production-exclusion.json"), JSON.stringify({ passed: true, note: "Production build exclusion is checked by the release gate." }, null, 2));
     process.stdout.write(`LEGAL_CONSENT_VISUAL_OK 30/30 states passed evidence=${evidence}\n`);
   } finally {
-    vite.kill();
+    await vite?.close();
   }
 }
 main().catch((error) => { process.stderr.write(`LEGAL_CONSENT_VISUAL_FAIL ${error.message}\n`); process.exitCode = 1; });

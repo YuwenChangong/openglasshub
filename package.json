@@ -100,7 +100,9 @@
     "test:moderation-audit": "node scripts/audit-moderation.mjs --strict --verbose",
     "test:sensitive-lexicon": "node scripts/audit-sensitive-lexicon.mjs --strict --verbose",
     "test:openai-moderation": "node scripts/audit-openai-moderation.mjs --strict --verbose",
-    "test:media-url-privacy": "node scripts/audit-media-url-privacy.mjs --strict --verbose"
+    "test:media-url-privacy": "node scripts/audit-media-url-privacy.mjs --strict --verbose",
+    "test:r6-operator-launcher": "node scripts/test-r6-v3-operator-launcher.mjs",
+    "test:loopback-vite-harness": "node scripts/test-loopback-vite-harness.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.6.13",
