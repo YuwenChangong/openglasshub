@@ -2151,6 +2151,11 @@ function Invoke-Main {
 
 if ($env:R6_DETACHED_TRANSPORT_LIBRARY_MODE -ne '1') {
   Confirm-OperatorLauncherWrapperEntry
+  # The operator-launcher fixture verifies real PowerShell binding, then exits
+  # before any mode-specific preflight, credential prompt, or external action.
+  if ($env:R6_OPERATOR_LAUNCH_TEST_MODE -eq '1' -and $env:R6_OPERATOR_LAUNCHER_INERT_TEST_MODE -eq '1') {
+    throw 'R6_OPERATOR_LAUNCH_WRAPPER_INERT_STOPPED'
+  }
   Invoke-Main
   $global:LASTEXITCODE = 0
 }
