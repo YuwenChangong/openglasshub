@@ -24,6 +24,14 @@ async function resolveViteTooling() {
         { find: "react-dom/client", replacement: externalRequire.resolve("react-dom/client") },
         { find: "react", replacement: externalRequire.resolve("react") },
       ],
+      dependencyResolver: {
+        name: "r6-isolated-visual-dependency-resolver",
+        enforce: "pre",
+        resolveId(source) {
+          if (source.startsWith(".") || source.startsWith("/") || path.isAbsolute(source)) return null;
+          try { return externalRequire.resolve(source); } catch { return null; }
+        },
+      },
       isolatedDependencies: true,
     };
   }
@@ -41,7 +49,7 @@ export async function startLoopbackViteHarness({ root, configFile, cacheDir, cre
     const create = tooling.createServer;
     server = await create({
       root,
-      ...(tooling.isolatedDependencies ? { configFile: false, plugins: [tooling.react()], resolve: { alias: tooling.aliases }, esbuild: { tsconfigRaw: { compilerOptions: { jsx: "react-jsx" } } }, optimizeDeps: { noDiscovery: true } } : { configFile }),
+      ...(tooling.isolatedDependencies ? { configFile: false, plugins: [tooling.dependencyResolver, tooling.react()], resolve: { alias: tooling.aliases }, esbuild: { tsconfigRaw: { compilerOptions: { jsx: "react-jsx" } } }, optimizeDeps: { noDiscovery: true } } : { configFile }),
       ...(typeof cacheDir === "string" && cacheDir ? { cacheDir } : {}),
       server: { ...(tooling.isolatedDependencies ? { fs: { allow: [path.resolve(root, "../../..")] } } : {}), middlewareMode: true, host: LOOPBACK_HOST },
       logLevel: "error",
