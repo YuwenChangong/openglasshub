@@ -21,9 +21,12 @@ async function issueCase(name, wrapperKind = "success") {
   const launcher = path.join(caseRoot, "launcher.ps1");
   const manifest = path.join(operatorRoot, "dryrun-binding-manifest.json");
   const config = path.join(caseRoot, "config.json");
+  const diagnosticPayload = JSON.stringify({ schemaVersion: "r6-wrapper-post-entry-diagnostic-v1", wrapperStage: "MODE_RESOLUTION", wrapperInnerClassification: "R6_DETACHED_SECURE_WRAPPER_POST_ENTRY_UNCLASSIFIED_FAILURE", originalExceptionType: "System.Management.Automation.RuntimeException", originalFullyQualifiedErrorId: "SyntheticFailure", originalCategory: "OperationStopped", originalScriptPathClass: "WRAPPER", originalLine: 1, originalColumn: 1, originalInvocationNameClass: "POWERSHELL_FUNCTION" });
   await mkdir(caseRoot, { recursive: true });
   const wrapperBody = wrapperKind === "failure"
     ? "param([string]$ExecutionWorktree,[switch]$PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly,[string]$RunId,[string]$EvidenceRoot)\nthrow 'R6_CURRENT_CANONICAL_V3_SYNTHETIC_WRAPPER_FAILURE'\n"
+    : wrapperKind === "diagnostic-failure"
+      ? `param([string]$ExecutionWorktree,[switch]$PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly,[string]$RunId,[string]$EvidenceRoot)\n[IO.File]::WriteAllText($env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH, '{\\\"schemaVersion\\\":\\\"r6-v3-operator-launch-marker-v1\\\"}', [Text.UTF8Encoding]::new($false))\n[IO.File]::WriteAllText($env:R6_OPERATOR_LAUNCHER_WRAPPER_DIAGNOSTIC_PATH, '${diagnosticPayload}', [Text.UTF8Encoding]::new($false))\nthrow 'R6_DETACHED_SECURE_WRAPPER_POST_ENTRY_UNCLASSIFIED_FAILURE'\n`
     : wrapperKind === "contract-invalid"
       ? "param([string]$ExecutionWorktree)\n"
       : wrapperKind === "wrong-type"
@@ -75,6 +78,16 @@ try {
   const wrapperFailure = await issueCase("wrapperfailure", "failure");
   const wrapperFailureResult = invoke(wrapperFailure, [], { R6_OPERATOR_LAUNCH_TEST_MODE: "1", R6_OPERATOR_LAUNCH_TEST_INPUT_KIND: "valid" });
   assert.equal(wrapperFailureResult.status, 1); assert.equal((await terminalFor(wrapperFailure)).classification, "R6_CURRENT_CANONICAL_V3_SYNTHETIC_WRAPPER_FAILURE");
+
+  const diagnosticFailure = await issueCase("diagnosticfailure", "diagnostic-failure");
+  const diagnosticFailureResult = invoke(diagnosticFailure, [], { R6_OPERATOR_LAUNCH_TEST_MODE: "1", R6_OPERATOR_LAUNCH_TEST_INPUT_KIND: "valid" });
+  const diagnosticFailureTerminal = await terminalFor(diagnosticFailure);
+  assert.equal(diagnosticFailureResult.status, 1);
+  assert.equal(diagnosticFailureTerminal.classification, "R6_DETACHED_SECURE_WRAPPER_POST_ENTRY_UNCLASSIFIED_FAILURE");
+  assert.equal(diagnosticFailureTerminal.wrapperStage, "MODE_RESOLUTION");
+  assert.equal(diagnosticFailureTerminal.wrapperInnerClassification, "R6_DETACHED_SECURE_WRAPPER_POST_ENTRY_UNCLASSIFIED_FAILURE");
+  assert.equal(diagnosticFailureTerminal.wrapperExceptionType, "System.Management.Automation.RuntimeException");
+  assert.equal(Object.keys(diagnosticFailureTerminal).some((key) => /message|secret|token|password/i.test(key)), false);
 
   const contractInvalid = await issueCase("contractinvalid", "contract-invalid");
   const contractInvalidResult = invoke(contractInvalid, [], { R6_OPERATOR_LAUNCH_TEST_MODE: "1", R6_OPERATOR_LAUNCH_TEST_INPUT_KIND: "valid" });

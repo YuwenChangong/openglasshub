@@ -26,12 +26,16 @@ param(
   [string]$FinalAuthorizationBindingSha256,
   [string]$FinalExecutionBindingPath,
   [string]$FinalExecutionBindingSha256,
+  [string]$R6PostEntryTestFailpoint,
+  [string]$R6PostEntryTestExistingClassification,
   [string]$EvidenceRoot = 'C:\Users\1\OpenGlassHub-R6-Proof\r6-detached-secure-input-transport'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $script:WrapperPath = $PSCommandPath
+$script:R6GitExePath = $null
+$script:R6WrapperStage = $null
 
 $script:ExpectedExecutionWorktree = 'C:\Users\1\OpenGlassHub-R6-Proof\r6-project-canonical-url-remediation\execution-worktree'
 $script:ExpectedRunnerCommit = '1d558a54d07a9f425b98e9bcab501b4e644b7ef6'
@@ -128,8 +132,43 @@ function Get-Sha256([string]$Path) {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
 
+function Set-R6WrapperStage([string]$Stage) {
+  $script:R6WrapperStage = $Stage
+}
+
+function Resolve-R6GitExecutable {
+  $testFixture = [string]$env:R6_DETACHED_GIT_TEST_FIXTURE
+  if (-not [string]::IsNullOrWhiteSpace($testFixture)) {
+    if ($env:R6_DETACHED_TRANSPORT_LIBRARY_MODE -ne '1') { throw 'R6_DETACHED_SECURE_WRAPPER_GIT_TEST_FIXTURE_LIVE_REJECTED' }
+    $fixtureCodes = @{
+      NOT_FOUND = 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_NOT_FOUND'
+      AMBIGUOUS = 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_AMBIGUOUS'
+      NOT_APPLICATION = 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_NOT_APPLICATION'
+      PATH_INVALID = 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_PATH_INVALID'
+    }
+    if (-not $fixtureCodes.ContainsKey($testFixture)) { throw 'R6_DETACHED_SECURE_WRAPPER_GIT_TEST_FIXTURE_INVALID' }
+    throw $fixtureCodes[$testFixture]
+  }
+  $commands = @(Get-Command 'git.exe' -CommandType Application -All -ErrorAction SilentlyContinue)
+  if ($commands.Count -eq 0) { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_NOT_FOUND' }
+  if ($commands.Count -ne 1) { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_AMBIGUOUS' }
+  $command = $commands[0]
+  if ($command.CommandType -ne [System.Management.Automation.CommandTypes]::Application) { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_NOT_APPLICATION' }
+  $candidate = [string]$command.Source
+  if ([string]::IsNullOrWhiteSpace($candidate)) { $candidate = [string]$command.Path }
+  if ([string]::IsNullOrWhiteSpace($candidate)) { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_PATH_INVALID' }
+  try { $candidate = [IO.Path]::GetFullPath($candidate) } catch { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_PATH_INVALID' }
+  if ((Split-Path -Leaf $candidate).ToLowerInvariant() -ne 'git.exe' -or -not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_PATH_INVALID' }
+  $script:R6GitExePath = $candidate
+}
+
+function Assert-R6GitExecutableResolved {
+  if ([string]::IsNullOrWhiteSpace($script:R6GitExePath)) { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_NOT_FOUND' }
+}
+
 function Invoke-GitLines([string]$Worktree, [string[]]$Arguments, [switch]$AllowFailure) {
-  $lines = @(& git -C $Worktree @Arguments 2>&1)
+  Assert-R6GitExecutableResolved
+  $lines = @(& $script:R6GitExePath -C $Worktree @Arguments 2>&1)
   $exitCode = $LASTEXITCODE
   if ($exitCode -ne 0 -and -not $AllowFailure) { throw "R6_GIT_COMMAND_FAILED:$($Arguments -join ' ')" }
   return [pscustomobject]@{ Lines = @($lines | ForEach-Object { [string]$_ }); ExitCode = $exitCode }
@@ -170,6 +209,65 @@ function Set-OperatorLauncherStage([string]$Stage) {
 
 function Confirm-OperatorLauncherWrapperEntry {
   Write-OperatorLauncherAtomicMarker $env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH 'wrapper-entry' 'INVOKE_WRAPPER_INLINE'
+}
+
+function Get-R6WrapperScriptPathClass([System.Management.Automation.ErrorRecord]$Record) {
+  $path = [string]$Record.InvocationInfo.ScriptName
+  if ([string]::IsNullOrWhiteSpace($path)) { return 'UNKNOWN' }
+  if ($path -eq $script:WrapperPath) { return 'WRAPPER' }
+  try {
+    $root = [IO.Path]::GetFullPath($ExecutionWorktree).TrimEnd('\\') + '\\'
+    $candidate = [IO.Path]::GetFullPath($path)
+    if ($candidate.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return 'REPOSITORY_SCRIPT' }
+  } catch {}
+  if ([IO.Path]::GetExtension($path).ToLowerInvariant() -eq '.exe') { return 'EXTERNAL_TOOL' }
+  return 'UNKNOWN'
+}
+
+function Get-R6WrapperInvocationNameClass([System.Management.Automation.ErrorRecord]$Record) {
+  $name = [string]$Record.InvocationInfo.InvocationName
+  if ([string]::IsNullOrWhiteSpace($name)) { return 'UNKNOWN' }
+  if ($name.Trim() -eq '&') { return 'CALL_OPERATOR' }
+  if ($name -match '^(git|git\.exe|node|node\.exe)$') { return 'NATIVE_COMMAND' }
+  if ($name -match '^[A-Za-z][A-Za-z0-9-]*$') { return 'POWERSHELL_FUNCTION' }
+  return 'UNKNOWN'
+}
+
+function Write-R6WrapperPostEntryDiagnostic([System.Management.Automation.ErrorRecord]$Record, [string]$InnerClassification) {
+  $path = [string]$env:R6_OPERATOR_LAUNCHER_WRAPPER_DIAGNOSTIC_PATH
+  if ([string]::IsNullOrWhiteSpace($path)) { return }
+  $temporary = $null
+  try {
+    $full = [IO.Path]::GetFullPath($path)
+    $directory = Split-Path -Parent $full
+    if ([string]::IsNullOrWhiteSpace($directory)) { return }
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    $exceptionType = [string]$Record.Exception.GetType().FullName
+    $fqid = [string]$Record.FullyQualifiedErrorId
+    $category = [string]$Record.CategoryInfo.Category
+    if ($exceptionType -notmatch '^[A-Za-z0-9_.+]{1,160}$') { $exceptionType = 'UNKNOWN' }
+    if ($fqid -notmatch '^[A-Za-z0-9_.:-]{1,160}$') { $fqid = 'UNKNOWN' }
+    if ($category -notmatch '^[A-Za-z]{1,80}$') { $category = 'UNKNOWN' }
+    $payload = [ordered]@{
+      schemaVersion = 'r6-wrapper-post-entry-diagnostic-v1'
+      wrapperStage = $script:R6WrapperStage
+      wrapperInnerClassification = $InnerClassification
+      originalExceptionType = $exceptionType
+      originalFullyQualifiedErrorId = $fqid
+      originalCategory = $category
+      originalScriptPathClass = Get-R6WrapperScriptPathClass $Record
+      originalLine = [int]$Record.InvocationInfo.ScriptLineNumber
+      originalColumn = [int]$Record.InvocationInfo.OffsetInLine
+      originalInvocationNameClass = Get-R6WrapperInvocationNameClass $Record
+    } | ConvertTo-Json -Compress
+    $temporary = "$full.$PID.$([guid]::NewGuid().ToString('N')).tmp"
+    [IO.File]::WriteAllText($temporary, $payload, [Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $temporary -Destination $full -Force
+  } catch {
+    # Diagnostics are best effort and must never replace the original classification.
+  } finally {
+    if ($null -ne $temporary -and (Test-Path -LiteralPath $temporary)) { Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue }
+  }
 }
 
 function Assert-ProjectRef([string]$Value) {
@@ -377,6 +475,7 @@ function Assert-CurrentCanonicalProductionV3Bindings {
 }
 
 function Assert-CurrentCanonicalProductionV3ExecutionWorktree([string]$Worktree) {
+  Set-R6WrapperStage 'DETACHED_WORKTREE_VALIDATION'
   if ([string]::IsNullOrWhiteSpace($Worktree) -or -not (Test-Path -LiteralPath $Worktree -PathType Container)) { throw 'R6_CURRENT_CANONICAL_V3_WORKTREE_MISSING' }
   $resolved = (Resolve-Path -LiteralPath $Worktree -ErrorAction Stop).Path
   $head = Invoke-GitLines $resolved @('rev-parse', 'HEAD')
@@ -388,6 +487,7 @@ function Assert-CurrentCanonicalProductionV3ExecutionWorktree([string]$Worktree)
   $runner = Join-Path $resolved $script:V3RunnerRelativePath
   $validator = Join-Path $resolved $script:V3TerminalValidatorRelativePath
   if (-not (Test-Path -LiteralPath $runner -PathType Leaf) -or -not (Test-Path -LiteralPath $validator -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_RUNTIME_FILE_MISSING' }
+  Set-R6WrapperStage 'BLOB_AND_RAW_HASH_VALIDATION'
   $relative = $script:V3RunnerRelativePath.Replace('\', '/')
   $blob = Invoke-GitLines $resolved @('rev-parse', "$($script:V3FinalCommitBinding):$relative")
   if ($blob.Lines.Count -ne 1 -or $blob.Lines[0].Trim().ToLowerInvariant() -ne $script:V3GitBlobBinding) { throw 'R6_CURRENT_CANONICAL_V3_GIT_BLOB_MISMATCH' }
@@ -1146,6 +1246,7 @@ function Invoke-CurrentCanonicalProductionV3DryRunOnly([pscustomobject]$Validati
 }
 
 function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscustomobject]$Validation) {
+  Set-R6WrapperStage 'EVIDENCE_ROOT_VALIDATION'
   $root = Assert-CurrentCanonicalProductionV3EvidenceRoot $EvidenceRoot
   if ($RunId -notmatch '^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_RUN_ID_INVALID' }
   New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
@@ -1171,9 +1272,10 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
   $state['targetBindingHashCreated'] = $false
   $state['targetBoundExecutionPlanHashCreated'] = $false
   try {
+    Set-R6WrapperStage 'FIXED_BINDING_VALIDATION'
     Assert-CurrentCanonicalProductionV3Bindings
-    $state['failureStage']='preflight_secret_environment'; Assert-NoPreexistingSecrets
-    $state['failureStage']='capture'; $state['captureStarted']=$true
+    $state['failureStage']='preflight_secret_environment'; Set-R6WrapperStage 'SECRET_ENVIRONMENT_GUARD'; Assert-NoPreexistingSecrets
+    $state['failureStage']='capture'; Set-R6WrapperStage 'CAPTURE_COMMAND_PREPARATION'; $state['captureStarted']=$true
     $fixtureKind = if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -eq '1') { 'authcheck-orchestration-success' } else { $null }
     $null = Invoke-PrepareCurrentCanonicalProductionV3AuthDryRunAttestation $Validation -SuppressDownstreamCommands -FixtureKind $fixtureKind -RootAlreadyCreated -MinimumCurrentValidityMilliseconds $script:MinimumAttestationValidityMilliseconds
     Sync-CurrentCanonicalProductionV3OrchestrationCaptureState $state $captureTerminalPath
@@ -1959,7 +2061,10 @@ function Invoke-PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight([ps
 }
 
 function Invoke-Main {
+  Set-R6WrapperStage 'MODE_RESOLUTION'
   $mode = Get-Mode
+  Set-R6WrapperStage 'GIT_EXECUTABLE_RESOLUTION'
+  Resolve-R6GitExecutable
   if ($mode -eq 'PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight') {
     Assert-CurrentCanonicalProductionV3Bindings
     if (-not [string]::IsNullOrWhiteSpace($DeploymentAttestationPath) -or -not [string]::IsNullOrWhiteSpace($DeploymentAttestationSha256) -or -not [string]::IsNullOrWhiteSpace($FinalAuthorizationBindingPath) -or -not [string]::IsNullOrWhiteSpace($FinalAuthorizationBindingSha256) -or -not [string]::IsNullOrWhiteSpace($V3TerminalFixturePath)) { throw 'R6_FINAL_MODE_INPUTS_UNSAFE' }
@@ -1974,8 +2079,10 @@ function Invoke-Main {
     return
   }
   if ($mode -eq 'PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly') {
+    Set-R6WrapperStage 'FIXED_BINDING_VALIDATION'
     Assert-CurrentCanonicalProductionV3Bindings
     if (-not [string]::IsNullOrWhiteSpace($DeploymentAttestationPath) -or -not [string]::IsNullOrWhiteSpace($DeploymentAttestationSha256) -or -not [string]::IsNullOrWhiteSpace($PhaseApproval) -or -not [string]::IsNullOrWhiteSpace($V3TerminalFixturePath)) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_MODE_UNSAFE' }
+    Set-R6WrapperStage 'DETACHED_WORKTREE_VALIDATION'
     $v3Validation = Assert-CurrentCanonicalProductionV3ExecutionWorktree $ExecutionWorktree
     if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -ne '1' -and -not [string]::IsNullOrWhiteSpace($V3OrchestrationFixtureKind)) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_TEST_FIXTURE_INVALID' }
     Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly $v3Validation
@@ -2151,11 +2258,28 @@ function Invoke-Main {
 
 if ($env:R6_DETACHED_TRANSPORT_LIBRARY_MODE -ne '1') {
   Confirm-OperatorLauncherWrapperEntry
+  Set-R6WrapperStage 'POST_ENTRY_INITIALIZATION'
   # The operator-launcher fixture verifies real PowerShell binding, then exits
   # before any mode-specific preflight, credential prompt, or external action.
-  if ($env:R6_OPERATOR_LAUNCH_TEST_MODE -eq '1' -and $env:R6_OPERATOR_LAUNCHER_INERT_TEST_MODE -eq '1') {
-    throw 'R6_OPERATOR_LAUNCH_WRAPPER_INERT_STOPPED'
+  try {
+    if ($env:R6_OPERATOR_LAUNCH_TEST_MODE -eq '1' -and $env:R6_OPERATOR_LAUNCHER_INERT_TEST_MODE -eq '1') {
+      if (-not [string]::IsNullOrWhiteSpace($R6PostEntryTestExistingClassification)) {
+        if ($R6PostEntryTestExistingClassification -notmatch '^R6_[A-Z0-9_]+$') { throw 'R6_DETACHED_SECURE_WRAPPER_TEST_CLASSIFICATION_INVALID' }
+        throw $R6PostEntryTestExistingClassification
+      }
+      if (-not [string]::IsNullOrWhiteSpace($R6PostEntryTestFailpoint)) {
+        if ($R6PostEntryTestFailpoint -notin @('MODE_RESOLUTION','FIXED_BINDING_VALIDATION','GIT_EXECUTABLE_RESOLUTION','DETACHED_WORKTREE_VALIDATION','BLOB_AND_RAW_HASH_VALIDATION','EVIDENCE_ROOT_VALIDATION','SECRET_ENVIRONMENT_GUARD','CAPTURE_COMMAND_PREPARATION')) { throw 'R6_DETACHED_SECURE_WRAPPER_TEST_FAILPOINT_INVALID' }
+        Set-R6WrapperStage $R6PostEntryTestFailpoint
+        throw 'R6_DETACHED_SECURE_WRAPPER_POST_ENTRY_UNCLASSIFIED_FAILURE'
+      }
+      throw 'R6_OPERATOR_LAUNCH_WRAPPER_INERT_STOPPED'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($R6PostEntryTestFailpoint) -or -not [string]::IsNullOrWhiteSpace($R6PostEntryTestExistingClassification)) { throw 'R6_DETACHED_SECURE_WRAPPER_TEST_FAILPOINT_LIVE_REJECTED' }
+    Invoke-Main
+  } catch {
+    $inner = Get-ValueBlindFailureCode $_ 'R6_DETACHED_SECURE_WRAPPER_POST_ENTRY_UNCLASSIFIED_FAILURE'
+    Write-R6WrapperPostEntryDiagnostic $_ $inner
+    throw $inner
   }
-  Invoke-Main
   $global:LASTEXITCODE = 0
 }

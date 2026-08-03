@@ -32,6 +32,33 @@ function Get-RecordClassification([object]$Record) {
   foreach($candidate in $candidates){if($candidate -match 'R6_[A-Z0-9_]+'){return $Matches[0]}}
   return $null
 }
+function Read-WrapperDiagnostic {
+  $path=[string]$env:R6_OPERATOR_LAUNCHER_WRAPPER_DIAGNOSTIC_PATH
+  if([string]::IsNullOrWhiteSpace($path) -or -not(Test-Path -LiteralPath $path -PathType Leaf)){return $null}
+  try {
+    $value=Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
+    if($value.schemaVersion -ne 'r6-wrapper-post-entry-diagnostic-v1'){return $null}
+    if([string]$value.wrapperStage -notin @('POST_ENTRY_INITIALIZATION','MODE_RESOLUTION','FIXED_BINDING_VALIDATION','GIT_EXECUTABLE_RESOLUTION','DETACHED_WORKTREE_VALIDATION','BLOB_AND_RAW_HASH_VALIDATION','EVIDENCE_ROOT_VALIDATION','SECRET_ENVIRONMENT_GUARD','CAPTURE_COMMAND_PREPARATION','CAPTURE_INVOCATION','AUTHCHECK_PREPARATION','TARGET_RESOLUTION','RECEIPT_PREPARATION','DRYRUN_PREPARATION')){return $null}
+    if([string]$value.wrapperInnerClassification -notmatch '^R6_[A-Z0-9_]+$'){return $null}
+    foreach($key in @('originalExceptionType','originalFullyQualifiedErrorId','originalCategory')){if([string]$value.$key -notmatch '^[A-Za-z0-9_.+:-]{1,160}$'){return $null}}
+    if([string]$value.originalScriptPathClass -notin @('WRAPPER','REPOSITORY_SCRIPT','EXTERNAL_TOOL','UNKNOWN')){return $null}
+    if([string]$value.originalInvocationNameClass -notin @('POWERSHELL_FUNCTION','EXTERNAL_APPLICATION','CALL_OPERATOR','NATIVE_COMMAND','UNKNOWN')){return $null}
+    foreach($key in @('originalLine','originalColumn')){if([string]$value.$key -notmatch '^\d{1,7}$'){return $null}}
+    return $value
+  } catch { return $null }
+}
+function Apply-WrapperDiagnostic([object]$Diagnostic) {
+  if($null -eq $Diagnostic){return}
+  $script:State.wrapperStage=[string]$Diagnostic.wrapperStage
+  $script:State.wrapperInnerClassification=[string]$Diagnostic.wrapperInnerClassification
+  $script:State.wrapperExceptionType=[string]$Diagnostic.originalExceptionType
+  $script:State.wrapperFullyQualifiedErrorId=[string]$Diagnostic.originalFullyQualifiedErrorId
+  $script:State.wrapperCategory=[string]$Diagnostic.originalCategory
+  $script:State.wrapperScriptPathClass=[string]$Diagnostic.originalScriptPathClass
+  $script:State.wrapperLine=[int]$Diagnostic.originalLine
+  $script:State.wrapperColumn=[int]$Diagnostic.originalColumn
+  $script:State.wrapperInvocationNameClass=[string]$Diagnostic.originalInvocationNameClass
+}
 function Assert-WrapperInvocationContract {
   $candidate=[string]$script:Config.wrapperPath
   if([string]::IsNullOrWhiteSpace($candidate)){throw 'R6_OPERATOR_LAUNCH_WRAPPER_SCRIPT_INVALID'}
@@ -66,7 +93,7 @@ function Get-Classification([object]$Record) {
   if($script:State.currentStage -eq 'INVOKE_WRAPPER_INLINE'){
     $markerPath=[string]$env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH
     $script:State.wrapperEntryConfirmed=(-not [string]::IsNullOrWhiteSpace($markerPath) -and (Test-Path -LiteralPath $markerPath -PathType Leaf))
-    if($script:State.wrapperEntryConfirmed){if($null -ne $recordClassification){return $recordClassification};return 'R6_OPERATOR_LAUNCH_WRAPPER_EXECUTION_FAILED_AFTER_ENTRY'}
+    if($script:State.wrapperEntryConfirmed){$diagnostic=Read-WrapperDiagnostic; Apply-WrapperDiagnostic $diagnostic; if($null -ne $diagnostic){return [string]$diagnostic.wrapperInnerClassification};if($null -ne $recordClassification){return $recordClassification};return 'R6_OPERATOR_LAUNCH_WRAPPER_EXECUTION_FAILED_AFTER_ENTRY'}
     if($null -ne $recordClassification -and $recordClassification -match '^R6_OPERATOR_LAUNCH_MARKER_'){return 'R6_OPERATOR_LAUNCH_WRAPPER_ENTRY_MARKER_FAILED'}
     if($Record.Exception -is [System.Management.Automation.ParseException] -or $Record.Exception -is [System.Management.Automation.CommandNotFoundException]){return 'R6_OPERATOR_LAUNCH_WRAPPER_SCRIPT_INVALID'}
     if($Record.Exception -is [System.Management.Automation.ParameterBindingException] -or [string]$Record.FullyQualifiedErrorId -match 'ParameterBinding|NamedParameterNotFound|PositionalParameterNotFound'){return 'R6_OPERATOR_LAUNCH_WRAPPER_PARAMETER_BINDING_FAILED'}
@@ -81,7 +108,7 @@ function Get-ErrorClass([string]$Classification) {
   if ($Classification -eq 'R6_OPERATOR_LAUNCH_INTERACTIVE_HOST_REQUIRED') { return 'host' }
   if ($Classification -match '^R6_OPERATOR_LAUNCH_SECURE_INPUT_') { return 'secure_input' }
   if ($Classification -match '^R6_OPERATOR_LAUNCH_PACKAGE_' -or $Classification -eq 'R6_OPERATOR_LAUNCH_SINGLE_USE_PATH_CONFLICT') { return 'binding' }
-  if ($Classification -match '^R6_OPERATOR_LAUNCH_WRAPPER_' -or $Classification -match '^R6_CURRENT_CANONICAL') { return 'wrapper' }
+  if ($Classification -match '^R6_OPERATOR_LAUNCH_WRAPPER_' -or $Classification -match '^R6_CURRENT_CANONICAL' -or $Classification -match '^R6_DETACHED_SECURE_WRAPPER_') { return 'wrapper' }
   return 'unexpected'
 }
 function Write-Terminal([bool]$Success,[string]$Classification,[string]$FailureCategory,[string]$ErrorClass) {
@@ -133,7 +160,7 @@ try {
   if($hash -ne $manifest.confirmationSha256){throw 'R6_OPERATOR_LAUNCH_CONFIRMATION_INVALID'}
   Complete-Stage 'READ_CONFIRMATION'; $script:State.inputCollectionCompleted=$true
   Set-Stage 'INVOKE_WRAPPER_INLINE'; $script:State.wrapperInvocationStarted=$true
-  $env:R6_OPERATOR_LAUNCHER_BREADCRUMB_PATH=$script:BreadcrumbPath; $env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH=(Join-Path $script:Config.operatorRoot 'wrapper-entry-marker.json')
+  $env:R6_OPERATOR_LAUNCHER_BREADCRUMB_PATH=$script:BreadcrumbPath; $env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH=(Join-Path $script:Config.operatorRoot 'wrapper-entry-marker.json'); $env:R6_OPERATOR_LAUNCHER_WRAPPER_DIAGNOSTIC_PATH=(Join-Path $script:Config.operatorRoot 'wrapper-post-entry-diagnostic.json')
   $wrapperContract=Assert-WrapperInvocationContract
   [string]$wrapperPath=$wrapperContract.Path
   [hashtable]$wrapperArguments=$wrapperContract.Arguments
@@ -151,4 +178,5 @@ try {
   if($null -ne $confirmation){$confirmation.Dispose()}
   Remove-Item Env:R6_OPERATOR_LAUNCHER_BREADCRUMB_PATH -ErrorAction SilentlyContinue
   Remove-Item Env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH -ErrorAction SilentlyContinue
+  Remove-Item Env:R6_OPERATOR_LAUNCHER_WRAPPER_DIAGNOSTIC_PATH -ErrorAction SilentlyContinue
 }
