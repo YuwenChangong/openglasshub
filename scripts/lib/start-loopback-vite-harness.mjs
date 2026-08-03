@@ -18,6 +18,12 @@ async function resolveViteTooling() {
     return {
       createServer: (await import(pathToFileURL(explicitEntry).href)).createServer,
       react: (await import(pathToFileURL(externalRequire.resolve("@vitejs/plugin-react")).href)).default,
+      aliases: [
+        { find: "react/jsx-runtime", replacement: externalRequire.resolve("react/jsx-runtime") },
+        { find: "react/jsx-dev-runtime", replacement: externalRequire.resolve("react/jsx-dev-runtime") },
+        { find: "react-dom/client", replacement: externalRequire.resolve("react-dom/client") },
+        { find: "react", replacement: externalRequire.resolve("react") },
+      ],
       isolatedDependencies: true,
     };
   }
@@ -35,7 +41,7 @@ export async function startLoopbackViteHarness({ root, configFile, cacheDir, cre
     const create = tooling.createServer;
     server = await create({
       root,
-      ...(tooling.isolatedDependencies ? { configFile: false, plugins: [tooling.react()], server: { fs: { allow: [path.resolve(root, "../../..")] } } } : { configFile }),
+      ...(tooling.isolatedDependencies ? { configFile: false, plugins: [tooling.react()], resolve: { alias: tooling.aliases }, esbuild: { tsconfigRaw: { compilerOptions: { jsx: "react-jsx" } } }, optimizeDeps: { noDiscovery: true } } : { configFile }),
       ...(typeof cacheDir === "string" && cacheDir ? { cacheDir } : {}),
       server: { ...(tooling.isolatedDependencies ? { fs: { allow: [path.resolve(root, "../../..")] } } : {}), middlewareMode: true, host: LOOPBACK_HOST },
       logLevel: "error",
