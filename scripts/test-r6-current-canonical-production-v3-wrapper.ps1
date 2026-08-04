@@ -324,7 +324,8 @@ try {
   Require ($captureRunnerText -match 'R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_OPERATION' -and $captureRunnerText -match 'readWrapperProvidedCloudflareAccountId' -and $captureRunnerText -match 'values\.get\("--account-input-mode"\) !== "wrapper-stdin"' -and $captureRunnerText -match 'argv\.length === 2' -and $captureRunnerText -match 'R6_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_READY') 'R6_CURRENT_CANONICAL_V3_CAPTURE_TTY_OUTPUT_MODE_REGRESSION'
   Require ($wrapperText -match 'foreach \(\$key in \$parsed\.Keys\) \{ \$properties\[\[string\]\$key\] = \$parsed\[\$key\] \}' -and $wrapperText -match 'return \[pscustomobject\]\$properties') 'R6_CURRENT_CANONICAL_V3_PS51_JSON_NORMALIZATION_REGRESSION'
   Require (Test-Path -LiteralPath $dotNetHashFixture -PathType Leaf) 'R6_DOTNET_SHA256_FIXTURE_MISSING'
-  $hashFixtureOutput = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $dotNetHashFixture -ExecutionWorktree $ExecutionWorktree -WrapperPath $renderedWrapper 2>&1)
+  $hashFixtureWrapper = if ([string]::IsNullOrWhiteSpace($renderedWrapper)) { $WrapperPath } else { $renderedWrapper }
+  $hashFixtureOutput = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $dotNetHashFixture -ExecutionWorktree $ExecutionWorktree -WrapperPath $hashFixtureWrapper 2>&1)
   Require ($LASTEXITCODE -eq 0 -and $hashFixtureOutput.Count -eq 1 -and $hashFixtureOutput[0].ToString().Trim() -eq 'R6_DOTNET_SHA256_WRAPPER_FIXTURE_OK') 'R6_DOTNET_SHA256_FIXTURE_FAILED'
   Write-Output 'R6_CURRENT_CANONICAL_V3_WRAPPER_OK PowerShell-5.1 JSON normalization, OAuth-first hidden-account stdin transport, local fixtures, safe failures, impossible states, fingerprint guards, and R2-mode isolation passed with zero network'
 } finally {
