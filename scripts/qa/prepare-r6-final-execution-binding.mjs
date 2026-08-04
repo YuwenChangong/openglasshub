@@ -28,7 +28,7 @@ const receipt = JSON.parse(receiptBytes.toString("utf8"));
 validateDryRunAuthorization(authorization, { executionCommit: head, toolingCommit: head });
 if (receipt.state !== "CONSUMED" || receipt.runId !== authorization.dryRunRunId || receipt.runnerCommit !== head || authorization.executionCommit !== head || authorization.toolingCommit !== head || authorization.plannedMutationCount !== 2 || authorization.actualMutationCount !== 0 || authorization.productionMutationCount !== 0 || authorization.retryCount !== 0 || JSON.stringify(receipt.targetBinding) !== JSON.stringify(authorization.targetBinding)) fail("R6_FINAL_EXECUTION_BINDING_PARENT_INVALID");
 const plan = authorization.plan;
-if (!plan || plan.schemaVersion !== "qa-minimal-canary-mutation-plan-v1" || plan.operationCount !== 2 || plan.operations?.map((operation) => operation.id).join(",") !== "CREATE_POST,CREATE_COMMENT") fail("R6_FINAL_EXECUTION_BINDING_PARENT_INVALID");
+if (!plan || plan.schemaVersion !== "qa-minimal-canary-mutation-plan-v2" || plan.cleanupContract !== "none" || plan.retryContract !== "none" || plan.rollbackContract !== "none" || plan.persistenceContract !== "retain-created-post-and-comment" || plan.operationCount !== 2 || plan.operations?.map((operation) => operation.id).join(",") !== "CREATE_POST,CREATE_COMMENT") fail("R6_FINAL_EXECUTION_BINDING_PARENT_INVALID");
 const blob = (relative) => git("rev-parse", `HEAD:${relative}`);
 const binding = validateFinalExecutionBinding({
   schemaVersion: FINAL_EXECUTION_BINDING_VERSION,

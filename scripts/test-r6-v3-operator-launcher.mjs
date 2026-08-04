@@ -40,7 +40,7 @@ async function issueCase(name, wrapperKind = "success") {
     : "param([string]$ExecutionWorktree,[switch]$PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly,[string]$RunId,[string]$EvidenceRoot)\n[IO.File]::WriteAllText($env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH, '{\\\"schemaVersion\\\":\\\"r6-v3-operator-launch-marker-v1\\\"}', [Text.UTF8Encoding]::new($false))\nWrite-Output 'R6_CURRENT_CANONICAL_V3_CAPTURE_AUTH_CHECK_AND_DRY_RUN_READY'\n";
   if (wrapperKind !== "real-inert") await writeFile(wrapper, wrapperBody, "utf8");
   const wrapperSha256 = createHash("sha256").update(await readFile(wrapper)).digest("hex");
-  await writeFile(config, JSON.stringify({ runId: runId(name.replace(/[^a-f]/g, "a").slice(0, 12)), operatorRoot, evidenceRoot: path.join(caseRoot, "evidence"), executionWorktree: caseRoot, wrapperPath: wrapper, wrapperSha256, confirmationSha256 }), "utf8");
+  await writeFile(config, JSON.stringify({ runId: runId(name.replace(/[^a-f]/g, "a").slice(0, 12)), operatorRoot, evidenceRoot: path.join(caseRoot, "evidence"), executionWorktree: caseRoot, executionCommit: "a".repeat(40), wrapperPath: wrapper, wrapperSha256, confirmationSha256 }), "utf8");
   execFileSync(process.execPath, ["scripts/qa/issue-r6-v3-operator-dryrun-package.mjs", "--config", config, "--launcher", launcher, "--manifest", manifest], { cwd: repo, stdio: "pipe" });
   return { caseRoot, operatorRoot, wrapper, launcher, manifest };
 }

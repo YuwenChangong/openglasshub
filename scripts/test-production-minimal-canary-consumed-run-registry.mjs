@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { assertRunIdNotConsumed, backfillHistoricalConsumedRuns, consumeReservationReceipt, loadConsumedRunRegistry, reserveConsumedRun, sha256 } from "./qa/production-minimal-canary-consumed-run-registry.mjs";
+import { assertRunIdNotConsumed, backfillHistoricalConsumedRuns, consumeReservationReceipt, finalizeReservationReceipt, loadConsumedRunRegistry, reserveConsumedRun, sha256 } from "./qa/production-minimal-canary-consumed-run-registry.mjs";
 
 const ids = {
   dryOne: "qa-canary-cf466ba5-5eb1-48ba-b18c-f20b60193a07",
@@ -57,6 +57,11 @@ try {
   await assert.rejects(consumeReservationReceipt({ root, receiptPath: path.join(root, "..", "escape.json"), receiptSha256: reservation.receiptSha256, invocationNonce: reservation.invocationNonce, runId: ids.fresh, mode: "dry-run", runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest }), /PATH_INVALID/);
   await consumeReservationReceipt({ root, receiptPath: reservation.receiptPath, receiptSha256: reservation.receiptSha256, invocationNonce: reservation.invocationNonce, runId: ids.fresh, mode: "dry-run", runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest });
   await assert.rejects(consumeReservationReceipt({ root, receiptPath: reservation.receiptPath, receiptSha256: sha256(await readFile(reservation.receiptPath)), invocationNonce: reservation.invocationNonce, runId: ids.fresh, mode: "dry-run", runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest }), /RECEIPT_REPLAY/);
+  const consumedReceiptSha = sha256(await readFile(reservation.receiptPath));
+  await assert.rejects(finalizeReservationReceipt({ root, receiptPath: reservation.receiptPath, receiptSha256: consumedReceiptSha, invocationNonce: reservation.invocationNonce, runId: ids.fresh, mode: "dry-run", runnerCommit, finalState: "CONSUMED_COMPLETE_TWO_WRITES", actualMutationCount: 1, finalizedAt: now }), /FINALIZATION_INVALID/);
+  const finalized = await finalizeReservationReceipt({ root, receiptPath: reservation.receiptPath, receiptSha256: consumedReceiptSha, invocationNonce: reservation.invocationNonce, runId: ids.fresh, mode: "dry-run", runnerCommit, finalState: "PARTIAL_ONE_WRITE", actualMutationCount: 1, finalizedAt: now });
+  assert.equal(finalized.state, "PARTIAL_ONE_WRITE");
+  await assert.rejects(finalizeReservationReceipt({ root, receiptPath: reservation.receiptPath, receiptSha256: finalized.receiptSha256, invocationNonce: reservation.invocationNonce, runId: ids.fresh, mode: "dry-run", runnerCommit, finalState: "PARTIAL_ONE_WRITE", actualMutationCount: 1, finalizedAt: now }), /FINALIZATION_REJECTED/);
 
   const finalBinding = { schemaVersion: "r6-final-canary-authorization-binding-v1", dryRunRunId: ids.fresh, dryRunTerminalSha256: "1".repeat(64), dryRunOrchestrationTerminalSha256: "2".repeat(64), planSha256: "3".repeat(64), attestationSha256: "4".repeat(64), executionCommit: runnerCommit };
   const finalReservation = await reserveConsumedRun({ root, runId: ids.second, mode: "live", confirmationTokenSha256: "e".repeat(64), runnerCommit, wrapperVersion, wrapperSha256: wrapperSha, childCommandDigest: commandDigest, finalAuthorizationBinding: finalBinding, now, nonce: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" });

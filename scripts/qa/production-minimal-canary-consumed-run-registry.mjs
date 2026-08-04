@@ -10,6 +10,7 @@ const COMMIT = /^[a-f0-9]{40}$/;
 const RUN_ID = /^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MODES = new Set(["dry-run", "live", "recovery"]);
+const FINAL_RECEIPT_STATES = new Set(["FAILED_ZERO_WRITES", "PARTIAL_ONE_WRITE", "CONSUMED_COMPLETE_TWO_WRITES", "BLOCKED_UNEXPECTED_WRITE"]);
 
 export function sha256(value) { return createHash("sha256").update(value).digest("hex"); }
 export function validateConsumedRunId(value) {
@@ -227,10 +228,14 @@ function receiptFile(paths, runId, nonce) {
 }
 
 function validateReceiptShape(receipt) {
-  if (!receipt || receipt.schemaVersion !== CONSUMED_RUN_REGISTRY_VERSION || !["PENDING", "CONSUMED"].includes(receipt.state) || !RUN_ID.test(String(receipt.runId ?? "")) || !MODES.has(receipt.mode) || !COMMIT.test(String(receipt.runnerCommit ?? "")) || receipt.wrapperVersion !== "r6-consumed-run-wrapper-v1" || !SHA256.test(String(receipt.wrapperSha256 ?? "")) || !SHA256.test(String(receipt.tokenLedgerEntryDigest ?? "")) || !SHA256.test(String(receipt.registryEntryDigest ?? "")) || !SHA256.test(String(receipt.childCommandDigest ?? "")) || !/^[a-f0-9-]{36}$/.test(String(receipt.invocationNonce ?? "")) || !SHA256.test(String(receipt.integrity ?? ""))) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
+  if (!receipt || receipt.schemaVersion !== CONSUMED_RUN_REGISTRY_VERSION || !new Set(["PENDING", "CONSUMED", ...FINAL_RECEIPT_STATES]).has(receipt.state) || !RUN_ID.test(String(receipt.runId ?? "")) || !MODES.has(receipt.mode) || !COMMIT.test(String(receipt.runnerCommit ?? "")) || receipt.wrapperVersion !== "r6-consumed-run-wrapper-v1" || !SHA256.test(String(receipt.wrapperSha256 ?? "")) || !SHA256.test(String(receipt.tokenLedgerEntryDigest ?? "")) || !SHA256.test(String(receipt.registryEntryDigest ?? "")) || !SHA256.test(String(receipt.childCommandDigest ?? "")) || !/^[a-f0-9-]{36}$/.test(String(receipt.invocationNonce ?? "")) || !SHA256.test(String(receipt.integrity ?? ""))) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
   assertTimestamp(receipt.createdAt, "QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
   validateFinalAuthorizationBinding(receipt.finalAuthorizationBinding);
   if (receipt.targetBinding !== undefined) validateCanonicalCanaryTargetBinding(receipt.targetBinding);
+  if (FINAL_RECEIPT_STATES.has(receipt.state)) {
+    assertTimestamp(receipt.finalizedAt, "QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
+    if (!receipt.executionSummary || !Number.isInteger(receipt.executionSummary.actualMutationCount) || !Number.isInteger(receipt.executionSummary.unexpectedMutationCount) || receipt.executionSummary.retryCount !== 0 || receipt.executionSummary.rollbackCount !== 0) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
+  }
   const copy = { ...receipt }; delete copy.integrity;
   if (sha256(canonical(copy)) !== receipt.integrity) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
   return receipt;
@@ -291,5 +296,26 @@ export async function consumeReservationReceipt({ root, receiptPath, receiptSha2
     const consumed = { ...receipt, state: "CONSUMED", consumedAt: new Date().toISOString() }; delete consumed.integrity; consumed.integrity = sha256(canonical(consumed));
     await durableWrite(candidate, `${JSON.stringify(consumed, null, 2)}\n`);
     return { runId: id, registryEntryDigest: entry.entryDigest };
+  });
+}
+
+export async function finalizeReservationReceipt({ root, receiptPath, receiptSha256, invocationNonce, runId, mode, runnerCommit, finalState, actualMutationCount, unexpectedMutationCount = 0, finalizedAt = new Date().toISOString() }) {
+  const id = validateConsumedRunId(runId); const paths = registryPaths(root);
+  if (!SHA256.test(String(receiptSha256 ?? "")) || !MODES.has(mode) || !COMMIT.test(String(runnerCommit ?? "")) || !FINAL_RECEIPT_STATES.has(finalState) || !Number.isInteger(actualMutationCount) || !Number.isInteger(unexpectedMutationCount)) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_FINALIZATION_INVALID");
+  if ((finalState === "FAILED_ZERO_WRITES" && (actualMutationCount !== 0 || unexpectedMutationCount !== 0)) || (finalState === "PARTIAL_ONE_WRITE" && (actualMutationCount !== 1 || unexpectedMutationCount !== 0)) || (finalState === "CONSUMED_COMPLETE_TWO_WRITES" && (actualMutationCount !== 2 || unexpectedMutationCount !== 0)) || (finalState === "BLOCKED_UNEXPECTED_WRITE" && unexpectedMutationCount < 1)) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_FINALIZATION_INVALID");
+  assertTimestamp(finalizedAt, "QA_CANARY_CONSUMED_RUN_RECEIPT_FINALIZATION_INVALID");
+  return withLock(paths.root, async () => {
+    const candidate = path.resolve(String(receiptPath ?? "")); assertPathInside(paths.receipts, candidate, "QA_CANARY_CONSUMED_RUN_RECEIPT_PATH_INVALID");
+    const expected = receiptFile(paths, id, String(invocationNonce ?? ""));
+    if (candidate !== expected.file) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_PATH_INVALID");
+    await assertNoReparse(candidate, "QA_CANARY_CONSUMED_RUN_RECEIPT_PATH_INVALID");
+    const raw = await readFile(candidate).catch(() => { throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_REQUIRED"); });
+    if (sha256(raw) !== receiptSha256) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID");
+    let receipt; try { receipt = JSON.parse(raw.toString("utf8")); } catch { throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_INVALID"); }
+    validateReceiptShape(receipt);
+    if (receipt.state !== "CONSUMED" || receipt.runId !== id || receipt.mode !== mode || receipt.runnerCommit !== runnerCommit || receipt.invocationNonce !== invocationNonce) throw new Error("QA_CANARY_CONSUMED_RUN_RECEIPT_FINALIZATION_REJECTED");
+    const finalized = { ...receipt, state: finalState, finalizedAt, executionSummary: { actualMutationCount, unexpectedMutationCount, retryCount: 0, rollbackCount: 0 } }; delete finalized.integrity; finalized.integrity = sha256(canonical(finalized));
+    await durableWrite(candidate, `${JSON.stringify(finalized, null, 2)}\n`);
+    return { runId: id, state: finalState, receiptPath: candidate, receiptSha256: sha256(await readFile(candidate)) };
   });
 }

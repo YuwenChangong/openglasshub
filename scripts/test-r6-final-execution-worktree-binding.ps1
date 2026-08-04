@@ -30,7 +30,7 @@ try {
   $authorizationPath = Join-Path $evidence 'authorization.json'; $receiptPath = Join-Path $evidence 'receipt.json'; $bindingPath = Join-Path $evidence 'final-execution-binding.json'
   New-Item -ItemType Directory -Path $evidence -Force | Out-Null
   $dryRunId = 'qa-canary-11111111-1111-4111-8111-111111111111'
-  $plan = [ordered]@{ schemaVersion='qa-minimal-canary-mutation-plan-v1'; planSha256=('a' * 64) }
+  $plan = [ordered]@{ schemaVersion='qa-minimal-canary-mutation-plan-v2'; planSha256=('a' * 64) }
   $targetBindingModule = Join-Path $temporary 'scripts\qa\canonical-canary-target-binding.mjs'
   $targetBindingOutput = @(& node --input-type=module -e "import { pathToFileURL } from 'node:url'; const { createCanonicalCanaryTargetBinding } = await import(pathToFileURL(process.argv[1]).href); process.stdout.write(JSON.stringify(createCanonicalCanaryTargetBinding({ resolvedAtUtc: '2026-07-29T00:00:00.000Z', canonicalCircleId: '22222222-2222-4222-8222-222222222222', canonicalCircleSlug: 'synthetic-canonical-circle', baseMutationPlanSchema: process.argv[2], baseMutationPlanHash: process.argv[3], executionCommit: process.argv[4], toolingCommit: process.argv[4] })));" $targetBindingModule $plan.schemaVersion $plan.planSha256 $head 2>&1)
   Require ($LASTEXITCODE -eq 0 -and $targetBindingOutput.Count -eq 1) 'R6_FINAL_EXECUTION_BINDING_TARGET_FIXTURE_FAILED'
@@ -43,12 +43,13 @@ try {
     wrapperPath=$wrapper; wrapperSha256=(Get-FileHash $wrapper -Algorithm SHA256).Hash.ToLowerInvariant()
     finalContractGitBlob=(& $blob 'scripts/qa/r6-final-canary-execution-contract.mjs'); executeRunnerGitBlob=(& $blob 'scripts/qa/run-production-minimal-canary.mjs'); postflightRunnerGitBlob=(& $blob 'scripts/qa/run-r6-final-canary-read-only-postflight.mjs'); bindingValidatorGitBlob=(& $blob 'scripts/qa/validate-r6-final-execution-binding.mjs'); bindingLibraryGitBlob=(& $blob 'scripts/qa/r6-final-execution-binding.mjs')
     parentAuthorizationPath=$authorizationPath; parentAuthorizationSha256=(Get-FileHash $authorizationPath -Algorithm SHA256).Hash.ToLowerInvariant(); parentReceiptPath=$receiptPath; parentReceiptSha256=(Get-FileHash $receiptPath -Algorithm SHA256).Hash.ToLowerInvariant(); parentDryRunRunId=$dryRunId
-    planSchema='qa-minimal-canary-mutation-plan-v1'; planSha256=('a' * 64); targetBinding=$targetBinding; approvedOperationIds=@('CREATE_POST','CREATE_COMMENT'); plannedMutationCount=2; parentActualMutationCount=0
+    planSchema='qa-minimal-canary-mutation-plan-v2'; planSha256=('a' * 64); targetBinding=$targetBinding; approvedOperationIds=@('CREATE_POST','CREATE_COMMENT'); plannedMutationCount=2; parentActualMutationCount=0
   }
   [IO.File]::WriteAllText($bindingPath, (($binding | ConvertTo-Json -Depth 4 -Compress) + "`n"), [Text.UTF8Encoding]::new($false))
   $bindingSha = (Get-FileHash $bindingPath -Algorithm SHA256).Hash.ToLowerInvariant()
   $env:R6_DETACHED_TRANSPORT_LIBRARY_MODE = '1'
   . $wrapper -ExecutionWorktree $temporary
+  Resolve-R6GitExecutable
   $validated = Get-FinalExecutionBinding $bindingPath $bindingSha $temporary
   $result = Assert-FinalExecutionWorktree $temporary $validated 'qa-canary-22222222-2222-4222-8222-222222222222'
   Require ($result.Head -eq $head -and $result.Detached) 'R6_FINAL_EXECUTION_BINDING_SUCCESS_CONTRACT_FAILED'

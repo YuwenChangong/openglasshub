@@ -136,7 +136,7 @@ try {
   Set-Stage 'LAUNCHER_ENTRY'
   Set-Stage 'ASSERT_PACKAGE_BINDINGS'
   $manifest=Get-Content -LiteralPath $script:Config.manifestPath -Raw | ConvertFrom-Json
-  if ($manifest.schemaVersion -ne 'r6-fresh-dryrun-launcher-binding-v2') { throw 'R6_OPERATOR_LAUNCH_PACKAGE_SCHEMA_INVALID' }
+  if ($manifest.schemaVersion -notin @('r6-fresh-dryrun-launcher-binding-v2','r6-fresh-dryrun-launcher-binding-v3')) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_SCHEMA_INVALID' }
   if ($manifest.runId -ne $script:Config.runId) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_RUN_ID_INVALID' }
   if ([string]$manifest.launcherSha256 -notmatch '^[a-f0-9]{64}$') { throw 'R6_OPERATOR_LAUNCH_PACKAGE_LAUNCHER_HASH_INVALID' }
   if ([string]::IsNullOrWhiteSpace($PSCommandPath) -or -not (Test-Path -LiteralPath $PSCommandPath)) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_LAUNCHER_PATH_INVALID' }
@@ -160,7 +160,7 @@ try {
   if($hash -ne $manifest.confirmationSha256){throw 'R6_OPERATOR_LAUNCH_CONFIRMATION_INVALID'}
   Complete-Stage 'READ_CONFIRMATION'; $script:State.inputCollectionCompleted=$true
   Set-Stage 'INVOKE_WRAPPER_INLINE'; $script:State.wrapperInvocationStarted=$true
-  $env:R6_OPERATOR_LAUNCHER_BREADCRUMB_PATH=$script:BreadcrumbPath; $env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH=(Join-Path $script:Config.operatorRoot 'wrapper-entry-marker.json'); $env:R6_OPERATOR_LAUNCHER_WRAPPER_DIAGNOSTIC_PATH=(Join-Path $script:Config.operatorRoot 'wrapper-post-entry-diagnostic.json')
+  $env:R6_OPERATOR_LAUNCHER_BREADCRUMB_PATH=$script:BreadcrumbPath; $env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH=(Join-Path $script:Config.operatorRoot 'wrapper-entry-marker.json'); $env:R6_OPERATOR_LAUNCHER_WRAPPER_DIAGNOSTIC_PATH=(Join-Path $script:Config.operatorRoot 'wrapper-post-entry-diagnostic.json'); $env:R6_CONSUMED_RUN_INVOCATION_NONCE=[string]$script:Config.invocationNonce
   $wrapperContract=Assert-WrapperInvocationContract
   [string]$wrapperPath=$wrapperContract.Path
   [hashtable]$wrapperArguments=$wrapperContract.Arguments
@@ -179,4 +179,5 @@ try {
   Remove-Item Env:R6_OPERATOR_LAUNCHER_BREADCRUMB_PATH -ErrorAction SilentlyContinue
   Remove-Item Env:R6_OPERATOR_LAUNCHER_ENTRY_MARKER_PATH -ErrorAction SilentlyContinue
   Remove-Item Env:R6_OPERATOR_LAUNCHER_WRAPPER_DIAGNOSTIC_PATH -ErrorAction SilentlyContinue
+  Remove-Item Env:R6_CONSUMED_RUN_INVOCATION_NONCE -ErrorAction SilentlyContinue
 }

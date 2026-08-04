@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { main, parse, RUNNER_REPOSITORY_ROOT, validateIdentityGuards } from "./qa/run-production-minimal-canary.mjs";
@@ -69,6 +69,8 @@ async function withReservation(env, id, mode) {
 }
 
 try {
+  const [coreSource, runnerSource] = await Promise.all([readFile("scripts/qa/production-minimal-canary-core.mjs", "utf8"), readFile("scripts/qa/run-production-minimal-canary.mjs", "utf8")]);
+  for (const source of [coreSource, runnerSource]) assert.doesNotMatch(source, /\b(?:deleteComment|deletePost)\s*\(/, "production canary source must not reach delete helpers");
   const historicalIds = ["qa-canary-d5d9eed0-a599-4cf6-be98-39e2060d2340", "qa-canary-cf466ba5-5eb1-48ba-b18c-f20b60193a07", "qa-canary-e61e9405-8fab-4570-8a6b-a23a0841ac37", "qa-canary-76c5e82b-e601-4ccc-b571-b949f35c28d2", "qa-canary-60622b81-6c5f-40fd-a73b-bfb0cf559f9d"];
   await backfillHistoricalConsumedRuns({ root: registryRoot, records: historicalIds.map((runId) => ({ runId, legacyBlock: true })) });
   const attestation = await writeAttestation();
@@ -120,11 +122,10 @@ try {
     createAdapter: () => ({
       async createPost({ marker }) { events.push("createPost"); return { id: "33333333-3333-4333-8333-333333333333", ownerId: "11111111-1111-4111-8111-111111111111", circleId: "22222222-2222-4222-8222-222222222222", circleSlug: "qa-circle", marker }; },
       async createComment({ marker, postId }) { events.push("createComment"); return { id: "44444444-4444-4444-8444-444444444444", ownerId: "11111111-1111-4111-8111-111111111111", circleId: "22222222-2222-4222-8222-222222222222", circleSlug: "qa-circle", postId, marker }; },
-      async deleteComment() { events.push("deleteComment"); }, async deletePost() { events.push("deletePost"); }, async verifyCommentAbsent() { return true; }, async verifyPostAbsent() { return true; }, async verifyResidue() { return { ok: true }; },
     }),
   });
-  assert.deepEqual(events, ["authenticate", "createPost", "createComment", "deleteComment", "deletePost"], "the live runner must consume the prevalidated canonical target without resolving a circle again");
-  console.log("PRODUCTION_MINIMAL_CANARY_RUNNER_CONTRACT_OK CWD-independent runner commit and sealed deployment attestation guards passed with no network");
+  assert.deepEqual(events, ["authenticate", "createPost", "createComment"], "the live runner must retain exactly two writes on the prevalidated canonical target");
+  console.log("PRODUCTION_MINIMAL_CANARY_RUNNER_CONTRACT_OK CWD-independent runner commit, sealed deployment attestation, and persistent two-write guards passed with no network");
 } finally {
   await rm(root, { recursive: true, force: true });
 }

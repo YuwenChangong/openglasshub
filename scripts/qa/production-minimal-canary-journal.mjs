@@ -49,7 +49,7 @@ export async function findUnfinishedJournals(root, qaUserId) {
     try {
       const journal = JSON.parse(await readFile(file, "utf8"));
       if (journal.integrity !== integrityFor(journal)) throw new Error("QA_CANARY_JOURNAL_INTEGRITY_INVALID");
-      if (journal.prepared?.actorId === qaUserId && journal.state !== "COMPLETE") result.push({ runId: journal.runId, state: journal.state });
+      if (journal.prepared?.actorId === qaUserId && !["COMPLETE", "COMPLETE_TWO_WRITES"].includes(journal.state)) result.push({ runId: journal.runId, state: journal.state });
     } catch (error) { if (error?.code === "ENOENT") continue; throw error; }
   }
   return result;

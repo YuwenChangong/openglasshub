@@ -6,7 +6,8 @@ export const FINAL_AUTHORIZATION_VERSION = "r6-final-canary-authorization-v2";
 export const FINAL_TERMINAL_VERSION = "r6-final-canary-execution-terminal-result-v2";
 export const FINAL_POSTFLIGHT_VERSION = "r6-final-canary-read-only-postflight-terminal-result-v2";
 export const FINAL_ORCHESTRATION_VERSION = "r6-final-canary-execute-and-postflight-orchestration-terminal-result-v2";
-export const PLAN_VERSION = "qa-minimal-canary-mutation-plan-v1";
+export const LEGACY_PLAN_VERSION = "qa-minimal-canary-mutation-plan-v1";
+export const PLAN_VERSION = "qa-minimal-canary-mutation-plan-v2";
 const SHA256 = /^[a-f0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const RUN_ID = /^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -25,6 +26,20 @@ const timestamp = (value, code, nullable = false) => { if (nullable && value ===
 const pathValue = (value, code, nullable = false) => { if (nullable && value === null) return value; if (typeof value !== "string" || !value) fail(code); return value; };
 function exactKeys(item, required, code) { if (Object.keys(item).length !== required.length || required.some((key) => !(key in item))) fail(code); }
 
+export function getHistoricalMinimalCanaryMutationPlanV1() {
+  const plan = {
+    schemaVersion: LEGACY_PLAN_VERSION,
+    operationCount: 2,
+    operations: [
+      { id: "CREATE_POST", method: "POST", route: "/api/forum/posts", targetScope: "approved-circle" },
+      { id: "CREATE_COMMENT", method: "POST", route: "/api/forum/comments", targetScope: "created-canary-post" },
+    ],
+    cleanupContract: "comment-then-post",
+    retryPolicy: "zero",
+  };
+  return Object.freeze({ ...plan, planSha256: digest(plan) });
+}
+
 export function getMinimalCanaryMutationPlan() {
   const plan = {
     schemaVersion: PLAN_VERSION,
@@ -33,8 +48,15 @@ export function getMinimalCanaryMutationPlan() {
       { id: "CREATE_POST", method: "POST", route: "/api/forum/posts", targetScope: "approved-circle" },
       { id: "CREATE_COMMENT", method: "POST", route: "/api/forum/comments", targetScope: "created-canary-post" },
     ],
-    cleanupContract: "comment-then-post",
-    retryPolicy: "zero",
+    cleanupContract: "none",
+    retryContract: "none",
+    rollbackContract: "none",
+    persistenceContract: "retain-created-post-and-comment",
+    postflightContract: "read-only-zero-write",
+    indirectDatabaseEffects: [
+      { trigger: "trg_comments_bump_post_last_activity", operation: "UPDATE_POST_LAST_ACTIVITY", expectedFor: "CREATE_COMMENT", scope: "created-canary-post" },
+      { trigger: "trg_comments_notify_created", operation: "NO_NOTIFICATION_FOR_SELF_COMMENT", expectedFor: "CREATE_COMMENT", scope: "same-qa-author" },
+    ],
   };
   return Object.freeze({ ...plan, planSha256: digest(plan) });
 }
@@ -70,13 +92,13 @@ export function validateFinalExecutionTerminal(value) {
   for (const key of ["dryRunTerminalSha256", "dryRunOrchestrationTerminalSha256", "mutationPlanHash", "freshAttestationSha256", "liveReceiptSha256"]) hash(item[key], "R6_FINAL_EXECUTION_TERMINAL_INVALID");
   for (const key of ["dryRunTerminalPath", "dryRunOrchestrationTerminalPath", "freshAttestationPath", "liveReceiptPath"]) pathValue(item[key], "R6_FINAL_EXECUTION_TERMINAL_INVALID");
   pathValue(item.childTerminalPath, "R6_FINAL_EXECUTION_TERMINAL_INVALID", true); pathValue(item.journalPath, "R6_FINAL_EXECUTION_TERMINAL_INVALID", true); if (item.childTerminalSha256 !== null) hash(item.childTerminalSha256, "R6_FINAL_EXECUTION_TERMINAL_INVALID"); if (item.journalSha256 !== null) hash(item.journalSha256, "R6_FINAL_EXECUTION_TERMINAL_INVALID");
-  if (item.mutationPlanSchema !== PLAN_VERSION || item.liveReceiptInitialState !== "PENDING" || !["CONSUMED", "PENDING", "NOT_CREATED"].includes(item.liveReceiptFinalState)) fail("R6_FINAL_EXECUTION_TERMINAL_INVALID");
+  if (item.mutationPlanSchema !== PLAN_VERSION || item.liveReceiptInitialState !== "PENDING" || !["CONSUMED_COMPLETE_TWO_WRITES", "PARTIAL_ONE_WRITE", "FAILED_ZERO_WRITES", "BLOCKED_UNEXPECTED_WRITE", "PENDING", "NOT_CREATED"].includes(item.liveReceiptFinalState)) fail("R6_FINAL_EXECUTION_TERMINAL_INVALID");
   validateCanonicalCanaryTargetBinding(item.targetBinding, { baseMutationPlanSchema: item.mutationPlanSchema, baseMutationPlanHash: item.mutationPlanHash, executionCommit: item.executionCommit, toolingCommit: item.toolingCommit });
   for (const key of ["dryRunBindingPassed", "attestationFreshnessPassed", "receiptBindingPassed", "executeStarted", "executeCompleted", "childStarted", "childCompleted", "childTimedOut", "childTerminalValidated", "adapterReached", "journalCreated", "success"]) bool(item[key], "R6_FINAL_EXECUTION_TERMINAL_INVALID");
   for (const key of ["approvedMutationCount", "plannedMutationCount", "actualMutationCount", "unexpectedMutationCount", "retryCount", "supabaseReadCount", "supabaseWriteCount", "productionMutationCount"]) integer(item[key], "R6_FINAL_EXECUTION_TERMINAL_INVALID");
-  if (!Number.isInteger(item.childExitCode) || item.actualMutationCount > 2 || item.productionMutationCount !== item.actualMutationCount) fail("R6_FINAL_EXECUTION_TERMINAL_SAFETY_INVALID");
+  if (!Number.isInteger(item.childExitCode) || item.actualMutationCount > 2 || item.productionMutationCount !== item.actualMutationCount || item.unexpectedMutationCount !== 0 || item.retryCount !== 0) fail("R6_FINAL_EXECUTION_TERMINAL_SAFETY_INVALID");
   if (item.success) {
-    if (item.failureStage !== null || item.innerClassification !== null || item.outerClassification !== "R6_FINAL_CANARY_EXECUTION_COMPLETE" || !item.dryRunBindingPassed || !item.attestationFreshnessPassed || !item.receiptBindingPassed || !item.executeStarted || !item.executeCompleted || !item.childStarted || !item.childCompleted || item.childTimedOut || item.childExitCode !== 0 || !item.childTerminalValidated || !item.adapterReached || !item.journalCreated || item.approvedMutationCount !== 2 || item.plannedMutationCount !== 2 || item.actualMutationCount !== 2 || item.unexpectedMutationCount !== 0 || item.retryCount !== 0 || item.productionMutationCount !== 2) fail("R6_FINAL_EXECUTION_TERMINAL_SAFETY_INVALID");
+    if (item.failureStage !== null || item.innerClassification !== null || item.outerClassification !== "R6_FINAL_CANARY_EXECUTION_COMPLETE" || !item.dryRunBindingPassed || !item.attestationFreshnessPassed || !item.receiptBindingPassed || !item.executeStarted || !item.executeCompleted || !item.childStarted || !item.childCompleted || item.childTimedOut || item.childExitCode !== 0 || !item.childTerminalValidated || !item.adapterReached || !item.journalCreated || item.liveReceiptFinalState !== "CONSUMED_COMPLETE_TWO_WRITES" || item.approvedMutationCount !== 2 || item.plannedMutationCount !== 2 || item.actualMutationCount !== 2 || item.productionMutationCount !== 2) fail("R6_FINAL_EXECUTION_TERMINAL_SAFETY_INVALID");
   } else if (item.actualMutationCount > 2 || item.retryCount !== 0) fail("R6_FINAL_EXECUTION_TERMINAL_SAFETY_INVALID");
   return Object.freeze(item);
 }
@@ -87,7 +109,7 @@ export function validateFinalPostflight(value) {
   timestamp(item.startedAt, "R6_FINAL_POSTFLIGHT_INVALID"); timestamp(item.completedAt, "R6_FINAL_POSTFLIGHT_INVALID", true); runId(item.productionRunId, "R6_FINAL_POSTFLIGHT_INVALID"); runId(item.parentDryRunRunId, "R6_FINAL_POSTFLIGHT_INVALID"); if (item.productionRunId === item.parentDryRunRunId) fail("R6_FINAL_POSTFLIGHT_INVALID");
   for (const key of ["executionTerminalSha256", "liveReceiptSha256", "journalSha256", "mutationPlanHash"]) hash(item[key], "R6_FINAL_POSTFLIGHT_INVALID"); for (const key of ["executionCommit", "toolingCommit"]) commit(item[key], "R6_FINAL_POSTFLIGHT_INVALID"); for (const key of ["executionTerminalPath", "liveReceiptPath", "journalPath"]) pathValue(item[key], "R6_FINAL_POSTFLIGHT_INVALID");
   for (const key of ["executionTerminalValidated", "receiptVerified", "journalVerified", "commitBindingPassed", "success"]) bool(item[key], "R6_FINAL_POSTFLIGHT_INVALID"); for (const key of ["approvedMutationCount", "executionActualMutationCount", "verifiedMutationCount", "unexpectedMutationCount", "duplicateExecutionCount", "supabaseReadCount", "supabaseWriteCount", "productionMutationCountDuringPostflight"]) integer(item[key], "R6_FINAL_POSTFLIGHT_INVALID");
-  if (item.liveReceiptState !== "CONSUMED" || item.supabaseWriteCount !== 0 || item.productionMutationCountDuringPostflight !== 0) fail("R6_FINAL_POSTFLIGHT_SAFETY_INVALID");
+  if (item.liveReceiptState !== "CONSUMED_COMPLETE_TWO_WRITES" || item.supabaseWriteCount !== 0 || item.productionMutationCountDuringPostflight !== 0) fail("R6_FINAL_POSTFLIGHT_SAFETY_INVALID");
   if (item.targetBinding !== null) validateCanonicalCanaryTargetBinding(item.targetBinding, { baseMutationPlanSchema: PLAN_VERSION, baseMutationPlanHash: item.mutationPlanHash, executionCommit: item.executionCommit, toolingCommit: item.toolingCommit });
   if (item.success && (item.failureStage !== null || item.innerClassification !== null || item.outerClassification !== "R6_FINAL_CANARY_READ_ONLY_POSTFLIGHT_COMPLETE" || !item.executionTerminalValidated || !item.receiptVerified || !item.journalVerified || !item.commitBindingPassed || item.approvedMutationCount !== 2 || item.executionActualMutationCount !== 2 || item.verifiedMutationCount !== 2 || item.unexpectedMutationCount !== 0 || item.duplicateExecutionCount !== 0 || item.supabaseReadCount < 1)) fail("R6_FINAL_POSTFLIGHT_SAFETY_INVALID");
   return Object.freeze(item);

@@ -4,7 +4,7 @@ import { createCanonicalCanaryTargetBinding } from "./qa/canonical-canary-target
 
 const commit = "a".repeat(40);
 const hash = "b".repeat(64);
-const target = () => createCanonicalCanaryTargetBinding({ resolvedAtUtc: "2099-01-01T00:00:00.000Z", canonicalCircleId: "11111111-1111-4111-8111-111111111111", canonicalCircleSlug: "canonical-circle", baseMutationPlanSchema: "qa-minimal-canary-mutation-plan-v1", baseMutationPlanHash: "3".repeat(64), executionCommit: commit, toolingCommit: commit });
+const target = () => createCanonicalCanaryTargetBinding({ resolvedAtUtc: "2099-01-01T00:00:00.000Z", canonicalCircleId: "11111111-1111-4111-8111-111111111111", canonicalCircleSlug: "canonical-circle", baseMutationPlanSchema: "qa-minimal-canary-mutation-plan-v2", baseMutationPlanHash: "3".repeat(64), executionCommit: commit, toolingCommit: commit });
 const binding = () => ({
   schemaVersion: FINAL_EXECUTION_BINDING_VERSION,
   executionWorktree: "C:\\proof\\execution-worktree",
@@ -23,7 +23,7 @@ const binding = () => ({
   parentReceiptPath: "C:\\proof\\parent-receipt.json",
   parentReceiptSha256: "2".repeat(64),
   parentDryRunRunId: "qa-canary-11111111-1111-4111-8111-111111111111",
-  planSchema: "qa-minimal-canary-mutation-plan-v1",
+  planSchema: "qa-minimal-canary-mutation-plan-v2",
   planSha256: "3".repeat(64),
   targetBinding: target(),
   approvedOperationIds: ["CREATE_POST", "CREATE_COMMENT"],
@@ -40,6 +40,7 @@ for (const mutate of [
   (value) => { value.approvedOperationIds = ["CREATE_COMMENT", "CREATE_POST"]; },
   (value) => { value.plannedMutationCount = 1; },
   (value) => { value.parentActualMutationCount = 1; },
+  (value) => { value.planSchema = "qa-minimal-canary-mutation-plan-v1"; },
 ]) {
   const value = binding();
   mutate(value);

@@ -1,0 +1,23 @@
+[CmdletBinding()]
+param([switch]$ValidateOnly,[string]$SyntheticConfirmation='')
+Set-StrictMode -Version Latest
+$ErrorActionPreference='Stop'
+$config=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('__CONFIG_BASE64__'))|ConvertFrom-Json
+$terminal=Join-Path $config.operatorRoot 'launcher-terminal-result.json'
+$breadcrumb=Join-Path $config.operatorRoot 'launcher-stage-breadcrumb.json'
+function Get-Sha256([string]$Path){$stream=$null;$sha=$null;try{$stream=[IO.File]::OpenRead($Path);$sha=[Security.Cryptography.SHA256]::Create();return(-join($sha.ComputeHash($stream)|ForEach-Object{$_.ToString('x2')}))}finally{if($sha){$sha.Dispose()};if($stream){$stream.Dispose()}}}
+function Write-Json([string]$Path,[object]$Value){$dir=Split-Path -Parent $Path;New-Item -ItemType Directory -Force -Path $dir|Out-Null;$tmp=Join-Path $dir ('.'+[guid]::NewGuid().ToString('N'));try{[IO.File]::WriteAllText($tmp,($Value|ConvertTo-Json -Compress -Depth 6),[Text.UTF8Encoding]::new($false));Move-Item -LiteralPath $tmp -Destination $Path -Force}finally{Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}}
+function Stop-Launch([string]$Code){Write-Json $terminal ([ordered]@{schemaVersion='r6-production-launcher-terminal-result-v1';success=$false;classification=$Code;runId=$config.runId;wrapperStarted=$false;wrapperEntryConfirmed=$false;createdAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')});throw $Code}
+try{
+  Write-Json $breadcrumb ([ordered]@{schemaVersion='r6-production-launcher-stage-breadcrumb-v1';runId=$config.runId;stage='LAUNCHER_ENTRY';createdAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')})
+  $manifest=Get-Content -LiteralPath $config.manifestPath -Raw|ConvertFrom-Json
+  if($manifest.schemaVersion -ne 'r6-production-launcher-binding-v1' -or $manifest.runId -ne $config.runId -or (Get-Sha256 $PSCommandPath) -ne $manifest.launcherSha256){Stop-Launch 'R6_PRODUCTION_LAUNCH_BINDING_INVALID'}
+  if((Test-Path -LiteralPath $config.evidenceRoot) -or (Test-Path -LiteralPath $terminal)){Stop-Launch 'R6_PRODUCTION_LAUNCH_SINGLE_USE_PATH_CONFLICT'}
+  if($ValidateOnly){Write-Json $terminal ([ordered]@{schemaVersion='r6-production-launcher-terminal-result-v1';success=$true;classification='R6_PRODUCTION_LAUNCH_VALIDATE_ONLY_READY';runId=$config.runId;wrapperStarted=$false;wrapperEntryConfirmed=$false;createdAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')});Write-Output 'R6_PRODUCTION_LAUNCH_VALIDATE_ONLY_READY';exit 0}
+  if([Console]::IsInputRedirected -or [Console]::IsOutputRedirected -or $Host.Name -ne 'ConsoleHost'){Stop-Launch 'R6_PRODUCTION_LAUNCH_INTERACTIVE_HOST_REQUIRED'}
+  $confirmation=if($SyntheticConfirmation){$SyntheticConfirmation}else{Read-Host 'Enter the exact approved confirmation phrase' -AsSecureString}
+  if($confirmation -isnot [Security.SecureString]){Stop-Launch 'R6_PRODUCTION_LAUNCH_CONFIRMATION_INVALID'}
+  $ptr=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($confirmation);try{$plain=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr);$actual=(-join([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($plain))|ForEach-Object{$_.ToString('x2')}))}finally{[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr);$plain=$null;$confirmation.Dispose()}
+  if($actual -ne $manifest.confirmationSha256){Stop-Launch 'R6_PRODUCTION_LAUNCH_CONFIRMATION_INVALID'}
+  Stop-Launch 'R6_PRODUCTION_LAUNCH_EXECUTION_REQUIRES_SEPARATE_APPROVAL'
+}catch{if($_.Exception.Message -notmatch '^R6_PRODUCTION_'){Stop-Launch 'R6_PRODUCTION_LAUNCH_UNEXPECTED_FAILURE'};exit 1}
