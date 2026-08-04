@@ -28,6 +28,7 @@ param(
   [string]$FinalExecutionBindingSha256,
   [string]$R6PostEntryTestFailpoint,
   [string]$R6PostEntryTestExistingClassification,
+  [switch]$R6PreCaptureTestStop,
   [string]$EvidenceRoot = 'C:\Users\1\OpenGlassHub-R6-Proof\r6-detached-secure-input-transport'
 )
 
@@ -127,9 +128,33 @@ $script:RunnerEnvironmentNames = @(
   'QA_EXPECTED_TOOLING_COMMIT', 'QA_CANARY_CHILD_TERMINAL_PATH'
 )
 
-function Get-Sha256([string]$Path) {
-  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "R6_REQUIRED_FILE_MISSING:$Path" }
-  return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+function Get-Sha256 {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Path)) { throw 'R6_DETACHED_WRAPPER_HASH_INPUT_PATH_INVALID' }
+  try { $resolvedPath = [IO.Path]::GetFullPath($Path) } catch { throw 'R6_DETACHED_WRAPPER_HASH_INPUT_PATH_INVALID' }
+  if (-not [IO.File]::Exists($resolvedPath)) { throw 'R6_DETACHED_WRAPPER_HASH_INPUT_FILE_NOT_FOUND' }
+
+  $stream = $null
+  $sha256 = $null
+  try {
+    try {
+      $stream = [IO.File]::Open($resolvedPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    } catch { throw 'R6_DETACHED_WRAPPER_HASH_STREAM_OPEN_FAILED' }
+    try {
+      $sha256 = [Security.Cryptography.SHA256]::Create()
+      $hashBytes = $sha256.ComputeHash($stream)
+    } catch { throw 'R6_DETACHED_WRAPPER_HASH_COMPUTATION_FAILED' }
+    $hash = [BitConverter]::ToString($hashBytes).Replace('-', '').ToLowerInvariant()
+    if ($hash -notmatch '^[a-f0-9]{64}$') { throw 'R6_DETACHED_WRAPPER_HASH_RESULT_INVALID' }
+    return $hash
+  } finally {
+    if ($null -ne $sha256) { $sha256.Dispose() }
+    if ($null -ne $stream) { $stream.Dispose() }
+  }
 }
 
 function Set-R6WrapperStage([string]$Stage) {
@@ -158,7 +183,7 @@ function Resolve-R6GitExecutable {
   if ([string]::IsNullOrWhiteSpace($candidate)) { $candidate = [string]$command.Path }
   if ([string]::IsNullOrWhiteSpace($candidate)) { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_PATH_INVALID' }
   try { $candidate = [IO.Path]::GetFullPath($candidate) } catch { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_PATH_INVALID' }
-  if ((Split-Path -Leaf $candidate).ToLowerInvariant() -ne 'git.exe' -or -not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_PATH_INVALID' }
+  if ([IO.Path]::GetFileName($candidate).ToLowerInvariant() -ne 'git.exe' -or -not [IO.File]::Exists($candidate)) { throw 'R6_DETACHED_WRAPPER_GIT_EXECUTABLE_PATH_INVALID' }
   $script:R6GitExePath = $candidate
 }
 
@@ -476,17 +501,18 @@ function Assert-CurrentCanonicalProductionV3Bindings {
 
 function Assert-CurrentCanonicalProductionV3ExecutionWorktree([string]$Worktree) {
   Set-R6WrapperStage 'DETACHED_WORKTREE_VALIDATION'
-  if ([string]::IsNullOrWhiteSpace($Worktree) -or -not (Test-Path -LiteralPath $Worktree -PathType Container)) { throw 'R6_CURRENT_CANONICAL_V3_WORKTREE_MISSING' }
-  $resolved = (Resolve-Path -LiteralPath $Worktree -ErrorAction Stop).Path
+  if ([string]::IsNullOrWhiteSpace($Worktree)) { throw 'R6_CURRENT_CANONICAL_V3_WORKTREE_MISSING' }
+  try { $resolved = [IO.Path]::GetFullPath($Worktree) } catch { throw 'R6_CURRENT_CANONICAL_V3_WORKTREE_MISSING' }
+  if (-not [IO.Directory]::Exists($resolved)) { throw 'R6_CURRENT_CANONICAL_V3_WORKTREE_MISSING' }
   $head = Invoke-GitLines $resolved @('rev-parse', 'HEAD')
   if ($head.Lines.Count -ne 1 -or $head.Lines[0].Trim().ToLowerInvariant() -ne $script:V3FinalCommitBinding) { throw 'R6_CURRENT_CANONICAL_V3_COMMIT_MISMATCH' }
   $symbolic = Invoke-GitLines $resolved @('symbolic-ref', '-q', 'HEAD') -AllowFailure
   if ($symbolic.ExitCode -eq 0) { throw 'R6_CURRENT_CANONICAL_V3_WORKTREE_NOT_DETACHED' }
   $status = Invoke-GitLines $resolved @('status', '--porcelain=v1')
   if ($status.Lines.Count -ne 0) { throw "R6_CURRENT_CANONICAL_V3_WORKTREE_DIRTY:$($status.Lines -join '|')" }
-  $runner = Join-Path $resolved $script:V3RunnerRelativePath
-  $validator = Join-Path $resolved $script:V3TerminalValidatorRelativePath
-  if (-not (Test-Path -LiteralPath $runner -PathType Leaf) -or -not (Test-Path -LiteralPath $validator -PathType Leaf)) { throw 'R6_CURRENT_CANONICAL_V3_RUNTIME_FILE_MISSING' }
+  $runner = [IO.Path]::Combine($resolved, $script:V3RunnerRelativePath)
+  $validator = [IO.Path]::Combine($resolved, $script:V3TerminalValidatorRelativePath)
+  if (-not [IO.File]::Exists($runner) -or -not [IO.File]::Exists($validator)) { throw 'R6_CURRENT_CANONICAL_V3_RUNTIME_FILE_MISSING' }
   Set-R6WrapperStage 'BLOB_AND_RAW_HASH_VALIDATION'
   $relative = $script:V3RunnerRelativePath.Replace('\', '/')
   $blob = Invoke-GitLines $resolved @('rev-parse', "$($script:V3FinalCommitBinding):$relative")
@@ -501,8 +527,21 @@ function Assert-CurrentCanonicalProductionV3EvidenceRoot([string]$Root) {
   if (-not (Test-WindowsFullyQualifiedPath $Root)) { throw 'R6_CURRENT_CANONICAL_V3_EVIDENCE_ROOT_INVALID' }
   $base = [IO.Path]::GetFullPath($script:V3EvidenceRootBase)
   $candidate = [IO.Path]::GetFullPath($Root)
-  if (-not (Test-PathContainedWithin $base $candidate) -or (Test-Path -LiteralPath $candidate)) { throw 'R6_CURRENT_CANONICAL_V3_EVIDENCE_ROOT_UNSAFE' }
+  if (-not (Test-PathContainedWithin $base $candidate) -or [IO.Directory]::Exists($candidate) -or [IO.File]::Exists($candidate)) { throw 'R6_CURRENT_CANONICAL_V3_EVIDENCE_ROOT_UNSAFE' }
   return $candidate
+}
+
+function Invoke-CurrentCanonicalProductionV3PreCaptureTestStop([pscustomobject]$Validation) {
+  Set-R6WrapperStage 'EVIDENCE_ROOT_VALIDATION'
+  $root = Assert-CurrentCanonicalProductionV3EvidenceRoot $EvidenceRoot
+  if ($RunId -notmatch '^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_RUN_ID_INVALID' }
+  [void][IO.Directory]::CreateDirectory($root)
+  Set-R6WrapperStage 'FIXED_BINDING_VALIDATION'
+  Assert-CurrentCanonicalProductionV3Bindings
+  Set-R6WrapperStage 'SECRET_ENVIRONMENT_GUARD'
+  Assert-NoPreexistingSecrets
+  Set-R6WrapperStage 'CAPTURE_COMMAND_PREPARATION'
+  throw 'R6_CURRENT_CANONICAL_V3_PRE_CAPTURE_TEST_STOPPED'
 }
 
 function Test-CurrentCanonicalProductionV3DownstreamRoot([string]$Mode, [string]$Root) {
@@ -1249,11 +1288,11 @@ function Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly([pscus
   Set-R6WrapperStage 'EVIDENCE_ROOT_VALIDATION'
   $root = Assert-CurrentCanonicalProductionV3EvidenceRoot $EvidenceRoot
   if ($RunId -notmatch '^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_RUN_ID_INVALID' }
-  New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
-  $captureTerminalPath = Join-Path $root 'current-canonical-production-v3-metadata-preparation-terminal-result.json'
-  $authRoot = Join-Path $root 'auth-check'; $authTerminalPath = Join-Path $authRoot 'auth-check-only-terminal-result.json'
-  $dryRoot = Join-Path $root 'dry-run'; $dryTerminalPath = Join-Path $dryRoot 'dry-run-only-terminal-result.json'
-  $terminalPath = Join-Path $root 'capture-authcheck-dryrun-orchestration-terminal-result.json'
+  [void][IO.Directory]::CreateDirectory($root)
+  $captureTerminalPath = [IO.Path]::Combine($root, 'current-canonical-production-v3-metadata-preparation-terminal-result.json')
+  $authRoot = [IO.Path]::Combine($root, 'auth-check'); $authTerminalPath = [IO.Path]::Combine($authRoot, 'auth-check-only-terminal-result.json')
+  $dryRoot = [IO.Path]::Combine($root, 'dry-run'); $dryTerminalPath = [IO.Path]::Combine($dryRoot, 'dry-run-only-terminal-result.json')
+  $terminalPath = [IO.Path]::Combine($root, 'capture-authcheck-dryrun-orchestration-terminal-result.json')
   $started = Format-StrictUtcTimestamp (Get-CurrentCanonicalProductionV3UtcNow)
   $state = [ordered]@{ schemaVersion=$null; startedAt=$started; completedAt=$null; executionCommit=$Validation.Head; worktreeContract='current-canonical-production-v3'; runId=$RunId; outerClassification=$null; innerClassification=$null; success=$false; failureStage='oauth_readiness'; captureAuthorizedByMode=$true; captureStarted=$false; captureCompleted=$false; captureSuccess=$false; captureTerminalPath=$null; captureTerminalSha256=$null; captureOuterClassification=$null; captureInnerClassification=$null; captureChildExitCode=1; capturePagesRequestCount=0; attestationPath=$null; attestationSha256=$null; attestationType=$null; attestationIssuedAt=$null; attestationExpiresAt=$null; authFreshnessCheckedAt=$started; authRemainingValidityMs=0; authMinimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; authAttestationFreshnessPassed=$false; authCheckAuthorizedByMode=$true; authCheckStarted=$false; authCheckCompleted=$false; authCheckSuccess=$false; authenticationCompleted=$false; sessionValidated=$false; authenticatedCheckCompleted=$false; authCheckTerminalPath=$null; authCheckTerminalSha256=$null; authCheckOuterClassification=$null; authCheckInnerClassification=$null; authCheckChildExitCode=1; dryRunFreshnessCheckedAt=$started; dryRunRemainingValidityMs=0; dryRunMinimumRequiredValidityMs=$script:MinimumAttestationValidityMilliseconds; dryRunAttestationFreshnessPassed=$false; dryRunAuthorizedByMode=$true; dryRunStarted=$false; dryRunCompleted=$false; dryRunSuccess=$false; dryRunTerminalPath=$null; dryRunTerminalSha256=$null; dryRunOuterClassification=$null; dryRunInnerClassification=$null; dryRunChildExitCode=1; dryRunExecutionCommit=$null; dryRunReceiptRunnerCommit=$null; dryRunExpectedToolingCommit=$null; dryRunPlannedMutationCount=2; dryRunActualMutationCount=0; targetBinding=$null; targetBindingPath=$null; targetBindingSha256=$null; pagesProjectGetCount=0; deploymentGetCount=0; supabaseReadCount=0; supabaseWriteCount=0; productionMutationCount=0; retryCount=0; dryRunReservationAttempted=$false; dryRunReservationCompleted=$false; dryRunReceiptCreated=$false; dryRunReceiptState='NOT_CREATED_OR_UNCONFIRMED'; dryRunExecutorStarted=$false; dryRunCanaryChildStarted=$false; dryRunExecutorCompleted=$false; dryRunExecutorTimedOut=$false; dryRunJournalCreated=$false; dryRunFinalAuthorizationCreated=$false; dryRunUnexpectedMutationCount=0; dryRunSupabaseWriteCount=0 }
   $state['dryRunAuthenticationCompleted'] = $false
@@ -2063,6 +2102,8 @@ function Invoke-PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight([ps
 function Invoke-Main {
   Set-R6WrapperStage 'MODE_RESOLUTION'
   $mode = Get-Mode
+  if ($R6PreCaptureTestStop -and $env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE -ne '1') { throw 'R6_CURRENT_CANONICAL_V3_PRE_CAPTURE_TEST_STOP_LIVE_REJECTED' }
+  if ($R6PreCaptureTestStop -and $mode -ne 'PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly') { throw 'R6_CURRENT_CANONICAL_V3_PRE_CAPTURE_TEST_STOP_MODE_UNSAFE' }
   Set-R6WrapperStage 'GIT_EXECUTABLE_RESOLUTION'
   Resolve-R6GitExecutable
   if ($mode -eq 'PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight') {
@@ -2085,6 +2126,7 @@ function Invoke-Main {
     Set-R6WrapperStage 'DETACHED_WORKTREE_VALIDATION'
     $v3Validation = Assert-CurrentCanonicalProductionV3ExecutionWorktree $ExecutionWorktree
     if ($env:R6_V3_ORCHESTRATION_WRAPPER_TEST_MODE -ne '1' -and -not [string]::IsNullOrWhiteSpace($V3OrchestrationFixtureKind)) { throw 'R6_CURRENT_CANONICAL_V3_DRY_RUN_ORCHESTRATION_TEST_FIXTURE_INVALID' }
+    if ($R6PreCaptureTestStop) { Invoke-CurrentCanonicalProductionV3PreCaptureTestStop $v3Validation }
     Invoke-PrepareCurrentCanonicalProductionV3AuthCheckAndDryRunOnly $v3Validation
     return
   }

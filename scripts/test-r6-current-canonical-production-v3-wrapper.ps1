@@ -11,10 +11,23 @@ $sourceWrapper = Join-Path $PSScriptRoot 'qa\r6-detached-secure-wrapper.ps1'
 $renderer = Join-Path $PSScriptRoot 'qa\render-r6-detached-secure-wrapper.mjs'
 $renderedWrapper = $null
 $fixtureGenerator = Join-Path $PSScriptRoot 'test-r6-current-canonical-production-v3-wrapper-fixtures.mjs'
+$dotNetHashFixture = Join-Path $PSScriptRoot 'test-r6-dotnet-sha256-wrapper.ps1'
 $originalLauncher = 'C:\Users\1\OpenGlassHub-R6-Proof\start-r6y-canary-codex.ps1'
 $expectedLauncherSha = 'ea3ccf119d69a552cf7c945aa872fed4734ce4916095819734e1c1839b727e46'
 
 function Require([bool]$Condition, [string]$Code) { if (-not $Condition) { throw $Code } }
+function Get-TestSha256([string]$Path) {
+  $stream = $null
+  $sha256 = $null
+  try {
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    return [BitConverter]::ToString($sha256.ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
+  } finally {
+    if ($null -ne $sha256) { $sha256.Dispose() }
+    if ($null -ne $stream) { $stream.Dispose() }
+  }
+}
 function Read-WrapperBinding([string]$Name) {
   $line = @((Select-String -LiteralPath $WrapperPath -Pattern ('\$script:' + [regex]::Escape($Name) + "\s*=\s*'([a-f0-9_]+)'") | Select-Object -First 1))
   Require ($line.Count -eq 1) 'R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_BINDING_MISSING'
@@ -62,7 +75,7 @@ function Invoke-AuthCheckFixture([bool]$MismatchAttestationSha = $false, [string
   try {
     New-Item -ItemType Directory -Path $parent -Force | Out-Null
     New-Item -ItemType Directory -Path $attestationRoot -Force | Out-Null
-    $wrapperSha = (Get-FileHash -LiteralPath $WrapperPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $wrapperSha = Get-TestSha256 $WrapperPath
     $fixture = @(& node $fixtureGenerator '--root' $parent '--attestation-root' $attestationRoot '--tooling-commit' $script:V3Commit '--kind' 'authcheck-success' '--wrapper-path' $WrapperPath '--auth-root' $child '--wrapper-sha256' $wrapperSha 2>&1)
     Require ($LASTEXITCODE -eq 0 -and $fixture.Count -eq 1) 'R6_CURRENT_CANONICAL_V3_AUTH_FIXTURE_FAILED'
     $metadata = $fixture[0].ToString() | ConvertFrom-Json
@@ -275,7 +288,7 @@ try {
   $script:V3Raw = Read-WrapperBinding 'V3RuntimeRawSha256Binding'
   $script:V3Blob = Read-WrapperBinding 'V3GitBlobBinding'
   Require ($script:V3Commit -match '^[a-f0-9]{40}$' -and $script:V3Raw -match '^[a-f0-9]{64}$' -and $script:V3Blob -match '^[a-f0-9]{40}$') 'R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_UNBOUND'
-  Require ((Get-FileHash -LiteralPath $originalLauncher -Algorithm SHA256).Hash.ToLowerInvariant() -eq $expectedLauncherSha) 'R6_CURRENT_CANONICAL_V3_ORIGINAL_LAUNCHER_MUTATED'
+  Require ((Get-TestSha256 $originalLauncher) -eq $expectedLauncherSha) 'R6_CURRENT_CANONICAL_V3_ORIGINAL_LAUNCHER_MUTATED'
   Invoke-Fixture 'success' 'R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_SUCCESS'
   Invoke-Fixture 'target' 'R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_TARGET_MISMATCH'
   Invoke-Fixture 'source' 'R6_CURRENT_CANONICAL_PRODUCTION_SOURCE_COMMIT_MISMATCH'
@@ -310,6 +323,9 @@ try {
   Require ($wrapperText -match "'--command-output-mode','wrapper-buffered','--account-input-mode','wrapper-stdin'" -and $wrapperText -match 'Invoke-CurrentCanonicalProductionV3OAuthPreflight \$Validation' -and $wrapperText -match 'Invoke-CurrentCanonicalProductionV3RunnerWithHiddenAccountInput \$entrypoint \$arguments' -and $wrapperText -match 'Read-Host ''Cloudflare account ID \(hidden\)'' -AsSecureString' -and $wrapperText -match 'RedirectStandardInput = \$true' -and $wrapperText -notmatch '\$childOutput = @\(& node \$entrypoint' -and $wrapperText -match 'PrepareCurrentCanonicalProductionV3AndAuthCheckOnly' -and $wrapperText -match '\$null = Invoke-CurrentCanonicalProductionV3AuthCheckOnly') 'R6_CURRENT_CANONICAL_V3_CAPTURE_INPUT_TRANSPORT_REGRESSION'
   Require ($captureRunnerText -match 'R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_OPERATION' -and $captureRunnerText -match 'readWrapperProvidedCloudflareAccountId' -and $captureRunnerText -match 'values\.get\("--account-input-mode"\) !== "wrapper-stdin"' -and $captureRunnerText -match 'argv\.length === 2' -and $captureRunnerText -match 'R6_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_READY') 'R6_CURRENT_CANONICAL_V3_CAPTURE_TTY_OUTPUT_MODE_REGRESSION'
   Require ($wrapperText -match 'foreach \(\$key in \$parsed\.Keys\) \{ \$properties\[\[string\]\$key\] = \$parsed\[\$key\] \}' -and $wrapperText -match 'return \[pscustomobject\]\$properties') 'R6_CURRENT_CANONICAL_V3_PS51_JSON_NORMALIZATION_REGRESSION'
+  Require (Test-Path -LiteralPath $dotNetHashFixture -PathType Leaf) 'R6_DOTNET_SHA256_FIXTURE_MISSING'
+  $hashFixtureOutput = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $dotNetHashFixture -ExecutionWorktree $ExecutionWorktree -WrapperPath $renderedWrapper 2>&1)
+  Require ($LASTEXITCODE -eq 0 -and $hashFixtureOutput.Count -eq 1 -and $hashFixtureOutput[0].ToString().Trim() -eq 'R6_DOTNET_SHA256_WRAPPER_FIXTURE_OK') 'R6_DOTNET_SHA256_FIXTURE_FAILED'
   Write-Output 'R6_CURRENT_CANONICAL_V3_WRAPPER_OK PowerShell-5.1 JSON normalization, OAuth-first hidden-account stdin transport, local fixtures, safe failures, impossible states, fingerprint guards, and R2-mode isolation passed with zero network'
 } finally {
   Remove-Item Env:R6_CURRENT_CANONICAL_V3_WRAPPER_TEST_MODE -ErrorAction SilentlyContinue
