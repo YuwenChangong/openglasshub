@@ -23,8 +23,11 @@ Require ($source -match 'function Assert-FinalParentDryRunAuthorization') 'R6_FI
 Require ($source -match 'R6_FINAL_LOCAL_BINDING_REQUIRED') 'R6_FINAL_WRAPPER_MISSING_BINDING_FAIL_CLOSED_MISSING'
 Require ($source -match '\$mode -eq ''ExecuteApprovedPhase'' -and \$null -ne \$script:FinalExecutionBinding') 'R6_FINAL_WRAPPER_FINAL_PROFILE_SELECTION_MISSING'
 Require ($source -match '\$validation = Assert-ExecutionWorktree \$ExecutionWorktree \$RunId') 'R6_FINAL_WRAPPER_LEGACY_PROFILE_REGRESSION_MISSING'
-foreach ($relative in @('prepare-r6-final-execution-binding.mjs', 'r6-final-execution-binding-issuer.mjs', 'r6-final-execution-binding.mjs', 'r6-final-execution-binding-reissue.mjs', 'validate-r6-final-execution-binding.mjs', 'validate-r6-final-parent-dryrun-same-commit.mjs', 'r6-production-package-contract.mjs')) {
+foreach ($relative in @('prepare-r6-final-execution-binding.mjs', 'r6-final-execution-binding-issuer.mjs', 'r6-final-execution-binding.mjs', 'r6-final-execution-binding-reissue.mjs', 'validate-r6-final-execution-binding.mjs', 'validate-r6-final-parent-dryrun-same-commit.mjs', 'r6-production-package-contract.mjs', 'validate-legal-local-nonproduction-target.mjs', 'validate-legal-local-rebuild-restore-evidence.mjs', 'validate-legal-local-migration-replay-contract.mjs')) {
   Require ($source -match [regex]::Escape("scripts\qa\$relative")) "R6_FINAL_WRAPPER_REVIEWED_BINDING_BLOB_MISSING:$relative"
+}
+foreach ($relative in @('scripts\lib\legal-nonproduction-target-binding.mjs', 'scripts\test-legal-consent-predeployment-readiness.mjs')) {
+  Require ($source -match [regex]::Escape($relative)) "R6_FINAL_WRAPPER_REVIEWED_BINDING_BLOB_MISSING:$relative"
 }
 $finalFunction = [regex]::Match($source, 'function Invoke-PrepareCurrentCanonicalProductionV3FinalExecuteAndPostflight[\s\S]*?\nfunction Invoke-Main')
 Require ($finalFunction.Success -and $finalFunction.Value -notmatch '\$script:ExpectedExecutionWorktree|\$script:ExpectedRunnerCommit') 'R6_FINAL_WRAPPER_FINAL_MODE_LEGACY_WORKTREE_LEAK'

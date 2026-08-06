@@ -97,6 +97,11 @@ $script:ReviewedHashes = [ordered]@{
   'scripts\qa\validate-r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\qa\validate-r6-final-parent-dryrun-same-commit.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\qa\r6-production-package-contract.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\lib\legal-nonproduction-target-binding.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\validate-legal-local-nonproduction-target.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\validate-legal-local-rebuild-restore-evidence.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\validate-legal-local-migration-replay-contract.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\test-legal-consent-predeployment-readiness.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
 }
 $script:ReviewedGitBlobHashes = [ordered]@{
   'scripts\qa\run-production-minimal-canary.mjs' = '76eca9a24dcfae34983500ddcce01b37dfd868f3'
@@ -130,6 +135,11 @@ $script:ReviewedGitBlobHashes = [ordered]@{
   'scripts\qa\validate-r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000'
   'scripts\qa\validate-r6-final-parent-dryrun-same-commit.mjs' = '0000000000000000000000000000000000000000'
   'scripts\qa\r6-production-package-contract.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\lib\legal-nonproduction-target-binding.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\validate-legal-local-nonproduction-target.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\validate-legal-local-rebuild-restore-evidence.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\validate-legal-local-migration-replay-contract.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\test-legal-consent-predeployment-readiness.mjs' = '0000000000000000000000000000000000000000'
 }
 $script:SecretEnvironmentNames = @('QA_CANARY_ACCESS_TOKEN', 'QA_CANARY_SUPABASE_ANON_KEY')
 $script:RunnerEnvironmentNames = @(
