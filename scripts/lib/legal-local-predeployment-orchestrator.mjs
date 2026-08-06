@@ -9,9 +9,10 @@ import { evaluateLegalPredeploymentReadiness } from "./legal-predeployment-readi
 import { cleanupLegalLocalResources } from "./legal-local-resource-cleanup.mjs";
 import { runLegalLocalSmoke } from "./legal-local-smoke-runner.mjs";
 import { sha256, writeCanonicalEvidence } from "./legal-local-replay-evidence.mjs";
+import { createLegalLocalExecutionApproval } from "./legal-local-execution-approval.mjs";
+import { consumeLegalLocalExecuteTask } from "./legal-local-task-consumption-registry.mjs";
 
 export const LEGAL_LOCAL_ORCHESTRATOR_SCHEMA = "legal-local-predeployment-orchestrator-v1";
-export const LEGAL_LOCAL_EXECUTION_APPROVAL = "APPROVE_R6_LOCAL_PREDEPLOYMENT_REPLAY_EXECUTE";
 const TASK_ID = /^r6-local-predeployment-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 
@@ -33,11 +34,15 @@ export async function resolveLegalMigrationInventory({ repositoryRoot }) {
   return Object.freeze({ schemaVersion: "legal-local-migration-inventory-v1", migrationCount: entries.length, entries, inventorySha256: sha256(JSON.stringify(entries)) });
 }
 
-export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", taskId, taskRoot, confirmation, confirmationSha256, implementationCommit, repositoryRoot, adapter, now = () => new Date().toISOString() }) {
+export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", taskId, taskRoot, confirmation, confirmationSha256, implementationCommit, repositoryRoot, adapter, consumptionRegistryRoot, now = () => new Date().toISOString() }) {
   const inventory = await resolveLegalMigrationInventory({ repositoryRoot });
-  if (mode === "PREFLIGHT") return Object.freeze({ schemaVersion: LEGAL_LOCAL_ORCHESTRATOR_SCHEMA, classification: "R6_LOCAL_NONPRODUCTION_PREFLIGHT_READY", executionAuthorized: false, inventory });
-  if (mode !== "EXECUTE" || !adapter || !taskRoot || !TASK_ID.test(String(taskId ?? "")) || !/^[a-f0-9]{40}$/.test(String(implementationCommit ?? ""))) fail("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED");
-  if (confirmation !== LEGAL_LOCAL_EXECUTION_APPROVAL || sha256(confirmation) !== confirmationSha256) fail("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED");
+  if (!TASK_ID.test(String(taskId ?? "")) || !/^[a-f0-9]{40}$/.test(String(implementationCommit ?? ""))) fail("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED");
+  const approvalContract = createLegalLocalExecutionApproval({ implementationCommit, taskId, migrationInventorySha256: inventory.inventorySha256, issuedAt: now() });
+  if (mode === "PREFLIGHT") return Object.freeze({ schemaVersion: LEGAL_LOCAL_ORCHESTRATOR_SCHEMA, classification: "R6_LOCAL_NONPRODUCTION_PREFLIGHT_READY", executionAuthorized: false, inventory, approvalContract });
+  if (mode !== "EXECUTE" || !adapter || !taskRoot || !consumptionRegistryRoot) fail("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED");
+  await consumeLegalLocalExecuteTask({ registryRoot: consumptionRegistryRoot, approvalContract, now });
+  if (confirmation !== approvalContract.requiredConfirmationPhrase) throw Object.assign(new Error("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED"), { code: "R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED", innerClassification: "LEGAL_LOCAL_EXECUTION_CONFIRMATION_MISMATCH" });
+  if (confirmationSha256 !== approvalContract.requiredConfirmationSha256) throw Object.assign(new Error("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED"), { code: "R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED", innerClassification: "LEGAL_LOCAL_EXECUTION_CONFIRMATION_SHA_MISMATCH" });
   const task = taskNames(taskId);
   const resolvedTaskRoot = path.resolve(taskRoot);
   const evidenceRoot = path.join(resolvedTaskRoot, "evidence");

@@ -6,9 +6,10 @@ const argument = (name) => { const index = process.argv.indexOf(name); return in
 const mode = argument("--mode") ?? "PREFLIGHT";
 const root = process.cwd();
 const implementationCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
-if (mode === "PREFLIGHT") {
-  process.stdout.write(`${JSON.stringify(await runLegalLocalPredeploymentReplay({ mode, repositoryRoot: root, implementationCommit }))}\n`);
-} else {
-  const result = await runLegalLocalPredeploymentReplay({ mode, taskId: argument("--task-id"), taskRoot: argument("--task-root"), confirmation: argument("--confirmation"), confirmationSha256: argument("--confirmation-sha256"), implementationCommit, repositoryRoot: root, adapter: createLegalLocalDockerAdapter({ repositoryRoot: root }) });
+try {
+  const result = await runLegalLocalPredeploymentReplay({ mode, taskId: argument("--task-id"), taskRoot: argument("--task-root"), confirmation: argument("--confirmation"), confirmationSha256: argument("--confirmation-sha256"), consumptionRegistryRoot: argument("--consumption-registry-root"), implementationCommit, repositoryRoot: root, adapter: mode === "EXECUTE" ? createLegalLocalDockerAdapter({ repositoryRoot: root }) : undefined });
   process.stdout.write(`${JSON.stringify(result)}\n`);
+} catch (error) {
+  process.stdout.write(`${JSON.stringify({ classification: error.code ?? "R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED", innerClassification: error.innerClassification ?? null })}\n`);
+  process.exitCode = 1;
 }

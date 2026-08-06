@@ -43,6 +43,7 @@
     "test:legal-local-rebuild-restore": "node scripts/test-legal-local-rebuild-restore-evidence.mjs",
     "test:legal-local-migration-replay": "node scripts/test-legal-local-migration-replay-contract.mjs",
     "test:legal-local-predeployment-orchestrator": "node scripts/test-legal-local-predeployment-orchestrator.mjs",
+    "test:legal-local-execution-approval": "node scripts/test-legal-local-execution-approval.mjs",
     "test:legal-local-docker-adapter-integration": "node scripts/test-legal-local-docker-adapter-integration.mjs",
     "test:legal-local-replay-evidence": "node scripts/test-legal-local-replay-evidence.mjs",
     "test:legal-local-smoke-runner": "node scripts/test-legal-local-smoke-runner.mjs",
