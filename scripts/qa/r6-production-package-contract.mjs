@@ -15,10 +15,10 @@ const requiredHash = (value, code) => { if (!HASH.test(String(value))) fail(code
 const exact = (value, keys, code) => { if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== keys.length || keys.some((key) => !(key in value))) fail(code); };
 function hasSensitiveKey(value) {
   if (!value || typeof value !== "object") return false;
-  return Object.entries(value).some(([key, nested]) => /(?:password|token|secret|anon|session|slug)/i.test(key) || hasSensitiveKey(nested));
+  return Object.entries(value).some(([key, nested]) => (/(?:password|token|secret|anon|session|slug)/i.test(key) && !["atomicSessionId", "oauthAtomicSessionId"].includes(key)) || hasSensitiveKey(nested));
 }
 
-const sourceKeys = ["manifestSchema", "manifestPath", "manifestSha256", "sourceManifest", "runId", "executionCommit", "evidenceRoot", "receiptPath", "receiptSha256", "authenticatedResultPath", "authenticatedResultSha256", "dryRunTerminalPath", "dryRunTerminalSha256", "orchestrationTerminalPath", "orchestrationTerminalSha256", "targetBindingPath", "targetBindingSha256", "sourcePlanSchema", "sourcePlanSha256", "sameCommitBinding"];
+const sourceKeys = ["manifestSchema", "manifestPath", "manifestSha256", "sourceManifest", "oauthReadinessAttestation", "oauthReadinessAttestationPath", "oauthReadinessAttestationSha256", "runId", "executionCommit", "evidenceRoot", "receiptPath", "receiptSha256", "authenticatedResultPath", "authenticatedResultSha256", "dryRunTerminalPath", "dryRunTerminalSha256", "orchestrationTerminalPath", "orchestrationTerminalSha256", "targetBindingPath", "targetBindingSha256", "sourcePlanSchema", "sourcePlanSha256", "sameCommitBinding"];
 
 export function createProductionManifest(input) {
   const plan = getMinimalCanaryMutationPlan();
@@ -38,10 +38,10 @@ export function validateProductionManifest(value) {
   const source = value.source;
   exact(source, sourceKeys, "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
   if (source.manifestSchema !== "r6-fresh-dryrun-launcher-binding-v3" || !RUN_ID.test(String(source.runId)) || source.executionCommit !== value.executionCommit || source.sourcePlanSchema !== plan.schemaVersion || source.sourcePlanSha256 !== plan.planSha256 || source.sameCommitBinding !== true || hasSensitiveKey(source)) fail("R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
-  try { validateDryRunProductionSourceEligibility({ manifest: source.sourceManifest, executionCommit: value.executionCommit, registryBinding: source.sourceManifest?.registryBinding }); } catch { fail("R6_PRODUCTION_MANIFEST_SOURCE_INVALID"); }
+  try { validateDryRunProductionSourceEligibility({ manifest: source.sourceManifest, executionCommit: value.executionCommit, registryBinding: source.sourceManifest?.registryBinding, oauthReadinessAttestation: source.oauthReadinessAttestation, oauthReadinessAttestationPath: source.oauthReadinessAttestationPath, oauthReadinessAttestationSha256: source.oauthReadinessAttestationSha256 }); } catch { fail("R6_PRODUCTION_MANIFEST_SOURCE_INVALID"); }
   if (source.sourceManifest.runId !== source.runId || source.sourceManifest.evidenceRoot !== source.evidenceRoot || source.sourceManifest.receiptPath !== source.receiptPath || source.sourceManifest.authCheckTerminalPath !== source.authenticatedResultPath || source.sourceManifest.dryRunTerminalPath !== source.dryRunTerminalPath || source.sourceManifest.orchestrationTerminalPath !== source.orchestrationTerminalPath || source.sourceManifest.targetBindingPath !== source.targetBindingPath) fail("R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
-  for (const key of ["manifestPath", "evidenceRoot", "receiptPath", "authenticatedResultPath", "dryRunTerminalPath", "orchestrationTerminalPath", "targetBindingPath"]) requiredText(source[key], "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
-  for (const key of ["manifestSha256", "receiptSha256", "authenticatedResultSha256", "dryRunTerminalSha256", "orchestrationTerminalSha256", "targetBindingSha256", "sourcePlanSha256"]) requiredHash(source[key], "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
+  for (const key of ["manifestPath", "evidenceRoot", "receiptPath", "authenticatedResultPath", "dryRunTerminalPath", "orchestrationTerminalPath", "targetBindingPath", "oauthReadinessAttestationPath"]) requiredText(source[key], "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
+  for (const key of ["manifestSha256", "receiptSha256", "authenticatedResultSha256", "dryRunTerminalSha256", "orchestrationTerminalSha256", "targetBindingSha256", "sourcePlanSha256", "oauthReadinessAttestationSha256"]) requiredHash(source[key], "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
   return Object.freeze(value);
 }
 

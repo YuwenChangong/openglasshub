@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { validateOperatorLaunchTerminal } from "./qa/validate-r6-v3-operator-launch-terminal.mjs";
 import { validateDryRunSourceManifest } from "./qa/r6-dryrun-source-chain-contract.mjs";
+import { createOAuthReadinessAttestation, writeOAuthReadinessAttestation } from "./qa/r6-oauth-readiness-attestation.mjs";
 
 const root = await mkdtemp(path.join(os.tmpdir(), "r6-operator-launcher-"));
 const repo = path.resolve(".");
@@ -43,8 +44,11 @@ async function issueCase(name, wrapperKind = "success") {
   const wrapperSha256 = createHash("sha256").update(await readFile(wrapper)).digest("hex");
   const id = runId(name.replace(/[^a-f]/g, "a").slice(0, 12));
   const registryRoot = path.join(caseRoot, "registry");
-  await writeFile(config, JSON.stringify({ runId: id, operatorRoot, evidenceRoot: path.join(caseRoot, "evidence"), executionWorktree: caseRoot, executionCommit: "a".repeat(40), branch: "feature/r6-current-canonical-production-identity-v1", wrapperPath: wrapper, wrapperSha256, wranglerVersion: "4.106.0", wranglerEntrySha256: "b".repeat(64), registryRoot, confirmationSha256, oauthAttestation: { operation: "VALIDATE_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PROFILE", classification: "R6_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_READY", issuedAt: "2099-01-01T00:00:00.000Z" }, __testNow: "2099-01-01T00:00:30.000Z", atomicOAuth: true }), "utf8");
-  execFileSync(process.execPath, ["scripts/qa/issue-r6-v3-operator-dryrun-package.mjs", "--config", config, "--launcher", launcher, "--manifest", manifest], { cwd: repo, stdio: "pipe" });
+  const nonce = "a".repeat(64); const session = "11111111-1111-4111-8111-111111111111"; const start = "2099-01-01T00:00:00.000Z"; const readinessPath = path.join(caseRoot, "readiness.json");
+  const readiness = createOAuthReadinessAttestation({ profile: { profilePath: path.join(caseRoot, "profile.toml"), profileFileSha256: "c".repeat(64), token: "safe", hasRefreshCapability: true }, executionCommit: "a".repeat(40), branch: "feature/r6-current-canonical-production-identity-v1", wrapperSha256, wranglerVersion: "4.106.0", wranglerEntrySha256: "b".repeat(64), atomicSessionId: session, parentPowerShellPid: 42, parentPowerShellStartTime: start, handoffNonce: nonce, now: () => new Date(start) });
+  const envelope = await writeOAuthReadinessAttestation({ attestation: readiness, attestationPath: readinessPath });
+  await writeFile(config, JSON.stringify({ runId: id, operatorRoot, evidenceRoot: path.join(caseRoot, "evidence"), executionWorktree: caseRoot, executionCommit: "a".repeat(40), branch: "feature/r6-current-canonical-production-identity-v1", wrapperPath: wrapper, wrapperSha256, wranglerVersion: "4.106.0", wranglerEntrySha256: "b".repeat(64), registryRoot, confirmationSha256, attestationPath: readinessPath, attestationRoot: caseRoot, expectedAttestationSha256: envelope.attestationSha256, atomicSessionId: session, parentPowerShellPid: 42, parentPowerShellStartTime: start, __testNow: "2099-01-01T00:00:30.000Z" }), "utf8");
+  execFileSync(process.execPath, ["scripts/qa/issue-r6-v3-operator-dryrun-package.mjs", "--config", config, "--launcher", launcher, "--manifest", manifest, "--handoff-nonce-stdin"], { cwd: repo, stdio: "pipe", input: `${nonce}\n` });
   return { caseRoot, operatorRoot, wrapper, launcher, manifest };
 }
 

@@ -8,6 +8,7 @@ import { allocateProjectUnreservedDryRunId, createProjectPhaseState, createProje
 import { validateDeploymentAttestation } from "./production-deployment-attestation.mjs";
 import { assertOfflineOAuthProfileReady, validateOfflineWranglerOAuthProfile } from "./cloudflare-pages-oauth-profile-readiness.mjs";
 import { resolvePagesAccountId } from "./cloudflare-pages-account-resolver.mjs";
+import { createOAuthReadinessAttestation, writeOAuthReadinessAttestation } from "./r6-oauth-readiness-attestation.mjs";
 
 export const R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OPERATION = "PREPARE_CURRENT_CANONICAL_PRODUCTION_V3_AUTH_DRY_RUN_ATTESTATION";
 export const R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_OPERATION = "VALIDATE_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PROFILE";
@@ -146,6 +147,37 @@ export async function validateCurrentCanonicalProductionV3OAuthPreflight({ oauth
   catch (error) { fail("R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_NOT_READY", error?.code ?? null); }
   finally { if (auth) auth.token = null; }
   return R6_PAGES_CURRENT_CANONICAL_PRODUCTION_V3_OAUTH_PREFLIGHT_SUCCESS;
+}
+
+/** Emits a value-blind, canonical readiness artifact before local credential material is cleared. */
+export async function issueCurrentCanonicalProductionV3OAuthReadinessAttestation({ attestationPath, attestationRoot, executionCommit, branch, wrapperSha256, wranglerVersion, wranglerEntrySha256, atomicSessionId, parentPowerShellPid, parentPowerShellStartTime, handoffNonce, oauthProfileValidator = validateOfflineWranglerOAuthProfile, now = () => new Date() } = {}) {
+  let profile = null;
+  let artifactWritten = false;
+  const clearProfile = () => {
+    if (!profile) return;
+    profile.token = null;
+    profile.profilePath = null;
+    profile.profileFileSha256 = null;
+  };
+  try {
+    profile = await oauthProfileValidator();
+    assertOfflineOAuthProfileReady(profile);
+    const attestation = createOAuthReadinessAttestation({ profile, executionCommit, branch, wrapperSha256, wranglerVersion, wranglerEntrySha256, atomicSessionId, parentPowerShellPid, parentPowerShellStartTime, handoffNonce, now });
+    const envelope = await writeOAuthReadinessAttestation({ attestation, attestationPath, attestationRoot });
+    artifactWritten = true;
+    try { clearProfile(); }
+    catch { await rm(attestationPath, { force:true }); fail("R6_OAUTH_READINESS_ATTESTATION_CLEANUP_FAILED"); }
+    artifactWritten = false;
+    return envelope;
+  } finally {
+    if (profile) {
+      try { clearProfile(); }
+      catch {
+        if (artifactWritten) await rm(attestationPath, { force:true });
+        fail("R6_OAUTH_READINESS_ATTESTATION_CLEANUP_FAILED");
+      }
+    }
+  }
 }
 export async function runCurrentCanonicalProductionV3MetadataPreparationCli(argv = process.argv.slice(2), { oauthProfileValidator = validateOfflineWranglerOAuthProfile, accountResolver = resolvePagesAccountId, secureInput = readWrapperProvidedCloudflareAccountId, prepare = prepareCurrentCanonicalProductionV3AuthDryRunAttestation, phaseState = createProjectPhaseState() } = {}) {
   const values = parseFlags(argv); const state = phaseState; let auth = null; let account = null; const evidenceRoot = requiredFlag(values, "--evidence-root"); const terminalResultPath = requiredFlag(values, "--terminal-result-path");

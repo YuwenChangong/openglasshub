@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { lstat, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -109,5 +110,5 @@ export async function validateOfflineWranglerOAuthProfile({
   const expiresAt = parseWranglerExpiryUtc(expiry);
   const profile = { token, expiresAt: new Date(expiresAt).toISOString(), hasRefreshCapability: optionalRefreshCapability(text), profilePath: paths.oauthProfile };
   const remainingValidityMilliseconds = assertOfflineOAuthProfileReady(profile, { now });
-  return { classification: "R6_OAUTH_PROFILE_READY_OFFLINE", ...profile, remainingValidityMilliseconds };
+  return { classification: "R6_OAUTH_PROFILE_READY_OFFLINE", ...profile, profileFileSha256: createHash("sha256").update(text, "utf8").digest("hex"), remainingValidityMilliseconds };
 }

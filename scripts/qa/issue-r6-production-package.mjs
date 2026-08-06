@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createProductionAuthorization, createProductionManifest, sha256 } from "./r6-production-package-contract.mjs";
 import { getMinimalCanaryMutationPlan } from "./r6-final-canary-execution-contract.mjs";
 import { validateCanonicalCanaryTargetBinding } from "./canonical-canary-target-binding.mjs";
+import { validateOAuthReadinessAttestation } from "./r6-oauth-readiness-attestation.mjs";
 
 const args = process.argv.slice(2);
 if (args.length !== 8 || args[0] !== "--config" || args[2] !== "--launcher" || args[4] !== "--manifest" || args[6] !== "--authorization") throw new Error("R6_PRODUCTION_PACKAGE_ISSUE_INPUT_INVALID");
@@ -25,15 +26,18 @@ async function validateExecutedDryRunSource(source, executionCommit) {
   const manifest = await readBoundJson(source.manifestPath, source.manifestSha256, "R6_PRODUCTION_PACKAGE_SOURCE_MANIFEST_INVALID");
   const expectedPaths = ["evidenceRoot", "receiptPath", "authCheckTerminalPath", "dryRunTerminalPath", "orchestrationTerminalPath", "targetBindingPath"];
   if (manifest.schemaVersion !== "r6-fresh-dryrun-launcher-binding-v3" || manifest.runId !== source.runId || manifest.executionCommit !== executionCommit || manifest.evidenceRoot !== source.evidenceRoot || expectedPaths.some((key) => typeof manifest[key] !== "string")) throw new Error("R6_PRODUCTION_PACKAGE_SOURCE_MANIFEST_INVALID");
-  const [receipt, authenticated, dryRun, orchestration, targetBinding] = await Promise.all([
+  const [receipt, authenticated, dryRun, orchestration, targetBinding, oauthAttestation] = await Promise.all([
     readBoundJson(source.receiptPath, source.receiptSha256, "R6_PRODUCTION_PACKAGE_SOURCE_RECEIPT_INVALID"),
     readBoundJson(source.authenticatedResultPath, source.authenticatedResultSha256, "R6_PRODUCTION_PACKAGE_SOURCE_AUTH_INVALID"),
     readBoundJson(source.dryRunTerminalPath, source.dryRunTerminalSha256, "R6_PRODUCTION_PACKAGE_SOURCE_DRY_RUN_INVALID"),
     readBoundJson(source.orchestrationTerminalPath, source.orchestrationTerminalSha256, "R6_PRODUCTION_PACKAGE_SOURCE_ORCHESTRATION_INVALID"),
     readBoundJson(source.targetBindingPath, source.targetBindingSha256, "R6_PRODUCTION_PACKAGE_SOURCE_TARGET_INVALID"),
+    readBoundJson(source.oauthReadinessAttestationPath, source.oauthReadinessAttestationSha256, "R6_PRODUCTION_PACKAGE_SOURCE_OAUTH_ATTESTATION_INVALID"),
   ]);
   if (receipt.state !== "CONSUMED" || receipt.runId !== source.runId || receipt.runnerCommit !== executionCommit || authenticated.success !== true || dryRun.success !== true || orchestration.success !== true || dryRun.runId !== source.runId || orchestration.runId !== source.runId || dryRun.actualMutationCount !== 0 || dryRun.supabaseWriteCount !== 0 || dryRun.productionMutationCount !== 0 || dryRun.retryCount !== 0) throw new Error("R6_PRODUCTION_PACKAGE_SOURCE_EXECUTION_INVALID");
   validateCanonicalCanaryTargetBinding(targetBinding, { baseMutationPlanSchema: plan.schemaVersion, baseMutationPlanHash: plan.planSha256, executionCommit, toolingCommit: executionCommit });
+  try { validateOAuthReadinessAttestation(oauthAttestation); } catch { throw new Error("R6_PRODUCTION_PACKAGE_SOURCE_OAUTH_ATTESTATION_INVALID"); }
+  if (manifest.oauthReadinessAttestationPath !== source.oauthReadinessAttestationPath || manifest.oauthReadinessAttestationSha256 !== source.oauthReadinessAttestationSha256 || manifest.oauthReadinessAttestationSchema !== oauthAttestation.schemaVersion || manifest.oauthAttestationId !== oauthAttestation.attestationId || manifest.oauthAtomicSessionId !== oauthAttestation.atomicSessionId || manifest.oauthAttestationIssuedAt !== oauthAttestation.issuedAt || oauthAttestation.executionCommit !== executionCommit || oauthAttestation.branch !== manifest.branch || oauthAttestation.wrapperSha256 !== manifest.wrapperSha256 || oauthAttestation.wranglerVersion !== manifest.wranglerVersion || oauthAttestation.wranglerEntrySha256 !== manifest.wranglerEntrySha256) throw new Error("R6_PRODUCTION_PACKAGE_SOURCE_OAUTH_ATTESTATION_INVALID");
   if (source.sourcePlanSchema !== plan.schemaVersion || source.sourcePlanSha256 !== plan.planSha256 || source.sameCommitBinding !== true) throw new Error("R6_PRODUCTION_PACKAGE_SOURCE_BINDING_INVALID");
 }
 
