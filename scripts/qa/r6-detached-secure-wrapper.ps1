@@ -95,6 +95,7 @@ $script:ReviewedHashes = [ordered]@{
   'scripts\qa\r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\qa\r6-final-execution-binding-reissue.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\qa\validate-r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\validate-r6-final-parent-dryrun-same-commit.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\qa\r6-production-package-contract.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
 }
 $script:ReviewedGitBlobHashes = [ordered]@{
@@ -127,6 +128,7 @@ $script:ReviewedGitBlobHashes = [ordered]@{
   'scripts\qa\r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000'
   'scripts\qa\r6-final-execution-binding-reissue.mjs' = '0000000000000000000000000000000000000000'
   'scripts\qa\validate-r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\validate-r6-final-parent-dryrun-same-commit.mjs' = '0000000000000000000000000000000000000000'
   'scripts\qa\r6-production-package-contract.mjs' = '0000000000000000000000000000000000000000'
 }
 $script:SecretEnvironmentNames = @('QA_CANARY_ACCESS_TOKEN', 'QA_CANARY_SUPABASE_ANON_KEY')

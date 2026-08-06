@@ -54,7 +54,8 @@ export async function validateProductionPackageReviewEligibility({ source, execu
     const authorization = await readAndValidateFinalAuthorization(source.finalAuthorizationPath, { executionCommit, toolingCommit: executionCommit, expectedDryRunRunId: source.runId });
     const binding = await readFinalExecutionBindingForReview({ operatorRoot: source.sourceManifest.operatorRoot, expectedExecutionCommit: executionCommit, expectedParentAuthorizationPath: source.finalAuthorizationPath, expectedParentAuthorizationSha256: source.finalAuthorizationSha256 });
     if (authorization.dryRunReceiptPath !== source.receiptPath || authorization.dryRunTerminalPath !== source.dryRunTerminalPath || authorization.dryRunOrchestrationTerminalPath !== source.orchestrationTerminalPath || binding.binding.parentReceiptPath !== source.receiptPath || binding.binding.parentDryRunRunId !== source.runId || binding.binding.planSha256 !== source.sourcePlanSha256) fail("R6_PRODUCTION_PACKAGE_REVIEW_INELIGIBLE");
-    return Object.freeze({ classification: "R6_PRODUCTION_PACKAGE_REVIEW_ELIGIBILITY_READY", bindingSelection: binding.selection, bindingPath: binding.bindingPath, bindingSha256: binding.bindingSha256 });
+    if (binding.parentSameCommitClassification !== "R6_FINAL_PARENT_DRYRUN_SAME_COMMIT_BINDING_READY") fail("R6_PRODUCTION_PACKAGE_REVIEW_INELIGIBLE");
+    return Object.freeze({ classification: "R6_PRODUCTION_PACKAGE_REVIEW_ELIGIBILITY_READY", bindingSelection: binding.selection, bindingPath: binding.bindingPath, bindingSha256: binding.bindingSha256, parentSameCommitClassification: binding.parentSameCommitClassification });
   } catch (error) {
     if (error?.code) throw error;
     fail("R6_PRODUCTION_PACKAGE_REVIEW_INELIGIBLE");

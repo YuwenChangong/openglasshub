@@ -1,13 +1,23 @@
+import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createFinalExecutionBindingPayload, writeCanonicalJsonAtomically } from "./r6-final-execution-binding-issuer.mjs";
-import { REISSUE_TERMINAL_VERSION, inspectKnownInvalidPrimary, validateReissueTerminal } from "./r6-final-execution-binding-reissue.mjs";
+import { readAndValidateFinalExecutionBinding } from "./r6-final-execution-binding.mjs";
+import { REISSUE_READY_CLASSIFICATION, REISSUE_TERMINAL_VERSION, inspectKnownInvalidPrimary, validateParentSameCommitBinding, validateReissueTerminal } from "./r6-final-execution-binding-reissue.mjs";
 
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 const values = new Map();
 for (let index = 2; index < process.argv.length; index += 2) values.set(process.argv[index], process.argv[index + 1]);
 for (const key of ["--worktree", "--wrapper", "--operator-root", "--parent-authorization", "--parent-authorization-sha256", "--parent-receipt", "--primary-binding-sha256"]) if (!values.get(key)) fail("R6_FINAL_EXECUTION_BINDING_REISSUE_INPUT_INVALID");
-const initial = await inspectKnownInvalidPrimary({ operatorRoot: values.get("--operator-root"), expectedPrimarySha256: values.get("--primary-binding-sha256"), finalAuthorizationPath: values.get("--parent-authorization"), expectedFinalAuthorizationSha256: values.get("--parent-authorization-sha256"), executionCommit: (await import("node:child_process")).execFileSync("git", ["-C", values.get("--worktree"), "rev-parse", "HEAD"], { encoding: "utf8" }).trim() });
+const parentExecutionCommit = execFileSync("git", ["-C", values.get("--worktree"), "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+const issuerImplementationCommit = execFileSync("git", ["-C", path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".."), "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+const initial = await inspectKnownInvalidPrimary({ operatorRoot: values.get("--operator-root"), expectedPrimarySha256: values.get("--primary-binding-sha256"), finalAuthorizationPath: values.get("--parent-authorization"), expectedFinalAuthorizationSha256: values.get("--parent-authorization-sha256"), executionCommit: parentExecutionCommit });
 const result = await createFinalExecutionBindingPayload({ worktree: values.get("--worktree"), wrapper: values.get("--wrapper"), parentAuthorization: values.get("--parent-authorization"), parentReceipt: values.get("--parent-receipt") });
 const replacementBindingSha256 = await writeCanonicalJsonAtomically(initial.paths.replacement, result.binding);
-const terminal = validateReissueTerminal({ schemaVersion: REISSUE_TERMINAL_VERSION, issuedAt: new Date().toISOString(), primaryInvalidBindingPath: initial.paths.primary, primaryInvalidBindingSha256: initial.primarySha256, primaryFailureClassification: initial.known.failureClassification, primaryFailureReasonCode: initial.known.failureReasonCode, replacementBindingPath: initial.paths.replacement, replacementBindingSha256 });
+const replacement = await readAndValidateFinalExecutionBinding(initial.paths.replacement, replacementBindingSha256);
+const parentReceiptRaw = await readFile(values.get("--parent-receipt"));
+const sameCommit = validateParentSameCommitBinding({ binding: replacement, parentAuthorization: initial.authorization, parentReceipt: JSON.parse(parentReceiptRaw.toString("utf8")), executionCommit: parentExecutionCommit, parentAuthorizationPath: values.get("--parent-authorization"), parentAuthorizationSha256: values.get("--parent-authorization-sha256"), parentReceiptPath: values.get("--parent-receipt"), parentReceiptSha256: replacement.parentReceiptSha256 });
+const terminal = validateReissueTerminal({ schemaVersion: REISSUE_TERMINAL_VERSION, runId: replacement.parentDryRunRunId, classification: REISSUE_READY_CLASSIFICATION, issuedAt: new Date().toISOString(), primaryInvalidBindingPath: initial.paths.primary, primaryInvalidBindingSha256: initial.primarySha256, primaryFailureClassification: initial.known.failureClassification, primaryFailureReasonCode: initial.known.failureReasonCode, replacementBindingPath: initial.paths.replacement, replacementBindingSha256, replacementBindingSchema: replacement.schemaVersion, finalAuthorizationPath: replacement.parentAuthorizationPath, finalAuthorizationSha256: replacement.parentAuthorizationSha256, parentExecutionCommit, issuerImplementationCommit, strictValidationClassification: "R6_FINAL_EXECUTION_BINDING_STRICT_VALID", parentSameCommitClassification: sameCommit.classification });
 await writeCanonicalJsonAtomically(initial.paths.terminal, terminal);
-process.stdout.write(`${JSON.stringify({ classification: "R6_FINAL_EXECUTION_BINDING_CANONICAL_REISSUE_READY", replacementBindingPath: initial.paths.replacement, replacementBindingSha256, reissueTerminalPath: initial.paths.terminal, executionCommit: result.executionCommit })}\n`);
+process.stdout.write(`${JSON.stringify({ classification: REISSUE_READY_CLASSIFICATION, replacementBindingPath: initial.paths.replacement, replacementBindingSha256, reissueTerminalPath: initial.paths.terminal, executionCommit: result.executionCommit, parentSameCommitClassification: sameCommit.classification, issuerImplementationCommit })}\n`);

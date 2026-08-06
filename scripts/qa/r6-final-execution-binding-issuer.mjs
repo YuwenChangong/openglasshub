@@ -8,13 +8,9 @@ import { FINAL_EXECUTION_BINDING_VERSION, validateFinalExecutionBinding } from "
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 
-export const canonicalJson = (value) => `${JSON.stringify(sort(value))}\n`;
-
-function sort(value) {
-  if (Array.isArray(value)) return value.map(sort);
-  if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sort(value[key])]));
-  return value;
-}
+// The exact outer schema fixes binding key order. Nested target bindings carry
+// their own canonical hash, so their serializer order must remain untouched.
+export const canonicalJson = (value) => `${JSON.stringify(value)}\n`;
 
 export async function assertAbsent(file, code) {
   try {
