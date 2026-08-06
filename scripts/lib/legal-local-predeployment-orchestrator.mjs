@@ -12,6 +12,7 @@ import { sha256, writeCanonicalEvidence, writeRedactedMigrationLog } from "./leg
 import { createLegalLocalExecutionApproval } from "./legal-local-execution-approval.mjs";
 import { consumeLegalLocalExecuteTask } from "./legal-local-task-consumption-registry.mjs";
 import { parsePostgresDiagnostic, redactMigrationDiagnosticText, validateMigrationAttemptDiagnostic } from "./legal-local-migration-diagnostics.mjs";
+import { LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED, LEGAL_LOCAL_PRELEGAL_BASELINE_TERMINAL_SCHEMA, resolveLegalPrelegalBaseline, validateLegalPrelegalBaselineCheckpoint, validateLegalPrelegalBaselineManifest } from "./legal-local-prelegal-baseline.mjs";
 
 export const LEGAL_LOCAL_ORCHESTRATOR_SCHEMA = "legal-local-predeployment-orchestrator-v1";
 const TASK_ID = /^r6-local-predeployment-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -37,9 +38,10 @@ export async function resolveLegalMigrationInventory({ repositoryRoot }) {
 
 export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", taskId, taskRoot, confirmation, confirmationSha256, implementationCommit, repositoryRoot, adapter, consumptionRegistryRoot, now = () => new Date().toISOString() }) {
   const inventory = await resolveLegalMigrationInventory({ repositoryRoot });
+  const baseline = await resolveLegalPrelegalBaseline({ repositoryRoot, implementationCommit, generatedAt: now() });
   if (!TASK_ID.test(String(taskId ?? "")) || !/^[a-f0-9]{40}$/.test(String(implementationCommit ?? ""))) fail("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED");
   const approvalContract = createLegalLocalExecutionApproval({ implementationCommit, taskId, migrationInventorySha256: inventory.inventorySha256, issuedAt: now() });
-  if (mode === "PREFLIGHT") return Object.freeze({ schemaVersion: LEGAL_LOCAL_ORCHESTRATOR_SCHEMA, classification: "R6_LOCAL_NONPRODUCTION_PREFLIGHT_READY", executionAuthorized: false, inventory, approvalContract });
+  if (mode === "PREFLIGHT") return Object.freeze({ schemaVersion: LEGAL_LOCAL_ORCHESTRATOR_SCHEMA, classification: "R6_LOCAL_NONPRODUCTION_PREFLIGHT_READY", executionAuthorized: false, baseline, inventory, approvalContract });
   if (mode !== "EXECUTE" || !adapter || !taskRoot || !consumptionRegistryRoot) fail("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED");
   await consumeLegalLocalExecuteTask({ registryRoot: consumptionRegistryRoot, approvalContract, now });
   if (confirmation !== approvalContract.requiredConfirmationPhrase) throw Object.assign(new Error("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED"), { code: "R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED", innerClassification: "LEGAL_LOCAL_EXECUTION_CONFIRMATION_MISMATCH" });
@@ -60,6 +62,9 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
   let targetBinding;
   let targetValidation;
   let restoreEvidence;
+  let baselineJournal = [];
+  let baselineTerminal;
+  let baselineCheckpoint;
   let migrationJournal = [];
   let migrationTerminal;
   let smokeTerminal;
@@ -77,10 +82,11 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
     let stdoutArtifact;
     let stderrArtifact;
     try {
-      stdoutArtifact = await writeRedactedMigrationLog({ evidenceRoot, name: `migration-attempt-${migration.sequence}-stdout.log`, text: stdout });
-      stderrArtifact = await writeRedactedMigrationLog({ evidenceRoot, name: `migration-attempt-${migration.sequence}-stderr.log`, text: stderr });
+      const prefix = migration.journalKind === "baseline" ? "baseline-" : "";
+      stdoutArtifact = await writeRedactedMigrationLog({ evidenceRoot, name: `${prefix}migration-attempt-${migration.sequence}-stdout.log`, text: stdout });
+      stderrArtifact = await writeRedactedMigrationLog({ evidenceRoot, name: `${prefix}migration-attempt-${migration.sequence}-stderr.log`, text: stderr });
     } catch (error) {
-      throw Object.assign(error, { code: "R6_LOCAL_MIGRATION_FAILURE_DIAGNOSTIC_WRITE_FAILED" });
+      throw Object.assign(error, { code: error?.code ?? "R6_LOCAL_MIGRATION_FAILURE_DIAGNOSTIC_WRITE_FAILED" });
     }
     const diagnostic = adapterResult.success
       ? null
@@ -88,7 +94,7 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
     return Object.freeze({
       taskId,
       implementationCommit,
-      inventorySha256: inventory.inventorySha256,
+      inventorySha256: migration.inventorySha256 ?? inventory.inventorySha256,
       migrationIdentity: migration.identity,
       migrationFilename: migration.filename,
       migrationSha256: migration.canonicalSha256,
@@ -107,21 +113,69 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
       diagnostic,
     });
   };
+  const writeBaselineTerminal = async (classification) => {
+    if (baselineTerminal) return;
+    baselineTerminal = {
+      schemaVersion: LEGAL_LOCAL_PRELEGAL_BASELINE_TERMINAL_SCHEMA,
+      taskId,
+      implementationCommit,
+      baselineManifestSha256: evidence.baselineManifest?.sha256 ?? null,
+      baselineInventorySha256: baseline.baselineInventorySha256,
+      classification,
+      planned: baseline.baselineMigrationCount,
+      executed: baselineJournal.length,
+      successful: baselineJournal.filter((entry) => entry.classification === "READY").length,
+      failed: baselineJournal.filter((entry) => entry.classification === "FAILED").length,
+      skipped: baseline.baselineMigrationCount - baselineJournal.length,
+      retries: 0,
+    };
+    evidence.baselineTerminal = await writeCanonicalEvidence({ evidenceRoot, name: "baseline-migration-execution-terminal.json", payload: baselineTerminal });
+  };
+  const applyBaseline = async ({ captureEvidence }) => {
+    for (const entry of baseline.migrations) {
+      const migration = { ...entry, journalKind: "baseline", inventorySha256: baseline.baselineInventorySha256 };
+      const beforeFingerprint = await adapter.captureCatalogFingerprint({ task });
+      const adapterResult = await (adapter.applyBaselineMigration ?? adapter.applyMigration).call(adapter, { task, migration, attempt: 1 });
+      const afterFingerprint = await adapter.captureCatalogFingerprint({ task });
+      if (captureEvidence) {
+        const diagnosticEvidence = await writeAttemptDiagnostics({ migration, attempt: 1, adapterResult });
+        const journalEntry = validateMigrationAttemptDiagnostic({ sequence: entry.sequence, identity: entry.identity, filename: entry.filename, canonicalSha256: entry.canonicalSha256, ...diagnosticEvidence, retryCount: 0, automaticRollback: false, beforeFingerprint, afterFingerprint, transactionResult: adapterResult.transactionResult, historyEntryResult: adapterResult.historyEntryResult, classification: adapterResult.success ? "READY" : "FAILED", diagnosticCaptureStatus: diagnosticEvidence.diagnostic?.diagnosticCaptureStatus ?? null }, { taskId, implementationCommit, inventorySha256: baseline.baselineInventorySha256, evidenceRoot });
+        baselineJournal.push(journalEntry);
+      }
+      if (!adapterResult.success) throw Object.assign(new Error("R6_LOCAL_PRELEGAL_BASELINE_EXECUTION_INCOMPLETE"), { code: "R6_LOCAL_PRELEGAL_BASELINE_EXECUTION_INCOMPLETE" });
+    }
+  };
   try {
+    advance("RESOLVE_BASELINE");
+    validateLegalPrelegalBaselineManifest(baseline, { implementationCommit });
+    evidence.baselineManifest = await writeCanonicalEvidence({ evidenceRoot, name: "baseline-migration-inventory.json", payload: baseline });
     advance("CREATE_LOCAL_TARGET");
     targetBinding = await adapter.createLocalTarget({ task, implementationCommit, inventorySha256: inventory.inventorySha256 });
     targetValidation = validateLegalNonproductionTargetBinding(targetBinding);
     evidence.targetBinding = await writeCanonicalEvidence({ evidenceRoot, name: "local-target-binding.json", payload: targetBinding });
-    advance("CAPTURE_PRISTINE_FINGERPRINT");
-    const pristine = await adapter.capturePristineFingerprint({ task });
-    evidence.bootstrap = await writeCanonicalEvidence({ evidenceRoot, name: "local-bootstrap-fingerprint.json", payload: pristine });
-    advance("DESTROY"); await adapter.destroyTarget({ task });
-    advance("REBUILD"); const rebuilt = await adapter.rebuildTarget({ task });
-    restoreEvidence = await adapter.verifyRebuild({ task, targetBinding, pristine, rebuilt, targetBindingSha256: evidence.targetBinding.sha256 });
+    if ((await adapter.assertBaselineRuntime?.({ task, baseline })) === LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED) {
+      await writeBaselineTerminal(LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED);
+      throw Object.assign(new Error(LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED), { code: LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED });
+    }
+    advance("APPLY_BASELINE");
+    await applyBaseline({ captureEvidence: true });
+    evidence.baselineJournal = await writeCanonicalEvidence({ evidenceRoot, name: "baseline-migration-execution-journal.json", payload: { schemaVersion: "legal-local-baseline-migration-journal-v1", taskId, implementationCommit, baselineInventorySha256: baseline.baselineInventorySha256, entries: baselineJournal } });
+    await writeBaselineTerminal("R6_LOCAL_PRELEGAL_BASELINE_EXECUTION_READY");
+    advance("VERIFY_BASELINE");
+    baselineCheckpoint = await adapter.captureBaselineCheckpoint({ task, baselineManifestSha256: evidence.baselineManifest.sha256, implementationCommit });
+    validateLegalPrelegalBaselineCheckpoint(baselineCheckpoint, { taskId, implementationCommit, baselineManifestSha256: evidence.baselineManifest.sha256 });
+    evidence.baselineCheckpoint = await writeCanonicalEvidence({ evidenceRoot, name: "baseline-checkpoint-terminal.json", payload: baselineCheckpoint });
+    evidence.bootstrap = await writeCanonicalEvidence({ evidenceRoot, name: "local-bootstrap-fingerprint.json", payload: await adapter.captureCatalogFingerprint({ task }) });
+    advance("REBUILD_AND_REAPPLY_BASELINE"); await adapter.destroyTarget({ task }); await adapter.rebuildTarget({ task }); await applyBaseline({ captureEvidence: false });
+    advance("VERIFY_REBUILT_BASELINE");
+    const rebuiltCheckpoint = await adapter.captureBaselineCheckpoint({ task, baselineManifestSha256: evidence.baselineManifest.sha256, implementationCommit });
+    validateLegalPrelegalBaselineCheckpoint(rebuiltCheckpoint, { taskId, implementationCommit, baselineManifestSha256: evidence.baselineManifest.sha256 });
+    restoreEvidence = await adapter.verifyBaselineRebuild({ task, targetBinding, targetBindingSha256: evidence.targetBinding.sha256, baselineManifestSha256: evidence.baselineManifest.sha256, baselineInventorySha256: baseline.baselineInventorySha256, initialBaselineFingerprint: JSON.parse(await readFile(evidence.bootstrap.path, "utf8")), initialCheckpoint: baselineCheckpoint, rebuiltCheckpoint });
     validateLegalLocalRebuildRestoreEvidence(restoreEvidence, { targetBinding });
     evidence.rebuild = await writeCanonicalEvidence({ evidenceRoot, name: "local-rebuild-restore-evidence.json", payload: restoreEvidence });
+    evidence.baselinePostMigration = await writeCanonicalEvidence({ evidenceRoot, name: "baseline-postmigration-fingerprint.json", payload: await adapter.captureCatalogFingerprint({ task }) });
     advance("RESOLVE_12_MIGRATIONS"); evidence.inventory = await writeCanonicalEvidence({ evidenceRoot, name: "migration-inventory.json", payload: inventory });
-    advance("EXECUTE_MIGRATIONS");
+    advance("EXECUTE_LEGAL_MIGRATIONS");
     for (const migration of inventory.entries) {
       const beforeFingerprint = await adapter.captureCatalogFingerprint({ task });
       const adapterResult = await adapter.applyMigration({ task, migration, attempt: 1 });
@@ -146,6 +200,8 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
     const classification = error.code ?? "R6_LOCAL_NONPRODUCTION_TARGET_CREATION_FAILED";
     functionalFailureClassification = classification;
     functionalFailureType = error.name ?? "Error";
+    if (!evidence.baselineJournal && baselineJournal.length > 0) evidence.baselineJournal = await writeCanonicalEvidence({ evidenceRoot, name: "baseline-migration-execution-journal.json", payload: { schemaVersion: "legal-local-baseline-migration-journal-v1", taskId, implementationCommit, baselineInventorySha256: baseline.baselineInventorySha256, entries: baselineJournal } });
+    await writeBaselineTerminal(classification);
     if (!evidence.journal && migrationJournal.length > 0) {
       evidence.journal = await writeCanonicalEvidence({ evidenceRoot, name: "migration-execution-journal.json", payload: { schemaVersion: "legal-local-migration-journal-v2", taskId, implementationCommit, inventorySha256: inventory.inventorySha256, entries: migrationJournal } });
     }
@@ -159,7 +215,7 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
     advance("CLEAN_DOCKER_RESOURCES");
     try { cleanupTerminal = await cleanupLegalLocalResources({ adapter, task, implementationCommit }); cleanupResult = "READY"; evidence.cleanup = await writeCanonicalEvidence({ evidenceRoot, name: "local-resource-cleanup-terminal.json", payload: cleanupTerminal }); } catch (error) { cleanupResult = "INCOMPLETE"; cleanupFailureClassification = error.code ?? "R6_LOCAL_NONPRODUCTION_RESOURCE_CLEANUP_INCOMPLETE"; }
     const readiness = functionalResult === "READY" && cleanupResult === "READY"
-      ? evaluateLegalPredeploymentReadiness({ targetBinding, rebuildRestoreEvidence: restoreEvidence, migrationTerminal, smokeTerminal, cleanupTerminal, implementationCommit })
+      ? evaluateLegalPredeploymentReadiness({ targetBinding, baselineManifest: baseline, baselineTerminal, baselineCheckpoint, rebuildRestoreEvidence: restoreEvidence, migrationTerminal, smokeTerminal, cleanupTerminal, implementationCommit })
       : evaluateLegalPredeploymentReadiness();
     await writeCanonicalEvidence({ evidenceRoot, name: "automatable-legal-readiness-summary.json", payload: { ...readiness, functionalResult, cleanupResult } });
     await writeCanonicalEvidence({ evidenceRoot, name: "orchestrator-breadcrumb.json", payload: { schemaVersion: "legal-local-orchestrator-breadcrumb-v1", taskId, breadcrumb } });

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createLegalLocalExecutionApproval, sha256Utf8 } from "./lib/legal-local-execution-approval.mjs";
 
-const base = { implementationCommit: "2c9fb5e5c42e0380048f8d63c4040a3a2d808dd0", taskId: "r6-local-predeployment-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", migrationInventorySha256: "3d801ed1f10d84ccfb0f8ee2ee73e81a90e0a2b3955f75c4e91ed98c1520350a", issuedAt: "2026-08-06T00:00:00.000Z" };
+const base = { implementationCommit: "5b9e29ddcd2d53cfe00033fe9999ac6f2eb4ff94", taskId: "r6-local-predeployment-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", migrationInventorySha256: "3d801ed1f10d84ccfb0f8ee2ee73e81a90e0a2b3955f75c4e91ed98c1520350a", issuedAt: "2026-08-06T00:00:00.000Z" };
 const contract = createLegalLocalExecutionApproval(base);
 assert.equal(contract.schemaVersion, "r6-legal-local-execution-approval-contract-v1");
 assert.equal(contract.requiredConfirmationSha256, sha256Utf8(contract.requiredConfirmationPhrase));

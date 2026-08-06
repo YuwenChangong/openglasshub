@@ -21,7 +21,7 @@ export function assertEvidenceName(name) {
 }
 
 export function assertEvidenceLogName(name) {
-  if (!/^migration-attempt-[1-9][0-9]*-(?:stdout|stderr)\.log$/.test(String(name ?? ""))) fail("R6_LOCAL_REPLAY_EVIDENCE_NAME_INVALID");
+  if (!/^(?:baseline-)?migration-attempt-[1-9][0-9]*-(?:stdout|stderr)\.log$/.test(String(name ?? ""))) fail("R6_LOCAL_REPLAY_EVIDENCE_NAME_INVALID");
   return name;
 }
 
