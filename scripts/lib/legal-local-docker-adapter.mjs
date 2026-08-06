@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PINNED_PSQL_DIGEST, PINNED_PSQL_IMAGE } from "./docker-psql-file-transport.mjs";
 import { sha256 } from "./legal-local-replay-evidence.mjs";
+import { LOCAL_MIGRATION_PSQL_FLAGS } from "./legal-local-migration-diagnostics.mjs";
 
 const LABEL_PREFIX = "io.openglasshub.legal-predeployment";
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
@@ -22,7 +23,7 @@ export function assertLocalDockerRuntime() {
   return Object.freeze({ context, image: PINNED_PSQL_IMAGE, digest: PINNED_PSQL_DIGEST, dockerVersion: execFileSync("docker", ["version", "--format", "{{.Server.Version}}"], { encoding: "utf8" }).trim() });
 }
 
-export function createLegalLocalDockerAdapter({ repositoryRoot }) {
+export function createLegalLocalDockerAdapter({ repositoryRoot, spawnSyncImpl = spawnSync }) {
   const state = new Map();
   const resourceExists = (task) => run(["ps", "-aq", "--filter", `name=^/${task.container}$`]) || run(["volume", "ls", "-q", "--filter", `name=^${task.volume}$`]) || run(["network", "ls", "-q", "--filter", `name=^${task.network}$`]);
   const inspect = (container, format) => run(["inspect", "--format", format, container]);
@@ -47,7 +48,31 @@ export function createLegalLocalDockerAdapter({ repositoryRoot }) {
     async rebuildTarget({ task }) { await start(task); const record = state.get(task.taskId); record.rebuiltAtUtc = new Date().toISOString(); return { containerIdentityHash: sha256(inspect(task.container, "{{.Id}}")) }; },
     async verifyRebuild({ task, pristine, targetBinding, targetBindingSha256 }) { const rebuilt = await this.capturePristineFingerprint({ task }); const record = state.get(task.taskId); return { schemaVersion: "legal-local-nonproduction-rebuild-restore-evidence-v1", taskId: task.taskId, implementationCommit: targetBinding.implementationCommit, targetBindingSha256, bootstrapFingerprintSha256: pristine.bootstrapArtifactSha256, preMigrationFingerprintSha256: pristine.catalogSha256, rebuiltFingerprintSha256: rebuilt.catalogSha256, destroyedContainerIdentityHash: targetBinding.containerIdentityHash, rebuiltContainerIdentityHash: sha256(inspect(task.container, "{{.Id}}")), bootstrappedAtUtc: targetBinding.createdAt, destroyedAtUtc: record.destroyedAtUtc, rebuiltAtUtc: record.rebuiltAtUtc, destroyObserved: true, rebuildObserved: true, restoreSmoke: { databaseReachable: true, migrationHistoryReadable: true, requiredSchemasPresent: true, fingerprintRecomputed: true } }; },
     async captureCatalogFingerprint({ task }) { return { catalogSha256: sha256(psql(task, "select count(*) from pg_class;")) }; },
-    async applyMigration({ task, migration }) { const sql = await readFile(path.join(repositoryRoot, "supabase", "migrations", migration.filename)); const result = spawnSync("docker", ["exec", "-i", task.container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: sql, encoding: "utf8" }); return { success: result.status === 0, transactionResult: result.status === 0 ? "COMMITTED" : "FAILED", exitCode: result.status ?? 1, historyEntryResult: result.status === 0 ? "PRESENT" : "ABSENT" }; },
+    async applyMigration({ task, migration }) {
+      const sql = await readFile(path.join(repositoryRoot, "supabase", "migrations", migration.filename), "utf8");
+      const startedAt = new Date().toISOString();
+      const started = Date.now();
+      const result = spawnSyncImpl("docker", ["exec", "-i", task.container, "psql", ...LOCAL_MIGRATION_PSQL_FLAGS], { input: sql, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 });
+      const completedAt = new Date().toISOString();
+      const spawnError = result.error ? { name: result.error.name ?? "Error", code: result.error.code ?? null } : null;
+      const exitCode = Number.isInteger(result.status) ? result.status : null;
+      return Object.freeze({
+        success: spawnError === null && exitCode === 0,
+        executionClassification: spawnError ? "R6_LOCAL_MIGRATION_FAILURE_SPAWN_ERROR" : exitCode === 0 ? "READY" : "R6_LOCAL_MIGRATION_FAILURE_PSQL_EXIT_NONZERO",
+        transactionResult: spawnError === null && exitCode === 0 ? "COMMITTED" : "FAILED",
+        exitCode,
+        signal: result.signal ?? null,
+        spawnError,
+        stdout: String(result.stdout ?? ""),
+        stderr: String(result.stderr ?? ""),
+        startedAt,
+        completedAt,
+        durationMs: Date.now() - started,
+        psqlFlags: LOCAL_MIGRATION_PSQL_FLAGS,
+        stdinSha256: sha256(sql),
+        historyEntryResult: spawnError === null && exitCode === 0 ? "PRESENT" : "ABSENT",
+      });
+    },
     async runSmokeCheck() { return { identityClass: "TASK_OWNED_SYNTHETIC", expected: "PASS", observed: "PASS", classification: "READY" }; },
     async cleanupTestData() { return { remaining: 0, unexpectedAffected: 0 }; },
     async cleanupTaskResources(task) { const labels = labelsFor(task); const container = run(["ps", "-aq", "--filter", `name=^/${task.container}$`, "--filter", `label=${LABEL_PREFIX}.task-id=${labels[`${LABEL_PREFIX}.task-id`]}`]); if (container) run(["rm", "-f", container]); const volume = run(["volume", "ls", "-q", "--filter", `name=^${task.volume}$`, "--filter", `label=${LABEL_PREFIX}.task-id=${labels[`${LABEL_PREFIX}.task-id`]}`]); if (volume) run(["volume", "rm", volume]); const network = run(["network", "ls", "-q", "--filter", `name=^${task.network}$`, "--filter", `label=${LABEL_PREFIX}.task-id=${labels[`${LABEL_PREFIX}.task-id`]}`]); if (network) run(["network", "rm", network]); state.delete(task.taskId); return { remainingContainerCount: 0, remainingVolumeCount: 0, remainingNetworkCount: 0, unrelatedResourcesChanged: 0 }; },

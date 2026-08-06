@@ -8,9 +8,10 @@ import { validateLegalLocalRebuildRestoreEvidence } from "./legal-local-rebuild-
 import { evaluateLegalPredeploymentReadiness } from "./legal-predeployment-readiness.mjs";
 import { cleanupLegalLocalResources } from "./legal-local-resource-cleanup.mjs";
 import { runLegalLocalSmoke } from "./legal-local-smoke-runner.mjs";
-import { sha256, writeCanonicalEvidence } from "./legal-local-replay-evidence.mjs";
+import { sha256, writeCanonicalEvidence, writeRedactedMigrationLog } from "./legal-local-replay-evidence.mjs";
 import { createLegalLocalExecutionApproval } from "./legal-local-execution-approval.mjs";
 import { consumeLegalLocalExecuteTask } from "./legal-local-task-consumption-registry.mjs";
+import { parsePostgresDiagnostic, redactMigrationDiagnosticText, validateMigrationAttemptDiagnostic } from "./legal-local-migration-diagnostics.mjs";
 
 export const LEGAL_LOCAL_ORCHESTRATOR_SCHEMA = "legal-local-predeployment-orchestrator-v1";
 const TASK_ID = /^r6-local-predeployment-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -64,6 +65,48 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
   let smokeTerminal;
   let cleanupTerminal;
   let result;
+  const writeAttemptDiagnostics = async ({ migration, attempt, adapterResult }) => {
+    let stdout;
+    let stderr;
+    try {
+      stdout = redactMigrationDiagnosticText(String(adapterResult.stdout ?? ""));
+      stderr = redactMigrationDiagnosticText(String(adapterResult.stderr ?? ""));
+    } catch (error) {
+      throw Object.assign(error, { code: "R6_LOCAL_MIGRATION_FAILURE_DIAGNOSTIC_REDACTION_FAILED" });
+    }
+    let stdoutArtifact;
+    let stderrArtifact;
+    try {
+      stdoutArtifact = await writeRedactedMigrationLog({ evidenceRoot, name: `migration-attempt-${migration.sequence}-stdout.log`, text: stdout });
+      stderrArtifact = await writeRedactedMigrationLog({ evidenceRoot, name: `migration-attempt-${migration.sequence}-stderr.log`, text: stderr });
+    } catch (error) {
+      throw Object.assign(error, { code: "R6_LOCAL_MIGRATION_FAILURE_DIAGNOSTIC_WRITE_FAILED" });
+    }
+    const diagnostic = adapterResult.success
+      ? null
+      : parsePostgresDiagnostic(stderr);
+    return Object.freeze({
+      taskId,
+      implementationCommit,
+      inventorySha256: inventory.inventorySha256,
+      migrationIdentity: migration.identity,
+      migrationFilename: migration.filename,
+      migrationSha256: migration.canonicalSha256,
+      sequence: migration.sequence,
+      attempt,
+      stdinSha256: adapterResult.stdinSha256 ?? null,
+      psqlFlags: adapterResult.psqlFlags ?? null,
+      exitCode: adapterResult.exitCode ?? null,
+      signal: adapterResult.signal ?? null,
+      spawnError: adapterResult.spawnError ?? null,
+      startedAt: adapterResult.startedAt ?? null,
+      completedAt: adapterResult.completedAt ?? null,
+      durationMs: adapterResult.durationMs ?? null,
+      stdoutArtifact,
+      stderrArtifact,
+      diagnostic,
+    });
+  };
   try {
     advance("CREATE_LOCAL_TARGET");
     targetBinding = await adapter.createLocalTarget({ task, implementationCommit, inventorySha256: inventory.inventorySha256 });
@@ -81,14 +124,15 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
     advance("EXECUTE_MIGRATIONS");
     for (const migration of inventory.entries) {
       const beforeFingerprint = await adapter.captureCatalogFingerprint({ task });
-      const result = await adapter.applyMigration({ task, migration, attempt: 1 });
+      const adapterResult = await adapter.applyMigration({ task, migration, attempt: 1 });
       const afterFingerprint = await adapter.captureCatalogFingerprint({ task });
-      const journalEntry = { ...migration, startedAt: now(), completedAt: now(), attempt: 1, retryCount: 0, automaticRollback: false, beforeFingerprint, afterFingerprint, transactionResult: result.transactionResult, exitCode: result.exitCode, historyEntryResult: result.historyEntryResult, classification: result.success ? "READY" : "FAILED" };
+      const diagnosticEvidence = await writeAttemptDiagnostics({ migration, attempt: 1, adapterResult });
+      const journalEntry = validateMigrationAttemptDiagnostic({ ...migration, ...diagnosticEvidence, retryCount: 0, automaticRollback: false, beforeFingerprint, afterFingerprint, transactionResult: adapterResult.transactionResult, historyEntryResult: adapterResult.historyEntryResult, classification: adapterResult.success ? "READY" : "FAILED", diagnosticCaptureStatus: diagnosticEvidence.diagnostic?.diagnosticCaptureStatus ?? null }, { taskId, implementationCommit, inventorySha256: inventory.inventorySha256, evidenceRoot });
       migrationJournal.push(journalEntry);
-      if (!result.success) throw Object.assign(new Error("R6_LOCAL_NONPRODUCTION_MIGRATION_REPLAY_INCOMPLETE"), { code: "R6_LOCAL_NONPRODUCTION_MIGRATION_REPLAY_INCOMPLETE", migrationJournal });
+      if (!adapterResult.success) throw Object.assign(new Error("R6_LOCAL_NONPRODUCTION_MIGRATION_REPLAY_INCOMPLETE"), { code: "R6_LOCAL_NONPRODUCTION_MIGRATION_REPLAY_INCOMPLETE", migrationJournal });
     }
-    evidence.journal = await writeCanonicalEvidence({ evidenceRoot, name: "migration-execution-journal.json", payload: { schemaVersion: "legal-local-migration-journal-v1", taskId, implementationCommit, inventorySha256: inventory.inventorySha256, entries: migrationJournal } });
-    migrationTerminal = { schemaVersion: "legal-local-migration-terminal-v1", taskId, implementationCommit, targetBindingSha256: evidence.targetBinding.sha256, inventorySha256: inventory.inventorySha256, journalSha256: evidence.journal.sha256, classification: "R6_LOCAL_NONPRODUCTION_MIGRATION_REPLAY_AND_SMOKE_READY", planned: 12, executed: migrationJournal.length, successful: migrationJournal.length, failed: 0, skipped: 0, retries: 0 };
+    evidence.journal = await writeCanonicalEvidence({ evidenceRoot, name: "migration-execution-journal.json", payload: { schemaVersion: "legal-local-migration-journal-v2", taskId, implementationCommit, inventorySha256: inventory.inventorySha256, entries: migrationJournal } });
+    migrationTerminal = { schemaVersion: "legal-local-migration-terminal-v2", taskId, implementationCommit, targetBindingSha256: evidence.targetBinding.sha256, inventorySha256: inventory.inventorySha256, journalSha256: evidence.journal.sha256, classification: "R6_LOCAL_NONPRODUCTION_MIGRATION_REPLAY_AND_SMOKE_READY", planned: 12, executed: migrationJournal.length, successful: migrationJournal.length, failed: 0, skipped: 0, retries: 0, diagnosticCaptureStatus: null, failureDiagnostic: null };
     evidence.migrationTerminal = await writeCanonicalEvidence({ evidenceRoot, name: "migration-execution-terminal.json", payload: migrationTerminal });
     advance("RUN_SMOKE"); smokeTerminal = await runLegalLocalSmoke({ adapter, taskId, implementationCommit });
     evidence.smoke = await writeCanonicalEvidence({ evidenceRoot, name: "acl-rls-consent-smoke-terminal.json", payload: smokeTerminal });
@@ -103,10 +147,11 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
     functionalFailureClassification = classification;
     functionalFailureType = error.name ?? "Error";
     if (!evidence.journal && migrationJournal.length > 0) {
-      evidence.journal = await writeCanonicalEvidence({ evidenceRoot, name: "migration-execution-journal.json", payload: { schemaVersion: "legal-local-migration-journal-v1", taskId, implementationCommit, inventorySha256: inventory.inventorySha256, entries: migrationJournal } });
+      evidence.journal = await writeCanonicalEvidence({ evidenceRoot, name: "migration-execution-journal.json", payload: { schemaVersion: "legal-local-migration-journal-v2", taskId, implementationCommit, inventorySha256: inventory.inventorySha256, entries: migrationJournal } });
     }
     if (!evidence.migrationTerminal) {
-      migrationTerminal = { schemaVersion: "legal-local-migration-terminal-v1", taskId, implementationCommit, targetBindingSha256: evidence.targetBinding?.sha256 ?? null, inventorySha256: inventory.inventorySha256, journalSha256: evidence.journal?.sha256 ?? null, classification, planned: 12, executed: migrationJournal.length, successful: migrationJournal.filter((entry) => entry.classification === "READY").length, failed: migrationJournal.filter((entry) => entry.classification === "FAILED").length, skipped: 12 - migrationJournal.length, retries: 0 };
+      const failedAttempt = migrationJournal.find((entry) => entry.classification === "FAILED") ?? null;
+      migrationTerminal = { schemaVersion: "legal-local-migration-terminal-v2", taskId, implementationCommit, targetBindingSha256: evidence.targetBinding?.sha256 ?? null, inventorySha256: inventory.inventorySha256, journalSha256: evidence.journal?.sha256 ?? null, classification, planned: 12, executed: migrationJournal.length, successful: migrationJournal.filter((entry) => entry.classification === "READY").length, failed: migrationJournal.filter((entry) => entry.classification === "FAILED").length, skipped: 12 - migrationJournal.length, retries: 0, diagnosticCaptureStatus: failedAttempt?.diagnosticCaptureStatus ?? null, failureDiagnostic: failedAttempt?.diagnostic ?? null };
       evidence.migrationTerminal = await writeCanonicalEvidence({ evidenceRoot, name: "migration-execution-terminal.json", payload: migrationTerminal });
     }
     result = { schemaVersion: LEGAL_LOCAL_ORCHESTRATOR_SCHEMA, classification, functionalResult, targetValidation, evidence, inventory, breadcrumb };

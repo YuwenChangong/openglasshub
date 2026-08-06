@@ -20,9 +20,14 @@ export function assertEvidenceName(name) {
   return name;
 }
 
-export async function writeCanonicalEvidence({ evidenceRoot, name, payload }) {
+export function assertEvidenceLogName(name) {
+  if (!/^migration-attempt-[1-9][0-9]*-(?:stdout|stderr)\.log$/.test(String(name ?? ""))) fail("R6_LOCAL_REPLAY_EVIDENCE_NAME_INVALID");
+  return name;
+}
+
+async function writeAtomicEvidence({ evidenceRoot, name, body, assertName }) {
   const root = path.resolve(evidenceRoot);
-  const filename = assertEvidenceName(name);
+  const filename = assertName(name);
   const destination = path.resolve(root, filename);
   if (path.dirname(destination) !== root) fail("R6_LOCAL_REPLAY_EVIDENCE_PATH_TRAVERSAL");
   try {
@@ -32,7 +37,6 @@ export async function writeCanonicalEvidence({ evidenceRoot, name, payload }) {
     if (error?.code === "R6_LOCAL_REPLAY_EVIDENCE_ALREADY_EXISTS") throw error;
     if (error?.code !== "ENOENT") throw error;
   }
-  const body = `${stableJson(payload)}\n`;
   await mkdir(root, { recursive: true });
   const temporary = path.join(root, `.${filename}.${process.pid}.${Date.now()}.tmp`);
   try {
@@ -43,6 +47,16 @@ export async function writeCanonicalEvidence({ evidenceRoot, name, payload }) {
     throw error;
   }
   return Object.freeze({ path: destination, sha256: sha256(body), bytes: Buffer.byteLength(body) });
+}
+
+export async function writeCanonicalEvidence({ evidenceRoot, name, payload }) {
+  const body = `${stableJson(payload)}\n`;
+  return writeAtomicEvidence({ evidenceRoot, name, body, assertName: assertEvidenceName });
+}
+
+export async function writeRedactedMigrationLog({ evidenceRoot, name, text }) {
+  if (typeof text !== "string") fail("R6_LOCAL_MIGRATION_FAILURE_DIAGNOSTIC_REDACTION_FAILED");
+  return writeAtomicEvidence({ evidenceRoot, name, body: text, assertName: assertEvidenceLogName });
 }
 
 export function assertEvidenceSha256(value) {
