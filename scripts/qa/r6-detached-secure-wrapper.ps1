@@ -88,6 +88,14 @@ $script:ReviewedHashes = [ordered]@{
   'scripts\qa\prepare-cloudflare-pages-project-r2-get.mjs' = '9dfa0bc0cb5e15099ee5687f739deb4fac0e1fc6d73576761b799f57343cc328'
   'scripts\qa\run-cloudflare-pages-project-r2-metadata-preparation.mjs' = '3081a2dfedb934f6fca0a76a6fe10f231ab3f19a0709b9b2ce07e3581afb8ed5'
   'scripts\qa\validate-r6-pages-project-r2-terminal-result.mjs' = 'b6502411687803d4669c9e7985bab671df71c0c60804d860a34a5cff6b2ce7b0'
+  # Final execution bindings are issued and reviewed outside this wrapper, but
+  # the rendered operator boundary records their exact reviewed implementations.
+  'scripts\qa\prepare-r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\r6-final-execution-binding-issuer.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\r6-final-execution-binding-reissue.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\validate-r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\r6-production-package-contract.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
 }
 $script:ReviewedGitBlobHashes = [ordered]@{
   'scripts\qa\run-production-minimal-canary.mjs' = '76eca9a24dcfae34983500ddcce01b37dfd868f3'
@@ -114,6 +122,12 @@ $script:ReviewedGitBlobHashes = [ordered]@{
   'scripts\qa\prepare-cloudflare-pages-project-r2-get.mjs' = '867a29f3705379d5d0bd4a4cbb32337399cfe7f8'
   'scripts\qa\run-cloudflare-pages-project-r2-metadata-preparation.mjs' = '737a81c88f31264f6714aa5dcfdbd54e4ac41868'
   'scripts\qa\validate-r6-pages-project-r2-terminal-result.mjs' = '3b58c8054e8172b5feb83cb479fca5fc13075af7'
+  'scripts\qa\prepare-r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\r6-final-execution-binding-issuer.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\r6-final-execution-binding-reissue.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\validate-r6-final-execution-binding.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\r6-production-package-contract.mjs' = '0000000000000000000000000000000000000000'
 }
 $script:SecretEnvironmentNames = @('QA_CANARY_ACCESS_TOKEN', 'QA_CANARY_SUPABASE_ANON_KEY')
 $script:RunnerEnvironmentNames = @(

@@ -1,6 +1,8 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { getMinimalCanaryMutationPlan } from "./r6-final-canary-execution-contract.mjs";
 import { validateDryRunProductionSourceEligibility } from "./r6-dryrun-source-chain-contract.mjs";
+import { readAndValidateFinalAuthorization } from "./r6-final-canary-execution-contract.mjs";
+import { readFinalExecutionBindingForReview } from "./r6-final-execution-binding-reissue.mjs";
 
 export const PRODUCTION_MANIFEST_VERSION = "r6-production-launcher-binding-v1";
 export const PRODUCTION_AUTHORIZATION_VERSION = "r6-production-launcher-authorization-v1";
@@ -18,7 +20,7 @@ function hasSensitiveKey(value) {
   return Object.entries(value).some(([key, nested]) => (/(?:password|token|secret|anon|session|slug)/i.test(key) && !["atomicSessionId", "oauthAtomicSessionId"].includes(key)) || hasSensitiveKey(nested));
 }
 
-const sourceKeys = ["manifestSchema", "manifestPath", "manifestSha256", "sourceManifest", "oauthReadinessAttestation", "oauthReadinessAttestationPath", "oauthReadinessAttestationSha256", "runId", "executionCommit", "evidenceRoot", "receiptPath", "receiptSha256", "authenticatedResultPath", "authenticatedResultSha256", "dryRunTerminalPath", "dryRunTerminalSha256", "orchestrationTerminalPath", "orchestrationTerminalSha256", "targetBindingPath", "targetBindingSha256", "sourcePlanSchema", "sourcePlanSha256", "sameCommitBinding"];
+const sourceKeys = ["manifestSchema", "manifestPath", "manifestSha256", "sourceManifest", "oauthReadinessAttestation", "oauthReadinessAttestationPath", "oauthReadinessAttestationSha256", "runId", "executionCommit", "evidenceRoot", "receiptPath", "receiptSha256", "authenticatedResultPath", "authenticatedResultSha256", "dryRunTerminalPath", "dryRunTerminalSha256", "orchestrationTerminalPath", "orchestrationTerminalSha256", "targetBindingPath", "targetBindingSha256", "finalAuthorizationPath", "finalAuthorizationSha256", "sourcePlanSchema", "sourcePlanSha256", "sameCommitBinding"];
 
 export function createProductionManifest(input) {
   const plan = getMinimalCanaryMutationPlan();
@@ -41,8 +43,22 @@ export function validateProductionManifest(value) {
   try { validateDryRunProductionSourceEligibility({ manifest: source.sourceManifest, executionCommit: value.executionCommit, registryBinding: source.sourceManifest?.registryBinding, oauthReadinessAttestation: source.oauthReadinessAttestation, oauthReadinessAttestationPath: source.oauthReadinessAttestationPath, oauthReadinessAttestationSha256: source.oauthReadinessAttestationSha256 }); } catch { fail("R6_PRODUCTION_MANIFEST_SOURCE_INVALID"); }
   if (source.sourceManifest.runId !== source.runId || source.sourceManifest.evidenceRoot !== source.evidenceRoot || source.sourceManifest.receiptPath !== source.receiptPath || source.sourceManifest.authCheckTerminalPath !== source.authenticatedResultPath || source.sourceManifest.dryRunTerminalPath !== source.dryRunTerminalPath || source.sourceManifest.orchestrationTerminalPath !== source.orchestrationTerminalPath || source.sourceManifest.targetBindingPath !== source.targetBindingPath) fail("R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
   for (const key of ["manifestPath", "evidenceRoot", "receiptPath", "authenticatedResultPath", "dryRunTerminalPath", "orchestrationTerminalPath", "targetBindingPath", "oauthReadinessAttestationPath"]) requiredText(source[key], "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
-  for (const key of ["manifestSha256", "receiptSha256", "authenticatedResultSha256", "dryRunTerminalSha256", "orchestrationTerminalSha256", "targetBindingSha256", "sourcePlanSha256", "oauthReadinessAttestationSha256"]) requiredHash(source[key], "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
+  for (const key of ["manifestSha256", "receiptSha256", "authenticatedResultSha256", "dryRunTerminalSha256", "orchestrationTerminalSha256", "targetBindingSha256", "finalAuthorizationSha256", "sourcePlanSha256", "oauthReadinessAttestationSha256"]) requiredHash(source[key], "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
   return Object.freeze(value);
+}
+
+export async function validateProductionPackageReviewEligibility({ source, executionCommit }) {
+  if (!source || source.executionCommit !== executionCommit || source.sameCommitBinding !== true) fail("R6_PRODUCTION_PACKAGE_REVIEW_INELIGIBLE");
+  try {
+    validateDryRunProductionSourceEligibility({ manifest: source.sourceManifest, executionCommit, registryBinding: source.sourceManifest?.registryBinding, oauthReadinessAttestation: source.oauthReadinessAttestation, oauthReadinessAttestationPath: source.oauthReadinessAttestationPath, oauthReadinessAttestationSha256: source.oauthReadinessAttestationSha256 });
+    const authorization = await readAndValidateFinalAuthorization(source.finalAuthorizationPath, { executionCommit, toolingCommit: executionCommit, expectedDryRunRunId: source.runId });
+    const binding = await readFinalExecutionBindingForReview({ operatorRoot: source.sourceManifest.operatorRoot, expectedExecutionCommit: executionCommit, expectedParentAuthorizationPath: source.finalAuthorizationPath, expectedParentAuthorizationSha256: source.finalAuthorizationSha256 });
+    if (authorization.dryRunReceiptPath !== source.receiptPath || authorization.dryRunTerminalPath !== source.dryRunTerminalPath || authorization.dryRunOrchestrationTerminalPath !== source.orchestrationTerminalPath || binding.binding.parentReceiptPath !== source.receiptPath || binding.binding.parentDryRunRunId !== source.runId || binding.binding.planSha256 !== source.sourcePlanSha256) fail("R6_PRODUCTION_PACKAGE_REVIEW_INELIGIBLE");
+    return Object.freeze({ classification: "R6_PRODUCTION_PACKAGE_REVIEW_ELIGIBILITY_READY", bindingSelection: binding.selection, bindingPath: binding.bindingPath, bindingSha256: binding.bindingSha256 });
+  } catch (error) {
+    if (error?.code) throw error;
+    fail("R6_PRODUCTION_PACKAGE_REVIEW_INELIGIBLE");
+  }
 }
 
 export function createProductionAuthorization(manifest, manifestSha256) {

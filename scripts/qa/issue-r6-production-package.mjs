@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createProductionAuthorization, createProductionManifest, sha256 } from "./r6-production-package-contract.mjs";
+import { createProductionAuthorization, createProductionManifest, sha256, validateProductionPackageReviewEligibility } from "./r6-production-package-contract.mjs";
 import { getMinimalCanaryMutationPlan } from "./r6-final-canary-execution-contract.mjs";
 import { validateCanonicalCanaryTargetBinding } from "./canonical-canary-target-binding.mjs";
 import { validateOAuthReadinessAttestation } from "./r6-oauth-readiness-attestation.mjs";
@@ -42,6 +42,7 @@ async function validateExecutedDryRunSource(source, executionCommit) {
 }
 
 await validateExecutedDryRunSource(config.source, config.executionCommit);
+await validateProductionPackageReviewEligibility({ source: config.source, executionCommit: config.executionCommit });
 config.launcherPath = launcher; config.manifestPath = manifestPath; config.authorizationPath = authorizationPath;
 const renderConfig = path.join(path.dirname(config.operatorRoot), `.r6-production-render-${process.pid}.json`);
 await mkdir(path.dirname(launcher), { recursive: true }); await writeFile(renderConfig, JSON.stringify(config), "utf8");

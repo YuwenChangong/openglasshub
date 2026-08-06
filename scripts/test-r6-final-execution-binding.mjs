@@ -32,6 +32,7 @@ const binding = () => ({
 });
 
 assert.equal(validateFinalExecutionBinding(binding()).executionCommit, commit);
+assert.equal("bindingSha256" in validateFinalExecutionBinding(binding()), false);
 for (const mutate of [
   (value) => { delete value.executionWorktree; },
   (value) => { value.executionCommit = "0".repeat(40); },
@@ -41,6 +42,7 @@ for (const mutate of [
   (value) => { value.plannedMutationCount = 1; },
   (value) => { value.parentActualMutationCount = 1; },
   (value) => { value.planSchema = "qa-minimal-canary-mutation-plan-v1"; },
+  (value) => { value.bindingSha256 = hash; },
 ]) {
   const value = binding();
   mutate(value);

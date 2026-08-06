@@ -27,7 +27,11 @@ export function validateFinalExecutionBinding(value) {
   if (!RUN_ID.test(String(item.parentDryRunRunId))) fail("R6_FINAL_EXECUTION_BINDING_INVALID");
   if (item.planSchema !== "qa-minimal-canary-mutation-plan-v2" || item.plannedMutationCount !== 2 || item.parentActualMutationCount !== 0 || !Array.isArray(item.approvedOperationIds) || item.approvedOperationIds.length !== 2 || item.approvedOperationIds[0] !== "CREATE_POST" || item.approvedOperationIds[1] !== "CREATE_COMMENT") fail("R6_FINAL_EXECUTION_BINDING_SAFETY_INVALID");
   validateCanonicalCanaryTargetBinding(item.targetBinding, { baseMutationPlanSchema: item.planSchema, baseMutationPlanHash: item.planSha256, executionCommit: item.executionCommit, toolingCommit: item.toolingCommit });
-  return Object.freeze({ ...item, bindingSha256: sha256(JSON.stringify(item)) });
+  return Object.freeze({ ...item });
+}
+
+export function sha256FinalExecutionBindingBytes(value) {
+  return sha256(value);
 }
 
 export async function readAndValidateFinalExecutionBinding(file, expectedSha256) {
