@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { LOCAL_NONPRODUCTION_TARGET_CLASS, REMOTE_NONPRODUCTION_TARGET_CLASS, evaluateLegalNonproductionTargetProvisioning, validateLegalNonproductionTargetBinding } from "./lib/legal-nonproduction-target-binding.mjs";
+import { evaluateLegalPredeploymentReadiness } from "./lib/legal-predeployment-readiness.mjs";
 
 const NOW = Date.parse("2026-08-06T00:00:00.000Z");
 const hash = (character) => character.repeat(64);
@@ -11,6 +12,9 @@ const reject = (mutate, code) => { const binding = local(); mutate(binding); ass
 assert.equal(validateLegalNonproductionTargetBinding(local(), { now: NOW }).classification, "R6_LOCAL_ISOLATED_NONPRODUCTION_TARGET_BINDING_READY");
 assert.equal(evaluateLegalNonproductionTargetProvisioning(local(), { now: NOW }).classification, "R6_LOCAL_NONPRODUCTION_TARGET_PROVISIONING_READY");
 assert.equal(evaluateLegalNonproductionTargetProvisioning(null).classification, "R6_LOCAL_NONPRODUCTION_TARGET_CREATION_REQUIRED");
+const localLegalReadiness = evaluateLegalPredeploymentReadiness({ targetBinding: local(), now: NOW });
+assert.equal(localLegalReadiness.classification, "R6_LOCAL_NONPRODUCTION_TARGET_PROVISIONING_READY");
+assert.equal(localLegalReadiness.legalStatus, "NO_GO", "A technical local target cannot turn legal readiness into GO.");
 const remote = { ...local(), providerClass: REMOTE_NONPRODUCTION_TARGET_CLASS, environmentClassification: REMOTE_NONPRODUCTION_TARGET_CLASS, productionIdentityComparison: { ...local().productionIdentityComparison, source: "FORMAL_ARTIFACT" }, localAddressClass: null, containerRuntime: null, containerRuntimeVersion: null, containerIdentityHash: null, remoteIsolationVerified: true };
 assert.equal(validateLegalNonproductionTargetBinding(remote, { now: NOW }).classification, "R6_NONPRODUCTION_TARGET_BINDING_READY");
 reject((binding) => { binding.environmentClassification = "PRODUCTION"; }, "R6_NONPRODUCTION_TARGET_CLASSIFICATION_INVALID");

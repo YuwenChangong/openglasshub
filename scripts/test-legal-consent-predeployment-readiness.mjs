@@ -8,6 +8,7 @@ import * as methodTraceFixture from "../tests/fixtures/legal-consent-api-methods
 import { completedBatchIds, expectedMethodCount } from "../tests/fixtures/legal-consent-api-trace-batches.mjs";
 import { REQUIRED_FORWARD_MIGRATIONS } from "./lib/legal-consent-forward-migration-inventory.mjs";
 import { evaluateLegalNonproductionTargetProvisioning } from "./lib/legal-nonproduction-target-binding.mjs";
+import { evaluateLegalPredeploymentReadiness } from "./lib/legal-predeployment-readiness.mjs";
 
 const root = process.cwd();
 const migrationDirectory = path.join(root, "supabase", "migrations");
@@ -95,4 +96,8 @@ assert.equal(completedBatchIds.size, 6, "All six Phase 4A1 parent batches must r
 
 const localTargetProvisioning = evaluateLegalNonproductionTargetProvisioning(null);
 assert.equal(localTargetProvisioning.classification, "R6_LOCAL_NONPRODUCTION_TARGET_CREATION_REQUIRED");
-console.log(JSON.stringify({ phase4A1: "66/66 traced", phase4A2: "5/5 integrated", phase4B: "37/37 integrated", migrationInventory: "12/12 exact and ordered", staticAclBlockers: [], publicLegalContactVariables: 5, localNonproductionTarget: localTargetProvisioning.classification, productionFingerprint: "BLOCKED_PENDING_FINGERPRINT", status: "NO_GO", realOperations: 0 }));
+const legalReadiness = evaluateLegalPredeploymentReadiness();
+assert.equal(legalReadiness.classification, "R6_LOCAL_NONPRODUCTION_TARGET_CREATION_REQUIRED");
+assert.equal(legalReadiness.productionFingerprint, "BLOCKED_PENDING_FINGERPRINT");
+assert.equal(legalReadiness.legalStatus, "NO_GO");
+console.log(JSON.stringify({ phase4A1: "66/66 traced", phase4A2: "5/5 integrated", phase4B: "37/37 integrated", migrationInventory: "12/12 exact and ordered", staticAclBlockers: [], publicLegalContactVariables: 5, localNonproductionTarget: legalReadiness.classification, productionFingerprint: legalReadiness.productionFingerprint, status: legalReadiness.legalStatus, realOperations: 0 }));

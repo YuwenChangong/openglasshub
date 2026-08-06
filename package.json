@@ -42,6 +42,7 @@
     "test:legal-local-nonproduction-target": "node scripts/test-legal-local-nonproduction-target.mjs",
     "test:legal-local-rebuild-restore": "node scripts/test-legal-local-rebuild-restore-evidence.mjs",
     "test:legal-local-migration-replay": "node scripts/test-legal-local-migration-replay-contract.mjs",
+    "qa:legal-predeployment-readiness": "node scripts/qa/evaluate-legal-predeployment-readiness.mjs",
     "test:legal-public-rendering": "node --experimental-strip-types scripts/test-legal-public-rendering.mjs",
     "test:local-supabase-replay-mirror": "node scripts/test-local-supabase-replay-mirror.mjs",
     "generate:production-schema-fingerprint": "node scripts/generate-local-production-schema-fingerprint.mjs",

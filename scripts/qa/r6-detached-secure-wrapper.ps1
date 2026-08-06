@@ -102,6 +102,7 @@ $script:ReviewedHashes = [ordered]@{
   'scripts\qa\validate-legal-local-rebuild-restore-evidence.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\qa\validate-legal-local-migration-replay-contract.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\test-legal-consent-predeployment-readiness.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\evaluate-legal-predeployment-readiness.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
 }
 $script:ReviewedGitBlobHashes = [ordered]@{
   'scripts\qa\run-production-minimal-canary.mjs' = '76eca9a24dcfae34983500ddcce01b37dfd868f3'
@@ -140,6 +141,7 @@ $script:ReviewedGitBlobHashes = [ordered]@{
   'scripts\qa\validate-legal-local-rebuild-restore-evidence.mjs' = '0000000000000000000000000000000000000000'
   'scripts\qa\validate-legal-local-migration-replay-contract.mjs' = '0000000000000000000000000000000000000000'
   'scripts\test-legal-consent-predeployment-readiness.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\evaluate-legal-predeployment-readiness.mjs' = '0000000000000000000000000000000000000000'
 }
 $script:SecretEnvironmentNames = @('QA_CANARY_ACCESS_TOKEN', 'QA_CANARY_SUPABASE_ANON_KEY')
 $script:RunnerEnvironmentNames = @(

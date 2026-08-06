@@ -98,6 +98,8 @@ An approved task-owned local Docker target is an equivalent non-production valid
 
 The local target must be loopback or on a task-owned Docker network, disposable, free of persistent business data, free of production credentials and project references, and unable to require a production network connection. Before it exists, readiness is `R6_LOCAL_NONPRODUCTION_TARGET_CREATION_REQUIRED`; after a valid binding it is `R6_LOCAL_NONPRODUCTION_TARGET_PROVISIONING_READY`. Neither result changes this document's top-level `NO_GO`.
 
+`npm run qa:legal-predeployment-readiness` is the value-blind readiness entrypoint. With no argument it reports the creation-required classification. A later task may pass only a binding artifact path through `--target-binding`; the evaluator does not contact Docker, Supabase, or Production.
+
 Local restore evidence must record an observed destroy-and-rebuild using the same bootstrap, distinct destroyed and rebuilt container identities, matching pre-migration and rebuilt fingerprints, and a successful restore smoke. A declaration that a target is recreatable is not evidence. The later replay plan is exactly the twelve migrations in this document's ordered inventory, with one attempt per migration, zero retries, and no automatic rollback. ACL, RLS, authenticated policy, service-role, consent, deletion, and security smoke require a local Supabase runtime when ordinary PostgreSQL cannot faithfully supply the needed behavior.
 
 Production catalog fingerprint evidence remains independent and `BLOCKED_PENDING_FINGERPRINT`. It may be collected later in a production read-only SQL Editor session; the Supabase CLI is not required.
