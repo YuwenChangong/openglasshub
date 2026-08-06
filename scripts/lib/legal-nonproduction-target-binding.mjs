@@ -4,10 +4,13 @@ export const REMOTE_NONPRODUCTION_TARGET_CLASS = "REMOTE_ISOLATED_NON_PRODUCTION
 export const LEGAL_PREDEPLOYMENT_PURPOSE = "LEGAL_PREDEPLOYMENT_MIGRATION_REPLAY";
 
 const HASH = /^[a-f0-9]{64}$/;
-const TASK_ID = /^r6-final-contract-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const TASK_ID = /^r6-(?:final-contract|local-predeployment)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PROVIDERS = new Set([LOCAL_NONPRODUCTION_TARGET_CLASS, REMOTE_NONPRODUCTION_TARGET_CLASS]);
 const LOCAL_ADDRESS_CLASSES = new Set(["LOOPBACK", "TASK_OWNED_DOCKER_NETWORK"]);
 const COMPARISON_SOURCES = new Set(["FORMAL_ARTIFACT", "LOCAL_ISOLATION_FALLBACK"]);
+const COMMON_FIELDS = new Set(["schemaVersion", "providerClass", "environmentClassification", "environmentPurpose", "taskId", "implementationCommit", "targetIdentityHash", "hostIdentityHash", "databaseIdentityHash", "networkIdentityHash", "engine", "engineVersion", "createdAt", "expiresAt", "disposable", "persistentBusinessData", "productionCredentialsPresent", "productionNetworkAccessRequired", "productionIdentityComparison"]);
+const LOCAL_FIELDS = new Set(["localAddressClass", "containerRuntime", "containerRuntimeVersion", "containerIdentityHash", "containerTaskOwned", "networkTaskOwned", "externalDatabaseConnectionAllowed"]);
+const REMOTE_FIELDS = new Set(["localAddressClass", "containerRuntime", "containerRuntimeVersion", "containerIdentityHash", "remoteIsolationVerified"]);
 
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -43,9 +46,12 @@ export function validateLegalNonproductionTargetBinding(binding, { now = Date.no
   if (!isObject(binding)) fail("R6_NONPRODUCTION_TARGET_BINDING_INVALID");
   if (binding.schemaVersion !== LEGAL_NONPRODUCTION_TARGET_BINDING_SCHEMA) fail("R6_NONPRODUCTION_TARGET_BINDING_SCHEMA_INVALID");
   if (!PROVIDERS.has(binding.providerClass)) fail("R6_NONPRODUCTION_TARGET_PROVIDER_CLASS_INVALID");
+  const allowedFields = binding.providerClass === LOCAL_NONPRODUCTION_TARGET_CLASS ? new Set([...COMMON_FIELDS, ...LOCAL_FIELDS]) : new Set([...COMMON_FIELDS, ...REMOTE_FIELDS]);
+  if (Object.keys(binding).some((field) => !allowedFields.has(field))) fail("R6_NONPRODUCTION_TARGET_BINDING_UNKNOWN_FIELD");
   if (binding.environmentClassification !== binding.providerClass) fail("R6_NONPRODUCTION_TARGET_CLASSIFICATION_INVALID");
   if (binding.environmentPurpose !== LEGAL_PREDEPLOYMENT_PURPOSE) fail("R6_NONPRODUCTION_TARGET_PURPOSE_INVALID");
   if (!TASK_ID.test(String(binding.taskId ?? ""))) fail("R6_NONPRODUCTION_TARGET_TASK_ID_INVALID");
+  if (!/^[a-f0-9]{40}$/.test(String(binding.implementationCommit ?? ""))) fail("R6_NONPRODUCTION_TARGET_IMPLEMENTATION_COMMIT_INVALID");
   for (const field of ["targetIdentityHash", "hostIdentityHash", "databaseIdentityHash", "networkIdentityHash"]) requireHash(binding[field], `R6_NONPRODUCTION_TARGET_IDENTITY_HASH_INVALID:${field}`);
   requireString(binding.engine, "R6_NONPRODUCTION_TARGET_ENGINE_INVALID");
   requireString(binding.engineVersion, "R6_NONPRODUCTION_TARGET_ENGINE_VERSION_INVALID");
