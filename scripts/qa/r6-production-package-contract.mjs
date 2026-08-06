@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { getMinimalCanaryMutationPlan } from "./r6-final-canary-execution-contract.mjs";
+import { validateDryRunProductionSourceEligibility } from "./r6-dryrun-source-chain-contract.mjs";
 
 export const PRODUCTION_MANIFEST_VERSION = "r6-production-launcher-binding-v1";
 export const PRODUCTION_AUTHORIZATION_VERSION = "r6-production-launcher-authorization-v1";
@@ -17,7 +18,7 @@ function hasSensitiveKey(value) {
   return Object.entries(value).some(([key, nested]) => /(?:password|token|secret|anon|session|slug)/i.test(key) || hasSensitiveKey(nested));
 }
 
-const sourceKeys = ["manifestSchema", "manifestPath", "manifestSha256", "runId", "executionCommit", "evidenceRoot", "receiptPath", "receiptSha256", "authenticatedResultPath", "authenticatedResultSha256", "dryRunTerminalPath", "dryRunTerminalSha256", "orchestrationTerminalPath", "orchestrationTerminalSha256", "targetBindingPath", "targetBindingSha256", "sourcePlanSchema", "sourcePlanSha256", "sameCommitBinding"];
+const sourceKeys = ["manifestSchema", "manifestPath", "manifestSha256", "sourceManifest", "runId", "executionCommit", "evidenceRoot", "receiptPath", "receiptSha256", "authenticatedResultPath", "authenticatedResultSha256", "dryRunTerminalPath", "dryRunTerminalSha256", "orchestrationTerminalPath", "orchestrationTerminalSha256", "targetBindingPath", "targetBindingSha256", "sourcePlanSchema", "sourcePlanSha256", "sameCommitBinding"];
 
 export function createProductionManifest(input) {
   const plan = getMinimalCanaryMutationPlan();
@@ -37,6 +38,8 @@ export function validateProductionManifest(value) {
   const source = value.source;
   exact(source, sourceKeys, "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
   if (source.manifestSchema !== "r6-fresh-dryrun-launcher-binding-v3" || !RUN_ID.test(String(source.runId)) || source.executionCommit !== value.executionCommit || source.sourcePlanSchema !== plan.schemaVersion || source.sourcePlanSha256 !== plan.planSha256 || source.sameCommitBinding !== true || hasSensitiveKey(source)) fail("R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
+  try { validateDryRunProductionSourceEligibility({ manifest: source.sourceManifest, executionCommit: value.executionCommit, registryBinding: source.sourceManifest?.registryBinding }); } catch { fail("R6_PRODUCTION_MANIFEST_SOURCE_INVALID"); }
+  if (source.sourceManifest.runId !== source.runId || source.sourceManifest.evidenceRoot !== source.evidenceRoot || source.sourceManifest.receiptPath !== source.receiptPath || source.sourceManifest.authCheckTerminalPath !== source.authenticatedResultPath || source.sourceManifest.dryRunTerminalPath !== source.dryRunTerminalPath || source.sourceManifest.orchestrationTerminalPath !== source.orchestrationTerminalPath || source.sourceManifest.targetBindingPath !== source.targetBindingPath) fail("R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
   for (const key of ["manifestPath", "evidenceRoot", "receiptPath", "authenticatedResultPath", "dryRunTerminalPath", "orchestrationTerminalPath", "targetBindingPath"]) requiredText(source[key], "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
   for (const key of ["manifestSha256", "receiptSha256", "authenticatedResultSha256", "dryRunTerminalSha256", "orchestrationTerminalSha256", "targetBindingSha256", "sourcePlanSha256"]) requiredHash(source[key], "R6_PRODUCTION_MANIFEST_SOURCE_INVALID");
   return Object.freeze(value);

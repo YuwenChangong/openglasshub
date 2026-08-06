@@ -136,13 +136,14 @@ try {
   Set-Stage 'LAUNCHER_ENTRY'
   Set-Stage 'ASSERT_PACKAGE_BINDINGS'
   $manifest=Get-Content -LiteralPath $script:Config.manifestPath -Raw | ConvertFrom-Json
-  if ($manifest.schemaVersion -notin @('r6-fresh-dryrun-launcher-binding-v2','r6-fresh-dryrun-launcher-binding-v3')) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_SCHEMA_INVALID' }
+  if ($manifest.schemaVersion -ne 'r6-fresh-dryrun-launcher-binding-v3') { throw 'R6_OPERATOR_LAUNCH_PACKAGE_SCHEMA_INVALID' }
   if ($manifest.runId -ne $script:Config.runId) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_RUN_ID_INVALID' }
-  if ([string]$manifest.launcherSha256 -notmatch '^[a-f0-9]{64}$') { throw 'R6_OPERATOR_LAUNCH_PACKAGE_LAUNCHER_HASH_INVALID' }
+  if ((Get-Sha256 $script:Config.manifestPath) -ne $script:Config.manifestSha256) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_MANIFEST_HASH_INVALID' }
+  foreach($key in @('branch','executionWorktree','wranglerVersion','wranglerEntryPathClass','wranglerEntrySha256','evidenceRoot','operatorRoot','registryBinding','artifactSchemas','mutationPlanSchema','mutationPlanSha256','operations','operationCount','cleanupContract','retryContract','rollbackContract','persistenceContract','postflightContract','oauthOperation','oauthAttestationClassification','oauthAttestationIssuedAt','issuerStartedAt','attestationAgeAtIssuerStartSeconds','attestationRemainingAtIssuerStartSeconds','singleUse')) { if($null -eq $manifest.$key){ throw 'R6_OPERATOR_LAUNCH_PACKAGE_SOURCE_CHAIN_INVALID' } }
+  if($manifest.singleUse.enabled -ne $true -or $manifest.singleUse.retryAllowed -ne $false -or $manifest.singleUse.overwriteAllowed -ne $false -or $manifest.mutationPlanSchema -ne 'qa-minimal-canary-mutation-plan-v2' -or $manifest.cleanupContract -ne 'none' -or $manifest.retryContract -ne 'none' -or $manifest.rollbackContract -ne 'none' -or $manifest.persistenceContract -ne 'retain-created-post-and-comment' -or $manifest.postflightContract -ne 'read-only-zero-write'){ throw 'R6_OPERATOR_LAUNCH_PACKAGE_SOURCE_CHAIN_INVALID' }
   if ([string]::IsNullOrWhiteSpace($PSCommandPath) -or -not (Test-Path -LiteralPath $PSCommandPath)) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_LAUNCHER_PATH_INVALID' }
   if ([IO.Path]::GetFullPath($PSCommandPath) -ne [IO.Path]::GetFullPath($script:Config.launcherPath)) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_LAUNCHER_PATH_INVALID' }
   $script:State.launcherSha256=Get-Sha256 $PSCommandPath
-  if ($script:State.launcherSha256 -ne $manifest.launcherSha256) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_LAUNCHER_HASH_INVALID' }
   if ($manifest.wrapperSha256 -ne $script:Config.wrapperSha256) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_WRAPPER_HASH_INVALID' }
   if ($manifest.launcherTerminalPath -ne $script:TerminalPath) { throw 'R6_OPERATOR_LAUNCH_PACKAGE_TERMINAL_PATH_INVALID' }
   Complete-Stage 'ASSERT_PACKAGE_BINDINGS'

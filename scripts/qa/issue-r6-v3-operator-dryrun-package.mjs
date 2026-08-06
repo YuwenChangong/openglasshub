@@ -1,36 +1,60 @@
-import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getMinimalCanaryMutationPlan } from "./r6-final-canary-execution-contract.mjs";
+import { canonicalJson, canonicalSha256, createDryRunSourceManifest, validateDryRunSourceManifest } from "./r6-dryrun-source-chain-contract.mjs";
 
-function fail(code) { throw Object.assign(new Error(code), { code }); }
-function sha256(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
+const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 function flags(argv) { if (argv.length !== 6 || argv[0] !== "--config" || argv[2] !== "--launcher" || argv[4] !== "--manifest") fail("R6_OPERATOR_LAUNCH_ISSUE_INPUT_INVALID"); return { config: path.resolve(argv[1]), launcher: path.resolve(argv[3]), manifest: path.resolve(argv[5]) }; }
+async function absent(candidate, code) { try { await access(candidate); fail(code); } catch (error) { if (error?.code !== "ENOENT") throw error; } }
+async function atomicWrite(file, raw) {
+  const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  const handle = await open(temporary, "wx", 0o600);
+  try { await handle.writeFile(raw, "utf8"); await handle.sync(); } finally { await handle.close(); }
+  await rename(temporary, file);
+}
+
 const values = flags(process.argv.slice(2));
 const config = JSON.parse(await readFile(values.config, "utf8"));
-for (const key of ["runId", "operatorRoot", "evidenceRoot", "executionWorktree", "executionCommit", "wrapperPath", "wrapperSha256", "confirmationSha256"]) if (typeof config[key] !== "string" || !config[key]) fail("R6_OPERATOR_LAUNCH_ISSUE_CONFIG_INVALID");
-if (!/^qa-canary-[0-9a-f-]{36}$/.test(config.runId) || !/^[a-f0-9]{64}$/.test(config.wrapperSha256) || !/^[a-f0-9]{64}$/.test(config.confirmationSha256)) fail("R6_OPERATOR_LAUNCH_ISSUE_CONFIG_INVALID");
-for (const candidate of [config.operatorRoot, config.evidenceRoot, values.launcher, values.manifest]) { try { await access(candidate); fail("R6_OPERATOR_LAUNCH_SINGLE_USE_PATH_CONFLICT"); } catch (error) { if (error?.code !== "ENOENT") throw error; } }
-config.manifestPath = values.manifest;
+const testNow = config.__testNow;
+const now = testNow ? () => new Date(testNow) : () => new Date();
+delete config.__testNow;
 config.launcherPath = values.launcher;
+config.manifestPath = values.manifest;
+config.launcherTerminalPath ??= path.join(path.resolve(config.operatorRoot), "launcher-terminal-result.json");
+config.launcherBreadcrumbPath ??= path.join(path.resolve(config.operatorRoot), "launcher-stage-breadcrumb.json");
+config.wrapperEntryMarkerPath ??= path.join(path.resolve(config.operatorRoot), "wrapper-entry-marker.json");
+config.captureTerminalPath ??= path.join(path.resolve(config.evidenceRoot), "capture-auth-check-orchestration-terminal-result.json");
+config.authCheckTerminalPath ??= path.join(path.resolve(config.evidenceRoot), "auth-check", "auth-check-only-terminal-result.json");
+config.targetBindingPath ??= path.join(path.resolve(config.evidenceRoot), "dry-run", "canonical-canary-target-binding.json");
+config.dryRunTerminalPath ??= path.join(path.resolve(config.evidenceRoot), "dry-run", "dry-run-only-terminal-result.json");
+config.orchestrationTerminalPath ??= path.join(path.resolve(config.evidenceRoot), "capture-authcheck-dryrun-orchestration-terminal-result.json");
+config.registryPath ??= path.join(path.resolve(config.registryRoot), "consumed-run-registry-v1.json");
 config.invocationNonce = randomUUID();
-if (path.resolve(path.dirname(values.manifest)) !== path.resolve(config.operatorRoot)) fail("R6_OPERATOR_LAUNCH_ISSUE_OPERATOR_ROOT_INVALID");
-await mkdir(path.dirname(values.launcher), { recursive: true });
-const configPath = path.join(path.dirname(config.operatorRoot), ".launcher-render-config.json");
-await writeFile(configPath, JSON.stringify(config), "utf8");
+config.receiptPath ??= path.join(path.resolve(config.registryRoot), "consumed-run-receipts-v1", config.runId, `${config.invocationNonce}.json`);
+
+// Every observable target is checked before the operator root or launcher is created.
+for (const candidate of [config.operatorRoot, config.evidenceRoot, values.launcher, values.manifest, config.launcherTerminalPath, config.launcherBreadcrumbPath, config.wrapperEntryMarkerPath, config.captureTerminalPath, config.authCheckTerminalPath, config.targetBindingPath, config.dryRunTerminalPath, config.orchestrationTerminalPath, config.receiptPath]) await absent(path.resolve(candidate), "R6_OPERATOR_LAUNCH_SINGLE_USE_PATH_CONFLICT");
+const manifest = createDryRunSourceManifest(config, { now, atomicOAuth: config.atomicOAuth === true });
+validateDryRunSourceManifest(manifest);
+const raw = canonicalJson(manifest);
+const manifestSha256 = canonicalSha256(manifest);
+let createdOperatorRoot = false;
 try {
-  execFileSync(process.execPath, [fileURLToPath(new URL("./render-r6-v3-operator-dryrun-launcher.mjs", import.meta.url)), "--config", configPath, "--destination", values.launcher], { stdio: "pipe" });
-  const launcherSha256 = sha256(await readFile(values.launcher));
-  const terminalPath = path.join(config.operatorRoot, "launcher-terminal-result.json");
-  const dryRoot = path.resolve(config.evidenceRoot);
-  const plan = getMinimalCanaryMutationPlan();
-  const manifest = { schemaVersion: "r6-fresh-dryrun-launcher-binding-v3", runId: config.runId, executionCommit: config.executionCommit, operatorRoot: path.resolve(config.operatorRoot), evidenceRoot: dryRoot, launcherSha256, wrapperSha256: config.wrapperSha256, confirmationSha256: config.confirmationSha256, launcherTerminalPath: terminalPath, launcherBreadcrumbPath: path.join(config.operatorRoot, "launcher-stage-breadcrumb.json"), captureTerminalPath: path.join(dryRoot, "capture-auth-check-orchestration-terminal-result.json"), authCheckTerminalPath: path.join(dryRoot, "auth-check", "auth-check-only-terminal-result.json"), targetBindingPath: path.join(dryRoot, "dry-run", "canonical-canary-target-binding.json"), dryRunTerminalPath: path.join(dryRoot, "dry-run", "dry-run-only-terminal-result.json"), orchestrationTerminalPath: path.join(dryRoot, "capture-authcheck-dryrun-orchestration-terminal-result.json"), receiptPath: path.join("C:\\Users\\1\\OpenGlassHub-R6-Proof\\production-canary\\consumed-run-receipts-v1", config.runId, `${config.invocationNonce}.json`), artifactSchemas: { capture: "r6-v4-capture-authcheck-dryrun-orchestration-terminal-result-v4", authCheck: "r6-v3-auth-check-only-terminal-result-v3", dryRun: "r6-v4-dry-run-terminal-result-v4", orchestration: "r6-v4-capture-authcheck-dryrun-orchestration-terminal-result-v4", targetBinding: "qa-canary-target-binding-v1" }, mutationPlanSchema: plan.schemaVersion, mutationPlanSha256: plan.planSha256, targetSlugStored: false, wrapperInvocation: "inline" };
-  await mkdir(config.operatorRoot, { recursive: false });
-  await writeFile(values.manifest, JSON.stringify(manifest, null, 2) + "\n", "utf8");
-  process.stdout.write(`${JSON.stringify({ launcher: values.launcher, manifest: values.manifest, launcherSha256, manifestSha256: sha256(await readFile(values.manifest)), terminalPath })}\n`);
-} finally {
-  try { await import("node:fs/promises").then(({ unlink }) => unlink(configPath)); } catch {}
+  await mkdir(path.dirname(values.launcher), { recursive: true });
+  await mkdir(config.operatorRoot, { recursive: false }); createdOperatorRoot = true;
+  await atomicWrite(values.manifest, raw);
+  const renderConfig = { ...config, manifestSha256 };
+  const configPath = path.join(os.tmpdir(), `r6-dryrun-render-${process.pid}-${randomUUID()}.json`);
+  try {
+    await writeFile(configPath, canonicalJson(renderConfig), "utf8");
+    execFileSync(process.execPath, [fileURLToPath(new URL("./render-r6-v3-operator-dryrun-launcher.mjs", import.meta.url)), "--config", configPath, "--destination", values.launcher], { stdio: "pipe" });
+  } finally { await rm(configPath, { force: true }); }
+  process.stdout.write(`${JSON.stringify({ launcher: values.launcher, manifest: values.manifest, launcherSha256: (await import("node:crypto")).createHash("sha256").update(await readFile(values.launcher)).digest("hex"), manifestSha256, terminalPath: manifest.launcherTerminalPath })}\n`);
+} catch (error) {
+  await rm(values.launcher, { force: true });
+  if (createdOperatorRoot) await rm(config.operatorRoot, { recursive: true, force: true });
+  throw error;
 }
