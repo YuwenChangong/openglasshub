@@ -21,8 +21,8 @@ try {
     repositoryRoot: root,
   });
 
-  assert.equal(report.migrationCount, 43);
-  assert.equal(report.temporaryVersionCount, 43);
+  assert.equal(report.migrationCount, ORDERED_MIGRATION_FILENAMES.length);
+  assert.equal(report.temporaryVersionCount, ORDERED_MIGRATION_FILENAMES.length);
   assert.deepEqual(report.bomTransformedFiles, [
     "20260603_forum_comments_interactions.sql",
     "20260605_forum_posts_body_short_content.sql",

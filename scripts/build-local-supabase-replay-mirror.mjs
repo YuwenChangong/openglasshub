@@ -47,7 +47,14 @@ export const ORDERED_MIGRATION_FILENAMES = [
   "20260715_post_media_delivery_visibility_authorization.sql",
   "20260716_profile_media_delivery_authorization.sql",
   "20260717_security_definer_execute_hardening.sql",
+  "20260807073929_reconcile_production_schema_drift.sql",
 ];
+
+// The reconciliation migration repairs the canonical schema but does not become
+// provenance for the frozen pre-reconciliation structural fingerprint.
+export const FINGERPRINT_BASELINE_MIGRATION_FILENAMES = Object.freeze(
+  ORDERED_MIGRATION_FILENAMES.filter((filename) => filename !== "20260807073929_reconcile_production_schema_drift.sql"),
+);
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 const ALLOWED_CONTROL_BYTES = new Set([0x09, 0x0a, 0x0d]);
@@ -140,7 +147,7 @@ export function inspectMigrationBytes(filename, bytes) {
 }
 
 function parseCanonicalName(filename) {
-  const match = /^(\d{8})_(.+\.sql)$/.exec(filename);
+  const match = /^(\d{8}(?:\d{6})?)_(.+\.sql)$/.exec(filename);
   if (!match) throw new Error(`Malformed canonical migration filename: ${filename}`);
   return { date: match[1], suffix: match[2] };
 }
@@ -167,7 +174,7 @@ export async function buildLocalSupabaseReplayMirror({ canonicalDirectory, outpu
 
   const discovered = (await readdir(canonicalRoot)).filter((filename) => filename.endsWith(".sql")).sort();
   if (JSON.stringify(discovered) !== JSON.stringify([...ORDERED_MIGRATION_FILENAMES].sort())) {
-    throw new Error("Canonical migration inventory differs from the deterministic 43-file manifest");
+    throw new Error(`Canonical migration inventory differs from the deterministic ${ORDERED_MIGRATION_FILENAMES.length}-file manifest`);
   }
 
   try {

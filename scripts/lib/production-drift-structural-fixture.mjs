@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { compareFingerprint, parseExport } from "../compare-production-schema-fingerprint.mjs";
 import { buildFingerprint, loadPacketSql, migrationSourceIndex, parseCsv, rowKey, rowsFromFingerprint, sha256 } from "../production-schema-fingerprint-core.mjs";
+import { ORDERED_MIGRATION_FILENAMES } from "../build-local-supabase-replay-mirror.mjs";
 
 export const FIXTURE_FORMAT = "qa-production-drift-structural-fixture-manifest-v1";
 export const STARTING_COMMIT = "df6cd8822449af7599003e09ea60722ccef5310b";
@@ -103,6 +104,7 @@ export async function loadFrozenDriftInputs(root) {
   if (!rawRateLimit || !rawRateLimit.value.includes("-- Every current invocation")) throw new Error("R6_PRODUCTION_DRIFT_FIXTURE_RATE_LIMIT_SOURCE_NOT_REQUIRED");
   return Object.freeze({
     expected, rawRows, comparison, frozenComparison, objectMap: JSON.parse(objectMapText), sources,
+    frozenEvidence: FROZEN_HASHES,
     expectedByKey: new Map(expectedRows.map((row) => [rowKey(row), row])), rawByKey: new Map(rawRows.map((row) => [rowKey(row), row])),
     sourceFunctions: new Map([[rawRateLimit.identity, functionSourceSql]]),
   });
@@ -205,22 +207,34 @@ function parseTerminal(output) {
 }
 function taskId() { return `r6-final-contract-${randomUUID()}`; }
 function containerName(id) { return `openglass-normalized-replay-${id.slice("r6-final-contract-".length)}`; }
-export async function runNormalizedFixtureRuntime({ root, inputs, label }) {
+export async function withNormalizedReplayRuntime({ root, inputs, label, run }) {
   const id = taskId(); const container = containerName(id); let cleanup = null;
   try {
     const bootstrap = parseTerminal(node(root, ["scripts/qa/create-task-scoped-normalized-replay.mjs", "--task-id", id]));
-    if (bootstrap.classification !== "NORMALIZED_REPLAY_TASK_CONTAINER_READY" || bootstrap.migrationCount !== 43 || bootstrap.dockerPulls !== 0 || bootstrap.remoteOperations !== 0) throw new Error("R6_PRODUCTION_DRIFT_FIXTURE_NORMALIZED_BOOTSTRAP_INVALID");
+    if (bootstrap.classification !== "NORMALIZED_REPLAY_TASK_CONTAINER_READY" || bootstrap.migrationCount !== ORDERED_MIGRATION_FILENAMES.length || bootstrap.dockerPulls !== 0 || bootstrap.remoteOperations !== 0) throw new Error("R6_PRODUCTION_DRIFT_FIXTURE_NORMALIZED_BOOTSTRAP_INVALID");
     const canonical = await captureCatalog(root, container);
     const canonicalComparison = compareFingerprint(inputs.expected, canonical.rows);
     if (canonicalComparison.counts.MATCH !== inputs.expected.objectCount || canonicalComparison.counts.MISSING_IN_PRODUCTION || canonicalComparison.counts.DIVERGENT_IN_PRODUCTION || canonicalComparison.counts.EXTRA_IN_PRODUCTION || canonicalComparison.counts.INSUFFICIENT_EVIDENCE) throw new Error(`R6_CANONICAL_NORMALIZED_REPLAY_BASELINE_NOT_EQUIVALENT_${JSON.stringify(canonicalComparison.counts)}`);
+    return await run(Object.freeze({ id, label, container, bootstrap, canonical, canonicalComparison, canonicalFingerprintSha256: canonical.fingerprintSha256 }));
+  } finally {
+    try { cleanup = parseTerminal(node(root, ["scripts/qa/cleanup-task-scoped-normalized-replay.mjs", "--task-id", id])); } catch (error) { throw new Error(`R6_PRODUCTION_DRIFT_FIXTURE_CLEANUP_FAILED_${error.message}`); }
+    if (cleanup.classification !== "NORMALIZED_REPLAY_TASK_CONTAINER_CLEANED") throw new Error("R6_PRODUCTION_DRIFT_FIXTURE_CLEANUP_INVALID");
+  }
+}
+
+export async function withProductionDriftFixtureRuntime({ root, inputs, label, run }) {
+  return withNormalizedReplayRuntime({ root, inputs, label, run: async (canonicalRuntime) => {
+    const { container } = canonicalRuntime;
     const compiled = compileStructuralDriftFixture(inputs);
     docker(["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], `BEGIN;\n${compiled.statements.join("\n")}\nCOMMIT;\n`);
     const observed = await captureCatalog(root, container);
     const fidelity = verifyFixtureFidelity(inputs, observed.rows);
     if (JSON.stringify(fidelity.comparison.objectResults) !== JSON.stringify(inputs.comparison.objectResults)) throw new Error("R6_PRODUCTION_DRIFT_STRUCTURAL_FIXTURE_NOT_REPRESENTATIVE");
-    return Object.freeze({ id, label, bootstrap, canonicalComparison, canonicalFingerprintSha256: canonical.fingerprintSha256, compiled, comparison: fidelity.comparison, fidelity, observedFingerprintSha256: observed.fingerprintSha256 });
-  } finally {
-    try { cleanup = parseTerminal(node(root, ["scripts/qa/cleanup-task-scoped-normalized-replay.mjs", "--task-id", id])); } catch (error) { throw new Error(`R6_PRODUCTION_DRIFT_FIXTURE_CLEANUP_FAILED_${error.message}`); }
-    if (cleanup.classification !== "NORMALIZED_REPLAY_TASK_CONTAINER_CLEANED") throw new Error("R6_PRODUCTION_DRIFT_FIXTURE_CLEANUP_INVALID");
-  }
+    const runtime = Object.freeze({ ...canonicalRuntime, compiled, comparison: fidelity.comparison, fidelity, observedFingerprintSha256: observed.fingerprintSha256 });
+    return await run(runtime);
+  }});
+}
+
+export async function runNormalizedFixtureRuntime({ root, inputs, label }) {
+  return withProductionDriftFixtureRuntime({ root, inputs, label, run: async (runtime) => runtime });
 }

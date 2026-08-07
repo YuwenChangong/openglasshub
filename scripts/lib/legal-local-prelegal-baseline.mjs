@@ -8,7 +8,7 @@ export const LEGAL_LOCAL_PRELEGAL_BASELINE_TERMINAL_SCHEMA = "legal-local-preleg
 export const LEGAL_LOCAL_PRELEGAL_BOUNDARY_MIGRATION = "20260703_moderation_action_notifications.sql";
 export const LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED = "R6_LOCAL_PRELEGAL_BASELINE_REQUIRES_LOCAL_SUPABASE_RUNTIME";
 
-const FILE = /^(?<identity>\d{8})_(?<name>[a-z0-9_]+)\.sql$/;
+const FILE = /^(?<identity>\d{8}(?:\d{6})?)_(?<name>[a-z0-9_]+)\.sql$/;
 const HASH = /^[a-f0-9]{64}$/;
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 

@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
+import { FINGERPRINT_BASELINE_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 
 export const PACKET_COLUMNS = ["section", "object_type", "schema_name", "object_name", "identity", "attribute", "value", "definition_hash"];
-export const LEGAL_PREREQUISITES = new Set(ORDERED_MIGRATION_FILENAMES.filter((name) => name >= "20260703_"));
+export const LEGAL_PREREQUISITES = new Set(FINGERPRINT_BASELINE_MIGRATION_FILENAMES.filter((name) => name >= "20260703_"));
 export const NON_OBJECT_SECTION = "migration_ledger";
 export const REQUIRED_PACKET_SECTIONS = [
   "migration_ledger",
@@ -120,7 +120,7 @@ export async function loadPacketSql(root) {
 }
 
 export async function migrationSourceIndex(root) {
-  const files = await Promise.all(ORDERED_MIGRATION_FILENAMES.map(async (filename) => [filename, (await readFile(path.join(root, "supabase", "migrations", filename), "utf8")).toLowerCase()]));
+  const files = await Promise.all(FINGERPRINT_BASELINE_MIGRATION_FILENAMES.map(async (filename) => [filename, (await readFile(path.join(root, "supabase", "migrations", filename), "utf8")).toLowerCase()]));
   return new Map(files);
 }
 
@@ -128,14 +128,14 @@ export function sourceMigrationsFor(row, sourceIndex) {
   const specificName = row.identity.split(".").at(-1)?.split("(")[0] ?? "";
   const objectName = row.object_name.toLowerCase();
   const specific = specificName.toLowerCase();
-  const matches = ORDERED_MIGRATION_FILENAMES.filter((filename) => {
+  const matches = FINGERPRINT_BASELINE_MIGRATION_FILENAMES.filter((filename) => {
     const source = sourceIndex.get(filename);
     if (["policy", "constraint", "index", "trigger", "function"].includes(row.object_type)) return source.includes(specific || objectName);
     if (row.object_type === "column") return source.includes(objectName) && source.includes(specific);
     return source.includes(objectName);
   });
   if (matches.length || !["constraint", "index"].includes(row.object_type)) return matches;
-  return ORDERED_MIGRATION_FILENAMES.filter((filename) => sourceIndex.get(filename).includes(objectName));
+  return FINGERPRINT_BASELINE_MIGRATION_FILENAMES.filter((filename) => sourceIndex.get(filename).includes(objectName));
 }
 
 export function labelFor(row) {
@@ -180,7 +180,7 @@ export function buildFingerprint(rows, sourceIndex) {
   return {
     format: "openglass-production-schema-fingerprint-v1",
     generatedFrom: "LOCAL_DOCKER_ONLY",
-    canonicalMigrationCount: ORDERED_MIGRATION_FILENAMES.length,
+    canonicalMigrationCount: FINGERPRINT_BASELINE_MIGRATION_FILENAMES.length,
     legalConsentPrerequisiteCount: 12,
     localMigrationLedger: ledger,
     objectCount: objects.length,

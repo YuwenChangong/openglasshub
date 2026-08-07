@@ -60,6 +60,7 @@
     "generate:production-schema-fingerprint": "node scripts/generate-local-production-schema-fingerprint.mjs",
     "test:production-schema-fingerprint": "node scripts/test-production-schema-fingerprint.mjs",
     "test:production-drift-structural-fixture": "node scripts/test-production-drift-structural-fixture.mjs",
+    "test:production-forward-reconciliation": "node scripts/test-production-forward-reconciliation.mjs",
     "test:production-schema-forward-reconciliation": "node scripts/test-production-schema-forward-reconciliation.mjs",
     "test:production-reconciliation-wave1": "node scripts/test-production-reconciliation-wave1.mjs",
     "test:can-access-public-circle-prerequisite": "node scripts/test-can-access-public-circle-prerequisite.mjs",

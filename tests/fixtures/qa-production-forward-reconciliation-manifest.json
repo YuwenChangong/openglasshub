@@ -1,0 +1,1665 @@
+{
+  "format": "qa-production-forward-reconciliation-manifest-v1",
+  "startingCommit": "e73a5269f6b0fc86646ce887c012967e4b712b4d",
+  "fixtureImplementationCommit": "e73a5269f6b0fc86646ce887c012967e4b712b4d",
+  "frozenEvidence": {
+    "rawExport": "0062911093a992542d62ea81d73a419a88e99bf24d2eaeafdaf578694f01cdf7",
+    "catalogFingerprint": "199e0214a2d2506dbde810f5a47d2d507a0b71486ef2e0d4de3615dcf4ff6d14",
+    "schemaComparison": "5af0a636460764012d9f444ae5ee1207c1469f7f614dfe40bb2b4f9be6199956",
+    "driftSummary": "c91c3956adedc53a22cdd2d7f876836d4386c7b759fdd193ff96ae140619a0f6",
+    "reconciliationSummary": "9c7f24fc6a6b02c4bd84cfda4ff1eda54e056b9d555a3faff17228361661bd94",
+    "reconciliationObjectMap": "e3781be47528dff28242faa4d6f9b8e5d6a42cddde4002e95a28602d3e35ce07",
+    "reconciliationMigrationMap": "c0289bd46c986854e6827c56e783ec7bf4500ae5c2094f5ed0a1666b768d00b6"
+  },
+  "migration": {
+    "identity": "20260807073929",
+    "filename": "20260807073929_reconcile_production_schema_drift.sql",
+    "sha256": "f63ecb18b0b2c183c8e13f3db6526956afd2af508f02d7c89f02a912cae91cd0"
+  },
+  "targetDifferenceCount": 90,
+  "excludedExtraCount": 20,
+  "workstreamCounts": {
+    "privilege": 59,
+    "policy": 18,
+    "schema": 13
+  },
+  "targets": [
+    {
+      "differenceIdentity": "constraints_and_indexes|index|public|posts|public.posts.posts_view_count_idx|definition",
+      "section": "constraints_and_indexes",
+      "workstream": "schema",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260603_forum_hot_sort_and_circle_name_guard.sql",
+      "canonicalEvolutionChain": [
+        "20260603_forum_hot_sort_and_circle_name_guard.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ee9c59823905d0255b8e4714d1b09f68fd5e128851cf4375221063c12c931737",
+      "reconciliationStatementIds": [
+        "index:public.posts.posts_view_count_idx"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_comment_reaction_target|can_access_comment_reaction_target(uuid)|anon_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_comment_reaction_target(uuid)",
+        "function-acl-grant:can_access_comment_reaction_target(uuid):anon"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_comment_reaction_target|can_access_comment_reaction_target(uuid)|authenticated_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_comment_reaction_target(uuid)",
+        "function-acl-grant:can_access_comment_reaction_target(uuid):authenticated"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_comment_reaction_target|can_access_comment_reaction_target(uuid)|PUBLIC_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_comment_reaction_target(uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_comment_reaction_target|can_access_comment_reaction_target(uuid)|service_role_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_comment_reaction_target(uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_circle_cover_object|can_access_public_circle_cover_object(text)|anon_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260714_circle_cover_public_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260714_circle_cover_public_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_circle_cover_object(text)",
+        "function-acl-grant:can_access_public_circle_cover_object(text):anon"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_circle_cover_object|can_access_public_circle_cover_object(text)|authenticated_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260714_circle_cover_public_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260714_circle_cover_public_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_circle_cover_object(text)",
+        "function-acl-grant:can_access_public_circle_cover_object(text):authenticated"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_circle_cover_object|can_access_public_circle_cover_object(text)|PUBLIC_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260714_circle_cover_public_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260714_circle_cover_public_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_circle_cover_object(text)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_circle_cover_object|can_access_public_circle_cover_object(text)|service_role_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260714_circle_cover_public_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260714_circle_cover_public_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_circle_cover_object(text)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_comment_read_target|can_access_public_comment_read_target(uuid)|anon_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_comment_read_target(uuid)",
+        "function-acl-grant:can_access_public_comment_read_target(uuid):anon"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_comment_read_target|can_access_public_comment_read_target(uuid)|authenticated_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_comment_read_target(uuid)",
+        "function-acl-grant:can_access_public_comment_read_target(uuid):authenticated"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_comment_read_target|can_access_public_comment_read_target(uuid)|PUBLIC_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_comment_read_target(uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_comment_read_target|can_access_public_comment_read_target(uuid)|service_role_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_comment_read_target(uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_post_media_object|can_access_public_post_media_object(text)|anon_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_post_media_object(text)",
+        "function-acl-grant:can_access_public_post_media_object(text):anon"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_post_media_object|can_access_public_post_media_object(text)|authenticated_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_post_media_object(text)",
+        "function-acl-grant:can_access_public_post_media_object(text):authenticated"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_post_media_object|can_access_public_post_media_object(text)|PUBLIC_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_post_media_object(text)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_post_media_object|can_access_public_post_media_object(text)|service_role_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_post_media_object(text)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_profile_media_object|can_access_public_profile_media_object(text)|anon_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_profile_media_object(text)",
+        "function-acl-grant:can_access_public_profile_media_object(text):anon"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_profile_media_object|can_access_public_profile_media_object(text)|authenticated_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_profile_media_object(text)",
+        "function-acl-grant:can_access_public_profile_media_object(text):authenticated"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_profile_media_object|can_access_public_profile_media_object(text)|PUBLIC_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_profile_media_object(text)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_access_public_profile_media_object|can_access_public_profile_media_object(text)|service_role_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_access_public_profile_media_object(text)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_bind_post_media_provenance|can_bind_post_media_provenance(text,text,text,uuid,uuid)|anon_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_post_bound_media_provenance.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_bind_post_media_provenance(text,text,text,uuid,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_bind_post_media_provenance|can_bind_post_media_provenance(text,text,text,uuid,uuid)|authenticated_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_post_bound_media_provenance.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_bind_post_media_provenance(text,text,text,uuid,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_bind_post_media_provenance|can_bind_post_media_provenance(text,text,text,uuid,uuid)|PUBLIC_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_post_bound_media_provenance.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_bind_post_media_provenance(text,text,text,uuid,uuid)",
+        "function-acl-grant:can_bind_post_media_provenance(text,text,text,uuid,uuid):PUBLIC"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_bind_post_media_provenance|can_bind_post_media_provenance(text,text,text,uuid,uuid)|service_role_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_post_bound_media_provenance.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_bind_post_media_provenance(text,text,text,uuid,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_create_comment_target|can_create_comment_target(uuid,uuid)|anon_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_creation_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_creation_circle_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_create_comment_target(uuid,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_create_comment_target|can_create_comment_target(uuid,uuid)|authenticated_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_creation_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_creation_circle_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_create_comment_target(uuid,uuid)",
+        "function-acl-grant:can_create_comment_target(uuid,uuid):authenticated"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_create_comment_target|can_create_comment_target(uuid,uuid)|PUBLIC_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_creation_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_creation_circle_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_create_comment_target(uuid,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_create_comment_target|can_create_comment_target(uuid,uuid)|service_role_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_creation_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_creation_circle_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_create_comment_target(uuid,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_create_user_report_target|can_create_user_report_target(text,uuid)|anon_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260717_security_definer_execute_hardening.sql",
+      "canonicalEvolutionChain": [
+        "20260713_forum_report_target_authorization.sql",
+        "20260717_security_definer_execute_hardening.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_create_user_report_target(text,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_create_user_report_target|can_create_user_report_target(text,uuid)|authenticated_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260717_security_definer_execute_hardening.sql",
+      "canonicalEvolutionChain": [
+        "20260713_forum_report_target_authorization.sql",
+        "20260717_security_definer_execute_hardening.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_create_user_report_target(text,uuid)",
+        "function-acl-grant:can_create_user_report_target(text,uuid):authenticated"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_create_user_report_target|can_create_user_report_target(text,uuid)|PUBLIC_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260717_security_definer_execute_hardening.sql",
+      "canonicalEvolutionChain": [
+        "20260713_forum_report_target_authorization.sql",
+        "20260717_security_definer_execute_hardening.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_create_user_report_target(text,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|can_create_user_report_target|can_create_user_report_target(text,uuid)|service_role_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260717_security_definer_execute_hardening.sql",
+      "canonicalEvolutionChain": [
+        "20260713_forum_report_target_authorization.sql",
+        "20260717_security_definer_execute_hardening.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+      "reconciliationStatementIds": [
+        "function-acl-reset:can_create_user_report_target(text,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|is_canonical_post_media_object_key|is_canonical_post_media_object_key(text,uuid,uuid,boolean)|anon_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql",
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:is_canonical_post_media_object_key(text,uuid,uuid,boolean)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|is_canonical_post_media_object_key|is_canonical_post_media_object_key(text,uuid,uuid,boolean)|authenticated_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql",
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:is_canonical_post_media_object_key(text,uuid,uuid,boolean)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|is_canonical_post_media_object_key|is_canonical_post_media_object_key(text,uuid,uuid,boolean)|PUBLIC_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql",
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:is_canonical_post_media_object_key(text,uuid,uuid,boolean)",
+        "function-acl-grant:is_canonical_post_media_object_key(text,uuid,uuid,boolean):PUBLIC"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|is_canonical_post_media_object_key|is_canonical_post_media_object_key(text,uuid,uuid,boolean)|service_role_execute",
+      "section": "function_acl",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql",
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "reconciliationStatementIds": [
+        "function-acl-reset:is_canonical_post_media_object_key(text,uuid,uuid,boolean)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "functions|function|public|can_access_comment_reaction_target|can_access_comment_reaction_target(uuid)|definition",
+      "section": "functions",
+      "workstream": "schema",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "82d5dbc3fcfb87934acaff1d37272455eb2a87a1fd43bf4a55868f7b33b79bc4",
+      "reconciliationStatementIds": [
+        "function:can_access_comment_reaction_target(uuid)",
+        "function-owner:can_access_comment_reaction_target(uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "functions|function|public|can_access_public_circle_cover_object|can_access_public_circle_cover_object(text)|definition",
+      "section": "functions",
+      "workstream": "schema",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260714_circle_cover_public_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260714_circle_cover_public_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "7d42115e728ef24f526ae02466d6b2849bb2dfb26619385bc11582aa488b84fc",
+      "reconciliationStatementIds": [
+        "function:can_access_public_circle_cover_object(text)",
+        "function-owner:can_access_public_circle_cover_object(text)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "functions|function|public|can_access_public_comment_read_target|can_access_public_comment_read_target(uuid)|definition",
+      "section": "functions",
+      "workstream": "schema",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "c787e8d0287e9313aacc7d4dc6259bd49652ba7bb6033334fe445cf0d0c63082",
+      "reconciliationStatementIds": [
+        "function:can_access_public_comment_read_target(uuid)",
+        "function-owner:can_access_public_comment_read_target(uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "functions|function|public|can_access_public_post_media_object|can_access_public_post_media_object(text)|definition",
+      "section": "functions",
+      "workstream": "schema",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b89f4f503546e08a954e41952fa40c7b93fba02e2b4e1a0ad3490429e833f96e",
+      "reconciliationStatementIds": [
+        "function:can_access_public_post_media_object(text)",
+        "function-owner:can_access_public_post_media_object(text)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "functions|function|public|can_access_public_profile_media_object|can_access_public_profile_media_object(text)|definition",
+      "section": "functions",
+      "workstream": "schema",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "1ddcf41e635afb52cefade3f9236a2654555528686c348cc187446c5531a3f16",
+      "reconciliationStatementIds": [
+        "function:can_access_public_profile_media_object(text)",
+        "function-owner:can_access_public_profile_media_object(text)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "functions|function|public|can_bind_post_media_provenance|can_bind_post_media_provenance(text,text,text,uuid,uuid)|definition",
+      "section": "functions",
+      "workstream": "schema",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_post_bound_media_provenance.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "b4e6906d657a1eca3ea5c71e71ec56a1ffbecaf589b272803a12d9766fdffc53",
+      "reconciliationStatementIds": [
+        "function:can_bind_post_media_provenance(text,text,text,uuid,uuid)",
+        "function-owner:can_bind_post_media_provenance(text,text,text,uuid,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "functions|function|public|can_create_comment_target|can_create_comment_target(uuid,uuid)|definition",
+      "section": "functions",
+      "workstream": "schema",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_creation_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_creation_circle_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "adfa3c3ebc46f136b80e94d450517baf78c393eca116babad6547a4f1dc6026e",
+      "reconciliationStatementIds": [
+        "function:can_create_comment_target(uuid,uuid)",
+        "function-owner:can_create_comment_target(uuid,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "functions|function|public|can_create_user_report_target|can_create_user_report_target(text,uuid)|definition",
+      "section": "functions",
+      "workstream": "schema",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260717_security_definer_execute_hardening.sql",
+      "canonicalEvolutionChain": [
+        "20260713_forum_report_target_authorization.sql",
+        "20260717_security_definer_execute_hardening.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "7596b307f8a6c9ea83583cf93bb274d6fb98502c6dcb9208bc664cd7816dee98",
+      "reconciliationStatementIds": [
+        "function:can_create_user_report_target(text,uuid)",
+        "function-owner:can_create_user_report_target(text,uuid)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "functions|function|public|is_canonical_post_media_object_key|is_canonical_post_media_object_key(text,uuid,uuid,boolean)|definition",
+      "section": "functions",
+      "workstream": "schema",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql",
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "e9fbd5a630febef98631a91d7e5a6e84125302c1a91d8155056fb4486d772ce7",
+      "reconciliationStatementIds": [
+        "function:is_canonical_post_media_object_key(text,uuid,uuid,boolean)",
+        "function-owner:is_canonical_post_media_object_key(text,uuid,uuid,boolean)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "functions|function|public|record_current_legal_policy_acceptance|record_current_legal_policy_acceptance(uuid,text,text,text,text,smallint,text)|definition",
+      "section": "functions",
+      "workstream": "schema",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260712_legal_policy_acceptances.sql",
+      "canonicalEvolutionChain": [
+        "20260712_legal_policy_acceptances.sql"
+      ],
+      "observedStateHash": "ef90a8a3ed3b397ff33000bfaa3590e20ed84a2acc3338b36bbac745c9c3f204",
+      "expectedStateHash": "4795506949e3397de388c0c26c5fab202154e2cb8844de16a08dcc6dc762fc10",
+      "reconciliationStatementIds": [
+        "function:record_current_legal_policy_acceptance(uuid,text,text,text,text,smallint,text)",
+        "function-owner:record_current_legal_policy_acceptance(uuid,text,text,text,text,smallint,text)"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_comment_reaction_target|can_access_comment_reaction_target(uuid)|anon:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_comment_reaction_target(uuid):anon:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_comment_reaction_target|can_access_comment_reaction_target(uuid)|authenticated:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_comment_reaction_target(uuid):authenticated:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_comment_reaction_target|can_access_comment_reaction_target(uuid)|postgres:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_comment_reaction_target(uuid):postgres:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_circle_cover_object|can_access_public_circle_cover_object(text)|anon:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260714_circle_cover_public_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260714_circle_cover_public_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_circle_cover_object(text):anon:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_circle_cover_object|can_access_public_circle_cover_object(text)|authenticated:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260714_circle_cover_public_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260714_circle_cover_public_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_circle_cover_object(text):authenticated:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_circle_cover_object|can_access_public_circle_cover_object(text)|postgres:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260714_circle_cover_public_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260714_circle_cover_public_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_circle_cover_object(text):postgres:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_comment_read_target|can_access_public_comment_read_target(uuid)|anon:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_comment_read_target(uuid):anon:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_comment_read_target|can_access_public_comment_read_target(uuid)|authenticated:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_comment_read_target(uuid):authenticated:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_comment_read_target|can_access_public_comment_read_target(uuid)|postgres:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_comment_read_target(uuid):postgres:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_post_media_object|can_access_public_post_media_object(text)|anon:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_post_media_object(text):anon:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_post_media_object|can_access_public_post_media_object(text)|authenticated:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_post_media_object(text):authenticated:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_post_media_object|can_access_public_post_media_object(text)|postgres:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_post_media_object(text):postgres:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_profile_media_object|can_access_public_profile_media_object(text)|anon:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_profile_media_object(text):anon:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_profile_media_object|can_access_public_profile_media_object(text)|authenticated:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_profile_media_object(text):authenticated:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_access_public_profile_media_object|can_access_public_profile_media_object(text)|postgres:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_access_public_profile_media_object(text):postgres:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_bind_post_media_provenance|can_bind_post_media_provenance(text,text,text,uuid,uuid)|postgres:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_post_bound_media_provenance.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_bind_post_media_provenance(text,text,text,uuid,uuid):postgres:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_bind_post_media_provenance|can_bind_post_media_provenance(text,text,text,uuid,uuid)|PUBLIC:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_post_bound_media_provenance.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_bind_post_media_provenance(text,text,text,uuid,uuid):PUBLIC:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_create_comment_target|can_create_comment_target(uuid,uuid)|authenticated:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_creation_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_creation_circle_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_create_comment_target(uuid,uuid):authenticated:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_create_comment_target|can_create_comment_target(uuid,uuid)|postgres:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_creation_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_creation_circle_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_create_comment_target(uuid,uuid):postgres:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_create_user_report_target|can_create_user_report_target(text,uuid)|authenticated:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260717_security_definer_execute_hardening.sql",
+      "canonicalEvolutionChain": [
+        "20260713_forum_report_target_authorization.sql",
+        "20260717_security_definer_execute_hardening.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_create_user_report_target(text,uuid):authenticated:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|can_create_user_report_target|can_create_user_report_target(text,uuid)|postgres:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260717_security_definer_execute_hardening.sql",
+      "canonicalEvolutionChain": [
+        "20260713_forum_report_target_authorization.sql",
+        "20260717_security_definer_execute_hardening.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:can_create_user_report_target(text,uuid):postgres:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|is_canonical_post_media_object_key|is_canonical_post_media_object_key(text,uuid,uuid,boolean)|postgres:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql",
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:is_canonical_post_media_object_key(text,uuid,uuid,boolean):postgres:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|is_canonical_post_media_object_key|is_canonical_post_media_object_key(text,uuid,uuid,boolean)|PUBLIC:EXECUTE",
+      "section": "grants",
+      "workstream": "privilege",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_post_bound_media_provenance.sql",
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
+      "reconciliationStatementIds": [
+        "grant:is_canonical_post_media_object_key(text,uuid,uuid,boolean):PUBLIC:EXECUTE"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "migration_configuration|storage_bucket|storage|post-media|post-media|definition",
+      "section": "migration_configuration",
+      "workstream": "schema",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260524_forum_phase3_post_media.sql",
+        "20260525_forum_phase4_video_media.sql",
+        "20260604_circle_cover_storage_policy.sql",
+        "20260605_circle_cover_public_select.sql",
+        "20260606_profile_banner_and_storage.sql",
+        "20260612_news_media_storage_policy.sql",
+        "20260713_post_bound_media_provenance.sql",
+        "20260714_circle_cover_public_visibility_authorization.sql",
+        "20260715_post_media_delivery_visibility_authorization.sql",
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": "30ba140659e8b0e8c405133fde7cfe601b94c82f2d5cdd47f69afbf4f916c5aa",
+      "expectedStateHash": "1ed1a8a9b38725dc7007108319d13be514286008e6845c1df72b96ddeea4dcd1",
+      "reconciliationStatementIds": [
+        "storage:post-media"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|comment_reactions|public.comment_reactions.comment_reactions_delete_self|DELETE",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260603_forum_comments_interactions.sql",
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": "0e49880bf25eaf840cb291ad6ec5380c1f482d2941789f18f8e99b6d44573409",
+      "expectedStateHash": "6d97b2a9bda55990cdd6dccfe767e9b5b4e5a53f5f3f052af398ea9d2d18df70",
+      "reconciliationStatementIds": [
+        "policy-drop:public.comment_reactions.comment_reactions_delete_self",
+        "policy-create:public.comment_reactions.comment_reactions_delete_self"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|comment_reactions|public.comment_reactions.comment_reactions_insert_self|INSERT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260603_forum_comments_interactions.sql",
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": "9f3695bcd1f3332a1567e2712d03b1efbb52d3d072d4204a4c44f3e6e54907a7",
+      "expectedStateHash": "815c616043916ee5b7e993974676bb2f6fa27408a916829b007421a0daf766c3",
+      "reconciliationStatementIds": [
+        "policy-drop:public.comment_reactions.comment_reactions_insert_self",
+        "policy-create:public.comment_reactions.comment_reactions_insert_self"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|comment_reactions|public.comment_reactions.comment_reactions_select_accessible|SELECT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_reaction_visibility_authorization.sql",
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "e3d4b15aea84ca8dbb945ebdd67de532791653edbfa5fb88068f5e28524be9d5",
+      "reconciliationStatementIds": [
+        "policy-drop:public.comment_reactions.comment_reactions_select_accessible",
+        "policy-create:public.comment_reactions.comment_reactions_select_accessible"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|comment_reactions|public.comment_reactions.comment_reactions_update_self|UPDATE",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "MISSING_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_reaction_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260713_comment_reaction_visibility_authorization.sql"
+      ],
+      "observedStateHash": null,
+      "expectedStateHash": "365b7e70761d059980465a5cd5a929efa3c7575ee1cb22d10830daab9bb3904a",
+      "reconciliationStatementIds": [
+        "policy-drop:public.comment_reactions.comment_reactions_update_self",
+        "policy-create:public.comment_reactions.comment_reactions_update_self"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|comments|public.comments.comments_insert_self|INSERT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_creation_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260518_forum_phase1_schema.sql",
+        "20260616_community_moderation_mvp.sql",
+        "20260713_comment_creation_circle_authorization.sql"
+      ],
+      "observedStateHash": "f2da2e17963e2aca949d7764a7a744f1b71009f0663cc3760e185bf68d2413a4",
+      "expectedStateHash": "ed026d90dc470ef8b7c46d79dbefc82eb46a6ed4778fbac2cc7577dd2cf02132",
+      "reconciliationStatementIds": [
+        "policy-drop:public.comments.comments_insert_self",
+        "policy-create:public.comments.comments_insert_self"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|comments|public.comments.comments_select_public_or_staff|SELECT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260518_forum_phase1_schema.sql",
+        "20260603_forum_circle_owner_management.sql",
+        "20260611_forum_permission_lockdown.sql",
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": "960c8c3ccf0fdc3c0c9b9610f92206868760cdcc3db1f6598bb7d4b4be7da161",
+      "expectedStateHash": "68ef5e2f7219267dd06836e1dd876fb4d0ce80c1fd3987064e7ef8c47c74b094",
+      "reconciliationStatementIds": [
+        "policy-drop:public.comments.comments_select_public_or_staff",
+        "policy-create:public.comments.comments_select_public_or_staff"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|post_media|public.post_media.post_media_insert_self|INSERT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_post_bound_media_provenance.sql",
+      "canonicalEvolutionChain": [
+        "20260524_forum_phase3_post_media.sql",
+        "20260713_post_bound_media_provenance.sql"
+      ],
+      "observedStateHash": "53a3d8fa708ed125968cebd7ed8854759154648dfdd60148b2b222bd6eea7f40",
+      "expectedStateHash": "b5888a3f20f007f8d9aefe55c61c3c35ef6a9c9556efc53270840ef9be68ed24",
+      "reconciliationStatementIds": [
+        "policy-drop:public.post_media.post_media_insert_self",
+        "policy-create:public.post_media.post_media_insert_self"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|post_media|public.post_media.post_media_select_public_or_owner|SELECT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260524_forum_phase3_post_media.sql",
+        "20260603_forum_circle_owner_management.sql",
+        "20260611_forum_permission_lockdown.sql",
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": "cb8ccb56b72ee82f0bf915d072a8436b97948d63acbaafa7ce12cc06cb569a4f",
+      "expectedStateHash": "373f1103fcff260f20b3026443413845bfff21568141eee39ea8c87cf2608cd5",
+      "reconciliationStatementIds": [
+        "policy-drop:public.post_media.post_media_select_public_or_owner",
+        "policy-create:public.post_media.post_media_select_public_or_owner"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|post_media|public.post_media.post_media_update_self_or_staff|UPDATE",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_post_bound_media_provenance.sql",
+      "canonicalEvolutionChain": [
+        "20260524_forum_phase3_post_media.sql",
+        "20260713_post_bound_media_provenance.sql"
+      ],
+      "observedStateHash": "048aba7cfe80c3e50139cdf3ad3f1bb44fd65642ce4d8d2c2f0bb4685ed62d13",
+      "expectedStateHash": "6e4f0508aba775bf1f893fa149949cf219ac782aab3683e4676d165fd5c780e7",
+      "reconciliationStatementIds": [
+        "policy-drop:public.post_media.post_media_update_self_or_staff",
+        "policy-create:public.post_media.post_media_update_self_or_staff"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|posts|public.posts.posts_delete_self_or_staff|DELETE",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_forum_posts_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260518_forum_phase1_schema.sql",
+        "20260713_forum_posts_circle_authorization.sql"
+      ],
+      "observedStateHash": "8579fb507129bb2ee76e5d44e929fb1d4daca0641e69b71798d0618cc544c113",
+      "expectedStateHash": "0df830413a1fb1d9a307a2f8330fbe7e24b103fe7b66c6500653708a90326b8a",
+      "reconciliationStatementIds": [
+        "policy-drop:public.posts.posts_delete_self_or_staff",
+        "policy-create:public.posts.posts_delete_self_or_staff"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|posts|public.posts.posts_insert_self|INSERT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_forum_posts_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260518_forum_phase1_schema.sql",
+        "20260525_forum_phase5_publish_posts_rls.sql",
+        "20260713_forum_posts_circle_authorization.sql"
+      ],
+      "observedStateHash": "f8d86641a9efe05038c0f5258614c0ad0980590c43653fc768df8d42178c170c",
+      "expectedStateHash": "ae8068c496152dd49f1eabe4a28cc85d1870987a0cd351272162f95f50392f26",
+      "reconciliationStatementIds": [
+        "policy-drop:public.posts.posts_insert_self",
+        "policy-create:public.posts.posts_insert_self"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|posts|public.posts.posts_select_published_public|SELECT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_comment_read_circle_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260518_forum_phase1_schema.sql",
+        "20260603_forum_circle_owner_management.sql",
+        "20260611_forum_permission_lockdown.sql",
+        "20260713_comment_read_circle_visibility_authorization.sql"
+      ],
+      "observedStateHash": "45346fafa5d48988fb32fd808cde3db29b173822968dd68d53567a6390d14e4f",
+      "expectedStateHash": "64d639f7106b1adb9e0a445b6e977c4671e49938ad6ee8a5a38aa788fb2f66fd",
+      "reconciliationStatementIds": [
+        "policy-drop:public.posts.posts_select_published_public",
+        "policy-create:public.posts.posts_select_published_public"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|posts|public.posts.posts_update_self_or_staff|UPDATE",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_forum_posts_circle_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260518_forum_phase1_schema.sql",
+        "20260603_forum_circle_owner_management.sql",
+        "20260611_forum_permission_lockdown.sql",
+        "20260713_forum_posts_circle_authorization.sql"
+      ],
+      "observedStateHash": "a6d6bc2c1998df48e399a45a4216d5f8f8d910e2e761da4ba45435947a66e697",
+      "expectedStateHash": "69408583210738a9a41b60e4d1c35c379e6c6647c679730c9e93e99054d140c9",
+      "reconciliationStatementIds": [
+        "policy-drop:public.posts.posts_update_self_or_staff",
+        "policy-create:public.posts.posts_update_self_or_staff"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|reports|public.reports.reports_insert_self|INSERT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260713_forum_report_target_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260518_forum_phase1_schema.sql",
+        "20260713_forum_report_target_authorization.sql"
+      ],
+      "observedStateHash": "28bd2f97edcac34078757f5c8bd5abbff3eea8bb9c77c007b73482f155a0d716",
+      "expectedStateHash": "df829367aaa10abbedca55de7f54c2a77c87152ac9501de204a3348cbc268452",
+      "reconciliationStatementIds": [
+        "policy-drop:public.reports.reports_insert_self",
+        "policy-create:public.reports.reports_insert_self"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|storage|objects|storage.objects.circle_cover_objects_select_public|SELECT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260714_circle_cover_public_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260605_circle_cover_public_select.sql",
+        "20260714_circle_cover_public_visibility_authorization.sql"
+      ],
+      "observedStateHash": "81d2adca03bc3c15b1f4b95fac5daefd4adf27ac7128e230691419a3cc7e0407",
+      "expectedStateHash": "93b448f490ef2ecafb3f15388a4406f7ebd1883bade07bc695fc2f0316fb8457",
+      "reconciliationStatementIds": [
+        "policy-drop:storage.objects.circle_cover_objects_select_public",
+        "policy-create:storage.objects.circle_cover_objects_select_public"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|storage|objects|storage.objects.post_media_objects_select_public_or_owner|SELECT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260715_post_media_delivery_visibility_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260524_forum_phase3_post_media.sql",
+        "20260715_post_media_delivery_visibility_authorization.sql"
+      ],
+      "observedStateHash": "5d7c69aced0de5dab570b0e53882c71c6828693659d24eebd700267d1585e162",
+      "expectedStateHash": "09f35d6334a3cbb0155e6338dffcad61590528ecfa6a78650fb5b40a971d3bbc",
+      "reconciliationStatementIds": [
+        "policy-drop:storage.objects.post_media_objects_select_public_or_owner",
+        "policy-create:storage.objects.post_media_objects_select_public_or_owner"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|storage|objects|storage.objects.profile_avatar_objects_select_public|SELECT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260606_profile_banner_and_storage.sql",
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": "4a57cbc154938382c4e88d40f7763bda3f4109e3664a107c0e11a2d48d4ef242",
+      "expectedStateHash": "67659c4d4c118fc685b3eb032e26f608b0568e159586a3d130f230e81187ef97",
+      "reconciliationStatementIds": [
+        "policy-drop:storage.objects.profile_avatar_objects_select_public",
+        "policy-create:storage.objects.profile_avatar_objects_select_public"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "policies|policy|storage|objects|storage.objects.profile_banner_objects_select_public|SELECT",
+      "section": "policies",
+      "workstream": "policy",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260716_profile_media_delivery_authorization.sql",
+      "canonicalEvolutionChain": [
+        "20260606_profile_banner_and_storage.sql",
+        "20260716_profile_media_delivery_authorization.sql"
+      ],
+      "observedStateHash": "15c9180ab613781ab0c303e397d41647ddff2b4c51c72ce53bde0d31d1f1d757",
+      "expectedStateHash": "67659c4d4c118fc685b3eb032e26f608b0568e159586a3d130f230e81187ef97",
+      "reconciliationStatementIds": [
+        "policy-drop:storage.objects.profile_banner_objects_select_public",
+        "policy-create:storage.objects.profile_banner_objects_select_public"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    },
+    {
+      "differenceIdentity": "triggers|trigger|public|legal_policy_acceptances|public.legal_policy_acceptances.trg_legal_policy_acceptances_set_updated_at|definition",
+      "section": "triggers",
+      "workstream": "schema",
+      "classification": "DIVERGENT_IN_PRODUCTION",
+      "canonicalOwner": "20260712_legal_policy_acceptances.sql",
+      "canonicalEvolutionChain": [
+        "20260712_legal_policy_acceptances.sql"
+      ],
+      "observedStateHash": "a1858d8b658683aad5fd0725c1d0b92fab58fc960140c8cfff4a15d344e813d6",
+      "expectedStateHash": "644b2ce1d8d88f2dd93ba994e9b4589b38d1c67ddccdd3988b1231a0753e4f87",
+      "reconciliationStatementIds": [
+        "trigger-drop:public.legal_policy_acceptances.trg_legal_policy_acceptances_set_updated_at",
+        "trigger-create:public.legal_policy_acceptances.trg_legal_policy_acceptances_set_updated_at"
+      ],
+      "postcondition": "CANONICAL_EXPECTED_HASH_MATCH"
+    }
+  ],
+  "excludedExtras": [
+    {
+      "differenceIdentity": "function_acl|function|public|consume_forum_rate_limit|consume_forum_rate_limit(uuid,text,text,bigint)|PUBLIC_execute",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|consume_forum_rate_limit|consume_forum_rate_limit(uuid,text,text,bigint)|anon_execute",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|consume_forum_rate_limit|consume_forum_rate_limit(uuid,text,text,bigint)|authenticated_execute",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|consume_forum_rate_limit|consume_forum_rate_limit(uuid,text,text,bigint)|service_role_execute",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|set_legal_policy_acceptance_updated_at|set_legal_policy_acceptance_updated_at()|PUBLIC_execute",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|set_legal_policy_acceptance_updated_at|set_legal_policy_acceptance_updated_at()|anon_execute",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|set_legal_policy_acceptance_updated_at|set_legal_policy_acceptance_updated_at()|authenticated_execute",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "function_acl|function|public|set_legal_policy_acceptance_updated_at|set_legal_policy_acceptance_updated_at()|service_role_execute",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "functions|function|public|consume_forum_rate_limit|consume_forum_rate_limit(uuid,text,text,bigint)|definition",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "functions|function|public|set_legal_policy_acceptance_updated_at|set_legal_policy_acceptance_updated_at()|definition",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|consume_forum_rate_limit|consume_forum_rate_limit(uuid,text,text,bigint)|postgres:EXECUTE",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|consume_forum_rate_limit|consume_forum_rate_limit(uuid,text,text,bigint)|service_role:EXECUTE",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "grants|function_grant|public|set_legal_policy_acceptance_updated_at|set_legal_policy_acceptance_updated_at()|postgres:EXECUTE",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "grants|table_grant|public|comment_reactions|public.comment_reactions|anon:SELECT",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "grants|table_grant|public|comment_reactions|public.comment_reactions|authenticated:DELETE",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "grants|table_grant|public|comment_reactions|public.comment_reactions|authenticated:INSERT",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "grants|table_grant|public|comment_reactions|public.comment_reactions|authenticated:SELECT",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|comment_reactions|public.comment_reactions.comment_reactions_select_public|SELECT",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|forum_upload_attempts|public.forum_upload_attempts.forum_upload_attempts_insert_self|INSERT",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    },
+    {
+      "differenceIdentity": "policies|policy|public|forum_upload_attempts|public.forum_upload_attempts.forum_upload_attempts_select_self|SELECT",
+      "classification": "EXTRA_IN_PRODUCTION",
+      "exclusion": "UNEXPECTED_APPLICATION_OR_HISTORICAL_OBJECT_REQUIRES_MANUAL_REVIEW"
+    }
+  ],
+  "statementCount": 106,
+  "statementSha256": "f63ecb18b0b2c183c8e13f3db6526956afd2af508f02d7c89f02a912cae91cd0"
+}

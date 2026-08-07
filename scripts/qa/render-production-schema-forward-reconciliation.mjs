@@ -1,0 +1,20 @@
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { compileForwardReconciliation, buildForwardReconciliationManifest, FORWARD_RECONCILIATION_MIGRATION } from "../lib/production-schema-forward-reconciliation.mjs";
+import { loadFrozenDriftInputs } from "../lib/production-drift-structural-fixture.mjs";
+import { sha256 } from "../production-schema-fingerprint-core.mjs";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const migrationPath = path.join(root, "supabase", "migrations", FORWARD_RECONCILIATION_MIGRATION);
+const manifestPath = path.join(root, "tests", "fixtures", "qa-production-forward-reconciliation-manifest.json");
+const initial = await readFile(migrationPath, "utf8");
+const inputs = await loadFrozenDriftInputs(root);
+const compiled = compileForwardReconciliation(inputs);
+const refresh = process.argv.includes("--refresh");
+if (initial !== "" && !refresh && initial !== compiled.sql) throw new Error("R6_FORWARD_RECONCILIATION_MIGRATION_NOT_EMPTY_ON_RENDER");
+if (initial !== compiled.sql) await writeFile(migrationPath, compiled.sql, { encoding: "utf8", flag: "w" });
+const migrationSha256 = sha256(await readFile(migrationPath, "utf8"));
+const manifest = buildForwardReconciliationManifest(inputs, compiled, { startingCommit: "e73a5269f6b0fc86646ce887c012967e4b712b4d", migrationFilename: FORWARD_RECONCILIATION_MIGRATION, migrationSha256 });
+await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: "utf8", flag: refresh ? "w" : "wx" });
+console.log(JSON.stringify({ classification: "R6_FORWARD_RECONCILIATION_RENDERED", migration: `supabase/migrations/${FORWARD_RECONCILIATION_MIGRATION}`, migrationSha256, targetDifferenceCount: manifest.targetDifferenceCount, excludedExtraCount: manifest.excludedExtraCount, statementCount: manifest.statementCount }));

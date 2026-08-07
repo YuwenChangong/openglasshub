@@ -13,7 +13,7 @@ import {
   sha256,
   validateProductionExport,
 } from "./production-schema-fingerprint-core.mjs";
-import { ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
+import { FINGERPRINT_BASELINE_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 
 export function parseExport(text, filename) {
   if (filename.toLowerCase().endsWith(".json")) {
@@ -51,7 +51,7 @@ export function compareFingerprint(expected, actualRows) {
   for (const extra of actualByKey.values()) results.push({ key: rowKey(extra), classification: "EXTRA_IN_PRODUCTION", severity: extraSecurityClassification(extra) });
 
   const ledgerRows = actualRows.filter((row) => row.section === "migration_ledger");
-  const migrations = ORDERED_MIGRATION_FILENAMES.map((migration) => {
+  const migrations = FINGERPRINT_BASELINE_MIGRATION_FILENAMES.map((migration) => {
     const related = expected.objects.filter((entry) => entry.sourceMigrations.includes(migration));
     const statuses = related.map((entry) => results.find((result) => result.key === rowKey({ section: sectionForEntry(entry), object_type: entry.objectType, schema_name: entry.schema, object_name: entry.name, identity: entry.identity, attribute: entry.attribute }))?.classification);
     let classification = "INCONCLUSIVE";
