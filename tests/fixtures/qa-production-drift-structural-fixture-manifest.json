@@ -1,0 +1,19 @@
+{
+  "format": "qa-production-drift-structural-fixture-manifest-v1",
+  "startingCommit": "df6cd8822449af7599003e09ea60722ccef5310b",
+  "canonicalMigrationCount": 43,
+  "expectedCounts": {
+    "MATCH": 1043,
+    "MISSING_IN_PRODUCTION": 71,
+    "DIVERGENT_IN_PRODUCTION": 19,
+    "EXTRA_IN_PRODUCTION": 20,
+    "INSUFFICIENT_EVIDENCE": 0
+  },
+  "expectedHardBlockers": 97,
+  "differenceCount": 110,
+  "canonicalOwnedDifferenceCount": 90,
+  "manualReviewExtraCount": 20,
+  "testOnly": true,
+  "formalLegalEvidence": false,
+  "formalMigrationHistoryEvidence": false
+}
