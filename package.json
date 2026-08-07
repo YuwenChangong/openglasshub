@@ -39,6 +39,7 @@
     "test:legal-consent-phase4b-wave3": "node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs",
     "test:legal-consent-phase4b-wave4": "node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs",
     "test:legal-consent-predeployment-readiness": "node scripts/test-legal-consent-predeployment-readiness.mjs",
+    "test:completed-local-replay-readiness": "node scripts/test-completed-local-replay-readiness.mjs",
     "test:legal-local-nonproduction-target": "node scripts/test-legal-local-nonproduction-target.mjs",
     "test:legal-local-rebuild-restore": "node scripts/test-legal-local-rebuild-restore-evidence.mjs",
     "test:legal-local-migration-replay": "node scripts/test-legal-local-migration-replay-contract.mjs",
