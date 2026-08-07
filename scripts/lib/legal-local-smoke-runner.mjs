@@ -4,15 +4,15 @@ export const REQUIRED_LEGAL_LOCAL_SMOKE_CHECKS = Object.freeze([
 ]);
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 
-export async function runLegalLocalSmoke({ adapter, taskId, implementationCommit }) {
+export async function runLegalLocalSmoke({ adapter, task, taskId, implementationCommit, runtimeProfile = null }) {
   const checks = [];
   for (const check of REQUIRED_LEGAL_LOCAL_SMOKE_CHECKS) {
-    const result = await adapter.runSmokeCheck({ taskId, check });
+    const result = await adapter.runSmokeCheck({ task, taskId, check });
     if (!result || result.classification !== "READY" || result.observed !== result.expected) {
-      return Object.freeze({ schemaVersion: LEGAL_LOCAL_SMOKE_SCHEMA, classification: "R6_LOCAL_NONPRODUCTION_LEGAL_SMOKE_INCOMPLETE", taskId, implementationCommit, success: false, failedCheck: check, checks, unexpectedWrites: 0, unexpectedPrivilegeGrants: 0, retainedTestRecords: "unknown" });
+      return Object.freeze({ schemaVersion: LEGAL_LOCAL_SMOKE_SCHEMA, classification: "R6_LOCAL_NONPRODUCTION_LEGAL_SMOKE_INCOMPLETE", taskId, implementationCommit, runtimeProfile, success: false, failedCheck: check, checks, unexpectedWrites: 0, unexpectedPrivilegeGrants: 0, retainedTestRecords: "unknown" });
     }
     checks.push(Object.freeze({ check, identityClass: result.identityClass, expected: result.expected, observed: result.observed, classification: result.classification, cleanupOwnership: "TASK_OWNED" }));
   }
   if (checks.length !== REQUIRED_LEGAL_LOCAL_SMOKE_CHECKS.length) fail("R6_LOCAL_NONPRODUCTION_LEGAL_SMOKE_INCOMPLETE");
-  return Object.freeze({ schemaVersion: LEGAL_LOCAL_SMOKE_SCHEMA, classification: "R6_LOCAL_NONPRODUCTION_MIGRATION_REPLAY_AND_SMOKE_READY", taskId, implementationCommit, success: true, checks, unexpectedWrites: 0, unexpectedPrivilegeGrants: 0, retainedTestRecords: 0 });
+  return Object.freeze({ schemaVersion: LEGAL_LOCAL_SMOKE_SCHEMA, classification: "R6_LOCAL_NONPRODUCTION_MIGRATION_REPLAY_AND_SMOKE_READY", taskId, implementationCommit, runtimeProfile, success: true, checks, unexpectedWrites: 0, unexpectedPrivilegeGrants: 0, retainedTestRecords: 0 });
 }

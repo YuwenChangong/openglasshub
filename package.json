@@ -46,6 +46,8 @@
     "test:legal-local-execution-approval": "node scripts/test-legal-local-execution-approval.mjs",
     "test:legal-local-migration-diagnostics": "node scripts/test-legal-local-migration-diagnostics.mjs",
     "test:legal-local-prelegal-baseline": "node scripts/test-legal-local-prelegal-baseline.mjs",
+    "test:legal-local-supabase-runtime": "node scripts/test-legal-local-supabase-runtime.mjs",
+    "test:legal-local-supabase-runtime-integration": "node scripts/test-legal-local-supabase-runtime-integration.mjs",
     "test:legal-local-docker-adapter-integration": "node scripts/test-legal-local-docker-adapter-integration.mjs",
     "test:legal-local-replay-evidence": "node scripts/test-legal-local-replay-evidence.mjs",
     "test:legal-local-smoke-runner": "node scripts/test-legal-local-smoke-runner.mjs",

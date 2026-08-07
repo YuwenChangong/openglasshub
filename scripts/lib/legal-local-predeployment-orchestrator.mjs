@@ -13,6 +13,7 @@ import { createLegalLocalExecutionApproval } from "./legal-local-execution-appro
 import { consumeLegalLocalExecuteTask } from "./legal-local-task-consumption-registry.mjs";
 import { parsePostgresDiagnostic, redactMigrationDiagnosticText, validateMigrationAttemptDiagnostic } from "./legal-local-migration-diagnostics.mjs";
 import { LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED, LEGAL_LOCAL_PRELEGAL_BASELINE_TERMINAL_SCHEMA, resolveLegalPrelegalBaseline, validateLegalPrelegalBaselineCheckpoint, validateLegalPrelegalBaselineManifest } from "./legal-local-prelegal-baseline.mjs";
+import { LEGAL_LOCAL_SUPABASE_RUNTIME_PROFILE, createLegalLocalSupabaseRuntimeContract } from "./legal-local-supabase-runtime.mjs";
 
 export const LEGAL_LOCAL_ORCHESTRATOR_SCHEMA = "legal-local-predeployment-orchestrator-v1";
 const TASK_ID = /^r6-local-predeployment-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -21,7 +22,7 @@ const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 export function taskNames(taskId) {
   if (!TASK_ID.test(String(taskId ?? ""))) fail("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED");
   const suffix = taskId.slice("r6-local-predeployment-".length);
-  return Object.freeze({ taskId, dockerProject: `r6-local-predeployment-${suffix}`, network: `r6-local-predeployment-net-${suffix}`, container: `r6-local-predeployment-db-${suffix}`, volume: `r6-local-predeployment-data-${suffix}` });
+  return Object.freeze({ taskId, dockerProject: `r6-local-predeployment-${suffix}`, network: `r6-local-predeployment-net-${suffix}`, container: `r6-local-predeployment-db-${suffix}`, storageContainer: `r6-local-predeployment-storage-${suffix}`, volume: `r6-local-predeployment-data-${suffix}` });
 }
 
 export async function resolveLegalMigrationInventory({ repositoryRoot }) {
@@ -36,12 +37,13 @@ export async function resolveLegalMigrationInventory({ repositoryRoot }) {
   return Object.freeze({ schemaVersion: "legal-local-migration-inventory-v1", migrationCount: entries.length, entries, inventorySha256: sha256(JSON.stringify(entries)) });
 }
 
-export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", taskId, taskRoot, confirmation, confirmationSha256, implementationCommit, repositoryRoot, adapter, consumptionRegistryRoot, now = () => new Date().toISOString() }) {
+export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", taskId, taskRoot, confirmation, confirmationSha256, implementationCommit, repositoryRoot, adapter, consumptionRegistryRoot, testOnly = false, now = () => new Date().toISOString() }) {
   const inventory = await resolveLegalMigrationInventory({ repositoryRoot });
   const baseline = await resolveLegalPrelegalBaseline({ repositoryRoot, implementationCommit, generatedAt: now() });
+  const runtimeContract = createLegalLocalSupabaseRuntimeContract({ implementationCommit });
   if (!TASK_ID.test(String(taskId ?? "")) || !/^[a-f0-9]{40}$/.test(String(implementationCommit ?? ""))) fail("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED");
   const approvalContract = createLegalLocalExecutionApproval({ implementationCommit, taskId, migrationInventorySha256: inventory.inventorySha256, issuedAt: now() });
-  if (mode === "PREFLIGHT") return Object.freeze({ schemaVersion: LEGAL_LOCAL_ORCHESTRATOR_SCHEMA, classification: "R6_LOCAL_NONPRODUCTION_PREFLIGHT_READY", executionAuthorized: false, baseline, inventory, approvalContract });
+  if (mode === "PREFLIGHT") return Object.freeze({ schemaVersion: LEGAL_LOCAL_ORCHESTRATOR_SCHEMA, classification: "R6_LOCAL_NONPRODUCTION_PREFLIGHT_READY", executionAuthorized: false, baseline, inventory, runtimeContract, approvalContract });
   if (mode !== "EXECUTE" || !adapter || !taskRoot || !consumptionRegistryRoot) fail("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED");
   await consumeLegalLocalExecuteTask({ registryRoot: consumptionRegistryRoot, approvalContract, now });
   if (confirmation !== approvalContract.requiredConfirmationPhrase) throw Object.assign(new Error("R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED"), { code: "R6_LOCAL_NONPRODUCTION_TARGET_PRECHECK_FAILED", innerClassification: "LEGAL_LOCAL_EXECUTION_CONFIRMATION_MISMATCH" });
@@ -65,6 +67,8 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
   let baselineJournal = [];
   let baselineTerminal;
   let baselineCheckpoint;
+  let runtimeManifest;
+  let runtimeCapability;
   let migrationJournal = [];
   let migrationTerminal;
   let smokeTerminal;
@@ -148,11 +152,22 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
   try {
     advance("RESOLVE_BASELINE");
     validateLegalPrelegalBaselineManifest(baseline, { implementationCommit });
+    advance("RESOLVE_RUNTIME_REQUIREMENT");
+    const adapterRuntimeContract = adapter.runtimeContract ? await adapter.runtimeContract({ implementationCommit }) : runtimeContract;
+    if (baseline.runtimeClassification === LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED && adapterRuntimeContract.runtimeProfile !== LEGAL_LOCAL_SUPABASE_RUNTIME_PROFILE) fail(LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED);
     evidence.baselineManifest = await writeCanonicalEvidence({ evidenceRoot, name: "baseline-migration-inventory.json", payload: baseline });
     advance("CREATE_LOCAL_TARGET");
     targetBinding = await adapter.createLocalTarget({ task, implementationCommit, inventorySha256: inventory.inventorySha256 });
     targetValidation = validateLegalNonproductionTargetBinding(targetBinding);
     evidence.targetBinding = await writeCanonicalEvidence({ evidenceRoot, name: "local-target-binding.json", payload: targetBinding });
+    if (adapter.getRuntimeManifest && adapter.verifyRuntimeCapabilities) {
+      runtimeManifest = await adapter.getRuntimeManifest({ task });
+      if (!runtimeManifest) fail("R6_LOCAL_SUPABASE_RUNTIME_MANIFEST_INVALID");
+      evidence.runtimeManifest = await writeCanonicalEvidence({ evidenceRoot, name: "local-supabase-runtime-manifest.json", payload: runtimeManifest });
+      runtimeCapability = await adapter.verifyRuntimeCapabilities({ task, implementationCommit, runtimeManifestSha256: evidence.runtimeManifest.sha256 });
+      evidence.runtimeCapability = await writeCanonicalEvidence({ evidenceRoot, name: "local-supabase-runtime-capability-terminal.json", payload: runtimeCapability });
+      if (runtimeCapability.classification !== "R6_LOCAL_SUPABASE_RUNTIME_CAPABILITY_READY") fail(runtimeCapability.classification);
+    }
     if ((await adapter.assertBaselineRuntime?.({ task, baseline })) === LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED) {
       await writeBaselineTerminal(LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED);
       throw Object.assign(new Error(LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED), { code: LEGAL_LOCAL_PRELEGAL_RUNTIME_REQUIRED });
@@ -166,7 +181,13 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
     validateLegalPrelegalBaselineCheckpoint(baselineCheckpoint, { taskId, implementationCommit, baselineManifestSha256: evidence.baselineManifest.sha256 });
     evidence.baselineCheckpoint = await writeCanonicalEvidence({ evidenceRoot, name: "baseline-checkpoint-terminal.json", payload: baselineCheckpoint });
     evidence.bootstrap = await writeCanonicalEvidence({ evidenceRoot, name: "local-bootstrap-fingerprint.json", payload: await adapter.captureCatalogFingerprint({ task }) });
-    advance("REBUILD_AND_REAPPLY_BASELINE"); await adapter.destroyTarget({ task }); await adapter.rebuildTarget({ task }); await applyBaseline({ captureEvidence: false });
+    advance("REBUILD_AND_REAPPLY_BASELINE"); await adapter.destroyTarget({ task }); await adapter.rebuildTarget({ task });
+    if (adapter.verifyRuntimeCapabilities && evidence.runtimeManifest) {
+      const rebuiltRuntimeCapability = await adapter.verifyRuntimeCapabilities({ task, implementationCommit, runtimeManifestSha256: evidence.runtimeManifest.sha256 });
+      evidence.rebuiltRuntimeCapability = await writeCanonicalEvidence({ evidenceRoot, name: "rebuilt-local-supabase-runtime-capability-terminal.json", payload: rebuiltRuntimeCapability });
+      if (rebuiltRuntimeCapability.classification !== "R6_LOCAL_SUPABASE_RUNTIME_CAPABILITY_READY") fail(rebuiltRuntimeCapability.classification);
+    }
+    await applyBaseline({ captureEvidence: false });
     advance("VERIFY_REBUILT_BASELINE");
     const rebuiltCheckpoint = await adapter.captureBaselineCheckpoint({ task, baselineManifestSha256: evidence.baselineManifest.sha256, implementationCommit });
     validateLegalPrelegalBaselineCheckpoint(rebuiltCheckpoint, { taskId, implementationCommit, baselineManifestSha256: evidence.baselineManifest.sha256 });
@@ -188,7 +209,7 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
     evidence.journal = await writeCanonicalEvidence({ evidenceRoot, name: "migration-execution-journal.json", payload: { schemaVersion: "legal-local-migration-journal-v2", taskId, implementationCommit, inventorySha256: inventory.inventorySha256, entries: migrationJournal } });
     migrationTerminal = { schemaVersion: "legal-local-migration-terminal-v2", taskId, implementationCommit, targetBindingSha256: evidence.targetBinding.sha256, inventorySha256: inventory.inventorySha256, journalSha256: evidence.journal.sha256, classification: "R6_LOCAL_NONPRODUCTION_MIGRATION_REPLAY_AND_SMOKE_READY", planned: 12, executed: migrationJournal.length, successful: migrationJournal.length, failed: 0, skipped: 0, retries: 0, diagnosticCaptureStatus: null, failureDiagnostic: null };
     evidence.migrationTerminal = await writeCanonicalEvidence({ evidenceRoot, name: "migration-execution-terminal.json", payload: migrationTerminal });
-    advance("RUN_SMOKE"); smokeTerminal = await runLegalLocalSmoke({ adapter, taskId, implementationCommit });
+    advance("RUN_SMOKE"); smokeTerminal = await runLegalLocalSmoke({ adapter, task, taskId, implementationCommit, runtimeProfile: runtimeContract.runtimeProfile });
     evidence.smoke = await writeCanonicalEvidence({ evidenceRoot, name: "acl-rls-consent-smoke-terminal.json", payload: smokeTerminal });
     if (!smokeTerminal.success) throw Object.assign(new Error("R6_LOCAL_NONPRODUCTION_LEGAL_SMOKE_INCOMPLETE"), { code: "R6_LOCAL_NONPRODUCTION_LEGAL_SMOKE_INCOMPLETE" });
     advance("CLEAN_TEST_DATA"); const testDataCleanup = await adapter.cleanupTestData({ taskId });
@@ -223,5 +244,5 @@ export async function runLegalLocalPredeploymentReplay({ mode = "PREFLIGHT", tas
     await writeCanonicalEvidence({ evidenceRoot, name: "orchestrator-terminal.json", payload: { schemaVersion: LEGAL_LOCAL_ORCHESTRATOR_SCHEMA, functionalResult, cleanupResult, classification: terminalClassification } });
     result = { ...result, classification: terminalClassification, functionalFailureClassification, functionalFailureType, cleanupResult, cleanupFailureClassification, readiness, evidence, breadcrumb };
   }
-  return result;
+  return { ...result, testOnly, formalLegalEvidence: !testOnly, runtimeContract };
 }
