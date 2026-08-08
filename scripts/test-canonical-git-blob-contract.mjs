@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { assertCanonicalBlobSha256, materializeCanonicalGitBlob, resolveCanonicalGitBlob, verifyCheckoutProjectionAgainstCanonicalBlob, verifyCheckoutProjectionBytes } from "./lib/canonical-git-blob.mjs";
@@ -48,11 +48,6 @@ try {
 
   const seed = path.join(temp, "seed");
   execFileSync("git", ["clone", "--no-hardlinks", "--local", root, seed], { stdio: "pipe" });
-  execFileSync("git", ["-C", seed, "config", "user.email", "r6-test@example.invalid"]);
-  execFileSync("git", ["-C", seed, "config", "user.name", "R6 test"]);
-  await writeFile(path.join(seed, ".gitattributes"), await readFile(path.join(root, ".gitattributes")));
-  execFileSync("git", ["-C", seed, "add", ".gitattributes"]);
-  execFileSync("git", ["-C", seed, "commit", "-m", "test eol attribute"], { stdio: "pipe" });
   const fresh = path.join(temp, "fresh-core-autocrlf");
   execFileSync("git", ["-c", "core.autocrlf=true", "clone", "--no-hardlinks", "--local", seed, fresh], { stdio: "pipe" });
   const freshCommit = execFileSync("git", ["-C", fresh, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
