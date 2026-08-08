@@ -118,16 +118,21 @@ $script:ReviewedHashes = [ordered]@{
   'scripts\compare-production-schema-fingerprint.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\production-schema-fingerprint-core.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\build-production-schema-forward-reconciliation-manifest.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
-  'supabase\migrations\20260807073929_reconcile_production_schema_drift.sql' = '0000000000000000000000000000000000000000000000000000000000000000'
   'tests\fixtures\qa-production-forward-reconciliation-manifest.json' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\lib\production-schema-forward-reconciliation.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\lib\canonical-git-blob.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\qa\render-production-schema-forward-reconciliation.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\verify-canonical-migration-byte-contract.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+  'scripts\qa\materialize-canonical-migration.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\test-production-forward-reconciliation.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\lib\production-drift-structural-fixture.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\qa\create-task-scoped-normalized-replay.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\lib\task-scoped-normalized-replay.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\build-local-supabase-replay-mirror.mjs' = '0000000000000000000000000000000000000000000000000000000000000000'
   'scripts\test-legal-consent-service-role-audit.cjs' = '0000000000000000000000000000000000000000000000000000000000000000'
+}
+$script:CanonicalMigrationBlobSha256 = [ordered]@{
+  'supabase\migrations\20260807073929_reconcile_production_schema_drift.sql' = '0000000000000000000000000000000000000000000000000000000000000000'
 }
 $script:ReviewedGitBlobHashes = [ordered]@{
   'scripts\qa\run-production-minimal-canary.mjs' = '76eca9a24dcfae34983500ddcce01b37dfd868f3'
@@ -185,7 +190,10 @@ $script:ReviewedGitBlobHashes = [ordered]@{
   'supabase\migrations\20260807073929_reconcile_production_schema_drift.sql' = '0000000000000000000000000000000000000000'
   'tests\fixtures\qa-production-forward-reconciliation-manifest.json' = '0000000000000000000000000000000000000000'
   'scripts\lib\production-schema-forward-reconciliation.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\lib\canonical-git-blob.mjs' = '0000000000000000000000000000000000000000'
   'scripts\qa\render-production-schema-forward-reconciliation.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\verify-canonical-migration-byte-contract.mjs' = '0000000000000000000000000000000000000000'
+  'scripts\qa\materialize-canonical-migration.mjs' = '0000000000000000000000000000000000000000'
   'scripts\test-production-forward-reconciliation.mjs' = '0000000000000000000000000000000000000000'
   'scripts\lib\production-drift-structural-fixture.mjs' = '0000000000000000000000000000000000000000'
   'scripts\qa\create-task-scoped-normalized-replay.mjs' = '0000000000000000000000000000000000000000'
@@ -1598,6 +1606,16 @@ function Assert-ExecutionWorktree([string]$Worktree, [string]$RequestedRunId) {
     if ($blob.Lines.Count -ne 1 -or $blob.Lines[0].Trim() -ne $entry.Value) { throw "R6_REVIEWED_GIT_BLOB_MISMATCH:$($entry.Key)" }
     $headBlob = Invoke-GitLines $resolved @('rev-parse', "HEAD:$relativePath")
     if ($headBlob.Lines.Count -ne 1 -or $headBlob.Lines[0].Trim() -ne $entry.Value) { throw "R6_RUNTIME_GIT_BLOB_MISMATCH:$($entry.Key)" }
+  }
+  $canonicalVerifier = Join-Path $resolved 'scripts\qa\verify-canonical-migration-byte-contract.mjs'
+  if (-not (Test-Path -LiteralPath $canonicalVerifier -PathType Leaf)) { throw 'R6_CANONICAL_MIGRATION_BYTE_VERIFIER_MISSING' }
+  foreach ($entry in $script:CanonicalMigrationBlobSha256.GetEnumerator()) {
+    $relativePath = $entry.Key.Replace('\', '/')
+    $previousPreference = $ErrorActionPreference
+    try { $ErrorActionPreference = 'Continue'; $verificationLines = @(& node $canonicalVerifier '--worktree' $resolved '--commit' $script:ExpectedRunnerCommit '--path' $relativePath '--expected-sha256' $entry.Value); $verificationExitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previousPreference }
+    if ($verificationExitCode -ne 0 -or $verificationLines.Count -ne 1) { throw "R6_CANONICAL_MIGRATION_BYTE_VERIFICATION_FAILED:$($entry.Key)" }
+    try { $verification = $verificationLines[0] | ConvertFrom-Json -ErrorAction Stop } catch { throw "R6_CANONICAL_MIGRATION_BYTE_VERIFICATION_FAILED:$($entry.Key)" }
+    if ([string]$verification.classification -ne 'R6_CANONICAL_MIGRATION_BYTE_CONTRACT_VALID' -or [string]$verification.canonicalBlobSha256 -ne $entry.Value -or [string]$verification.checkoutProjectionClassification -notin @('IDENTICAL_TO_CANONICAL', 'CRLF_EQUIVALENT_TO_CANONICAL_LF')) { throw "R6_CANONICAL_MIGRATION_BYTE_VERIFICATION_FAILED:$($entry.Key)" }
   }
   if (-not [string]::IsNullOrWhiteSpace($RequestedRunId)) {
     if ($RequestedRunId -notmatch '^qa-canary-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') { throw 'R6_RUN_ID_INVALID' }

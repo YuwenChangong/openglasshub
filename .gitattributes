@@ -1,4 +1,5 @@
 # This reviewed artifact is byte-fingerprinted; its canonical checkout is LF.
+supabase/migrations/*.sql text eol=lf
 docs/ops/reconciliation/operational-guardrails-rate-limit-r2-unexecuted-proposal.sql text eol=lf
 docs/ops/reconciliation/operational-guardrails-authenticated-privilege-supplemental-preflight.sql text eol=lf
 docs/ops/reconciliation/operational-guardrails-current-catalog-refresh.sql text eol=lf

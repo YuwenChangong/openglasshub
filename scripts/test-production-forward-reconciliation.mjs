@@ -4,14 +4,16 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { compareFingerprint } from "./compare-production-schema-fingerprint.mjs";
 import { captureCatalog, loadFrozenDriftInputs, withNormalizedReplayRuntime, withProductionDriftFixtureRuntime } from "./lib/production-drift-structural-fixture.mjs";
+import { resolveCanonicalGitBlob, verifyCheckoutProjectionAgainstCanonicalBlob } from "./lib/canonical-git-blob.mjs";
 import { buildForwardReconciliationManifest, canonicalOwnedDifferences, compileForwardReconciliation, extraDifferences, FORWARD_RECONCILIATION_FORMAT, FORWARD_RECONCILIATION_MIGRATION, FORWARD_RECONCILIATION_WORKSTREAMS } from "./lib/production-schema-forward-reconciliation.mjs";
-import { sha256 } from "./production-schema-fingerprint-core.mjs";
 import { REQUIRED_LEGAL_LOCAL_SMOKE_CHECKS } from "./lib/legal-local-smoke-runner.mjs";
 
 const root = process.cwd();
-const migrationPath = path.join(root, "supabase", "migrations", FORWARD_RECONCILIATION_MIGRATION);
 const manifestPath = path.join(root, "tests", "fixtures", "qa-production-forward-reconciliation-manifest.json");
-const migrationSql = await readFile(migrationPath, "utf8");
+const implementationCommit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+const canonicalMigration = resolveCanonicalGitBlob({ repositoryRoot: root, implementationCommit, repositoryRelativePath: `supabase/migrations/${FORWARD_RECONCILIATION_MIGRATION}` });
+const checkoutProjection = await verifyCheckoutProjectionAgainstCanonicalBlob({ repositoryRoot: root, implementationCommit, repositoryRelativePath: canonicalMigration.repositoryRelativePath, canonicalBlob: canonicalMigration });
+const migrationSql = canonicalMigration.bytes.toString("utf8");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 const inputs = await loadFrozenDriftInputs(root);
 const compiled = compileForwardReconciliation(inputs);
@@ -73,13 +75,18 @@ assert.equal(new Set(manifest.targets.map((target) => target.differenceIdentity)
 assert.deepEqual(new Set(manifest.targets.map((target) => target.differenceIdentity)), new Set(canonicalTargets.map((target) => target.key)));
 assert.deepEqual(new Set(manifest.excludedExtras.map((extra) => extra.differenceIdentity)), new Set(frozenExtras.map((extra) => extra.key)));
 assert.equal(manifest.migration.filename, FORWARD_RECONCILIATION_MIGRATION);
-assert.equal(manifest.migration.sha256, sha256(migrationSql));
+assert.equal(manifest.migration.sha256, canonicalMigration.sha256);
 assert.equal(manifest.statementSha256, compiled.sha256);
 assert.equal(migrationSql, compiled.sql);
 assert.doesNotMatch(migrationSql, /\b(?:DROP\s+(?:FUNCTION|INDEX|TABLE)|ALTER\s+TABLE|GRANT\s+ALL|ON\s+ALL\s+FUNCTIONS|supabase\s+migration\s+repair)\b/i);
 const withoutFunctionBodies = migrationSql.replace(/\$function\$[\s\S]*?\$function\$/g, "");
 assert.doesNotMatch(withoutFunctionBodies, /\b(?:INSERT|DELETE)\s+INTO\s+(?:public\.|auth\.|storage\.objects)/i);
 assert.match(withoutFunctionBodies, /^((?!UPDATE).)*UPDATE storage\.buckets/m);
+
+if (process.argv.includes("--static-only")) {
+  console.log(JSON.stringify({ classification: "R6_FORWARD_PRODUCTION_RECONCILIATION_STATIC_BINDING_VALIDATED", implementationCommit, migrationSha256: canonicalMigration.sha256, canonicalMigrationBytes: canonicalMigration.byteCount, checkoutProjection, coverage: "90/90", excludedExtras: "20/20" }));
+  process.exit(0);
+}
 
 const driftResult = await withProductionDriftFixtureRuntime({ root, inputs, label: "forward-reconciliation", run: async (runtime) => {
   assert.deepEqual(runtime.comparison.counts, { MATCH: 1043, MISSING_IN_PRODUCTION: 71, DIVERGENT_IN_PRODUCTION: 19, EXTRA_IN_PRODUCTION: 20, INSUFFICIENT_EVIDENCE: 0 });
@@ -105,4 +112,4 @@ const canonicalResult = await withNormalizedReplayRuntime({ root, inputs, label:
   return { comparison: runtime.canonicalComparison.counts, smoke };
 }});
 
-console.log(JSON.stringify({ classification: "R6_FORWARD_PRODUCTION_RECONCILIATION_LOCAL_VALIDATED", migrationSha256: sha256(migrationSql), coverage: "90/90", excludedExtras: "20/20", driftRuntime: driftResult, canonicalRuntime: canonicalResult, dockerPulls: 0, remoteOperations: 0, productionOperations: 0 }));
+console.log(JSON.stringify({ classification: "R6_FORWARD_PRODUCTION_RECONCILIATION_LOCAL_VALIDATED", migrationSha256: canonicalMigration.sha256, checkoutProjection, coverage: "90/90", excludedExtras: "20/20", driftRuntime: driftResult, canonicalRuntime: canonicalResult, dockerPulls: 0, remoteOperations: 0, productionOperations: 0 }));

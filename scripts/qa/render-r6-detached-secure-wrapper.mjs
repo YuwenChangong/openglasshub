@@ -42,7 +42,9 @@ function bindReviewedMap(text, mapName, valueForPath) {
 }
 const sourceHashForPath = (relative) => createHash("sha256").update(readFileSync(path.join(worktree, relative))).digest("hex");
 const sourceBlobForPath = (relative) => execFileSync("git", ["-C", worktree, "rev-parse", `${commit}:${relative}`], { encoding: "utf8" }).trim();
+const sourceCanonicalBlobHashForPath = (relative) => createHash("sha256").update(execFileSync("git", ["-C", worktree, "cat-file", "blob", `${commit}:${relative}`])).digest("hex");
 rendered = bindReviewedMap(rendered, "ReviewedHashes", sourceHashForPath);
 rendered = bindReviewedMap(rendered, "ReviewedGitBlobHashes", sourceBlobForPath);
+rendered = bindReviewedMap(rendered, "CanonicalMigrationBlobSha256", sourceCanonicalBlobHashForPath);
 await writeFile(destination, rendered, "utf8");
 process.stdout.write(`${JSON.stringify({ destination, sha256: createHash("sha256").update(rendered).digest("hex"), v3Commit: commit, runnerSha256: raw, runnerBlob: blob })}\n`);
