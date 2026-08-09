@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { AUTHORIZATION_VERSION, CANONICAL_MIGRATION_BYTES, CANONICAL_MIGRATION_SHA256, PACKAGE_VERSION, POSTFLIGHT_SHA256, TRANSPORT_CONTRACT_VERSION } from "./lib/r6-production-reconciliation-transport-contract.mjs";
+import { TARGET_PROBE_SQL, targetIdentityHash, targetProbeSha256 } from "./lib/r6-production-reconciliation-target.mjs";
+import { inspectNativePsqlCapability } from "./qa/r6-production-reconciliation-transport.mjs";
+import { resolveCanonicalGitBlob } from "./lib/canonical-git-blob.mjs";
 
 const root = process.cwd();
 const temp = await mkdtemp(path.join(os.tmpdir(), "r6-production-reconciliation-launcher-"));
@@ -35,5 +39,41 @@ try {
   assert.match(await readFile(fakeNodeOutputPath, "utf8"), /ValidateOnly/);
   execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", launcherPath, "-AuthorizationPath", authPath, "-PackageRoot", packageRoot, "-Mode", "Execute", "-FinalConfirmationPath", finalPath], { encoding: "utf8" });
   assert.match(await readFile(fakeNodeOutputPath, "utf8"), /Execute/);
+
+  // This invokes the rendered launcher and real transport with no PG* secrets. A
+  // valid candidate plus a missing final artifact must fail before client creation.
+  const liveLauncherPath = path.join(temp, "live-start-r6-production-reconciliation.ps1");
+  const liveBindingPath = path.join(temp, "live-launcher-binding.json");
+  const liveConfigPath = path.join(temp, "live-config.json");
+  const liveConfig = { ...config, nodePath: process.execPath, launcherBindingPath: liveBindingPath };
+  await writeFile(liveConfigPath, JSON.stringify(liveConfig));
+  execFileSync(process.execPath, ["scripts/qa/render-r6-production-reconciliation-launcher.mjs", "--config", liveConfigPath, "--destination", liveLauncherPath], { cwd: root });
+  await writeFile(liveBindingPath, JSON.stringify({ schemaVersion: "r6-production-reconciliation-launcher-binding-v1", launcherSha256: hash(await readFile(liveLauncherPath)) }));
+  const livePackageRoot = path.join(temp, "live-package"); await mkdir(livePackageRoot, { recursive: true });
+  const currentCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+  const migration = resolveCanonicalGitBlob({ repositoryRoot: root, implementationCommit: currentCommit, repositoryRelativePath: "supabase/migrations/20260807073929_reconcile_production_schema_drift.sql" }).bytes;
+  const postflight = resolveCanonicalGitBlob({ repositoryRoot: root, implementationCommit: currentCommit, repositoryRelativePath: "docs/ops/legal-consent-production-schema-fingerprint.sql" }).bytes;
+  await Promise.all([writeFile(path.join(livePackageRoot, "canonical-migration.sql"), migration), writeFile(path.join(livePackageRoot, "canonical-postflight.sql"), postflight), writeFile(path.join(livePackageRoot, "canonical-target-probe.sql"), TARGET_PROBE_SQL)]);
+  const executionPackage = { schemaVersion: PACKAGE_VERSION, transportContractVersion: TRANSPORT_CONTRACT_VERSION, migration: { artifact: "canonical-migration.sql", sha256: CANONICAL_MIGRATION_SHA256, bytes: CANONICAL_MIGRATION_BYTES }, postflight: { artifact: "canonical-postflight.sql", sha256: POSTFLIGHT_SHA256 }, targetProbe: { artifact: "canonical-target-probe.sql", sha256: targetProbeSha256() } };
+  const executionPackagePath = path.join(livePackageRoot, "production-reconciliation-execution-package.json");
+  const packageManifestPath = path.join(livePackageRoot, "production-reconciliation-package-manifest.json");
+  await Promise.all([writeFile(executionPackagePath, JSON.stringify(executionPackage)), writeFile(packageManifestPath, JSON.stringify({ schemaVersion: "test-outer-package-v1", executionPackage: path.basename(executionPackagePath) }))]);
+  const capability = inspectNativePsqlCapability();
+  const liveCandidatePath = path.join(temp, "live-candidate.json");
+  const liveLauncherSha256 = hash(await readFile(liveLauncherPath));
+  const observed = '{"database":"postgres","serverVersionNum":"170000","sessionUser":"postgres"}';
+  const candidate = { schemaVersion: AUTHORIZATION_VERSION, authorizationId: randomUUID(), executionTaskId: randomUUID(), authorizationState: "AWAITING_FINAL_HUMAN_CONFIRMATION", executionEligible: false, immutable: true, packageManifestSha256: hash(await readFile(packageManifestPath)), executionPackageSha256: hash(await readFile(executionPackagePath)), transportImplementationCommit: config.implementationCommit, transportLauncherSha256: liveLauncherSha256, transportSha256: config.transportSha256, targetIdentitySha256: targetIdentityHash(observed), canonicalMigrationSha256: CANONICAL_MIGRATION_SHA256, canonicalPostflightSha256: POSTFLIGHT_SHA256, targetProbeSha256: targetProbeSha256(), requiredConfirmationSha256: hash("test-only"), transportContractVersion: TRANSPORT_CONTRACT_VERSION, sqlClientCapability: "PSQL_NATIVE", sqlClientVersion: capability.version, sqlClientExecutablePath: capability.executablePath, sqlClientExecutableSha256: capability.executableSha256, attempts: 1, automaticRetry: 0, automaticRollback: 0 };
+  await writeFile(liveCandidatePath, JSON.stringify(candidate));
+  const noDatabaseSecrets = { ...process.env }; for (const name of ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "DATABASE_URL", "SUPABASE_DB_URL", "R6_PRODUCTION_RECONCILIATION_DATABASE_URL"]) delete noDatabaseSecrets[name];
+  const run = execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", liveLauncherPath, "-AuthorizationPath", liveCandidatePath, "-PackageRoot", livePackageRoot, "-Mode", "Execute", "-FinalConfirmationPath", path.join(temp, "missing-final.json")], { encoding: "utf8", env: noDatabaseSecrets, stdio: ["ignore", "pipe", "pipe"] });
+  assert.fail(`candidate-only Execute unexpectedly succeeded: ${run}`);
+} catch (error) {
+  if (error?.status === 1 && /R6_PRODUCTION_RECONCILIATION_FINAL_HUMAN_CONFIRMATION_REQUIRED/.test(`${error.stdout}\n${error.stderr}`)) {
+    process.stdout.write("R6_PRODUCTION_RECONCILIATION_LAUNCHER_CANDIDATE_ONLY_OFFLINE_REJECTION_READY\n");
+  } else {
+    throw error;
+  }
+}
+try {
   process.stdout.write("R6_PRODUCTION_RECONCILIATION_LAUNCHER_FAKE_HARNESS_READY\n");
 } finally { await (await import("node:fs/promises")).rm(temp, { recursive: true, force: true }); }

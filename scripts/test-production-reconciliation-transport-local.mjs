@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { resolveCanonicalGitBlob } from "./lib/canonical-git-blob.mjs";
@@ -18,6 +19,17 @@ const confirmation = "local-transport-confirmation";
 const docker = (args, input) => execFileSync("docker", args, { encoding: "utf8", input, stdio: ["pipe", "pipe", "pipe"] });
 const dockerPsql = (container, sql, tupleOnly = false, discardOutput = false) => docker(["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", ...(tupleOnly ? ["-qAt"] : ["-q"]), ...(discardOutput ? ["-o", "/dev/null"] : []), "-U", "postgres", "-d", "postgres"], sql);
 
+async function occupyDefaultPortIfAvailable() {
+  const server = net.createServer();
+  try {
+    await new Promise((resolve, reject) => { server.once("error", reject); server.listen({ host: "127.0.0.1", port: 54322, exclusive: true }, resolve); });
+    return Object.freeze({ server, ownedByTest: true });
+  } catch (error) {
+    if (error?.code === "EADDRINUSE") return Object.freeze({ server: null, ownedByTest: false });
+    throw error;
+  }
+}
+
 async function createPackage(temp) {
   const packageRoot = path.join(temp, "package"); await mkdir(packageRoot, { recursive: true });
   const migration = resolveCanonicalGitBlob({ repositoryRoot: root, implementationCommit: commit, repositoryRelativePath: "supabase/migrations/20260807073929_reconcile_production_schema_drift.sql" }).bytes;
@@ -32,6 +44,7 @@ async function createPackage(temp) {
 }
 
 const temp = await mkdtemp(path.join(os.tmpdir(), "r6-production-transport-local-"));
+const defaultPort = await occupyDefaultPortIfAvailable();
 try {
   const packageFixture = await createPackage(temp);
   const inputs = await loadFrozenDriftInputs(root);
@@ -48,15 +61,19 @@ try {
       async submitMigration(sql) { const process = spawnSync("docker", ["exec", "-i", runtime.container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-q", "-U", "postgres", "-d", "postgres"], { input: Buffer.concat([Buffer.from("BEGIN;\n"), sql, Buffer.from("\nCOMMIT;\n")]), encoding: "utf8" }); return process.status === 0 ? { outcome: "COMMITTED" } : { outcome: "COMMIT_STATE_UNKNOWN" }; },
       async postflight(sql) { dockerPsql(runtime.container, sql, false, true); return { outcome: "POSTFLIGHT_SUCCESS" }; },
     };
-    await assert.rejects(executeOnce({ authorizationPath, packageRoot: packageFixture.packageRoot, finalConfirmationPath: path.join(temp, "missing.json"), receiptRoot: path.join(temp, "receipts-missing"), implementationCommit: commit, launcherSha256: "b".repeat(64), transportSha256: "c".repeat(64), sqlClientCapability: capability, client }), /R6_PRODUCTION_RECONCILIATION_FINAL_CONFIRMATION_MISSING/);
+    await assert.rejects(executeOnce({ authorizationPath, packageRoot: packageFixture.packageRoot, finalConfirmationPath: path.join(temp, "missing.json"), receiptRoot: path.join(temp, "receipts-missing"), implementationCommit: commit, launcherSha256: "b".repeat(64), transportSha256: "c".repeat(64), sqlClientCapability: capability, client }), /R6_PRODUCTION_RECONCILIATION_FINAL_HUMAN_CONFIRMATION_REQUIRED/);
     assert.equal(targetConnections, 0, "candidate-only path must not open a target connection");
     const finalized = await finalizeHumanConfirmation({ authorizationPath, packageRoot: packageFixture.packageRoot, finalConfirmationPath, confirmationPhrase: confirmation, implementationCommit: commit, launcherSha256: "b".repeat(64), transportSha256: "c".repeat(64), sqlClientCapability: capability });
     assert.equal(finalized.networkConnections, 0);
     const execution = await executeOnce({ authorizationPath, packageRoot: packageFixture.packageRoot, finalConfirmationPath, receiptRoot: path.join(temp, "receipts"), implementationCommit: commit, launcherSha256: "b".repeat(64), transportSha256: "c".repeat(64), sqlClientCapability: capability, client });
     const catalog = await captureCatalog(root, runtime.container);
-    return { execution, targetConnections, comparison: compareFingerprint(inputs.expected, catalog.rows).counts };
+    return { execution, targetConnections, bootstrap: runtime.bootstrap, comparison: compareFingerprint(inputs.expected, catalog.rows).counts };
   }});
   assert.equal(result.execution.classification, "R6_PRODUCTION_RECONCILIATION_EXECUTION_AND_POSTFLIGHT_COMPLETE");
   assert.equal(result.targetConnections, 1); assert.equal(result.execution.postflightCount, 1); assert.deepEqual(result.comparison, { MATCH: 1133, MISSING_IN_PRODUCTION: 0, DIVERGENT_IN_PRODUCTION: 0, EXTRA_IN_PRODUCTION: 20, INSUFFICIENT_EVIDENCE: 0 });
+  assert.notEqual(result.bootstrap.taskPortMap.postgres.hostPort, 54322, "task-owned bootstrap must not use the occupied default port");
   process.stdout.write("R6_PRODUCTION_RECONCILIATION_TRANSPORT_LOCAL_INTEGRATION_READY\n");
-} finally { await rm(temp, { recursive: true, force: true }); }
+} finally {
+  await rm(temp, { recursive: true, force: true });
+  if (defaultPort.ownedByTest) await new Promise((resolve, reject) => defaultPort.server.close((error) => error ? reject(error) : resolve()));
+}

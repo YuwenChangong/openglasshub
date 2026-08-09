@@ -7,6 +7,7 @@ import { buildLocalSupabaseReplayMirror } from "../build-local-supabase-replay-m
 import { PINNED_PSQL_DIGEST, PINNED_PSQL_IMAGE } from "../lib/docker-psql-file-transport.mjs";
 import { assertLocalDockerContext, discoverTaskScopedNormalizedReplay, normalizedReplayLabelSet, validateNormalizedReplayTaskId } from "../lib/task-scoped-normalized-replay.mjs";
 import { NORMALIZED_REPLAY_HEALTHCHECK, normalizedReplayHealthcheckDockerArgs, waitForNormalizedReplayHealthy } from "../lib/task-scoped-normalized-replay-health.mjs";
+import { allocateTaskOwnedLoopbackPort, applyTaskOwnedDatabasePort, taskPortMap } from "../lib/task-scoped-normalized-replay-port-isolation.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const run = (args, options = {}) => {
@@ -84,13 +85,16 @@ for (const name of Object.values(names)) {
 let mirrorRoot;
 let bootstrapProjectId;
 let bootstrapVolume;
+let allocatedPort;
 try {
   mirrorRoot = await mkdtemp(path.join(os.tmpdir(), "openglass-normalized-replay-"));
   bootstrapProjectId = `r6p${taskId.slice("r6-final-contract-".length).replaceAll("-", "").slice(0, 12)}`;
   runSupabase(["init", "--yes", "--workdir", mirrorRoot]);
   const configPath = path.join(mirrorRoot, "supabase", "config.toml");
   const config = await readFile(configPath, "utf8");
-  await writeFile(configPath, config.replace(/^project_id\s*=\s*"[^"]+"/m, `project_id = "${bootstrapProjectId}"`), "utf8");
+  allocatedPort = await allocateTaskOwnedLoopbackPort();
+  const taskConfig = applyTaskOwnedDatabasePort(config.replace(/^project_id\s*=\s*"[^"]+"/m, `project_id = "${bootstrapProjectId}"`), allocatedPort.port);
+  await writeFile(configPath, taskConfig, "utf8");
   const migrations = path.join(mirrorRoot, "supabase", "migrations");
   const mapping = path.join(mirrorRoot, "mapping.json");
   const report = await buildLocalSupabaseReplayMirror({ canonicalDirectory: path.join(root, "supabase", "migrations"), outputDirectory: migrations, mappingPath: mapping, repositoryRoot: root });
@@ -98,6 +102,8 @@ try {
   runSupabase(["db", "reset", "--local", "--no-seed", "--workdir", mirrorRoot]);
   const bootstrapContainer = run(["ps", "-q", "--filter", `name=^/supabase_db_${bootstrapProjectId}$`]);
   if (!bootstrapContainer || bootstrapContainer.includes("\n")) throw new Error("NORMALIZED_REPLAY_BOOTSTRAP_DATABASE_CARDINALITY_INVALID");
+  const bootstrapHostPort = run(["inspect", "--format", "{{(index (index .NetworkSettings.Ports \"5432/tcp\") 0).HostPort}}", bootstrapContainer]);
+  if (bootstrapHostPort !== String(allocatedPort.port) || allocatedPort.port === 54322) throw new Error("NORMALIZED_REPLAY_TASK_PORT_ISOLATION_FAILED");
   bootstrapVolume = run(["inspect", "--format", "{{range .Mounts}}{{if eq .Destination \"/var/lib/postgresql/data\"}}{{.Name}}{{end}}{{end}}", bootstrapContainer]);
   if (!bootstrapVolume) throw new Error("NORMALIZED_REPLAY_BOOTSTRAP_VOLUME_MISSING");
   runSupabase(["stop", "--workdir", mirrorRoot]);
@@ -113,7 +119,7 @@ try {
   const discovered = discoverTaskScopedNormalizedReplay({ taskId });
   const inspectedContainerId = run(["inspect", "--format", "{{.Id}}", names.container]);
   if (!inspectedContainerId.startsWith(discovered.containerId) || discovered.network !== names.network || discovered.volume !== names.volume) throw new Error("NORMALIZED_REPLAY_TASK_CONTAINER_DISCOVERY_MISMATCH");
-  process.stdout.write(`${JSON.stringify({ classification: "NORMALIZED_REPLAY_TASK_CONTAINER_READY", taskId, containerId: discovered.containerId, containerName: names.container, imageId, labels, network: names.network, volume: names.volume, healthCommand: NORMALIZED_REPLAY_HEALTHCHECK.command, healthStatus: health.health, healthTransitions: health.transitions, migrationCount: report.migrationCount, bomTransformedFiles: report.bomTransformedFiles, dockerPulls: 0, remoteOperations: 0 })}\n`);
+  process.stdout.write(`${JSON.stringify({ classification: "NORMALIZED_REPLAY_TASK_CONTAINER_READY", taskId, containerId: discovered.containerId, containerName: names.container, imageId, labels, network: names.network, volume: names.volume, taskPortMap: taskPortMap(allocatedPort), healthCommand: NORMALIZED_REPLAY_HEALTHCHECK.command, healthStatus: health.health, healthTransitions: health.transitions, migrationCount: report.migrationCount, bomTransformedFiles: report.bomTransformedFiles, dockerPulls: 0, remoteOperations: 0 })}\n`);
 } catch (error) {
   try { removeOwned(names, labels); } catch { /* Preserve the creation failure. */ }
   throw error;
