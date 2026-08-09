@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
+import { access, mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { TRANSPORT_CONTRACT_VERSION, fail } from "./r6-production-reconciliation-transport-contract.mjs";
 
@@ -33,14 +33,26 @@ async function durableReplace(file, value) {
 
 function seal(receipt) { const copy = { ...receipt }; delete copy.integrity; return { ...copy, integrity: hash(canonical(copy)) }; }
 export function validateReceipt(receipt) {
-  if (!receipt || receipt.schemaVersion !== "r6-production-reconciliation-receipt-v1" || receipt.transportContractVersion !== TRANSPORT_CONTRACT_VERSION || !["ATTEMPT_RESERVED", "SQL_SUBMITTED", "COMMITTED", "FAILED_PRE_SUBMIT", "FAILED_NOT_COMMITTED", "COMMIT_STATE_UNKNOWN", "POSTFLIGHT_FAILED", "POSTFLIGHT_COMPLETE"].includes(receipt.state) || !/^[a-f0-9]{64}$/.test(String(receipt.integrity ?? "")) || seal(receipt).integrity !== receipt.integrity) fail("R6_PRODUCTION_RECONCILIATION_RECEIPT_INVALID");
+  if (!receipt || receipt.schemaVersion !== "r6-production-reconciliation-receipt-v1" || receipt.transportContractVersion !== TRANSPORT_CONTRACT_VERSION || !["ATTEMPT_RESERVED", "SQL_SUBMITTED", "COMMITTED", "FAILED_PRE_SUBMIT", "FAILED_NOT_COMMITTED", "COMMIT_STATE_UNKNOWN", "POSTFLIGHT_FAILED", "POSTFLIGHT_COMPLETE"].includes(receipt.state) || !/^[a-f0-9]{64}$/.test(String(receipt.authorizationCandidateSha256 ?? "")) || !/^[a-f0-9]{64}$/.test(String(receipt.finalConfirmationSha256 ?? "")) || !/^[a-f0-9]{64}$/.test(String(receipt.integrity ?? "")) || seal(receipt).integrity !== receipt.integrity) fail("R6_PRODUCTION_RECONCILIATION_RECEIPT_INVALID");
   return receipt;
 }
 
-export async function reserveAttempt({ receiptRoot, authorization, packageManifestSha256, now = new Date().toISOString() }) {
+export async function assertReceiptEligible({ receiptRoot, authorizationId }) {
+  const root = path.resolve(receiptRoot);
+  const file = path.join(root, `${authorizationId}.json`);
+  try {
+    await access(file);
+  } catch (error) {
+    if (error?.code === "ENOENT") return Object.freeze({ path: file, receiptConsumed: false });
+    throw error;
+  }
+  fail("R6_PRODUCTION_RECONCILIATION_RECEIPT_REPLAY");
+}
+
+export async function reserveAttempt({ receiptRoot, authorization, authorizationCandidateSha256, finalConfirmationSha256, packageManifestSha256, now = new Date().toISOString() }) {
   const root = path.resolve(receiptRoot);
   const file = path.join(root, `${authorization.authorizationId}.json`);
-  const base = { schemaVersion: "r6-production-reconciliation-receipt-v1", transportContractVersion: TRANSPORT_CONTRACT_VERSION, state: "ATTEMPT_RESERVED", authorizationId: authorization.authorizationId, executionTaskId: authorization.executionTaskId, authorizationSha256: authorization.authorizationSha256, packageManifestSha256, createdAt: now, attemptConsumed: false, postflightCount: 0 };
+  const base = { schemaVersion: "r6-production-reconciliation-receipt-v1", transportContractVersion: TRANSPORT_CONTRACT_VERSION, state: "ATTEMPT_RESERVED", authorizationId: authorization.authorizationId, executionTaskId: authorization.executionTaskId, authorizationCandidateSha256, finalConfirmationSha256, packageManifestSha256, createdAt: now, attemptConsumed: false, postflightCount: 0 };
   const receipt = seal(base);
   await durableExclusiveJson(file, receipt);
   return Object.freeze({ path: file, receipt });
