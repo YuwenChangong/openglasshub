@@ -1,0 +1,31 @@
+[CmdletBinding()]
+param(
+  [Parameter(Mandatory = $true)][string]$AuthorizationPath,
+  [Parameter(Mandatory = $true)][string]$PackageRoot,
+  [switch]$ValidateOnly
+)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$config = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('__CONFIG_BASE64__')) | ConvertFrom-Json
+function Get-Sha256([string]$Path) { $stream=$null; $sha=$null; try { $stream=[IO.File]::OpenRead($Path); $sha=[Security.Cryptography.SHA256]::Create(); return (-join ($sha.ComputeHash($stream) | ForEach-Object { $_.ToString('x2') })) } finally { if($sha){$sha.Dispose()}; if($stream){$stream.Dispose()} } }
+if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected -or $Host.Name -ne 'ConsoleHost') { throw 'R6_PRODUCTION_RECONCILIATION_INTERACTIVE_HOST_REQUIRED' }
+$binding = Get-Content -LiteralPath $config.launcherBindingPath -Raw | ConvertFrom-Json
+if ($binding.schemaVersion -ne 'r6-production-reconciliation-launcher-binding-v1' -or (Get-Sha256 $PSCommandPath) -ne $binding.launcherSha256) { throw 'R6_PRODUCTION_RECONCILIATION_LAUNCHER_INTEGRITY_INVALID' }
+if ((Get-Sha256 $config.transportPath) -ne $config.transportSha256) { throw 'R6_PRODUCTION_RECONCILIATION_TRANSPORT_INTEGRITY_INVALID' }
+$confirmation = Read-Host 'Enter the exact approved confirmation phrase' -AsSecureString
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($confirmation)
+try {
+  $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+  $env:R6_PRODUCTION_RECONCILIATION_CONFIRMATION = $plain
+  $env:R6_PRODUCTION_RECONCILIATION_IMPLEMENTATION_COMMIT = $config.implementationCommit
+  $env:R6_PRODUCTION_RECONCILIATION_LAUNCHER_SHA256 = $binding.launcherSha256
+  $mode = if ($ValidateOnly) { 'ValidateOnly' } else { 'Execute' }
+  if ($ValidateOnly) { & $config.nodePath $config.transportPath $mode $AuthorizationPath $PackageRoot; exit $LASTEXITCODE }
+  & $config.nodePath $config.transportPath $mode $AuthorizationPath $PackageRoot $config.receiptRoot
+  exit $LASTEXITCODE
+} finally {
+  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+  $plain = $null
+  Remove-Item Env:R6_PRODUCTION_RECONCILIATION_CONFIRMATION -ErrorAction SilentlyContinue
+  $confirmation.Dispose()
+}
