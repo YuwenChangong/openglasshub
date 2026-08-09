@@ -206,6 +206,8 @@ async function loadPackageForCandidate(candidate, packageRoot) {
     packageRoot,
     expectedExecutionPackageSha256: candidate.executionPackageSha256,
     expectedPackageManifestSha256: candidate.packageManifestSha256,
+    expectedImplementationCommit: candidate.transportImplementationCommit,
+    expectedLauncherSha256: candidate.transportLauncherSha256,
   });
 }
 

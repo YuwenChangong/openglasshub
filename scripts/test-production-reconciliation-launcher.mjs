@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { AUTHORIZATION_VERSION, CANONICAL_MIGRATION_BYTES, CANONICAL_MIGRATION_SHA256, PACKAGE_VERSION, POSTFLIGHT_SHA256, TRANSPORT_CONTRACT_VERSION } from "./lib/r6-production-reconciliation-transport-contract.mjs";
+import { AUTHORIZATION_VERSION, CANONICAL_MIGRATION_BYTES, CANONICAL_MIGRATION_SHA256, PACKAGE_MANIFEST_VERSION, PACKAGE_VERSION, POSTFLIGHT_SHA256, TRANSPORT_CONTRACT_VERSION } from "./lib/r6-production-reconciliation-transport-contract.mjs";
 import { TARGET_PROBE_SQL, targetIdentityHash, targetProbeSha256 } from "./lib/r6-production-reconciliation-target.mjs";
 import { inspectNativePsqlCapability } from "./qa/r6-production-reconciliation-transport.mjs";
 import { resolveCanonicalGitBlob } from "./lib/canonical-git-blob.mjs";
@@ -57,7 +57,8 @@ try {
   const executionPackage = { schemaVersion: PACKAGE_VERSION, transportContractVersion: TRANSPORT_CONTRACT_VERSION, migration: { artifact: "canonical-migration.sql", sha256: CANONICAL_MIGRATION_SHA256, bytes: CANONICAL_MIGRATION_BYTES }, postflight: { artifact: "canonical-postflight.sql", sha256: POSTFLIGHT_SHA256 }, targetProbe: { artifact: "canonical-target-probe.sql", sha256: targetProbeSha256() } };
   const executionPackagePath = path.join(livePackageRoot, "production-reconciliation-execution-package.json");
   const packageManifestPath = path.join(livePackageRoot, "production-reconciliation-package-manifest.json");
-  await Promise.all([writeFile(executionPackagePath, JSON.stringify(executionPackage)), writeFile(packageManifestPath, JSON.stringify({ schemaVersion: "test-outer-package-v1", executionPackage: path.basename(executionPackagePath) }))]);
+  await writeFile(executionPackagePath, JSON.stringify(executionPackage));
+  await writeFile(packageManifestPath, JSON.stringify({ schemaVersion: PACKAGE_MANIFEST_VERSION, implementationCommit: config.implementationCommit, transportContractVersion: TRANSPORT_CONTRACT_VERSION, executionPackageArtifact: path.basename(executionPackagePath), executionPackageSha256: hash(await readFile(executionPackagePath)), migration: executionPackage.migration, postflight: executionPackage.postflight, targetProbe: executionPackage.targetProbe, targetIdentitySha256: "5f03b39617d42cf3d1611488a4eaaff4da2687b5a46a69aa49a31042dce5d975", baselineSha256: "adec5b5933cc70869be55efbabb613b555c890f0e755e01b13b28696e67c9b4a", launcherSha256: hash(await readFile(liveLauncherPath)), secureWrapperSha256: "f".repeat(64), executionEligible: false, candidateIssued: false, humanConfirmed: false, executionConsumed: false }));
   const capability = inspectNativePsqlCapability();
   const liveCandidatePath = path.join(temp, "live-candidate.json");
   const liveLauncherSha256 = hash(await readFile(liveLauncherPath));

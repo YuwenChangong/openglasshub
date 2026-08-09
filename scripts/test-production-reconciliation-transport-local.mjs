@@ -8,7 +8,7 @@ import path from "node:path";
 import { resolveCanonicalGitBlob } from "./lib/canonical-git-blob.mjs";
 import { loadFrozenDriftInputs, withProductionDriftFixtureRuntime, captureCatalog } from "./lib/production-drift-structural-fixture.mjs";
 import { compareFingerprint } from "./compare-production-schema-fingerprint.mjs";
-import { AUTHORIZATION_VERSION, CANONICAL_MIGRATION_BYTES, CANONICAL_MIGRATION_SHA256, PACKAGE_VERSION, POSTFLIGHT_SHA256, TRANSPORT_CONTRACT_VERSION } from "./lib/r6-production-reconciliation-transport-contract.mjs";
+import { AUTHORIZATION_VERSION, CANONICAL_MIGRATION_BYTES, CANONICAL_MIGRATION_SHA256, PACKAGE_MANIFEST_VERSION, PACKAGE_VERSION, POSTFLIGHT_SHA256, TRANSPORT_CONTRACT_VERSION } from "./lib/r6-production-reconciliation-transport-contract.mjs";
 import { TARGET_PROBE_SQL, targetIdentityHash, targetProbeSha256 } from "./lib/r6-production-reconciliation-target.mjs";
 import { executeOnce, finalizeHumanConfirmation, inspectNativePsqlCapability } from "./qa/r6-production-reconciliation-transport.mjs";
 
@@ -16,6 +16,7 @@ const root = process.cwd();
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
 const confirmation = "local-transport-confirmation";
+const launcherSha256 = "b".repeat(64);
 const docker = (args, input) => execFileSync("docker", args, { encoding: "utf8", input, stdio: ["pipe", "pipe", "pipe"] });
 const dockerPsql = (container, sql, tupleOnly = false, discardOutput = false) => docker(["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", ...(tupleOnly ? ["-qAt"] : ["-q"]), ...(discardOutput ? ["-o", "/dev/null"] : []), "-U", "postgres", "-d", "postgres"], sql);
 
@@ -39,7 +40,8 @@ async function createPackage(temp) {
   const manifest = { schemaVersion: PACKAGE_VERSION, transportContractVersion: TRANSPORT_CONTRACT_VERSION, migration: { artifact: "canonical-migration.sql", sha256: CANONICAL_MIGRATION_SHA256, bytes: CANONICAL_MIGRATION_BYTES }, postflight: { artifact: "canonical-postflight.sql", sha256: POSTFLIGHT_SHA256 }, targetProbe: { artifact: "canonical-target-probe.sql", sha256: targetProbeSha256() } };
   const manifestPath = path.join(packageRoot, "production-reconciliation-execution-package.json");
   const outerManifestPath = path.join(packageRoot, "production-reconciliation-package-manifest.json");
-  await Promise.all([writeFile(manifestPath, JSON.stringify(manifest)), writeFile(outerManifestPath, JSON.stringify({ schemaVersion: "test-outer-package-v1" }))]);
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  await writeFile(outerManifestPath, JSON.stringify({ schemaVersion: PACKAGE_MANIFEST_VERSION, implementationCommit: commit, transportContractVersion: TRANSPORT_CONTRACT_VERSION, executionPackageArtifact: path.basename(manifestPath), executionPackageSha256: hash(await readFile(manifestPath)), migration: manifest.migration, postflight: manifest.postflight, targetProbe: manifest.targetProbe, targetIdentitySha256: "5f03b39617d42cf3d1611488a4eaaff4da2687b5a46a69aa49a31042dce5d975", baselineSha256: "adec5b5933cc70869be55efbabb613b555c890f0e755e01b13b28696e67c9b4a", launcherSha256, secureWrapperSha256: "f".repeat(64), executionEligible: false, candidateIssued: false, humanConfirmed: false, executionConsumed: false }));
   return { packageRoot, executionPackageSha256: hash(await readFile(manifestPath)), packageManifestSha256: hash(await readFile(outerManifestPath)) };
 }
 

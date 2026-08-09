@@ -7,9 +7,13 @@ export const TRANSPORT_CONTRACT_VERSION = "r6-production-reconciliation-transpor
 export const AUTHORIZATION_VERSION = "qa-production-reconciliation-execution-authorization-v2";
 export const FINAL_CONFIRMATION_VERSION = "qa-production-reconciliation-final-human-confirmation-v1";
 export const PACKAGE_VERSION = "r6-production-reconciliation-execution-package-v3";
+export const PACKAGE_MANIFEST_VERSION = "r6-production-reconciliation-package-manifest-v3";
 export const CANONICAL_MIGRATION_SHA256 = "f63ecb18b0b2c183c8e13f3db6526956afd2af508f02d7c89f02a912cae91cd0";
 export const CANONICAL_MIGRATION_BYTES = 22730;
 export const POSTFLIGHT_SHA256 = "9940c17a5da9f8fb4bb444406f3252eeac623f35a649f715163665cd696fb1f5";
+export const CANONICAL_TARGET_PROBE_SHA256 = "428e3c34442921576bac9038a64dec8093b89699f2fe7d855b7022a679e8161d";
+export const CANONICAL_TARGET_IDENTITY_SHA256 = "5f03b39617d42cf3d1611488a4eaaff4da2687b5a46a69aa49a31042dce5d975";
+export const CANONICAL_FINGERPRINT_BASELINE_SHA256 = "adec5b5933cc70869be55efbabb613b555c890f0e755e01b13b28696e67c9b4a";
 export const MIGRATION_ARTIFACT = "canonical-migration.sql";
 export const POSTFLIGHT_ARTIFACT = "canonical-postflight.sql";
 export const TARGET_PROBE_ARTIFACT = "canonical-target-probe.sql";
@@ -50,6 +54,38 @@ const FINAL_CONFIRMATION_KEYS = Object.freeze([
   "approvedTargetIdentitySha256", "requiredConfirmationSha256", "confirmedPhraseSha256", "singleUse", "attempts",
   "retry", "automaticRollback", "confirmedAt", "immutable",
 ]);
+
+const PACKAGE_MANIFEST_KEYS = Object.freeze([
+  "schemaVersion", "implementationCommit", "transportContractVersion", "executionPackageArtifact", "executionPackageSha256",
+  "migration", "postflight", "targetProbe", "targetIdentitySha256", "baselineSha256", "launcherSha256", "secureWrapperSha256",
+  "executionEligible", "candidateIssued", "humanConfirmed", "executionConsumed",
+]);
+
+export function validateProductionReconciliationPackageManifest(value, { implementationCommit = null, launcherSha256 = null, secureWrapperSha256 = null } = {}) {
+  assertExactKeys(value, PACKAGE_MANIFEST_KEYS, "R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_INVALID");
+  if (value.schemaVersion !== PACKAGE_MANIFEST_VERSION || value.transportContractVersion !== TRANSPORT_CONTRACT_VERSION
+    || !COMMIT.test(String(value.implementationCommit ?? "")) || value.executionPackageArtifact !== "production-reconciliation-execution-package.json"
+    || !HASH.test(String(value.executionPackageSha256 ?? "")) || !HASH.test(String(value.targetIdentitySha256 ?? ""))
+    || value.targetIdentitySha256 !== CANONICAL_TARGET_IDENTITY_SHA256 || value.baselineSha256 !== CANONICAL_FINGERPRINT_BASELINE_SHA256 || !HASH.test(String(value.launcherSha256 ?? ""))
+    || !HASH.test(String(value.secureWrapperSha256 ?? "")) || value.executionEligible !== false
+    || value.candidateIssued !== false || value.humanConfirmed !== false || value.executionConsumed !== false) {
+    fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_INVALID");
+  }
+  for (const [entry, artifact, expectedHash, expectedBytes] of [
+    [value.migration, MIGRATION_ARTIFACT, CANONICAL_MIGRATION_SHA256, CANONICAL_MIGRATION_BYTES],
+    [value.postflight, POSTFLIGHT_ARTIFACT, POSTFLIGHT_SHA256, null],
+    [value.targetProbe, TARGET_PROBE_ARTIFACT, CANONICAL_TARGET_PROBE_SHA256, null],
+  ]) {
+    if (!entry || entry.artifact !== artifact || !HASH.test(String(entry.sha256 ?? ""))
+      || (expectedHash && entry.sha256 !== expectedHash) || (expectedBytes !== null && entry.bytes !== expectedBytes)) {
+      fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_INVALID");
+    }
+  }
+  if (implementationCommit && value.implementationCommit !== implementationCommit) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
+  if (launcherSha256 && value.launcherSha256 !== launcherSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
+  if (secureWrapperSha256 && value.secureWrapperSha256 !== secureWrapperSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
+  return Object.freeze({ ...value });
+}
 
 export function validateAuthorizationV2(value, { implementationCommit, launcherSha256, transportSha256, sqlClientCapability = null } = {}) {
   if (!value || value.schemaVersion !== AUTHORIZATION_VERSION || !UUID.test(String(value.authorizationId ?? "")) || !UUID.test(String(value.executionTaskId ?? ""))) {
@@ -116,7 +152,7 @@ async function readBoundArtifact(packageRoot, name, expectedSha256, expectedByte
   return Object.freeze({ path: candidate, bytes: Buffer.from(bytes), sha256: sha256(bytes), byteCount: bytes.length });
 }
 
-export async function loadBoundExecutionPackage({ packageRoot, expectedPackageSha256 = null, expectedExecutionPackageSha256 = expectedPackageSha256, expectedPackageManifestSha256 = null }) {
+export async function loadBoundExecutionPackage({ packageRoot, expectedPackageSha256 = null, expectedExecutionPackageSha256 = expectedPackageSha256, expectedPackageManifestSha256 = null, expectedImplementationCommit = null, expectedLauncherSha256 = null, expectedSecureWrapperSha256 = null }) {
   const manifestPath = path.resolve(packageRoot, "production-reconciliation-execution-package.json");
   const manifestBytes = await readFile(manifestPath).catch(() => fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISSING"));
   if (expectedExecutionPackageSha256 && sha256(manifestBytes) !== expectedExecutionPackageSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
@@ -138,6 +174,10 @@ export async function loadBoundExecutionPackage({ packageRoot, expectedPackageSh
     const packageManifestBytes = await readFile(packageManifestPath).catch(() => fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISSING"));
     packageManifestSha256 = sha256(packageManifestBytes);
     if (packageManifestSha256 !== expectedPackageManifestSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
+    let packageManifest;
+    try { packageManifest = JSON.parse(packageManifestBytes.toString("utf8")); } catch { fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_INVALID"); }
+    validateProductionReconciliationPackageManifest(packageManifest, { implementationCommit: expectedImplementationCommit, launcherSha256: expectedLauncherSha256, secureWrapperSha256: expectedSecureWrapperSha256 });
+    if (packageManifest.executionPackageSha256 !== sha256(manifestBytes)) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
   }
   return Object.freeze({ manifest, manifestPath, manifestSha256: sha256(manifestBytes), packageManifestPath, packageManifestSha256, migration, postflight, targetProbe });
 }
