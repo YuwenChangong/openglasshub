@@ -200,6 +200,11 @@
       "statementCount": 7
     },
     {
+      "version": "20260807073929000001",
+      "name": "reconcile_production_schema_drift",
+      "statementCount": 106
+    },
+    {
       "version": "20260627000001",
       "name": "reports_optimization_mvp",
       "statementCount": 27

@@ -4,9 +4,24 @@ import path from "node:path";
 import process from "node:process";
 import { compareFingerprint, parseExport } from "./compare-production-schema-fingerprint.mjs";
 import { loadPacketSql, PACKET_COLUMNS, parseCsv, rowsFromFingerprint, validateProductionExport } from "./production-schema-fingerprint-core.mjs";
-import { generateLocalFingerprint } from "./generate-local-production-schema-fingerprint.mjs";
+import { discoverLocalDatabaseContainer, generateLocalFingerprint } from "./generate-local-production-schema-fingerprint.mjs";
 
 const root = process.cwd();
+const canonicalLabels = { "io.openglasshub.replay.project": "openglasshub", "io.openglasshub.replay.role": "normalized-replay", "io.openglasshub.replay.disposable": "true", "io.openglasshub.replay.contract-version": "openglass-normalized-replay-task-v1", "io.openglasshub.replay.task-id": "r6-final-contract-11111111-1111-1111-1111-111111111111" };
+function discoveryRun(entries) {
+  return (_command, args) => {
+    if (args[0] === "ps") return `${entries.map((entry) => entry.id).join("\n")}\n`;
+    const entry = entries.find((item) => item.id === args.at(-1));
+    return `${JSON.stringify(entry.labels)}\t${entry.running}\t${entry.health}\t${entry.image}\t/${entry.name}\n`;
+  };
+}
+const canonicalRuntime = { id: "canonical", name: "openglass-normalized-replay-11111111-1111-1111-1111-111111111111", labels: canonicalLabels, running: true, health: "healthy", image: "public.ecr.aws/supabase/postgres:17.6.1.143" };
+assert.equal(discoverLocalDatabaseContainer(discoveryRun([canonicalRuntime])), canonicalRuntime.name);
+assert.throws(() => discoverLocalDatabaseContainer(discoveryRun([{ ...canonicalRuntime, labels: { ...canonicalLabels, "io.openglasshub.replay.disposable": "false" } }])), /exactly one verified/);
+assert.throws(() => discoverLocalDatabaseContainer(discoveryRun([{ ...canonicalRuntime, image: "postgres:17" }])), /exactly one verified/);
+assert.throws(() => discoverLocalDatabaseContainer(discoveryRun([canonicalRuntime, { ...canonicalRuntime, id: "second", name: "openglass-normalized-replay-222" }])), /exactly one verified/);
+assert.equal(discoverLocalDatabaseContainer(discoveryRun([canonicalRuntime, { id: "foreign", name: "foreign-postgres", labels: {}, running: true, health: "healthy", image: "postgres:17" }])), canonicalRuntime.name);
+assert.throws(() => discoverLocalDatabaseContainer(discoveryRun([])), /exactly one verified/);
 const expected = JSON.parse(await readFile(path.join(root, "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8"));
 assert.equal(expected.format, "openglass-production-schema-fingerprint-v1");
 assert.equal(expected.canonicalMigrationCount, 43);

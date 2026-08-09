@@ -59,7 +59,7 @@ try {
       capability,
       async targetProbe(sql) { targetConnections += 1; return { outcome: "TARGET_SUCCESS", observedProbeOutput: dockerPsql(runtime.container, sql, true).trim() }; },
       async submitMigration(sql) { const process = spawnSync("docker", ["exec", "-i", runtime.container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-q", "-U", "postgres", "-d", "postgres"], { input: Buffer.concat([Buffer.from("BEGIN;\n"), sql, Buffer.from("\nCOMMIT;\n")]), encoding: "utf8" }); return process.status === 0 ? { outcome: "COMMITTED" } : { outcome: "COMMIT_STATE_UNKNOWN" }; },
-      async postflight(sql) { dockerPsql(runtime.container, sql, false, true); return { outcome: "POSTFLIGHT_SUCCESS" }; },
+      async postflight(sql, { outputPath }) { dockerPsql(runtime.container, sql, false, true); await writeFile(outputPath, "local-postflight-executed\n"); return { outcome: "POSTFLIGHT_SUCCESS", comparison: { matchesExpected: true } }; },
     };
     await assert.rejects(executeOnce({ authorizationPath, packageRoot: packageFixture.packageRoot, finalConfirmationPath: path.join(temp, "missing.json"), receiptRoot: path.join(temp, "receipts-missing"), implementationCommit: commit, launcherSha256: "b".repeat(64), transportSha256: "c".repeat(64), sqlClientCapability: capability, client }), /R6_PRODUCTION_RECONCILIATION_FINAL_HUMAN_CONFIRMATION_REQUIRED/);
     assert.equal(targetConnections, 0, "candidate-only path must not open a target connection");

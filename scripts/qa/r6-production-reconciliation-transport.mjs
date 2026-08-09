@@ -99,6 +99,102 @@ async function writeImmutableJson(file, value) {
   } finally { await handle?.close(); }
 }
 
+async function writeImmutableBytes(file, bytes) {
+  if (!path.isAbsolute(String(file ?? ""))) fail("R6_PRODUCTION_RECONCILIATION_EVIDENCE_ROOT_INVALID");
+  await mkdir(path.dirname(file), { recursive: true });
+  let handle;
+  try {
+    handle = await open(file, "wx", 0o600);
+    await handle.writeFile(bytes);
+    await handle.sync();
+    return Object.freeze({ path: file, sha256: hash(bytes) });
+  } catch (error) {
+    if (error?.code === "EEXIST") fail("R6_PRODUCTION_RECONCILIATION_EVIDENCE_ARTIFACT_REPLAY");
+    throw error;
+  } finally { await handle?.close(); }
+}
+
+async function establishExecutionEvidence({ evidenceRoot, binding, receiptEligibility, launcherSha256 }) {
+  if (!path.isAbsolute(String(evidenceRoot ?? ""))) fail("R6_PRODUCTION_RECONCILIATION_EVIDENCE_ROOT_PRECONNECTION_GATE_FAILED");
+  const root = path.resolve(evidenceRoot);
+  await mkdir(path.dirname(root), { recursive: true });
+  try { await mkdir(root, { recursive: false }); } catch (error) { if (error?.code === "EEXIST") fail("R6_PRODUCTION_RECONCILIATION_EVIDENCE_ROOT_PRECONNECTION_GATE_FAILED"); throw error; }
+  const candidate = binding.candidate;
+  const preflight = await writeImmutableJson(path.join(root, "production-reconciliation-execution-preflight.json"), {
+    schemaVersion: "r6-production-reconciliation-execution-preflight-v1", executionTaskId: candidate.executionTaskId, evidenceRoot: root,
+    implementationCommit: candidate.transportImplementationCommit, packageManifestSha256: candidate.packageManifestSha256,
+    executionPackageSha256: candidate.executionPackageSha256, candidateId: candidate.authorizationId,
+    candidateSha256: binding.authorizationCandidateSha256, finalConfirmationSha256: binding.finalConfirmationSha256,
+    launcherSha256, transportContractVersion: TRANSPORT_CONTRACT_VERSION,
+    canonicalMigrationSha256: candidate.canonicalMigrationSha256, canonicalPostflightSha256: candidate.canonicalPostflightSha256,
+    canonicalTargetProbeSha256: candidate.targetProbeSha256, approvedTargetIdentitySha256: candidate.targetIdentitySha256,
+    receiptReplayEligible: receiptEligibility.eligible === true, sqlClientFactoryCalls: 0, productionConnections: 0, createdAt: new Date().toISOString(),
+  });
+  const evidenceBinding = await writeImmutableJson(path.join(root, "production-reconciliation-execution-evidence-binding.json"), {
+    schemaVersion: "r6-production-reconciliation-execution-evidence-binding-v1", executionTaskId: candidate.executionTaskId,
+    evidenceRoot: root, preflightSha256: preflight.sha256, implementationCommit: candidate.transportImplementationCommit,
+    packageManifestSha256: candidate.packageManifestSha256, candidateSha256: binding.authorizationCandidateSha256,
+    finalConfirmationSha256: binding.finalConfirmationSha256, launcherSha256, transportContractVersion: TRANSPORT_CONTRACT_VERSION,
+    canonicalMigrationSha256: candidate.canonicalMigrationSha256, canonicalPostflightSha256: candidate.canonicalPostflightSha256,
+    canonicalTargetProbeSha256: candidate.targetProbeSha256, artifactMatrixVersion: "r6-production-reconciliation-execution-evidence-matrix-v1",
+    immutable: true, singleUse: true,
+  });
+  return Object.freeze({ root, preflight, evidenceBinding });
+}
+
+async function writeExecutionTerminal({ preparedExecution, classification, targetProbe = null, receipt = null, executionAttemptConsumed = false, transactionState = null, postflight = null, sqlClient = { factoryCalls: 1, connectionCount: 0 } }) {
+  const { binding, evidence } = preparedExecution;
+  const candidate = binding.candidate;
+  return writeImmutableJson(path.join(evidence.root, "production-reconciliation-execution-terminal.json"), {
+    schemaVersion: "r6-production-reconciliation-execution-terminal-v1", executionTaskId: candidate.executionTaskId, classification,
+    implementationCommit: candidate.transportImplementationCommit, packageManifestSha256: candidate.packageManifestSha256,
+    candidateId: candidate.authorizationId, candidateSha256: binding.authorizationCandidateSha256,
+    finalConfirmationSha256: binding.finalConfirmationSha256, preflightSha256: evidence.preflight.sha256,
+    evidenceBindingSha256: evidence.evidenceBinding.sha256, targetProbe, receipt,
+    sqlClient: { ...sqlClient, type: candidate.sqlClientCapability, version: candidate.sqlClientVersion },
+    execution: { attemptCount: executionAttemptConsumed ? 1 : 0, attemptConsumed: executionAttemptConsumed, sqlSubmitted: executionAttemptConsumed, transactionState, retryCount: 0 },
+    postflight, repositoryChanges: 0, historyRepairs: 0, deployment: 0, terminalAt: new Date().toISOString(),
+  });
+}
+
+async function writeReceiptReference({ preparedExecution, receipt }) {
+  const bytes = await readFile(receipt.path).catch(() => fail("R6_PRODUCTION_RECONCILIATION_RECEIPT_MISSING"));
+  const authoritative = JSON.parse(bytes.toString("utf8"));
+  if (authoritative.executionTaskId !== preparedExecution.binding.candidate.executionTaskId
+    || authoritative.authorizationCandidateSha256 !== preparedExecution.binding.authorizationCandidateSha256
+    || authoritative.finalConfirmationSha256 !== preparedExecution.binding.finalConfirmationSha256) {
+    fail("R6_PRODUCTION_RECONCILIATION_RECEIPT_INVALID");
+  }
+  return writeImmutableJson(path.join(preparedExecution.evidence.root, "production-reconciliation-receipt-reference.json"), {
+    schemaVersion: "r6-production-reconciliation-receipt-reference-v1",
+    executionTaskId: authoritative.executionTaskId,
+    candidateSha256: authoritative.authorizationCandidateSha256,
+    finalConfirmationSha256: authoritative.finalConfirmationSha256,
+    receiptAuthorityPath: receipt.path,
+    receiptSha256: hash(bytes),
+    receiptState: authoritative.state,
+    immutable: true,
+  });
+}
+
+async function writePostflightEvidence({ preparedExecution, outputPath, canonicalPostflightSha256 }) {
+  const raw = await readFile(outputPath).catch(() => fail("R6_PRODUCTION_RECONCILIATION_POSTFLIGHT_RAW_EVIDENCE_FAILED"));
+  const rawArtifact = Object.freeze({ path: outputPath, sha256: hash(raw) });
+  const fingerprint = await writeImmutableJson(path.join(preparedExecution.evidence.root, "production-reconciliation-postflight-fingerprint.json"), {
+    schemaVersion: "r6-production-reconciliation-postflight-fingerprint-v1", rawPostflightSha256: rawArtifact.sha256,
+    canonicalPostflightSha256, byteLength: raw.length,
+  });
+  const comparison = await writeImmutableJson(path.join(preparedExecution.evidence.root, "production-reconciliation-postflight-comparison.json"), {
+    schemaVersion: "r6-production-reconciliation-postflight-comparison-v1", rawPostflightSha256: rawArtifact.sha256,
+    fingerprintSha256: fingerprint.sha256, comparisonSource: "PERSISTED_RAW_POSTFLIGHT", immutable: true,
+  });
+  const terminal = await writeImmutableJson(path.join(preparedExecution.evidence.root, "production-reconciliation-postflight-terminal.json"), {
+    schemaVersion: "r6-production-reconciliation-postflight-terminal-v1", classification: "R6_PRODUCTION_RECONCILIATION_POSTFLIGHT_EVIDENCE_READY",
+    rawPostflightSha256: rawArtifact.sha256, fingerprintSha256: fingerprint.sha256, comparisonSha256: comparison.sha256, executions: 1,
+  });
+  return Object.freeze({ rawArtifact, fingerprint, comparison, terminal });
+}
+
 async function loadCandidate({ authorizationPath, implementationCommit, launcherSha256, transportSha256, sqlClientCapability }) {
   const artifact = await readJsonArtifact(authorizationPath, "R6_PRODUCTION_RECONCILIATION_AUTHORIZATION_MISSING");
   const candidate = validateAuthorizationV2(artifact.value, { implementationCommit, launcherSha256, transportSha256, sqlClientCapability });
@@ -160,36 +256,61 @@ export async function validateFinalExecutionBinding({ authorizationPath, package
   return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_FINAL_EXECUTION_BINDING_READY", executionAttemptConsumed: false, receiptConsumed: false, networkConnections: 0, authorizationCandidateSha256: candidateArtifact.sha256, finalConfirmationSha256: finalArtifact.sha256, candidate: candidateArtifact.candidate, finalConfirmation, package: pkg });
 }
 
-export async function prepareFinalExecution({ authorizationPath, packageRoot, finalConfirmationPath, receiptRoot, implementationCommit, launcherSha256, transportSha256, sqlClientCapability = inspectNativePsqlCapability() }) {
+export async function prepareFinalExecution({ authorizationPath, packageRoot, finalConfirmationPath, receiptRoot, evidenceRoot, implementationCommit, launcherSha256, transportSha256, sqlClientCapability = inspectNativePsqlCapability() }) {
   const binding = await validateFinalExecutionBinding({ authorizationPath, packageRoot, finalConfirmationPath, implementationCommit, launcherSha256, transportSha256, sqlClientCapability });
   const { candidate: authorization, package: pkg } = binding;
   const receiptEligibility = await assertReceiptEligible({ receiptRoot, authorizationId: authorization.authorizationId });
+  const ownedEvidenceRoot = evidenceRoot ?? path.join(path.resolve(receiptRoot), "execution-evidence", authorization.executionTaskId);
+  const evidence = await establishExecutionEvidence({ evidenceRoot: ownedEvidenceRoot, binding, receiptEligibility, launcherSha256 });
   return Object.freeze({
-    invariant: "NO_SQL_CLIENT_BEFORE_FINAL_EXECUTION_BINDING_READY",
+    invariant: "EVIDENCE_ROOT_CREATED_AND_BOUND_BEFORE_SQL_CLIENT",
     classification: binding.classification,
     binding,
     receiptEligibility,
+    evidence,
   });
 }
 
 export async function executePrepared({ preparedExecution, client, receiptRoot }) {
-  if (!preparedExecution || preparedExecution.invariant !== "NO_SQL_CLIENT_BEFORE_FINAL_EXECUTION_BINDING_READY" || preparedExecution.classification !== "R6_PRODUCTION_RECONCILIATION_FINAL_EXECUTION_BINDING_READY") fail("R6_PRODUCTION_RECONCILIATION_PREBIND_SQL_CLIENT_BOUNDARY_FAILED");
+  if (!preparedExecution || preparedExecution.invariant !== "EVIDENCE_ROOT_CREATED_AND_BOUND_BEFORE_SQL_CLIENT" || preparedExecution.classification !== "R6_PRODUCTION_RECONCILIATION_FINAL_EXECUTION_BINDING_READY" || !preparedExecution.evidence?.evidenceBinding) fail("R6_PRODUCTION_RECONCILIATION_PREBIND_SQL_CLIENT_BOUNDARY_FAILED");
   if (!client || typeof client.targetProbe !== "function" || typeof client.submitMigration !== "function" || typeof client.postflight !== "function") fail("R6_PRODUCTION_RECONCILIATION_SQL_CLIENT_INVALID");
   const binding = preparedExecution.binding;
   const { candidate: authorization, package: pkg } = binding;
-  const probe = await client.targetProbe(pkg.targetProbe.bytes);
-  if (probe.outcome !== "TARGET_SUCCESS") return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_TARGET_PROBE_FAILED", executionAttemptConsumed: false, productionMutations: 0, postflightCount: 0 });
+  let probe;
+  try { probe = await client.targetProbe(pkg.targetProbe.bytes); }
+  catch (error) {
+    const rawProbeArtifact = error?.rawBytes ? await writeImmutableBytes(path.join(preparedExecution.evidence.root, "production-reconciliation-target-probe-raw.txt"), error.rawBytes) : null;
+    await writeExecutionTerminal({ preparedExecution, classification: "R6_PRODUCTION_RECONCILIATION_TARGET_PROBE_FAILED", targetProbe: { executedCount: 1, rawSha256: rawProbeArtifact?.sha256 ?? null, match: null } });
+    return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_TARGET_PROBE_FAILED", executionAttemptConsumed: false, productionMutations: 0, postflightCount: 0, targetProbeRawSha256: rawProbeArtifact?.sha256 ?? null });
+  }
+  const rawProbe = probe.rawBytes ?? (typeof probe.observedProbeOutput === "string" ? Buffer.from(probe.observedProbeOutput, "utf8") : null);
+  const rawProbeArtifact = rawProbe ? await writeImmutableBytes(path.join(preparedExecution.evidence.root, "production-reconciliation-target-probe-raw.txt"), rawProbe) : null;
+  if (probe.outcome !== "TARGET_SUCCESS") {
+    await writeExecutionTerminal({ preparedExecution, classification: "R6_PRODUCTION_RECONCILIATION_TARGET_PROBE_FAILED", targetProbe: { executedCount: 1, rawSha256: rawProbeArtifact?.sha256 ?? null, match: null } });
+    return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_TARGET_PROBE_FAILED", executionAttemptConsumed: false, productionMutations: 0, postflightCount: 0, targetProbeRawSha256: rawProbeArtifact?.sha256 ?? null });
+  }
+  const observedTargetIdentitySha256 = hash(`r6-postgres-target-v1:${probe.observedProbeOutput}`);
+  const targetValidation = await writeImmutableJson(path.join(preparedExecution.evidence.root, "production-reconciliation-target-validation.json"), {
+    schemaVersion: "r6-production-reconciliation-target-validation-v1", executionTaskId: authorization.executionTaskId,
+    rawTargetProbeSha256: rawProbeArtifact?.sha256 ?? null, approvedTargetIdentitySha256: authorization.targetIdentitySha256,
+    observedTargetIdentitySha256, match: observedTargetIdentitySha256 === authorization.targetIdentitySha256, probeExecutionCount: 1, readOnly: true,
+  });
   try {
     verifyTargetIdentity({ approvedTargetIdentitySha256: authorization.targetIdentitySha256, observedProbeOutput: probe.observedProbeOutput });
   } catch (error) {
-    if (error?.code === "R6_PRODUCTION_RECONCILIATION_TARGET_MISMATCH") return Object.freeze({ classification: error.code, executionAttemptConsumed: false, productionMutations: 0, postflightCount: 0 });
+    if (error?.code === "R6_PRODUCTION_RECONCILIATION_TARGET_MISMATCH") {
+      await writeExecutionTerminal({ preparedExecution, classification: error.code, targetProbe: { executedCount: 1, rawSha256: rawProbeArtifact?.sha256 ?? null, validationSha256: targetValidation.sha256, approvedIdentitySha256: authorization.targetIdentitySha256, observedIdentitySha256: observedTargetIdentitySha256, match: false } });
+      return Object.freeze({ classification: error.code, executionAttemptConsumed: false, productionMutations: 0, postflightCount: 0, targetProbeRawSha256: rawProbeArtifact?.sha256 ?? null });
+    }
     throw error;
   }
   const reservation = await reserveAttempt({ receiptRoot, authorization, authorizationCandidateSha256: binding.authorizationCandidateSha256, finalConfirmationSha256: binding.finalConfirmationSha256, packageManifestSha256: pkg.manifestSha256 });
   let receipt = reservation;
+  const receiptReference = await writeReceiptReference({ preparedExecution, receipt });
   const prepared = await client.prepare?.();
   if (prepared?.outcome === "PRE_SUBMIT_FAILURE") {
     receipt = await transitionReceipt({ receiptPath: receipt.path, expectedState: "ATTEMPT_RESERVED", nextState: "FAILED_PRE_SUBMIT", patch: { preSubmitFailure: true } });
+    await writeExecutionTerminal({ preparedExecution, classification: "R6_PRODUCTION_RECONCILIATION_PRE_SUBMIT_FAILURE", receipt: { path: receipt.path, state: "FAILED_PRE_SUBMIT", referenceSha256: receiptReference.sha256 } });
     return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_PRE_SUBMIT_FAILURE", executionAttemptConsumed: false, productionMutations: 0, postflightCount: 0, receiptPath: receipt.path });
   }
   receipt = await transitionReceipt({ receiptPath: receipt.path, expectedState: "ATTEMPT_RESERVED", nextState: "SQL_SUBMITTED", patch: { attemptConsumed: true, sqlSha256: pkg.migration.sha256 } });
@@ -197,28 +318,46 @@ export async function executePrepared({ preparedExecution, client, receiptRoot }
   if (migration.outcome !== "COMMITTED") {
     const state = migration.outcome === "ROLLED_BACK" ? "FAILED_NOT_COMMITTED" : "COMMIT_STATE_UNKNOWN";
     await transitionReceipt({ receiptPath: receipt.path, expectedState: "SQL_SUBMITTED", nextState: state, patch: { attemptConsumed: true, terminalFailure: migration.errorCategory ?? migration.outcome } });
+    await writeExecutionTerminal({ preparedExecution, classification: state === "COMMIT_STATE_UNKNOWN" ? "R6_PRODUCTION_RECONCILIATION_COMMIT_STATE_UNKNOWN" : "R6_PRODUCTION_RECONCILIATION_SQL_ROLLED_BACK", receipt: { path: receipt.path, state, referenceSha256: receiptReference.sha256 }, executionAttemptConsumed: true, transactionState: state });
     return Object.freeze({ classification: state === "COMMIT_STATE_UNKNOWN" ? "R6_PRODUCTION_RECONCILIATION_COMMIT_STATE_UNKNOWN" : "R6_PRODUCTION_RECONCILIATION_SQL_ROLLED_BACK", executionAttemptConsumed: true, productionMutations: 0, postflightCount: 0, receiptPath: receipt.path });
   }
   receipt = await transitionReceipt({ receiptPath: receipt.path, expectedState: "SQL_SUBMITTED", nextState: "COMMITTED", patch: { transactionCommitted: true, writesAllowed: false } });
-  const postflightOutputPath = path.join(path.dirname(receipt.path), `${authorization.authorizationId}.postflight.csv`);
+  const postflightOutputPath = path.join(preparedExecution.evidence.root, "production-reconciliation-postflight-raw.csv");
   const postflight = await client.postflight(pkg.postflight.bytes, { outputPath: postflightOutputPath });
   if (postflight.outcome !== "POSTFLIGHT_SUCCESS") {
     receipt = await transitionReceipt({ receiptPath: receipt.path, expectedState: "COMMITTED", nextState: "POSTFLIGHT_FAILED", patch: { postflightCount: 1, postflightFailure: postflight.errorCategory ?? "POSTFLIGHT_FAILURE" } });
+    await writeExecutionTerminal({ preparedExecution, classification: "R6_PRODUCTION_RECONCILIATION_POSTFLIGHT_FAILED", receipt: { path: receipt.path, state: "POSTFLIGHT_FAILED", referenceSha256: receiptReference.sha256 }, executionAttemptConsumed: true, transactionState: "COMMITTED", postflight: { executedCount: 1, rawSha256: null } });
     return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_POSTFLIGHT_FAILED", executionAttemptConsumed: true, productionMutations: "COMMITTED_UNKNOWN_COUNT", postflightCount: 1, receiptPath: receipt.path });
   }
-  receipt = await transitionReceipt({ receiptPath: receipt.path, expectedState: "COMMITTED", nextState: "POSTFLIGHT_COMPLETE", patch: { postflightCount: 1, postflightSha256: pkg.postflight.sha256, postflightOutputPath } });
-  return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_EXECUTION_AND_POSTFLIGHT_COMPLETE", executionAttemptConsumed: true, productionMutations: "COMMITTED", postflightCount: 1, receiptPath: receipt.path, receiptSha256: hash(await readFile(receipt.path)), postflightOutputPath, finalExecutionBinding: binding.classification });
+  const postflightEvidence = await writePostflightEvidence({ preparedExecution, outputPath: postflightOutputPath, canonicalPostflightSha256: pkg.postflight.sha256 });
+  if (postflight.comparison?.matchesExpected === false) {
+    receipt = await transitionReceipt({ receiptPath: receipt.path, expectedState: "COMMITTED", nextState: "POSTFLIGHT_SCHEMA_MISMATCH", patch: { postflightCount: 1, postflightSha256: pkg.postflight.sha256, postflightOutputPath: postflightEvidence.rawArtifact.path } });
+    await writeExecutionTerminal({ preparedExecution, classification: "R6_PRODUCTION_RECONCILIATION_POSTFLIGHT_SCHEMA_MISMATCH_REQUIRES_REVIEW", receipt: { path: receipt.path, sha256: hash(await readFile(receipt.path)), state: "POSTFLIGHT_SCHEMA_MISMATCH", referenceSha256: receiptReference.sha256 }, executionAttemptConsumed: true, transactionState: "COMMITTED", postflight: { executedCount: 1, rawSha256: postflightEvidence.rawArtifact.sha256, fingerprintSha256: postflightEvidence.fingerprint.sha256, comparisonSha256: postflightEvidence.comparison.sha256, matchesExpected: false } });
+    return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_POSTFLIGHT_SCHEMA_MISMATCH_REQUIRES_REVIEW", executionAttemptConsumed: true, productionMutations: "COMMITTED", postflightCount: 1, receiptPath: receipt.path, retryCount: 0 });
+  }
+  receipt = await transitionReceipt({ receiptPath: receipt.path, expectedState: "COMMITTED", nextState: "POSTFLIGHT_COMPLETE", patch: { postflightCount: 1, postflightSha256: pkg.postflight.sha256, postflightOutputPath: postflightEvidence.rawArtifact.path } });
+  const result = Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_EXECUTION_AND_POSTFLIGHT_COMPLETE", executionAttemptConsumed: true, productionMutations: "COMMITTED", postflightCount: 1, receiptPath: receipt.path, receiptSha256: hash(await readFile(receipt.path)), postflightOutputPath, finalExecutionBinding: binding.classification });
+  await writeExecutionTerminal({ preparedExecution, classification: result.classification, targetProbe: { executedCount: 1, rawSha256: rawProbeArtifact?.sha256 ?? null, validationSha256: targetValidation.sha256, approvedIdentitySha256: authorization.targetIdentitySha256, observedIdentitySha256: observedTargetIdentitySha256, match: true }, receipt: { path: receipt.path, sha256: result.receiptSha256, state: "POSTFLIGHT_COMPLETE", referenceSha256: receiptReference.sha256 }, executionAttemptConsumed: true, transactionState: "COMMITTED", postflight: { executedCount: 1, rawSha256: postflightEvidence.rawArtifact.sha256, fingerprintSha256: postflightEvidence.fingerprint.sha256, comparisonSha256: postflightEvidence.comparison.sha256 } });
+  return result;
 }
 
-export async function executeWithFinalExecutionGate({ authorizationPath, packageRoot, finalConfirmationPath, receiptRoot, implementationCommit, launcherSha256, transportSha256, clientFactory, sqlClientCapability = inspectNativePsqlCapability() }) {
+export async function executeWithFinalExecutionGate({ authorizationPath, packageRoot, finalConfirmationPath, receiptRoot, evidenceRoot, implementationCommit, launcherSha256, transportSha256, clientFactory, sqlClientCapability = inspectNativePsqlCapability() }) {
   if (typeof clientFactory !== "function") fail("R6_PRODUCTION_RECONCILIATION_SQL_CLIENT_FACTORY_INVALID");
-  const preparedExecution = await prepareFinalExecution({ authorizationPath, packageRoot, finalConfirmationPath, receiptRoot, implementationCommit, launcherSha256, transportSha256, sqlClientCapability });
-  const client = clientFactory();
+  const preparedExecution = await prepareFinalExecution({ authorizationPath, packageRoot, finalConfirmationPath, receiptRoot, evidenceRoot, implementationCommit, launcherSha256, transportSha256, sqlClientCapability });
+  let client;
+  try { client = clientFactory(); }
+  catch (error) {
+    const classification = error?.code === "R6_PRODUCTION_RECONCILIATION_SECURE_CONNECTION_CHANNEL_UNAVAILABLE"
+      ? error.code
+      : "R6_PRODUCTION_RECONCILIATION_SQL_CLIENT_FACTORY_FAILED";
+    const terminal = await writeExecutionTerminal({ preparedExecution, classification, sqlClient: { factoryCalls: 1, connectionCount: 0 } });
+    return Object.freeze({ classification, executionAttemptConsumed: false, productionMutations: 0, postflightCount: 0, retryCount: 0, evidenceRoot: preparedExecution.evidence.root, executionTerminalPath: terminal.path, executionTerminalSha256: terminal.sha256 });
+  }
   return executePrepared({ preparedExecution, client, receiptRoot });
 }
 
-export async function executeOnce({ authorizationPath, packageRoot, finalConfirmationPath, receiptRoot, implementationCommit, launcherSha256, transportSha256, client, sqlClientCapability }) {
-  return executeWithFinalExecutionGate({ authorizationPath, packageRoot, finalConfirmationPath, receiptRoot, implementationCommit, launcherSha256, transportSha256, sqlClientCapability: sqlClientCapability ?? client?.capability ?? inspectNativePsqlCapability(), clientFactory: () => client });
+export async function executeOnce({ authorizationPath, packageRoot, finalConfirmationPath, receiptRoot, evidenceRoot, implementationCommit, launcherSha256, transportSha256, client, sqlClientCapability }) {
+  return executeWithFinalExecutionGate({ authorizationPath, packageRoot, finalConfirmationPath, receiptRoot, evidenceRoot, implementationCommit, launcherSha256, transportSha256, sqlClientCapability: sqlClientCapability ?? client?.capability ?? inspectNativePsqlCapability(), clientFactory: () => client });
 }
 
 async function main() {

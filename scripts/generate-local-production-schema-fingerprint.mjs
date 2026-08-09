@@ -5,16 +5,29 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { buildFingerprint, loadPacketSql, migrationSourceIndex, parseCsv } from "./production-schema-fingerprint-core.mjs";
 
-function localDatabaseContainer() {
-  const output = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" });
-  const matches = output.split(/\r?\n/).filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
-  if (matches.length !== 1) throw new Error("LOCAL_DOCKER_ONLY requires exactly one verified disposable Supabase database container");
-  return matches[0];
+const NORMALIZED_REPLAY_LABELS = Object.freeze({
+  "io.openglasshub.replay.project": "openglasshub",
+  "io.openglasshub.replay.role": "normalized-replay",
+  "io.openglasshub.replay.disposable": "true",
+  "io.openglasshub.replay.contract-version": "openglass-normalized-replay-task-v1",
+});
+
+export function discoverLocalDatabaseContainer(run = execFileSync) {
+  const ids = String(run("docker", ["ps", "--format", "{{.ID}}"], { encoding: "utf8" })).split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  const candidates = ids.map((id) => {
+    const raw = String(run("docker", ["inspect", "--format", "{{json .Config.Labels}}\t{{.State.Running}}\t{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}\t{{.Config.Image}}\t{{.Name}}", id], { encoding: "utf8" })).trim();
+    const [labelsRaw, running, health, image, name] = raw.split("\t");
+    return { id, labels: JSON.parse(labelsRaw), running: running === "true", health, image, name: name.replace(/^\//, "") };
+  }).filter((entry) => entry.running && entry.health === "healthy" && /supabase\/postgres:/i.test(entry.image)
+    && Object.entries(NORMALIZED_REPLAY_LABELS).every(([key, value]) => entry.labels?.[key] === value)
+    && typeof entry.labels?.["io.openglasshub.replay.task-id"] === "string");
+  if (candidates.length !== 1) throw new Error("LOCAL_DOCKER_ONLY requires exactly one verified disposable Supabase database container");
+  return candidates[0].name;
 }
 
 export async function generateLocalFingerprint({ root = process.cwd(), outputPath }) {
   const sql = await loadPacketSql(root);
-  const container = localDatabaseContainer();
+  const container = discoverLocalDatabaseContainer();
   const csv = execFileSync("docker", ["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres", "--csv"], { input: sql, encoding: "utf8" });
   const rows = parseCsv(csv);
   const fingerprint = buildFingerprint(rows, await migrationSourceIndex(root));

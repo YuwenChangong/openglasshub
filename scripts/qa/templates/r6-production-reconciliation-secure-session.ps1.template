@@ -1,0 +1,33 @@
+[CmdletBinding()]
+param(
+  [ValidateSet('ValidateChannelOnly', 'InvokeBoundLauncher')][string]$Mode = 'ValidateChannelOnly',
+  [string]$AuthorizationPath,
+  [string]$PackageRoot,
+  [string]$FinalConfirmationPath
+)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$config = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('__CONFIG_BASE64__')) | ConvertFrom-Json
+$RequiredNames = @('PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER', 'PGPASSWORD')
+$ForbiddenConnectionNames = @('DATABASE_URL', 'SUPABASE_DB_URL', 'R6_PRODUCTION_RECONCILIATION_DATABASE_URL')
+function Get-Sha256([string]$Path) { $stream=$null; $sha=$null; try { $stream=[IO.File]::OpenRead($Path); $sha=[Security.Cryptography.SHA256]::Create(); return (-join ($sha.ComputeHash($stream) | ForEach-Object { $_.ToString('x2') })) } finally { if($sha){$sha.Dispose()}; if($stream){$stream.Dispose()} } }
+function Read-ChannelValues {
+  $values=@{}
+  foreach($name in $RequiredNames) {
+    if($name -eq 'PGPASSWORD') { $secret=Read-Host "$name (hidden)" -AsSecureString; $ptr=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret); try { $values[$name]=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr); $secret.Dispose() } }
+    else { $values[$name]=Read-Host $name }
+    if([string]::IsNullOrWhiteSpace($values[$name])) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_CONNECTION_CHANNEL_UNAVAILABLE' }
+  }
+  return $values
+}
+if(-not (Test-Path -LiteralPath $config.launcherPath) -or (Get-Sha256 $config.launcherPath) -ne $config.launcherSha256) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_SESSION_LAUNCHER_BINDING_MISMATCH' }
+foreach($name in $ForbiddenConnectionNames) { if(-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name,'Process'))) { throw 'R6_PRODUCTION_RECONCILIATION_CONNECTION_STRING_CHANNEL_FORBIDDEN' } }
+$values=Read-ChannelValues
+try {
+  if($Mode -eq 'ValidateChannelOnly') { [pscustomobject]@{ classification='R6_PRODUCTION_RECONCILIATION_SECURE_RUNTIME_CHANNEL_READY'; launcherSha256=$config.launcherSha256; evidenceRootAuthority='TRANSPORT_OWNED'; networkConnections=0; sqlClientFactoryCalls=0; sqlConnections=0; productionConnections=0; targetProbeExecutions=0 } | ConvertTo-Json -Compress; exit 0 }
+  if([string]::IsNullOrWhiteSpace($AuthorizationPath) -or [string]::IsNullOrWhiteSpace($PackageRoot) -or [string]::IsNullOrWhiteSpace($FinalConfirmationPath)) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_SESSION_LAUNCH_INPUT_INVALID' }
+  $psi=[Diagnostics.ProcessStartInfo]::new(); $psi.FileName='powershell.exe'; $psi.UseShellExecute=$false; $psi.RedirectStandardOutput=$false; $psi.RedirectStandardError=$false
+  $psi.Arguments="-NoProfile -ExecutionPolicy Bypass -File `"$($config.launcherPath)`" -AuthorizationPath `"$AuthorizationPath`" -PackageRoot `"$PackageRoot`" -Mode Execute -FinalConfirmationPath `"$FinalConfirmationPath`""
+  foreach($name in $RequiredNames) { $psi.Environment[$name]=$values[$name] }
+  $child=[Diagnostics.Process]::Start($psi); $child.WaitForExit(); exit $child.ExitCode
+} finally { foreach($name in $RequiredNames) { $values[$name]=$null } }

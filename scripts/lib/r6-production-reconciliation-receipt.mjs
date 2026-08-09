@@ -33,7 +33,7 @@ async function durableReplace(file, value) {
 
 function seal(receipt) { const copy = { ...receipt }; delete copy.integrity; return { ...copy, integrity: hash(canonical(copy)) }; }
 export function validateReceipt(receipt) {
-  if (!receipt || receipt.schemaVersion !== "r6-production-reconciliation-receipt-v1" || receipt.transportContractVersion !== TRANSPORT_CONTRACT_VERSION || !["ATTEMPT_RESERVED", "SQL_SUBMITTED", "COMMITTED", "FAILED_PRE_SUBMIT", "FAILED_NOT_COMMITTED", "COMMIT_STATE_UNKNOWN", "POSTFLIGHT_FAILED", "POSTFLIGHT_COMPLETE"].includes(receipt.state) || !/^[a-f0-9]{64}$/.test(String(receipt.authorizationCandidateSha256 ?? "")) || !/^[a-f0-9]{64}$/.test(String(receipt.finalConfirmationSha256 ?? "")) || !/^[a-f0-9]{64}$/.test(String(receipt.integrity ?? "")) || seal(receipt).integrity !== receipt.integrity) fail("R6_PRODUCTION_RECONCILIATION_RECEIPT_INVALID");
+  if (!receipt || receipt.schemaVersion !== "r6-production-reconciliation-receipt-v1" || receipt.transportContractVersion !== TRANSPORT_CONTRACT_VERSION || !["ATTEMPT_RESERVED", "SQL_SUBMITTED", "COMMITTED", "FAILED_PRE_SUBMIT", "FAILED_NOT_COMMITTED", "COMMIT_STATE_UNKNOWN", "POSTFLIGHT_FAILED", "POSTFLIGHT_SCHEMA_MISMATCH", "POSTFLIGHT_COMPLETE"].includes(receipt.state) || !/^[a-f0-9]{64}$/.test(String(receipt.authorizationCandidateSha256 ?? "")) || !/^[a-f0-9]{64}$/.test(String(receipt.finalConfirmationSha256 ?? "")) || !/^[a-f0-9]{64}$/.test(String(receipt.integrity ?? "")) || seal(receipt).integrity !== receipt.integrity) fail("R6_PRODUCTION_RECONCILIATION_RECEIPT_INVALID");
   return receipt;
 }
 
