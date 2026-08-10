@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const TRANSPORT_CONTRACT_VERSION = "r6-production-reconciliation-transport-v1";
 export const AUTHORIZATION_VERSION = "qa-production-reconciliation-execution-authorization-v2";
@@ -152,34 +153,31 @@ async function readBoundArtifact(packageRoot, name, expectedSha256, expectedByte
   return Object.freeze({ path: candidate, bytes: Buffer.from(bytes), sha256: sha256(bytes), byteCount: bytes.length });
 }
 
-export async function loadBoundExecutionPackage({ packageRoot, expectedPackageSha256 = null, expectedExecutionPackageSha256 = expectedPackageSha256, expectedPackageManifestSha256 = null, expectedImplementationCommit = null, expectedLauncherSha256 = null, expectedSecureWrapperSha256 = null }) {
-  const manifestPath = path.resolve(packageRoot, "production-reconciliation-execution-package.json");
+export async function loadBoundExecutionPackage({ packageRoot, repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.."), expectedPackageSha256 = null, expectedExecutionPackageSha256 = expectedPackageSha256, expectedPackageManifestSha256 = null, expectedImplementationCommit = null, expectedLauncherSha256 = null, expectedSecureWrapperSha256 = null }) {
+  const v4 = await import("./r6-production-reconciliation-package-v4.mjs");
+  const manifestPath = path.resolve(packageRoot, v4.EXECUTION_PACKAGE_ARTIFACT_V4);
   const manifestBytes = await readFile(manifestPath).catch(() => fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISSING"));
   if (expectedExecutionPackageSha256 && sha256(manifestBytes) !== expectedExecutionPackageSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
-  let manifest;
-  try { manifest = JSON.parse(manifestBytes.toString("utf8")); } catch { fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_INVALID"); }
-  if (!manifest || manifest.schemaVersion !== PACKAGE_VERSION || manifest.transportContractVersion !== TRANSPORT_CONTRACT_VERSION || manifest.migration?.artifact !== MIGRATION_ARTIFACT || manifest.migration?.sha256 !== CANONICAL_MIGRATION_SHA256 || manifest.migration?.bytes !== CANONICAL_MIGRATION_BYTES || manifest.postflight?.artifact !== POSTFLIGHT_ARTIFACT || manifest.postflight?.sha256 !== POSTFLIGHT_SHA256 || manifest.targetProbe?.artifact !== TARGET_PROBE_ARTIFACT || !HASH.test(String(manifest.targetProbe?.sha256 ?? ""))) {
+  let loaded;
+  try { loaded = await v4.loadProductionReconciliationV4Package({ packageRoot, repositoryRoot }); } catch (error) {
+    if (error?.code === "R6_PRODUCTION_RECONCILIATION_APPROVED_ROUTING_AUTHORITY_MISMATCH") throw error;
     fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_INVALID");
   }
+  const manifest = loaded.executionPackage;
+  const packageManifestPath = path.resolve(packageRoot, v4.PACKAGE_MANIFEST_ARTIFACT_V4);
+  const packageManifestBytes = await readFile(packageManifestPath).catch(() => fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISSING"));
+  const packageManifestSha256 = sha256(packageManifestBytes);
+  if (expectedPackageManifestSha256 && packageManifestSha256 !== expectedPackageManifestSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
+  const packageManifest = loaded.manifest;
+  if ((expectedImplementationCommit && packageManifest.implementationCommit !== expectedImplementationCommit) || (expectedLauncherSha256 && packageManifest.launcherSha256 !== expectedLauncherSha256) || (expectedSecureWrapperSha256 && packageManifest.secureWrapperSha256 !== expectedSecureWrapperSha256)) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
   const [migration, postflight, targetProbe] = await Promise.all([
-    readBoundArtifact(packageRoot, MIGRATION_ARTIFACT, CANONICAL_MIGRATION_SHA256, CANONICAL_MIGRATION_BYTES),
-    readBoundArtifact(packageRoot, POSTFLIGHT_ARTIFACT, POSTFLIGHT_SHA256),
-    readBoundArtifact(packageRoot, TARGET_PROBE_ARTIFACT, manifest.targetProbe.sha256),
+    readBoundArtifact(packageRoot, packageManifest.migration.artifact, CANONICAL_MIGRATION_SHA256, CANONICAL_MIGRATION_BYTES),
+    readBoundArtifact(packageRoot, packageManifest.postflight.artifact, POSTFLIGHT_SHA256),
+    readBoundArtifact(packageRoot, manifest.targetProbePath, manifest.targetProbeSha256),
   ]);
   assertPostflightReadOnly(postflight.bytes);
   assertNoSecretString(targetProbe.bytes.toString("utf8"), "R6_PRODUCTION_RECONCILIATION_PACKAGE_SECRET_BOUNDARY_FAILED");
-  let packageManifestPath = null; let packageManifestSha256 = null;
-  if (expectedPackageManifestSha256) {
-    packageManifestPath = path.resolve(packageRoot, "production-reconciliation-package-manifest.json");
-    const packageManifestBytes = await readFile(packageManifestPath).catch(() => fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISSING"));
-    packageManifestSha256 = sha256(packageManifestBytes);
-    if (packageManifestSha256 !== expectedPackageManifestSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
-    let packageManifest;
-    try { packageManifest = JSON.parse(packageManifestBytes.toString("utf8")); } catch { fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_INVALID"); }
-    validateProductionReconciliationPackageManifest(packageManifest, { implementationCommit: expectedImplementationCommit, launcherSha256: expectedLauncherSha256, secureWrapperSha256: expectedSecureWrapperSha256 });
-    if (packageManifest.executionPackageSha256 !== sha256(manifestBytes)) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_MANIFEST_MISMATCH");
-  }
-  return Object.freeze({ manifest, manifestPath, manifestSha256: sha256(manifestBytes), packageManifestPath, packageManifestSha256, migration, postflight, targetProbe });
+  return Object.freeze({ manifest, manifestPath, manifestSha256: sha256(manifestBytes), packageManifestPath, packageManifestSha256, packageManifest, migration, postflight, targetProbe, targetIdentity: loaded.targetIdentity, runtimeRouting: loaded.routingIdentity });
 }
 
 export function validatePsqlCapability({ executablePath, version, help, executableSha256 }) {

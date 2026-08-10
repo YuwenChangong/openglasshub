@@ -4,9 +4,23 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { normalize } from "./production-schema-fingerprint-core.mjs";
-import { discoverTaskScopedNormalizedReplay } from "./lib/task-scoped-normalized-replay.mjs";
+import {
+  NORMALIZED_REPLAY_TASK_ENV,
+  discoverTaskScopedNormalizedReplay,
+  validateNormalizedReplayTaskId,
+} from "./lib/task-scoped-normalized-replay.mjs";
 
 const root = process.cwd();
+const taskIdArgumentIndex = process.argv.indexOf("--task-id");
+const suppliedTaskId = taskIdArgumentIndex === -1 ? undefined : process.argv[taskIdArgumentIndex + 1];
+if (taskIdArgumentIndex === -1 || suppliedTaskId === undefined) {
+  throw new Error("R6_NORMALIZED_REPLAY_TASK_ID_ARGUMENT_REQUIRED");
+}
+const taskId = validateNormalizedReplayTaskId(suppliedTaskId);
+const ambientTaskId = process.env[NORMALIZED_REPLAY_TASK_ENV];
+if (ambientTaskId !== undefined && ambientTaskId !== taskId) {
+  throw new Error("R6_NORMALIZED_REPLAY_TASK_ID_AMBIENT_CONFLICT");
+}
 const packetDirectory = path.join(root, "docs", "ops", "reconciliation");
 const preflight = await readFile(path.join(packetDirectory, "legal-consent-production-wave1-preflight.sql"), "utf8");
 const proposal = await readFile(path.join(packetDirectory, "legal-consent-production-wave1-proposal.sql"), "utf8");
@@ -84,7 +98,7 @@ const approvedR4RuntimeFiles = new Set(["src/lib/server/rate-limit.ts", "src/pag
 assert.equal(changedMigrations, "", "canonical migrations must remain unchanged");
 assert.deepEqual(changedRuntime.filter((file) => !approvedR4RuntimeFiles.has(file)), [], "only approved R4 runtime files may change");
 
-const container = discoverTaskScopedNormalizedReplay().containerId;
+const container = discoverTaskScopedNormalizedReplay({ taskId }).containerId;
 const psql = (sql) => execFileSync("docker", ["exec", "-i", container, "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: sql, encoding: "utf8" }).trim();
 const contract = (signature) => psql(`SELECT 'returns=' || pg_get_function_result(p.oid) || ';security_definer=' || CASE WHEN p.prosecdef THEN 'true' ELSE 'false' END || ';owner=' || pg_get_userbyid(p.proowner) || ';search_path=' || coalesce(array_to_string(p.proconfig, ', '), '') || ';body=' || pg_get_functiondef(p.oid) FROM pg_proc p WHERE p.oid = '${signature}'::regprocedure;`);
 assert.equal(hash(contract(viewSignature)), expectedView.deterministicSha256, "local view-count baseline must match the verified expected contract");
@@ -125,4 +139,4 @@ assert.equal(hash(Buffer.from(notificationContractHex, "hex").toString("utf8")),
 assert.deepEqual([viewPublic, viewAnon, viewAuthenticated, viewService], ["false", "true", "true", "false"]);
 assert.deepEqual([notificationPublic, notificationAnon, notificationAuthenticated, notificationService], ["false", "false", "false", "true"]);
 
-console.log(JSON.stringify({ localDockerOnly: true, exactFunctionScope: 2, combinedDriftReproduced: true, combinedTransactionConverged: true, notificationBodyPreserved: true, viewBodyConverged: true, noRuntimeOrMigrationChanges: true, realProductionOperations: 0 }));
+console.log(JSON.stringify({ explicitTaskIdProvided: true, taskId, taskOwnershipVerified: true, localDockerOnly: true, exactFunctionScope: 2, combinedDriftReproduced: true, combinedTransactionConverged: true, notificationBodyPreserved: true, viewBodyConverged: true, noRuntimeOrMigrationChanges: true, realProductionOperations: 0 }));
