@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveCanonicalGitBlob } from "./canonical-git-blob.mjs";
@@ -23,6 +23,7 @@ export const PACKAGE_MANIFEST_ARTIFACT_V4 = "production-reconciliation-package-m
 
 const HASH = /^[a-f0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
+const UUID = /^[a-f0-9-]{36}$/;
 const migrationPath = "supabase/migrations/20260807073929_reconcile_production_schema_drift.sql";
 const postflightPath = "docs/ops/legal-consent-production-schema-fingerprint.sql";
 const hashBytes = value => createHash("sha256").update(value).digest("hex");
@@ -65,12 +66,12 @@ export function buildPackageV4Identity({ projectRef }) {
 export function validatePackageV4Identity(value) {
   const requiredPaths = ["targetIdentityArtifactPath", "runtimeRoutingArtifactPath", "targetProbePath"];
   const requiredHashes = ["targetIdentityArtifactSha256", "targetIdentityCanonicalSha256", "runtimeRoutingArtifactSha256", "runtimeRoutingCanonicalSha256", "targetProbeSha256", "manifestSha256"];
-  if (!value || value.schemaVersion !== PACKAGE_V4_VERSION || value.targetIdentitySchemaVersion !== TARGET_IDENTITY_V2_VERSION || value.runtimeRoutingSchemaVersion !== RUNTIME_ROUTING_IDENTITY_VERSION || value.expectedProjectRef !== CANONICAL_PRODUCTION_PROJECT_REF || requiredPaths.some(key => !leaf(value[key])) || requiredHashes.some(key => !HASH.test(String(value[key] ?? "")))) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
+  if (!value || value.schemaVersion !== PACKAGE_V4_VERSION || !UUID.test(String(value.packageId ?? "")) || value.targetIdentitySchemaVersion !== TARGET_IDENTITY_V2_VERSION || value.runtimeRoutingSchemaVersion !== RUNTIME_ROUTING_IDENTITY_VERSION || value.expectedProjectRef !== CANONICAL_PRODUCTION_PROJECT_REF || requiredPaths.some(key => !leaf(value[key])) || requiredHashes.some(key => !HASH.test(String(value[key] ?? "")))) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
   return value;
 }
 
-export async function issueProductionReconciliationV4Package({ packageRoot, repositoryRoot, implementationCommit, launcherSha256, secureWrapperSha256, baselineSha256 }) {
-  if (!path.isAbsolute(String(packageRoot ?? "")) || !path.isAbsolute(String(repositoryRoot ?? "")) || !COMMIT.test(String(implementationCommit ?? ""))) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
+export async function issueProductionReconciliationV4Package({ packageRoot, repositoryRoot, implementationCommit, launcherSha256, secureWrapperSha256, baselineSha256, packageId = randomUUID() }) {
+  if (!path.isAbsolute(String(packageRoot ?? "")) || !path.isAbsolute(String(repositoryRoot ?? "")) || !COMMIT.test(String(implementationCommit ?? "")) || !UUID.test(String(packageId ?? ""))) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
   for (const value of [launcherSha256, secureWrapperSha256, baselineSha256]) requireHash(value);
   if (baselineSha256 !== CANONICAL_FINGERPRINT_BASELINE_SHA256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
 
@@ -93,7 +94,7 @@ export async function issueProductionReconciliationV4Package({ packageRoot, repo
   await Promise.all(artifacts.map(([name, bytes]) => writeFile(path.join(packageRoot, name), bytes, { flag: "wx" })));
   const artifactHashes = Object.fromEntries(await Promise.all(artifacts.map(async ([name]) => [name, hashBytes(await readFile(path.join(packageRoot, name)))])));
   const manifest = {
-    schemaVersion: PACKAGE_V4_MANIFEST_VERSION,
+    schemaVersion: PACKAGE_V4_MANIFEST_VERSION, packageId,
     implementationCommit,
     expectedProjectRef,
     targetIdentity: { artifact: TARGET_IDENTITY_ARTIFACT, sha256: artifactHashes[TARGET_IDENTITY_ARTIFACT], canonicalSha256: identity.targetIdentityCanonicalSha256, schemaVersion: TARGET_IDENTITY_V2_VERSION },
@@ -108,7 +109,7 @@ export async function issueProductionReconciliationV4Package({ packageRoot, repo
   await writeFile(manifestPath, jsonBytes(manifest), { flag: "wx" });
   const manifestSha256 = hashBytes(await readFile(manifestPath));
   const executionPackage = {
-    schemaVersion: PACKAGE_V4_VERSION, sourceCommit: implementationCommit,
+    schemaVersion: PACKAGE_V4_VERSION, packageId, sourceCommit: implementationCommit,
     targetIdentitySchemaVersion: TARGET_IDENTITY_V2_VERSION, targetIdentityArtifactPath: TARGET_IDENTITY_ARTIFACT,
     targetIdentityArtifactSha256: artifactHashes[TARGET_IDENTITY_ARTIFACT], targetIdentityCanonicalSha256: identity.targetIdentityCanonicalSha256,
     runtimeRoutingSchemaVersion: RUNTIME_ROUTING_IDENTITY_VERSION, runtimeRoutingArtifactPath: RUNTIME_ROUTING_ARTIFACT,
@@ -119,7 +120,7 @@ export async function issueProductionReconciliationV4Package({ packageRoot, repo
   validatePackageV4Identity(executionPackage);
   const executionPackagePath = path.join(packageRoot, EXECUTION_PACKAGE_ARTIFACT_V4);
   await writeFile(executionPackagePath, jsonBytes(executionPackage), { flag: "wx" });
-  return Object.freeze({ packageRoot, executionPackagePath, executionPackageSha256: hashBytes(await readFile(executionPackagePath)), manifestPath, manifestSha256, expectedProjectRef });
+  return Object.freeze({ packageId, packageRoot, executionPackagePath, executionPackageSha256: hashBytes(await readFile(executionPackagePath)), manifestPath, manifestSha256, expectedProjectRef });
 }
 
 export async function loadProductionReconciliationV4Package({ packageRoot, repositoryRoot }) {
@@ -142,6 +143,6 @@ export async function loadProductionReconciliationV4Package({ packageRoot, repos
   const manifestBytes = await readFile(path.join(packageRoot, PACKAGE_MANIFEST_ARTIFACT_V4)).catch(() => fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID"));
   if (hashBytes(manifestBytes) !== executionPackage.manifestSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
   const manifest = JSON.parse(manifestBytes.toString("utf8"));
-  if (manifest.schemaVersion !== PACKAGE_V4_MANIFEST_VERSION || manifest.expectedProjectRef !== executionPackage.expectedProjectRef || manifest.targetIdentity?.sha256 !== executionPackage.targetIdentityArtifactSha256 || manifest.targetIdentity?.canonicalSha256 !== executionPackage.targetIdentityCanonicalSha256 || manifest.runtimeRouting?.sha256 !== executionPackage.runtimeRoutingArtifactSha256 || manifest.runtimeRouting?.canonicalSha256 !== executionPackage.runtimeRoutingCanonicalSha256 || manifest.targetProbe?.sha256 !== executionPackage.targetProbeSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
+  if (manifest.schemaVersion !== PACKAGE_V4_MANIFEST_VERSION || manifest.packageId !== executionPackage.packageId || manifest.expectedProjectRef !== executionPackage.expectedProjectRef || manifest.targetIdentity?.sha256 !== executionPackage.targetIdentityArtifactSha256 || manifest.targetIdentity?.canonicalSha256 !== executionPackage.targetIdentityCanonicalSha256 || manifest.runtimeRouting?.sha256 !== executionPackage.runtimeRoutingArtifactSha256 || manifest.runtimeRouting?.canonicalSha256 !== executionPackage.runtimeRoutingCanonicalSha256 || manifest.targetProbe?.sha256 !== executionPackage.targetProbeSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
   return Object.freeze({ executionPackage, manifest, targetIdentity, routingIdentity });
 }

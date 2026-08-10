@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { issueProductionReconciliationV4Package } from "./lib/r6-production-reconciliation-package-v4.mjs";
-import { buildAuthorizationV3FromPackage, validateLauncherBindingV2 } from "./lib/r6-production-reconciliation-authorization-v3.mjs";
+import { buildAuthorizationV4FromPackage, validateLauncherBindingV2 } from "./lib/r6-production-reconciliation-authorization-v3.mjs";
 
 const root = process.cwd();
 const temp = await mkdtemp(path.join(os.tmpdir(), "r6-production-reconciliation-launcher-v2-"));
@@ -27,7 +27,7 @@ try {
   execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference='Stop'; [ScriptBlock]::Create((Get-Content -LiteralPath '${escaped}' -Raw)) | Out-Null`]);
   const packageRoot = path.join(temp, "package");
   await issueProductionReconciliationV4Package({ packageRoot, repositoryRoot: root, implementationCommit: commit, launcherSha256, secureWrapperSha256: binding.secureWrapperSha256, baselineSha256: "adec5b5933cc70869be55efbabb613b555c890f0e755e01b13b28696e67c9b4a" });
-  const candidate = await buildAuthorizationV3FromPackage({ packageRoot, repositoryRoot: root, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256, requiredConfirmationPhrase: "test-only" });
+  const candidate = await buildAuthorizationV4FromPackage({ packageRoot, repositoryRoot: root, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256, requiredConfirmationPhrase: "test-only" });
   const authorizationPath = path.join(temp, "candidate-v3.json"); await writeFile(authorizationPath, JSON.stringify(candidate));
   const noSecrets = { ...process.env }; for (const key of ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "DATABASE_URL", "SUPABASE_DB_URL", "R6_PRODUCTION_RECONCILIATION_DATABASE_URL"]) delete noSecrets[key];
   try {

@@ -34,6 +34,8 @@ try {
   });
   const loaded = await loadProductionReconciliationV4Package({ packageRoot, repositoryRoot });
   assert.equal(loaded.executionPackage.schemaVersion, PACKAGE_V4_VERSION);
+  assert.match(loaded.executionPackage.packageId, /^[a-f0-9-]{36}$/);
+  assert.equal(loaded.executionPackage.packageId, loaded.manifest.packageId);
   assert.equal(loaded.executionPackage.expectedProjectRef, "xcbnxzjlsvtgzixurcof");
   assert.equal(loaded.targetIdentity.projectRef, "xcbnxzjlsvtgzixurcof");
   assert.equal(loaded.routingIdentity.database, "postgres");
@@ -42,6 +44,7 @@ try {
   const packagePath = path.join(packageRoot, EXECUTION_PACKAGE_ARTIFACT_V4);
   const originalPackage = await readFile(packagePath, "utf8");
   for (const mutate of [
+    value => { const { packageId, ...historical } = value; return historical; },
     value => ({ ...value, targetIdentitySchemaVersion: "tampered" }),
     value => ({ ...value, runtimeRoutingSchemaVersion: "tampered" }),
     value => ({ ...value, targetIdentityCanonicalSha256: hash }),

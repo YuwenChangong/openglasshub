@@ -8,7 +8,7 @@ import path from "node:path";
 import { loadFrozenDriftInputs, withProductionDriftFixtureRuntime, captureCatalog } from "./lib/production-drift-structural-fixture.mjs";
 import { compareFingerprint } from "./compare-production-schema-fingerprint.mjs";
 import { issueProductionReconciliationV4Package } from "./lib/r6-production-reconciliation-package-v4.mjs";
-import { buildAuthorizationV3FromPackage } from "./lib/r6-production-reconciliation-authorization-v3.mjs";
+import { buildAuthorizationV4FromPackage } from "./lib/r6-production-reconciliation-authorization-v3.mjs";
 import { TARGET_PROBE_V2_SQL } from "./lib/r6-production-target-identity-v2.mjs";
 import { executeOnce, finalizeHumanConfirmation, inspectNativePsqlCapability } from "./qa/r6-production-reconciliation-transport.mjs";
 
@@ -46,7 +46,7 @@ try {
   const result = await withProductionDriftFixtureRuntime({ root, inputs, label: "transport-local", run: async (runtime) => {
     process.stdout.write("LOCAL_TRANSPORT_STAGE_06_CHILD_STARTED\n");
     const capability = inspectNativePsqlCapability();
-    const authorization = await buildAuthorizationV3FromPackage({ packageRoot: packageFixture.packageRoot, repositoryRoot: root, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256: hash("local-transport"), requiredConfirmationPhrase: confirmation });
+    const authorization = await buildAuthorizationV4FromPackage({ packageRoot: packageFixture.packageRoot, repositoryRoot: root, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256: hash("local-transport"), requiredConfirmationPhrase: confirmation });
     const authorizationPath = path.join(temp, "candidate.json"); await writeFile(authorizationPath, JSON.stringify(authorization));
     const finalConfirmationPath = path.join(temp, "final-confirmation.json");
     let targetConnections = 0;

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { loadBoundExecutionPackage, safeEqual, TRANSPORT_CONTRACT_VERSION, validatePsqlCapability, fail } from "../lib/r6-production-reconciliation-transport-contract.mjs";
 import { assertReceiptEligible, reserveAttempt, transitionReceipt } from "../lib/r6-production-reconciliation-receipt.mjs";
 import { verifyRuntimeRoutingIdentity } from "../lib/r6-production-target-identity-v2.mjs";
-import { validateAuthorizationV3, validateFinalHumanConfirmationV2 } from "../lib/r6-production-reconciliation-authorization-v3.mjs";
+import { validateAuthorizationV4, validateFinalHumanConfirmationV3 } from "../lib/r6-production-reconciliation-authorization-v3.mjs";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const migrationEnvelope = (bytes) => Buffer.concat([Buffer.from("BEGIN;\n", "utf8"), bytes, Buffer.from("\nCOMMIT;\n", "utf8")]);
@@ -98,6 +98,54 @@ async function writeImmutableJson(file, value) {
     if (error?.code === "EEXIST") fail("R6_PRODUCTION_RECONCILIATION_FINAL_CONFIRMATION_REPLAY");
     throw error;
   } finally { await handle?.close(); }
+}
+
+const GLOBAL_CONFIRMATION_CLAIM_VERSION = "r6-production-reconciliation-human-confirmation-consumption-v1";
+
+function globalConfirmationClaimPath({ authorizationPath, candidate, candidateSha256 }) {
+  const key = JSON.stringify({
+    sourceCommit: candidate.transportImplementationCommit,
+    packageId: candidate.packageId,
+    candidateId: candidate.authorizationId,
+    candidateSha256,
+    confirmationPhraseSha256: candidate.requiredConfirmationSha256,
+  });
+  return path.join(path.dirname(path.resolve(authorizationPath)), "global-confirmation-consumption-v1", `${hash(key)}.json`);
+}
+
+async function acquireGlobalConfirmationClaim({ authorizationPath, candidate, candidateSha256, now }) {
+  const claimPath = globalConfirmationClaimPath({ authorizationPath, candidate, candidateSha256 });
+  const claim = {
+    schemaVersion: GLOBAL_CONFIRMATION_CLAIM_VERSION,
+    sourceCommit: candidate.transportImplementationCommit,
+    packageId: candidate.packageId,
+    candidateId: candidate.authorizationId,
+    candidateSha256,
+    confirmationPhraseSha256: candidate.requiredConfirmationSha256,
+    consumed: true,
+    consumedAt: now,
+    singleUseScope: "GLOBAL_CANDIDATE_PHRASE",
+    claimState: "CONSUMED",
+  };
+  await mkdir(path.dirname(claimPath), { recursive: true });
+  let handle;
+  try {
+    handle = await open(claimPath, "wx", 0o600);
+    const bytes = Buffer.from(`${JSON.stringify(claim)}\n`, "utf8");
+    await handle.writeFile(bytes);
+    await handle.sync();
+    return Object.freeze({ path: claimPath, sha256: hash(bytes), value: Object.freeze(claim) });
+  } catch (error) {
+    if (error?.code === "EEXIST") fail("R6_PRODUCTION_RECONCILIATION_CONFIRMATION_PHRASE_GLOBALLY_CONSUMED");
+    throw error;
+  } finally { await handle?.close(); }
+}
+
+async function validateGlobalConfirmationClaim({ finalConfirmation, candidate, candidateSha256 }) {
+  const artifact = await readJsonArtifact(finalConfirmation.consumptionClaimPath, "R6_PRODUCTION_RECONCILIATION_GLOBAL_CONFIRMATION_CLAIM_MISSING");
+  const claim = artifact.value;
+  if (artifact.sha256 !== finalConfirmation.consumptionClaimSha256 || claim.schemaVersion !== GLOBAL_CONFIRMATION_CLAIM_VERSION || claim.sourceCommit !== candidate.transportImplementationCommit || claim.packageId !== candidate.packageId || claim.candidateId !== candidate.authorizationId || claim.candidateSha256 !== candidateSha256 || claim.confirmationPhraseSha256 !== candidate.requiredConfirmationSha256 || claim.consumed !== true || claim.singleUseScope !== "GLOBAL_CANDIDATE_PHRASE" || claim.claimState !== "CONSUMED" || Number.isNaN(Date.parse(String(claim.consumedAt ?? "")))) fail("R6_PRODUCTION_RECONCILIATION_GLOBAL_CONFIRMATION_CLAIM_INVALID");
+  return Object.freeze({ ...artifact, value: Object.freeze({ ...claim }) });
 }
 
 async function writeImmutableBytes(file, bytes) {
@@ -245,8 +293,8 @@ async function writePostflightEvidence({ preparedExecution, outputPath, canonica
 
 async function loadCandidate({ authorizationPath, implementationCommit, launcherSha256, transportSha256, sqlClientCapability }) {
   const artifact = await readJsonArtifact(authorizationPath, "R6_PRODUCTION_RECONCILIATION_AUTHORIZATION_MISSING");
-  const candidate = validateAuthorizationV3(artifact.value);
-  if (candidate.transportImplementationCommit !== implementationCommit || candidate.transportLauncherSha256 !== launcherSha256 || candidate.transportSha256 !== transportSha256) fail("R6_PRODUCTION_RECONCILIATION_AUTHORIZATION_V3_BINDING_FAILED");
+  const candidate = validateAuthorizationV4(artifact.value);
+  if (candidate.transportImplementationCommit !== implementationCommit || candidate.transportLauncherSha256 !== launcherSha256 || candidate.transportSha256 !== transportSha256) fail("R6_PRODUCTION_RECONCILIATION_AUTHORIZATION_V4_BINDING_FAILED");
   return Object.freeze({ ...artifact, candidate });
 }
 
@@ -266,16 +314,19 @@ export async function validateOnly({ authorizationPath, packageRoot, implementat
   return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_CANDIDATE_VALIDATED_AWAITING_FINAL_HUMAN_CONFIRMATION", executionAttemptConsumed: false, receiptConsumed: false, networkConnections: 0, authorizationCandidateSha256: candidateArtifact.sha256, executionPackageSha256: pkg.manifestSha256, packageManifestSha256: pkg.packageManifestSha256, canonicalMigrationSha256: pkg.migration.sha256, canonicalPostflightSha256: pkg.postflight.sha256 });
 }
 
-export async function finalizeHumanConfirmation({ authorizationPath, packageRoot, finalConfirmationPath, confirmationPhrase, implementationCommit, launcherSha256, transportSha256, sqlClientCapability = inspectNativePsqlCapability(), now = new Date().toISOString() }) {
+export async function finalizeHumanConfirmation({ authorizationPath, packageRoot, finalConfirmationPath, confirmationPhrase, implementationCommit, launcherSha256, transportSha256, sqlClientCapability = inspectNativePsqlCapability(), now = new Date().toISOString(), afterClaimForTest = null }) {
   if (typeof confirmationPhrase !== "string") fail("R6_PRODUCTION_RECONCILIATION_CONFIRMATION_CHANNEL_UNAVAILABLE");
   const candidateArtifact = await loadCandidate({ authorizationPath, implementationCommit, launcherSha256, transportSha256, sqlClientCapability });
   await loadPackageForCandidate(candidateArtifact.candidate, packageRoot);
   if (!safeEqual(hash(confirmationPhrase), candidateArtifact.candidate.requiredConfirmationSha256)) fail("R6_PRODUCTION_RECONCILIATION_CONFIRMATION_INVALID");
+  const claim = await acquireGlobalConfirmationClaim({ authorizationPath, candidate: candidateArtifact.candidate, candidateSha256: candidateArtifact.sha256, now });
+  if (afterClaimForTest) await afterClaimForTest(claim);
   const finalConfirmation = {
-    schemaVersion: "qa-production-reconciliation-final-human-confirmation-v2",
+    schemaVersion: "qa-production-reconciliation-final-human-confirmation-v3",
     authorizationCandidateSha256: candidateArtifact.sha256,
     authorizationCandidateId: candidateArtifact.candidate.authorizationId,
     implementationCommit,
+    packageId: candidateArtifact.candidate.packageId,
     packageSchemaVersion: candidateArtifact.candidate.packageSchemaVersion,
     packageManifestSha256: candidateArtifact.candidate.packageManifestSha256,
     executionPackageSha256: candidateArtifact.candidate.executionPackageSha256,
@@ -291,6 +342,9 @@ export async function finalizeHumanConfirmation({ authorizationPath, packageRoot
     targetProbeSha256: candidateArtifact.candidate.targetProbeSha256,
     requiredConfirmationSha256: candidateArtifact.candidate.requiredConfirmationSha256,
     confirmedPhraseSha256: hash(confirmationPhrase),
+    consumptionClaimPath: claim.path,
+    consumptionClaimSha256: claim.sha256,
+    singleUseScope: "GLOBAL_CANDIDATE_PHRASE",
     singleUse: true,
     attempts: 1,
     retry: 0,
@@ -298,7 +352,7 @@ export async function finalizeHumanConfirmation({ authorizationPath, packageRoot
     confirmedAt: now,
     immutable: true,
   };
-  validateFinalHumanConfirmationV2(finalConfirmation, { candidate: candidateArtifact.candidate, candidateSha256: candidateArtifact.sha256 });
+  validateFinalHumanConfirmationV3(finalConfirmation, { candidate: candidateArtifact.candidate, candidateSha256: candidateArtifact.sha256 });
   const artifact = await writeImmutableJson(finalConfirmationPath, finalConfirmation);
   return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_FINAL_HUMAN_CONFIRMATION_CREATED", executionAttemptConsumed: false, receiptConsumed: false, networkConnections: 0, authorizationCandidateSha256: candidateArtifact.sha256, finalConfirmationSha256: artifact.sha256, finalConfirmationPath: artifact.path });
 }
@@ -306,7 +360,8 @@ export async function finalizeHumanConfirmation({ authorizationPath, packageRoot
 export async function validateFinalExecutionBinding({ authorizationPath, packageRoot, finalConfirmationPath, implementationCommit, launcherSha256, transportSha256, sqlClientCapability = inspectNativePsqlCapability() }) {
   const candidateArtifact = await loadCandidate({ authorizationPath, implementationCommit, launcherSha256, transportSha256, sqlClientCapability });
   const finalArtifact = await readJsonArtifact(finalConfirmationPath, "R6_PRODUCTION_RECONCILIATION_FINAL_HUMAN_CONFIRMATION_REQUIRED");
-  const finalConfirmation = validateFinalHumanConfirmationV2(finalArtifact.value, { candidate: candidateArtifact.candidate, candidateSha256: candidateArtifact.sha256 });
+  const finalConfirmation = validateFinalHumanConfirmationV3(finalArtifact.value, { candidate: candidateArtifact.candidate, candidateSha256: candidateArtifact.sha256 });
+  await validateGlobalConfirmationClaim({ finalConfirmation, candidate: candidateArtifact.candidate, candidateSha256: candidateArtifact.sha256 });
   const pkg = await loadPackageForCandidate(candidateArtifact.candidate, packageRoot);
   return Object.freeze({ classification: "R6_PRODUCTION_RECONCILIATION_FINAL_EXECUTION_BINDING_READY", executionAttemptConsumed: false, receiptConsumed: false, networkConnections: 0, authorizationCandidateSha256: candidateArtifact.sha256, finalConfirmationSha256: finalArtifact.sha256, candidate: candidateArtifact.candidate, finalConfirmation, package: pkg });
 }
