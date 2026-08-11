@@ -52,15 +52,15 @@ try {
   await assert.rejects(() => finalizeHumanConfirmation({ ...crashed.core, finalConfirmationPath: path.join(crashed.temp, "after-crash.json"), confirmationPhrase: crashed.phrase }), /CONFIRMATION_PHRASE_GLOBALLY_CONSUMED/);
 
   const tampered = JSON.parse(await readFile(firstPath, "utf8"));
-  const claim = JSON.parse(await readFile(tampered.consumptionClaimPath, "utf8"));
+  const claim = JSON.parse(await readFile(tampered.globalConsumptionClaimPathOrKey, "utf8"));
   for (const [field, replacement] of [["packageId", "00000000-0000-4000-8000-000000000000"], ["candidateId", "00000000-0000-4000-8000-000000000001"], ["confirmationPhraseSha256", hash("tampered-phrase")], ["sourceCommit", "0000000000000000000000000000000000000000"]]) {
-    await writeFile(tampered.consumptionClaimPath, `${JSON.stringify({ ...claim, [field]: replacement })}\n`);
+    await writeFile(tampered.globalConsumptionClaimPathOrKey, `${JSON.stringify({ ...claim, [field]: replacement })}\n`);
     await assert.rejects(() => validateFinalExecutionBinding({ ...first.core, finalConfirmationPath: firstPath }), /GLOBAL_CONFIRMATION_CLAIM_INVALID/);
   }
-  await writeFile(tampered.consumptionClaimPath, `${JSON.stringify(claim)}\n`);
+  await writeFile(tampered.globalConsumptionClaimPathOrKey, `${JSON.stringify(claim)}\n`);
   const historicalPath = path.join(first.temp, "historical-final-v2.json");
   await writeFile(historicalPath, `${JSON.stringify({ schemaVersion: "qa-production-reconciliation-final-human-confirmation-v2" })}\n`);
-  await assert.rejects(() => validateFinalExecutionBinding({ ...first.core, finalConfirmationPath: historicalPath }), /FINAL_CONFIRMATION_V3_INVALID/);
+  await assert.rejects(() => validateFinalExecutionBinding({ ...first.core, finalConfirmationPath: historicalPath }), /FINAL_CONFIRMATION_V4_INVALID/);
   console.log("R6_PRODUCTION_RECONCILIATION_GLOBAL_CONFIRMATION_CONSUMPTION_PASS");
 } finally {
   await Promise.all(fixtures.map(value => rm(value.temp, { recursive: true, force: true })));

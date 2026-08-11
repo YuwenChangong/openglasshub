@@ -8,6 +8,7 @@ export const AUTHORIZATION_V3_VERSION = "qa-production-reconciliation-execution-
 export const FINAL_CONFIRMATION_V2_VERSION = "qa-production-reconciliation-final-human-confirmation-v2";
 export const AUTHORIZATION_V4_VERSION = "qa-production-reconciliation-execution-authorization-v4";
 export const FINAL_CONFIRMATION_V3_VERSION = "qa-production-reconciliation-final-human-confirmation-v3";
+export const FINAL_CONFIRMATION_V4_VERSION = "r6-production-reconciliation-final-human-confirmation-v4";
 export const LAUNCHER_BINDING_V2_VERSION = "r6-production-reconciliation-launcher-binding-v2";
 
 const HASH = /^[a-f0-9]{64}$/;
@@ -46,6 +47,13 @@ const finalV3Keys = [
   "expectedProjectRef", "targetProbeSha256", "canonicalMigrationSha256", "canonicalPostflightSha256",
   "requiredConfirmationSha256", "confirmedPhraseSha256", "consumptionClaimPath", "consumptionClaimSha256", "singleUseScope",
   "singleUse", "attempts", "retry", "automaticRollback", "confirmedAt", "immutable",
+];
+const finalV4Keys = [
+  "schemaVersion", "sourceCommit", "packageId", "packageSchemaVersion", "executionPackageSha256", "manifestSha256",
+  "candidateId", "candidateSha256", "targetIdentitySchemaVersion", "targetIdentityCanonicalSha256",
+  "runtimeRoutingSchemaVersion", "runtimeRoutingArtifactSha256", "expectedProjectRef", "launcherBindingSchemaVersion",
+  "confirmationPhraseSha256", "globalConsumptionClaimSchemaVersion", "globalConsumptionClaimPathOrKey", "globalConsumptionClaimSha256",
+  "humanConfirmed", "confirmationPhraseConsumed", "issuedAtUtc", "singleUse", "immutable",
 ];
 const launcherKeys = [
   "schemaVersion", "packageSchemaVersion", "targetIdentitySchemaVersion", "targetIdentityCanonicalSha256",
@@ -138,6 +146,16 @@ export function validateFinalHumanConfirmationV3(value, { candidate, candidateSh
     validateAuthorizationV4(candidate);
     const bindings = ["packageId", "packageSchemaVersion", "packageManifestSha256", "executionPackageSha256", "transportImplementationCommit", "transportLauncherSha256", "targetIdentitySchemaVersion", "targetIdentityCanonicalSha256", "runtimeRoutingSchemaVersion", "runtimeRoutingArtifactSha256", "expectedProjectRef", "targetProbeSha256", "canonicalMigrationSha256", "canonicalPostflightSha256", "requiredConfirmationSha256"];
     if (!same(value.authorizationCandidateSha256, candidateSha256) || value.authorizationCandidateId !== candidate.authorizationId || bindings.some(key => value[key] !== candidate[key]) || !same(value.confirmedPhraseSha256, candidate.requiredConfirmationSha256)) fail("R6_PRODUCTION_RECONCILIATION_FINAL_CONFIRMATION_V3_BINDING_FAILED");
+  }
+  return Object.freeze({ ...value });
+}
+
+export function validateFinalHumanConfirmationV4(value, { candidate, candidateSha256 } = {}) {
+  exactKeys(value, finalV4Keys, "R6_PRODUCTION_RECONCILIATION_FINAL_CONFIRMATION_V4_INVALID");
+  if (value.schemaVersion !== FINAL_CONFIRMATION_V4_VERSION || value.sourceCommit !== candidate?.transportImplementationCommit || !UUID.test(String(value.packageId ?? "")) || value.packageSchemaVersion !== "r6-production-reconciliation-execution-package-v4" || !HASH.test(String(value.executionPackageSha256 ?? "")) || !HASH.test(String(value.manifestSha256 ?? "")) || !UUID.test(String(value.candidateId ?? "")) || !HASH.test(String(value.candidateSha256 ?? "")) || value.targetIdentitySchemaVersion !== "r6-production-target-identity-v2" || !HASH.test(String(value.targetIdentityCanonicalSha256 ?? "")) || value.runtimeRoutingSchemaVersion !== "r6-production-runtime-routing-identity-v1" || !HASH.test(String(value.runtimeRoutingArtifactSha256 ?? "")) || !/^[a-z0-9]{20}$/.test(String(value.expectedProjectRef ?? "")) || value.launcherBindingSchemaVersion !== LAUNCHER_BINDING_V2_VERSION || !HASH.test(String(value.confirmationPhraseSha256 ?? "")) || value.globalConsumptionClaimSchemaVersion !== "r6-production-reconciliation-human-confirmation-consumption-v1" || !path.isAbsolute(String(value.globalConsumptionClaimPathOrKey ?? "")) || !HASH.test(String(value.globalConsumptionClaimSha256 ?? "")) || value.humanConfirmed !== true || value.confirmationPhraseConsumed !== true || value.singleUse !== true || value.immutable !== true || Number.isNaN(Date.parse(String(value.issuedAtUtc ?? "")))) fail("R6_PRODUCTION_RECONCILIATION_FINAL_CONFIRMATION_V4_INVALID");
+  if (candidate) {
+    validateAuthorizationV4(candidate);
+    if (value.packageId !== candidate.packageId || value.candidateId !== candidate.authorizationId || !same(value.candidateSha256, candidateSha256) || value.executionPackageSha256 !== candidate.executionPackageSha256 || value.manifestSha256 !== candidate.packageManifestSha256 || value.targetIdentityCanonicalSha256 !== candidate.targetIdentityCanonicalSha256 || value.runtimeRoutingArtifactSha256 !== candidate.runtimeRoutingArtifactSha256 || value.expectedProjectRef !== candidate.expectedProjectRef || !same(value.confirmationPhraseSha256, candidate.requiredConfirmationSha256)) fail("R6_PRODUCTION_RECONCILIATION_FINAL_CONFIRMATION_V4_BINDING_FAILED");
   }
   return Object.freeze({ ...value });
 }
