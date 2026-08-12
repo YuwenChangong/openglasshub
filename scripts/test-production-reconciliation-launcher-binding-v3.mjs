@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { LAUNCHER_BINDING_V3_VERSION, issueLauncherBindingV3, loadLauncherBindingV3, validateLauncherBindingV3, validateLauncherBindingV3AgainstCanonicalTemplate } from "./lib/r6-production-reconciliation-launcher-binding-v3.mjs";
+import { loadCanonicalLauncherTemplateAuthority } from "./lib/r6-canonical-launcher-template-authority.mjs";
+const hash = value => createHash("sha256").update(value).digest("hex");
+const canonical = await loadCanonicalLauncherTemplateAuthority({ repositoryRoot: process.cwd() });
+const binding = { schemaVersion: LAUNCHER_BINDING_V3_VERSION, sourceCommit: "a".repeat(40), packageId: randomUUID(), materializationPath: "C:\\fixture\\materialization.json", materializationSha256: hash("materialization"), executeApprovalPath: "C:\\fixture\\execute-v2.json", executeApprovalSha256: hash("execute"), finalExecutionAuthoritySchemaVersion: "r6-production-reconciliation-final-execution-authority-v2", finalExecutionAuthoritySha256: hash("authority"), launcherPath: "C:\\fixture\\launcher.ps1", canonicalLauncherTemplateSha256: canonical.canonicalLauncherTemplateSha256, secureWrapperSha256: hash("wrapper"), expectedProjectRef: "xcbnxzjlsvtgzixurcof", singleUse: true, immutable: true };
+validateLauncherBindingV3(binding);
+await validateLauncherBindingV3AgainstCanonicalTemplate({ value: binding, repositoryRoot: process.cwd() });
+for (const [key, value] of [["schemaVersion", "r6-production-reconciliation-launcher-binding-v2"], ["executeApprovalSha256", "invalid"], ["finalExecutionAuthoritySchemaVersion", "v1"], ["expectedProjectRef", "wrong"], ["singleUse", false]]) assert.throws(() => validateLauncherBindingV3({ ...binding, [key]: value }), /LAUNCHER_BINDING_V3_INVALID/);
+await assert.rejects(() => validateLauncherBindingV3AgainstCanonicalTemplate({ value: { ...binding, canonicalLauncherTemplateSha256: hash("wrong-canonical-template") }, repositoryRoot: process.cwd() }), /LAUNCHER_BINDING_V3_CANONICAL_TEMPLATE_MISMATCH/);
+const temp = await mkdtemp(path.join(os.tmpdir(), "r6-binding-v3-issuer-"));
+try {
+  const wrapperPath = path.join(temp, "wrapper.ps1"); await writeFile(wrapperPath, "wrapper\n");
+  const approvalPath = path.join(temp, "approval.json"); await writeFile(approvalPath, "{}\n");
+  const authority = { schemaVersion: "r6-production-reconciliation-final-execution-authority-v2", executeApprovalSha256: hash(await readFile(approvalPath)), canonicalLauncherTemplateSha256: canonical.canonicalLauncherTemplateSha256 };
+  const materialization = { schemaVersion: "r6-production-reconciliation-execution-materialization-v2", sourceCommit: "a".repeat(40), packageId: randomUUID(), executionPackageSha256: hash("package"), manifestSha256: hash("manifest"), candidateId: randomUUID(), candidateSha256: hash("candidate"), candidateTerminalSha256: hash("terminal"), candidateInventorySha256: hash("inventory"), finalConfirmationSchemaVersion: "r6-production-reconciliation-final-human-confirmation-v5", finalConfirmationSha256: hash("final"), executeApprovalSchemaVersion: "r6-production-reconciliation-execute-approval-v2", executeApprovalSha256: authority.executeApprovalSha256, finalExecutionAuthoritySchemaVersion: authority.schemaVersion, finalExecutionAuthoritySha256: hash(Buffer.from(JSON.stringify(authority))), globalConsumptionClaimSha256: hash("claim"), targetIdentityCanonicalSha256: hash("target"), runtimeRoutingCanonicalSha256: hash("routing"), expectedProjectRef: "xcbnxzjlsvtgzixurcof", launcherBindingSchemaVersion: LAUNCHER_BINDING_V3_VERSION, canonicalLauncherTemplateSha256: canonical.canonicalLauncherTemplateSha256, secureWrapperSha256: hash(await readFile(wrapperPath)), issuedAtUtc: new Date().toISOString() };
+  const materializationPath = path.join(temp, "materialization.json"); await writeFile(materializationPath, `${JSON.stringify(materialization)}\n`);
+  const bindingPath = path.join(temp, "binding.json");
+  const issued = await issueLauncherBindingV3({ outputPath: bindingPath, materializationPath, externalSecureWrapperPath: wrapperPath, launcherPath: path.join(temp, "launcher.ps1"), finalExecutionAuthority: authority, repositoryRoot: process.cwd() });
+  const original = await readFile(bindingPath); assert.equal(issued.sha256, hash(original));
+  await loadLauncherBindingV3({ bindingPath, materializationPath, externalSecureWrapperPath: wrapperPath, finalExecutionAuthority: authority, repositoryRoot: process.cwd() });
+  await assert.rejects(() => issueLauncherBindingV3({ outputPath: bindingPath, materializationPath, externalSecureWrapperPath: wrapperPath, launcherPath: path.join(temp, "launcher.ps1"), finalExecutionAuthority: authority, repositoryRoot: process.cwd() }), /LAUNCHER_BINDING_V3_REPLAY/);
+  assert.deepEqual(await readFile(bindingPath), original);
+  await writeFile(bindingPath, `${JSON.stringify({ ...JSON.parse(original), expectedProjectRef: "aaaaaaaaaaaaaaaaaaaa" })}\n`);
+  await assert.rejects(() => loadLauncherBindingV3({ bindingPath, materializationPath, externalSecureWrapperPath: wrapperPath, finalExecutionAuthority: authority, repositoryRoot: process.cwd() }), /LAUNCHER_BINDING_V3_INVALID/);
+  console.log("R6_PRODUCTION_RECONCILIATION_LAUNCHER_BINDING_V3_ISSUER_PASS");
+} finally { await rm(temp, { recursive: true, force: true }); }
+console.log("R6_PRODUCTION_RECONCILIATION_LAUNCHER_BINDING_V3_UNIT_PASS");

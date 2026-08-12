@@ -1,0 +1,16 @@
+[CmdletBinding()]
+param(
+  [Parameter(Mandatory = $true)][string]$LauncherPath,
+  [Parameter(Mandatory = $true)][string]$ExpectedLauncherSha256
+)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+function Get-Sha256([string]$Path) {
+  $stream = $null; $sha = $null
+  try { $stream = [IO.File]::OpenRead($Path); $sha = [Security.Cryptography.SHA256]::Create(); return (-join ($sha.ComputeHash($stream) | ForEach-Object { $_.ToString('x2') })) }
+  finally { if ($sha) { $sha.Dispose() }; if ($stream) { $stream.Dispose() } }
+}
+if (-not (Test-Path -LiteralPath $LauncherPath -PathType Leaf)) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_LAUNCHER_MISSING' }
+if ((Get-Sha256 $LauncherPath) -ne $ExpectedLauncherSha256) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_LAUNCHER_INTEGRITY_INVALID' }
+& $LauncherPath
+exit $LASTEXITCODE

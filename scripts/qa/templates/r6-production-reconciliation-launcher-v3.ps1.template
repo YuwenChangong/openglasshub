@@ -1,0 +1,16 @@
+[CmdletBinding()]
+param()
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$config = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('__CONFIG_BASE64__')) | ConvertFrom-Json
+function Require-File([string]$Path, [string]$Code) { if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw $Code } }
+foreach ($entry in @(
+  @($config.materializationPath, 'R6_PRODUCTION_RECONCILIATION_LAUNCHER_V3_MATERIALIZATION_MISSING'),
+  @($config.launcherBindingPath, 'R6_PRODUCTION_RECONCILIATION_LAUNCHER_V3_BINDING_MISSING'),
+  @($config.approvalPath, 'R6_PRODUCTION_RECONCILIATION_LAUNCHER_V3_EXECUTE_APPROVAL_MISSING'),
+  @($config.transportPath, 'R6_PRODUCTION_RECONCILIATION_LAUNCHER_V3_TRANSPORT_MISSING')
+)) { Require-File $entry[0] $entry[1] }
+$env:R6_PRODUCTION_RECONCILIATION_IMPLEMENTATION_COMMIT = $null
+$env:R6_PRODUCTION_RECONCILIATION_TRANSPORT_SHA256 = $config.transportSha256
+& $config.nodePath $config.transportPath Execute $config.approvalPath $config.packageRoot $config.finalConfirmationPath $config.receiptRoot $config.candidateRoot $config.executionBindingPath $config.materializationPath $config.launcherBindingPath $config.evidenceRoot
+exit $LASTEXITCODE

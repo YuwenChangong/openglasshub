@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { issueProductionReconciliationV4Package } from "./lib/r6-production-reconciliation-package-v4.mjs";
-import { buildAuthorizationV4FromPackage } from "./lib/r6-production-reconciliation-authorization-v3.mjs";
+import { issueAttestedCandidateV3 } from "./lib/r6-production-reconciliation-candidate-issuer-v3.mjs";
 import { finalizeHumanConfirmation, validateFinalExecutionBinding } from "./qa/r6-production-reconciliation-transport.mjs";
 
 const root = process.cwd();
@@ -19,9 +19,10 @@ async function fixture(phrase = "global-single-use-phrase") {
   const temp = await mkdtemp(path.join(os.tmpdir(), "r6-global-confirmation-"));
   const packageRoot = path.join(temp, "package");
   await issueProductionReconciliationV4Package({ packageRoot, repositoryRoot: root, implementationCommit: commit, launcherSha256, secureWrapperSha256: hash("wrapper"), baselineSha256: "adec5b5933cc70869be55efbabb613b555c890f0e755e01b13b28696e67c9b4a" });
-  const candidate = await buildAuthorizationV4FromPackage({ packageRoot, repositoryRoot: root, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256, requiredConfirmationPhrase: phrase });
-  const authorizationPath = path.join(temp, "candidate-v4.json");
-  await writeFile(authorizationPath, `${JSON.stringify(candidate)}\n`);
+  const candidateRoot = path.join(temp, "candidate");
+  const issued = await issueAttestedCandidateV3({ candidateRoot, packageRoot, repositoryRoot: root, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256, requiredConfirmationPhrase: phrase });
+  const candidate = issued.candidate;
+  const authorizationPath = issued.candidateArtifact.path;
   const core = { authorizationPath, packageRoot, implementationCommit: commit, launcherSha256, transportSha256, sqlClientCapability: capability };
   return { temp, phrase, candidate, core };
 }
@@ -60,7 +61,7 @@ try {
   await writeFile(tampered.globalConsumptionClaimPathOrKey, `${JSON.stringify(claim)}\n`);
   const historicalPath = path.join(first.temp, "historical-final-v2.json");
   await writeFile(historicalPath, `${JSON.stringify({ schemaVersion: "qa-production-reconciliation-final-human-confirmation-v2" })}\n`);
-  await assert.rejects(() => validateFinalExecutionBinding({ ...first.core, finalConfirmationPath: historicalPath }), /FINAL_CONFIRMATION_V4_INVALID/);
+  await assert.rejects(() => validateFinalExecutionBinding({ ...first.core, finalConfirmationPath: historicalPath }), /FINAL_CONFIRMATION_V5_INVALID/);
   console.log("R6_PRODUCTION_RECONCILIATION_GLOBAL_CONFIRMATION_CONSUMPTION_PASS");
 } finally {
   await Promise.all(fixtures.map(value => rm(value.temp, { recursive: true, force: true })));

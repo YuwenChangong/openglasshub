@@ -9,6 +9,7 @@ export const FINAL_CONFIRMATION_V2_VERSION = "qa-production-reconciliation-final
 export const AUTHORIZATION_V4_VERSION = "qa-production-reconciliation-execution-authorization-v4";
 export const FINAL_CONFIRMATION_V3_VERSION = "qa-production-reconciliation-final-human-confirmation-v3";
 export const FINAL_CONFIRMATION_V4_VERSION = "r6-production-reconciliation-final-human-confirmation-v4";
+export const FINAL_CONFIRMATION_V5_VERSION = "r6-production-reconciliation-final-human-confirmation-v5";
 export const LAUNCHER_BINDING_V2_VERSION = "r6-production-reconciliation-launcher-binding-v2";
 
 const HASH = /^[a-f0-9]{64}$/;
@@ -157,6 +158,14 @@ export function validateFinalHumanConfirmationV4(value, { candidate, candidateSh
     validateAuthorizationV4(candidate);
     if (value.packageId !== candidate.packageId || value.candidateId !== candidate.authorizationId || !same(value.candidateSha256, candidateSha256) || value.executionPackageSha256 !== candidate.executionPackageSha256 || value.manifestSha256 !== candidate.packageManifestSha256 || value.targetIdentityCanonicalSha256 !== candidate.targetIdentityCanonicalSha256 || value.runtimeRoutingArtifactSha256 !== candidate.runtimeRoutingArtifactSha256 || value.expectedProjectRef !== candidate.expectedProjectRef || !same(value.confirmationPhraseSha256, candidate.requiredConfirmationSha256)) fail("R6_PRODUCTION_RECONCILIATION_FINAL_CONFIRMATION_V4_BINDING_FAILED");
   }
+  return Object.freeze({ ...value });
+}
+
+export function validateFinalHumanConfirmationV5(value, { authority } = {}) {
+  const keys = ["schemaVersion","sourceCommit","packageId","packageSchemaVersion","executionPackageSha256","manifestSha256","candidateId","candidateSchemaVersion","candidateSha256","candidateTerminalSha256","candidateInventorySha256","targetIdentitySchemaVersion","targetIdentityCanonicalSha256","runtimeRoutingSchemaVersion","runtimeRoutingArtifactSha256","expectedProjectRef","launcherBindingSchemaVersion","confirmationPhraseSha256","globalConsumptionClaimSchemaVersion","globalConsumptionClaimPathOrKey","globalConsumptionClaimSha256","humanConfirmed","confirmationPhraseConsumed","issuedAtUtc","singleUse","immutable"];
+  exactKeys(value, keys, "R6_PRODUCTION_RECONCILIATION_FINAL_CONFIRMATION_V5_INVALID");
+  if (value.schemaVersion !== FINAL_CONFIRMATION_V5_VERSION || !HASH.test(String(value.candidateTerminalSha256)) || !HASH.test(String(value.candidateInventorySha256)) || value.candidateSchemaVersion !== "qa-production-reconciliation-execution-authorization-v4" || value.humanConfirmed !== true || value.confirmationPhraseConsumed !== true || value.singleUse !== true || value.immutable !== true || Number.isNaN(Date.parse(String(value.issuedAtUtc)))) fail("R6_PRODUCTION_RECONCILIATION_FINAL_CONFIRMATION_V5_INVALID");
+  if (authority) { const c=authority.candidate; if (value.sourceCommit!==c.transportImplementationCommit || value.packageId!==c.packageId || value.executionPackageSha256!==c.executionPackageSha256 || value.manifestSha256!==c.packageManifestSha256 || value.candidateId!==c.authorizationId || value.candidateSchemaVersion!==c.schemaVersion || value.candidateSha256!==authority.candidateArtifact.sha256 || value.candidateTerminalSha256!==authority.terminalArtifact.sha256 || value.candidateInventorySha256!==authority.inventoryArtifact.sha256 || value.targetIdentityCanonicalSha256!==c.targetIdentityCanonicalSha256 || value.runtimeRoutingArtifactSha256!==c.runtimeRoutingArtifactSha256 || value.expectedProjectRef!==c.expectedProjectRef || value.confirmationPhraseSha256!==c.requiredConfirmationSha256) fail("R6_PRODUCTION_RECONCILIATION_FINAL_CONFIRMATION_V5_BINDING_FAILED"); }
   return Object.freeze({ ...value });
 }
 
