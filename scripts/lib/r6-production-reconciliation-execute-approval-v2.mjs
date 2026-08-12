@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { mkdir, open, readFile } from "node:fs/promises";
 import path from "node:path";
 import { loadCandidateAuthority } from "./r6-production-reconciliation-candidate-authority.mjs";
-import { FINAL_CONFIRMATION_V5_VERSION, validateFinalHumanConfirmationV5, validateLauncherBindingV2 } from "./r6-production-reconciliation-authorization-v3.mjs";
+import { FINAL_CONFIRMATION_V5_VERSION, validateFinalHumanConfirmationV5 } from "./r6-production-reconciliation-authorization-v3.mjs";
+import { loadExecutionBindingV2 } from "./r6-production-reconciliation-execution-binding-v2.mjs";
 import { loadProductionReconciliationV4Package } from "./r6-production-reconciliation-package-v4.mjs";
 import { loadCanonicalLauncherTemplateAuthority } from "./r6-canonical-launcher-template-authority.mjs";
 import { CANONICAL_FINGERPRINT_BASELINE_SHA256, CANONICAL_MIGRATION_BYTES, CANONICAL_MIGRATION_SHA256, POSTFLIGHT_SHA256 } from "./r6-production-reconciliation-transport-contract.mjs";
@@ -69,19 +70,6 @@ async function loadGlobalClaim({ finalConfirmation, authority }) {
   return artifact;
 }
 
-async function loadExecutionBinding({ executionBindingPath, authority }) {
-  const artifact = await readJson(executionBindingPath, "R6_PRODUCTION_RECONCILIATION_EXECUTION_BINDING_MISSING", "R6_PRODUCTION_RECONCILIATION_EXECUTION_BINDING_INVALID");
-  const binding = validateLauncherBindingV2(artifact.value);
-  const { candidate } = authority;
-  if (binding.packageSchemaVersion !== candidate.packageSchemaVersion
-    || binding.targetIdentitySchemaVersion !== candidate.targetIdentitySchemaVersion
-    || binding.targetIdentityCanonicalSha256 !== candidate.targetIdentityCanonicalSha256
-    || binding.runtimeRoutingSchemaVersion !== candidate.runtimeRoutingSchemaVersion
-    || binding.runtimeRoutingArtifactSha256 !== candidate.runtimeRoutingArtifactSha256
-    || binding.expectedProjectRef !== candidate.expectedProjectRef) fail("R6_PRODUCTION_RECONCILIATION_EXECUTION_BINDING_INVALID");
-  return Object.freeze({ ...artifact, value: binding });
-}
-
 export async function loadExecuteApprovalV2({ approvalPath, repositoryRoot, packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath }) {
   const artifact = await readJson(approvalPath, "R6_PRODUCTION_RECONCILIATION_EXECUTE_APPROVAL_V2_MISSING", "R6_PRODUCTION_RECONCILIATION_EXECUTE_APPROVAL_V2_INVALID");
   const approval = validateExecuteApprovalV2(artifact.value);
@@ -97,7 +85,7 @@ export async function buildExecuteApprovalV2({ repositoryRoot, packageRoot, cand
   const finalConfirmation = validateFinalHumanConfirmationV5(finalArtifact.value, { authority });
   const [claimArtifact, executionBinding, loaded] = await Promise.all([
     loadGlobalClaim({ finalConfirmation, authority }),
-    loadExecutionBinding({ executionBindingPath, authority }),
+    loadExecutionBindingV2({ executionBindingPath, repositoryRoot, packageRoot, candidateRoot }),
     loadProductionReconciliationV4Package({ packageRoot, repositoryRoot }),
   ]);
   const { candidate } = authority;

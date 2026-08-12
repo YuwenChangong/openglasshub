@@ -73,7 +73,7 @@ try {
   const bindingFailure = await fixture(); fixtures.push(bindingFailure);
   const binding = JSON.parse(await readFile(bindingFailure.executionBindingPath)); binding.launcherSha256 = hash("wrong");
   await writeFile(bindingFailure.executionBindingPath, `${JSON.stringify(binding)}\n`);
-  await assert.rejects(() => buildExecuteApprovalV2({ repositoryRoot: root, ...bindingFailure }), /EXECUTION_BINDING_INVALID|EXECUTE_APPROVAL_V2_BINDING_FAILED/);
+  await assert.rejects(() => buildExecuteApprovalV2({ repositoryRoot: root, ...bindingFailure }), /EXECUTION_BINDING_INVALID|EXECUTION_BINDING_V2_BINDING_FAILED|EXECUTE_APPROVAL_V2_BINDING_FAILED/);
 
   const legacyBinding = await fixture(); fixtures.push(legacyBinding);
   const legacy = JSON.parse(await readFile(legacyBinding.executionBindingPath)); legacy.schemaVersion = "r6-production-reconciliation-launcher-binding-v1";

@@ -8,7 +8,9 @@ import path from "node:path";
 import { loadFrozenDriftInputs, withProductionDriftFixtureRuntime, captureCatalog } from "./lib/production-drift-structural-fixture.mjs";
 import { compareFingerprint } from "./compare-production-schema-fingerprint.mjs";
 import { issueProductionReconciliationV4Package } from "./lib/r6-production-reconciliation-package-v4.mjs";
-import { buildAuthorizationV4FromPackage } from "./lib/r6-production-reconciliation-authorization-v3.mjs";
+import { issueAttestedCandidateV3 } from "./lib/r6-production-reconciliation-candidate-issuer-v3.mjs";
+import { issueExecutionBindingV2 } from "./lib/r6-production-reconciliation-execution-binding-v2.mjs";
+import { issueExecuteApprovalV2 } from "./lib/r6-production-reconciliation-execute-approval-v2.mjs";
 import { TARGET_PROBE_V2_SQL } from "./lib/r6-production-target-identity-v2.mjs";
 import { executeOnce, finalizeHumanConfirmation, inspectNativePsqlCapability } from "./qa/r6-production-reconciliation-transport.mjs";
 
@@ -46,9 +48,14 @@ try {
   const result = await withProductionDriftFixtureRuntime({ root, inputs, label: "transport-local", run: async (runtime) => {
     process.stdout.write("LOCAL_TRANSPORT_STAGE_06_CHILD_STARTED\n");
     const capability = inspectNativePsqlCapability();
-    const authorization = await buildAuthorizationV4FromPackage({ packageRoot: packageFixture.packageRoot, repositoryRoot: root, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256: hash("local-transport"), requiredConfirmationPhrase: confirmation });
-    const authorizationPath = path.join(temp, "candidate.json"); await writeFile(authorizationPath, JSON.stringify(authorization));
+    const candidateRoot = path.join(temp, "candidate");
+    const issued = await issueAttestedCandidateV3({ candidateRoot, packageRoot: packageFixture.packageRoot, repositoryRoot: root, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256: hash("local-transport"), requiredConfirmationPhrase: confirmation, testOnly: true, testAuthorityRoot: path.join(temp, "authority") });
+    assert.equal(issued.candidate.requiredConfirmationSha256, hash(confirmation));
+    const authorizationPath = issued.candidateArtifact.path;
     const finalConfirmationPath = path.join(temp, "final-confirmation.json");
+    const executionBindingPath = path.join(temp, "execution-binding-v2.json");
+    await issueExecutionBindingV2({ outputPath: executionBindingPath, repositoryRoot: root, packageRoot: packageFixture.packageRoot, candidateRoot });
+    const approvalPath = path.join(temp, "execute-v2.json");
     let targetConnections = 0;
     const client = {
       capability,
@@ -56,12 +63,13 @@ try {
       async submitMigration(sql) { const process = spawnSync("docker", ["exec", "-i", runtime.container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-q", "-U", "postgres", "-d", "postgres"], { input: Buffer.concat([Buffer.from("BEGIN;\n"), sql, Buffer.from("\nCOMMIT;\n")]), encoding: "utf8" }); return process.status === 0 ? { outcome: "COMMITTED" } : { outcome: "COMMIT_STATE_UNKNOWN" }; },
       async postflight(sql, { outputPath }) { dockerPsql(runtime.container, sql, false, true); await writeFile(outputPath, "local-postflight-executed\n"); return { outcome: "POSTFLIGHT_SUCCESS", comparison: { matchesExpected: true } }; },
     };
-    await assert.rejects(executeOnce({ authorizationPath, packageRoot: packageFixture.packageRoot, finalConfirmationPath: path.join(temp, "missing.json"), receiptRoot: path.join(temp, "receipts-missing"), implementationCommit: commit, launcherSha256, transportSha256: hash("local-transport"), sqlClientCapability: capability, client }), /R6_PRODUCTION_RECONCILIATION_FINAL_HUMAN_CONFIRMATION_REQUIRED/);
+    await assert.rejects(issueExecuteApprovalV2({ outputPath: approvalPath, repositoryRoot: root, packageRoot: packageFixture.packageRoot, candidateRoot, finalConfirmationPath: path.join(temp, "missing.json"), executionBindingPath }), /R6_PRODUCTION_RECONCILIATION_FINAL_HUMAN_CONFIRMATION_REQUIRED/);
     assert.equal(targetConnections, 0, "candidate-only path must not open a target connection");
     const finalized = await finalizeHumanConfirmation({ authorizationPath, packageRoot: packageFixture.packageRoot, finalConfirmationPath, confirmationPhrase: confirmation, implementationCommit: commit, launcherSha256, transportSha256: hash("local-transport"), sqlClientCapability: capability });
     assert.equal(finalized.networkConnections, 0);
+    await issueExecuteApprovalV2({ outputPath: approvalPath, repositoryRoot: root, packageRoot: packageFixture.packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath });
     process.stdout.write("LOCAL_TRANSPORT_STAGE_07_ROUTING_READY\n");
-    const execution = await executeOnce({ authorizationPath, packageRoot: packageFixture.packageRoot, finalConfirmationPath, receiptRoot: path.join(temp, "receipts"), implementationCommit: commit, launcherSha256, transportSha256: hash("local-transport"), environment: { PGHOST: "127.0.0.1", PGPORT: "5432", PGDATABASE: "postgres", PGUSER: "postgres.xcbnxzjlsvtgzixurcof" }, sqlClientCapability: capability, client });
+    const execution = await executeOnce({ approvalPath, repositoryRoot: root, packageRoot: packageFixture.packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath, receiptRoot: path.join(temp, "receipts"), evidenceRoot: path.join(temp, "evidence"), transportSha256: hash("local-transport"), environment: { PGHOST: "127.0.0.1", PGPORT: "5432", PGDATABASE: "postgres", PGUSER: "postgres.xcbnxzjlsvtgzixurcof" }, sqlClientCapability: capability, client });
     const catalog = await captureCatalog(root, runtime.container);
     return { execution, targetConnections, bootstrap: runtime.bootstrap, comparison: compareFingerprint(inputs.expected, catalog.rows).counts };
   }});

@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { issueAttestedCandidateV3 } from "./lib/r6-production-reconciliation-candidate-issuer-v3.mjs";
 import { issueExecuteApprovalV2, loadExecuteApprovalV2 } from "./lib/r6-production-reconciliation-execute-approval-v2.mjs";
+import { issueExecutionBindingV2 } from "./lib/r6-production-reconciliation-execution-binding-v2.mjs";
 import { loadCanonicalLauncherTemplateAuthority } from "./lib/r6-canonical-launcher-template-authority.mjs";
 import { issueProductionReconciliationV4Package } from "./lib/r6-production-reconciliation-package-v4.mjs";
 import { executeWithFinalExecutionGate, executeWithHistoricalFinalExecutionGate, finalizeHumanConfirmation } from "./qa/r6-production-reconciliation-transport.mjs";
@@ -27,7 +28,7 @@ async function fixture() {
   const finalConfirmationPath = path.join(temp, "final-v5.json");
   await finalizeHumanConfirmation({ authorizationPath: issued.candidateArtifact.path, packageRoot, finalConfirmationPath, confirmationPhrase: phrase, implementationCommit: commit, launcherSha256, transportSha256, sqlClientCapability: capability });
   const executionBindingPath = path.join(temp, "execution-binding-v2.json");
-  await writeFile(executionBindingPath, `${JSON.stringify({ schemaVersion: "r6-production-reconciliation-launcher-binding-v2", packageSchemaVersion: issued.candidate.packageSchemaVersion, targetIdentitySchemaVersion: issued.candidate.targetIdentitySchemaVersion, targetIdentityCanonicalSha256: issued.candidate.targetIdentityCanonicalSha256, runtimeRoutingSchemaVersion: issued.candidate.runtimeRoutingSchemaVersion, runtimeRoutingArtifactSha256: issued.candidate.runtimeRoutingArtifactSha256, expectedProjectRef: issued.candidate.expectedProjectRef, launcherSha256, secureWrapperSha256 })}\n`);
+  await issueExecutionBindingV2({ outputPath: executionBindingPath, repositoryRoot, packageRoot, candidateRoot });
   const approvalPath = path.join(temp, "execute-v2.json");
   await issueExecuteApprovalV2({ outputPath: approvalPath, repositoryRoot, packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath });
   return { temp, approvalPath, packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath, transportSha256 };
