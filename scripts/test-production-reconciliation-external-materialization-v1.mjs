@@ -105,6 +105,34 @@ try {
     await expectReadyReject(caseRoot, patch, /EXTERNAL_READY_PATH_INVALID/);
   }
 
+  const sourceCommitMismatch = await makeReady("source-commit-mismatch");
+  await writeReady(sourceCommitMismatch, ready => ({ ...ready, sourceCommit: "a".repeat(40) }));
+  await expectReadyReject(sourceCommitMismatch, null, /R6_EXTERNAL_READY_SOURCE_COMMIT_MISMATCH/);
+
+  const materializationSourceMismatch = await makeReady("materialization-source-mismatch");
+  const materializationSourceBytes = Buffer.from(`${JSON.stringify({ ...JSON.parse(await readFile(materializationSourceMismatch.issued.materializationPath, "utf8")), sourceCommit: "a".repeat(40) })}\n`);
+  await writeFile(materializationSourceMismatch.issued.materializationPath, materializationSourceBytes);
+  await writeReady(materializationSourceMismatch, ready => ({ ...ready, materializationSha256: hash(materializationSourceBytes) }));
+  await expectReadyReject(materializationSourceMismatch, null, /R6_EXTERNAL_READY_SOURCE_COMMIT_MISMATCH/);
+
+  const bindingSourceMismatch = await makeReady("binding-source-mismatch");
+  const bindingSourceBytes = Buffer.from(`${JSON.stringify({ ...JSON.parse(await readFile(bindingSourceMismatch.issued.bindingPath, "utf8")), sourceCommit: "a".repeat(40) })}\n`);
+  await writeFile(bindingSourceMismatch.issued.bindingPath, bindingSourceBytes);
+  await writeReady(bindingSourceMismatch, ready => ({ ...ready, launcherBindingSha256: hash(bindingSourceBytes) }));
+  await expectReadyReject(bindingSourceMismatch, null, /R6_EXTERNAL_READY_SOURCE_COMMIT_MISMATCH/);
+
+  const readyAndBindingSourceMismatch = await makeReady("ready-and-binding-source-mismatch");
+  const readyAndBindingBytes = Buffer.from(`${JSON.stringify({ ...JSON.parse(await readFile(readyAndBindingSourceMismatch.issued.bindingPath, "utf8")), sourceCommit: "a".repeat(40) })}\n`);
+  await writeFile(readyAndBindingSourceMismatch.issued.bindingPath, readyAndBindingBytes);
+  await writeReady(readyAndBindingSourceMismatch, ready => ({ ...ready, sourceCommit: "a".repeat(40), launcherBindingSha256: hash(readyAndBindingBytes) }));
+  await expectReadyReject(readyAndBindingSourceMismatch, null, /R6_EXTERNAL_READY_SOURCE_COMMIT_MISMATCH/);
+
+  const readyAndMaterializationSourceMismatch = await makeReady("ready-and-materialization-source-mismatch");
+  const readyAndMaterializationBytes = Buffer.from(`${JSON.stringify({ ...JSON.parse(await readFile(readyAndMaterializationSourceMismatch.issued.materializationPath, "utf8")), sourceCommit: "a".repeat(40) })}\n`);
+  await writeFile(readyAndMaterializationSourceMismatch.issued.materializationPath, readyAndMaterializationBytes);
+  await writeReady(readyAndMaterializationSourceMismatch, ready => ({ ...ready, sourceCommit: "a".repeat(40), materializationSha256: hash(readyAndMaterializationBytes) }));
+  await expectReadyReject(readyAndMaterializationSourceMismatch, null, /R6_EXTERNAL_READY_SOURCE_COMMIT_MISMATCH/);
+
   for (const [label, patch] of [
     ["materialization", async value => writeFile(value.issued.materializationPath, "{}\n")],
     ["binding", async value => writeFile(value.issued.bindingPath, "{}\n")],

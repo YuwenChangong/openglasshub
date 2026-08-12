@@ -76,6 +76,9 @@ export async function loadExternalExecutionMaterializationReadyV1({ externalRoot
     materialization = validateExecutionMaterializationV2(JSON.parse(artifactBytes.materialization));
     binding = await validateLauncherBindingV3AgainstCanonicalTemplate({ value: JSON.parse(artifactBytes.binding), repositoryRoot: process.cwd() });
   } catch { fail("R6_PRODUCTION_RECONCILIATION_EXTERNAL_READY_ARTIFACT_INVALID"); }
+  if (value.sourceCommit !== materialization.sourceCommit || value.sourceCommit !== binding.sourceCommit) {
+    fail("R6_EXTERNAL_READY_SOURCE_COMMIT_MISMATCH");
+  }
   const launcherConfig = loadRenderedLauncherConfig(artifactBytes.launcher);
   if (binding.materializationPath !== paths.materialization || binding.launcherPath !== paths.launcher
     || binding.materializationSha256 !== observed.materialization || binding.executeApprovalSha256 !== materialization.executeApprovalSha256
