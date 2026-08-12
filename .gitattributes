@@ -13,3 +13,6 @@ supabase/migrations/20260713_comment_read_circle_visibility_authorization.sql te
 supabase/migrations/20260713_forum_posts_circle_authorization.sql text eol=lf
 supabase/migrations/20260713_forum_report_target_authorization.sql text eol=lf
 supabase/migrations/20260713_post_bound_media_provenance.sql text eol=lf
+# Canonical execution authorities are raw-byte hashed and must not expand under core.autocrlf.
+scripts/qa/templates/r6-production-reconciliation-launcher-v3.ps1.template text eol=lf
+scripts/qa/templates/r6-production-reconciliation-secure-session-v1.ps1.template text eol=lf

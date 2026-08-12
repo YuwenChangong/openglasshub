@@ -23,7 +23,7 @@ async function fixture() {
   const packageRoot = path.join(temp, "package");
   await issueProductionReconciliationV4Package({ packageRoot, repositoryRoot, implementationCommit: commit, launcherSha256, secureWrapperSha256, baselineSha256: baseline });
   const candidateRoot = path.join(temp, "candidate");
-  const issued = await issueAttestedCandidateV3({ candidateRoot, packageRoot, repositoryRoot, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256, requiredConfirmationPhrase: phrase });
+  const issued = await issueAttestedCandidateV3({ candidateRoot, packageRoot, repositoryRoot, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256, requiredConfirmationPhrase: phrase, testOnly: true, testAuthorityRoot: path.join(temp, "authority") });
   const finalConfirmationPath = path.join(temp, "final-v5.json");
   await finalizeHumanConfirmation({ authorizationPath: issued.candidateArtifact.path, packageRoot, finalConfirmationPath, confirmationPhrase: phrase, implementationCommit: commit, launcherSha256, transportSha256, sqlClientCapability: capability });
   const executionBindingPath = path.join(temp, "execution-binding-v2.json");

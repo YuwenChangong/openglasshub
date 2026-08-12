@@ -20,7 +20,7 @@ async function fixture(phrase = "global-single-use-phrase") {
   const packageRoot = path.join(temp, "package");
   await issueProductionReconciliationV4Package({ packageRoot, repositoryRoot: root, implementationCommit: commit, launcherSha256, secureWrapperSha256: hash("wrapper"), baselineSha256: "adec5b5933cc70869be55efbabb613b555c890f0e755e01b13b28696e67c9b4a" });
   const candidateRoot = path.join(temp, "candidate");
-  const issued = await issueAttestedCandidateV3({ candidateRoot, packageRoot, repositoryRoot: root, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256, requiredConfirmationPhrase: phrase });
+  const issued = await issueAttestedCandidateV3({ candidateRoot, packageRoot, repositoryRoot: root, transportImplementationCommit: commit, transportLauncherSha256: launcherSha256, transportSha256, requiredConfirmationPhrase: phrase, testOnly: true, testAuthorityRoot: path.join(temp, "authority") });
   const candidate = issued.candidate;
   const authorizationPath = issued.candidateArtifact.path;
   const core = { authorizationPath, packageRoot, implementationCommit: commit, launcherSha256, transportSha256, sqlClientCapability: capability };

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -14,6 +15,12 @@ const canonical = await loadCanonicalLauncherTemplateAuthority({ repositoryRoot 
 const canonicalBytes = await readFile(canonical.canonicalLauncherTemplatePath);
 const canonicalSha256 = createHash("sha256").update(canonicalBytes).digest("hex");
 assert.equal(canonical.canonicalLauncherTemplateSha256, canonicalSha256);
+assert.equal(canonicalBytes.includes(0x0d), false, "canonical launcher template must remain LF-only in the checkout");
+assert.deepEqual(
+  canonicalBytes,
+  execFileSync("git", ["show", `HEAD:${CANONICAL_LAUNCHER_TEMPLATE_RELATIVE_PATH}`]),
+  "canonical launcher template checkout bytes must equal its committed Git blob",
+);
 
 const binding = {
   schemaVersion: LAUNCHER_BINDING_V3_VERSION,

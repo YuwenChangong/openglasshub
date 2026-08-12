@@ -117,7 +117,7 @@ export function validateAuthorizationV4(value) {
   return Object.freeze({ ...value });
 }
 
-export async function buildAuthorizationV4FromPackage({ packageRoot, repositoryRoot, transportImplementationCommit, transportLauncherSha256, transportSha256, requiredConfirmationPhrase, authorizationId = randomUUID(), executionTaskId = randomUUID() }) {
+export async function buildAuthorizationV4FromPackage({ packageRoot, repositoryRoot, transportImplementationCommit, transportLauncherSha256, transportSha256, requiredConfirmationSha256, authorizationId = randomUUID(), executionTaskId = randomUUID() }) {
   const loaded = await loadProductionReconciliationV4Package({ packageRoot, repositoryRoot });
   const executionPackageSha256 = sha256(await readFile(path.join(packageRoot, "production-reconciliation-execution-package.json")));
   const packageManifestSha256 = sha256(await readFile(path.join(packageRoot, "production-reconciliation-package-manifest.json")));
@@ -134,7 +134,7 @@ export async function buildAuthorizationV4FromPackage({ packageRoot, repositoryR
     targetProbeSha256: loaded.executionPackage.targetProbeSha256,
     canonicalMigrationSha256: loaded.manifest.migration.sha256,
     canonicalPostflightSha256: loaded.manifest.postflight.sha256,
-    requiredConfirmationSha256: sha256(requiredConfirmationPhrase),
+    requiredConfirmationSha256,
     attempts: 1, automaticRetry: 0, automaticRollback: 0,
   });
 }
