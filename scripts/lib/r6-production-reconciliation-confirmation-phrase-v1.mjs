@@ -70,3 +70,25 @@ export async function bindConfirmationPhraseToCandidateV1({ repositoryRoot, issu
   const value = { schemaVersion: CONFIRMATION_PHRASE_BINDING_V1, confirmationPhraseSha256: issuance.value.confirmationPhraseSha256, confirmationIssuancePath: issuance.path, confirmationIssuanceSha256: issuance.sha256, candidateId: candidate.authorizationId, sourceCommit: candidate.transportImplementationCommit, packageId: candidate.packageId, boundAtUtc: now };
   return writeExclusiveJson(path.join(root, "candidate-bindings", `${value.confirmationPhraseSha256}.json`), value, "R6_PRODUCTION_RECONCILIATION_CONFIRMATION_PHRASE_CROSS_CANDIDATE_REUSE_REJECTED");
 }
+
+export async function loadConfirmationPhraseCandidateBindingV1({ repositoryRoot, bindingPath, issuance, candidate, testOnly = false, testAuthorityRoot } = {}) {
+  const root = authorityRoot({ repositoryRoot, testOnly, testAuthorityRoot });
+  if (!issuance || issuance.authorityRoot !== root || !candidate || !path.isAbsolute(String(bindingPath ?? ""))) fail("R6_PRODUCTION_RECONCILIATION_CONFIRMATION_BINDING_INVALID");
+  const expectedPrefix = path.join(root, "candidate-bindings") + path.sep;
+  const resolved = path.resolve(bindingPath);
+  if (!resolved.startsWith(expectedPrefix)) fail("R6_PRODUCTION_RECONCILIATION_CONFIRMATION_BINDING_ROOT_INVALID");
+  let bytes; try { bytes = await readFile(resolved); } catch { fail("R6_PRODUCTION_RECONCILIATION_CONFIRMATION_BINDING_MISSING"); }
+  let value; try { value = JSON.parse(bytes.toString("utf8")); } catch { fail("R6_PRODUCTION_RECONCILIATION_CONFIRMATION_BINDING_INVALID"); }
+  const keys = ["schemaVersion", "confirmationPhraseSha256", "confirmationIssuancePath", "confirmationIssuanceSha256", "candidateId", "sourceCommit", "packageId", "boundAtUtc"];
+  exactKeys(value, keys, "R6_PRODUCTION_RECONCILIATION_CONFIRMATION_BINDING_INVALID");
+  if (value.schemaVersion !== CONFIRMATION_PHRASE_BINDING_V1
+    || value.confirmationPhraseSha256 !== issuance.value.confirmationPhraseSha256
+    || value.confirmationIssuancePath !== issuance.path
+    || value.confirmationIssuanceSha256 !== issuance.sha256
+    || value.candidateId !== candidate.authorizationId
+    || value.sourceCommit !== candidate.transportImplementationCommit
+    || value.packageId !== candidate.packageId
+    || Number.isNaN(Date.parse(String(value.boundAtUtc)))
+    || path.basename(resolved) !== `${value.confirmationPhraseSha256}.json`) fail("R6_PRODUCTION_RECONCILIATION_CONFIRMATION_BINDING_INVALID");
+  return Object.freeze({ authorityRoot: root, path: resolved, sha256: hash(bytes), bytes, value: Object.freeze({ ...value }) });
+}
