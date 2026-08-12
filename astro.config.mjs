@@ -18,6 +18,11 @@ export default defineConfig({
     platformProxy: {
       enabled: true,
     },
+    imageService: {
+      build: 'compile',
+      runtime: 'passthrough',
+    },
+    prerenderEnvironment: 'node',
   }),
   integrations: [
     react(),
