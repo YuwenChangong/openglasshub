@@ -6,6 +6,8 @@ import {
   CANONICAL_PRODUCTION_PROJECT_REF, RUNTIME_ROUTING_IDENTITY_VERSION,
   TARGET_IDENTITY_V2_VERSION, TARGET_PROBE_V2_SQL,
   canonicalTargetIdentityV2, canonicalTargetIdentityV2Sha256,
+  CANONICAL_PRODUCTION_DATABASE_ROUTE_V1, canonicalProductionDatabaseRouteV1,
+  canonicalProductionDatabaseRouteV1Sha256, validateProductionDatabaseRouteV1,
   parseSupabaseProjectRefAuthority,
 } from "./r6-production-target-identity-v2.mjs";
 import {
@@ -46,7 +48,14 @@ export async function productionProjectRefFromRepository(repositoryRoot) {
 export function buildPackageV4Identity({ projectRef }) {
   if (typeof projectRef !== "string" || projectRef !== CANONICAL_PRODUCTION_PROJECT_REF) fail("R6_PRODUCTION_RECONCILIATION_APPROVED_ROUTING_AUTHORITY_MISMATCH");
   const targetIdentity = { schemaVersion: TARGET_IDENTITY_V2_VERSION, provider: "supabase", projectRef };
-  const routingIdentity = { schemaVersion: RUNTIME_ROUTING_IDENTITY_VERSION, provider: "supabase", projectRef, database: "postgres" };
+  const routingIdentity = {
+    schemaVersion: RUNTIME_ROUTING_IDENTITY_VERSION,
+    provider: "supabase",
+    projectRef,
+    database: "postgres",
+    routeAuthority: CANONICAL_PRODUCTION_DATABASE_ROUTE_V1,
+    routeAuthorityCanonicalSha256: canonicalProductionDatabaseRouteV1Sha256(CANONICAL_PRODUCTION_DATABASE_ROUTE_V1),
+  };
   const targetCanonical = canonicalTargetIdentityV2(targetIdentity);
   const routingCanonical = JSON.stringify(routingIdentity);
   return Object.freeze({
@@ -139,10 +148,10 @@ export async function loadProductionReconciliationV4Package({ packageRoot, repos
   const targetIdentity = JSON.parse(targetBytes.toString("utf8"));
   const routingIdentity = JSON.parse(routingBytes.toString("utf8"));
   if (canonicalTargetIdentityV2(targetIdentity) !== JSON.stringify({ schemaVersion: TARGET_IDENTITY_V2_VERSION, provider: "supabase", projectRef: executionPackage.expectedProjectRef }) || canonicalTargetIdentityV2Sha256(targetIdentity) !== executionPackage.targetIdentityCanonicalSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
-  if (routingIdentity.schemaVersion !== RUNTIME_ROUTING_IDENTITY_VERSION || routingIdentity.provider !== "supabase" || routingIdentity.projectRef !== executionPackage.expectedProjectRef || routingIdentity.database !== "postgres" || hashJson(routingIdentity) !== executionPackage.runtimeRoutingCanonicalSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
+  if (routingIdentity.schemaVersion !== RUNTIME_ROUTING_IDENTITY_VERSION || routingIdentity.provider !== "supabase" || routingIdentity.projectRef !== executionPackage.expectedProjectRef || routingIdentity.database !== "postgres" || canonicalProductionDatabaseRouteV1(routingIdentity.routeAuthority) !== canonicalProductionDatabaseRouteV1(CANONICAL_PRODUCTION_DATABASE_ROUTE_V1) || routingIdentity.routeAuthorityCanonicalSha256 !== canonicalProductionDatabaseRouteV1Sha256(routingIdentity.routeAuthority) || hashJson(routingIdentity) !== executionPackage.runtimeRoutingCanonicalSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
   const manifestBytes = await readFile(path.join(packageRoot, PACKAGE_MANIFEST_ARTIFACT_V4)).catch(() => fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID"));
   if (hashBytes(manifestBytes) !== executionPackage.manifestSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
   const manifest = JSON.parse(manifestBytes.toString("utf8"));
   if (manifest.schemaVersion !== PACKAGE_V4_MANIFEST_VERSION || manifest.packageId !== executionPackage.packageId || manifest.expectedProjectRef !== executionPackage.expectedProjectRef || manifest.targetIdentity?.sha256 !== executionPackage.targetIdentityArtifactSha256 || manifest.targetIdentity?.canonicalSha256 !== executionPackage.targetIdentityCanonicalSha256 || manifest.runtimeRouting?.sha256 !== executionPackage.runtimeRoutingArtifactSha256 || manifest.runtimeRouting?.canonicalSha256 !== executionPackage.runtimeRoutingCanonicalSha256 || manifest.targetProbe?.sha256 !== executionPackage.targetProbeSha256) fail("R6_PRODUCTION_RECONCILIATION_PACKAGE_V4_INVALID");
-  return Object.freeze({ executionPackage, manifest, targetIdentity, routingIdentity });
+  return Object.freeze({ executionPackage, manifest, targetIdentity, routingIdentity: Object.freeze({ ...routingIdentity, routeAuthority: validateProductionDatabaseRouteV1(routingIdentity.routeAuthority) }) });
 }

@@ -69,7 +69,7 @@ try {
     assert.equal(finalized.networkConnections, 0);
     await issueExecuteApprovalV2({ outputPath: approvalPath, repositoryRoot: root, packageRoot: packageFixture.packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath });
     process.stdout.write("LOCAL_TRANSPORT_STAGE_07_ROUTING_READY\n");
-    const execution = await executeOnce({ approvalPath, repositoryRoot: root, packageRoot: packageFixture.packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath, receiptRoot: path.join(temp, "receipts"), evidenceRoot: path.join(temp, "evidence"), transportSha256: hash("local-transport"), environment: { PGHOST: "127.0.0.1", PGPORT: "5432", PGDATABASE: "postgres", PGUSER: "postgres.xcbnxzjlsvtgzixurcof" }, sqlClientCapability: capability, client });
+    const execution = await executeOnce({ approvalPath, repositoryRoot: root, packageRoot: packageFixture.packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath, receiptRoot: path.join(temp, "receipts"), evidenceRoot: path.join(temp, "evidence"), transportSha256: hash("local-transport"), environment: { PGHOST: "aws-1-ap-northeast-1.pooler.supabase.com", PGPORT: "5432", PGDATABASE: "postgres", PGUSER: "postgres.xcbnxzjlsvtgzixurcof" }, sqlClientCapability: capability, client });
     const catalog = await captureCatalog(root, runtime.container);
     return { execution, targetConnections, bootstrap: runtime.bootstrap, comparison: compareFingerprint(inputs.expected, catalog.rows).counts };
   }});

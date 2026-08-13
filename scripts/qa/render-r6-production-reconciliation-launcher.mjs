@@ -30,6 +30,7 @@ export async function renderProductionReconciliationLauncherV3({ config, destina
     || binding.expectedProjectRef !== materialization.expectedProjectRef
     || binding.canonicalLauncherTemplateSha256 !== materialization.canonicalLauncherTemplateSha256
     || binding.canonicalLauncherTemplateSha256 !== canonical.canonicalLauncherTemplateSha256) fail("R6_PRODUCTION_RECONCILIATION_LAUNCHER_V3_LINEAGE_INVALID");
+  resolved.routeAuthority = Object.freeze({ projectRef: materialization.expectedProjectRef, connectionMode: materialization.connectionMode, pgHost: materialization.pgHost, pgPort: materialization.pgPort, pgDatabase: materialization.pgDatabase, pgUser: materialization.pgUser });
   const template = await readFile(canonical.canonicalLauncherTemplatePath, "utf8");
   if (!template.includes("__CONFIG_BASE64__")) fail("R6_PRODUCTION_RECONCILIATION_LAUNCHER_V3_TEMPLATE_INVALID");
   const outputPath = path.resolve(destination);

@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadBoundExecutionPackage, safeEqual, TRANSPORT_CONTRACT_VERSION, validatePsqlCapability, fail } from "../lib/r6-production-reconciliation-transport-contract.mjs";
 import { assertReceiptEligible, reserveAttempt, transitionReceipt } from "../lib/r6-production-reconciliation-receipt.mjs";
-import { verifyRuntimeRoutingIdentity } from "../lib/r6-production-target-identity-v2.mjs";
+import { validateProductionDatabaseRouteV1 } from "../lib/r6-production-target-identity-v2.mjs";
 import { validateAuthorizationV4, validateFinalHumanConfirmationV5 } from "../lib/r6-production-reconciliation-authorization-v3.mjs";
 import { loadCandidateAuthority } from "../lib/r6-production-reconciliation-candidate-authority.mjs";
 import { loadExecuteApprovalV2 } from "../lib/r6-production-reconciliation-execute-approval-v2.mjs";
@@ -167,26 +167,19 @@ async function writeImmutableBytes(file, bytes) {
   } finally { await handle?.close(); }
 }
 
-export function validateRuntimeRoutingBeforeSqlClient({ expectedProjectRef, environment }) {
-  let validation;
-  try {
-    validation = verifyRuntimeRoutingIdentity({ expectedProjectRef, observed: {
-      pgUser: environment?.PGUSER, pgDatabase: environment?.PGDATABASE,
-      pgHost: environment?.PGHOST, pgPort: environment?.PGPORT,
-    } });
-  } catch (error) {
-    if (error?.code) throw error;
-    fail("R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTING_IDENTITY_INVALID");
-  }
-  if (!validation.targetMatch) fail("R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTING_PROJECT_REF_MISMATCH");
-  return validation;
+export function validateRuntimeRoutingBeforeSqlClient({ routeAuthority, environment }) {
+  const route = validateProductionDatabaseRouteV1(routeAuthority);
+  const observed = { pgHost: String(environment?.PGHOST ?? ""), pgPort: String(environment?.PGPORT ?? ""), pgDatabase: String(environment?.PGDATABASE ?? ""), pgUser: String(environment?.PGUSER ?? "") };
+  if (observed.pgHost !== route.pgHost || observed.pgPort !== route.pgPort || observed.pgDatabase !== route.pgDatabase || observed.pgUser !== route.pgUser) fail("R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTE_AUTHORITY_MISMATCH");
+  return Object.freeze({ targetMatch: true, routeAuthority: route, observedRoutingIdentity: Object.freeze({ ...observed, parsedProjectRef: route.projectRef }) });
 }
 
 async function writeRuntimeRoutingEvidence({ preparedExecution, environment }) {
-  const expectedProjectRef = preparedExecution.binding.package.manifest.expectedProjectRef;
+  const routeAuthority = preparedExecution.binding.package.runtimeRouting.routeAuthority;
+  const expectedProjectRef = routeAuthority.projectRef;
   const expected = await writeImmutableJson(path.join(preparedExecution.evidence.root, "expected-runtime-routing.json"), {
-    schemaVersion: "r6-production-runtime-routing-identity-v1", expectedProjectRef,
-    provider: "supabase", database: "postgres",
+    schemaVersion: "r6-production-database-route-v1", expectedProjectRef,
+    connectionMode: routeAuthority.connectionMode, pgHost: routeAuthority.pgHost, pgPort: routeAuthority.pgPort, pgDatabase: routeAuthority.pgDatabase, pgUser: routeAuthority.pgUser,
   });
   const observed = await writeImmutableJson(path.join(preparedExecution.evidence.root, "observed-runtime-routing.json"), {
     schemaVersion: "r6-production-runtime-routing-observation-v1", pgHost: String(environment?.PGHOST ?? ""),
@@ -194,7 +187,7 @@ async function writeRuntimeRoutingEvidence({ preparedExecution, environment }) {
     pgUser: String(environment?.PGUSER ?? ""),
   });
   try {
-    const result = validateRuntimeRoutingBeforeSqlClient({ expectedProjectRef, environment });
+    const result = validateRuntimeRoutingBeforeSqlClient({ routeAuthority, environment });
     const validation = await writeImmutableJson(path.join(preparedExecution.evidence.root, "runtime-routing-validation.json"), {
       schemaVersion: "r6-production-runtime-routing-validation-v1", expectedProjectRef,
       observedProjectRef: result.observedRoutingIdentity.parsedProjectRef, match: true,
@@ -203,7 +196,7 @@ async function writeRuntimeRoutingEvidence({ preparedExecution, environment }) {
     });
     return Object.freeze({ valid: true, validation, expected, observed, artifact: validation });
   } catch (error) {
-    const classification = error?.code === "R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTING_PROJECT_REF_MISMATCH"
+    const classification = error?.code === "R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTE_AUTHORITY_MISMATCH"
       ? error.code : "R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTING_IDENTITY_INVALID";
     const validation = await writeImmutableJson(path.join(preparedExecution.evidence.root, "runtime-routing-validation.json"), {
       schemaVersion: "r6-production-runtime-routing-validation-v1", expectedProjectRef,
@@ -404,7 +397,7 @@ export async function prepareFinalExecutionFromExecuteApprovalV2({ approvalPath,
     candidateId: approval.candidateId, candidateSha256: approval.candidateSha256, candidateTerminalSha256: approval.candidateTerminalSha256, candidateInventorySha256: approval.candidateInventorySha256,
     finalConfirmationSchemaVersion: approval.finalConfirmationSchemaVersion, finalConfirmationSha256: approval.finalConfirmationSha256, globalConsumptionClaimSha256: approval.globalConsumptionClaimSha256,
     executeApprovalSchemaVersion: approval.schemaVersion, executeApprovalSha256: loaded.artifact.sha256,
-    targetIdentityCanonicalSha256: approval.targetIdentityCanonicalSha256, runtimeRoutingCanonicalSha256: approval.runtimeRoutingCanonicalSha256, expectedProjectRef: approval.expectedProjectRef,
+    targetIdentityCanonicalSha256: approval.targetIdentityCanonicalSha256, runtimeRoutingCanonicalSha256: approval.runtimeRoutingCanonicalSha256, expectedProjectRef: approval.expectedProjectRef, routeAuthority: binding.package.runtimeRouting.routeAuthority,
     launcherBindingSchemaVersion: approval.launcherBindingSchemaVersion, canonicalLauncherTemplateSha256: approval.canonicalLauncherTemplateSha256, secureWrapperSha256: approval.secureWrapperSha256,
     migrationSha256: approval.canonicalMigrationSha256, migrationBytes: approval.canonicalMigrationBytes, postflightSha256: approval.postflightSha256, baselineSha256: approval.baselineSha256,
   });
@@ -517,7 +510,7 @@ async function main() {
     const loaded = await loadExecuteApprovalV2({ approvalPath, repositoryRoot, packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath });
     const authority = await loadCandidateAuthority({ candidateRoot });
     const preflightBinding = await validateFinalExecutionBinding({ authorizationPath: authority.candidateArtifact.path, packageRoot, finalConfirmationPath, implementationCommit: loaded.approval.sourceCommit, launcherSha256: authority.candidate.transportLauncherSha256, transportSha256 });
-    const routing = validateRuntimeRoutingBeforeSqlClient({ expectedProjectRef: preflightBinding.candidate.expectedProjectRef, environment: process.env });
+    const routing = validateRuntimeRoutingBeforeSqlClient({ routeAuthority: preflightBinding.package.runtimeRouting.routeAuthority, environment: process.env });
     process.stdout.write(`${JSON.stringify({ classification: "R6_PRODUCTION_RECONCILIATION_OFFLINE_PREFLIGHT_READY", expectedProjectRef: routing.observedRoutingIdentity.parsedProjectRef, networkConnections: 0, sqlSubmissions: 0 })}${os.EOL}`);
     return;
   }

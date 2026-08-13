@@ -2,7 +2,17 @@ import { createHash } from "node:crypto";
 
 export const TARGET_IDENTITY_V2_VERSION = "r6-production-target-identity-v2";
 export const RUNTIME_ROUTING_IDENTITY_VERSION = "r6-production-runtime-routing-identity-v1";
+export const PRODUCTION_DATABASE_ROUTE_V1_VERSION = "r6-production-database-route-v1";
 export const CANONICAL_PRODUCTION_PROJECT_REF = "xcbnxzjlsvtgzixurcof";
+export const CANONICAL_PRODUCTION_DATABASE_ROUTE_V1 = Object.freeze({
+  schemaVersion: PRODUCTION_DATABASE_ROUTE_V1_VERSION,
+  projectRef: CANONICAL_PRODUCTION_PROJECT_REF,
+  connectionMode: "SHARED_POOLER_SESSION",
+  pgHost: "aws-1-ap-northeast-1.pooler.supabase.com",
+  pgPort: "5432",
+  pgDatabase: "postgres",
+  pgUser: `postgres.${CANONICAL_PRODUCTION_PROJECT_REF}`,
+});
 export const CANONICAL_TARGET_IDENTITY_V2 = Object.freeze({
   schemaVersion: TARGET_IDENTITY_V2_VERSION,
   provider: "supabase",
@@ -70,6 +80,29 @@ export function parseRuntimeRoutingIdentity({ pgUser, pgDatabase, pgHost, pgPort
   const match = /^postgres\.([a-z0-9]{20})$/i.exec(String(pgUser ?? ""));
   if (!match || String(pgDatabase ?? "").trim().toLowerCase() !== "postgres" || !String(pgHost ?? "").trim() || !/^(?:5432|6543)$/.test(String(pgPort ?? ""))) fail("R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTING_IDENTITY_INVALID");
   return Object.freeze({ schemaVersion: RUNTIME_ROUTING_IDENTITY_VERSION, pgUser: String(pgUser).trim().toLowerCase(), parsedProjectRef: match[1].toLowerCase(), pgDatabase: "postgres", pgHost: String(pgHost).trim().toLowerCase(), pgPort: String(pgPort) });
+}
+
+export function canonicalProductionDatabaseRouteV1(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || value.schemaVersion !== PRODUCTION_DATABASE_ROUTE_V1_VERSION) fail("R6_PRODUCTION_DATABASE_ROUTE_AUTHORITY_INVALID");
+  const projectRef = requiredString(value.projectRef, "projectRef");
+  const connectionMode = requiredString(value.connectionMode, "connectionMode").toUpperCase();
+  const pgHost = requiredString(value.pgHost, "pgHost");
+  const pgPort = String(value.pgPort ?? "").trim();
+  const pgDatabase = requiredString(value.pgDatabase, "pgDatabase");
+  const pgUser = requiredString(value.pgUser, "pgUser");
+  if (projectRef !== CANONICAL_PRODUCTION_PROJECT_REF
+    || connectionMode !== "SHARED_POOLER_SESSION"
+    || pgHost !== "aws-1-ap-northeast-1.pooler.supabase.com"
+    || pgPort !== "5432"
+    || pgDatabase !== "postgres"
+    || pgUser !== `postgres.${projectRef}`) fail("R6_PRODUCTION_DATABASE_ROUTE_AUTHORITY_INVALID");
+  return JSON.stringify({ schemaVersion: PRODUCTION_DATABASE_ROUTE_V1_VERSION, projectRef, connectionMode, pgHost, pgPort, pgDatabase, pgUser });
+}
+
+export const canonicalProductionDatabaseRouteV1Sha256 = value => createHash("sha256").update(canonicalProductionDatabaseRouteV1(value), "utf8").digest("hex");
+
+export function validateProductionDatabaseRouteV1(value) {
+  return Object.freeze(JSON.parse(canonicalProductionDatabaseRouteV1(value)));
 }
 
 export function verifyRuntimeRoutingIdentity({ expectedProjectRef, observed }) {

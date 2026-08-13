@@ -55,7 +55,7 @@ try {
   const invalidRouting = await fixture(); fixtures.push(invalidRouting);
   const noFactory = { count: 0 };
   const invalidResult = await executeWithFinalExecutionGate({ repositoryRoot, ...invalidRouting, receiptRoot: path.join(invalidRouting.temp, "receipts"), evidenceRoot: path.join(invalidRouting.temp, "evidence"), environment: { ...routing, PGUSER: "postgres.aaaaaaaaaaaaaaaaaaaa" }, sqlClientCapability: capability, clientFactory: () => { noFactory.count += 1; return client({ target: 0, mutations: 0 }); } });
-  assert.equal(invalidResult.classification, "R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTING_PROJECT_REF_MISMATCH");
+  assert.equal(invalidResult.classification, "R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTE_AUTHORITY_MISMATCH");
   assert.equal(noFactory.count, 0);
 
   const missingApproval = await fixture(); fixtures.push(missingApproval);

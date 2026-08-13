@@ -82,6 +82,24 @@ async function invokeGeneratedWrapper(rootCase, environment) {
   });
 }
 
+async function expectRouteRejectBeforeBroker(patchRoute) {
+  const caseRoot = await makeReady(`route-pre-secret-${Math.random().toString(16).slice(2)}`);
+  const markerPath = path.join(caseRoot.externalRoot, "broker-invoked.txt");
+  const brokerPath = path.join(caseRoot.externalRoot, "r6-production-dpapi-credential-broker.ps1");
+  await writeFile(brokerPath, `Set-Content -LiteralPath '${markerPath.replace(/'/g, "''")}' -Value invoked\n`);
+  const brokerSha256 = hash(await readFile(brokerPath));
+  const launcherBytes = await readFile(caseRoot.ready.paths.launcher, "utf8");
+  const match = /FromBase64String\('([^']+)'\)/.exec(launcherBytes);
+  assert.ok(match);
+  const config = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
+  config.routeAuthority = patchRoute(config.routeAuthority);
+  const rewritten = launcherBytes.replace(match[1], Buffer.from(JSON.stringify(config)).toString("base64"));
+  await writeFile(caseRoot.ready.paths.launcher, rewritten);
+  assert.throws(() => execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", caseRoot.ready.paths.wrapper, "-LauncherPath", caseRoot.ready.paths.launcher, "-ExpectedLauncherSha256", hash(Buffer.from(rewritten)), "-ExpectedCredentialBrokerSha256", brokerSha256], { cwd: root, env: { ...process.env, ...routing }, stdio: ["ignore", "pipe", "pipe"] }), /R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_ROUTE_AUTHORITY_INVALID/);
+  await assert.rejects(readFile(markerPath), /ENOENT/);
+  await assert.rejects(readFile(caseRoot.resultPath), /ENOENT/);
+}
+
 try {
   const valid = await makeReady("valid");
   const output = await invokeGeneratedWrapper(valid, routing);
@@ -95,12 +113,23 @@ try {
   assert.doesNotMatch(output, new RegExp(fakePassword));
   for (const file of [valid.issued.wrapperPath, valid.issued.materializationPath, valid.issued.bindingPath, valid.issued.launcherPath, valid.issued.readyPath]) assert.doesNotMatch(await readFile(file, "utf8"), new RegExp(fakePassword));
 
-  const wrongUser = await makeReady("wrong-user");
-  await invokeGeneratedWrapper(wrongUser, { ...routing, PGUSER: "postgres.aaaaaaaaaaaaaaaaaaaa" });
-  const wrongResult = JSON.parse(await readFile(wrongUser.resultPath, "utf8"));
-  assert.equal(wrongResult.classification, "R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTING_PROJECT_REF_MISMATCH");
-  assert.equal(wrongResult.fakeSqlClientFactoryEntered, false);
-  assert.equal(wrongResult.sqlSubmitted, false);
+  const ambientOverride = await makeReady("ambient-route-override");
+  await invokeGeneratedWrapper(ambientOverride, { ...routing, PGHOST: "attacker.example", PGPORT: "6543", PGDATABASE: "other", PGUSER: "postgres.aaaaaaaaaaaaaaaaaaaa" });
+  const overrideResult = JSON.parse(await readFile(ambientOverride.resultPath, "utf8"));
+  assert.equal(overrideResult.classification, "R6_PRODUCTION_RECONCILIATION_TARGET_PROBE_FAILED");
+  assert.equal(overrideResult.fakeSqlClientFactoryEntered, true);
+  assert.equal(overrideResult.sqlSubmitted, false);
+
+  for (const patchRoute of [
+    route => ({ ...route, projectRef: "aaaaaaaaaaaaaaaaaaaa" }),
+    route => { const { pgHost, ...rest } = route; return rest; },
+    route => ({ ...route, pgHost: "attacker.example" }),
+    route => ({ ...route, pgHost: "db.xcbnxzjlsvtgzixurcof.supabase.co" }),
+    route => ({ ...route, pgHost: "aws-0-ap-northeast-1.pooler.supabase.com" }),
+    route => ({ ...route, pgPort: "6543" }),
+    route => ({ ...route, pgDatabase: "other" }),
+    route => ({ ...route, pgUser: "postgres" }),
+  ]) await expectRouteRejectBeforeBroker(patchRoute);
 
   for (const [label, patch] of [
     ["parent-escape", async value => writeReady(value, ready => ({ ...ready, materializationRelativePath: "../escaped.json" }))],

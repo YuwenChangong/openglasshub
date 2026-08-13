@@ -20,8 +20,32 @@ $launcherBytes = [IO.File]::ReadAllBytes($LauncherPath)
 $match = [regex]::Match([Text.Encoding]::UTF8.GetString($launcherBytes), 'FromBase64String\(''([^'']+)''\)')
 if (-not $match.Success) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_LAUNCHER_CONFIG_INVALID' }
 try { $config = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($match.Groups[1].Value)) | ConvertFrom-Json -ErrorAction Stop } catch { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_LAUNCHER_CONFIG_INVALID' }
-$preflight = & $config.nodePath $config.transportPath Preflight $config.approvalPath $config.packageRoot $config.finalConfirmationPath $config.receiptRoot $config.candidateRoot $config.executionBindingPath $config.materializationPath $config.launcherBindingPath $config.evidenceRoot 2>&1
-if ($LASTEXITCODE -ne 0 -or -not (($preflight | Out-String) -match 'R6_PRODUCTION_RECONCILIATION_OFFLINE_PREFLIGHT_READY')) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_OFFLINE_PREFLIGHT_FAILED' }
+$route = $config.routeAuthority
+$routeFieldNames = @('projectRef', 'connectionMode', 'pgHost', 'pgPort', 'pgDatabase', 'pgUser')
+if ($null -eq $route -or @($routeFieldNames | Where-Object { $null -eq $route.PSObject.Properties[$_] }).Count -ne 0) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_ROUTE_AUTHORITY_INVALID' }
+if ($route.PSObject.Properties['projectRef'].Value -ne 'xcbnxzjlsvtgzixurcof' -or $route.PSObject.Properties['connectionMode'].Value -ne 'SHARED_POOLER_SESSION' -or $route.PSObject.Properties['pgHost'].Value -ne 'aws-1-ap-northeast-1.pooler.supabase.com' -or $route.PSObject.Properties['pgPort'].Value -ne '5432' -or $route.PSObject.Properties['pgDatabase'].Value -ne 'postgres' -or $route.PSObject.Properties['pgUser'].Value -ne 'postgres.xcbnxzjlsvtgzixurcof') { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_ROUTE_AUTHORITY_INVALID' }
+function Invoke-RouteBoundProcess([string]$FileName, [string]$Arguments) {
+  $psi = New-Object Diagnostics.ProcessStartInfo
+  $psi.FileName = $FileName
+  $psi.Arguments = $Arguments
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.EnvironmentVariables['PGHOST'] = $route.pgHost
+  $psi.EnvironmentVariables['PGPORT'] = $route.pgPort
+  $psi.EnvironmentVariables['PGDATABASE'] = $route.pgDatabase
+  $psi.EnvironmentVariables['PGUSER'] = $route.pgUser
+  $child = [Diagnostics.Process]::Start($psi)
+  $stdoutTask = $child.StandardOutput.ReadToEndAsync()
+  $stderrTask = $child.StandardError.ReadToEndAsync()
+  $child.WaitForExit()
+  $stdout = $stdoutTask.Result
+  $stderr = $stderrTask.Result
+  return [pscustomobject]@{ ExitCode = $child.ExitCode; Stdout = $stdout; Stderr = $stderr }
+}
+$preflightArguments = ('"{0}" Preflight "{1}" "{2}" "{3}" "{4}" "{5}" "{6}" "{7}" "{8}" "{9}"' -f $config.transportPath, $config.approvalPath, $config.packageRoot, $config.finalConfirmationPath, $config.receiptRoot, $config.candidateRoot, $config.executionBindingPath, $config.materializationPath, $config.launcherBindingPath, $config.evidenceRoot)
+$preflight = Invoke-RouteBoundProcess $config.nodePath $preflightArguments
+if ($preflight.ExitCode -ne 0 -or -not ($preflight.Stdout -match 'R6_PRODUCTION_RECONCILIATION_OFFLINE_PREFLIGHT_READY')) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_OFFLINE_PREFLIGHT_FAILED' }
 . $CredentialBrokerPath
 $secret = $null; $ptr = [IntPtr]::Zero
 try {
@@ -35,6 +59,10 @@ try {
   $psi.RedirectStandardOutput = $false
   $psi.RedirectStandardError = $false
   $psi.EnvironmentVariables['PGPASSWORD'] = $plain
+  $psi.EnvironmentVariables['PGHOST'] = $route.pgHost
+  $psi.EnvironmentVariables['PGPORT'] = $route.pgPort
+  $psi.EnvironmentVariables['PGDATABASE'] = $route.pgDatabase
+  $psi.EnvironmentVariables['PGUSER'] = $route.pgUser
   $child = [Diagnostics.Process]::Start($psi)
   $child.WaitForExit()
   exit $child.ExitCode
