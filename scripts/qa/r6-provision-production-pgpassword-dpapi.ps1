@@ -1,5 +1,8 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
-param([switch]$Rotate)
+param(
+  [switch]$Rotate,
+  [switch]$TestOnlyReachSecureInputBoundary
+)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -17,11 +20,12 @@ function Assert-UnderSecretRoot([string]$Path) {
 
 if ($env:OS -ne 'Windows_NT') { Fail 'R6_DPAPI_CREDENTIAL_PROVIDER_WINDOWS_REQUIRED' }
 $resolvedSecretPath = Assert-UnderSecretRoot $SecretPath
-if (Test-Path -LiteralPath $resolvedSecretPath -PathType Leaf -and -not $Rotate) { Fail 'R6_DPAPI_CREDENTIAL_ALREADY_PROVISIONED' }
+if ((Test-Path -LiteralPath $resolvedSecretPath -PathType Leaf) -and -not $Rotate) { Fail 'R6_DPAPI_CREDENTIAL_ALREADY_PROVISIONED' }
 if (Test-Path -LiteralPath $resolvedSecretPath -PathType Container) { Fail 'R6_DPAPI_CREDENTIAL_PATH_INVALID' }
 New-Item -ItemType Directory -Path $SecretRoot -Force | Out-Null
 $directoryInfo = Get-Item -LiteralPath $SecretRoot -Force
 if (($directoryInfo.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Fail 'R6_DPAPI_CREDENTIAL_ROOT_REPARSE_FORBIDDEN' }
+if ($TestOnlyReachSecureInputBoundary) { Write-Output 'R6_DPAPI_PROVISIONING_SECURE_INPUT_BOUNDARY_REACHED'; exit 0 }
 
 $secret = Read-Host 'Production database password (hidden)' -AsSecureString
 try {
