@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$LauncherPath,
-  [Parameter(Mandatory = $true)][string]$ExpectedLauncherSha256
+  [Parameter(Mandatory = $true)][string]$ExpectedLauncherSha256,
+  [Parameter(Mandatory = $true)][string]$ExpectedCredentialBrokerSha256
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -12,5 +13,33 @@ function Get-Sha256([string]$Path) {
 }
 if (-not (Test-Path -LiteralPath $LauncherPath -PathType Leaf)) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_LAUNCHER_MISSING' }
 if ((Get-Sha256 $LauncherPath) -ne $ExpectedLauncherSha256) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_LAUNCHER_INTEGRITY_INVALID' }
-& $LauncherPath
-exit $LASTEXITCODE
+$CredentialBrokerPath = Join-Path $PSScriptRoot 'r6-production-dpapi-credential-broker.ps1'
+if (-not (Test-Path -LiteralPath $CredentialBrokerPath -PathType Leaf)) { throw 'R6_DPAPI_CREDENTIAL_BROKER_MISSING' }
+if ((Get-Sha256 $CredentialBrokerPath) -ne $ExpectedCredentialBrokerSha256) { throw 'R6_DPAPI_CREDENTIAL_BROKER_INTEGRITY_INVALID' }
+$launcherBytes = [IO.File]::ReadAllBytes($LauncherPath)
+$match = [regex]::Match([Text.Encoding]::UTF8.GetString($launcherBytes), 'FromBase64String\(''([^'']+)''\)')
+if (-not $match.Success) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_LAUNCHER_CONFIG_INVALID' }
+try { $config = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($match.Groups[1].Value)) | ConvertFrom-Json -ErrorAction Stop } catch { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_LAUNCHER_CONFIG_INVALID' }
+$preflight = & $config.nodePath $config.transportPath Preflight $config.approvalPath $config.packageRoot $config.finalConfirmationPath $config.receiptRoot $config.candidateRoot $config.executionBindingPath $config.materializationPath $config.launcherBindingPath $config.evidenceRoot 2>&1
+if ($LASTEXITCODE -ne 0 -or -not (($preflight | Out-String) -match 'R6_PRODUCTION_RECONCILIATION_OFFLINE_PREFLIGHT_READY')) { throw 'R6_PRODUCTION_RECONCILIATION_SECURE_WRAPPER_OFFLINE_PREFLIGHT_FAILED' }
+. $CredentialBrokerPath
+$secret = $null; $ptr = [IntPtr]::Zero
+try {
+  $secret = Get-R6ProductionPgPasswordSecureString
+  $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
+  $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+  $psi = New-Object Diagnostics.ProcessStartInfo
+  $psi.FileName = (Get-Command powershell.exe -CommandType Application -ErrorAction Stop).Source
+  $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$LauncherPath`""
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $false
+  $psi.RedirectStandardError = $false
+  $psi.EnvironmentVariables['PGPASSWORD'] = $plain
+  $child = [Diagnostics.Process]::Start($psi)
+  $child.WaitForExit()
+  exit $child.ExitCode
+} finally {
+  if ($ptr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+  if ($secret) { $secret.Dispose() }
+  Remove-Variable plain -ErrorAction SilentlyContinue
+}

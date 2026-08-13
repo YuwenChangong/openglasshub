@@ -13,8 +13,8 @@ assert.equal(authority.canonicalSecureWrapperSourceSha256, createHash("sha256").
 assert.equal(bytes.includes(0x0d), false, "canonical secure-wrapper template must remain LF-only in the checkout");
 assert.deepEqual(
   bytes,
-  execFileSync("git", ["show", `HEAD:${CANONICAL_SECURE_WRAPPER_SOURCE_RELATIVE_PATH}`]),
-  "canonical secure-wrapper template checkout bytes must equal its committed Git blob",
+  execFileSync("git", ["show", `:${CANONICAL_SECURE_WRAPPER_SOURCE_RELATIVE_PATH}`]),
+  "canonical secure-wrapper template checkout bytes must equal its staged Git blob",
 );
 execFileSync("powershell.exe", ["-NoProfile", "-Command", "[void][scriptblock]::Create([IO.File]::ReadAllText($env:R6_WRAPPER_SOURCE))"], { stdio: "pipe", env: { ...process.env, R6_WRAPPER_SOURCE: authority.canonicalSecureWrapperSourcePath } });
 const fakeRoot = await mkdtemp(path.join(os.tmpdir(), "r6-secure-wrapper-source-"));
@@ -26,5 +26,8 @@ try {
   assert.notEqual(tampered.canonicalSecureWrapperSourceSha256, authority.canonicalSecureWrapperSourceSha256);
   assert.equal(tampered.canonicalSecureWrapperSourcePath, fakeSource);
 } finally { await rm(fakeRoot, { recursive: true, force: true }); }
-assert.doesNotMatch(await readFile(authority.canonicalSecureWrapperSourcePath, "utf8"), /PGPASSWORD|start-r6-production-reconciliation-secure-session\.ps1|prepareFinalExecutionHistorical/);
+const wrapperSource = await readFile(authority.canonicalSecureWrapperSourcePath, "utf8");
+assert.match(wrapperSource, /ProcessStartInfo[\s\S]*EnvironmentVariables\['PGPASSWORD'\]/);
+assert.doesNotMatch(wrapperSource, /PGPASSWORD\s*=|setx|ConvertTo-SecureString\s+-AsPlainText/);
+assert.doesNotMatch(wrapperSource, /start-r6-production-reconciliation-secure-session\.ps1|prepareFinalExecutionHistorical/);
 console.log("R6_PRODUCTION_RECONCILIATION_CANONICAL_SECURE_WRAPPER_SOURCE_AUTHORITY_PASS");

@@ -503,7 +503,7 @@ export async function executeOnce({ approvalPath, repositoryRoot, packageRoot, c
 
 async function main() {
   const [mode, approvalPath, packageRoot, finalConfirmationPath, receiptRoot, candidateRoot, executionBindingPath, materializationPath, launcherBindingPath, evidenceRoot] = process.argv.slice(2);
-  if (mode !== "Execute" || ![approvalPath, packageRoot, finalConfirmationPath, receiptRoot, candidateRoot, executionBindingPath, materializationPath, launcherBindingPath, evidenceRoot].every(value => typeof value === "string" && value.length > 0)) fail("R6_PRODUCTION_RECONCILIATION_TRANSPORT_INPUT_INVALID");
+  if (!["Execute", "Preflight"].includes(mode) || ![approvalPath, packageRoot, finalConfirmationPath, receiptRoot, candidateRoot, executionBindingPath, materializationPath, launcherBindingPath, evidenceRoot].every(value => typeof value === "string" && value.length > 0)) fail("R6_PRODUCTION_RECONCILIATION_TRANSPORT_INPUT_INVALID");
   const transportSha256 = hash(await readFile(fileURLToPath(import.meta.url)));
   const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
   const materializationBytes = await readFile(materializationPath).catch(() => fail("R6_PRODUCTION_RECONCILIATION_MATERIALIZATION_V2_MISSING"));
@@ -513,6 +513,14 @@ async function main() {
   let binding;
   try { binding = await validateLauncherBindingV3AgainstCanonicalTemplate({ value: JSON.parse(bindingBytes), repositoryRoot }); } catch { fail("R6_PRODUCTION_RECONCILIATION_LAUNCHER_BINDING_V3_INVALID"); }
   if (binding.materializationSha256 !== hash(materializationBytes) || binding.executeApprovalSha256 !== materialization.executeApprovalSha256 || binding.finalExecutionAuthoritySha256 !== materialization.finalExecutionAuthoritySha256 || binding.sourceCommit !== materialization.sourceCommit || binding.packageId !== materialization.packageId || binding.expectedProjectRef !== materialization.expectedProjectRef || binding.canonicalLauncherTemplateSha256 !== materialization.canonicalLauncherTemplateSha256) fail("R6_PRODUCTION_RECONCILIATION_LAUNCHER_V3_LINEAGE_INVALID");
+  if (mode === "Preflight") {
+    const loaded = await loadExecuteApprovalV2({ approvalPath, repositoryRoot, packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath });
+    const authority = await loadCandidateAuthority({ candidateRoot });
+    const preflightBinding = await validateFinalExecutionBinding({ authorizationPath: authority.candidateArtifact.path, packageRoot, finalConfirmationPath, implementationCommit: loaded.approval.sourceCommit, launcherSha256: authority.candidate.transportLauncherSha256, transportSha256 });
+    const routing = validateRuntimeRoutingBeforeSqlClient({ expectedProjectRef: preflightBinding.candidate.expectedProjectRef, environment: process.env });
+    process.stdout.write(`${JSON.stringify({ classification: "R6_PRODUCTION_RECONCILIATION_OFFLINE_PREFLIGHT_READY", expectedProjectRef: routing.observedRoutingIdentity.parsedProjectRef, networkConnections: 0, sqlSubmissions: 0 })}${os.EOL}`);
+    return;
+  }
   const result = await executeWithFinalExecutionGate({ approvalPath, repositoryRoot, packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath, receiptRoot, evidenceRoot, transportSha256, clientFactory: () => createNativePsqlClient() });
   process.stdout.write(`${JSON.stringify(result)}${os.EOL}`);
 }

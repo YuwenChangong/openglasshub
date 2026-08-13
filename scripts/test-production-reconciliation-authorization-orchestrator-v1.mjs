@@ -22,6 +22,7 @@ function fakeTransport(resultPath, transportSha256) {
   return `import { writeFile } from "node:fs/promises";
 import { executeWithFinalExecutionGate } from ${JSON.stringify(transportUrl)};
 const [mode, approvalPath, packageRoot, finalConfirmationPath, receiptRoot, candidateRoot, executionBindingPath, materializationPath, launcherBindingPath, evidenceRoot] = process.argv.slice(2);
+if (mode === "Preflight") { process.stdout.write(JSON.stringify({ classification: "R6_PRODUCTION_RECONCILIATION_OFFLINE_PREFLIGHT_READY" }) + "\\n"); process.exit(0); }
 let calls = 0;
 const result = await executeWithFinalExecutionGate({ approvalPath, repositoryRoot: ${JSON.stringify(root)}, packageRoot, candidateRoot, finalConfirmationPath, executionBindingPath, receiptRoot, evidenceRoot, transportSha256: ${JSON.stringify(transportSha256)}, environment: process.env, sqlClientCapability: ${JSON.stringify(capability)}, clientFactory: () => { calls += 1; return { async targetProbe(){ return { outcome: "TARGET_FAILURE" }; }, async submitMigration(){ throw new Error("FAKE_SQL_MUST_NOT_RUN"); }, async postflight(){ throw new Error("FAKE_POSTFLIGHT_MUST_NOT_RUN"); } }; } });
 await writeFile(${JSON.stringify(resultPath)}, JSON.stringify({ classification: result.classification, factoryCalls: calls, sqlSubmitted: result.executionAttemptConsumed === true }) + "\\n");`;
@@ -58,7 +59,12 @@ try {
   await writeFile(external.readyPath, `${JSON.stringify({ ...badReady, sourceCommit: "a".repeat(40) })}\n`);
   await assert.rejects(() => loadExternalExecutionMaterializationReadyV1({ externalRoot, readyInventoryPath: external.readyPath }), /R6_EXTERNAL_READY_SOURCE_COMMIT_MISMATCH/);
   await writeFile(external.readyPath, `${JSON.stringify(badReady)}\n`);
-  execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", external.wrapperPath, "-LauncherPath", external.launcherPath, "-ExpectedLauncherSha256", ready.value.renderedLauncherObservedSha256], { cwd: root, env: { ...process.env, ...routing, PGPASSWORD: "R6_TEST_ONLY_FAKE_PASSWORD" }, stdio: ["ignore", "pipe", "pipe"] });
+  const fakePassword = "R6_TEST_ONLY_FAKE_PASSWORD";
+  const codePoints = [...fakePassword].map(char => char.charCodeAt(0)).join(",");
+  const brokerPath = path.join(externalRoot, "r6-production-dpapi-credential-broker.ps1");
+  await writeFile(brokerPath, `function Get-R6ProductionPgPasswordSecureString { $s = New-Object Security.SecureString; [char[]](${codePoints}) | ForEach-Object { $s.AppendChar($_) }; $s.MakeReadOnly(); return $s }\n`);
+  const brokerSha256 = hash(await readFile(brokerPath));
+  execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", external.wrapperPath, "-LauncherPath", external.launcherPath, "-ExpectedLauncherSha256", ready.value.renderedLauncherObservedSha256, "-ExpectedCredentialBrokerSha256", brokerSha256], { cwd: root, env: { ...process.env, ...routing }, stdio: ["ignore", "pipe", "pipe"] });
   const fake = JSON.parse(await readFile(resultPath, "utf8"));
   assert.equal(fake.classification, "R6_PRODUCTION_RECONCILIATION_TARGET_PROBE_FAILED");
   assert.equal(fake.factoryCalls, 1);

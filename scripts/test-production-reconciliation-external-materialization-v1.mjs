@@ -21,10 +21,12 @@ const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, enc
 
 function fakeTransportSource({ resultPath, transportSha256 }) {
   const transportUrl = pathToFileURL(path.join(root, "scripts", "qa", "r6-production-reconciliation-transport.mjs")).href;
-  return `import { writeFile } from "node:fs/promises";
+  return `import { createHash } from "node:crypto";
+import { writeFile } from "node:fs/promises";
 import { executeWithFinalExecutionGate } from ${JSON.stringify(transportUrl)};
 const [mode, approvalPath, packageRoot, finalConfirmationPath, receiptRoot, candidateRoot, executionBindingPath, materializationPath, launcherBindingPath, evidenceRoot] = process.argv.slice(2);
-if (mode !== "Execute") throw Object.assign(new Error("FAKE_TRANSPORT_INPUT_INVALID"), { code: "FAKE_TRANSPORT_INPUT_INVALID" });
+if (!["Execute", "Preflight"].includes(mode)) throw Object.assign(new Error("FAKE_TRANSPORT_INPUT_INVALID"), { code: "FAKE_TRANSPORT_INPUT_INVALID" });
+if (mode === "Preflight") { process.stdout.write(JSON.stringify({ classification: "R6_PRODUCTION_RECONCILIATION_OFFLINE_PREFLIGHT_READY" }) + "\\n"); process.exit(0); }
 let factoryCalls = 0;
 const result = await executeWithFinalExecutionGate({
   approvalPath, repositoryRoot: ${JSON.stringify(root)}, packageRoot, candidateRoot, finalConfirmationPath,
@@ -39,7 +41,7 @@ const result = await executeWithFinalExecutionGate({
     };
   },
 });
-await writeFile(${JSON.stringify(resultPath)}, JSON.stringify({ classification: result.classification, fakeSqlClientFactoryEntered: factoryCalls === 1, productionConnectionAttempted: false, sqlSubmitted: result.executionAttemptConsumed === true, productionMutationSubmissions: 0 }) + "\\n");
+await writeFile(${JSON.stringify(resultPath)}, JSON.stringify({ classification: result.classification, fakeSqlClientFactoryEntered: factoryCalls === 1, childSecretVisible: createHash("sha256").update(process.env.PGPASSWORD ?? "").digest("hex") === ${JSON.stringify(hash(fakePassword))}, productionConnectionAttempted: false, sqlSubmitted: result.executionAttemptConsumed === true, productionMutationSubmissions: 0 }) + "\\n");
 `;
 }
 
@@ -70,18 +72,23 @@ async function expectReadyReject(rootCase, patch, pattern) {
   await assert.rejects(readFile(rootCase.resultPath), /ENOENT/);
 }
 
-function invokeGeneratedWrapper(rootCase, environment) {
-  return execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", rootCase.ready.paths.wrapper, "-LauncherPath", rootCase.ready.paths.launcher, "-ExpectedLauncherSha256", rootCase.ready.value.renderedLauncherObservedSha256], {
-    cwd: root, env: { ...process.env, ...environment, PGPASSWORD: fakePassword }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+async function invokeGeneratedWrapper(rootCase, environment) {
+  const codePoints = [...fakePassword].map(char => char.charCodeAt(0)).join(",");
+  const materializedBrokerPath = path.join(rootCase.externalRoot, "r6-production-dpapi-credential-broker.ps1");
+  await writeFile(materializedBrokerPath, `function Get-R6ProductionPgPasswordSecureString { $s = New-Object Security.SecureString; [char[]](${codePoints}) | ForEach-Object { $s.AppendChar($_) }; $s.MakeReadOnly(); return $s }\n`);
+  const brokerSha256 = hash(await readFile(materializedBrokerPath));
+  return execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", rootCase.ready.paths.wrapper, "-LauncherPath", rootCase.ready.paths.launcher, "-ExpectedLauncherSha256", rootCase.ready.value.renderedLauncherObservedSha256, "-ExpectedCredentialBrokerSha256", brokerSha256], {
+    cwd: root, env: { ...process.env, ...environment }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
 try {
   const valid = await makeReady("valid");
-  const output = invokeGeneratedWrapper(valid, routing);
+  const output = await invokeGeneratedWrapper(valid, routing);
   const validResult = JSON.parse(await readFile(valid.resultPath, "utf8"));
   assert.equal(validResult.classification, "R6_PRODUCTION_RECONCILIATION_TARGET_PROBE_FAILED");
   assert.equal(validResult.fakeSqlClientFactoryEntered, true);
+  assert.equal(validResult.childSecretVisible, true);
   assert.equal(validResult.productionConnectionAttempted, false);
   assert.equal(validResult.sqlSubmitted, false);
   assert.equal(validResult.productionMutationSubmissions, 0);
@@ -89,7 +96,7 @@ try {
   for (const file of [valid.issued.wrapperPath, valid.issued.materializationPath, valid.issued.bindingPath, valid.issued.launcherPath, valid.issued.readyPath]) assert.doesNotMatch(await readFile(file, "utf8"), new RegExp(fakePassword));
 
   const wrongUser = await makeReady("wrong-user");
-  invokeGeneratedWrapper(wrongUser, { ...routing, PGUSER: "postgres.aaaaaaaaaaaaaaaaaaaa" });
+  await invokeGeneratedWrapper(wrongUser, { ...routing, PGUSER: "postgres.aaaaaaaaaaaaaaaaaaaa" });
   const wrongResult = JSON.parse(await readFile(wrongUser.resultPath, "utf8"));
   assert.equal(wrongResult.classification, "R6_PRODUCTION_RECONCILIATION_RUNTIME_ROUTING_PROJECT_REF_MISMATCH");
   assert.equal(wrongResult.fakeSqlClientFactoryEntered, false);
