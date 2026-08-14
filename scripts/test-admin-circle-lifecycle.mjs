@@ -76,6 +76,14 @@ const authorized = async () => ({ user: { id: "admin-user" }, profile: { role: "
 
 await test("migration permits exactly active hidden deleted", async () => {
   const migration = await fs.readFile(migrationPath, "utf8");
+  assert.match(migration, /pg_catalog\.pg_get_expr/i);
+  assert.match(migration, /ADMIN_CIRCLE_LIFECYCLE_SCHEMA_PRECONDITION_FAILED/);
+  assert.match(migration, /format_type\(attribute\.atttypid, attribute\.atttypmod\)/i);
+  assert.match(migration, /'''active''::text'/i);
+  assert.match(migration, /\[\[:space:\]\]\+/i);
+  assert.match(migration, /constraint_row\.convalidated/i);
+  assert.match(migration, /drop constraint circles_status_check;/i);
+  assert.doesNotMatch(migration, /drop constraint if exists circles_status_check/i);
   assert.match(migration, /check \(status in \('active', 'hidden', 'deleted'\)\)/i);
   assert.doesNotMatch(migration, /grant\s+(select|insert|update|delete)\s+on\s+table\s+public\.circles\s+to\s+service_role/i);
 });
@@ -83,9 +91,13 @@ await test("migration permits exactly active hidden deleted", async () => {
 await test("purge RPCs use hardened security definer grants", async () => {
   const migration = await fs.readFile(migrationPath, "utf8");
   for (const functionName of ["admin_circle_purge_preview_v1", "admin_purge_circle_v1"]) {
-    assert.match(migration, new RegExp(`create or replace function public\\.${functionName}[\\s\\S]*?security definer[\\s\\S]*?set search_path = ''`, "i"));
+    assert.match(migration, new RegExp(`create function public\\.${functionName}[\\s\\S]*?security definer[\\s\\S]*?set search_path = ''`, "i"));
+    assert.doesNotMatch(migration, new RegExp(`create or replace function public\\.${functionName}`, "i"));
+    assert.match(migration, new RegExp(`alter function public\\.${functionName}\\(uuid\\) owner to postgres;`, "i"));
     assert.match(migration, new RegExp(`revoke all on function public\\.${functionName}\\(uuid\\) from public;[\\s\\S]*?from anon;[\\s\\S]*?from authenticated;[\\s\\S]*?grant execute on function public\\.${functionName}\\(uuid\\) to service_role;`, "i"));
   }
+  assert.match(migration, /ADMIN_CIRCLE_LIFECYCLE_RPC_PRECONDITION_FAILED/);
+  assert.match(migration, /lock table public\.reports in share mode;/i);
 });
 
 await test("anonymous and ordinary callers are rejected before elevation", async () => {
