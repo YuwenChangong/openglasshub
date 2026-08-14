@@ -1,3 +1,6 @@
+import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
+
 interface GlassConfirmDialogProps {
   open: boolean;
   title: string;
@@ -27,13 +30,45 @@ export default function GlassConfirmDialog({
   onConfirm,
   onCancel,
 }: GlassConfirmDialogProps) {
-  if (!open) return null;
+  const titleId = useId();
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const loadingRef = useRef(loading);
+  const onCancelRef = useRef(onCancel);
 
-  return (
-    <div className="glass-confirm-backdrop" role="dialog" aria-modal="true" aria-labelledby="glass-confirm-title">
-      <div className="glass-confirm-dialog glass-modal">
+  useEffect(() => {
+    loadingRef.current = loading;
+    onCancelRef.current = onCancel;
+  }, [loading, onCancel]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !loadingRef.current) {
+        event.preventDefault();
+        onCancelRef.current();
+      }
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+    cancelButtonRef.current?.focus();
+
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      restoreFocusRef.current?.focus();
+    };
+  }, [open]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="glass-confirm-backdrop">
+      <div className="glass-confirm-dialog glass-modal" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="glass-confirm-header glass-modal__header">
-          <h3 id="glass-confirm-title">{title}</h3>
+          <h3 id={titleId}>{title}</h3>
           <p>{description}</p>
         </div>
         <div className="glass-confirm-body glass-modal__body">
@@ -46,6 +81,7 @@ export default function GlassConfirmDialog({
             className="community-button--secondary"
             onClick={onCancel}
             disabled={loading}
+            ref={cancelButtonRef}
           >
             {cancelLabel}
           </button>
@@ -59,6 +95,7 @@ export default function GlassConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
