@@ -71,12 +71,132 @@ begin
 end
 $$;
 
+do $$
+declare
+  validator_oid oid;
+  validator_owner text;
+  validator_language text;
+  validator_security_definer boolean;
+  validator_result text;
+  validator_definition text;
+  validator_trigger_count integer;
+  validator_trigger_relid oid;
+  validator_trigger_function oid;
+  validator_trigger_type smallint;
+  validator_trigger_attributes int2vector;
+begin
+  validator_oid := to_regprocedure('public.validate_report_target()');
+
+  if validator_oid is null then
+    raise exception 'ADMIN_CIRCLE_REPORT_VALIDATOR_PRECONDITION_FAILED';
+  end if;
+
+  select
+    pg_catalog.pg_get_userbyid(function_row.proowner),
+    language_row.lanname,
+    function_row.prosecdef,
+    pg_catalog.format_type(function_row.prorettype, null),
+    pg_catalog.pg_get_functiondef(function_row.oid)
+  into
+    validator_owner,
+    validator_language,
+    validator_security_definer,
+    validator_result,
+    validator_definition
+  from pg_catalog.pg_proc function_row
+  join pg_catalog.pg_namespace namespace on namespace.oid = function_row.pronamespace
+  join pg_catalog.pg_language language_row on language_row.oid = function_row.prolang
+  where function_row.oid = validator_oid
+    and namespace.nspname = 'public';
+
+  if validator_owner is distinct from 'postgres'
+     or validator_language is distinct from 'plpgsql'
+     or validator_security_definer
+     or validator_result is distinct from 'trigger'
+     or validator_definition is null
+     or regexp_replace(lower(validator_definition), '[[:space:]]+', '', 'g') not like '%createorreplacefunctionpublic.validate_report_target()%returnstriggerlanguageplpgsqlas%'
+     or regexp_replace(lower(validator_definition), '[[:space:]]+', '', 'g') not like '%iftg_op=''update''andnew.target_typeisnotdistinctfromold.target_typeandnew.target_idisnotdistinctfromold.target_idthenreturnnew;%'
+     or regexp_replace(lower(validator_definition), '[[:space:]]+', '', 'g') not like '%new.target_type=''post''%public.posts%'
+     or regexp_replace(lower(validator_definition), '[[:space:]]+', '', 'g') not like '%new.target_type=''comment''%public.comments%'
+     or regexp_replace(lower(validator_definition), '[[:space:]]+', '', 'g') not like '%new.target_type=''circle''%public.circles%'
+     or regexp_replace(lower(validator_definition), '[[:space:]]+', '', 'g') not like '%new.target_type=''user''%public.profiles%'
+     or regexp_replace(lower(validator_definition), '[[:space:]]+', '', 'g') like '%forkeyshare%' then
+    raise exception 'ADMIN_CIRCLE_REPORT_VALIDATOR_PRECONDITION_FAILED';
+  end if;
+
+  select count(*)
+  into validator_trigger_count
+  from pg_catalog.pg_trigger trigger_row
+  where trigger_row.tgname = 'trg_reports_validate_target'
+    and not trigger_row.tgisinternal;
+
+  if validator_trigger_count = 1 then
+    select trigger_row.tgrelid, trigger_row.tgfoid, trigger_row.tgtype, trigger_row.tgattr
+    into validator_trigger_relid, validator_trigger_function, validator_trigger_type, validator_trigger_attributes
+    from pg_catalog.pg_trigger trigger_row
+    where trigger_row.tgname = 'trg_reports_validate_target'
+      and not trigger_row.tgisinternal;
+  end if;
+
+  if validator_trigger_count <> 1
+     or validator_trigger_relid <> 'public.reports'::regclass
+     or validator_trigger_function <> validator_oid
+     or validator_trigger_type <> 23
+     or validator_trigger_attributes <> ''::int2vector then
+    raise exception 'ADMIN_CIRCLE_REPORT_VALIDATOR_PRECONDITION_FAILED';
+  end if;
+end
+$$;
+
 alter table public.circles
   drop constraint circles_status_check;
 
 alter table public.circles
   add constraint circles_status_check
   check (status in ('active', 'hidden', 'deleted'));
+
+create or replace function public.validate_report_target()
+returns trigger
+language plpgsql
+security invoker
+as $$
+begin
+  if tg_op = 'UPDATE'
+     and new.target_type is not distinct from old.target_type
+     and new.target_id is not distinct from old.target_id then
+    return new;
+  end if;
+
+  if new.target_type = 'post' and not exists (
+    select 1 from public.posts p where p.id = new.target_id
+  ) then
+    raise exception 'report target post % not found', new.target_id;
+  elsif new.target_type = 'comment' and not exists (
+    select 1 from public.comments c where c.id = new.target_id
+  ) then
+    raise exception 'report target comment % not found', new.target_id;
+  elsif new.target_type = 'circle' then
+    perform 1
+    from public.circles circle_row
+    where circle_row.id = new.target_id
+    for key share;
+
+    if not found then
+      raise exception 'report target circle % not found', new.target_id;
+    end if;
+  elsif new.target_type = 'user' and not exists (
+    select 1 from public.profiles profile_row where profile_row.id = new.target_id
+  ) then
+    raise exception 'report target user % not found', new.target_id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger trg_reports_validate_target on public.reports;
+create trigger trg_reports_validate_target
+before insert or update of target_type, target_id on public.reports
+for each row execute function public.validate_report_target();
 
 create function public.admin_circle_purge_preview_v1(circle_id uuid)
 returns table (
@@ -163,8 +283,6 @@ begin
     return query select false, 'CIRCLE_HAS_POSTS'::text;
     return;
   end if;
-
-  lock table public.reports in share mode;
 
   if exists (select 1 from public.reports where reports.target_type = 'circle' and reports.target_id = target_circle.id) then
     return query select false, 'CIRCLE_HAS_REPORTS'::text;

@@ -95,7 +95,10 @@ await test("purge RPCs use hardened security definer grants", async () => {
     assert.match(migration, new RegExp(`revoke all on function public\\.${functionName}\\(uuid\\) from public;[\\s\\S]*?from anon;[\\s\\S]*?from authenticated;[\\s\\S]*?grant execute on function public\\.${functionName}\\(uuid\\) to service_role;`, "i"));
   }
   assert.match(migration, /ADMIN_CIRCLE_LIFECYCLE_RPC_PRECONDITION_FAILED/);
-  assert.match(migration, /lock table public\.reports in share mode;/i);
+  assert.match(migration, /ADMIN_CIRCLE_REPORT_VALIDATOR_PRECONDITION_FAILED/);
+  assert.match(migration, /create or replace function public\.validate_report_target\(\)[\s\S]*?for key share;/i);
+  assert.match(migration, /before insert or update of target_type, target_id on public\.reports/i);
+  assert.doesNotMatch(migration, /lock table public\.reports in share mode;/i);
 });
 
 await test("anonymous and ordinary callers are rejected before elevation", async () => {
