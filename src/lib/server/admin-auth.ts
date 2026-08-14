@@ -13,8 +13,14 @@ export type ModeratorAuthResult = {
   client: SupabaseClient;
 };
 
+export type AdminAuthResult = ModeratorAuthResult;
+
 export function isModeratorRole(role: string | null | undefined): boolean {
   return role === "moderator" || role === "admin";
+}
+
+export function isAdminRole(role: string | null | undefined): boolean {
+  return role === "admin";
 }
 
 export function jsonResponse(data: unknown, status = 200): Response {
@@ -94,4 +100,13 @@ export async function requireModerator(request: Request, env: RuntimeEnv): Promi
     },
     client,
   };
+}
+
+export async function requireAdmin(request: Request, env: RuntimeEnv): Promise<AdminAuthResult> {
+  const auth = await requireModerator(request, env);
+  if (!isAdminRole(auth.profile.role)) {
+    throw jsonResponse({ error: "Forbidden", details: "profile role is not admin" }, 403);
+  }
+
+  return auth;
 }
