@@ -8,6 +8,10 @@ export const TRUSTED_ADMIN_CLIENT_AUTH_OPTIONS = {
   detectSessionInUrl: false,
 } as const;
 
+type ServerAdminClientOptions = {
+  onResponseStatus?: (status: number) => void;
+};
+
 export class TrustedAdminRuntimeError extends Error {
   public readonly code:
     | "TRUSTED_ADMIN_RUNTIME_SECRET_MISSING"
@@ -41,14 +45,29 @@ export function assertCanonicalSupabaseUrl(url: string): string {
   return parsed.origin;
 }
 
-export function createServerAdminSupabaseClient(env: RuntimeEnv): SupabaseClient {
+export function createServerAdminSupabaseClient(
+  env: RuntimeEnv,
+  options: ServerAdminClientOptions = {},
+): SupabaseClient {
   const secretKey = env.SUPABASE_SECRET_KEY?.trim();
   if (!secretKey) {
     throw new TrustedAdminRuntimeError("TRUSTED_ADMIN_RUNTIME_SECRET_MISSING");
   }
 
   const url = assertCanonicalSupabaseUrl(env.SUPABASE_URL ?? "");
-  return createClient(url, secretKey, {
+  const clientOptions: Parameters<typeof createClient>[2] = {
     auth: TRUSTED_ADMIN_CLIENT_AUTH_OPTIONS,
-  });
+  };
+
+  if (options.onResponseStatus) {
+    clientOptions.global = {
+      fetch: async (input, init) => {
+        const response = await globalThis.fetch(input, init);
+        options.onResponseStatus?.(response.status);
+        return response;
+      },
+    };
+  }
+
+  return createClient(url, secretKey, clientOptions);
 }

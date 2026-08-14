@@ -35,7 +35,7 @@ async function loadCapabilityHandler() {
 
 const canonicalEnv = {
   SUPABASE_URL: `https://${CANONICAL_SUPABASE_PROJECT_REF}.supabase.co`,
-  SUPABASE_SECRET_KEY: "fake-secret-key-for-test-only",
+  SUPABASE_SECRET_KEY: "sb_secret_test_only_not_a_real_key",
 };
 
 await test("canonical project URL is accepted", () => {
@@ -63,6 +63,14 @@ await test("admin client disables browser-oriented auth persistence", () => {
     detectSessionInUrl: false,
   });
   assert.ok(createServerAdminSupabaseClient(canonicalEnv));
+});
+
+await test("server admin client never configures incoming auth or browser headers", async () => {
+  const source = await fs.readFile(new URL("../src/lib/server/supabase-admin-client.server.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /Authorization/);
+  assert.doesNotMatch(source, /user-agent/i);
+  assert.doesNotMatch(source, /headers\s*:/);
+  assert.match(source, /createClient\(url, secretKey, clientOptions\)/);
 });
 
 function adminAuth() {
@@ -160,7 +168,7 @@ await test("authenticated admin succeeds with a fake elevated adapter after auth
   assert.deepEqual(order, ["authorize", "elevate", "probe:circles"]);
 });
 
-await test("elevated API-key rejection is returned as a safe probe classification", async () => {
+await test("elevated API-key rejection is returned as safe Data API metadata", async () => {
   const { handleTrustedAdminRuntimeCapability } = await loadCapabilityHandler();
   const response = await handleTrustedAdminRuntimeCapability(new Request("https://example.test"), canonicalEnv, {
     authorize: async () => adminAuth(),
@@ -169,7 +177,9 @@ await test("elevated API-key rejection is returned as a safe probe classificatio
   assert.equal(response.status, 500);
   assert.deepEqual(await response.json(), {
     error: "Trusted admin runtime capability probe failed",
-    code: "TRUSTED_RUNTIME_PROBE_AUTH_FAILED",
+    code: "TRUSTED_RUNTIME_PROBE_KEY_REJECTED",
+    status: null,
+    providerCode: "401",
   });
 });
 
