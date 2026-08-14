@@ -83,7 +83,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const env = (locals as RuntimeLocals).runtime?.env;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
-    const { client } = await requireModerator(request, env);
+    const { client } = await requireAdmin(request, env);
     const selectWithStatus =
       "id,slug,name,description,type,status,created_at,updated_at,image_path,owner_id,profiles:owner_id(id,username,display_name,avatar_url,role)";
     const selectWithoutStatus =
@@ -337,7 +337,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     }
     if (payload && "status" in payload) {
       const status = String(payload.status ?? "").trim();
-      if (!["active", "deleted"].includes(status)) return jsonResponse({ error: "Invalid circle status" }, 400);
+      if (!["active", "hidden", "deleted"].includes(status)) return jsonResponse({ error: "Invalid circle status" }, 400);
       updates.status = status;
     }
 

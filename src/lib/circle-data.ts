@@ -28,6 +28,7 @@ export async function fetchCirclesWithFallback(
   const extendedResult = await supabase
     .from("circles")
     .select("id, name, slug, description, created_at, status, image_path, owner_id")
+    .eq("status", "active")
     .order("name", { ascending: true });
 
   if (!extendedResult.error) {
@@ -71,6 +72,7 @@ export async function fetchCircleBySlugWithFallback(
     .from("circles")
     .select("id, name, slug, description, created_at, status, image_path, owner_id")
     .eq("slug", slug)
+    .eq("status", "active")
     .single();
 
   if (!extendedResult.error) {

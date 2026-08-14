@@ -12,7 +12,7 @@
     "test:astro-check-ratchet": "node scripts/test-astro-check-baseline-ratchet.mjs",
     "test:astro-check-ratchet-unit": "node scripts/test-astro-check-baseline-ratchet-unit.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
-    "test": "node --experimental-strip-types scripts/test-moderation.mjs && node --experimental-strip-types scripts/test-trusted-server-admin-runtime.mjs",
+    "test": "node --experimental-strip-types scripts/test-moderation.mjs && node --experimental-strip-types scripts/test-trusted-server-admin-runtime.mjs && node --experimental-strip-types scripts/test-admin-circle-lifecycle.mjs",
     "test:reports": "node --experimental-strip-types scripts/test-reports.mjs",
     "test:reports-audit": "node scripts/audit-reports.mjs --strict --verbose",
     "test:user-safety": "node --experimental-strip-types scripts/test-user-safety.mjs",

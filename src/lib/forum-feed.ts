@@ -170,9 +170,9 @@ async function loadCandidatePosts(
   limit: number,
 ) {
   const selectWithViewCount =
-    "id, author_id, title, body, type, status, created_at, last_activity_at, view_count, profiles:author_id(display_name, username), circles:circle_id(slug, name, status), post_media(*)";
+    "id, author_id, title, body, type, status, created_at, last_activity_at, view_count, profiles:author_id(display_name, username), circles:circle_id!inner(slug, name, status), post_media(*)";
   const selectWithoutViewCount =
-    "id, author_id, title, body, type, status, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name, status), post_media(*)";
+    "id, author_id, title, body, type, status, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id!inner(slug, name, status), post_media(*)";
 
   let circleId: string | null = null;
   if (circleSlug) {
@@ -187,6 +187,7 @@ async function loadCandidatePosts(
     .select(selectWithViewCount)
     .eq("status", "published")
     .eq("moderation_status", "published")
+    .eq("circles.status", "active")
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -204,6 +205,7 @@ async function loadCandidatePosts(
       .select(selectWithoutViewCount)
       .eq("status", "published")
       .eq("moderation_status", "published")
+      .eq("circles.status", "active")
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -233,9 +235,9 @@ async function loadLatestPostsPage(
   limit: number,
 ) {
   const selectWithViewCount =
-    "id, author_id, title, body, type, status, created_at, last_activity_at, view_count, profiles:author_id(display_name, username), circles:circle_id(slug, name, status), post_media(*)";
+    "id, author_id, title, body, type, status, created_at, last_activity_at, view_count, profiles:author_id(display_name, username), circles:circle_id!inner(slug, name, status), post_media(*)";
   const selectWithoutViewCount =
-    "id, author_id, title, body, type, status, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id(slug, name, status), post_media(*)";
+    "id, author_id, title, body, type, status, created_at, last_activity_at, profiles:author_id(display_name, username), circles:circle_id!inner(slug, name, status), post_media(*)";
 
   let circleId: string | null = null;
   if (circleSlug) {
@@ -253,6 +255,7 @@ async function loadLatestPostsPage(
     .select(selectWithViewCount)
     .eq("status", "published")
     .eq("moderation_status", "published")
+    .eq("circles.status", "active")
     .order("created_at", { ascending: false })
     .range(rangeFrom, rangeTo);
 
@@ -270,6 +273,7 @@ async function loadLatestPostsPage(
       .select(selectWithoutViewCount)
       .eq("status", "published")
       .eq("moderation_status", "published")
+      .eq("circles.status", "active")
       .order("created_at", { ascending: false })
       .range(rangeFrom, rangeTo);
 

@@ -33,7 +33,7 @@ export function isPublicVisibleCircle(input: { slug?: string | null; name?: stri
   const slug = input.slug?.toLowerCase() ?? "";
   const name = input.name?.toLowerCase() ?? "";
   const status = input.status?.toLowerCase() ?? "active";
-  if (status === "deleted") return false;
+  if (status !== "active") return false;
   if (hiddenPublicCircleSlugs.has(slug)) return false;
   if (name.includes("rls test")) return false;
   return true;

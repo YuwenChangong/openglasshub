@@ -37,14 +37,16 @@ if (supabase) {
   const [postResult, circleResult] = await Promise.all([
     supabase
       .from("posts")
-      .select("id,author_id,title,body,type,created_at,last_activity_at,circles:circle_id(slug,name),profiles:author_id(username,display_name),post_media(*)")
+      .select("id,author_id,title,body,type,created_at,last_activity_at,circles:circle_id!inner(slug,name,status),profiles:author_id(username,display_name),post_media(*)")
       .eq("status", "published")
       .eq("moderation_status", "published")
+      .eq("circles.status", "active")
       .order("created_at", { ascending: false })
       .limit(10),
     supabase
       .from("circles")
       .select("slug,name,description,status")
+      .eq("status", "active")
       .order("created_at", { ascending: false })
       .limit(8),
   ]);
