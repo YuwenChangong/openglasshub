@@ -10,7 +10,7 @@
     "preview": "astro preview",
     "astro": "astro",
     "smoke:production": "node scripts/smoke-production.mjs",
-    "test": "node --experimental-strip-types scripts/test-moderation.mjs && node --experimental-strip-types scripts/test-trusted-server-admin-runtime.mjs",
+    "test": "node --experimental-strip-types scripts/test-moderation.mjs && node --experimental-strip-types scripts/test-trusted-server-admin-runtime.mjs && node --experimental-strip-types scripts/test-admin-circle-lifecycle.mjs",
     "test:reports": "node --experimental-strip-types scripts/test-reports.mjs",
     "test:reports-audit": "node scripts/audit-reports.mjs --strict --verbose",
     "test:user-safety": "node --experimental-strip-types scripts/test-user-safety.mjs",

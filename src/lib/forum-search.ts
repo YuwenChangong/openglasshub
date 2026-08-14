@@ -377,7 +377,7 @@ async function fetchPublicProfiles(
     supabase
       .from("circles")
       .select("id,owner_id,slug,name,status")
-      .or("status.is.null,status.eq.active")
+      .eq("status", "active")
       .in("owner_id", profileIds)
       .limit(200),
   ]);

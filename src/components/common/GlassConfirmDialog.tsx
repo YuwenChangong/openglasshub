@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 interface GlassConfirmDialogProps {
@@ -12,6 +12,10 @@ interface GlassConfirmDialogProps {
   loading?: boolean;
   loadingLabel?: string;
   error?: string;
+  confirmationLabel?: string;
+  confirmationText?: string;
+  onConfirmationChange?: (value: string) => void;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -27,6 +31,10 @@ export default function GlassConfirmDialog({
   loading = false,
   loadingLabel = "处理中...",
   error = "",
+  confirmationLabel,
+  confirmationText,
+  onConfirmationChange,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: GlassConfirmDialogProps) {
@@ -35,6 +43,7 @@ export default function GlassConfirmDialog({
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const loadingRef = useRef(loading);
   const onCancelRef = useRef(onCancel);
+  const [confirmationValue, setConfirmationValue] = useState("");
 
   useEffect(() => {
     loadingRef.current = loading;
@@ -62,6 +71,10 @@ export default function GlassConfirmDialog({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) setConfirmationValue("");
+  }, [open]);
+
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
@@ -73,6 +86,20 @@ export default function GlassConfirmDialog({
         </div>
         <div className="glass-confirm-body glass-modal__body">
           {detail ? <p>{detail}</p> : null}
+          {confirmationText ? (
+            <label className="glass-confirm-confirmation">
+              <span>{confirmationLabel ?? "输入确认内容"}</span>
+              <input
+                className="community-input"
+                value={confirmationValue}
+                onChange={(event) => {
+                  setConfirmationValue(event.target.value);
+                  onConfirmationChange?.(event.target.value);
+                }}
+                autoComplete="off"
+              />
+            </label>
+          ) : null}
           {error ? <div className="comment-delete-error">{error}</div> : null}
         </div>
         <div className="glass-confirm-actions glass-modal__actions">
@@ -80,7 +107,7 @@ export default function GlassConfirmDialog({
             type="button"
             className="community-button--secondary"
             onClick={onCancel}
-            disabled={loading}
+            disabled={loading || confirmDisabled || Boolean(confirmationText && confirmationValue !== confirmationText)}
             ref={cancelButtonRef}
           >
             {cancelLabel}
