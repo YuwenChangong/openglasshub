@@ -73,7 +73,7 @@ function adminAuth() {
   };
 }
 
-function fakeElevatedClient(order) {
+function fakeElevatedClient(order, error = null) {
   return {
     from(table) {
       order.push(`probe:${table}`);
@@ -83,7 +83,7 @@ function fakeElevatedClient(order) {
           return {
             async limit(limit) {
               assert.equal(limit, 1);
-              return { error: null };
+              return { error };
             },
           };
         },
@@ -158,6 +158,19 @@ await test("authenticated admin succeeds with a fake elevated adapter after auth
     projectRefMatch: true,
   });
   assert.deepEqual(order, ["authorize", "elevate", "probe:circles"]);
+});
+
+await test("elevated API-key rejection is returned as a safe probe classification", async () => {
+  const { handleTrustedAdminRuntimeCapability } = await loadCapabilityHandler();
+  const response = await handleTrustedAdminRuntimeCapability(new Request("https://example.test"), canonicalEnv, {
+    authorize: async () => adminAuth(),
+    createAdminClient: () => fakeElevatedClient([], { code: "401", message: "Invalid API key" }),
+  });
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), {
+    error: "Trusted admin runtime capability probe failed",
+    code: "TRUSTED_RUNTIME_PROBE_AUTH_FAILED",
+  });
 });
 
 await test("server admin runtime stays outside client imports", async () => {

@@ -11,7 +11,8 @@ export const TRUSTED_ADMIN_CLIENT_AUTH_OPTIONS = {
 export class TrustedAdminRuntimeError extends Error {
   public readonly code:
     | "TRUSTED_ADMIN_RUNTIME_SECRET_MISSING"
-    | "TRUSTED_ADMIN_RUNTIME_PROJECT_MISMATCH";
+    | "TRUSTED_ADMIN_RUNTIME_PROJECT_MISMATCH"
+    | "TRUSTED_ADMIN_RUNTIME_CLIENT_CREATE_FAILED";
 
   constructor(code: TrustedAdminRuntimeError["code"]) {
     super(code);
