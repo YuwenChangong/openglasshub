@@ -5,14 +5,17 @@ import {
   TrustedAdminRuntimeError,
 } from "./supabase-admin-client.server";
 
+export type TrustedAdminRuntimeProbeCode =
+  | "TRUSTED_RUNTIME_PROBE_KEY_REJECTED"
+  | "TRUSTED_RUNTIME_DIRECT_TABLE_ACCESS_BLOCKED"
+  | "TRUSTED_RUNTIME_PROBE_AUTH_ADMIN_API_FAILED";
+
 class TrustedAdminRuntimeProbeError extends Error {
   public readonly status: number | null;
   public readonly providerCode: string | null;
 
   constructor(
-    public readonly code:
-      | "TRUSTED_RUNTIME_PROBE_KEY_REJECTED"
-      | "TRUSTED_RUNTIME_PROBE_DATA_API_FAILED",
+    public readonly code: TrustedAdminRuntimeProbeCode,
     status: number | null,
     providerCode: string | null,
   ) {
@@ -31,19 +34,40 @@ function safeProviderCode(value: unknown): string | null {
   return typeof value === "string" && /^[A-Za-z0-9_:-]{1,64}$/.test(value) ? value : null;
 }
 
+export function classifyTrustedAdminProbeFailure(params: {
+  responseStatus: number | null;
+  providerCode: unknown;
+  message: unknown;
+}): TrustedAdminRuntimeProbeCode {
+  const providerCode = safeProviderCode(params.providerCode);
+  if (providerCode === "42501") {
+    return "TRUSTED_RUNTIME_DIRECT_TABLE_ACCESS_BLOCKED";
+  }
+
+  const classification = `${providerCode ?? ""} ${typeof params.message === "string" ? params.message : ""}`.toLowerCase();
+  if (
+    params.responseStatus === 401 ||
+    params.responseStatus === 403 ||
+    /api.?key|invalid jwt|unauthorized|permission denied|not allowed/.test(classification)
+  ) {
+    return "TRUSTED_RUNTIME_PROBE_KEY_REJECTED";
+  }
+
+  return "TRUSTED_RUNTIME_PROBE_AUTH_ADMIN_API_FAILED";
+}
+
 async function runReadOnlyCapabilityProbe(
   client: SupabaseClient,
   responseStatus: { value: number | null },
 ): Promise<void> {
-  const { error } = await client.from("circles").select("id").limit(1);
+  const { error } = await client.auth.admin.listUsers({ page: 1, perPage: 1 });
   if (error) {
-    const classification = `${error.code ?? ""} ${error.message ?? ""}`.toLowerCase();
-    const keyRejected =
-      responseStatus.value === 401 ||
-      responseStatus.value === 403 ||
-      /api.?key|invalid jwt|unauthorized|permission denied|not allowed/.test(classification);
     throw new TrustedAdminRuntimeProbeError(
-      keyRejected ? "TRUSTED_RUNTIME_PROBE_KEY_REJECTED" : "TRUSTED_RUNTIME_PROBE_DATA_API_FAILED",
+      classifyTrustedAdminProbeFailure({
+        responseStatus: responseStatus.value,
+        providerCode: error.code,
+        message: error.message,
+      }),
       responseStatus.value,
       safeProviderCode(error.code),
     );
@@ -94,7 +118,7 @@ export async function handleTrustedAdminRuntimeCapability(
       );
     }
     return jsonResponse(
-      { error: "Trusted admin runtime capability probe failed", code: "TRUSTED_RUNTIME_PROBE_DATA_API_FAILED" },
+      { error: "Trusted admin runtime capability probe failed", code: "TRUSTED_RUNTIME_PROBE_AUTH_ADMIN_API_FAILED" },
       500,
     );
   }

@@ -83,19 +83,14 @@ function adminAuth() {
 
 function fakeElevatedClient(order, error = null) {
   return {
-    from(table) {
-      order.push(`probe:${table}`);
-      return {
-        select(columns) {
-          assert.equal(columns, "id");
-          return {
-            async limit(limit) {
-              assert.equal(limit, 1);
-              return { error };
-            },
-          };
+    auth: {
+      admin: {
+        async listUsers(params) {
+          assert.deepEqual(params, { page: 1, perPage: 1 });
+          order.push("probe:auth-admin-list-users");
+          return { error };
         },
-      };
+      },
     },
   };
 }
@@ -165,10 +160,10 @@ await test("authenticated admin succeeds with a fake elevated adapter after auth
     trustedAdminRuntime: true,
     projectRefMatch: true,
   });
-  assert.deepEqual(order, ["authorize", "elevate", "probe:circles"]);
+  assert.deepEqual(order, ["authorize", "elevate", "probe:auth-admin-list-users"]);
 });
 
-await test("elevated API-key rejection is returned as safe Data API metadata", async () => {
+await test("elevated API-key rejection is returned as safe Auth Admin metadata", async () => {
   const { handleTrustedAdminRuntimeCapability } = await loadCapabilityHandler();
   const response = await handleTrustedAdminRuntimeCapability(new Request("https://example.test"), canonicalEnv, {
     authorize: async () => adminAuth(),
@@ -181,6 +176,14 @@ await test("elevated API-key rejection is returned as safe Data API metadata", a
     status: null,
     providerCode: "401",
   });
+});
+
+await test("PostgreSQL 42501 is classified as intentional direct table restriction", async () => {
+  const { classifyTrustedAdminProbeFailure } = await loadCapabilityHandler();
+  assert.equal(
+    classifyTrustedAdminProbeFailure({ responseStatus: 403, providerCode: "42501", message: "permission denied" }),
+    "TRUSTED_RUNTIME_DIRECT_TABLE_ACCESS_BLOCKED",
+  );
 });
 
 await test("server admin runtime stays outside client imports", async () => {
