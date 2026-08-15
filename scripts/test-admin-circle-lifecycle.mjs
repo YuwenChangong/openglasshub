@@ -16,7 +16,10 @@ function test(name, run) {
 
 const vite = await createServer({ root, server: { middlewareMode: true }, appType: "custom" });
 const { handleAdminCirclePurge } = await vite.ssrLoadModule("/src/lib/server/admin-circle-purge.server.ts");
-const { getGlassConfirmDialogButtonState } = await vite.ssrLoadModule("/src/components/common/GlassConfirmDialog.tsx");
+const {
+  getGlassConfirmDialogButtonState,
+  shouldCloseGlassConfirmDialogOnEscape,
+} = await vite.ssrLoadModule("/src/components/common/GlassConfirmDialog.tsx");
 
 const env = {
   SUPABASE_URL: "https://xcbnxzjlsvtgzixurcof.supabase.co",
@@ -189,6 +192,9 @@ await test("typed purge confirmation keeps cancel available and gates confirm ex
     getGlassConfirmDialogButtonState({ loading: true, confirmDisabled: false, confirmationText: expected, confirmationValue: expected }),
     { cancelDisabled: true, confirmDisabled: true },
   );
+  assert.equal(shouldCloseGlassConfirmDialogOnEscape("Escape", false), true);
+  assert.equal(shouldCloseGlassConfirmDialogOnEscape("Escape", true), false);
+  assert.equal(shouldCloseGlassConfirmDialogOnEscape("Enter", false), false);
 });
 
 await test("storage failure prevents database purge", async () => {

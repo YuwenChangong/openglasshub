@@ -34,6 +34,10 @@ export function getGlassConfirmDialogButtonState({
   };
 }
 
+export function shouldCloseGlassConfirmDialogOnEscape(key: string, loading: boolean) {
+  return key === "Escape" && !loading;
+}
+
 export default function GlassConfirmDialog({
   open,
   title,
@@ -70,10 +74,10 @@ export default function GlassConfirmDialog({
     restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !loadingRef.current) {
-        event.preventDefault();
-        onCancelRef.current();
-      }
+      if (!shouldCloseGlassConfirmDialogOnEscape(event.key, loadingRef.current)) return;
+
+      event.preventDefault();
+      onCancelRef.current();
     };
 
     document.addEventListener("keydown", closeOnEscape);
