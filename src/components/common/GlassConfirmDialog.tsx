@@ -20,6 +20,20 @@ interface GlassConfirmDialogProps {
   onCancel: () => void;
 }
 
+export function getGlassConfirmDialogButtonState({
+  loading,
+  confirmDisabled,
+  confirmationText,
+  confirmationValue,
+}: Pick<GlassConfirmDialogProps, "loading" | "confirmDisabled" | "confirmationText"> & { confirmationValue: string }) {
+  const confirmationMismatch = Boolean(confirmationText && confirmationValue !== confirmationText);
+
+  return {
+    cancelDisabled: Boolean(loading),
+    confirmDisabled: Boolean(loading || confirmDisabled || confirmationMismatch),
+  };
+}
+
 export default function GlassConfirmDialog({
   open,
   title,
@@ -77,6 +91,13 @@ export default function GlassConfirmDialog({
 
   if (!open || typeof document === "undefined") return null;
 
+  const buttonState = getGlassConfirmDialogButtonState({
+    loading,
+    confirmDisabled,
+    confirmationText,
+    confirmationValue,
+  });
+
   return createPortal(
     <div className="glass-confirm-backdrop">
       <div className="glass-confirm-dialog glass-modal" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
@@ -107,7 +128,7 @@ export default function GlassConfirmDialog({
             type="button"
             className="community-button--secondary"
             onClick={onCancel}
-            disabled={loading || confirmDisabled || Boolean(confirmationText && confirmationValue !== confirmationText)}
+            disabled={buttonState.cancelDisabled}
             ref={cancelButtonRef}
           >
             {cancelLabel}
@@ -116,7 +137,7 @@ export default function GlassConfirmDialog({
             type="button"
             className={danger ? "community-button admin-action-danger" : "community-button"}
             onClick={onConfirm}
-            disabled={loading}
+            disabled={buttonState.confirmDisabled}
           >
             {loading ? loadingLabel : confirmLabel}
           </button>

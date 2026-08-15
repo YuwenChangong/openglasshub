@@ -16,6 +16,7 @@ function test(name, run) {
 
 const vite = await createServer({ root, server: { middlewareMode: true }, appType: "custom" });
 const { handleAdminCirclePurge } = await vite.ssrLoadModule("/src/lib/server/admin-circle-purge.server.ts");
+const { getGlassConfirmDialogButtonState } = await vite.ssrLoadModule("/src/components/common/GlassConfirmDialog.tsx");
 
 const env = {
   SUPABASE_URL: "https://xcbnxzjlsvtgzixurcof.supabase.co",
@@ -168,6 +169,28 @@ await test("purge is blocked by posts and reports", async () => {
   }
 });
 
+await test("typed purge confirmation keeps cancel available and gates confirm exactly", async () => {
+  const expected = "CIRCLETST-1782617673014 Circle";
+  for (const value of ["", "CIRCLETST", "circletst-1782617673014 circle"]) {
+    assert.deepEqual(
+      getGlassConfirmDialogButtonState({ loading: false, confirmDisabled: false, confirmationText: expected, confirmationValue: value }),
+      { cancelDisabled: false, confirmDisabled: true },
+    );
+  }
+  assert.deepEqual(
+    getGlassConfirmDialogButtonState({ loading: false, confirmDisabled: false, confirmationText: expected, confirmationValue: expected }),
+    { cancelDisabled: false, confirmDisabled: false },
+  );
+  assert.deepEqual(
+    getGlassConfirmDialogButtonState({ loading: false, confirmDisabled: true, confirmationText: expected, confirmationValue: expected }),
+    { cancelDisabled: false, confirmDisabled: true },
+  );
+  assert.deepEqual(
+    getGlassConfirmDialogButtonState({ loading: true, confirmDisabled: false, confirmationText: expected, confirmationValue: expected }),
+    { cancelDisabled: true, confirmDisabled: true },
+  );
+});
+
 await test("storage failure prevents database purge", async () => {
   const client = fakeClient({ previewRow: preview({ image_path: "circle-covers/admin/cover.webp" }), storageError: { message: "failed" } });
   const response = await handleAdminCirclePurge(request({ action: "purge", confirmationName: "Disposable Circle" }), env, { authorize: authorized, createAdminClient: () => client });
@@ -182,6 +205,15 @@ await test("dependency-free deleted circle purges only after exact confirmation"
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { result: { purged: true, reasonCode: "PURGED" } });
   assert.equal(client.calls.purge, 1);
+});
+
+await test("server rejects a programmatic wrong-name purge before mutation", async () => {
+  const client = fakeClient({ previewRow: preview() });
+  const response = await handleAdminCirclePurge(request({ action: "purge", confirmationName: "Disposable" }), env, { authorize: authorized, createAdminClient: () => client });
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "PURGE_CONFIRMATION_NAME_MISMATCH" });
+  assert.equal(client.calls.purge, 0);
+  assert.equal(client.calls.storage, 0);
 });
 
 await test("public visibility accepts active circles only", async () => {
