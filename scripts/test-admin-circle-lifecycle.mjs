@@ -155,6 +155,58 @@ await test("feed uses active-circle inner joins without changing public filterin
   assert.match(source, /filterPublicVisibleFeedPosts/);
 });
 
+await test("admin circles GET resolves and invokes the strict admin guard", async () => {
+  const authModuleId = "\0admin-circles-get-runtime-auth";
+  const getClient = {
+    from: () => ({
+      select: () => ({
+        order: async () => ({ data: [], error: null }),
+      }),
+    }),
+  };
+  globalThis.__adminCirclesGetAuthHit = false;
+  globalThis.__adminCirclesGetClient = getClient;
+
+  const isolatedVite = await createServer({
+    root,
+    server: { middlewareMode: true },
+    appType: "custom",
+    plugins: [{
+      name: "admin-circles-get-runtime-auth",
+      enforce: "pre",
+      resolveId(id, importer) {
+        if (id === "../../../../lib/server/admin-auth" && importer?.endsWith("/src/pages/api/admin/forum/circles.ts")) {
+          return authModuleId;
+        }
+        return null;
+      },
+      load(id) {
+        if (id !== authModuleId) return null;
+        return `
+          export const jsonResponse = (data, status = 200) => new Response(JSON.stringify(data), { status });
+          export const requireAdmin = async () => {
+            globalThis.__adminCirclesGetAuthHit = true;
+            return { user: { id: "admin-user" }, profile: { role: "admin" }, client: globalThis.__adminCirclesGetClient };
+          };
+          export const requireModerator = requireAdmin;
+        `;
+      },
+    }],
+  });
+
+  try {
+    const { GET } = await isolatedVite.ssrLoadModule("/src/pages/api/admin/forum/circles.ts");
+    const response = await GET({ request: new Request("https://example.test/api/admin/forum/circles"), locals: { runtime: { env: {} } } });
+    assert.equal(globalThis.__adminCirclesGetAuthHit, true);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { circles: [] });
+  } finally {
+    delete globalThis.__adminCirclesGetAuthHit;
+    delete globalThis.__adminCirclesGetClient;
+    await isolatedVite.close();
+  }
+});
+
 await test("purge preview rejects non-deleted circles", async () => {
   const client = fakeClient({ previewRow: preview({ current_status: "active", allowed: false, reason_code: "CIRCLE_NOT_DELETED" }) });
   const response = await handleAdminCirclePurge(request({ action: "preview" }), env, { authorize: authorized, createAdminClient: () => client });

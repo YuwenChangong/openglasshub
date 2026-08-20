@@ -9,7 +9,7 @@ import {
 } from "../../../../lib/moderation/moderate-content.server";
 import { createSignedModerationUrls, removeStoragePathIfAllowed } from "../../../../lib/moderation/moderation-media.server";
 import { buildModerationProviderInput, isOpenAICircleCoverModerationEnabled } from "../../../../lib/moderation/moderation-provider.server";
-import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
+import { jsonResponse, requireAdmin, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
 import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
 import { createLegalConsentReadRepository } from "../../../../lib/server/legal-consent-repository.server";
 
