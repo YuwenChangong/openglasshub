@@ -2879,6 +2879,9 @@ body {
 
 .glass-confirm-dialog {
   width: min(100%, 32rem);
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
 }
 
 .glass-confirm-header,

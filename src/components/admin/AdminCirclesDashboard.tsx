@@ -34,6 +34,21 @@ type CirclePayload = {
   error?: string;
 };
 
+type CircleStatus = "active" | "hidden" | "deleted";
+type CircleFilter = "all" | CircleStatus;
+type PurgePreview = {
+  circleExists: boolean;
+  status: string | null;
+  name: string | null;
+  postCount: number;
+  circleReportCount: number;
+  hasCover: boolean;
+  allowed: boolean;
+  reasonCode: string;
+};
+
+type PurgePayload = { preview?: PurgePreview; result?: { purged: boolean; reasonCode: string }; error?: string };
+
 type CircleDraft = {
   name: string;
   description: string;
@@ -73,6 +88,21 @@ function ownerHref(circle: CircleRecord) {
   });
 }
 
+function statusLabel(status: string) {
+  if (status === "active") return "正常使用";
+  if (status === "hidden") return "已隐藏";
+  if (status === "deleted") return "已删除";
+  return status;
+}
+
+function purgeReasonLabel(reasonCode: string) {
+  if (reasonCode === "CIRCLE_NOT_DELETED") return "只有已删除的圈子可以永久删除。";
+  if (reasonCode === "CIRCLE_HAS_POSTS") return "该圈子仍有帖子，不能永久删除。";
+  if (reasonCode === "CIRCLE_HAS_REPORTS") return "该圈子仍有关联举报记录，不能永久删除。";
+  if (reasonCode === "CIRCLE_NOT_FOUND") return "圈子不存在或已被删除。";
+  return "当前状态不允许永久删除。";
+}
+
 export default function AdminCirclesDashboard() {
   const adminSession = useAdminSession();
   const [circles, setCircles] = useState<CircleRecord[]>([]);
@@ -85,7 +115,13 @@ export default function AdminCirclesDashboard() {
   const [createDescription, setCreateDescription] = useState("");
   const [createType, setCreateType] = useState<(typeof circleTypes)[number]["value"]>("topic");
   const [createImage, setCreateImage] = useState<File | null>(null);
-  const [confirmCircleAction, setConfirmCircleAction] = useState<{ id: string; name: string; nextStatus: "active" | "deleted" } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<CircleFilter>("active");
+  const [confirmCircleAction, setConfirmCircleAction] = useState<
+    | { kind: "status"; id: string; name: string; nextStatus: CircleStatus }
+    | { kind: "purge"; id: string; name: string; preview: PurgePreview }
+    | null
+  >(null);
+  const [purgeConfirmationName, setPurgeConfirmationName] = useState("");
 
   const accessToken = adminSession.session?.access_token ?? "";
 
@@ -257,7 +293,7 @@ export default function AdminCirclesDashboard() {
     }
   }
 
-  async function updateCircleStatus(circleId: string, status: "active" | "deleted") {
+  async function updateCircleStatus(circleId: string, status: CircleStatus) {
     if (!adminSession.session) return;
     setLoadingId(circleId);
     setError("");
@@ -274,9 +310,53 @@ export default function AdminCirclesDashboard() {
       if (payload.circle) {
         setCircles((current) => current.map((circle) => (circle.id === circleId ? { ...circle, ...payload.circle } as CircleRecord : circle)));
       }
-      setSuccess(status === "deleted" ? "圈子已删除。" : "圈子已恢复。");
+      setSuccess(status === "deleted" ? "圈子已删除。" : status === "hidden" ? "圈子已隐藏。" : "圈子已恢复显示。");
     } catch (requestError) {
       setError(mapCircleError(requestError instanceof Error ? requestError.message : "更新圈子状态失败"));
+    } finally {
+      setLoadingId(null);
+    }
+  }
+
+  async function startPurge(circle: CircleRecord) {
+    if (!adminSession.session) return;
+    setLoadingId(circle.id);
+    setError("");
+    setSuccess("");
+    try {
+      const payload = await adminFetch<PurgePayload>("/api/admin/forum/circles/purge", {
+        method: "POST",
+        session: adminSession.session,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: circle.id, action: "preview" }),
+      });
+      if (!payload.preview) throw new Error("PURGE_PREVIEW_INVALID");
+      setPurgeConfirmationName("");
+      setConfirmCircleAction({ kind: "purge", id: circle.id, name: circle.name, preview: payload.preview });
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "无法读取永久删除预检");
+    } finally {
+      setLoadingId(null);
+    }
+  }
+
+  async function purgeCircle(action: Extract<NonNullable<typeof confirmCircleAction>, { kind: "purge" }>) {
+    if (!adminSession.session) return;
+    setLoadingId(action.id);
+    setError("");
+    try {
+      const payload = await adminFetch<PurgePayload>("/api/admin/forum/circles/purge", {
+        method: "POST",
+        session: adminSession.session,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: action.id, action: "purge", confirmationName: purgeConfirmationName }),
+      });
+      if (!payload.result?.purged) throw new Error(payload.result?.reasonCode ?? "PURGE_NOT_COMPLETED");
+      setCircles((current) => current.filter((circle) => circle.id !== action.id));
+      setSuccess("圈子已永久删除。");
+      setConfirmCircleAction(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "永久删除失败");
     } finally {
       setLoadingId(null);
     }
@@ -304,6 +384,19 @@ export default function AdminCirclesDashboard() {
 
       <div className="admin-user-line">
         当前管理员：{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || adminSession.me?.user_id} · 角色 {adminSession.me?.role}
+      </div>
+
+      <div className="admin-inline-actions" role="tablist" aria-label="圈子状态筛选">
+        {([
+          ["all", "全部"],
+          ["active", "正常使用"],
+          ["hidden", "已隐藏"],
+          ["deleted", "已删除"],
+        ] as Array<[CircleFilter, string]>).map(([filter, label]) => (
+          <button key={filter} type="button" className={statusFilter === filter ? "community-button" : "community-button--secondary"} onClick={() => setStatusFilter(filter)}>
+            {label} {filter === "all" ? circles.length : circles.filter((circle) => circle.status === filter).length}
+          </button>
+        ))}
       </div>
 
       <div className="community-list" style={{ gap: "0.8rem", marginTop: "0.8rem" }}>
@@ -341,7 +434,7 @@ export default function AdminCirclesDashboard() {
         {error ? <div className="admin-error">{error}</div> : null}
         {success ? <div className="admin-inline-success">{success}</div> : null}
 
-        {circles.map((circle) => {
+        {circles.filter((circle) => statusFilter === "all" || circle.status === statusFilter).map((circle) => {
           const draft = drafts[circle.id] ?? {
             name: circle.name,
             description: circle.description ?? "",
@@ -358,7 +451,7 @@ export default function AdminCirclesDashboard() {
               ) : null}
               <div className="admin-action-row">
                 <strong>{circle.name}</strong>
-                <span className={`admin-status-badge admin-status-${circle.status}`}>{circle.status}</span>
+                <span className={`admin-status-badge admin-status-${circle.status}`}>{statusLabel(circle.status)}</span>
                 <span className="admin-status-badge">{circle.type}</span>
               </div>
               <div className="admin-meta-grid">
@@ -426,7 +519,18 @@ export default function AdminCirclesDashboard() {
                 <button type="button" className="admin-action-button" onClick={() => void updateCover(circle, null)} disabled={rowLoading}>
                   清除封面
                 </button>
-                {circle.status === "deleted" ? (
+                {circle.status === "active" ? (
+                  <>
+                    <button type="button" className="admin-action-button" onClick={() => void updateCircleStatus(circle.id, "hidden")} disabled={rowLoading}>隐藏</button>
+                    <button type="button" className="admin-action-button admin-action-danger" onClick={() => setConfirmCircleAction({ kind: "status", id: circle.id, name: circle.name, nextStatus: "deleted" })} disabled={rowLoading}>删除</button>
+                  </>
+                ) : circle.status === "hidden" ? (
+                  <>
+                    <button type="button" className="admin-action-button" onClick={() => void updateCircleStatus(circle.id, "active")} disabled={rowLoading}>恢复显示</button>
+                    <button type="button" className="admin-action-button admin-action-danger" onClick={() => setConfirmCircleAction({ kind: "status", id: circle.id, name: circle.name, nextStatus: "deleted" })} disabled={rowLoading}>删除</button>
+                  </>
+                ) : (
+                  <>
                   <button
                     type="button"
                     className="admin-action-button"
@@ -435,18 +539,18 @@ export default function AdminCirclesDashboard() {
                   >
                     恢复圈子
                   </button>
-                ) : (
                   <button
                     type="button"
                     className="admin-action-button admin-action-danger"
-                    onClick={() => setConfirmCircleAction({ id: circle.id, name: circle.name, nextStatus: "deleted" })}
+                    onClick={() => void startPurge(circle)}
                     disabled={rowLoading}
                   >
-                    删除圈子
+                    永久删除
                   </button>
+                  </>
                 )}
                 <a href={`/circles/${circle.slug}/manage/`} className="admin-action-button">管理帖子和评论</a>
-                {circle.status === "deleted" ? (
+                {circle.status !== "active" ? (
                   <span className="admin-action-button" aria-disabled="true">公开页已隐藏</span>
                 ) : (
                   <a href={`/circles/${circle.slug}/`} className="admin-action-button">查看公开页</a>
@@ -459,20 +563,28 @@ export default function AdminCirclesDashboard() {
 
       <GlassConfirmDialog
         open={!!confirmCircleAction}
-        title="确认删除圈子"
-        description="删除后圈子会从公开列表、圈子详情和发帖选择器中隐藏，但数据库记录仍会保留。"
-        detail={confirmCircleAction ? `目标：${confirmCircleAction.name}` : ""}
-        confirmLabel="确认删除圈子"
+        title={confirmCircleAction?.kind === "purge" ? "永久删除" : "确认删除圈子"}
+        description={confirmCircleAction?.kind === "purge" ? "此操作无法恢复。只有不存在帖子和圈子举报记录时才能继续。" : "删除后圈子会从公开列表、圈子详情和发帖选择器中隐藏，但数据库记录仍会保留。"}
+        detail={confirmCircleAction?.kind === "purge" ? `帖子: ${confirmCircleAction.preview.postCount} · 举报记录: ${confirmCircleAction.preview.circleReportCount} · 封面: ${confirmCircleAction.preview.hasCover ? "有" : "无"}${confirmCircleAction.preview.allowed ? "" : ` · ${purgeReasonLabel(confirmCircleAction.preview.reasonCode)}`}` : confirmCircleAction ? `目标：${confirmCircleAction.name}` : ""}
+        confirmLabel={confirmCircleAction?.kind === "purge" ? "确认永久删除" : "确认删除圈子"}
         cancelLabel="取消"
         danger={true}
         loading={!!confirmCircleAction && loadingId === confirmCircleAction.id}
         error=""
-        onCancel={() => setConfirmCircleAction(null)}
+        confirmationLabel={confirmCircleAction?.kind === "purge" && confirmCircleAction.preview.allowed ? `输入圈子名称以确认：${confirmCircleAction.name}` : undefined}
+        confirmationText={confirmCircleAction?.kind === "purge" && confirmCircleAction.preview.allowed ? confirmCircleAction.name : undefined}
+        confirmDisabled={confirmCircleAction?.kind === "purge" && !confirmCircleAction.preview.allowed}
+        onConfirmationChange={setPurgeConfirmationName}
+        onCancel={() => { setConfirmCircleAction(null); setPurgeConfirmationName(""); }}
         onConfirm={() => {
           if (!confirmCircleAction) return;
           void (async () => {
-            await updateCircleStatus(confirmCircleAction.id, confirmCircleAction.nextStatus);
-            setConfirmCircleAction(null);
+            if (confirmCircleAction.kind === "purge") {
+              await purgeCircle(confirmCircleAction);
+            } else {
+              await updateCircleStatus(confirmCircleAction.id, confirmCircleAction.nextStatus);
+              setConfirmCircleAction(null);
+            }
           })();
         }}
       />

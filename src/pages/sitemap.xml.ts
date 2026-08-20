@@ -115,6 +115,7 @@ export const GET: APIRoute = async ({ locals }) => {
       supabase
         .from("circles")
         .select("slug, status, updated_at, created_at, name")
+        .eq("status", "active")
         .limit(200)
         .order("updated_at", { ascending: false }),
       supabase
