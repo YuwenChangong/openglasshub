@@ -136,10 +136,16 @@ await test("moderators cannot reach elevated purge preview or hard purge", async
 
 await test("ordinary circle operations retain main moderator and legal-consent guards", async () => {
   const source = await fs.readFile(circlesApiPath, "utf8");
-  assert.match(source, /requireModerator/);
-  assert.match(source, /requireAuthenticatedLegalConsent/);
+  for (const operation of ["POST", "PATCH"]) {
+    const start = source.indexOf(`export const ${operation}:`);
+    assert.notEqual(start, -1);
+    const nextRoute = source.indexOf("export const ", start + 1);
+    const handler = source.slice(start, nextRoute === -1 ? undefined : nextRoute);
+    assert.match(handler, /requireModerator\(request, env\)/);
+    assert.match(handler, /requireAuthenticatedLegalConsent/);
+    assert.doesNotMatch(handler, /requireAdmin\(request, env\)/);
+  }
   assert.match(source, /createLegalConsentReadRepository/);
-  assert.doesNotMatch(source, /requireAdmin\(request, env\)/);
 });
 
 await test("feed uses active-circle inner joins without changing public filtering", async () => {
@@ -198,7 +204,7 @@ await test("typed purge confirmation keeps cancel available and gates confirm ex
 });
 
 await test("storage failure prevents database purge", async () => {
-  const client = fakeClient({ previewRow: preview({ image_path: "circle-covers/admin/cover.webp" }), storageError: { message: "failed" } });
+  const client = fakeClient({ previewRow: preview({ image_path: "circle-covers/11111111-1111-4111-8111-111111111111/1752451200000-cover.webp" }), storageError: { message: "failed" } });
   const response = await handleAdminCirclePurge(request({ action: "purge", confirmationName: "Disposable Circle" }), env, { authorize: authorized, createAdminClient: () => client });
   assert.equal(response.status, 502);
   assert.equal(client.calls.storage, 1);
