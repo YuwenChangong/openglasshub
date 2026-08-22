@@ -64,17 +64,15 @@ Every policy revision should go through:
 - visual review on desktop and mobile
 - qualified lawyer review before public launch
 
-The `16+` rule is a platform policy, not a universal legal-compliance guarantee. Users remain subject to mandatory applicable local laws.
+The current policy bundle has no active age gate. `minimum_age = 0` is recorded as non-gating metadata; any future positive threshold requires separate policy and legal review. Users remain subject to mandatory applicable local laws.
 
 ## Deferred follow-up phases
 
-Phase 2:
-- one combined, unchecked-by-default `16+` acknowledgement checkbox on every password login and registration attempt
-- agreement to the Terms of Service and Community Guidelines, plus acknowledgement of the Privacy Policy
-- separate, keyboard-accessible policy links within that one checkbox label
-- frontend/auth-entry enforcement only, with no server acceptance record, localStorage proof, or cookie proof
-- password recovery and resend confirmation remain recovery/verification actions, not acceptance
-- policy links open without submitting or changing the current auth mode
+Retired auth-entry attestation design:
+
+- The prior hard-coded age acknowledgement is not part of the current product contract.
+- Current auth entry preserves agreement to the Terms of Service and Community Guidelines, plus acknowledgement of the Privacy Policy.
+- Password recovery and resend confirmation remain recovery/verification actions, not acceptance.
 
 Phase 3:
 - Phase 3A now defines a versioned `legal_policy_acceptances` history table. It keeps one row per user and policy bundle, preserves old bundle rows, and reconfirms the active bundle by updating confirmation metadata only.

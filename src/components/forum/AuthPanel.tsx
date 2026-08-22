@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
 import { LEGAL_POLICY } from "../../lib/legal-policy";
-import { recordLegalConsent } from "../../lib/legal-consent-client";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
+import { useInvisibleTurnstile } from "./useInvisibleTurnstile";
 
 type Mode = "login" | "signup";
 
@@ -22,7 +22,7 @@ type ResendResponse =
 
 const RESEND_COOLDOWN_MS = 60_000;
 const RESEND_COOLDOWN_STORAGE_KEY = "auth-resend-confirmation-cooldown-until";
-const LEGAL_ACKNOWLEDGEMENT_ERROR = `请确认您已年满 ${LEGAL_POLICY.minimumAge} 周岁，并阅读相关政策后继续。`;
+const LEGAL_ACKNOWLEDGEMENT_ERROR = "请确认您已阅读并同意相关政策后继续。";
 
 function consentRecoveryHref(next: string): string {
   return `/legal-consent/?next=${encodeURIComponent(getSafeNext(next))}&reason=callback`;
@@ -61,6 +61,12 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   const [legalAcknowledgementError, setLegalAcknowledgementError] = useState("");
   const [resendCooldownUntil, setResendCooldownUntil] = useState(0);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
+  const [showPassword, setShowPassword] = useState(false);
+  const [otpMode, setOtpMode] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpDestination, setOtpDestination] = useState("");
+  const passwordProofRef = useRef<string | null>(null);
+  const turnstile = useInvisibleTurnstile("安全验证未完成，请稍后重试。");
   const browserAuthState = useBrowserAuthState(supabase);
   const status = authAdapter?.viewState ?? browserAuthState.status;
   const user = authAdapter?.userPresent ? { id: "adapter-user" } : browserAuthState.user;
@@ -152,10 +158,12 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
     setMessage("");
 
     try {
+      const captchaToken = await turnstile.ensureToken({ forceRefresh: true });
+      if (turnstile.siteKeyEnabled && !captchaToken) throw new Error("CAPTCHA_REQUIRED");
       if (mode === "login") {
         const signInResult = authAdapter?.signInWithPassword
           ? await authAdapter.signInWithPassword({ email, password })
-          : await supabase!.auth.signInWithPassword({ email, password }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
+          : await supabase!.auth.signInWithPassword({ email, password, options: { captchaToken } }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
         const signInData = signInResult.data;
         const signInError = signInResult.error;
         if (signInError) throw signInError;
@@ -164,14 +172,20 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
           navigation.navigate(consentRecoveryHref(safeNext));
           return;
         }
-        setMessage("正在记录政策确认...");
-        try {
-          if (consentAdapter) await consentAdapter.recordCurrentConsent({ accessToken, source: "login" }); else await recordLegalConsent({ accessToken, source: "login" });
-        } catch {
+        if (authAdapter) {
+          // Test adapters have no HTTP challenge endpoint; production always uses the flow below.
           navigation.navigate(consentRecoveryHref(safeNext));
           return;
         }
-        navigation.navigate(safeNext);
+        passwordProofRef.current = accessToken;
+        const start = await fetch("/api/auth/email-verification/start", {
+          method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ captchaToken }),
+        });
+        const startPayload = await start.json().catch(() => null) as { destination?: string; error?: string } | null;
+        if (!start.ok || !startPayload?.destination) throw new Error(startPayload?.error ?? "OTP_DELIVERY_UNAVAILABLE");
+        setOtpDestination(startPayload.destination);
+        setOtpMode(true);
+        setMessage("验证码已发送到已验证的绑定邮箱。");
         return;
       }
 
@@ -182,23 +196,13 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
 
       const signUpResult = authAdapter?.signUp
         ? await authAdapter.signUp({ email, password, emailRedirectTo })
-        : await supabase!.auth.signUp({ email, password, options: { emailRedirectTo } }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
+        : await supabase!.auth.signUp({ email, password, options: { emailRedirectTo, captchaToken } }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
       const signUpData = signUpResult.data;
       const signUpError = signUpResult.error;
       if (signUpError) throw signUpError;
 
       const accessToken = signUpData?.accessToken;
-      if (accessToken) {
-        setMessage("正在记录政策确认...");
-        try {
-          if (consentAdapter) await consentAdapter.recordCurrentConsent({ accessToken, source: "registration" }); else await recordLegalConsent({ accessToken, source: "registration" });
-          navigation.navigate(safeNext);
-          return;
-        } catch {
-          navigation.navigate(consentRecoveryHref(safeNext));
-          return;
-        }
-      }
+      if (accessToken && supabase) await supabase.auth.signOut({ scope: "local" });
 
       setPendingVerificationEmail(email.trim());
       setMessage("验证邮件已发送。请先完成邮箱验证，再返回站内继续。");
@@ -212,6 +216,39 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
       setLoading(false);
     }
   }
+
+  async function handleOtpVerify(event: React.FormEvent) {
+    event.preventDefault();
+    const proof = passwordProofRef.current;
+    if (!proof || !/^\d{6}$/.test(otp)) { setError("请输入 6 位验证码。"); return; }
+    setLoading(true); setError("");
+    try {
+      const result = await fetch("/api/auth/email-verification/verify", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${proof}` }, body: JSON.stringify({ token: otp }) });
+      const payload = await result.json().catch(() => null) as { access_token?: string; refresh_token?: string; error?: string } | null;
+      if (!result.ok || !payload?.access_token || !payload.refresh_token) throw new Error(payload?.error ?? "VERIFICATION_FAILED");
+      const { error: sessionError } = await supabase!.auth.setSession({ access_token: payload.access_token, refresh_token: payload.refresh_token });
+      if (sessionError) throw sessionError;
+      passwordProofRef.current = null;
+      navigation.navigate(`/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=login`);
+    } catch { setError("验证码无效、已过期或暂时无法验证，请重新登录后再试。"); }
+    finally { setLoading(false); }
+  }
+
+  async function handleOtpResend() {
+    const proof = passwordProofRef.current;
+    if (!proof || resendCooldownSeconds > 0) return;
+    setResending(true); setError("");
+    try {
+      const captchaToken = await turnstile.ensureToken({ forceRefresh: true });
+      if (turnstile.siteKeyEnabled && !captchaToken) throw new Error("CAPTCHA_REQUIRED");
+      const result = await fetch("/api/auth/email-verification/resend", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${proof}` }, body: JSON.stringify({ captchaToken }) });
+      if (!result.ok) throw new Error("RESEND_UNAVAILABLE");
+      startResendCooldown(); setMessage("验证码已重新发送。");
+    } catch { setError("暂时无法重新发送验证码，请稍后重新登录。 "); }
+    finally { setResending(false); }
+  }
+
+  function cancelOtp() { passwordProofRef.current = null; setOtp(""); setOtpMode(false); setMessage(""); setError(""); }
 
   async function handleResendConfirmation() {
     if (!pendingVerificationEmail || resendCooldownSeconds > 0) return;
@@ -267,7 +304,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
           : undefined;
 
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo,
+        redirectTo, captchaToken: await turnstile.ensureToken({ forceRefresh: true }),
       });
 
       if (resetError) {
@@ -331,7 +368,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
 
       {status === "checking" ? (
         <div className="auth-alert">正在检查当前登录状态...</div>
-      ) : status === "signed_in" && user ? (
+      ) : status === "signed_in" && user && !otpMode ? (
         <div className="auth-user-state">
           <div className="auth-alert auth-alert--success">当前已登录。</div>
           <div className="community-cta-row">
@@ -354,6 +391,13 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
             </button>
           </div>
         </div>
+      ) : otpMode ? (
+        <form onSubmit={handleOtpVerify} className="auth-form">
+          <div className="auth-alert">请输入发送到 {otpDestination} 的 6 位验证码。验证码将在 10 分钟后失效。</div>
+          <label><span className="auth-label">邮箱验证码</span><input className="community-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} aria-label="6 位邮箱验证码" required /></label>
+          <div className="community-cta-row"><button className="community-button auth-button" type="submit" disabled={loading}>{loading ? "验证中..." : "验证并继续"}</button><button className="community-button--secondary auth-button" type="button" onClick={cancelOtp} disabled={loading}>取消并返回登录</button></div>
+          <button type="button" className="auth-forgot-link" onClick={handleOtpResend} disabled={resending || resendCooldownSeconds > 0}>{resending ? "发送中..." : resendCooldownSeconds > 0 ? `${resendCooldownSeconds} 秒后可重新发送` : "重新发送验证码"}</button>
+        </form>
       ) : forgotMode ? (
         <form onSubmit={handleResetPasswordEmail} className="auth-form">
           <label>
@@ -398,13 +442,14 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
             <span className="auth-label">密码</span>
             <input
               className="community-input"
-              type="password"
+              type={showPassword ? "text" : "password"}
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               minLength={8}
               required
             />
+            <button type="button" className="auth-password-toggle" aria-pressed={showPassword} aria-label={showPassword ? "隐藏密码" : "显示密码"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? "◉" : "◌"}<span className="sr-only">{showPassword ? "隐藏密码" : "显示密码"}</span></button>
           </label>
           <div className="auth-legal-acknowledgement">
             <input
@@ -416,7 +461,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
               aria-describedby={legalAcknowledgementError ? "auth-legal-acknowledgement-error" : undefined}
             />
             <label htmlFor="auth-legal-acknowledgement">
-              我确认已年满 {LEGAL_POLICY.minimumAge} 周岁，并已阅读并同意
+              我已阅读并同意
               <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
                 《服务条款》
               </a>
@@ -430,7 +475,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
               </a>
               。
               <span lang="en">
-                I confirm that I am at least {LEGAL_POLICY.minimumAge} years old, agree to the{" "}
+                By continuing, I agree to the{" "}
                 <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
                   Terms of Service
                 </a>
@@ -480,8 +525,10 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
         </form>
       )}
 
+      <div ref={turnstile.containerRef} aria-hidden="true" />
+
       <div className="auth-feedback">
-        {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
+        {error ? <div className="auth-alert auth-alert--error" role="alert">{error}</div> : null}
         {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
         {pendingVerificationEmail ? (
           <div className="auth-resend">

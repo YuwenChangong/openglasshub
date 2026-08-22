@@ -6,7 +6,8 @@ import {
 
 export const LEGAL_POLICY = {
   platformName: "OpenGlass Hub",
-  minimumAge: 16,
+  // Explicit no-age-gate metadata for the versioned consent record shape.
+  minimumAge: 0,
   bundleVersion: "2026-07",
   termsVersion: "2026-07",
   privacyVersion: "2026-07",

@@ -20,6 +20,7 @@ import {
 import { isModeratorRole } from "../../../lib/server/admin-auth";
 import { requireAuthenticatedLegalConsent } from "../../../lib/server/legal-consent-mutation.server";
 import { createLegalConsentReadRepository } from "../../../lib/server/legal-consent-repository.server";
+import { requireVerifiedApplicationSession } from "../../../lib/server/application-session.ts";
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 import { isPublicVisibleCircle } from "../../../lib/site-navigation";
@@ -134,6 +135,15 @@ function createUserClient(
     },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+async function requireApplicationUser(request: Request, env: Record<string, string | undefined>): Promise<{ client: SupabaseClient; user: { id: string } } | { error: Response }> {
+  try {
+    const session = await requireVerifiedApplicationSession(request, env);
+    return { client: session.client, user: { id: session.user.id } };
+  } catch (error) {
+    return { error: error instanceof Response ? error : json({ error: "Invalid auth token" }, 401) };
+  }
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -561,11 +571,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "Missing bearer token" }, 401);
     }
 
-    const userClient = createUserClient(env, token);
-    const { data: authData, error: authError } = await userClient.auth.getUser(token);
-    if (authError || !authData.user) {
-      return json({ error: "Invalid auth token" }, 401);
-    }
+    const authenticated = await requireApplicationUser(request, env);
+    if ("error" in authenticated) return authenticated.error;
+    const userClient = authenticated.client;
+    const authData = { user: authenticated.user };
     const consent = await requireAuthenticatedLegalConsent({
       identity: { userId: authData.user.id },
       repository: createLegalConsentReadRepository(userClient),
@@ -735,11 +744,10 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       return json({ error: "comment_id is required (valid UUID)" }, 400);
     }
 
-    const userClient = createUserClient(env, token);
-    const { data: authData, error: authError } = await userClient.auth.getUser(token);
-    if (authError || !authData.user) {
-      return json({ error: "Invalid auth token" }, 401);
-    }
+    const authenticated = await requireApplicationUser(request, env);
+    if ("error" in authenticated) return authenticated.error;
+    const userClient = authenticated.client;
+    const authData = { user: authenticated.user };
     const consent = await requireAuthenticatedLegalConsent({
       identity: { userId: authData.user.id },
       repository: createLegalConsentReadRepository(userClient),
@@ -818,11 +826,10 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       return json({ error: "Missing bearer token" }, 401);
     }
 
-    const userClient = createUserClient(env, token);
-    const { data: authData, error: authError } = await userClient.auth.getUser(token);
-    if (authError || !authData.user) {
-      return json({ error: "Invalid auth token" }, 401);
-    }
+    const authenticated = await requireApplicationUser(request, env);
+    if ("error" in authenticated) return authenticated.error;
+    const userClient = authenticated.client;
+    const authData = { user: authenticated.user };
     const consent = await requireAuthenticatedLegalConsent({
       identity: { userId: authData.user.id },
       repository: createLegalConsentReadRepository(userClient),

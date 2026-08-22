@@ -6,6 +6,7 @@ import { shouldRequireUploadTurnstile, validateTurnstileToken } from "../../../l
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 import { requireAuthenticatedLegalConsent } from "../../../lib/server/legal-consent-mutation.server";
 import { createLegalConsentReadRepository } from "../../../lib/server/legal-consent-repository.server";
+import { requireVerifiedApplicationSession } from "../../../lib/server/application-session.ts";
 
 export const prerender = false;
 
@@ -41,13 +42,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const token = getBearerToken(request);
     if (!token) return json({ error: "Missing bearer token" }, 401);
 
-    const supabase = createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_ANON_KEY"), {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !authData.user) return json({ error: "Invalid auth token" }, 401);
+    let verified;
+    try {
+      verified = await requireVerifiedApplicationSession(request, env);
+    } catch (error) {
+      return error instanceof Response ? error : json({ error: "Invalid auth token" }, 401);
+    }
+    const supabase = verified.client;
+    const authData = { user: verified.user };
 
     const consent = await requireAuthenticatedLegalConsent({
       identity: { userId: authData.user.id },

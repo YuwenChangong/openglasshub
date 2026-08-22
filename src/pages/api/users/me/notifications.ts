@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { requireVerifiedApplicationSession } from "../../../../lib/server/application-session.ts";
 import {
   buildNotificationHref,
   buildNotificationMessage,
@@ -290,10 +291,9 @@ async function authenticate(request: Request, locals: unknown): Promise<Authenti
   if (!hasRuntimeBindings(env)) return { error: json({ ok: false, error: "NOTIFICATIONS_UNAVAILABLE" }, 500) };
 
   try {
-    const client = createUserClient(env, token);
-    const { data, error } = await client.auth.getUser(token);
-    if (error || !data.user || !isNotificationResourceId(data.user.id)) return { error: json({ ok: false, error: "UNAUTHORIZED" }, 401) };
-    return { client, userId: data.user.id };
+    const session = await requireVerifiedApplicationSession(request, env);
+    if (!isNotificationResourceId(session.user.id)) return { error: json({ ok: false, error: "UNAUTHORIZED" }, 401) };
+    return { client: session.client, userId: session.user.id };
   } catch {
     return { error: json({ ok: false, error: "UNAUTHORIZED" }, 401) };
   }

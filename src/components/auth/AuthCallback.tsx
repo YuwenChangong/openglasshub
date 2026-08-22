@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
-import { getLegalConsentStatus } from "../../lib/legal-consent-client";
 import { browserNavigationAdapter, type LegalConsentAdapter, type LegalConsentAuthAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 
 interface AuthCallbackProps {
@@ -43,12 +42,9 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
       if (!mounted) return;
 
       if (data.session?.access_token) {
-        try {
-          const consent = consentAdapter ? await consentAdapter.getCurrentConsent(data.session.access_token) : await getLegalConsentStatus(data.session.access_token);
-          navigation.replace(consent.current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
-        } catch {
-          navigation.replace(`/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
-        }
+        // Confirmation and recovery links produce Supabase sessions, never an OpenGlass-activated session.
+        if (!authAdapter) await supabase!.auth.signOut({ scope: "local" });
+        navigation.replace(`/login/?next=${encodeURIComponent(safeNext)}&verified=1`);
       }
     }
 
@@ -108,7 +104,7 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
     <section className="auth-card">
       <div className="auth-card__top">
         <h2 style={{ margin: 0 }}>确认登录</h2>
-        <p style={{ margin: 0, color: "var(--text-muted)" }}>OpenGlass Hub 正在处理邮箱确认或登录回调。</p>
+        <p style={{ margin: 0, color: "var(--text-muted)" }}>OpenGlass Hub 正在处理邮箱确认；完成后请使用密码登录。</p>
       </div>
       <div className="auth-alert">{status}</div>
       {error ? (

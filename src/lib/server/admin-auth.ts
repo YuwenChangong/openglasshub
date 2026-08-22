@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { requireVerifiedApplicationSession } from "./application-session.ts";
 
 export type RuntimeEnv = Record<string, string | undefined>;
 
@@ -56,16 +57,8 @@ export function createUserClient(env: RuntimeEnv, bearerToken: string): Supabase
 }
 
 export async function requireModerator(request: Request, env: RuntimeEnv): Promise<ModeratorAuthResult> {
-  const token = getBearerToken(request);
-  if (!token) {
-    throw jsonResponse({ error: "Missing bearer token" }, 401);
-  }
-
-  const client = createUserClient(env, token);
-  const { data: authData, error: authError } = await client.auth.getUser(token);
-  if (authError || !authData.user) {
-    throw jsonResponse({ error: "Invalid auth token" }, 401);
-  }
+  const authData = await requireVerifiedApplicationSession(request, env);
+  const client = authData.client;
 
   const { data: profile, error: profileError } = await client
     .from("profiles")

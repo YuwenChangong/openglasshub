@@ -2595,6 +2595,23 @@ body {
   color: var(--text);
 }
 
+.auth-password-toggle {
+  width: fit-content;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.auth-password-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .auth-label,
 .post-composer__label {
   display: inline-block;

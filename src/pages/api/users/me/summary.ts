@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildProfileHref } from "../../../../lib/profile-links";
 import { isProfileMediaPathForUser, resolveProfileAvatarUrl } from "../../../../lib/profile-media";
+import { requireVerifiedApplicationSession } from "../../../../lib/server/application-session.ts";
 
 export const prerender = false;
 
@@ -38,12 +39,10 @@ function createUserClient(env: RuntimeEnv & { SUPABASE_URL: string; SUPABASE_ANO
 }
 
 async function authenticate(request: Request, env: RuntimeEnv): Promise<SummaryAuth | { error: Response }> {
-  const token = getBearerToken(request);
-  if (!token) return { error: json({ ok: false, error: "NOT_AUTHENTICATED" }, 401) };
-  const client = createUserClient(env as RuntimeEnv & { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }, token);
-  const { data, error } = await client.auth.getUser(token);
-  if (error || !data.user?.id) return { error: json({ ok: false, error: "NOT_AUTHENTICATED" }, 401) };
-  return { client, userId: data.user.id };
+  try {
+    const session = await requireVerifiedApplicationSession(request, env);
+    return { client: session.client, userId: session.user.id };
+  } catch (error) { return { error: error instanceof Response ? error : json({ ok: false, error: "NOT_AUTHENTICATED" }, 401) }; }
 }
 
 async function loadProfile(client: SupabaseClient, userId: string): Promise<SummaryProfile | null> {

@@ -6,6 +6,7 @@ import {
   requireEnv,
   type RuntimeEnv,
 } from "../../../lib/server/admin-auth";
+import { requireVerifiedApplicationSession } from "../../../lib/server/application-session.ts";
 import {
   countRecentReportsByUser,
   createUserReport,
@@ -45,14 +46,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const env = (locals as RuntimeLocals).runtime?.env;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
-    const token = getBearerToken(request);
-    if (!token) return jsonResponse({ error: "Missing bearer token" }, 401);
-
-    const client = createUserClient(env, token);
-    const { data: authData, error: authError } = await client.auth.getUser(token);
-    if (authError || !authData.user) {
-      return jsonResponse({ error: "Invalid auth token" }, 401);
-    }
+    const authData = await requireVerifiedApplicationSession(request, env);
+    const client = authData.client;
     const consent = await requireAuthenticatedLegalConsent({
       identity: { userId: authData.user.id },
       repository: createLegalConsentReadRepository(client),
@@ -125,6 +120,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       created.duplicate ? 200 : 201,
     );
   } catch (error) {
+    if (error instanceof Response) return error;
     return jsonResponse(
       { error: error instanceof Error ? error.message : "Unexpected server error" },
       500,

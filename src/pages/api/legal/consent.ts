@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { createUserClient, getBearerToken, type RuntimeEnv } from "../../../lib/server/admin-auth";
+import { requireVerifiedApplicationSession } from "../../../lib/server/application-session.ts";
 import {
   handleLegalConsentGet,
   handleLegalConsentPost,
@@ -19,17 +20,12 @@ function getRuntimeEnv(locals: unknown): RuntimeEnv | null {
 }
 
 async function authenticate(request: Request, env: RuntimeEnv) {
-  const token = getBearerToken(request);
-  if (!token) return null;
+  try {
+    const session = await requireVerifiedApplicationSession(request, env);
+    const client = session.client;
 
-  const client = createUserClient(env, token);
-  const { data, error } = await client.auth.getUser(token);
-  if (error || !data.user) return null;
-
-  return {
-    userId: data.user.id,
-    readRepository: createLegalConsentReadRepository(client),
-  };
+    return { userId: session.user.id, readRepository: createLegalConsentReadRepository(client) };
+  } catch { return null; }
 }
 
 function dependenciesFor(request: Request, env: RuntimeEnv) {

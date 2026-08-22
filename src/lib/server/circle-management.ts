@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { isModeratorRole } from "./admin-auth";
+import { requireVerifiedApplicationSession } from "./application-session.ts";
 
 export type ForumRuntimeEnv = Record<string, string | undefined>;
 
@@ -95,16 +96,9 @@ export type ForumUserAuth = {
 };
 
 export async function requireForumUser(request: Request, env: ForumRuntimeEnv): Promise<ForumUserAuth> {
-  const token = getBearerToken(request);
-  if (!token) {
-    throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
-  }
-
-  const client = createUserClient(env, token);
-  const { data: authData, error: authError } = await client.auth.getUser(token);
-  if (authError || !authData.user) {
-    throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
-  }
+  const authData = await requireVerifiedApplicationSession(request, env);
+  const token = authData.token;
+  const client = authData.client;
 
   const { data: profile, error: profileError } = await client
     .from("profiles")

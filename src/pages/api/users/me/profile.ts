@@ -26,6 +26,7 @@ import { createUserClient, jsonResponse } from "../../../../lib/server/circle-ma
 import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
 import { createLegalConsentReadRepository } from "../../../../lib/server/legal-consent-repository.server";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../../lib/server/user-safety.server";
+import { requireVerifiedApplicationSession } from "../../../../lib/server/application-session.ts";
 
 export const prerender = false;
 
@@ -107,14 +108,8 @@ function requireRuntimeBindings(env: Record<string, string | undefined> | undefi
 }
 
 async function authenticateProfileActor(request: Request, env: Record<string, string | undefined>) {
-  const token = getStrictBearerToken(request);
-  if (!token) throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
-
-  const client = createUserClient(env, token);
-  const { data, error } = await client.auth.getUser(token);
-  if (error || !data.user?.id) throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
-
-  return { client, userId: data.user.id };
+  const session = await requireVerifiedApplicationSession(request, env);
+  return { client: session.client, userId: session.user.id };
 }
 
 export function parseProfilePayload(payload: unknown): ParsedProfilePayload | { error: string; status: number } {

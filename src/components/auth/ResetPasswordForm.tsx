@@ -107,6 +107,8 @@ export default function ResetPasswordForm() {
         throw updateError;
       }
 
+      await supabase.auth.signOut({ scope: "local" });
+
       setMessage("密码已更新，请重新登录。");
       window.setTimeout(() => {
         window.location.assign("/login/");

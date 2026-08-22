@@ -2,17 +2,7 @@
 import LegalPage from "../../components/legal/LegalPage.astro";
 import { LEGAL_POLICY, getLegalPolicyVersion } from "../../lib/legal-policy";
 
-const zh = `<h3>适用范围</h3><p>${LEGAL_POLICY.platformName} 面向年满 ${LEGAL_POLICY.minimumAge} 周岁的用户。您应遵守所在地适用法律，并对账户凭据、发布内容和账户活动负责。</p><h3>内容与社区</h3><p>用户保留其提交内容的权利，并授予平台为托管、展示、审核、缓存、分发和必要技术处理所需的有限许可。公开内容可能被其他用户查看、引用或举报。禁止违法内容、骚扰、冒充、垃圾信息、引流、欺诈、恶意链接和侵权行为。</p><h3>审核与服务变更</h3><p>平台可根据社区准则和安全流程限制或移除内容、限制账户，并处理举报与申诉。服务功能、可用性和规则可能更新；更新将通过版本号和生效日期公开说明。强制性适用法律仍可能对您和平台产生约束。</p><p>本页面需在正式公开发布前接受合格法律专业人士审阅。</p>`;
-const en = `<h3>Scope</h3><p>${LEGAL_POLICY.platformName} is for people aged ${LEGAL_POLICY.minimumAge} and older. You are responsible for your account credentials, submitted content, and compliance with applicable local law.</p><h3>Content and community</h3><p>You retain rights in content you submit and grant the limited permission needed to host, display, moderate, cache, distribute, and technically process it. Public content may be viewed, quoted, or reported by other users. Illegal content, harassment, impersonation, spam, solicitation, fraud, malicious links, and infringement are prohibited.</p><h3>Moderation and service changes</h3><p>We may restrict or remove content, limit accounts, and handle reports and appeals under our community and safety rules. Features, availability, and rules may change over time; updates are disclosed through published versions and effective dates. Mandatory applicable law may still impose obligations on you and on the platform.</p><p>This page requires qualified legal review before public launch.</p>`;
+const zh = `<h3>适用范围</h3><p>${LEGAL_POLICY.platformName} 的用户应遵守所在地适用法律，并对账户凭据、发布内容和账户活动负责。</p><h3>内容与社区</h3><p>用户保留其提交内容的权利，并授予平台为托管、展示、审核、缓存、分发和必要技术处理所需的有限许可。公开内容可能被其他用户查看、引用或举报。禁止违法内容、骚扰、冒充、垃圾信息、引流、欺诈、恶意链接和侵权行为。</p><h3>审核与服务变更</h3><p>平台可根据社区准则和安全流程限制或移除内容、限制账户，并处理举报与申诉。服务功能、可用性和规则可能更新；更新将通过版本号和生效日期公开说明。强制性适用法律仍可能对您和平台产生约束。</p><p>本页面需在正式公开发布前接受合格法律专业人士审阅。</p>`;
+const en = `<h3>Scope</h3><p>Users of ${LEGAL_POLICY.platformName} are responsible for their account credentials, submitted content, and compliance with applicable local law.</p><h3>Content and community</h3><p>You retain rights in content you submit and grant the limited permission needed to host, display, moderate, cache, distribute, and technically process it. Public content may be viewed, quoted, or reported by other users. Illegal content, harassment, impersonation, spam, solicitation, fraud, malicious links, and infringement are prohibited.</p><h3>Moderation and service changes</h3><p>We may restrict or remove content, limit accounts, and handle reports and appeals under our community and safety rules. Features, availability, and rules may change over time; updates are disclosed through published versions and effective dates. Mandatory applicable law may still impose obligations on you and on the platform.</p><p>This page requires qualified legal review before public launch.</p>`;
 ---
-<LegalPage
-  pageTitle="服务条款"
-  description="OpenGlass Hub 服务条款。"
-  routeKey="terms"
-  version={getLegalPolicyVersion("terms")}
-  headingZh="服务条款"
-  headingEn="Terms of Service"
-  zh={zh}
-  en={en}
-  showPublicContacts={true}
-/>
+<LegalPage pageTitle="服务条款" description="OpenGlass Hub 服务条款。" routeKey="terms" version={getLegalPolicyVersion("terms")} headingZh="服务条款" headingEn="Terms of Service" zh={zh} en={en} showPublicContacts={true} />
