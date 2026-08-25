@@ -4,6 +4,7 @@ import { LEGAL_POLICY } from "../../lib/legal-policy";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
+import { shouldRenderOrdinarySignedInView, type EmailVerificationChallengeState } from "../../lib/email-verification-flow";
 import { useInvisibleTurnstile } from "./useInvisibleTurnstile";
 
 type Mode = "login" | "signup";
@@ -63,6 +64,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
   const [showPassword, setShowPassword] = useState(false);
   const [otpMode, setOtpMode] = useState(false);
+  const [emailVerificationChallengeState, setEmailVerificationChallengeState] = useState<EmailVerificationChallengeState>("idle");
   const [otp, setOtp] = useState("");
   const [otpDestination, setOtpDestination] = useState("");
   const passwordProofRef = useRef<string | null>(null);
@@ -178,13 +180,25 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
           return;
         }
         passwordProofRef.current = accessToken;
-        const start = await fetch("/api/auth/email-verification/start", {
-          method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ captchaToken }),
-        });
+        let start: Response;
+        try {
+          start = await fetch("/api/auth/email-verification/start", {
+            method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ captchaToken }),
+          });
+        } catch {
+          setEmailVerificationChallengeState("unavailable");
+          setError("暂时无法发起邮箱验证，请退出后重新登录再试。");
+          return;
+        }
         const startPayload = await start.json().catch(() => null) as { destination?: string; error?: string } | null;
-        if (!start.ok || !startPayload?.destination) throw new Error(startPayload?.error ?? "OTP_DELIVERY_UNAVAILABLE");
+        if (!start.ok || !startPayload?.destination) {
+          setEmailVerificationChallengeState("unavailable");
+          setError("暂时无法发起邮箱验证，请退出后重新登录再试。");
+          return;
+        }
         setOtpDestination(startPayload.destination);
         setOtpMode(true);
+        setEmailVerificationChallengeState("active");
         setMessage("验证码已发送到已验证的绑定邮箱。");
         return;
       }
@@ -368,7 +382,21 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
 
       {status === "checking" ? (
         <div className="auth-alert">正在检查当前登录状态...</div>
-      ) : status === "signed_in" && user && !otpMode ? (
+      ) : emailVerificationChallengeState === "unavailable" ? (
+        <div className="auth-user-state">
+          <div className="auth-alert auth-alert--error" role="alert">邮箱验证暂时不可用。为保护账号，此登录状态不能继续访问 OpenGlass 功能。</div>
+          <div className="community-cta-row">
+            <button
+              type="button"
+              className="community-button--secondary auth-button"
+              onClick={handleSignOut}
+              disabled={loading}
+            >
+              {loading ? "处理中..." : "退出登录"}
+            </button>
+          </div>
+        </div>
+      ) : shouldRenderOrdinarySignedInView({ signedIn: status === "signed_in", userPresent: Boolean(user), otpMode, verificationChallengeState: emailVerificationChallengeState }) ? (
         <div className="auth-user-state">
           <div className="auth-alert auth-alert--success">当前已登录。</div>
           <div className="community-cta-row">

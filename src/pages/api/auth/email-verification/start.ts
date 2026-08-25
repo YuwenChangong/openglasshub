@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { getRequestIp } from "../../../../lib/request-ip";
 import { requirePasswordProvenSession } from "../../../../lib/server/application-session.ts";
 import { hashRateLimitIp } from "../../../../lib/server/rate-limit";
+import { validateTurnstileToken } from "../../../../lib/server/turnstile";
+import { emailVerificationCaptchaError, shouldRejectEmptyEmailVerificationCaptcha } from "../../../../lib/email-verification-flow";
 
 export const prerender = false;
 const CHALLENGE_COOKIE = "ogh_login_challenge";
@@ -22,10 +24,12 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
     if (!env?.RATE_LIMIT_SALT) return response({ error: "AUTH_UNAVAILABLE" }, 503);
     const body = await request.json().catch(() => null) as { captchaToken?: unknown } | null;
     const captchaToken = typeof body?.captchaToken === "string" ? body.captchaToken : "";
-    if (!captchaToken) return response({ error: "CAPTCHA_REQUIRED" }, 400);
+    if (shouldRejectEmptyEmailVerificationCaptcha(env, captchaToken)) return response({ error: "CAPTCHA_REQUIRED" }, 400);
     const proof = await requirePasswordProvenSession(request, env);
     const email = proof.user.email?.trim().toLowerCase();
     if (!email || !proof.user.email_confirmed_at) return response({ error: "AUTHENTICATION_FAILED" }, 403);
+    const turnstile = await validateTurnstileToken({ env, token: captchaToken, remoteIp: getRequestIp(request) });
+    if (!turnstile.ok) return response({ error: emailVerificationCaptchaError(turnstile.code) }, 400);
     const ipHash = await hashRateLimitIp(getRequestIp(request), env.RATE_LIMIT_SALT);
     if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return response({ error: "AUTH_UNAVAILABLE" }, 503);
     const serverClient = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
