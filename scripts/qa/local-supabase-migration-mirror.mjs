@@ -14,7 +14,15 @@ function assertDirectoryOutsideSource(sourceDirectory, destinationDirectory) {
 }
 
 export async function analyzeMigrations(sourceDirectory) {
-  const filenames = (await readdir(sourceDirectory)).filter((filename) => filename.endsWith(".sql")).sort();
+  const filenames = (await readdir(sourceDirectory))
+    .filter((filename) => filename.endsWith(".sql"))
+    .sort((left, right) => {
+      const leftVersion = left.match(migrationPattern)?.groups?.version;
+      const rightVersion = right.match(migrationPattern)?.groups?.version;
+      if (!leftVersion || !rightVersion) return left.localeCompare(right);
+      const comparison = BigInt(leftVersion) < BigInt(rightVersion) ? -1 : BigInt(leftVersion) > BigInt(rightVersion) ? 1 : 0;
+      return comparison || left.localeCompare(right);
+    });
   const files = await Promise.all(filenames.map(async (filename, index) => {
     const match = filename.match(migrationPattern);
     if (!match?.groups) throw new Error(`Unsupported migration filename: ${filename}`);
@@ -38,7 +46,7 @@ export async function createMirror({ sourceDirectory, destinationDirectory }) {
     await copyFile(join(sourceDirectory, source.filename), join(destinationDirectory, mirrorFilename));
     files.push({ ...source, mirrorFilename, normalizedVersion });
   }
-  const manifest = { algorithm: "canonical-lexical-order-14-digit-ordinal", files };
+  const manifest = { algorithm: "canonical-numeric-version-then-filename-14-digit-ordinal", files };
   await writeFile(join(destinationDirectory, ".p6a2-mirror-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   return manifest;
 }
