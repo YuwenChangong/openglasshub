@@ -45,5 +45,8 @@
   "overrides": {
     "vite": "6.4.3",
     "wrangler": "4.106.0"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
   }
 }
