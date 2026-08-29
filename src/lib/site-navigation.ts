@@ -1,12 +1,15 @@
 export type NavKey = "home" | "forum" | "news" | "products" | "launcher";
+import { isGazeLauncherPublicEnabled } from "./gaze-launcher-visibility";
 
-export const mainNav = [
+const navigation = [
   { key: "home", label: "首页", href: "/" },
   { key: "forum", label: "论坛", href: "/feed/" },
   { key: "news", label: "热点", href: "/news/" },
   { key: "products", label: "产品", href: "/products/" },
-  { key: "launcher", label: "Gaze Launcher", href: "/gaze-launcher/" },
 ] as const;
+export const mainNav = isGazeLauncherPublicEnabled()
+  ? [...navigation, { key: "launcher", label: "Gaze Launcher", href: "/gaze-launcher/" }]
+  : navigation;
 
 export const productLinks = [
   {

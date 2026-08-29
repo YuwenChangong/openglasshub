@@ -2,10 +2,21 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import react from '@astrojs/react';
 import cloudflare from '@astrojs/cloudflare';
+import sitemap from '@astrojs/sitemap';
+import {
+  isGazeLauncherPublicEnabled,
+  isGazeLauncherSitemapEntryIncluded,
+} from './src/lib/gaze-launcher-visibility.ts';
+import remarkGazeLauncherVisibility from './src/plugins/remark-gaze-launcher-visibility.ts';
+
+const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
 
 export default defineConfig({
   site: 'https://openglasshub.pages.dev',
   output: 'static',
+  markdown: {
+    remarkPlugins: [remarkGazeLauncherVisibility],
+  },
   redirects: {
     '/gaze-os': '/gaze-launcher/',
     '/reference/guides-docs': '/guides/',
@@ -20,6 +31,9 @@ export default defineConfig({
     },
   }),
   integrations: [
+    sitemap({
+      filter: isGazeLauncherSitemapEntryIncluded,
+    }),
     react(),
     starlight({
       disable404Route: true,
@@ -101,10 +115,10 @@ export default defineConfig({
           label: '开发者',
           link: '/developers',
         },
-        {
+        ...(gazeLauncherPublicEnabled ? [{
           label: 'Gaze Launcher',
           link: '/gaze-launcher',
-        },
+        }] : []),
         {
           label: '关于',
           link: '/about',

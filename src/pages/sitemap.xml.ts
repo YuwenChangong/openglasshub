@@ -3,6 +3,7 @@ import { getCollection } from "astro:content";
 import { brandCatalog, getDeviceBySlug } from "../lib/device-catalog";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { isPublicVisibleCircle } from "../lib/site-navigation";
+import { isGazeLauncherPublicEnabled } from "../lib/gaze-launcher-visibility";
 
 const SITE_URL = "https://openglasshub.pages.dev";
 
@@ -65,7 +66,7 @@ export const GET: APIRoute = async ({ locals }) => {
     { loc: absoluteUrl("/products/"), changefreq: "weekly", priority: "0.8" },
     { loc: absoluteUrl("/guides/"), changefreq: "weekly", priority: "0.8" },
     { loc: absoluteUrl("/developers/"), changefreq: "weekly", priority: "0.75" },
-    { loc: absoluteUrl("/gaze-launcher/"), changefreq: "weekly", priority: "0.75" },
+    ...(isGazeLauncherPublicEnabled() ? [{ loc: absoluteUrl("/gaze-launcher/"), changefreq: "weekly" as const, priority: "0.75" }] : []),
   ];
 
   for (const brand of brandCatalog) {

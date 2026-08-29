@@ -13,6 +13,7 @@ import { buildResolvedPostMediaMap, type PostMediaRow } from "../lib/forum-media
 import { buildPostLikeCountMap } from "../lib/post-engagement";
 import { sanitizeBodyForDisplay } from "../lib/post-body";
 import { isPublicVisibleCircle } from "../lib/site-navigation";
+import { isGazeLauncherPublicEnabled } from "../lib/gaze-launcher-visibility";
 
 type PostRow = {
   id: string;
@@ -87,6 +88,7 @@ const quickLinks = [
   { href: "/news/", label: "热点" },
   { href: "/products/", label: "产品" },
 ] as const;
+const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
 
 function excerpt(body?: string | null): string {
   const sanitized = sanitizeBodyForDisplay(body);
@@ -177,10 +179,7 @@ function excerpt(body?: string | null): string {
               <strong>产品</strong>
               <span>按品牌直接浏览 AR / AI 眼镜。</span>
             </a>
-            <a href="/gaze-launcher/" class="community-list-item">
-              <strong>Gaze Launcher</strong>
-              <span>查看产品方向和当前进展。</span>
-            </a>
+            {gazeLauncherPublicEnabled ? <a href="/gaze-launcher/" class="community-list-item"><strong>Gaze Launcher</strong><span>查看产品方向和当前进展。</span></a> : null}
           </div>
         </div>
       </section>

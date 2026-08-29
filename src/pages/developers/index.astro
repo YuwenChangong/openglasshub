@@ -1,5 +1,6 @@
 ---
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import { isGazeLauncherPublicEnabled } from "../../lib/gaze-launcher-visibility";
 
 const checks = [
   "先确认有没有公开开发入口和持续更新的文档。",
@@ -21,6 +22,7 @@ const limits = [
     description: "很多设备并不支持“像手机一样随意安装 App”。部署路径和分发方式需要提前确认。",
   },
 ] as const;
+const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
 ---
 
 <CommunityLayout
@@ -83,10 +85,7 @@ const limits = [
             <strong>开发限制清单</strong>
             <span>先看必须确认的现实约束</span>
           </a>
-          <a class="community-list-item community-link-row" href="/gaze-launcher/">
-            <strong>Gaze Launcher</strong>
-            <span>看系统方向和当前验证边界</span>
-          </a>
+          {gazeLauncherPublicEnabled ? <a class="community-list-item community-link-row" href="/gaze-launcher/"><strong>Gaze Launcher</strong><span>看系统方向和当前验证边界</span></a> : null}
           <a class="community-list-item community-link-row" href="/feed/">
             <strong>论坛讨论</strong>
             <span>补真实设备反馈和运行时观察</span>
