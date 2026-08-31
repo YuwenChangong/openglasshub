@@ -52,6 +52,27 @@ export function createDisposableTracker(runId) {
     remove(id) { if (!rows.has(id)) throw new Error("Refusing cleanup of a non-owned device."); rows.delete(id); },
   };
 }
+export function collectCurrentRunOwnedCandidates({ runId, canonicalIds = [], ledgers = {} }) {
+  assertRunId(runId);
+  const canonical = new Set(canonicalIds);
+  const candidates = new Map();
+  let apiOwnedCandidateCount = 0;
+  let uiOwnedCandidateCount = 0;
+  let combinedOwnedCandidateCount = 0;
+  let rejectedUnprovenCandidateCount = 0;
+  for (const [surface, ledger] of Object.entries(ledgers)) {
+    const rows = ledger?.tracker?.entries?.();
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      if (surface === "api") apiOwnedCandidateCount += 1;
+      if (surface === "ui") uiOwnedCandidateCount += 1;
+      combinedOwnedCandidateCount += 1;
+      if (row?.owned !== true || !UUID.test(row.id) || typeof row.slug !== "string" || !row.slug.startsWith(`p6b-${runId}-`) || canonical.has(row.id)) { rejectedUnprovenCandidateCount += 1; continue; }
+      candidates.set(row.id, row);
+    }
+  }
+  return { ownedIds: [...candidates.keys()], evidence: { apiOwnedCandidateCount, uiOwnedCandidateCount, combinedOwnedCandidateCount, deduplicatedOwnedCandidateCount: candidates.size, validatedOwnedCandidateCount: candidates.size, alreadyAbsentOwnedCount: 0, deletedOwnedCount: 0, rejectedUnprovenCandidateCount } };
+}
 export function createInFlightTracker() { const active = new Set(); return { enter(key) { if (active.has(key)) return false; active.add(key); return true; }, leave(key) { active.delete(key); }, has(key) { return active.has(key); } }; }
 export function correlateDeviceSlugSets({ dbSlugs, apiSlugs, domSlugs }) { const source = (values) => (values ?? []).filter((value) => typeof value === "string" && value); const unique = (values) => [...new Set(source(values))].sort(); const diff = (left, right) => left.filter((value) => !right.includes(value)); const bound = (values) => values.slice(0, 8); const dbRaw = source(dbSlugs), apiRaw = source(apiSlugs), domRaw = source(domSlugs), db = unique(dbRaw), api = unique(apiRaw), dom = unique(domRaw); const dbApiMissing = diff(db, api), dbApiUnexpected = diff(api, db), apiDomMissing = diff(api, dom), apiDomUnexpected = diff(dom, api), dbDomMissing = diff(db, dom), dbDomUnexpected = diff(dom, db); const dbApiIdentityMatch = !dbApiMissing.length && !dbApiUnexpected.length && dbRaw.length === db.length && apiRaw.length === api.length, apiDomIdentityMatch = !apiDomMissing.length && !apiDomUnexpected.length && apiRaw.length === api.length && domRaw.length === dom.length, dbDomIdentityMatch = !dbDomMissing.length && !dbDomUnexpected.length && dbRaw.length === db.length && domRaw.length === dom.length; return { dbCount: dbRaw.length, apiCount: apiRaw.length, domCount: domRaw.length, dbSlugSet: bound(db), apiSlugSet: bound(api), domSlugSet: bound(dom), dbSlugSetTruncated: db.length > 8, apiSlugSetTruncated: api.length > 8, domSlugSetTruncated: dom.length > 8, dbApiMissingCount: dbApiMissing.length, dbApiUnexpectedCount: dbApiUnexpected.length, apiDomMissingCount: apiDomMissing.length, apiDomUnexpectedCount: apiDomUnexpected.length, dbDomMissingCount: dbDomMissing.length, dbDomUnexpectedCount: dbDomUnexpected.length, dbApiIdentityMatch, apiDomIdentityMatch, dbDomIdentityMatch, correlationResult: dbApiIdentityMatch && apiDomIdentityMatch && dbDomIdentityMatch ? "PASS" : "FAIL" }; }
 export function focusedUiModeConfig() { return { mode: "FOCUSED_UIE2E02", apiRequired: 0, uiRequired: 2, focusedUiOnly: true }; }
@@ -479,6 +500,22 @@ export async function runSmoke({ helperOnly = false, mode = "SMOKE" } = {}) {
   };
   const runUiOperation = operations.runUi;
   operations.runUi = async () => ({ ...(await runUiOperation()), observerCounters: uiRuntime?.observerCounters ?? uiRuntime?.tracker?.observerCounters?.() });
+  operations.runFinal = async () => {
+    const ledgers = { api: apiRuntime, ui: uiRuntime };
+    const database = apiRuntime?.db ?? uiRuntime?.db;
+    if (!database) return;
+    const collected = collectCurrentRunOwnedCandidates({ runId, canonicalIds: canonicalDeviceIds, ledgers });
+    const final = await finalizeDisposableDevices({
+      db: { async readAllIds() { const { data, error } = await database.from("devices").select("id"); if (error) throw error; return (data ?? []).map((row) => row.id); } },
+      ownedIds: collected.ownedIds,
+      canonicalIds: canonicalDeviceIds,
+      cleanupOwned: ({ ownedIds, canonicalIds }) => cleanupOwnedDevicesWithLocalPostgres({ ownedPostgres, ownedIds, canonicalIds, execute: ({ containerId, sql }) => command("docker", ["exec", "-i", containerId, "psql", "-U", "postgres", "-d", "postgres", "-tA", "-v", "ON_ERROR_STOP=1"], { input: sql }) }),
+    });
+    for (const ledger of Object.values(ledgers)) for (const row of ledger?.tracker?.entries?.() ?? []) if (collected.ownedIds.includes(row.id)) ledger.tracker.remove(row.id);
+    const deletedOwnedCount = Number.isInteger(final.postCleanup.trustedCleanup?.deletedRowCount) ? final.postCleanup.trustedCleanup.deletedRowCount : 0;
+    const fullOwnedCleanup = { ...collected.evidence, deletedOwnedCount, alreadyAbsentOwnedCount: Math.max(0, collected.evidence.validatedOwnedCandidateCount - deletedOwnedCount) };
+    return { observations: { P6B_RUNNER2C2_FINAL_CANONICAL_DEVICE_COUNT: final.canonicalDeviceCount, P6B_RUNNER2C2_FINAL_CANONICAL_UNIQUE_SLUG_COUNT: final.canonicalUniqueSlugCount, P6B_RUNNER2C2_FINAL_DISPOSABLE_ROWS_REMAINING: final.runOwnedDisposableRemaining, P6B_RUNNER2C2_CANONICAL_ACCIDENTAL_MUTATIONS: final.canonicalAccidentalMutationCount, P6B_RUNNER2C2_CANONICAL_IDENTITY_RESTORED: final.canonicalIdentityRestored, P6B_RUNNER2C2_API_FINAL_DATA_GATE: "PASS", fullOwnedCleanup, ...postCleanupEvidence(final.postCleanup) } };
+  };
   const result = await runP6bLifecycle({ operations, evidence, config: { mode: helperOnly ? "HELPER" : mode, apiRequired: helperOnly || uiOnly || forensicOnly ? 0 : (apiOnly || full ? 16 : 2), uiRequired: full || uiOnly ? (focusedUiOnly ? focusedUiCaseLimit : 16) : 0, finalizeOnUiFailure: mode === "FOCUSED_UIE2E03" || mode === "FOCUSED_UIE2E12" || mode === "FOCUSED_UIE2E13" || mode === "FOCUSED_UIE2E14" || mode === "FOCUSED_UIE2E15", helperOnly, forensicOnly, onProgress: (entry) => progress.update(entry) }, runId });
   progress.setObserverCounters({ observerPendingPromises: result.observerPendingPromises, observerStaleListeners: result.observerStaleListeners, observerUnhandledRejections: result.observerUnhandledRejections }); progress.update({ lifecycleStage: "LIFECYCLE_TERMINAL" }); await progress.flush(); await writeFinalTerminal(runId, { ...result, mode: helperOnly ? "helper-probe" : mode, progress: progress.snapshot() });
   return result;

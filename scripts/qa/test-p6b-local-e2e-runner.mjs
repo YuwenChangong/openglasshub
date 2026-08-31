@@ -754,6 +754,40 @@ test("REJ15T-19",()=>assert.equal(rej15().responseStatus,409));
 test("REJ15T-20",()=>assert.equal(/token|password|authorization|23505|postgres/i.test(JSON.stringify(rej15({authorization:"secret",password:"secret",raw:"23505 postgres"}))),false));
 test("REJ15MODEL-01",()=>{const result=rej15({fixtureId:"fixture-id",fixtureLifecycleReady:true,brandAccessibleLabel:"品牌代码",rawDbErrorLeakObserved:false,stackLeakObserved:false,secretLeakObserved:false,inflightGuardCleared:true});for(const name of ["rejectionFixtureId","rejectionFixtureIdentityMatchesExpected","rejectionFixtureLifecycleReady","rejectionPageLoaded","rejectionFormOpenAttempted","rejectionFormObserved","rejectionFormHeadingObserved","rejectionFormReady","rejectionBrandControlObserved","rejectionBrandAccessibleLabel","rejectionRequiredFieldsReady","rejectionObserverArmedBeforeAction","rejectionActionAttempted","rejectionRequestObserved","rejectionRequestMethod","rejectionRequestPath","rejectionRequestIdMatchesExpected","rejectionRequestMatched","rejectionResponseObserved","rejectionResponseStatus","rejectionExpectedNon2xxObserved","rejectionFalseSuccessObserved","rejectionRawDbErrorLeakObserved","rejectionStackLeakObserved","rejectionSecretLeakObserved","rejectionUnexpectedDbEffectCount","rejectionRecoveryObserved","rejectionInflightGuardCleared"])assert.equal(Object.hasOwn(result,name),true);assert.equal(result.rejectionBrandAccessibleLabel,"品牌代码");});
 
+// FULLCLEAN uses controlled, current-run ledgers. It tests the ownership
+// collection boundary; trusted deletion/readback has dedicated tests above.
+const fullCleanIds={canonical:"00000000-0000-4000-8000-000000000001",apiA:"00000000-0000-4000-8000-000000000101",uiRace:"9a0c55df-2e34-4ee8-b145-193b676986ad",uiIndependent:"80b98cb8-1cab-4ac2-81e3-c4b4a0d21a52",foreign:"00000000-0000-4000-8000-000000000901"};
+const fullCleanCanonicals=Array.from({length:24},(_,index)=>`00000000-0000-4000-8000-${String(index+1).padStart(12,"0")}`);
+const fullCleanRunId="f00dc1ea";
+const fullCleanRow=(id,suffix,runId=fullCleanRunId)=>({id,slug:`p6b-${runId}-${suffix}`,owned:true});
+const fullCleanLedger=(...rows)=>({tracker:{entries:()=>rows}});
+const fullCleanCollect=(apiRows=[],uiRows=[])=>primitive("collectCurrentRunOwnedCandidates")({runId:fullCleanRunId,canonicalIds:fullCleanCanonicals,ledgers:{api:fullCleanLedger(...apiRows),ui:fullCleanLedger(...uiRows)}});
+test("FULLCLEAN-01",()=>assert.deepEqual(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")]).ownedIds,[fullCleanIds.apiA]));
+test("FULLCLEAN-02",()=>assert.deepEqual(fullCleanCollect([], [fullCleanRow(fullCleanIds.uiRace,"ui-race")]).ownedIds,[fullCleanIds.uiRace]));
+test("FULLCLEAN-03",()=>assert.deepEqual(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")],[fullCleanRow(fullCleanIds.uiRace,"ui-race")]).ownedIds,[fullCleanIds.apiA,fullCleanIds.uiRace]));
+test("FULLCLEAN-04",()=>assert.deepEqual(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")],[fullCleanRow(fullCleanIds.uiRace,"ui-race"),fullCleanRow(fullCleanIds.uiIndependent,"ui-independent")]).ownedIds,[fullCleanIds.apiA,fullCleanIds.uiRace,fullCleanIds.uiIndependent]));
+test("FULLCLEAN-05",()=>{const r=fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"shared")],[fullCleanRow(fullCleanIds.apiA,"shared")]);assert.deepEqual(r.ownedIds,[fullCleanIds.apiA]);assert.equal(r.evidence.deduplicatedOwnedCandidateCount,1);});
+test("FULLCLEAN-06",()=>assert.equal(fullCleanCollect([], [fullCleanRow(fullCleanIds.uiRace,"ui-race")]).ownedIds.includes(fullCleanIds.uiRace),true));
+test("FULLCLEAN-07",()=>assert.equal(fullCleanCollect([], [fullCleanRow(fullCleanIds.uiIndependent,"ui-independent")]).ownedIds.includes(fullCleanIds.uiIndependent),true));
+test("FULLCLEAN-08",()=>assert.deepEqual(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")],[]).ownedIds,[fullCleanIds.apiA]));
+test("FULLCLEAN-09",()=>assert.deepEqual(fullCleanCollect([], [fullCleanRow(fullCleanIds.uiRace,"ui-race")]).ownedIds,[fullCleanIds.uiRace]));
+test("FULLCLEAN-10",()=>assert.deepEqual(fullCleanCollect([], [fullCleanRow(fullCleanIds.uiRace,"ui-race")]).ownedIds,[fullCleanIds.uiRace]));
+test("FULLCLEAN-11",()=>assert.equal(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"already-absent")]).evidence.validatedOwnedCandidateCount,1));
+test("FULLCLEAN-12",()=>{const r=fullCleanCollect([], [fullCleanRow(fullCleanIds.foreign,"foreign","other-run")]);assert.deepEqual(r.ownedIds,[]);assert.equal(r.evidence.rejectedUnprovenCandidateCount,1);});
+test("FULLCLEAN-13",()=>{const r=fullCleanCollect([fullCleanRow(fullCleanIds.canonical,"bad")]);assert.deepEqual(r.ownedIds,[]);assert.equal(r.evidence.rejectedUnprovenCandidateCount,1);});
+test("FULLCLEAN-14",()=>{const r=fullCleanCollect([fullCleanRow(fullCleanIds.foreign,"foreign","prior-run")]);assert.deepEqual(r.ownedIds,[]);assert.equal(r.evidence.rejectedUnprovenCandidateCount,1);});
+test("FULLCLEAN-15",()=>{const r=fullCleanCollect([{id:"not-a-uuid",slug:`p6b-${fullCleanRunId}-invalid`,owned:true}]);assert.deepEqual(r.ownedIds,[]);assert.equal(r.evidence.rejectedUnprovenCandidateCount,1);});
+test("FULLCLEAN-16",()=>assert.equal(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")],[fullCleanRow(fullCleanIds.uiRace,"ui-race")]).evidence.validatedOwnedCandidateCount,2));
+test("FULLCLEAN-17",async()=>{const r=fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")],[fullCleanRow(fullCleanIds.uiRace,"ui-race")]);const final=await primitive("finalizeDisposableDevices")({db:{async readAllIds(){return fullCleanCanonicals;}},ownedIds:r.ownedIds,canonicalIds:fullCleanCanonicals,cleanupOwned:async()=>[]});assert.equal(final.postCleanup.canonicalIdentityMatches,true);});
+test("FULLCLEAN-18",async()=>assert.rejects(()=>primitive("finalizeDisposableDevices")({db:{async readAllIds(){return [...fullCleanCanonicals,fullCleanIds.uiRace];}},ownedIds:[fullCleanIds.apiA],canonicalIds:fullCleanCanonicals,cleanupOwned:async()=>[]})));
+test("FULLCLEAN-19",()=>assert.equal(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")],[fullCleanRow(fullCleanIds.uiRace,"ui-race")]).evidence.combinedOwnedCandidateCount,2));
+test("FULLCLEAN-20",()=>assert.equal(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")]).evidence.apiOwnedCandidateCount,1));
+test("FULLCLEAN-21",()=>assert.equal(fullCleanCollect([], [fullCleanRow(fullCleanIds.uiRace,"ui-race")]).evidence.uiOwnedCandidateCount,1));
+test("FULLCLEAN-22",()=>assert.equal(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")],[fullCleanRow(fullCleanIds.uiRace,"ui-race")]).evidence.combinedOwnedCandidateCount,2));
+test("FULLCLEAN-23",()=>assert.equal(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")],[fullCleanRow(fullCleanIds.uiRace,"ui-race")]).evidence.rejectedUnprovenCandidateCount,0));
+test("FULLCLEAN-24",()=>assert.equal(/token|cookie|authorization|password/i.test(JSON.stringify(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")]).evidence)),false));
+test("FULLCLEAN-25",()=>assert.deepEqual(Object.keys(fullCleanCollect([fullCleanRow(fullCleanIds.apiA,"api-a")]).evidence).sort(),["alreadyAbsentOwnedCount","apiOwnedCandidateCount","combinedOwnedCandidateCount","deduplicatedOwnedCandidateCount","deletedOwnedCount","rejectedUnprovenCandidateCount","uiOwnedCandidateCount","validatedOwnedCandidateCount"].sort()));
+
 for (const entry of cases) { executed += 1; try { await entry.fn(); passed += 1; console.log(`${entry.id}=PASS`); } catch (error) { console.error(`${entry.id}=FAIL`, error.message); } }
 console.log("P6B_RUNNER1B_LIFECYCLE_TESTS_REQUIRED=8");
 console.log("P6B_RUNNER1B_LIFECYCLE_TESTS_EXECUTED=8");
