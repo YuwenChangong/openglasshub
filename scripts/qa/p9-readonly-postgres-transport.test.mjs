@@ -6,7 +6,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import {
+  P9_EXPECTED_SESSION_POOLER_HOST,
+  P9_EXPECTED_SESSION_POOLER_USER,
   P9_PACKET_SHA256,
+  classifyPsqlFailure,
   classifyLegacyManagementResult,
   createPsqlTranscript,
   loadFrozenPacketUnits,
@@ -18,6 +21,7 @@ import {
 const root = process.cwd();
 const packetPath = path.join(root, "docs", "ops", "p8-production-history-read-only.sql");
 const productionDsn = "postgresql://postgres:fake-password@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require&application_name=fake-token";
+const sessionPoolerDsn = "postgresql://postgres.xcbnxzjlsvtgzixurcof:fake-password@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
 
 test("P9TX-01 accepts only the approved direct production hostname", () => {
   const parsed = parseP9Connection({ mode: "PRODUCTION", dsn: productionDsn });
@@ -27,8 +31,42 @@ test("P9TX-01 accepts only the approved direct production hostname", () => {
     projectRef: "xcbnxzjlsvtgzixurcof",
     port: 5432,
     database: "postgres",
+    endpointClass: "DIRECT",
   });
   assert.equal(parsed.pgEnv.PGPASSWORD, "fake-password");
+});
+
+test("P9POOL-01 accepts only the exact approved Supavisor session pooler target", () => {
+  const parsed = parseP9Connection({ mode: "PRODUCTION", dsn: sessionPoolerDsn });
+  assert.equal(P9_EXPECTED_SESSION_POOLER_HOST, "aws-1-ap-northeast-1.pooler.supabase.com");
+  assert.equal(P9_EXPECTED_SESSION_POOLER_USER, "postgres.xcbnxzjlsvtgzixurcof");
+  assert.deepEqual(parsed.safeTarget, {
+    mode: "PRODUCTION",
+    host: "aws-1-ap-northeast-1.pooler.supabase.com",
+    projectRef: "xcbnxzjlsvtgzixurcof",
+    port: 5432,
+    database: "postgres",
+    endpointClass: "SUPAVISOR_SESSION",
+  });
+});
+
+for (const [id, dsn] of [
+  ["P9POOL-02", "postgresql://postgres.xcbnxzjlsvtgzixurcof:fake-password@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"],
+  ["P9POOL-03", "postgresql://postgres.xcbnxzjlsvtgzixurcof:fake-password@aws-1-ap-northeast-1.pooler.supabase.com.attacker.example:5432/postgres"],
+  ["P9POOL-04", "postgresql://postgres.xcbnxzjlsvtgzixurcof:fake-password@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres"],
+  ["P9POOL-05", "postgresql://postgres:fake-password@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"],
+]) {
+  test(`${id} rejects an unsafe session-pooler production target before any spawn`, () => {
+    assert.throws(() => parseP9Connection({ mode: "PRODUCTION", dsn }), /P9_TARGET_VALIDATION_FAILED/);
+  });
+}
+
+test("P9FAIL-01 classifies connection failures without retaining raw stderr", () => {
+  assert.equal(classifyPsqlFailure("psql: error: connection to server at host failed: Network is unreachable"), "NETWORK_UNREACHABLE");
+  assert.equal(classifyPsqlFailure("psql: error: could not translate host name"), "DNS_FAILURE");
+  assert.equal(classifyPsqlFailure("psql: error: password authentication failed for user"), "AUTHENTICATION_FAILED");
+  assert.equal(classifyPsqlFailure("psql: error: SSL certificate verify failed"), "SSL_FAILURE");
+  assert.equal(classifyPsqlFailure("psql: error: server closed the connection unexpectedly"), "SERVER_CONNECTION_LOST");
 });
 
 for (const [id, dsn] of [

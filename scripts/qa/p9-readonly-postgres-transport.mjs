@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 
 export const P9_EXPECTED_PROJECT_REF = "xcbnxzjlsvtgzixurcof";
 export const P9_EXPECTED_PRODUCTION_HOST = `db.${P9_EXPECTED_PROJECT_REF}.supabase.co`;
+export const P9_EXPECTED_SESSION_POOLER_HOST = "aws-1-ap-northeast-1.pooler.supabase.com";
+export const P9_EXPECTED_SESSION_POOLER_USER = `postgres.${P9_EXPECTED_PROJECT_REF}`;
 export const P9_PACKET_SHA256 = "5AC18441DBD61A36DB88300F333A40752173E224BFA9247AF28AA55E3B97E0A7";
 const QUERY_IDS = ["MIGRATION_HISTORY", "SCHEMA_OBJECTS", "POLICIES_RLS", "FUNCTIONS"];
 
@@ -21,6 +23,16 @@ function sanitizeResultValue(value) {
     .replace(/\beyJ[A-Za-z0-9._-]+\b/g, '[REDACTED]');
 }
 
+export function classifyPsqlFailure(stderr) {
+  const detail = String(stderr || "").toLowerCase();
+  if (/password authentication failed|authentication failed|sasl/.test(detail)) return "AUTHENTICATION_FAILED";
+  if (/could not translate host name|hostname resolving|name or service not known|no such host/.test(detail)) return "DNS_FAILURE";
+  if (/ssl|certificate verify|tls/.test(detail)) return "SSL_FAILURE";
+  if (/server closed the connection|connection to server was lost|terminating connection/.test(detail)) return "SERVER_CONNECTION_LOST";
+  if (/network is unreachable|no route to host|connection timed out|could not connect/.test(detail)) return "NETWORK_UNREACHABLE";
+  return "TRANSPORT_UNKNOWN_CONNECTION_FAILURE";
+}
+
 export function parseP9Connection({ mode, dsn }) {
   if (!['PRODUCTION', 'LOCAL_TEST'].includes(mode) || typeof dsn !== 'string' || !dsn) throw failure('P9_TARGET_VALIDATION_FAILED');
   let url;
@@ -31,11 +43,16 @@ export function parseP9Connection({ mode, dsn }) {
   const database = decodeURIComponent(url.pathname.replace(/^\//, ''));
   const user = decodeURIComponent(url.username);
   if (!Number.isInteger(port) || port < 1 || port > 65535 || !database || !user) throw failure('P9_TARGET_VALIDATION_FAILED');
-  if (mode === 'PRODUCTION' && (host !== P9_EXPECTED_PRODUCTION_HOST || port !== 5432 || database !== 'postgres' || user !== 'postgres')) throw failure('P9_TARGET_VALIDATION_FAILED');
+  const endpointClass = host === P9_EXPECTED_PRODUCTION_HOST && port === 5432 && database === 'postgres' && user === 'postgres'
+    ? 'DIRECT'
+    : host === P9_EXPECTED_SESSION_POOLER_HOST && port === 5432 && database === 'postgres' && user === P9_EXPECTED_SESSION_POOLER_USER
+      ? 'SUPAVISOR_SESSION'
+      : null;
+  if (mode === 'PRODUCTION' && !endpointClass) throw failure('P9_TARGET_VALIDATION_FAILED');
   if (mode === 'LOCAL_TEST' && !isLoopback(host)) throw failure('P9_TARGET_VALIDATION_FAILED');
   const sslmode = mode === 'PRODUCTION' ? 'require' : (url.searchParams.get('sslmode') || 'disable');
   return {
-    safeTarget: { mode, host, projectRef: mode === 'PRODUCTION' ? P9_EXPECTED_PROJECT_REF : 'LOCAL_TEST', port, database },
+    safeTarget: { mode, host, projectRef: mode === 'PRODUCTION' ? P9_EXPECTED_PROJECT_REF : 'LOCAL_TEST', port, database, endpointClass: mode === 'PRODUCTION' ? endpointClass : 'LOCAL_TEST' },
     pgEnv: { PGHOST: host, PGPORT: String(port), PGDATABASE: database, PGUSER: user, PGPASSWORD: decodeURIComponent(url.password), PGSSLMODE: sslmode },
   };
 }
@@ -142,9 +159,9 @@ export async function runP9ReadOnlyCapture({ mode, dsn, packet, psqlPath = 'psql
   const script = createPsqlTranscript({ protocol, units, testOnlyWriteProbeSql }); const args = ['-X', '-q', '-v', 'ON_ERROR_STOP=1'];
   const processResult = await runPsql({ executable: psqlPath, args, env: { ...process.env, ...connection.pgEnv }, input: script, spawnImpl });
   const productionCounter = mode === 'PRODUCTION' ? 1 : 0;
-  if (processResult.exitCode !== 0) return { acceptanceResult: 'BLOCKED', targetMode: mode, targetRef: connection.safeTarget.projectRef, targetHost: connection.safeTarget.host, connectionAttempted: true, psqlProcessExited: true, connectionClosed: true, psqlExitCode: processResult.exitCode, rollbackMode: 'CONNECTION_CLOSE_ROLLBACK', firstFailureStage: 'PSQL_EXECUTION', firstFailureQueryId: lastStartedQueryId(processResult.stdout, protocol, units), localWriteRejection: testOnlyWriteProbeSql && /read-only transaction/i.test(processResult.stderr) ? 'PASS' : null, productionConnections: productionCounter, productionSqlRequests: productionCounter, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, secretAudit: 'PASS' };
+  if (processResult.exitCode !== 0) return { acceptanceResult: 'BLOCKED', targetMode: mode, targetRef: connection.safeTarget.projectRef, targetHost: connection.safeTarget.host, targetEndpointClass: connection.safeTarget.endpointClass, connectionAttempted: true, psqlProcessExited: true, connectionClosed: true, psqlExitCode: processResult.exitCode, rollbackMode: 'CONNECTION_CLOSE_ROLLBACK', firstFailureStage: 'PSQL_EXECUTION', firstFailureClass: classifyPsqlFailure(processResult.stderr), firstFailureQueryId: lastStartedQueryId(processResult.stdout, protocol, units), localWriteRejection: testOnlyWriteProbeSql && /read-only transaction/i.test(processResult.stderr) ? 'PASS' : null, productionConnections: productionCounter, productionSqlRequests: productionCounter, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, secretAudit: 'PASS' };
   const parsed = parsePsqlTranscript({ stdout: processResult.stdout, protocol, units });
-  return { acceptanceResult: 'PASS', targetMode: mode, targetRef: connection.safeTarget.projectRef, targetHost: connection.safeTarget.host, targetIdentityValidated: true, connectionAttempted: true, connectionOpened: true, psqlProcessCount: 1, psqlProcessExited: true, connectionClosed: true, transactionReadOnlyObserved: true, transactionReadOnlyValue: parsed.transactionReadOnlyValue, backendPid: parsed.backendPid, backendSessionCorrelation: parsed.sameSession, databaseIdentity: parsed.databaseIdentity, packetHash: P9_PACKET_SHA256, queriesExpected: units.length, queriesExecuted: units.length, queriesCaptured: parsed.queries.length, queriesMissing: 0, perQuery: parsed.queries, rollbackMode: 'EXPLICIT_ROLLBACK', productionConnections: productionCounter, productionSqlRequests: productionCounter, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, secretAudit: 'PASS', argv: args };
+  return { acceptanceResult: 'PASS', targetMode: mode, targetRef: connection.safeTarget.projectRef, targetHost: connection.safeTarget.host, targetEndpointClass: connection.safeTarget.endpointClass, targetIdentityValidated: true, connectionAttempted: true, connectionOpened: true, psqlProcessCount: 1, psqlProcessExited: true, connectionClosed: true, transactionReadOnlyObserved: true, transactionReadOnlyValue: parsed.transactionReadOnlyValue, backendPid: parsed.backendPid, backendSessionCorrelation: parsed.sameSession, databaseIdentity: parsed.databaseIdentity, packetHash: P9_PACKET_SHA256, queriesExpected: units.length, queriesExecuted: units.length, queriesCaptured: parsed.queries.length, queriesMissing: 0, perQuery: parsed.queries, rollbackMode: 'EXPLICIT_ROLLBACK', productionConnections: productionCounter, productionSqlRequests: productionCounter, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, secretAudit: 'PASS', argv: args };
 }
 
 export function classifyLegacyManagementResult(result) {
