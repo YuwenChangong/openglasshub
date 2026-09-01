@@ -1,6 +1,7 @@
 ﻿---
 export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import CommunityLayout from "../layouts/CommunityLayout.astro";
 import AuthCTA from "../components/auth/AuthCTA";
 import SignedOutHeroNote from "../components/auth/SignedOutHeroNote";
@@ -28,7 +29,7 @@ type PostRow = {
   post_media?: PostMediaRow[] | null;
 };
 
-const env = (Astro.locals as { runtime?: { env?: CloudflareEnv } }).runtime?.env;
+const env = runtimeEnv;
 const supabase = env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY ? createSSRClient(env) : null;
 const r2PublicBaseUrl = env?.R2_PUBLIC_BASE_URL || "";
 

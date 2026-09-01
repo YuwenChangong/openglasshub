@@ -1,13 +1,14 @@
 ---
 export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { buildCircleImageMap } from "../../lib/circle-images";
 import { FORUM_SEARCH_LIMITS, runForumSearch } from "../../lib/forum-search";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import type { ForumSearchResults, ForumSearchType } from "../../lib/search-types";
 
-const env = Astro.locals.runtime.env as CloudflareEnv;
+const env = runtimeEnv as CloudflareEnv;
 const supabase = createSSRClient(env);
 const rawQuery = String(Astro.url.searchParams.get("q") ?? "");
 const circleSlug = String(Astro.url.searchParams.get("circle") ?? "").trim() || null;

@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getProfileById } from "../../../../lib/profile-data";
@@ -113,7 +114,7 @@ async function countCommentLikes(client: SupabaseClient, authorId: string): Prom
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return json({ ok: false, error: "Runtime environment not available" }, 500);
 
     const token = getBearerToken(request);

@@ -1,6 +1,7 @@
 ﻿---
 export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import PostCard from "../../components/community/PostCard.astro";
@@ -21,7 +22,7 @@ if (!slug) {
   return Astro.redirect("/circles/");
 }
 
-const env = Astro.locals.runtime.env as CloudflareEnv;
+const env = runtimeEnv as CloudflareEnv;
 const supabase = createSSRClient(env);
 const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
 

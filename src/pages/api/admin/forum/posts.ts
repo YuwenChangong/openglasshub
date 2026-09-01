@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { sanitizeBodyForDisplay } from "../../../../lib/post-body";
 import { deletePostMediaObjects } from "../../../../lib/server/media-cleanup";
@@ -20,7 +21,7 @@ function excerpt(text: string | null | undefined): string {
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const { client } = await requireModerator(request, env);
@@ -119,7 +120,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
 export const PATCH: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const { client } = await requireModerator(request, env);
@@ -152,7 +153,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const { client } = await requireModerator(request, env);

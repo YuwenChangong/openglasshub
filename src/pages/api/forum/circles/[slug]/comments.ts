@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { jsonResponse, requireManagedCircleBySlug } from "../../../../../lib/server/circle-management";
 import { isModeratorRole } from "../../../../../lib/server/admin-auth";
@@ -10,7 +11,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 export const GET: APIRoute = async ({ request, params, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     const slug = String(params.slug ?? "").trim().toLowerCase();
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);
@@ -71,7 +72,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
 
 export const PATCH: APIRoute = async ({ request, params, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     const slug = String(params.slug ?? "").trim().toLowerCase();
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);
@@ -134,7 +135,7 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
 
 export const DELETE: APIRoute = async ({ request, params, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     const slug = String(params.slug ?? "").trim().toLowerCase();
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
     if (!slug) return jsonResponse({ error: "Missing circle slug" }, 400);

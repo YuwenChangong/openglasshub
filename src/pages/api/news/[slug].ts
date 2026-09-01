@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { getPublicNewsArticleBySlug, listRelatedPublicNews } from "../../../lib/news";
@@ -24,7 +25,7 @@ function requireEnv(env: Record<string, string | undefined>, key: string) {
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return json({ error: "Runtime environment not available" }, 500);
 
     const slug = String(params.slug ?? "").trim();

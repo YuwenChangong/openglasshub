@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { getCollection } from "astro:content";
 import { brandCatalog } from "../lib/device-catalog";
@@ -56,7 +57,7 @@ export const prerender = false;
 
 export const GET: APIRoute = async ({ locals }) => {
   const docs = await getCollection("docs");
-  const env = (locals as { runtime?: { env?: CloudflareEnv } }).runtime?.env;
+  const env = runtimeEnv;
   const supabase = env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY ? createSSRClient(env) : null;
   const publishedDevices = supabase ? await listPublishedDevices(supabase) : [];
   const publishedDeviceBySlug = new Map(publishedDevices.map((device) => [device.slug, device]));

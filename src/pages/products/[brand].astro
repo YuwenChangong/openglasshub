@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import BrandMark from "../../components/products/BrandMark.astro";
 import ProductVisual from "../../components/products/ProductVisual.astro";
@@ -135,7 +136,7 @@ if (!brand) {
   return Astro.redirect("/products/");
 }
 
-const env = Astro.locals.runtime.env as CloudflareEnv;
+const env = runtimeEnv as CloudflareEnv;
 const publishedDevices = await listPublishedDevices(createSSRClient(env));
 const brandProducts = publishedDevices.filter((product) => product.brandKey === brand.key).map((product) => serializeCompareProduct(product));
 const compareProducts = publishedDevices.map((product) => serializeCompareProduct(product));

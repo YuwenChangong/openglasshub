@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createDeviceAdminHandlers, createSupabaseDeviceRepository } from "../../../lib/server/device-admin";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../lib/server/admin-auth";
@@ -6,7 +7,7 @@ export const prerender = false;
 type RuntimeLocals = { runtime?: { env?: RuntimeEnv } };
 
 function handlers(request: Request, locals: unknown) {
-  const env = (locals as RuntimeLocals).runtime?.env;
+  const env = runtimeEnv;
   if (!env) return null;
   return createDeviceAdminHandlers({
     authorize: async (nextRequest) => {

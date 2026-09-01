@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../lib/server/admin-auth";
 import { createDefaultUserSafetyState } from "../../../lib/server/user-safety.server";
@@ -8,7 +9,7 @@ type RuntimeLocals = { runtime?: { env?: RuntimeEnv } };
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const { client } = await requireModerator(request, env);

@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -337,7 +338,7 @@ function validateMediaArray(postId: string, userId: string, media: MediaPayload[
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return json({ error: "Runtime environment not available" }, 500);
     }

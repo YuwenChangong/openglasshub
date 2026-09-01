@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { moderateAsset } from "../../../../lib/moderation/moderate-asset.server";
 import {
@@ -110,7 +111,7 @@ async function moderateProfileImage(params: {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireForumUser(request, env);

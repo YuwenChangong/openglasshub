@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { buildUniqueCircleSlug, slugifyCircleName } from "../../../lib/circle-slug";
 import { getRequestIp } from "../../../lib/request-ip";
@@ -86,7 +87,7 @@ async function findDuplicateCircle(
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return jsonResponse({ error: "Runtime environment not available" }, 500);
     }
@@ -111,7 +112,7 @@ export const GET: APIRoute = async ({ locals }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return jsonResponse({ error: "Runtime environment not available" }, 500);
     }
@@ -296,7 +297,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 export const PATCH: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return jsonResponse({ error: "Runtime environment not available" }, 500);
     }

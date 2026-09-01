@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import CircleCard from "../../components/community/CircleCard.astro";
@@ -8,7 +9,7 @@ import { isPublicVisibleCircle } from "../../lib/site-navigation";
 import { buildCircleImageMap } from "../../lib/circle-images";
 import { fetchCirclesWithFallback } from "../../lib/circle-data";
 
-const env = Astro.locals.runtime.env as CloudflareEnv;
+const env = runtimeEnv as CloudflareEnv;
 const supabase = createSSRClient(env);
 
 const { circles, error } = await fetchCirclesWithFallback(supabase);

@@ -10,6 +10,7 @@
  * Does NOT use service role key. RLS enforces ownership.
  */
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getRequestIp } from "../../../lib/request-ip";
@@ -141,7 +142,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return json({ error: "Runtime environment not available" }, 500);
     }
@@ -356,7 +357,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return json({ error: "Runtime environment not available" }, 500);
     }
@@ -548,7 +549,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return json({ error: "Runtime environment not available" }, 500);
     }
@@ -633,7 +634,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
 export const PUT: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return json({ error: "Runtime environment not available" }, 500);
     }

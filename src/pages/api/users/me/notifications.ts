@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -242,7 +243,7 @@ async function authenticate(request: Request, locals: unknown): Promise<{
   client: SupabaseClient;
   userId: string;
 } | { error: Response }> {
-  const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
+  const env = runtimeEnv;
   if (!env) {
     return { error: json({ ok: false, error: "UNAUTHORIZED" }, 500) };
   }

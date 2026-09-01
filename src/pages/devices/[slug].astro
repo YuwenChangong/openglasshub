@@ -1,11 +1,12 @@
 ---
 export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import { getPublishedDeviceBySlug } from "../../lib/public-device-data";
 
 const slug = Astro.params.slug ?? "";
-const env = Astro.locals.runtime.env as CloudflareEnv;
+const env = runtimeEnv as CloudflareEnv;
 const product = await getPublishedDeviceBySlug(createSSRClient(env), slug);
 if (!product) {
   Astro.response.status = 404;

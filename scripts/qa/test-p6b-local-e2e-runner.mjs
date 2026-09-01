@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { runP6bLifecycle } from "./p6b-local-e2e-runner-core.mjs";
 import * as primitives from "./p6b-local-e2e-runner.mjs";
 
@@ -512,6 +513,8 @@ test("TEARDOWN-06", async () => { assert.equal(typeof primitive("ownedTreeKillAr
 test("TEARDOWN-07", async () => { assert.equal(primitive("ownedTreeKillArgs")(789).includes("/T"), true); });
 test("TEARDOWN-08", async () => { assert.equal(primitive("ownedTreeKillArgs")(789).includes("/F"), true); });
 test("ASTROONLY-01", async () => { assert.equal(typeof primitive("runAstroOnly"), "function"); });
+test("ASTROREADY-01", async () => { const source = fs.readFileSync(new URL("./p6b-local-e2e-runner.mjs", import.meta.url), "utf8"); assert.match(source, /waitForHttp\(`http:\/\/127\.0\.0\.1:\$\{[^}]+\}\/about\/`, astro\)/); });
+test("ASTROREADY-02", async () => { const source = fs.readFileSync(new URL("./p6b-local-e2e-runner.mjs", import.meta.url), "utf8"); assert.match(source, /\["astro", "dev", "stop"\]/); });
 test("PORTWAIT-01", async () => { let n = 0; const result = await primitive("waitForPortRelease")({ probe: async () => ++n >= 3, delay: async () => {}, maxAttempts: 4 }); assert.equal(result.released, true); assert.equal(result.probeCount, 3); });
 test("PORTWAIT-02", async () => { const result = await primitive("waitForPortRelease")({ probe: async () => true, delay: async () => {}, maxAttempts: 4 }); assert.equal(result.probeCount, 1); });
 test("PORTWAIT-03", async () => { const result = await primitive("waitForPortRelease")({ probe: async () => false, delay: async () => {}, maxAttempts: 2 }); assert.equal(result.released, false); });

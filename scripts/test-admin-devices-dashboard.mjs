@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { createServer } from "vite";
+import react from "@vitejs/plugin-react";
 
 const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", { url: "https://test.local" });
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Event: dom.window.Event, MouseEvent: dom.window.MouseEvent, IS_REACT_ACT_ENVIRONMENT: true });
 Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator, configurable: true });
 window.confirm = () => true;
 const { createRoot } = await import("react-dom/client"); const ReactRuntime = await import("react"); const { act, createElement } = ReactRuntime; globalThis.React = ReactRuntime.default;
-const vite = await createServer({ server:{middlewareMode:true}, appType:"custom" });
+const vite = await createServer({ plugins:[react()], server:{middlewareMode:true}, appType:"custom" });
 const module = await vite.ssrLoadModule("/src/components/admin/AdminDevicesDashboard.tsx");
 const id = (n) => `00000000-0000-4000-8000-00000000000${n}`;
 const device = (n,status,locked=status!=="draft") => ({id:id(n),slug:`device-${n}`,brandKey:"brand",brandName:`Brand ${n}`,name:`Device ${n}`,shortDescription:"Short",longDescription:"Long",imageAlt:"Alt",category:"smart_glasses",routeLabel:"Route",routeDescription:"Description",publicationStatus:status,slugLocked:locked});

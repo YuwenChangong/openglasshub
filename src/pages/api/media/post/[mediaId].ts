@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { env as runtimeEnv } from "cloudflare:workers";
 import { createSSRClient, type CloudflareEnv } from "../../../../lib/supabase-server";
 import { streamStorageObjectViaSignedUrl } from "../../../../lib/media-proxy";
 
@@ -18,7 +19,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
   const mediaId = String(params.mediaId ?? "").trim();
   if (!mediaId) return json({ error: "MEDIA_NOT_FOUND" }, 404);
 
-  const env = locals.runtime.env as CloudflareEnv;
+  const env = runtimeEnv as CloudflareEnv;
   const supabase = createSSRClient(env);
   const variant = new URL(request.url).searchParams.get("variant") === "thumb" ? "thumb" : "display";
 

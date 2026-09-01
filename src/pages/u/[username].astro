@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import MyProfilePage from "../../components/profile/MyProfilePage";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
@@ -11,7 +12,7 @@ import {
 } from "../../lib/profile-data";
 import { buildProfileHref } from "../../lib/profile-links";
 
-const env = Astro.locals.runtime.env as CloudflareEnv & { R2_PUBLIC_BASE_URL?: string };
+const env = runtimeEnv as CloudflareEnv & { R2_PUBLIC_BASE_URL?: string };
 const supabase = createSSRClient(env);
 const username = Astro.params.username?.trim() ?? "";
 const tab = getRequestedProfileTab(Astro.url);
