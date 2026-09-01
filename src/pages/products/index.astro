@@ -1,7 +1,9 @@
 ---
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import BrandMark from "../../components/products/BrandMark.astro";
-import { getAllDevices, getBrandSummaries } from "../../lib/device-catalog";
+import { brandCatalog } from "../../lib/device-catalog";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import { listPublishedDevices } from "../../lib/public-device-data";
 
 const compareFieldOrder = [
   ["name", "产品"],
@@ -17,7 +19,7 @@ const compareFieldOrder = [
   ["battery_life", "续航"],
 ] as const;
 
-type DeviceRecord = NonNullable<ReturnType<typeof getAllDevices>[number]>;
+type DeviceRecord = Awaited<ReturnType<typeof listPublishedDevices>>[number];
 
 function getSpecValue(product: DeviceRecord, field: string) {
   for (const group of product.specGroups ?? []) {
@@ -74,17 +76,18 @@ function serializeCompareProduct(product: DeviceRecord) {
   };
 }
 
-const brands = getBrandSummaries().map((brand) => {
-  const previewProducts = brand.representativeNames.map((name) => ({
-    name,
-    searchText: name.toLowerCase(),
-  }));
+export const prerender = false;
+const env = Astro.locals.runtime.env as CloudflareEnv;
+const publishedDevices = await listPublishedDevices(createSSRClient(env));
+const brands = brandCatalog.map((brand) => {
+  const brandProducts = publishedDevices.filter((product) => product.brandKey === brand.key);
+  const previewProducts = brandProducts.slice(0, 3).map((product) => ({ name: product.name, searchText: product.name.toLowerCase() }));
   const searchText = [brand.displayName, ...previewProducts.map((product) => product.name)].join(" ").toLowerCase();
 
   return {
     key: brand.key,
     displayName: brand.displayName,
-    productCount: brand.productCount,
+    productCount: brandProducts.length,
     previewProducts,
     brandLogo: brand.brandLogo,
     href: `/products/${brand.key}/`,
@@ -92,7 +95,7 @@ const brands = getBrandSummaries().map((brand) => {
   };
 });
 
-const compareProducts = getAllDevices().map((product) => serializeCompareProduct(product));
+const compareProducts = publishedDevices.map((product) => serializeCompareProduct(product));
 ---
 
 <CommunityLayout

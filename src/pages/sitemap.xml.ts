@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getCollection } from "astro:content";
-import { brandCatalog, getDeviceBySlug } from "../lib/device-catalog";
+import { brandCatalog } from "../lib/device-catalog";
+import { listPublishedDevices } from "../lib/public-device-data";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { isPublicVisibleCircle } from "../lib/site-navigation";
 import { isGazeLauncherPublicEnabled } from "../lib/gaze-launcher-visibility";
@@ -57,6 +58,8 @@ export const GET: APIRoute = async ({ locals }) => {
   const docs = await getCollection("docs");
   const env = (locals as { runtime?: { env?: CloudflareEnv } }).runtime?.env;
   const supabase = env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY ? createSSRClient(env) : null;
+  const publishedDevices = supabase ? await listPublishedDevices(supabase) : [];
+  const publishedDeviceBySlug = new Map(publishedDevices.map((device) => [device.slug, device]));
 
   const entries: SitemapEntry[] = [
     { loc: absoluteUrl("/"), changefreq: "daily", priority: "1.0" },
@@ -83,7 +86,7 @@ export const GET: APIRoute = async ({ locals }) => {
 
     if (docSlug.startsWith("reference/devices/")) {
       const slug = docSlug.replace("reference/devices/", "");
-      const product = getDeviceBySlug(slug);
+      const product = publishedDeviceBySlug.get(slug);
       if (!product) continue;
       entries.push({
         loc: absoluteUrl(`/products/${product.brandKey}/`),

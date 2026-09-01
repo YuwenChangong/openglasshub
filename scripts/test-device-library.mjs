@@ -23,8 +23,9 @@ async function main() {
   const newPostRoute = await read("src/pages/posts/new.astro");
 
   assert(indexRoute.includes('Astro.redirect("/products/"'), "Legacy /devices/ index should redirect to /products/.");
-  assert(detailRoute.includes("getDeviceBySlug"), "Legacy /devices/[slug] route should resolve known products before redirecting.");
-  assert(detailRoute.includes('"/products/"'), "Legacy /devices/[slug] route should redirect back into products.");
+  assert(detailRoute.includes("getPublishedDeviceBySlug"), "Legacy /devices/[slug] route should resolve only published products before redirecting.");
+  assert(!detailRoute.includes("getDeviceBySlug"), "Legacy /devices/[slug] must not use the static catalog at runtime.");
+  assert(detailRoute.includes("Astro.redirect(`/products/${product.brandKey}/#product-${product.slug}`"), "Legacy /devices/[slug] route should redirect published entries back into products.");
   assert(!navigation.includes('href: "/devices/"'), "Main navigation should not include /devices/.");
   assert(discussionHelper.includes('libraryHref: "/products/"'), "Discussion helper should point library links back to /products/.");
   assert(discussionHelper.includes("productHref"), "Discussion helper should expose a safe product page link.");

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getAllDevices } from "./device-catalog";
+import { listPublishedDevices } from "./public-device-data";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "./forum-media";
 import { buildPostCommentCountMap, buildPostLikeCountMap, isMissingViewCountError } from "./post-engagement";
 import { buildProfileHref } from "./profile-links";
@@ -444,8 +444,8 @@ async function fetchPublicProfiles(
     .map(({ score: _score, ...profile }) => profile);
 }
 
-function buildDeviceSearchResults(query: string, limitDevices: number): ForumSearchDeviceResult[] {
-  const buildDeviceKeywordText = (device: ReturnType<typeof getAllDevices>[number]) => {
+async function buildDeviceSearchResults(supabase: SupabaseClient, query: string, limitDevices: number): Promise<ForumSearchDeviceResult[]> {
+  const buildDeviceKeywordText = (device: Awaited<ReturnType<typeof listPublishedDevices>>[number]) => {
     const categoryKeywords: Record<string, string> = {
       display_glasses: "ar glasses display glasses wearable display portable screen",
       ai_glasses: "ai glasses smart glasses wearable ai eyewear",
@@ -465,7 +465,8 @@ function buildDeviceSearchResults(query: string, limitDevices: number): ForumSea
       .join(" ");
   };
 
-  return getAllDevices()
+  const devices = await listPublishedDevices(supabase);
+  return devices
     .map((device) => {
       const keywordText = buildDeviceKeywordText(device);
       const score =
@@ -625,7 +626,7 @@ export async function runForumSearch(
     const devicesPromise =
       parsed.circleSlug || parsed.type === "posts" || parsed.type === "circles" || parsed.type === "users"
         ? Promise.resolve([] as ForumSearchDeviceResult[])
-        : Promise.resolve(buildDeviceSearchResults(parsed.query, limitDevices));
+        : buildDeviceSearchResults(supabase, parsed.query, limitDevices);
 
     const [{ rows: matchedPosts, supportsViewCount }, circles, users, devices] = await Promise.all([
       postsPromise,
