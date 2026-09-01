@@ -52,7 +52,9 @@ type SearchProfileRow = {
 export function sanitizeSearchInput(raw: string): string {
   return raw
     .trim()
-    .replace(/[%_]+/g, " ")
+    // PostgREST `.or(...)` treats commas and parentheses as expression syntax.
+    // Search text must not be able to add a second filter predicate.
+    .replace(/[%_(),]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, MAX_QUERY_LENGTH);

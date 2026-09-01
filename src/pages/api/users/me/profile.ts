@@ -21,6 +21,7 @@ import {
 } from "../../../../lib/profile-media";
 import { isValidProfileUsername } from "../../../../lib/profile-links";
 import { jsonResponse, requireForumUser } from "../../../../lib/server/circle-management";
+import { sanitizeApiError } from "../../../../lib/server/error-response";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../../lib/server/user-safety.server";
 
 export const prerender = false;
@@ -191,8 +192,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .maybeSingle();
     }
 
-    if (currentProfileResult.error || !currentProfileResult.data) {
-      return jsonResponse({ error: currentProfileResult.error?.message ?? "Profile not found" }, 404);
+    if (currentProfileResult.error) {
+      return jsonResponse({ error: sanitizeApiError(currentProfileResult.error, "PROFILE_READ_FAILED") }, 500);
+    }
+    if (!currentProfileResult.data) {
+      return jsonResponse({ error: "PROFILE_NOT_FOUND" }, 404);
     }
 
     const currentProfile = currentProfileResult.data as {
@@ -293,7 +297,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     if (updateResult.error || !updateResult.data) {
-      return jsonResponse({ error: updateResult.error?.message ?? "PROFILE_UPDATE_FAILED" }, 500);
+      return jsonResponse({ error: sanitizeApiError(updateResult.error, "PROFILE_UPDATE_FAILED") }, 500);
     }
 
     const updatedProfile = updateResult.data as typeof currentProfile;
@@ -315,7 +319,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    return jsonResponse({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
+    return jsonResponse({ error: sanitizeApiError(error, "PROFILE_UPDATE_FAILED") }, 500);
   }
 };
 
