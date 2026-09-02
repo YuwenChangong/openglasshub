@@ -9,6 +9,7 @@
     "build": "astro build && node scripts/finalize-pages-wrangler-config.mjs",
     "preview": "astro preview",
     "astro": "astro",
+    "test:workers-migration-inventory": "node scripts/qa/test-cloudflare-workers-migration-inventory.mjs",
     "test:astro-check-ratchet": "node scripts/test-astro-check-baseline-ratchet.mjs",
     "test:astro-check-ratchet-unit": "node scripts/test-astro-check-baseline-ratchet-unit.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
