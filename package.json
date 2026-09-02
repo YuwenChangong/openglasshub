@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build",
+    "build": "astro build && node scripts/finalize-pages-wrangler-config.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "test:astro-check-ratchet": "node scripts/test-astro-check-baseline-ratchet.mjs",
