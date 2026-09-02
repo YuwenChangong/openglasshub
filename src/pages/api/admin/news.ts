@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import {
   jsonResponse,
@@ -145,7 +146,7 @@ function toDatabaseErrorMessage(message: string) {
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireModerator(request, env);
@@ -176,7 +177,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireModerator(request, env);
@@ -218,7 +219,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 export const PATCH: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireModerator(request, env);
@@ -260,7 +261,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireModerator(request, env);

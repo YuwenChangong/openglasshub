@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
+import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
 
 const root = process.cwd();
 const ids = {
@@ -82,6 +83,7 @@ async function request(handler, row, { mediaId = ids.media, search = "", headers
 }
 
 async function main() {
+  setCloudflareWorkersTestBinding({ SUPABASE_URL: "https://example.supabase.co", SUPABASE_ANON_KEY: "anon", R2_PUBLIC_BASE_URL: "https://media.example" });
   const routePath = path.join(root, "src/pages/api/media/post/[mediaId].ts");
   const proxyPath = path.join(root, "src/lib/media-proxy.ts");
   const migrationPath = path.join(root, "supabase/migrations/20260715_post_media_delivery_visibility_authorization.sql");
@@ -99,7 +101,7 @@ async function main() {
   assert.doesNotMatch(proxySource, /headers\.set\(["']set-cookie/);
   assert.doesNotMatch(routeSource, /headers\.get\(["']range/);
 
-  const vite = await createServer({ root, logLevel: "error", server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const vite = await createServer({ root, logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   try {
     const { createPostMediaGet, isCanonicalPostMediaObjectPath, isMediaId, resolvePublicPostMediaTarget } = await vite.ssrLoadModule("/src/pages/api/media/post/[mediaId].ts");
     assert.equal(isMediaId(ids.media), true);

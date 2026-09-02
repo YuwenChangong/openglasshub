@@ -4351,34 +4351,34 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
-  min-height: 20px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
   line-height: 1;
-  flex: 0 0 20px;
+  flex: 0 0 16px;
   flex-shrink: 0;
 }
 
 .header-notifications__icon svg {
   display: block;
-  width: 20px;
-  min-width: 20px;
-  max-width: 20px;
-  height: 20px;
-  min-height: 20px;
-  max-height: 20px;
+  width: 16px;
+  min-width: 16px;
+  max-width: 16px;
+  height: 16px;
+  min-height: 16px;
+  max-height: 16px;
   aspect-ratio: 1 / 1;
   overflow: visible;
-  flex: 0 0 20px;
+  flex: 0 0 16px;
   flex-shrink: 0;
-  transform: none;
+  transform: translateY(0.5px);
 }
 
 .header-notifications__bell-svg {
   display: block;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   aspect-ratio: 1 / 1;
   shape-rendering: geometricPrecision;
 }

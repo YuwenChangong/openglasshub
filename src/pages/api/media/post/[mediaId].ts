@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { env as runtimeEnv } from "cloudflare:workers";
 import { createSSRClient, type CloudflareEnv } from "../../../../lib/supabase-server";
 import { streamStorageObjectViaSignedUrl, streamTrustedMediaUrl } from "../../../../lib/media-proxy";
 import { isPublicVisibleCircle } from "../../../../lib/site-navigation";
@@ -124,7 +125,7 @@ export function createPostMediaGet(dependencies: PostMediaDeliveryDependencies =
   const mediaId = String(params.mediaId ?? "").trim().toLowerCase();
   if (!isMediaId(mediaId)) return json({ error: "MEDIA_NOT_FOUND" }, 404);
 
-  const env = locals.runtime.env as CloudflareEnv & { R2_PUBLIC_BASE_URL?: string };
+  const env = runtimeEnv as CloudflareEnv & { R2_PUBLIC_BASE_URL?: string };
   const supabase = dependencies.createSSRClient(env);
   const variant = new URL(request.url).searchParams.get("variant") === "thumb" ? "thumb" : "display";
   const target = await resolvePublicPostMediaTarget(supabase, mediaId, variant);

@@ -1,11 +1,17 @@
 ---
 export const prerender = false;
 
-import { getDeviceBySlug } from "../../lib/device-catalog";
+import { env as runtimeEnv } from "cloudflare:workers";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import { getPublishedDeviceBySlug } from "../../lib/public-device-data";
 
 const slug = Astro.params.slug ?? "";
-const product = getDeviceBySlug(slug);
-const target = product ? `/products/${product.brandKey}/#product-${product.slug}` : "/products/";
-
-return Astro.redirect(target, 301);
+const env = runtimeEnv as CloudflareEnv;
+const product = await getPublishedDeviceBySlug(createSSRClient(env), slug);
+if (!product) {
+  Astro.response.status = 404;
+  Astro.response.headers.set("x-robots-tag", "noindex");
+} else {
+  return Astro.redirect(`/products/${product.brandKey}/#product-${product.slug}`, 301);
+}
 ---

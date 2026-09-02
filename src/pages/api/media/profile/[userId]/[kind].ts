@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { env as runtimeEnv } from "cloudflare:workers";
 import { createSSRClient, type CloudflareEnv } from "../../../../../lib/supabase-server";
 import {
   isProfileMediaPathForUser,
@@ -65,7 +66,7 @@ export function createProfileMediaGet(dependencies: ProfileMediaDependencies = p
   const kind = String(params.kind ?? "");
   if (!isProfileMediaUserId(userId) || !isProfileMediaKind(kind)) return json({ error: "MEDIA_NOT_FOUND" }, 404);
 
-  const env = locals.runtime.env as CloudflareEnv;
+  const env = runtimeEnv as CloudflareEnv;
   const supabase = dependencies.createSSRClient(env);
   const path = await resolvePublicProfileMediaTarget(supabase, userId, kind);
   if (!path) return json({ error: "MEDIA_NOT_FOUND" }, 404);

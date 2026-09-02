@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { moderateAsset } from "../../../../lib/moderation/moderate-asset.server";
@@ -25,6 +26,7 @@ import { isValidProfileUsername } from "../../../../lib/profile-links";
 import { createUserClient, jsonResponse } from "../../../../lib/server/circle-management";
 import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
 import { createLegalConsentReadRepository } from "../../../../lib/server/legal-consent-repository.server";
+import { sanitizeApiError } from "../../../../lib/server/error-response";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../../lib/server/user-safety.server";
 
 export const prerender = false;
@@ -220,7 +222,7 @@ export function createProfilePost(dependencies: {
 } = {}): APIRoute {
   return async ({ request, locals }) => {
   try {
-    const env = requireRuntimeBindings((locals as RuntimeLocals).runtime?.env);
+    const env = requireRuntimeBindings(runtimeEnv);
     const auth = await (dependencies.authenticate ?? authenticateProfileActor)(request, env);
     const consent = await (dependencies.requireConsent ?? requireAuthenticatedLegalConsent)({
       identity: { userId: auth.userId },
@@ -312,6 +314,7 @@ export function createProfilePost(dependencies: {
   } catch (error) {
     if (error instanceof Response) return error;
     return jsonResponse({ error: "PROFILE_UPDATE_FAILED" }, 500);
+    return jsonResponse({ error: sanitizeApiError(error, "PROFILE_UPDATE_FAILED") }, 500);
   }
   };
 };

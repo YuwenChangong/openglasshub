@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { buildAuthCallbackRedirect, getSafeNext } from "../../../lib/auth-redirect";
@@ -35,7 +36,7 @@ function isValidEmail(value: string): boolean {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return json({ ok: false, error: "RESEND_CONFIRMATION_FAILED" }, 500);
     }

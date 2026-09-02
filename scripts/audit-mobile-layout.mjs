@@ -100,9 +100,9 @@ const contentChecks = [
     details: "mobile wrap rules depend on the post action row class",
   },
   {
-    name: "device route preserves redirect handoff",
-    pass: devicePage.includes("Astro.redirect(target, 301)"),
-    details: "legacy /devices/ routes should stay downlined to the products surface",
+    name: "device route preserves the approved public device contract",
+    pass: devicePage.includes("Astro.redirect(target, 301)") || (devicePage.includes("getPublishedDeviceBySlug") && devicePage.includes('from "cloudflare:workers"')),
+    details: "legacy redirects or the approved database-backed Device Library route are accepted",
   },
   {
     name: "long text wrapping guard exists",

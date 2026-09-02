@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildProfileHref } from "../../../../lib/profile-links";
@@ -104,7 +105,7 @@ function summaryResponse(profile: SummaryProfile, avatarResolvedUrl: string | nu
 
 export function createSummaryGet(dependencies: SummaryDependencies = {}): APIRoute {
   return async ({ request, locals }) => {
-    const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
+    const env = runtimeEnv;
     if (!hasRuntimeBindings(env)) return json({ ok: false, error: "SUMMARY_UNAVAILABLE" }, 503);
 
     try {

@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { deleteMediaObject } from "../../../../lib/server/media-cleanup";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
@@ -12,7 +13,7 @@ const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const { client } = await requireModerator(request, env);
@@ -86,7 +87,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const { client, user } = await requireModerator(request, env);

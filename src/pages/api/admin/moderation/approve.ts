@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../../lib/server/admin-auth";
 import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
@@ -9,7 +10,7 @@ type RuntimeLocals = { runtime?: { env?: RuntimeEnv } };
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
     const { client, user } = await requireModerator(request, env);
     const consent = await requireAuthenticatedLegalConsent({ identity: { userId: user.id }, repository: createLegalConsentReadRepository(client) });

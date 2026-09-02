@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
+import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
 
 const root = process.cwd();
 const actorId = "00000000-0000-4000-8000-000000000001";
 const otherId = "00000000-0000-4000-8000-000000000002";
 
 async function main() {
+  setCloudflareWorkersTestBinding({ SUPABASE_URL: "https://example.test", SUPABASE_ANON_KEY: "anon" });
   const [source, notificationMigration, profileMigration, consentRepository] = await Promise.all([
     readFile(path.join(root, "src/pages/api/users/me/summary.ts"), "utf8"),
     readFile(path.join(root, "supabase/migrations/20260606_forum_notifications_mvp.sql"), "utf8"),
@@ -25,7 +27,7 @@ async function main() {
   assert.match(profileMigration, /profiles_select_public/);
   assert.match(consentRepository, /SUPABASE_SERVICE_ROLE_KEY/);
 
-  const vite = await createServer({ root, logLevel: "error", server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const vite = await createServer({ root, logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   try {
     const { createSummaryGet, getBearerToken } = await vite.ssrLoadModule("/src/pages/api/users/me/summary.ts");
     assert.equal(getBearerToken(new Request("https://app.example", { headers: { authorization: "Bearer token" } })), "token");

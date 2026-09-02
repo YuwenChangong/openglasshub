@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
+import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
 
 const root = process.cwd();
 const actorId = "00000000-0000-4000-8000-000000000001";
 const otherId = "00000000-0000-4000-8000-000000000002";
 
 async function main() {
+  setCloudflareWorkersTestBinding({ SUPABASE_URL: "https://example.test", SUPABASE_ANON_KEY: "anon" });
   const routePath = path.join(root, "src/pages/api/users/me/profile.ts");
   const migrationPath = path.join(root, "supabase/migrations/20260518_forum_phase1_schema.sql");
   const roleMigrationPath = path.join(root, "supabase/migrations/20260620_lock_profile_role_updates.sql");
@@ -40,7 +42,7 @@ async function main() {
   assert.match(roleMigration, /execute format\('grant update \(%s\) on table public\.profiles to authenticated'/i);
   assert.match(serviceRepository, /SUPABASE_SERVICE_ROLE_KEY/);
 
-  const vite = await createServer({ root, logLevel: "error", server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const vite = await createServer({ root, logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   try {
     const route = await vite.ssrLoadModule("/src/pages/api/users/me/profile.ts");
     const media = await vite.ssrLoadModule("/src/lib/profile-media.ts");

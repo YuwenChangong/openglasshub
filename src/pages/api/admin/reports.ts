@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../lib/server/admin-auth";
 import {
@@ -19,7 +20,7 @@ function sanitizeFilter(value: string | null, allowed: readonly string[]) {
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireModerator(request, env);

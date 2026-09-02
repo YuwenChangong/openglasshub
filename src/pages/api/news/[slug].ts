@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import {
   getPublicNewsArticleBySlug,
@@ -57,7 +58,7 @@ const productionDependencies: NewsDetailDependencies = {
 
 export function createPublicNewsDetailGet(dependencies: NewsDetailDependencies = productionDependencies): APIRoute {
   return async ({ params, locals }) => {
-    const env = (locals as { runtime?: { env?: Partial<CloudflareEnv> } }).runtime?.env;
+    const env = runtimeEnv as Partial<CloudflareEnv>;
     if (!env?.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return json({ error: "NEWS_UNAVAILABLE" }, 500);
 
     const slug = parsePublicNewsSlug(params.slug);

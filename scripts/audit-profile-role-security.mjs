@@ -65,7 +65,7 @@ if (exists(qaGrantPath)) {
 check("profile update API exists", exists(profileApiPath));
 if (exists(profileApiPath)) {
   const api = read(profileApiPath);
-  check("profile API uses forbidden field allowlist", /FORBIDDEN_PROFILE_FIELDS/.test(api));
+  check("profile API uses forbidden field allowlist", /PROFILE_FORBIDDEN_FIELDS/.test(api));
   check("profile API rejects role field", /PROFILE_FORBIDDEN_FIELD_UPDATE/.test(api) && /"role"/.test(api));
   check("profile API rejects id and email fields", /"id"/.test(api) && /"email"/.test(api));
 }

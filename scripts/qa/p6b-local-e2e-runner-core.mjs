@@ -1,0 +1,42 @@
+const READY = "OPENGLASS_HUB_PUBLIC_BETA_P6B_DEVICE_ADMIN_LOCAL_E2E_READY";
+const BLOCKED = "OPENGLASS_HUB_PUBLIC_BETA_P6B_BLOCKED";
+const isLocal = (value) => typeof value === "string" && ["localhost", "127.0.0.1", "::1"].includes(new URL(value).hostname);
+const redact = (value) => JSON.parse(JSON.stringify(value, (key, item) => typeof item === "string" && /(jwt|token|anon.?key|service.?key|password)/i.test(`${key} ${item}`) ? "[REDACTED]" : item));
+
+export async function runP6bLifecycle({ operations, evidence = [], config = { apiRequired: 16, uiRequired: 16 }, runId = "p6b" }) {
+  const observations = {};
+  const progress = (entry) => { try { config.onProgress?.(entry); } catch {} };
+  const result = { runId, mode: config.mode ?? "FULL", acceptanceResult: "PASS", cleanupResult: "PASS", firstFailureStage: null, firstFailureCase: null, firstFailureSubcase: null, apiExecuted: 0, apiPassed: 0, apiFailed: 0, apiRequired: config.apiRequired, apiCases: [], uiExecuted: 0, uiPassed: 0, uiFailed: 0, uiRequired: config.uiRequired, uiCases: [], observerPendingPromises: 0, observerStaleListeners: 0, observerUnhandledRejections: 0, finalEvidenceGate: "PENDING", supabaseStartCount: 0, astroStartCount: 0, browserStartCount: 0, remoteConnectionCount: 0, astroStopped: false, supabaseCleaned: false, preexistingStatePreserved: false };
+  const retain = (value) => { if (value?.observations && typeof value.observations === "object") Object.assign(observations, redact(value.observations)); return value; };
+  const step = async (name) => { try { const value = retain(await operations[name]()); evidence.push(redact({ stage: name, value })); return value; } catch (error) { retain(error); evidence.push(redact({ stage: name, failureObservations: error.observations })); result.firstFailureStage ??= name; result.firstFailureCase ??= error.caseId ?? null; throw error; } };
+  try {
+    const setupStages = ["snapshot", "allocateRuntimeConfig", "mirror", "startSupabase", "verifyOwnership", "prepareDatabase", "createAuthFixtures", "assignFixtureRoles", "verifyFixtureRoles"];
+    if (!config.helperOnly) setupStages.push("startAstro");
+    for (const name of setupStages) { await step(name); if (name === "startSupabase") result.supabaseStartCount++; if (name === "startAstro") result.astroStartCount++; }
+    if (config.helperOnly) { await step("runFinal"); result.finalEvidenceGate = "PASS"; }
+    else {
+    const runtime = await step("verifyRuntime");
+    if (!isLocal(runtime.supabaseUrl) || !isLocal(runtime.publicSupabaseUrl) || !runtime.anonKeyPresent || !runtime.publicAnonKeyPresent) throw new Error("P6B_LOCAL_RUNTIME_ENV_CONTRACT_REGRESSION");
+    const summarizeCases = (value, prefix, required) => {
+      const cases = Array.isArray(value.cases) ? value.cases.map((entry) => ({ ...entry, network: Array.isArray(entry.network) ? entry.network : [] })) : Array.from({ length: value.passed ?? 0 }, (_, index) => ({ caseId: `${prefix}-${String(index + 1).padStart(2, "0")}`, result: "PASS", expected: "legacy smoke contract", observed: "PASS", network: [] }));
+      const expectedIds = Array.from({ length: required }, (_, index) => `${prefix}-${String(index + 1).padStart(2, "0")}`);
+      const firstInvalid = expectedIds.findIndex((id, index) => cases[index]?.caseId !== id || cases[index]?.result !== "PASS");
+      const failing = cases.find((entry) => entry.result !== "PASS" || (Array.isArray(entry.subAssertions) && entry.subAssertions.some((sub) => sub.result !== "PASS")));
+      const firstFailureSubcase = failing?.subAssertions?.find((sub) => sub.result !== "PASS")?.caseId ?? null;
+      return { cases, executed: cases.length, passed: cases.filter((entry) => entry.result === "PASS").length, failed: cases.filter((entry) => entry.result === "FAIL").length, firstFailureCase: value.firstFailureCase ?? failing?.caseId ?? (firstInvalid >= 0 ? expectedIds[firstInvalid] : null), firstFailureSubcase };
+    };
+    if (config.forensicOnly) { await step("runFinal"); result.finalEvidenceGate = "PASS"; }
+    else { const api = summarizeCases(await step("runApi"), "APIINT", result.apiRequired); Object.assign(result, { apiCases: api.cases, apiExecuted: api.executed, apiPassed: api.passed, apiFailed: api.failed });
+    if (api.firstFailureCase || api.executed !== result.apiRequired || api.passed !== result.apiRequired || api.failed) { result.firstFailureCase ??= api.firstFailureCase; result.firstFailureSubcase ??= api.firstFailureSubcase; throw new Error("API_FAILED"); }
+    if (result.uiRequired) { const browser = await step("startBrowser"); if (browser?.started !== true) throw new Error("BROWSER_FAILED"); result.browserStartCount++; progress({ lifecycleStage: "UI_LEDGER_STARTED", kind: "UI_LEDGER_STARTED" }); let uiValue; try { uiValue = await step("runUi"); } catch (error) { await step("runFinal"); throw error; } const ui = summarizeCases(uiValue, "UIE2E", result.uiRequired); const counters = uiValue?.observerCounters; const validCounters = ["observerPendingPromises", "observerStaleListeners", "observerUnhandledRejections"].every((name) => Number.isInteger(counters?.[name]) && counters[name] >= 0); Object.assign(result, { uiCases: ui.cases, uiExecuted: ui.executed, uiPassed: ui.passed, uiFailed: ui.failed, observerCounterSchemaValid: validCounters, observerPendingPromises: validCounters ? counters.observerPendingPromises : 0, observerStaleListeners: validCounters ? counters.observerStaleListeners : 0, observerUnhandledRejections: validCounters ? counters.observerUnhandledRejections : 0 }); progress({ lifecycleStage: "UI_LEDGER_COMPLETED", kind: "UI_LEDGER_COMPLETED" }); if (ui.firstFailureCase || ui.executed !== result.uiRequired || ui.passed !== result.uiRequired || ui.failed) { result.firstFailureCase ??= ui.firstFailureCase; await step("runFinal"); throw new Error("UI_FAILED"); } }
+    await step("runFinal"); const observerEvidencePass = result.observerCounterSchemaValid !== false && [result.observerPendingPromises, result.observerStaleListeners, result.observerUnhandledRejections].every((value) => value === 0); result.finalEvidenceGate = observerEvidencePass ? "PASS" : "BLOCKED"; if (!observerEvidencePass) throw new Error("OBSERVER_EVIDENCE_GATE_FAILED"); }
+    }
+  } catch (error) { result.acceptanceResult = "BLOCKED"; evidence.push(redact({ stage: "failure", message: error.message })); }
+  finally {
+    for (const [name, property] of [["cleanupBrowser"], ["stopAstro", "astroStopped"], ["stopSupabase", "supabaseCleaned"]]) try { await step(name); if (property) result[property] = true; } catch { result.cleanupResult = "BLOCKED"; }
+    try { const cleanup = await step("verifyCleanup"); result.preexistingStatePreserved = !!cleanup.preexistingStatePreserved; if (!result.preexistingStatePreserved) result.cleanupResult = "BLOCKED"; } catch { result.cleanupResult = "BLOCKED"; }
+  }
+  Object.assign(observations, { observerPendingPromises: result.observerPendingPromises, observerStaleListeners: result.observerStaleListeners, observerUnhandledRejections: result.observerUnhandledRejections });
+  Object.assign(observations, { P6B_RUNNER1B_SUPABASE_START_COUNT: result.supabaseStartCount, P6B_RUNNER1B_ASTRO_START_COUNT: result.astroStartCount, P6B_RUNNER1B_BROWSER_START_COUNT: result.browserStartCount, P6B_RUNNER1B_ASTRO_STOPPED: result.astroStopped, P6B_RUNNER1B_SUPABASE_CLEANED: result.supabaseCleaned, P6B_RUNNER1B_PREEXISTING_RUNTIME_STATE_PRESERVED: result.preexistingStatePreserved, P6B_RUNNER2C5_API_REQUIRED: result.apiRequired, P6B_RUNNER2C5_API_EXECUTED: result.apiExecuted, P6B_RUNNER2C5_API_PASSED: result.apiPassed, P6B_RUNNER2C5_API_FAILED: result.apiFailed, P6B_RUNNER2C5_ACCEPTANCE_RESULT: result.acceptanceResult, P6B_RUNNER2C5_CLEANUP_RESULT: result.cleanupResult, P6B_RUNNER2C5_FINAL_EVIDENCE_GATE: result.finalEvidenceGate, P6B_RUNNER2C5_BROWSER_START_COUNT: result.browserStartCount, P6B_RUNNER2C5_REMOTE_SUPABASE_CONNECTIONS: observations.P6B_RUNNER2B_REMOTE_SUPABASE_CONNECTIONS ?? 0, P6B_RUNNER2D_UI_REQUIRED: result.uiRequired, P6B_RUNNER2D_UI_EXECUTED: result.uiExecuted, P6B_RUNNER2D_UI_PASSED: result.uiPassed, P6B_RUNNER2D_UI_FAILED: result.uiFailed, P6B_RUNNER2D_BROWSER_START_COUNT: result.browserStartCount });
+  return redact({ ...result, observations, terminal: result.acceptanceResult === "PASS" && result.cleanupResult === "PASS" && result.finalEvidenceGate === "PASS" ? READY : BLOCKED });
+}

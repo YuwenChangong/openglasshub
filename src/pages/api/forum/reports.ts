@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import {
   createUserClient,
@@ -42,7 +43,7 @@ function parsePayload(payload: unknown) {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const token = getBearerToken(request);

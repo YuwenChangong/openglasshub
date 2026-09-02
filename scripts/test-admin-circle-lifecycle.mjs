@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
+import react from "@vitejs/plugin-react";
+import { cloudflareWorkersTestPlugin } from "./lib/cloudflare-workers-test-plugin.mjs";
 
 const root = path.resolve(".");
 const migrationPath = path.join(root, "supabase/migrations/20260814_admin_circle_lifecycle_and_safe_purge.sql");
@@ -14,7 +16,7 @@ function test(name, run) {
     .then(() => console.log(`PASS ${name}`));
 }
 
-const vite = await createServer({ root, server: { middlewareMode: true }, appType: "custom" });
+const vite = await createServer({ root, plugins: [react(), cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom" });
 const { handleAdminCirclePurge } = await vite.ssrLoadModule("/src/lib/server/admin-circle-purge.server.ts");
 const {
   getGlassConfirmDialogButtonState,
@@ -171,7 +173,7 @@ await test("admin circles GET resolves and invokes the strict admin guard", asyn
     root,
     server: { middlewareMode: true },
     appType: "custom",
-    plugins: [{
+    plugins: [cloudflareWorkersTestPlugin(), {
       name: "admin-circles-get-runtime-auth",
       enforce: "pre",
       resolveId(id, importer) {

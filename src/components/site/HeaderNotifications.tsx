@@ -65,8 +65,8 @@ function NotificationBellIcon() {
     <svg
       className="header-notifications__bell-svg"
       viewBox="0 0 24 24"
-      width="20"
-      height="20"
+      width="16"
+      height="16"
       preserveAspectRatio="xMidYMid meet"
       fill="none"
       aria-hidden="true"
@@ -75,7 +75,7 @@ function NotificationBellIcon() {
       <path
         d="M12 4.75a4.25 4.25 0 0 0-4.25 4.25v2.08c0 .92-.24 1.82-.7 2.62l-.92 1.62c-.14.24-.02.55.25.65.84.32 2.45.68 5.62.68 3.17 0 4.78-.36 5.62-.68.27-.1.39-.41.25-.65l-.92-1.62a5.27 5.27 0 0 1-.7-2.62V9A4.25 4.25 0 0 0 12 4.75Z"
         stroke="currentColor"
-        strokeWidth="1.85"
+        strokeWidth="1.6"
         strokeLinecap="round"
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
@@ -83,7 +83,7 @@ function NotificationBellIcon() {
       <path
         d="M10.2 18.15a1.9 1.9 0 0 0 3.6 0"
         stroke="currentColor"
-        strokeWidth="1.85"
+        strokeWidth="1.6"
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
       />
@@ -528,6 +528,11 @@ export default function HeaderNotifications() {
         aria-controls="header-notifications-menu"
         aria-label={unreadCount > 0 ? `通知，${clampUnreadCount(unreadCount)} 条未读` : "通知"}
         title="通知"
+        onFocus={() => {
+          clearCloseTimer();
+          setOpen(true);
+          void loadUnreadMenu({ silent: true });
+        }}
       >
         <span className="header-notifications__icon" aria-hidden="true">
           <NotificationBellIcon />

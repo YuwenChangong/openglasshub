@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { env as runtimeEnv } from "cloudflare:workers";
 import { createSSRClient, type CloudflareEnv } from "../../../../lib/supabase-server";
 import {
   CIRCLE_COVER_BUCKET,
@@ -22,7 +23,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
   const circleId = String(params.circleId ?? "").trim();
   if (!circleId) return json({ error: "MEDIA_NOT_FOUND" }, 404);
 
-  const env = locals.runtime.env as CloudflareEnv;
+  const env = runtimeEnv as CloudflareEnv;
   const supabase = createSSRClient(env);
 
   const coverTarget = await resolvePublicCircleCoverTarget(supabase, circleId);

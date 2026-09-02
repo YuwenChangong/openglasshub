@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { resolveCircleCoverUrl } from "../../../../../lib/circle-cover";
 import { CIRCLE_COVER_PREFIX } from "../../../../../lib/circle-cover";
@@ -54,7 +55,7 @@ async function moderateCircleCoverImage(params: {
 
 export const GET: APIRoute = async ({ request, params, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     const slug = String(params.slug ?? "").trim().toLowerCase();
     if (!env) return jsonResponse({ error: "RUNTIME_ENV_MISSING" }, 500);
     if (!slug) return jsonResponse({ error: "MISSING_CIRCLE_SLUG" }, 400);
@@ -109,7 +110,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
 
 export const PATCH: APIRoute = async ({ request, params, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     const slug = String(params.slug ?? "").trim().toLowerCase();
     if (!env) return jsonResponse({ error: "RUNTIME_ENV_MISSING" }, 500);
     if (!slug) return jsonResponse({ error: "MISSING_CIRCLE_SLUG" }, 400);
@@ -292,7 +293,7 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
 
 export const DELETE: APIRoute = async ({ request, params, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     const slug = String(params.slug ?? "").trim().toLowerCase();
     if (!env) return jsonResponse({ error: "RUNTIME_ENV_MISSING" }, 500);
     if (!slug) return jsonResponse({ error: "MISSING_CIRCLE_SLUG" }, 400);

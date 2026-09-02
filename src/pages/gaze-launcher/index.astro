@@ -1,5 +1,13 @@
 ---
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import { isGazeLauncherPublicEnabled } from "../../lib/gaze-launcher-visibility";
+
+export const prerender = false;
+const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
+if (!gazeLauncherPublicEnabled) {
+  Astro.response.status = 404;
+  Astro.response.headers.set("X-Robots-Tag", "noindex");
+}
 
 const directionRows = [
   {
@@ -56,7 +64,7 @@ const coreAreas = [
 ] as const;
 ---
 
-<CommunityLayout
+{gazeLauncherPublicEnabled ? <CommunityLayout
   title="Gaze Launcher"
   description="面向 AR / AI 眼镜的 AI-first 智能启动器。"
   canonical="https://openglasshub.pages.dev/gaze-launcher/"
@@ -175,7 +183,7 @@ const coreAreas = [
       </section>
     </aside>
   </section>
-</CommunityLayout>
+</CommunityLayout> : <CommunityLayout title="Not found" description="This page is unavailable."><main class="community-empty"><h1>Not found</h1><p>This page is unavailable.</p></main></CommunityLayout>}
 
 <style>
   .launcher-page {

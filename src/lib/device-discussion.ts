@@ -1,5 +1,4 @@
 import { deviceLibrary, type DeviceLibraryEntry } from "../data/devices";
-import { getDeviceBySlug } from "./device-catalog";
 
 export type DeviceDiscussionContext = {
   device: DeviceLibraryEntry;
@@ -36,8 +35,7 @@ export function getDeviceDiscussionContext(rawSlug: string | null | undefined): 
   const postParams = new URLSearchParams({
     device: slug,
   });
-  const product = getDeviceBySlug(slug);
-  const productHref = product ? `/products/${product.brandKey}/#product-${product.slug}` : "/products/";
+  const productHref = "/products/";
 
   return {
     device,

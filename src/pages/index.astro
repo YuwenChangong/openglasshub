@@ -1,6 +1,7 @@
 ﻿---
 export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import CommunityLayout from "../layouts/CommunityLayout.astro";
 import PostCard from "../components/community/PostCard.astro";
 import EmptyFeedState from "../components/community/EmptyFeedState.astro";
@@ -11,6 +12,7 @@ import { buildResolvedPostMediaMap, type PostMediaRow } from "../lib/forum-media
 import { buildPostLikeCountMap } from "../lib/post-engagement";
 import { sanitizeBodyForDisplay } from "../lib/post-body";
 import { isPublicVisibleCircle } from "../lib/site-navigation";
+import { isGazeLauncherPublicEnabled } from "../lib/gaze-launcher-visibility";
 
 type PostRow = {
   id: string;
@@ -25,7 +27,7 @@ type PostRow = {
   post_media?: PostMediaRow[] | null;
 };
 
-const env = (Astro.locals as { runtime?: { env?: CloudflareEnv } }).runtime?.env;
+const env = runtimeEnv;
 const supabase = env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY ? createSSRClient(env) : null;
 const r2PublicBaseUrl = env?.R2_PUBLIC_BASE_URL || "";
 
@@ -277,6 +279,9 @@ function excerpt(body?: string | null): string {
     .community-stream-head {
       align-items: flex-start;
       flex-direction: column;
+    }
+    .home-intro__actions {
+      justify-content: flex-start;
     }
   }
   @media (max-width: 720px) {

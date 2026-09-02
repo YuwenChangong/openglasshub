@@ -1,10 +1,13 @@
 ---
-export const prerender = true;
+export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import BrandMark from "../../components/products/BrandMark.astro";
 import ProductVisual from "../../components/products/ProductVisual.astro";
-import { brandCatalog, getAllDevices, getBrandByKey, getDevicesByBrand } from "../../lib/device-catalog";
+import { getBrandByKey } from "../../lib/device-catalog";
+import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
+import { listPublishedDevices } from "../../lib/public-device-data";
 
 const compareFieldOrder = [
   ["name", "产品"],
@@ -20,7 +23,7 @@ const compareFieldOrder = [
   ["battery_life", "续航"],
 ] as const;
 
-type DeviceRecord = NonNullable<ReturnType<typeof getAllDevices>[number]>;
+type DeviceRecord = Awaited<ReturnType<typeof listPublishedDevices>>[number];
 
 function getSpecValue(product: DeviceRecord, field: string) {
   for (const group of product.specGroups ?? []) {
@@ -126,12 +129,6 @@ function serializeCompareProduct(product: DeviceRecord) {
   };
 }
 
-export function getStaticPaths() {
-  return brandCatalog.map((brand) => ({
-    params: { brand: brand.key },
-  }));
-}
-
 const brandKey = Astro.params.brand?.trim().toLowerCase() ?? "";
 const brand = getBrandByKey(brandKey);
 
@@ -139,8 +136,10 @@ if (!brand) {
   return Astro.redirect("/products/");
 }
 
-const brandProducts = getDevicesByBrand(brand.key).map((product) => serializeCompareProduct(product));
-const compareProducts = getAllDevices().map((product) => serializeCompareProduct(product));
+const env = runtimeEnv as CloudflareEnv;
+const publishedDevices = await listPublishedDevices(createSSRClient(env));
+const brandProducts = publishedDevices.filter((product) => product.brandKey === brand.key).map((product) => serializeCompareProduct(product));
+const compareProducts = publishedDevices.map((product) => serializeCompareProduct(product));
 ---
 
 <CommunityLayout

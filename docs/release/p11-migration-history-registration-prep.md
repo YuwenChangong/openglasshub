@@ -1,0 +1,13 @@
+# P11 migration-history registration preparation
+
+P10 materialization was proved by the receipt; the sole remaining blocker is the absent `20260902042807` history row. The installed Supabase CLI is `2.115.0` and its offline help confirms `migration repair --status applied --linked`.
+
+The P11 guard permits only `20260902042807`, status `applied`, project `xcbnxzjlsvtgzixurcof`, frozen P10 migration SHA-256 `2F98FEA88B4B5619DCE82A0E48C0653C96F4DB3E212D6F52A85FBAB083405E65`, a clean approved source, and a process-local `SUPABASE_DB_PASSWORD`. Its future argv contains no credential and is exactly `migration repair 20260902042807 --status applied --linked`.
+
+This preparation does not execute the repair. A missing local linked-project record is fail-closed: future authorization must supply an exact verified link before any CLI spawn. The prospective production mutation is migration-history metadata only: one history mutation, zero schema mutations, and zero application-data mutations.
+
+Local CLI proof used an isolated temporary runtime with the canonical target row absent, then ran `migration repair 20260902042807 --status applied --local`: history became present while the devices receipt remained canonical. A separate temporary `20991231235959_p11_replay_sentinel.sql` contained a deterministic exception; its real local repair succeeded, registered history, and did not execute the exception body. The sentinel was never added to repository migrations. The already-present wrapper guard rejects before subprocess spawn and preserves the one-row history fingerprint.
+
+The reviewed future Production runner uses only the repository-installed CLI binary and requires CLI version `2.115.0`, a final operator-approved clean commit, the frozen migration SHA-256, exact local linked-project metadata, and a non-empty process-local `SUPABASE_DB_PASSWORD`. Its sole permitted argv is `migration repair 20260902042807 --status applied --linked`; credentials never enter argv or evidence. A successful future invocation is classified as one migration-history mutation and zero schema or application-data mutations. This hardening stage made no Production connection or mutation.
+
+The direct Node entrypoint now derives all security facts from repository and process state rather than accepting operator-supplied facts. It fixes the child-process error path, binds the repair subprocess CWD to the repository root, separately accounts for one local CLI version probe and the one Production-bearing repair process, redacts the exact active password as well as generic credential patterns, and never retries a started repair.

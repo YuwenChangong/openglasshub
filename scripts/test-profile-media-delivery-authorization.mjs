@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
+import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
 
 const root = process.cwd();
 const ids = {
@@ -44,6 +45,7 @@ function createClient(row, calls) {
 }
 
 async function main() {
+  setCloudflareWorkersTestBinding({ SUPABASE_URL: "https://example.supabase.co", SUPABASE_ANON_KEY: "anon" });
   const routePath = path.join(root, "src/pages/api/media/profile/[userId]/[kind].ts");
   const helperPath = path.join(root, "src/lib/profile-media.ts");
   const proxyPath = path.join(root, "src/lib/media-proxy.ts");
@@ -68,7 +70,7 @@ async function main() {
   assert.match(proxySource, /allowedContentTypes/);
   assert.doesNotMatch(proxySource, /headers\.set\(["']set-cookie/);
 
-  const vite = await createServer({ root, logLevel: "error", server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const vite = await createServer({ root, logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   try {
     const route = await vite.ssrLoadModule("/src/pages/api/media/profile/[userId]/[kind].ts");
     const proxy = await vite.ssrLoadModule("/src/lib/media-proxy.ts");

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
+import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
 
 const root = process.cwd();
 const runtimeEnv = { SUPABASE_URL: "https://example.supabase.co", SUPABASE_ANON_KEY: "anon" };
@@ -40,7 +41,7 @@ async function main() {
   assert.match(helperSource, /normalizePublicNewsArticle\(FALLBACK_NEWS_ARTICLES\.find/);
   assert.doesNotMatch(helperSource.match(/export async function getPublicNewsArticleBySlug[\s\S]*?(?=export async function incrementPublishedNewsViewCount)/)?.[0] ?? "", /\.insert\(|\.update\(|\.delete\(|\.upsert\(|\.rpc\(|\bfetch\(/);
 
-  const vite = await createServer({ root, logLevel: "error", server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const vite = await createServer({ root, logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   try {
     const route = await vite.ssrLoadModule("/src/pages/api/news/[slug].ts");
     const news = await vite.ssrLoadModule("/src/lib/news.ts");
@@ -86,11 +87,10 @@ async function main() {
         return [publicArticle()];
       },
     });
-    const run = async (slug, env = runtimeEnv, headers = {}) => handler({
-      params: { slug },
-      request: new Request(`https://app.example/api/news/${encodeURIComponent(slug ?? "")}`, { headers }),
-      locals: { runtime: { env } },
-    });
+    const run = async (slug, env = runtimeEnv, headers = {}) => {
+      setCloudflareWorkersTestBinding(env);
+      return handler({ params: { slug }, request: new Request(`https://app.example/api/news/${encodeURIComponent(slug ?? "")}`, { headers }), locals: {} });
+    };
 
     const allowed = await run("safe-news");
     assert.equal(allowed.status, 200);
@@ -126,10 +126,11 @@ async function main() {
       getPublicNewsArticleBySlug: async () => { throw new Error("database token=secret internal.example"); },
       listRelatedPublicNews: async () => [],
     });
+    setCloudflareWorkersTestBinding(runtimeEnv);
     const failed = await failingHandler({
       params: { slug: "safe-news" },
       request: new Request("https://app.example/api/news/safe-news"),
-      locals: { runtime: { env: runtimeEnv } },
+      locals: {},
     });
     assert.equal(failed.status, 500);
     const failedBody = await failed.text();

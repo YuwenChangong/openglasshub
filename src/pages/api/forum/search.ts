@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createSSRClient } from "../../../lib/supabase-server";
 import { FORUM_SEARCH_LIMITS, runForumSearch } from "../../../lib/forum-search";
@@ -20,7 +21,7 @@ function clampLimit(value: string | null, max: number) {
 }
 
 export const GET: APIRoute = async ({ request, locals }) => {
-  const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+  const env = runtimeEnv;
   if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) {
     return json({ error: "SEARCH_FAILED" }, 500);
   }

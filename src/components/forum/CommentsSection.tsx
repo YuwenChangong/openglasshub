@@ -430,8 +430,8 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
                 >
                   <span className="comment-action-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" focusable="false">
-                      <polyline points="9 17 4 12 9 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M20 18v-2a4 4 0 0 0-4-4H4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <polyline points="9 17 4 12 9 7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M20 18v-2a4 4 0 0 0-4-4H4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </span>
                   <span>回复</span>
@@ -456,10 +456,10 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
                   >
                     <span className="comment-action-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24" focusable="false">
-                        <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M10 11v6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M14 11v6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M10 11v6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M14 11v6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </span>
                     <span>删除</span>

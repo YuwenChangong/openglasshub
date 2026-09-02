@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
+import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
 
 const root = process.cwd();
 
@@ -31,7 +32,7 @@ async function main() {
   assert.match(helperSource, /isPrivateOrLocalHostname/);
   assert.doesNotMatch(helperSource.match(/export async function listPublicNewsFeed[\s\S]*?(?=export async function getPublicNewsArticleBySlug)/)?.[0] ?? "", /\.insert\(|\.update\(|\.delete\(|\.upsert\(|\.rpc\(|\bfetch\(/);
 
-  const vite = await createServer({ root, logLevel: "error", server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const vite = await createServer({ root, logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   try {
     const route = await vite.ssrLoadModule("/src/pages/api/news.ts");
     const news = await vite.ssrLoadModule("/src/lib/news.ts");
@@ -85,6 +86,7 @@ async function main() {
       },
     });
     const run = async (search = "", env = { SUPABASE_URL: "https://example.supabase.co", SUPABASE_ANON_KEY: "anon" }, headers = {}) => {
+      setCloudflareWorkersTestBinding(env);
       const response = await handler({
         request: new Request(`https://app.example/api/news${search}`, { headers }),
         locals: { runtime: { env } },
@@ -118,9 +120,10 @@ async function main() {
       createSSRClient: () => ({}),
       listPublicNewsFeed: async () => { throw new Error("provider token=secret internal.example"); },
     });
+    setCloudflareWorkersTestBinding({ SUPABASE_URL: "https://example.supabase.co", SUPABASE_ANON_KEY: "anon" });
     const failed = await failingHandler({
       request: new Request("https://app.example/api/news"),
-      locals: { runtime: { env: { SUPABASE_URL: "https://example.supabase.co", SUPABASE_ANON_KEY: "anon" } } },
+      locals: {},
     });
     assert.equal(failed.status, 500);
     const failedBody = await failed.text();

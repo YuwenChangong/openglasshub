@@ -1,11 +1,12 @@
 import type { APIRoute } from "astro";
+import { env as runtimeEnv } from "cloudflare:workers";
 import { handleAdminCirclePurge } from "../../../../../lib/server/admin-circle-purge.server";
 import { jsonResponse, type RuntimeEnv } from "../../../../../lib/server/admin-auth";
 
 export const prerender = false;
 
-export const POST: APIRoute = async ({ request, locals }) => {
-  const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
+export const POST: APIRoute = async ({ request }) => {
+  const env = runtimeEnv as RuntimeEnv;
   if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
   return handleAdminCirclePurge(request, env);
 };

@@ -23,7 +23,19 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
       <span>OpenGlass Hub</span>
     </a>
 
-    <nav class="og-header__nav ogh-nav" aria-label="站点导航">
+    <button
+      class="og-header__menu-toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="primary-site-navigation"
+      aria-label="打开站点导航"
+    >
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </button>
+
+    <nav id="primary-site-navigation" class="og-header__nav ogh-nav" aria-label="站点导航" data-open="false">
       {mainNav.map((item) => (
         <a
           href={item.href}
@@ -48,6 +60,27 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   </div>
 </header>
 
+<script>
+  document.querySelectorAll<HTMLElement>(".og-header").forEach((header) => {
+    const toggle = header.querySelector<HTMLButtonElement>(".og-header__menu-toggle");
+    const navigation = header.querySelector<HTMLElement>(".og-header__nav");
+    const setMenuOpen = (open: boolean) => {
+      if (!toggle || !navigation) return;
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("aria-label", open ? "关闭站点导航" : "打开站点导航");
+      navigation.dataset.open = String(open);
+    };
+
+    toggle?.addEventListener("click", () => setMenuOpen(toggle.getAttribute("aria-expanded") !== "true"));
+    navigation?.addEventListener("click", (event) => {
+      if (event.target instanceof HTMLAnchorElement) setMenuOpen(false);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    });
+  });
+</script>
+
 <style>
   .og-header,
   .ogh-site-header {
@@ -71,7 +104,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 1.1rem;
   }
   .og-header__brand,
   .ogh-brand {
@@ -111,6 +144,32 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
   }
   .og-header__nav::-webkit-scrollbar {
     display: none;
+  }
+  .og-header__menu-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.045);
+    color: #f5f5f5;
+    cursor: pointer;
+    flex: 0 0 40px;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .og-header__menu-toggle span {
+    width: 16px;
+  height: 1.6px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+  .og-header__menu-toggle:focus-visible {
+    outline: none;
+    box-shadow: var(--premium-focus-ring, 0 0 0 3px rgba(255,255,255,0.09));
   }
   .og-header__link,
   .ogh-nav a {
@@ -161,7 +220,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 8px;
     flex-shrink: 0;
     position: relative;
   }

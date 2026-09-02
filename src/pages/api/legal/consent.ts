@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { env as runtimeEnv } from "cloudflare:workers";
 import { createUserClient, getBearerToken, type RuntimeEnv } from "../../../lib/server/admin-auth";
 import {
   handleLegalConsentGet,
@@ -11,12 +12,6 @@ import {
 } from "../../../lib/server/legal-consent-repository.server";
 
 export const prerender = false;
-
-type RuntimeLocals = { runtime?: { env?: RuntimeEnv } };
-
-function getRuntimeEnv(locals: unknown): RuntimeEnv | null {
-  return (locals as RuntimeLocals).runtime?.env ?? null;
-}
 
 async function authenticate(request: Request, env: RuntimeEnv) {
   const token = getBearerToken(request);
@@ -39,14 +34,14 @@ function dependenciesFor(request: Request, env: RuntimeEnv) {
   };
 }
 
-export const GET: APIRoute = async ({ request, locals }) => {
-  const env = getRuntimeEnv(locals);
+export const GET: APIRoute = async ({ request }) => {
+  const env = runtimeEnv as RuntimeEnv;
   if (!env) return legalConsentJson({ error: "LEGAL_CONSENT_UNAVAILABLE" }, 500);
   return handleLegalConsentGet(request, dependenciesFor(request, env));
 };
 
-export const POST: APIRoute = async ({ request, locals }) => {
-  const env = getRuntimeEnv(locals);
+export const POST: APIRoute = async ({ request }) => {
+  const env = runtimeEnv as RuntimeEnv;
   if (!env) return legalConsentJson({ error: "LEGAL_CONSENT_UNAVAILABLE" }, 500);
   return handleLegalConsentPost(request, dependenciesFor(request, env));
 };

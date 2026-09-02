@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { buildUniqueCircleSlug, slugifyCircleName } from "../../../../lib/circle-slug";
 import { buildCircleCoverUrlMap, CIRCLE_COVER_PREFIX, resolveCircleCoverUrl } from "../../../../lib/circle-cover";
@@ -80,7 +81,7 @@ async function checkDuplicates(
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const { client } = await requireAdmin(request, env);
@@ -170,7 +171,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireModerator(request, env);
@@ -299,7 +300,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 export const PATCH: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     const auth = await requireModerator(request, env);

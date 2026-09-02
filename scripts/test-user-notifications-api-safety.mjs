@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
+import { cloudflareWorkersTestPlugin } from "./lib/cloudflare-workers-test-plugin.mjs";
 
 const root = process.cwd();
 const ids = {
@@ -56,7 +57,7 @@ async function main() {
   assert.match(notificationMigration, /create policy "forum_notifications_delete_own"[\s\S]*?using \(recipient_id = auth\.uid\(\)\)/);
   assert.doesNotMatch(helperSource, /post_id: string|comment_id: string|id: string \| null/);
 
-  const vite = await createServer({ root, logLevel: "error", server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const vite = await createServer({ root, logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   try {
     const route = await vite.ssrLoadModule("/src/pages/api/users/me/notifications.ts");
     const notifications = await vite.ssrLoadModule("/src/lib/notifications.ts");

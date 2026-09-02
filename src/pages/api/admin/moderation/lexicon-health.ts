@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { requireModerator, jsonResponse, type RuntimeEnv } from "../../../../lib/server/admin-auth";
 import { getSensitiveLexiconHealth } from "../../../../lib/moderation/sensitive-lexicon-loader.server";
@@ -8,7 +9,7 @@ type RuntimeLocals = { runtime?: { env?: RuntimeEnv } };
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as RuntimeLocals).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return jsonResponse({ error: "Runtime environment not available" }, 500);
 
     await requireModerator(request, env);

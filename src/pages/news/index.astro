@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import {
@@ -12,7 +13,7 @@ import {
 import { resolveNewsMediaUrls } from "../../lib/news-media";
 import NewsPagination from "../../components/news/NewsPagination";
 
-const env = Astro.locals.runtime.env as CloudflareEnv;
+const env = runtimeEnv as CloudflareEnv;
 const supabase = createSSRClient(env);
 const filter = parseNewsFilter(Astro.url.searchParams.get("category"));
 const pageParam = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);

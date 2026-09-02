@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -286,7 +287,7 @@ function buildNotificationItem(row: NotificationRow, actors: Map<string, Notific
 async function authenticate(request: Request, locals: unknown): Promise<AuthenticationResult> {
   const token = getBearerToken(request);
   if (!token) return { error: json({ ok: false, error: "UNAUTHORIZED" }, 401) };
-  const env = (locals as { runtime?: { env?: RuntimeEnv } }).runtime?.env;
+  const env = runtimeEnv;
   if (!hasRuntimeBindings(env)) return { error: json({ ok: false, error: "NOTIFICATIONS_UNAVAILABLE" }, 500) };
 
   try {

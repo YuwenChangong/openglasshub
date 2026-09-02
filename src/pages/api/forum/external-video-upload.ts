@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { buildR2PublicUrl, buildTmpVideoKey, signR2PutUrl } from "../../../lib/r2-server";
@@ -109,7 +110,7 @@ export function createExternalVideoUploadPost(
   let quotaReserved = false;
   try {
     stage = "env";
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) return json({ error: "Runtime environment not available" }, 500);
 
     stage = "auth";

@@ -1,0 +1,12 @@
+---
+export const prerender = false;
+import CommunityLayout from "../../../layouts/CommunityLayout.astro";
+import AdminDevicesDashboard from "../../../components/admin/AdminDevicesDashboard";
+---
+<CommunityLayout title="管理员设备库" description="OpenGlass Hub 管理员设备库。" noindex={true} activeSection="forum">
+  <section class="community-section" style="padding-top: 1rem;">
+    <h1 class="community-page-title">/admin/devices</h1>
+    <p class="community-page-subtitle">管理设备草稿、发布状态、规格与归档记录。</p>
+    <AdminDevicesDashboard client:load />
+  </section>
+</CommunityLayout>

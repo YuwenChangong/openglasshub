@@ -10,6 +10,7 @@
  * RLS enforces ownership via user JWT.
  */
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { MEDIA_ONLY_SENTINEL } from "../../../lib/post-body";
@@ -187,7 +188,7 @@ function isPostBodyConstraintError(error: { message?: string } | null | undefine
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return json({ error: "Runtime environment not available" }, 500);
     }
@@ -268,7 +269,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return json({ error: "Runtime environment not available" }, 500);
     }
@@ -425,7 +426,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return json({ error: "Runtime environment not available" }, 500);
     }
@@ -525,7 +526,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
 export const PATCH: APIRoute = async ({ request, locals }) => {
   try {
-    const env = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+    const env = runtimeEnv;
     if (!env) {
       return json({ error: "Runtime environment not available" }, 500);
     }
