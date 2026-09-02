@@ -3,8 +3,8 @@ import { resolve, relative, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const LEGACY_PAGES_URL = "https://openglasshub.pages.dev";
-const TEXT_EXTENSIONS = new Set([".astro", ".cjs", ".js", ".json", ".md", ".mdx", ".mjs", ".toml", ".ts", ".tsx", ".txt"]);
-const SKIPPED_DIRECTORIES = new Set([".git", ".wrangler", "dist", "node_modules"]);
+const ROUTE_SOURCE_EXTENSIONS = new Set([".astro", ".js", ".mjs", ".ts", ".tsx"]);
+const SKIPPED_DIRECTORIES = new Set([".git", "node_modules"]);
 const PROVIDER_RECEIPT_KEYS = new Set(["accountSubdomain", "pagesProjects", "workerScripts"]);
 const CREDENTIAL_KEY_PATTERN = /(api[_-]?key|authorization|credential|password|secret|token|value)/i;
 const JWT_LIKE_PATTERN = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/;
@@ -15,7 +15,10 @@ function sorted(items) {
 
 async function readTextIfPresent(path) {
   try {
-    return await readFile(path, "utf8");
+    const bytes = await readFile(path);
+    if (bytes.includes(0)) return null;
+    const source = bytes.toString("utf8");
+    return source.includes("\uFFFD") ? null : source;
   } catch (error) {
     if (error?.code === "ENOENT") return null;
     throw error;
@@ -30,7 +33,7 @@ async function findTextFiles(root, current = root, results = []) {
       if (!SKIPPED_DIRECTORIES.has(entry.name)) await findTextFiles(root, path, results);
       continue;
     }
-    if (entry.isFile() && TEXT_EXTENSIONS.has(entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase())) {
+    if (entry.isFile() && await readTextIfPresent(path) !== null) {
       results.push(relative(root, path).replaceAll("\\", "/"));
     }
   }
@@ -64,9 +67,15 @@ function collectTomlInventory(source) {
       environmentVariableNames.push({ environment: environmentForSection(section), name: key });
       continue;
     }
-    const type = section.endsWith("r2_buckets") ? "R2" : section.endsWith("kv_namespaces") ? "KV" : null;
-    if (type && key === "binding") {
-      const name = line.match(/^binding\s*=\s*["']([^"']+)["']/)?.[1];
+    const type = section.endsWith("r2_buckets") ? "R2"
+      : section.endsWith("kv_namespaces") ? "KV"
+      : section.endsWith("d1_databases") ? "D1"
+      : section.endsWith("durable_objects.bindings") ? "DURABLE_OBJECT"
+      : section.endsWith("services") ? "SERVICE"
+      : null;
+    const nameKey = type === "DURABLE_OBJECT" ? "name" : "binding";
+    if (type && key === nameKey) {
+      const name = line.match(new RegExp(`^${nameKey}\\s*=\\s*["']([^"']+)["']`))?.[1];
       if (name) bindings.push({ environment: environmentForSection(section), name, type });
     }
   }
@@ -78,20 +87,58 @@ function collectJsonConfigInventory(source) {
   if (!source) return { bindings: [], keyNames: [] };
   const config = JSON.parse(source);
   const bindings = [];
-  for (const [property, type] of [["r2_buckets", "R2"], ["kv_namespaces", "KV"]]) {
+  for (const [property, type] of [["r2_buckets", "R2"], ["kv_namespaces", "KV"], ["d1_databases", "D1"], ["services", "SERVICE"]]) {
     for (const binding of Array.isArray(config[property]) ? config[property] : []) {
       if (typeof binding?.binding === "string") bindings.push({ environment: "generated", name: binding.binding, type });
     }
   }
+  for (const binding of Array.isArray(config.durable_objects?.bindings) ? config.durable_objects.bindings : []) {
+    if (typeof binding?.name === "string") bindings.push({ environment: "generated", name: binding.name, type: "DURABLE_OBJECT" });
+  }
   return { bindings, keyNames: sorted(Object.keys(config)) };
 }
 
-function classifyPagesUrlLocation(path) {
-  if (path.startsWith("docs/") || path.startsWith("tests/")) return "KEEP_UNCHANGED";
+function isHistoricalDocument(source) {
+  const openingLine = source.trimStart().split(/\r?\n/, 1)[0] ?? "";
+  return /^(?:#.*\b(?:archived|historical|release receipt)\b|(?:document )?status:\s*(?:archived|historical)\b|prior release\b)/i.test(openingLine);
+}
+
+function classifyPagesUrlLocation(path, source) {
+  if (path.startsWith("docs/") && isHistoricalDocument(source)) return "KEEP_UNCHANGED";
+  if (path.startsWith("docs/") || path.startsWith("tests/")) return "UNKNOWN_REQUIRES_REVIEW";
   if (path === "scripts/smoke-production.mjs" || path === "scripts/post-launch-check.mjs" || path === "package.json") return "ADD_NEW_URL_FIRST";
   if (path.startsWith("supabase/") || /supabase|oauth|webhook|cors/i.test(path)) return "EXTERNAL_PROVIDER_WRITE_REQUIRED";
   if (path === "astro.config.mjs" || path.startsWith("public/") || path.startsWith("src/")) return "SWITCH_AFTER_WORKER_PASS";
   return "UNKNOWN_REQUIRES_REVIEW";
+}
+
+function isRuntimeSourcePath(path) {
+  return path.startsWith("src/") || path.startsWith("functions/");
+}
+
+function isRouteSourcePath(path) {
+  return ROUTE_SOURCE_EXTENSIONS.has(path.slice(path.lastIndexOf(".")).toLowerCase());
+}
+
+function collectRuntimeUse(path, source, runtime) {
+  if (!isRuntimeSourcePath(path)) return;
+  if (/from\s*["']cloudflare:workers["']/.test(source)) runtime.cloudflareWorkersImportPaths.push(path);
+  for (const match of source.matchAll(/(?<!\.)\benv\??\.\s*([A-Z][A-Z0-9_]*)/g)) runtime.sourceBindingNames.add(match[1]);
+  if (/\bD1Database\b|(?<!\.)\benv\??\.[A-Z][A-Z0-9_]*\.prepare\s*\(/.test(source)) runtime.optionalBindingUse.D1.push(path);
+  if (/\bDurableObject(?:Namespace|Stub|State)?\b|(?<!\.)\benv\??\.[A-Z][A-Z0-9_]*\.(?:idFromName|idFromString|newUniqueId)\s*\(/.test(source)) runtime.optionalBindingUse.DURABLE_OBJECT.push(path);
+  if (/\b(?:Fetcher|ServiceBinding)\b|(?<!\.)\benv\??\.[A-Z][A-Z0-9_]*\.fetch\s*\(/.test(source)) runtime.optionalBindingUse.SERVICE.push(path);
+}
+
+function finalizeRuntimeUse(runtime, bindings) {
+  return {
+    cloudflareWorkersImportPaths: sorted(runtime.cloudflareWorkersImportPaths),
+    optionalBindingUse: Object.fromEntries(Object.entries(runtime.optionalBindingUse).map(([type, paths]) => [type, {
+      configuredNames: sorted(new Set(bindings.filter((binding) => binding.type === type).map((binding) => binding.name))),
+      sourcePaths: sorted(new Set(paths)),
+      status: paths.length > 0 || bindings.some((binding) => binding.type === type) ? "PRESENT" : "ABSENT",
+    }])),
+    sourceBindingNames: sorted(runtime.sourceBindingNames),
+  };
 }
 
 function countOccurrences(source, token) {
@@ -144,17 +191,23 @@ export async function collectRepositoryInventory(root) {
   const generated = collectJsonConfigInventory(await readTextIfPresent(join(absoluteRoot, "dist", "server", "wrangler.json")));
   const pagesUrlOccurrences = [];
   const routes = { apiRouteFiles: 0, nonApiRouteFiles: 0, pageFiles: 0 };
+  const runtime = {
+    cloudflareWorkersImportPaths: [],
+    optionalBindingUse: { D1: [], DURABLE_OBJECT: [], SERVICE: [] },
+    sourceBindingNames: new Set(),
+  };
 
   for (const path of sorted(await findTextFiles(absoluteRoot))) {
     const source = await readTextIfPresent(join(absoluteRoot, path));
     if (source?.includes(LEGACY_PAGES_URL)) {
       pagesUrlOccurrences.push({
-        classification: classifyPagesUrlLocation(path),
+        classification: classifyPagesUrlLocation(path, source),
         count: countOccurrences(source, LEGACY_PAGES_URL),
         path,
       });
     }
-    if (path.startsWith("src/pages/")) {
+    if (source !== null) collectRuntimeUse(path, source, runtime);
+    if (path.startsWith("src/pages/") && isRouteSourcePath(path)) {
       routes.pageFiles += 1;
       if (path.startsWith("src/pages/api/")) routes.apiRouteFiles += 1;
       else routes.nonApiRouteFiles += 1;
@@ -181,6 +234,7 @@ export async function collectRepositoryInventory(root) {
     environmentVariableNames: tomlInventory.environmentVariableNames.sort((left, right) => `${left.environment}:${left.name}`.localeCompare(`${right.environment}:${right.name}`)),
     pagesUrlOccurrences,
     routes,
+    runtime: finalizeRuntimeUse(runtime, bindings),
   };
 }
 

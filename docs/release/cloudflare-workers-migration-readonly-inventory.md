@@ -1,6 +1,6 @@
 # Cloudflare Workers migration: read-only inventory
 
-Date: 2026-09-02
+Date: 2026-09-03 (Task 1 review refresh)
 
 This is a value-blind W1 receipt. It contains configuration and binding
 names, classifications, counts, and sanitized Cloudflare metadata only. It
@@ -20,6 +20,27 @@ Pages, Worker, or Git remote mutation was performed.
   at root; both are also declared for preview; `MODERATION_ASSETS` is declared
   for production. The missing production `SESSION` declaration requires review
   before provider configuration changes.
+- Cloudflare runtime source: 59 source files import `cloudflare:workers`.
+  Runtime binding/environment names referenced through source `env` access are
+  `CF_PAGES_BRANCH`, `DEV_TURNSTILE_BYPASS`, `MODERATION_ASSETS`,
+  `MODERATION_FAIL_MODE`, `MODERATION_PROVIDER`,
+  `MODERATION_PROVIDER_UNAVAILABLE_POLICY`, `NODE_ENV`,
+  `OPENAI_CIRCLE_COVER_MODERATION_ENABLED`, `OPENAI_FORUM_POLICY_ENABLED`,
+  `OPENAI_FORUM_POLICY_FAIL_MODE`, `OPENAI_FORUM_POLICY_MODEL`,
+  `OPENAI_FORUM_POLICY_TIMEOUT_MS`, `OPENAI_MODERATION_ENABLED`,
+  `OPENAI_MODERATION_FAIL_MODE`, `OPENAI_MODERATION_IMAGE_ENABLED`,
+  `OPENAI_MODERATION_LOG_LEVEL`, `OPENAI_MODERATION_MODEL`,
+  `OPENAI_MODERATION_TIMEOUT_MS`, `OPENAI_POST_IMAGE_MODERATION_ENABLED`,
+  `OPENAI_PROFILE_IMAGE_MODERATION_ENABLED`,
+  `OPENAI_VIDEO_THUMBNAIL_MODERATION_ENABLED`, `R2_PUBLIC_BASE_URL`,
+  `RATE_LIMIT_SALT`, `SENSITIVE_LEXICON_DISABLE_NODE_LOCAL`,
+  `SUPABASE_ANON_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_URL`,
+  `TURNSTILE_SECRET_KEY`, `UPLOAD_TURNSTILE_MODE`, `VIDEO_POST_FAIL_MODE`, and
+  `VIDEO_POST_REQUIRES_THUMBNAIL_MODERATION`.
+- Optional persistent/runtime bindings: D1 `ABSENT`, Durable Object `ABSENT`,
+  and service binding `ABSENT`. For each type, both source use and source or
+  generated Wrangler declarations are absent; neither side alone can produce
+  an `ABSENT` result.
 - Preview environment-variable names (26): `DEV_TURNSTILE_BYPASS`,
   `MODERATION_PROVIDER`, `MODERATION_PROVIDER_UNAVAILABLE_POLICY`,
   `OPENAI_CIRCLE_COVER_MODERATION_ENABLED`, `OPENAI_FORUM_POLICY_ENABLED`,
@@ -44,20 +65,25 @@ Pages, Worker, or Git remote mutation was performed.
 
 ## Legacy Pages-origin classifications
 
-The collector finds every legacy Pages-origin occurrence in supported text
-files and assigns one classification per file. The current totals are:
+The collector finds every legacy Pages-origin occurrence in repository
+text/config files, including extensionless and `.env`-style files, without
+emitting their values. It assigns one classification per file. The current
+totals are:
 
 | Classification | Occurrences | Locations | Required follow-up |
 | --- | ---: | --- | --- |
 | `SWITCH_AFTER_WORKER_PASS` | 31 | Astro site configuration, robots, source layouts/helpers/pages/plugins, and published content | Change only during the authorized canonical-origin phase. |
 | `ADD_NEW_URL_FIRST` | 4 | package production-check default, production smoke, post-launch check | Add an explicit Worker target while retaining Pages as default. |
-| `KEEP_UNCHANGED` | 24 | release/readiness/SEO/device documentation | Treat as historical evidence unless separately reviewed. |
-| `UNKNOWN_REQUIRES_REVIEW` | 13 | device-spec tooling, test harnesses, production-canary tooling, and this inventory/test implementation | Resolve ownership before making an origin canonical. |
+| `KEEP_UNCHANGED` | 0 | none explicitly marked historical at document opening | Historical status must be evidenced by document contents, not inferred from a `docs/` path. |
+| `UNKNOWN_REQUIRES_REVIEW` | 46 | current release/readiness/SEO/device documentation, migration review evidence, device-spec tooling, test harnesses, production-canary tooling, and this inventory/test implementation | Resolve ownership before making an origin canonical. |
 | `EXTERNAL_PROVIDER_WRITE_REQUIRED` | 0 | none found in supported repository text | Independently inventory provider-side Auth/OAuth/CORS/webhook settings before W3. |
 
-The classification total includes the checker and its fixture because they
-intentionally contain the legacy origin for regression coverage. It is not a
-runtime dependency.
+The classification total includes the checker, its fixture, and the Task 1
+review package because they intentionally contain the legacy origin for
+regression/review evidence. They are not runtime dependencies. Current
+operational documents remain `UNKNOWN_REQUIRES_REVIEW`; a document is
+`KEEP_UNCHANGED` only when its opening content explicitly identifies it as
+historical or archived.
 
 ## Sanitized Cloudflare provider receipt
 
