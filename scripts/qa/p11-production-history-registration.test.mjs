@@ -18,3 +18,9 @@ test("P11EXEC-02 rejects bad preconditions before spawn and never retries failur
   const spawnImpl = () => { calls += 1; const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); queueMicrotask(() => child.emit("close", 7)); return child; };
   const result = await runP11ProductionRepair({ ...valid, executable: "x", spawnImpl }); assert.equal(calls, 1); assert.equal(result.acceptanceResult, "BLOCKED"); assert.equal(result.retryAllowed, false);
 });
+
+test("P11MAIN-01 derives trusted facts, probes version separately, and redacts an exact password", async () => {
+  const { runP11ProductionHistoryRegistrationMain } = await import("./p11-production-history-registration.mjs"); let repairs = 0, probes = 0;
+  const result = await runP11ProductionHistoryRegistrationMain({ deps: { root: "C:/repo", git: a => a[0] === "rev-parse" ? "a".repeat(40) : "", readFile: p => p.endsWith("project-ref") ? "xcbnxzjlsvtgzixurcof\n" : "migration-bytes", hash: () => P11_MIGRATION_SHA256, exists: () => true, versionProbe: () => { probes += 1; return "2.115.0"; }, spawnImpl: (_e, _a, o) => { repairs += 1; assert.equal(o.cwd, "C:/repo"); const c = new EventEmitter(); c.stdout = new EventEmitter(); c.stderr = new EventEmitter(); queueMicrotask(() => { c.stderr.emit("data", "secret-pass"); c.emit("close", 7); }); return c; } }, env: { P11_APPROVED_SOURCE_COMMIT: "a".repeat(40), SUPABASE_DB_PASSWORD: "secret-pass" } });
+  assert.equal(probes, 1); assert.equal(repairs, 1); assert.equal(result.localCliVersionProbeProcesses, 1); assert.equal(result.failureDetail.includes("secret-pass"), false);
+});
