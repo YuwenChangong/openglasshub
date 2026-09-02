@@ -16,3 +16,10 @@ test("P9P2-09 produces a deterministic 35-file comparison table with all collisi
   assert.deepEqual(comparison, await createP9MigrationHistoryComparison({ productionRows: [{ version: "20260611", name: "first-applied", statement_count: "4", rollback_statement_count: "0" }] }));
   assert(comparison.rows.findIndex((row) => row.repository_version === "20260829") < comparison.rows.findIndex((row) => row.repository_version === "20260829054707"));
 });
+
+test("P9FINAL-01 retains sanitized production rows that have no canonical version", async () => {
+  const comparison = await createP9MigrationHistoryComparison({
+    productionRows: [{ version: "20260815010632", name: "admin_circle_lifecycle_and_safe_purge", statement_count: 1 }],
+  });
+  assert.deepEqual(comparison.unmatchedProductionRows, [{ version: "20260815010632", name: "admin_circle_lifecycle_and_safe_purge", statement_count: 1 }]);
+});

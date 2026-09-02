@@ -12,6 +12,7 @@ function compareRows(left, right) {
 export async function createP9MigrationHistoryComparison({ productionRows = [], sourceDirectory = join(ROOT, "supabase", "migrations") } = {}) {
   if (!Array.isArray(productionRows) || productionRows.some((row) => !row || typeof row.version !== "string" || "statements" in row || "rollback" in row)) throw new Error("P9_MIGRATION_HISTORY_COMPARISON_INPUT_INVALID");
   const analysis = await analyzeMigrations(sourceDirectory);
+  const canonicalVersions = new Set(analysis.files.map((file) => file.version));
   const collisionVersions = new Set(analysis.duplicateGroups.map((group) => group.version));
   const historyByVersion = new Map();
   for (const row of productionRows) if (!historyByVersion.has(row.version)) historyByVersion.set(row.version, row);
@@ -40,6 +41,9 @@ export async function createP9MigrationHistoryComparison({ productionRows = [], 
     uniqueRepositoryVersionCount: analysis.uniqueVersionCount,
     collisionGroupCount: analysis.duplicateGroups.length,
     productionRowCount: productionRows.length,
+    unmatchedProductionRows: productionRows
+      .filter((row) => !canonicalVersions.has(row.version))
+      .map((row) => ({ version: row.version, name: row.name ?? null, statement_count: row.statement_count ?? null })),
     rows,
   };
 }
