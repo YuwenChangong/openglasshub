@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { assertOwnedRuntimeRoot, cleanupOwnedRoot, initializeRuntimeConfig } from "./p6b-local-e2e-runner.mjs";
 import { createMirror, validateMirror } from "./local-supabase-migration-mirror.mjs";
 import { parseP9Connection, runP9ReadOnlyCapture } from "./p9-readonly-postgres-transport.mjs";
+import { P9_PACKET_2_CONTRACT, runP9MigrationHistoryRowsCapture } from "./p9-migration-history-rows-capture.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const PSQL = process.platform === "win32" ? "psql.exe" : "psql";
@@ -40,8 +41,16 @@ export function validateP9LocalEvidence(evidence) {
   return "PASS";
 }
 
+export function validateP9Packet2LocalEvidence(evidence) {
+  const query = evidence?.perQuery?.[0];
+  const serializedQuery = JSON.stringify(query ?? {});
+  const complete = evidence?.acceptanceResult === "PASS" && evidence?.psqlProcessCount === 1 && evidence?.psqlProcessExited === true && evidence?.connectionClosed === true && evidence?.transactionReadOnlyValue === "on" && evidence?.backendSessionCorrelation === true && evidence?.packetHash === P9_PACKET_2_CONTRACT.packetHash && evidence?.queriesExpected === 1 && evidence?.queriesExecuted === 1 && evidence?.queriesCaptured === 1 && evidence?.queriesMissing === 0 && query?.queryId === "MIGRATION_HISTORY_ROWS" && Number.isInteger(query?.rowCount) && query.rowCount >= 0 && evidence?.rollbackMode === "EXPLICIT_ROLLBACK" && evidence?.productionConnections === 0 && evidence?.productionMutationCount === 0 && !/\"(?:statements|rollback)\"/i.test(serializedQuery);
+  if (!complete) throw new Error("P9_PACKET_2_LOCAL_EVIDENCE_GATE_FAILED");
+  return "PASS";
+}
+
 export async function runP9LocalReadOnlyTransport() {
-  const runId = randomUUID().slice(0, 8); const runtime = await mkdtemp(join(tmpdir(), `openglass-p9-${runId}-`)); const repoSupabase = join(ROOT, "supabase"); const ports = await choosePorts(); let started = false; let localDsn; let capture; let writeProbe; let cleanup = "BLOCKED"; let stage = "INITIALIZED";
+  const runId = randomUUID().slice(0, 8); const runtime = await mkdtemp(join(tmpdir(), `openglass-p9-${runId}-`)); const repoSupabase = join(ROOT, "supabase"); const ports = await choosePorts(); let started = false; let localDsn; let capture; let packet2Capture; let writeProbe; let cleanup = "BLOCKED"; let stage = "INITIALIZED";
   const evidence = { runId, mode: "LOCAL_TEST", productionConnections: 0, productionSqlRequests: 0, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, productionDeployments: 0 };
   try {
     assertOwnedRuntimeRoot({ root: runtime, repoSupabase });
@@ -53,17 +62,21 @@ export async function runP9LocalReadOnlyTransport() {
     const packet = await readFile(join(ROOT, "docs", "ops", "p8-production-history-read-only.sql"), "utf8");
     stage = "READ_ONLY_CAPTURE"; capture = await runP9ReadOnlyCapture({ mode: "LOCAL_TEST", dsn: localDsn, packet, psqlPath: PSQL });
     const connection = parseP9Connection({ mode: "LOCAL_TEST", dsn: localDsn });
+    stage = "PACKET_2_SCHEMA_SHAPE"; await command(PSQL, ["-X", "-q", "-v", "ON_ERROR_STOP=1", "-c", "ALTER TABLE supabase_migrations.schema_migrations ADD COLUMN IF NOT EXISTS created_by text, ADD COLUMN IF NOT EXISTS idempotency_key text, ADD COLUMN IF NOT EXISTS rollback text[];"], { env: { ...process.env, ...connection.pgEnv } });
+    const packet2 = await readFile(join(ROOT, "docs", "ops", "p9-migration-history-rows-read-only.sql"), "utf8");
+    stage = "PACKET_2_READ_ONLY_CAPTURE"; packet2Capture = await runP9MigrationHistoryRowsCapture({ mode: "LOCAL_TEST", dsn: localDsn, packet: packet2, psqlPath: PSQL });
     stage = "WRITE_PROBE_SETUP"; await command(PSQL, ["-X", "-q", "-v", "ON_ERROR_STOP=1", "-c", "CREATE TABLE p9_local_readonly_probe (id integer PRIMARY KEY);"], { env: { ...process.env, ...connection.pgEnv } });
     stage = "WRITE_PROBE"; writeProbe = await runP9ReadOnlyCapture({ mode: "LOCAL_TEST", dsn: localDsn, packet, psqlPath: PSQL, testOnlyWriteProbeSql: "INSERT INTO p9_local_readonly_probe (id) VALUES (1);" });
     stage = "WRITE_PROBE_CLEANUP"; await command(PSQL, ["-X", "-q", "-v", "ON_ERROR_STOP=1", "-c", "DROP TABLE p9_local_readonly_probe;"], { env: { ...process.env, ...connection.pgEnv } });
     evidence.localWriteRejection = writeProbe.localWriteRejection;
+    evidence.packet2 = packet2Capture;
     Object.assign(evidence, capture);
   } catch (error) { evidence.acceptanceResult = "BLOCKED"; evidence.failureStage = stage; evidence.failureClassification = safeError(error); }
   finally {
     try { if (started) await command(SUPABASE_EXECUTABLE, supabaseArgs("stop", ["--no-backup", "--workdir", runtime])); await cleanupOwnedRoot({ root: runtime, repoSupabase }); cleanup = "PASS"; } catch { cleanup = "BLOCKED"; }
     evidence.cleanup = cleanup;
   }
-  try { validateP9LocalEvidence(evidence); evidence.localEvidenceGate = "PASS"; } catch (error) { evidence.localEvidenceGate = "BLOCKED"; evidence.failureClassification ??= safeError(error); }
+  try { validateP9LocalEvidence(evidence); validateP9Packet2LocalEvidence(evidence.packet2); evidence.localEvidenceGate = "PASS"; evidence.packet2LocalEvidenceGate = "PASS"; } catch (error) { evidence.localEvidenceGate = "BLOCKED"; evidence.packet2LocalEvidenceGate = "BLOCKED"; evidence.failureClassification ??= safeError(error); }
   const evidenceDirectory = join(EVIDENCE_ROOT, runId); await mkdir(evidenceDirectory, { recursive: true }); await writeFile(join(evidenceDirectory, "terminal.json"), `${JSON.stringify(evidence)}\n`, "utf8");
   return evidence;
 }

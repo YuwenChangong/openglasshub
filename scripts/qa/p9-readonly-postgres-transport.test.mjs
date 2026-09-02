@@ -17,9 +17,11 @@ import {
   parsePsqlTranscript,
   runP9ReadOnlyCapture,
 } from "./p9-readonly-postgres-transport.mjs";
+import { P9_PACKET_2_SHA256 } from "./p9-migration-history-rows-packet.mjs";
 
 const root = process.cwd();
 const packetPath = path.join(root, "docs", "ops", "p8-production-history-read-only.sql");
+const packet2Path = path.join(root, "docs", "ops", "p9-migration-history-rows-read-only.sql");
 const productionDsn = "postgresql://postgres:fake-password@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require&application_name=fake-token";
 const sessionPoolerDsn = "postgresql://postgres.xcbnxzjlsvtgzixurcof:fake-password@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
 
@@ -90,6 +92,26 @@ test("P9TX-27 derives exactly four hash-bound query units from the frozen P8 pac
 
 test("P9TX-28 refuses a packet whose frozen hash does not match", () => {
   assert.throws(() => loadFrozenPacketUnits({ packet: "SELECT 1;" }), /P9_PACKET_HASH_MISMATCH/);
+});
+
+test("P9P2TX-01 frames exactly one hash-bound migration-history rows query without credentials in argv", async () => {
+  const packet = await readFile(packet2Path, "utf8"); let input = ""; let spawnCount = 0;
+  const spawnImpl = (_executable, _args, options) => {
+    spawnCount += 1;
+    const child = new EventEmitter(); child.pid = 5678; child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
+    child.stdin = { end(value) { input = value; queueMicrotask(() => child.emit("close", 1)); } };
+    assert.equal(options.shell, false);
+    return child;
+  };
+  const result = await runP9ReadOnlyCapture({
+    mode: "PRODUCTION", dsn: productionDsn, packet, spawnImpl, nonce: "9bdea1a5cf8b44f796db910e0c5845af",
+    packetContract: { packetHash: P9_PACKET_2_SHA256, queryIds: ["MIGRATION_HISTORY_ROWS"] },
+  });
+  assert.equal(spawnCount, 1);
+  assert.match(input, /P9::9bdea1a5cf8b44f796db910e0c5845af::BEGIN::MIGRATION_HISTORY_ROWS/);
+  assert.doesNotMatch(input, /::BEGIN::SCHEMA_OBJECTS/);
+  assert.equal(result.packetHash, P9_PACKET_2_SHA256);
+  assert.equal(result.productionConnections, 1);
 });
 
 test("P9TX-09 through P9TX-17 preserve each independently framed result, including zero rows", () => {

@@ -9,6 +9,7 @@ export const P9_EXPECTED_SESSION_POOLER_HOST = "aws-1-ap-northeast-1.pooler.supa
 export const P9_EXPECTED_SESSION_POOLER_USER = `postgres.${P9_EXPECTED_PROJECT_REF}`;
 export const P9_PACKET_SHA256 = "5AC18441DBD61A36DB88300F333A40752173E224BFA9247AF28AA55E3B97E0A7";
 const QUERY_IDS = ["MIGRATION_HISTORY", "SCHEMA_OBJECTS", "POLICIES_RLS", "FUNCTIONS"];
+export const P9_DEFAULT_PACKET_CONTRACT = Object.freeze({ packetHash: P9_PACKET_SHA256, queryIds: QUERY_IDS });
 
 function failure(code) { const error = new Error(code); error.code = code; return error; }
 function sha256(value) { return createHash("sha256").update(value).digest("hex").toUpperCase(); }
@@ -72,15 +73,20 @@ function splitStatements(packet) {
   return statements;
 }
 
-export function loadFrozenPacketUnits({ packet }) {
-  if (typeof packet !== 'string' || sha256(packet) !== P9_PACKET_SHA256) throw failure('P9_PACKET_HASH_MISMATCH');
+export function loadReadOnlyPacketUnits({ packet, packetContract = P9_DEFAULT_PACKET_CONTRACT }) {
+  if (!packetContract || !/^[A-F0-9]{64}$/i.test(packetContract.packetHash) || !Array.isArray(packetContract.queryIds) || !packetContract.queryIds.length || new Set(packetContract.queryIds).size !== packetContract.queryIds.length || packetContract.queryIds.some((queryId) => !/^[A-Z][A-Z0-9_]*$/.test(queryId))) throw failure('P9_PACKET_CONTRACT_INVALID');
+  if (typeof packet !== 'string' || sha256(packet) !== packetContract.packetHash) throw failure('P9_PACKET_HASH_MISMATCH');
   const statements = splitStatements(packet);
-  if (statements.length !== QUERY_IDS.length || statements.some((statement) => !/^SELECT\b/i.test(statement.replace(/^(?:--[^\n]*\n)*/g, '').trim()))) throw failure('P9_PACKET_UNIT_INTEGRITY_FAILURE');
-  return statements.map((sql, index) => ({ queryId: QUERY_IDS[index], sql, sourceHash: sha256(sql), classification: 'READ_ONLY_SELECT' }));
+  if (statements.length !== packetContract.queryIds.length || statements.some((statement) => !/^SELECT\b/i.test(statement.replace(/^(?:--[^\n]*\n)*/g, '').trim()))) throw failure('P9_PACKET_UNIT_INTEGRITY_FAILURE');
+  return statements.map((sql, index) => ({ queryId: packetContract.queryIds[index], sql, sourceHash: sha256(sql), classification: 'READ_ONLY_SELECT' }));
+}
+
+export function loadFrozenPacketUnits({ packet }) {
+  return loadReadOnlyPacketUnits({ packet, packetContract: P9_DEFAULT_PACKET_CONTRACT });
 }
 
 export function createPsqlTranscript({ protocol = { nonce: randomUUID().replace(/-/g, '') }, units, testOnlyWriteProbeSql = null }) {
-  if (!/^[a-f0-9]{32}$/i.test(protocol?.nonce) || !Array.isArray(units) || units.length !== QUERY_IDS.length) throw failure('P9_TRANSCRIPT_CONTRACT_INVALID');
+  if (!/^[a-f0-9]{32}$/i.test(protocol?.nonce) || !Array.isArray(units) || !units.length || units.some((unit) => !/^[A-Z][A-Z0-9_]*$/.test(unit?.queryId) || typeof unit.sql !== 'string')) throw failure('P9_TRANSCRIPT_CONTRACT_INVALID');
   const frame = (id, sql) => [`\\echo ${marker(protocol, 'BEGIN', id)}`, sql, `\\echo ${marker(protocol, 'END', id)}`].join('\n');
   const sessionProof = "SELECT current_setting('transaction_read_only') AS transaction_read_only, current_database() AS current_database, current_user AS current_user, pg_backend_pid()::text AS backend_pid;";
   const finalProof = 'SELECT pg_backend_pid()::text AS backend_pid;';
@@ -153,15 +159,15 @@ function runPsql({ executable, args, env, input, spawnImpl }) {
   });
 }
 
-export async function runP9ReadOnlyCapture({ mode, dsn, packet, psqlPath = 'psql', spawnImpl = spawn, nonce = randomUUID().replace(/-/g, ''), testOnlyWriteProbeSql = null }) {
+export async function runP9ReadOnlyCapture({ mode, dsn, packet, packetContract = P9_DEFAULT_PACKET_CONTRACT, psqlPath = 'psql', spawnImpl = spawn, nonce = randomUUID().replace(/-/g, ''), testOnlyWriteProbeSql = null }) {
   if (testOnlyWriteProbeSql !== null && mode !== 'LOCAL_TEST') throw failure('P9_LOCAL_TEST_PROBE_FORBIDDEN');
-  const connection = parseP9Connection({ mode, dsn }); const units = loadFrozenPacketUnits({ packet }); const protocol = { nonce };
+  const connection = parseP9Connection({ mode, dsn }); const units = loadReadOnlyPacketUnits({ packet, packetContract }); const protocol = { nonce };
   const script = createPsqlTranscript({ protocol, units, testOnlyWriteProbeSql }); const args = ['-X', '-q', '-v', 'ON_ERROR_STOP=1'];
   const processResult = await runPsql({ executable: psqlPath, args, env: { ...process.env, ...connection.pgEnv }, input: script, spawnImpl });
   const productionCounter = mode === 'PRODUCTION' ? 1 : 0;
-  if (processResult.exitCode !== 0) return { acceptanceResult: 'BLOCKED', targetMode: mode, targetRef: connection.safeTarget.projectRef, targetHost: connection.safeTarget.host, targetEndpointClass: connection.safeTarget.endpointClass, connectionAttempted: true, psqlProcessExited: true, connectionClosed: true, psqlExitCode: processResult.exitCode, rollbackMode: 'CONNECTION_CLOSE_ROLLBACK', firstFailureStage: 'PSQL_EXECUTION', firstFailureClass: classifyPsqlFailure(processResult.stderr), firstFailureQueryId: lastStartedQueryId(processResult.stdout, protocol, units), localWriteRejection: testOnlyWriteProbeSql && /read-only transaction/i.test(processResult.stderr) ? 'PASS' : null, productionConnections: productionCounter, productionSqlRequests: productionCounter, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, secretAudit: 'PASS' };
+  if (processResult.exitCode !== 0) return { acceptanceResult: 'BLOCKED', targetMode: mode, targetRef: connection.safeTarget.projectRef, targetHost: connection.safeTarget.host, targetEndpointClass: connection.safeTarget.endpointClass, packetHash: packetContract.packetHash, connectionAttempted: true, psqlProcessExited: true, connectionClosed: true, psqlExitCode: processResult.exitCode, rollbackMode: 'CONNECTION_CLOSE_ROLLBACK', firstFailureStage: 'PSQL_EXECUTION', firstFailureClass: classifyPsqlFailure(processResult.stderr), firstFailureQueryId: lastStartedQueryId(processResult.stdout, protocol, units), localWriteRejection: testOnlyWriteProbeSql && /read-only transaction/i.test(processResult.stderr) ? 'PASS' : null, productionConnections: productionCounter, productionSqlRequests: productionCounter, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, secretAudit: 'PASS' };
   const parsed = parsePsqlTranscript({ stdout: processResult.stdout, protocol, units });
-  return { acceptanceResult: 'PASS', targetMode: mode, targetRef: connection.safeTarget.projectRef, targetHost: connection.safeTarget.host, targetEndpointClass: connection.safeTarget.endpointClass, targetIdentityValidated: true, connectionAttempted: true, connectionOpened: true, psqlProcessCount: 1, psqlProcessExited: true, connectionClosed: true, transactionReadOnlyObserved: true, transactionReadOnlyValue: parsed.transactionReadOnlyValue, backendPid: parsed.backendPid, backendSessionCorrelation: parsed.sameSession, databaseIdentity: parsed.databaseIdentity, packetHash: P9_PACKET_SHA256, queriesExpected: units.length, queriesExecuted: units.length, queriesCaptured: parsed.queries.length, queriesMissing: 0, perQuery: parsed.queries, rollbackMode: 'EXPLICIT_ROLLBACK', productionConnections: productionCounter, productionSqlRequests: productionCounter, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, secretAudit: 'PASS', argv: args };
+  return { acceptanceResult: 'PASS', targetMode: mode, targetRef: connection.safeTarget.projectRef, targetHost: connection.safeTarget.host, targetEndpointClass: connection.safeTarget.endpointClass, targetIdentityValidated: true, connectionAttempted: true, connectionOpened: true, psqlProcessCount: 1, psqlProcessExited: true, connectionClosed: true, transactionReadOnlyObserved: true, transactionReadOnlyValue: parsed.transactionReadOnlyValue, backendPid: parsed.backendPid, backendSessionCorrelation: parsed.sameSession, databaseIdentity: parsed.databaseIdentity, packetHash: packetContract.packetHash, queriesExpected: units.length, queriesExecuted: units.length, queriesCaptured: parsed.queries.length, queriesMissing: 0, perQuery: parsed.queries, rollbackMode: 'EXPLICIT_ROLLBACK', productionConnections: productionCounter, productionSqlRequests: productionCounter, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, secretAudit: 'PASS', argv: args };
 }
 
 export function classifyLegacyManagementResult(result) {
