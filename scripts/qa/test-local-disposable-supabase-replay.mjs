@@ -298,6 +298,67 @@ test("a receipt records failed cleanup without retaining cleanup output", async 
   await rm(path.dirname(receiptPath), { recursive: true, force: true });
 });
 
+test("matching fingerprint evidence is removed when cleanup fails", async () => {
+  const expected = JSON.parse(await readFile(path.join(root, "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8"));
+  let runtimeRoot;
+  let receiptPath;
+  let containerListCalls = 0;
+  const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
+  const execute = async (command, args, options = {}) => {
+    if (command === "docker" && args[0] === "ps") {
+      containerListCalls += 1;
+      return { stdout: containerListCalls === 1 ? "" : "owned-db\tsupabase_db_ogl-replay-e1e2e3e4\n", stderr: "" };
+    }
+    if (command === "docker" && args[0] === "exec") {
+      const mirror = JSON.parse(await readFile(path.join(runtimeRoot, "mapping.json"), "utf8"));
+      return {
+        stdout: `version,name\n${mirror.mappings.map(({ temporaryVersion, temporaryFile }) => `${temporaryVersion},${temporaryFile.replace(/^\d+_/, "").replace(/\.sql$/, "")}`).join("\n")}\n`,
+        stderr: "",
+      };
+    }
+    if (args.includes("init")) {
+      runtimeRoot = args.at(-1);
+      await mkdir(path.join(runtimeRoot, "supabase"), { recursive: true });
+      await writeFile(path.join(runtimeRoot, "supabase", "config.toml"), config);
+      return { stdout: "", stderr: "" };
+    }
+    if (args.includes("start")) return { stdout: "", stderr: "" };
+    if (args.includes("status")) return { stdout: JSON.stringify({ API_URL: "http://127.0.0.1:54321" }), stderr: "" };
+    if (command === "node") {
+      await writeFile(options.env.OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_CANDIDATE, `${JSON.stringify(expected, null, 2)}\n`);
+      await writeFile(options.env.OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_REVIEW, `${JSON.stringify(reviewFingerprintCandidate({ expected, candidate: expected }), null, 2)}\n`);
+      return { stdout: "", stderr: "" };
+    }
+    if (args.includes("stop")) throw new Error("cleanup output with postgresql://role:password@db.example.test/postgres");
+    throw new Error(`unexpected command ${command}`);
+  };
+
+  try {
+    await assert.rejects(
+      () => runLocalDisposableReplay({ root, runId: "e1e2e3e4", environment: { PATH: process.env.PATH }, execute }),
+      (error) => {
+        receiptPath = error.message.match(/receipt: (.+)$/m)?.[1];
+        return /Non-secret replay failure receipt retained/.test(error.message) && !/postgres(?:ql)?:\/\//i.test(error.message) && Boolean(receiptPath);
+      },
+    );
+    assert.equal(await exists(runtimeRoot), false, "the disposable runtime is removed when cleanup reports a failure");
+    assert.deepEqual(await readdir(path.dirname(receiptPath)), ["failure-receipt.json"], "matching candidate and review are not retained after cleanup failure");
+    const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
+    assert.deepEqual(receipt, {
+      format: "openglass-local-disposable-supabase-failure-receipt-v1",
+      runId: "e1e2e3e4",
+      stage: "cleanup-owned-root",
+      class: "cleanup-failed",
+      exitCode: null,
+      code: "UNSPECIFIED",
+      cleanupStatus: "failed",
+    });
+    assert.doesNotMatch(JSON.stringify(receipt), /postgres(?:ql)?:\/\/|role|password/i);
+  } finally {
+    if (receiptPath) await rm(path.dirname(receiptPath), { recursive: true, force: true });
+  }
+});
+
 test("evidence-root creation failure still removes the already-owned runtime root", async () => {
   let runtimeRoot;
   const execute = async (_command, args) => {

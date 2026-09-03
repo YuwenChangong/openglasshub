@@ -517,6 +517,12 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
       runtimeFailure ??= { stage: "cleanup-owned-root", error };
     }
     if (runtimeFailure && fingerprintEvidence) {
+      if (!retainFingerprintEvidence) {
+        await Promise.all([
+          rm(fingerprintEvidence.candidatePath, { force: true }),
+          rm(fingerprintEvidence.reviewPath, { force: true }),
+        ]);
+      }
       const receiptPath = await writeFailureReceipt({
         evidence: fingerprintEvidence,
         runtimeRoot,

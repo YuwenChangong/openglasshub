@@ -34,7 +34,9 @@ The harness performs the following local-only sequence:
    owned temporary `failure-receipt.json`. Its strict schema contains only the
    run ID, first failure stage and class, an exit code or sanitized code, and
    cleanup status; it never includes command output, DSNs, container names,
-   usernames, or secret values.
+   usernames, or secret values. A cleanup failure after a matching capture also
+   removes the candidate and review, retaining only that receipt; candidate and
+   review retention is reserved for a verified fingerprint mismatch.
 7. Stop only that project with `supabase stop --no-backup` even when `start`
    fails part way through, and remove only the verified temporary root.
 
