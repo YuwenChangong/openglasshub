@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -146,6 +146,28 @@ test("lifecycle invokes owned-project cleanup when supabase start fails after cr
   assert.equal(calls.filter(({ args }) => args.includes("stop")).length, 1);
 });
 
+test("evidence-root creation failure still removes the already-owned runtime root", async () => {
+  let runtimeRoot;
+  const execute = async (_command, args) => {
+    runtimeRoot = args.at(-1);
+    throw new Error("the replay must not begin when evidence-root creation fails");
+  };
+  await assert.rejects(
+    () => runLocalDisposableReplay({
+      root,
+      runId: "ef12ab34",
+      environment: { PATH: process.env.PATH },
+      execute,
+      createFingerprintEvidence: async () => { throw new Error("simulated evidence-root creation failure"); },
+    }),
+    /simulated evidence-root creation failure/,
+  );
+  assert.equal(runtimeRoot, undefined, "no replay command may run after evidence-root creation fails");
+  const roots = (await readdir(os.tmpdir()))
+    .filter((name) => name.startsWith("openglass-local-disposable-supabase-ef12ab34-"));
+  assert.deepEqual(roots, [], "the already-created owned runtime root is removed");
+});
+
 test("a stale fingerprint fixture preserves reviewable nonsecret evidence after disposable cleanup", async () => {
   const expected = JSON.parse(await readFile(path.join(root, "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8"));
   const calls = [];
@@ -154,6 +176,7 @@ test("a stale fingerprint fixture preserves reviewable nonsecret evidence after 
   let reviewPath;
   let containerListCalls = 0;
   let emitCredentialLikeEvidence = false;
+  let emitUnknownSensitiveEvidence = false;
   const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
   const execute = async (command, args, options = {}) => {
     calls.push({ command, args });
@@ -188,6 +211,7 @@ test("a stale fingerprint fixture preserves reviewable nonsecret evidence after 
         ],
       };
       if (emitCredentialLikeEvidence) candidate.diagnostic = "postgresql://user:password@database.example.test/postgres";
+      if (emitUnknownSensitiveEvidence) candidate.handoff = { authorization: "redacted-sensitive-value" };
       const review = reviewFingerprintCandidate({ expected, candidate });
       await writeFile(candidatePath, `${JSON.stringify(candidate, null, 2)}\n`);
       await writeFile(reviewPath, `${JSON.stringify(review, null, 2)}\n`);
@@ -222,9 +246,22 @@ test("a stale fingerprint fixture preserves reviewable nonsecret evidence after 
     emitCredentialLikeEvidence = true;
     await assert.rejects(
       () => runLocalDisposableReplay({ root, runId: "ab12cd34", environment: { PATH: process.env.PATH }, execute }),
-      /node exited 1: Fingerprint fixture review required/,
+      /Fingerprint candidate failed and its evidence was rejected/,
     );
     assert.equal(await exists(candidatePath), false, "credential-like evidence is removed instead of retained");
+
+    emitCredentialLikeEvidence = false;
+    emitUnknownSensitiveEvidence = true;
+    await assert.rejects(
+      () => runLocalDisposableReplay({ root, runId: "ab12cd34", environment: { PATH: process.env.PATH }, execute }),
+      (error) => {
+        assert.match(error.message, /Fingerprint candidate failed and its evidence was rejected/);
+        assert.doesNotMatch(error.message, /redacted-sensitive-value|authorization/i, "rejected evidence values and keys are never printed");
+        return true;
+      },
+    );
+    assert.equal(await exists(candidatePath), false, "unknown sensitive evidence is removed instead of retained");
+    assert.equal(await exists(reviewPath), false, "the paired review is removed with rejected evidence");
   } finally {
     if (candidatePath) await rm(path.dirname(candidatePath), { recursive: true, force: true });
   }

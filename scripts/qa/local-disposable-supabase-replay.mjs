@@ -19,6 +19,17 @@ const PORT_FIELDS = [
 ];
 const NPX = process.platform === "win32" ? "npx.cmd" : "npx";
 const FINGERPRINT_EVIDENCE_PREFIX = "openglass-local-disposable-supabase-evidence-";
+const CANDIDATE_KEYS = ["format", "generatedFrom", "canonicalMigrationCount", "legalConsentPrerequisiteCount", "localMigrationLedger", "objectCount", "objects"];
+const LEDGER_ENTRY_KEYS = ["version", "name", "statementCount"];
+const OBJECT_ENTRY_KEYS = ["objectType", "schema", "name", "identity", "attribute", "normalizedStructuralDefinition", "deterministicSha256", "sourceMigrations", "firstIntroducedMigration", "laterModifyingMigrations", "securityRelevant", "legalConsentPrerequisite", "label"];
+const REVIEW_KEYS = ["format", "classification", "expected", "candidate", "migrationLedger", "objectIdentity", "fixtureMatchesCandidate", "reviewId"];
+const REVIEW_EXPECTED_SCOPE_KEYS = ["canonicalMigrationCount", "localMigrationLedgerCount", "objectCount"];
+const REVIEW_CANDIDATE_SCOPE_KEYS = ["generatedFrom", "canonicalMigrationCount", "localMigrationLedgerCount", "objectCount"];
+const REVIEW_LEDGER_KEYS = ["expectedCount", "candidateCount", "missingFromCandidate", "addedByCandidate", "orderMatchesForSharedEntries"];
+const REVIEW_OBJECT_KEYS = ["missingFromCandidate", "addedByCandidate", "divergentDefinitions"];
+const REVIEW_LEDGER_ENTRY_KEYS = ["version", "name"];
+const SENSITIVE_EVIDENCE_KEY = /(?:credential|password|passphrase|passwd|secret|token|authorization|api[_-]?key|private[_-]?key|bearer)/i;
+const SENSITIVE_EVIDENCE_VALUE = /(?:postgres(?:ql)?:\/\/|(?:https?:\/\/)[^\s"']*@|-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----|\b(?:bearer|basic)\s+[^\s]+|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|(?:access|refresh|id)[_-]?token\s*[=:])/i;
 
 function assertRunId(runId) {
   if (!/^[a-f0-9]{8}$/i.test(runId)) throw new Error("Disposable replay run id must be eight hexadecimal characters");
@@ -118,10 +129,83 @@ async function createFingerprintEvidence({ runId, runtimeRoot, repositoryRoot })
   };
 }
 
-function assertNonsecretFingerprintEvidence(text) {
-  if (/(?:postgres(?:ql)?:\/\/|(?:https?:\/\/)[^\s"']*@|"(?:password|access_token|api[_-]?key|secret)"\s*:\s*"[^"\n]+")/i.test(text)) {
-    throw new Error("Fingerprint evidence contains credential-like content");
+function assertExactObjectKeys(value, keys) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) throw new Error("Fingerprint evidence has an invalid object shape");
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) throw new Error("Fingerprint evidence has an unknown or missing field");
+}
+
+function assertSafeEvidenceValue(value) {
+  if (typeof value === "string" && SENSITIVE_EVIDENCE_VALUE.test(value)) throw new Error("Fingerprint evidence contains credential-like content");
+  if (Array.isArray(value)) {
+    for (const entry of value) assertSafeEvidenceValue(entry);
+    return;
   }
+  if (value && typeof value === "object") {
+    for (const [key, entry] of Object.entries(value)) {
+      if (SENSITIVE_EVIDENCE_KEY.test(key)) throw new Error("Fingerprint evidence contains a sensitive field");
+      assertSafeEvidenceValue(entry);
+    }
+  }
+}
+
+function assertString(value) {
+  if (typeof value !== "string") throw new Error("Fingerprint evidence has an invalid scalar field");
+}
+
+function assertStringOrNull(value) {
+  if (value !== null && typeof value !== "string") throw new Error("Fingerprint evidence has an invalid scalar field");
+}
+
+function assertCount(value) {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error("Fingerprint evidence has an invalid count field");
+}
+
+function parseEvidenceJson(text) {
+  try { return JSON.parse(text); } catch { throw new Error("Fingerprint evidence is not valid JSON"); }
+}
+
+function assertFingerprintCandidateSchema(candidate) {
+  assertExactObjectKeys(candidate, CANDIDATE_KEYS);
+  if (candidate.format !== "openglass-production-schema-fingerprint-v1" || candidate.generatedFrom !== "LOCAL_DOCKER_ONLY") throw new Error("Fingerprint evidence candidate is incomplete");
+  for (const key of ["canonicalMigrationCount", "legalConsentPrerequisiteCount", "objectCount"]) assertCount(candidate[key]);
+  if (!Array.isArray(candidate.localMigrationLedger) || !Array.isArray(candidate.objects) || candidate.canonicalMigrationCount !== candidate.localMigrationLedger.length || candidate.objectCount !== candidate.objects.length) throw new Error("Fingerprint evidence candidate is incomplete");
+  for (const entry of candidate.localMigrationLedger) {
+    assertExactObjectKeys(entry, LEDGER_ENTRY_KEYS);
+    assertString(entry.version);
+    assertString(entry.name);
+    assertCount(entry.statementCount);
+  }
+  for (const entry of candidate.objects) {
+    assertExactObjectKeys(entry, OBJECT_ENTRY_KEYS);
+    for (const key of ["objectType", "schema", "name", "identity", "attribute", "normalizedStructuralDefinition", "deterministicSha256", "label"]) assertString(entry[key]);
+    assertStringOrNull(entry.firstIntroducedMigration);
+    if (!Array.isArray(entry.sourceMigrations) || !Array.isArray(entry.laterModifyingMigrations) || !entry.sourceMigrations.every((item) => typeof item === "string") || !entry.laterModifyingMigrations.every((item) => typeof item === "string") || typeof entry.securityRelevant !== "boolean" || typeof entry.legalConsentPrerequisite !== "boolean") throw new Error("Fingerprint evidence candidate is incomplete");
+  }
+  assertSafeEvidenceValue(candidate);
+}
+
+function assertFingerprintReviewSchema(review) {
+  assertExactObjectKeys(review, REVIEW_KEYS);
+  if (review.format !== "openglass-production-schema-fingerprint-review-v1" || typeof review.classification !== "string" || typeof review.fixtureMatchesCandidate !== "boolean" || !/^[a-f0-9]{64}$/.test(review.reviewId)) throw new Error("Fingerprint evidence review is incomplete");
+  assertExactObjectKeys(review.expected, REVIEW_EXPECTED_SCOPE_KEYS);
+  for (const key of REVIEW_EXPECTED_SCOPE_KEYS) assertCount(review.expected[key]);
+  assertExactObjectKeys(review.candidate, REVIEW_CANDIDATE_SCOPE_KEYS);
+  assertString(review.candidate.generatedFrom);
+  for (const key of REVIEW_EXPECTED_SCOPE_KEYS) assertCount(review.candidate[key]);
+  assertExactObjectKeys(review.migrationLedger, REVIEW_LEDGER_KEYS);
+  assertCount(review.migrationLedger.expectedCount);
+  assertCount(review.migrationLedger.candidateCount);
+  if (!Array.isArray(review.migrationLedger.missingFromCandidate) || !Array.isArray(review.migrationLedger.addedByCandidate) || typeof review.migrationLedger.orderMatchesForSharedEntries !== "boolean") throw new Error("Fingerprint evidence review is incomplete");
+  for (const entry of [...review.migrationLedger.missingFromCandidate, ...review.migrationLedger.addedByCandidate]) {
+    assertExactObjectKeys(entry, REVIEW_LEDGER_ENTRY_KEYS);
+    assertString(entry.version);
+    assertString(entry.name);
+  }
+  assertExactObjectKeys(review.objectIdentity, REVIEW_OBJECT_KEYS);
+  if (!Object.values(review.objectIdentity).every((entries) => Array.isArray(entries) && entries.every((entry) => typeof entry === "string"))) throw new Error("Fingerprint evidence review is incomplete");
+  assertSafeEvidenceValue(review);
 }
 
 async function readReviewableFingerprintEvidence({ evidence, expected }) {
@@ -130,17 +214,10 @@ async function readReviewableFingerprintEvidence({ evidence, expected }) {
     throw new Error("Fingerprint evidence must contain regular candidate and review files");
   }
   const [candidateText, reviewText] = await Promise.all([readFile(evidence.candidatePath, "utf8"), readFile(evidence.reviewPath, "utf8")]);
-  assertNonsecretFingerprintEvidence(candidateText);
-  assertNonsecretFingerprintEvidence(reviewText);
-  const candidate = JSON.parse(candidateText);
-  const review = JSON.parse(reviewText);
-  if (candidate.format !== "openglass-production-schema-fingerprint-v1"
-    || candidate.generatedFrom !== "LOCAL_DOCKER_ONLY"
-    || !Array.isArray(candidate.localMigrationLedger)
-    || candidate.canonicalMigrationCount !== candidate.localMigrationLedger.length
-    || !Array.isArray(candidate.objects)) {
-    throw new Error("Fingerprint evidence candidate is incomplete");
-  }
+  const candidate = parseEvidenceJson(candidateText);
+  const review = parseEvidenceJson(reviewText);
+  assertFingerprintCandidateSchema(candidate);
+  assertFingerprintReviewSchema(review);
   const expectedReview = reviewFingerprintCandidate({ expected, candidate });
   if (JSON.stringify(review) !== JSON.stringify(expectedReview)) throw new Error("Fingerprint evidence review is stale or modified");
   if (review.fixtureMatchesCandidate) throw new Error("Fingerprint evidence may be retained only for a review mismatch");
@@ -296,18 +373,21 @@ export async function cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot
   return true;
 }
 
-export async function runLocalDisposableReplay({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, dryRun = false } = {}) {
+export async function runLocalDisposableReplay({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false } = {}) {
   const plan = buildLocalDisposableReplayPlan({ root, runId });
   if (dryRun) return plan;
   const repositoryRoot = path.resolve(root);
   const safeEnvironment = sanitizedChildEnvironment(environment);
   const runtimeRoot = await mkdtemp(rootTemplateFor(runId));
   const projectId = projectIdFor(runId);
-  assertOwnedDisposableRoot({ disposableRoot: runtimeRoot, repositoryRoot });
-  const fingerprintEvidence = await createFingerprintEvidence({ runId, runtimeRoot, repositoryRoot });
+  let fingerprintEvidence;
   let retainFingerprintEvidence = false;
   let startAttempted = false;
   try {
+    assertOwnedDisposableRoot({ disposableRoot: runtimeRoot, repositoryRoot });
+    fingerprintEvidence = await createEvidence({ runId, runtimeRoot, repositoryRoot });
+    assertOwnedFingerprintEvidenceRoot({ evidenceRoot: fingerprintEvidence.root, runtimeRoot, repositoryRoot });
+    if (fingerprintEvidence.candidatePath !== path.join(fingerprintEvidence.root, "fingerprint-candidate.json") || fingerprintEvidence.reviewPath !== path.join(fingerprintEvidence.root, "fingerprint-review.json")) throw new Error("Fingerprint evidence paths must remain inside their owned root");
     const before = await listContainers(execute, safeEnvironment);
     await initializeOwnedConfig({ runtimeRoot, projectId, runId, execute, environment: safeEnvironment });
     const mirror = await buildLocalSupabaseReplayMirror({
@@ -339,15 +419,15 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
           OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_REVIEW: fingerprintEvidence.reviewPath,
         },
       });
-    } catch (error) {
+    } catch {
       let review;
       try {
         review = await readReviewableFingerprintEvidence({ evidence: fingerprintEvidence, expected: JSON.parse(await readFile(path.join(repositoryRoot, "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8")) });
-      } catch {
-        throw error;
+      } catch (evidenceError) {
+        throw new Error(`Fingerprint candidate failed and its evidence was rejected: ${evidenceError.message}`);
       }
       retainFingerprintEvidence = true;
-      throw new Error(`${error.message}\nNon-secret fingerprint evidence retained for explicit review:\n  candidate: ${fingerprintEvidence.candidatePath}\n  review: ${fingerprintEvidence.reviewPath}\n  review id: ${review.reviewId}`);
+      throw new Error(`Fingerprint candidate failed; Non-secret fingerprint evidence retained for explicit review:\n  candidate: ${fingerprintEvidence.candidatePath}\n  review: ${fingerprintEvidence.reviewPath}\n  review id: ${review.reviewId}`);
     }
     return {
       localReplay: "PASS",
@@ -362,7 +442,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
     try {
       await cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot, startAttempted, execute, environment: safeEnvironment });
     } finally {
-      if (!retainFingerprintEvidence) await rm(fingerprintEvidence.root, { recursive: true, force: true });
+      if (fingerprintEvidence && !retainFingerprintEvidence) await rm(fingerprintEvidence.root, { recursive: true, force: true });
     }
   }
 }
