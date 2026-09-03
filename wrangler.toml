@@ -1,5 +1,6 @@
 name = "openglasshub"
 compatibility_date = "2026-05-17"
+compatibility_flags = ["nodejs_compat"]
 
 [[r2_buckets]]
 binding = "MODERATION_ASSETS"

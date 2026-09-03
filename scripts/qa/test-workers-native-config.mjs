@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { unstable_readConfig } from "wrangler";
 
 import { collectRepositoryInventory } from "./cloudflare-workers-migration-inventory.mjs";
 
 const root = resolve(import.meta.dirname, "..", "..");
 const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
 const inventory = await collectRepositoryInventory(root);
+const rootWrangler = unstable_readConfig(
+  { config: resolve(root, "wrangler.toml") },
+  { hideWarnings: true },
+);
 
 assert.equal(
   inventory.config.keyNames.includes("pages_build_output_dir"),
@@ -14,6 +19,11 @@ assert.equal(
   "the root Wrangler configuration must not select the Cloudflare Pages build contract",
 );
 assert.equal(packageJson.scripts.build, "astro build", "npm run build must be the canonical Astro build without a Pages finalizer");
+assert.equal(
+  rootWrangler.compatibility_flags.includes("nodejs_compat"),
+  true,
+  "the source Worker config must enable Node.js compatibility for its pre-default compatibility date",
+);
 assert.equal(
   packageJson.scripts["test:workers-config"],
   "node scripts/qa/test-workers-native-config.mjs",
@@ -32,6 +42,11 @@ const generatedPath = resolve(root, "dist", "server", "wrangler.json");
 const generated = JSON.parse(await readFile(generatedPath, "utf8"));
 
 assert.equal("pages_build_output_dir" in generated, false, "the Astro-generated deployment config must be Worker-shaped");
+assert.equal(
+  generated.compatibility_flags?.includes("nodejs_compat"),
+  true,
+  "the Astro-generated deployment config must retain the source Node.js compatibility flag",
+);
 assert.equal(typeof generated.main, "string", "the Astro-generated deployment config must declare a Worker entrypoint");
 assert.notEqual(generated.main.trim(), "", "the generated Worker entrypoint must not be empty");
 assert.equal(generated.assets?.binding, "ASSETS", "the generated config must retain Astro's static-assets binding");
