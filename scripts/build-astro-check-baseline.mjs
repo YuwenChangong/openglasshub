@@ -8,7 +8,7 @@ import { ASTRO_CHECK_BASELINE_COMMIT, createBaselineManifest, parseAstroCheckOut
 
 const [inputPath, outputPath] = process.argv.slice(2);
 assert.ok(inputPath && outputPath, "Usage: node scripts/build-astro-check-baseline.mjs <astro-output> <manifest-output>");
-assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), ASTRO_CHECK_BASELINE_COMMIT, "Baseline manifest may only be built from cd87f54");
+assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), ASTRO_CHECK_BASELINE_COMMIT, `Baseline manifest may only be built from ${ASTRO_CHECK_BASELINE_COMMIT.slice(0, 8)}`);
 
 const root = process.cwd();
 const output = await readFile(inputPath, "utf8");

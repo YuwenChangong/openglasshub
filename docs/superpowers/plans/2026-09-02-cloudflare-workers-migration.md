@@ -155,3 +155,13 @@
 - Interfaces: Tasks 1/2 supply config and inventory inputs; Task 3 consumes generated config; Tasks 4/5 consume the origin and binding contracts; Task 6 consumes final source identity; Task 7 consumes all focused gates.
 - Placeholder scan: this plan intentionally contains no unresolved implementation markers.
 - External writes: no task contains a Cloudflare, Supabase, Git main, deployment, or database mutation.
+
+## Task 3 Astro ratchet forensic report
+
+- Classification: `STALE_VERSION_RATCHET`.
+- Origin: `1493090da96b38c9515051aa46004ada8dd23166` introduced an immutable Astro-check debt baseline for Astro `5.18.2`. P8 commit `e9ab7b72bfcfe3a2e6d04f1b9abf2c2e865b911d` independently approved and pinned Astro `7.2.10`. Merge `4e61134e7ba1f3b1308e46b21caaa76e1b313594` combined the Astro 5 ratchet parent with the Astro 7 runtime parent without reconciling the ratchet.
+- Contract: the gate enforces exact package versions for Astro, `@astrojs/check`, and TypeScript, then prevents new diagnostics, diagnostics in changed paths, increased error/path totals, or changes to files containing baseline debt. It is an exact reviewed-toolchain contract, not a semantic minimum-version check.
+- RED evidence: the local gate rejected approved Astro `7.2.10` against stale `5.18.2`; the focused regression failed with the same mismatch before implementation.
+- Fix: advance the frozen toolchain and diagnostic manifest to migration ancestor `e2f45dac135edfc10d866fc83df05c0590c1adb9`, whose Astro 7 check has 177 errors across 90 paths, and resolve Astro's executable from its package-declared bin instead of the removed Astro 5 `astro.js` path. Current Task 1-3 diagnostics are identity-equal to that approved base: 0 added and 0 removed.
+- Safety: focused unit coverage accepts `7.2.10` and rejects downgrade `7.2.9`, missing Astro version state, and malformed Astro version state. Manifest integrity, changed-path, baseline-blob, error-count, and affected-path guards remain enabled.
+- Verification: `npm run test:astro-check-ratchet-unit`, `npm run test:astro-check-ratchet`, `node scripts/test-astro7-cloudflare-runtime.mjs`, `npm run build`, `npm run test:workers-artifact`, and `npm test` all exited 0. Cloudflare writes: 0. Supabase writes: 0. Remote-main writes: 0. Production database connections: 0.

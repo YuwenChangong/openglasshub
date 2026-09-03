@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-export const ASTRO_CHECK_BASELINE_COMMIT = "cd87f54bc486acb7d12c1bcd6c55e38c8749b0a6";
+export const ASTRO_CHECK_BASELINE_COMMIT = "e2f45dac135edfc10d866fc83df05c0590c1adb9";
 export const ASTRO_CHECK_BASELINE_TOOLCHAIN = Object.freeze({
-  astro: "5.18.2",
+  astro: "7.2.10",
   check: "0.9.4",
   typescript: "5.7.3",
 });
