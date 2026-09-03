@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { resolveSiteOrigin } from "../src/lib/site-origin.ts";
+
 const args = process.argv.slice(2);
 
 function readFlag(name) {
@@ -12,7 +14,7 @@ function readOption(name, fallback = null) {
   return args[index + 1] ?? fallback;
 }
 
-const baseUrl = (readOption("--url", "https://openglasshub.pages.dev") || "https://openglasshub.pages.dev").replace(/\/+$/, "");
+const baseUrl = resolveSiteOrigin(readOption("--url", process.env.BASE_URL));
 const strict = readFlag("--strict");
 const verbose = readFlag("--verbose");
 

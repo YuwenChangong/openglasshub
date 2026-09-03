@@ -1,9 +1,14 @@
 const fs = require('fs');
 const path = require('path');
+const { resolveSiteOrigin } = require('../src/lib/site-origin.ts');
 
 const rootDir = path.join(__dirname, '..');
-const distDir = path.join(rootDir, 'dist');
+const buildRootDir = path.join(rootDir, 'dist');
+const distDir = fs.existsSync(path.join(buildRootDir, 'client'))
+  ? path.join(buildRootDir, 'client')
+  : buildRootDir;
 const srcDir = path.join(rootDir, 'src');
+const expectedSiteOrigin = resolveSiteOrigin(process.env.SITE_ORIGIN);
 
 let pass = 0, fail = 0, warn = 0;
 const criticals = [], importants = [], minors = [];
@@ -52,7 +57,8 @@ function searchInDir(dir, pattern) {
 
 const distFiles = walk(distDir);
 const allHtml = distFiles.map(f => fs.readFileSync(f, 'utf8')).join('\n');
-const indexHtml = fs.readFileSync(path.join(distDir, 'index.html'), 'utf8');
+const indexPath = path.join(distDir, 'index.html');
+const indexHtml = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, 'utf8') : allHtml;
 
 console.log('\n' + '='.repeat(60));
 console.log('  OPENGLASS HUB — FINAL DEPLOYMENT AUDIT');
@@ -89,10 +95,29 @@ console.log('\n--- 4. SEO ---');
 check('No openglass.gaze.dev in dist', !allHtml.includes('openglass.gaze.dev'), 'critical');
 check('No openglass.gaze.dev in src', searchInDir(srcDir, 'openglass.gaze.dev').length === 0, 'important');
 check('sitemap-index.xml exists', fs.existsSync(path.join(distDir, 'sitemap-index.xml')), 'critical');
-check('robots.txt exists', fs.existsSync(path.join(rootDir, 'public', 'robots.txt')), 'critical');
-const robots = fs.readFileSync(path.join(rootDir, 'public', 'robots.txt'), 'utf8');
-check('robots.txt points to openglasshub.pages.dev', robots.includes('openglasshub.pages.dev'), 'critical');
-check('Canonical URLs exist', allHtml.includes('rel="canonical"'), 'important');
+const builtRobotsPath = path.join(distDir, 'robots.txt');
+check('robots.txt exists', fs.existsSync(builtRobotsPath), 'critical');
+const robots = fs.existsSync(builtRobotsPath) ? fs.readFileSync(builtRobotsPath, 'utf8') : '';
+const sitemapOrigins = [...robots.matchAll(/^Sitemap:\s+(\S+)$/gmi)].map((match) => {
+  try { return new URL(match[1]).origin; } catch { return 'INVALID'; }
+});
+check(
+  'robots.txt sitemap URLs use the configured site origin',
+  sitemapOrigins.length > 0 && sitemapOrigins.every(origin => origin === expectedSiteOrigin),
+  'critical',
+  sitemapOrigins.length > 0 ? [...new Set(sitemapOrigins)].join(', ') : 'no Sitemap entries',
+);
+const canonicalHrefs = [...allHtml.matchAll(/rel="canonical"[^>]*href="([^"]+)"/g)].map(match => match[1]);
+const canonicalOrigins = canonicalHrefs.map((href) => {
+  try { return new URL(href).origin; } catch { return 'INVALID'; }
+});
+check('Canonical URLs exist', canonicalHrefs.length > 0, 'important');
+check(
+  'Canonical URLs use one configured site origin',
+  canonicalOrigins.length > 0 && canonicalOrigins.every(origin => origin === expectedSiteOrigin),
+  'critical',
+  canonicalOrigins.length > 0 ? [...new Set(canonicalOrigins)].join(', ') : 'no canonical URLs',
+);
 check('og:title exists', allHtml.includes('og:title'), 'important');
 check('og:description exists', allHtml.includes('og:description'), 'important');
 
@@ -161,7 +186,8 @@ check('CSS includes responsive styles', fs.existsSync(path.join(rootDir, 'src/st
 
 // 10. COMMUNITY LINKS
 console.log('\n--- 10. COMMUNITY ---');
-const communityHtml = fs.readFileSync(path.join(distDir, 'community', 'index.html'), 'utf8');
+const communityPath = path.join(distDir, 'community', 'index.html');
+const communityHtml = fs.existsSync(communityPath) ? fs.readFileSync(communityPath, 'utf8') : '';
 check('GitHub Discussions link exists', communityHtml.includes('github.com/openglass-hub/discussions'), 'important');
 check('Discord marked as pending', communityHtml.includes('准备中') || communityHtml.includes('暂未开放'), 'important');
 

@@ -1,6 +1,16 @@
 #!/usr/bin/env node
 
-const baseUrl = String(process.env.BASE_URL || "https://openglasshub.pages.dev").replace(/\/+$/, "");
+import { resolveSiteOrigin } from "../src/lib/site-origin.ts";
+
+const args = process.argv.slice(2);
+
+function readOption(name, fallback = undefined) {
+  const index = args.indexOf(name);
+  if (index === -1) return fallback;
+  return args[index + 1] ?? fallback;
+}
+
+const baseUrl = resolveSiteOrigin(readOption("--url", process.env.BASE_URL));
 const adminBearer = String(process.env.ADMIN_BEARER || "").trim();
 
 const requiredChecks = [

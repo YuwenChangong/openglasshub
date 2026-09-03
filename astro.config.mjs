@@ -8,11 +8,13 @@ import {
   isGazeLauncherSitemapEntryIncluded,
 } from './src/lib/gaze-launcher-visibility.ts';
 import remarkGazeLauncherVisibility from './src/plugins/remark-gaze-launcher-visibility.ts';
+import { resolveSiteOrigin } from './src/lib/site-origin.ts';
 
 const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
+const siteOrigin = resolveSiteOrigin(process.env.SITE_ORIGIN);
 
 export default defineConfig({
-  site: 'https://openglasshub.pages.dev',
+  site: siteOrigin,
   output: 'static',
   markdown: {
     remarkPlugins: [remarkGazeLauncherVisibility],
