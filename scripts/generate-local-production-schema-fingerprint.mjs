@@ -6,16 +6,24 @@ import { fileURLToPath } from "node:url";
 import { ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 import { buildFingerprint, loadPacketSql, migrationSourceIndex, parseCsv } from "./production-schema-fingerprint-core.mjs";
 
-function localDatabaseContainer() {
-  const output = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" });
-  const matches = output.split(/\r?\n/).filter((name) => name.startsWith("supabase_db_local-supabase-normalized-replay-"));
-  if (matches.length !== 1) throw new Error("LOCAL_DOCKER_ONLY requires exactly one verified disposable Supabase database container");
-  return matches[0];
+export function assertExplicitOwnedDisposableContainer({ containerId, projectId, containerName }) {
+  if (!containerId || !projectId) throw new Error("LOCAL_DOCKER_ONLY requires an explicit owned disposable container and project identity");
+  const expectedName = `supabase_db_${projectId}`;
+  if (containerName !== expectedName) throw new Error("Explicit disposable container does not match this run's owned project identity");
+  return containerId;
 }
 
-export async function generateLocalFingerprint({ root = process.cwd(), outputPath }) {
+function localDatabaseContainer(environment = process.env) {
+  const containerId = environment.OPENGLASS_LOCAL_DISPOSABLE_DB_CONTAINER;
+  const projectId = environment.OPENGLASS_LOCAL_DISPOSABLE_PROJECT_ID;
+  if (!containerId || !projectId) return assertExplicitOwnedDisposableContainer({ containerId, projectId, containerName: "" });
+  const containerName = execFileSync("docker", ["inspect", "--format", "{{.Name}}", containerId], { encoding: "utf8" }).trim().replace(/^\//, "");
+  return assertExplicitOwnedDisposableContainer({ containerId, projectId, containerName });
+}
+
+export async function generateLocalFingerprint({ root = process.cwd(), outputPath, environment = process.env }) {
   const sql = await loadPacketSql(root);
-  const container = localDatabaseContainer();
+  const container = localDatabaseContainer(environment);
   const csv = execFileSync("docker", ["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres", "--csv"], { input: sql, encoding: "utf8" });
   const rows = parseCsv(csv);
   const fingerprint = buildFingerprint(rows, await migrationSourceIndex(root));

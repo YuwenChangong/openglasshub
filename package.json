@@ -48,7 +48,7 @@
     "test:legal-public-rendering": "node --experimental-strip-types scripts/test-legal-public-rendering.mjs",
     "test:local-supabase-replay-mirror": "node scripts/test-local-supabase-replay-mirror.mjs",
     "generate:production-schema-fingerprint": "node scripts/generate-local-production-schema-fingerprint.mjs",
-    "test:production-schema-fingerprint": "node scripts/test-production-schema-fingerprint.mjs",
+    "test:production-schema-fingerprint": "node scripts/qa/local-disposable-supabase-replay.mjs",
     "test:production-schema-forward-reconciliation": "node scripts/test-production-schema-forward-reconciliation.mjs",
     "test:production-reconciliation-wave1": "node scripts/test-production-reconciliation-wave1.mjs",
     "test:can-access-public-circle-prerequisite": "node scripts/test-can-access-public-circle-prerequisite.mjs",
