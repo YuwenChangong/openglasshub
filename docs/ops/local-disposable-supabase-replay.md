@@ -29,6 +29,12 @@ The harness performs the following local-only sequence:
    directory. A mismatch cannot overwrite the committed fixture. Updating that
    fixture requires the explicit `npm run update:production-schema-fingerprint-fixture --
    --candidate <path> --review <path> --confirm-review-id <sha256>` workflow.
+   If a runtime failure occurs before candidate capture (start, status,
+   owned-container, or migration-ledger validation), cleanup leaves instead one
+   owned temporary `failure-receipt.json`. Its strict schema contains only the
+   run ID, first failure stage and class, an exit code or sanitized code, and
+   cleanup status; it never includes command output, DSNs, container names,
+   usernames, or secret values.
 7. Stop only that project with `supabase stop --no-backup` even when `start`
    fails part way through, and remove only the verified temporary root.
 

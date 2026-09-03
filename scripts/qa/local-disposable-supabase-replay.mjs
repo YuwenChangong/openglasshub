@@ -19,6 +19,15 @@ const PORT_FIELDS = [
 ];
 const NPX = process.platform === "win32" ? "npx.cmd" : "npx";
 const FINGERPRINT_EVIDENCE_PREFIX = "openglass-local-disposable-supabase-evidence-";
+const FAILURE_RECEIPT_FILENAME = "failure-receipt.json";
+const FAILURE_RECEIPT_KEYS = ["format", "runId", "stage", "class", "exitCode", "code", "cleanupStatus"];
+const RUNTIME_FAILURE_CLASSES = new Map([
+  ["supabase-start-owned-root", "start-failed"],
+  ["validate-local-status-target", "status-invalid"],
+  ["validate-owned-postgres-container", "owned-container-invalid"],
+  ["validate-migration-ledger", "migration-ledger-invalid"],
+  ["cleanup-owned-root", "cleanup-failed"],
+]);
 const CANDIDATE_KEYS = ["format", "generatedFrom", "canonicalMigrationCount", "legalConsentPrerequisiteCount", "localMigrationLedger", "objectCount", "objects"];
 const LEDGER_ENTRY_KEYS = ["version", "name", "statementCount"];
 const OBJECT_ENTRY_KEYS = ["objectType", "schema", "name", "identity", "attribute", "normalizedStructuralDefinition", "deterministicSha256", "sourceMigrations", "firstIntroducedMigration", "laterModifyingMigrations", "securityRelevant", "legalConsentPrerequisite", "label"];
@@ -126,6 +135,7 @@ async function createFingerprintEvidence({ runId, runtimeRoot, repositoryRoot })
     root: ownedRoot,
     candidatePath: path.join(ownedRoot, "fingerprint-candidate.json"),
     reviewPath: path.join(ownedRoot, "fingerprint-review.json"),
+    failureReceiptPath: path.join(ownedRoot, FAILURE_RECEIPT_FILENAME),
   };
 }
 
@@ -160,6 +170,46 @@ function assertStringOrNull(value) {
 
 function assertCount(value) {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error("Fingerprint evidence has an invalid count field");
+}
+
+function sanitizeFailureCode(value) {
+  return typeof value === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(value) ? value : "UNSPECIFIED";
+}
+
+function failureReceiptFor({ runId, stage, error, cleanupStatus }) {
+  const exitCode = Number.isSafeInteger(error?.exitCode) && error.exitCode >= 1 && error.exitCode <= 255 ? error.exitCode : null;
+  return {
+    format: "openglass-local-disposable-supabase-failure-receipt-v1",
+    runId: assertRunId(runId),
+    stage,
+    class: exitCode === null ? RUNTIME_FAILURE_CLASSES.get(stage) : "command-exit",
+    exitCode,
+    code: exitCode === null ? sanitizeFailureCode(error?.code) : null,
+    cleanupStatus,
+  };
+}
+
+export function assertFailureReceiptSchema(receipt) {
+  assertExactObjectKeys(receipt, FAILURE_RECEIPT_KEYS);
+  if (receipt.format !== "openglass-local-disposable-supabase-failure-receipt-v1") throw new Error("Failure receipt has an invalid format");
+  assertRunId(receipt.runId);
+  if (!RUNTIME_FAILURE_CLASSES.has(receipt.stage)) throw new Error("Failure receipt has an invalid stage");
+  if (receipt.class !== "command-exit" && receipt.class !== RUNTIME_FAILURE_CLASSES.get(receipt.stage)) throw new Error("Failure receipt has an invalid class");
+  const hasExitCode = Number.isSafeInteger(receipt.exitCode) && receipt.exitCode >= 1 && receipt.exitCode <= 255;
+  const hasCode = typeof receipt.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(receipt.code);
+  if (hasExitCode === hasCode || (hasExitCode && receipt.class !== "command-exit") || (!hasExitCode && receipt.class === "command-exit")) throw new Error("Failure receipt must contain exactly one sanitized failure code");
+  if (receipt.cleanupStatus !== "completed" && receipt.cleanupStatus !== "failed") throw new Error("Failure receipt has an invalid cleanup status");
+  assertSafeEvidenceValue(receipt);
+  return true;
+}
+
+async function writeFailureReceipt({ evidence, runtimeRoot, repositoryRoot, receipt }) {
+  assertOwnedFingerprintEvidenceRoot({ evidenceRoot: evidence.root, runtimeRoot, repositoryRoot });
+  const receiptPath = path.join(evidence.root, FAILURE_RECEIPT_FILENAME);
+  if (evidence.failureReceiptPath && evidence.failureReceiptPath !== receiptPath) throw new Error("Failure receipt path must remain inside its owned evidence root");
+  assertFailureReceiptSchema(receipt);
+  await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+  return receiptPath;
 }
 
 function parseEvidenceJson(text) {
@@ -263,7 +313,11 @@ function runCommand(executable, args, { cwd, env, input } = {}) {
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) resolve({ stdout, stderr });
-      else reject(new Error(`${executable} exited ${code}: ${stderr || stdout}`));
+      else {
+        const error = new Error(`${executable} exited ${code}`);
+        error.exitCode = code;
+        reject(error);
+      }
     });
     if (input) child.stdin.end(input);
   });
@@ -383,11 +437,15 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
   let fingerprintEvidence;
   let retainFingerprintEvidence = false;
   let startAttempted = false;
+  let currentStage;
+  let runtimeFailure;
+  let primaryError;
+  let result;
   try {
     assertOwnedDisposableRoot({ disposableRoot: runtimeRoot, repositoryRoot });
     fingerprintEvidence = await createEvidence({ runId, runtimeRoot, repositoryRoot });
     assertOwnedFingerprintEvidenceRoot({ evidenceRoot: fingerprintEvidence.root, runtimeRoot, repositoryRoot });
-    if (fingerprintEvidence.candidatePath !== path.join(fingerprintEvidence.root, "fingerprint-candidate.json") || fingerprintEvidence.reviewPath !== path.join(fingerprintEvidence.root, "fingerprint-review.json")) throw new Error("Fingerprint evidence paths must remain inside their owned root");
+    if (fingerprintEvidence.candidatePath !== path.join(fingerprintEvidence.root, "fingerprint-candidate.json") || fingerprintEvidence.reviewPath !== path.join(fingerprintEvidence.root, "fingerprint-review.json") || fingerprintEvidence.failureReceiptPath !== path.join(fingerprintEvidence.root, FAILURE_RECEIPT_FILENAME)) throw new Error("Fingerprint evidence paths must remain inside their owned root");
     const before = await listContainers(execute, safeEnvironment);
     await initializeOwnedConfig({ runtimeRoot, projectId, runId, execute, environment: safeEnvironment });
     const mirror = await buildLocalSupabaseReplayMirror({
@@ -397,10 +455,14 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
       repositoryRoot,
     });
     startAttempted = true;
+    currentStage = "supabase-start-owned-root";
     await execute(NPX, supabaseArgs("start", runtimeRoot), { cwd: runtimeRoot, env: safeEnvironment });
+    currentStage = "validate-local-status-target";
     const status = JSON.parse((await execute(NPX, supabaseArgs("status", runtimeRoot, ["--output", "json"]), { cwd: runtimeRoot, env: safeEnvironment })).stdout);
     assertLocalReplayTarget(status.API_URL);
+    currentStage = "validate-owned-postgres-container";
     const container = resolveOwnedContainer({ before, after: await listContainers(execute, safeEnvironment), projectId });
+    currentStage = "validate-migration-ledger";
     const ledger = parseCsvRows(await executeUnixSocketPsql({
       execute,
       environment: safeEnvironment,
@@ -408,6 +470,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
       sql: "SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version;\n",
     }));
     verifyLocalMigrationLedger({ mappings: mirror.mappings, rows: ledger });
+    currentStage = "capture-schema-fingerprint";
     try {
       await execute("node", ["scripts/test-production-schema-fingerprint.mjs"], {
         cwd: repositoryRoot,
@@ -429,7 +492,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
       retainFingerprintEvidence = true;
       throw new Error(`Fingerprint candidate failed; Non-secret fingerprint evidence retained for explicit review:\n  candidate: ${fingerprintEvidence.candidatePath}\n  review: ${fingerprintEvidence.reviewPath}\n  review id: ${review.reviewId}`);
     }
-    return {
+    result = {
       localReplay: "PASS",
       localReplayTarget: "DISPOSABLE",
       schemaFingerprintTarget: "LOCAL_DISPOSABLE",
@@ -438,12 +501,36 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
       migrationLedger: "PASS",
       remoteConnections: 0,
     };
-  } finally {
+  } catch (error) {
+    primaryError = error;
+    if (RUNTIME_FAILURE_CLASSES.has(currentStage)) runtimeFailure = { stage: currentStage, error };
+  }
+
+  let cleanupStatus = "completed";
+  let cleanupError;
+  try {
     try {
       await cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot, startAttempted, execute, environment: safeEnvironment });
-    } finally {
-      if (fingerprintEvidence && !retainFingerprintEvidence) await rm(fingerprintEvidence.root, { recursive: true, force: true });
+    } catch (error) {
+      cleanupStatus = "failed";
+      cleanupError = error;
+      runtimeFailure ??= { stage: "cleanup-owned-root", error };
     }
+    if (runtimeFailure && fingerprintEvidence) {
+      const receiptPath = await writeFailureReceipt({
+        evidence: fingerprintEvidence,
+        runtimeRoot,
+        repositoryRoot,
+        receipt: failureReceiptFor({ runId, stage: runtimeFailure.stage, error: runtimeFailure.error, cleanupStatus }),
+      });
+      retainFingerprintEvidence = true;
+      throw new Error(`Disposable Supabase replay failed; Non-secret replay failure receipt retained:\n  receipt: ${receiptPath}`);
+    }
+    if (primaryError) throw primaryError;
+    if (cleanupError) throw cleanupError;
+    return result;
+  } finally {
+    if (fingerprintEvidence && !retainFingerprintEvidence) await rm(fingerprintEvidence.root, { recursive: true, force: true });
   }
 }
 

@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   assertLocalReplayTarget,
+  assertFailureReceiptSchema,
   assertOwnedFingerprintEvidenceRoot,
   assertSafeLocalReplayEnvironment,
   buildLocalDisposableReplayPlan,
@@ -138,12 +139,163 @@ test("lifecycle invokes owned-project cleanup when supabase start fails after cr
     if (args.includes("stop")) return { stdout: "", stderr: "" };
     throw new Error(`unexpected command ${command}`);
   };
-  await assert.rejects(
-    () => runLocalDisposableReplay({ root, runId: "ab12cd34", environment: { PATH: process.env.PATH }, execute }),
-    /simulated partial start failure/,
-  );
+  let receiptPath;
+  await assert.rejects(() => runLocalDisposableReplay({ root, runId: "ab12cd34", environment: { PATH: process.env.PATH }, execute }), (error) => {
+    receiptPath = error.message.match(/receipt: (.+)$/m)?.[1];
+    return /Non-secret replay failure receipt retained/.test(error.message) && Boolean(receiptPath);
+  });
   assert.equal(calls.filter(({ args }) => args.includes("start")).length, 1);
   assert.equal(calls.filter(({ args }) => args.includes("stop")).length, 1);
+  await rm(path.dirname(receiptPath), { recursive: true, force: true });
+});
+
+test("runtime failures retain a strict nonsecret receipt after cleanup", async () => {
+  const calls = [];
+  let runtimeRoot;
+  const secret = "postgresql://runner:do-not-retain@database.example.test/postgres";
+  const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
+  const execute = async (command, args) => {
+    calls.push({ command, args });
+    if (command === "docker") return { stdout: "", stderr: "" };
+    if (args.includes("init")) {
+      runtimeRoot = args.at(-1);
+      await mkdir(path.join(runtimeRoot, "supabase"), { recursive: true });
+      await writeFile(path.join(runtimeRoot, "supabase", "config.toml"), config);
+      return { stdout: "", stderr: "" };
+    }
+    if (args.includes("start")) {
+      const failure = new Error(`simulated start failure: ${secret}`);
+      failure.code = secret;
+      failure.exitCode = 17;
+      throw failure;
+    }
+    if (args.includes("stop")) return { stdout: "", stderr: "" };
+    throw new Error(`unexpected command ${command}`);
+  };
+
+  let receiptPath;
+  await assert.rejects(
+    () => runLocalDisposableReplay({ root, runId: "f1a2b3c4", environment: { PATH: process.env.PATH }, execute }),
+    (error) => {
+      assert.match(error.message, /Non-secret replay failure receipt retained/);
+      assert.doesNotMatch(error.message, /postgres(?:ql)?:\/\//i);
+      receiptPath = error.message.match(/receipt: (.+)$/m)?.[1];
+      return Boolean(receiptPath);
+    },
+  );
+  assert.equal(calls.filter(({ args }) => args.includes("stop")).length, 1, "cleanup still stops the owned project");
+  assert.equal(await exists(runtimeRoot), false, "cleanup removes the disposable runtime before retaining evidence");
+  assert.deepEqual(await readdir(path.dirname(receiptPath)), ["failure-receipt.json"], "runtime failure evidence contains only the receipt");
+  const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
+  assert.deepEqual(Object.keys(receipt).sort(), ["class", "cleanupStatus", "code", "exitCode", "format", "runId", "stage"]);
+  assert.deepEqual(receipt, {
+    format: "openglass-local-disposable-supabase-failure-receipt-v1",
+    runId: "f1a2b3c4",
+    stage: "supabase-start-owned-root",
+    class: "command-exit",
+    exitCode: 17,
+    code: null,
+    cleanupStatus: "completed",
+  });
+  assert.doesNotMatch(JSON.stringify(receipt), /postgres(?:ql)?:\/\/|runner|do-not-retain|database\.example/i);
+  await rm(path.dirname(receiptPath), { recursive: true, force: true });
+});
+
+test("failure receipts diagnose status, owned-container, and migration-ledger failures", async () => {
+  const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
+  const cases = [
+    { runId: "a1a2a3a4", trigger: "status", stage: "validate-local-status-target", failureClass: "status-invalid" },
+    { runId: "b1b2b3b4", trigger: "container", stage: "validate-owned-postgres-container", failureClass: "owned-container-invalid" },
+    { runId: "c1c2c3c4", trigger: "ledger", stage: "validate-migration-ledger", failureClass: "migration-ledger-invalid" },
+  ];
+  for (const scenario of cases) {
+    let runtimeRoot;
+    let containerListCalls = 0;
+    const execute = async (command, args) => {
+      if (command === "docker" && args[0] === "ps") {
+        containerListCalls += 1;
+        const ownedName = `supabase_db_ogl-replay-${scenario.runId}`;
+        return { stdout: containerListCalls === 1 || scenario.trigger === "container" ? "" : `owned-db\t${ownedName}\n`, stderr: "" };
+      }
+      if (command === "docker" && args[0] === "exec") return { stdout: "version,name\n", stderr: "" };
+      if (args.includes("init")) {
+        runtimeRoot = args.at(-1);
+        await mkdir(path.join(runtimeRoot, "supabase"), { recursive: true });
+        await writeFile(path.join(runtimeRoot, "supabase", "config.toml"), config);
+        return { stdout: "", stderr: "" };
+      }
+      if (args.includes("start") || args.includes("stop")) return { stdout: "", stderr: "" };
+      if (args.includes("status")) return { stdout: scenario.trigger === "status" ? "not-json" : JSON.stringify({ API_URL: "http://127.0.0.1:54321" }), stderr: "" };
+      throw new Error(`unexpected command ${command}`);
+    };
+    let receiptPath;
+    await assert.rejects(
+      () => runLocalDisposableReplay({ root, runId: scenario.runId, environment: { PATH: process.env.PATH }, execute }),
+      (error) => {
+        receiptPath = error.message.match(/receipt: (.+)$/m)?.[1];
+        return /Non-secret replay failure receipt retained/.test(error.message) && Boolean(receiptPath);
+      },
+    );
+    assert.equal(await exists(runtimeRoot), false, `${scenario.trigger} failure still removes the runtime root`);
+    const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
+    assert.equal(receipt.stage, scenario.stage);
+    assert.equal(receipt.class, scenario.failureClass);
+    assert.equal(receipt.code, "UNSPECIFIED");
+    assert.equal(receipt.exitCode, null);
+    assert.equal(receipt.cleanupStatus, "completed");
+    await rm(path.dirname(receiptPath), { recursive: true, force: true });
+  }
+});
+
+test("failure receipt schema rejects unknown and sensitive fields", () => {
+  const valid = {
+    format: "openglass-local-disposable-supabase-failure-receipt-v1",
+    runId: "a1b2c3d4",
+    stage: "validate-local-status-target",
+    class: "status-invalid",
+    exitCode: null,
+    code: "UNSPECIFIED",
+    cleanupStatus: "completed",
+  };
+  assert.equal(assertFailureReceiptSchema(valid), true);
+  assert.throws(() => assertFailureReceiptSchema({ ...valid, stderr: "must never be retained" }), /unknown or missing field/);
+  assert.throws(() => assertFailureReceiptSchema({ ...valid, code: "postgresql://role:password@db.example.test/postgres" }), /exactly one sanitized failure code/);
+  assert.throws(() => assertFailureReceiptSchema({ ...valid, exitCode: 1 }), /exactly one sanitized failure code/);
+  assert.throws(() => assertFailureReceiptSchema({ ...valid, stage: "docker://container/user" }), /invalid stage/);
+});
+
+test("a receipt records failed cleanup without retaining cleanup output", async () => {
+  let runtimeRoot;
+  const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
+  const execute = async (command, args) => {
+    if (command === "docker") return { stdout: "", stderr: "" };
+    if (args.includes("init")) {
+      runtimeRoot = args.at(-1);
+      await mkdir(path.join(runtimeRoot, "supabase"), { recursive: true });
+      await writeFile(path.join(runtimeRoot, "supabase", "config.toml"), config);
+      return { stdout: "", stderr: "" };
+    }
+    if (args.includes("start")) {
+      const failure = new Error("start failed");
+      failure.exitCode = 9;
+      throw failure;
+    }
+    if (args.includes("stop")) throw new Error("cleanup output with postgresql://role:password@db.example.test/postgres");
+    throw new Error(`unexpected command ${command}`);
+  };
+  let receiptPath;
+  await assert.rejects(
+    () => runLocalDisposableReplay({ root, runId: "d1d2d3d4", environment: { PATH: process.env.PATH }, execute }),
+    (error) => {
+      receiptPath = error.message.match(/receipt: (.+)$/m)?.[1];
+      return /Non-secret replay failure receipt retained/.test(error.message) && !/postgres(?:ql)?:\/\//i.test(error.message);
+    },
+  );
+  assert.equal(await exists(runtimeRoot), false, "cleanup removes the runtime even when stop reports failure");
+  const receiptText = await readFile(receiptPath, "utf8");
+  assert.match(receiptText, /"cleanupStatus": "failed"/);
+  assert.doesNotMatch(receiptText, /postgres(?:ql)?:\/\/|role|password/i);
+  await rm(path.dirname(receiptPath), { recursive: true, force: true });
 });
 
 test("evidence-root creation failure still removes the already-owned runtime root", async () => {
