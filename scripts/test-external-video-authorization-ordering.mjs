@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
+import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
 
 const root = process.cwd();
 const ACTOR_ID = "00000000-0000-0000-0000-000000000001";
@@ -213,9 +214,15 @@ function assertSanitizedFailure(result, expectedStatus, markers) {
 }
 
 async function main() {
+  setCloudflareWorkersTestBinding({
+    SUPABASE_URL: "https://supabase.example",
+    SUPABASE_ANON_KEY: "anon-key",
+    RATE_LIMIT_SALT: "rate-salt",
+  });
   const vite = await createServer({
     root,
     logLevel: "error",
+    plugins: [cloudflareWorkersTestPlugin()],
     server: { middlewareMode: true },
     appType: "custom",
   });
