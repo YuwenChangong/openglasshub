@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { compareFingerprint, parseExport } from "./compare-production-schema-fingerprint.mjs";
 import { loadPacketSql, PACKET_COLUMNS, parseCsv, rowsFromFingerprint, validateProductionExport } from "./production-schema-fingerprint-core.mjs";
 import { generateLocalFingerprint } from "./generate-local-production-schema-fingerprint.mjs";
+import { assertFingerprintReviewMatches, reviewFingerprintCandidate } from "./production-schema-fingerprint-review.mjs";
 
 const root = process.cwd();
 const expected = JSON.parse(await readFile(path.join(root, "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8"));
@@ -35,8 +36,13 @@ assert.doesNotMatch(packet, /from\s+public\./i, "packet must not inspect public 
 assert.match(packet, /FROM storage\.buckets/);
 assert.match(packet, /FROM pg_(?:class|proc|policy|namespace|constraint|trigger|type|index)/);
 
-const local = await generateLocalFingerprint({ root });
-assert.deepEqual(local, expected, "local expected fingerprint generation must be stable");
+const candidateOutputPath = process.env.OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_CANDIDATE;
+const reviewOutputPath = process.env.OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_REVIEW;
+if (Boolean(candidateOutputPath) !== Boolean(reviewOutputPath)) throw new Error("Local fingerprint candidate and review outputs must be supplied together");
+const local = await generateLocalFingerprint({ root, outputPath: candidateOutputPath });
+const fingerprintReview = reviewFingerprintCandidate({ expected, candidate: local });
+if (reviewOutputPath) await writeFile(reviewOutputPath, `${JSON.stringify(fingerprintReview, null, 2)}\n`);
+assertFingerprintReviewMatches(fingerprintReview);
 
 const exact = compareFingerprint(expected, rowsFromFingerprint(expected));
 assert.equal(exact.counts.MATCH, expected.objectCount);

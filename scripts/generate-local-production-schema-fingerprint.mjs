@@ -22,6 +22,10 @@ function localDatabaseContainer(environment = process.env) {
 }
 
 export async function generateLocalFingerprint({ root = process.cwd(), outputPath, environment = process.env }) {
+  const fixturePath = path.join(root, "tests", "fixtures", "production-schema-expected-fingerprint.json");
+  if (outputPath && path.resolve(outputPath) === path.resolve(fixturePath)) {
+    throw new Error("Fingerprint candidates may not overwrite the committed fixture; use the reviewed update path");
+  }
   const sql = await loadPacketSql(root);
   const container = localDatabaseContainer(environment);
   const csv = execFileSync("docker", ["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres", "--csv"], { input: sql, encoding: "utf8" });
@@ -38,7 +42,8 @@ export async function generateLocalFingerprint({ root = process.cwd(), outputPat
 async function main() {
   const root = process.cwd();
   const index = process.argv.indexOf("--output");
-  const outputPath = index >= 0 ? path.resolve(process.argv[index + 1]) : path.join(root, "tests", "fixtures", "production-schema-expected-fingerprint.json");
+  if (index < 0 || !process.argv[index + 1]) throw new Error("A local fingerprint candidate requires an explicit --output path; fixture updates require the reviewed update command");
+  const outputPath = path.resolve(process.argv[index + 1]);
   const fingerprint = await generateLocalFingerprint({ root, outputPath });
   console.log(JSON.stringify({ localOnly: true, objectCount: fingerprint.objectCount, outputPath }));
 }

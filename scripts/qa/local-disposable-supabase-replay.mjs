@@ -9,7 +9,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildLocalSupabaseReplayMirror } from "../build-local-supabase-replay-mirror.mjs";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-const REMOTE_CONNECTION_VARIABLES = ["DATABASE_URL", "SUPABASE_DB_URL", "SUPABASE_URL", "PUBLIC_SUPABASE_URL"];
+const INHERITED_DATABASE_CONNECTION_VARIABLES = ["POSTGRES_URL", "DATABASE_URL", "PGHOST", "PGPORT", "PGSERVICE"];
+const REMOTE_CONNECTION_VARIABLES = ["SUPABASE_DB_URL", "SUPABASE_URL", "PUBLIC_SUPABASE_URL"];
 const LINKED_PROJECT_VARIABLES = ["SUPABASE_PROJECT_REF", "SUPABASE_ACCESS_TOKEN", "SUPABASE_DB_PASSWORD"];
 const PORT_FIELDS = [
   ["api", "port", 1], ["db", "port", 2], ["db", "shadow_port", 0], ["studio", "port", 3],
@@ -42,20 +43,31 @@ export function assertLocalReplayTarget(target, { ownedNetworkHosts = new Set() 
 }
 
 export function assertSafeLocalReplayEnvironment(environment = process.env) {
+  for (const name of INHERITED_DATABASE_CONNECTION_VARIABLES) {
+    if (environment[name]) throw new Error(`Refusing inherited database connection variable ${name}`);
+  }
   for (const name of REMOTE_CONNECTION_VARIABLES) {
     const value = environment[name];
     if (!value) continue;
+    try { assertLocalReplayTarget(value); } catch { throw new Error(`Refusing remote connection variable ${name}`); }
+  }
+  for (const [name, value] of Object.entries(environment)) {
+    if (!value || !/^postgres(?:ql)?:\/\//i.test(value)) continue;
     try { assertLocalReplayTarget(value); } catch { throw new Error(`Refusing remote connection variable ${name}`); }
   }
   for (const name of LINKED_PROJECT_VARIABLES) if (environment[name]) throw new Error(`Refusing linked-project variable ${name}`);
   return true;
 }
 
-function sanitizedChildEnvironment(environment = process.env) {
+export function sanitizedChildEnvironment(environment = process.env) {
   assertSafeLocalReplayEnvironment(environment);
   return {
     ...environment,
+    POSTGRES_URL: "",
     DATABASE_URL: "",
+    PGHOST: "",
+    PGPORT: "",
+    PGSERVICE: "",
     SUPABASE_DB_URL: "",
     SUPABASE_URL: "",
     PUBLIC_SUPABASE_URL: "",
@@ -210,6 +222,19 @@ async function executeUnixSocketPsql({ execute, environment, containerId, sql })
   return stdout;
 }
 
+export async function cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot, startAttempted, execute, environment, removeRoot = rm }) {
+  const ownedRoot = assertOwnedDisposableRoot({ disposableRoot: runtimeRoot, repositoryRoot });
+  let cleanupError;
+  try {
+    if (startAttempted) await execute(NPX, supabaseArgs("stop", ownedRoot, ["--no-backup"]), { cwd: ownedRoot, env: environment });
+  } catch (error) { cleanupError = error; }
+  try {
+    await removeRoot(ownedRoot, { recursive: true, force: true });
+  } catch (error) { cleanupError ??= error; }
+  if (cleanupError) throw new Error(`Disposable Supabase replay cleanup failed: ${cleanupError.message}`);
+  return true;
+}
+
 export async function runLocalDisposableReplay({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, dryRun = false } = {}) {
   const plan = buildLocalDisposableReplayPlan({ root, runId });
   if (dryRun) return plan;
@@ -218,8 +243,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
   const runtimeRoot = await mkdtemp(rootTemplateFor(runId));
   const projectId = projectIdFor(runId);
   assertOwnedDisposableRoot({ disposableRoot: runtimeRoot, repositoryRoot });
-  let started = false;
-  let cleanupPassed = false;
+  let startAttempted = false;
   try {
     const before = await listContainers(execute, safeEnvironment);
     await initializeOwnedConfig({ runtimeRoot, projectId, runId, execute, environment: safeEnvironment });
@@ -229,8 +253,8 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
       mappingPath: path.join(runtimeRoot, "mapping.json"),
       repositoryRoot,
     });
+    startAttempted = true;
     await execute(NPX, supabaseArgs("start", runtimeRoot), { cwd: runtimeRoot, env: safeEnvironment });
-    started = true;
     const status = JSON.parse((await execute(NPX, supabaseArgs("status", runtimeRoot, ["--output", "json"]), { cwd: runtimeRoot, env: safeEnvironment })).stdout);
     assertLocalReplayTarget(status.API_URL);
     const container = resolveOwnedContainer({ before, after: await listContainers(execute, safeEnvironment), projectId });
@@ -243,7 +267,13 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
     verifyLocalMigrationLedger({ mappings: mirror.mappings, rows: ledger });
     await execute("node", ["scripts/test-production-schema-fingerprint.mjs"], {
       cwd: repositoryRoot,
-      env: { ...safeEnvironment, OPENGLASS_LOCAL_DISPOSABLE_DB_CONTAINER: container.id, OPENGLASS_LOCAL_DISPOSABLE_PROJECT_ID: projectId },
+      env: {
+        ...safeEnvironment,
+        OPENGLASS_LOCAL_DISPOSABLE_DB_CONTAINER: container.id,
+        OPENGLASS_LOCAL_DISPOSABLE_PROJECT_ID: projectId,
+        OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_CANDIDATE: path.join(runtimeRoot, "fingerprint-candidate.json"),
+        OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_REVIEW: path.join(runtimeRoot, "fingerprint-review.json"),
+      },
     });
     return {
       localReplay: "PASS",
@@ -255,15 +285,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
       remoteConnections: 0,
     };
   } finally {
-    let cleanupError;
-    try {
-      if (started) await execute(NPX, supabaseArgs("stop", runtimeRoot, ["--no-backup"]), { cwd: runtimeRoot, env: safeEnvironment });
-    } catch (error) { cleanupError = error; }
-    try {
-      await rm(assertOwnedDisposableRoot({ disposableRoot: runtimeRoot, repositoryRoot }), { recursive: true, force: true });
-      cleanupPassed = true;
-    } catch (error) { cleanupError ??= error; }
-    if (!cleanupPassed || cleanupError) throw new Error(`Disposable Supabase replay cleanup failed${cleanupError ? `: ${cleanupError.message}` : ""}`);
+    await cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot, startAttempted, execute, environment: safeEnvironment });
   }
 }
 

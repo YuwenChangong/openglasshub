@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
   assertLocalReplayTarget,
   assertSafeLocalReplayEnvironment,
   buildLocalDisposableReplayPlan,
+  cleanupOwnedDisposableReplay,
+  runLocalDisposableReplay,
+  sanitizedChildEnvironment,
   verifyLocalMigrationLedger,
 } from "./local-disposable-supabase-replay.mjs";
 import { assertExplicitOwnedDisposableContainer } from "../generate-local-production-schema-fingerprint.mjs";
@@ -42,10 +47,73 @@ test("local replay target guard rejects remote and unknown hosts", () => {
   }
 });
 
-test("local replay rejects inherited remote DSNs and linked-project options", () => {
-  assert.doesNotThrow(() => assertSafeLocalReplayEnvironment({ DATABASE_URL: "postgresql://postgres@localhost/postgres" }));
-  assert.throws(() => assertSafeLocalReplayEnvironment({ DATABASE_URL: "postgresql://postgres@db.example.test/postgres" }), /remote connection variable/);
+test("local replay rejects inherited database transport variables without exposing values", () => {
+  for (const name of ["POSTGRES_URL", "DATABASE_URL", "PGHOST", "PGPORT", "PGSERVICE"]) {
+    assert.throws(
+      () => assertSafeLocalReplayEnvironment({ [name]: "postgresql://secret@db.example.test/postgres" }),
+      new RegExp(`inherited database connection variable ${name}`),
+    );
+  }
+  assert.throws(() => assertSafeLocalReplayEnvironment({ SUPABASE_DB_URL: "postgresql://secret@db.example.test/postgres" }), /remote connection variable SUPABASE_DB_URL/);
+  assert.throws(() => assertSafeLocalReplayEnvironment({ RENAMED_CONNECTION: "postgresql://secret@db.example.test/postgres" }), /remote connection variable RENAMED_CONNECTION/);
   assert.throws(() => assertSafeLocalReplayEnvironment({ SUPABASE_PROJECT_REF: "production-ref" }), /linked-project variable/);
+});
+
+test("child environment clears every inherited database transport variable", () => {
+  const child = sanitizedChildEnvironment({
+    PATH: process.env.PATH,
+    POSTGRES_URL: "",
+    DATABASE_URL: "",
+    PGHOST: "",
+    PGPORT: "",
+    PGSERVICE: "",
+    SUPABASE_DB_URL: "",
+  });
+  for (const name of ["POSTGRES_URL", "DATABASE_URL", "PGHOST", "PGPORT", "PGSERVICE", "SUPABASE_DB_URL"]) assert.equal(child[name], "");
+});
+
+test("cleanup stops the owned project after a partially failed start", async () => {
+  const calls = [];
+  const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "openglass-local-disposable-supabase-ab12cd34-"));
+  try {
+    await cleanupOwnedDisposableReplay({
+      runtimeRoot,
+      repositoryRoot: root,
+      startAttempted: true,
+      execute: async (command, args) => { calls.push({ command, args }); return { stdout: "", stderr: "" }; },
+      removeRoot: async () => {},
+    });
+    assert.deepEqual(calls, [{
+      command: process.platform === "win32" ? "npx.cmd" : "npx",
+      args: ["--no-install", "supabase", "stop", "--no-backup", "--workdir", runtimeRoot],
+    }]);
+  } finally {
+    await rm(runtimeRoot, { recursive: true, force: true });
+  }
+});
+
+test("lifecycle invokes owned-project cleanup when supabase start fails after creating state", async () => {
+  const calls = [];
+  const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
+  const execute = async (command, args) => {
+    calls.push({ command, args });
+    if (command === "docker") return { stdout: "", stderr: "" };
+    if (args.includes("init")) {
+      const workdir = args.at(-1);
+      await mkdir(path.join(workdir, "supabase"), { recursive: true });
+      await writeFile(path.join(workdir, "supabase", "config.toml"), config);
+      return { stdout: "", stderr: "" };
+    }
+    if (args.includes("start")) throw new Error("simulated partial start failure");
+    if (args.includes("stop")) return { stdout: "", stderr: "" };
+    throw new Error(`unexpected command ${command}`);
+  };
+  await assert.rejects(
+    () => runLocalDisposableReplay({ root, runId: "ab12cd34", environment: { PATH: process.env.PATH }, execute }),
+    /simulated partial start failure/,
+  );
+  assert.equal(calls.filter(({ args }) => args.includes("start")).length, 1);
+  assert.equal(calls.filter(({ args }) => args.includes("stop")).length, 1);
 });
 
 test("fingerprint transport requires the exact container created for this disposable project", () => {
