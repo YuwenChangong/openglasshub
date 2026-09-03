@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { copyFile, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
 import os from "node:os";
 import path from "node:path";
@@ -83,7 +84,10 @@ async function copiedCanonicalDirectory({ omit, extra, mutate } = {}) {
   const copied = path.join(temporaryRoot, "migrations");
   await mkdir(copied);
   for (const filename of expectedOrder) {
-    if (filename !== omit) await copyFile(path.join(canonicalDirectory, filename), path.join(copied, filename));
+    if (filename !== omit) await writeFile(
+      path.join(copied, filename),
+      execFileSync("git", ["-C", root, "cat-file", "blob", `HEAD:supabase/migrations/${filename}`]),
+    );
   }
   if (extra) await writeFile(path.join(copied, extra), "select 1;\n");
   if (mutate) await writeFile(path.join(copied, mutate), Buffer.concat([await readFile(path.join(copied, mutate)), Buffer.from("-- mutation\n")]));
@@ -135,8 +139,63 @@ test("rejects canonical migration identity drift", async () => {
   }
 });
 
+test("rejects byte drift for every reviewed canonical migration", async () => {
+  for (const filename of expectedOrder) {
+    const fixture = await copiedCanonicalDirectory({ mutate: filename });
+    try {
+      await assert.rejects(
+        () => disposableBuild(fixture.copied),
+        /canonical SHA-256 differs from the deterministic manifest/,
+        `${filename} must be anchored even outside the Git canonical root`,
+      );
+    } finally {
+      await rm(fixture.temporaryRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test("rejects a dirty tracked migration in the real canonical root", async () => {
+  const filename = "20260518_forum_phase1_schema.sql";
+  const migrationPath = path.join(canonicalDirectory, filename);
+  const original = await readFile(migrationPath);
+  try {
+    await writeFile(migrationPath, Buffer.concat([original, Buffer.from("-- test-only dirty working tree mutation\\n")]));
+    await assert.rejects(
+      () => disposableBuild(),
+      /worktree content differs from the canonical Git migration identity/,
+    );
+  } finally {
+    await writeFile(migrationPath, original);
+  }
+});
+
 test("replay mapping retains the reviewed deterministic order", async () => {
   const report = await disposableBuild();
+  assert.deepEqual(
+    report.mappings
+      .filter(({ canonicalFile }) => canonicalFile === "20260829054707_device_service_role_bootstrap_grants.sql" || canonicalFile === "20260902042807_forward_reconcile_devices.sql")
+      .map(({ canonicalFile, canonicalVersion, temporaryVersion, temporaryFile }) => ({ canonicalFile, canonicalVersion, temporaryVersion, temporaryFile })),
+    [
+      {
+        canonicalFile: "20260829054707_device_service_role_bootstrap_grants.sql",
+        canonicalVersion: "20260829",
+        temporaryVersion: "20260829000001",
+        temporaryFile: "20260829000001_device_service_role_bootstrap_grants.sql",
+      },
+      {
+        canonicalFile: "20260902042807_forward_reconcile_devices.sql",
+        canonicalVersion: "20260902",
+        temporaryVersion: "20260902000001",
+        temporaryFile: "20260902000001_forward_reconcile_devices.sql",
+      },
+    ],
+    "14-digit source versions normalize to their canonical date before deterministic replay sequencing",
+  );
+  assert(
+    report.mappings.findIndex(({ canonicalFile }) => canonicalFile === "20260829054707_device_service_role_bootstrap_grants.sql")
+      < report.mappings.findIndex(({ canonicalFile }) => canonicalFile === "20260829_device_library_admin.sql"),
+    "the reviewed source order, not lexical filename order, controls same-day normalized mapping",
+  );
   assert.deepEqual(report.mappings
     .filter(({ duplicateGroupCount }) => duplicateGroupCount > 1)
     .map(({ canonicalFile, temporaryVersion }) => ({ canonicalFile, temporaryVersion })), [
