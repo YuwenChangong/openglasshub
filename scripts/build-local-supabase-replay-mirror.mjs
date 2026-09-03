@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,10 +48,22 @@ export const ORDERED_MIGRATION_FILENAMES = [
   "20260715_post_media_delivery_visibility_authorization.sql",
   "20260716_profile_media_delivery_authorization.sql",
   "20260717_security_definer_execute_hardening.sql",
+  "20260814_admin_circle_lifecycle_and_safe_purge.sql",
+  "20260829054707_device_service_role_bootstrap_grants.sql",
+  "20260829_device_library_admin.sql",
+  "20260829_device_slug_lock.sql",
+  "20260902042807_forward_reconcile_devices.sql",
 ];
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 const ALLOWED_CONTROL_BYTES = new Set([0x09, 0x0a, 0x0d]);
+const CURRENT_EXTENSION_IDENTITIES = new Map([
+  ["20260814_admin_circle_lifecycle_and_safe_purge.sql", "0cffadf9013286d3d57997d49b42fca20d21299f5c9214fd101e77c9acdb6433"],
+  ["20260829054707_device_service_role_bootstrap_grants.sql", "f36212527389dfcda8099029912fc824bc0179012a3efc0c5aa83eb348c1ed69"],
+  ["20260829_device_library_admin.sql", "4427bf0506fb82b634994069418fd3bc7c31617eeaadddf2bfef8ab2363d7904"],
+  ["20260829_device_slug_lock.sql", "26e47a4a68d8201bfb87aed906e054e08e5a4f3e010557289ae05dd673dd4543"],
+  ["20260902042807_forward_reconcile_devices.sql", "2f98fea88b4b5619dce82a0e48c0653c96f4db3e212d6f52a85fbab083405e65"],
+]);
 const legalPrerequisiteNames = [
   "20260703_moderation_action_notifications.sql",
   "20260712_legal_policy_acceptances.sql",
@@ -140,7 +153,7 @@ export function inspectMigrationBytes(filename, bytes) {
 }
 
 function parseCanonicalName(filename) {
-  const match = /^(\d{8})_(.+\.sql)$/.exec(filename);
+  const match = /^(\d{8})(?:\d{6})?_(.+\.sql)$/.exec(filename);
   if (!match) throw new Error(`Malformed canonical migration filename: ${filename}`);
   return { date: match[1], suffix: match[2] };
 }
@@ -156,6 +169,34 @@ function orderingBasis(date, count) {
   return "source dependency review; Git introduction chronology; lexical tie-break only";
 }
 
+function normalizeWorkingTreeLineEndings(bytes) {
+  const normalized = [];
+  for (let index = 0; index < bytes.length; index += 1) {
+    if (bytes[index] === 0x0d) {
+      if (bytes[index + 1] !== 0x0a) throw new Error("Canonical migration worktree contains a lone CR byte");
+      normalized.push(0x0a);
+      index += 1;
+    } else {
+      normalized.push(bytes[index]);
+    }
+  }
+  return Buffer.from(normalized);
+}
+
+async function readCanonicalMigrationBytes({ canonicalRoot, repositoryRoot, filename }) {
+  const sourcePath = path.join(canonicalRoot, filename);
+  const workingBytes = await readFile(sourcePath);
+  const repositoryMigrations = path.join(repositoryRoot, "supabase", "migrations");
+  if (path.resolve(canonicalRoot) !== path.resolve(repositoryMigrations)) return workingBytes;
+
+  const gitPath = `supabase/migrations/${filename}`;
+  const canonicalBytes = execFileSync("git", ["-C", repositoryRoot, "cat-file", "blob", `HEAD:${gitPath}`]);
+  if (!normalizeWorkingTreeLineEndings(workingBytes).equals(canonicalBytes)) {
+    throw new Error(`${filename}: worktree content differs from the canonical Git migration identity`);
+  }
+  return canonicalBytes;
+}
+
 export async function buildLocalSupabaseReplayMirror({ canonicalDirectory, outputDirectory, mappingPath, repositoryRoot }) {
   const canonicalRoot = path.resolve(canonicalDirectory);
   const outputRoot = path.resolve(outputDirectory);
@@ -167,7 +208,7 @@ export async function buildLocalSupabaseReplayMirror({ canonicalDirectory, outpu
 
   const discovered = (await readdir(canonicalRoot)).filter((filename) => filename.endsWith(".sql")).sort();
   if (JSON.stringify(discovered) !== JSON.stringify([...ORDERED_MIGRATION_FILENAMES].sort())) {
-    throw new Error("Canonical migration inventory differs from the deterministic 43-file manifest");
+    throw new Error("Canonical migration inventory differs from the deterministic 48-file manifest");
   }
 
   try {
@@ -188,8 +229,12 @@ export async function buildLocalSupabaseReplayMirror({ canonicalDirectory, outpu
   const mapping = [];
   for (const canonicalFile of ORDERED_MIGRATION_FILENAMES) {
     const { date, suffix } = parseCanonicalName(canonicalFile);
-    const canonicalBytes = await readFile(path.join(canonicalRoot, canonicalFile));
+    const canonicalBytes = await readCanonicalMigrationBytes({ canonicalRoot, repositoryRoot: repoRoot, filename: canonicalFile });
     const audit = inspectMigrationBytes(canonicalFile, canonicalBytes);
+    const expectedSha256 = CURRENT_EXTENSION_IDENTITIES.get(canonicalFile);
+    if (expectedSha256 && audit.sha256 !== expectedSha256) {
+      throw new Error(`${canonicalFile}: canonical SHA-256 differs from the deterministic manifest`);
+    }
     const sequence = (dateCounts.get(date) ?? 0) + 1;
     dateCounts.set(date, sequence);
     const temporaryVersion = `${date}${String(sequence).padStart(6, "0")}`;

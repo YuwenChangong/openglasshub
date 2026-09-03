@@ -5,11 +5,12 @@ import process from "node:process";
 import { compareFingerprint, parseExport } from "./compare-production-schema-fingerprint.mjs";
 import { loadPacketSql, PACKET_COLUMNS, parseCsv, rowsFromFingerprint, validateProductionExport } from "./production-schema-fingerprint-core.mjs";
 import { generateLocalFingerprint } from "./generate-local-production-schema-fingerprint.mjs";
+import { ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 
 const root = process.cwd();
 const expected = JSON.parse(await readFile(path.join(root, "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8"));
 assert.equal(expected.format, "openglass-production-schema-fingerprint-v1");
-assert.equal(expected.canonicalMigrationCount, 43);
+assert.equal(expected.canonicalMigrationCount, ORDERED_MIGRATION_FILENAMES.length);
 assert.equal(expected.legalConsentPrerequisiteCount, 12);
 assert(expected.objectCount > 1000, "expected manifest must cover the migration-managed catalog");
 assert(expected.objects.some((entry) => entry.identity.startsWith("insert_forum_notification") && entry.attribute === "service_role_execute"));

@@ -1,7 +1,7 @@
 {
   "format": "openglass-production-schema-fingerprint-v1",
   "generatedFrom": "LOCAL_DOCKER_ONLY",
-  "canonicalMigrationCount": 43,
+  "canonicalMigrationCount": 48,
   "legalConsentPrerequisiteCount": 12,
   "localMigrationLedger": [
     {

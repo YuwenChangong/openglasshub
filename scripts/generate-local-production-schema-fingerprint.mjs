@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 import { buildFingerprint, loadPacketSql, migrationSourceIndex, parseCsv } from "./production-schema-fingerprint-core.mjs";
 
 function localDatabaseContainer() {
@@ -18,7 +19,7 @@ export async function generateLocalFingerprint({ root = process.cwd(), outputPat
   const csv = execFileSync("docker", ["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres", "--csv"], { input: sql, encoding: "utf8" });
   const rows = parseCsv(csv);
   const fingerprint = buildFingerprint(rows, await migrationSourceIndex(root));
-  if (fingerprint.canonicalMigrationCount !== 43 || fingerprint.legalConsentPrerequisiteCount !== 12) throw new Error("Unexpected canonical migration scope");
+  if (fingerprint.canonicalMigrationCount !== ORDERED_MIGRATION_FILENAMES.length || fingerprint.legalConsentPrerequisiteCount !== 12) throw new Error("Unexpected canonical migration scope");
   if (outputPath) {
     await mkdir(path.dirname(outputPath), { recursive: true });
     await writeFile(outputPath, `${JSON.stringify(fingerprint, null, 2)}\n`);
