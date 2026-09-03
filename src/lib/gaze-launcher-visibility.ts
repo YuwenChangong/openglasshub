@@ -1,4 +1,4 @@
-import { LEGACY_PAGES_ORIGIN } from "./site-origin";
+import { LEGACY_PAGES_ORIGIN } from "./site-origin.ts";
 
 export const GAZE_LAUNCHER_PUBLIC_ENABLED = false;
 
