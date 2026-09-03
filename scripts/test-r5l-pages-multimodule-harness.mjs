@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -9,6 +10,10 @@ import {
   inspectBuiltWorker,
   validateLocalBindings,
 } from "./lib/r5l-pages-multimodule-harness.mjs";
+
+const require = createRequire(import.meta.url);
+const miniflarePackage = require("miniflare/package.json");
+assert.equal(miniflarePackage.version, "5.20260820.0-alpha", "R5L requires its direct, reviewed Miniflare runtime dependency");
 
 const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "openglass-r5l-pages-harness-"));
 const localBindings = {
@@ -52,7 +57,7 @@ try {
   await assert.rejects(() => assertPortAvailable(port));
   await new Promise((resolve) => occupied.close(resolve));
   await assertPortAvailable(port);
-  console.log(JSON.stringify({ status: "PASS", checks: ["multimodule", "missing-entry", "ambiguous-entry", "node-fs-detection", "loopback", "cloud-rejection", "occupied-port", "raw-payload-guard"] }));
+  console.log(JSON.stringify({ status: "PASS", miniflareVersion: miniflarePackage.version, checks: ["direct-miniflare-runtime", "multimodule", "missing-entry", "ambiguous-entry", "node-fs-detection", "loopback", "cloud-rejection", "occupied-port", "raw-payload-guard"] }));
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
 }

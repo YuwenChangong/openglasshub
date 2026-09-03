@@ -13,6 +13,7 @@
     "test:workers-config": "node scripts/qa/test-workers-native-config.mjs",
     "test:workers-artifact": "node scripts/qa/test-workers-generated-artifact.mjs",
     "test:site-origin-transition": "node --experimental-strip-types scripts/qa/test-site-origin-transition.mjs",
+    "test:workers-transition-contracts": "node --experimental-strip-types scripts/qa/test-workers-transition-contracts.mjs",
     "test:astro-check-ratchet": "node scripts/test-astro-check-baseline-ratchet.mjs",
     "test:astro-check-ratchet-unit": "node scripts/test-astro-check-baseline-ratchet-unit.mjs",
     "smoke:production": "node --experimental-strip-types scripts/smoke-production.mjs",
@@ -102,6 +103,7 @@
   "devDependencies": {
     "@astrojs/check": "0.9.4",
     "jsdom": "^29.1.1",
+    "miniflare": "5.20260820.0-alpha",
     "playwright": "1.62.1",
     "supabase": "2.115.0",
     "typescript": "5.7.3"

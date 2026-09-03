@@ -7,6 +7,10 @@ const SAFE_ORIGIN_HOSTS = new Set([LEGACY_PAGES_HOSTNAME, "localhost", "127.0.0.
 const CONTROL_OR_BACKSLASH = /[\u0000-\u001f\u007f\\]/u;
 const BOUNDARY_WHITESPACE = /^[\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]|[\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]$/u;
 
+export type AuthRedirectOriginOptions = {
+  approvedOrigins?: readonly string[];
+};
+
 function hasUnsafeDestinationSyntax(value: string): boolean {
   return CONTROL_OR_BACKSLASH.test(value) || BOUNDARY_WHITESPACE.test(value) || value.startsWith("//");
 }
@@ -59,15 +63,43 @@ function getSafeFallback(fallback: string): string {
   return toInternalDestination(fallback) ?? FALLBACK_PATH;
 }
 
-function getTrustedApplicationOrigin(origin: string | undefined): URL | null {
+function isApprovedTransitionOrigin(originUrl: URL, options: AuthRedirectOriginOptions | undefined): boolean {
+  return options?.approvedOrigins?.some((candidate) => {
+    if (typeof candidate !== "string") return false;
+
+    try {
+      const approved = new URL(candidate);
+      return approved.protocol === "https:"
+        && !approved.username
+        && !approved.password
+        && approved.pathname === "/"
+        && !approved.search
+        && !approved.hash
+        && approved.origin === originUrl.origin;
+    } catch {
+      return false;
+    }
+  }) ?? false;
+}
+
+function getTrustedApplicationOrigin(origin: string | undefined, options?: AuthRedirectOriginOptions): URL | null {
   if (!origin) return null;
 
   try {
     const originUrl = new URL(origin);
-    const isSafeHost =
+    const isLegacyOrLocalHost =
       SAFE_ORIGIN_HOSTS.has(originUrl.hostname) || originUrl.hostname.endsWith(`.${LEGACY_PAGES_HOSTNAME}`);
+    const isApprovedTransition = isApprovedTransitionOrigin(originUrl, options);
 
-    if (!["http:", "https:"].includes(originUrl.protocol) || !isSafeHost || originUrl.username || originUrl.password) {
+    if (
+      !["http:", "https:"].includes(originUrl.protocol)
+      || (!isLegacyOrLocalHost && !isApprovedTransition)
+      || originUrl.username
+      || originUrl.password
+      || originUrl.pathname !== "/"
+      || originUrl.search
+      || originUrl.hash
+    ) {
       return null;
     }
 
@@ -85,8 +117,8 @@ export function buildLoginHref(next: string): string {
   return `/login/?next=${encodeURIComponent(getSafeNext(next))}`;
 }
 
-export function buildAuthCallbackRedirect(origin: string | undefined, next: string): string | undefined {
-  const originUrl = getTrustedApplicationOrigin(origin);
+export function buildAuthCallbackRedirect(origin: string | undefined, next: string, options?: AuthRedirectOriginOptions): string | undefined {
+  const originUrl = getTrustedApplicationOrigin(origin, options);
   if (!originUrl) return undefined;
 
   const callbackUrl = new URL("/auth/callback/", originUrl);
@@ -94,7 +126,7 @@ export function buildAuthCallbackRedirect(origin: string | undefined, next: stri
   return callbackUrl.toString();
 }
 
-export function buildResetPasswordRedirect(origin: string | undefined): string | undefined {
-  const originUrl = getTrustedApplicationOrigin(origin);
+export function buildResetPasswordRedirect(origin: string | undefined, options?: AuthRedirectOriginOptions): string | undefined {
+  const originUrl = getTrustedApplicationOrigin(origin, options);
   return originUrl ? new URL("/auth/reset-password/", originUrl).toString() : undefined;
 }

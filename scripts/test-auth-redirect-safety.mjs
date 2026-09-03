@@ -3,6 +3,7 @@ import { createServer } from "vite";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../src/lib/auth-redirect.ts";
 
 const trustedOrigin = "https://openglasshub.pages.dev";
+const preparedWorkerOrigin = "https://openglass-hub-transition-test.workers.dev";
 const fallback = "/feed/";
 const safeOutput = (input) => getSafeNext(input, fallback);
 
@@ -107,5 +108,17 @@ assert.equal(buildResetPasswordRedirect(trustedOrigin), `${trustedOrigin}/auth/r
 assert.equal(buildResetPasswordRedirect("https://preview.openglasshub.pages.dev"), "https://preview.openglasshub.pages.dev/auth/reset-password/");
 assert.equal(buildResetPasswordRedirect("https://evil.example"), undefined);
 assert.equal(buildResetPasswordRedirect("javascript:alert(1)"), undefined);
+assert.equal(
+  buildAuthCallbackRedirect(preparedWorkerOrigin, "/feed/", { approvedOrigins: [preparedWorkerOrigin] }),
+  `${preparedWorkerOrigin}/auth/callback/?next=%2Ffeed%2F`,
+);
+assert.equal(
+  buildResetPasswordRedirect(preparedWorkerOrigin, { approvedOrigins: [preparedWorkerOrigin] }),
+  `${preparedWorkerOrigin}/auth/reset-password/`,
+);
+assert.equal(
+  buildAuthCallbackRedirect("https://evil.example", "/feed/", { approvedOrigins: [preparedWorkerOrigin] }),
+  undefined,
+);
 
-console.log(JSON.stringify({ validCaseCount: validCases.length, rejectedCaseCount: rejectedCases.length, callbackFallback: "/", navigationCalls: browserCalls.length, passwordRecoveryOriginChecked: true }));
+console.log(JSON.stringify({ validCaseCount: validCases.length, rejectedCaseCount: rejectedCases.length, callbackFallback: "/", navigationCalls: browserCalls.length, passwordRecoveryOriginChecked: true, preparedOriginMode: "EXPLICIT_APPROVED_ORIGIN_ONLY" }));
