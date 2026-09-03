@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildLocalSupabaseReplayMirror } from "../build-local-supabase-replay-mirror.mjs";
+import { reviewFingerprintCandidate } from "../production-schema-fingerprint-review.mjs";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const INHERITED_DATABASE_CONNECTION_VARIABLES = ["POSTGRES_URL", "DATABASE_URL", "PGHOST", "PGPORT", "PGSERVICE"];
@@ -17,6 +18,7 @@ const PORT_FIELDS = [
   ["local_smtp", "port", 4], ["analytics", "port", 7], ["db.pooler", "port", 9], ["edge_runtime", "inspector_port", 83],
 ];
 const NPX = process.platform === "win32" ? "npx.cmd" : "npx";
+const FINGERPRINT_EVIDENCE_PREFIX = "openglass-local-disposable-supabase-evidence-";
 
 function assertRunId(runId) {
   if (!/^[a-f0-9]{8}$/i.test(runId)) throw new Error("Disposable replay run id must be eight hexadecimal characters");
@@ -84,6 +86,65 @@ function projectIdFor(runId) {
 
 function rootTemplateFor(runId) {
   return path.join(os.tmpdir(), `openglass-local-disposable-supabase-${assertRunId(runId)}-`);
+}
+
+function fingerprintEvidenceTemplateFor(runId) {
+  return path.join(os.tmpdir(), `${FINGERPRINT_EVIDENCE_PREFIX}${assertRunId(runId)}-`);
+}
+
+export function assertOwnedFingerprintEvidenceRoot({ evidenceRoot, runtimeRoot, repositoryRoot }) {
+  const evidence = path.resolve(evidenceRoot);
+  const runtime = path.resolve(runtimeRoot);
+  const temp = path.resolve(os.tmpdir());
+  if (!isWithin(evidence, temp)
+    || path.resolve(path.dirname(evidence)) !== temp
+    || !path.basename(evidence).startsWith(FINGERPRINT_EVIDENCE_PREFIX)
+    || evidence === temp
+    || isWithin(evidence, repositoryRoot)
+    || isWithin(evidence, runtime)
+    || isWithin(runtime, evidence)) {
+    throw new Error("Fingerprint evidence root must be a designated owned temporary directory outside the disposable runtime and repository");
+  }
+  return evidence;
+}
+
+async function createFingerprintEvidence({ runId, runtimeRoot, repositoryRoot }) {
+  const evidenceRoot = await mkdtemp(fingerprintEvidenceTemplateFor(runId));
+  const ownedRoot = assertOwnedFingerprintEvidenceRoot({ evidenceRoot, runtimeRoot, repositoryRoot });
+  return {
+    root: ownedRoot,
+    candidatePath: path.join(ownedRoot, "fingerprint-candidate.json"),
+    reviewPath: path.join(ownedRoot, "fingerprint-review.json"),
+  };
+}
+
+function assertNonsecretFingerprintEvidence(text) {
+  if (/(?:postgres(?:ql)?:\/\/|(?:https?:\/\/)[^\s"']*@|"(?:password|access_token|api[_-]?key|secret)"\s*:\s*"[^"\n]+")/i.test(text)) {
+    throw new Error("Fingerprint evidence contains credential-like content");
+  }
+}
+
+async function readReviewableFingerprintEvidence({ evidence, expected }) {
+  const [candidateStats, reviewStats] = await Promise.all([lstat(evidence.candidatePath), lstat(evidence.reviewPath)]);
+  if (!candidateStats.isFile() || candidateStats.isSymbolicLink() || !reviewStats.isFile() || reviewStats.isSymbolicLink()) {
+    throw new Error("Fingerprint evidence must contain regular candidate and review files");
+  }
+  const [candidateText, reviewText] = await Promise.all([readFile(evidence.candidatePath, "utf8"), readFile(evidence.reviewPath, "utf8")]);
+  assertNonsecretFingerprintEvidence(candidateText);
+  assertNonsecretFingerprintEvidence(reviewText);
+  const candidate = JSON.parse(candidateText);
+  const review = JSON.parse(reviewText);
+  if (candidate.format !== "openglass-production-schema-fingerprint-v1"
+    || candidate.generatedFrom !== "LOCAL_DOCKER_ONLY"
+    || !Array.isArray(candidate.localMigrationLedger)
+    || candidate.canonicalMigrationCount !== candidate.localMigrationLedger.length
+    || !Array.isArray(candidate.objects)) {
+    throw new Error("Fingerprint evidence candidate is incomplete");
+  }
+  const expectedReview = reviewFingerprintCandidate({ expected, candidate });
+  if (JSON.stringify(review) !== JSON.stringify(expectedReview)) throw new Error("Fingerprint evidence review is stale or modified");
+  if (review.fixtureMatchesCandidate) throw new Error("Fingerprint evidence may be retained only for a review mismatch");
+  return expectedReview;
 }
 
 function supabaseArgs(action, root, extra = []) {
@@ -243,6 +304,8 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
   const runtimeRoot = await mkdtemp(rootTemplateFor(runId));
   const projectId = projectIdFor(runId);
   assertOwnedDisposableRoot({ disposableRoot: runtimeRoot, repositoryRoot });
+  const fingerprintEvidence = await createFingerprintEvidence({ runId, runtimeRoot, repositoryRoot });
+  let retainFingerprintEvidence = false;
   let startAttempted = false;
   try {
     const before = await listContainers(execute, safeEnvironment);
@@ -265,16 +328,27 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
       sql: "SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version;\n",
     }));
     verifyLocalMigrationLedger({ mappings: mirror.mappings, rows: ledger });
-    await execute("node", ["scripts/test-production-schema-fingerprint.mjs"], {
-      cwd: repositoryRoot,
-      env: {
-        ...safeEnvironment,
-        OPENGLASS_LOCAL_DISPOSABLE_DB_CONTAINER: container.id,
-        OPENGLASS_LOCAL_DISPOSABLE_PROJECT_ID: projectId,
-        OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_CANDIDATE: path.join(runtimeRoot, "fingerprint-candidate.json"),
-        OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_REVIEW: path.join(runtimeRoot, "fingerprint-review.json"),
-      },
-    });
+    try {
+      await execute("node", ["scripts/test-production-schema-fingerprint.mjs"], {
+        cwd: repositoryRoot,
+        env: {
+          ...safeEnvironment,
+          OPENGLASS_LOCAL_DISPOSABLE_DB_CONTAINER: container.id,
+          OPENGLASS_LOCAL_DISPOSABLE_PROJECT_ID: projectId,
+          OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_CANDIDATE: fingerprintEvidence.candidatePath,
+          OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_REVIEW: fingerprintEvidence.reviewPath,
+        },
+      });
+    } catch (error) {
+      let review;
+      try {
+        review = await readReviewableFingerprintEvidence({ evidence: fingerprintEvidence, expected: JSON.parse(await readFile(path.join(repositoryRoot, "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8")) });
+      } catch {
+        throw error;
+      }
+      retainFingerprintEvidence = true;
+      throw new Error(`${error.message}\nNon-secret fingerprint evidence retained for explicit review:\n  candidate: ${fingerprintEvidence.candidatePath}\n  review: ${fingerprintEvidence.reviewPath}\n  review id: ${review.reviewId}`);
+    }
     return {
       localReplay: "PASS",
       localReplayTarget: "DISPOSABLE",
@@ -285,7 +359,11 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
       remoteConnections: 0,
     };
   } finally {
-    await cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot, startAttempted, execute, environment: safeEnvironment });
+    try {
+      await cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot, startAttempted, execute, environment: safeEnvironment });
+    } finally {
+      if (!retainFingerprintEvidence) await rm(fingerprintEvidence.root, { recursive: true, force: true });
+    }
   }
 }
 

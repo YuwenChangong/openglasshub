@@ -21,10 +21,13 @@ The harness performs the following local-only sequence:
    ledger and order, then run the catalog fingerprint through
    `docker exec … psql`. No DSN is supplied to `psql`, so it uses the database
    container's Unix socket.
-6. Capture the local fingerprint as an owned temporary candidate and write a
-   structured migration/object identity review beside it. A mismatch cannot
-   overwrite the committed fixture. Updating that fixture requires the
-   explicit `npm run update:production-schema-fingerprint-fixture --
+6. Capture the local fingerprint and structured migration/object identity review
+   in a separate designated temporary evidence directory. On a verified review
+   mismatch only, the nonsecret candidate and review remain there after the
+   disposable runtime is removed; the failure output hands off both paths and
+   the review ID. Success and malformed/secret-like evidence remove that
+   directory. A mismatch cannot overwrite the committed fixture. Updating that
+   fixture requires the explicit `npm run update:production-schema-fingerprint-fixture --
    --candidate <path> --review <path> --confirm-review-id <sha256>` workflow.
 7. Stop only that project with `supabase stop --no-backup` even when `start`
    fails part way through, and remove only the verified temporary root.
