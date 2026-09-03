@@ -31,11 +31,12 @@ const changed = new Set([
   ...execFileSync("git", ["diff", "--cached", "--name-only"], { cwd: root, encoding: "utf8" }).split(/\r?\n/),
   ...execFileSync("git", ["ls-files", "--others", "--exclude-standard"], { cwd: root, encoding: "utf8" }).split(/\r?\n/),
 ].filter(Boolean));
+const candidateZeroContextDiff = execFileSync("git", ["diff", "--no-ext-diff", "--unified=0", ASTRO_CHECK_BASELINE_COMMIT], { cwd: root, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
 const comparison = compareDiagnostics({
   baseline: manifest,
   current: parsed,
   candidateChangedPaths: changed,
-  resolveCandidateGitObject: (relativePath) => execFileSync("git", ["hash-object", `--path=${relativePath}`, relativePath], { cwd: root, encoding: "utf8" }).trim(),
+  candidateZeroContextDiff,
 });
-assert.ok(comparison.pass, JSON.stringify({ newDiagnostics: comparison.newDiagnostics, changedPathErrors: comparison.changedPathErrors, baselineBlobChanges: comparison.baselineBlobChanges }, null, 2));
-console.log(JSON.stringify({ status: "PASS", baselineErrors: comparison.baselineErrors, currentErrors: comparison.currentErrors, removedErrors: comparison.removedDiagnostics.length, newErrors: comparison.newDiagnostics.length, changedPathErrors: comparison.changedPathErrors.length, baselineBlobChanges: comparison.baselineBlobChanges.length }));
+assert.ok(comparison.pass, JSON.stringify({ newDiagnostics: comparison.newDiagnostics, changedDiagnosticSourceLines: comparison.changedDiagnosticSourceLines, unparsedChangedDiagnosticPaths: comparison.unparsedChangedDiagnosticPaths }, null, 2));
+console.log(JSON.stringify({ status: "PASS", baselineErrors: comparison.baselineErrors, currentErrors: comparison.currentErrors, removedErrors: comparison.removedDiagnostics.length, newErrors: comparison.newDiagnostics.length, changedDiagnosticSourceLines: comparison.changedDiagnosticSourceLines.length, unparsedChangedDiagnosticPaths: comparison.unparsedChangedDiagnosticPaths.length }));

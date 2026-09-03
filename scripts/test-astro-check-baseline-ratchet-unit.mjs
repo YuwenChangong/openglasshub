@@ -24,18 +24,38 @@ assert.throws(() => verifyBaselineManifest(withAstroVersion(approvedAstro, "7.2.
 assert.throws(() => verifyBaselineManifest(withAstroVersion(approvedAstro, undefined)), /Astro baseline version changed/, "a missing Astro version must fail");
 assert.throws(() => verifyBaselineManifest(withAstroVersion(approvedAstro, "not-a-version")), /Astro baseline version changed/, "a malformed Astro version must fail");
 
-const accepted = compareDiagnostics({ baseline: manifest, current: parsedBaseline, candidateChangedPaths: new Set(), resolveCandidateGitObject: () => "a".repeat(40) });
+const accepted = compareDiagnostics({ baseline: manifest, current: parsedBaseline, candidateChangedPaths: new Set(), candidateZeroContextDiff: "" });
 assert.equal(accepted.pass, true);
 
 const newError = parseAstroCheckOutput(output([baselineDiagnostic, "src/new.ts:1:1 - error ts(2002): New diagnostic."]), { repositoryRoot: process.cwd() });
-assert.equal(compareDiagnostics({ baseline: manifest, current: newError, candidateChangedPaths: new Set(), resolveCandidateGitObject: () => "a".repeat(40) }).pass, false, "a simulated new diagnostic must fail");
-assert.equal(compareDiagnostics({ baseline: manifest, current: parsedBaseline, candidateChangedPaths: new Set(["src/example.ts"]), resolveCandidateGitObject: () => "a".repeat(40) }).pass, false, "a diagnostic in a changed file must fail");
+assert.equal(compareDiagnostics({ baseline: manifest, current: newError, candidateChangedPaths: new Set(), candidateZeroContextDiff: "" }).pass, false, "a simulated new diagnostic must fail");
+const nonDiagnosticEdit = compareDiagnostics({
+  baseline: manifest,
+  current: parsedBaseline,
+  candidateChangedPaths: new Set(["src/example.ts"]),
+  candidateZeroContextDiff: "diff --git a/src/example.ts b/src/example.ts\n--- a/src/example.ts\n+++ b/src/example.ts\n@@ -5 +5 @@\n-old\n+new\n",
+});
+assert.equal(nonDiagnosticEdit.pass, true, "a non-diagnostic edit in a baseline-debt file must pass");
+const diagnosticSourceEdit = compareDiagnostics({
+  baseline: manifest,
+  current: parsedBaseline,
+  candidateChangedPaths: new Set(["src/example.ts"]),
+  candidateZeroContextDiff: "diff --git a/src/example.ts b/src/example.ts\n--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +1 @@\n-old\n+new\n",
+});
+assert.equal(diagnosticSourceEdit.pass, false, "an edit at a still-present baseline diagnostic source line must fail");
 const removed = parseAstroCheckOutput(output([]), { repositoryRoot: process.cwd() });
-assert.equal(compareDiagnostics({ baseline: manifest, current: removed, candidateChangedPaths: new Set(), resolveCandidateGitObject: () => "a".repeat(40) }).pass, true, "removing a baseline diagnostic must pass");
+assert.equal(compareDiagnostics({ baseline: manifest, current: removed, candidateChangedPaths: new Set(["src/example.ts"]), candidateZeroContextDiff: "diff --git a/src/example.ts b/src/example.ts\n--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +0,0 @@\n-old\n" }).pass, true, "removing a baseline diagnostic must pass");
+const lineFourDiagnostic = "src/example.ts:4:2 - error ts(1001): Existing diagnostic.";
+const lineFourParsed = parseAstroCheckOutput(output([lineFourDiagnostic]), { repositoryRoot: process.cwd() });
+const lineFourManifest = createBaselineManifest({ parsed: lineFourParsed, nodeVersion: process.version, resolveGitBlob: () => ({ objectId: "a".repeat(40), sha256: "b".repeat(64) }) });
+assert.equal(compareDiagnostics({ baseline: lineFourManifest, current: lineFourParsed, candidateChangedPaths: new Set(["src/example.ts"]), candidateZeroContextDiff: "diff --git a/src/example.ts b/src/example.ts\n--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1,0 +2 @@\n+inserted\n" }).pass, false, "an insertion edge before a diagnostic anchor must fail closed");
+assert.equal(compareDiagnostics({ baseline: lineFourManifest, current: lineFourParsed, candidateChangedPaths: new Set(["src/example.ts"]), candidateZeroContextDiff: "diff --git a/src/example.ts b/src/example.ts\n--- a/src/example.ts\n+++ b/src/example.ts\n@@ -5,0 +6 @@\n+inserted\n" }).pass, true, "an insertion edge after a diagnostic anchor may pass");
+assert.equal(compareDiagnostics({ baseline: lineFourManifest, current: lineFourParsed, candidateChangedPaths: new Set(["src/example.ts"]), candidateZeroContextDiff: "diff --git a/src/example.ts b/src/example.ts\n--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +0,0 @@\n-removed\n" }).pass, false, "a deletion edge before a diagnostic anchor must fail closed");
+assert.equal(compareDiagnostics({ baseline: manifest, current: parsedBaseline, candidateChangedPaths: new Set(["src/example.ts"]), candidateZeroContextDiff: "" }).pass, false, "an unmapped changed baseline-debt path must fail closed");
 assert.throws(() => parseAstroCheckOutput("src/example.ts:1:2 - error\nResult (1 files):\n- 1 errors\n- 0 warnings\n- 0 hints\n", { repositoryRoot: process.cwd() }), /unparsed error diagnostic/, "unknown output must fail closed");
 const mismatch = structuredClone(manifest);
 mismatch.toolchain.typescript = "0.0.0";
 assert.throws(() => verifyBaselineManifest(mismatch), /TypeScript baseline version changed/, "tool-version mismatch must fail");
 const ratchetSource = await readFile(new URL("./test-astro-check-baseline-ratchet.mjs", import.meta.url), "utf8");
 assert.doesNotMatch(ratchetSource, /writeFile|--update|baseline.*=/i, "ordinary ratchet execution cannot update the baseline");
-console.log(JSON.stringify({ status: "PASS", assertions: 12 }));
+console.log(JSON.stringify({ status: "PASS", assertions: 19 }));

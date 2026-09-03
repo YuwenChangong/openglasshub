@@ -121,17 +121,61 @@ export function verifyBaselineManifest(manifest) {
   }
 }
 
-export function compareDiagnostics({ baseline, current, candidateChangedPaths, resolveCandidateGitObject }) {
+function parseDiffPath(line) {
+  const match = /^diff --git a\/(.+) b\/(.+)$/.exec(line);
+  return match && match[1] === match[2] ? match[1] : null;
+}
+
+export function parseZeroContextDiff(diff) {
+  const hunksByPath = new Map();
+  let currentPath = null;
+  for (const line of diff.split(/\r?\n/)) {
+    if (line.startsWith("diff --git ")) {
+      currentPath = parseDiffPath(line);
+      continue;
+    }
+    const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
+    if (!hunk || currentPath === null) continue;
+    const parsed = {
+      oldStart: Number(hunk[1]),
+      oldCount: Number(hunk[2] ?? 1),
+      newStart: Number(hunk[3]),
+      newCount: Number(hunk[4] ?? 1),
+    };
+    const hunks = hunksByPath.get(currentPath) ?? [];
+    hunks.push(parsed);
+    hunksByPath.set(currentPath, hunks);
+  }
+  return hunksByPath;
+}
+
+function hunkCanAffectDiagnosticAnchor(hunk, line) {
+  if (hunk.oldCount === 0) return hunk.newStart <= line;
+  if (hunk.newCount === 0) return hunk.oldStart <= line;
+  const oldEnd = hunk.oldStart + hunk.oldCount - 1;
+  const newEnd = hunk.newStart + hunk.newCount - 1;
+  return (hunk.oldStart <= line && line <= oldEnd) || (hunk.newStart <= line && line <= newEnd);
+}
+
+export function compareDiagnostics({ baseline, current, candidateChangedPaths, candidateZeroContextDiff = "" }) {
   verifyBaselineManifest(baseline);
   const baselineByIdentity = new Map(baseline.diagnostics.map((diagnostic) => [diagnostic.identity, diagnostic]));
   const currentIdentities = new Set(current.diagnostics.map((diagnostic) => diagnostic.identity));
   const newDiagnostics = current.diagnostics.filter((diagnostic) => !baselineByIdentity.has(diagnostic.identity));
   const removedDiagnostics = baseline.diagnostics.filter((diagnostic) => !currentIdentities.has(diagnostic.identity));
-  const changedPathErrors = current.diagnostics.filter((diagnostic) => candidateChangedPaths.has(diagnostic.path));
-  const baselineBlobChanges = [];
-  for (const [path, diagnostic] of new Map(baseline.diagnostics.map((item) => [item.path, item])).entries()) {
-    const currentObjectId = resolveCandidateGitObject(path);
-    if (currentObjectId !== diagnostic.baselineGitObjectId) baselineBlobChanges.push(path);
+  const hunksByPath = parseZeroContextDiff(candidateZeroContextDiff);
+  const changedDiagnosticSourceLines = [];
+  const unparsedChangedDiagnosticPaths = [];
+  for (const diagnostic of baseline.diagnostics) {
+    if (!currentIdentities.has(diagnostic.identity) || !candidateChangedPaths.has(diagnostic.path)) continue;
+    const hunks = hunksByPath.get(diagnostic.path);
+    if (!hunks) {
+      unparsedChangedDiagnosticPaths.push(diagnostic.path);
+      continue;
+    }
+    if (hunks.some((hunk) => hunkCanAffectDiagnosticAnchor(hunk, diagnostic.line))) {
+      changedDiagnosticSourceLines.push(diagnostic);
+    }
   }
   return {
     baselineErrors: baseline.totals.errors,
@@ -140,12 +184,12 @@ export function compareDiagnostics({ baseline, current, candidateChangedPaths, r
     currentAffectedPaths: current.affectedPathCount,
     newDiagnostics,
     removedDiagnostics,
-    changedPathErrors,
-    baselineBlobChanges,
+    changedDiagnosticSourceLines,
+    unparsedChangedDiagnosticPaths: [...new Set(unparsedChangedDiagnosticPaths)].sort(),
     pass: newDiagnostics.length === 0
-      && changedPathErrors.length === 0
+      && changedDiagnosticSourceLines.length === 0
       && current.errorCount <= baseline.totals.errors
       && current.affectedPathCount <= baseline.totals.affectedPaths
-      && baselineBlobChanges.length === 0,
+      && unparsedChangedDiagnosticPaths.length === 0,
   };
 }
