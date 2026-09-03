@@ -95,7 +95,7 @@ export const GET: APIRoute = async ({ locals, site }) => {
       if (!product) continue;
       entries.push({
         loc: absoluteUrl(`/products/${product.brandKey}/`),
-        lastmod: normalizeDate(entry.data.lastUpdated?.toISOString?.() ?? undefined),
+        lastmod: normalizeDate(entry.data.lastUpdated instanceof Date ? entry.data.lastUpdated.toISOString() : undefined),
         changefreq: "monthly",
         priority: "0.7",
       });
@@ -105,7 +105,7 @@ export const GET: APIRoute = async ({ locals, site }) => {
       const slug = docSlug.replace("reference/guides/", "");
       entries.push({
         loc: absoluteUrl(`/guides/${slug}/`),
-        lastmod: normalizeDate(entry.data.lastUpdated?.toISOString?.() ?? undefined),
+        lastmod: normalizeDate(entry.data.lastUpdated instanceof Date ? entry.data.lastUpdated.toISOString() : undefined),
         changefreq: "monthly",
         priority: "0.7",
       });
