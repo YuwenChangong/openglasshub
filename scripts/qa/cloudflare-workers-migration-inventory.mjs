@@ -124,6 +124,7 @@ function collectRuntimeUse(path, source, runtime) {
   if (!isRuntimeSourcePath(path)) return;
   if (/from\s*["']cloudflare:workers["']/.test(source)) runtime.cloudflareWorkersImportPaths.push(path);
   for (const match of source.matchAll(/(?<!\.)\benv\??\.\s*([A-Z][A-Z0-9_]*)/g)) runtime.sourceBindingNames.add(match[1]);
+  for (const match of source.matchAll(/\b[A-Za-z_$][\w$]*\s*\(\s*env\s*,\s*["']([A-Z][A-Z0-9_]*)["']/g)) runtime.sourceBindingNames.add(match[1]);
   if (/\bD1Database\b|(?<!\.)\benv\??\.[A-Z][A-Z0-9_]*\.prepare\s*\(/.test(source)) runtime.optionalBindingUse.D1.push(path);
   if (/\bDurableObject(?:Namespace|Stub|State)?\b|(?<!\.)\benv\??\.[A-Z][A-Z0-9_]*\.(?:idFromName|idFromString|newUniqueId)\s*\(/.test(source)) runtime.optionalBindingUse.DURABLE_OBJECT.push(path);
   if (/\b(?:Fetcher|ServiceBinding)\b|(?<!\.)\benv\??\.[A-Z][A-Z0-9_]*\.fetch\s*\(/.test(source)) runtime.optionalBindingUse.SERVICE.push(path);

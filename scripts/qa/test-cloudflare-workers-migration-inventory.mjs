@@ -56,6 +56,9 @@ await env.COUNTER.idFromName("fixture");
 await env.INTERNAL_API.fetch("https://example.test");
 await env.MODERATION_ASSETS.get("fixture");
 await env.SESSION.get("fixture");
+requireEnv(env, "R2_ACCESS_KEY_ID");
+requireEnv(env, "R2_SECRET_ACCESS_KEY");
+requireEnv(env, "SUPABASE_SERVICE_ROLE_KEY");
 `);
   await fixtureFile("wrangler.toml", "name = \"absent\"\n", absentRoot);
 
@@ -94,7 +97,16 @@ await env.SESSION.get("fixture");
       DURABLE_OBJECT: { configuredNames: ["COUNTER"], sourcePaths: ["src/runtime.ts"], status: "PRESENT" },
       SERVICE: { configuredNames: ["INTERNAL_API"], sourcePaths: ["src/runtime.ts"], status: "PRESENT" },
     },
-    sourceBindingNames: ["COUNTER", "DB", "INTERNAL_API", "MODERATION_ASSETS", "SESSION"],
+    sourceBindingNames: [
+      "COUNTER",
+      "DB",
+      "INTERNAL_API",
+      "MODERATION_ASSETS",
+      "R2_ACCESS_KEY_ID",
+      "R2_SECRET_ACCESS_KEY",
+      "SESSION",
+      "SUPABASE_SERVICE_ROLE_KEY",
+    ],
   });
   const absentInventory = await collectRepositoryInventory(absentRoot);
   assert.deepEqual(absentInventory.runtime, {
