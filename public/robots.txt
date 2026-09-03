@@ -12,5 +12,5 @@ Disallow: /circles/new/
 Disallow: /search/
 Disallow: /users/
 
-Sitemap: https://openglasshub.pages.dev/sitemap.xml
-Sitemap: https://openglasshub.pages.dev/sitemap-index.xml
+Sitemap: {{SITE_ORIGIN}}/sitemap.xml
+Sitemap: {{SITE_ORIGIN}}/sitemap-index.xml

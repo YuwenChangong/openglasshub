@@ -1,10 +1,19 @@
 const fs = require('fs');
 const path = require('path');
+const { resolveSiteOrigin } = require('../src/lib/site-origin.ts');
 
-const distDir = path.join(__dirname, '..', 'dist');
+const args = process.argv.slice(2);
+function readOption(name, fallback) {
+  const index = args.indexOf(name);
+  return index === -1 ? fallback : (args[index + 1] ?? fallback);
+}
+
+const rootDir = path.join(__dirname, '..');
+const distDir = path.resolve(rootDir, readOption('--dist', 'dist'));
 const buildDir = fs.existsSync(path.join(distDir, 'client'))
   ? path.join(distDir, 'client')
   : distDir;
+const expectedSiteOrigin = resolveSiteOrigin(process.env.SITE_ORIGIN);
 const redirects = fs.existsSync(path.join(buildDir, '_redirects'))
   ? fs.readFileSync(path.join(buildDir, '_redirects'), 'utf8')
   : '';
@@ -37,20 +46,55 @@ const indexHtml = fs.existsSync(indexFile)
   : allHtml;
 
 console.log('\n=== 1. SITE URL ===');
-check('site uses openglasshub.pages.dev', allHtml.includes('openglasshub.pages.dev'));
+check('HTML uses the configured site origin', allHtml.includes(expectedSiteOrigin));
 check('no openglass.gaze.dev references', !allHtml.includes('openglass.gaze.dev'));
 
 console.log('\n=== 2. CANONICAL URLs ===');
-const canonicals = allHtml.match(/rel="canonical"[^>]*href="([^"]+)"/g) || [];
-check('canonical tags exist', canonicals.length > 0, canonicals.length + ' found');
-const badCanonicals = canonicals.filter(c => c.includes('openglass.gaze.dev'));
-check('no old domain in canonicals', badCanonicals.length === 0, badCanonicals.length + ' bad');
+const canonicalHrefs = [...allHtml.matchAll(/<link\b[^>]*\brel=["']canonical["'][^>]*>/gi)]
+  .map(match => match[0].match(/\bhref=["']([^"']+)["']/i)?.[1])
+  .filter(Boolean);
+const canonicalOrigins = canonicalHrefs.map((href) => {
+  try { return new URL(href).origin; } catch { return 'INVALID'; }
+});
+check('canonical tags exist', canonicalHrefs.length > 0, canonicalHrefs.length + ' found');
+check(
+  'canonical URLs use one configured site origin',
+  canonicalOrigins.length > 0 && canonicalOrigins.every(origin => origin === expectedSiteOrigin),
+  [...new Set(canonicalOrigins)].join(', '),
+);
 
 console.log('\n=== 3. SITEMAP ===');
 const sitemapExists = fs.existsSync(path.join(buildDir, 'sitemap-index.xml'));
 check('sitemap-index.xml exists', sitemapExists);
-const robotsTxt = fs.readFileSync(path.join(__dirname, '..', 'public', 'robots.txt'), 'utf8');
-check('robots.txt points to correct sitemap', robotsTxt.includes('openglasshub.pages.dev/sitemap-index.xml'));
+const robotsPath = path.join(buildDir, 'robots.txt');
+const robotsTxt = fs.existsSync(robotsPath) ? fs.readFileSync(robotsPath, 'utf8') : '';
+const robotsOrigins = [...robotsTxt.matchAll(/^Sitemap:\s+(\S+)$/gmi)].map((match) => {
+  try { return new URL(match[1]).origin; } catch { return 'INVALID'; }
+});
+check(
+  'robots.txt Sitemap URLs use one configured site origin',
+  robotsOrigins.length > 0 && robotsOrigins.every(origin => origin === expectedSiteOrigin),
+  [...new Set(robotsOrigins)].join(', '),
+);
+const sitemapFiles = [];
+(function collectSitemaps(directory) {
+  if (!fs.existsSync(directory)) return;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) collectSitemaps(entryPath);
+    else if (/^sitemap.*\.xml$/i.test(entry.name)) sitemapFiles.push(entryPath);
+  }
+})(buildDir);
+const sitemapOrigins = sitemapFiles.flatMap((file) => (
+  [...fs.readFileSync(file, 'utf8').matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => {
+    try { return new URL(match[1]).origin; } catch { return 'INVALID'; }
+  })
+));
+check(
+  'sitemap XML locations use one configured site origin',
+  sitemapOrigins.length > 0 && sitemapOrigins.every(origin => origin === expectedSiteOrigin),
+  [...new Set(sitemapOrigins)].join(', '),
+);
 
 console.log('\n=== 4. FAVICON ===');
 check('no /favicon.svg in HTML', !allHtml.includes('/favicon.svg'));
@@ -72,10 +116,20 @@ check('meta description present', descs.length > 0, descs.length + ' pages');
 console.log('\n=== 7. OPEN GRAPH ===');
 const ogTitle = allHtml.match(/property="og:title"/g) || [];
 const ogDesc = allHtml.match(/property="og:description"/g) || [];
-const ogUrl = allHtml.match(/property="og:url"/g) || [];
+const ogUrlHrefs = [...allHtml.matchAll(/<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/gi)]
+  .map(match => match[0].match(/\bcontent=["']([^"']+)["']/i)?.[1])
+  .filter(Boolean);
+const ogUrlOrigins = ogUrlHrefs.map((href) => {
+  try { return new URL(href).origin; } catch { return 'INVALID'; }
+});
 check('og:title tags', ogTitle.length > 0, ogTitle.length);
 check('og:description tags', ogDesc.length > 0, ogDesc.length);
-check('og:url tags', ogUrl.length > 0, ogUrl.length);
+check('og:url tags', ogUrlHrefs.length > 0, ogUrlHrefs.length);
+check(
+  'Open Graph URLs use one configured site origin',
+  ogUrlOrigins.length > 0 && ogUrlOrigins.every(origin => origin === expectedSiteOrigin),
+  [...new Set(ogUrlOrigins)].join(', '),
+);
 
 console.log('\n=== 8. ROUTES ===');
 const routes = [
@@ -128,3 +182,4 @@ check('404.html exists', has404);
 console.log('\n' + '='.repeat(50));
 console.log('TOTAL: ' + pass + ' PASS, ' + fail + ' FAIL, ' + files.length + ' HTML pages');
 if (fail === 0) console.log('ALL CHECKS PASSED ✓');
+else process.exitCode = 1;

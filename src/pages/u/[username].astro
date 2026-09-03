@@ -34,7 +34,7 @@ const canonicalProfileHref = pageData ? buildProfileHref(pageData.profile) : nul
 <CommunityLayout
   title={pageData ? displayName : "用户未找到"}
   activeSection="forum"
-  canonical={canonicalProfileHref ? `https://openglasshub.pages.dev${canonicalProfileHref}` : undefined}
+  canonical={canonicalProfileHref ?? undefined}
   noindex={!pageData}
 >
   {!pageData ? (

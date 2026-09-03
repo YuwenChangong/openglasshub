@@ -3,15 +3,38 @@ import starlight from '@astrojs/starlight';
 import react from '@astrojs/react';
 import cloudflare from '@astrojs/cloudflare';
 import sitemap from '@astrojs/sitemap';
+import { readFile, writeFile } from 'node:fs/promises';
 import {
   isGazeLauncherPublicEnabled,
   isGazeLauncherSitemapEntryIncluded,
 } from './src/lib/gaze-launcher-visibility.ts';
 import remarkGazeLauncherVisibility from './src/plugins/remark-gaze-launcher-visibility.ts';
-import { resolveSiteOrigin } from './src/lib/site-origin.ts';
+import { resolveSiteOrigin, rewriteRobotsSitemapOrigins } from './src/lib/site-origin.ts';
 
 const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
 const siteOrigin = resolveSiteOrigin(process.env.SITE_ORIGIN);
+
+function siteOriginRobots() {
+  return {
+    name: 'openglass-site-origin-robots',
+    hooks: {
+      'astro:build:done': async ({ dir }) => {
+        let rewritten = 0;
+        for (const relativePath of ['client/robots.txt', 'robots.txt']) {
+          const robotsUrl = new URL(relativePath, dir);
+          try {
+            const source = await readFile(robotsUrl, 'utf8');
+            await writeFile(robotsUrl, rewriteRobotsSitemapOrigins(source, siteOrigin), 'utf8');
+            rewritten += 1;
+          } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+          }
+        }
+        if (rewritten === 0) throw new Error('Built robots.txt was not found');
+      },
+    },
+  };
+}
 
 export default defineConfig({
   site: siteOrigin,
@@ -132,5 +155,6 @@ export default defineConfig({
         themes: ['github-dark'],
       },
     }),
+    siteOriginRobots(),
   ],
 });

@@ -72,7 +72,7 @@ const postTypeLabels: Record<string, string> = {
 };
 
 const circle = post?.circles ?? null;
-const canonicalUrl = post ? `https://openglasshub.pages.dev/posts/${post.id}/` : undefined;
+const canonicalUrl = post ? `/posts/${post.id}/` : undefined;
 const commentLoginHref = buildLoginHref(post ? `/posts/${post.id}/#comments` : "/feed/?sort=latest");
 const postMedia = await resolveSignedPostMedia(
   supabase,

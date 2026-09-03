@@ -1,4 +1,5 @@
 import { isGazeLauncherPublicEnabled } from "../lib/gaze-launcher-visibility.ts";
+import { LEGACY_PAGES_ORIGIN } from "../lib/site-origin.ts";
 
 type MarkdownNode = {
   type?: string;
@@ -8,7 +9,7 @@ type MarkdownNode = {
 
 function isGazeLauncherRoute(url: string | undefined): boolean {
   if (!url) return false;
-  const pathname = new URL(url, "https://openglasshub.pages.dev").pathname;
+  const pathname = new URL(url, LEGACY_PAGES_ORIGIN).pathname;
   return pathname === "/gaze-launcher" || pathname === "/gaze-launcher/";
 }
 

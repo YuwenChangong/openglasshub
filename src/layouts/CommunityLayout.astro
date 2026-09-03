@@ -3,6 +3,7 @@ import CommunityHeader from "../components/community/CommunityHeader.astro";
 import { LEGAL_POLICY, LEGAL_POLICY_LINKS } from "../lib/legal-policy";
 import { classifyLegalConsentRoute } from "../lib/legal-consent-route-policy";
 import LegalConsentGate from "../components/legal/LegalConsentGate";
+import { resolveSiteOrigin } from "../lib/site-origin";
 import "../styles/community.css";
 
 export interface Props {
@@ -31,7 +32,7 @@ const {
   pageClass = "",
 } = Astro.props;
 const siteName = "OpenGlass Hub";
-const baseUrl = Astro.site?.toString() ?? "https://openglasshub.pages.dev";
+const baseUrl = resolveSiteOrigin(Astro.site?.origin);
 const fullTitle = `${title} | ${siteName}`;
 const canonicalHref = canonical ? new URL(canonical, baseUrl).toString() : undefined;
 const ogImageHref = new URL(ogImage ?? "/brand/logo.jpg", baseUrl).toString();

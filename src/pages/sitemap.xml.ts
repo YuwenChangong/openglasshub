@@ -7,8 +7,7 @@ import { listPublishedDevices } from "../lib/public-device-data";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { isPublicVisibleCircle } from "../lib/site-navigation";
 import { isGazeLauncherPublicEnabled } from "../lib/gaze-launcher-visibility";
-
-const SITE_URL = "https://openglasshub.pages.dev";
+import { resolveSiteOrigin } from "../lib/site-origin";
 
 type SitemapEntry = {
   loc: string;
@@ -24,10 +23,6 @@ function escapeXml(value: string) {
     .replace(/'/g, "&apos;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-}
-
-function absoluteUrl(pathname: string) {
-  return new URL(pathname, SITE_URL).toString();
 }
 
 function normalizeDate(value: string | null | undefined) {
@@ -56,7 +51,9 @@ function serializeSitemap(entries: SitemapEntry[]) {
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ locals }) => {
+export const GET: APIRoute = async ({ locals, site }) => {
+  const siteOrigin = resolveSiteOrigin(site?.origin);
+  const absoluteUrl = (pathname: string) => new URL(pathname, siteOrigin).toString();
   const docs = await getCollection("docs");
   const env = runtimeEnv;
   const supabase = env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY ? createSSRClient(env) : null;

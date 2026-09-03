@@ -8,7 +8,7 @@ import { getSafeNext } from "../../lib/auth-redirect";
 const next = getSafeNext(Astro.url.searchParams.get("next"), "/feed/");
 const reason = Astro.url.searchParams.get("reason") ?? "";
 ---
-<CommunityLayout title="政策确认" description="完成 OpenGlass Hub 当前政策确认。" canonical="https://openglasshub.pages.dev/legal-consent/" noindex={true}>
+<CommunityLayout title="政策确认" description="完成 OpenGlass Hub 当前政策确认。" canonical="/legal-consent/" noindex={true}>
   <section class="legal-consent-page"><LegalConsentPage next={next} reason={reason} client:only="react" /></section>
 </CommunityLayout>
 <style>.legal-consent-page { width: min(100%, 560px); margin: 2rem auto 3rem; } .legal-consent-page :global(h1) { margin: 0; font-size: 1.45rem; } .legal-consent-page :global(p) { margin: 0; color: var(--text-muted); }</style>

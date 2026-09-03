@@ -73,7 +73,7 @@ const postTypeLabels: Record<string, string> = {
   feedback: "反馈",
 };
 
-const canonicalUrl = publicCircle ? `https://openglasshub.pages.dev/circles/${publicCircle.slug}/` : undefined;
+const canonicalUrl = publicCircle ? `/circles/${publicCircle.slug}/` : undefined;
 const circleImageMap = publicCircle
   ? await buildCircleImageMap(supabase, [publicCircle], 60 * 60, {
       publicProxy: true,

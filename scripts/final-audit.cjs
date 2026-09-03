@@ -2,8 +2,14 @@ const fs = require('fs');
 const path = require('path');
 const { resolveSiteOrigin } = require('../src/lib/site-origin.ts');
 
+const args = process.argv.slice(2);
+function readOption(name, fallback) {
+  const index = args.indexOf(name);
+  return index === -1 ? fallback : (args[index + 1] ?? fallback);
+}
+
 const rootDir = path.join(__dirname, '..');
-const buildRootDir = path.join(rootDir, 'dist');
+const buildRootDir = path.resolve(rootDir, readOption('--dist', 'dist'));
 const distDir = fs.existsSync(path.join(buildRootDir, 'client'))
   ? path.join(buildRootDir, 'client')
   : buildRootDir;
@@ -107,7 +113,9 @@ check(
   'critical',
   sitemapOrigins.length > 0 ? [...new Set(sitemapOrigins)].join(', ') : 'no Sitemap entries',
 );
-const canonicalHrefs = [...allHtml.matchAll(/rel="canonical"[^>]*href="([^"]+)"/g)].map(match => match[1]);
+const canonicalHrefs = [...allHtml.matchAll(/<link\b[^>]*\brel=["']canonical["'][^>]*>/gi)]
+  .map(match => match[0].match(/\bhref=["']([^"']+)["']/i)?.[1])
+  .filter(Boolean);
 const canonicalOrigins = canonicalHrefs.map((href) => {
   try { return new URL(href).origin; } catch { return 'INVALID'; }
 });
@@ -117,6 +125,18 @@ check(
   canonicalOrigins.length > 0 && canonicalOrigins.every(origin => origin === expectedSiteOrigin),
   'critical',
   canonicalOrigins.length > 0 ? [...new Set(canonicalOrigins)].join(', ') : 'no canonical URLs',
+);
+const ogUrlHrefs = [...allHtml.matchAll(/<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/gi)]
+  .map(match => match[0].match(/\bcontent=["']([^"']+)["']/i)?.[1])
+  .filter(Boolean);
+const ogUrlOrigins = ogUrlHrefs.map((href) => {
+  try { return new URL(href).origin; } catch { return 'INVALID'; }
+});
+check(
+  'Open Graph URLs use one configured site origin',
+  ogUrlOrigins.length > 0 && ogUrlOrigins.every(origin => origin === expectedSiteOrigin),
+  'critical',
+  ogUrlOrigins.length > 0 ? [...new Set(ogUrlOrigins)].join(', ') : 'no og:url metadata',
 );
 check('og:title exists', allHtml.includes('og:title'), 'important');
 check('og:description exists', allHtml.includes('og:description'), 'important');
@@ -233,3 +253,4 @@ if (minors.length > 0) {
 }
 
 console.log('\n' + '='.repeat(60));
+if (fail > 0) process.exitCode = 1;
