@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build && node scripts/finalize-pages-wrangler-config.mjs",
+    "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
     "test:workers-migration-inventory": "node scripts/qa/test-cloudflare-workers-migration-inventory.mjs",
+    "test:workers-config": "node scripts/qa/test-workers-native-config.mjs",
     "test:astro-check-ratchet": "node scripts/test-astro-check-baseline-ratchet.mjs",
     "test:astro-check-ratchet-unit": "node scripts/test-astro-check-baseline-ratchet-unit.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
