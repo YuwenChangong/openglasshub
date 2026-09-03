@@ -81,8 +81,10 @@ persistent binding may be invented.
   legacy Pages deletion within this packet.
 - No Supabase schema/data migration, database connection, SQL, P10
   reconciliation replay, or P11 history-registration retry.
-- No credential value, token, environment value, resource identifier, or secret
-  material is recorded here.
+- No credential value, token, environment value, or secret material is recorded
+  here. Verified non-secret resource identifiers may be recorded only when
+  needed for scope or impact review; they are not credentials, deployment
+  targets, or authorization to mutate a provider resource.
 - W8 is not implied by W2 through W7 and requires a separate authorization.
 
 ## Operator completion receipt

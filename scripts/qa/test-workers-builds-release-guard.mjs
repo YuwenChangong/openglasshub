@@ -101,5 +101,10 @@ assert.match(packet, /WORKERS_DEV_ENDPOINT_AVAILABILITY=UNKNOWN_REQUIRES_REVIEW/
 assert.doesNotMatch(packet, /https:\/\/[^\s)]+\.workers\.dev/i, "the packet must not speculate about a production Worker URL");
 assert.doesNotMatch(packet, /\b(?:TODO|TBD|FIXME|REPLACE_ME|CHANGEME)\b|\{\{[^}]+\}\}|<[^>]+>/i, "the packet must contain no unresolved placeholder marker");
 assert.doesNotMatch(packet, /postgres(?:ql)?:\/\/|(?:^|[^A-Za-z0-9_-])(eyJ|sk_|sbp_)[A-Za-z0-9_-]{12,}/im, "the packet must contain no credential value");
+assert.match(
+  packet,
+  /No credential value, token, environment value, or secret material is recorded\s+here\.[\s\S]*Verified non-secret resource identifiers may be recorded only when\s+needed for scope or impact review;/,
+  "the packet must distinguish secret values from the verified non-secret identifiers it records",
+);
 
 console.log("workers-builds-release-guard: PASS");
