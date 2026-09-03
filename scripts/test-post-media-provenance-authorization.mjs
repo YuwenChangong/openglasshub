@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
+import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
 
 const root = process.cwd();
 const ACTOR_ID = "00000000-0000-0000-0000-000000000001";
@@ -20,6 +21,10 @@ function video(storagePath, extra = {}) {
 }
 
 async function main() {
+  setCloudflareWorkersTestBinding({
+    SUPABASE_URL: "https://supabase.example",
+    SUPABASE_ANON_KEY: "anon-key",
+  });
   const postMediaSource = await fs.readFile(path.join(root, "src/pages/api/forum/post-media.ts"), "utf8");
   const issuerSource = await fs.readFile(path.join(root, "src/pages/api/forum/external-video-upload.ts"), "utf8");
   const r2Source = await fs.readFile(path.join(root, "src/lib/r2-server.ts"), "utf8");
@@ -42,7 +47,13 @@ async function main() {
   assert(postMediaSource.indexOf("const validationError = validateMediaArray") < postMediaSource.indexOf("const { error: resetCoverError }"));
   assert(postMediaSource.indexOf("const validationError = validateMediaArray") < postMediaSource.indexOf(".insert(rows)"));
 
-  const vite = await createServer({ root, logLevel: "error", server: { middlewareMode: true }, appType: "custom" });
+  const vite = await createServer({
+    root,
+    logLevel: "error",
+    plugins: [cloudflareWorkersTestPlugin()],
+    server: { middlewareMode: true },
+    appType: "custom",
+  });
   try {
     const { validateMediaArray } = await vite.ssrLoadModule("/src/pages/api/forum/post-media.ts");
     const postAKey = `tmp/${ACTOR_ID}/${POST_A}/11111111-1111-1111-1111-111111111111-video.mp4`;
