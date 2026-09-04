@@ -5,6 +5,7 @@ import test from "node:test";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
 const migrationPath = path.join(root, "supabase", "migrations", "20260904054013_forward_reconcile_security_privileges.sql");
+const matrixPath = path.join(root, "docs", "release", "canonical-privilege-drift-matrix.json");
 
 const protectedFunctions = [
   "public.can_access_comment_reaction_target(uuid)",
@@ -35,4 +36,28 @@ test("privilege convergence removes only unsafe direct client and service-role f
   assert.doesNotMatch(sql, /(?:auth|storage|extensions|pg_catalog|information_schema)\./i);
   assert.doesNotMatch(sql, /\b(?:insert|update|delete)\s+into\b/i);
   assert.doesNotMatch(sql, /revoke\s+all\s+on\s+all\s+functions/i);
+});
+
+test("privilege convergence revokes every approved direct ACL expansion and no system object", async () => {
+  const [sql, matrixText] = await Promise.all([readFile(migrationPath, "utf8"), readFile(matrixPath, "utf8")]);
+  const matrix = JSON.parse(matrixText);
+  assert.equal(matrix.candidateSha256, "d453f7ba185fa1237f03a0b890154038b2f88e20183dbd92a16020bf574823db");
+  assert.equal(matrix.directAclExpansionCount, 188);
+  assert.equal(matrix.entries.length, 188);
+  assert(matrix.entries.every((entry) => entry.classification === "PROVEN_UNAUTHORIZED_EXPANSION" && entry.remediationRequired));
+  const actual = new Set();
+  const executableSql = sql.replace(/--.*$/gm, "");
+  for (const statement of executableSql.split(";")) {
+    const match = /^\s*revoke\s+(.+?)\s+on\s+(function|table)\s+(.+?)\s+from\s+(.+?)\s*$/i.exec(statement);
+    if (!match) continue;
+    const [, privileges, kind, identity, principals] = match;
+    for (const privilege of privileges.split(",").map((value) => value.trim().toUpperCase())) {
+      for (const principal of principals.split(",").map((value) => value.trim())) {
+        actual.add([kind.toUpperCase(), identity.replace(/^public\./i, "").replace(/\bpublic\./gi, "").replace(/\s+/g, ""), principal, privilege].join("|"));
+      }
+    }
+  }
+  for (const entry of matrix.entries) {
+    assert(actual.has([entry.objectKind, entry.objectIdentity.replace(/\bpublic\./gi, "").replace(/\s+/g, ""), entry.principal, entry.privilege].join("|")), `${entry.objectKind} ${entry.objectIdentity} ${entry.principal}:${entry.privilege} must be revoked`);
+  }
 });
