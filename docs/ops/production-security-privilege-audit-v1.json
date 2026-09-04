@@ -1,0 +1,1444 @@
+{
+  "format": "openglass-production-security-privilege-audit-v1",
+  "securityMigrationVersion": "20260904054013",
+  "securityMigrationPath": "supabase\\migrations\\20260904054013_forward_reconcile_security_privileges.sql",
+  "securityMigrationSha256": "98819214E5BECE6D659E0B0CC2A3B16865F84227E8AB6A1D4DBCAC0B7CDDF3C5",
+  "sqlSha256": "3ECE98DD2BC3E72EDED538A1AB568456FBC07F328BE0E4331BC8F4EAB5A63F64",
+  "postconditionCounts": {
+    "revokeTuples": 196,
+    "grantTuples": 6,
+    "grantStatements": 4,
+    "totalTuples": 202,
+    "defaultPrivilegeChanges": 0
+  },
+  "postconditions": [
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.bump_post_last_activity()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_access_comment_reaction_target(uuid)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_access_public_circle(uuid)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_access_public_circle_cover_object(text)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_access_public_comment_read_target(uuid)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_access_public_post_media_object(text)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_access_public_profile_media_object(text)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_bind_post_media_provenance(text, text, text, uuid, uuid)",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_bind_post_media_provenance(text, text, text, uuid, uuid)",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_bind_post_media_provenance(text, text, text, uuid, uuid)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_create_comment_target(uuid, uuid)",
+      "principal": "public",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_create_comment_target(uuid, uuid)",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_create_comment_target(uuid, uuid)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_create_user_report_target(text, uuid)",
+      "principal": "public",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_create_user_report_target(text, uuid)",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_create_user_report_target(text, uuid)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_manage_circle(uuid)",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_manage_circle(uuid)",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_manage_circle(uuid)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_manage_post(uuid)",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_manage_post(uuid)",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_manage_post(uuid)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_manage_report_target(public.report_target_type, uuid)",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_manage_report_target(public.report_target_type, uuid)",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_manage_report_target(public.report_target_type, uuid)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.consume_verification_email_resend_limit(text, integer, integer)",
+      "principal": "public",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.consume_verification_email_resend_limit(text, integer, integer)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.current_user_role()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.enforce_forum_notification_read_update()",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.enforce_forum_notification_read_update()",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.enforce_forum_notification_read_update()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.handle_new_user()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.increment_news_article_view(text)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.increment_post_view_count(uuid)",
+      "principal": "public",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.increment_post_view_count(uuid)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.is_canonical_post_media_object_key(text, uuid, uuid, boolean)",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.is_canonical_post_media_object_key(text, uuid, uuid, boolean)",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.is_canonical_post_media_object_key(text, uuid, uuid, boolean)",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.is_moderator_or_admin()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.notify_comment_created()",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.notify_comment_created()",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.notify_comment_created()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.notify_comment_like()",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.notify_comment_like()",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.notify_comment_like()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.notify_post_like()",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.notify_post_like()",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.notify_post_like()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.prevent_unauthorized_profile_role_change()",
+      "principal": "public",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.prevent_unauthorized_profile_role_change()",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.prevent_unauthorized_profile_role_change()",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.prevent_unauthorized_profile_role_change()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.set_updated_at()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.validate_moderation_target()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.validate_report_target()",
+      "principal": "service_role",
+      "privilege": "EXECUTE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.bookmarks",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.bookmarks",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.bookmarks",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.bookmarks",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.bookmarks",
+      "principal": "anon",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.bookmarks",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.bookmarks",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.bookmarks",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.circles",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.circles",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.circles",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.circles",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.circles",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.circles",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.circles",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "authenticated",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "authenticated",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "anon",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "authenticated",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "authenticated",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comment_reactions",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comments",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comments",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comments",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comments",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comments",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comments",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.comments",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_notifications",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_notifications",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_notifications",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_notifications",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_notifications",
+      "principal": "anon",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_notifications",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_notifications",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_notifications",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_notifications",
+      "principal": "authenticated",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "authenticated",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "authenticated",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "anon",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "authenticated",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "authenticated",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.forum_upload_attempts",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.legal_policy_acceptances",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.legal_policy_acceptances",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.legal_policy_acceptances",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.legal_policy_acceptances",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.moderation_actions",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.moderation_actions",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.moderation_actions",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.moderation_actions",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.moderation_actions",
+      "principal": "anon",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.moderation_actions",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.moderation_actions",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.moderation_actions",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.moderation_actions",
+      "principal": "authenticated",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.moderation_actions",
+      "principal": "authenticated",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.news_articles",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.news_articles",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.news_articles",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.news_articles",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.news_articles",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.news_articles",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.news_articles",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_media",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_media",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_media",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_media",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_media",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_media",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_media",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_votes",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_votes",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_votes",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_votes",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_votes",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_votes",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.post_votes",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.posts",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.posts",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.posts",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.posts",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.posts",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.posts",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.posts",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.profiles",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.profiles",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.profiles",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.profiles",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.profiles",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.profiles",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.profiles",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.report_events",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.report_events",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.report_events",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.report_events",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.report_events",
+      "principal": "anon",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.report_events",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.report_events",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.report_events",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.report_events",
+      "principal": "authenticated",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.report_events",
+      "principal": "authenticated",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.reports",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.reports",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.reports",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.reports",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.reports",
+      "principal": "anon",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.reports",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.reports",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.reports",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_events",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_events",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_events",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_events",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_events",
+      "principal": "anon",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_events",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_events",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_events",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_events",
+      "principal": "authenticated",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_events",
+      "principal": "authenticated",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_states",
+      "principal": "anon",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_states",
+      "principal": "service_role",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_states",
+      "principal": "anon",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_states",
+      "principal": "service_role",
+      "privilege": "INSERT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_states",
+      "principal": "anon",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_states",
+      "principal": "service_role",
+      "privilege": "SELECT",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_states",
+      "principal": "anon",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_states",
+      "principal": "service_role",
+      "privilege": "UPDATE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "TABLE",
+      "objectIdentity": "public.user_safety_states",
+      "principal": "authenticated",
+      "privilege": "DELETE",
+      "expectedDirectState": false
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_create_comment_target(uuid, uuid)",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": true
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.can_create_user_report_target(text, uuid)",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": true
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.consume_verification_email_resend_limit(text, integer, integer)",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": true
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.consume_verification_email_resend_limit(text, integer, integer)",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": true
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.increment_post_view_count(uuid)",
+      "principal": "anon",
+      "privilege": "EXECUTE",
+      "expectedDirectState": true
+    },
+    {
+      "objectKind": "FUNCTION",
+      "objectIdentity": "public.increment_post_view_count(uuid)",
+      "principal": "authenticated",
+      "privilege": "EXECUTE",
+      "expectedDirectState": true
+    }
+  ],
+  "canCreateCommentTarget": {
+    "signature": "public.can_create_comment_target(uuid,uuid)",
+    "publicExecute": false,
+    "anonEffectiveExecute": false,
+    "authenticatedEffectiveExecute": true
+  },
+  "staticValidation": {
+    "catalogOnly": true,
+    "applicationDataReads": 0,
+    "ddl": 0,
+    "dml": 0,
+    "privilegeMutations": 0,
+    "setRole": 0
+  }
+}

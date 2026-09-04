@@ -48,6 +48,8 @@
     "test:legal-public-rendering": "node --experimental-strip-types scripts/test-legal-public-rendering.mjs",
     "test:local-supabase-replay-mirror": "node scripts/test-local-supabase-replay-mirror.mjs",
     "test:security-privilege-convergence": "node --test scripts/qa/test-security-privilege-convergence.mjs",
+    "generate:production-security-privilege-audit": "node scripts/qa/generate-production-security-privilege-audit-packet.mjs",
+    "test:production-security-privilege-audit": "node --test scripts/qa/test-production-security-privilege-audit-packet.mjs",
     "generate:production-schema-fingerprint": "node scripts/generate-local-production-schema-fingerprint.mjs",
     "test:production-schema-fingerprint-review": "node scripts/test-production-schema-fingerprint-review.mjs",
     "update:production-schema-fingerprint-fixture": "node scripts/production-schema-fingerprint-review.mjs --update-fixture",
