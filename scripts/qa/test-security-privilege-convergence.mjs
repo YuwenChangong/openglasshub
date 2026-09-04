@@ -38,6 +38,12 @@ test("privilege convergence removes only unsafe direct client and service-role f
   assert.doesNotMatch(sql, /revoke\s+all\s+on\s+all\s+functions/i);
 });
 
+test("frozen 48-migration evidence proves the pre-migration comment helper was unsafe", async () => {
+  const matrix = JSON.parse(await readFile(matrixPath, "utf8"));
+  assert(matrix.entries.some((entry) => entry.objectIdentity === "can_create_comment_target(uuid,uuid)" && entry.principal === "anon" && entry.privilege === "EXECUTE"), "B1 direct ACL evidence must retain the forbidden anonymous execute grant");
+  assert(matrix.effectiveFunctionPrivilegeEntries.some((entry) => entry.signature === "public.can_create_comment_target(uuid,uuid)" && entry.principal === "anon" && entry.expectedBefore === false && entry.observedAfter48Replay === true), "B1 effective privilege evidence must retain the false-to-true anonymous execute violation");
+});
+
 test("privilege convergence revokes every approved direct ACL expansion and no system object", async () => {
   const [sql, matrixText] = await Promise.all([readFile(migrationPath, "utf8"), readFile(matrixPath, "utf8")]);
   const matrix = JSON.parse(matrixText);
