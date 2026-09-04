@@ -70,17 +70,22 @@ test("startup-only dry-run plans local health validation without a mirror, repla
   assert(plan.steps.flatMap((step) => step.args).every((argument) => !["--linked", "--db-url", "--project-ref", "db", "push"].includes(argument)));
 });
 
-test("startup-only verifies an owned local database with an empty migration ledger before cleanup", async () => {
+function createStartupOnlyExecute({ runId = "a2b3c4d5", relationExists = "f", ledgerCsv = "version,name\n", psqlError } = {}) {
   const calls = [];
   let runtimeRoot;
   const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
   const execute = async (command, args, options = {}) => {
     calls.push({ command, args, options });
     if (command === "docker" && args[0] === "ps") {
-      const owned = "owned-db\tsupabase_db_ogl-replay-a2b3c4d5\n";
+      const owned = `owned-db\tsupabase_db_ogl-replay-${runId}\n`;
       return { stdout: calls.filter((call) => call.command === "docker" && call.args[0] === "ps").length === 1 ? "" : owned, stderr: "" };
     }
-    if (command === "docker" && args[0] === "exec") return { stdout: "version,name\n", stderr: "" };
+    if (command === "docker" && args[0] === "exec") {
+      if (psqlError) throw psqlError;
+      if (/to_regclass\('supabase_migrations\.schema_migrations'\)/.test(options.input)) return { stdout: `relation_exists\n${relationExists}\n`, stderr: "" };
+      if (/SELECT version, name FROM supabase_migrations\.schema_migrations/.test(options.input)) return { stdout: ledgerCsv, stderr: "" };
+      throw new Error(`unexpected ledger SQL: ${options.input}`);
+    }
     if (args.includes("init")) {
       runtimeRoot = args.at(-1);
       await mkdir(path.join(runtimeRoot, "supabase"), { recursive: true });
@@ -91,23 +96,73 @@ test("startup-only verifies an owned local database with an empty migration ledg
     if (args.includes("status")) return { stdout: JSON.stringify({ API_URL: "http://127.0.0.1:54321" }), stderr: "" };
     throw new Error(`unexpected command ${command}`);
   };
+  return { calls, execute, runtimeRoot: () => runtimeRoot };
+}
 
-  const result = await runLocalDisposableReplay({ root, runId: "a2b3c4d5", startupOnly: true, environment: { PATH: process.env.PATH }, execute });
+async function expectRetainedLifecycleFailure(operation) {
+  let receiptPath;
+  await assert.rejects(operation, (error) => {
+    receiptPath = error.message.match(/receipt: (.+)$/m)?.[1];
+    return /Non-secret replay failure receipt retained/.test(error.message) && Boolean(receiptPath);
+  });
+  await rm(path.dirname(receiptPath), { recursive: true, force: true });
+}
+
+test("accepts an absent migration ledger as an uninitialized empty local database", async () => {
+  const fixture = createStartupOnlyExecute({ relationExists: "f" });
+  const result = await runLocalDisposableReplay({ root, runId: "a2b3c4d5", startupOnly: true, environment: { PATH: process.env.PATH }, execute: fixture.execute });
   assert.deepEqual(result, {
     localStartup: "PASS",
     localReplayTarget: "DISPOSABLE",
     startupOnly: true,
     canonicalMigrationCount: 0,
     migrationLedger: "EMPTY",
+    emptyMigrationLedger: { rowCount: 0, state: "UNINITIALIZED_EMPTY" },
     schemaFingerprintTarget: "NOT_RUN",
     schemaFingerprintProductionConnection: false,
     remoteConnections: 0,
   });
-  assert.equal(calls.some(({ command }) => command === "node"), false, "startup-only does not invoke fingerprint capture");
-  assert.equal(await exists(path.join(runtimeRoot, "mapping.json")), false, "startup-only does not build a migration replay mirror");
-  assert.equal(calls.find(({ args }) => args.includes("start")).options.diagnosticCapture, undefined, "startup-only never captures diagnostic streams");
-  assert.equal(calls.filter(({ args }) => args.includes("stop")).length, 1, "startup-only stops its owned project");
-  assert.equal(await exists(runtimeRoot), false, "startup-only removes its owned runtime root");
+  assert.equal(fixture.calls.some(({ command }) => command === "node"), false, "startup-only does not invoke fingerprint capture");
+  assert.equal(await exists(path.join(fixture.runtimeRoot(), "mapping.json")), false, "startup-only does not build a migration replay mirror");
+  assert.equal(fixture.calls.find(({ args }) => args.includes("start")).options.diagnosticCapture, undefined, "startup-only never captures diagnostic streams");
+  assert.equal(fixture.calls.filter(({ args }) => args.includes("stop")).length, 1, "startup-only stops its owned project");
+  assert.equal(await exists(fixture.runtimeRoot()), false, "startup-only removes its owned runtime root");
+});
+
+test("accepts an initialized migration ledger with zero rows", async () => {
+  const fixture = createStartupOnlyExecute({ runId: "b2b3c4d5", relationExists: "t" });
+  const result = await runLocalDisposableReplay({ root, runId: "b2b3c4d5", startupOnly: true, environment: { PATH: process.env.PATH }, execute: fixture.execute });
+  assert.deepEqual(result.emptyMigrationLedger, { rowCount: 0, state: "INITIALIZED_EMPTY" });
+  assert.equal(fixture.calls.filter(({ command, args }) => command === "docker" && args[0] === "exec").length, 2, "an initialized ledger is queried only after explicit existence confirmation");
+});
+
+test("rejects an initialized migration ledger containing replay rows", async () => {
+  const fixture = createStartupOnlyExecute({ runId: "c2b3c4d5", relationExists: "t", ledgerCsv: "version,name\n20260101000000,already_applied\n" });
+  await expectRetainedLifecycleFailure(
+    () => runLocalDisposableReplay({ root, runId: "c2b3c4d5", startupOnly: true, environment: { PATH: process.env.PATH }, execute: fixture.execute }),
+  );
+  assert.equal(fixture.calls.filter(({ command, args }) => command === "docker" && args[0] === "exec").length, 2);
+});
+
+for (const [name, psqlError] of [
+  ["permission denied", Object.assign(new Error("permission denied for schema supabase_migrations"), { exitCode: 3 })],
+  ["connection failure", Object.assign(new Error("connection terminated unexpectedly"), { exitCode: 2 })],
+]) {
+  test(`fails closed when empty-ledger existence inspection reports ${name}`, async () => {
+    const fixture = createStartupOnlyExecute({ runId: name === "permission denied" ? "d2b3c4d5" : "e2b3c4d5", psqlError });
+    await expectRetainedLifecycleFailure(
+      () => runLocalDisposableReplay({ root, runId: name === "permission denied" ? "d2b3c4d5" : "e2b3c4d5", startupOnly: true, environment: { PATH: process.env.PATH }, execute: fixture.execute }),
+    );
+    assert.equal(fixture.calls.filter(({ command, args }) => command === "docker" && args[0] === "exec").length, 1, `${name} is not converted to an empty ledger`);
+  });
+}
+
+test("fails closed when empty-ledger existence inspection has malformed SQL output", async () => {
+  const fixture = createStartupOnlyExecute({ runId: "f2b3c4d5", relationExists: "unexpected" });
+  await expectRetainedLifecycleFailure(
+    () => runLocalDisposableReplay({ root, runId: "f2b3c4d5", startupOnly: true, environment: { PATH: process.env.PATH }, execute: fixture.execute }),
+  );
+  assert.equal(fixture.calls.filter(({ command, args }) => command === "docker" && args[0] === "exec").length, 1, "malformed inspection output is not converted to an empty ledger");
 });
 
 test("local replay target guard rejects remote and unknown hosts", () => {
@@ -118,6 +173,21 @@ test("local replay target guard rejects remote and unknown hosts", () => {
   for (const target of ["https://example.supabase.co", "postgresql://aws-0-ap-southeast-2.pooler.supabase.com/postgres", "https://database.example.test"]) {
     assert.throws(() => assertLocalReplayTarget(target), /non-local/);
   }
+});
+
+test("rejects a non-local configured target before any database query or process spawn", async () => {
+  const calls = [];
+  await assert.rejects(
+    () => runLocalDisposableReplay({
+      root,
+      runId: "a3b4c5d6",
+      startupOnly: true,
+      environment: { PATH: process.env.PATH, SUPABASE_DB_URL: "postgresql://secret@database.example.test/postgres" },
+      execute: async (...args) => { calls.push(args); throw new Error("must not execute"); },
+    }),
+    /remote connection variable SUPABASE_DB_URL/,
+  );
+  assert.deepEqual(calls, []);
 });
 
 test("local replay rejects inherited database transport variables without exposing values", () => {

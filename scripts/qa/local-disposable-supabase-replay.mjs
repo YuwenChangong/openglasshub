@@ -564,9 +564,35 @@ export function verifyLocalMigrationLedger({ mappings, rows }) {
   return true;
 }
 
+function parseMigrationLedgerRelationExists(csv) {
+  const lines = String(csv).trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length !== 2 || lines[0] !== "relation_exists") throw new Error("Malformed local migration ledger relation CSV");
+  if (lines[1] === "t") return true;
+  if (lines[1] === "f") return false;
+  throw new Error("Malformed local migration ledger relation value");
+}
+
 export function verifyEmptyLocalMigrationLedger(rows) {
   if (!Array.isArray(rows) || rows.length !== 0) throw new Error("Fresh local migration ledger must be empty before replay");
   return true;
+}
+
+async function inspectEmptyLocalMigrationLedger({ execute, environment, containerId }) {
+  const relationExists = parseMigrationLedgerRelationExists(await executeUnixSocketPsql({
+    execute,
+    environment,
+    containerId,
+    sql: "SELECT to_regclass('supabase_migrations.schema_migrations') IS NOT NULL AS relation_exists;\n",
+  }));
+  if (!relationExists) return { rowCount: 0, state: "UNINITIALIZED_EMPTY" };
+  const rows = parseCsvRows(await executeUnixSocketPsql({
+    execute,
+    environment,
+    containerId,
+    sql: "SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version;\n",
+  }));
+  verifyEmptyLocalMigrationLedger(rows);
+  return { rowCount: 0, state: "INITIALIZED_EMPTY" };
 }
 
 async function listContainers(execute, environment) {
@@ -657,19 +683,18 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
     const container = resolveOwnedContainer({ before, after: await listContainers(execute, safeEnvironment), projectId });
     if (startupOnly) {
       currentStage = "validate-empty-migration-ledger";
-      const ledger = parseCsvRows(await executeUnixSocketPsql({
+      const emptyMigrationLedger = await inspectEmptyLocalMigrationLedger({
         execute,
         environment: safeEnvironment,
         containerId: container.id,
-        sql: "SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version;\n",
-      }));
-      verifyEmptyLocalMigrationLedger(ledger);
+      });
       result = {
         localStartup: "PASS",
         localReplayTarget: "DISPOSABLE",
         startupOnly: true,
         canonicalMigrationCount: 0,
         migrationLedger: "EMPTY",
+        emptyMigrationLedger,
         schemaFingerprintTarget: "NOT_RUN",
         schemaFingerprintProductionConnection: false,
         remoteConnections: 0,
