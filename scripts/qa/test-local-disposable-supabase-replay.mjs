@@ -52,6 +52,64 @@ test("dry-run plans an isolated local replay without a remote target or Docker e
   assert(plan.steps.filter((step) => step.command === "npx").every((step) => step.args.includes("--workdir")));
 });
 
+test("startup-only dry-run plans local health validation without a mirror, replay, fingerprint, or diagnostic capture", () => {
+  const plan = buildLocalDisposableReplayPlan({ root, runId: "a2b3c4d5", startupOnly: true });
+  assert.equal(plan.dryRun, true);
+  assert.equal(plan.startupOnly, true);
+  assert.equal(plan.remoteConnections, 0);
+  assert.deepEqual(plan.steps.map((step) => step.name), [
+    "supabase-init-owned-root",
+    "supabase-start-owned-root",
+    "validate-local-status-target",
+    "validate-owned-postgres-container",
+    "validate-empty-migration-ledger",
+    "supabase-stop-owned-root-no-backup",
+    "remove-verified-owned-root",
+  ]);
+  assert.equal(plan.steps.some((step) => /mirror|replay|fingerprint|diagnostic/i.test(step.name)), false);
+  assert(plan.steps.flatMap((step) => step.args).every((argument) => !["--linked", "--db-url", "--project-ref", "db", "push"].includes(argument)));
+});
+
+test("startup-only verifies an owned local database with an empty migration ledger before cleanup", async () => {
+  const calls = [];
+  let runtimeRoot;
+  const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
+  const execute = async (command, args, options = {}) => {
+    calls.push({ command, args, options });
+    if (command === "docker" && args[0] === "ps") {
+      const owned = "owned-db\tsupabase_db_ogl-replay-a2b3c4d5\n";
+      return { stdout: calls.filter((call) => call.command === "docker" && call.args[0] === "ps").length === 1 ? "" : owned, stderr: "" };
+    }
+    if (command === "docker" && args[0] === "exec") return { stdout: "version,name\n", stderr: "" };
+    if (args.includes("init")) {
+      runtimeRoot = args.at(-1);
+      await mkdir(path.join(runtimeRoot, "supabase"), { recursive: true });
+      await writeFile(path.join(runtimeRoot, "supabase", "config.toml"), config);
+      return { stdout: "", stderr: "" };
+    }
+    if (args.includes("start") || args.includes("stop")) return { stdout: "", stderr: "" };
+    if (args.includes("status")) return { stdout: JSON.stringify({ API_URL: "http://127.0.0.1:54321" }), stderr: "" };
+    throw new Error(`unexpected command ${command}`);
+  };
+
+  const result = await runLocalDisposableReplay({ root, runId: "a2b3c4d5", startupOnly: true, environment: { PATH: process.env.PATH }, execute });
+  assert.deepEqual(result, {
+    localStartup: "PASS",
+    localReplayTarget: "DISPOSABLE",
+    startupOnly: true,
+    canonicalMigrationCount: 0,
+    migrationLedger: "EMPTY",
+    schemaFingerprintTarget: "NOT_RUN",
+    schemaFingerprintProductionConnection: false,
+    remoteConnections: 0,
+  });
+  assert.equal(calls.some(({ command }) => command === "node"), false, "startup-only does not invoke fingerprint capture");
+  assert.equal(await exists(path.join(runtimeRoot, "mapping.json")), false, "startup-only does not build a migration replay mirror");
+  assert.equal(calls.find(({ args }) => args.includes("start")).options.diagnosticCapture, undefined, "startup-only never captures diagnostic streams");
+  assert.equal(calls.filter(({ args }) => args.includes("stop")).length, 1, "startup-only stops its owned project");
+  assert.equal(await exists(runtimeRoot), false, "startup-only removes its owned runtime root");
+});
+
 test("local replay target guard rejects remote and unknown hosts", () => {
   for (const target of ["http://localhost:54321", "postgresql://127.0.0.1:54322/postgres", "http://[::1]:54321"]) {
     assert.equal(assertLocalReplayTarget(target), true);

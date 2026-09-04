@@ -37,6 +37,7 @@ const RUNTIME_FAILURE_CLASSES = new Map([
   ["validate-local-status-target", "status-invalid"],
   ["validate-owned-postgres-container", "owned-container-invalid"],
   ["validate-migration-ledger", "migration-ledger-invalid"],
+  ["validate-empty-migration-ledger", "migration-ledger-invalid"],
   ["cleanup-owned-root", "cleanup-failed"],
 ]);
 const CANDIDATE_KEYS = ["format", "generatedFrom", "canonicalMigrationCount", "legalConsentPrerequisiteCount", "localMigrationLedger", "objectCount", "objects"];
@@ -410,18 +411,28 @@ function supabaseArgs(action, root, extra = []) {
   return ["--no-install", "supabase", action, ...extra, "--workdir", root];
 }
 
-export function buildLocalDisposableReplayPlan({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8) } = {}) {
+export function buildLocalDisposableReplayPlan({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8), startupOnly = false } = {}) {
   const id = assertRunId(runId);
   const projectId = projectIdFor(id);
   const runtimeRoot = rootTemplateFor(id);
   const command = (name, executable, args) => ({ name, command: executable, args });
+  const startupSteps = [
+    command("supabase-init-owned-root", "npx", supabaseArgs("init", runtimeRoot, ["--yes"])),
+    command("supabase-start-owned-root", "npx", supabaseArgs("start", runtimeRoot)),
+    command("validate-local-status-target", "npx", supabaseArgs("status", runtimeRoot, ["--output", "json"])),
+    command("validate-owned-postgres-container", "docker", ["exec", "<owned-container-id>", "psql", "-X", "-U", "postgres", "-d", "postgres", "--csv"]),
+    command("validate-empty-migration-ledger", "docker", ["exec", "<owned-container-id>", "psql", "-X", "-U", "postgres", "-d", "postgres", "--csv"]),
+    command("supabase-stop-owned-root-no-backup", "npx", supabaseArgs("stop", runtimeRoot, ["--no-backup"])),
+    command("remove-verified-owned-root", "node", ["owned-root-cleanup", runtimeRoot]),
+  ];
   return {
     dryRun: true,
+    startupOnly,
     repositoryRoot: path.resolve(root),
     runtimeRoot,
     projectId,
     remoteConnections: 0,
-    steps: [
+    steps: startupOnly ? startupSteps : [
       command("supabase-init-owned-root", "npx", supabaseArgs("init", runtimeRoot, ["--yes"])),
       command("build-current-canonical-mirror", "node", ["scripts/build-local-supabase-replay-mirror.mjs", "--output", path.join(runtimeRoot, "supabase", "migrations"), "--mapping", path.join(runtimeRoot, "mapping.json")]),
       command("supabase-start-owned-root", "npx", supabaseArgs("start", runtimeRoot)),
@@ -553,6 +564,11 @@ export function verifyLocalMigrationLedger({ mappings, rows }) {
   return true;
 }
 
+export function verifyEmptyLocalMigrationLedger(rows) {
+  if (!Array.isArray(rows) || rows.length !== 0) throw new Error("Fresh local migration ledger must be empty before replay");
+  return true;
+}
+
 async function listContainers(execute, environment) {
   const { stdout } = await execute("docker", ["ps", "--format", "{{.ID}}\t{{.Names}}"], { env: environment });
   return new Map(stdout.split(/\r?\n/).filter(Boolean).map((line) => {
@@ -586,8 +602,9 @@ export async function cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot
   return true;
 }
 
-export async function runLocalDisposableReplay({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false, diagnosticStartFailure = false } = {}) {
-  const plan = buildLocalDisposableReplayPlan({ root, runId });
+export async function runLocalDisposableReplay({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false, diagnosticStartFailure = false, startupOnly = false } = {}) {
+  if (startupOnly && diagnosticStartFailure) throw new Error("Startup-only mode forbids diagnostic start capture");
+  const plan = buildLocalDisposableReplayPlan({ root, runId, startupOnly });
   if (dryRun) return plan;
   const repositoryRoot = path.resolve(root);
   const safeEnvironment = sanitizedChildEnvironment(environment);
@@ -607,7 +624,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
     if (fingerprintEvidence.candidatePath !== path.join(fingerprintEvidence.root, "fingerprint-candidate.json") || fingerprintEvidence.reviewPath !== path.join(fingerprintEvidence.root, "fingerprint-review.json") || fingerprintEvidence.failureReceiptPath !== path.join(fingerprintEvidence.root, FAILURE_RECEIPT_FILENAME) || fingerprintEvidence.startDiagnosticPath !== path.join(fingerprintEvidence.root, START_DIAGNOSTIC_FILENAME)) throw new Error("Fingerprint evidence paths must remain inside their owned root");
     const before = await listContainers(execute, safeEnvironment);
     await initializeOwnedConfig({ runtimeRoot, projectId, runId, execute, environment: safeEnvironment });
-    const mirror = await buildLocalSupabaseReplayMirror({
+    const mirror = startupOnly ? undefined : await buildLocalSupabaseReplayMirror({
       canonicalDirectory: path.join(repositoryRoot, "supabase", "migrations"),
       outputDirectory: path.join(runtimeRoot, "supabase", "migrations"),
       mappingPath: path.join(runtimeRoot, "mapping.json"),
@@ -615,7 +632,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
     });
     startAttempted = true;
     currentStage = "supabase-start-owned-root";
-    const diagnosticCapture = diagnosticStartFailure ? rawStartDiagnosticPaths(runtimeRoot) : undefined;
+    const diagnosticCapture = !startupOnly && diagnosticStartFailure ? rawStartDiagnosticPaths(runtimeRoot) : undefined;
     try {
       await execute(NPX, supabaseArgs("start", runtimeRoot), { cwd: runtimeRoot, env: safeEnvironment, inspectSupabaseStartFailure: true, diagnosticCapture });
       if (diagnosticCapture) await Promise.all([
@@ -638,45 +655,66 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
     assertLocalReplayTarget(status.API_URL);
     currentStage = "validate-owned-postgres-container";
     const container = resolveOwnedContainer({ before, after: await listContainers(execute, safeEnvironment), projectId });
-    currentStage = "validate-migration-ledger";
-    const ledger = parseCsvRows(await executeUnixSocketPsql({
-      execute,
-      environment: safeEnvironment,
-      containerId: container.id,
-      sql: "SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version;\n",
-    }));
-    verifyLocalMigrationLedger({ mappings: mirror.mappings, rows: ledger });
-    currentStage = "capture-schema-fingerprint";
-    try {
-      await execute("node", ["scripts/test-production-schema-fingerprint.mjs"], {
-        cwd: repositoryRoot,
-        env: {
-          ...safeEnvironment,
-          OPENGLASS_LOCAL_DISPOSABLE_DB_CONTAINER: container.id,
-          OPENGLASS_LOCAL_DISPOSABLE_PROJECT_ID: projectId,
-          OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_CANDIDATE: fingerprintEvidence.candidatePath,
-          OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_REVIEW: fingerprintEvidence.reviewPath,
-        },
-      });
-    } catch {
-      let review;
+    if (startupOnly) {
+      currentStage = "validate-empty-migration-ledger";
+      const ledger = parseCsvRows(await executeUnixSocketPsql({
+        execute,
+        environment: safeEnvironment,
+        containerId: container.id,
+        sql: "SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version;\n",
+      }));
+      verifyEmptyLocalMigrationLedger(ledger);
+      result = {
+        localStartup: "PASS",
+        localReplayTarget: "DISPOSABLE",
+        startupOnly: true,
+        canonicalMigrationCount: 0,
+        migrationLedger: "EMPTY",
+        schemaFingerprintTarget: "NOT_RUN",
+        schemaFingerprintProductionConnection: false,
+        remoteConnections: 0,
+      };
+    } else {
+      currentStage = "validate-migration-ledger";
+      const ledger = parseCsvRows(await executeUnixSocketPsql({
+        execute,
+        environment: safeEnvironment,
+        containerId: container.id,
+        sql: "SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version;\n",
+      }));
+      verifyLocalMigrationLedger({ mappings: mirror.mappings, rows: ledger });
+      currentStage = "capture-schema-fingerprint";
       try {
-        review = await readReviewableFingerprintEvidence({ evidence: fingerprintEvidence, expected: JSON.parse(await readFile(path.join(repositoryRoot, "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8")) });
-      } catch (evidenceError) {
-        throw new Error(`Fingerprint candidate failed and its evidence was rejected: ${evidenceError.message}`);
+        await execute("node", ["scripts/test-production-schema-fingerprint.mjs"], {
+          cwd: repositoryRoot,
+          env: {
+            ...safeEnvironment,
+            OPENGLASS_LOCAL_DISPOSABLE_DB_CONTAINER: container.id,
+            OPENGLASS_LOCAL_DISPOSABLE_PROJECT_ID: projectId,
+            OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_CANDIDATE: fingerprintEvidence.candidatePath,
+            OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_REVIEW: fingerprintEvidence.reviewPath,
+          },
+        });
+      } catch {
+        let review;
+        try {
+          review = await readReviewableFingerprintEvidence({ evidence: fingerprintEvidence, expected: JSON.parse(await readFile(path.join(repositoryRoot, "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8")) });
+        } catch (evidenceError) {
+          throw new Error(`Fingerprint candidate failed and its evidence was rejected: ${evidenceError.message}`);
+        }
+        retainFingerprintEvidence = true;
+        throw new Error(`Fingerprint candidate failed; Non-secret fingerprint evidence retained for explicit review:\n  candidate: ${fingerprintEvidence.candidatePath}\n  review: ${fingerprintEvidence.reviewPath}\n  review id: ${review.reviewId}`);
       }
-      retainFingerprintEvidence = true;
-      throw new Error(`Fingerprint candidate failed; Non-secret fingerprint evidence retained for explicit review:\n  candidate: ${fingerprintEvidence.candidatePath}\n  review: ${fingerprintEvidence.reviewPath}\n  review id: ${review.reviewId}`);
+      result = {
+        localReplay: "PASS",
+        localReplayTarget: "DISPOSABLE",
+        schemaFingerprintTarget: "LOCAL_DISPOSABLE",
+        schemaFingerprintProductionConnection: false,
+        canonicalMigrationCount: mirror.migrationCount,
+        migrationLedger: "PASS",
+        remoteConnections: 0,
+      };
     }
-    result = {
-      localReplay: "PASS",
-      localReplayTarget: "DISPOSABLE",
-      schemaFingerprintTarget: "LOCAL_DISPOSABLE",
-      schemaFingerprintProductionConnection: false,
-      canonicalMigrationCount: mirror.migrationCount,
-      migrationLedger: "PASS",
-      remoteConnections: 0,
-    };
   } catch (error) {
     primaryError = error;
     if (RUNTIME_FAILURE_CLASSES.has(currentStage)) runtimeFailure = { stage: currentStage, error };
@@ -719,10 +757,12 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.some((argument) => !["--dry-run", "--diagnostic-start-failure"].includes(argument))) throw new Error("Only --dry-run and --diagnostic-start-failure are accepted; linked and remote Supabase options are forbidden");
+  if (args.some((argument) => !["--dry-run", "--diagnostic-start-failure", "--startup-only"].includes(argument))) throw new Error("Only --dry-run, --startup-only, and --diagnostic-start-failure are accepted; linked and remote Supabase options are forbidden");
+  if (args.includes("--startup-only") && args.includes("--diagnostic-start-failure")) throw new Error("Startup-only mode forbids diagnostic start capture");
   const result = await runLocalDisposableReplay({
     dryRun: args.includes("--dry-run"),
     diagnosticStartFailure: args.includes("--diagnostic-start-failure"),
+    startupOnly: args.includes("--startup-only"),
   });
   console.log(JSON.stringify(result));
 }

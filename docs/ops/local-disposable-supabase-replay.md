@@ -58,6 +58,22 @@ Use `node scripts/qa/local-disposable-supabase-replay.mjs --dry-run` to inspect
 the lifecycle contract without starting Docker, creating a temp project, or
 opening any database connection.
 
+## A2 startup-only validation
+
+`node scripts/qa/local-disposable-supabase-replay.mjs --startup-only` is the
+bounded A2 check. It retains the same temporary-root ownership, inherited
+connection-variable rejection, run-specific configuration, local `status` API
+target check, exact newly-created database-container check, and stop/remove
+cleanup. It also queries that owned database over its Unix socket to require an
+empty `supabase_migrations.schema_migrations` ledger, proving this is a fresh
+instance before A3 performs the full replay.
+
+Startup-only deliberately does not build the migration mirror, apply/replay a
+migration, calculate a fingerprint, or retain/read raw startup diagnostic
+streams. `--startup-only --diagnostic-start-failure` is rejected. Use
+`node scripts/qa/local-disposable-supabase-replay.mjs --dry-run --startup-only`
+to inspect that narrower command plan without starting Docker.
+
 The harness rejects `--linked`, `--db-url`, `--project-ref`, and all other
 arguments. It does not call `supabase link`, `supabase db push`, remote SQL, or
 any provider API.
