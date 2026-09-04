@@ -32,9 +32,13 @@ The harness performs the following local-only sequence:
    If a runtime failure occurs before candidate capture (start, status,
    owned-container, or migration-ledger validation), cleanup leaves instead one
    owned temporary `failure-receipt.json`. Its strict schema contains only the
-   run ID, first failure stage and class, an exit code or sanitized code, and
-   cleanup status; it never includes command output, DSNs, container names,
-   usernames, or secret values. A cleanup failure after a matching capture also
+   run ID, first failure stage and class, an exit code or sanitized code, a
+   closed start diagnostic enum, and cleanup status. Start failures are
+   transiently classified as `UNKNOWN`, `CONFIG_INVALID`, `PORT_CONFLICT`,
+   `DOCKER_UNAVAILABLE`, `SERVICE_HEALTH_FAILED`, or
+   `VECTOR_HOST_NETWORK_UNREACHABLE`; all other stages are `NOT_APPLICABLE`.
+   It never includes command output, DSNs, container names, usernames, or
+   secret values. A cleanup failure after a matching capture also
    removes the candidate and review, retaining only that receipt; candidate and
    review retention is reserved for a verified fingerprint mismatch.
 7. Stop only that project with `supabase stop --no-backup` even when `start`

@@ -20,7 +20,16 @@ const PORT_FIELDS = [
 const NPX = process.platform === "win32" ? "npx.cmd" : "npx";
 const FINGERPRINT_EVIDENCE_PREFIX = "openglass-local-disposable-supabase-evidence-";
 const FAILURE_RECEIPT_FILENAME = "failure-receipt.json";
-const FAILURE_RECEIPT_KEYS = ["format", "runId", "stage", "class", "exitCode", "code", "cleanupStatus"];
+const FAILURE_RECEIPT_KEYS = ["format", "runId", "stage", "class", "exitCode", "code", "startDiagnostic", "cleanupStatus"];
+const START_FAILURE_DIAGNOSTICS = new Set([
+  "NOT_APPLICABLE",
+  "UNKNOWN",
+  "CONFIG_INVALID",
+  "PORT_CONFLICT",
+  "DOCKER_UNAVAILABLE",
+  "SERVICE_HEALTH_FAILED",
+  "VECTOR_HOST_NETWORK_UNREACHABLE",
+]);
 const RUNTIME_FAILURE_CLASSES = new Map([
   ["supabase-start-owned-root", "start-failed"],
   ["validate-local-status-target", "status-invalid"],
@@ -176,6 +185,33 @@ function sanitizeFailureCode(value) {
   return typeof value === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(value) ? value : "UNSPECIFIED";
 }
 
+function startFailureDiagnosticFromOutput(output) {
+  const text = typeof output === "string" ? output : String(output ?? "");
+  if (/\bvector\b/i.test(text) && /(?:host[ -]?network|network).*(?:unreachable|unavailable|not reachable)|(?:unreachable|unavailable|not reachable).*(?:host[ -]?network|network)/i.test(text)) return "VECTOR_HOST_NETWORK_UNREACHABLE";
+  if (/\b(?:eaddrinuse|address already in use|port .*?(?:already in use|already allocated)|bind: .*?(?:in use|allocated))\b/i.test(text)) return "PORT_CONFLICT";
+  if (/\b(?:config(?:uration)?(?:\.toml)? .*?(?:invalid|malformed|parse)|(?:invalid|malformed|parse) .*?config(?:uration)?(?:\.toml)?)\b/i.test(text)) return "CONFIG_INVALID";
+  if (/\b(?:docker (?:daemon|engine).*?(?:unavailable|not running|not found)|cannot connect to (?:the )?docker|docker .*?(?:is not running|not found|unavailable))\b/i.test(text)) return "DOCKER_UNAVAILABLE";
+  if (/\b(?:health(?: ?check)? .*?(?:failed|unhealthy|timeout)|(?:failed|unhealthy|timeout).*?health(?: ?check)?|service .*?unhealthy)\b/i.test(text)) return "SERVICE_HEALTH_FAILED";
+  return "UNKNOWN";
+}
+
+function preferredStartFailureDiagnostic(current, candidate) {
+  const priority = ["UNKNOWN", "SERVICE_HEALTH_FAILED", "DOCKER_UNAVAILABLE", "CONFIG_INVALID", "PORT_CONFLICT", "VECTOR_HOST_NETWORK_UNREACHABLE"];
+  return priority.indexOf(candidate) > priority.indexOf(current) ? candidate : current;
+}
+
+export function classifySupabaseStartFailure({ stdout = "", stderr = "" } = {}) {
+  return preferredStartFailureDiagnostic(
+    startFailureDiagnosticFromOutput(stdout),
+    startFailureDiagnosticFromOutput(stderr),
+  );
+}
+
+function startFailureDiagnosticFor(stage, value) {
+  if (stage !== "supabase-start-owned-root") return "NOT_APPLICABLE";
+  return START_FAILURE_DIAGNOSTICS.has(value) && value !== "NOT_APPLICABLE" ? value : "UNKNOWN";
+}
+
 function failureReceiptFor({ runId, stage, error, cleanupStatus }) {
   const exitCode = Number.isSafeInteger(error?.exitCode) && error.exitCode >= 1 && error.exitCode <= 255 ? error.exitCode : null;
   return {
@@ -185,6 +221,7 @@ function failureReceiptFor({ runId, stage, error, cleanupStatus }) {
     class: exitCode === null ? RUNTIME_FAILURE_CLASSES.get(stage) : "command-exit",
     exitCode,
     code: exitCode === null ? sanitizeFailureCode(error?.code) : null,
+    startDiagnostic: startFailureDiagnosticFor(stage, error?.startDiagnostic),
     cleanupStatus,
   };
 }
@@ -198,6 +235,9 @@ export function assertFailureReceiptSchema(receipt) {
   const hasExitCode = Number.isSafeInteger(receipt.exitCode) && receipt.exitCode >= 1 && receipt.exitCode <= 255;
   const hasCode = typeof receipt.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(receipt.code);
   if (hasExitCode === hasCode || (hasExitCode && receipt.class !== "command-exit") || (!hasExitCode && receipt.class === "command-exit")) throw new Error("Failure receipt must contain exactly one sanitized failure code");
+  if (!START_FAILURE_DIAGNOSTICS.has(receipt.startDiagnostic)
+    || (receipt.stage === "supabase-start-owned-root" && receipt.startDiagnostic === "NOT_APPLICABLE")
+    || (receipt.stage !== "supabase-start-owned-root" && receipt.startDiagnostic !== "NOT_APPLICABLE")) throw new Error("Failure receipt has an invalid start diagnostic");
   if (receipt.cleanupStatus !== "completed" && receipt.cleanupStatus !== "failed") throw new Error("Failure receipt has an invalid cleanup status");
   assertSafeEvidenceValue(receipt);
   return true;
@@ -303,19 +343,30 @@ export function buildLocalDisposableReplayPlan({ root = process.cwd(), runId = r
   };
 }
 
-function runCommand(executable, args, { cwd, env, input } = {}) {
+export function runCommand(executable, args, { cwd, env, input, inspectSupabaseStartFailure = false } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, { cwd, env, shell: process.platform === "win32" && /\.(?:cmd|bat)$/i.test(executable), stdio: [input ? "pipe" : "ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    let startDiagnostic = "UNKNOWN";
+    const inspectStartOutput = (chunk, stream) => {
+      startDiagnostic = preferredStartFailureDiagnostic(startDiagnostic, classifySupabaseStartFailure({ [stream]: chunk }));
+    };
+    child.stdout.on("data", (chunk) => {
+      if (inspectSupabaseStartFailure) inspectStartOutput(chunk, "stdout");
+      else stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      if (inspectSupabaseStartFailure) inspectStartOutput(chunk, "stderr");
+      else stderr += chunk;
+    });
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) resolve({ stdout, stderr });
       else {
         const error = new Error(`${executable} exited ${code}`);
         error.exitCode = code;
+        if (inspectSupabaseStartFailure) error.startDiagnostic = startDiagnostic;
         reject(error);
       }
     });
@@ -456,7 +507,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
     });
     startAttempted = true;
     currentStage = "supabase-start-owned-root";
-    await execute(NPX, supabaseArgs("start", runtimeRoot), { cwd: runtimeRoot, env: safeEnvironment });
+    await execute(NPX, supabaseArgs("start", runtimeRoot), { cwd: runtimeRoot, env: safeEnvironment, inspectSupabaseStartFailure: true });
     currentStage = "validate-local-status-target";
     const status = JSON.parse((await execute(NPX, supabaseArgs("status", runtimeRoot, ["--output", "json"]), { cwd: runtimeRoot, env: safeEnvironment })).stdout);
     assertLocalReplayTarget(status.API_URL);

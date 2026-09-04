@@ -6,11 +6,13 @@ import test from "node:test";
 import {
   assertLocalReplayTarget,
   assertFailureReceiptSchema,
+  classifySupabaseStartFailure,
   assertOwnedFingerprintEvidenceRoot,
   assertSafeLocalReplayEnvironment,
   buildLocalDisposableReplayPlan,
   cleanupOwnedDisposableReplay,
   runLocalDisposableReplay,
+  runCommand,
   sanitizedChildEnvironment,
   verifyLocalMigrationLedger,
 } from "./local-disposable-supabase-replay.mjs";
@@ -187,7 +189,7 @@ test("runtime failures retain a strict nonsecret receipt after cleanup", async (
   assert.equal(await exists(runtimeRoot), false, "cleanup removes the disposable runtime before retaining evidence");
   assert.deepEqual(await readdir(path.dirname(receiptPath)), ["failure-receipt.json"], "runtime failure evidence contains only the receipt");
   const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
-  assert.deepEqual(Object.keys(receipt).sort(), ["class", "cleanupStatus", "code", "exitCode", "format", "runId", "stage"]);
+  assert.deepEqual(Object.keys(receipt).sort(), ["class", "cleanupStatus", "code", "exitCode", "format", "runId", "stage", "startDiagnostic"]);
   assert.deepEqual(receipt, {
     format: "openglass-local-disposable-supabase-failure-receipt-v1",
     runId: "f1a2b3c4",
@@ -195,6 +197,7 @@ test("runtime failures retain a strict nonsecret receipt after cleanup", async (
     class: "command-exit",
     exitCode: 17,
     code: null,
+    startDiagnostic: "UNKNOWN",
     cleanupStatus: "completed",
   });
   assert.doesNotMatch(JSON.stringify(receipt), /postgres(?:ql)?:\/\/|runner|do-not-retain|database\.example/i);
@@ -242,12 +245,47 @@ test("failure receipts diagnose status, owned-container, and migration-ledger fa
     assert.equal(receipt.class, scenario.failureClass);
     assert.equal(receipt.code, "UNSPECIFIED");
     assert.equal(receipt.exitCode, null);
+    assert.equal(receipt.startDiagnostic, "NOT_APPLICABLE");
     assert.equal(receipt.cleanupStatus, "completed");
     await rm(path.dirname(receiptPath), { recursive: true, force: true });
   }
 });
 
-test("failure receipt schema rejects unknown and sensitive fields", () => {
+test("start failure classifier reduces transient command output to a closed diagnostic enum", () => {
+  const secretBearingOutput = "postgresql://diagnostic-user:local-only-value@database.example.test/postgres";
+  const cases = [
+    [{ stdout: "could not parse generated config.toml", stderr: "" }, "CONFIG_INVALID"],
+    [{ stdout: "", stderr: "bind: address already in use" }, "PORT_CONFLICT"],
+    [{ stdout: "", stderr: "Cannot connect to the Docker daemon" }, "DOCKER_UNAVAILABLE"],
+    [{ stdout: "service analytics is unhealthy after timeout", stderr: "" }, "SERVICE_HEALTH_FAILED"],
+    [{ stdout: "", stderr: "vector host network is unreachable" }, "VECTOR_HOST_NETWORK_UNREACHABLE"],
+    [{ stdout: secretBearingOutput, stderr: "opaque startup failure" }, "UNKNOWN"],
+  ];
+  for (const [output, diagnostic] of cases) assert.equal(classifySupabaseStartFailure(output), diagnostic);
+  assert.deepEqual(
+    { startDiagnostic: classifySupabaseStartFailure({ stdout: secretBearingOutput, stderr: "opaque startup failure" }) },
+    { startDiagnostic: "UNKNOWN" },
+    "the classified result contains no captured command output",
+  );
+});
+
+test("streaming start inspection retains only an enum when the command exits nonzero", async () => {
+  const secretBearingOutput = "postgresql://diagnostic-user:local-only-value@database.example.test/postgres";
+  const childProgram = `process.stderr.write(${JSON.stringify(`vector host network is unreachable: ${secretBearingOutput}`)}); process.exit(9);`;
+  await assert.rejects(
+    () => runCommand(process.execPath, ["-e", childProgram], { inspectSupabaseStartFailure: true }),
+    (error) => {
+      assert.equal(error.exitCode, 9);
+      assert.equal(error.startDiagnostic, "VECTOR_HOST_NETWORK_UNREACHABLE");
+      assert.deepEqual(Object.keys(error).sort(), ["exitCode", "startDiagnostic"]);
+      assert.doesNotMatch(error.message, /postgres(?:ql)?:\/\//i);
+      assert.doesNotMatch(JSON.stringify(error), /postgres(?:ql)?:\/\//i);
+      return true;
+    },
+  );
+});
+
+test("failure receipt schema accepts only classified start diagnostics and no raw output fields", () => {
   const valid = {
     format: "openglass-local-disposable-supabase-failure-receipt-v1",
     runId: "a1b2c3d4",
@@ -255,13 +293,25 @@ test("failure receipt schema rejects unknown and sensitive fields", () => {
     class: "status-invalid",
     exitCode: null,
     code: "UNSPECIFIED",
+    startDiagnostic: "NOT_APPLICABLE",
     cleanupStatus: "completed",
   };
   assert.equal(assertFailureReceiptSchema(valid), true);
   assert.throws(() => assertFailureReceiptSchema({ ...valid, stderr: "must never be retained" }), /unknown or missing field/);
+  assert.throws(() => assertFailureReceiptSchema({ ...valid, stdout: "must never be retained" }), /unknown or missing field/);
   assert.throws(() => assertFailureReceiptSchema({ ...valid, code: "postgresql://role:password@db.example.test/postgres" }), /exactly one sanitized failure code/);
   assert.throws(() => assertFailureReceiptSchema({ ...valid, exitCode: 1 }), /exactly one sanitized failure code/);
   assert.throws(() => assertFailureReceiptSchema({ ...valid, stage: "docker://container/user" }), /invalid stage/);
+  assert.throws(() => assertFailureReceiptSchema({ ...valid, startDiagnostic: "UNKNOWN" }), /invalid start diagnostic/);
+  assert.throws(() => assertFailureReceiptSchema({ ...valid, startDiagnostic: "postgresql://diagnostic-user:local-only-value@database.example.test/postgres" }), /invalid start diagnostic/);
+  assert.equal(assertFailureReceiptSchema({
+    ...valid,
+    stage: "supabase-start-owned-root",
+    class: "command-exit",
+    exitCode: 7,
+    code: null,
+    startDiagnostic: "UNKNOWN",
+  }), true);
 });
 
 test("a receipt records failed cleanup without retaining cleanup output", async () => {
@@ -351,6 +401,7 @@ test("matching fingerprint evidence is removed when cleanup fails", async () => 
       class: "cleanup-failed",
       exitCode: null,
       code: "UNSPECIFIED",
+      startDiagnostic: "NOT_APPLICABLE",
       cleanupStatus: "failed",
     });
     assert.doesNotMatch(JSON.stringify(receipt), /postgres(?:ql)?:\/\/|role|password/i);
