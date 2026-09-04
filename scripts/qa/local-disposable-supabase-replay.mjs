@@ -49,8 +49,8 @@ const REVIEW_LEDGER_KEYS = ["expectedCount", "candidateCount", "missingFromCandi
 const REVIEW_OBJECT_KEYS = ["missingFromCandidate", "addedByCandidate", "divergentDefinitions"];
 const REVIEW_LEDGER_ENTRY_KEYS = ["version", "name"];
 const SENSITIVE_EVIDENCE_KEY = /(?:credential|password|passphrase|passwd|secret|token|authorization|api[_-]?key|private[_-]?key|bearer)/i;
-const SENSITIVE_EVIDENCE_VALUE = /(?:postgres(?:ql)?:\/\/|(?:https?:\/\/)[^\s"']*@|-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----|\b(?:bearer|basic)\s+[^\s]+|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|(?:access|refresh|id)[_-]?token\s*[=:])/i;
-const SENSITIVE_NAMED_VALUE = /\b(?:database_url|(?:supabase|cloudflare|cf)_[a-z0-9_]+|(?:access|refresh|id)[_-]?token|password|passwd|passphrase|api[_-]?key|authorization)\s*[=:]\s*(?!\[REDACTED\])[^\s,;]+/i;
+const SENSITIVE_EVIDENCE_VALUE = /(?:postgres(?:ql)?:\/\/|(?:https?:\/\/)[^\s"']*@|-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----|\b(?:bearer|basic)\s+[^\s]+|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|(?:access|refresh|id)[_-]?token\s*[=:]|\bjwt\s*[=:])/i;
+const SENSITIVE_NAMED_VALUE = /\b(?:database_url|(?:supabase|cloudflare|cf)_[a-z0-9_]+|(?:access|refresh|id)[_-]?token|jwt|password|passwd|passphrase|api[_-]?key|authorization)\s*[=:]\s*(?!\[REDACTED\])[^\s,;]+/i;
 const REDACTED = "[REDACTED]";
 const MAX_DIAGNOSTIC_CONTEXT_LENGTH = 512;
 
@@ -260,7 +260,7 @@ async function readOwnedRawStartDiagnostic({ rawPath, runtimeRoot }) {
 function firstFatalNonsecretContext({ stdout, stderr, classification }) {
   const terms = classification === "VECTOR_HOST_NETWORK_UNREACHABLE"
     ? /(?:fatal|error|failed|vector|host[ -]?network|unreachable|unavailable|not reachable)/i
-    : /(?:fatal|error|failed|invalid|unhealthy|timeout|unreachable|unavailable|not reachable|already in use|already allocated|cannot connect)/i;
+    : /(?:fatal|error|failed|failure|invalid|unhealthy|timeout|unreachable|unavailable|not reachable|already in use|already allocated|cannot connect)/i;
   for (const line of `${stdout}\n${stderr}`.split(/\r?\n/)) {
     if (!terms.test(line)) continue;
     const context = sanitizeSupabaseStartDiagnosticText(line).trim().slice(0, MAX_DIAGNOSTIC_CONTEXT_LENGTH);
@@ -272,7 +272,7 @@ function firstFatalNonsecretContext({ stdout, stderr, classification }) {
 function assertStartDiagnosticSchema(diagnostic) {
   assertExactObjectKeys(diagnostic, START_DIAGNOSTIC_KEYS);
   if (diagnostic.format !== "openglass-local-disposable-supabase-start-diagnostic-v1") throw new Error("Start diagnostic has an invalid format");
-  if (!START_FAILURE_DIAGNOSTICS.has(diagnostic.classification) || ["UNKNOWN", "NOT_APPLICABLE"].includes(diagnostic.classification)) throw new Error("Start diagnostic has an invalid classification");
+  if (!START_FAILURE_DIAGNOSTICS.has(diagnostic.classification) || diagnostic.classification === "NOT_APPLICABLE") throw new Error("Start diagnostic has an invalid classification");
   if (typeof diagnostic.firstFatalContext !== "string" || !diagnostic.firstFatalContext || diagnostic.firstFatalContext.length > MAX_DIAGNOSTIC_CONTEXT_LENGTH) throw new Error("Start diagnostic has an invalid context");
   if (SENSITIVE_NAMED_VALUE.test(diagnostic.firstFatalContext)) throw new Error("Start diagnostic contains credential-like content");
   assertSafeEvidenceValue(diagnostic);
@@ -285,7 +285,6 @@ async function captureSanitizedStartDiagnostic({ runtimeRoot, evidence, reposito
     readOwnedRawStartDiagnostic({ rawPath: rawPaths.rawStderrPath, runtimeRoot }),
   ]);
   const classification = classifySupabaseStartFailure({ stdout, stderr });
-  if (classification === "UNKNOWN") return null;
   const firstFatalContext = firstFatalNonsecretContext({ stdout, stderr, classification });
   if (!firstFatalContext) return null;
   const diagnostic = {

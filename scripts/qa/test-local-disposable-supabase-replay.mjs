@@ -355,7 +355,7 @@ test("diagnostic start mode retains only a redacted classified context and delet
   await rm(path.dirname(receiptPath), { recursive: true, force: true });
 });
 
-test("diagnostic start mode discards unknown output after raw stream deletion", async () => {
+test("diagnostic start mode retains sanitized unknown output after raw stream deletion", async () => {
   let rawStderrPath;
   let receiptPath;
   const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
@@ -383,8 +383,15 @@ test("diagnostic start mode discards unknown output after raw stream deletion", 
     },
   );
   assert.equal(await exists(rawStderrPath), false, "unknown raw stderr is deleted before replay completion");
-  assert.deepEqual(await readdir(path.dirname(receiptPath)), ["failure-receipt.json"], "unknown output does not create durable diagnostic evidence");
-  assert.doesNotMatch(await readFile(receiptPath, "utf8"), /postgres(?:ql)?:\/\/|runner|password|database\.example/i);
+  assert.deepEqual((await readdir(path.dirname(receiptPath))).sort(), ["failure-receipt.json", "start-diagnostic.json"]);
+  const [receiptText, diagnosticText] = await Promise.all([
+    readFile(receiptPath, "utf8"),
+    readFile(path.join(path.dirname(receiptPath), "start-diagnostic.json"), "utf8"),
+  ]);
+  const diagnostic = JSON.parse(diagnosticText);
+  assert.equal(diagnostic.classification, "UNKNOWN");
+  assert.match(diagnostic.firstFatalContext, /opaque failure/i);
+  for (const text of [receiptText, diagnosticText]) assert.doesNotMatch(text, /postgres(?:ql)?:\/\/|runner|password|database\.example/i);
   await rm(path.dirname(receiptPath), { recursive: true, force: true });
 });
 

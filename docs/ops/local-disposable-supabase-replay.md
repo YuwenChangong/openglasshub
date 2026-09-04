@@ -44,9 +44,9 @@ The harness performs the following local-only sequence:
    The normal mode remains enum-only. An operator may opt into
    `--diagnostic-start-failure` for a failed local start: stdout and stderr are
    first written only to two fixed raw files inside the owned disposable runtime
-   root, then deleted. A recognized failure may retain one separate
+   root, then deleted. A failure may retain one separate
    `start-diagnostic.json` alongside the receipt, containing only its closed
-   classification and first redacted fatal context. Unknown output is discarded.
+   classification (including `UNKNOWN`) and first redacted fatal context.
    URI userinfo, DSNs, passwords, tokens, JWTs, Bearer/auth headers,
    `DATABASE_URL`, Supabase secret/ref values, and Cloudflare token values are
    fail-closed redacted before that file is written. Raw streams are never
