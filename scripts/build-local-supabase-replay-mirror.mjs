@@ -49,9 +49,9 @@ export const ORDERED_MIGRATION_FILENAMES = [
   "20260716_profile_media_delivery_authorization.sql",
   "20260717_security_definer_execute_hardening.sql",
   "20260814_admin_circle_lifecycle_and_safe_purge.sql",
-  "20260829054707_device_service_role_bootstrap_grants.sql",
   "20260829_device_library_admin.sql",
   "20260829_device_slug_lock.sql",
+  "20260829054707_device_service_role_bootstrap_grants.sql",
   "20260902042807_forward_reconcile_devices.sql",
 ];
 

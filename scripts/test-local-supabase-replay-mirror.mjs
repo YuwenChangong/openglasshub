@@ -57,9 +57,9 @@ const expectedOrder = [
   "20260716_profile_media_delivery_authorization.sql",
   "20260717_security_definer_execute_hardening.sql",
   "20260814_admin_circle_lifecycle_and_safe_purge.sql",
-  "20260829054707_device_service_role_bootstrap_grants.sql",
   "20260829_device_library_admin.sql",
   "20260829_device_slug_lock.sql",
+  "20260829054707_device_service_role_bootstrap_grants.sql",
   "20260902042807_forward_reconcile_devices.sql",
 ];
 
@@ -169,18 +169,30 @@ test("rejects a dirty tracked migration in the real canonical root", async () =>
   }
 });
 
-test("replay mapping retains the reviewed deterministic order", async () => {
+test("replay mapping applies the device foundation and slug lock before service-role grants", async () => {
   const report = await disposableBuild();
   assert.deepEqual(
     report.mappings
-      .filter(({ canonicalFile }) => canonicalFile === "20260829054707_device_service_role_bootstrap_grants.sql" || canonicalFile === "20260902042807_forward_reconcile_devices.sql")
+      .filter(({ canonicalFile }) => canonicalFile === "20260829_device_library_admin.sql" || canonicalFile === "20260829_device_slug_lock.sql" || canonicalFile === "20260829054707_device_service_role_bootstrap_grants.sql" || canonicalFile === "20260902042807_forward_reconcile_devices.sql")
       .map(({ canonicalFile, canonicalVersion, temporaryVersion, temporaryFile }) => ({ canonicalFile, canonicalVersion, temporaryVersion, temporaryFile })),
     [
       {
-        canonicalFile: "20260829054707_device_service_role_bootstrap_grants.sql",
+        canonicalFile: "20260829_device_library_admin.sql",
         canonicalVersion: "20260829",
         temporaryVersion: "20260829000001",
-        temporaryFile: "20260829000001_device_service_role_bootstrap_grants.sql",
+        temporaryFile: "20260829000001_device_library_admin.sql",
+      },
+      {
+        canonicalFile: "20260829_device_slug_lock.sql",
+        canonicalVersion: "20260829",
+        temporaryVersion: "20260829000002",
+        temporaryFile: "20260829000002_device_slug_lock.sql",
+      },
+      {
+        canonicalFile: "20260829054707_device_service_role_bootstrap_grants.sql",
+        canonicalVersion: "20260829",
+        temporaryVersion: "20260829000003",
+        temporaryFile: "20260829000003_device_service_role_bootstrap_grants.sql",
       },
       {
         canonicalFile: "20260902042807_forward_reconcile_devices.sql",
@@ -192,9 +204,9 @@ test("replay mapping retains the reviewed deterministic order", async () => {
     "14-digit source versions normalize to their canonical date before deterministic replay sequencing",
   );
   assert(
-    report.mappings.findIndex(({ canonicalFile }) => canonicalFile === "20260829054707_device_service_role_bootstrap_grants.sql")
-      < report.mappings.findIndex(({ canonicalFile }) => canonicalFile === "20260829_device_library_admin.sql"),
-    "the reviewed source order, not lexical filename order, controls same-day normalized mapping",
+    report.mappings.findIndex(({ canonicalFile }) => canonicalFile === "20260829_device_library_admin.sql")
+      < report.mappings.findIndex(({ canonicalFile }) => canonicalFile === "20260829054707_device_service_role_bootstrap_grants.sql"),
+    "the device table must exist before the service-role grant is applied",
   );
   assert.deepEqual(report.mappings
     .filter(({ duplicateGroupCount }) => duplicateGroupCount > 1)
@@ -229,9 +241,9 @@ test("replay mapping retains the reviewed deterministic order", async () => {
       { canonicalFile: "20260713_forum_posts_circle_authorization.sql", temporaryVersion: "20260713000004" },
       { canonicalFile: "20260713_forum_report_target_authorization.sql", temporaryVersion: "20260713000005" },
       { canonicalFile: "20260713_post_bound_media_provenance.sql", temporaryVersion: "20260713000006" },
-      { canonicalFile: "20260829054707_device_service_role_bootstrap_grants.sql", temporaryVersion: "20260829000001" },
-      { canonicalFile: "20260829_device_library_admin.sql", temporaryVersion: "20260829000002" },
-      { canonicalFile: "20260829_device_slug_lock.sql", temporaryVersion: "20260829000003" },
+      { canonicalFile: "20260829_device_library_admin.sql", temporaryVersion: "20260829000001" },
+      { canonicalFile: "20260829_device_slug_lock.sql", temporaryVersion: "20260829000002" },
+      { canonicalFile: "20260829054707_device_service_role_bootstrap_grants.sql", temporaryVersion: "20260829000003" },
     ]);
 });
 
