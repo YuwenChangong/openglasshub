@@ -44,6 +44,9 @@ test("privilege convergence revokes every approved direct ACL expansion and no s
   assert.equal(matrix.candidateSha256, "d453f7ba185fa1237f03a0b890154038b2f88e20183dbd92a16020bf574823db");
   assert.equal(matrix.directAclExpansionCount, 188);
   assert.equal(matrix.entries.length, 188);
+  assert.equal(matrix.effectiveFunctionPrivilegeExpansionCount, 12);
+  assert.equal(matrix.effectiveFunctionPrivilegeEntries.length, 12);
+  assert.equal(matrix.requiredContractRevocations.length, 8);
   assert(matrix.entries.every((entry) => entry.classification === "PROVEN_UNAUTHORIZED_EXPANSION" && entry.remediationRequired));
   const actual = new Set();
   const executableSql = sql.replace(/--.*$/gm, "");
@@ -57,7 +60,7 @@ test("privilege convergence revokes every approved direct ACL expansion and no s
       }
     }
   }
-  for (const entry of matrix.entries) {
-    assert(actual.has([entry.objectKind, entry.objectIdentity.replace(/\bpublic\./gi, "").replace(/\s+/g, ""), entry.principal, entry.privilege].join("|")), `${entry.objectKind} ${entry.objectIdentity} ${entry.principal}:${entry.privilege} must be revoked`);
-  }
+  const required = [...matrix.entries, ...matrix.requiredContractRevocations].map((entry) => [entry.objectKind, entry.objectIdentity.replace(/\bpublic\./gi, "").replace(/\s+/g, ""), entry.principal.toLowerCase(), entry.privilege].join("|"));
+  assert.equal(new Set(required).size, 196, "every direct expansion and canonical contract revocation is unique");
+  assert.deepEqual([...actual].sort(), [...required].sort(), "migration revocations must exactly equal the reviewed direct-ACL matrix plus the documented canonical contract revocations");
 });
