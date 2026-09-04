@@ -53,6 +53,7 @@ export const ORDERED_MIGRATION_FILENAMES = [
   "20260829_device_slug_lock.sql",
   "20260829054707_device_service_role_bootstrap_grants.sql",
   "20260902042807_forward_reconcile_devices.sql",
+  "20260904054013_forward_reconcile_security_privileges.sql",
 ];
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
@@ -106,6 +107,7 @@ const CANONICAL_MIGRATION_SHA256 = new Map([
   ["20260829_device_library_admin.sql", "4427bf0506fb82b634994069418fd3bc7c31617eeaadddf2bfef8ab2363d7904"],
   ["20260829_device_slug_lock.sql", "26e47a4a68d8201bfb87aed906e054e08e5a4f3e010557289ae05dd673dd4543"],
   ["20260902042807_forward_reconcile_devices.sql", "2f98fea88b4b5619dce82a0e48c0653c96f4db3e212d6f52a85fbab083405e65"],
+  ["20260904054013_forward_reconcile_security_privileges.sql", "98819214e5bece6d659e0b0cc2a3b16865f84227e8ab6a1d4dbcac0b7cddf3c5"],
 ]);
 const legalPrerequisiteNames = [
   "20260703_moderation_action_notifications.sql",
@@ -251,7 +253,7 @@ export async function buildLocalSupabaseReplayMirror({ canonicalDirectory, outpu
 
   const discovered = (await readdir(canonicalRoot)).filter((filename) => filename.endsWith(".sql")).sort();
   if (JSON.stringify(discovered) !== JSON.stringify([...ORDERED_MIGRATION_FILENAMES].sort())) {
-    throw new Error("Canonical migration inventory differs from the deterministic 48-file manifest");
+    throw new Error("Canonical migration inventory differs from the deterministic 49-file manifest");
   }
   if (CANONICAL_MIGRATION_SHA256.size !== ORDERED_MIGRATION_FILENAMES.length || ORDERED_MIGRATION_FILENAMES.some((filename) => !CANONICAL_MIGRATION_SHA256.has(filename))) {
     throw new Error("Canonical migration SHA-256 anchor inventory is incomplete");

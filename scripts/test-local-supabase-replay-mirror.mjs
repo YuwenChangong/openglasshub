@@ -61,6 +61,7 @@ const expectedOrder = [
   "20260829_device_slug_lock.sql",
   "20260829054707_device_service_role_bootstrap_grants.sql",
   "20260902042807_forward_reconcile_devices.sql",
+  "20260904054013_forward_reconcile_security_privileges.sql",
 ];
 
 async function disposableBuild(canonicalDirectoryForBuild = canonicalDirectory) {
@@ -94,10 +95,10 @@ async function copiedCanonicalDirectory({ omit, extra, mutate } = {}) {
   return { copied, temporaryRoot };
 }
 
-test("accepts the current 48-file canonical inventory in its reviewed replay order", async () => {
+test("accepts the current 49-file canonical inventory in its reviewed replay order", async () => {
   const report = await disposableBuild();
-  assert.equal(report.migrationCount, 48);
-  assert.equal(report.temporaryVersionCount, 48);
+  assert.equal(report.migrationCount, 49);
+  assert.equal(report.temporaryVersionCount, 49);
   assert.deepEqual(report.mappings.map((entry) => entry.canonicalFile), expectedOrder);
   assert.deepEqual(report.bomTransformedFiles, [
     "20260603_forum_comments_interactions.sql",
@@ -115,7 +116,7 @@ test("accepts the current 48-file canonical inventory in its reviewed replay ord
 test("rejects removal of a required canonical migration", async () => {
   const fixture = await copiedCanonicalDirectory({ omit: "20260902042807_forward_reconcile_devices.sql" });
   try {
-    await assert.rejects(() => disposableBuild(fixture.copied), /deterministic 48-file manifest/);
+    await assert.rejects(() => disposableBuild(fixture.copied), /deterministic 49-file manifest/);
   } finally {
     await rm(fixture.temporaryRoot, { recursive: true, force: true });
   }
@@ -124,7 +125,7 @@ test("rejects removal of a required canonical migration", async () => {
 test("rejects an unexpected canonical migration", async () => {
   const fixture = await copiedCanonicalDirectory({ extra: "20260903_unapproved.sql" });
   try {
-    await assert.rejects(() => disposableBuild(fixture.copied), /deterministic 48-file manifest/);
+    await assert.rejects(() => disposableBuild(fixture.copied), /deterministic 49-file manifest/);
   } finally {
     await rm(fixture.temporaryRoot, { recursive: true, force: true });
   }
