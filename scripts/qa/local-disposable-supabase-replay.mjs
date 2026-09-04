@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -20,7 +20,9 @@ const PORT_FIELDS = [
 const NPX = process.platform === "win32" ? "npx.cmd" : "npx";
 const FINGERPRINT_EVIDENCE_PREFIX = "openglass-local-disposable-supabase-evidence-";
 const FAILURE_RECEIPT_FILENAME = "failure-receipt.json";
+const START_DIAGNOSTIC_FILENAME = "start-diagnostic.json";
 const FAILURE_RECEIPT_KEYS = ["format", "runId", "stage", "class", "exitCode", "code", "startDiagnostic", "cleanupStatus"];
+const START_DIAGNOSTIC_KEYS = ["format", "classification", "firstFatalContext"];
 const START_FAILURE_DIAGNOSTICS = new Set([
   "NOT_APPLICABLE",
   "UNKNOWN",
@@ -48,6 +50,9 @@ const REVIEW_OBJECT_KEYS = ["missingFromCandidate", "addedByCandidate", "diverge
 const REVIEW_LEDGER_ENTRY_KEYS = ["version", "name"];
 const SENSITIVE_EVIDENCE_KEY = /(?:credential|password|passphrase|passwd|secret|token|authorization|api[_-]?key|private[_-]?key|bearer)/i;
 const SENSITIVE_EVIDENCE_VALUE = /(?:postgres(?:ql)?:\/\/|(?:https?:\/\/)[^\s"']*@|-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----|\b(?:bearer|basic)\s+[^\s]+|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|(?:access|refresh|id)[_-]?token\s*[=:])/i;
+const SENSITIVE_NAMED_VALUE = /\b(?:database_url|(?:supabase|cloudflare|cf)_[a-z0-9_]+|(?:access|refresh|id)[_-]?token|password|passwd|passphrase|api[_-]?key|authorization)\s*[=:]\s*(?!\[REDACTED\])[^\s,;]+/i;
+const REDACTED = "[REDACTED]";
+const MAX_DIAGNOSTIC_CONTEXT_LENGTH = 512;
 
 function assertRunId(runId) {
   if (!/^[a-f0-9]{8}$/i.test(runId)) throw new Error("Disposable replay run id must be eight hexadecimal characters");
@@ -145,6 +150,7 @@ async function createFingerprintEvidence({ runId, runtimeRoot, repositoryRoot })
     candidatePath: path.join(ownedRoot, "fingerprint-candidate.json"),
     reviewPath: path.join(ownedRoot, "fingerprint-review.json"),
     failureReceiptPath: path.join(ownedRoot, FAILURE_RECEIPT_FILENAME),
+    startDiagnosticPath: path.join(ownedRoot, START_DIAGNOSTIC_FILENAME),
   };
 }
 
@@ -167,6 +173,19 @@ function assertSafeEvidenceValue(value) {
       assertSafeEvidenceValue(entry);
     }
   }
+}
+
+export function sanitizeSupabaseStartDiagnosticText(value) {
+  let text = typeof value === "string" ? value : String(value ?? "");
+  text = text
+    .replace(/\bpostgres(?:ql)?:\/\/[^\s"'<>]+/gi, REDACTED)
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]*@[^\s"'<>]+/gi, REDACTED)
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, REDACTED)
+    .replace(/\b(?:bearer|basic)\s+[^\s,;]+/gi, REDACTED)
+    .replace(/\b(?:authorization|proxy-authorization|x-api-key|x-auth-token|cookie)\s*:\s*[^\r\n]+/gi, REDACTED)
+    .replace(/\b(?:database_url|(?:supabase|cloudflare|cf)_[a-z0-9_]+|(?:access|refresh|id)[_-]?token|password|passwd|passphrase|api[_-]?key|token|secret)\s*[=:]\s*[^\s,;]+/gi, REDACTED)
+    .replace(/-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----[\s\S]*?-----END(?: [A-Z]+)? PRIVATE KEY-----/g, REDACTED);
+  return SENSITIVE_EVIDENCE_VALUE.test(text) || SENSITIVE_NAMED_VALUE.test(text) ? REDACTED : text;
 }
 
 function assertString(value) {
@@ -205,6 +224,80 @@ export function classifySupabaseStartFailure({ stdout = "", stderr = "" } = {}) 
     startFailureDiagnosticFromOutput(stdout),
     startFailureDiagnosticFromOutput(stderr),
   );
+}
+
+function rawStartDiagnosticPaths(runtimeRoot) {
+  const root = path.resolve(runtimeRoot);
+  return {
+    rawStdoutPath: path.join(root, "supabase-start.stdout.raw"),
+    rawStderrPath: path.join(root, "supabase-start.stderr.raw"),
+  };
+}
+
+function assertOwnedRawStartDiagnosticPath({ candidate, runtimeRoot }) {
+  const root = path.resolve(runtimeRoot);
+  const resolved = path.resolve(candidate);
+  if (!isWithin(resolved, root) || path.dirname(resolved) !== root || !["supabase-start.stdout.raw", "supabase-start.stderr.raw"].includes(path.basename(resolved))) {
+    throw new Error("Raw start diagnostic must remain inside the owned disposable runtime root");
+  }
+  return resolved;
+}
+
+async function readOwnedRawStartDiagnostic({ rawPath, runtimeRoot }) {
+  const ownedPath = assertOwnedRawStartDiagnosticPath({ candidate: rawPath, runtimeRoot });
+  try {
+    const stats = await lstat(ownedPath);
+    if (!stats.isFile() || stats.isSymbolicLink()) throw new Error("Raw start diagnostic is not a regular file");
+    return await readFile(ownedPath, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") return "";
+    throw error;
+  } finally {
+    await rm(ownedPath, { force: true });
+  }
+}
+
+function firstFatalNonsecretContext({ stdout, stderr, classification }) {
+  const terms = classification === "VECTOR_HOST_NETWORK_UNREACHABLE"
+    ? /(?:fatal|error|failed|vector|host[ -]?network|unreachable|unavailable|not reachable)/i
+    : /(?:fatal|error|failed|invalid|unhealthy|timeout|unreachable|unavailable|not reachable|already in use|already allocated|cannot connect)/i;
+  for (const line of `${stdout}\n${stderr}`.split(/\r?\n/)) {
+    if (!terms.test(line)) continue;
+    const context = sanitizeSupabaseStartDiagnosticText(line).trim().slice(0, MAX_DIAGNOSTIC_CONTEXT_LENGTH);
+    if (context && context !== REDACTED) return context;
+  }
+  return null;
+}
+
+function assertStartDiagnosticSchema(diagnostic) {
+  assertExactObjectKeys(diagnostic, START_DIAGNOSTIC_KEYS);
+  if (diagnostic.format !== "openglass-local-disposable-supabase-start-diagnostic-v1") throw new Error("Start diagnostic has an invalid format");
+  if (!START_FAILURE_DIAGNOSTICS.has(diagnostic.classification) || ["UNKNOWN", "NOT_APPLICABLE"].includes(diagnostic.classification)) throw new Error("Start diagnostic has an invalid classification");
+  if (typeof diagnostic.firstFatalContext !== "string" || !diagnostic.firstFatalContext || diagnostic.firstFatalContext.length > MAX_DIAGNOSTIC_CONTEXT_LENGTH) throw new Error("Start diagnostic has an invalid context");
+  if (SENSITIVE_NAMED_VALUE.test(diagnostic.firstFatalContext)) throw new Error("Start diagnostic contains credential-like content");
+  assertSafeEvidenceValue(diagnostic);
+  return true;
+}
+
+async function captureSanitizedStartDiagnostic({ runtimeRoot, evidence, repositoryRoot, rawPaths }) {
+  const [stdout, stderr] = await Promise.all([
+    readOwnedRawStartDiagnostic({ rawPath: rawPaths.rawStdoutPath, runtimeRoot }),
+    readOwnedRawStartDiagnostic({ rawPath: rawPaths.rawStderrPath, runtimeRoot }),
+  ]);
+  const classification = classifySupabaseStartFailure({ stdout, stderr });
+  if (classification === "UNKNOWN") return null;
+  const firstFatalContext = firstFatalNonsecretContext({ stdout, stderr, classification });
+  if (!firstFatalContext) return null;
+  const diagnostic = {
+    format: "openglass-local-disposable-supabase-start-diagnostic-v1",
+    classification,
+    firstFatalContext,
+  };
+  assertOwnedFingerprintEvidenceRoot({ evidenceRoot: evidence.root, runtimeRoot, repositoryRoot });
+  if (evidence.startDiagnosticPath !== path.join(evidence.root, START_DIAGNOSTIC_FILENAME)) throw new Error("Start diagnostic path must remain inside its owned evidence root");
+  assertStartDiagnosticSchema(diagnostic);
+  await writeFile(evidence.startDiagnosticPath, `${JSON.stringify(diagnostic, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+  return diagnostic;
 }
 
 function startFailureDiagnosticFor(stage, value) {
@@ -343,25 +436,41 @@ export function buildLocalDisposableReplayPlan({ root = process.cwd(), runId = r
   };
 }
 
-export function runCommand(executable, args, { cwd, env, input, inspectSupabaseStartFailure = false } = {}) {
+export async function runCommand(executable, args, { cwd, env, input, inspectSupabaseStartFailure = false, diagnosticCapture } = {}) {
+  if (diagnosticCapture) {
+    if (!diagnosticCapture.rawStdoutPath || !diagnosticCapture.rawStderrPath) throw new Error("Diagnostic capture requires owned stdout and stderr paths");
+    await Promise.all([
+      writeFile(diagnosticCapture.rawStdoutPath, "", { encoding: "utf8", flag: "wx" }),
+      writeFile(diagnosticCapture.rawStderrPath, "", { encoding: "utf8", flag: "wx" }),
+    ]);
+  }
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, { cwd, env, shell: process.platform === "win32" && /\.(?:cmd|bat)$/i.test(executable), stdio: [input ? "pipe" : "ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let startDiagnostic = "UNKNOWN";
+    const writes = [];
     const inspectStartOutput = (chunk, stream) => {
       startDiagnostic = preferredStartFailureDiagnostic(startDiagnostic, classifySupabaseStartFailure({ [stream]: chunk }));
     };
     child.stdout.on("data", (chunk) => {
       if (inspectSupabaseStartFailure) inspectStartOutput(chunk, "stdout");
+      if (diagnosticCapture) writes.push(appendFile(diagnosticCapture.rawStdoutPath, chunk));
       else stdout += chunk;
     });
     child.stderr.on("data", (chunk) => {
       if (inspectSupabaseStartFailure) inspectStartOutput(chunk, "stderr");
+      if (diagnosticCapture) writes.push(appendFile(diagnosticCapture.rawStderrPath, chunk));
       else stderr += chunk;
     });
     child.on("error", reject);
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
+      try {
+        await Promise.all(writes);
+      } catch (error) {
+        reject(error);
+        return;
+      }
       if (code === 0) resolve({ stdout, stderr });
       else {
         const error = new Error(`${executable} exited ${code}`);
@@ -478,7 +587,7 @@ export async function cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot
   return true;
 }
 
-export async function runLocalDisposableReplay({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false } = {}) {
+export async function runLocalDisposableReplay({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false, diagnosticStartFailure = false } = {}) {
   const plan = buildLocalDisposableReplayPlan({ root, runId });
   if (dryRun) return plan;
   const repositoryRoot = path.resolve(root);
@@ -496,7 +605,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
     assertOwnedDisposableRoot({ disposableRoot: runtimeRoot, repositoryRoot });
     fingerprintEvidence = await createEvidence({ runId, runtimeRoot, repositoryRoot });
     assertOwnedFingerprintEvidenceRoot({ evidenceRoot: fingerprintEvidence.root, runtimeRoot, repositoryRoot });
-    if (fingerprintEvidence.candidatePath !== path.join(fingerprintEvidence.root, "fingerprint-candidate.json") || fingerprintEvidence.reviewPath !== path.join(fingerprintEvidence.root, "fingerprint-review.json") || fingerprintEvidence.failureReceiptPath !== path.join(fingerprintEvidence.root, FAILURE_RECEIPT_FILENAME)) throw new Error("Fingerprint evidence paths must remain inside their owned root");
+    if (fingerprintEvidence.candidatePath !== path.join(fingerprintEvidence.root, "fingerprint-candidate.json") || fingerprintEvidence.reviewPath !== path.join(fingerprintEvidence.root, "fingerprint-review.json") || fingerprintEvidence.failureReceiptPath !== path.join(fingerprintEvidence.root, FAILURE_RECEIPT_FILENAME) || fingerprintEvidence.startDiagnosticPath !== path.join(fingerprintEvidence.root, START_DIAGNOSTIC_FILENAME)) throw new Error("Fingerprint evidence paths must remain inside their owned root");
     const before = await listContainers(execute, safeEnvironment);
     await initializeOwnedConfig({ runtimeRoot, projectId, runId, execute, environment: safeEnvironment });
     const mirror = await buildLocalSupabaseReplayMirror({
@@ -507,7 +616,24 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
     });
     startAttempted = true;
     currentStage = "supabase-start-owned-root";
-    await execute(NPX, supabaseArgs("start", runtimeRoot), { cwd: runtimeRoot, env: safeEnvironment, inspectSupabaseStartFailure: true });
+    const diagnosticCapture = diagnosticStartFailure ? rawStartDiagnosticPaths(runtimeRoot) : undefined;
+    try {
+      await execute(NPX, supabaseArgs("start", runtimeRoot), { cwd: runtimeRoot, env: safeEnvironment, inspectSupabaseStartFailure: true, diagnosticCapture });
+      if (diagnosticCapture) await Promise.all([
+        rm(diagnosticCapture.rawStdoutPath, { force: true }),
+        rm(diagnosticCapture.rawStderrPath, { force: true }),
+      ]);
+    } catch (error) {
+      if (diagnosticCapture) {
+        try {
+          const diagnostic = await captureSanitizedStartDiagnostic({ runtimeRoot, evidence: fingerprintEvidence, repositoryRoot, rawPaths: diagnosticCapture });
+          if (diagnostic) error.startDiagnostic = diagnostic.classification;
+        } catch {
+          error.startDiagnostic = error.startDiagnostic ?? "UNKNOWN";
+        }
+      }
+      throw error;
+    }
     currentStage = "validate-local-status-target";
     const status = JSON.parse((await execute(NPX, supabaseArgs("status", runtimeRoot, ["--output", "json"]), { cwd: runtimeRoot, env: safeEnvironment })).stdout);
     assertLocalReplayTarget(status.API_URL);
@@ -574,6 +700,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
           rm(fingerprintEvidence.reviewPath, { force: true }),
         ]);
       }
+      if (runtimeFailure.stage !== "supabase-start-owned-root") await rm(fingerprintEvidence.startDiagnosticPath, { force: true });
       const receiptPath = await writeFailureReceipt({
         evidence: fingerprintEvidence,
         runtimeRoot,
@@ -593,8 +720,11 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.some((argument) => argument !== "--dry-run")) throw new Error("Only --dry-run is accepted; linked and remote Supabase options are forbidden");
-  const result = await runLocalDisposableReplay({ dryRun: args.includes("--dry-run") });
+  if (args.some((argument) => !["--dry-run", "--diagnostic-start-failure"].includes(argument))) throw new Error("Only --dry-run and --diagnostic-start-failure are accepted; linked and remote Supabase options are forbidden");
+  const result = await runLocalDisposableReplay({
+    dryRun: args.includes("--dry-run"),
+    diagnosticStartFailure: args.includes("--diagnostic-start-failure"),
+  });
   console.log(JSON.stringify(result));
 }
 

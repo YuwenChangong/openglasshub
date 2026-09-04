@@ -13,6 +13,7 @@ import {
   cleanupOwnedDisposableReplay,
   runLocalDisposableReplay,
   runCommand,
+  sanitizeSupabaseStartDiagnosticText,
   sanitizedChildEnvironment,
   verifyLocalMigrationLedger,
 } from "./local-disposable-supabase-replay.mjs";
@@ -285,6 +286,108 @@ test("streaming start inspection retains only an enum when the command exits non
   );
 });
 
+test("diagnostic sanitizer preserves ordinary failures while fail-closed redacting representative credentials", () => {
+  const ordinary = "vector service host network is unreachable after health check timeout";
+  assert.equal(sanitizeSupabaseStartDiagnosticText(ordinary), ordinary);
+  for (const secret of [
+    "postgresql://runner:password@database.example.test/postgres",
+    "https://runner:password@diagnostic.example.test/path",
+    "password=local-only-value",
+    "token=local-only-value",
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.local-only-signature",
+    "Bearer local-only-value",
+    "Authorization: Bearer local-only-value",
+    "DATABASE_URL=postgresql://runner:password@database.example.test/postgres",
+    "SUPABASE_SERVICE_ROLE_KEY=local-only-value",
+    "CLOUDFLARE_API_TOKEN=local-only-value",
+    "SUPABASE_PROJECT_REF=local-only-project-ref",
+  ]) {
+    const sanitized = sanitizeSupabaseStartDiagnosticText(`fatal startup error: ${secret}`);
+    assert.match(sanitized, /fatal startup error/i);
+    assert.doesNotMatch(sanitized, /runner|password|local-only-value|eyJhbGci|bearer\s+local|database\.example|diagnostic\.example|project-ref/i);
+  }
+});
+
+test("diagnostic start mode retains only a redacted classified context and deletes raw streams", async () => {
+  let runtimeRoot;
+  let rawStdoutPath;
+  let rawStderrPath;
+  let receiptPath;
+  const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
+  const failureOutput = [
+    "info: starting local services",
+    "fatal: vector host network is unreachable DATABASE_URL=postgresql://runner:password@database.example.test/postgres Authorization: Bearer local-only-value SUPABASE_PROJECT_REF=local-only-project-ref CLOUDFLARE_API_TOKEN=local-only-token",
+  ].join("\\n");
+  const execute = async (command, args, options = {}) => {
+    if (command === "docker") return { stdout: "", stderr: "" };
+    if (args.includes("init")) {
+      runtimeRoot = args.at(-1);
+      await mkdir(path.join(runtimeRoot, "supabase"), { recursive: true });
+      await writeFile(path.join(runtimeRoot, "supabase", "config.toml"), config);
+      return { stdout: "", stderr: "" };
+    }
+    if (args.includes("start")) {
+      rawStdoutPath = options.diagnosticCapture?.rawStdoutPath;
+      rawStderrPath = options.diagnosticCapture?.rawStderrPath;
+      return runCommand(process.execPath, ["-e", `process.stderr.write(${JSON.stringify(failureOutput)}); process.exit(9);`], options);
+    }
+    if (args.includes("stop")) return { stdout: "", stderr: "" };
+    throw new Error(`unexpected command ${command}`);
+  };
+
+  await assert.rejects(
+    () => runLocalDisposableReplay({ root, runId: "d1a6b7c8", environment: { PATH: process.env.PATH }, execute, diagnosticStartFailure: true }),
+    (error) => {
+      receiptPath = error.message.match(/receipt: (.+)$/m)?.[1];
+      return /Non-secret replay failure receipt retained/.test(error.message) && Boolean(receiptPath);
+    },
+  );
+  assert.equal(await exists(runtimeRoot), false, "the owned runtime is removed after diagnostic capture");
+  assert.equal(await exists(rawStdoutPath), false, "raw stdout is deleted before replay completion");
+  assert.equal(await exists(rawStderrPath), false, "raw stderr is deleted before replay completion");
+  assert.deepEqual((await readdir(path.dirname(receiptPath))).sort(), ["failure-receipt.json", "start-diagnostic.json"]);
+  const [receiptText, diagnosticText] = await Promise.all([readFile(receiptPath, "utf8"), readFile(path.join(path.dirname(receiptPath), "start-diagnostic.json"), "utf8")]);
+  const diagnostic = JSON.parse(diagnosticText);
+  assert.deepEqual(Object.keys(diagnostic).sort(), ["classification", "firstFatalContext", "format"]);
+  assert.equal(diagnostic.classification, "VECTOR_HOST_NETWORK_UNREACHABLE");
+  assert.match(diagnostic.firstFatalContext, /vector host network is unreachable/i);
+  for (const text of [receiptText, diagnosticText]) assert.doesNotMatch(text, /postgres(?:ql)?:\/\/|runner|password|local-only|bearer\s+|authorization:|database\.example|project-ref|cloudflare_api_token/i);
+  await rm(path.dirname(receiptPath), { recursive: true, force: true });
+});
+
+test("diagnostic start mode discards unknown output after raw stream deletion", async () => {
+  let rawStderrPath;
+  let receiptPath;
+  const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
+  const execute = async (command, args, options = {}) => {
+    if (command === "docker") return { stdout: "", stderr: "" };
+    if (args.includes("init")) {
+      const runtimeRoot = args.at(-1);
+      await mkdir(path.join(runtimeRoot, "supabase"), { recursive: true });
+      await writeFile(path.join(runtimeRoot, "supabase", "config.toml"), config);
+      return { stdout: "", stderr: "" };
+    }
+    if (args.includes("start")) {
+      rawStderrPath = options.diagnosticCapture?.rawStderrPath;
+      return runCommand(process.execPath, ["-e", `process.stderr.write(${JSON.stringify("opaque failure DATABASE_URL=postgresql://runner:password@database.example.test/postgres")}); process.exit(9);`], options);
+    }
+    if (args.includes("stop")) return { stdout: "", stderr: "" };
+    throw new Error(`unexpected command ${command}`);
+  };
+
+  await assert.rejects(
+    () => runLocalDisposableReplay({ root, runId: "d2a6b7c8", environment: { PATH: process.env.PATH }, execute, diagnosticStartFailure: true }),
+    (error) => {
+      receiptPath = error.message.match(/receipt: (.+)$/m)?.[1];
+      return /Non-secret replay failure receipt retained/.test(error.message) && Boolean(receiptPath);
+    },
+  );
+  assert.equal(await exists(rawStderrPath), false, "unknown raw stderr is deleted before replay completion");
+  assert.deepEqual(await readdir(path.dirname(receiptPath)), ["failure-receipt.json"], "unknown output does not create durable diagnostic evidence");
+  assert.doesNotMatch(await readFile(receiptPath, "utf8"), /postgres(?:ql)?:\/\/|runner|password|database\.example/i);
+  await rm(path.dirname(receiptPath), { recursive: true, force: true });
+});
+
 test("failure receipt schema accepts only classified start diagnostics and no raw output fields", () => {
   const valid = {
     format: "openglass-local-disposable-supabase-failure-receipt-v1",
@@ -411,6 +514,8 @@ test("matching fingerprint evidence is removed when cleanup fails", async () => 
 });
 
 test("evidence-root creation failure still removes the already-owned runtime root", async () => {
+  const existingRoots = new Set((await readdir(os.tmpdir()))
+    .filter((name) => name.startsWith("openglass-local-disposable-supabase-ef12ab34-")));
   let runtimeRoot;
   const execute = async (_command, args) => {
     runtimeRoot = args.at(-1);
@@ -428,7 +533,7 @@ test("evidence-root creation failure still removes the already-owned runtime roo
   );
   assert.equal(runtimeRoot, undefined, "no replay command may run after evidence-root creation fails");
   const roots = (await readdir(os.tmpdir()))
-    .filter((name) => name.startsWith("openglass-local-disposable-supabase-ef12ab34-"));
+    .filter((name) => name.startsWith("openglass-local-disposable-supabase-ef12ab34-") && !existingRoots.has(name));
   assert.deepEqual(roots, [], "the already-created owned runtime root is removed");
 });
 

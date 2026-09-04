@@ -41,6 +41,16 @@ The harness performs the following local-only sequence:
    secret values. A cleanup failure after a matching capture also
    removes the candidate and review, retaining only that receipt; candidate and
    review retention is reserved for a verified fingerprint mismatch.
+   The normal mode remains enum-only. An operator may opt into
+   `--diagnostic-start-failure` for a failed local start: stdout and stderr are
+   first written only to two fixed raw files inside the owned disposable runtime
+   root, then deleted. A recognized failure may retain one separate
+   `start-diagnostic.json` alongside the receipt, containing only its closed
+   classification and first redacted fatal context. Unknown output is discarded.
+   URI userinfo, DSNs, passwords, tokens, JWTs, Bearer/auth headers,
+   `DATABASE_URL`, Supabase secret/ref values, and Cloudflare token values are
+   fail-closed redacted before that file is written. Raw streams are never
+   printed, committed, or retained after the run.
 7. Stop only that project with `supabase stop --no-backup` even when `start`
    fails part way through, and remove only the verified temporary root.
 
