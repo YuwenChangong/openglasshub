@@ -419,30 +419,92 @@ test('FEATURE explicit devices hint cannot downgrade an unrelated high-risk chan
 });
 
 function fakeChromiumBrowser(outcomes) {
-  const state = { screenshots: 0, traceStarts: 0, traceStops: 0 };
+  const state = {
+    screenshots: 0,
+    traceStarts: 0,
+    traceStops: 0,
+    contextOptions: [],
+    trafficSent: [],
+    trafficBlocked: [],
+  };
   let attempt = 0;
   return {
     state,
     browserType: () => ({ name: () => 'chromium' }),
-    async newContext() {
+    async newContext(options) {
+      state.contextOptions.push(options);
       const outcome = outcomes[attempt++] ?? outcomes.at(-1);
       let consoleListener = () => {};
+      let routeHandler;
+      let currentUrl = 'about:blank';
       return {
         tracing: {
           async start() { state.traceStarts += 1; },
-          async stop() { state.traceStops += 1; },
+          async stop(options = {}) {
+            state.traceStops += 1;
+            if (options.path) {
+              mkdirSync(dirname(options.path), { recursive: true });
+              writeFileSync(options.path, 'retrievable trace');
+            }
+          },
         },
         async newPage() {
           return {
             on(event, listener) { if (event === 'console') consoleListener = listener; },
             off(event, listener) { if (event === 'console' && listener === consoleListener) consoleListener = () => {}; },
-            async goto() {
+            async route(_pattern, handler) { routeHandler = handler; },
+            async goto(target) {
+              const targetUrl = new URL(target);
+              const requests = [
+                { url: targetUrl.toString(), method: 'GET', navigation: true },
+                ...(outcome.requests ?? []),
+              ];
+              for (const requestData of requests) {
+                let blocked = false;
+                const request = {
+                  url: () => requestData.url,
+                  method: () => requestData.method ?? 'GET',
+                  isNavigationRequest: () => requestData.navigation === true,
+                };
+                await routeHandler?.({
+                  request: () => request,
+                  async abort() { blocked = true; state.trafficBlocked.push(requestData.url); },
+                  async continue() { state.trafficSent.push(requestData.url); },
+                });
+                if (blocked && requestData.navigation) throw new Error('navigation blocked before traffic');
+              }
               if (outcome.console) consoleListener({ type: () => 'error', text: () => outcome.console });
               if (outcome.error) throw new Error(outcome.error);
-              return { status: () => outcome.status ?? 200 };
+              const pathname = targetUrl.pathname;
+              const finalPath = pathname === '/devices/' ? '/products/' : pathname === '/forum/' ? '/feed/' : pathname;
+              currentUrl = new URL(finalPath, targetUrl.origin).toString();
+              const status = outcome.statuses?.[pathname] ?? outcome.status ??
+                (pathname === '/api/admin/devices' || pathname === '/api/admin/forum/media' ? 401 : 200);
+              return { status: () => status };
             },
-            locator() { return { waitFor: async () => {} }; },
-            async screenshot() { state.screenshots += 1; return Buffer.from('png'); },
+            url: () => currentUrl,
+            locator(selector) {
+              const text = currentUrl.includes('/products/') ? '产品'
+                : currentUrl.includes('/feed/') ? '帖子动态'
+                  : currentUrl.includes('/login/') ? '登录 / 注册'
+                    : currentUrl.includes('/admin/devices/') ? '/admin/devices'
+                      : currentUrl.includes('/admin/media/') ? '/admin/media'
+                        : '';
+              return {
+                async waitFor() { if (outcome.assertionError) throw new Error(outcome.assertionError); },
+                async textContent() { return outcome.text ?? text; },
+                selector,
+              };
+            },
+            async waitForLoadState() {},
+            async screenshot(options = {}) {
+              state.screenshots += 1;
+              if (options.path) {
+                mkdirSync(dirname(options.path), { recursive: true });
+                writeFileSync(options.path, 'retrievable screenshot');
+              }
+              return Buffer.from('png');
+            },
             async close() {},
           };
         },
@@ -472,7 +534,7 @@ test('targeted Chromium success returns compact evidence without heavy artifact 
 
 test('targeted Chromium retains first-failure evidence requests across one successful retry', async () => {
   const browser = fakeChromiumBrowser([
-    { error: 'transient navigation failure', console: 'first browser console error' },
+    { error: 'page.goto: net::ERR_CONNECTION_RESET', console: 'first browser console error' },
     { status: 200 },
   ]);
   const result = await runTargetedBrowserCheck({
@@ -492,11 +554,16 @@ test('targeted Chromium retains first-failure evidence requests across one succe
     'browser:devices:first-attempt:trace',
   ]);
   assert.equal(result.details.firstFailure.consoleErrors[0], 'first browser console error');
-  assert.equal(browser.state.screenshots, 1);
+  assert.equal(result.details.firstFailure.screenshotCaptured, false);
+  assert.equal(result.details.firstFailure.traceCaptured, false);
+  assert.equal(browser.state.screenshots, 0);
 });
 
 test('targeted Chromium fails after one retry and never accepts a non-Chromium browser', async () => {
-  const browser = fakeChromiumBrowser([{ status: 503 }, { error: 'still unavailable' }]);
+  const browser = fakeChromiumBrowser([
+    { error: 'page.goto: net::ERR_CONNECTION_RESET' },
+    { error: 'page.goto: net::ERR_CONNECTION_REFUSED' },
+  ]);
   const result = await runTargetedBrowserCheck({
     group: 'forum',
     baseUrl: 'http://127.0.0.1:4321',
@@ -507,13 +574,118 @@ test('targeted Chromium fails after one retry and never accepts a non-Chromium b
   assert.equal(result.attempts, 2);
   assert.equal(result.details.firstAttempt, 'FAIL');
   assert.equal(result.details.retryAttempt, 'FAIL');
-  assert.equal(browser.state.screenshots, 2);
+  assert.equal(browser.state.screenshots, 0);
 
   await assert.rejects(() => runTargetedBrowserCheck({
     group: 'forum',
     baseUrl: 'http://127.0.0.1:4321',
     browser: { ...browser, browserType: () => ({ name: () => 'firefox' }) },
   }), /Chromium/i);
+});
+
+test('targeted browser persists retrievable failure evidence only through an explicit sink', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'openglass-browser-artifacts-'));
+  try {
+    const browser = fakeChromiumBrowser([{ error: 'page.goto: net::ERR_CONNECTION_RESET', console: 'safe console failure' }, { status: 200 }]);
+    const result = await runTargetedBrowserCheck({
+      group: 'products',
+      baseUrl: 'http://127.0.0.1:4321',
+      browser,
+      artifactSink: { directory },
+    });
+
+    const evidence = result.details.firstFailure;
+    assert.equal(evidence.screenshotCaptured, true);
+    assert.equal(evidence.traceCaptured, true);
+    assert.equal(evidence.consoleCaptured, true);
+    assert.equal(readFileSync(evidence.artifacts.screenshot, 'utf8'), 'retrievable screenshot');
+    assert.equal(readFileSync(evidence.artifacts.trace, 'utf8'), 'retrievable trace');
+    assert.deepEqual(JSON.parse(readFileSync(evidence.artifacts.console, 'utf8')), ['safe console failure']);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('targeted browser blocks cross-origin and mutating traffic before it is sent', async () => {
+  const external = 'https://cdn.example.test/client.js';
+  const mutation = 'http://127.0.0.1:4321/api/forum/posts';
+  const browser = fakeChromiumBrowser([{
+    requests: [
+      { url: external, method: 'GET' },
+      { url: mutation, method: 'POST' },
+    ],
+  }]);
+  const result = await runTargetedBrowserCheck({
+    group: 'products',
+    baseUrl: 'http://127.0.0.1:4321',
+    browser,
+  });
+
+  assert.equal(result.status, 'FAIL');
+  assert.equal(result.classification, 'SAFETY');
+  assert.equal(result.attempts, 1);
+  assert.deepEqual(browser.state.contextOptions, [{ serviceWorkers: 'block' }]);
+  assert.equal(browser.state.trafficBlocked.includes(external), true);
+  assert.equal(browser.state.trafficBlocked.includes(mutation), true);
+  assert.equal(browser.state.trafficSent.includes(external), false);
+  assert.equal(browser.state.trafficSent.includes(mutation), false);
+});
+
+test('targeted browser permits read-only traffic to another loopback port', async () => {
+  const localDependency = 'http://127.0.0.1:54321/auth/v1/settings';
+  const browser = fakeChromiumBrowser([{
+    requests: [{ url: localDependency, method: 'GET' }],
+  }]);
+  const result = await runTargetedBrowserCheck({
+    group: 'products',
+    baseUrl: 'http://127.0.0.1:4321',
+    browser,
+  });
+
+  assert.equal(result.status, 'PASS');
+  assert.equal(browser.state.trafficSent.includes(localDependency), true);
+  assert.equal(browser.state.trafficBlocked.includes(localDependency), false);
+});
+
+test('targeted browser retries transient navigation errors but not HTTP or assertion failures', async () => {
+  const httpBrowser = fakeChromiumBrowser([{ status: 503 }, { status: 200 }]);
+  const http = await runTargetedBrowserCheck({ group: 'products', baseUrl: 'http://127.0.0.1:4321', browser: httpBrowser });
+  assert.equal(http.status, 'FAIL');
+  assert.equal(http.classification, 'DETERMINISTIC');
+  assert.equal(http.attempts, 1);
+
+  const assertionBrowser = fakeChromiumBrowser([{ assertionError: 'required product region missing' }, { status: 200 }]);
+  const assertion = await runTargetedBrowserCheck({ group: 'products', baseUrl: 'http://127.0.0.1:4321', browser: assertionBrowser });
+  assert.equal(assertion.status, 'FAIL');
+  assert.equal(assertion.classification, 'DETERMINISTIC');
+  assert.equal(assertion.attempts, 1);
+
+  const setupBrowser = fakeChromiumBrowser([{ error: 'browser fixture setup failed' }, { status: 200 }]);
+  const setup = await runTargetedBrowserCheck({ group: 'products', baseUrl: 'http://127.0.0.1:4321', browser: setupBrowser });
+  assert.equal(setup.status, 'FAIL');
+  assert.equal(setup.classification, 'DETERMINISTIC');
+  assert.equal(setup.attempts, 1);
+});
+
+test('each targeted group enforces its scoped route and surface contract', async () => {
+  const expected = {
+    admin: ['status:/api/admin/devices=401', 'text:h1.community-page-title=/admin/devices'],
+    auth: ['text:h1=登录 / 注册', 'visible:.auth-page'],
+    devices: ['redirect:/devices/->/products/', 'visible:#products-brand-grid'],
+    forum: ['redirect:/forum/->/feed/', 'text:.community-stream-head h2=帖子动态'],
+    media: ['status:/api/admin/forum/media=401', 'text:h1.community-page-title=/admin/media'],
+    products: ['text:h1=产品', 'visible:#products-brand-grid'],
+  };
+
+  for (const [group, assertions] of Object.entries(expected)) {
+    const result = await runTargetedBrowserCheck({
+      group,
+      baseUrl: 'http://127.0.0.1:4321',
+      browser: fakeChromiumBrowser([{}]),
+    });
+    assert.equal(result.status, 'PASS', group);
+    assert.deepEqual(result.details.assertions, assertions, group);
+  }
 });
 
 test('targeted browser groups are real local surfaces and exclude guessed Compare coverage', async () => {
