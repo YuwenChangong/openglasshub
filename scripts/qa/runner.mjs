@@ -7,6 +7,7 @@ import { runCheck } from './check-registry.mjs';
 import { createRunContext, normalizeCheckResult, parseInvocation, QAInvocationValidationError, QA_PROFILES } from './contracts.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
 import { createReceipt, finalizeReceipt, redactValue, renderSummary } from './receipt.mjs';
+import { classifyChanges, collectChangedPaths, resolveComparisonBase } from './risk.mjs';
 
 export { QA_PROFILES, RISK_LEVELS, QAInvocationValidationError, createRunContext, normalizeCheckResult, parseInvocation } from './contracts.mjs';
 
@@ -32,6 +33,38 @@ function currentCommit(cwd) {
   }).trim().toLowerCase();
 }
 
+function currentBranch(cwd) {
+  const branch = execFileSync('git', ['branch', '--show-current'], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim();
+  if (!branch) throw new TypeError('BASE_UNRESOLVED: detached HEAD has no branch comparison contract');
+  return branch;
+}
+
+export function resolveFastRunContext({ cwd = process.cwd(), mainRef = 'origin/main' } = {}) {
+  const branch = currentBranch(cwd);
+  const baseSha = resolveComparisonBase({ branch, mainRef, cwd });
+  const paths = collectChangedPaths({ baseSha, cwd });
+  const classification = classifyChanges({ paths });
+  const context = createRunContext({
+    profile: QA_PROFILES.FAST,
+    risk: classification.risk,
+    commitSha: currentCommit(cwd),
+    baseSha,
+    changedPathsCount: paths.length,
+  });
+  return Object.freeze({
+    ...context,
+    directAreas: classification.directAreas,
+    expandedAreas: classification.expandedAreas,
+    changedPaths: classification.paths,
+    releaseRequired: classification.releaseRequired,
+    escalationReasons: classification.escalationReasons,
+  });
+}
+
 export function renderProfileOutput(receipt) {
   const selected = receipt.selectedChecks.map(({ id }) => id).sort().join(',') || '-';
   const skipped = receipt.skippedChecks
@@ -47,21 +80,29 @@ export function renderProfileOutput(receipt) {
   ].join('\n');
 }
 
-export async function executeFastRun({ argv = ['fast'], cwd = process.cwd(), write = (value) => process.stdout.write(value) } = {}) {
-  const context = parseRun(argv);
-  if (context.profile !== QA_PROFILES.FAST) {
+export async function executeFastRun({
+  argv = ['fast'],
+  cwd = process.cwd(),
+  mainRef = 'origin/main',
+  artifactRoot = 'artifacts/qa',
+  runCheckFn = runCheck,
+  write = (value) => process.stdout.write(value),
+} = {}) {
+  const invocation = parseRun(argv);
+  if (invocation.profile !== QA_PROFILES.FAST) {
     throw new QAInvocationValidationError('INVALID_INVOCATION: this runner profile is not implemented yet');
   }
+  const context = resolveFastRunContext({ cwd, mainRef });
   const selection = resolveFastChecks(context);
   const startedAt = new Date().toISOString();
   const receiptDraft = createReceipt({
     runId: `qa-${randomUUID()}`,
     profile: QA_PROFILES.FAST,
-    areas: selection.areas,
+    areas: context.directAreas,
     expandedAreas: selection.areas,
     risk: selection.risk,
-    commitSha: currentCommit(cwd),
-    baseSha: null,
+    commitSha: context.commitSha,
+    baseSha: context.baseSha,
     changedPathsCount: context.changedPathsCount,
     selectedChecks: selection.selectedChecks,
     skippedChecks: selection.skippedChecks,
@@ -79,7 +120,7 @@ export async function executeFastRun({ argv = ['fast'], cwd = process.cwd(), wri
     const executionContext = { ...context, cwd, env: safeChildEnvironment() };
     for (const { id } of selection.selectedChecks) {
       try {
-        results.push(await runCheck(id, executionContext));
+        results.push(normalizeCheckResult(await runCheckFn(id, executionContext)));
       } catch (error) {
         results.push(normalizeCheckResult({
           id,
@@ -99,7 +140,7 @@ export async function executeFastRun({ argv = ['fast'], cwd = process.cwd(), wri
     extensions: selection.blocked ? { blockedReason: selection.blockedReason } : {},
   });
   const failures = results.filter(({ status }) => status === 'FAIL');
-  const artifacts = await writeFailureArtifacts({ receipt, failures });
+  const artifacts = await writeFailureArtifacts({ receipt, failures, artifactRoot });
   write(`${renderProfileOutput(receipt)}\n${renderSummary(receipt)}\nQA_RECEIPT=${artifacts.receipt}\n`);
   return receipt;
 }

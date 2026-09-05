@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import test from 'node:test';
 
 import { getCheck } from './check-registry.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
-import { renderProfileOutput } from './runner.mjs';
+import { executeFastRun, renderProfileOutput } from './runner.mjs';
 
 const FOUNDATION = [
   'git-diff-check',
@@ -23,6 +26,35 @@ const FORBIDDEN_EXPENSIVE = [
   'production-smoke',
   'provider-operations',
 ];
+
+function git(cwd, args) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+}
+
+function createFeatureRepository() {
+  const cwd = mkdtempSync(join(tmpdir(), 'openglass-qa-fast-'));
+  git(cwd, ['init', '-b', 'main']);
+  git(cwd, ['config', 'user.email', 'qa@example.test']);
+  git(cwd, ['config', 'user.name', 'QA Harness']);
+  writeFileSync(join(cwd, 'README.md'), 'base\n');
+  git(cwd, ['add', '--', 'README.md']);
+  git(cwd, ['commit', '-m', 'base']);
+  const baseSha = git(cwd, ['rev-parse', 'HEAD']);
+  git(cwd, ['switch', '-c', 'feature/test']);
+  return { cwd, baseSha };
+}
+
+function commitFile(cwd, path, content) {
+  const target = join(cwd, ...path.split('/'));
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, content);
+  git(cwd, ['add', '--', path]);
+  git(cwd, ['commit', '-m', `change ${path}`]);
+}
+
+function passingCheck(id) {
+  return { id, status: 'PASS', attempts: 1, durationMs: 0, classification: 'DETERMINISTIC', diagnostics: {} };
+}
 
 test('FAST selects only its deterministic foundation for an area-free local run', () => {
   const selection = resolveFastChecks({ profile: 'FAST', risk: 'LOW', expandedAreas: [] });
@@ -114,4 +146,77 @@ test('package exposes qa:fast without prematurely adding the other public profil
 
   assert.deepEqual(qaScripts, ['qa:fast']);
   assert.equal(packageJson.scripts['qa:fast'], 'node scripts/qa/runner.mjs fast');
+});
+
+test('FAST runner classifies a Wrangler change and blocks before any check runs', async () => {
+  const repository = createFeatureRepository();
+  let executed = 0;
+  let output = '';
+  try {
+    commitFile(repository.cwd, 'wrangler.toml', 'name = "unsafe-change"\n');
+    const receipt = await executeFastRun({
+      cwd: repository.cwd,
+      mainRef: 'main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'),
+      runCheckFn: async (id) => { executed += 1; return passingCheck(id); },
+      write: (value) => { output += value; },
+    });
+
+    assert.equal(receipt.result, 'BLOCKED');
+    assert.equal(receipt.risk, 'HIGH');
+    assert.equal(receipt.baseSha, repository.baseSha);
+    assert.deepEqual(receipt.areas, ['cloudflare']);
+    assert.deepEqual(receipt.expandedAreas, ['cloudflare', 'security']);
+    assert.equal(receipt.changedPathsCount, 1);
+    assert.equal(executed, 0);
+    assert.match(output, /QA_RESULT=BLOCKED/);
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
+});
+
+test('FAST runner classifies a device change and selects only its dependency-expanded cheap gates', async () => {
+  const repository = createFeatureRepository();
+  const executed = [];
+  try {
+    commitFile(repository.cwd, 'src/pages/devices/index.astro', '<main>devices</main>\n');
+    const receipt = await executeFastRun({
+      cwd: repository.cwd,
+      mainRef: 'main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'),
+      runCheckFn: async (id) => { executed.push(id); return passingCheck(id); },
+      write: () => {},
+    });
+
+    assert.equal(receipt.result, 'PASS');
+    assert.equal(receipt.risk, 'MEDIUM');
+    assert.deepEqual(receipt.areas, ['devices']);
+    assert.deepEqual(receipt.expandedAreas, ['devices', 'products', 'search', 'seo']);
+    assert.equal(receipt.changedPathsCount, 1);
+    assert.deepEqual(executed, receipt.selectedChecks.map(({ id }) => id));
+    assert.equal(executed.includes('devices-library'), true);
+    assert.equal(executed.includes('products-page'), true);
+    assert.equal(executed.includes('search'), true);
+    assert.equal(executed.includes('seo'), true);
+    assert.equal(executed.some((id) => /e2e|replay|production|provider/i.test(id)), false);
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
+});
+
+test('FAST runner fails closed without executing checks when the comparison base is unresolved', async () => {
+  const repository = createFeatureRepository();
+  let executed = 0;
+  try {
+    await assert.rejects(() => executeFastRun({
+      cwd: repository.cwd,
+      mainRef: 'missing-main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'),
+      runCheckFn: async (id) => { executed += 1; return passingCheck(id); },
+      write: () => {},
+    }), (error) => error?.code === 'BASE_UNRESOLVED');
+    assert.equal(executed, 0);
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
 });
