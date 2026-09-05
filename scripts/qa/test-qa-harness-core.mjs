@@ -122,3 +122,24 @@ test('does not allow callers to mutate context areas', () => {
   assert.throws(() => context.areas.push('forum'), TypeError);
   assert.deepEqual(context.areas, ['devices', 'products']);
 });
+
+test('rejects plural areas on a non-FEATURE run context', () => {
+  assert.throws(
+    () => createRunContext({ profile: QA_PROFILES.RELEASE, areas: ['devices'] }),
+    /area is only valid for FEATURE profile/,
+  );
+});
+
+test('returns deterministic typed validation errors for repeated invalid argv', () => {
+  const errors = [1, 2].map(() => {
+    try {
+      parseInvocation(['--bogus']);
+      return null;
+    } catch (error) {
+      return { name: error.name, code: error.code, message: error.message };
+    }
+  });
+  assert.deepEqual(errors[0], errors[1]);
+  assert.equal(errors[0].name, 'QAInvocationValidationError');
+  assert.equal(errors[0].code, 'INVALID_INVOCATION');
+});

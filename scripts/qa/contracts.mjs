@@ -136,6 +136,7 @@ export function createRunContext(input = {}) {
   const area = input.area == null ? null : normalizeArea(input.area);
   if (area && profile !== QA_PROFILES.FEATURE) throw new QAInvocationValidationError('INVALID_INVOCATION: area is only valid for FEATURE profile');
   const areas = Array.isArray(input.areas) ? [...new Set(input.areas.map(normalizeArea))].sort() : (area ? [area] : []);
+  if (areas.length > 0 && profile !== QA_PROFILES.FEATURE) throw new QAInvocationValidationError('INVALID_INVOCATION: area is only valid for FEATURE profile');
   const risk = input.risk ?? RISK_LEVELS.LOW;
   if (!Object.values(RISK_LEVELS).includes(risk)) throw new TypeError('invalid risk');
   const changedPathsCount = input.changedPathsCount ?? 0;
