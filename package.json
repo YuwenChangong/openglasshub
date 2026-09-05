@@ -12,6 +12,7 @@
     "test:workers-migration-inventory": "node scripts/qa/test-cloudflare-workers-migration-inventory.mjs",
     "test:workers-config": "node scripts/qa/test-workers-native-config.mjs",
     "test:workers-env-contract": "node scripts/qa/test-workers-environment-contract.mjs",
+    "test:workers-origin-cutover": "node scripts/qa/test-workers-production-origin-cutover.mjs",
     "test:workers-artifact": "node scripts/qa/test-workers-generated-artifact.mjs",
     "test:site-origin-transition": "node --experimental-strip-types scripts/qa/test-site-origin-transition.mjs",
     "test:workers-transition-contracts": "node --experimental-strip-types scripts/qa/test-workers-transition-contracts.mjs",
