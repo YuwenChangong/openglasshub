@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { getCheck } from './check-registry.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
@@ -26,6 +27,7 @@ const FORBIDDEN_EXPENSIVE = [
   'production-smoke',
   'provider-operations',
 ];
+const RUNNER = fileURLToPath(new URL('./runner.mjs', import.meta.url));
 
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -216,6 +218,37 @@ test('FAST runner fails closed without executing checks when the comparison base
       write: () => {},
     }), (error) => error?.code === 'BASE_UNRESOLVED');
     assert.equal(executed, 0);
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
+});
+
+test('FAST runner and CLI preserve BASE_UNRESOLVED for detached HEAD', async () => {
+  const repository = createFeatureRepository();
+  let executed = 0;
+  try {
+    git(repository.cwd, ['switch', '--detach', 'HEAD']);
+    await assert.rejects(() => executeFastRun({
+      cwd: repository.cwd,
+      mainRef: 'main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'),
+      runCheckFn: async (id) => { executed += 1; return passingCheck(id); },
+      write: () => {},
+    }), (error) => error?.code === 'BASE_UNRESOLVED');
+    assert.equal(executed, 0);
+
+    const environment = Object.fromEntries(['PATH', 'Path', 'SystemRoot', 'WINDIR']
+      .flatMap((name) => typeof process.env[name] === 'string' ? [[name, process.env[name]]] : []));
+    const cli = spawnSync(process.execPath, [RUNNER, 'fast'], {
+      cwd: repository.cwd,
+      env: environment,
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    });
+    assert.equal(cli.status, 2);
+    assert.match(cli.stderr, /QA_ERROR=BASE_UNRESOLVED/);
+    assert.doesNotMatch(cli.stderr, /HARNESS_FAILURE/);
   } finally {
     rmSync(repository.cwd, { recursive: true, force: true });
   }

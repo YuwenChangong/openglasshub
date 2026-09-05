@@ -7,7 +7,7 @@ import { runCheck } from './check-registry.mjs';
 import { createRunContext, normalizeCheckResult, parseInvocation, QAInvocationValidationError, QA_PROFILES } from './contracts.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
 import { createReceipt, finalizeReceipt, redactValue, renderSummary } from './receipt.mjs';
-import { classifyChanges, collectChangedPaths, resolveComparisonBase } from './risk.mjs';
+import { classifyChanges, collectChangedPaths, resolveComparisonBase, RiskClassificationError } from './risk.mjs';
 
 export { QA_PROFILES, RISK_LEVELS, QAInvocationValidationError, createRunContext, normalizeCheckResult, parseInvocation } from './contracts.mjs';
 
@@ -39,7 +39,7 @@ function currentBranch(cwd) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   }).trim();
-  if (!branch) throw new TypeError('BASE_UNRESOLVED: detached HEAD has no branch comparison contract');
+  if (!branch) throw new RiskClassificationError('BASE_UNRESOLVED', 'detached HEAD has no branch comparison contract');
   return branch;
 }
 
