@@ -13,8 +13,8 @@ const ACCESS_ASSIGNMENT = /\b([A-Z][A-Z0-9_]*(?:ACCESS_KEY|ACCESS_KEY_ID|SECRET_
 const BEARER = /\bBearer\s+[^\s"']+/gi;
 const RAW_TOKEN = /\b(?:sk|rk|pk|ghp|xox[baprs])[-_][a-z0-9_-]{16,}\b/gi;
 const RAW_SUPABASE_SECRET = /\bsb_(?:secret|service_role)_[a-z0-9._-]{8,}\b/gi;
-const PRIVATE_PEM = /-----BEGIN [^-\r\n]*PRIVATE KEY-----[\s\S]*?-----END [^-\r\n]*PRIVATE KEY-----/gi;
-const SENSITIVE_QUERY = new RegExp(`([?&]${SENSITIVE_LABEL}=)[^&#\\s"']+`, 'gi');
+const PRIVATE_PEM = /-----BEGIN ([^-\r\n]*PRIVATE KEY)-----[\s\S]*?(?:-----END \1-----|$)/gi;
+const SENSITIVE_QUERY = new RegExp(`([?&](?:${SENSITIVE_LABEL}|code)=)[^&#\\s"']+`, 'gi');
 const SERIALIZED_ASSIGNMENT = new RegExp(`(["']?${SENSITIVE_LABEL}["']?\\s*:\\s*)(?:"(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|[^,}\\]\\s]+)`, 'gi');
 const LABELLED_VALUE = /\b(?:token|secret|password|api[_-]?key|service[_-]?role|anon[_-]?key|credential|private[_-]?key|access[_-]?key|client[_-]?secret)\s*[:=]\s*[^\s,;"']+/gi;
 const MAX_RECEIPT_STRING_LENGTH = 4_096;

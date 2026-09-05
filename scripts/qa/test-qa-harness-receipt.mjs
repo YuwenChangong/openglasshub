@@ -113,6 +113,32 @@ test('receipt cannot claim PASS when a check failed', () => {
   }), /PASS result cannot contain failed checks/);
 });
 
+test('PEM redaction consumes complete, unterminated, and truncated private keys', () => {
+  const sentinel = 'qa-pem-sensitive-abcdefghijklmnop';
+  const samples = [
+    `before -----BEGIN PRIVATE KEY-----\n${sentinel}\n-----END PRIVATE KEY----- after`,
+    `before -----BEGIN RSA PRIVATE KEY-----\n${sentinel}`,
+    `before -----BEGIN EC PRIVATE KEY-----\n${sentinel}\n-----END EC PRIV`,
+    `before -----BEGIN RSA PRIVATE KEY-----\n${sentinel}\n-----END EC PRIVATE KEY----- tail`,
+  ];
+  const output = redactValue(samples);
+  assert.equal(JSON.stringify(output).includes(sentinel), false);
+  assert.equal(output[0], 'before [REDACTED] after');
+  assert.equal(output.slice(1).every((value) => value === 'before [REDACTED]'), true);
+});
+
+test('OAuth code query values are redacted without consuming adjacent safe parameters', () => {
+  const sentinel = 'qa-oauth-sensitive-abcdefghijklmnop';
+  const samples = [
+    `https://example.test/callback?code=${sentinel}&next=%2Fdevices`,
+    `https://example.test/callback?next=%2Fdevices&CODE=${sentinel}#done`,
+  ];
+  const output = redactValue(samples);
+  assert.equal(JSON.stringify(output).includes(sentinel), false);
+  assert.equal(output[0], 'https://example.test/callback?code=[REDACTED]&next=%2Fdevices');
+  assert.equal(output[1], 'https://example.test/callback?next=%2Fdevices&CODE=[REDACTED]#done');
+});
+
 test('failure artifacts are bounded, run-scoped, and redacted', async () => {
   const temp = mkdtempSync(join(tmpdir(), 'openglass-qa-receipt-'));
   const sentinel = 'qa-secret-sentinel-abcdefghijklmnop';
