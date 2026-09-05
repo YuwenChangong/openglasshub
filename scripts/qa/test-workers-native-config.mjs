@@ -18,7 +18,11 @@ assert.equal(
   false,
   "the root Wrangler configuration must not select the Cloudflare Pages build contract",
 );
-assert.equal(packageJson.scripts.build, "astro build", "npm run build must be the canonical Astro build without a Pages finalizer");
+assert.equal(
+  packageJson.scripts.build,
+  "node scripts/build-workers.mjs",
+  "npm run build must use the Workers public-build-environment wrapper without a Pages finalizer",
+);
 assert.equal(
   rootWrangler.compatibility_flags.includes("nodejs_compat"),
   true,
