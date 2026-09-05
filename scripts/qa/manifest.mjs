@@ -36,11 +36,11 @@ const areas = {
   products: area('products', ['src/pages/products/**', 'src/components/products/**', 'src/components/community/ProductCard.astro', 'src/data/product-public-data.json'], 'MEDIUM', [], [
     check('products-page', 'npm run test:products'),
   ], ['products'], { requiredProfile: 'qa:feature', rule: 'product rendering check must pass' }),
-  forum: area('forum', ['src/pages/forum/**', 'src/pages/circles/**', 'src/pages/posts/**', 'src/pages/api/forum/**', 'src/components/forum/**', 'src/lib/forum-*.ts'], 'MEDIUM', ['auth', 'media'], [
+  forum: area('forum', ['src/pages/forum/**', 'src/pages/circles/**', 'src/pages/posts/**', 'src/pages/api/forum/**', 'src/components/forum/**', 'src/layouts/ForumLayout.astro', 'src/lib/forum-*.ts'], 'MEDIUM', ['auth', 'media'], [
     check('forum-permissions', 'npm run test:forum-permissions'),
     check('forum-search', 'npm run test:search'),
   ], ['forum'], { requiredProfile: 'qa:feature', rule: 'forum authorization checks must pass' }),
-  news: area('news', ['src/pages/news/**', 'src/pages/api/news/**', 'src/components/news/**', 'src/lib/news*.ts'], 'MEDIUM', [], [
+  news: area('news', ['src/pages/news/**', 'src/pages/api/news/**', 'src/components/news/**', 'src/components/community/NewsCard.astro', 'src/lib/news*.ts'], 'MEDIUM', [], [
     check('news-api-safety', 'node scripts/test-public-news-api-safety.mjs'),
   ], ['news'], { requiredProfile: 'qa:feature', rule: 'news API safety must pass' }),
   search: area('search', ['src/pages/search/**', 'src/components/**/GlobalSearchBox.tsx', 'src/lib/*search*.ts'], 'MEDIUM', [], [
@@ -50,7 +50,7 @@ const areas = {
     check('auth-redirect-safety', 'npm run test:auth-redirect-safety'),
     check('auth-legal-consent', 'npm run test:auth-legal-consent'),
   ], ['auth'], { requiredProfile: 'qa:release', rule: 'authentication changes require release gates' }),
-  media: area('media', ['src/pages/api/media/**', 'src/pages/api/forum/*media*.ts', 'src/components/**/PostMedia*.tsx', 'src/lib/*media*.ts'], 'MEDIUM', [], [
+  media: area('media', ['src/pages/api/media/**', 'src/pages/api/forum/*media*.ts', 'src/components/**/PostMedia*.tsx', 'src/components/community/PostMediaPreview.astro', 'src/lib/*media*.ts'], 'MEDIUM', [], [
     check('media-url-privacy', 'npm run test:media-url-privacy'),
   ], ['media'], { requiredProfile: 'qa:feature', rule: 'media authorization checks must pass' }),
   admin: area('admin', ['src/pages/admin/**', 'src/pages/api/admin/**', 'src/components/admin/**', 'src/lib/admin-*.ts'], 'HIGH', ['auth', 'security'], [
