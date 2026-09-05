@@ -48,6 +48,30 @@ test('manifest path matchers cover representative real repository paths', () => 
   }
 });
 
+test('specific subsystem matchers take precedence over the broad frontend matcher', () => {
+  const representatives = {
+    devices: [
+      'src/components/devices/DeviceLibraryExplorer.tsx',
+      'src/lib/public-device-data.ts',
+    ],
+    products: ['src/components/community/ProductCard.astro'],
+    auth: ['src/pages/api/auth/resend-confirmation.ts'],
+    'supabase-config': ['src/lib/supabase-server.ts'],
+    security: ['src/lib/moderation/moderate-content.server.ts'],
+  };
+  for (const [name, paths] of Object.entries(representatives)) {
+    for (const path of paths) assert.equal(matchPath(path), name, `${path} should classify as ${name}`);
+  }
+});
+
+test('only HIGH-risk areas require the release profile', () => {
+  for (const name of REQUIRED_AREAS) {
+    const area = getArea(name);
+    if (area.risk === 'HIGH') assert.equal(area.releaseEscalation.requiredProfile, 'qa:release', name);
+    else assert.notEqual(area.releaseEscalation.requiredProfile, 'qa:release', name);
+  }
+});
+
 test('expands dependencies to a deterministic sorted deduplicated closure', () => {
   assert.deepEqual(expandDependencies(['devices', 'forum', 'devices']), [
     'auth', 'devices', 'forum', 'media', 'products', 'search', 'security', 'seo',
