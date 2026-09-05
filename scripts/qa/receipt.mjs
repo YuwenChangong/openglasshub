@@ -5,13 +5,22 @@ const RISKS = new Set(['LOW', 'MEDIUM', 'HIGH']);
 const RESULTS = new Set(['PASS', 'FAIL', 'BLOCKED']);
 const CHECK_STATUSES = new Set(['PASS', 'FAIL', 'SKIP']);
 const SENSITIVE_KEY = /(?:authorization|password|secret|token|api[_-]?key|service[_-]?role|anon[_-]?key|dsn|credential|connection[_-]?string|pgpassword|private[_-]?key|access[_-]?key|client[_-]?secret)/i;
+const SENSITIVE_LABEL = '(?:authorization|password|secret|token|api[_-]?key|service[_-]?role|anon[_-]?key|dsn|credential|connection[_-]?string|pgpassword|private[_-]?key|access[_-]?key|client[_-]?secret)';
 const JWT = /\beyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/g;
 const DSN = /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"']+/gi;
-const ASSIGNMENT = /\b([A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY|SERVICE_ROLE|ANON_KEY|DATABASE_URL|POSTGRES_URL)[A-Z0-9_]*)=([^\s]+)/gi;
-const ACCESS_ASSIGNMENT = /\b([A-Z][A-Z0-9_]*(?:ACCESS_KEY|ACCESS_KEY_ID|SECRET_ACCESS_KEY)[A-Z0-9_]*)=([^\s]+)/gi;
+const ASSIGNMENT = /\b([A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY|SERVICE_ROLE|ANON_KEY|DATABASE_URL|POSTGRES_URL)[A-Z0-9_]*)=(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;]+)/gi;
+const ACCESS_ASSIGNMENT = /\b([A-Z][A-Z0-9_]*(?:ACCESS_KEY|ACCESS_KEY_ID|SECRET_ACCESS_KEY)[A-Z0-9_]*)=(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;]+)/gi;
 const BEARER = /\bBearer\s+[^\s"']+/gi;
 const RAW_TOKEN = /\b(?:sk|rk|pk|ghp|xox[baprs])[-_][a-z0-9_-]{16,}\b/gi;
+const RAW_SUPABASE_SECRET = /\bsb_(?:secret|service_role)_[a-z0-9._-]{8,}\b/gi;
+const PRIVATE_PEM = /-----BEGIN [^-\r\n]*PRIVATE KEY-----[\s\S]*?-----END [^-\r\n]*PRIVATE KEY-----/gi;
+const SENSITIVE_QUERY = new RegExp(`([?&]${SENSITIVE_LABEL}=)[^&#\\s"']+`, 'gi');
+const SERIALIZED_ASSIGNMENT = new RegExp(`(["']?${SENSITIVE_LABEL}["']?\\s*:\\s*)(?:"(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|[^,}\\]\\s]+)`, 'gi');
 const LABELLED_VALUE = /\b(?:token|secret|password|api[_-]?key|service[_-]?role|anon[_-]?key|credential|private[_-]?key|access[_-]?key|client[_-]?secret)\s*[:=]\s*[^\s,;"']+/gi;
+const MAX_RECEIPT_STRING_LENGTH = 4_096;
+const MAX_RECEIPT_ARRAY_ITEMS = 100;
+const MAX_RECEIPT_KEYS = 64;
+const MAX_RECEIPT_DEPTH = 8;
 
 function fail(message) {
   throw new TypeError(`INVALID_RECEIPT: ${message}`);
@@ -58,14 +67,41 @@ export function redactValue(value, key = '') {
     return Object.fromEntries(Object.keys(value).sort().map((entryKey) => [entryKey, redactValue(value[entryKey], entryKey)]));
   }
   if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object') return JSON.stringify(redactValue(parsed));
+    } catch {
+      // Continue with value-blind text patterns for non-JSON diagnostics.
+    }
+  }
   return value
+    .replace(PRIVATE_PEM, REDACTED)
     .replace(DSN, REDACTED)
     .replace(BEARER, `Bearer ${REDACTED}`)
     .replace(JWT, REDACTED)
+    .replace(RAW_SUPABASE_SECRET, REDACTED)
     .replace(RAW_TOKEN, REDACTED)
+    .replace(SENSITIVE_QUERY, `$1${REDACTED}`)
+    .replace(SERIALIZED_ASSIGNMENT, `$1${REDACTED}`)
     .replace(LABELLED_VALUE, REDACTED)
     .replace(ACCESS_ASSIGNMENT, `$1=${REDACTED}`)
     .replace(ASSIGNMENT, `$1=${REDACTED}`);
+}
+
+function boundedReceiptValue(value, depth = 0) {
+  if (typeof value === 'string') return value.length <= MAX_RECEIPT_STRING_LENGTH ? value : `${value.slice(0, MAX_RECEIPT_STRING_LENGTH)}…[TRUNCATED]`;
+  if (depth >= MAX_RECEIPT_DEPTH) return '[TRUNCATED_DEPTH]';
+  if (Array.isArray(value)) return value.slice(0, MAX_RECEIPT_ARRAY_ITEMS).map((entry) => boundedReceiptValue(entry, depth + 1));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().slice(0, MAX_RECEIPT_KEYS).map((entryKey) => [entryKey, boundedReceiptValue(value[entryKey], depth + 1)]));
+  }
+  return value;
+}
+
+function sanitizeReceiptValue(value) {
+  return boundedReceiptValue(redactValue(value));
 }
 
 function canonicalSafety(input = {}) {
@@ -115,7 +151,7 @@ export function createReceipt(input = {}) {
     safety: canonicalSafety(input.safety),
     artifacts: { receipt: receiptPath(runId), failureDir: null },
     error: null,
-    extensions: redactValue(input.extensions ?? {}),
+    extensions: sanitizeReceiptValue(input.extensions ?? {}),
   });
 }
 
@@ -151,8 +187,8 @@ export function finalizeReceipt(receipt, input = {}) {
     failCount,
     retryCount,
     result,
-    error: input.error == null ? null : redactValue(input.error),
-    extensions: redactValue({ ...receipt.extensions, ...input.extensions }),
+    error: input.error == null ? null : sanitizeReceiptValue(input.error),
+    extensions: sanitizeReceiptValue({ ...receipt.extensions, ...input.extensions }),
   });
 }
 

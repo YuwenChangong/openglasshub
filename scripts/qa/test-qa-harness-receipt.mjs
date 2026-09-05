@@ -86,6 +86,25 @@ test('redaction is value-blind for secret names, DSNs, tokens, and nested values
   assert.doesNotMatch(JSON.stringify(redactValue({ privateKey: 'SENTINEL_PRIVATE', text: 'privateKey=SENTINEL_PRIVATE', access: 'AWS_ACCESS_KEY_ID=SENTINEL_ACCESS' })), /SENTINEL_(PRIVATE|ACCESS)/);
 });
 
+test('redaction covers serialized assignments, Supabase secrets, PEM payloads, and authorization queries', () => {
+  const sentinel = 'qa-sensitive-value-abcdefghijklmnop';
+  const samples = [
+    `{"password":"${sentinel}","safe":"visible"}`,
+    `config={"client_secret": "${sentinel}"}`,
+    `OPENAI_API_KEY="${sentinel} with spaces"`,
+    `sb_secret_${sentinel}`,
+    `-----BEGIN PRIVATE KEY-----\n${sentinel}\n-----END PRIVATE KEY-----`,
+    `https://example.test/callback?authorization=${sentinel}&next=%2Fdevices`,
+  ];
+
+  const redacted = redactValue(samples);
+  const serialized = JSON.stringify(redacted);
+  assert.equal(serialized.includes(sentinel), false);
+  assert.equal(serialized.includes('BEGIN PRIVATE KEY'), false);
+  assert.equal(serialized.includes('authorization=qa-sensitive'), false);
+  assert.equal(redacted[0].includes('"safe":"visible"'), true);
+});
+
 test('receipt cannot claim PASS when a check failed', () => {
   assert.throws(() => finalizeReceipt(draft(), {
     completedAt: '2026-09-05T00:00:01.000Z',
@@ -116,6 +135,28 @@ test('failure artifacts are bounded, run-scoped, and redacted', async () => {
     const payload = readFileSync(join(runDirectory, 'failure', 'a-unit.json'), 'utf8');
     assert.equal(payload.includes(sentinel), false);
     assert.equal(payload.length < 5_000, true);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('receipt serialization remains bounded for megabyte error and extension inputs', async () => {
+  const temp = mkdtempSync(join(tmpdir(), 'openglass-qa-receipt-'));
+  const sentinel = 'qa-megabyte-secret-abcdefghijklmnop';
+  try {
+    const receipt = finalizeReceipt(draft(), {
+      completedAt: '2026-09-05T00:00:00.010Z',
+      result: 'FAIL',
+      checkResults: [],
+      error: { message: `safe failure detail ${'e'.repeat(1_000_000)}` },
+      extensions: { diagnostics: `sb_secret_${sentinel}${'x'.repeat(1_000_000)}` },
+    });
+    await writeFailureArtifacts({ receipt, artifactRoot: temp });
+    const payload = readFileSync(join(temp, RUN_ID, 'receipt.json'), 'utf8');
+    assert.equal(payload.includes(sentinel), false);
+    assert.equal(payload.length < 50_000, true);
+    assert.equal(receipt.error.message.length < 10_000, true);
+    assert.equal(receipt.extensions.diagnostics.length < 10_000, true);
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

@@ -32,7 +32,7 @@ export async function writeFailureArtifacts({ receipt, failures = [], artifactRo
   const artifacts = artifactPaths(receipt, hasFailures);
   const runDirectory = join(artifactRoot, receipt.runId);
   await mkdir(runDirectory, { recursive: true, mode: 0o700 });
-  await writeFile(join(runDirectory, 'receipt.json'), `${JSON.stringify(redactValue({ ...receipt, artifacts }))}\n`, { encoding: 'utf8', mode: 0o600 });
+  await writeFile(join(runDirectory, 'receipt.json'), `${JSON.stringify(bounded(redactValue({ ...receipt, artifacts })))}\n`, { encoding: 'utf8', mode: 0o600 });
   if (!hasFailures) return artifacts;
   const failureDirectory = join(runDirectory, 'failure');
   await mkdir(failureDirectory, { recursive: true, mode: 0o700 });
