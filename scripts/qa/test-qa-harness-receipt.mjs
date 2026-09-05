@@ -83,6 +83,15 @@ test('redaction is value-blind for secret names, DSNs, tokens, and nested values
   assert.equal(serialized.includes(sentinel), false);
   assert.equal(serialized.includes('postgresql://user:'), false);
   assert.match(serialized, /\[REDACTED\]/);
+  assert.doesNotMatch(JSON.stringify(redactValue({ privateKey: 'SENTINEL_PRIVATE', text: 'privateKey=SENTINEL_PRIVATE' })), /SENTINEL_PRIVATE/);
+});
+
+test('receipt cannot claim PASS when a check failed', () => {
+  assert.throws(() => finalizeReceipt(draft(), {
+    completedAt: '2026-09-05T00:00:01.000Z',
+    result: 'PASS',
+    checkResults: [{ id: 'a-unit', status: 'FAIL' }],
+  }), /PASS result cannot contain failed checks/);
 });
 
 test('failure artifacts are bounded, run-scoped, and redacted', async () => {
@@ -123,6 +132,15 @@ test('successful runs write only the receipt and no failure directory', async ()
     const runDirectory = join(temp, RUN_ID);
     assert.equal(artifacts.failureDir, null);
     assert.deepEqual(readdirSync(runDirectory), ['receipt.json']);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('failure artifact writer rejects draft receipts', async () => {
+  const temp = mkdtempSync(join(tmpdir(), 'openglass-qa-receipt-'));
+  try {
+    await assert.rejects(() => writeFailureArtifacts({ receipt: draft(), artifactRoot: temp }), /finalized v1 receipt/);
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

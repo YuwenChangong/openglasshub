@@ -4,13 +4,13 @@ const PROFILES = new Set(['FAST', 'FEATURE', 'RELEASE', 'PRODUCTION_SMOKE']);
 const RISKS = new Set(['LOW', 'MEDIUM', 'HIGH']);
 const RESULTS = new Set(['PASS', 'FAIL', 'BLOCKED']);
 const CHECK_STATUSES = new Set(['PASS', 'FAIL', 'SKIP']);
-const SENSITIVE_KEY = /(?:authorization|password|secret|token|api[_-]?key|service[_-]?role|anon[_-]?key|dsn|credential|connection[_-]?string|pgpassword)/i;
+const SENSITIVE_KEY = /(?:authorization|password|secret|token|api[_-]?key|service[_-]?role|anon[_-]?key|dsn|credential|connection[_-]?string|pgpassword|private[_-]?key|access[_-]?key|client[_-]?secret)/i;
 const JWT = /\beyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/g;
 const DSN = /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"']+/gi;
 const ASSIGNMENT = /\b([A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY|SERVICE_ROLE|ANON_KEY|DATABASE_URL|POSTGRES_URL)[A-Z0-9_]*)=([^\s]+)/gi;
 const BEARER = /\bBearer\s+[^\s"']+/gi;
 const RAW_TOKEN = /\b(?:sk|rk|pk|ghp|xox[baprs])[-_][a-z0-9_-]{16,}\b/gi;
-const LABELLED_VALUE = /\b(?:token|secret|password|api[_-]?key|service[_-]?role|anon[_-]?key|credential)\s*[:=]\s*[^\s,;"']+/gi;
+const LABELLED_VALUE = /\b(?:token|secret|password|api[_-]?key|service[_-]?role|anon[_-]?key|credential|private[_-]?key|access[_-]?key|client[_-]?secret)\s*[:=]\s*[^\s,;"']+/gi;
 
 function fail(message) {
   throw new TypeError(`INVALID_RECEIPT: ${message}`);
@@ -139,6 +139,8 @@ export function finalizeReceipt(receipt, input = {}) {
   const retryCount = checkResults.reduce((total, { attempts }) => total + Math.max(0, attempts - 1), 0);
   const result = input.result ?? (failCount > 0 ? 'FAIL' : 'PASS');
   if (!RESULTS.has(result)) fail('result is invalid');
+  if (result === 'PASS' && failCount > 0) fail('PASS result cannot contain failed checks');
+  if (result === 'FAIL' && failCount === 0 && input.error == null) fail('FAIL result requires a failed check or error');
   return deepFreeze({
     ...receipt,
     completedAt,
