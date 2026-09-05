@@ -124,3 +124,22 @@ test('executor redacts secret sentinels from diagnostics and captured output', a
   assert.equal(JSON.stringify(result.diagnostics).includes(sentinel), false);
   assert.match(result.stderr, /\[REDACTED\]/);
 });
+
+test('executor never exposes a secret prefix split by the bounded output boundary', async () => {
+  const sentinel = 'qa-secret-boundary-sentinel';
+  const result = await executeCommand({
+    argv: [node, '-e', "process.stdout.write('x'.repeat(4090) + process.env.QA_SECRET_SENTINEL); process.stderr.write('fatal: ' + 'y'.repeat(4083) + process.env.QA_SECRET_SENTINEL); process.exitCode = 1"],
+    cwd: process.cwd(),
+    env: { QA_SECRET_SENTINEL: sentinel },
+    timeoutMs: 1_000,
+    retryPolicy: { classification: 'LOCAL', maxRetries: 0 },
+  });
+  const leakedPrefix = sentinel.slice(0, 6);
+  for (const value of [result.stdout, result.stderr, result.firstFatalLine, JSON.stringify(result.diagnostics)]) {
+    assert.equal(value.includes(sentinel), false);
+    assert.equal(value.includes(leakedPrefix), false);
+    for (let length = 1; length < '[REDACTED]'.length; length += 1) {
+      assert.equal(value.endsWith('[REDACTED]'.slice(0, length)), false);
+    }
+  }
+});

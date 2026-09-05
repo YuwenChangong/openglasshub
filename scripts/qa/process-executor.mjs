@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 
 const OUTPUT_LIMIT = 4_096;
 const SENSITIVE_NAME = /(authorization|password|secret|token|api[_-]?key|service[_-]?role|anon[_-]?key|dsn)/i;
+const REDACTION_TOKEN = '[REDACTED]';
 
 export class ProcessExecutionError extends TypeError {
   constructor(message) {
@@ -35,9 +36,9 @@ function normalizeRetryPolicy(policy) {
   return { classification: policy.classification, maxRetries: policy.maxRetries };
 }
 
-function boundedAppend(current, chunk) {
-  if (current.length >= OUTPUT_LIMIT) return current;
-  return `${current}${chunk}`.slice(0, OUTPUT_LIMIT);
+function boundedAppend(current, chunk, limit) {
+  if (current.length >= limit) return current;
+  return `${current}${chunk}`.slice(0, limit);
 }
 
 function createRedactor(env) {
@@ -45,14 +46,27 @@ function createRedactor(env) {
     .filter(([key, value]) => SENSITIVE_NAME.test(key) && value)
     .map(([, value]) => value)
     .sort((left, right) => right.length - left.length);
-  return (input) => {
+  const redact = (input) => {
     let result = String(input ?? '');
-    for (const value of values) result = result.replaceAll(value, '[REDACTED]');
-    result = result.replace(/\b([A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY|SERVICE_ROLE|ANON_KEY)[A-Z0-9_]*)=([^\s]+)/gi, '$1=[REDACTED]');
-    result = result.replace(/(postgres(?:ql)?:\/\/)([^\s@/:]+)(?::[^\s@/]*)?@/gi, '$1[REDACTED]@');
-    result = result.replace(/\beyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/g, '[REDACTED]');
+    for (const value of values) result = result.replaceAll(value, REDACTION_TOKEN);
+    result = result.replace(/\b([A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY|SERVICE_ROLE|ANON_KEY)[A-Z0-9_]*)=([^\s]+)/gi, `$1=${REDACTION_TOKEN}`);
+    result = result.replace(/(postgres(?:ql)?:\/\/)([^\s@/:]+)(?::[^\s@/]*)?@/gi, `$1${REDACTION_TOKEN}@`);
+    result = result.replace(/\beyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/g, REDACTION_TOKEN);
     return result;
   };
+  return Object.freeze({
+    redact,
+    captureLimit: OUTPUT_LIMIT + Math.max(0, ...values.map((value) => value.length)),
+  });
+}
+
+function boundRedactedOutput(value) {
+  if (value.length <= OUTPUT_LIMIT) return value;
+  const prefix = value.slice(0, OUTPUT_LIMIT);
+  for (let length = REDACTION_TOKEN.length - 1; length > 0; length -= 1) {
+    if (prefix.endsWith(REDACTION_TOKEN.slice(0, length))) return prefix.slice(0, -length);
+  }
+  return prefix;
 }
 
 function firstFatalLine(stdout, stderr) {
@@ -60,7 +74,7 @@ function firstFatalLine(stdout, stderr) {
   return lines.find((line) => /\b(fatal|error|fail(?:ed|ure)?)\b/i.test(line)) ?? lines[0] ?? null;
 }
 
-function executeOnce({ argv, cwd, env, timeoutMs, redact }) {
+function executeOnce({ argv, cwd, env, timeoutMs, redactor }) {
   return new Promise((resolve) => {
     const startedAt = Date.now();
     let stdout = '';
@@ -73,22 +87,24 @@ function executeOnce({ argv, cwd, env, timeoutMs, redact }) {
       timedOut = true;
       child.kill();
     }, timeoutMs);
-    child.stdout.on('data', (chunk) => { stdout = boundedAppend(stdout, chunk.toString()); });
-    child.stderr.on('data', (chunk) => { stderr = boundedAppend(stderr, chunk.toString()); });
+    child.stdout.on('data', (chunk) => { stdout = boundedAppend(stdout, chunk.toString(), redactor.captureLimit); });
+    child.stderr.on('data', (chunk) => { stderr = boundedAppend(stderr, chunk.toString(), redactor.captureLimit); });
     child.once('error', (error) => { spawnError = error.message; });
     child.once('close', (exitCode, signal) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      const rawFatal = firstFatalLine(stdout, stderr) ?? (spawnError ? `error: ${spawnError}` : null);
+      const redactedStdout = boundRedactedOutput(redactor.redact(stdout));
+      const redactedStderr = boundRedactedOutput(redactor.redact(stderr));
+      const rawFatal = firstFatalLine(redactedStdout, redactedStderr) ?? (spawnError ? `error: ${spawnError}` : null);
       resolve(Object.freeze({
         exitCode: exitCode ?? (spawnError ? 1 : null),
         signal: signal ?? null,
         timedOut,
         durationMs: Date.now() - startedAt,
-        stdout: redact(stdout),
-        stderr: redact(stderr),
-        firstFatalLine: rawFatal ? redact(rawFatal) : null,
+        stdout: redactedStdout,
+        stderr: redactedStderr,
+        firstFatalLine: rawFatal ? boundRedactedOutput(redactor.redact(rawFatal)) : null,
       }));
     });
   });
@@ -104,7 +120,7 @@ export async function executeCommand({ argv, cwd, env, timeoutMs, retryPolicy })
   const normalizedEnv = normalizeEnv(env);
   if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) fail('timeoutMs must be a positive integer');
   const normalizedRetryPolicy = normalizeRetryPolicy(retryPolicy);
-  const redact = createRedactor(normalizedEnv);
+  const redactor = createRedactor(normalizedEnv);
   const attemptResults = [];
   do {
     attemptResults.push(await executeOnce({
@@ -112,7 +128,7 @@ export async function executeCommand({ argv, cwd, env, timeoutMs, retryPolicy })
       cwd,
       env: normalizedEnv,
       timeoutMs,
-      redact,
+      redactor,
     }));
   } while (failed(attemptResults.at(-1)) &&
            normalizedRetryPolicy.classification === 'NETWORK' &&
