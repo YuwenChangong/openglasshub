@@ -64,14 +64,23 @@ test('classifies nested runtime configuration and environment files as HIGH risk
       '.dev.vars',
       'config/provider.yaml',
       'config/default.yaml',
+      'nested/.env.production',
+      'environments/prod/.env.production',
       'infra/wrangler.toml',
       'infra/deployment.json',
       'public/runtime-config.json',
+      'runtime/env.production',
     ],
   });
   assert.deepEqual(result.directAreas, ['security']);
   assert.equal(result.risk, 'HIGH');
   assert.equal(result.releaseRequired, true);
+});
+
+test('does not treat ordinary documentation as runtime configuration', () => {
+  const result = classifyChanges({ paths: ['docs/runtime-guide.md', 'docs/environment-overview.md'] });
+  assert.deepEqual(result.directAreas, ['frontend']);
+  assert.equal(result.risk, 'LOW');
 });
 
 test('explicit feature area is a hint and cannot downgrade a changed high-risk path', () => {

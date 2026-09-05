@@ -5,8 +5,8 @@ import { expandDependencies, getArea, matchPath } from './manifest.mjs';
 const RISK_ORDER = Object.freeze({ LOW: 0, MEDIUM: 1, HIGH: 2 });
 const SOURCE_OR_CONFIG_PATH = /^(?:src\/|scripts\/|functions\/|\.github\/|(?:astro|vite|wrangler|tsconfig|package(?:-lock)?|pnpm-lock|yarn)\.|[^/]+\.(?:config\.(?:m?js|cjs|ts)|toml|ya?ml|json)$)/i;
 const SECURITY_FALLBACK_PATH = /^(?:src\/(?:lib\/server|pages\/api)|scripts\/|functions\/|\.github\/|supabase\/|(?:astro|vite|wrangler|tsconfig|package(?:-lock)?|pnpm-lock|yarn)\.|[^/]+\.(?:config\.(?:m?js|cjs|ts)|toml|ya?ml|json)$)/i;
-const RUNTIME_CONFIG_DIRECTORY = /(?:^|\/)(?:config|configs|configuration|infra|deploy|ops)(?:\/|$)/i;
-const RUNTIME_CONFIG_FILE = /(?:^|\/)(?:\.[^/]*(?:env|vars)|public\/[^/]*(?:runtime|config|env|vars)|[^/]*(?:config|provider|wrangler|worker|cloudflare|supabase|env|vars|settings)[^/]*\.(?:json|toml|ya?ml|m?js|cjs|ts))$/i;
+const RUNTIME_CONFIG_DIRECTORY = /(?:^|\/)(?:config|configs|configuration|infra|deploy|ops|runtime|env|environments)(?:\/|$)/i;
+const RUNTIME_CONFIG_FILE = /(?:^|\/)(?:\.[^/]*(?:env|vars)(?:\.[^/]*)?|env(?:\.[^/]*)?|public\/[^/]*(?:runtime|config|env|vars)|[^/]*(?:config|provider|wrangler|worker|cloudflare|supabase|env|vars|settings)[^/]*\.(?:json|toml|ya?ml|m?js|cjs|ts))$/i;
 
 export class RiskClassificationError extends Error {
   constructor(code, message) {
