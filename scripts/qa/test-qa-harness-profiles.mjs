@@ -7,6 +7,8 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { getCheck } from './check-registry.mjs';
+import { getArea, manifest } from './manifest.mjs';
+import { runTargetedBrowserCheck } from './checks/playwright.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
 import { resolveFeatureChecks } from './profiles/feature.mjs';
 import { executeFastRun, executeFeatureRun, renderProfileOutput } from './runner.mjs';
@@ -414,4 +416,127 @@ test('FEATURE explicit devices hint cannot downgrade an unrelated high-risk chan
   } finally {
     rmSync(repository.cwd, { recursive: true, force: true });
   }
+});
+
+function fakeChromiumBrowser(outcomes) {
+  const state = { screenshots: 0, traceStarts: 0, traceStops: 0 };
+  let attempt = 0;
+  return {
+    state,
+    browserType: () => ({ name: () => 'chromium' }),
+    async newContext() {
+      const outcome = outcomes[attempt++] ?? outcomes.at(-1);
+      let consoleListener = () => {};
+      return {
+        tracing: {
+          async start() { state.traceStarts += 1; },
+          async stop() { state.traceStops += 1; },
+        },
+        async newPage() {
+          return {
+            on(event, listener) { if (event === 'console') consoleListener = listener; },
+            off(event, listener) { if (event === 'console' && listener === consoleListener) consoleListener = () => {}; },
+            async goto() {
+              if (outcome.console) consoleListener({ type: () => 'error', text: () => outcome.console });
+              if (outcome.error) throw new Error(outcome.error);
+              return { status: () => outcome.status ?? 200 };
+            },
+            locator() { return { waitFor: async () => {} }; },
+            async screenshot() { state.screenshots += 1; return Buffer.from('png'); },
+            async close() {},
+          };
+        },
+        async close() {},
+      };
+    },
+  };
+}
+
+test('targeted Chromium success returns compact evidence without heavy artifact requests', async () => {
+  const browser = fakeChromiumBrowser([{ status: 200 }]);
+  const result = await runTargetedBrowserCheck({
+    group: 'products',
+    baseUrl: 'http://127.0.0.1:4321',
+    browser,
+  });
+
+  assert.equal(result.id, 'browser:products');
+  assert.equal(result.status, 'PASS');
+  assert.equal(result.attempts, 1);
+  assert.equal(result.classification, 'DETERMINISTIC');
+  assert.deepEqual(result.failureArtifactHints, []);
+  assert.equal(result.details.firstAttempt, 'PASS');
+  assert.equal(result.details.retryAttempt, null);
+  assert.equal(browser.state.screenshots, 0);
+});
+
+test('targeted Chromium retains first-failure evidence requests across one successful retry', async () => {
+  const browser = fakeChromiumBrowser([
+    { error: 'transient navigation failure', console: 'first browser console error' },
+    { status: 200 },
+  ]);
+  const result = await runTargetedBrowserCheck({
+    group: 'devices',
+    baseUrl: 'http://localhost:4321',
+    browser,
+  });
+
+  assert.equal(result.status, 'PASS');
+  assert.equal(result.attempts, 2);
+  assert.equal(result.classification, 'TRANSIENT_RECOVERED');
+  assert.equal(result.details.firstAttempt, 'FAIL');
+  assert.equal(result.details.retryAttempt, 'PASS');
+  assert.deepEqual(result.failureArtifactHints, [
+    'browser:devices:first-attempt:console',
+    'browser:devices:first-attempt:screenshot',
+    'browser:devices:first-attempt:trace',
+  ]);
+  assert.equal(result.details.firstFailure.consoleErrors[0], 'first browser console error');
+  assert.equal(browser.state.screenshots, 1);
+});
+
+test('targeted Chromium fails after one retry and never accepts a non-Chromium browser', async () => {
+  const browser = fakeChromiumBrowser([{ status: 503 }, { error: 'still unavailable' }]);
+  const result = await runTargetedBrowserCheck({
+    group: 'forum',
+    baseUrl: 'http://127.0.0.1:4321',
+    browser,
+  });
+
+  assert.equal(result.status, 'FAIL');
+  assert.equal(result.attempts, 2);
+  assert.equal(result.details.firstAttempt, 'FAIL');
+  assert.equal(result.details.retryAttempt, 'FAIL');
+  assert.equal(browser.state.screenshots, 2);
+
+  await assert.rejects(() => runTargetedBrowserCheck({
+    group: 'forum',
+    baseUrl: 'http://127.0.0.1:4321',
+    browser: { ...browser, browserType: () => ({ name: () => 'firefox' }) },
+  }), /Chromium/i);
+});
+
+test('targeted browser groups are real local surfaces and exclude guessed Compare coverage', async () => {
+  const groups = Object.values(manifest.areas).flatMap((area) => area.e2eProjectsOrTags).sort();
+  assert.deepEqual(groups, ['admin', 'auth', 'devices', 'forum', 'media', 'products']);
+  assert.equal(groups.includes('compare'), false);
+  for (const name of groups) {
+    assert.deepEqual(getArea(name).e2eProjectsOrTags, [name]);
+  }
+
+  await assert.rejects(() => runTargetedBrowserCheck({
+    group: 'compare',
+    baseUrl: 'http://127.0.0.1:4321',
+    browser: fakeChromiumBrowser([{ status: 200 }]),
+  }), /unknown browser group/i);
+});
+
+test('targeted browser adapter rejects non-local origins before opening Chromium context', async () => {
+  const browser = fakeChromiumBrowser([{ status: 200 }]);
+  await assert.rejects(() => runTargetedBrowserCheck({
+    group: 'devices',
+    baseUrl: 'https://openglasshub.ogh.workers.dev',
+    browser,
+  }), /local.*baseUrl/i);
+  assert.equal(browser.state.traceStarts, 0);
 });

@@ -28,7 +28,7 @@ const check = (id, command) => ({ id, command });
 const areas = {
   frontend: area('frontend', ['src/components/**', 'src/layouts/**', 'src/styles/**', 'src/plugins/**', 'src/pages/**'], 'LOW', [], [
     check('frontend-astro-build', 'npm run build'),
-  ], ['frontend'], { requiredProfile: 'qa:feature', rule: 'build must pass' }),
+  ], [], { requiredProfile: 'qa:feature', rule: 'build must pass' }),
   devices: area('devices', ['src/pages/devices/**', 'src/content/docs/devices/**', 'src/components/devices/**', 'src/data/devices.ts', 'src/lib/device-*.ts', 'src/lib/public-device-data.ts'], 'MEDIUM', ['products', 'seo', 'search'], [
     check('devices-library', 'npm run test:device-library'),
     check('devices-public-data', 'node scripts/test-public-device-data.mjs'),
@@ -42,10 +42,10 @@ const areas = {
   ], ['forum'], { requiredProfile: 'qa:feature', rule: 'forum authorization checks must pass' }),
   news: area('news', ['src/pages/news/**', 'src/pages/api/news/**', 'src/components/news/**', 'src/components/community/NewsCard.astro', 'src/lib/news*.ts'], 'MEDIUM', [], [
     check('news-api-safety', 'node scripts/test-public-news-api-safety.mjs'),
-  ], ['news'], { requiredProfile: 'qa:feature', rule: 'news API safety must pass' }),
+  ], [], { requiredProfile: 'qa:feature', rule: 'news API safety must pass' }),
   search: area('search', ['src/pages/search/**', 'src/components/**/GlobalSearchBox.tsx', 'src/lib/*search*.ts'], 'MEDIUM', [], [
     check('search', 'npm run test:search'),
-  ], ['search'], { requiredProfile: 'qa:feature', rule: 'search check must pass' }),
+  ], [], { requiredProfile: 'qa:feature', rule: 'search check must pass' }),
   auth: area('auth', ['src/pages/auth/**', 'src/pages/api/auth/**', 'src/pages/login/**', 'src/pages/register/**', 'src/components/auth/**', 'src/lib/auth-*.ts'], 'HIGH', ['security'], [
     check('auth-redirect-safety', 'npm run test:auth-redirect-safety'),
     check('auth-legal-consent', 'npm run test:auth-legal-consent'),
@@ -59,21 +59,21 @@ const areas = {
   ], ['admin'], { requiredProfile: 'qa:release', rule: 'admin authorization requires release gates' }),
   seo: area('seo', ['src/pages/sitemap.xml.ts', 'src/content/docs/**', 'scripts/verify-seo.cjs'], 'LOW', [], [
     check('seo', 'node scripts/verify-seo.cjs'),
-  ], ['seo'], { requiredProfile: 'qa:feature', rule: 'SEO verification must pass' }),
+  ], [], { requiredProfile: 'qa:feature', rule: 'SEO verification must pass' }),
   cloudflare: area('cloudflare', ['wrangler.toml', 'astro.config.mjs', 'functions/**', 'scripts/build-workers.mjs'], 'HIGH', ['security'], [
     check('workers-config', 'npm run test:workers-config'),
     check('workers-artifact', 'npm run test:workers-artifact'),
-  ], ['cloudflare'], { requiredProfile: 'qa:release', rule: 'Workers configuration and artifact gates are required' }),
+  ], [], { requiredProfile: 'qa:release', rule: 'Workers configuration and artifact gates are required' }),
   'supabase-config': area('supabase-config', ['supabase/seed_*.sql', 'supabase/tests/**', 'src/lib/supabase-*.ts'], 'HIGH', ['database', 'security'], [
     check('supabase-config', 'npm run test:workers-env-contract'),
-  ], ['supabase'], { requiredProfile: 'qa:release', rule: 'provider configuration is release-gated' }),
+  ], [], { requiredProfile: 'qa:release', rule: 'provider configuration is release-gated' }),
   database: area('database', ['supabase/migrations/**', 'supabase/*.sql'], 'HIGH', ['security'], [
     check('database-migration-versions', 'node scripts/qa/validate-supabase-migration-versions.mjs'),
-  ], ['database'], { requiredProfile: 'qa:release', rule: 'database changes require release review' }),
+  ], [], { requiredProfile: 'qa:release', rule: 'database changes require release review' }),
   security: area('security', ['src/lib/server/**', 'src/lib/moderation/**', 'scripts/lib/security-*.mjs', 'scripts/test-security-*.mjs', 'supabase/migrations/*security*.sql'], 'HIGH', [], [
     check('security-headers', 'node scripts/test-security-headers.mjs'),
     check('security-privilege-convergence', 'npm run test:security-privilege-convergence'),
-  ], ['security'], { requiredProfile: 'qa:release', rule: 'security changes fail closed to release' }),
+  ], [], { requiredProfile: 'qa:release', rule: 'security changes fail closed to release' }),
 };
 
 export const manifest = deepFreeze({ version: 'openglass-qa/manifest-v1', areas });
