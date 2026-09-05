@@ -58,6 +58,22 @@ test('uses only manifest-backed areas and maps unmatched source or config paths 
   assert.equal(unknownConfig.risk, 'HIGH');
 });
 
+test('classifies nested runtime configuration and environment files as HIGH risk', () => {
+  const result = classifyChanges({
+    paths: [
+      '.dev.vars',
+      'config/provider.yaml',
+      'config/default.yaml',
+      'infra/wrangler.toml',
+      'infra/deployment.json',
+      'public/runtime-config.json',
+    ],
+  });
+  assert.deepEqual(result.directAreas, ['security']);
+  assert.equal(result.risk, 'HIGH');
+  assert.equal(result.releaseRequired, true);
+});
+
 test('explicit feature area is a hint and cannot downgrade a changed high-risk path', () => {
   const result = classifyChanges({
     paths: ['src/pages/auth/callback.astro'],
