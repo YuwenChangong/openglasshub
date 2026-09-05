@@ -83,7 +83,7 @@ test('redaction is value-blind for secret names, DSNs, tokens, and nested values
   assert.equal(serialized.includes(sentinel), false);
   assert.equal(serialized.includes('postgresql://user:'), false);
   assert.match(serialized, /\[REDACTED\]/);
-  assert.doesNotMatch(JSON.stringify(redactValue({ privateKey: 'SENTINEL_PRIVATE', text: 'privateKey=SENTINEL_PRIVATE' })), /SENTINEL_PRIVATE/);
+  assert.doesNotMatch(JSON.stringify(redactValue({ privateKey: 'SENTINEL_PRIVATE', text: 'privateKey=SENTINEL_PRIVATE', access: 'AWS_ACCESS_KEY_ID=SENTINEL_ACCESS' })), /SENTINEL_(PRIVATE|ACCESS)/);
 });
 
 test('receipt cannot claim PASS when a check failed', () => {

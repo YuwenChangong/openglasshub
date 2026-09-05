@@ -8,6 +8,7 @@ const SENSITIVE_KEY = /(?:authorization|password|secret|token|api[_-]?key|servic
 const JWT = /\beyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/g;
 const DSN = /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"']+/gi;
 const ASSIGNMENT = /\b([A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY|SERVICE_ROLE|ANON_KEY|DATABASE_URL|POSTGRES_URL)[A-Z0-9_]*)=([^\s]+)/gi;
+const ACCESS_ASSIGNMENT = /\b([A-Z][A-Z0-9_]*(?:ACCESS_KEY|ACCESS_KEY_ID|SECRET_ACCESS_KEY)[A-Z0-9_]*)=([^\s]+)/gi;
 const BEARER = /\bBearer\s+[^\s"']+/gi;
 const RAW_TOKEN = /\b(?:sk|rk|pk|ghp|xox[baprs])[-_][a-z0-9_-]{16,}\b/gi;
 const LABELLED_VALUE = /\b(?:token|secret|password|api[_-]?key|service[_-]?role|anon[_-]?key|credential|private[_-]?key|access[_-]?key|client[_-]?secret)\s*[:=]\s*[^\s,;"']+/gi;
@@ -63,6 +64,7 @@ export function redactValue(value, key = '') {
     .replace(JWT, REDACTED)
     .replace(RAW_TOKEN, REDACTED)
     .replace(LABELLED_VALUE, REDACTED)
+    .replace(ACCESS_ASSIGNMENT, `$1=${REDACTED}`)
     .replace(ASSIGNMENT, `$1=${REDACTED}`);
 }
 

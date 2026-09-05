@@ -25,7 +25,7 @@ function artifactPaths(receipt, hasFailures) {
 }
 
 export async function writeFailureArtifacts({ receipt, failures = [], artifactRoot = 'artifacts/qa' } = {}) {
-  if (!receipt || receipt.schemaVersion !== 'openglass-qa/v1' || typeof receipt.runId !== 'string' || !receipt.result || !receipt.completedAt) throw new TypeError('INVALID_ARTIFACTS: finalized v1 receipt is required');
+  if (!receipt || receipt.schemaVersion !== 'openglass-qa/v1' || typeof receipt.runId !== 'string' || !receipt.result || !receipt.completedAt || !Number.isFinite(receipt.durationMs) || !Number.isInteger(receipt.passCount) || !Number.isInteger(receipt.failCount) || !receipt.safety) throw new TypeError('INVALID_ARTIFACTS: finalized v1 receipt is required');
   if (!Array.isArray(failures)) throw new TypeError('INVALID_ARTIFACTS: failures must be an array');
   if (typeof artifactRoot !== 'string' || !artifactRoot) throw new TypeError('INVALID_ARTIFACTS: artifactRoot must be a non-empty string');
   const hasFailures = failures.length > 0 || receipt.failCount > 0 || receipt.result === 'FAIL';
