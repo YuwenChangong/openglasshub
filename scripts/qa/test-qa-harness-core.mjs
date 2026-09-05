@@ -109,3 +109,16 @@ test('creates deterministic value-blind run context from an allowlisted input', 
   assert.deepEqual(context, createRunContext({ ...input }));
   assert.equal(JSON.stringify(context).includes('should-not-appear'), false);
 });
+
+test('rejects an area on a non-FEATURE run context', () => {
+  assert.throws(
+    () => createRunContext({ profile: QA_PROFILES.RELEASE, area: 'devices' }),
+    /area is only valid for FEATURE profile/,
+  );
+});
+
+test('does not allow callers to mutate context areas', () => {
+  const context = createRunContext({ profile: QA_PROFILES.FEATURE, area: 'devices', areas: ['devices', 'products'] });
+  assert.throws(() => context.areas.push('forum'), TypeError);
+  assert.deepEqual(context.areas, ['devices', 'products']);
+});

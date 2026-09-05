@@ -134,6 +134,7 @@ export function createRunContext(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('context input must be an object');
   const profile = input.profile === undefined ? QA_PROFILES.FAST : normalizeProfile(input.profile);
   const area = input.area == null ? null : normalizeArea(input.area);
+  if (area && profile !== QA_PROFILES.FEATURE) throw new QAInvocationValidationError('INVALID_INVOCATION: area is only valid for FEATURE profile');
   const areas = Array.isArray(input.areas) ? [...new Set(input.areas.map(normalizeArea))].sort() : (area ? [area] : []);
   const risk = input.risk ?? RISK_LEVELS.LOW;
   if (!Object.values(RISK_LEVELS).includes(risk)) throw new TypeError('invalid risk');
@@ -142,7 +143,7 @@ export function createRunContext(input = {}) {
   return Object.freeze({
     profile,
     area,
-    areas,
+    areas: Object.freeze(areas),
     risk,
     commitSha: optionalSha(input.commitSha, 'commitSha'),
     baseSha: optionalSha(input.baseSha, 'baseSha'),
