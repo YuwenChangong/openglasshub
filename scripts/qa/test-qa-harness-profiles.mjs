@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import test from 'node:test';
@@ -426,6 +426,8 @@ function fakeChromiumBrowser(outcomes) {
     contextOptions: [],
     trafficSent: [],
     trafficBlocked: [],
+    webSocketsSent: [],
+    webSocketsBlocked: [],
   };
   let attempt = 0;
   return {
@@ -435,16 +437,20 @@ function fakeChromiumBrowser(outcomes) {
       state.contextOptions.push(options);
       const outcome = outcomes[attempt++] ?? outcomes.at(-1);
       let consoleListener = () => {};
-      let routeHandler;
+      let contextRouteHandler;
+      let pageRouteHandler;
+      let webSocketHandler;
       let currentUrl = 'about:blank';
       return {
+        async route(_pattern, handler) { contextRouteHandler = handler; },
+        async routeWebSocket(_pattern, handler) { webSocketHandler = handler; },
         tracing: {
           async start() { state.traceStarts += 1; },
           async stop(options = {}) {
             state.traceStops += 1;
             if (options.path) {
               mkdirSync(dirname(options.path), { recursive: true });
-              writeFileSync(options.path, 'retrievable trace');
+              writeFileSync(options.path, outcome.binarySentinel ?? 'retrievable trace');
             }
           },
         },
@@ -452,7 +458,7 @@ function fakeChromiumBrowser(outcomes) {
           return {
             on(event, listener) { if (event === 'console') consoleListener = listener; },
             off(event, listener) { if (event === 'console' && listener === consoleListener) consoleListener = () => {}; },
-            async route(_pattern, handler) { routeHandler = handler; },
+            async route(_pattern, handler) { pageRouteHandler = handler; },
             async goto(target) {
               const targetUrl = new URL(target);
               const requests = [
@@ -461,17 +467,29 @@ function fakeChromiumBrowser(outcomes) {
               ];
               for (const requestData of requests) {
                 let blocked = false;
+                const handler = requestData.popup ? contextRouteHandler : pageRouteHandler ?? contextRouteHandler;
                 const request = {
                   url: () => requestData.url,
                   method: () => requestData.method ?? 'GET',
                   isNavigationRequest: () => requestData.navigation === true,
                 };
-                await routeHandler?.({
+                await handler?.({
                   request: () => request,
                   async abort() { blocked = true; state.trafficBlocked.push(requestData.url); },
                   async continue() { state.trafficSent.push(requestData.url); },
                 });
+                if (!handler) state.trafficSent.push(requestData.url);
                 if (blocked && requestData.navigation) throw new Error('navigation blocked before traffic');
+              }
+              for (const webSocketUrl of outcome.webSockets ?? []) {
+                if (webSocketHandler) {
+                  await webSocketHandler({
+                    url: () => webSocketUrl,
+                    async close() { state.webSocketsBlocked.push(webSocketUrl); },
+                  });
+                } else {
+                  state.webSocketsSent.push(webSocketUrl);
+                }
               }
               if (outcome.console) consoleListener({ type: () => 'error', text: () => outcome.console });
               if (outcome.error) throw new Error(outcome.error);
@@ -501,7 +519,7 @@ function fakeChromiumBrowser(outcomes) {
               state.screenshots += 1;
               if (options.path) {
                 mkdirSync(dirname(options.path), { recursive: true });
-                writeFileSync(options.path, 'retrievable screenshot');
+                writeFileSync(options.path, outcome.binarySentinel ?? 'retrievable screenshot');
               }
               return Buffer.from('png');
             },
@@ -550,8 +568,6 @@ test('targeted Chromium retains first-failure evidence requests across one succe
   assert.equal(result.details.retryAttempt, 'PASS');
   assert.deepEqual(result.failureArtifactHints, [
     'browser:devices:first-attempt:console',
-    'browser:devices:first-attempt:screenshot',
-    'browser:devices:first-attempt:trace',
   ]);
   assert.equal(result.details.firstFailure.consoleErrors[0], 'first browser console error');
   assert.equal(result.details.firstFailure.screenshotCaptured, false);
@@ -586,7 +602,12 @@ test('targeted Chromium fails after one retry and never accepts a non-Chromium b
 test('targeted browser persists retrievable failure evidence only through an explicit sink', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'openglass-browser-artifacts-'));
   try {
-    const browser = fakeChromiumBrowser([{ error: 'page.goto: net::ERR_CONNECTION_RESET', console: 'safe console failure' }, { status: 200 }]);
+    const sentinel = 'qa_binary_sentinel_never_persist';
+    const browser = fakeChromiumBrowser([{
+      error: 'page.goto: net::ERR_CONNECTION_RESET',
+      console: `OPENAI_API_KEY=${sentinel}`,
+      binarySentinel: sentinel,
+    }, { status: 200 }]);
     const result = await runTargetedBrowserCheck({
       group: 'products',
       baseUrl: 'http://127.0.0.1:4321',
@@ -595,15 +616,42 @@ test('targeted browser persists retrievable failure evidence only through an exp
     });
 
     const evidence = result.details.firstFailure;
-    assert.equal(evidence.screenshotCaptured, true);
-    assert.equal(evidence.traceCaptured, true);
+    assert.equal(evidence.screenshotCaptured, false);
+    assert.equal(evidence.traceCaptured, false);
     assert.equal(evidence.consoleCaptured, true);
-    assert.equal(readFileSync(evidence.artifacts.screenshot, 'utf8'), 'retrievable screenshot');
-    assert.equal(readFileSync(evidence.artifacts.trace, 'utf8'), 'retrievable trace');
-    assert.deepEqual(JSON.parse(readFileSync(evidence.artifacts.console, 'utf8')), ['safe console failure']);
+    assert.equal(evidence.binaryEvidencePolicy, 'DISCARDED_UNREDACTABLE');
+    assert.equal(evidence.artifacts.screenshot, null);
+    assert.equal(evidence.artifacts.trace, null);
+    assert.deepEqual(JSON.parse(readFileSync(evidence.artifacts.console, 'utf8')), ['OPENAI_API_KEY=[REDACTED]']);
+    assert.equal(readdirSync(directory).some((name) => /\.(?:png|zip)$/i.test(name)), false);
+    assert.equal(readdirSync(directory).some((name) => readFileSync(join(directory, name)).includes(sentinel)), false);
+    assert.equal(browser.state.screenshots, 0);
+    assert.equal(browser.state.traceStarts, 0);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('targeted browser context guard blocks popup initial requests and all WebSockets', async () => {
+  const popup = 'https://popup.example.test/initial';
+  const socket = 'ws://127.0.0.1:4321/realtime';
+  const browser = fakeChromiumBrowser([{
+    requests: [{ url: popup, method: 'GET', popup: true }],
+    webSockets: [socket],
+  }]);
+  const result = await runTargetedBrowserCheck({
+    group: 'products',
+    baseUrl: 'http://127.0.0.1:4321',
+    browser,
+  });
+
+  assert.equal(result.status, 'FAIL');
+  assert.equal(result.classification, 'SAFETY');
+  assert.equal(result.attempts, 1);
+  assert.equal(browser.state.trafficBlocked.includes(popup), true);
+  assert.equal(browser.state.trafficSent.includes(popup), false);
+  assert.equal(browser.state.webSocketsBlocked.includes(socket), true);
+  assert.equal(browser.state.webSocketsSent.includes(socket), false);
 });
 
 test('targeted browser blocks cross-origin and mutating traffic before it is sent', async () => {

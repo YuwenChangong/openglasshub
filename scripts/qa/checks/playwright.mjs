@@ -100,8 +100,6 @@ function artifactPaths(directory, group, attempt) {
   if (!directory) return null;
   const label = attempt === 1 ? 'first-attempt' : 'retry-attempt';
   return Object.freeze({
-    screenshot: join(directory, `${group}-${label}.png`),
-    trace: join(directory, `${group}-${label}.zip`),
     console: join(directory, `${group}-${label}-console.json`),
   });
 }
@@ -122,9 +120,10 @@ function rejectTraffic(violations, reason, method, url) {
   if (violations.length === 0) violations.push(Object.freeze({ reason, method, url: safeMessage(url) }));
 }
 
-async function installTrafficGuard({ page, violations }) {
-  if (typeof page?.route !== 'function') throw new BrowserCheckFailure('browser page does not support traffic interception', DETERMINISTIC_ASSERTION);
-  await page.route('**/*', async (route) => {
+async function installTrafficGuard({ context, violations }) {
+  if (typeof context?.route !== 'function') throw new BrowserCheckFailure('browser context does not support HTTP interception', DETERMINISTIC_ASSERTION);
+  if (typeof context?.routeWebSocket !== 'function') throw new BrowserCheckFailure('browser context does not support WebSocket interception', DETERMINISTIC_ASSERTION);
+  await context.route('**/*', async (route) => {
     const request = route.request();
     const method = String(request.method?.() ?? '').toUpperCase();
     let url;
@@ -146,6 +145,10 @@ async function installTrafficGuard({ page, violations }) {
       return;
     }
     await route.continue();
+  });
+  await context.routeWebSocket('**/*', async (webSocket) => {
+    rejectTraffic(violations, 'websocket', 'WEBSOCKET', webSocket.url?.());
+    await webSocket.close({ code: 1008, reason: 'QA harness blocks WebSockets' });
   });
 }
 
@@ -240,27 +243,11 @@ async function retrievable(path) {
   }
 }
 
-async function requestFailureEvidence({ group, attempt, page, context, consoleErrors, traceStarted, paths }) {
-  let screenshotCaptured = false;
-  let traceCaptured = false;
+async function requestFailureEvidence({ group, attempt, consoleErrors, paths }) {
   let consoleCaptured = false;
   if (paths) {
-    await mkdir(dirname(paths.screenshot), { recursive: true, mode: 0o700 });
     try {
-      await page?.screenshot?.({ fullPage: true, type: 'png', path: paths.screenshot });
-      screenshotCaptured = await retrievable(paths.screenshot);
-    } catch {
-      screenshotCaptured = false;
-    }
-    if (traceStarted) {
-      try {
-        await context?.tracing?.stop?.({ path: paths.trace });
-        traceCaptured = await retrievable(paths.trace);
-      } catch {
-        traceCaptured = false;
-      }
-    }
-    try {
+      await mkdir(dirname(paths.console), { recursive: true, mode: 0o700 });
       await writeFile(paths.console, `${JSON.stringify(consoleErrors)}\n`, { encoding: 'utf8', mode: 0o600 });
       consoleCaptured = await retrievable(paths.console);
     } catch {
@@ -271,18 +258,16 @@ async function requestFailureEvidence({ group, attempt, page, context, consoleEr
   return {
     hints: [
       `browser:${group}:${label}:console`,
-      `browser:${group}:${label}:screenshot`,
-      `browser:${group}:${label}:trace`,
     ],
-    traceStopped: traceStarted,
     evidence: {
       consoleErrors: [...consoleErrors],
-      screenshotCaptured,
-      traceCaptured,
+      screenshotCaptured: false,
+      traceCaptured: false,
       consoleCaptured,
+      binaryEvidencePolicy: 'DISCARDED_UNREDACTABLE',
       artifacts: {
-        screenshot: screenshotCaptured ? paths.screenshot : null,
-        trace: traceCaptured ? paths.trace : null,
+        screenshot: null,
+        trace: null,
         console: consoleCaptured ? paths.console : null,
       },
     },
@@ -292,23 +277,14 @@ async function requestFailureEvidence({ group, attempt, page, context, consoleEr
 async function runAttempt({ group, definition, baseUrl, browser, attempt, artifactRoot }) {
   let context;
   let page;
-  let traceStarted = false;
-  let traceStopped = false;
   const consoleErrors = [];
   const violations = [];
   const paths = artifactPaths(artifactRoot, group, attempt);
   let onConsole;
   try {
     context = await browser.newContext({ serviceWorkers: 'block' });
-    if (paths) {
-      await mkdir(dirname(paths.trace), { recursive: true, mode: 0o700 });
-      if (typeof context.tracing?.start === 'function' && typeof context.tracing?.stop === 'function') {
-        await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
-        traceStarted = true;
-      }
-    }
+    await installTrafficGuard({ context, violations });
     page = await context.newPage();
-    await installTrafficGuard({ page, violations });
     onConsole = consoleListener(consoleErrors);
     page.on?.('console', onConsole);
     const caseResult = await runUiCaseWithLiveness({
@@ -318,14 +294,9 @@ async function runAttempt({ group, definition, baseUrl, browser, attempt, artifa
       timeoutMs: 45_000,
     });
     if (caseResult.result === 'PASS') {
-      if (traceStarted) {
-        await context.tracing.stop();
-        traceStopped = true;
-      }
       return { status: 'PASS', assertions: caseResult.assertions ?? [] };
     }
-    const captured = await requestFailureEvidence({ group, attempt, page, context, consoleErrors, traceStarted, paths });
-    traceStopped = captured.traceStopped;
+    const captured = await requestFailureEvidence({ group, attempt, consoleErrors, paths });
     return {
       status: 'FAIL',
       kind: failureKind(caseResult.failureClassification),
@@ -334,8 +305,7 @@ async function runAttempt({ group, definition, baseUrl, browser, attempt, artifa
       hints: captured.hints,
     };
   } catch (error) {
-    const captured = await requestFailureEvidence({ group, attempt, page, context, consoleErrors, traceStarted, paths });
-    traceStopped = captured.traceStopped;
+    const captured = await requestFailureEvidence({ group, attempt, consoleErrors, paths });
     return {
       status: 'FAIL',
       kind: failureKind(error?.failureClassification),
@@ -345,9 +315,6 @@ async function runAttempt({ group, definition, baseUrl, browser, attempt, artifa
     };
   } finally {
     page?.off?.('console', onConsole);
-    if (traceStarted && !traceStopped) {
-      try { await context?.tracing?.stop?.(); } catch {}
-    }
     await closeBrowserLifecycle({ page, context });
   }
 }
@@ -359,6 +326,7 @@ function failureDetails(failure) {
     screenshotCaptured: failure.screenshotCaptured === true,
     traceCaptured: failure.traceCaptured === true,
     consoleCaptured: failure.consoleCaptured === true,
+    binaryEvidencePolicy: failure.binaryEvidencePolicy ?? 'DISCARDED_UNREDACTABLE',
     artifacts: failure.artifacts ?? { screenshot: null, trace: null, console: null },
   };
 }
