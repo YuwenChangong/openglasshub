@@ -1,6 +1,6 @@
 import { getCheck, registerCheck, runCheck } from '../check-registry.mjs';
 import { QA_PROFILES } from '../contracts.mjs';
-import { getArea, manifest } from '../manifest.mjs';
+import { expandDependencies, getArea, manifest } from '../manifest.mjs';
 import './fast.mjs';
 
 const RISK_ORDER = Object.freeze({ LOW: 0, MEDIUM: 1, HIGH: 2 });
@@ -75,7 +75,7 @@ export function resolveFeatureChecks(context = {}) {
   if (!Array.isArray(areas) || areas.some((name) => typeof name !== 'string' || !name)) {
     throw new TypeError('FEATURE context areas must be an array of names');
   }
-  const normalizedAreas = [...new Set(areas)].sort();
+  const normalizedAreas = expandDependencies(areas);
   if (normalizedAreas.length === 0) {
     const error = new TypeError('FEATURE_AREA_REQUIRED: pass an explicit area or change a recognized area');
     error.code = 'FEATURE_AREA_REQUIRED';

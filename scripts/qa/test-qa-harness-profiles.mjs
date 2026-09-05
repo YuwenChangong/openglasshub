@@ -286,6 +286,31 @@ test('FEATURE devices selects dependency-expanded targeted checks without unrela
   assert.equal(selection.skippedChecks.some(({ id, reason }) => id === 'admin-device-api' && reason === 'area_not_selected'), true);
 });
 
+test('FEATURE resolver expands direct devices input to the same targeted selection', () => {
+  const direct = resolveFeatureChecks({ profile: 'FEATURE', risk: 'LOW', areas: ['devices', 'devices'] });
+  const expanded = resolveFeatureChecks({
+    profile: 'FEATURE', risk: 'LOW', expandedAreas: ['seo', 'search', 'products', 'devices'],
+  });
+
+  assert.deepEqual(direct.areas, ['devices', 'products', 'search', 'seo']);
+  assert.equal(direct.risk, 'MEDIUM');
+  assert.deepEqual(direct, expanded);
+  for (const id of ['products-page', 'search', 'seo']) {
+    assert.equal(direct.selectedChecks.some((check) => check.id === id), true);
+  }
+});
+
+test('FEATURE resolver expands direct forum input and blocks its high-risk dependencies', () => {
+  const selection = resolveFeatureChecks({ profile: 'FEATURE', risk: 'MEDIUM', areas: ['forum'] });
+
+  assert.deepEqual(selection.areas, ['auth', 'forum', 'media', 'security']);
+  assert.equal(selection.risk, 'HIGH');
+  assert.equal(selection.blocked, true);
+  assert.equal(selection.requiredProfile, 'RELEASE');
+  assert.equal(selection.blockedReason, 'RELEASE_REQUIRED:qa:release');
+  assert.deepEqual(selection.selectedChecks, []);
+});
+
 test('FEATURE inferred forum changes expand through auth media and security then require release', async () => {
   assert.equal(typeof executeFeatureRun, 'function');
   const repository = createFeatureRepository();
