@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 import { getCheck } from './check-registry.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
-import { executeFastRun, renderProfileOutput } from './runner.mjs';
+import { resolveFeatureChecks } from './profiles/feature.mjs';
+import { executeFastRun, executeFeatureRun, renderProfileOutput } from './runner.mjs';
 
 const FOUNDATION = [
   'git-diff-check',
@@ -142,12 +143,13 @@ test('FAST summary names profile risk exact selections skips and result', () => 
   ].join('\n'));
 });
 
-test('package exposes qa:fast without prematurely adding the other public profiles', () => {
+test('package exposes only the implemented fast and feature public profiles', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   const qaScripts = Object.keys(packageJson.scripts).filter((name) => name.startsWith('qa:')).sort();
 
-  assert.deepEqual(qaScripts, ['qa:fast']);
+  assert.deepEqual(qaScripts, ['qa:fast', 'qa:feature']);
   assert.equal(packageJson.scripts['qa:fast'], 'node scripts/qa/runner.mjs fast');
+  assert.equal(packageJson.scripts['qa:feature'], 'node scripts/qa/runner.mjs feature');
 });
 
 test('FAST runner classifies a Wrangler change and blocks before any check runs', async () => {
@@ -249,6 +251,141 @@ test('FAST runner and CLI preserve BASE_UNRESOLVED for detached HEAD', async () 
     assert.equal(cli.status, 2);
     assert.match(cli.stderr, /QA_ERROR=BASE_UNRESOLVED/);
     assert.doesNotMatch(cli.stderr, /HARNESS_FAILURE/);
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
+});
+
+test('FEATURE devices selects dependency-expanded targeted checks without unrelated admin', () => {
+  assert.equal(typeof resolveFeatureChecks, 'function');
+  const selection = resolveFeatureChecks({
+    profile: 'FEATURE',
+    risk: 'MEDIUM',
+    directAreas: ['devices'],
+    expandedAreas: ['devices', 'products', 'search', 'seo'],
+  });
+
+  assert.equal(selection.blocked, false);
+  assert.deepEqual(selection.areas, ['devices', 'products', 'search', 'seo']);
+  assert.deepEqual(selection.selectedChecks.map(({ id }) => id), [
+    'devices-library',
+    'devices-public-data',
+    'frontend-astro-build',
+    'git-diff-check',
+    'products-page',
+    'qa-harness-core',
+    'qa-harness-executor',
+    'qa-harness-manifest',
+    'qa-harness-profiles',
+    'qa-harness-receipt',
+    'qa-harness-risk',
+    'search',
+    'seo',
+  ]);
+  assert.equal(selection.selectedChecks.some(({ id }) => id.startsWith('admin-')), false);
+  assert.equal(selection.skippedChecks.some(({ id, reason }) => id === 'admin-device-api' && reason === 'area_not_selected'), true);
+});
+
+test('FEATURE inferred forum changes expand through auth media and security then require release', async () => {
+  assert.equal(typeof executeFeatureRun, 'function');
+  const repository = createFeatureRepository();
+  let executed = 0;
+  try {
+    commitFile(repository.cwd, 'src/pages/forum/index.astro', '<main>forum</main>\n');
+    const receipt = await executeFeatureRun({
+      argv: ['feature'],
+      cwd: repository.cwd,
+      mainRef: 'main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'),
+      runCheckFn: async (id) => { executed += 1; return passingCheck(id); },
+      write: () => {},
+    });
+
+    assert.equal(receipt.result, 'BLOCKED');
+    assert.equal(receipt.risk, 'HIGH');
+    assert.deepEqual(receipt.areas, ['forum']);
+    assert.deepEqual(receipt.expandedAreas, ['auth', 'forum', 'media', 'security']);
+    assert.equal(receipt.expandedAreas.includes('admin'), false);
+    assert.deepEqual(receipt.error, { code: 'RELEASE_REQUIRED', requiredProfile: 'qa:release' });
+    assert.equal(executed, 0);
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
+});
+
+test('FEATURE deterministically infers devices and executes only its expanded targeted selection', async () => {
+  assert.equal(typeof executeFeatureRun, 'function');
+  const repository = createFeatureRepository();
+  const executed = [];
+  try {
+    commitFile(repository.cwd, 'src/pages/devices/index.astro', '<main>devices</main>\n');
+    const receipt = await executeFeatureRun({
+      argv: ['feature'],
+      cwd: repository.cwd,
+      mainRef: 'main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'),
+      runCheckFn: async (id) => { executed.push(id); return passingCheck(id); },
+      write: () => {},
+    });
+
+    assert.equal(receipt.result, 'PASS');
+    assert.equal(receipt.risk, 'MEDIUM');
+    assert.deepEqual(receipt.areas, ['devices']);
+    assert.deepEqual(receipt.expandedAreas, ['devices', 'products', 'search', 'seo']);
+    assert.deepEqual(executed, receipt.selectedChecks.map(({ id }) => id));
+    assert.equal(executed.includes('devices-library'), true);
+    assert.equal(executed.includes('products-page'), true);
+    assert.equal(executed.includes('search'), true);
+    assert.equal(executed.includes('seo'), true);
+    assert.equal(executed.some((id) => id.startsWith('admin-')), false);
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
+});
+
+test('FEATURE rejects an unknown explicit area before executing checks', async () => {
+  assert.equal(typeof executeFeatureRun, 'function');
+  const repository = createFeatureRepository();
+  let executed = 0;
+  try {
+    commitFile(repository.cwd, 'src/pages/devices/index.astro', '<main>devices</main>\n');
+    await assert.rejects(() => executeFeatureRun({
+      argv: ['feature', 'not-a-real-area'],
+      cwd: repository.cwd,
+      mainRef: 'main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'),
+      runCheckFn: async (id) => { executed += 1; return passingCheck(id); },
+      write: () => {},
+    }), /explicitArea must name a manifest area/);
+    assert.equal(executed, 0);
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
+});
+
+test('FEATURE explicit devices hint cannot downgrade an unrelated high-risk changed path', async () => {
+  assert.equal(typeof executeFeatureRun, 'function');
+  const repository = createFeatureRepository();
+  let executed = 0;
+  try {
+    commitFile(repository.cwd, 'src/pages/admin/index.astro', '<main>admin</main>\n');
+    const receipt = await executeFeatureRun({
+      argv: ['feature', 'devices'],
+      cwd: repository.cwd,
+      mainRef: 'main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'),
+      runCheckFn: async (id) => { executed += 1; return passingCheck(id); },
+      write: () => {},
+    });
+
+    assert.equal(receipt.result, 'BLOCKED');
+    assert.equal(receipt.risk, 'HIGH');
+    assert.deepEqual(receipt.areas, ['devices']);
+    assert.deepEqual(receipt.expandedAreas, ['devices', 'products', 'search', 'seo']);
+    assert.equal(receipt.extensions.changedAreas.includes('admin'), true);
+    assert.equal(receipt.extensions.escalationReasons.includes('HIGH_RISK_AREA:admin'), true);
+    assert.deepEqual(receipt.selectedChecks, []);
+    assert.equal(executed, 0);
   } finally {
     rmSync(repository.cwd, { recursive: true, force: true });
   }
