@@ -17,9 +17,12 @@ const CASES = Object.freeze([
   ['forum-method-negative', '/api/forum/reports', 'negative', 405],
 ].map(([name, path, assertion, status = 200]) => Object.freeze({ id: `prod:${name}`, path, assertion, status })));
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+// Source: src/pages/forum/index.astro explicitly redirects to /feed/.
+// All other cases may only normalize their own trailing slash.
+const REDIRECT_ALIASES = Object.freeze({ 'prod:forum': Object.freeze(['/feed', '/feed/']) });
 const TRANSIENT_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT', 'UND_ERR_SOCKET']);
 const MAX_BYTES = 4 * 1024 * 1024;
-const SAFE_CODES = new Set(['HTTP_STATUS_MISMATCH', 'MEDIA_MISSING', 'PUBLIC_API_SHAPE_INVALID', 'SITEMAP_INVALID', 'PAGE_ARCHITECTURE_INVALID', 'CANONICAL_OG_INVALID', 'CALLBACK_ARCHITECTURE_INVALID', 'RESET_ARCHITECTURE_INVALID', 'STALE_ORIGIN_OUTPUT', 'RESPONSE_SIZE_LIMIT']);
+const SAFE_CODES = new Set(['HTTP_STATUS_MISMATCH', 'MEDIA_MISSING', 'MEDIA_REPRESENTATION_INVALID', 'WORKER_RUNTIME_FAILURE', 'PUBLIC_API_SHAPE_INVALID', 'SITEMAP_INVALID', 'PAGE_ARCHITECTURE_INVALID', 'CANONICAL_OG_INVALID', 'CALLBACK_ARCHITECTURE_INVALID', 'RESET_ARCHITECTURE_INVALID', 'STALE_ORIGIN_OUTPUT', 'RESPONSE_SIZE_LIMIT']);
 
 function failure(code, classification = 'DETERMINISTIC') {
   const error = new Error(code);
@@ -94,6 +97,15 @@ function inspectBody(check, response, bytes, finalUrl) {
   const origin = productionConfig.defaultOrigin;
   if (check.assertion === 'media') {
     if (!type.startsWith('image/') || bytes.length === 0) throw failure('MEDIA_MISSING');
+    // The reviewed route serves a JPEG. Require its actual representation
+    // signature and end-of-image marker, not just a plausible MIME header.
+    // The repository JPEG has trailing metadata after EOI; preserve that valid
+    // representation rather than requiring EOI to be the last two bytes.
+    const eoi = bytes.findLastIndex((byte, index) => byte === 0xd9 && index > 0 && bytes[index - 1] === 0xff);
+    if (type.split(';')[0].trim().toLowerCase() !== 'image/jpeg' || bytes.length < 10 ||
+        bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff || eoi < 10) {
+      throw failure('MEDIA_REPRESENTATION_INVALID');
+    }
     return;
   }
   if (check.assertion === 'negative') return;
@@ -112,6 +124,12 @@ function inspectBody(check, response, bytes, finalUrl) {
     return;
   }
   const markup = text.replace(/<!--[\s\S]*?-->/g, '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  // The response is already bounded to MAX_BYTES. Match known failure markers
+  // in rendered text and retain only the fixed code, never the stack/binding.
+  const visibleText = markup.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+  if (/\b(?:Worker threw exception\b|Error 1101\b|Missing binding\s*:|Uncaught (?:TypeError|ReferenceError|Error)\s*:|Cannot read properties of (?:undefined|null)\b)/i.test(visibleText)) {
+    throw failure('WORKER_RUNTIME_FAILURE');
+  }
   if (!type.includes('text/html') || !/<html\b/i.test(markup) || !/<main\b/i.test(markup) || !/<title>[^<]+<\/title>/i.test(markup)) throw failure('PAGE_ARCHITECTURE_INVALID');
   const links = [...markup.matchAll(/<link\b[^>]*>/gi)].map(([tag]) => attributes(tag));
   const metas = [...markup.matchAll(/<meta\b[^>]*>/gi)].map(([tag]) => attributes(tag));
@@ -150,6 +168,9 @@ async function requestAttempt(check, fetchFn, signal) {
       // the guard to reject; never normalize an untrusted Location first.
       const target = location.startsWith('/') ? productionConfig.defaultOrigin + location : location;
       request = descriptor(target).request;
+      const nextPath = new URL(request.url).pathname;
+      const sameSurface = nextPath.replace(/\/$/, '') === check.path.replace(/\/$/, '');
+      if (!sameSurface && !REDIRECT_ALIASES[check.id]?.includes(nextPath)) throw failure('REDIRECT_CASE_MISMATCH', 'SAFETY');
       continue;
     }
     if (response.status !== check.status) {

@@ -165,6 +165,50 @@ test('PROD validates sitemap, API shape and token-free callback/reset architectu
   }
 });
 
+test('PROD rejects redirects to a different allowed surface before sending the second request', async () => {
+  const { runProductionCheck } = await productionModule();
+  for (const [id, destination] of [['prod:homepage', '/login/'], ['prod:devices', '/products/'], ['prod:forum', '/news/']]) {
+    let calls = 0;
+    const result = await runProductionCheck(id, { fetchFn: async () => {
+      calls++;
+      return calls === 1 ? new Response(null, { status: 302, headers: { location: destination } }) :
+        new Response(productionHtml(destination), { headers: { 'content-type': 'text/html' } });
+    }});
+    assert.equal(result.status, 'FAIL', id);
+    assert.equal(result.classification, 'SAFETY', id);
+    assert.equal(result.attempts, 1);
+    assert.equal(calls, 1);
+  }
+});
+
+test('PROD detects Worker failure text inside otherwise valid page architecture', async () => {
+  const { runProductionCheck } = await productionModule();
+  for (const marker of ['Worker threw exception', 'Error 1101', 'Missing binding: PRIVATE_BINDING_SENTINEL', 'Uncaught TypeError: PRIVATE_ERROR_SENTINEL']) {
+    let calls = 0;
+    const result = await runProductionCheck('prod:homepage', { fetchFn: async () => {
+      calls++;
+      return new Response(productionHtml().replace('<main>', `<main><p>${marker}</p>`), { headers: { 'content-type': 'text/html' } });
+    }});
+    assert.equal(result.status, 'FAIL');
+    assert.equal(result.diagnostics.events[0].code, 'WORKER_RUNTIME_FAILURE');
+    assert.equal(calls, 1);
+    assert.ok(!JSON.stringify(result).includes('PRIVATE_'));
+  }
+});
+
+test('PROD accepts the actual JPEG representation and rejects corrupt media with image MIME', async () => {
+  const { runProductionCheck } = await productionModule();
+  const jpeg = readFileSync(new URL('../../public/brand/logo.jpg', import.meta.url));
+  const good = await runProductionCheck('prod:media', { fetchFn: async () => new Response(jpeg, { headers: { 'content-type': 'image/jpeg' } }) });
+  assert.equal(good.status, 'PASS');
+  for (const bytes of [new TextEncoder().encode('<html>not an image</html>'), jpeg.subarray(0, 128), new Uint8Array([255, 216, 255])]) {
+    const bad = await runProductionCheck('prod:media', { fetchFn: async () => new Response(bytes, { headers: { 'content-type': 'image/jpeg' } }) });
+    assert.equal(bad.status, 'FAIL');
+    assert.equal(bad.attempts, 1);
+    assert.equal(bad.diagnostics.events[0].code, 'MEDIA_REPRESENTATION_INVALID');
+  }
+});
+
 test('PROD diagnostics cannot acquire credential text from a changing error code', async () => {
   const { runProductionCheck } = await productionModule();
   let reads = 0;
@@ -206,7 +250,7 @@ test('PROD runner writes sanitized receipt through actual HTTP checks without co
       if (path.startsWith('/api/admin/')) return new Response(null, { status: 401 });
       if (path === '/api/news') return new Response('{"ok":true,"articles":[]}', { headers: { 'content-type': 'application/json' } });
       if (path === '/sitemap.xml') return new Response(`<urlset><url><loc>${PROD_ORIGIN}/</loc></url></urlset>`, { headers: { 'content-type': 'application/xml' } });
-      if (path === '/brand/logo.jpg') return new Response(new Uint8Array([255, 216, 255]), { headers: { 'content-type': 'image/jpeg' } });
+      if (path === '/brand/logo.jpg') return new Response(readFileSync(new URL('../../public/brand/logo.jpg', import.meta.url)), { headers: { 'content-type': 'image/jpeg' } });
       return new Response(productionHtml(path), { headers: { 'content-type': 'text/html' } });
     }});
     assert.equal(receipt.result, 'PASS');
