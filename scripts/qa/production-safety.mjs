@@ -1,6 +1,8 @@
 // This module validates data only. It has no transport, process, provider, DB,
 // environment or filesystem capabilities. Consumers must send only the returned
 // options, use manual redirects and revalidate each destination before sending.
+import { types } from 'node:util';
+
 export const productionConfig = Object.freeze({
   defaultOrigin: 'https://openglasshub.ogh.workers.dev',
   allowedOrigins: Object.freeze(['https://openglasshub.ogh.workers.dev']),
@@ -34,10 +36,16 @@ function guard(operation) {
 }
 
 function record(value, keys) {
-  if (!value || Object.getPrototypeOf(value) !== Object.prototype) reject();
+  // Proxies can change primitive values between validation and descriptor output.
+  // Reject before invoking any traps; ordinary accessor properties also fail below.
+  if (!value || types.isProxy(value) || Object.getPrototypeOf(value) !== Object.prototype) reject();
+  const snapshot = Object.create(null);
   for (const key of Reflect.ownKeys(value)) {
-    if (!keys.includes(key) || !Object.hasOwn(Object.getOwnPropertyDescriptor(value, key), 'value')) reject();
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!keys.includes(key) || !Object.hasOwn(descriptor, 'value')) reject();
+    snapshot[key] = descriptor.value;
   }
+  return Object.freeze(snapshot);
 }
 
 function parseUrl(value) {
@@ -60,10 +68,20 @@ function originOnly(value) {
 }
 
 function readConfig(config) {
-  record(config, ['defaultOrigin', 'allowedOrigins']);
-  if (!Array.isArray(config.allowedOrigins) || config.allowedOrigins.length === 0) reject();
-  const allowed = config.allowedOrigins.map(originOnly);
-  const defaultOrigin = originOnly(config.defaultOrigin);
+  const snapshot = record(config, ['defaultOrigin', 'allowedOrigins']);
+  const entries = snapshot.allowedOrigins;
+  if (!Array.isArray(entries) || types.isProxy(entries) || Object.getPrototypeOf(entries) !== Array.prototype) reject();
+  const length = entries.length;
+  // Treat the allowlist as data, never call caller-owned map/iterator functions
+  // or array accessors while a request descriptor is being validated.
+  if (length === 0 || Reflect.ownKeys(entries).length !== length + 1) reject();
+  const allowed = [];
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(entries, String(index));
+    if (!descriptor || !Object.hasOwn(descriptor, 'value')) reject();
+    allowed.push(originOnly(descriptor.value));
+  }
+  const defaultOrigin = originOnly(snapshot.defaultOrigin);
   if (!allowed.includes(defaultOrigin)) reject();
   return {allowed, defaultOrigin};
 }
@@ -79,15 +97,15 @@ export function validateProductionTarget(value, config = productionConfig) {
 
 export function validateProductionRequest(request, config = productionConfig) {
   return guard(() => {
-    record(request, ['url', 'method', 'redirect', 'credentials', 'referrerPolicy']);
-    if (request.method !== 'GET' && request.method !== 'HEAD') reject();
-    if (Object.hasOwn(request, 'redirect') && request.redirect !== 'manual') reject();
-    if (Object.hasOwn(request, 'credentials') && request.credentials !== 'omit') reject();
-    if (Object.hasOwn(request, 'referrerPolicy') && request.referrerPolicy !== 'no-referrer') reject();
-    const url = parseUrl(request.url);
+    const snapshot = record(request, ['url', 'method', 'redirect', 'credentials', 'referrerPolicy']);
+    if (snapshot.method !== 'GET' && snapshot.method !== 'HEAD') reject();
+    if (Object.hasOwn(snapshot, 'redirect') && snapshot.redirect !== 'manual') reject();
+    if (Object.hasOwn(snapshot, 'credentials') && snapshot.credentials !== 'omit') reject();
+    if (Object.hasOwn(snapshot, 'referrerPolicy') && snapshot.referrerPolicy !== 'no-referrer') reject();
+    const url = parseUrl(snapshot.url);
     validateProductionTarget(url.origin, config);
     if (!paths.has(url.pathname)) reject();
-    return Object.freeze({url: url.href, method: request.method, redirect: 'manual', credentials: 'omit', referrerPolicy: 'no-referrer'});
+    return Object.freeze({url: url.href, method: snapshot.method, redirect: 'manual', credentials: 'omit', referrerPolicy: 'no-referrer'});
   });
 }
 
@@ -95,9 +113,9 @@ export function validateProductionRequest(request, config = productionConfig) {
 // belongs outside this descriptor; the result contains only validated data.
 export function assertProductionCheck(check, config = productionConfig) {
   return guard(() => {
-    record(check, ['kind', 'request']);
-    if (check.kind !== 'http') reject();
-    const request = validateProductionRequest(check.request, config);
+    const snapshot = record(check, ['kind', 'request']);
+    if (snapshot.kind !== 'http') reject();
+    const request = validateProductionRequest(snapshot.request, config);
     return Object.freeze({kind: 'http', request, safety: Object.freeze({
       productionReadOnly: true,
       productionDbConnections: 0,

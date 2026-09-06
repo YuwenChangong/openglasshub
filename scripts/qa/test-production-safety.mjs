@@ -108,3 +108,49 @@ test('all diagnostic forms are value-blind for sentinel credentials and malforme
     for (const diagnostic of [String(caught), caught.stack, JSON.stringify(caught), inspect(caught)]) assert.equal(diagnostic.includes(sentinel), false);
   }
 });
+
+test('request proxy cannot swap a validated GET into a returned POST', () => {
+  let methodReads = 0;
+  const request = new Proxy(safe(), {
+    get(target, key) {
+      if (key === 'method') return ++methodReads === 1 ? 'GET' : 'POST';
+      return Reflect.get(target, key);
+    },
+  });
+  reject(() => validateProductionRequest(request));
+  assert.equal(methodReads, 0);
+});
+
+test('request proxy cannot inject a secret sentinel into returned method or diagnostics', () => {
+  const sentinel = 'SECRET_SENTINEL_PROXY_7fab2026';
+  let methodReads = 0;
+  const request = new Proxy(safe(), {
+    get(target, key) {
+      if (key === 'method') return ++methodReads === 1 ? 'GET' : sentinel;
+      return Reflect.get(target, key);
+    },
+  });
+  let caught;
+  try { assertProductionCheck({kind: 'http', request}); } catch (error) { caught = error; }
+  assert.ok(caught, 'proxy must fail closed');
+  assert.equal(caught.code, 'PRODUCTION_ROUTE_REJECTED');
+  assert.equal(methodReads, 0);
+  for (const diagnostic of [String(caught), caught.stack, JSON.stringify(caught), inspect(caught)]) assert.equal(diagnostic.includes(sentinel), false);
+});
+
+test('configuration and check wrappers cannot proxy around input validation', () => {
+  reject(() => validateProductionTarget(undefined, new Proxy(productionConfig, {})));
+  reject(() => validateProductionTarget(undefined, {defaultOrigin: origin, allowedOrigins: new Proxy([origin], {})}));
+  reject(() => assertProductionCheck(new Proxy({kind: 'http', request: safe()}, {})));
+});
+
+test('allowlist code cannot mutate a plain request between validation and output', () => {
+  const request = safe();
+  const allowedOrigins = [origin];
+  allowedOrigins.map = () => {
+    request.method = 'POST';
+    return [origin];
+  };
+  reject(() => validateProductionRequest(request, {defaultOrigin: origin, allowedOrigins}));
+  assert.equal(request.method, 'GET');
+});
