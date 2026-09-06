@@ -165,9 +165,38 @@ test('PROD validates sitemap, API shape and token-free callback/reset architectu
   }
 });
 
-test('PROD rejects redirects to a different allowed surface before sending the second request', async () => {
+test('PROD follows the authoritative devices redirect to the exact products route', async () => {
   const { runProductionCheck } = await productionModule();
-  for (const [id, destination] of [['prod:homepage', '/login/'], ['prod:devices', '/products/'], ['prod:forum', '/news/']]) {
+  const calls = [];
+  const devices = await runProductionCheck('prod:devices', { fetchFn: async (url, options) => {
+    calls.push({ url, method: options.method });
+    if (url === PROD_ORIGIN + '/devices/') {
+      return new Response(null, { status: 301, headers: { location: '/products/' } });
+    }
+    assert.equal(url, PROD_ORIGIN + '/products/');
+    return new Response(productionHtml('/products/'), { headers: { 'content-type': 'text/html' } });
+  }});
+  assert.equal(devices.status, 'PASS');
+  assert.deepEqual(calls, [
+    { url: PROD_ORIGIN + '/devices/', method: 'GET' },
+    { url: PROD_ORIGIN + '/products/', method: 'GET' },
+  ]);
+
+  const products = await runProductionCheck('prod:products', { fetchFn: async (url) => {
+    assert.equal(url, PROD_ORIGIN + '/products/');
+    return new Response(productionHtml('/products/'), { headers: { 'content-type': 'text/html' } });
+  }});
+  assert.equal(products.status, 'PASS');
+});
+
+test('PROD rejects redirects outside the exact route contract before sending the second request', async () => {
+  const { runProductionCheck } = await productionModule();
+  for (const [id, destination] of [
+    ['prod:homepage', '/login/'],
+    ['prod:devices', '/products'],
+    ['prod:devices', '/devices/other'],
+    ['prod:forum', '/news/'],
+  ]) {
     let calls = 0;
     const result = await runProductionCheck(id, { fetchFn: async () => {
       calls++;

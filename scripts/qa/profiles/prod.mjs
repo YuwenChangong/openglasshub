@@ -17,9 +17,13 @@ const CASES = Object.freeze([
   ['forum-method-negative', '/api/forum/reports', 'negative', 405],
 ].map(([name, path, assertion, status = 200]) => Object.freeze({ id: `prod:${name}`, path, assertion, status })));
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
-// Source: src/pages/forum/index.astro explicitly redirects to /feed/.
-// All other cases may only normalize their own trailing slash.
-const REDIRECT_ALIASES = Object.freeze({ 'prod:forum': Object.freeze(['/feed', '/feed/']) });
+// Sources: src/pages/devices/index.astro redirects to /products/ and
+// src/pages/forum/index.astro redirects to /feed/. All other cases may only
+// normalize their own trailing slash.
+const REDIRECT_ALIASES = Object.freeze({
+  'prod:devices': Object.freeze(['/products/']),
+  'prod:forum': Object.freeze(['/feed', '/feed/']),
+});
 const TRANSIENT_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT', 'UND_ERR_SOCKET']);
 const MAX_BYTES = 4 * 1024 * 1024;
 const SAFE_CODES = new Set(['HTTP_STATUS_MISMATCH', 'MEDIA_MISSING', 'MEDIA_REPRESENTATION_INVALID', 'WORKER_RUNTIME_FAILURE', 'PUBLIC_API_SHAPE_INVALID', 'SITEMAP_INVALID', 'PAGE_ARCHITECTURE_INVALID', 'CANONICAL_OG_INVALID', 'CALLBACK_ARCHITECTURE_INVALID', 'RESET_ARCHITECTURE_INVALID', 'STALE_ORIGIN_OUTPUT', 'RESPONSE_SIZE_LIMIT']);
