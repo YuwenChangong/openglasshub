@@ -326,10 +326,19 @@ export async function executeReleaseRun({
     }
   }
 
+  const realBrowserResult = results.find(({ id }) => id === 'targeted-browser-journey');
   const receipt = finalizeReceipt(receiptDraft, {
     completedAt: new Date().toISOString(),
     checkResults: results,
-    extensions: { escalationReasons: context.escalationReasons },
+    extensions: {
+      escalationReasons: context.escalationReasons,
+      realBrowserEvidence: realBrowserResult ? {
+        status: realBrowserResult.status,
+        attempts: realBrowserResult.attempts,
+        classification: realBrowserResult.classification,
+        diagnostics: realBrowserResult.diagnostics,
+      } : null,
+    },
   });
   const failures = results.filter(({ status }) => status === 'FAIL');
   const artifacts = await writeFailureArtifacts({ receipt, failures, artifactRoot });

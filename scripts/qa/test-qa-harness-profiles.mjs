@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -11,7 +12,7 @@ import { getArea, manifest } from './manifest.mjs';
 import { runTargetedBrowserCheck } from './checks/playwright.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
 import { resolveFeatureChecks } from './profiles/feature.mjs';
-import { resolveReleaseChecks, runReleaseCheck } from './profiles/release.mjs';
+import { resolveReleaseChecks, runReleaseCheck, stopLocalWorker } from './profiles/release.mjs';
 import { executeFastRun, executeFeatureRun, executeReleaseRun, renderProfileOutput } from './runner.mjs';
 
 const FOUNDATION = [
@@ -526,7 +527,12 @@ test('RELEASE invokes the Task 8 adapter through an owned real-browser lifecycle
     'server:start', 'browser:launch', 'adapter:run',
     'browser:cleanup', 'browser:close', 'server:stop',
   ]);
-  assert.deepEqual(result.diagnostics.lifecycle, { browserClosed: true, serverStopped: true });
+  assert.deepEqual(result.diagnostics.lifecycle, {
+    browserClosed: true,
+    processTreeStopped: true,
+    portReleased: true,
+    serverStopped: true,
+  });
 });
 
 test('RELEASE real-browser lifecycle preserves adapter failure evidence and cleans up both owners', async () => {
@@ -539,6 +545,20 @@ test('RELEASE real-browser lifecycle preserves adapter failure evidence and clea
       runAdapter: async () => ({
         id: 'browser:auth', status: 'FAIL', attempts: 1, classification: 'DETERMINISTIC',
         summary: 'scoped assertion failed', failureArtifactHints: ['browser:auth:first-attempt:console'],
+        details: {
+          assertions: [],
+          firstAttempt: 'FAIL',
+          retryAttempt: null,
+          firstFailure: {
+            error: 'expected login heading; password=do-not-retain',
+            consoleErrors: ['login render failed'],
+            consoleCaptured: true,
+            screenshotCaptured: false,
+            traceCaptured: false,
+            binaryEvidencePolicy: 'DISCARDED_UNREDACTABLE',
+            artifacts: { console: 'C:/safe/first-attempt-console.json', screenshot: null, trace: null },
+          },
+        },
       }),
       closeBrowser: async () => { calls.push('browser:cleanup'); return true; },
       stopServer: async () => { calls.push('server:stop'); return true; },
@@ -547,7 +567,93 @@ test('RELEASE real-browser lifecycle preserves adapter failure evidence and clea
 
   assert.equal(result.status, 'FAIL');
   assert.deepEqual(result.diagnostics.failureArtifactHints, ['browser:auth:first-attempt:console']);
+  assert.equal(result.diagnostics.adapterDetails.firstFailure.error, 'expected login heading; [REDACTED]');
+  assert.equal(result.diagnostics.adapterDetails.firstFailure.consoleCaptured, true);
+  assert.equal(result.diagnostics.adapterDetails.firstFailure.artifacts.console, 'C:/safe/first-attempt-console.json');
   assert.deepEqual(calls, ['browser:cleanup', 'server:stop']);
+});
+
+test('RELEASE local Worker cleanup requires both owned process-tree termination and bounded port release', async () => {
+  const child = new EventEmitter();
+  Object.assign(child, { pid: 321, exitCode: null, signalCode: null });
+  const calls = [];
+  const result = await stopLocalWorker({ child, port: 4321 }, {
+    terminateTree: async (pid, timeoutMs) => {
+      calls.push(['tree', pid, timeoutMs]);
+      child.exitCode = 0;
+      child.emit('exit', 0, null);
+      return true;
+    },
+    probePort: async (port, timeoutMs) => {
+      calls.push(['port', port, timeoutMs]);
+      return true;
+    },
+  });
+
+  assert.deepEqual(result, { processTreeStopped: true, portReleased: true, serverStopped: true });
+  assert.deepEqual(calls, [['tree', 321, 5_000], ['port', 4321, 5_000]]);
+
+  const occupied = await stopLocalWorker({ child: { pid: 321, exitCode: 0, signalCode: null }, port: 4321 }, {
+    terminateTree: async () => { throw new Error('already exited process must not be terminated'); },
+    probePort: async () => false,
+  });
+  assert.deepEqual(occupied, { processTreeStopped: true, portReleased: false, serverStopped: false });
+});
+
+test('RELEASE propagates startup cleanup failure and never reports serverStopped optimistically', async () => {
+  const startup = new Error('local readiness failed');
+  startup.cleanup = { processTreeStopped: true, portReleased: false, serverStopped: false };
+  const result = await runReleaseCheck('targeted-browser-journey', {
+    profile: 'RELEASE', cwd: process.cwd(), env: {}, artifactRoot: join(tmpdir(), 'openglass-release-startup-failure'),
+    browserJourneyDependencies: { startServer: async () => { throw startup; } },
+  });
+
+  assert.equal(result.status, 'FAIL');
+  assert.equal(result.classification, 'SAFETY');
+  assert.deepEqual(result.diagnostics.lifecycle, {
+    browserClosed: true,
+    processTreeStopped: true,
+    portReleased: false,
+    serverStopped: false,
+  });
+});
+
+test('RELEASE receipt retains redacted real-browser root cause and first/retry evidence', async () => {
+  const repository = createFeatureRepository();
+  try {
+    commitFile(repository.cwd, 'wrangler.toml', 'name = "release-evidence"\n');
+    const receipt = await executeReleaseRun({
+      argv: ['release'],
+      cwd: repository.cwd,
+      mainRef: 'main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'),
+      runCheckFn: async (id) => id === 'targeted-browser-journey'
+        ? {
+            id, status: 'FAIL', attempts: 2, classification: 'DETERMINISTIC',
+            diagnostics: {
+              summary: 'login assertion failed; token=private-value',
+              failureArtifactHints: ['first-console', 'retry-console'],
+              adapterDetails: {
+                firstAttempt: 'FAIL', retryAttempt: 'FAIL',
+                firstFailure: { error: 'heading mismatch', consoleCaptured: true, artifacts: { console: 'first.json' } },
+                retryFailure: { error: 'heading mismatch again', consoleCaptured: true, artifacts: { console: 'retry.json' } },
+              },
+              lifecycle: { browserClosed: true, processTreeStopped: true, portReleased: true, serverStopped: true },
+            },
+          }
+        : passingCheck(id),
+      write: () => {},
+    });
+
+    assert.equal(receipt.result, 'FAIL');
+    assert.equal(receipt.extensions.realBrowserEvidence.status, 'FAIL');
+    assert.equal(receipt.extensions.realBrowserEvidence.attempts, 2);
+    assert.equal(receipt.extensions.realBrowserEvidence.diagnostics.summary, 'login assertion failed; [REDACTED]');
+    assert.equal(receipt.extensions.realBrowserEvidence.diagnostics.adapterDetails.firstFailure.artifacts.console, 'first.json');
+    assert.equal(receipt.extensions.realBrowserEvidence.diagnostics.adapterDetails.retryFailure.artifacts.console, 'retry.json');
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
 });
 
 test('FEATURE explicit devices hint cannot downgrade an unrelated high-risk changed path', async () => {

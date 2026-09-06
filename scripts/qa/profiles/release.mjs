@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -126,15 +126,71 @@ async function availablePort() {
   return port;
 }
 
-async function stopLocalWorker(handle) {
+function waitForChildExit(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      child.off?.('exit', onExit);
+      resolve(false);
+    }, timeoutMs);
+    child.once('exit', onExit);
+  });
+}
+
+function terminateWindowsProcessTree(pid, timeoutMs) {
+  return new Promise((resolve) => {
+    execFile('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
+      timeout: timeoutMs,
+      windowsHide: true,
+    }, (error) => resolve(!error));
+  });
+}
+
+function portAvailable(port) {
+  return new Promise((resolve) => {
+    const probe = createServer();
+    probe.once('error', () => resolve(false));
+    probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(true)));
+  });
+}
+
+async function waitForPortRelease(port, timeoutMs) {
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return false;
+  const deadline = Date.now() + timeoutMs;
+  do {
+    if (await portAvailable(port)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  } while (Date.now() < deadline);
+  return false;
+}
+
+export async function stopLocalWorker(handle, dependencies = {}) {
   const child = handle?.child;
-  if (!child) return true;
-  if (child.exitCode !== null || child.signalCode !== null) return true;
-  const exited = new Promise((resolve) => child.once('exit', () => resolve(true)));
-  child.kill();
-  if (await Promise.race([exited, new Promise((resolve) => setTimeout(() => resolve(false), 5_000))])) return true;
-  child.kill('SIGKILL');
-  return await Promise.race([exited, new Promise((resolve) => setTimeout(() => resolve(false), 5_000))]);
+  const timeoutMs = 5_000;
+  const terminateTree = dependencies.terminateTree ?? terminateWindowsProcessTree;
+  const probePort = dependencies.probePort ?? waitForPortRelease;
+  let processTreeStopped = !child || child.exitCode !== null || child.signalCode !== null;
+  if (!processTreeStopped && process.platform === 'win32') {
+    await terminateTree(child.pid, timeoutMs).catch(() => false);
+    processTreeStopped = await waitForChildExit(child, timeoutMs);
+  } else if (!processTreeStopped) {
+    child.kill('SIGTERM');
+    processTreeStopped = await waitForChildExit(child, timeoutMs);
+    if (!processTreeStopped) {
+      child.kill('SIGKILL');
+      processTreeStopped = await waitForChildExit(child, timeoutMs);
+    }
+  }
+  const portReleased = await probePort(handle?.port, timeoutMs).catch(() => false);
+  return Object.freeze({
+    processTreeStopped,
+    portReleased,
+    serverStopped: processTreeStopped && portReleased,
+  });
 }
 
 async function startLocalWorker({ cwd = ROOT, env = {} } = {}) {
@@ -169,8 +225,12 @@ async function startLocalWorker({ cwd = ROOT, env = {} } = {}) {
     }
     throw new Error('LOCAL_WORKER_READINESS_TIMEOUT');
   } catch (error) {
-    await stopLocalWorker(handle);
-    throw error;
+    const cleanup = await stopLocalWorker(handle);
+    const failure = new Error(cleanup.serverStopped
+      ? error.message
+      : `${error.message}; LOCAL_WORKER_STARTUP_CLEANUP_FAILED`);
+    failure.cleanup = cleanup;
+    throw failure;
   }
 }
 
@@ -186,7 +246,12 @@ export async function runReleaseTargetedBrowserJourney({
   artifactRoot = 'artifacts/qa',
   dependencies = {},
 } = {}) {
-  const lifecycle = { browserClosed: false, serverStopped: false };
+  const lifecycle = {
+    browserClosed: false,
+    processTreeStopped: false,
+    portReleased: false,
+    serverStopped: false,
+  };
   const startServer = dependencies.startServer ?? startLocalWorker;
   const launchBrowser = dependencies.launchBrowser ?? (() => chromium.launch({ headless: true }));
   const runAdapter = dependencies.runAdapter ?? runTargetedBrowserCheck;
@@ -207,11 +272,21 @@ export async function runReleaseTargetedBrowserJourney({
     });
   } catch (error) {
     lifecycleError = error;
+    if (error?.cleanup) Object.assign(lifecycle, error.cleanup);
   } finally {
     if (browser) lifecycle.browserClosed = await closeBrowser(browser).catch(() => false);
     else lifecycle.browserClosed = true;
-    if (server?.handle) lifecycle.serverStopped = await stopServer(server.handle).catch(() => false);
-    else lifecycle.serverStopped = true;
+    if (server?.handle) {
+      const cleanup = await stopServer(server.handle).catch(() => false);
+      if (cleanup === true) Object.assign(lifecycle, { processTreeStopped: true, portReleased: true, serverStopped: true });
+      else if (cleanup && typeof cleanup === 'object') Object.assign(lifecycle, {
+        processTreeStopped: cleanup.processTreeStopped === true,
+        portReleased: cleanup.portReleased === true,
+        serverStopped: cleanup.serverStopped === true,
+      });
+    } else if (!lifecycleError?.cleanup) {
+      Object.assign(lifecycle, { processTreeStopped: true, portReleased: true, serverStopped: true });
+    }
   }
 
   const cleanupPassed = lifecycle.browserClosed && lifecycle.serverStopped;
@@ -226,6 +301,7 @@ export async function runReleaseTargetedBrowserJourney({
       adapterId: adapterResult?.id ?? 'browser:auth',
       summary: adapterResult?.summary ?? lifecycleError?.message ?? 'real local browser journey failed',
       failureArtifactHints: adapterResult?.failureArtifactHints ?? [],
+      adapterDetails: adapterResult?.details ?? null,
       lifecycle,
     }),
   });
