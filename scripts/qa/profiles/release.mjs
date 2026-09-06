@@ -1,9 +1,15 @@
-import { dirname, join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { chromium } from 'playwright';
 import { registerCheck, runCheck } from '../check-registry.mjs';
+import { runTargetedBrowserCheck } from '../checks/playwright.mjs';
 import { normalizeCheckResult, QA_PROFILES } from '../contracts.mjs';
 import { executeCommand } from '../process-executor.mjs';
+import { closeBrowserLifecycle } from '../p6b-local-e2e-runner.mjs';
+import { redactValue } from '../receipt.mjs';
 import { unstable_readConfig } from 'wrangler';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -11,6 +17,8 @@ const NODE = process.execPath;
 const NPM = process.platform === 'win32'
   ? Object.freeze([NODE, join(dirname(NODE), 'node_modules', 'npm', 'bin', 'npm-cli.js')])
   : Object.freeze(['npm']);
+const WRANGLER = join(ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
+const LOCAL_WORKER_CONFIG = join(ROOT, 'dist', 'server', 'wrangler.json');
 const productionConfig = unstable_readConfig(
   { config: join(ROOT, 'wrangler.toml'), env: 'production' },
   { hideWarnings: true },
@@ -63,7 +71,8 @@ const COMMANDS = Object.freeze({
   'workers-release-guard': Object.freeze([NODE, 'scripts/qa/test-workers-builds-release-guard.mjs']),
 });
 
-const SELECTED_IDS = Object.freeze(Object.keys(COMMANDS).sort());
+const REAL_BROWSER_CHECK_ID = 'targeted-browser-journey';
+const SELECTED_IDS = Object.freeze([...Object.keys(COMMANDS), REAL_BROWSER_CHECK_ID].sort());
 const FORBIDDEN_CHECKS = Object.freeze([
   Object.freeze({ id: 'database-replay', reason: 'release_verification_forbids_database_replay' }),
   Object.freeze({ id: 'deployment', reason: 'release_verification_forbids_deployment' }),
@@ -103,6 +112,141 @@ function registerReleaseCommand(id, argv) {
 }
 
 for (const [id, argv] of Object.entries(COMMANDS)) registerReleaseCommand(id, argv);
+
+async function availablePort() {
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : null;
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  if (!Number.isInteger(port)) throw new Error('LOCAL_WORKER_PORT_UNAVAILABLE');
+  return port;
+}
+
+async function stopLocalWorker(handle) {
+  const child = handle?.child;
+  if (!child) return true;
+  if (child.exitCode !== null || child.signalCode !== null) return true;
+  const exited = new Promise((resolve) => child.once('exit', () => resolve(true)));
+  child.kill();
+  if (await Promise.race([exited, new Promise((resolve) => setTimeout(() => resolve(false), 5_000))])) return true;
+  child.kill('SIGKILL');
+  return await Promise.race([exited, new Promise((resolve) => setTimeout(() => resolve(false), 5_000))]);
+}
+
+async function startLocalWorker({ cwd = ROOT, env = {} } = {}) {
+  const port = await availablePort();
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const child = spawn(NODE, [
+    WRANGLER, 'dev', '--config', LOCAL_WORKER_CONFIG, '--local', '--ip', '127.0.0.1', '--port', String(port),
+  ], {
+    cwd,
+    env: { ...env, CI: 'true', WRANGLER_SEND_METRICS: 'false' },
+    shell: false,
+    windowsHide: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let childFailure = null;
+  child.once('error', (error) => { childFailure = error; });
+  child.once('exit', (code, signal) => {
+    if (code !== 0 && signal === null) childFailure = new Error(`LOCAL_WORKER_EXIT_${code}`);
+  });
+  child.stdout.on('data', () => {});
+  child.stderr.on('data', () => {});
+  const handle = { child, port };
+  const deadline = Date.now() + 30_000;
+  try {
+    while (Date.now() < deadline) {
+      if (childFailure) throw childFailure;
+      try {
+        const response = await fetch(`${baseUrl}/login/`, { signal: AbortSignal.timeout(1_000) });
+        if (response.status === 200) return { baseUrl, handle };
+      } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error('LOCAL_WORKER_READINESS_TIMEOUT');
+  } catch (error) {
+    await stopLocalWorker(handle);
+    throw error;
+  }
+}
+
+function failureClassification(value) {
+  return ['DETERMINISTIC', 'TRANSIENT', 'TRANSIENT_RECOVERED', 'SAFETY', 'VALIDATION'].includes(value)
+    ? value
+    : 'DETERMINISTIC';
+}
+
+export async function runReleaseTargetedBrowserJourney({
+  cwd = ROOT,
+  env = {},
+  artifactRoot = 'artifacts/qa',
+  dependencies = {},
+} = {}) {
+  const lifecycle = { browserClosed: false, serverStopped: false };
+  const startServer = dependencies.startServer ?? startLocalWorker;
+  const launchBrowser = dependencies.launchBrowser ?? (() => chromium.launch({ headless: true }));
+  const runAdapter = dependencies.runAdapter ?? runTargetedBrowserCheck;
+  const closeBrowser = dependencies.closeBrowser ?? ((browser) => closeBrowserLifecycle({ browser }));
+  const stopServer = dependencies.stopServer ?? stopLocalWorker;
+  let server;
+  let browser;
+  let adapterResult;
+  let lifecycleError = null;
+  try {
+    server = await startServer({ cwd, env });
+    browser = await launchBrowser();
+    adapterResult = await runAdapter({
+      group: 'auth',
+      baseUrl: server.baseUrl,
+      browser,
+      artifactSink: { directory: resolve(cwd, artifactRoot, 'release-targeted-browser') },
+    });
+  } catch (error) {
+    lifecycleError = error;
+  } finally {
+    if (browser) lifecycle.browserClosed = await closeBrowser(browser).catch(() => false);
+    else lifecycle.browserClosed = true;
+    if (server?.handle) lifecycle.serverStopped = await stopServer(server.handle).catch(() => false);
+    else lifecycle.serverStopped = true;
+  }
+
+  const cleanupPassed = lifecycle.browserClosed && lifecycle.serverStopped;
+  const status = !lifecycleError && adapterResult?.status === 'PASS' && cleanupPassed ? 'PASS' : 'FAIL';
+  return normalizeCheckResult({
+    id: REAL_BROWSER_CHECK_ID,
+    status,
+    attempts: adapterResult?.attempts ?? 1,
+    classification: status === 'PASS' ? failureClassification(adapterResult?.classification) :
+      cleanupPassed ? failureClassification(adapterResult?.classification) : 'SAFETY',
+    diagnostics: redactValue({
+      adapterId: adapterResult?.id ?? 'browser:auth',
+      summary: adapterResult?.summary ?? lifecycleError?.message ?? 'real local browser journey failed',
+      failureArtifactHints: adapterResult?.failureArtifactHints ?? [],
+      lifecycle,
+    }),
+  });
+}
+
+registerCheck({
+  id: `release:${REAL_BROWSER_CHECK_ID}`,
+  allowedProfiles: [QA_PROFILES.RELEASE],
+  timeoutMs: 120_000,
+  retryPolicy: { classification: 'LOCAL', maxRetries: 0 },
+  artifactPolicy: { onFailure: true, onSuccess: false },
+  classification: 'DETERMINISTIC',
+  run(context) {
+    return runReleaseTargetedBrowserJourney({
+      cwd: context.cwd ?? ROOT,
+      env: context.env ?? {},
+      artifactRoot: context.artifactRoot ?? 'artifacts/qa',
+      dependencies: context.browserJourneyDependencies ?? {},
+    });
+  },
+});
 
 export function resolveReleaseChecks(context = {}) {
   if (!context || typeof context !== 'object' || Array.isArray(context)) throw new TypeError('RELEASE context must be an object');

@@ -11,7 +11,7 @@ import { getArea, manifest } from './manifest.mjs';
 import { runTargetedBrowserCheck } from './checks/playwright.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
 import { resolveFeatureChecks } from './profiles/feature.mjs';
-import { resolveReleaseChecks } from './profiles/release.mjs';
+import { resolveReleaseChecks, runReleaseCheck } from './profiles/release.mjs';
 import { executeFastRun, executeFeatureRun, executeReleaseRun, renderProfileOutput } from './runner.mjs';
 
 const FOUNDATION = [
@@ -417,6 +417,7 @@ test('RELEASE selects critical local verification gates and excludes every mutat
     'devices-library',
     'forum-permissions',
     'targeted-browser-contracts',
+    'targeted-browser-journey',
     'database-migration-versions',
     'security-headers',
     'security-privilege-convergence',
@@ -476,6 +477,77 @@ test('RELEASE runner retains deterministic selection evidence and zero mutation 
   } finally {
     rmSync(repository.cwd, { recursive: true, force: true });
   }
+});
+
+test('RELEASE invokes the Task 8 adapter through an owned real-browser lifecycle and always cleans up', async () => {
+  const calls = [];
+  const browser = { close: async () => { calls.push('browser:close'); } };
+  const result = await runReleaseCheck('targeted-browser-journey', {
+    profile: 'RELEASE',
+    cwd: process.cwd(),
+    env: {},
+    artifactRoot: join(tmpdir(), 'openglass-release-browser-artifacts'),
+    browserJourneyDependencies: {
+      startServer: async () => {
+        calls.push('server:start');
+        return { baseUrl: 'http://127.0.0.1:4321', handle: { owned: true } };
+      },
+      launchBrowser: async () => {
+        calls.push('browser:launch');
+        return browser;
+      },
+      runAdapter: async (options) => {
+        calls.push('adapter:run');
+        assert.equal(options.group, 'auth');
+        assert.equal(options.baseUrl, 'http://127.0.0.1:4321');
+        assert.equal(options.browser, browser);
+        assert.match(options.artifactSink.directory, /release-targeted-browser/);
+        return {
+          id: 'browser:auth', status: 'PASS', attempts: 1,
+          classification: 'DETERMINISTIC', summary: 'real local journey passed', failureArtifactHints: [],
+        };
+      },
+      closeBrowser: async (owned) => {
+        assert.equal(owned, browser);
+        calls.push('browser:cleanup');
+        await owned.close();
+        return true;
+      },
+      stopServer: async (handle) => {
+        assert.equal(handle.owned, true);
+        calls.push('server:stop');
+        return true;
+      },
+    },
+  });
+
+  assert.equal(result.status, 'PASS');
+  assert.deepEqual(calls, [
+    'server:start', 'browser:launch', 'adapter:run',
+    'browser:cleanup', 'browser:close', 'server:stop',
+  ]);
+  assert.deepEqual(result.diagnostics.lifecycle, { browserClosed: true, serverStopped: true });
+});
+
+test('RELEASE real-browser lifecycle preserves adapter failure evidence and cleans up both owners', async () => {
+  const calls = [];
+  const result = await runReleaseCheck('targeted-browser-journey', {
+    profile: 'RELEASE', cwd: process.cwd(), env: {}, artifactRoot: join(tmpdir(), 'openglass-release-browser-failure'),
+    browserJourneyDependencies: {
+      startServer: async () => ({ baseUrl: 'http://127.0.0.1:4321', handle: {} }),
+      launchBrowser: async () => ({}),
+      runAdapter: async () => ({
+        id: 'browser:auth', status: 'FAIL', attempts: 1, classification: 'DETERMINISTIC',
+        summary: 'scoped assertion failed', failureArtifactHints: ['browser:auth:first-attempt:console'],
+      }),
+      closeBrowser: async () => { calls.push('browser:cleanup'); return true; },
+      stopServer: async () => { calls.push('server:stop'); return true; },
+    },
+  });
+
+  assert.equal(result.status, 'FAIL');
+  assert.deepEqual(result.diagnostics.failureArtifactHints, ['browser:auth:first-attempt:console']);
+  assert.deepEqual(calls, ['browser:cleanup', 'server:stop']);
 });
 
 test('FEATURE explicit devices hint cannot downgrade an unrelated high-risk changed path', async () => {

@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { writeFailureArtifacts } from './artifacts.mjs';
@@ -284,8 +285,9 @@ export async function executeReleaseRun({
   }
   const context = resolveReleaseRunContext({ cwd, mainRef });
   const selection = resolveReleaseChecks(context);
+  const runId = `qa-${randomUUID()}`;
   const receiptDraft = createReceipt({
-    runId: `qa-${randomUUID()}`,
+    runId,
     profile: QA_PROFILES.RELEASE,
     areas: context.directAreas,
     expandedAreas: selection.areas,
@@ -305,7 +307,12 @@ export async function executeReleaseRun({
   });
 
   const results = [];
-  const executionContext = { ...context, cwd, env: safeChildEnvironment() };
+  const executionContext = {
+    ...context,
+    cwd,
+    env: safeChildEnvironment(),
+    artifactRoot: resolve(cwd, artifactRoot, runId),
+  };
   for (const { id } of selection.selectedChecks) {
     try {
       results.push(normalizeCheckResult(await runCheckFn(id, executionContext)));
