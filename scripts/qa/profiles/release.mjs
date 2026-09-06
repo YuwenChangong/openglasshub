@@ -150,6 +150,15 @@ function terminateWindowsProcessTree(pid, timeoutMs) {
   });
 }
 
+function terminatePosixProcessTree(pid) {
+  try {
+    process.kill(-pid, 'SIGTERM');
+    return Promise.resolve(true);
+  } catch {
+    return Promise.resolve(false);
+  }
+}
+
 function portAvailable(port) {
   return new Promise((resolve) => {
     const probe = createServer();
@@ -171,25 +180,30 @@ async function waitForPortRelease(port, timeoutMs) {
 export async function stopLocalWorker(handle, dependencies = {}) {
   const child = handle?.child;
   const timeoutMs = 5_000;
-  const terminateTree = dependencies.terminateTree ?? terminateWindowsProcessTree;
+  const terminateTree = dependencies.terminateTree ??
+    (process.platform === 'win32' ? terminateWindowsProcessTree : terminatePosixProcessTree);
   const probePort = dependencies.probePort ?? waitForPortRelease;
   let processTreeStopped = !child || child.exitCode !== null || child.signalCode !== null;
-  if (!processTreeStopped && process.platform === 'win32') {
-    await terminateTree(child.pid, timeoutMs).catch(() => false);
+  let treeTerminationConfirmed = false;
+  if (!processTreeStopped) {
+    treeTerminationConfirmed = await terminateTree(child.pid, timeoutMs).catch(() => false) === true;
     processTreeStopped = await waitForChildExit(child, timeoutMs);
-  } else if (!processTreeStopped) {
-    child.kill('SIGTERM');
-    processTreeStopped = await waitForChildExit(child, timeoutMs);
-    if (!processTreeStopped) {
-      child.kill('SIGKILL');
+    if (!processTreeStopped && process.platform !== 'win32') {
+      let forced = false;
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+        forced = true;
+      } catch {}
+      treeTerminationConfirmed = treeTerminationConfirmed && forced;
       processTreeStopped = await waitForChildExit(child, timeoutMs);
     }
   }
   const portReleased = await probePort(handle?.port, timeoutMs).catch(() => false);
   return Object.freeze({
+    treeTerminationConfirmed,
     processTreeStopped,
     portReleased,
-    serverStopped: processTreeStopped && portReleased,
+    serverStopped: treeTerminationConfirmed && processTreeStopped && portReleased,
   });
 }
 
@@ -202,6 +216,7 @@ async function startLocalWorker({ cwd = ROOT, env = {} } = {}) {
     cwd,
     env: { ...env, CI: 'true', WRANGLER_SEND_METRICS: 'false' },
     shell: false,
+    detached: process.platform !== 'win32',
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -248,6 +263,7 @@ export async function runReleaseTargetedBrowserJourney({
 } = {}) {
   const lifecycle = {
     browserClosed: false,
+    treeTerminationConfirmed: false,
     processTreeStopped: false,
     portReleased: false,
     serverStopped: false,
@@ -278,14 +294,25 @@ export async function runReleaseTargetedBrowserJourney({
     else lifecycle.browserClosed = true;
     if (server?.handle) {
       const cleanup = await stopServer(server.handle).catch(() => false);
-      if (cleanup === true) Object.assign(lifecycle, { processTreeStopped: true, portReleased: true, serverStopped: true });
+      if (cleanup === true) Object.assign(lifecycle, {
+        treeTerminationConfirmed: true,
+        processTreeStopped: true,
+        portReleased: true,
+        serverStopped: true,
+      });
       else if (cleanup && typeof cleanup === 'object') Object.assign(lifecycle, {
+        treeTerminationConfirmed: cleanup.treeTerminationConfirmed === true,
         processTreeStopped: cleanup.processTreeStopped === true,
         portReleased: cleanup.portReleased === true,
         serverStopped: cleanup.serverStopped === true,
       });
     } else if (!lifecycleError?.cleanup) {
-      Object.assign(lifecycle, { processTreeStopped: true, portReleased: true, serverStopped: true });
+      Object.assign(lifecycle, {
+        treeTerminationConfirmed: true,
+        processTreeStopped: true,
+        portReleased: true,
+        serverStopped: true,
+      });
     }
   }
 

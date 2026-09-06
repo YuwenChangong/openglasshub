@@ -529,6 +529,7 @@ test('RELEASE invokes the Task 8 adapter through an owned real-browser lifecycle
   ]);
   assert.deepEqual(result.diagnostics.lifecycle, {
     browserClosed: true,
+    treeTerminationConfirmed: true,
     processTreeStopped: true,
     portReleased: true,
     serverStopped: true,
@@ -590,19 +591,65 @@ test('RELEASE local Worker cleanup requires both owned process-tree termination 
     },
   });
 
-  assert.deepEqual(result, { processTreeStopped: true, portReleased: true, serverStopped: true });
+  assert.deepEqual(result, {
+    treeTerminationConfirmed: true,
+    processTreeStopped: true,
+    portReleased: true,
+    serverStopped: true,
+  });
   assert.deepEqual(calls, [['tree', 321, 5_000], ['port', 4321, 5_000]]);
 
   const occupied = await stopLocalWorker({ child: { pid: 321, exitCode: 0, signalCode: null }, port: 4321 }, {
     terminateTree: async () => { throw new Error('already exited process must not be terminated'); },
     probePort: async () => false,
   });
-  assert.deepEqual(occupied, { processTreeStopped: true, portReleased: false, serverStopped: false });
+  assert.deepEqual(occupied, {
+    treeTerminationConfirmed: false,
+    processTreeStopped: true,
+    portReleased: false,
+    serverStopped: false,
+  });
+});
+
+test('RELEASE cleanup fails closed when tree termination fails even if root exits and port releases', async () => {
+  const child = new EventEmitter();
+  Object.assign(child, { pid: 654, exitCode: null, signalCode: null });
+  const result = await stopLocalWorker({ child, port: 4322 }, {
+    terminateTree: async () => {
+      child.exitCode = 1;
+      child.emit('exit', 1, null);
+      return false;
+    },
+    probePort: async () => true,
+  });
+
+  assert.deepEqual(result, {
+    treeTerminationConfirmed: false,
+    processTreeStopped: true,
+    portReleased: true,
+    serverStopped: false,
+  });
+});
+
+test('RELEASE cleanup refuses an already-exited root without independent descendant-tree proof', async () => {
+  let terminateCalls = 0;
+  const result = await stopLocalWorker({ child: { pid: 987, exitCode: 0, signalCode: null }, port: 4323 }, {
+    terminateTree: async () => { terminateCalls += 1; return true; },
+    probePort: async () => true,
+  });
+
+  assert.equal(terminateCalls, 0);
+  assert.deepEqual(result, {
+    treeTerminationConfirmed: false,
+    processTreeStopped: true,
+    portReleased: true,
+    serverStopped: false,
+  });
 });
 
 test('RELEASE propagates startup cleanup failure and never reports serverStopped optimistically', async () => {
   const startup = new Error('local readiness failed');
-  startup.cleanup = { processTreeStopped: true, portReleased: false, serverStopped: false };
+  startup.cleanup = { treeTerminationConfirmed: false, processTreeStopped: true, portReleased: false, serverStopped: false };
   const result = await runReleaseCheck('targeted-browser-journey', {
     profile: 'RELEASE', cwd: process.cwd(), env: {}, artifactRoot: join(tmpdir(), 'openglass-release-startup-failure'),
     browserJourneyDependencies: { startServer: async () => { throw startup; } },
@@ -612,6 +659,7 @@ test('RELEASE propagates startup cleanup failure and never reports serverStopped
   assert.equal(result.classification, 'SAFETY');
   assert.deepEqual(result.diagnostics.lifecycle, {
     browserClosed: true,
+    treeTerminationConfirmed: false,
     processTreeStopped: true,
     portReleased: false,
     serverStopped: false,
@@ -638,7 +686,7 @@ test('RELEASE receipt retains redacted real-browser root cause and first/retry e
                 firstFailure: { error: 'heading mismatch', consoleCaptured: true, artifacts: { console: 'first.json' } },
                 retryFailure: { error: 'heading mismatch again', consoleCaptured: true, artifacts: { console: 'retry.json' } },
               },
-              lifecycle: { browserClosed: true, processTreeStopped: true, portReleased: true, serverStopped: true },
+              lifecycle: { browserClosed: true, treeTerminationConfirmed: true, processTreeStopped: true, portReleased: true, serverStopped: true },
             },
           }
         : passingCheck(id),
