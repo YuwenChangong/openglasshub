@@ -12,7 +12,12 @@ import { getArea, manifest } from './manifest.mjs';
 import { runTargetedBrowserCheck } from './checks/playwright.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
 import { resolveFeatureChecks } from './profiles/feature.mjs';
-import { resolveReleaseChecks, runReleaseCheck, stopLocalWorker } from './profiles/release.mjs';
+import {
+  resolveReleaseChecks,
+  runReleaseCheck,
+  stopLocalWorker,
+  terminatePosixProcessTree,
+} from './profiles/release.mjs';
 import { executeFastRun, executeFeatureRun, executeReleaseRun, renderProfileOutput } from './runner.mjs';
 
 const FOUNDATION = [
@@ -645,6 +650,56 @@ test('RELEASE cleanup refuses an already-exited root without independent descend
     portReleased: true,
     serverStopped: false,
   });
+});
+
+test('RELEASE POSIX cleanup does not confuse delivered signals with a vanished owned process group', async () => {
+  const child = new EventEmitter();
+  Object.assign(child, { pid: 741, exitCode: null, signalCode: null, kill: () => true });
+  let clock = 0;
+  const signals = [];
+  const terminateTree = (pid, timeoutMs) => terminatePosixProcessTree(pid, timeoutMs, {
+    signalGroup: (_pid, signal) => {
+      signals.push(signal);
+      if (signal === 'SIGTERM') {
+        child.exitCode = 0;
+        child.emit('exit', 0, null);
+      }
+      return true;
+    },
+    groupExists: () => true,
+    now: () => clock,
+    delay: async (ms) => { clock += ms; },
+  });
+  const cleanup = await stopLocalWorker({ child, port: 4324 }, {
+    platform: 'linux',
+    terminateTree,
+    probePort: async () => true,
+  });
+
+  assert.deepEqual(signals, ['SIGTERM', 'SIGKILL']);
+  assert.deepEqual(cleanup, {
+    treeTerminationConfirmed: false,
+    processTreeStopped: true,
+    portReleased: true,
+    serverStopped: false,
+  });
+
+  const result = await runReleaseCheck('targeted-browser-journey', {
+    profile: 'RELEASE', cwd: process.cwd(), env: {}, artifactRoot: join(tmpdir(), 'openglass-release-posix-group'),
+    browserJourneyDependencies: {
+      startServer: async () => ({ baseUrl: 'http://127.0.0.1:4324', handle: {} }),
+      launchBrowser: async () => ({}),
+      runAdapter: async () => ({
+        id: 'browser:auth', status: 'PASS', attempts: 1,
+        classification: 'DETERMINISTIC', summary: 'adapter passed', details: {}, failureArtifactHints: [],
+      }),
+      closeBrowser: async () => true,
+      stopServer: async () => cleanup,
+    },
+  });
+  assert.equal(result.status, 'FAIL');
+  assert.equal(result.classification, 'SAFETY');
+  assert.equal(result.diagnostics.lifecycle.serverStopped, false);
 });
 
 test('RELEASE propagates startup cleanup failure and never reports serverStopped optimistically', async () => {

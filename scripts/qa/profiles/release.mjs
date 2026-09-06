@@ -150,13 +150,44 @@ function terminateWindowsProcessTree(pid, timeoutMs) {
   });
 }
 
-function terminatePosixProcessTree(pid) {
+function signalPosixProcessGroup(pid, signal) {
   try {
-    process.kill(-pid, 'SIGTERM');
-    return Promise.resolve(true);
+    process.kill(-pid, signal);
+    return true;
   } catch {
-    return Promise.resolve(false);
+    return false;
   }
+}
+
+function posixProcessGroupExists(pid) {
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== 'ESRCH';
+  }
+}
+
+async function waitForPosixGroupRelease(pid, deadline, { groupExists, now, delay }) {
+  while (now() < deadline) {
+    if (!groupExists(pid)) return true;
+    await delay(Math.min(100, Math.max(1, deadline - now())));
+  }
+  return !groupExists(pid);
+}
+
+export async function terminatePosixProcessTree(pid, timeoutMs, dependencies = {}) {
+  const signalGroup = dependencies.signalGroup ?? signalPosixProcessGroup;
+  const groupExists = dependencies.groupExists ?? posixProcessGroupExists;
+  const now = dependencies.now ?? Date.now;
+  const delay = dependencies.delay ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const startedAt = now();
+  const deadline = startedAt + timeoutMs;
+  const termDeadline = startedAt + Math.floor(timeoutMs / 2);
+  signalGroup(pid, 'SIGTERM');
+  if (await waitForPosixGroupRelease(pid, termDeadline, { groupExists, now, delay })) return true;
+  signalGroup(pid, 'SIGKILL');
+  return waitForPosixGroupRelease(pid, deadline, { groupExists, now, delay });
 }
 
 function portAvailable(port) {
@@ -180,21 +211,17 @@ async function waitForPortRelease(port, timeoutMs) {
 export async function stopLocalWorker(handle, dependencies = {}) {
   const child = handle?.child;
   const timeoutMs = 5_000;
+  const platform = dependencies.platform ?? process.platform;
   const terminateTree = dependencies.terminateTree ??
-    (process.platform === 'win32' ? terminateWindowsProcessTree : terminatePosixProcessTree);
+    (platform === 'win32' ? terminateWindowsProcessTree : terminatePosixProcessTree);
   const probePort = dependencies.probePort ?? waitForPortRelease;
   let processTreeStopped = !child || child.exitCode !== null || child.signalCode !== null;
   let treeTerminationConfirmed = false;
   if (!processTreeStopped) {
     treeTerminationConfirmed = await terminateTree(child.pid, timeoutMs).catch(() => false) === true;
     processTreeStopped = await waitForChildExit(child, timeoutMs);
-    if (!processTreeStopped && process.platform !== 'win32') {
-      let forced = false;
-      try {
-        process.kill(-child.pid, 'SIGKILL');
-        forced = true;
-      } catch {}
-      treeTerminationConfirmed = treeTerminationConfirmed && forced;
+    if (!processTreeStopped && platform !== 'win32') {
+      child.kill('SIGKILL');
       processTreeStopped = await waitForChildExit(child, timeoutMs);
     }
   }
