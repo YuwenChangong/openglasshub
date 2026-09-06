@@ -7,6 +7,7 @@ import { runCheck } from './check-registry.mjs';
 import { createRunContext, normalizeCheckResult, parseInvocation, QAInvocationValidationError, QA_PROFILES } from './contracts.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
 import { resolveFeatureChecks, runFeatureCheck } from './profiles/feature.mjs';
+import { resolveReleaseChecks, runReleaseCheck } from './profiles/release.mjs';
 import { createReceipt, finalizeReceipt, redactValue, renderSummary } from './receipt.mjs';
 import { classifyChanges, collectChangedPaths, resolveComparisonBase, RiskClassificationError } from './risk.mjs';
 import { expandDependencies } from './manifest.mjs';
@@ -93,6 +94,28 @@ export function resolveFeatureRunContext({ cwd = process.cwd(), mainRef = 'origi
     changedPaths: changedClassification.paths,
     releaseRequired: combinedClassification.releaseRequired,
     escalationReasons: combinedClassification.escalationReasons,
+  });
+}
+
+export function resolveReleaseRunContext({ cwd = process.cwd(), mainRef = 'origin/main' } = {}) {
+  const branch = currentBranch(cwd);
+  const baseSha = resolveComparisonBase({ branch, mainRef, cwd });
+  const paths = collectChangedPaths({ baseSha, cwd });
+  const classification = classifyChanges({ paths });
+  const context = createRunContext({
+    profile: QA_PROFILES.RELEASE,
+    risk: classification.risk,
+    commitSha: currentCommit(cwd),
+    baseSha,
+    changedPathsCount: paths.length,
+  });
+  return Object.freeze({
+    ...context,
+    directAreas: classification.directAreas,
+    expandedAreas: classification.expandedAreas,
+    changedPaths: classification.paths,
+    releaseRequired: classification.releaseRequired,
+    escalationReasons: classification.escalationReasons,
   });
 }
 
@@ -247,6 +270,66 @@ export async function executeFeatureRun({
   return receipt;
 }
 
+export async function executeReleaseRun({
+  argv = ['release'],
+  cwd = process.cwd(),
+  mainRef = 'origin/main',
+  artifactRoot = 'artifacts/qa',
+  runCheckFn = runReleaseCheck,
+  write = (value) => process.stdout.write(value),
+} = {}) {
+  const invocation = parseRun(argv);
+  if (invocation.profile !== QA_PROFILES.RELEASE) {
+    throw new QAInvocationValidationError('INVALID_INVOCATION: expected RELEASE profile');
+  }
+  const context = resolveReleaseRunContext({ cwd, mainRef });
+  const selection = resolveReleaseChecks(context);
+  const receiptDraft = createReceipt({
+    runId: `qa-${randomUUID()}`,
+    profile: QA_PROFILES.RELEASE,
+    areas: context.directAreas,
+    expandedAreas: selection.areas,
+    risk: selection.risk,
+    commitSha: context.commitSha,
+    baseSha: context.baseSha,
+    changedPathsCount: context.changedPathsCount,
+    selectedChecks: selection.selectedChecks,
+    skippedChecks: selection.skippedChecks,
+    startedAt: new Date().toISOString(),
+    safety: {
+      productionReadOnly: false,
+      productionDbConnections: 0,
+      productionMutations: 0,
+      providerMutations: 0,
+    },
+  });
+
+  const results = [];
+  const executionContext = { ...context, cwd, env: safeChildEnvironment() };
+  for (const { id } of selection.selectedChecks) {
+    try {
+      results.push(normalizeCheckResult(await runCheckFn(id, executionContext)));
+    } catch (error) {
+      results.push(normalizeCheckResult({
+        id,
+        status: 'FAIL',
+        classification: 'DETERMINISTIC',
+        diagnostics: redactValue({ code: error?.code ?? 'CHECK_EXCEPTION', message: error?.message ?? 'check failed' }),
+      }));
+    }
+  }
+
+  const receipt = finalizeReceipt(receiptDraft, {
+    completedAt: new Date().toISOString(),
+    checkResults: results,
+    extensions: { escalationReasons: context.escalationReasons },
+  });
+  const failures = results.filter(({ status }) => status === 'FAIL');
+  const artifacts = await writeFailureArtifacts({ receipt, failures, artifactRoot });
+  write(`${renderProfileOutput(receipt)}\n${renderSummary(receipt)}\nQA_RECEIPT=${artifacts.receipt}\n`);
+  return receipt;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const argv = process.argv.slice(2);
@@ -255,7 +338,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ? await executeFastRun({ argv })
       : invocation.profile === QA_PROFILES.FEATURE
         ? await executeFeatureRun({ argv })
-        : (() => { throw new QAInvocationValidationError('INVALID_INVOCATION: this runner profile is not implemented yet'); })();
+        : invocation.profile === QA_PROFILES.RELEASE
+          ? await executeReleaseRun({ argv })
+          : (() => { throw new QAInvocationValidationError('INVALID_INVOCATION: this runner profile is not implemented yet'); })();
     if (receipt.result !== 'PASS') process.exitCode = receipt.result === 'BLOCKED' ? 2 : 1;
   } catch (error) {
     process.stderr.write(`QA_RESULT=FAIL\nQA_ERROR=${error?.code ?? 'HARNESS_FAILURE'}\n`);

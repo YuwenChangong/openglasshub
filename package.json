@@ -9,6 +9,7 @@
     "build": "node scripts/build-workers.mjs",
     "qa:fast": "node scripts/qa/runner.mjs fast",
     "qa:feature": "node scripts/qa/runner.mjs feature",
+    "qa:release": "node scripts/qa/runner.mjs release",
     "preview": "astro preview",
     "astro": "astro",
     "test:workers-migration-inventory": "node scripts/qa/test-cloudflare-workers-migration-inventory.mjs",

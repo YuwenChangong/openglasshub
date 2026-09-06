@@ -11,7 +11,8 @@ import { getArea, manifest } from './manifest.mjs';
 import { runTargetedBrowserCheck } from './checks/playwright.mjs';
 import { resolveFastChecks } from './profiles/fast.mjs';
 import { resolveFeatureChecks } from './profiles/feature.mjs';
-import { executeFastRun, executeFeatureRun, renderProfileOutput } from './runner.mjs';
+import { resolveReleaseChecks } from './profiles/release.mjs';
+import { executeFastRun, executeFeatureRun, executeReleaseRun, renderProfileOutput } from './runner.mjs';
 
 const FOUNDATION = [
   'git-diff-check',
@@ -145,13 +146,14 @@ test('FAST summary names profile risk exact selections skips and result', () => 
   ].join('\n'));
 });
 
-test('package exposes only the implemented fast and feature public profiles', () => {
+test('package exposes only the implemented fast feature and release public profiles', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   const qaScripts = Object.keys(packageJson.scripts).filter((name) => name.startsWith('qa:')).sort();
 
-  assert.deepEqual(qaScripts, ['qa:fast', 'qa:feature']);
+  assert.deepEqual(qaScripts, ['qa:fast', 'qa:feature', 'qa:release']);
   assert.equal(packageJson.scripts['qa:fast'], 'node scripts/qa/runner.mjs fast');
   assert.equal(packageJson.scripts['qa:feature'], 'node scripts/qa/runner.mjs feature');
+  assert.equal(packageJson.scripts['qa:release'], 'node scripts/qa/runner.mjs release');
 });
 
 test('FAST runner classifies a Wrangler change and blocks before any check runs', async () => {
@@ -385,6 +387,92 @@ test('FEATURE rejects an unknown explicit area before executing checks', async (
       write: () => {},
     }), /explicitArea must name a manifest area/);
     assert.equal(executed, 0);
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
+});
+
+test('RELEASE selects critical local verification gates and excludes every mutating or production operation', () => {
+  const selection = resolveReleaseChecks({
+    profile: 'RELEASE',
+    risk: 'HIGH',
+    expandedAreas: ['auth', 'cloudflare', 'database', 'security'],
+  });
+  const selected = selection.selectedChecks.map(({ id }) => id);
+
+  assert.equal(selection.blocked, false);
+  assert.equal(selection.risk, 'HIGH');
+  for (const id of [
+    'frontend-astro-build',
+    'project-test',
+    'auth-redirect-safety',
+    'auth-legal-consent',
+    'user-profile-api-safety',
+    'user-summary-api-safety',
+    'media-url-privacy',
+    'seo',
+    'workers-config',
+    'workers-artifact',
+    'workers-release-guard',
+    'devices-library',
+    'forum-permissions',
+    'targeted-browser-contracts',
+    'database-migration-versions',
+    'security-headers',
+    'security-privilege-convergence',
+  ]) assert.equal(selected.includes(id), true, id);
+
+  for (const id of ['database-replay', 'deployment', 'production-smoke', 'provider-operations']) {
+    assert.equal(selected.includes(id), false, id);
+    assert.equal(selection.skippedChecks.some((entry) => entry.id === id), true, id);
+  }
+  assert.equal(selected.some((id) => /(?:deploy|provider-operation|production-smoke|database-replay)/i.test(id)), false);
+});
+
+test('RELEASE selection is deterministic and every selected ID is executable only through the release adapter', () => {
+  const context = { profile: 'RELEASE', risk: 'LOW', expandedAreas: ['devices', 'seo'] };
+  const first = resolveReleaseChecks(context);
+  const second = resolveReleaseChecks(context);
+
+  assert.deepEqual(first, second);
+  assert.deepEqual(first.selectedChecks.map(({ id }) => id), [...first.selectedChecks.map(({ id }) => id)].sort());
+  assert.equal(first.selectedChecks.some(({ id }) => id === 'database-migration-versions'), false);
+  assert.equal(first.skippedChecks.some(({ id, reason }) =>
+    id === 'database-migration-versions' && reason === 'database_area_not_changed'), true);
+  for (const { id } of first.selectedChecks) {
+    const registered = getCheck(`release:${id}`);
+    assert.deepEqual(registered.allowedProfiles, ['RELEASE']);
+  }
+});
+
+test('RELEASE runner retains deterministic selection evidence and zero mutation counters', async () => {
+  const repository = createFeatureRepository();
+  const executed = [];
+  try {
+    commitFile(repository.cwd, 'wrangler.toml', 'name = "release-check"\n');
+    const receipt = await executeReleaseRun({
+      argv: ['release'],
+      cwd: repository.cwd,
+      mainRef: 'main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'),
+      runCheckFn: async (id) => { executed.push(id); return passingCheck(id); },
+      write: () => {},
+    });
+
+    assert.equal(receipt.result, 'PASS');
+    assert.equal(receipt.qaProfile, 'RELEASE');
+    assert.equal(receipt.risk, 'HIGH');
+    assert.deepEqual(receipt.areas, ['cloudflare']);
+    assert.deepEqual(receipt.expandedAreas, ['cloudflare', 'security']);
+    assert.deepEqual(executed, receipt.selectedChecks.map(({ id }) => id));
+    assert.equal(executed.includes('database-migration-versions'), false);
+    assert.equal(receipt.skippedChecks.some(({ id }) => id === 'deployment'), true);
+    assert.deepEqual(receipt.safety, {
+      productionReadOnly: false,
+      productionDbConnections: 0,
+      productionMutations: 0,
+      providerMutations: 0,
+    });
   } finally {
     rmSync(repository.cwd, { recursive: true, force: true });
   }
