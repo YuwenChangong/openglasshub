@@ -9,6 +9,7 @@ import { createRunContext, normalizeCheckResult, parseInvocation, QAInvocationVa
 import { resolveFastChecks } from './profiles/fast.mjs';
 import { resolveFeatureChecks, runFeatureCheck } from './profiles/feature.mjs';
 import { resolveReleaseChecks, runReleaseCheck } from './profiles/release.mjs';
+import { resolveProductionChecks, runProductionCheck } from './profiles/prod.mjs';
 import { createReceipt, finalizeReceipt, redactValue, renderSummary } from './receipt.mjs';
 import { classifyChanges, collectChangedPaths, resolveComparisonBase, RiskClassificationError } from './risk.mjs';
 import { expandDependencies } from './manifest.mjs';
@@ -346,6 +347,44 @@ export async function executeReleaseRun({
   return receipt;
 }
 
+export async function executeProductionRun({
+  argv = ['prod'], cwd = process.cwd(), artifactRoot = 'artifacts/qa',
+  fetchFn = globalThis.fetch, write = (value) => process.stdout.write(value),
+} = {}) {
+  if (parseRun(argv).profile !== QA_PROFILES.PROD) {
+    throw new QAInvocationValidationError('INVALID_INVOCATION: expected PRODUCTION_SMOKE profile');
+  }
+  const selection = resolveProductionChecks({ profile: QA_PROFILES.PROD });
+  const draft = createReceipt({
+    runId: `qa-${randomUUID()}`, profile: QA_PROFILES.PROD,
+    areas: [], expandedAreas: [], risk: selection.risk,
+    commitSha: currentCommit(cwd), baseSha: null, changedPathsCount: 0,
+    selectedChecks: selection.selectedChecks.map(({ id, kind }) => ({ id, kind })),
+    skippedChecks: selection.skippedChecks, startedAt: new Date().toISOString(),
+    safety: { productionReadOnly: true, productionDbConnections: 0, productionMutations: 0, providerMutations: 0 },
+  });
+  const results = [];
+  let safetyStopped = false;
+  for (const { id } of selection.selectedChecks) {
+    if (safetyStopped) {
+      results.push(normalizeCheckResult({ id, status: 'SKIP', classification: 'SAFETY', diagnostics: { code: 'PRIOR_SAFETY_FAILURE' } }));
+      continue;
+    }
+    // No generic registry, command adapter, environment, browser or credential
+    // context is accepted on this execution path.
+    const result = await runProductionCheck(id, { fetchFn });
+    results.push(result);
+    safetyStopped = result.classification === 'SAFETY';
+  }
+  const receipt = finalizeReceipt(draft, {
+    completedAt: new Date().toISOString(), checkResults: results,
+    extensions: { transport: 'HTTP_GET_READ_ONLY', productionOrigin: 'https://openglasshub.ogh.workers.dev' },
+  });
+  const artifacts = await writeFailureArtifacts({ receipt, failures: results.filter(({ status }) => status === 'FAIL'), artifactRoot: resolve(cwd, artifactRoot) });
+  write(`${renderProfileOutput(receipt)}\n${renderSummary(receipt)}\nQA_RECEIPT=${artifacts.receipt}\n`);
+  return receipt;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const argv = process.argv.slice(2);
@@ -356,7 +395,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         ? await executeFeatureRun({ argv })
         : invocation.profile === QA_PROFILES.RELEASE
           ? await executeReleaseRun({ argv })
-          : (() => { throw new QAInvocationValidationError('INVALID_INVOCATION: this runner profile is not implemented yet'); })();
+          : await executeProductionRun({ argv });
     if (receipt.result !== 'PASS') process.exitCode = receipt.result === 'BLOCKED' ? 2 : 1;
   } catch (error) {
     process.stderr.write(`QA_RESULT=FAIL\nQA_ERROR=${error?.code ?? 'HARNESS_FAILURE'}\n`);

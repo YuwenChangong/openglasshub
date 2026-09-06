@@ -39,9 +39,185 @@ const FORBIDDEN_EXPENSIVE = [
 ];
 const RUNNER = fileURLToPath(new URL('./runner.mjs', import.meta.url));
 
+const PROD_ORIGIN = 'https://openglasshub.ogh.workers.dev';
+async function productionModule() {
+  const module = await import('./profiles/prod.mjs').catch(() => null);
+  assert.ok(module?.resolveProductionChecks && module?.runProductionCheck, 'PROD implementation must exist');
+  return module;
+}
+
+function productionHtml(path = '/') {
+  return `<!doctype html><html><head><title>OpenGlass Hub</title><link rel="canonical" href="${PROD_ORIGIN}${path}"><meta property="og:url" content="${PROD_ORIGIN}${path}"><meta property="og:image" content="${PROD_ORIGIN}/brand/logo.jpg"></head><body><main>OpenGlass Hub</main><astro-island component-url="/_astro/AuthCallback.js"></astro-island><astro-island component-url="/_astro/ResetPasswordForm.js"></astro-island></body></html>`;
+}
+
+test('PROD requests are approved read-only snapshots and cover actual surfaces', async () => {
+  const { resolveProductionChecks, runProductionCheck } = await productionModule();
+  const selection = resolveProductionChecks({ profile: 'PRODUCTION_SMOKE' });
+  const paths = selection.selectedChecks.map(({ request }) => new URL(request.url).pathname);
+  for (const path of ['/', '/devices/', '/products/', '/forum/', '/feed/', '/news/', '/search/', '/login/', '/auth/callback/', '/auth/reset-password/', '/api/news', '/sitemap.xml', '/brand/logo.jpg', '/api/admin/reports']) assert.ok(paths.includes(path), path);
+  assert.ok(!paths.some((path) => path.includes('compare')));
+  for (const check of selection.selectedChecks) {
+    assert.equal(check.kind, 'http');
+    assert.ok(Object.isFrozen(check.request));
+    assert.equal(check.request.method, 'GET');
+  }
+  assert.throws(() => resolveProductionChecks({ profile: 'PRODUCTION_SMOKE', origin: 'https://attacker.example' }), /PRODUCTION_ROUTE_REJECTED/);
+  let calls = 0;
+  const result = await runProductionCheck('prod:homepage', { fetchFn: async (url, options) => {
+    calls++;
+    assert.equal(url, PROD_ORIGIN + '/');
+    assert.equal(options.method, 'GET');
+    assert.equal(options.redirect, 'manual');
+    assert.equal(options.credentials, 'omit');
+    assert.equal(options.referrerPolicy, 'no-referrer');
+    assert.equal(options.headers, undefined);
+    assert.equal(options.body, undefined);
+    assert.ok(Object.isFrozen(options));
+    return new Response(productionHtml(), { headers: { 'content-type': 'text/html' } });
+  }});
+  assert.equal(result.status, 'PASS');
+  assert.equal(calls, 1);
+});
+
+test('PROD fails systemic 5xx without retry or response-body disclosure', async () => {
+  const { runProductionCheck } = await productionModule();
+  let calls = 0;
+  const result = await runProductionCheck('prod:homepage', { fetchFn: async () => {
+    calls++;
+    return new Response('private-unlabelled-sentinel', { status: 503 });
+  }});
+  assert.equal(result.status, 'FAIL');
+  assert.equal(result.diagnostics.events[0].code, 'HTTP_STATUS_MISMATCH');
+  assert.equal(calls, 1);
+  assert.ok(!JSON.stringify(result).includes('private-unlabelled-sentinel'));
+});
+
+test('PROD rejects malformed canonical and OG output with no deterministic retry', async () => {
+  const { runProductionCheck } = await productionModule();
+  for (const body of [productionHtml().replace('rel="canonical"', 'rel="alternate"'), productionHtml().replaceAll(PROD_ORIGIN, 'https://old.example'), productionHtml().replace('property="og:url"', 'property="og:invalid"')]) {
+    const result = await runProductionCheck('prod:homepage', { fetchFn: async () => new Response(body, { headers: { 'content-type': 'text/html' } }) });
+    assert.equal(result.status, 'FAIL');
+    assert.equal(result.attempts, 1);
+  }
+});
+
+test('PROD catches missing public media and unexpectedly public protected endpoints', async () => {
+  const { runProductionCheck } = await productionModule();
+  for (const [id, status] of [['prod:media', 404], ['prod:admin-negative', 200], ['prod:forum-method-negative', 200]]) {
+    const result = await runProductionCheck(id, { fetchFn: async () => new Response('wrong', { status }) });
+    assert.equal(result.status, 'FAIL');
+    assert.equal(result.attempts, 1);
+  }
+  const emptyMedia = await runProductionCheck('prod:media', { fetchFn: async () => new Response('', { headers: { 'content-type': 'image/jpeg' } }) });
+  assert.equal(emptyMedia.status, 'FAIL');
+});
+
+test('PROD retains FIRST_ATTEMPT and RETRY_ATTEMPT when one network failure recovers', async () => {
+  const { runProductionCheck } = await productionModule();
+  let calls = 0;
+  const result = await runProductionCheck('prod:homepage', { fetchFn: async () => {
+    if (++calls === 1) throw new TypeError('https://user:private-sentinel@evil.test?token=private', { cause: { code: 'ECONNRESET' } });
+    return new Response(productionHtml(), { headers: { 'content-type': 'text/html' } });
+  }});
+  assert.equal(result.status, 'PASS');
+  assert.equal(result.attempts, 2);
+  assert.equal(result.classification, 'TRANSIENT_RECOVERED');
+  assert.deepEqual(result.diagnostics.events.map(({ phase }) => phase), ['FIRST_ATTEMPT', 'RETRY_ATTEMPT']);
+  assert.ok(!JSON.stringify(result).includes('private'));
+  const failed = await runProductionCheck('prod:homepage', { fetchFn: async () => { throw Object.assign(new Error('sentinel'), { code: 'ECONNRESET' }); } });
+  assert.equal(failed.status, 'FAIL');
+  assert.equal(failed.attempts, 2);
+  const unknown = await runProductionCheck('prod:homepage', { fetchFn: async () => { throw new Error('sentinel'); } });
+  assert.equal(unknown.attempts, 1);
+});
+
+test('PROD validates each redirect before I/O and never follows credential or destructive destinations', async () => {
+  const { runProductionCheck } = await productionModule();
+  for (const location of ['https://evil.example/', '/api/admin/delete', '/auth/callback/?code=private-sentinel', '//evil.example/', '/\\evil.example/', '/%2e%2e/api/admin/delete']) {
+    let calls = 0;
+    const result = await runProductionCheck('prod:homepage', { fetchFn: async () => { calls++; return new Response(null, { status: 302, headers: { location } }); } });
+    assert.equal(result.status, 'FAIL');
+    assert.equal(result.classification, 'SAFETY');
+    assert.equal(calls, 1);
+    assert.ok(!JSON.stringify(result).includes('private-sentinel'));
+  }
+  const calls = [];
+  const good = await runProductionCheck('prod:forum', { fetchFn: async (url) => {
+    calls.push(url);
+    return calls.length === 1 ? new Response(null, { status: 301, headers: { location: '/feed/' } }) : new Response(productionHtml('/feed/'), { headers: { 'content-type': 'text/html' } });
+  }});
+  assert.equal(good.status, 'PASS');
+  assert.deepEqual(calls, [PROD_ORIGIN + '/forum/', PROD_ORIGIN + '/feed/']);
+});
+
+test('PROD validates sitemap, API shape and token-free callback/reset architecture', async () => {
+  const { runProductionCheck } = await productionModule();
+  for (const [id, body, type] of [
+    ['prod:sitemap', `<urlset><url><loc>${PROD_ORIGIN}/</loc></url></urlset>`, 'application/xml'],
+    ['prod:news-api', '{"ok":true,"articles":[]}', 'application/json'],
+    ['prod:callback', productionHtml('/auth/callback/'), 'text/html'],
+    ['prod:reset', productionHtml('/auth/reset-password/'), 'text/html'],
+  ]) {
+    const good = await runProductionCheck(id, { fetchFn: async () => new Response(body, { headers: { 'content-type': type } }) });
+    assert.equal(good.status, 'PASS', id);
+    const bad = await runProductionCheck(id, { fetchFn: async () => new Response('<html>empty</html>', { headers: { 'content-type': type } }) });
+    assert.equal(bad.status, 'FAIL', id);
+  }
+});
+
+test('PROD diagnostics cannot acquire credential text from a changing error code', async () => {
+  const { runProductionCheck } = await productionModule();
+  let reads = 0;
+  const result = await runProductionCheck('prod:homepage', { fetchFn: async () => {
+    throw { get code() { return ++reads <= 2 ? 'HTTP_STATUS_MISMATCH' : 'private-sentinel'; } };
+  }});
+  assert.equal(result.status, 'FAIL');
+  assert.ok(!JSON.stringify(result).includes('private-sentinel'));
+});
+
+test('PROD refuses implicit redirects and bounds explicit redirect chains and response bodies', async () => {
+  const { runProductionCheck } = await productionModule();
+  let calls = 0;
+  const loop = await runProductionCheck('prod:homepage', { fetchFn: async () => { calls++; return new Response(null, { status: 302, headers: { location: '/' } }); } });
+  assert.equal(loop.status, 'FAIL');
+  assert.equal(loop.classification, 'SAFETY');
+  assert.equal(calls, 4);
+  const implicit = await runProductionCheck('prod:homepage', { fetchFn: async () => ({ redirected: true, body: null }) });
+  assert.equal(implicit.classification, 'SAFETY');
+  const oversized = await runProductionCheck('prod:homepage', { fetchFn: async () => new Response('x'.repeat(4 * 1024 * 1024 + 1)) });
+  assert.equal(oversized.status, 'FAIL');
+  assert.equal(oversized.attempts, 1);
+  assert.equal(oversized.diagnostics.events[0].code, 'RESPONSE_SIZE_LIMIT');
+});
+
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
+
+test('PROD runner writes sanitized receipt through actual HTTP checks without command adapters', async () => {
+  const { executeProductionRun } = await import('./runner.mjs');
+  assert.equal(typeof executeProductionRun, 'function');
+  const { cwd } = createFeatureRepository();
+  try {
+    let output = '';
+    const receipt = await executeProductionRun({ cwd, artifactRoot: join(cwd, 'artifacts'), write: (value) => { output += value; }, fetchFn: async (url) => {
+      const path = new URL(url).pathname;
+      if (path === '/api/forum/reports') return new Response(null, { status: 405 });
+      if (path.startsWith('/api/admin/')) return new Response(null, { status: 401 });
+      if (path === '/api/news') return new Response('{"ok":true,"articles":[]}', { headers: { 'content-type': 'application/json' } });
+      if (path === '/sitemap.xml') return new Response(`<urlset><url><loc>${PROD_ORIGIN}/</loc></url></urlset>`, { headers: { 'content-type': 'application/xml' } });
+      if (path === '/brand/logo.jpg') return new Response(new Uint8Array([255, 216, 255]), { headers: { 'content-type': 'image/jpeg' } });
+      return new Response(productionHtml(path), { headers: { 'content-type': 'text/html' } });
+    }});
+    assert.equal(receipt.result, 'PASS');
+    assert.equal(receipt.qaProfile, 'PRODUCTION_SMOKE');
+    assert.equal(receipt.safety.productionReadOnly, true);
+    assert.equal(receipt.safety.productionDbConnections, 0);
+    assert.equal(receipt.safety.productionMutations, 0);
+    assert.equal(receipt.safety.providerMutations, 0);
+    assert.match(output, /QA_RESULT=PASS/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
 
 function createFeatureRepository() {
   const cwd = mkdtempSync(join(tmpdir(), 'openglass-qa-fast-'));
@@ -152,14 +328,15 @@ test('FAST summary names profile risk exact selections skips and result', () => 
   ].join('\n'));
 });
 
-test('package exposes only the implemented fast feature and release public profiles', () => {
+test('package exposes exactly four QA public profiles', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   const qaScripts = Object.keys(packageJson.scripts).filter((name) => name.startsWith('qa:')).sort();
 
-  assert.deepEqual(qaScripts, ['qa:fast', 'qa:feature', 'qa:release']);
+  assert.deepEqual(qaScripts, ['qa:fast', 'qa:feature', 'qa:prod', 'qa:release']);
   assert.equal(packageJson.scripts['qa:fast'], 'node scripts/qa/runner.mjs fast');
   assert.equal(packageJson.scripts['qa:feature'], 'node scripts/qa/runner.mjs feature');
   assert.equal(packageJson.scripts['qa:release'], 'node scripts/qa/runner.mjs release');
+  assert.equal(packageJson.scripts['qa:prod'], 'node scripts/qa/runner.mjs prod');
 });
 
 test('FAST runner classifies a Wrangler change and blocks before any check runs', async () => {
