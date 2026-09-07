@@ -1,8 +1,89 @@
 import assert from "node:assert/strict";
+import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs/promises";
+import { createServer } from "node:net";
 import path from "node:path";
+import { unstable_readConfig } from "wrangler";
+
+import { resolveSiteOrigin } from "../src/lib/site-origin.ts";
 
 const root = process.cwd();
+const node = process.execPath;
+const wrangler = path.join(root, "node_modules", "wrangler", "bin", "wrangler.js");
+const localWorkerConfig = path.join(root, "dist", "server", "wrangler.json");
+
+async function availablePort() {
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  if (!address || typeof address === "string") throw new Error("LOCAL_SEARCH_TEST_PORT_UNAVAILABLE");
+  return address.port;
+}
+
+async function waitForResponse(url, child) {
+  const deadline = Date.now() + 30_000;
+  let lastError = null;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) throw new Error(`LOCAL_SEARCH_TEST_WORKER_EXIT_${child.exitCode}`);
+    try {
+      return await fetch(url, { signal: AbortSignal.timeout(1_000) });
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+  throw new Error(`LOCAL_SEARCH_TEST_WORKER_TIMEOUT: ${lastError instanceof Error ? lastError.message : "unknown error"}`);
+}
+
+async function stopWorker(child) {
+  if (child.exitCode !== null) return;
+  await new Promise((resolve) => {
+    child.once("exit", resolve);
+    child.kill();
+    setTimeout(resolve, 5_000).unref();
+  });
+}
+
+function metadataValues(html, tagPattern, attribute) {
+  return [...html.matchAll(tagPattern)].map((match) => match[0].match(attribute)?.[1]).filter(Boolean);
+}
+
+async function assertRenderedSearchSeo() {
+  const productionConfig = unstable_readConfig(
+    { config: path.join(root, "wrangler.toml"), env: "production" },
+    { hideWarnings: true },
+  );
+  const origin = resolveSiteOrigin(productionConfig.vars?.SITE_ORIGIN);
+  execFileSync(node, ["scripts/build-workers.mjs"], { cwd: root, stdio: "pipe" });
+
+  const port = await availablePort();
+  const child = spawn(node, [
+    wrangler, "dev", "--config", localWorkerConfig, "--local", "--ip", "127.0.0.1", "--port", String(port),
+    "--var", "SUPABASE_URL:http://127.0.0.1:1", "--var", "SUPABASE_ANON_KEY:local-search-test-key",
+  ], { cwd: root, stdio: "ignore", windowsHide: true });
+  try {
+    for (const route of ["/search/", "/search/?q=x"]) {
+      const response = await waitForResponse(`http://127.0.0.1:${port}${route}`, child);
+      assert.equal(response.status, 200, `${route} must render locally`);
+      const html = await response.text();
+      const canonical = metadataValues(html, /<link\b[^>]*\brel=["']canonical["'][^>]*>/gi, /\bhref=["']([^"']+)["']/i);
+      const ogUrl = metadataValues(html, /<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/gi, /\bcontent=["']([^"']+)["']/i);
+      assert.deepEqual(canonical, [`${origin}/search/`], `${route} must render one base canonical`);
+      assert.deepEqual(ogUrl, [`${origin}/search/`], `${route} must render one base og:url`);
+    }
+
+    const workingResponse = await waitForResponse(`http://127.0.0.1:${port}/terms/`, child);
+    assert.equal(workingResponse.status, 200, "established Terms page must remain locally renderable");
+    const workingCanonical = metadataValues(await workingResponse.text(), /<link\b[^>]*\brel=["']canonical["'][^>]*>/gi, /\bhref=["']([^"']+)["']/i);
+    assert.deepEqual(workingCanonical, [`${origin}/terms/`], "established Terms canonical must remain unchanged");
+  } finally {
+    await stopWorker(child);
+  }
+}
 
 function sanitizeSearchInput(raw) {
   return String(raw)
@@ -108,6 +189,8 @@ async function main() {
   assert(/limit_users/.test(apiSource) && /limit_devices/.test(apiSource), "API must accept users/devices limits");
   assert(/People/.test(pageSource) && /Devices/.test(pageSource), "search page must render people/devices sections");
   assert(!/email/i.test(typeSource), "search types must not expose email");
+
+  await assertRenderedSearchSeo();
 
   console.log("SEARCH TEST PASSED");
 }
