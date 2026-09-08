@@ -27,21 +27,89 @@ const PUBLIC_QA_SCRIPTS = {
 };
 
 const PRESERVED_LOWER_LEVEL_SCRIPTS = {
+  astro: 'astro',
   build: 'node scripts/build-workers.mjs',
+  dev: 'astro dev',
+  'generate:production-schema-fingerprint': 'node scripts/generate-local-production-schema-fingerprint.mjs',
+  'generate:production-security-privilege-audit': 'node scripts/qa/generate-production-security-privilege-audit-packet.mjs',
+  preview: 'astro preview',
+  'smoke:production': 'node --experimental-strip-types scripts/smoke-production.mjs',
+  start: 'astro dev',
   test: 'node --experimental-strip-types scripts/test-moderation.mjs && node --experimental-strip-types scripts/test-trusted-server-admin-runtime.mjs && node --experimental-strip-types scripts/test-admin-circle-lifecycle.mjs',
   'test:astro-check-ratchet': 'node scripts/test-astro-check-baseline-ratchet.mjs',
+  'test:astro-check-ratchet-unit': 'node scripts/test-astro-check-baseline-ratchet-unit.mjs',
   'test:auth-legal-consent': 'node scripts/test-auth-legal-acknowledgement.mjs',
   'test:auth-redirect-safety': 'node --experimental-strip-types scripts/test-auth-redirect-safety.mjs',
+  'test:can-access-public-circle-one-shot-preflight': 'node scripts/test-can-access-public-circle-one-shot-preflight.mjs',
+  'test:can-access-public-circle-prerequisite': 'node scripts/test-can-access-public-circle-prerequisite.mjs',
+  'test:can-access-public-circle-prerequisite-boundary': 'node scripts/test-can-access-public-circle-prerequisite-boundary.mjs',
+  'test:circles-visibility-reconciliation': 'node scripts/test-circles-visibility-reconciliation.mjs',
   'test:device-library': 'node scripts/test-device-library.mjs',
+  'test:external-video-authorization-ordering': 'node scripts/test-external-video-authorization-ordering.mjs',
   'test:forum-permissions': 'node scripts/verify-forum-permissions.cjs',
+  'test:legal-consent-auth-flow': 'node scripts/test-legal-consent-auth-flow.mjs',
+  'test:legal-consent-mutation-guard': 'node --experimental-strip-types scripts/test-legal-consent-mutation-guard.mjs',
+  'test:legal-consent-mutation-inventory': 'node scripts/test-legal-consent-mutation-inventory.mjs',
+  'test:legal-consent-page-gate': 'node --experimental-strip-types scripts/test-legal-consent-page-gate.mjs',
+  'test:legal-consent-page-gate-visual': 'node scripts/test-legal-consent-page-gate-visual.mjs',
+  'test:legal-consent-persistence': 'node --experimental-strip-types scripts/test-legal-consent-persistence.mjs',
+  'test:legal-consent-phase4a2': 'node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs',
+  'test:legal-consent-phase4b-wave1': 'node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs',
+  'test:legal-consent-phase4b-wave2': 'node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs',
+  'test:legal-consent-phase4b-wave3': 'node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs',
+  'test:legal-consent-phase4b-wave4': 'node --experimental-strip-types scripts/test-legal-consent-phase4a2.mjs',
+  'test:legal-consent-post': 'node --experimental-strip-types scripts/test-legal-consent-api-post.mjs',
+  'test:legal-consent-predeployment-readiness': 'node scripts/test-legal-consent-predeployment-readiness.mjs',
+  'test:legal-consent-route-coverage': 'node --experimental-strip-types scripts/test-legal-consent-route-coverage.mjs',
+  'test:legal-consent-service-role-audit': 'node scripts/test-legal-consent-service-role-audit.cjs',
+  'test:legal-consent-trace-batches': 'node scripts/test-legal-consent-api-trace-batches.mjs',
+  'test:legal-consent-visual': 'node scripts/test-legal-consent-visual.mjs',
+  'test:legal-content': 'node --experimental-strip-types scripts/test-legal-trust-content.mjs',
+  'test:legal-public-rendering': 'node --experimental-strip-types scripts/test-legal-public-rendering.mjs',
+  'test:local-supabase-replay-mirror': 'node scripts/test-local-supabase-replay-mirror.mjs',
   'test:media-url-privacy': 'node scripts/audit-media-url-privacy.mjs --strict --verbose',
+  'test:moderation-audit': 'node scripts/audit-moderation.mjs --strict --verbose',
+  'test:moderation-notification-writer': 'node --experimental-strip-types scripts/test-moderation-notification-writer.mjs',
+  'test:openai-moderation': 'node scripts/audit-openai-moderation.mjs --strict --verbose',
+  'test:operational-guardrails-index-proposal': 'node scripts/test-operational-guardrails-index-proposal.mjs',
+  'test:operational-guardrails-production-preflight': 'node scripts/test-operational-guardrails-production-preflight.mjs',
+  'test:operational-guardrails-public-acl': 'node scripts/test-operational-guardrails-public-acl.mjs',
+  'test:operational-guardrails-supplemental-preflight': 'node scripts/test-operational-guardrails-supplemental-preflight.mjs',
+  'test:post-launch': 'node --experimental-strip-types scripts/post-launch-check.mjs --strict --verbose',
+  'test:production-minimal-canary': 'node scripts/test-production-minimal-canary.mjs',
+  'test:production-reconciliation-wave1': 'node scripts/test-production-reconciliation-wave1.mjs',
+  'test:production-reconciliation-wave1b': 'node scripts/test-production-reconciliation-wave1b.mjs',
+  'test:production-schema-fingerprint': 'node scripts/qa/local-disposable-supabase-replay.mjs',
+  'test:production-schema-fingerprint-review': 'node scripts/test-production-schema-fingerprint-review.mjs',
+  'test:production-schema-forward-reconciliation': 'node scripts/test-production-schema-forward-reconciliation.mjs',
+  'test:production-security-privilege-audit': 'node --test scripts/qa/test-production-security-privilege-audit-packet.mjs',
   'test:products': 'node scripts/test-product-page.mjs',
+  'test:profile-audit': 'node scripts/verify-profile-system.cjs',
   'test:profile-role-security': 'node scripts/audit-profile-role-security.mjs --strict --verbose',
+  'test:qa-harness-v1': 'node --test scripts/qa/test-qa-harness-v1.mjs',
+  'test:qa-orchestrator': 'node scripts/test-destructive-qa-orchestrator.mjs',
+  'test:r5l-http-local': 'node scripts/run-operational-guardrails-r5l-http-suite.mjs',
+  'test:r5l-http-runner': 'node scripts/test-operational-guardrails-r5l-http-runner.mjs',
+  'test:r5l-pages-harness': 'node scripts/test-r5l-pages-multimodule-harness.mjs',
+  'test:reports': 'node --experimental-strip-types scripts/test-reports.mjs',
+  'test:reports-audit': 'node scripts/audit-reports.mjs --strict --verbose',
   'test:search': 'node --experimental-strip-types scripts/test-search.mjs',
+  'test:search-audit': 'node scripts/audit-search.mjs --dist dist --strict --verbose',
   'test:security-privilege-convergence': 'node --test scripts/qa/test-security-privilege-convergence.mjs',
+  'test:sensitive-lexicon': 'node scripts/audit-sensitive-lexicon.mjs --strict --verbose',
+  'test:site-origin-transition': 'node --experimental-strip-types scripts/qa/test-site-origin-transition.mjs',
+  'test:user-profile-api-safety': 'node scripts/test-user-profile-api-safety.mjs',
+  'test:user-safety': 'node --experimental-strip-types scripts/test-user-safety.mjs',
+  'test:user-safety-audit': 'node scripts/audit-user-safety.mjs --strict --verbose',
+  'test:user-summary-api-safety': 'node scripts/test-user-summary-api-safety.mjs',
   'test:workers-artifact': 'node scripts/qa/test-workers-generated-artifact.mjs',
   'test:workers-config': 'node scripts/qa/test-workers-native-config.mjs',
   'test:workers-env-contract': 'node scripts/qa/test-workers-environment-contract.mjs',
+  'test:workers-migration-inventory': 'node scripts/qa/test-cloudflare-workers-migration-inventory.mjs',
+  'test:workers-origin-cutover': 'node scripts/qa/test-workers-production-origin-cutover.mjs',
+  'test:workers-release-guard': 'node scripts/qa/test-workers-builds-release-guard.mjs',
+  'test:workers-transition-contracts': 'node --experimental-strip-types scripts/qa/test-workers-transition-contracts.mjs',
+  'update:production-schema-fingerprint-fixture': 'node scripts/production-schema-fingerprint-review.mjs --update-fixture',
 };
 
 function createDraft(overrides = {}) {
@@ -78,15 +146,15 @@ function finalizeDraft(draft, checkResults, overrides = {}) {
 test('package command contract exposes exactly four public profiles and preserves lower-level scripts', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   const publicQaScriptNames = Object.keys(packageJson.scripts).filter((name) => name.startsWith('qa:')).sort();
+  const lowerLevelScripts = Object.fromEntries(
+    Object.entries(packageJson.scripts).filter(([name]) => !name.startsWith('qa:')).sort(([left], [right]) => left.localeCompare(right)),
+  );
 
   assert.deepEqual(publicQaScriptNames, Object.keys(PUBLIC_QA_SCRIPTS).sort());
   for (const [name, command] of Object.entries(PUBLIC_QA_SCRIPTS)) {
     assert.equal(packageJson.scripts[name], command, name);
   }
-  for (const [name, command] of Object.entries(PRESERVED_LOWER_LEVEL_SCRIPTS)) {
-    assert.equal(packageJson.scripts[name], command, name);
-  }
-  assert.equal(packageJson.scripts['test:qa-harness-v1'], 'node --test scripts/qa/test-qa-harness-v1.mjs');
+  assert.deepEqual(lowerLevelScripts, PRESERVED_LOWER_LEVEL_SCRIPTS);
 });
 
 test('CSS-only changes stay LOW and select only FAST-safe checks', () => {
