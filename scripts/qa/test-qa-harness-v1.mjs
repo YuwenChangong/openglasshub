@@ -19,6 +19,31 @@ const COMPLETED_AT = '2026-09-05T00:00:01.000Z';
 const COMMIT_SHA = 'a'.repeat(40);
 const BASE_SHA = 'b'.repeat(40);
 
+const PUBLIC_QA_SCRIPTS = {
+  'qa:fast': 'node scripts/qa/runner.mjs fast',
+  'qa:feature': 'node scripts/qa/runner.mjs feature',
+  'qa:release': 'node scripts/qa/runner.mjs release',
+  'qa:prod': 'node scripts/qa/runner.mjs prod',
+};
+
+const PRESERVED_LOWER_LEVEL_SCRIPTS = {
+  build: 'node scripts/build-workers.mjs',
+  test: 'node --experimental-strip-types scripts/test-moderation.mjs && node --experimental-strip-types scripts/test-trusted-server-admin-runtime.mjs && node --experimental-strip-types scripts/test-admin-circle-lifecycle.mjs',
+  'test:astro-check-ratchet': 'node scripts/test-astro-check-baseline-ratchet.mjs',
+  'test:auth-legal-consent': 'node scripts/test-auth-legal-acknowledgement.mjs',
+  'test:auth-redirect-safety': 'node --experimental-strip-types scripts/test-auth-redirect-safety.mjs',
+  'test:device-library': 'node scripts/test-device-library.mjs',
+  'test:forum-permissions': 'node scripts/verify-forum-permissions.cjs',
+  'test:media-url-privacy': 'node scripts/audit-media-url-privacy.mjs --strict --verbose',
+  'test:products': 'node scripts/test-product-page.mjs',
+  'test:profile-role-security': 'node scripts/audit-profile-role-security.mjs --strict --verbose',
+  'test:search': 'node --experimental-strip-types scripts/test-search.mjs',
+  'test:security-privilege-convergence': 'node --test scripts/qa/test-security-privilege-convergence.mjs',
+  'test:workers-artifact': 'node scripts/qa/test-workers-generated-artifact.mjs',
+  'test:workers-config': 'node scripts/qa/test-workers-native-config.mjs',
+  'test:workers-env-contract': 'node scripts/qa/test-workers-environment-contract.mjs',
+};
+
 function createDraft(overrides = {}) {
   return createReceipt({
     runId: 'qa-harness-v1-matrix',
@@ -49,6 +74,20 @@ function finalizeDraft(draft, checkResults, overrides = {}) {
     ...overrides,
   });
 }
+
+test('package command contract exposes exactly four public profiles and preserves lower-level scripts', () => {
+  const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  const publicQaScriptNames = Object.keys(packageJson.scripts).filter((name) => name.startsWith('qa:')).sort();
+
+  assert.deepEqual(publicQaScriptNames, Object.keys(PUBLIC_QA_SCRIPTS).sort());
+  for (const [name, command] of Object.entries(PUBLIC_QA_SCRIPTS)) {
+    assert.equal(packageJson.scripts[name], command, name);
+  }
+  for (const [name, command] of Object.entries(PRESERVED_LOWER_LEVEL_SCRIPTS)) {
+    assert.equal(packageJson.scripts[name], command, name);
+  }
+  assert.equal(packageJson.scripts['test:qa-harness-v1'], 'node --test scripts/qa/test-qa-harness-v1.mjs');
+});
 
 test('CSS-only changes stay LOW and select only FAST-safe checks', () => {
   const classification = classifyChanges({ paths: ['src/styles/theme.css'] });
