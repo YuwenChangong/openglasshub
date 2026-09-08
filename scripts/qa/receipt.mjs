@@ -8,6 +8,7 @@ const SENSITIVE_KEY = /(?:authorization|password|secret|token|api[_-]?key|servic
 const SENSITIVE_LABEL = '(?:authorization|password|secret|token|api[_-]?key|service[_-]?role|anon[_-]?key|dsn|credential|connection[_-]?string|pgpassword|private[_-]?key|access[_-]?key|client[_-]?secret)';
 const JWT = /\beyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/g;
 const DSN = /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"']+/gi;
+const HTTP_USERINFO = /(\bhttps?:\/\/)[^\s/?#"'<>]*@/gi;
 const ASSIGNMENT = /\b([A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY|SERVICE_ROLE|ANON_KEY|DATABASE_URL|POSTGRES_URL)[A-Z0-9_]*)=(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;]+)/gi;
 const ACCESS_ASSIGNMENT = /\b([A-Z][A-Z0-9_]*(?:ACCESS_KEY|ACCESS_KEY_ID|SECRET_ACCESS_KEY)[A-Z0-9_]*)=(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;]+)/gi;
 const BEARER = /\bBearer\s+[^\s"']+/gi;
@@ -79,6 +80,7 @@ export function redactValue(value, key = '') {
   return value
     .replace(PRIVATE_PEM, REDACTED)
     .replace(DSN, REDACTED)
+    .replace(HTTP_USERINFO, `$1${REDACTED}@`)
     .replace(BEARER, `Bearer ${REDACTED}`)
     .replace(JWT, REDACTED)
     .replace(RAW_SUPABASE_SECRET, REDACTED)
@@ -188,7 +190,13 @@ export function finalizeReceipt(receipt, input = {}) {
     retryCount,
     result,
     error: input.error == null ? null : sanitizeReceiptValue(input.error),
-    extensions: sanitizeReceiptValue({ ...receipt.extensions, ...input.extensions }),
+    extensions: {
+      ...sanitizeReceiptValue({ ...receipt.extensions, ...input.extensions }),
+      // Preserve one bounded record for every executed check, including a
+      // recovered first failure that would have no standalone failure artifact.
+      checkResults: checkResults.map(({ id, status, attempts, durationMs, classification, diagnostics }) =>
+        sanitizeReceiptValue({ id, status, attempts, durationMs, classification: classification ?? 'DETERMINISTIC', diagnostics: diagnostics ?? {} })),
+    },
   });
 }
 

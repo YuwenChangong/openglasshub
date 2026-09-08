@@ -212,3 +212,23 @@ test('failure artifact writer rejects draft receipts', async () => {
     rmSync(temp, { recursive: true, force: true });
   }
 });
+
+test('artifact serialization preserves complete contract arrays while bounding nested diagnostics', async () => {
+  const temp = mkdtempSync(join(tmpdir(), 'openglass-qa-receipt-'));
+  try {
+    const areas = Array.from({ length: 16 }, (_, index) => `area-${String(index).padStart(2, '0')}`);
+    const skippedChecks = areas.map((id) => ({ id, reason: 'not_selected' }));
+    const receipt = finalizeReceipt(draft({ areas, expandedAreas: areas, skippedChecks }), {
+      completedAt: '2026-09-05T00:00:00.010Z',
+      checkResults: [{ id: 'a-unit', status: 'PASS' }],
+      extensions: { diagnostics: { events: Array.from({ length: 1000 }, () => 'x'.repeat(10_000)) } },
+    });
+    await writeFailureArtifacts({ receipt, artifactRoot: temp });
+    const serialized = readFileSync(join(temp, RUN_ID, 'receipt.json'), 'utf8');
+    const persisted = JSON.parse(serialized);
+    assert.deepEqual(persisted.areas, areas);
+    assert.deepEqual(persisted.expandedAreas, areas);
+    assert.deepEqual(persisted.skippedChecks, skippedChecks);
+    assert.ok(serialized.length < 50_000);
+  } finally { rmSync(temp, { recursive: true, force: true }); }
+});

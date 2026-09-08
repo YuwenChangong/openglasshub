@@ -24,6 +24,20 @@ function artifactPaths(receipt, hasFailures) {
   return { receipt: `${base}/receipt.json`, failureDir: hasFailures ? `${base}/failure` : null };
 }
 
+function serializedReceipt(receipt) {
+  const safe = redactValue(receipt);
+  const payload = Object.fromEntries(Object.entries(safe).map(([key, value]) => [key, bounded(value)]));
+  // These are contract collections, not sampled diagnostics. Their complete
+  // membership must agree with selection and result counters in the receipt.
+  for (const key of ['areas', 'expandedAreas', 'selectedChecks', 'skippedChecks']) {
+    payload[key] = safe[key].map(bounded);
+  }
+  if (Array.isArray(safe.extensions?.checkResults)) {
+    payload.extensions.checkResults = safe.extensions.checkResults.map(bounded);
+  }
+  return payload;
+}
+
 export async function writeFailureArtifacts({ receipt, failures = [], artifactRoot = 'artifacts/qa' } = {}) {
   if (!receipt || receipt.schemaVersion !== 'openglass-qa/v1' || typeof receipt.runId !== 'string' || !receipt.result || !receipt.completedAt || !Number.isFinite(receipt.durationMs) || !Number.isInteger(receipt.passCount) || !Number.isInteger(receipt.failCount) || !receipt.safety) throw new TypeError('INVALID_ARTIFACTS: finalized v1 receipt is required');
   if (!Array.isArray(failures)) throw new TypeError('INVALID_ARTIFACTS: failures must be an array');
@@ -32,7 +46,7 @@ export async function writeFailureArtifacts({ receipt, failures = [], artifactRo
   const artifacts = artifactPaths(receipt, hasFailures);
   const runDirectory = join(artifactRoot, receipt.runId);
   await mkdir(runDirectory, { recursive: true, mode: 0o700 });
-  await writeFile(join(runDirectory, 'receipt.json'), `${JSON.stringify(bounded(redactValue({ ...receipt, artifacts })))}\n`, { encoding: 'utf8', mode: 0o600 });
+  await writeFile(join(runDirectory, 'receipt.json'), `${JSON.stringify(serializedReceipt({ ...receipt, artifacts }))}\n`, { encoding: 'utf8', mode: 0o600 });
   if (!hasFailures) return artifacts;
   const failureDirectory = join(runDirectory, 'failure');
   await mkdir(failureDirectory, { recursive: true, mode: 0o700 });

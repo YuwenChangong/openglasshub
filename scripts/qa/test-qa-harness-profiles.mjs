@@ -289,6 +289,41 @@ test('PROD runner writes sanitized receipt through actual HTTP checks without co
     assert.equal(receipt.safety.productionMutations, 0);
     assert.equal(receipt.safety.providerMutations, 0);
     assert.match(output, /QA_RESULT=PASS/);
+    const persisted = JSON.parse(readFileSync(join(cwd, 'artifacts', receipt.runId, 'receipt.json'), 'utf8'));
+    assert.equal(persisted.selectedChecks.length, 16);
+    assert.deepEqual(persisted.selectedChecks, receipt.selectedChecks);
+    assert.deepEqual(persisted.skippedChecks, receipt.skippedChecks);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test('PROD runner persists recovered first-attempt evidence from the actual fake-fetch path', async () => {
+  const { executeProductionRun } = await import('./runner.mjs');
+  const { cwd } = createFeatureRepository();
+  let homepageCalls = 0;
+  try {
+    const receipt = await executeProductionRun({ cwd, artifactRoot: join(cwd, 'artifacts'), write: () => {}, fetchFn: async (url) => {
+      const path = new URL(url).pathname;
+      if (path === '/' && ++homepageCalls === 1) throw Object.assign(new Error('connection reset'), { code: 'ECONNRESET' });
+      if (path === '/api/forum/reports') return new Response(null, { status: 405 });
+      if (path.startsWith('/api/admin/')) return new Response(null, { status: 401 });
+      if (path === '/api/news') return new Response('{"ok":true,"articles":[]}', { headers: { 'content-type': 'application/json' } });
+      if (path === '/sitemap.xml') return new Response(`<urlset><url><loc>${PROD_ORIGIN}/</loc></url></urlset>`, { headers: { 'content-type': 'application/xml' } });
+      if (path === '/brand/logo.jpg') return new Response(readFileSync(new URL('../../public/brand/logo.jpg', import.meta.url)), { headers: { 'content-type': 'image/jpeg' } });
+      return new Response(productionHtml(path), { headers: { 'content-type': 'text/html' } });
+    }});
+    assert.equal(receipt.result, 'PASS');
+    assert.equal(receipt.retryCount, 1);
+    const persisted = JSON.parse(readFileSync(join(cwd, 'artifacts', receipt.runId, 'receipt.json'), 'utf8'));
+    for (const evidence of [receipt, persisted]) {
+      assert.equal(evidence.extensions.checkResults?.length, 16);
+      const homepage = evidence.extensions.checkResults.find(({ id }) => id === 'prod:homepage');
+      assert.equal(homepage.attempts, 2);
+      assert.equal(homepage.classification, 'TRANSIENT_RECOVERED');
+      assert.deepEqual(homepage.diagnostics.events, [
+        { phase: 'FIRST_ATTEMPT', code: 'NETWORK_TRANSIENT' },
+        { phase: 'RETRY_ATTEMPT', code: 'HTTP_CHECK_PASS' },
+      ]);
+    }
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
@@ -750,6 +785,12 @@ test('RELEASE runner retains deterministic selection evidence and zero mutation 
     assert.deepEqual(executed, receipt.selectedChecks.map(({ id }) => id));
     assert.equal(executed.includes('database-migration-versions'), false);
     assert.equal(receipt.skippedChecks.some(({ id }) => id === 'deployment'), true);
+    const persisted = JSON.parse(readFileSync(join(repository.cwd, 'artifacts', 'qa', receipt.runId, 'receipt.json'), 'utf8'));
+    assert.equal(persisted.selectedChecks.length, 32);
+    assert.deepEqual(persisted.selectedChecks, receipt.selectedChecks);
+    assert.deepEqual(persisted.skippedChecks, receipt.skippedChecks);
+    assert.deepEqual(persisted.areas, receipt.areas);
+    assert.deepEqual(persisted.expandedAreas, receipt.expandedAreas);
     assert.deepEqual(receipt.safety, {
       productionReadOnly: false,
       productionDbConnections: 0,
@@ -1033,6 +1074,29 @@ test('RELEASE receipt retains redacted real-browser root cause and first/retry e
   } finally {
     rmSync(repository.cwd, { recursive: true, force: true });
   }
+});
+
+test('RELEASE runner redacts URL userinfo in memory and persisted diagnostic artifacts', async () => {
+  const repository = createFeatureRepository();
+  const unsafe = 'https://qa-user:QA_REVIEW_PASSWORD_SENTINEL@example.invalid/';
+  try {
+    const receipt = await executeReleaseRun({
+      cwd: repository.cwd, mainRef: 'main', artifactRoot: join(repository.cwd, 'artifacts', 'qa'), write: () => {},
+      runCheckFn: async (id) => id === 'targeted-browser-journey'
+        ? { id, status: 'FAIL', diagnostics: { message: `failed request ${unsafe}`, long: 'x'.repeat(100_000) } }
+        : passingCheck(id),
+    });
+    assert.equal(receipt.result, 'FAIL');
+    const directory = join(repository.cwd, 'artifacts', 'qa', receipt.runId);
+    const persisted = readFileSync(join(directory, 'receipt.json'), 'utf8');
+    const failure = readFileSync(join(directory, 'failure', 'targeted-browser-journey.json'), 'utf8');
+    for (const output of [JSON.stringify(receipt), persisted, failure]) {
+      assert.ok(!output.includes('QA_REVIEW_PASSWORD_SENTINEL'));
+      assert.ok(!output.includes('qa-user'));
+      assert.match(output, /REDACTED/);
+      assert.ok(output.length < 50_000);
+    }
+  } finally { rmSync(repository.cwd, { recursive: true, force: true }); }
 });
 
 test('FEATURE explicit devices hint cannot downgrade an unrelated high-risk changed path', async () => {
