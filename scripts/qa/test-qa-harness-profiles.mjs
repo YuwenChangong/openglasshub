@@ -468,6 +468,32 @@ test('FAST runner classifies a device change and selects only its dependency-exp
   }
 });
 
+test('FAST runner completes a LOW-risk frontend change with one persisted receipt', async () => {
+  const repository = createFeatureRepository();
+  const executed = [];
+  const artifactRoot = join(repository.cwd, 'artifacts', 'qa');
+  try {
+    commitFile(repository.cwd, 'src/styles/theme.css', ':root { color: canvastext; }\n');
+    const receipt = await executeFastRun({
+      cwd: repository.cwd,
+      mainRef: 'main',
+      artifactRoot,
+      runCheckFn: async (id) => { executed.push(id); return passingCheck(id); },
+      write: () => {},
+    });
+
+    assert.equal(receipt.result, 'PASS');
+    assert.equal(receipt.risk, 'LOW');
+    assert.deepEqual(receipt.areas, ['frontend']);
+    assert.equal(executed.includes('frontend-astro-build'), true);
+    assert.equal(executed.some((id) => /e2e|replay|production|provider/i.test(id)), false);
+    assert.deepEqual(readdirSync(join(artifactRoot, receipt.runId)), ['receipt.json']);
+    assert.equal(JSON.parse(readFileSync(join(artifactRoot, receipt.runId, 'receipt.json'), 'utf8')).result, 'PASS');
+  } finally {
+    rmSync(repository.cwd, { recursive: true, force: true });
+  }
+});
+
 test('FAST runner fails closed without executing checks when the comparison base is unresolved', async () => {
   const repository = createFeatureRepository();
   let executed = 0;
