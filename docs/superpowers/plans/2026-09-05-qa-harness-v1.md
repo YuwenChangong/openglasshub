@@ -227,10 +227,20 @@
 - No new production source files; only test/receipt fixtures if a prior task proves one is necessary.
 
 - [ ] Run `npm ci`, `npm audit --omit=dev`, `npm test`, and `npm run build` freshly.
-- [ ] Run all four profiles in their authorized modes, including read-only `qa:prod`; retain receipts outside git.
-- [ ] Verify selection evidence: FAST excludes full E2E/replay/provider; FEATURE runs area/dependencies only; RELEASE includes critical gates; PROD runs minimal safe smoke.
+- [ ] Run the authorized local profiles and retain their receipts outside git. Reuse the sole authorized Task 11 `qa:prod` receipt; do not rerun `qa:prod`.
+- [ ] Verify selection evidence: FAST excludes full E2E/replay/provider; FEATURE runs area/dependencies only; RELEASE includes critical gates; PROD evidence is the retained Task 11 minimal safe-smoke receipt.
 - [ ] Run `git diff --check`, verify existing tests/security gates are preserved, and inspect worktree/commit paths.
 - [ ] Create the SDD whole-branch review package and dispatch the broad reviewer. Address only review findings through a fresh fix subagent and one scoped re-review; do not push or merge.
+
+**Acceptance clarification:** on an eligible LOW-risk context, prove
+`QA_FAST_PROFILE_CONTRACT=PASS`: FAST selects only its intended cheap checks,
+excludes full E2E/database replay/provider/Production work, produces the
+expected receipt, and completes successfully. On this complete HIGH-risk
+Harness candidate, `npm run qa:fast` must instead produce
+`QA_FAST_ON_HIGH_RISK_CANDIDATE=BLOCKED_EXPECTED` and name `qa:release` before
+any check executes. This is `HIGH_RISK_ESCALATION=PASS`, not a reason to weaken
+the reviewed fail-closed safety rule. Production acceptance reuses the sole
+authorized Task 11 receipt; Task 14 must not rerun `qa:prod`.
 
 ## Plan self-review record
 
