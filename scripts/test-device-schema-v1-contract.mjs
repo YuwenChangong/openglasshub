@@ -103,8 +103,25 @@ function statementsMatching(sql, keyword) {
   return sqlStatements(sql).filter((statement) => new RegExp(`^${keyword}\\b`, "i").test(statement));
 }
 
-function policyExpression(body, clause) {
-  const match = new RegExp(`\\b${clause}\\s*\\(`, "i").exec(body);
+// Preserve offsets while making quoted text and nested expressions inert.
+// Clause keywords belong to the policy header, never to predicate contents.
+function topLevelPolicyText(body) {
+  let depth = 0;
+  let text = "";
+  for (const token of sqlTokens(body)) {
+    if (token.quoted) {
+      text += "?".repeat(token.text.length);
+      continue;
+    }
+    text += depth === 0 ? token.text : "?".repeat(token.text.length);
+    if (token.text === "(") depth += 1;
+    if (token.text === ")") depth -= 1;
+  }
+  return text;
+}
+
+function policyExpression(body, clause, topLevelText) {
+  const match = new RegExp(`\\b${clause}\\s*\\(`, "i").exec(topLevelText);
   if (!match) return undefined;
   let depth = 1;
   let expression = "";
@@ -134,10 +151,11 @@ function finalPolicies(sql) {
     const table = normalize(tableText);
     const key = JSON.stringify([schema, table, name]);
     if (action === "drop") { policies.delete(key); continue; }
+    const topLevelText = topLevelPolicyText(body);
     let policy = policies.get(key);
     if (action === "create") {
       assert.ok(!policy, `Duplicate policy: ${name}`);
-      policy = { schema, table, name, command: /\bfor\s+(all|select|insert|update|delete)\b/i.exec(body)?.[1].toLowerCase() ?? "all", roles: "public" };
+      policy = { schema, table, name, command: /\bfor\s+(all|select|insert|update|delete)\b/i.exec(topLevelText)?.[1].toLowerCase() ?? "all", roles: "public" };
     } else {
       assert.ok(policy, `ALTER POLICY has no preceding CREATE POLICY: ${name}`);
     }
@@ -151,7 +169,7 @@ function finalPolicies(sql) {
     const roles = /^\s*(?:as\s+(?:permissive|restrictive)\s*)?(?:for\s+(?:all|select|insert|update|delete)\s*)?to\s+(.+?)(?=\s+(?:using|with\s+check)\b|;?$)/i.exec(body)?.[1];
     if (roles !== undefined) policy.roles = roles;
     for (const [field, clause] of [["using", "using"], ["check", "with\\s+check"]]) {
-      const expression = policyExpression(body, clause);
+      const expression = policyExpression(body, clause, topLevelText);
       if (expression !== undefined) policy[field] = expression;
     }
     policies.set(key, policy);
@@ -257,7 +275,9 @@ export function assertSyntheticWeakCases(contract) {
   for (const weakCase of contract.syntheticWeakCases ?? []) {
     assert.throws(
       () => assertSchemaV1Contract({ migrationText: migrationFor(weakCase), cases: contract }),
-      (error) => error instanceof assert.AssertionError && error.message.includes(weakCase.expectedError),
+      (error) => error instanceof assert.AssertionError && (weakCase.exactError
+        ? error.message === weakCase.expectedError
+        : error.message.includes(weakCase.expectedError)),
       `Synthetic weak SQL unexpectedly passed: ${weakCase.name}`,
     );
   }
