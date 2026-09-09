@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import assert from "node:assert/strict";
@@ -297,6 +297,7 @@ export function assertSyntheticWeakCases(contract) {
  */
 export function assertSchemaV1Contract({ migrationText, cases }) {
   assert.equal(typeof migrationText, "string", "migrationText must be SQL text");
+  assert.match(migrationText, /create table.*public\.device_specs/s, "Foundation must create device_specs");
   const contract = cases ?? { required: [], forbidden: [] };
 
   for (const testCase of contract.required ?? []) {
@@ -309,12 +310,66 @@ export function assertSchemaV1Contract({ migrationText, cases }) {
   return true;
 }
 
+// Task 2 proves the additive foundation independently of the later enforcement,
+// authority, and registry tasks. The default entrypoint still runs the full gate.
+export function assertSchemaV1Foundation({ migrationText, cases }) {
+  const sql = withoutSqlComments(migrationText);
+  assert.match(sql, /create table.*public\.device_specs/s, "Foundation must create device_specs");
+  for (const testCase of cases.required.filter((entry) => entry.name !== "catalog admin predicate")) {
+    assert.match(sql, regexFromCase(testCase), `Missing foundation contract: ${testCase.name}`);
+  }
+  for (const testCase of cases.forbidden) assert.doesNotMatch(sql, regexFromCase(testCase), testCase.name);
+  const tables = Object.fromEntries(cases.normalizedTables.map((table) => [table, findCreateTableBody(sql, table)]));
+  for (const [table, body] of Object.entries(tables)) {
+    assert.ok(body, `Missing foundation table body: ${table}`);
+    assert.match(body, /\bid\s+uuid\s+primary\s+key\s+default\s+gen_random_uuid\(\)/i, `${table} requires UUID identity`);
+    assert.match(body, /\bcreated_at\s+timestamptz\s+not\s+null\s+default\s+now\(\)/i, `${table} requires creation timestamp`);
+  }
+  for (const [table, column, target] of [
+    ["device_specs", "device_id", "devices"],
+    ["device_specs", "spec_definition_id", "device_spec_definitions"],
+    ["device_source_links", "device_id", "devices"],
+    ["device_source_links", "source_id", "device_sources"],
+    ["device_spec_evidence", "device_spec_id", "device_specs"],
+    ["device_spec_evidence", "source_id", "device_sources"],
+  ]) {
+    assert.match(tables[table], new RegExp(`\\b${column}\\s+uuid\\s+not\\s+null\\s+references\\s+public\\.${target}\\(id\\)\\s+on\\s+delete\\s+restrict`, "i"), `${table}.${column} requires restrictive foreign key`);
+  }
+  for (const [column, fallback] of [["region", "Global"], ["variant", ""]]) {
+    assert.match(tables.device_specs, new RegExp(`\\b${column}_key\\s+text\\s+generated\\s+always\\s+as\\s*\\(coalesce\\(${column},\\s*'${fallback}'\\)\\)\\s+stored`, "i"), `${column} must have a stored NULL-safe key`);
+  }
+  for (const [table, pattern] of [
+    ["device_spec_definitions", /\bkey\s+text\s+not\s+null\s+unique/i],
+    ["device_spec_definitions", /check\s*\(length\(btrim\(key\)\)\s*>\s*0\)/i],
+    ["device_specs", /unique\s*\(device_id,\s*spec_definition_id,\s*region_key,\s*variant_key\)/i],
+    ["device_sources", /\burl\s+text\s+not\s+null\s+unique/i],
+    ["device_source_links", /unique\s*\(device_id,\s*source_id\)/i],
+    ["device_spec_evidence", /unique\s*\(device_spec_id,\s*source_id,\s*claimed_value\)/i],
+    ["device_spec_evidence", /check\s*\(not\s*\(is_primary\s+and\s+is_conflicting\)\)/i],
+  ]) assert.match(tables[table], pattern, `${table} is missing a required key/check`);
+  for (const [table, key] of [["device_source_links", "device_id"], ["device_spec_evidence", "device_spec_id"]]) {
+    assert.match(sql, new RegExp(`create\\s+unique\\s+index\\s+if\\s+not\\s+exists\\s+\\w+\\s+on\\s+public\\.${table}\\s*\\(${key}\\)\\s+where\\s+is_primary\\s*=\\s*true`, "i"), `${table} must allow at most one primary row`);
+  }
+  // A foundation migration must not import data or remove existing objects.
+  for (const statement of sqlStatements(sql)) {
+    assert.doesNotMatch(statement, /^(?:insert|update|delete|truncate|drop)\b/i, "Foundation must remain additive and data-free");
+  }
+  return true;
+}
+
 async function main() {
   const contract = JSON.parse(await readFile(fixturePath, "utf8"));
   const syntheticCount = assertSyntheticWeakCases(contract);
   console.log(`DEVICE_SCHEMA_V1_SYNTHETIC_RED_OK count=${syntheticCount}`);
   if (process.argv.includes("--synthetic-only")) return;
-  const migrationPath = path.join(root, contract.migrationPath);
+  // The plan's timestamp is illustrative. Keep the actual CLI-generated version
+  // and fail closed if more than one foundation migration matches the suffix.
+  const migrationDirectory = path.join(root, "supabase/migrations");
+  const migrationFiles = (await readdir(migrationDirectory)).filter((file) => /^\d{14}_device_schema_v1_foundation\.sql$/.test(file));
+  assert.ok(migrationFiles.length <= 1, "Multiple Schema v1 foundation migrations found");
+  const migrationPath = migrationFiles.length === 1
+    ? path.join(migrationDirectory, migrationFiles[0])
+    : path.join(root, contract.migrationPath);
   let migrationText;
   try {
     migrationText = await readFile(migrationPath, "utf8");
@@ -325,6 +380,11 @@ async function main() {
     throw error;
   }
 
+  if (process.argv.includes("--foundation-only")) {
+    assertSchemaV1Foundation({ migrationText, cases: contract });
+    console.log("DEVICE_SCHEMA_V1_FOUNDATION_OK");
+    return;
+  }
   assertSchemaV1Contract({ migrationText, cases: contract });
   console.log("DEVICE_SCHEMA_V1_CONTRACT_OK");
 }
