@@ -61,6 +61,26 @@ device-level source URLs, `verified_at=2026-09-05`, and its declared 24-device,
 8-brand scope. It defines exactly two schema types: `display_ar` and `ai_hud`.
 Older bootstrap specification text must never overwrite YAML specifications.
 
+### YAML ownership matrix
+
+The importer removes identity and evidence metadata before generating
+definitions. The following matrix is the authoritative ownership boundary.
+
+| YAML field set | Schema v1 owner | Rule |
+| --- | --- | --- |
+| `schema_type`, `basic.brand`, `basic.model`, `basic.generation`, `basic.device_type`, `basic.status` | `devices` | Identity/presentation attributes; identity changes are guarded. |
+| `basic.release_date` | `devices.release_date` when YAML supplies an unambiguous ISO date; otherwise no date is invented | A year-only legacy value remains compatibility presentation, not a fabricated date. |
+| `basic.weight_g`, `basic.dimensions_mm`, `basic.material`, `basic.prescription_support` | `device_specs` | Normalized specifications; never duplicate `devices` identity columns. |
+| all remaining non-`evidence` parameter fields | `device_spec_definitions` plus `device_specs` | One deterministic canonical key per YAML path after the preceding removals. |
+| `evidence.verified_at`, `evidence.region`, `evidence.overall_confidence` | `device_specs.verified_at`, `region`, `confidence` as scoped import metadata | They are metadata, never spec definitions. |
+| `evidence.source_urls` | `device_sources` plus `device_source_links` | Device-level association only unless curated field mapping exists. |
+| `evidence.conflicts` | curated conflict-classification mapping plus `device_spec_evidence` when applicable | Prose alone never creates a spec state or evidence link. |
+| `evidence.notes` | non-public importer/admin curation metadata | They never become ordinary definitions or public fields by default. |
+
+The registry includes every YAML **SPEC** key after the ownership matrix removes
+identity and evidence fields. It does not create definitions for the metadata
+rows in this table.
+
 ### Deterministic identity map
 
 The importer creates a reviewed map of `{ yamlBrand, yamlModel, yamlGeneration
@@ -86,11 +106,22 @@ absent pending the generation guard below.
 Gen 1 `ray-ban-meta` record is a `BLOCKED_IDENTITY_MISMATCH`, never an update.
 It requires an administrator-approved identity resolution before any write.
 
+Current bootstrap evidence is deliberately insufficient: the only matching
+record is `ray-ban-meta`; it has no generation field and only generic
+presentation/spec text. Therefore
+`CURRENT_RAY_BAN_BOOTSTRAP_SLUG=ray-ban-meta`,
+`CURRENT_RAY_BAN_BOOTSTRAP_GENERATION=UNSPECIFIED`, and
+`CURRENT_RAY_BAN_BOOTSTRAP_IDENTITY_CONFIDENCE=INSUFFICIENT_FOR_GEN_2`.
+Release B is blocked until an operator records whether the slug is proven Gen 2
+or preserves the existing identity and defines a separate Gen 2 identity. This
+document does not choose either strategy.
+
 ## 5. Current architecture inventory
 
 | Area | Current representation | Schema v1 consequence |
 | --- | --- | --- |
 | `public.devices` | Identity, presentation, publication, media, URLs, JSONB key/full specs; unique slug; `slug_locked` after first publish | Remains compatibility table and public identity record. |
+| Brand/device IDs | No `brands` table exists; `brandCatalog` and the 24 bootstrap slugs are repository data. Production has no current device IDs because its table is empty | Schema v1 does not introduce a brands table; `devices.brand_key` remains the relationship key. |
 | Public loader | `listPublishedDevices` / `getPublishedDeviceBySlug` select published rows from `devices` | Release A/B leave these readers unchanged. |
 | `/products/` | Maps static `brandCatalog` shell to database-published product counts and previews | Importing 24 published identities restores page visibility without Detail v2. |
 | Product detail | `/devices/[slug]` loads one published row then redirects to its product anchor | Detail v2 is deferred to Release D. |
@@ -156,7 +187,8 @@ change. A semantic change to `value_type`, `canonical_unit`,
 referenced unless a separate audited data migration proves every existing value
 remains valid; the normal admin editor cannot make that reinterpretation.
 
-The registry includes every YAML key and keeps brightness distinct:
+The registry includes every YAML SPEC key after identity/evidence removal by
+the ownership matrix and keeps brightness distinct:
 `display.eye_brightness` uses context `eye_brightness`; and
 `display.panel_or_projector_brightness` uses context
 `panel_or_projector_brightness`. There is no generic `brightness` key.
@@ -187,6 +219,29 @@ objects, while no invented single refresh winner is exposed. Examples supported
 without fake precision include `57`, `"Up to 120"`, `"3500 average / 6000
 peak"`, `"76±1"`, `"0 to -6D"`, boolean values, and structured mode runtime.
 
+### 6.3.1 Database enforcement of definition/value invariants
+
+Row-local `CHECK` constraints enforce state shape and mutually exclusive typed
+columns: `KNOWN` has exactly one compatible typed column; `NOT_DISCLOSED`,
+`NOT_APPLICABLE`, and `UNKNOWN_UNVERIFIED` have zero typed columns; and
+`CONFLICT` always has a nonempty primary `raw_value` plus zero or one safely
+representable compatible typed primary value. JSON is valid only for
+`value_type='json'`; the typed columns are otherwise mutually exclusive.
+
+Because ordinary checks cannot inspect a definition row, a `BEFORE INSERT OR
+UPDATE` trigger on `device_specs` loads the referenced definition and rejects
+`DEVICE_SPEC_UNKNOWN_DEFINITION`, `DEVICE_SPEC_SCHEMA_TYPE_DISALLOWED`,
+`DEVICE_SPEC_VALUE_TYPE_MISMATCH`, `DEVICE_SPEC_UNIT_MISMATCH`,
+`DEVICE_SPEC_CONTEXT_MISMATCH`, and `DEVICE_SPEC_STATE_VALUE_MISMATCH`.
+It requires row unit/context to equal the definition unless that definition has
+an explicit, documented override policy; Release A defines no overrides. A
+`DEFERRABLE INITIALLY DEFERRED` constraint trigger, fired for relevant
+`device_specs` and `device_spec_evidence` changes, validates at transaction
+end that every `CONFLICT` has exactly one primary and at least one conflicting
+claim. This avoids rejecting a valid transaction merely because it inserts the
+spec before its evidence. Importer and server validation provide user-friendly
+diagnostics but are never the sole enforcement layer.
+
 ### 6.4 `device_sources`: reusable source records
 
 Proposed columns are `id`, `publisher`, `title`, `url`, `source_type
@@ -210,9 +265,13 @@ row per spec, and foreign keys with restrictive deletes. A source cannot be
 hard-deleted while evidence references it.
 
 Only unambiguous input mappings create field-level links. YAML conflict prose
-creates no guessed link: it requires an explicit curated mapping from conflict
-to canonical spec key, otherwise the importer reports `BLOCKED_EVIDENCE_MAP`
-for review while retaining the device-level source association.
+creates no guessed link or conflict state: it requires an explicit curated
+classification and canonical-spec mapping. The classification is either
+`TRUE_VALUE_CONFLICT` (competing claims about one canonical key) or
+`NORMALIZATION_OR_CONTEXT_NOTE` (explanatory material such as 600 eye nits
+versus 4000 projector nits, which are different keys). The latter remains
+device-level/admin curation metadata. An unmapped prose item reports
+`BLOCKED_EVIDENCE_MAP` while retaining its device-level source association.
 
 ## 7. State, values, evidence, and comparison invariants
 
@@ -223,16 +282,27 @@ and `UNKNOWN_UNVERIFIED`.
 | --- | --- | --- |
 | `KNOWN` | Exactly one typed value consistent with definition type; required unit/context present where defined | Eligible only when all compare conditions hold. |
 | `NOT_DISCLOSED` | No canonical typed value | Shows disclosure state; never ranks. |
-| `NOT_APPLICABLE` | No canonical typed value; definition must be inapplicable for device schema type | May be hidden in normal view; never ranks. |
-| `CONFLICT` | No winner; at least one primary and one conflicting evidence row | Shows warning and claims; never ranks. |
+| `NOT_APPLICABLE` | No canonical typed value; definition is allowed for the schema type, but this specific device is asserted not to implement/possess it | May be hidden in normal view; never ranks. |
+| `CONFLICT` | No winner; one primary and at least one conflicting evidence row. Primary typed value is retained if safely representable, and explicit raw primary display value is always retained | Shows primary value with warning and claims; never ranks. |
 | `UNKNOWN_UNVERIFIED` | No verified canonical claim | Admin-visible research state; never promoted as public verified fact or ranked. |
 
 YAML mapping is exact: concrete value maps to `KNOWN`; `Not disclosed` to
 `NOT_DISCLOSED`; `Not applicable` to `NOT_APPLICABLE`; explicit `No` to
-`KNOWN false`; official/source conflict to `CONFLICT`; and unresearched or
-untrusted placeholder to `UNKNOWN_UNVERIFIED`. SQL checks and importer
-validation enforce state/value compatibility; `NULL` alone never expresses a
-semantic state.
+`KNOWN false`; explicitly curated `TRUE_VALUE_CONFLICT` to `CONFLICT`; and
+unresearched or untrusted internal candidate to `UNKNOWN_UNVERIFIED`. A definition's
+`applicable_schema_types` means the parameter is allowed/meaningful in that
+family; it does not require every device in the family to implement it. A row
+outside that allowed set is invalid, while `NOT_APPLICABLE` is a per-device
+assertion. SQL checks, database triggers, and importer validation enforce
+state/value compatibility; `NULL` alone never expresses a semantic state.
+
+For `CONFLICT`, the `device_specs` row retains a safe primary canonical typed
+value, canonical unit/context, and a required primary `raw_value`. If the
+primary value cannot be safely normalized, typed compare fields are null while
+the explicit raw primary value remains displayable. `device_spec_evidence` records exactly
+one primary claim and one or more conflicting claims. For example, a public
+Rokid value can render `480×400 Official ⚠` with its current-official primary
+source and a `480×640` official-FAQ alternative, but is never compare-eligible.
 
 A Compare v2 winner is allowed only when each candidate is `KNOWN`, has a
 compatible canonical unit, has compatible measurement context, has no conflict,
@@ -258,12 +328,28 @@ conflicts. `/admin/device-specs` permits label/help/group/unit/context/mode/
 applicability/core/order/activity management subject to the immutable-key and
 semantic-change rules above.
 
-Public users read only published devices and intentionally public,
-eligible source/spec metadata. Non-admin authenticated users cannot mutate any
-catalog table. Admin mutation is authorized in server handlers with the
-existing `requireAdmin` flow and matching RLS predicate
-`public.is_moderator_or_admin()`; client UI never grants authority. The
-service-role importer is a separately authorized operator process only.
+Catalog mutations are admin-only. Release A adds the narrowly scoped reusable
+predicate `public.is_catalog_admin()`, implemented from the existing protected
+`profiles.role` source as `current_user_role() = 'admin'`; it does not change
+`public.is_moderator_or_admin()` or forum moderation policy. All catalog-table
+insert/update/delete policies—including `devices`, `device_specs`,
+`device_spec_definitions`, `device_sources`, `device_source_links`, and
+`device_spec_evidence`—use `(select public.is_catalog_admin())` in both
+`USING` and `WITH CHECK` as applicable. The server uses existing
+`requireAdmin`; RLS and the server consequently enforce the same authority.
+Non-admin authenticated users cannot mutate catalog tables. The service-role
+importer is a separately authorized operator exception.
+
+The canonical public boundary is a server-side Product Detail v2 projection,
+not direct client selection of normalized tables. The projection selects only
+published devices, `KNOWN`/`NOT_DISCLOSED`/`NOT_APPLICABLE`/`CONFLICT` states
+eligible for public rendering, their allowed display values, and allowlisted
+public source/evidence metadata (`publisher`, `title`, `url`, `source_type`,
+dates, region, claimed value, and conflict/primary flags).
+`UNKNOWN_UNVERIFIED`, `device_specs.note`, YAML/admin internal notes, unmapped
+conflict prose, importer diagnostics, and `catalog_audit_events` are never in
+this projection. RLS grants no anon access to audit events or internal curation
+fields; column privileges are not the security boundary.
 
 Release C adds `catalog_audit_events`: `id`, `actor_id`, `entity_type`,
 `entity_id`, `action`, `changed_fields jsonb`, and `created_at`. It is
@@ -286,7 +372,7 @@ The planned `scripts/devices/import-device-schema-v1.mts` pipeline is:
    explicit authorization and one transaction.
 
 The importer never fuzzy-matches, never deletes, never silently overwrites
-post-import admin edits, and never turns a field-level ambiguity into evidence.
+post-import admin edits, and never turns an unresolved field-level mapping into evidence.
 Reruns default to drift-detecting dry runs. A separately authorized write may
 insert missing rows and update only explicitly owned initial-import fields;
 any divergence from catalog-audit provenance is a conflict for operator
@@ -302,8 +388,10 @@ is not rewritten when administrators edit the database.
 1. **Release A — additive schema:** enums, new tables, constraints, indexes,
    RLS, grants, and no reader cutover or legacy JSONB removal.
 2. **Release B — controlled 24-device recovery:** approved transactional
-   importer. Preconditions: production device count is zero, 24 YAML records
-   resolve to 24 unique bootstrap slugs, and every required identity is exact.
+   importer. Preconditions: production device count is zero,
+   `IDENTITY_MAP_COUNT=24`, `UNIQUE_TARGET_SLUGS=24`,
+   `UNRESOLVED_IDENTITIES=0`, and every required identity is exact. The current
+   unresolved Ray-Ban Meta Gen 2 identity blocks this release.
    Postconditions: 24 devices, expected published count, exact expected spec
    rows, no duplicate device/spec context keys, and no unexpected identities.
 3. **Release C — administration:** device, definitions, source/evidence UI and
@@ -319,11 +407,15 @@ treated as evidence of a successful prior import.
 
 ## 11. Research metrics
 
-Research Completion is `(KNOWN + NOT_DISCLOSED + NOT_APPLICABLE + CONFLICT) /
-applicable investigated core fields`, target at least 95%. Verified Data
-Coverage is `(reliable KNOWN + appropriate primary official conflict value) /
-applicable fields`, initially 70–85% depending on available sources. Neither
-metric may be increased by fabricated values or unqualified secondary claims.
+Research Completion is `investigated core fields / all expected core fields for
+that device`, target at least 95%. Investigated means `KNOWN`,
+`NOT_DISCLOSED`, `NOT_APPLICABLE`, or `CONFLICT`; `UNKNOWN_UNVERIFIED` does not
+count. `NOT_APPLICABLE` counts because it proves investigation. Verified Data
+Coverage is `reliable KNOWN values plus appropriately primary CONFLICT values /
+applicable expected fields`; `NOT_APPLICABLE` is excluded from that denominator
+and `NOT_DISCLOSED` has no verified-value credit. Its initial target is 70–85%
+depending on source availability. Neither metric may be increased by fabricated
+values or unqualified secondary claims.
 
 ## 12. Testing and QA strategy
 
@@ -331,7 +423,7 @@ metric may be increased by fabricated values or unqualified secondary claims.
   definition key immutability; referenced definition deactivation versus
   deletion; source/evidence conflict invariants.
 - Importer: 24-device YAML validation, exact identity map, duplicate keys,
-  Generation guard, state normalization, context mismatch, ambiguity blocking,
+  Generation guard, state normalization, context mismatch, unresolved-mapping blocking,
   deterministic dry-run output, zero deletes, and rerun drift behavior.
 - Security: public RLS visibility; non-admin mutation denial; admin server
   authorization; service-role importer invocation boundary; audit redaction.
