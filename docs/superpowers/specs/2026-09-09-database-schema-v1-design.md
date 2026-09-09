@@ -45,10 +45,11 @@ without removing any legacy field or changing a public reader in Release A.
 `src/lib/device-catalog.ts` is the current 24-device bootstrap catalog. Its
 local-only importer, `scripts/migrate-static-device-catalog-to-supabase.mjs`,
 serializes identity and presentation rows, refuses non-loopback targets, and
-has been used by disposable local P6B/P6C acceptance. It supplies only values
-the YAML does not authoritatively specify: existing slug, brand key, images,
-descriptions, route metadata, publication metadata, and legacy compatibility
-payloads.
+has been used by disposable local P6B/P6C acceptance. It supplies only
+non-specification identity/presentation values: existing slug, brand key,
+images, descriptions, route metadata, URLs, and publication metadata. It is
+not authoritative for any specification value or legacy compatibility spec
+payload.
 
 The historic 13-entry `src/data/devices.ts` MVP is provenance only. It is not
 the recovery source and must not be treated as the current canonical catalog.
@@ -59,7 +60,18 @@ the recovery source and must not be treated as the current canonical catalog.
 states, schema types, measurement meaning, confidence, conflicts, notes,
 device-level source URLs, `verified_at=2026-09-05`, and its declared 24-device,
 8-brand scope. It defines exactly two schema types: `display_ar` and `ai_hud`.
-Older bootstrap specification text must never overwrite YAML specifications.
+YAML is the sole specification-value authority. Release B derives both
+normalized values and the `key_specs`/`full_specs` compatibility output from
+the normalized YAML result through one deterministic compatibility adapter. If
+a legacy field cannot be represented faithfully, the importer reports an
+explicit compatibility gap and leaves it safely empty or omitted where the
+current reader permits; it never falls back to bootstrap spec text.
+
+`BOOTSTRAP_SPEC_VALUES_AUTHORITATIVE=false`,
+`LEGACY_COMPAT_SPEC_SOURCE=YAML_DERIVED`, and
+`DUAL_SPEC_SOURCE_OF_TRUTH=false` are Release B invariants.
+`YAML_SPEC_VALUE_SINGLE_SOURCE=true` is the corresponding source-authority
+invariant.
 
 ### YAML ownership matrix
 
@@ -127,7 +139,7 @@ document does not choose either strategy.
 | Product detail | `/devices/[slug]` loads one published row then redirects to its product anchor | Detail v2 is deferred to Release D. |
 | Current compare | `/products/[brand]` serializes selected legacy fields from `full_specs`/`key_specs` | Compare v2 is deferred to Release E. |
 | Admin | Existing `/admin/devices` and `/api/admin/devices.ts`; server authorization uses `requireAdmin`/`requireModerator` and `profiles.role` | Add routes and server handlers inside this shell; no parallel role system. |
-| RLS | Public select is only `publication_status='published'`; staff CRUD uses `public.is_moderator_or_admin()` | Reuse this predicate, grants, RLS style, and server-side authorization. |
+| RLS | Current legacy `devices` public select is `publication_status='published'`; staff CRUD uses `public.is_moderator_or_admin()` | This is current state only. Schema v1 target catalog mutation uses the separate `public.is_catalog_admin()` predicate; forum/moderation policy remains untouched. |
 | Audit | There is no catalog-specific immutable audit entity in current device schema | Add a narrow catalog audit trail in Release C. |
 | QA Harness | Devices are MEDIUM; admin/database are HIGH and require `qa:release`; `qa:prod` is read-only smoke | Schema/admin changes are release-gated; no production smoke is part of this design. |
 
@@ -142,11 +154,23 @@ The exact proposed enums are: `device_schema_type = ('display_ar', 'ai_hud')`;
 `device_presentation_profile = ('display', 'ai_camera', 'hud', 'developer')`;
 `device_spec_value_type = ('number', 'boolean', 'text', 'json')`;
 `device_spec_state = ('KNOWN', 'NOT_DISCLOSED', 'NOT_APPLICABLE', 'CONFLICT',
-'UNKNOWN_UNVERIFIED')`; `device_spec_confidence = ('HIGH', 'MEDIUM', 'LOW')`;
+'UNKNOWN_UNVERIFIED')`; `device_spec_confidence = ('HIGH', 'MEDIUM_HIGH',
+'MEDIUM', 'LOW')`;
 `device_spec_comparison_mode = ('higher', 'lower', 'equal_only', 'none')`; and
 `device_source_type = ('current_official_product_page', 'official_manual',
 'official_spec_sheet', 'official_developer_docs', 'official_faq',
 'regulatory_document', 'archived_official', 'reputable_secondary')`.
+
+Confidence mapping is deterministic: YAML `High` maps to `HIGH`, `Medium-High`
+to `MEDIUM_HIGH`, `Medium` to `MEDIUM`, and `Low` to `LOW`. Any other source
+text is `BLOCKED_CONFIDENCE_VALUE`; there is no heuristic coercion. YAML
+`evidence.overall_confidence` is device/dataset-scope baseline confidence, not
+proof that every field has equal quality. It initializes imported field
+confidence only as a baseline. A curated field-level override may lower or
+replace it with auditable provenance; secondary-source prose cannot silently
+gain a higher confidence without an explicit curated mapping.
+`CONFIDENCE_MEDIUM_HIGH_SUPPORTED=true` and `CONFIDENCE_COERCION=false` are
+Release A/B invariants.
 
 ### 6.1 `devices`: identity, presentation, and publication
 
@@ -164,9 +188,13 @@ UI cards. `presentation_profile` (`display`, `ai_camera`, `hud`, `developer`)
 selects dynamic Key Specs. They are independent values.
 
 `key_specs` and `full_specs` remain unchanged in Release A through Release E
-until a separate, proven cleanup project. The importer may populate their
-existing compatibility representation only from current bootstrap presentation
-data; YAML spec values are normalized into `device_specs`.
+until a separate, proven cleanup project. Their compatibility representation is
+derived deterministically from the normalized YAML result by one compatibility
+adapter. Bootstrap catalog data supplies only non-specification identity and
+presentation fields; it is never a fallback source for a legacy specification
+value. If a normalized YAML value cannot be represented faithfully in a legacy
+field, the adapter reports an explicit compatibility gap and safely omits or
+empties that legacy field where the current reader permits.
 
 ### 6.2 `device_spec_definitions`: immutable canonical registry
 
@@ -237,7 +265,8 @@ It requires row unit/context to equal the definition unless that definition has
 an explicit, documented override policy; Release A defines no overrides. A
 `DEFERRABLE INITIALLY DEFERRED` constraint trigger, fired for relevant
 `device_specs` and `device_spec_evidence` changes, validates at transaction
-end that every `CONFLICT` has exactly one primary and at least one conflicting
+end that every `CONFLICT` has exactly one `is_primary = true, is_conflicting =
+false` claim and at least one `is_primary = false, is_conflicting = true`
 claim. This avoids rejecting a valid transaction merely because it inserts the
 spec before its evidence. Importer and server validation provide user-friendly
 diagnostics but are never the sole enforcement layer.
@@ -252,9 +281,28 @@ types are `current_official_product_page`, `official_manual`,
 `regulatory_document`, `archived_official`, and `reputable_secondary`.
 Secondary content is never labeled Official in public rendering.
 
-Device-level YAML `source_urls` create device-associated source records through
-`device_source_links(device_id, source_id, is_primary, note, created_at)`.
-They are not automatically field-level evidence.
+YAML URLs are paired with a deterministic, reviewed source-metadata registry
+sidecar keyed by normalized URL. Each record supplies `publisher`, `title`,
+`source_type`, `published_at`, `accessed_at`, and `region`; `title` and
+`published_at` may be null, but `publisher`, `url`, and `source_type` are
+required. Source type is never inferred from a domain or path. Before Release
+B, `UNIQUE_SOURCE_URLS` must equal `SOURCE_METADATA_MAP_COUNT`, with
+`UNMAPPED_SOURCE_URLS=0` and `AMBIGUOUS_SOURCE_URLS=0`; otherwise import blocks.
+`reputable_secondary` can never render as Official.
+`SOURCE_TYPE_AUTOMATIC_INFERENCE=false` and
+`UNMAPPED_SOURCE_URL_BLOCKS_RELEASE_B=true` are Release B invariants.
+
+### 6.4.1 `device_source_links`: device-level provenance
+
+This table has `id uuid primary key`, `device_id uuid not null references
+public.devices(id) on delete restrict`, `source_id uuid not null references
+public.device_sources(id) on delete restrict`, `is_primary boolean not null
+default false`, `note text`, and `created_at timestamptz not null default now()`.
+It has `unique(device_id, source_id)` and a partial unique index allowing at
+most one `is_primary=true` source per device. `note` is internal and is never
+in the public read contract. RLS permits only catalog-admin mutation.
+Device-level links are not automatically field-level evidence.
+`DEVICE_SOURCE_LINK_SCHEMA_COMPLETE=true` is a Release A invariant.
 
 ### 6.5 `device_spec_evidence`: field-level claims
 
@@ -263,6 +311,15 @@ Proposed columns are `id`, `device_spec_id`, `source_id`, `claimed_value`,
 `(device_spec_id, source_id, claimed_value)` constraint, at most one primary
 row per spec, and foreign keys with restrictive deletes. A source cannot be
 hard-deleted while evidence references it.
+
+The local row check is `not (is_primary and is_conflicting)`. The deferred
+constraint trigger requires every `CONFLICT` spec to have exactly one
+`is_primary=true, is_conflicting=false` evidence row and at least one
+`is_primary=false, is_conflicting=true` evidence row. For a non-`CONFLICT`
+spec, a conflicting evidence row is rejected until an explicit state transition
+to `CONFLICT`; it cannot silently alter state semantics.
+`CONFLICT_PRIMARY_AND_CONFLICTING_MUTUALLY_EXCLUSIVE=true` is a Release A
+invariant.
 
 Only unambiguous input mappings create field-level links. YAML conflict prose
 creates no guessed link or conflict state: it requires an explicit curated
@@ -283,7 +340,7 @@ and `UNKNOWN_UNVERIFIED`.
 | `KNOWN` | Exactly one typed value consistent with definition type; required unit/context present where defined | Eligible only when all compare conditions hold. |
 | `NOT_DISCLOSED` | No canonical typed value | Shows disclosure state; never ranks. |
 | `NOT_APPLICABLE` | No canonical typed value; definition is allowed for the schema type, but this specific device is asserted not to implement/possess it | May be hidden in normal view; never ranks. |
-| `CONFLICT` | No winner; one primary and at least one conflicting evidence row. Primary typed value is retained if safely representable, and explicit raw primary display value is always retained | Shows primary value with warning and claims; never ranks. |
+| `CONFLICT` | No winner; exactly one `is_primary=true,is_conflicting=false` claim and at least one `is_primary=false,is_conflicting=true` claim. Primary typed value is retained if safely representable, and explicit raw primary display value is always retained | Shows primary value with warning and claims; never ranks. |
 | `UNKNOWN_UNVERIFIED` | No verified canonical claim | Admin-visible research state; never promoted as public verified fact or ranked. |
 
 YAML mapping is exact: concrete value maps to `KNOWN`; `Not disclosed` to
@@ -340,32 +397,52 @@ insert/update/delete policies—including `devices`, `device_specs`,
 Non-admin authenticated users cannot mutate catalog tables. The service-role
 importer is a separately authorized operator exception.
 
-The canonical public boundary is a server-side Product Detail v2 projection,
-not direct client selection of normalized tables. The projection selects only
-published devices, `KNOWN`/`NOT_DISCLOSED`/`NOT_APPLICABLE`/`CONFLICT` states
-eligible for public rendering, their allowed display values, and allowlisted
-public source/evidence metadata (`publisher`, `title`, `url`, `source_type`,
-dates, region, claimed value, and conflict/primary flags).
-`UNKNOWN_UNVERIFIED`, `device_specs.note`, YAML/admin internal notes, unmapped
-conflict prose, importer diagnostics, and `catalog_audit_events` are never in
-this projection. RLS grants no anon access to audit events or internal curation
-fields; column privileges are not the security boundary.
+Release A/B/C grant no anon direct `SELECT` on `device_specs`,
+`device_spec_definitions`, `device_sources`, `device_source_links`,
+`device_spec_evidence`, or `catalog_audit_events`.
+`NORMALIZED_BASE_TABLE_ANON_SELECT=false`. The existing legacy public
+`devices` read remains unchanged so `/products/` works after Release B.
+
+Release D introduces the sole normalized public read boundary: a narrowly
+scoped fixed-contract RPC, `public.get_public_device_detail_v1(request_slug
+text)`, or a repository-consistent equivalent with the same constraints. It
+returns allowlisted typed columns only for `publication_status='published'` and
+only `KNOWN`, `NOT_DISCLOSED`, `NOT_APPLICABLE`, and `CONFLICT` states. It
+returns allowlisted source/evidence metadata only (`publisher`, nullable title,
+URL, source type, dates, region, claimed value, and primary/conflict flags).
+It never returns `UNKNOWN_UNVERIFIED`, `device_specs.note`, YAML/admin curation
+notes, importer diagnostics, audit records, or arbitrary table data.
+
+The RPC uses no dynamic SQL, fully qualified objects, and a fixed locked
+`search_path`. It is callable only by `anon` and `authenticated` for public
+read. If implementation chooses `SECURITY DEFINER` to bypass base-table RLS,
+it must retain the fixed return contract, locked search path, fully qualified
+references, explicit execute grants, no public base-table grants, and tests
+proving unpublished identities/internal columns cannot escape. Application
+projection may format this RPC result but is not the authorization boundary.
+`PUBLIC_NORMALIZED_READ_BOUNDARY=EXPLICIT_RPC_OR_EQUIVALENT` and
+`INTERNAL_SPEC_COLUMNS_PUBLICLY_REACHABLE=false` are Release D invariants.
 
 Release C adds `catalog_audit_events`: `id`, `actor_id`, `entity_type`,
 `entity_id`, `action`, `changed_fields jsonb`, and `created_at`. It is
-append-only to admins and inaccessible publicly; application mutations write
-an allowlisted before/after summary, not secrets or unbounded payloads.
+append-only by database policy: catalog admins may `INSERT` and `SELECT`; all
+`UPDATE` and `DELETE` policies/grants are absent. It is inaccessible publicly.
+Application mutations write an allowlisted before/after summary, not secrets or
+unbounded payloads.
+`AUDIT_DB_APPEND_ONLY=true` is a Release C invariant.
 
 ## 9. Importer and source-of-truth transition
 
 The planned `scripts/devices/import-device-schema-v1.mts` pipeline is:
 
 1. Parse YAML and validate its declared device/brand counts and allowed keys.
-2. Normalize state, typed values, raw values, context, source types, and
-   confidence without changing source semantics.
+2. Normalize state, typed values, raw values, context, and confidence without
+   changing source semantics; resolve every source URL only through the
+   reviewed source-metadata sidecar, never domain/path inference.
 3. Resolve the explicit identity map against the current 24 bootstrap slugs.
-4. Validate definitions, applicability, uniqueness, source/evidence mappings,
-   and conflict invariants.
+4. Validate definitions, applicability, uniqueness, the exact source-sidecar
+   count/mapping contract, source/evidence mappings, and conflict invariants;
+   derive legacy `key_specs`/`full_specs` only from normalized YAML output.
 5. Calculate a deterministic per-device diff: `INSERT`, `UPDATE`,
    `UNCHANGED`, `CONFLICT`, or `BLOCKED`; default `DELETE=NONE`.
 6. Exit successfully only for a complete dry run. A write requires separate
@@ -390,8 +467,10 @@ is not rewritten when administrators edit the database.
 2. **Release B — controlled 24-device recovery:** approved transactional
    importer. Preconditions: production device count is zero,
    `IDENTITY_MAP_COUNT=24`, `UNIQUE_TARGET_SLUGS=24`,
-   `UNRESOLVED_IDENTITIES=0`, and every required identity is exact. The current
-   unresolved Ray-Ban Meta Gen 2 identity blocks this release.
+   `UNRESOLVED_IDENTITIES=0`, `UNIQUE_SOURCE_URLS=SOURCE_METADATA_MAP_COUNT`,
+   `UNMAPPED_SOURCE_URLS=0`, `AMBIGUOUS_SOURCE_URLS=0`, and every required
+   identity is exact. The current unresolved Ray-Ban Meta Gen 2 identity blocks
+   this release (`RAY_BAN_RELEASE_B_BLOCKER_PRESERVED=true`).
    Postconditions: 24 devices, expected published count, exact expected spec
    rows, no duplicate device/spec context keys, and no unexpected identities.
 3. **Release C — administration:** device, definitions, source/evidence UI and
