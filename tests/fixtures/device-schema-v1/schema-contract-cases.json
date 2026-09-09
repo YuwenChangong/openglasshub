@@ -1,5 +1,10 @@
 {
   "migrationPath": "supabase/migrations/20260909120000_device_schema_v1_foundation.sql",
+  "foundationWeakCases": [
+    { "name": "ALTER TABLE cannot drop an existing device column", "appendSql": "alter table public.devices drop column name;", "expectedError": "Foundation must not drop columns or constraints through ALTER TABLE" },
+    { "name": "foundation cannot grant normalized anon SELECT", "appendSql": "grant select on public.device_specs to anon;", "expectedError": "Forbidden normalized anon/public grant: device_specs" },
+    { "name": "foundation cannot add normalized public SELECT policy", "appendSql": "create policy foundation_public_read on public.device_specs for select to public using (true);", "expectedError": "Forbidden normalized anon/public select policy: device_specs" }
+  ],
   "normalizedTables": [
     "device_spec_definitions",
     "device_specs",

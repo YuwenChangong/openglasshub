@@ -187,10 +187,7 @@ function assertAdminPolicy(policy, prefix) {
   }
 }
 
-function assertStructuralContract(migrationText, contract) {
-  const sql = withoutSqlComments(migrationText);
-  const policies = finalPolicies(sql);
-
+function assertNoNormalizedPublicAccess(sql, contract, policies = finalPolicies(sql)) {
   for (const table of contract.normalizedTables ?? []) {
     for (const statement of statementsMatching(sql, "grant")) {
       if (!new RegExp(`\\bon\\s+(?:table\\s+)?(?:public\\.)?${table}\\b`, "i").test(statement)) continue;
@@ -208,6 +205,12 @@ function assertStructuralContract(migrationText, contract) {
       }
     }
   }
+}
+
+function assertStructuralContract(migrationText, contract) {
+  const sql = withoutSqlComments(migrationText);
+  const policies = finalPolicies(sql);
+  assertNoNormalizedPublicAccess(sql, contract, policies);
 
   for (const table of contract.catalogAuthorityTables ?? []) {
     assert.ok(
@@ -353,8 +356,22 @@ export function assertSchemaV1Foundation({ migrationText, cases }) {
   // A foundation migration must not import data or remove existing objects.
   for (const statement of sqlStatements(sql)) {
     assert.doesNotMatch(statement, /^(?:insert|update|delete|truncate|drop)\b/i, "Foundation must remain additive and data-free");
+    assert.doesNotMatch(topLevelPolicyText(statement), /^alter\s+table\b[\s\S]*\bdrop\b/i, "Foundation must not drop columns or constraints through ALTER TABLE");
   }
+  assertNoNormalizedPublicAccess(sql, cases);
   return true;
+}
+
+export function assertFoundationWeakCases({ migrationText, cases }) {
+  assertSchemaV1Foundation({ migrationText, cases });
+  for (const testCase of cases.foundationWeakCases) {
+    assert.throws(
+      () => assertSchemaV1Foundation({ migrationText: `${migrationText}\n${testCase.appendSql}`, cases }),
+      (error) => error instanceof assert.AssertionError && error.message === testCase.expectedError,
+      `Foundation weak SQL unexpectedly passed: ${testCase.name}`,
+    );
+  }
+  return cases.foundationWeakCases.length;
 }
 
 async function main() {
@@ -381,7 +398,8 @@ async function main() {
   }
 
   if (process.argv.includes("--foundation-only")) {
-    assertSchemaV1Foundation({ migrationText, cases: contract });
+    const foundationCount = assertFoundationWeakCases({ migrationText, cases: contract });
+    console.log(`DEVICE_SCHEMA_V1_FOUNDATION_SYNTHETIC_RED_OK count=${foundationCount}`);
     console.log("DEVICE_SCHEMA_V1_FOUNDATION_OK");
     return;
   }
