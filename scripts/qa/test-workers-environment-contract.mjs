@@ -23,7 +23,11 @@ const buildTimePublicNames = [
 
 for (const name of buildTimePublicNames) productionValue(name);
 
-assert.deepEqual(generated.vars ?? {}, {}, "generated Worker config must keep provider runtime vars value-blind");
+assert.deepEqual(
+  generated.vars ?? {},
+  { SUPABASE_URL: productionValue("SUPABASE_URL") },
+  "generated Worker config must preserve the non-secret SSR Supabase origin for Workers Builds",
+);
 
 const clientFiles = await (await import("node:fs/promises")).readdir(resolve(root, "dist", "client"), { recursive: true });
 const clientJavaScript = await Promise.all(
