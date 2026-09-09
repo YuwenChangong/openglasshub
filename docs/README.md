@@ -1,5 +1,14 @@
 # OpenGlass Hub Docs
 
+## QA harness
+
+- `npm run qa:fast` runs the quickest relevant local checks and fails closed to RELEASE for HIGH-risk changes.
+- `npm run qa:feature -- <area>` runs targeted local checks for an area and its declared dependencies; an explicit area cannot lower the detected risk.
+- `npm run qa:release` runs the critical local release gates and conditionally runs the local migration-version schema guard when database paths change.
+- `npm run qa:prod` runs the minimal read-only production smoke using allowlisted HTTPS GET/HEAD requests.
+
+These commands do not deploy, migrate production data, connect to a production database, or mutate providers. `qa:prod` permits production HTTP only; it does not authorize writes, secret output, or other production changes.
+
 ## Ops
 
 - `D:\OpenGlass Hub\docs\ops\deployment-playbook.md`
