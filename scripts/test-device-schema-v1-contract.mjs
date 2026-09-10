@@ -397,6 +397,13 @@ async function main() {
     throw error;
   }
 
+  if (process.argv.includes("--enforcement-only")) {
+    assertFoundationWeakCases({ migrationText, cases: contract });
+    const { runEnforcement } = await import("./test-device-schema-v1-enforcement.mjs");
+    await runEnforcement();
+    console.log("DEVICE_SCHEMA_V1_ENFORCEMENT_CONTRACT_OK");
+    return;
+  }
   if (process.argv.includes("--foundation-only")) {
     const foundationCount = assertFoundationWeakCases({ migrationText, cases: contract });
     console.log(`DEVICE_SCHEMA_V1_FOUNDATION_SYNTHETIC_RED_OK count=${foundationCount}`);
