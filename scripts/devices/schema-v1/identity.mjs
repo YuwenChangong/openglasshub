@@ -29,6 +29,13 @@ function sameIdentity(left, right) {
   return identityKey(left) === identityKey(right);
 }
 
+function sameBrandAndModel(left, right) {
+  const leftIdentity = identityOf(left);
+  const rightIdentity = identityOf(right);
+  return normalizedText(leftIdentity.yamlBrand) === normalizedText(rightIdentity.yamlBrand)
+    && normalizedText(leftIdentity.yamlModel) === normalizedText(rightIdentity.yamlModel);
+}
+
 function blocker(identity, code, detail) {
   return { ...identity, blocker: { code, detail } };
 }
@@ -47,6 +54,12 @@ export function resolveIdentityMappings({ yamlDevices, bootstrapRows, mappings }
   }
 
   const yamlIdentities = yamlDevices.map(identityOf);
+  for (const mapping of mappings) {
+    if (!yamlIdentities.some((identity) => sameIdentity(identity, mapping))
+      && !yamlIdentities.some((identity) => sameBrandAndModel(identity, mapping))) {
+      throw new TypeError("Reviewed identity map contains an unmapped identity");
+    }
+  }
   const mappingsByIdentity = new Map();
   for (const mapping of mappings) {
     const key = identityKey(mapping);
@@ -65,6 +78,12 @@ export function resolveIdentityMappings({ yamlDevices, bootstrapRows, mappings }
 
   return yamlIdentities.map((identity) => {
     if (sameIdentity(identity, RAY_BAN)) {
+      const explicitGenerations = bootstrapRows
+        .filter((row) => row?.slug === "ray-ban-meta" && typeof row.generation === "string")
+        .map((row) => normalizedText(row.generation));
+      if (explicitGenerations.some((generation) => generation === "generic" || generation === "gen 1")) {
+        return blocker(identity, "BLOCKED_IDENTITY_MISMATCH", "ray-ban-meta is explicitly generic or Gen 1 and must never be updated as Gen 2");
+      }
       return blocker(identity, "RAY_BAN_IDENTITY_INDETERMINATE", RAY_BAN_INDETERMINATE_DETAIL);
     }
     const candidates = mappingsByIdentity.get(identityKey(identity)) ?? [];

@@ -49,8 +49,16 @@ const expectedMappings = [
   ["Even Realities", "G1", "G1", "even-realities-g1"],
 ].map(([yamlBrand, yamlModel, yamlGeneration, slug]) => ({ yamlBrand, yamlModel, yamlGeneration, slug }));
 
+assert.equal(mappings.length, 23, "the reviewed initial map contains exactly 23 entries");
+assert.deepEqual(mappings, expectedMappings, "the reviewed initial map itself is the exact approved 23-entry map and excludes Ray-Ban");
 assert.deepEqual(resolved.filter((mapping) => mapping.slug), expectedMappings, "the reviewed map resolves exactly the approved 23 YAML identities to unique bootstrap slugs");
 assert.equal(new Set(resolved.filter((mapping) => mapping.slug).map((mapping) => mapping.slug)).size, 23, "approved target slugs stay unique");
+
+assert.throws(() => resolveIdentityMappings({
+  yamlDevices: yaml.devices,
+  bootstrapRows,
+  mappings: [...mappings, { yamlBrand: "Unapproved", yamlModel: "Device", yamlGeneration: "1", slug: "xreal-one" }],
+}), /Reviewed identity map contains an unmapped identity/, "an extra reviewed entry is rejected instead of being silently unused");
 
 const rayBan = resolved.find((mapping) => mapping.yamlBrand === "Ray-Ban / Meta");
 assert.deepEqual(rayBan, {
@@ -62,6 +70,15 @@ assert.deepEqual(rayBan, {
     detail: "CURRENT_RAY_BAN_BOOTSTRAP_SLUG=ray-ban-meta; CURRENT_RAY_BAN_BOOTSTRAP_GENERATION=UNSPECIFIED; CURRENT_RAY_BAN_BOOTSTRAP_IDENTITY_CONFIDENCE=INSUFFICIENT_FOR_GEN_2",
   },
 }, "Ray-Ban Gen 2 remains a Release B blocker without administrator-approved identity evidence");
+
+for (const generation of ["Generic", "Gen 1"]) {
+  const rayBanMismatch = resolveIdentityMappings({
+    yamlDevices: yaml.devices,
+    bootstrapRows: bootstrapRows.map((row) => row.slug === "ray-ban-meta" ? { ...row, generation } : row),
+    mappings,
+  }).find((mapping) => mapping.yamlBrand === "Ray-Ban / Meta");
+  assert.equal(rayBanMismatch?.blocker?.code, "BLOCKED_IDENTITY_MISMATCH", `explicit ${generation} ray-ban-meta evidence cannot be updated as Gen 2`);
+}
 
 const firstMapping = mappings[0];
 const zeroMatch = resolveIdentityMappings({
@@ -91,5 +108,18 @@ const duplicateSlug = resolveIdentityMappings({
   mappings: [...mappings, { ...mappings[0], yamlModel: "XREAL One Pro", yamlGeneration: "One Pro" }],
 });
 assert.equal(duplicateSlug.find((mapping) => mapping.yamlModel === "XREAL One")?.blocker?.code, "BLOCKED_DUPLICATE_TARGET_SLUG", "one bootstrap slug cannot stand for two YAML identities");
+
+const whitespaceAndCase = resolveIdentityMappings({
+  yamlDevices: yaml.devices,
+  bootstrapRows,
+  mappings: mappings.map((mapping, index) => index === 0 ? { ...mapping, yamlBrand: "  xreal ", yamlModel: " XREAL   ONE ", yamlGeneration: " one SERIES " } : mapping),
+});
+assert.equal(whitespaceAndCase.find((mapping) => mapping.yamlModel === "XREAL One")?.slug, "xreal-one", "approved casing and whitespace normalization preserves an exact reviewed mapping");
+
+assert.throws(() => resolveIdentityMappings({
+  yamlDevices: yaml.devices,
+  bootstrapRows,
+  mappings: mappings.map((mapping, index) => index === 0 ? { ...mapping, yamlModel: "XREAL Ones" } : mapping),
+}), /Reviewed identity map contains an unmapped identity/, "a near name is rejected rather than fuzzy matched");
 
 console.log(`DEVICE_SCHEMA_V1_IDENTITY_OK mappings=${resolved.filter((mapping) => mapping.slug).length} blockers=${resolved.filter((mapping) => mapping.blocker).length} releaseB=BLOCKED`);
