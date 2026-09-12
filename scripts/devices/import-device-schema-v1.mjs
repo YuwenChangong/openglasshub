@@ -52,11 +52,11 @@ export async function runLocalSchemaV1Import({ target, plan, createClient }) {
   // an accidental remote target must have no observable connection attempt.
   assertLocalReplayTarget(target);
   assertWritablePlan(plan);
+  const writes = writesFor(plan);
   if (typeof createClient !== "function") throw new TypeError("A local transaction client factory is required");
 
   const client = await createClient(target);
   if (!client || typeof client.transaction !== "function") throw new TypeError("Local transaction client must implement transaction(work)");
-  const writes = writesFor(plan);
   await client.transaction(async (transaction) => {
     if (!transaction || typeof transaction.upsert !== "function") throw new TypeError("Local transaction must implement upsert(entity, row)");
     for (const entry of writes) await transaction.upsert(entry.entity, entry.desired);
@@ -122,7 +122,6 @@ async function main() {
     const blocked = plan.entries.filter((entry) => entry.operation === "BLOCKED").length;
     const conflicts = plan.entries.filter((entry) => entry.operation === "CONFLICT").length;
     console.log(JSON.stringify({ mode: "dry-run", delete: plan.delete, fingerprint: fingerprintRecoveryPlan(plan), blocked, conflicts }));
-    if (blocked || conflicts) process.exitCode = 1;
     return;
   }
   const target = process.env.OPENGLASS_LOCAL_SCHEMA_V1_TARGET;

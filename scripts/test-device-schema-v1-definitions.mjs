@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildDefinitionRegistry } from "./devices/schema-v1/definitions.mjs";
+import { normalizeCatalogYaml } from "./devices/schema-v1/normalize.mjs";
+import { loadApprovedDeviceYaml } from "./devices/schema-v1/yaml-input.mjs";
 
 const normalized = {
   devices: [
@@ -70,5 +74,12 @@ assert.deepEqual(eyeBrightness.applicableSchemaTypes, ["ai_hud", "display_ar"]);
 for (const key of ["tracking.native_3dof", "tracking.native_6dof", "tracking.accessory_3dof", "tracking.accessory_6dof"]) {
   assert.ok(keys.includes(key), `missing distinct tracking definition: ${key}`);
 }
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const approvedCatalog = await loadApprovedDeviceYaml(path.join(root, "src/data/devices/openglasshub_device_data_v1.yaml"));
+const approvedDefinitions = buildDefinitionRegistry(normalizeCatalogYaml(approvedCatalog));
+const accessory6Dof = approvedDefinitions.find((definition) => definition.key === "tracking.accessory_6dof");
+assert.ok(accessory6Dof, "the full approved catalog retains accessory 6DoF as one canonical definition");
+assert.equal(accessory6Dof.valueType, "json", "mixed approved capability shapes use one deterministic lossless JSON definition type");
 
 console.log(`DEVICE_SCHEMA_V1_DEFINITIONS_OK count=${definitions.length}`);

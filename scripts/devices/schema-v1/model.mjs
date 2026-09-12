@@ -11,6 +11,7 @@ function typedValues(spec) {
   const values = { valueNumber: null, valueBoolean: null, valueText: null, valueJson: null };
   if (spec.state !== "KNOWN" && spec.state !== "CONFLICT") return values;
   if (spec.state === "CONFLICT" && spec.valueType === undefined) return values;
+  if (spec.value === undefined) return values;
   if (spec.valueType === "number") values.valueNumber = spec.value;
   else if (spec.valueType === "boolean") values.valueBoolean = spec.value;
   else if (spec.valueType === "text") values.valueText = spec.value;
@@ -81,7 +82,7 @@ export function buildNormalizedModel({ normalized, definitions, sourceMetadata, 
       const conflict = conflictsByDeviceAndKey.get(`${key}\u0000${spec.path}`);
       const state = conflict ? "CONFLICT" : spec.state;
       specs.push(Object.freeze({
-        deviceSlug: slug, definitionKey: spec.path, state, ...typedValues({ ...spec, state }),
+        deviceSlug: slug, definitionKey: spec.path, state, ...typedValues({ ...spec, state, valueType: definition.valueType }),
         canonicalUnit: definition.canonicalUnit, measurementContext: definition.measurementContext,
         rawValue: spec.rawValue, region: device.evidence.region, variant: "",
         confidence: device.evidence.confidence, verifiedAt: device.evidence.verifiedAt,

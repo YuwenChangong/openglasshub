@@ -19,13 +19,20 @@ function labelFor(path) {
   return path.split(".").at(-1).split("_").map((word) => word[0]?.toUpperCase() + word.slice(1)).join(" ");
 }
 
-function valueTypeFor(spec) {
+function concreteValueTypeFor(spec) {
   const explicit = definitionValue(spec, "valueType");
   if (isValueType(explicit)) return explicit;
+  if (spec.state !== undefined && spec.state !== "KNOWN" && spec.state !== "CONFLICT") return null;
   if (typeof spec.value === "boolean") return "boolean";
   if (typeof spec.value === "number") return "number";
   if (spec.value !== null && typeof spec.value === "object") return "json";
   return "text";
+}
+
+function resolvedValueType(valueTypes) {
+  if (valueTypes.size === 0) return "text";
+  if (valueTypes.size === 1) return [...valueTypes][0];
+  return "json";
 }
 
 function isDefinitionPath(path) {
@@ -36,7 +43,7 @@ function isDefinitionPath(path) {
     && !path.startsWith("evidence.");
 }
 
-function metadataFor(path, spec) {
+function metadataFor(path, spec, valueType = concreteValueTypeFor(spec) ?? "text") {
   const context = path === "display.eye_brightness"
     ? "eye_brightness"
     : path === "display.panel_or_projector_brightness"
@@ -49,7 +56,7 @@ function metadataFor(path, spec) {
     groupKey: definitionValue(spec, "groupKey", path.split(".")[0]),
     label: definitionValue(spec, "label", labelFor(path)),
     helpText: definitionValue(spec, "helpText", null),
-    valueType: valueTypeFor(spec),
+    valueType,
     canonicalUnit: definitionValue(spec, "canonicalUnit", null),
     measurementContext: context,
     comparisonMode,
@@ -61,7 +68,7 @@ function metadataFor(path, spec) {
 }
 
 function sameMetadata(left, right) {
-  return ["groupKey", "label", "helpText", "valueType", "canonicalUnit", "measurementContext", "comparisonMode", "requireSameContext", "isCore", "adminOrder", "isActive"]
+  return ["groupKey", "label", "helpText", "canonicalUnit", "measurementContext", "comparisonMode", "requireSameContext", "isCore", "adminOrder", "isActive"]
     .every((key) => left[key] === right[key]);
 }
 
@@ -85,14 +92,18 @@ export function buildDefinitionRegistry(normalized) {
       if (existing && !sameMetadata(existing, candidate)) {
         throw new TypeError(`Conflicting definition metadata for ${candidate.key}`);
       }
-      if (!existing) definitions.set(candidate.key, { ...candidate, applicableSchemaTypes: new Set() });
-      definitions.get(candidate.key).applicableSchemaTypes.add(device.schemaType);
+      if (!existing) definitions.set(candidate.key, { ...candidate, valueTypes: new Set(), applicableSchemaTypes: new Set() });
+      const definition = definitions.get(candidate.key);
+      const valueType = concreteValueTypeFor(spec);
+      if (valueType) definition.valueTypes.add(valueType);
+      definition.applicableSchemaTypes.add(device.schemaType);
     }
   }
   return [...definitions.values()]
     .sort((left, right) => (left.key < right.key ? -1 : left.key > right.key ? 1 : 0))
-    .map(({ applicableSchemaTypes, ...definition }) => Object.freeze({
+    .map(({ valueTypes, applicableSchemaTypes, ...definition }) => Object.freeze({
       ...definition,
+      valueType: resolvedValueType(valueTypes),
       applicableSchemaTypes: Object.freeze([...applicableSchemaTypes].sort()),
     }));
 }

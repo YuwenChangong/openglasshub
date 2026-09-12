@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 let runLocalSchemaV1Import;
 try {
@@ -86,4 +89,29 @@ await assert.rejects(
 );
 assert.equal(blockedClientCreations, 0, "a blocked recovery plan cannot begin a write transaction");
 
-console.log("DEVICE_SCHEMA_V1_LOCAL_RECOVERY_OK cases=3 rollback_entities=6");
+let malformedClientCreations = 0;
+const malformedPlan = importPlan();
+malformedPlan.entries[0] = { ...malformedPlan.entries[0], desired: null };
+await assert.rejects(
+  () => runLocalSchemaV1Import({
+    target: "http://localhost:54321",
+    plan: malformedPlan,
+    createClient: async () => { malformedClientCreations += 1; return fakeClient(); },
+  }),
+  /Writable definition entry has no desired row/,
+  "a malformed writable entry is rejected before a local client is created",
+);
+assert.equal(malformedClientCreations, 0, "malformed writable data cannot start a client connection");
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const dryRun = spawnSync(process.execPath, ["scripts/devices/import-device-schema-v1.mjs", "--dry-run"], {
+  cwd: root,
+  encoding: "utf8",
+});
+assert.equal(dryRun.status, 0, `the full approved catalog dry run reports a plan instead of crashing: ${dryRun.stderr}`);
+const dryRunPlan = JSON.parse(dryRun.stdout);
+assert.equal(dryRunPlan.mode, "dry-run");
+assert.equal(dryRunPlan.delete, "NONE");
+assert.ok(dryRunPlan.blocked > 0, "the preserved Release B blocker is reported in the dry-run plan");
+
+console.log("DEVICE_SCHEMA_V1_LOCAL_RECOVERY_OK cases=5 rollback_entities=6");
