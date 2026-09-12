@@ -4,10 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  assertFingerprintReviewMatches,
   reviewFingerprintCandidate,
   writeReviewedFingerprintFixture,
 } from "./production-schema-fingerprint-review.mjs";
 import { generateLocalFingerprint } from "./generate-local-production-schema-fingerprint.mjs";
+import { buildFingerprint } from "./production-schema-fingerprint-core.mjs";
 
 function fingerprint({ migrations, objects = [] }) {
   return {
@@ -74,4 +76,41 @@ test("candidate generator refuses to write the committed fixture directly", asyn
     () => generateLocalFingerprint({ root: process.cwd(), outputPath: path.join(process.cwd(), "tests", "fixtures", "production-schema-expected-fingerprint.json"), environment: {} }),
     /reviewed update path/,
   );
+});
+
+test("review accepts a strict Release A delta without absorbing it into the historical baseline", () => {
+  const sharedObject = { objectType: "table", schema: "public", name: "devices", identity: "public.devices", attribute: "rls_state", deterministicSha256: "same" };
+  const releaseAObject = { objectType: "table", schema: "public", name: "device_attributes", identity: "public.device_attributes", attribute: "rls_state", deterministicSha256: "new" };
+  const expected = fingerprint({ migrations: Array.from({ length: 49 }, (_, index) => `migration_${index + 1}`), objects: [sharedObject] });
+  const candidate = fingerprint({ migrations: [...Array.from({ length: 49 }, (_, index) => `migration_${index + 1}`), "device_schema_v1_foundation"], objects: [sharedObject, releaseAObject] });
+  const review = reviewFingerprintCandidate({ expected, candidate });
+
+  assert.equal(review.classification, "RELEASE_A_DELTA_ACCEPTED");
+  assert.equal(review.fixtureMatchesCandidate, false);
+  assert.equal(review.releaseDeltaMatchesCandidate, true);
+  assert.equal(review.objectIdentity.missingFromCandidate.length, 0);
+  assert.equal(review.objectIdentity.divergentDefinitions.length, 0);
+  assert.equal(review.objectIdentity.addedByCandidate.length, 1);
+  assert.doesNotThrow(() => assertFingerprintReviewMatches(review));
+});
+
+test("generated fingerprint scope follows the applied local migration ledger", () => {
+  const rows = [
+    { section: "migration_ledger", object_type: "migration", schema_name: "supabase_migrations", object_name: "one", identity: "20260901000001", attribute: "statement_count", value: "1", definition_hash: "" },
+    { section: "migration_ledger", object_type: "migration", schema_name: "supabase_migrations", object_name: "two", identity: "20260902000001", attribute: "statement_count", value: "1", definition_hash: "" },
+  ];
+  const fingerprint = buildFingerprint(rows, new Map());
+  assert.equal(fingerprint.localMigrationLedger.length, 2);
+  assert.equal(fingerprint.canonicalMigrationCount, 2);
+});
+
+test("committed fingerprint fixture provenance is limited to its own migration ledger", async () => {
+  const fixture = JSON.parse(await readFile(path.join(process.cwd(), "tests", "fixtures", "production-schema-expected-fingerprint.json"), "utf8"));
+  const ledgerNames = new Set(fixture.localMigrationLedger.map(({ name }) => `${name}.sql`));
+  const outside = fixture.objects.filter((entry) => [
+    ...entry.sourceMigrations,
+    entry.firstIntroducedMigration,
+    ...entry.laterModifyingMigrations,
+  ].filter(Boolean).some((migration) => !ledgerNames.has(migration.replace(/^\d+_/, ""))));
+  assert.deepEqual(outside.map(({ identity, attribute }) => `${identity}/${attribute}`).slice(0, 5), []);
 });

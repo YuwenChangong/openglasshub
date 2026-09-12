@@ -30,8 +30,11 @@ export async function generateLocalFingerprint({ root = process.cwd(), outputPat
   const container = localDatabaseContainer(environment);
   const csv = execFileSync("docker", ["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres", "--csv"], { input: sql, encoding: "utf8" });
   const rows = parseCsv(csv);
-  const fingerprint = buildFingerprint(rows, await migrationSourceIndex(root));
-  if (fingerprint.canonicalMigrationCount !== ORDERED_MIGRATION_FILENAMES.length || fingerprint.legalConsentPrerequisiteCount !== 12) throw new Error("Unexpected canonical migration scope");
+  const fingerprint = buildFingerprint(rows, await migrationSourceIndex(root, rows));
+  if (fingerprint.canonicalMigrationCount < 1
+    || fingerprint.canonicalMigrationCount > ORDERED_MIGRATION_FILENAMES.length
+    || fingerprint.canonicalMigrationCount !== fingerprint.localMigrationLedger.length
+    || fingerprint.legalConsentPrerequisiteCount !== 12) throw new Error("Unexpected canonical migration scope");
   if (outputPath) {
     await mkdir(path.dirname(outputPath), { recursive: true });
     await writeFile(outputPath, `${JSON.stringify(fingerprint, null, 2)}\n`);

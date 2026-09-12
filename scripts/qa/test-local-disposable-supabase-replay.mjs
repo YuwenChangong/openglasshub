@@ -22,6 +22,52 @@ import { reviewFingerprintCandidate, writeReviewedFingerprintFixture } from "../
 
 const root = process.cwd();
 
+test("repository CLI binding survives an outside child cwd without npm or global resolution", async () => {
+  const installed = JSON.parse(await readFile(path.join(root, "node_modules/supabase/package.json"), "utf8"));
+  assert.equal(installed.version, "2.115.0");
+  const plan = buildLocalDisposableReplayPlan({ root, runId: "ab12cd34" });
+  const cliSteps = plan.steps.filter(({ name }) => /^(supabase-|validate-local-status-target)/.test(name));
+  assert.equal(cliSteps.length, 4);
+  for (const step of cliSteps) {
+    assert.equal(step.command, process.execPath);
+    assert.equal(step.args[0], path.join(root, "node_modules/supabase", installed.bin.supabase));
+    assert.equal(step.args.at(-2), "--workdir");
+    assert.equal(step.args.at(-1), plan.runtimeRoot);
+    assert.equal(step.args.some((arg) => /^(npx|supabase|--no-install|--yes-install)$/.test(arg)), false);
+  }
+  assert.equal(path.relative(root, plan.runtimeRoot).startsWith(".."), true);
+  const version = await runCommand(cliSteps[0].command, [cliSteps[0].args[0], "--version"], { cwd: os.tmpdir(), env: sanitizedChildEnvironment() });
+  assert.equal(version.stdout.trim(), "2.115.0");
+});
+
+test("missing local CLI fails closed before generating a runnable plan", async () => {
+  const fixture = await mkdtemp(path.join(os.tmpdir(), "openglass-cli-missing-"));
+  try {
+    assert.throws(() => buildLocalDisposableReplayPlan({ root: fixture }), { code: "LOCAL_SUPABASE_CLI_MISSING" });
+  } finally { await rm(fixture, { recursive: true, force: true }); }
+});
+
+test("invalid local CLI bin and unreviewed version fail closed", async () => {
+  const fixture = await mkdtemp(path.join(os.tmpdir(), "openglass-cli-invalid-"));
+  try {
+    const packageRoot = path.join(fixture, "node_modules/supabase");
+    await mkdir(packageRoot, { recursive: true });
+    for (const bin of [undefined, {}, { supabase: "../../outside.js" }, { supabase: 1 }, { supabase: "missing.js" }]) {
+      await writeFile(path.join(packageRoot, "package.json"), JSON.stringify({ name: "supabase", version: "2.115.0", bin }));
+      assert.throws(() => buildLocalDisposableReplayPlan({ root: fixture }), { code: "LOCAL_SUPABASE_CLI_INVALID" });
+    }
+    await writeFile(path.join(packageRoot, "package.json"), JSON.stringify({ name: "supabase", version: "2.117.0", bin: "cli.js" }));
+    assert.throws(() => buildLocalDisposableReplayPlan({ root: fixture }), { code: "LOCAL_SUPABASE_CLI_VERSION_MISMATCH" });
+  } finally { await rm(fixture, { recursive: true, force: true }); }
+});
+
+test("CLI shim binary override cannot select a global binary", () => {
+  const env = sanitizedChildEnvironment({ PATH: process.env.PATH, SUPABASE_CLI_BINARY_OVERRIDE: "global-supabase", NODE_OPTIONS: "--require=outside.js", NODE_PATH: "outside" });
+  assert.equal(env.SUPABASE_CLI_BINARY_OVERRIDE, "");
+  assert.equal(env.NODE_OPTIONS, "");
+  assert.equal(env.NODE_PATH, "");
+});
+
 async function exists(candidate) {
   try {
     await access(candidate);
@@ -68,6 +114,14 @@ test("startup-only dry-run plans local health validation without a mirror, repla
   ]);
   assert.equal(plan.steps.some((step) => /mirror|replay|fingerprint|diagnostic/i.test(step.name)), false);
   assert(plan.steps.flatMap((step) => step.args).every((argument) => !["--linked", "--db-url", "--project-ref", "db", "push"].includes(argument)));
+});
+
+test("historical-baseline dry-run plans the canonical 49-migration replay prefix", () => {
+  const plan = buildLocalDisposableReplayPlan({ root, runId: "f9e8d7c6", migrationLimit: 49 });
+  const mirrorStep = plan.steps.find((step) => step.name === "build-current-canonical-mirror");
+  assert.equal(plan.migrationLimit, 49);
+  assert(mirrorStep.args.includes("--migration-limit"));
+  assert.equal(mirrorStep.args.at(mirrorStep.args.indexOf("--migration-limit") + 1), "49");
 });
 
 function createStartupOnlyExecute({ runId = "a2b3c4d5", relationExists = "f", ledgerCsv = "version,name\n", psqlError } = {}) {
@@ -246,8 +300,8 @@ test("cleanup stops the owned project after a partially failed start", async () 
       removeRoot: async () => {},
     });
     assert.deepEqual(calls, [{
-      command: process.platform === "win32" ? "npx.cmd" : "npx",
-      args: ["--no-install", "supabase", "stop", "--no-backup", "--workdir", runtimeRoot],
+      command: process.execPath,
+      args: [path.join(root, "node_modules/supabase/dist/supabase.js"), "stop", "--no-backup", "--workdir", runtimeRoot],
     }]);
   } finally {
     await rm(runtimeRoot, { recursive: true, force: true });
@@ -708,10 +762,10 @@ test("a stale fingerprint fixture preserves reviewable nonsecret evidence after 
       reviewPath = options.env.OPENGLASS_LOCAL_DISPOSABLE_FINGERPRINT_REVIEW;
       const candidate = {
         ...expected,
-        canonicalMigrationCount: 48,
+        canonicalMigrationCount: expected.canonicalMigrationCount + 1,
         localMigrationLedger: [
           ...expected.localMigrationLedger,
-          ...Array.from({ length: 5 }, (_, index) => ({ version: `20260903${String(index + 1).padStart(6, "0")}`, name: `review_candidate_${index + 44}`, statementCount: 1 })),
+          { version: "20260909000001", name: "device_schema_v1_foundation", statementCount: 1 },
         ],
       };
       if (emitCredentialLikeEvidence) candidate.diagnostic = "postgresql://user:password@database.example.test/postgres";
@@ -742,7 +796,7 @@ test("a stale fingerprint fixture preserves reviewable nonsecret evidence after 
       await writeFile(fixturePath, `${JSON.stringify(expected, null, 2)}\n`);
       const recordedReview = JSON.parse(await readFile(reviewPath, "utf8"));
       await writeReviewedFingerprintFixture({ fixturePath, candidatePath, reviewPath, confirmation: recordedReview.reviewId });
-      assert.equal(JSON.parse(await readFile(fixturePath, "utf8")).canonicalMigrationCount, 48, "the retained review id can authorize the explicit fixture update");
+      assert.equal(JSON.parse(await readFile(fixturePath, "utf8")).canonicalMigrationCount, expected.canonicalMigrationCount + 1, "the retained review id can authorize the explicit fixture update");
     } finally {
       await rm(fixtureRoot, { recursive: true, force: true });
     }

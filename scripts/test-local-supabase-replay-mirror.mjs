@@ -62,6 +62,7 @@ const expectedOrder = [
   "20260829054707_device_service_role_bootstrap_grants.sql",
   "20260902042807_forward_reconcile_devices.sql",
   "20260904054013_forward_reconcile_security_privileges.sql",
+  "20260909195640_device_schema_v1_foundation.sql",
 ];
 
 async function disposableBuild(canonicalDirectoryForBuild = canonicalDirectory) {
@@ -95,10 +96,13 @@ async function copiedCanonicalDirectory({ omit, extra, mutate } = {}) {
   return { copied, temporaryRoot };
 }
 
-test("accepts the current 49-file canonical inventory in its reviewed replay order", async () => {
+test("accepts the current 50-file canonical inventory in its reviewed replay order", async () => {
   const report = await disposableBuild();
-  assert.equal(report.migrationCount, 49);
-  assert.equal(report.temporaryVersionCount, 49);
+  assert.equal(report.migrationCount, 50);
+  assert.equal(report.temporaryVersionCount, 50);
+  assert.equal(report.mappings[49].canonicalFile, "20260909195640_device_schema_v1_foundation.sql");
+  assert.equal(report.mappings[49].canonicalSha256, "7b5d4a09b76f780755e1f925b8a1517e9291e7f91409bdbcda60a6d3fa6e1849");
+  assert.equal(report.mappings[49].temporaryVersion, "20260909000001");
   assert.deepEqual(report.mappings.map((entry) => entry.canonicalFile), expectedOrder);
   assert.deepEqual(report.bomTransformedFiles, [
     "20260603_forum_comments_interactions.sql",
@@ -113,10 +117,29 @@ test("accepts the current 49-file canonical inventory in its reviewed replay ord
   );
 });
 
+test("can build the canonical 49-migration historical baseline prefix without migration 50", async () => {
+  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "openglass-local-supabase-mirror-"));
+  try {
+    const report = await buildLocalSupabaseReplayMirror({
+      canonicalDirectory,
+      outputDirectory: path.join(temporaryRoot, "migrations"),
+      mappingPath: path.join(temporaryRoot, "mapping.json"),
+      repositoryRoot: root,
+      migrationLimit: 49,
+    });
+    assert.equal(report.migrationCount, 49);
+    assert.equal(report.sourceManifestCount, 50);
+    assert.equal(report.mappings.at(-1).canonicalFile, "20260904054013_forward_reconcile_security_privileges.sql");
+    assert.equal(report.mappings.some(({ canonicalFile }) => canonicalFile === "20260909195640_device_schema_v1_foundation.sql"), false);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
 test("rejects removal of a required canonical migration", async () => {
   const fixture = await copiedCanonicalDirectory({ omit: "20260902042807_forward_reconcile_devices.sql" });
   try {
-    await assert.rejects(() => disposableBuild(fixture.copied), /deterministic 49-file manifest/);
+    await assert.rejects(() => disposableBuild(fixture.copied), /deterministic 50-file manifest/);
   } finally {
     await rm(fixture.temporaryRoot, { recursive: true, force: true });
   }
@@ -125,7 +148,7 @@ test("rejects removal of a required canonical migration", async () => {
 test("rejects an unexpected canonical migration", async () => {
   const fixture = await copiedCanonicalDirectory({ extra: "20260903_unapproved.sql" });
   try {
-    await assert.rejects(() => disposableBuild(fixture.copied), /deterministic 49-file manifest/);
+    await assert.rejects(() => disposableBuild(fixture.copied), /deterministic 50-file manifest/);
   } finally {
     await rm(fixture.temporaryRoot, { recursive: true, force: true });
   }

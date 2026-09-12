@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import { appendFile, lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import os from "node:os";
@@ -8,6 +9,7 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildLocalSupabaseReplayMirror } from "../build-local-supabase-replay-mirror.mjs";
 import { reviewFingerprintCandidate } from "../production-schema-fingerprint-review.mjs";
+import { runDeviceSchemaV1EnforcementAgainstSql } from "../test-device-schema-v1-enforcement.mjs";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const INHERITED_DATABASE_CONNECTION_VARIABLES = ["POSTGRES_URL", "DATABASE_URL", "PGHOST", "PGPORT", "PGSERVICE"];
@@ -17,7 +19,7 @@ const PORT_FIELDS = [
   ["api", "port", 1], ["db", "port", 2], ["db", "shadow_port", 0], ["studio", "port", 3],
   ["local_smtp", "port", 4], ["analytics", "port", 7], ["db.pooler", "port", 9], ["edge_runtime", "inspector_port", 83],
 ];
-const NPX = process.platform === "win32" ? "npx.cmd" : "npx";
+const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const FINGERPRINT_EVIDENCE_PREFIX = "openglass-local-disposable-supabase-evidence-";
 const FAILURE_RECEIPT_FILENAME = "failure-receipt.json";
 const START_DIAGNOSTIC_FILENAME = "start-diagnostic.json";
@@ -43,7 +45,7 @@ const RUNTIME_FAILURE_CLASSES = new Map([
 const CANDIDATE_KEYS = ["format", "generatedFrom", "canonicalMigrationCount", "legalConsentPrerequisiteCount", "localMigrationLedger", "objectCount", "objects"];
 const LEDGER_ENTRY_KEYS = ["version", "name", "statementCount"];
 const OBJECT_ENTRY_KEYS = ["objectType", "schema", "name", "identity", "attribute", "normalizedStructuralDefinition", "deterministicSha256", "sourceMigrations", "firstIntroducedMigration", "laterModifyingMigrations", "securityRelevant", "legalConsentPrerequisite", "label"];
-const REVIEW_KEYS = ["format", "classification", "expected", "candidate", "migrationLedger", "objectIdentity", "fixtureMatchesCandidate", "reviewId"];
+const REVIEW_KEYS = ["format", "classification", "expected", "candidate", "migrationLedger", "objectIdentity", "fixtureMatchesCandidate", "releaseDeltaMatchesCandidate", "reviewId"];
 const REVIEW_EXPECTED_SCOPE_KEYS = ["canonicalMigrationCount", "localMigrationLedgerCount", "objectCount"];
 const REVIEW_CANDIDATE_SCOPE_KEYS = ["generatedFrom", "canonicalMigrationCount", "localMigrationLedgerCount", "objectCount"];
 const REVIEW_LEDGER_KEYS = ["expectedCount", "candidateCount", "missingFromCandidate", "addedByCandidate", "orderMatchesForSharedEntries"];
@@ -99,7 +101,10 @@ export function assertSafeLocalReplayEnvironment(environment = process.env) {
 export function sanitizedChildEnvironment(environment = process.env) {
   assertSafeLocalReplayEnvironment(environment);
   return {
-    ...environment,
+    ...Object.fromEntries(Object.entries(environment).filter(([key]) => !/^(SUPABASE_CLI_BINARY_OVERRIDE|NODE_OPTIONS|NODE_PATH)$/i.test(key))),
+    SUPABASE_CLI_BINARY_OVERRIDE: "",
+    NODE_OPTIONS: "",
+    NODE_PATH: "",
     POSTGRES_URL: "",
     DATABASE_URL: "",
     PGHOST: "",
@@ -407,22 +412,55 @@ async function readReviewableFingerprintEvidence({ evidence, expected }) {
   return expectedReview;
 }
 
-function supabaseArgs(action, root, extra = []) {
-  return ["--no-install", "supabase", action, ...extra, "--workdir", root];
+export function resolveRepositorySupabaseCli(repositoryRoot = REPOSITORY_ROOT) {
+  const fail = (code) => { throw Object.assign(new Error(code), { code }); };
+  const packageRoot = path.resolve(repositoryRoot, "node_modules/supabase");
+  const manifestPath = path.join(packageRoot, "package.json");
+  let manifest;
+  try {
+    if (!isWithin(realpathSync(manifestPath), realpathSync(repositoryRoot))) fail("LOCAL_SUPABASE_CLI_INVALID");
+    manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch (error) {
+    if (error.code?.startsWith("LOCAL_SUPABASE_CLI_")) throw error;
+    fail(error.code === "ENOENT" ? "LOCAL_SUPABASE_CLI_MISSING" : "LOCAL_SUPABASE_CLI_INVALID");
+  }
+  if (manifest.name !== "supabase") fail("LOCAL_SUPABASE_CLI_INVALID");
+  if (manifest.version !== "2.115.0") fail("LOCAL_SUPABASE_CLI_VERSION_MISMATCH");
+  const bin = typeof manifest.bin === "string" ? manifest.bin : manifest.bin?.supabase;
+  if (typeof bin !== "string" || !bin || path.isAbsolute(bin)) fail("LOCAL_SUPABASE_CLI_INVALID");
+  const entry = path.resolve(packageRoot, bin);
+  try {
+    if (!isWithin(entry, packageRoot) || !isWithin(realpathSync(entry), realpathSync(packageRoot)) || !statSync(entry).isFile()) fail("LOCAL_SUPABASE_CLI_INVALID");
+    // The reviewed 2.115.0 package declares a Node shim, not a PATH binary.
+    if (!/^#![^\r\n]*\bnode\b/.test(readFileSync(entry, "utf8"))) fail("LOCAL_SUPABASE_CLI_INVALID");
+  } catch { fail("LOCAL_SUPABASE_CLI_INVALID"); }
+  return { command: process.execPath, entry, version: manifest.version };
 }
 
-export function buildLocalDisposableReplayPlan({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8), startupOnly = false } = {}) {
+function supabaseArgs(cli, action, root, extra = []) {
+  return [cli.entry, action, ...extra, "--workdir", root];
+}
+
+function assertMigrationLimit(value) {
+  if (!Number.isSafeInteger(value) || value < 1) throw new Error("Migration replay limit must select a reviewed canonical prefix");
+  return value;
+}
+
+export function buildLocalDisposableReplayPlan({ root = REPOSITORY_ROOT, runId = randomUUID().replace(/-/g, "").slice(0, 8), startupOnly = false, migrationLimit } = {}) {
   const id = assertRunId(runId);
   const projectId = projectIdFor(id);
   const runtimeRoot = rootTemplateFor(id);
+  const cli = resolveRepositorySupabaseCli(root);
   const command = (name, executable, args) => ({ name, command: executable, args });
+  const mirrorArgs = ["scripts/build-local-supabase-replay-mirror.mjs", "--output", path.join(runtimeRoot, "supabase", "migrations"), "--mapping", path.join(runtimeRoot, "mapping.json")];
+  if (migrationLimit !== undefined) mirrorArgs.push("--migration-limit", String(assertMigrationLimit(migrationLimit)));
   const startupSteps = [
-    command("supabase-init-owned-root", "npx", supabaseArgs("init", runtimeRoot, ["--yes"])),
-    command("supabase-start-owned-root", "npx", supabaseArgs("start", runtimeRoot)),
-    command("validate-local-status-target", "npx", supabaseArgs("status", runtimeRoot, ["--output", "json"])),
+    command("supabase-init-owned-root", cli.command, supabaseArgs(cli, "init", runtimeRoot, ["--yes"])),
+    command("supabase-start-owned-root", cli.command, supabaseArgs(cli, "start", runtimeRoot)),
+    command("validate-local-status-target", cli.command, supabaseArgs(cli, "status", runtimeRoot, ["--output", "json"])),
     command("validate-owned-postgres-container", "docker", ["exec", "<owned-container-id>", "psql", "-X", "-U", "postgres", "-d", "postgres", "--csv"]),
     command("validate-empty-migration-ledger", "docker", ["exec", "<owned-container-id>", "psql", "-X", "-U", "postgres", "-d", "postgres", "--csv"]),
-    command("supabase-stop-owned-root-no-backup", "npx", supabaseArgs("stop", runtimeRoot, ["--no-backup"])),
+    command("supabase-stop-owned-root-no-backup", cli.command, supabaseArgs(cli, "stop", runtimeRoot, ["--no-backup"])),
     command("remove-verified-owned-root", "node", ["owned-root-cleanup", runtimeRoot]),
   ];
   return {
@@ -431,16 +469,17 @@ export function buildLocalDisposableReplayPlan({ root = process.cwd(), runId = r
     repositoryRoot: path.resolve(root),
     runtimeRoot,
     projectId,
+    migrationLimit: migrationLimit ?? null,
     remoteConnections: 0,
     steps: startupOnly ? startupSteps : [
-      command("supabase-init-owned-root", "npx", supabaseArgs("init", runtimeRoot, ["--yes"])),
-      command("build-current-canonical-mirror", "node", ["scripts/build-local-supabase-replay-mirror.mjs", "--output", path.join(runtimeRoot, "supabase", "migrations"), "--mapping", path.join(runtimeRoot, "mapping.json")]),
-      command("supabase-start-owned-root", "npx", supabaseArgs("start", runtimeRoot)),
-      command("validate-local-status-target", "npx", supabaseArgs("status", runtimeRoot, ["--output", "json"])),
+      command("supabase-init-owned-root", cli.command, supabaseArgs(cli, "init", runtimeRoot, ["--yes"])),
+      command("build-current-canonical-mirror", "node", mirrorArgs),
+      command("supabase-start-owned-root", cli.command, supabaseArgs(cli, "start", runtimeRoot)),
+      command("validate-local-status-target", cli.command, supabaseArgs(cli, "status", runtimeRoot, ["--output", "json"])),
       command("validate-owned-postgres-container", "docker", ["exec", "<owned-container-id>", "psql", "-X", "-U", "postgres", "-d", "postgres", "--csv"]),
       command("validate-migration-ledger", "docker", ["exec", "<owned-container-id>", "psql", "-X", "-U", "postgres", "-d", "postgres", "--csv"]),
       command("fingerprint-through-owned-container-unix-socket", "docker", ["exec", "<owned-container-id>", "psql", "-X", "-U", "postgres", "-d", "postgres", "--csv"]),
-      command("supabase-stop-owned-root-no-backup", "npx", supabaseArgs("stop", runtimeRoot, ["--no-backup"])),
+      command("supabase-stop-owned-root-no-backup", cli.command, supabaseArgs(cli, "stop", runtimeRoot, ["--no-backup"])),
       command("remove-verified-owned-root", "node", ["owned-root-cleanup", runtimeRoot]),
     ],
   };
@@ -522,8 +561,8 @@ async function selectPortBundle(runId) {
   throw new Error("No complete local Supabase port bundle is available");
 }
 
-async function initializeOwnedConfig({ runtimeRoot, projectId, runId, execute, environment }) {
-  await execute(NPX, supabaseArgs("init", runtimeRoot, ["--yes"]), { cwd: runtimeRoot, env: environment });
+async function initializeOwnedConfig({ cli, runtimeRoot, projectId, runId, execute, environment }) {
+  await execute(cli.command, supabaseArgs(cli, "init", runtimeRoot, ["--yes"]), { cwd: runtimeRoot, env: environment });
   const configPath = path.join(runtimeRoot, "supabase", "config.toml");
   let config = await readFile(configPath, "utf8");
   const bundle = await selectPortBundle(runId);
@@ -615,11 +654,53 @@ async function executeUnixSocketPsql({ execute, environment, containerId, sql })
   return stdout;
 }
 
+function dockerPsqlResult({ environment, containerId, sql }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("docker", ["exec", "-i", containerId, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose", "-U", "postgres", "-d", "postgres", "-At"], { env: environment, windowsHide: true, stdio: "pipe" });
+    let output = "";
+    child.stdout.on("data", (chunk) => { output += chunk; });
+    child.stderr.on("data", (chunk) => { output += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => resolve({ code, output }));
+    child.stdin.end(sql);
+  });
+}
+
+function dockerPsqlSession({ environment, containerId }) {
+  const child = spawn("docker", ["exec", "-i", containerId, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose", "-U", "postgres", "-d", "postgres", "-At"], { env: environment, windowsHide: true, stdio: "pipe" });
+  let output = "", sequence = 0, pending;
+  const closed = new Promise((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", (code) => { pending?.({ code, output }); resolve({ code, output }); });
+  });
+  child.stderr.on("data", (chunk) => { output += chunk; });
+  child.stdout.on("data", (chunk) => { output += chunk; pending?.(); });
+  child.stdin.on("error", (error) => { if (error.code !== "EPIPE") throw error; });
+  return {
+    run(input) {
+      const marker = `SESSION_READY_${++sequence}`;
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => { child.kill(); reject(new Error("Disposable Supabase SQL session timed out")); }, 15000);
+        pending = (exit) => {
+          if (exit || output.includes(marker)) {
+            clearTimeout(timeout); pending = undefined; resolve(exit ?? { code: 0, output });
+          }
+        };
+        child.stdin.write(`${input}\n\\echo ${marker}\n`);
+      });
+    },
+    async close() { child.stdin.end(); return closed; },
+  };
+}
+
 export async function cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot, startAttempted, execute, environment, removeRoot = rm }) {
   const ownedRoot = assertOwnedDisposableRoot({ disposableRoot: runtimeRoot, repositoryRoot });
   let cleanupError;
   try {
-    if (startAttempted) await execute(NPX, supabaseArgs("stop", ownedRoot, ["--no-backup"]), { cwd: ownedRoot, env: environment });
+    if (startAttempted) {
+      const cli = resolveRepositorySupabaseCli(repositoryRoot);
+      await execute(cli.command, supabaseArgs(cli, "stop", ownedRoot, ["--no-backup"]), { cwd: ownedRoot, env: environment });
+    }
   } catch (error) { cleanupError = error; }
   try {
     await removeRoot(ownedRoot, { recursive: true, force: true });
@@ -628,11 +709,12 @@ export async function cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot
   return true;
 }
 
-export async function runLocalDisposableReplay({ root = process.cwd(), runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false, diagnosticStartFailure = false, startupOnly = false } = {}) {
+export async function runLocalDisposableReplay({ root = REPOSITORY_ROOT, runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false, diagnosticStartFailure = false, startupOnly = false, migrationLimit, enforcementRunner = runDeviceSchemaV1EnforcementAgainstSql } = {}) {
   if (startupOnly && diagnosticStartFailure) throw new Error("Startup-only mode forbids diagnostic start capture");
-  const plan = buildLocalDisposableReplayPlan({ root, runId, startupOnly });
+  const plan = buildLocalDisposableReplayPlan({ root, runId, startupOnly, migrationLimit });
   if (dryRun) return plan;
   const repositoryRoot = path.resolve(root);
+  const cli = resolveRepositorySupabaseCli(repositoryRoot);
   const safeEnvironment = sanitizedChildEnvironment(environment);
   const runtimeRoot = await mkdtemp(rootTemplateFor(runId));
   const projectId = projectIdFor(runId);
@@ -649,18 +731,19 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
     assertOwnedFingerprintEvidenceRoot({ evidenceRoot: fingerprintEvidence.root, runtimeRoot, repositoryRoot });
     if (fingerprintEvidence.candidatePath !== path.join(fingerprintEvidence.root, "fingerprint-candidate.json") || fingerprintEvidence.reviewPath !== path.join(fingerprintEvidence.root, "fingerprint-review.json") || fingerprintEvidence.failureReceiptPath !== path.join(fingerprintEvidence.root, FAILURE_RECEIPT_FILENAME) || fingerprintEvidence.startDiagnosticPath !== path.join(fingerprintEvidence.root, START_DIAGNOSTIC_FILENAME)) throw new Error("Fingerprint evidence paths must remain inside their owned root");
     const before = await listContainers(execute, safeEnvironment);
-    await initializeOwnedConfig({ runtimeRoot, projectId, runId, execute, environment: safeEnvironment });
+    await initializeOwnedConfig({ cli, runtimeRoot, projectId, runId, execute, environment: safeEnvironment });
     const mirror = startupOnly ? undefined : await buildLocalSupabaseReplayMirror({
       canonicalDirectory: path.join(repositoryRoot, "supabase", "migrations"),
       outputDirectory: path.join(runtimeRoot, "supabase", "migrations"),
       mappingPath: path.join(runtimeRoot, "mapping.json"),
       repositoryRoot,
+      migrationLimit,
     });
     startAttempted = true;
     currentStage = "supabase-start-owned-root";
     const diagnosticCapture = !startupOnly && diagnosticStartFailure ? rawStartDiagnosticPaths(runtimeRoot) : undefined;
     try {
-      await execute(NPX, supabaseArgs("start", runtimeRoot), { cwd: runtimeRoot, env: safeEnvironment, inspectSupabaseStartFailure: true, diagnosticCapture });
+      await execute(cli.command, supabaseArgs(cli, "start", runtimeRoot), { cwd: runtimeRoot, env: safeEnvironment, inspectSupabaseStartFailure: true, diagnosticCapture });
       if (diagnosticCapture) await Promise.all([
         rm(diagnosticCapture.rawStdoutPath, { force: true }),
         rm(diagnosticCapture.rawStderrPath, { force: true }),
@@ -677,7 +760,7 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
       throw error;
     }
     currentStage = "validate-local-status-target";
-    const status = JSON.parse((await execute(NPX, supabaseArgs("status", runtimeRoot, ["--output", "json"]), { cwd: runtimeRoot, env: safeEnvironment })).stdout);
+    const status = JSON.parse((await execute(cli.command, supabaseArgs(cli, "status", runtimeRoot, ["--output", "json"]), { cwd: runtimeRoot, env: safeEnvironment })).stdout);
     assertLocalReplayTarget(status.API_URL);
     currentStage = "validate-owned-postgres-container";
     const container = resolveOwnedContainer({ before, after: await listContainers(execute, safeEnvironment), projectId });
@@ -730,6 +813,12 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
         retainFingerprintEvidence = true;
         throw new Error(`Fingerprint candidate failed; Non-secret fingerprint evidence retained for explicit review:\n  candidate: ${fingerprintEvidence.candidatePath}\n  review: ${fingerprintEvidence.reviewPath}\n  review id: ${review.reviewId}`);
       }
+      const enforcement = execute === runCommand && mirror.migrationCount === 50
+        ? await enforcementRunner({
+          sql: (sql) => dockerPsqlResult({ environment: safeEnvironment, containerId: container.id, sql }),
+          createSession: () => dockerPsqlSession({ environment: safeEnvironment, containerId: container.id }),
+        })
+        : { status: "NOT_RUN", assertions: 0 };
       result = {
         localReplay: "PASS",
         localReplayTarget: "DISPOSABLE",
@@ -737,6 +826,8 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
         schemaFingerprintProductionConnection: false,
         canonicalMigrationCount: mirror.migrationCount,
         migrationLedger: "PASS",
+        deviceSchemaV1Enforcement: enforcement.status,
+        deviceSchemaV1Assertions: enforcement.assertions,
         remoteConnections: 0,
       };
     }
@@ -782,12 +873,16 @@ export async function runLocalDisposableReplay({ root = process.cwd(), runId = r
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.some((argument) => !["--dry-run", "--diagnostic-start-failure", "--startup-only"].includes(argument))) throw new Error("Only --dry-run, --startup-only, and --diagnostic-start-failure are accepted; linked and remote Supabase options are forbidden");
+  const migrationLimitIndex = args.indexOf("--migration-limit");
+  const migrationLimit = migrationLimitIndex >= 0 ? Number(args[migrationLimitIndex + 1]) : undefined;
+  if (migrationLimitIndex >= 0 && !Number.isSafeInteger(migrationLimit)) throw new Error("--migration-limit requires an integer value");
+  if (args.some((argument, index) => !["--dry-run", "--diagnostic-start-failure", "--startup-only", "--migration-limit"].includes(argument) && index !== migrationLimitIndex + 1)) throw new Error("Only --dry-run, --startup-only, --migration-limit, and --diagnostic-start-failure are accepted; linked and remote Supabase options are forbidden");
   if (args.includes("--startup-only") && args.includes("--diagnostic-start-failure")) throw new Error("Startup-only mode forbids diagnostic start capture");
   const result = await runLocalDisposableReplay({
     dryRun: args.includes("--dry-run"),
     diagnosticStartFailure: args.includes("--diagnostic-start-failure"),
     startupOnly: args.includes("--startup-only"),
+    migrationLimit,
   });
   console.log(JSON.stringify(result));
 }

@@ -119,8 +119,28 @@ export async function loadPacketSql(root) {
   return source.slice(start, end + "ROLLBACK;".length);
 }
 
-export async function migrationSourceIndex(root) {
-  const files = await Promise.all(ORDERED_MIGRATION_FILENAMES.map(async (filename) => [filename, (await readFile(path.join(root, "supabase", "migrations", filename), "utf8")).toLowerCase()]));
+function canonicalMigrationName(filename) {
+  return filename.replace(/^\d{8}(?:\d{6})?_/, "").replace(/\.sql$/, "");
+}
+
+function appliedMigrationFilenames(rows) {
+  if (!rows) return ORDERED_MIGRATION_FILENAMES;
+  const ledgerNames = new Set(rows
+    .filter((row) => row.section === NON_OBJECT_SECTION)
+    .map((row) => row.object_name));
+  const expected = new Set(ORDERED_MIGRATION_FILENAMES.slice(0, ledgerNames.size).map(canonicalMigrationName));
+  if (ledgerNames.size < 1
+    || ledgerNames.size > ORDERED_MIGRATION_FILENAMES.length
+    || ledgerNames.size !== expected.size
+    || [...ledgerNames].some((name) => !expected.has(name))) {
+    throw new Error("Applied migration ledger is not a reviewed canonical prefix");
+  }
+  return ORDERED_MIGRATION_FILENAMES.slice(0, ledgerNames.size);
+}
+
+export async function migrationSourceIndex(root, rows) {
+  const appliedFilenames = appliedMigrationFilenames(rows);
+  const files = await Promise.all(appliedFilenames.map(async (filename) => [filename, (await readFile(path.join(root, "supabase", "migrations", filename), "utf8")).toLowerCase()]));
   return new Map(files);
 }
 
@@ -128,14 +148,15 @@ export function sourceMigrationsFor(row, sourceIndex) {
   const specificName = row.identity.split(".").at(-1)?.split("(")[0] ?? "";
   const objectName = row.object_name.toLowerCase();
   const specific = specificName.toLowerCase();
-  const matches = ORDERED_MIGRATION_FILENAMES.filter((filename) => {
+  const sourceFilenames = [...sourceIndex.keys()];
+  const matches = sourceFilenames.filter((filename) => {
     const source = sourceIndex.get(filename);
     if (["policy", "constraint", "index", "trigger", "function"].includes(row.object_type)) return source.includes(specific || objectName);
     if (row.object_type === "column") return source.includes(objectName) && source.includes(specific);
     return source.includes(objectName);
   });
   if (matches.length || !["constraint", "index"].includes(row.object_type)) return matches;
-  return ORDERED_MIGRATION_FILENAMES.filter((filename) => sourceIndex.get(filename).includes(objectName));
+  return sourceFilenames.filter((filename) => sourceIndex.get(filename).includes(objectName));
 }
 
 export function labelFor(row) {
@@ -180,7 +201,7 @@ export function buildFingerprint(rows, sourceIndex) {
   return {
     format: "openglass-production-schema-fingerprint-v1",
     generatedFrom: "LOCAL_DOCKER_ONLY",
-    canonicalMigrationCount: ORDERED_MIGRATION_FILENAMES.length,
+    canonicalMigrationCount: ledger.length,
     legalConsentPrerequisiteCount: 12,
     localMigrationLedger: ledger,
     objectCount: objects.length,

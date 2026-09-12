@@ -54,6 +54,7 @@ export const ORDERED_MIGRATION_FILENAMES = [
   "20260829054707_device_service_role_bootstrap_grants.sql",
   "20260902042807_forward_reconcile_devices.sql",
   "20260904054013_forward_reconcile_security_privileges.sql",
+  "20260909195640_device_schema_v1_foundation.sql",
 ];
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
@@ -108,6 +109,7 @@ const CANONICAL_MIGRATION_SHA256 = new Map([
   ["20260829_device_slug_lock.sql", "26e47a4a68d8201bfb87aed906e054e08e5a4f3e010557289ae05dd673dd4543"],
   ["20260902042807_forward_reconcile_devices.sql", "2f98fea88b4b5619dce82a0e48c0653c96f4db3e212d6f52a85fbab083405e65"],
   ["20260904054013_forward_reconcile_security_privileges.sql", "98819214e5bece6d659e0b0cc2a3b16865f84227e8ab6a1d4dbcac0b7cddf3c5"],
+  ["20260909195640_device_schema_v1_foundation.sql", "7b5d4a09b76f780755e1f925b8a1517e9291e7f91409bdbcda60a6d3fa6e1849"],
 ]);
 const legalPrerequisiteNames = [
   "20260703_moderation_action_notifications.sql",
@@ -242,10 +244,13 @@ async function readCanonicalMigrationBytes({ canonicalRoot, repositoryRoot, file
   return canonicalBytes;
 }
 
-export async function buildLocalSupabaseReplayMirror({ canonicalDirectory, outputDirectory, mappingPath, repositoryRoot }) {
+export async function buildLocalSupabaseReplayMirror({ canonicalDirectory, outputDirectory, mappingPath, repositoryRoot, migrationLimit = ORDERED_MIGRATION_FILENAMES.length }) {
   const canonicalRoot = path.resolve(canonicalDirectory);
   const outputRoot = path.resolve(outputDirectory);
   const repoRoot = path.resolve(repositoryRoot);
+  if (!Number.isSafeInteger(migrationLimit) || migrationLimit < 1 || migrationLimit > ORDERED_MIGRATION_FILENAMES.length) {
+    throw new Error("Migration replay limit must select a reviewed canonical prefix");
+  }
   if (!path.isAbsolute(outputDirectory) || !path.isAbsolute(mappingPath)) throw new Error("Mirror output and mapping paths must be absolute");
   if (isPathWithin(outputRoot, repoRoot) || isPathWithin(path.resolve(mappingPath), repoRoot)) {
     throw new Error("Disposable mirror output must be outside the repository");
@@ -253,7 +258,7 @@ export async function buildLocalSupabaseReplayMirror({ canonicalDirectory, outpu
 
   const discovered = (await readdir(canonicalRoot)).filter((filename) => filename.endsWith(".sql")).sort();
   if (JSON.stringify(discovered) !== JSON.stringify([...ORDERED_MIGRATION_FILENAMES].sort())) {
-    throw new Error("Canonical migration inventory differs from the deterministic 49-file manifest");
+    throw new Error("Canonical migration inventory differs from the deterministic 50-file manifest");
   }
   if (CANONICAL_MIGRATION_SHA256.size !== ORDERED_MIGRATION_FILENAMES.length || ORDERED_MIGRATION_FILENAMES.some((filename) => !CANONICAL_MIGRATION_SHA256.has(filename))) {
     throw new Error("Canonical migration SHA-256 anchor inventory is incomplete");
@@ -269,13 +274,14 @@ export async function buildLocalSupabaseReplayMirror({ canonicalDirectory, outpu
   await mkdir(outputRoot, { recursive: true });
   const dateCounts = new Map();
   const groupCounts = new Map(ORDERED_MIGRATION_FILENAMES.map((filename) => [parseCanonicalName(filename).date, 0]));
-  for (const filename of ORDERED_MIGRATION_FILENAMES) {
+  const selectedMigrations = ORDERED_MIGRATION_FILENAMES.slice(0, migrationLimit);
+  for (const filename of selectedMigrations) {
     const { date } = parseCanonicalName(filename);
     groupCounts.set(date, groupCounts.get(date) + 1);
   }
 
   const mapping = [];
-  for (const canonicalFile of ORDERED_MIGRATION_FILENAMES) {
+  for (const canonicalFile of selectedMigrations) {
     const { date, suffix } = parseCanonicalName(canonicalFile);
     const canonicalBytes = await readCanonicalMigrationBytes({ canonicalRoot, repositoryRoot: repoRoot, filename: canonicalFile });
     const audit = inspectMigrationBytes(canonicalFile, canonicalBytes);
@@ -310,13 +316,14 @@ export async function buildLocalSupabaseReplayMirror({ canonicalDirectory, outpu
   }
 
   const temporaryVersions = mapping.map((entry) => entry.temporaryVersion);
-  if (new Set(temporaryVersions).size !== ORDERED_MIGRATION_FILENAMES.length) throw new Error("Temporary migration versions are not unique");
+  if (new Set(temporaryVersions).size !== selectedMigrations.length) throw new Error("Temporary migration versions are not unique");
   const legalOrder = mapping.filter((entry) => legalPrerequisiteNames.includes(entry.canonicalFile)).map((entry) => entry.canonicalFile);
   if (JSON.stringify(legalOrder) !== JSON.stringify(legalPrerequisiteNames)) throw new Error("Legal-consent prerequisite order changed in mirror");
 
   const report = {
     classification: "LOCAL_DOCKER_ONLY_DISPOSABLE_REPLAY_MIRROR",
     migrationCount: mapping.length,
+    sourceManifestCount: ORDERED_MIGRATION_FILENAMES.length,
     temporaryVersionCount: new Set(temporaryVersions).size,
     bomTransformedFiles: mapping.filter((entry) => entry.transformation !== "NONE").map((entry) => entry.canonicalFile),
     legalPrerequisites: legalOrder,
@@ -333,16 +340,27 @@ function readRequiredArgument(argv, name) {
   return argv[index + 1];
 }
 
+function readOptionalIntegerArgument(argv, name) {
+  const index = argv.indexOf(name);
+  if (index < 0) return undefined;
+  const value = Number(argv[index + 1]);
+  if (!Number.isSafeInteger(value)) throw new Error(`${name} requires an integer value`);
+  return value;
+}
+
 async function main() {
   const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
   const repositoryRoot = path.resolve(scriptDirectory, "..");
-  const outputDirectory = readRequiredArgument(process.argv.slice(2), "--output");
-  const mappingPath = readRequiredArgument(process.argv.slice(2), "--mapping");
+  const argv = process.argv.slice(2);
+  const outputDirectory = readRequiredArgument(argv, "--output");
+  const mappingPath = readRequiredArgument(argv, "--mapping");
+  const migrationLimit = readOptionalIntegerArgument(argv, "--migration-limit");
   const report = await buildLocalSupabaseReplayMirror({
     canonicalDirectory: path.join(repositoryRoot, "supabase", "migrations"),
     outputDirectory,
     mappingPath,
     repositoryRoot,
+    migrationLimit,
   });
   console.log(JSON.stringify({ migrationCount: report.migrationCount, bomTransformedFiles: report.bomTransformedFiles, localOnly: true }));
 }

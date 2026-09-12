@@ -169,6 +169,85 @@ function cases() {
   return tests;
 }
 
+export function disposableSupabaseBootstrapSql() {
+  const deviceRows = [
+    [1, "display-ar-one", "brand", "Brand", "Display One", "display_ar"],
+    [2, "ai-hud-one", "brand", "Brand", "HUD One", "ai_hud"],
+    [3, "unknown-schema-one", "brand", "Brand", "Unknown One", null],
+  ].map(([n, slug, brandKey, brandName, name, schemaType]) => `(${id(n)},${quote(slug)},${quote(brandKey)},${quote(brandName)},${quote(name)},'short','long','alt','category','route','route desc',${schemaType ? quote(schemaType) : "null"})`).join(",\n  ");
+  return `
+insert into public.devices
+  (id,slug,brand_key,brand_name,name,short_description,long_description,image_alt,category,route_label,route_description,schema_type)
+values
+  ${deviceRows};
+insert into public.device_spec_definitions
+  (id,key,group_key,label,value_type,canonical_unit,measurement_context,applicable_schema_types) values
+  (${definition(1)},'synthetic.mass','synthetic','Mass','number','g','mass',array['display_ar']::public.device_schema_type[]),
+  (${definition(2)},'synthetic.boolean','synthetic','Boolean','boolean',null,null,array['display_ar']::public.device_schema_type[]),
+  (${definition(3)},'synthetic.text','synthetic','Text','text',null,null,array['display_ar']::public.device_schema_type[]),
+  (${definition(4)},'synthetic.json','synthetic','JSON','json',null,null,array['display_ar']::public.device_schema_type[]);
+insert into public.device_sources (id,publisher,url,source_type,accessed_at) values
+  (${source(1)},'Synthetic','https://example.invalid/1','official_manual','2026-09-09'),
+  (${source(2)},'Synthetic','https://example.invalid/2','official_manual','2026-09-09'),
+  (${source(3)},'Synthetic','https://example.invalid/3','official_manual','2026-09-09');
+`;
+}
+
+async function runSharedEnforcementCases({ sql, createSession }) {
+  const failures = [];
+  const expectOk = async (stage, operation) => {
+    const result = await operation();
+    assert.equal(result.code, 0, `${stage}: ${result.output}`);
+    return result;
+  };
+  for (const test of cases()) {
+    const result = await sql(`begin; set local statement_timeout='10s'; ${test.sql}\nset constraints all immediate; rollback;`);
+    try {
+      if (test.error) {
+        assert.notEqual(result.code, 0, `${test.name}: missing expected ${test.error}`);
+        assert.match(result.output, new RegExp(`ERROR:\\s+${test.code}:`), `${test.name}: SQLSTATE`);
+        assert.ok(result.output.includes(test.error), `${test.name}: missing ${test.error}: ${result.output}`);
+      } else assert.equal(result.code, 0, `${test.name}: ${result.output}`);
+    } catch (error) { failures.push(error.message); }
+  }
+  await expectOk("valid conflict commit before stale-evidence concurrency", () => sql(`begin; ${validConflict()} commit;`));
+  const invalidCommit = await sql(`begin; delete from public.device_spec_evidence where is_conflicting; commit;`);
+  if (invalidCommit.code === 0 || !/ERROR:\s+23514:.*DEVICE_SPEC_EVIDENCE_CONFLICT_INVARIANT/.test(invalidCommit.output)) failures.push("invalid COMMIT did not raise DEVICE_SPEC_EVIDENCE_CONFLICT_INVARIANT / 23514");
+  await expectOk("seed additional conflicting evidence for stale-evidence concurrency", () => sql(evidence(3, false, true)));
+  const staleEvidence = createSession();
+  try {
+    await expectOk("open stale evidence transaction", () => staleEvidence.run("begin isolation level repeatable read; select count(*) from public.device_spec_evidence;"));
+    await expectOk("delete one conflicting evidence row", () => sql(`delete from public.device_spec_evidence where id=${id(402)};`));
+    const result = await staleEvidence.run(`delete from public.device_spec_evidence where id=${id(403)}; commit;`);
+    if (result.code === 0 || !/ERROR:\s+(40001|23514):/.test(result.output)) failures.push("concurrent evidence deletions bypassed final conflict invariant");
+  } finally { await staleEvidence.close(); }
+  await expectOk("clear specs after stale-evidence concurrency", () => sql("begin; delete from public.device_spec_evidence; delete from public.device_specs; commit;"));
+  const staleDefinition = createSession();
+  try {
+    await expectOk("open stale definition transaction", () => staleDefinition.run("begin isolation level repeatable read; select count(*) from public.device_specs;"));
+    await expectOk("insert first spec for stale definition transaction", () => sql(insertSpec()));
+    const result = await staleDefinition.run(`update public.device_spec_definitions set canonical_unit='kg' where id=${definition(1)}; commit;`);
+    if (result.code === 0 || !/ERROR:\s+(40001|23514):/.test(result.output)) failures.push("concurrent first reference bypassed definition immutability");
+  } finally { await staleDefinition.close(); }
+  await expectOk("clear specs after stale-definition concurrency", () => sql("delete from public.device_specs;"));
+  const staleDevice = createSession();
+  try {
+    await expectOk("open stale device transaction", () => staleDevice.run("begin isolation level repeatable read; select count(*) from public.device_specs;"));
+    await expectOk("insert first spec for stale device transaction", () => sql(insertSpec()));
+    const result = await staleDevice.run(`update public.devices set schema_type='ai_hud' where id=${id(1)}; commit;`);
+    if (result.code === 0 || !/ERROR:\s+(40001|23514):/.test(result.output)) failures.push("concurrent first spec bypassed device schema applicability");
+  } finally { await staleDevice.close(); }
+  assert.equal(failures.length, 0, `${failures.length} enforcement failures:\n${failures.join("\n")}`);
+  return { assertions: cases().length + 5 };
+}
+
+export async function runDeviceSchemaV1EnforcementAgainstSql({ sql, createSession }) {
+  const setup = await sql(disposableSupabaseBootstrapSql());
+  assert.equal(setup.code, 0, `Disposable Supabase enforcement bootstrap failed: ${setup.output}`);
+  const result = await runSharedEnforcementCases({ sql, createSession });
+  return { status: "PASS", ...result };
+}
+
 export async function runEnforcement() {
   const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "openglass-schema-v1-enforcement-"));
   const data = path.join(temporaryRoot, "data");
