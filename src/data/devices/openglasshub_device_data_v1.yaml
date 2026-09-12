@@ -1,0 +1,2305 @@
+dataset: OpenGlass Hub Device Schema v1 normalized dataset
+verified_at: '2026-09-05'
+device_count: 24
+brand_count: 8
+normalization_rules:
+- Use exact string "Not disclosed" when the feature/field could exist but no sufficiently reliable public value was found.
+- Use exact string "Not applicable" only when the field is inherently inapplicable to the product (for example display fields
+  on Ray-Ban Meta Gen 2, camera fields on Even Realities G1).
+- Use explicit "No" when a relevant capability is known to be absent; do not convert known No into Not applicable.
+- When official sources conflict, select the most current and most direct authoritative source for the primary value, and
+  keep the alternative in evidence.conflicts.
+- Never compare eye/perceived brightness against panel/projector brightness. They are separate fields and measurement contexts.
+- Keep native tracking separate from accessory-enabled tracking.
+- Do not infer compatibility from USB-C alone; where relevant, retain requirements such as DisplayPort Alt Mode or an adapter/accessory.
+- Do not silently promote medium-confidence secondary values to Official. Preserve evidence.overall_confidence and notes.
+display_ar_schema_keys:
+  basic:
+    brand: Not disclosed
+    model: Not disclosed
+    generation: Not disclosed
+    device_type: Display AR/XR glasses
+    status: Not disclosed
+    weight_g: Not disclosed
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Not disclosed
+  display_optics:
+    display_technology: Not disclosed
+    optical_system: Not disclosed
+    ocular_mode: Not disclosed
+    resolution_per_eye: Not disclosed
+    binocular_resolution: Not disclosed
+    fov_deg: Not disclosed
+    refresh_rate_hz: Not disclosed
+    eye_brightness_nits: Not disclosed
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: Not disclosed
+    color_gamut: Not disclosed
+    ppd: Not disclosed
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: Not disclosed
+    electrochromic_dimming: Not disclosed
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: Not disclosed
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'No'
+    native_6dof: 'No'
+    accessory_3dof: Not disclosed
+    accessory_6dof: Not disclosed
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: Not disclosed
+  audio:
+    speakers: Not disclosed
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Not disclosed
+    hdmi: Not disclosed
+    ios: Not disclosed
+    android: Not disclosed
+    windows: Not disclosed
+    macos: Not disclosed
+    nintendo_switch: Not disclosed
+    playstation: Not disclosed
+    xbox: Not disclosed
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Not disclosed
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls: []
+    conflicts: []
+    notes: []
+ai_hud_schema_keys:
+  basic:
+    brand: Not disclosed
+    model: Not disclosed
+    generation: Not disclosed
+    device_type: AI/HUD smart glasses
+    status: Not disclosed
+    weight_g: Not disclosed
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Not disclosed
+  display_optics:
+    display_present: Not disclosed
+    display_technology: Not disclosed
+    optical_system: Not disclosed
+    ocular_mode: Not disclosed
+    resolution_per_eye: Not disclosed
+    fov_deg: Not disclosed
+    refresh_rate_hz: Not disclosed
+    eye_brightness_nits: Not disclosed
+    contrast_ratio: Not disclosed
+    color: Not disclosed
+    optical_transmittance: Not disclosed
+  compute:
+    soc: Not disclosed
+    cpu: Not disclosed
+    ram: Not disclosed
+    storage: Not disclosed
+    os: Not disclosed
+  tracking:
+    native_3dof: Not disclosed
+    native_6dof: Not disclosed
+    slam: Not disclosed
+    hand_tracking: Not disclosed
+    eye_tracking: Not disclosed
+    sensors: Not disclosed
+  camera:
+    camera_present: Not disclosed
+    camera_sensor: Not disclosed
+    camera_mp: Not disclosed
+    photo_resolution: Not disclosed
+    video_resolution_fps: Not disclosed
+    camera_fov_deg: Not disclosed
+    stabilization: Not disclosed
+    secondary_spatial_camera: Not disclosed
+  ai_features:
+    ai_assistant: Not disclosed
+    vision_ai: Not disclosed
+    translation: Not disclosed
+    navigation: Not disclosed
+    teleprompter: Not disclosed
+    transcription: Not disclosed
+    notifications: Not disclosed
+    other_features: Not disclosed
+  audio:
+    speakers: Not disclosed
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  battery:
+    battery_capacity_mah: Not disclosed
+    official_typical_runtime: Not disclosed
+    mode_specific_runtime: Not disclosed
+    charging_time: Not disclosed
+    charging_case: Not disclosed
+  connectivity:
+    usb: Not disclosed
+    wifi: Not disclosed
+    bluetooth: Not disclosed
+    gps: Not disclosed
+    ios: Not disclosed
+    android: Not disclosed
+    pc_compatibility: Not disclosed
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    camera_api: Not disclosed
+    spatial_api: Not disclosed
+    sideload: Not disclosed
+    firmware_openness: Not disclosed
+  privacy:
+    camera_indicator: Not disclosed
+    camera_indicator_occlusion_detection: Not disclosed
+    physical_camera_cover: Not disclosed
+    privacy_notes: Not disclosed
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls: []
+    conflicts: []
+    notes: []
+devices:
+- schema_type: display_ar
+  basic:
+    brand: XREAL
+    model: XREAL One
+    generation: One series
+    device_type: Display AR/XR glasses
+    status: Current
+    weight_g: 82
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Supported via prescription lens/frame
+  display_optics:
+    display_technology: Sony 0.68-inch Micro-OLED
+    optical_system: Birdbath optics
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 50
+    refresh_rate_hz: Up to 120
+    eye_brightness_nits: 600
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: 100,000:1
+    color_gamut: 108% sRGB
+    ppd: Not disclosed
+    ipd_mm: Software IPD adjustment
+    myopia_adjustment_d: Not applicable
+    electrochromic_dimming: 3 levels
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: ΔE<3; gamma 2.2
+  compute:
+    soc: XREAL X1
+    ram: Not disclosed
+    storage: Not disclosed
+    os: XREAL spatial computing firmware
+  tracking:
+    native_3dof: 'Yes'
+    native_6dof: 'No'
+    accessory_3dof: Not applicable
+    accessory_6dof: Supported with XREAL Eye
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU/head-tracking sensors
+  audio:
+    speakers: Bose-tuned open-ear speakers
+    microphones: 4-microphone array
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter/accessory
+    ios: Supported; model/adapter requirements vary
+    android: Supported when source supports compatible video output
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via compatible accessory
+    playstation: Supported via HDMI accessory
+    xbox: Supported via HDMI accessory
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Native 3DoF; optional 6DoF with XREAL Eye
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://us.shop.xreal.com/products/xreal-one
+    - https://tutorials.xreal.com/docs/glasses/one-series/spec/
+    conflicts:
+    - Official current product page lists 82 g; official tutorial/spec page has also listed 84 g. Primary value set to 82
+      g because the current product page is the higher-priority source.
+    notes:
+    - Display distance 1–10 m; virtual display size approximately 29–477 inches.
+- schema_type: display_ar
+  basic:
+    brand: XREAL
+    model: XREAL One Pro
+    generation: One Pro
+    device_type: Display AR/XR glasses
+    status: Current
+    weight_g: 87
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Supported via prescription lens/frame
+  display_optics:
+    display_technology: Sony 0.55-inch Micro-OLED
+    optical_system: X-Prism optics
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 57
+    refresh_rate_hz: Up to 120
+    eye_brightness_nits: 700
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: 100,000:1
+    color_gamut: 108% sRGB
+    ppd: Not disclosed
+    ipd_mm: 'M: 57–66 mm; L: 66–75 mm; software IPD adjustment'
+    myopia_adjustment_d: Not applicable
+    electrochromic_dimming: 3 levels
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: ΔE<3; gamma 2.0
+  compute:
+    soc: XREAL X1
+    ram: Not disclosed
+    storage: Not disclosed
+    os: XREAL spatial computing firmware
+  tracking:
+    native_3dof: 'Yes'
+    native_6dof: 'No'
+    accessory_3dof: Not applicable
+    accessory_6dof: Supported with XREAL Eye
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU/head-tracking sensors
+  audio:
+    speakers: Bose-tuned open-ear speakers
+    microphones: 4-microphone array
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter/accessory
+    ios: Supported; model/adapter requirements vary
+    android: Supported when source supports compatible video output
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via compatible accessory
+    playstation: Supported via HDMI accessory
+    xbox: Supported via HDMI accessory
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Native 3DoF; optional 6DoF with XREAL Eye
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://us.shop.xreal.com/products/xreal-one-pro
+    - https://tutorials.xreal.com/docs/glasses/one-series/spec/
+    conflicts: []
+    notes:
+    - Motion-to-photon latency listed by XREAL as 3 ms.
+- schema_type: display_ar
+  basic:
+    brand: XREAL
+    model: XREAL Air 2 Pro
+    generation: Air 2 series
+    device_type: Display AR/XR glasses
+    status: Current / legacy product still sold in some regions
+    weight_g: 75
+    dimensions_mm: 148.5×48×52
+    material: Not disclosed
+    prescription_support: Supported via prescription frame
+  display_optics:
+    display_technology: Sony 0.55-inch Micro-OLED
+    optical_system: Optic Engine 2.0
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 46
+    refresh_rate_hz: 2D up to 120; 3D up to 90
+    eye_brightness_nits: 500
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: Not disclosed
+    color_gamut: Not disclosed
+    ppd: Not disclosed
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: Not applicable
+    electrochromic_dimming: '3 levels: 0% / 35% / 100% shade'
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: ΔE<3
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'No'
+    native_6dof: 'No'
+    accessory_3dof: Supported with XREAL Beam / Beam Pro
+    accessory_6dof: 'No'
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: 2 speakers
+    microphones: 2 microphones
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter
+    ios: Supported with appropriate connection/accessory
+    android: Supported when device provides DP video output
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via compatible accessory
+    playstation: Supported via adapter/accessory
+    xbox: Supported via adapter/accessory
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Not disclosed
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://us.shop.xreal.com/products/xreal-air-2-pro
+    conflicts: []
+    notes:
+    - Weight normalized to 75 g; older/secondary listings may show 72 g.
+- schema_type: display_ar
+  basic:
+    brand: XREAL
+    model: XREAL Air 2 Ultra
+    generation: Air 2 Ultra
+    device_type: Display AR/XR glasses
+    status: Developer / spatial computing product
+    weight_g: 83
+    dimensions_mm: 148.5×48×161.5 (in use)
+    material: Titanium frame
+    prescription_support: Supported via detachable prescription frame
+  display_optics:
+    display_technology: Sony Micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 52
+    refresh_rate_hz: 2D up to 120; 3D up to 90
+    eye_brightness_nits: 2D 30–500; 3D 20–250
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: Not disclosed
+    color_gamut: Not disclosed
+    ppd: Not disclosed
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: Not applicable
+    electrochromic_dimming: 3 levels
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: Not disclosed
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'Yes'
+    native_6dof: 'Yes'
+    accessory_3dof: Not applicable
+    accessory_6dof: Not applicable
+    slam: 'Yes'
+    hand_tracking: 'Yes'
+    eye_tracking: 'No'
+    environment_sensors: 2 × 3D environment sensors; IMU
+  audio:
+    speakers: 2 speakers
+    microphones: 2 microphones
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via compatible adapter
+    ios: Supported on compatible iPhone/iPad connection
+    android: Supported
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported
+    playstation: Supported
+    xbox: Supported in some official regional compatibility materials
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: XREAL SDK 3.0
+    unity: Supported
+    openxr: 'No'
+    ar_foundation: Supported
+    camera_api: Not applicable
+    spatial_api: 6DoF, hand tracking, depth mesh, spatial anchors, plane detection, image tracking
+    sideload: Not disclosed
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://developer.xreal.com/
+    conflicts: []
+    notes:
+    - Environment sensors are for spatial tracking and are not exposed as ordinary photo/video cameras.
+- schema_type: display_ar
+  basic:
+    brand: XREAL
+    model: XREAL Air
+    generation: Original Air
+    device_type: Display AR/XR glasses
+    status: Discontinued; official refurbished stock may remain
+    weight_g: 79
+    dimensions_mm: 148.5×60×52
+    material: Not disclosed
+    prescription_support: Supported via prescription frame
+  display_optics:
+    display_technology: Sony Micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 46
+    refresh_rate_hz: 2D up to 120; 3D up to 90
+    eye_brightness_nits: 400
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: Not disclosed
+    color_gamut: Not disclosed
+    ppd: Not disclosed
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: Not applicable
+    electrochromic_dimming: 'No'
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: Not disclosed
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'No'
+    native_6dof: 'No'
+    accessory_3dof: Supported with XREAL Beam
+    accessory_6dof: 'No'
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: 2 speakers
+    microphones: 2 microphones
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter
+    ios: Supported with appropriate connection/accessory
+    android: Supported when device provides DP video output
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via compatible accessory
+    playstation: Supported via adapter
+    xbox: Supported via adapter
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Not disclosed
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://eu.shop.xreal.com/en-nl/products/xreal-air-official-certified-refurbished
+    conflicts: []
+    notes:
+    - XREAL explicitly states the original Air is no longer in production.
+- schema_type: display_ar
+  basic:
+    brand: XREAL
+    model: XREAL Air 2
+    generation: Air 2 series
+    device_type: Display AR/XR glasses
+    status: Current / legacy product still sold in some regions
+    weight_g: 72
+    dimensions_mm: 148.5×48×52
+    material: Not disclosed
+    prescription_support: Supported via prescription frame
+  display_optics:
+    display_technology: Sony 0.55-inch Micro-OLED
+    optical_system: Optic Engine 2.0
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 46
+    refresh_rate_hz: Up to 120
+    eye_brightness_nits: 500
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: Not disclosed
+    color_gamut: Not disclosed
+    ppd: Not disclosed
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: Not applicable
+    electrochromic_dimming: 'No'
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: ΔE<3
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'No'
+    native_6dof: 'No'
+    accessory_3dof: Supported with XREAL Beam / Beam Pro
+    accessory_6dof: 'No'
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: 2nd-generation open-ear audio; 2 speakers
+    microphones: 2 microphones
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter
+    ios: Supported with appropriate connection/accessory
+    android: Supported when device provides DP video output
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via compatible accessory
+    playstation: Supported via adapter
+    xbox: Supported via adapter
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Not disclosed
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://us.shop.xreal.com/products/xreal-air-2
+    conflicts: []
+    notes: []
+- schema_type: ai_hud
+  basic:
+    brand: RayNeo
+    model: RayNeo X2
+    generation: X2
+    device_type: AI/HUD smart glasses
+    status: Sold out; RayNeo 2026 brand material also describes X2 as discontinued/reference-only
+    weight_g: 119
+    dimensions_mm: Unfolded 190.5×165.5×66.5; folded 60×165.5×66.5
+    material: Not disclosed
+    prescription_support: Not disclosed
+  display_optics:
+    display_present: 'Yes'
+    display_technology: Full-color MicroLED
+    optical_system: Binocular optical waveguide
+    ocular_mode: Binocular
+    resolution_per_eye: Not disclosed
+    fov_deg: Not disclosed
+    refresh_rate_hz: Not disclosed
+    eye_brightness_nits: 1000
+    contrast_ratio: 100,000:1
+    color: Full color
+    optical_transmittance: Not disclosed
+  compute:
+    soc: Qualcomm Snapdragon XR2
+    cpu: Not disclosed
+    ram: 6 GB
+    storage: 128 GB
+    os: Not disclosed
+  tracking:
+    native_3dof: Not disclosed
+    native_6dof: Not disclosed
+    slam: 'Yes'
+    hand_tracking: Gesture recognition supported
+    eye_tracking: Not disclosed
+    sensors: Accelerometer, gyroscope, compass, pressure sensor, GPS
+  camera:
+    camera_present: 'Yes'
+    camera_sensor: Not disclosed
+    camera_mp: 16 MP
+    photo_resolution: Not disclosed
+    video_resolution_fps: 1080p video
+    camera_fov_deg: Not disclosed
+    stabilization: Not disclosed
+    secondary_spatial_camera: Not disclosed
+  ai_features:
+    ai_assistant: Multimodal AI / GPT-4V-era official integrations
+    vision_ai: 'Yes'
+    translation: 'Yes'
+    navigation: SLAM navigation
+    teleprompter: Not disclosed
+    transcription: Not disclosed
+    notifications: Not disclosed
+    other_features: Gesture interaction; AI recognition
+  audio:
+    speakers: Not disclosed
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  battery:
+    battery_capacity_mah: 590
+    official_typical_runtime: Not disclosed
+    mode_specific_runtime: Not disclosed
+    charging_time: Not disclosed
+    charging_case: Not applicable
+  connectivity:
+    usb: USB 2.0
+    wifi: Wi-Fi 5
+    bluetooth: Bluetooth 5.2
+    gps: 'Yes'
+    ios: iOS 10+; stability varies by model
+    android: Android 9+; stability varies by model
+    pc_compatibility: Not disclosed
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    camera_api: Not disclosed
+    spatial_api: Not disclosed
+    sideload: ADB APK sideload supported
+    firmware_openness: Not disclosed
+  privacy:
+    camera_indicator: Yes; status LED for photo/video
+    camera_indicator_occlusion_detection: Not disclosed
+    physical_camera_cover: 'No'
+    privacy_notes: Not disclosed
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: Medium-High
+    source_urls:
+    - https://www.rayneo.com/products/tcl-rayneo-x2
+    - https://www.rayneo.com/blogs/news/best-video-recording-glasses-for-travel-sports-and-daily-use-2026-guide
+    conflicts:
+    - The official X2 product page contains both 1000-nit and 1500-nit marketing statements. Primary value set to 1000 nits
+      from the main/current product technical presentation.
+    - Official current product material does not clearly publish display pixel resolution or FOV; both remain Not disclosed.
+    notes:
+    - 119 g is widely cited and acknowledged in RayNeo retrospective material, but not consistently present in the original
+      product tech table; keep source confidence below fully official-direct.
+- schema_type: display_ar
+  basic:
+    brand: RayNeo
+    model: RayNeo Air 2
+    generation: Air 2
+    device_type: Display AR/XR glasses
+    status: Current / regional availability varies
+    weight_g: 76
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Supported via prescription insert/solution
+  display_optics:
+    display_technology: Micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 46
+    refresh_rate_hz: Up to 120
+    eye_brightness_nits: 600
+    panel_or_projector_brightness_nits: 4000
+    contrast_ratio: Not disclosed
+    color_gamut: Not disclosed
+    ppd: Not disclosed
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: Not applicable
+    electrochromic_dimming: 'No'
+    optical_transmittance: Not disclosed
+    eye_box_mm: 10×6.5
+    color_accuracy: Not disclosed
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'No'
+    native_6dof: 'No'
+    accessory_3dof: Not disclosed
+    accessory_6dof: Not disclosed
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: 2 speakers
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter
+    ios: Supported; Lightning models require adapter, USB-C models depend on video output/accessory
+    android: Supported on compatible USB-C DP devices; non-DP devices may require adapter
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via compatible accessory
+    playstation: Supported via HDMI accessory
+    xbox: Supported via HDMI accessory
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Not disclosed
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://www.rayneo.com/products/rayneo-air-2-xr-glasses
+    - https://www.rayneo.com/pages/tech-specs
+    conflicts:
+    - RayNeo technical material exposes a much higher internal/panel brightness figure (4000 nits) while the consumer-visible
+      eye/perceived brightness is 600 nits. These are stored separately and must never be directly ranked against one another.
+    notes: []
+- schema_type: display_ar
+  basic:
+    brand: RayNeo
+    model: RayNeo Air 2s
+    generation: Air 2s
+    device_type: Display AR/XR glasses
+    status: Current / regional availability varies
+    weight_g: 76
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Supported via prescription insert/solution
+  display_optics:
+    display_technology: Sony Micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 46
+    refresh_rate_hz: Up to 120
+    eye_brightness_nits: 600
+    panel_or_projector_brightness_nits: 5000
+    contrast_ratio: Not disclosed
+    color_gamut: Not disclosed
+    ppd: Not disclosed
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: Not applicable
+    electrochromic_dimming: 'No'
+    optical_transmittance: Not disclosed
+    eye_box_mm: 11.2×6.5
+    color_accuracy: 3 color modes; distortion ≤1%
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'No'
+    native_6dof: 'No'
+    accessory_3dof: Not disclosed
+    accessory_6dof: Not disclosed
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: 4 Push-Push speakers
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter
+    ios: Supported; Lightning models require adapter, USB-C models depend on video output/accessory
+    android: Supported on compatible USB-C DP devices; non-DP devices may require adapter
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via compatible accessory
+    playstation: Supported via HDMI accessory
+    xbox: Supported via HDMI accessory
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Not disclosed
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://www.rayneo.com/collections/glasses/products/rayneo-air_2s
+    - https://www.rayneo.com/pages/tech-specs
+    conflicts:
+    - RayNeo technical material exposes 5000 nits internal/panel brightness while consumer-visible eye/perceived brightness
+      is 600 nits. Store separately.
+    notes: []
+- schema_type: display_ar
+  basic:
+    brand: RayNeo
+    model: RayNeo Air 3s
+    generation: Air 3s
+    device_type: Display AR/XR glasses
+    status: Current / regional availability varies
+    weight_g: 76
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Supported via prescription insert/solution
+  display_optics:
+    display_technology: HueView Micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 46
+    refresh_rate_hz: Up to 120
+    eye_brightness_nits: 650
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: 200,000:1
+    color_gamut: 145% sRGB; 98% DCI-P3
+    ppd: Not disclosed
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: Not applicable
+    electrochromic_dimming: 'No'
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: ΔE<2; 3840 Hz hybrid dimming
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'No'
+    native_6dof: 'No'
+    accessory_3dof: Not disclosed
+    accessory_6dof: Not disclosed
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: 4 speakers; Whisper Mode 2.0
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter
+    ios: Supported; Lightning models require adapter, USB-C models depend on video output/accessory
+    android: Supported on compatible USB-C DP devices; non-DP devices may require adapter
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via compatible accessory
+    playstation: Supported via HDMI accessory
+    xbox: Supported via HDMI accessory
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Not disclosed
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://www.rayneo.com/products/rayneo-air-3s-xr-glasses
+    - https://www.rayneo.com/pages/tech-specs
+    conflicts: []
+    notes: []
+- schema_type: display_ar
+  basic:
+    brand: RayNeo
+    model: RayNeo Air 4 Pro
+    generation: Air 4 Pro
+    device_type: Display AR/XR glasses
+    status: Current / regional availability varies
+    weight_g: 76
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Supported via prescription insert/solution
+  display_optics:
+    display_technology: 0.6-inch SeeYa Micro-OLED / HueView 2.0
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 46
+    refresh_rate_hz: Up to 120
+    eye_brightness_nits: 1200
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: 200,000:1
+    color_gamut: 145% sRGB; 98% DCI-P3
+    ppd: 49
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: Not applicable
+    electrochromic_dimming: 'No'
+    optical_transmittance: Not disclosed
+    eye_box_mm: 14×7
+    color_accuracy: ΔE<2; HDR10; 3840 Hz dimming
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'No'
+    native_6dof: 'No'
+    accessory_3dof: Not disclosed
+    accessory_6dof: Not disclosed
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: 4 Bang & Olufsen-tuned speakers; Whisper Mode 2.0
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter
+    ios: Supported; Lightning models require adapter, USB-C models depend on video output/accessory
+    android: Supported on compatible USB-C DP devices; non-DP devices may require adapter
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via compatible accessory
+    playstation: Supported via HDMI accessory
+    xbox: Supported via HDMI accessory
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Not disclosed
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://www.rayneo.com/products/rayneo-air-4-pro-ar-smart-glasses
+    - https://www.rayneo.com/pages/tech-specs
+    conflicts:
+    - Official dedicated product headline/spec area lists 46° FOV, while an official comparison table on the same page lists
+      47°. Primary value set to 46°.
+    notes: []
+- schema_type: ai_hud
+  basic:
+    brand: RayNeo
+    model: RayNeo X3 Pro
+    generation: X3 Pro
+    device_type: AI/HUD smart glasses
+    status: Current
+    weight_g: 76±1
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Supported
+  display_optics:
+    display_present: 'Yes'
+    display_technology: Full-color MicroLED
+    optical_system: Binocular diffractive waveguide
+    ocular_mode: Binocular
+    resolution_per_eye: 640×480
+    fov_deg: 30
+    refresh_rate_hz: Not disclosed
+    eye_brightness_nits: 3500 average / 6000 peak
+    contrast_ratio: Not disclosed
+    color: 16.77M colors
+    optical_transmittance: Not disclosed
+  compute:
+    soc: Qualcomm Snapdragon AR1 Gen 1
+    cpu: Not disclosed
+    ram: 4 GB
+    storage: 32 GB
+    os: RayNeo AIOS
+  tracking:
+    native_3dof: 'Yes'
+    native_6dof: Yes in Creator Mode
+    slam: 'Yes'
+    hand_tracking: Not disclosed
+    eye_tracking: Not disclosed
+    sensors: Accelerometer, gyroscope, magnetometer, ambient light, wear detection
+  camera:
+    camera_present: 'Yes'
+    camera_sensor: Sony IMX681 main camera
+    camera_mp: 12 MP
+    photo_resolution: Not disclosed
+    video_resolution_fps: Up to 4K / 3K capture depending mode
+    camera_fov_deg: Not disclosed
+    stabilization: Not disclosed
+    secondary_spatial_camera: Yes; OV spatial camera
+  ai_features:
+    ai_assistant: Gemini Live
+    vision_ai: 'Yes'
+    translation: 14-language real-time translation
+    navigation: 'Yes'
+    teleprompter: 'Yes'
+    transcription: Meeting notes / transcription
+    notifications: Not disclosed
+    other_features: Creator Mode; music; camera
+  audio:
+    speakers: Not disclosed
+    microphones: 3 microphones
+    audio_notes: Not disclosed
+  battery:
+    battery_capacity_mah: 245
+    official_typical_runtime: Not disclosed
+    mode_specific_runtime: Not disclosed
+    charging_time: About 38 min to full
+    charging_case: Not disclosed
+  connectivity:
+    usb: USB-C / USB 2.0
+    wifi: Wi-Fi 6
+    bluetooth: Bluetooth 5.3
+    gps: Not disclosed
+    ios: Not disclosed
+    android: Not disclosed
+    pc_compatibility: Not disclosed
+  developer:
+    sdk: RayNeo ARDK
+    unity: Supported
+    openxr: Not disclosed
+    camera_api: Not disclosed
+    spatial_api: Android ARDK / Unity ARDK; 6DoF + SLAM
+    sideload: Not disclosed
+    firmware_openness: Not disclosed
+  privacy:
+    camera_indicator: Not disclosed
+    camera_indicator_occlusion_detection: Not disclosed
+    physical_camera_cover: 'No'
+    privacy_notes: Not disclosed
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://www.rayneo.com/products/x3-pro-ai-display-glasses
+    conflicts: []
+    notes: []
+- schema_type: display_ar
+  basic:
+    brand: Rokid
+    model: Rokid Max
+    generation: Max
+    device_type: Display AR/XR glasses
+    status: Current / legacy product
+    weight_g: 75
+    dimensions_mm: 174.37×158.71×44.94
+    material: Not disclosed
+    prescription_support: Built-in myopia adjustment; prescription use also possible depending on user
+  display_optics:
+    display_technology: Sony Micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 50
+    refresh_rate_hz: Up to 120
+    eye_brightness_nits: 600
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: 100,000:1
+    color_gamut: 108% sRGB
+    ppd: 45
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: 0 to -6D
+    electrochromic_dimming: 'No'
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: 8-bit / 16.7M colors
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'No'
+    native_6dof: 'No'
+    accessory_3dof: Supported with Rokid Station 2
+    accessory_6dof: 'No'
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: 2 directional speakers
+    microphones: 2 noise-cancelling microphones
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter
+    ios: Supported with appropriate adapter
+    android: Supported on USB-C DP compatible devices
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via compatible adapter/accessory
+    playstation: Supported via HDMI adapter
+    xbox: Supported via HDMI adapter
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Not disclosed
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://max.rokid.com/product/index.html
+    conflicts:
+    - Legacy Rokid product material mentions 3DoF head tracking, while newer Rokid support material clarifies Station 2 is
+      required for 3DoF on Max/Max 2. Normalized as accessory 3DoF rather than native 3DoF.
+    notes: []
+- schema_type: display_ar
+  basic:
+    brand: Rokid
+    model: Rokid Air
+    generation: Air
+    device_type: Display AR/XR glasses
+    status: Legacy / discontinued-era product
+    weight_g: 83
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Built-in myopia adjustment
+  display_optics:
+    display_technology: Micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 43
+    refresh_rate_hz: 60
+    eye_brightness_nits: Not disclosed
+    panel_or_projector_brightness_nits: 1800
+    contrast_ratio: 100,000:1
+    color_gamut: Not disclosed
+    ppd: Not disclosed
+    ipd_mm: Not disclosed
+    myopia_adjustment_d: 0 to -5D
+    electrochromic_dimming: 'No'
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: Not disclosed
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'No'
+    native_6dof: 'No'
+    accessory_3dof: 'No'
+    accessory_6dof: 'No'
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: Enhanced 9-axis sensor; proximity sensor
+  audio:
+    speakers: 2 directional speakers
+    microphones: 2 noise-cancelling microphones
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter
+    ios: Supported via appropriate adapter
+    android: Android 10+ on compatible USB-C DP devices
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via adapter
+    playstation: Supported via adapter
+    xbox: Supported via adapter
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: Not disclosed
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://global.rokid.com/blogs/articles/rokid-air-official-gbatemp-review-by-pranav
+    conflicts: []
+    notes:
+    - 1800 nits is stored as display/projector brightness because official historical material does not establish it as eye/perceived
+      brightness.
+- schema_type: display_ar
+  basic:
+    brand: Rokid
+    model: Rokid AR Lite
+    generation: AR Lite bundle
+    device_type: Display AR/XR bundle (Rokid Max 2 + Station 2)
+    status: Current / bundle
+    weight_g: 75 (glasses only)
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: 'Max 2: built-in 0 to -6D myopia adjustment'
+  display_optics:
+    display_technology: Micro-OLED (Max 2)
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: Up to 1920×1200; default 1920×1080
+    binocular_resolution: Not disclosed
+    fov_deg: 50
+    refresh_rate_hz: 60–120
+    eye_brightness_nits: 600
+    panel_or_projector_brightness_nits: Not disclosed
+    contrast_ratio: 100,000:1
+    color_gamut: 108% sRGB
+    ppd: Not disclosed
+    ipd_mm: Adjustable
+    myopia_adjustment_d: 0 to -6D
+    electrochromic_dimming: 'No'
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: Not disclosed
+  compute:
+    soc: Not disclosed
+    ram: 8 GB (Station 2)
+    storage: 128 GB (Station 2)
+    os: YodaOS-Master (Station 2)
+  tracking:
+    native_3dof: No (glasses alone)
+    native_6dof: 'No'
+    accessory_3dof: Yes with included Station 2
+    accessory_6dof: 'No'
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: 9-axis IMU in Station 2
+  audio:
+    speakers: Not disclosed
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Station 2 has built-in battery
+    battery_capacity_mah: 5000 (Station 2)
+    typical_runtime: Approximately 5 h (Station 2)
+    charging: 18 W
+  connectivity:
+    usb_c_dp: Supported
+    hdmi: Supported via adapter
+    ios: Supported with compatible setup
+    android: Supported / Station 2 is the primary spatial compute source
+    windows: Supported as display source where compatible
+    macos: Supported as display source where compatible
+    nintendo_switch: Supported with compatible setup
+    playstation: Supported with compatible setup
+    xbox: Supported with compatible setup
+    wifi: Wi-Fi 6 (Station 2)
+    bluetooth: Bluetooth 5.2 (Station 2)
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: 3DoF spatial modes through Station 2
+    sideload: Not disclosed
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://global.rokid.com/blogs/max-2/what-comes-with-the-rokid-ar-lite
+    - https://global.rokid.com/products/rokid-station-2
+    conflicts: []
+    notes:
+    - AR Lite must be represented as a bundle, not as a single pair of glasses. Do not attribute Station 2 compute/battery
+      specs to the glasses themselves.
+- schema_type: ai_hud
+  basic:
+    brand: Rokid
+    model: Rokid Glasses
+    generation: Rokid Glasses
+    device_type: AI/HUD smart glasses
+    status: Current
+    weight_g: 49
+    dimensions_mm: 143×44×160.5
+    material: Not disclosed
+    prescription_support: Supported
+  display_optics:
+    display_present: 'Yes'
+    display_technology: Green MicroLED
+    optical_system: Single-engine dual-output diffractive waveguide
+    ocular_mode: Binocular
+    resolution_per_eye: 480×400
+    fov_deg: 30
+    refresh_rate_hz: Not disclosed
+    eye_brightness_nits: 1500
+    contrast_ratio: Not disclosed
+    color: Green monochrome
+    optical_transmittance: Not disclosed
+  compute:
+    soc: Qualcomm Snapdragon AR1 Gen 1 + NXP RT600
+    cpu: Not disclosed
+    ram: 2 GB
+    storage: 32 GB
+    os: Not disclosed
+  tracking:
+    native_3dof: Not disclosed
+    native_6dof: Not disclosed
+    slam: Not disclosed
+    hand_tracking: Not disclosed
+    eye_tracking: Not disclosed
+    sensors: Not disclosed
+  camera:
+    camera_present: 'Yes'
+    camera_sensor: Sony IMX681
+    camera_mp: 12 MP
+    photo_resolution: 3024×4032
+    video_resolution_fps: Up to 3K @ 30 fps
+    camera_fov_deg: 109
+    stabilization: Not disclosed
+    secondary_spatial_camera: 'No'
+  ai_features:
+    ai_assistant: ChatGPT / Qwen and region-dependent AI services
+    vision_ai: 'Yes'
+    translation: Up to 89 languages
+    navigation: 'Yes'
+    teleprompter: 'Yes'
+    transcription: Meeting transcription
+    notifications: Not disclosed
+    other_features: Not disclosed
+  audio:
+    speakers: 2 directional / open-ear speakers
+    microphones: 4 microphones
+    audio_notes: Not disclosed
+  battery:
+    battery_capacity_mah: 210
+    official_typical_runtime: Not disclosed
+    mode_specific_runtime: Not disclosed
+    charging_time: About 20 min to 80%
+    charging_case: Official materials indicate multiple recharges; current product materials have stated up to about 10 full
+      charges
+  connectivity:
+    usb: Magnetic charging / data interface as specified by accessory ecosystem
+    wifi: Wi-Fi 6
+    bluetooth: Bluetooth 5.3
+    gps: Not disclosed
+    ios: Supported via companion ecosystem
+    android: Supported via companion ecosystem
+    pc_compatibility: Not disclosed
+  developer:
+    sdk: Rokid SDK
+    unity: Not disclosed
+    openxr: Not disclosed
+    camera_api: Not disclosed
+    spatial_api: Not disclosed
+    sideload: Not disclosed
+    firmware_openness: Not disclosed
+  privacy:
+    camera_indicator: Yes; RGB status indicator
+    camera_indicator_occlusion_detection: Yes; P-sensor / indicator anti-occlusion mechanism
+    physical_camera_cover: 'No'
+    privacy_notes: IPX4 product protection rating is publicly listed.
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://global.rokid.com/products/rokid-glasses
+    - https://global.rokid.com/blogs/academy-glasses/glasses-1-1-overview
+    - https://global.rokid.com/pages/faq
+    conflicts:
+    - Current official Rokid product page lists 480×400, while the August 2026 official Academy and official FAQ list 480×640
+      per eye. Primary value set to 480×400 because the live product specification page is the direct product source; preserve
+      480×640 as an official-source conflict.
+    notes: []
+- schema_type: display_ar
+  basic:
+    brand: VITURE
+    model: VITURE Pro
+    generation: Pro
+    device_type: Display AR/XR glasses
+    status: Current / legacy Pro model
+    weight_g: 77
+    dimensions_mm: Not disclosed
+    material: Aircraft-grade aluminum body + titanium hinges
+    prescription_support: Supported via prescription frame / built-in diopter adjustment
+  display_optics:
+    display_technology: Micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 46
+    refresh_rate_hz: 120 / 90 / 60
+    eye_brightness_nits: 1000
+    panel_or_projector_brightness_nits: 4000
+    contrast_ratio: 100,000:1
+    color_gamut: 108% sRGB
+    ppd: 49
+    ipd_mm: 56.5–70.5
+    myopia_adjustment_d: 0 to -5D
+    electrochromic_dimming: Yes; electrochromic transmittance about 0.5–40%, haze <1%, ~0.1 s
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: Not disclosed
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'Yes'
+    native_6dof: 'No'
+    accessory_3dof: Not disclosed
+    accessory_6dof: Not disclosed
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: Built-in spatial/open-ear speakers
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported (connector/cable architecture varies by model)
+    hdmi: Supported via adapter/dock
+    ios: Supported with appropriate VITURE adapter/accessory
+    android: Supported on compatible video-output devices
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via appropriate accessory
+    playstation: Supported via HDMI accessory
+    xbox: Supported via HDMI accessory
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: VITURE XR Glasses SDK
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: 3DoF head tracking supported by official VITURE XR Glasses SDK
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://academy.viture.com/th-th/xr_glasses/introduction
+    - https://academy.viture.com/xr_glasses/introduction
+    - https://www.viture.com/en-SG/developer/glasses-sdk/glasses
+    conflicts: []
+    notes:
+    - For VITURE Pro, 4000 nits is projector brightness and 1000 nits is perceived/eye brightness. For VITURE One/One Lite,
+      1800 nits is stored only as projector/display-engine brightness; perceived eye brightness remains Not disclosed.
+    - Official VITURE XR Glasses SDK currently lists VITURE One, VITURE Lite and VITURE Pro as 3DoF head-tracking hardware.
+- schema_type: display_ar
+  basic:
+    brand: VITURE
+    model: VITURE One
+    generation: One
+    device_type: Display AR/XR glasses
+    status: Legacy / current support
+    weight_g: 78
+    dimensions_mm: 163×47.7×53.7 (VITURE One folded)
+    material: Not disclosed
+    prescription_support: Supported via prescription frame / built-in diopter adjustment
+  display_optics:
+    display_technology: Micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 43
+    refresh_rate_hz: 60
+    eye_brightness_nits: Not disclosed
+    panel_or_projector_brightness_nits: 1800
+    contrast_ratio: 50,000:1
+    color_gamut: 129% sRGB
+    ppd: 55
+    ipd_mm: 57.5–69.5
+    myopia_adjustment_d: 0 to -5D
+    electrochromic_dimming: Yes; electrochromic transmittance about 3–40%, haze <3%, ~0.3 s
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: Not disclosed
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'Yes'
+    native_6dof: 'No'
+    accessory_3dof: Not disclosed
+    accessory_6dof: Not disclosed
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: Built-in spatial/open-ear speakers
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported (connector/cable architecture varies by model)
+    hdmi: Supported via adapter/dock
+    ios: Supported with appropriate VITURE adapter/accessory
+    android: Supported on compatible video-output devices
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via appropriate accessory
+    playstation: Supported via HDMI accessory
+    xbox: Supported via HDMI accessory
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: VITURE XR Glasses SDK
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: 3DoF head tracking supported by official VITURE XR Glasses SDK
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://academy.viture.com/th-th/xr_glasses/introduction
+    - https://academy.viture.com/xr_glasses/introduction
+    - https://www.viture.com/en-SG/developer/glasses-sdk/glasses
+    conflicts:
+    - Recent VITURE Academy lists 50,000:1 contrast; older official/brand-hosted material has shown lower figures. Primary
+      value set to the newer Academy value.
+    notes:
+    - For VITURE Pro, 4000 nits is projector brightness and 1000 nits is perceived/eye brightness. For VITURE One/One Lite,
+      1800 nits is stored only as projector/display-engine brightness; perceived eye brightness remains Not disclosed.
+    - Official VITURE XR Glasses SDK currently lists VITURE One, VITURE Lite and VITURE Pro as 3DoF head-tracking hardware.
+- schema_type: display_ar
+  basic:
+    brand: VITURE
+    model: VITURE One Lite
+    generation: One Lite
+    device_type: Display AR/XR glasses
+    status: Legacy / current support
+    weight_g: 76
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Supported via prescription frame / built-in diopter adjustment
+  display_optics:
+    display_technology: Micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Binocular
+    resolution_per_eye: 1920×1080
+    binocular_resolution: 3840×1080
+    fov_deg: 43
+    refresh_rate_hz: 60
+    eye_brightness_nits: Not disclosed
+    panel_or_projector_brightness_nits: 1800
+    contrast_ratio: 50,000:1
+    color_gamut: 129% sRGB
+    ppd: 55
+    ipd_mm: 57.5–69.5
+    myopia_adjustment_d: 0 to -5D
+    electrochromic_dimming: No; fixed transmittance about 23%
+    optical_transmittance: Not disclosed
+    eye_box_mm: Not disclosed
+    color_accuracy: Not disclosed
+  compute:
+    soc: Not applicable
+    ram: Not applicable
+    storage: Not applicable
+    os: Not applicable
+  tracking:
+    native_3dof: 'Yes'
+    native_6dof: 'No'
+    accessory_3dof: Not disclosed
+    accessory_6dof: Not disclosed
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    environment_sensors: IMU
+  audio:
+    speakers: Built-in spatial/open-ear speakers
+    microphones: Not disclosed
+    audio_notes: Not disclosed
+  power:
+    built_in_battery: Not applicable
+    battery_capacity_mah: Not applicable
+    typical_runtime: Not applicable
+    charging: Not applicable
+  connectivity:
+    usb_c_dp: Supported (connector/cable architecture varies by model)
+    hdmi: Supported via adapter/dock
+    ios: Supported with appropriate VITURE adapter/accessory
+    android: Supported on compatible video-output devices
+    windows: Supported
+    macos: Supported
+    nintendo_switch: Supported via appropriate accessory
+    playstation: Supported via HDMI accessory
+    xbox: Supported via HDMI accessory
+    wifi: Not applicable
+    bluetooth: Not applicable
+  developer:
+    sdk: VITURE XR Glasses SDK
+    unity: Not disclosed
+    openxr: Not disclosed
+    ar_foundation: Not disclosed
+    camera_api: Not applicable
+    spatial_api: 3DoF head tracking supported by official VITURE XR Glasses SDK
+    sideload: Not applicable
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://academy.viture.com/th-th/xr_glasses/introduction
+    - https://academy.viture.com/xr_glasses/introduction
+    - https://www.viture.com/en-SG/developer/glasses-sdk/glasses
+    conflicts:
+    - Recent VITURE Academy lists 76 g; an older official store listing has shown 78 g. Primary value set to 76 g.
+    notes:
+    - For VITURE Pro, 4000 nits is projector brightness and 1000 nits is perceived/eye brightness. For VITURE One/One Lite,
+      1800 nits is stored only as projector/display-engine brightness; perceived eye brightness remains Not disclosed.
+    - Official VITURE XR Glasses SDK currently lists VITURE One, VITURE Lite and VITURE Pro as 3DoF head-tracking hardware.
+- schema_type: ai_hud
+  basic:
+    brand: INMO
+    model: INMO Air 2
+    generation: Air 2
+    device_type: AI/HUD smart glasses
+    status: Legacy / current support varies by region
+    weight_g: 99
+    dimensions_mm: Not disclosed
+    material: PC+ABS (official regulatory manual)
+    prescription_support: Supported
+  display_optics:
+    display_present: 'Yes'
+    display_technology: Binocular full-color Micro-OLED
+    optical_system: Reflective waveguide
+    ocular_mode: Binocular
+    resolution_per_eye: 640×400
+    fov_deg: 26
+    refresh_rate_hz: 60
+    eye_brightness_nits: Not disclosed
+    contrast_ratio: 20,000:1
+    color: Full color
+    optical_transmittance: Up to 85%
+  compute:
+    soc: Unisoc / Ziguang Zhanrui W517-class AI chip
+    cpu: Quad-core up to 1.8 GHz
+    ram: 2 GB
+    storage: 32 GB
+    os: IMOS 2.0 (Android-based; official regulatory manual lists Android 9 base)
+  tracking:
+    native_3dof: Not disclosed
+    native_6dof: Not disclosed
+    slam: 'Yes'
+    hand_tracking: Not disclosed
+    eye_tracking: Not disclosed
+    sensors: Accelerometer, gyroscope, magnetometer, global-shutter tracking sensor
+  camera:
+    camera_present: 'Yes'
+    camera_sensor: Not disclosed
+    camera_mp: 8 MP (medium-confidence secondary corroboration)
+    photo_resolution: Not disclosed
+    video_resolution_fps: 1080p @ 30 fps (medium-confidence secondary corroboration)
+    camera_fov_deg: Not disclosed
+    stabilization: Not disclosed
+    secondary_spatial_camera: Second front-facing camera / tracking camera present
+  ai_features:
+    ai_assistant: INMO GPT / OpenAI integration
+    vision_ai: 'Yes'
+    translation: 'Yes'
+    navigation: 'Yes'
+    teleprompter: 'Yes'
+    transcription: Meeting features supported
+    notifications: Not disclosed
+    other_features: Not disclosed
+  audio:
+    speakers: 2 speakers
+    microphones: 2 microphones
+    audio_notes: Not disclosed
+  battery:
+    battery_capacity_mah: 500
+    official_typical_runtime: Not disclosed
+    mode_specific_runtime: Not disclosed
+    charging_time: Not disclosed
+    charging_case: Not applicable
+  connectivity:
+    usb: Pogo-pin / proprietary charging-data connection
+    wifi: 2.4 GHz / 5 GHz Wi-Fi
+    bluetooth: Bluetooth 5.0
+    gps: Not disclosed
+    ios: Not disclosed
+    android: Android-based standalone system with companion connectivity
+    pc_compatibility: Not disclosed
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    camera_api: Not disclosed
+    spatial_api: SLAM capabilities
+    sideload: Not disclosed
+    firmware_openness: Not disclosed
+  privacy:
+    camera_indicator: Not disclosed
+    camera_indicator_occlusion_detection: Not disclosed
+    physical_camera_cover: 'No'
+    privacy_notes: Not disclosed
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: Medium-High
+    source_urls:
+    - https://www.inmoxr.com/pages/inmo-air2
+    - https://fcc.report/FCC-ID/2A62QIMA02/6647192.pdf
+    - https://www.hkmu.edu.hk/st/computing/fyp/subtitle-glasses/
+    - https://pmc.ncbi.nlm.nih.gov/articles/PMC13367897/
+    conflicts:
+    - Official FCC manual lists approximately 99 g; some third-party sources list 79 g. Primary value set to 99 g because
+      the regulatory manual is authoritative.
+    notes:
+    - Official FCC manual directly supports approximately 99 g, 500 mAh, 2 GB RAM, W517-class processor, dual-band Wi-Fi,
+      Bluetooth 5.0, Android 9 base, audio counts and sensor classes.
+    - Current INMO product material supports IMOS 2.0, 26° FOV, reflective waveguide, up to 85% transmittance, SLAM and AI
+      features.
+    - 640×400 resolution and 32 GB storage are corroborated by academic/public technical sources. Do not label them as current-official
+      product-page disclosures.
+    - Do not equate the INMO Ring controller's 3DoF mode with native glasses positional tracking.
+- schema_type: ai_hud
+  basic:
+    brand: INMO
+    model: INMO GO3
+    generation: GO3
+    device_type: AI/HUD smart glasses
+    status: Current
+    weight_g: 58
+    dimensions_mm: Not disclosed
+    material: Aluminum alloy + PA
+    prescription_support: Supported
+  display_optics:
+    display_present: 'Yes'
+    display_technology: Green MicroLED
+    optical_system: Binocular diffractive waveguide
+    ocular_mode: Binocular
+    resolution_per_eye: 640×480
+    fov_deg: 30
+    refresh_rate_hz: Not disclosed
+    eye_brightness_nits: 1500
+    contrast_ratio: Not disclosed
+    color: Green monochrome
+    optical_transmittance: Not disclosed
+  compute:
+    soc: Not disclosed
+    cpu: Dual-core CPU
+    ram: 256 MB
+    storage: 64 GB
+    os: RTOS
+  tracking:
+    native_3dof: Not disclosed
+    native_6dof: Not disclosed
+    slam: Not disclosed
+    hand_tracking: Not disclosed
+    eye_tracking: Not disclosed
+    sensors: Not disclosed
+  camera:
+    camera_present: 'Yes'
+    camera_sensor: Not disclosed
+    camera_mp: 8 MP
+    photo_resolution: Not disclosed
+    video_resolution_fps: 720p @ 30 fps
+    camera_fov_deg: 120
+    stabilization: EIS
+    secondary_spatial_camera: 'No'
+  ai_features:
+    ai_assistant: Not disclosed
+    vision_ai: 'Yes'
+    translation: 98 target languages online; 9 offline
+    navigation: HERE Maps
+    teleprompter: 'Yes'
+    transcription: Meeting / transcription features
+    notifications: Not disclosed
+    other_features: Touch, button, ring, app and voice controls
+  audio:
+    speakers: 2 speakers
+    microphones: 4 microphones
+    audio_notes: Not disclosed
+  battery:
+    battery_capacity_mah: 270 × 2 swappable batteries
+    official_typical_runtime: Up to 8+ h standby
+    mode_specific_runtime: Translation up to 3 h; teleprompter up to 3.3 h; music/calls up to 4.5 h
+    charging_time: Not disclosed
+    charging_case: 1300 mAh; approximately 3–4 full charges
+  connectivity:
+    usb: Not disclosed
+    wifi: Not disclosed
+    bluetooth: Not disclosed
+    gps: Navigation via HERE Maps / phone ecosystem
+    ios: Supported
+    android: Supported
+    pc_compatibility: Not disclosed
+  developer:
+    sdk: Not disclosed
+    unity: Not disclosed
+    openxr: Not disclosed
+    camera_api: Not disclosed
+    spatial_api: Not disclosed
+    sideload: Not disclosed
+    firmware_openness: Not disclosed
+  privacy:
+    camera_indicator: Not disclosed
+    camera_indicator_occlusion_detection: Not disclosed
+    physical_camera_cover: 'Yes'
+    privacy_notes: Not disclosed
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://www.inmo.com/pages/inmo-go3-ai-glasses
+    conflicts: []
+    notes: []
+- schema_type: ai_hud
+  basic:
+    brand: Ray-Ban / Meta
+    model: Ray-Ban Meta
+    generation: Gen 2
+    device_type: AI/HUD smart glasses
+    status: Current
+    weight_g: ~53 (varies by frame/SKU)
+    dimensions_mm: Varies by frame/SKU
+    material: Varies by frame/SKU
+    prescription_support: Supported on eligible frames
+  display_optics:
+    display_present: 'No'
+    display_technology: Not applicable
+    optical_system: Not applicable
+    ocular_mode: Not applicable
+    resolution_per_eye: Not applicable
+    fov_deg: Not applicable
+    refresh_rate_hz: Not applicable
+    eye_brightness_nits: Not applicable
+    contrast_ratio: Not applicable
+    color: Not applicable
+    optical_transmittance: Not applicable
+  compute:
+    soc: Qualcomm Snapdragon AR1 Gen 1
+    cpu: Not disclosed
+    ram: Not disclosed
+    storage: 32 GB
+    os: Embedded Meta smart-glasses firmware / no public standalone OS name
+  tracking:
+    native_3dof: Not applicable
+    native_6dof: Not applicable
+    slam: Not applicable
+    hand_tracking: Not applicable
+    eye_tracking: Not applicable
+    sensors: Not disclosed
+  camera:
+    camera_present: 'Yes'
+    camera_sensor: Not disclosed
+    camera_mp: 12 MP ultrawide
+    photo_resolution: 3024×4032
+    video_resolution_fps: Up to 3K @ 30 fps; 1080p modes available up to 60 fps depending SKU/mode
+    camera_fov_deg: Not disclosed
+    stabilization: Not disclosed
+    secondary_spatial_camera: 'No'
+  ai_features:
+    ai_assistant: Meta AI
+    vision_ai: 'Yes'
+    translation: Yes, market/language availability varies
+    navigation: No visual HUD navigation; voice/location assistance availability varies
+    teleprompter: Not applicable
+    transcription: Not disclosed
+    notifications: Audio/voice notifications through companion ecosystem
+    other_features: Live AI availability varies by market
+  audio:
+    speakers: 2 open-ear speakers
+    microphones: Custom 5-microphone array (Wayfarer Gen 2 SKU; microphone count can vary by Gen 2 style/SKU)
+    audio_notes: Not disclosed
+  battery:
+    battery_capacity_mah: Not disclosed
+    official_typical_runtime: Up to 8 h claimed
+    mode_specific_runtime: Continuous audio up to ~5 h; calls up to ~5.5 h (official SKU-dependent figures)
+    charging_time: Not disclosed
+    charging_case: Up to +48 h claimed
+  connectivity:
+    usb: Charging case / accessory-based charging
+    wifi: Wi-Fi 6E (current Wayfarer Gen 2 SKU; some other Gen 2 styles/pages list Wi-Fi 6)
+    bluetooth: Bluetooth 5.3
+    gps: Phone-assisted
+    ios: iOS 14.4 minimum on current Wayfarer Gen 2 SKU
+    android: Android 10 minimum on current Wayfarer Gen 2 SKU
+    pc_compatibility: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not applicable
+    openxr: Not applicable
+    camera_api: Not disclosed
+    spatial_api: Not applicable
+    sideload: Not applicable
+    firmware_openness: Closed consumer firmware
+  privacy:
+    camera_indicator: Yes; external capture LED
+    camera_indicator_occlusion_detection: Not disclosed
+    physical_camera_cover: 'No'
+    privacy_notes: IPX4 water resistance is listed for current product.
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://www.ray-ban.com/usa/electronics/RW4012ray-ban%20%7C%20meta%20wayfarer%20-%20gen%202-black/8056262721414
+    - https://www.meta.com/ai-glasses/camera-capture-photo-video/
+    - https://www.meta.com/au/ai-glasses/prescription-lenses/
+    conflicts:
+    - Ray-Ban Meta Gen 2 is a family of frame/SKU variants. Current Wayfarer Gen 2 pages list a custom 5-microphone array
+      and Wi-Fi 6E, while some other Gen 2 styles/official Meta pages expose different microphone/Wi-Fi wording. Treat frame/SKU-specific
+      values as variant-sensitive rather than a universal family constant.
+    notes:
+    - The database should explicitly store Generation. If the existing generic Ray-Ban Meta record is actually Gen 1, Codex
+      must not silently convert it to Gen 2; preserve identity and report the mismatch. Weight varies by frame/SKU.
+- schema_type: ai_hud
+  basic:
+    brand: Brilliant Labs
+    model: Frame
+    generation: Frame
+    device_type: AI/HUD smart glasses
+    status: Current / developer-oriented
+    weight_g: Not disclosed
+    dimensions_mm: Not disclosed
+    material: Not disclosed
+    prescription_support: Optional prescription lenses
+  display_optics:
+    display_present: 'Yes'
+    display_technology: 0.23-inch color micro-OLED
+    optical_system: Not disclosed
+    ocular_mode: Monocular display architecture
+    resolution_per_eye: 640×400
+    fov_deg: 20
+    refresh_rate_hz: Not disclosed
+    eye_brightness_nits: Not disclosed
+    contrast_ratio: Not disclosed
+    color: 255 possible colors; max 16 per frame
+    optical_transmittance: Not disclosed
+  compute:
+    soc: Nordic nRF52840 MCU + Lattice CrossLink-NX FPGA
+    cpu: Cortex-M4F @ 64 MHz
+    ram: 256 KB
+    storage: 1 MB MCU flash
+    os: Lua-based / open customizable firmware
+  tracking:
+    native_3dof: Not disclosed
+    native_6dof: 'No'
+    slam: 'No'
+    hand_tracking: 'No'
+    eye_tracking: 'No'
+    sensors: 3-axis accelerometer + 3-axis e-compass
+  camera:
+    camera_present: 'Yes'
+    camera_sensor: OV09734
+    camera_mp: Not disclosed
+    photo_resolution: Raw sensor 1280×720; API capture up to 720×720 crop
+    video_resolution_fps: 720p-class low-power camera; exact consumer video mode Not disclosed
+    camera_fov_deg: Not disclosed
+    stabilization: Not disclosed
+    secondary_spatial_camera: 'No'
+  ai_features:
+    ai_assistant: Noa / developer-configurable AI experiences
+    vision_ai: Supported through camera + connected/cloud AI workflows
+    translation: App/developer dependent
+    navigation: App/developer dependent
+    teleprompter: App/developer dependent
+    transcription: App/developer dependent
+    notifications: App/developer dependent
+    other_features: Highly programmable developer platform
+  audio:
+    speakers: Not applicable
+    microphones: 1 × ICS-41351 microphone
+    audio_notes: No speaker is listed in the official hardware manual.
+  battery:
+    battery_capacity_mah: 210 total (2 × 105 mAh)
+    official_typical_runtime: Not disclosed
+    mode_specific_runtime: Not disclosed
+    charging_time: Frame + charging cradle approximately 2 h
+    charging_case: Charging cradle 140 mAh
+  connectivity:
+    usb: Charging cradle interface
+    wifi: Not applicable
+    bluetooth: Bluetooth 5.3
+    gps: Not applicable
+    ios: Companion/app dependent
+    android: Companion/app dependent
+    pc_compatibility: Developer tools via SDK/workflow
+  developer:
+    sdk: Frame SDK
+    unity: Not disclosed
+    openxr: Not applicable
+    camera_api: 'Yes'
+    spatial_api: Motion sensor API; no 6DoF spatial mapping
+    sideload: Developer-custom firmware/apps supported
+    firmware_openness: Open-source / customizable
+  privacy:
+    camera_indicator: Not disclosed
+    camera_indicator_occlusion_detection: Not disclosed
+    physical_camera_cover: 'No'
+    privacy_notes: Not disclosed
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://docs.brilliant.xyz/frame/hardware/
+    conflicts: []
+    notes: []
+- schema_type: ai_hud
+  basic:
+    brand: Even Realities
+    model: G1
+    generation: G1
+    device_type: AI/HUD smart glasses
+    status: Current
+    weight_g: Not disclosed
+    dimensions_mm: Hinge-to-hinge 134 mm; lens height 41.8 mm; bridge 23 mm; temple 139.2 mm
+    material: Not disclosed
+    prescription_support: Supported
+  display_optics:
+    display_present: 'Yes'
+    display_technology: MicroLED
+    optical_system: Waveguide
+    ocular_mode: Binocular
+    resolution_per_eye: 640×200
+    fov_deg: 25
+    refresh_rate_hz: 20
+    eye_brightness_nits: 1000
+    contrast_ratio: Not disclosed
+    color: Green monochrome
+    optical_transmittance: 98%
+  compute:
+    soc: Not disclosed
+    cpu: Not disclosed
+    ram: Not disclosed
+    storage: Not disclosed
+    os: Companion-linked embedded firmware
+  tracking:
+    native_3dof: Not disclosed
+    native_6dof: Not applicable
+    slam: Not applicable
+    hand_tracking: Not applicable
+    eye_tracking: Not applicable
+    sensors: Auto-brightness / ambient sensing; other sensors Not disclosed
+  camera:
+    camera_present: 'No'
+    camera_sensor: Not applicable
+    camera_mp: Not applicable
+    photo_resolution: Not applicable
+    video_resolution_fps: Not applicable
+    camera_fov_deg: Not applicable
+    stabilization: Not applicable
+    secondary_spatial_camera: Not applicable
+  ai_features:
+    ai_assistant: Even AI
+    vision_ai: Not applicable
+    translation: 'Yes'
+    navigation: 'Yes'
+    teleprompter: 'Yes'
+    transcription: 'Yes'
+    notifications: 'Yes'
+    other_features: QuickNote; Dashboard
+  audio:
+    speakers: Not applicable
+    microphones: 2 microphones
+    audio_notes: No speaker/audio output is listed in the official hardware specifications.
+  battery:
+    battery_capacity_mah: Not disclosed
+    official_typical_runtime: Up to 1.5 days
+    mode_specific_runtime: Not disclosed
+    charging_time: Approximately 2–3 h
+    charging_case: Approximately 2.5 additional charges
+  connectivity:
+    usb: Not applicable
+    wifi: Not applicable
+    bluetooth: BLE 5.2
+    gps: Phone-assisted navigation
+    ios: Supported
+    android: Supported
+    pc_compatibility: Not applicable
+  developer:
+    sdk: Not disclosed
+    unity: Not applicable
+    openxr: Not applicable
+    camera_api: Not applicable
+    spatial_api: Not applicable
+    sideload: Not disclosed
+    firmware_openness: Closed consumer firmware
+  privacy:
+    camera_indicator: Not applicable
+    camera_indicator_occlusion_detection: Not applicable
+    physical_camera_cover: Not applicable
+    privacy_notes: Camera-free design; official materials describe splash/light-rain resistance but do not consistently provide
+      a numeric IP rating.
+  evidence:
+    verified_at: '2026-09-05'
+    region: Global
+    overall_confidence: High
+    source_urls:
+    - https://www.evenrealities.com/g1
+    - https://support.evenrealities.com/hc/en-us/categories/10003390994321-G1
+    conflicts: []
+    notes: []

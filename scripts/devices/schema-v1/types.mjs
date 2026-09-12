@@ -4,8 +4,8 @@ export const DEVICE_SPEC_VALUE_TYPES = Object.freeze(["number", "boolean", "text
 export const DEVICE_SPEC_COMPARISON_MODES = Object.freeze(["higher", "lower", "equal_only", "none"]);
 
 /** @typedef {{ code: string, deviceKey: string, path: string, detail: string }} Blocker */
-/** @typedef {{ devices: unknown[] }} ApprovedCatalog */
-/** @typedef {{ devices: NormalizedDevice[] }} NormalizedCatalog */
+/** @typedef {{ devices: unknown[], device_count?: number, brand_count?: number }} ApprovedCatalog */
+/** @typedef {{ devices: NormalizedDevice[], blockers?: Blocker[] }} NormalizedCatalog */
 /** @typedef {{ schemaType: "display_ar" | "ai_hud", specs: NormalizedSpec[], evidence?: object }} NormalizedDevice */
 /** @typedef {{ path: string, value?: unknown, valueType?: "number" | "boolean" | "text" | "json", canonicalUnit?: string | null, measurementContext?: string | null, comparisonMode?: "higher" | "lower" | "equal_only" | "none", requireSameContext?: boolean, isCore?: boolean, adminOrder?: number, helpText?: string | null, label?: string, definition?: object }} NormalizedSpec */
 /** @typedef {{ key: string, groupKey: string, label: string, helpText: string | null, valueType: "number" | "boolean" | "text" | "json", canonicalUnit: string | null, measurementContext: string | null, comparisonMode: "higher" | "lower" | "equal_only" | "none", requireSameContext: boolean, applicableSchemaTypes: string[], isCore: boolean, adminOrder: number, isActive: boolean }} DeviceSpecDefinition */
