@@ -7,6 +7,7 @@ const ROOT_KEYS = new Set([
   "display_ar_schema_keys", "ai_hud_schema_keys", "devices",
 ]);
 const EVIDENCE_KEYS = new Set(["verified_at", "region", "overall_confidence", "source_urls", "conflicts", "notes"]);
+const APPROVED_VERIFIED_AT = "2026-09-05";
 
 function assertPlainObject(value, description) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`${description} must be an object`);
@@ -40,6 +41,9 @@ function validateDevice(device, catalog, index) {
 
   const evidence = device.evidence;
   assertExactKeys(evidence, EVIDENCE_KEYS, `devices[${index}].evidence`);
+  if (evidence.verified_at !== APPROVED_VERIFIED_AT) {
+    throw new TypeError(`devices[${index}].evidence.verified_at must equal ${APPROVED_VERIFIED_AT}`);
+  }
   for (const key of ["verified_at", "region", "overall_confidence"]) {
     if (typeof evidence[key] !== "string") throw new TypeError(`devices[${index}].evidence.${key} must be a string`);
   }
@@ -62,6 +66,7 @@ export async function loadApprovedDeviceYaml(sourcePath) {
   if (document.errors.length > 0) throw new TypeError(`Approved YAML parse failed: ${document.errors[0].message}`);
   const catalog = document.toJS();
   assertExactKeys(catalog, ROOT_KEYS, "approved catalog");
+  if (catalog.verified_at !== APPROVED_VERIFIED_AT) throw new TypeError(`approved catalog verified_at must equal ${APPROVED_VERIFIED_AT}`);
   if (!Array.isArray(catalog.devices)) throw new TypeError("approved catalog devices must be an array");
   if (!Array.isArray(catalog.normalization_rules) || catalog.normalization_rules.some((value) => typeof value !== "string")) {
     throw new TypeError("approved catalog normalization_rules must be an array of strings");

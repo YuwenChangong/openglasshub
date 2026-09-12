@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadApprovedDeviceYaml } from "./devices/schema-v1/yaml-input.mjs";
@@ -7,6 +9,27 @@ import { normalizeCatalogYaml } from "./devices/schema-v1/normalize.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const yamlPath = path.join(root, "src/data/devices/openglasshub_device_data_v1.yaml");
 const catalog = await loadApprovedDeviceYaml(yamlPath);
+
+async function assertRejectedCatalog(source, expectedError) {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "openglass-schema-v1-"));
+  const fixturePath = path.join(directory, "catalog.yaml");
+  try {
+    await writeFile(fixturePath, source, "utf8");
+    await assert.rejects(() => loadApprovedDeviceYaml(fixturePath), expectedError);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+const approvedYaml = await readFile(yamlPath, "utf8");
+await assertRejectedCatalog(
+  approvedYaml.replace("verified_at: '2026-09-05'\ndevice_count", "verified_at: '2026-09-06'\ndevice_count"),
+  /approved catalog verified_at must equal 2026-09-05/,
+);
+await assertRejectedCatalog(
+  approvedYaml.replace(/(devices:\n- [\s\S]*?evidence:\n    verified_at: )'2026-09-05'/, "$1'2026-09-06'"),
+  /devices\[0\]\.evidence\.verified_at must equal 2026-09-05/,
+);
 
 assert.equal(catalog.device_count, 24);
 assert.equal(catalog.brand_count, 8);
