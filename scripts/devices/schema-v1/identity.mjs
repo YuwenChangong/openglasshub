@@ -5,6 +5,7 @@ const RAY_BAN = {
 };
 
 const RAY_BAN_INDETERMINATE_DETAIL = "CURRENT_RAY_BAN_BOOTSTRAP_SLUG=ray-ban-meta; CURRENT_RAY_BAN_BOOTSTRAP_GENERATION=UNSPECIFIED; CURRENT_RAY_BAN_BOOTSTRAP_IDENTITY_CONFIDENCE=INSUFFICIENT_FOR_GEN_2";
+const OPERATOR_APPROVED_GEN2 = "OPERATOR_APPROVED_GEN2";
 
 function normalizedText(value) {
   if (typeof value !== "string" || value.trim() === "") throw new TypeError("Identity values must be nonempty strings");
@@ -78,11 +79,21 @@ export function resolveIdentityMappings({ yamlDevices, bootstrapRows, mappings }
 
   return yamlIdentities.map((identity) => {
     if (sameIdentity(identity, RAY_BAN)) {
+      const candidates = mappingsByIdentity.get(identityKey(identity)) ?? [];
+      const operatorResolution = candidates.length === 1
+        && candidates[0].slug === "ray-ban-meta"
+        && candidates[0].resolution === OPERATOR_APPROVED_GEN2;
       const explicitGenerations = bootstrapRows
         .filter((row) => row?.slug === "ray-ban-meta" && typeof row.generation === "string")
         .map((row) => normalizedText(row.generation));
       if (explicitGenerations.some((generation) => generation === "generic" || generation === "gen 1")) {
         return blocker(identity, "BLOCKED_IDENTITY_MISMATCH", "ray-ban-meta is explicitly generic or Gen 1 and must never be updated as Gen 2");
+      }
+      if (operatorResolution) {
+        const targets = bootstrapRows.filter((row) => row?.slug === "ray-ban-meta");
+        if (targets.length === 0) return { ...blocker(identity, "BLOCKED_IDENTITY_NOT_FOUND", "Reviewed target slug is absent from bootstrap: ray-ban-meta"), slug: "ray-ban-meta" };
+        if (targets.length > 1) return { ...blocker(identity, "BLOCKED_IDENTITY_MULTIPLE_MATCHES", `Reviewed target slug has ${targets.length} bootstrap rows: ray-ban-meta`), slug: "ray-ban-meta" };
+        return { ...identity, slug: "ray-ban-meta", identityStatus: OPERATOR_APPROVED_GEN2 };
       }
       return blocker(identity, "RAY_BAN_IDENTITY_INDETERMINATE", RAY_BAN_INDETERMINATE_DETAIL);
     }

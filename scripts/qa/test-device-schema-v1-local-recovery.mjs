@@ -112,6 +112,6 @@ assert.equal(dryRun.status, 0, `the full approved catalog dry run reports a plan
 const dryRunPlan = JSON.parse(dryRun.stdout);
 assert.equal(dryRunPlan.mode, "dry-run");
 assert.equal(dryRunPlan.delete, "NONE");
-assert.ok(dryRunPlan.blocked > 0, "the preserved Release B blocker is reported in the dry-run plan");
+assert.ok(dryRunPlan.blocked > 0, "unresolved evidence mappings preserve the Release B block before a local transaction can begin");
 
 console.log("DEVICE_SCHEMA_V1_LOCAL_RECOVERY_OK cases=5 rollback_entities=6");

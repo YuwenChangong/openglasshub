@@ -45,14 +45,15 @@ const expectedMappings = [
   ["VITURE", "VITURE One Lite", "One Lite", "viture-one-lite"],
   ["INMO", "INMO Air 2", "Air 2", "inmo-air-2"],
   ["INMO", "INMO GO3", "GO3", "inmo-go3"],
+  ["Ray-Ban / Meta", "Ray-Ban Meta", "Gen 2", "ray-ban-meta"],
   ["Brilliant Labs", "Frame", "Frame", "brilliant-labs-frame"],
   ["Even Realities", "G1", "G1", "even-realities-g1"],
 ].map(([yamlBrand, yamlModel, yamlGeneration, slug]) => ({ yamlBrand, yamlModel, yamlGeneration, slug }));
 
-assert.equal(mappings.length, 23, "the reviewed initial map contains exactly 23 entries");
-assert.deepEqual(mappings, expectedMappings, "the reviewed initial map itself is the exact approved 23-entry map and excludes Ray-Ban");
-assert.deepEqual(resolved.filter((mapping) => mapping.slug), expectedMappings, "the reviewed map resolves exactly the approved 23 YAML identities to unique bootstrap slugs");
-assert.equal(new Set(resolved.filter((mapping) => mapping.slug).map((mapping) => mapping.slug)).size, 23, "approved target slugs stay unique");
+assert.equal(mappings.length, 24, "the reviewed map contains every approved YAML identity including the operator-resolved Ray-Ban Gen 2 identity");
+assert.equal(mappings.at(-1).resolution, "OPERATOR_APPROVED_GEN2", "Ray-Ban resolution is explicit operator approval, not bootstrap proof");
+assert.deepEqual(resolved.filter((mapping) => mapping.slug).map(({ yamlBrand, yamlModel, yamlGeneration, slug }) => ({ yamlBrand, yamlModel, yamlGeneration, slug })), expectedMappings, "the reviewed map resolves all 24 YAML identities to unique bootstrap slugs");
+assert.equal(new Set(resolved.filter((mapping) => mapping.slug).map((mapping) => mapping.slug)).size, 24, "approved target slugs stay unique");
 
 assert.throws(() => resolveIdentityMappings({
   yamlDevices: yaml.devices,
@@ -65,11 +66,9 @@ assert.deepEqual(rayBan, {
   yamlBrand: "Ray-Ban / Meta",
   yamlModel: "Ray-Ban Meta",
   yamlGeneration: "Gen 2",
-  blocker: {
-    code: "RAY_BAN_IDENTITY_INDETERMINATE",
-    detail: "CURRENT_RAY_BAN_BOOTSTRAP_SLUG=ray-ban-meta; CURRENT_RAY_BAN_BOOTSTRAP_GENERATION=UNSPECIFIED; CURRENT_RAY_BAN_BOOTSTRAP_IDENTITY_CONFIDENCE=INSUFFICIENT_FOR_GEN_2",
-  },
-}, "Ray-Ban Gen 2 remains a Release B blocker without administrator-approved identity evidence");
+  slug: "ray-ban-meta",
+  identityStatus: "OPERATOR_APPROVED_GEN2",
+}, "Ray-Ban Gen 2 resolves only through the recorded operator decision, never as bootstrap proof");
 
 for (const generation of ["Generic", "Gen 1"]) {
   const rayBanMismatch = resolveIdentityMappings({
@@ -122,4 +121,4 @@ assert.throws(() => resolveIdentityMappings({
   mappings: mappings.map((mapping, index) => index === 0 ? { ...mapping, yamlModel: "XREAL Ones" } : mapping),
 }), /Reviewed identity map contains an unmapped identity/, "a near name is rejected rather than fuzzy matched");
 
-console.log(`DEVICE_SCHEMA_V1_IDENTITY_OK mappings=${resolved.filter((mapping) => mapping.slug).length} blockers=${resolved.filter((mapping) => mapping.blocker).length} releaseB=BLOCKED`);
+console.log(`DEVICE_SCHEMA_V1_IDENTITY_OK mappings=${resolved.filter((mapping) => mapping.slug).length} blockers=${resolved.filter((mapping) => mapping.blocker).length} RAY_BAN_IDENTITY_STATUS=OPERATOR_APPROVED_GEN2`);

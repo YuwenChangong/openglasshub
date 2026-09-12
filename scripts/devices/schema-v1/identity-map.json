@@ -1,5 +1,5 @@
 {
-  "rayBanGenerationResolution": "INDETERMINATE",
+  "rayBanGenerationResolution": "OPERATOR_APPROVED_GEN2",
   "mappings": [
     { "yamlBrand": "XREAL", "yamlModel": "XREAL One", "yamlGeneration": "One series", "slug": "xreal-one" },
     { "yamlBrand": "XREAL", "yamlModel": "XREAL One Pro", "yamlGeneration": "One Pro", "slug": "xreal-one-pro" },
@@ -23,6 +23,7 @@
     { "yamlBrand": "INMO", "yamlModel": "INMO Air 2", "yamlGeneration": "Air 2", "slug": "inmo-air-2" },
     { "yamlBrand": "INMO", "yamlModel": "INMO GO3", "yamlGeneration": "GO3", "slug": "inmo-go3" },
     { "yamlBrand": "Brilliant Labs", "yamlModel": "Frame", "yamlGeneration": "Frame", "slug": "brilliant-labs-frame" },
-    { "yamlBrand": "Even Realities", "yamlModel": "G1", "yamlGeneration": "G1", "slug": "even-realities-g1" }
+    { "yamlBrand": "Even Realities", "yamlModel": "G1", "yamlGeneration": "G1", "slug": "even-realities-g1" },
+    { "yamlBrand": "Ray-Ban / Meta", "yamlModel": "Ray-Ban Meta", "yamlGeneration": "Gen 2", "slug": "ray-ban-meta", "resolution": "OPERATOR_APPROVED_GEN2" }
   ]
 }
