@@ -31,6 +31,7 @@ async function collectLocalModuleGraph(entryPath, seen = new Set()) {
   const specifiers = [
     ...source.matchAll(/\bimport\s*(?:[^"']*?\sfrom\s*)?["']([^"']+)["']/g),
     ...source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g),
+    ...source.matchAll(/\bexport\s+(?:[^"']*?\sfrom\s*)["']([^"']+)["']/g),
   ].map((match) => match[1]);
   for (const specifier of specifiers) {
     if (!specifier.startsWith(".")) {
@@ -84,9 +85,14 @@ for (const modulePath of adapterGraph) {
 
 const graphFixtureDirectory = await mkdtemp(path.join(os.tmpdir(), "openglass-schema-v1-compatibility-"));
 try {
-  for (const [filename, specifier] of [["bare.mjs", "bootstrap-catalog"], ["alias.mjs", "@/lib/device-catalog"]]) {
+  for (const [filename, source, specifier] of [
+    ["bare-import.mjs", `import "bootstrap-catalog";`, "bootstrap-catalog"],
+    ["alias-import.mjs", `import "@/lib/device-catalog";`, "@/lib/device-catalog"],
+    ["bare-re-export.mjs", `export * from "bootstrap-catalog";`, "bootstrap-catalog"],
+    ["alias-re-export.mjs", `export { deviceCatalog } from "@/lib/device-catalog";`, "@/lib/device-catalog"],
+  ]) {
     const fixturePath = path.join(graphFixtureDirectory, filename);
-    await writeFile(fixturePath, `import ${JSON.stringify(specifier)};\n`, "utf8");
+    await writeFile(fixturePath, `${source}\n`, "utf8");
     await assert.rejects(() => collectLocalModuleGraph(fixturePath), new RegExp(`UNAPPROVED_ADAPTER_IMPORT: ${specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
   }
 } finally {
