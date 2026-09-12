@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { loadApprovedDeviceYaml } from "./devices/schema-v1/yaml-input.mjs";
 import { normalizeCatalogYaml } from "./devices/schema-v1/normalize.mjs";
 
@@ -28,11 +29,27 @@ async function collectLocalModuleGraph(entryPath, seen = new Set()) {
   if (seen.has(resolvedEntry)) return seen;
   seen.add(resolvedEntry);
   const source = await readFile(resolvedEntry, "utf8");
-  const specifiers = [
-    ...source.matchAll(/\bimport\s*(?:[^"']*?\sfrom\s*)?["']([^"']+)["']/g),
-    ...source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g),
-    ...source.matchAll(/\bexport\s+(?:[^"']*?\sfrom\s*)["']([^"']+)["']/g),
-  ].map((match) => match[1]);
+  // Parse module syntax so quoted export names and comments cannot hide edges.
+  const parsed = ts.createSourceFile(resolvedEntry, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  assert.equal(parsed.parseDiagnostics.length, 0, `adapter graph module must parse: ${resolvedEntry}`);
+  const specifiers = [];
+  function visit(node) {
+    let specifier;
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      specifier = node.moduleSpecifier;
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      specifier = node.arguments[0];
+      if (!specifier || (!ts.isStringLiteral(specifier) && !ts.isNoSubstitutionTemplateLiteral(specifier))) {
+        throw new Error("UNAPPROVED_ADAPTER_IMPORT: non-literal dynamic import");
+      }
+    }
+    if (specifier) {
+      assert.ok(ts.isStringLiteral(specifier) || ts.isNoSubstitutionTemplateLiteral(specifier), "adapter dependency must be a literal");
+      specifiers.push(specifier.text);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(parsed);
   for (const specifier of specifiers) {
     if (!specifier.startsWith(".")) {
       if (!SAFE_BARE_IMPORTS.has(specifier)) throw new Error(`UNAPPROVED_ADAPTER_IMPORT: ${specifier}`);
@@ -85,16 +102,35 @@ for (const modulePath of adapterGraph) {
 
 const graphFixtureDirectory = await mkdtemp(path.join(os.tmpdir(), "openglass-schema-v1-compatibility-"));
 try {
+  const failures = [];
   for (const [filename, source, specifier] of [
     ["bare-import.mjs", `import "bootstrap-catalog";`, "bootstrap-catalog"],
     ["alias-import.mjs", `import "@/lib/device-catalog";`, "@/lib/device-catalog"],
     ["bare-re-export.mjs", `export * from "bootstrap-catalog";`, "bootstrap-catalog"],
     ["alias-re-export.mjs", `export { deviceCatalog } from "@/lib/device-catalog";`, "@/lib/device-catalog"],
+    ["quoted-alias-re-export.mjs", `export { value as "legacy-name" } from "@/lib/device-catalog";`, "@/lib/device-catalog"],
+    ["quoted-bare-re-export.mjs", `export { value as 'legacy-name' } from "bootstrap-catalog";`, "bootstrap-catalog"],
+    ["comment-bare-re-export.mjs", `export * from /* dependency */ "bootstrap-catalog";`, "bootstrap-catalog"],
+    ["comment-alias-re-export.mjs", `export { value } from // dependency\n "@/lib/device-catalog";`, "@/lib/device-catalog"],
+    ["named-import.mjs", `import { value } from /* dependency */ "bootstrap-catalog";`, "bootstrap-catalog"],
+    ["dynamic-import.mjs", `const load = () => import(/* dependency */ "@/lib/device-catalog");`, "@/lib/device-catalog"],
   ]) {
     const fixturePath = path.join(graphFixtureDirectory, filename);
     await writeFile(fixturePath, `${source}\n`, "utf8");
-    await assert.rejects(() => collectLocalModuleGraph(fixturePath), new RegExp(`UNAPPROVED_ADAPTER_IMPORT: ${specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    try {
+      await assert.rejects(() => collectLocalModuleGraph(fixturePath), new RegExp(`UNAPPROVED_ADAPTER_IMPORT: ${specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    } catch (error) {
+      failures.push(`${filename}: ${error.message}`);
+    }
   }
+  assert.deepEqual(failures, [], "every unapproved dependency syntax must fail closed");
+  const localEntry = path.join(graphFixtureDirectory, "local-entry.mjs");
+  const localDependency = path.join(graphFixtureDirectory, "local-dependency.mjs");
+  await writeFile(localEntry, `export { value as "legacy-name" } from /* local */ "./local-dependency.mjs";\n`, "utf8");
+  await writeFile(localDependency, `export const value = "safe";\n`, "utf8");
+  assert.deepEqual([...await collectLocalModuleGraph(localEntry)], [localEntry, localDependency], "valid local re-export syntax is followed recursively");
+  await writeFile(localDependency, `const load = () => import(dependencyName);\n`, "utf8");
+  await assert.rejects(() => collectLocalModuleGraph(localEntry), /UNAPPROVED_ADAPTER_IMPORT: non-literal dynamic import/);
 } finally {
   await rm(graphFixtureDirectory, { recursive: true, force: true });
 }
