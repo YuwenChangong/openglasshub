@@ -3,7 +3,7 @@ import { normalizeSourceUrl } from "./sources.mjs";
 
 const CLASSIFICATIONS = new Set(["TRUE_VALUE_CONFLICT", "NORMALIZATION_OR_CONTEXT_NOTE"]);
 const NOTE_KEYS = new Set(["deviceKey", "conflict", "classification"]);
-const TRUE_CONFLICT_KEYS = new Set([...NOTE_KEYS, "canonicalKey", "primaryClaim", "primarySource", "conflictingClaims"]);
+const TRUE_CONFLICT_KEYS = new Set([...NOTE_KEYS, "canonicalKey", "primaryClaim", "conflictingClaims"]);
 
 function identityKey(device) {
   return `${device.identity.brand}|${device.identity.model}|${device.identity.generation}`;
@@ -47,21 +47,27 @@ function validateMapping(mapping, index, devicesByKey) {
   }
   exactKeys(mapping, TRUE_CONFLICT_KEYS, "TRUE_VALUE_CONFLICT");
   nonEmptyText(mapping.canonicalKey, `${label} canonicalKey`);
-  claimValue(mapping.primaryClaim, `${label} primaryClaim`);
-  nonEmptyText(mapping.primarySource, `${label} primarySource`);
+  exactKeys(mapping.primaryClaim, new Set(["claim", "source"]), `${label} primaryClaim`);
+  claimValue(mapping.primaryClaim.claim, `${label} primaryClaim claim`);
+  nonEmptyText(mapping.primaryClaim.source, `${label} primaryClaim source`);
   if (!Array.isArray(mapping.conflictingClaims) || mapping.conflictingClaims.length === 0) throw new TypeError("TRUE_VALUE_CONFLICT requires exact conflicting claim/source data");
   const spec = device.specs.find((candidate) => candidate.path === mapping.canonicalKey);
   if (!spec) throw new TypeError(`${label} canonicalKey is not a normalized device spec`);
-  if (spec.rawValue !== mapping.primaryClaim) throw new TypeError(`${label} primaryClaim must exactly match the normalized primary raw value`);
+  if (spec.rawValue !== mapping.primaryClaim.claim) throw new TypeError(`${label} primaryClaim must exactly match the normalized primary raw value`);
   const sourceUrls = new Set(device.evidence.sourceUrls.map(normalizeSourceUrl));
-  if (!sourceUrls.has(normalizeSourceUrl(mapping.primarySource))) throw new TypeError(`${label} primarySource is not a device-level source URL`);
+  if (!sourceUrls.has(normalizeSourceUrl(mapping.primaryClaim.source))) throw new TypeError(`${label} primaryClaim source is not a device-level source URL`);
+  const claimSourcePairs = new Set();
   const conflictingClaims = mapping.conflictingClaims.map((claim, claimIndex) => {
     exactKeys(claim, new Set(["claim", "source"]), `${label} conflicting claim ${claimIndex}`);
     claimValue(claim.claim, `${label} conflicting claim ${claimIndex} claim`);
     if (!sourceUrls.has(normalizeSourceUrl(claim.source))) throw new TypeError(`${label} conflicting claim ${claimIndex} source is not a device-level source URL`);
-    return Object.freeze({ ...claim });
+    if (claim.claim === mapping.primaryClaim.claim) throw new TypeError("conflicting claim must differ from the primary claim");
+    const pair = `${JSON.stringify(claim.claim)}\u0000${normalizeSourceUrl(claim.source)}`;
+    if (claimSourcePairs.has(pair)) throw new TypeError("duplicate conflicting claim/source mapping");
+    claimSourcePairs.add(pair);
+    return Object.freeze({ ...claim, source: normalizeSourceUrl(claim.source) });
   });
-  return Object.freeze({ ...mapping, primarySource: normalizeSourceUrl(mapping.primarySource), conflictingClaims: Object.freeze(conflictingClaims) });
+  return Object.freeze({ ...mapping, primaryClaim: Object.freeze({ ...mapping.primaryClaim, source: normalizeSourceUrl(mapping.primaryClaim.source) }), conflictingClaims: Object.freeze(conflictingClaims) });
 }
 
 /** Load the reviewed, exact conflict curation sidecar. */
@@ -95,7 +101,13 @@ export function classifyConflicts({ normalized, mappings }) {
     for (const conflict of device.evidence.conflicts) {
       const mapping = mappingsByProse.get(`${deviceKey}\u0000${conflict}`);
       if (!mapping) {
-        blockers.push(Object.freeze({ code: "BLOCKED_EVIDENCE_MAP", deviceKey, path: "evidence.conflicts", detail: conflict }));
+        blockers.push(Object.freeze({
+          code: "BLOCKED_EVIDENCE_MAP",
+          deviceKey,
+          path: "evidence.conflicts",
+          detail: conflict,
+          sourceUrls: Object.freeze([...device.evidence.sourceUrls]),
+        }));
       } else {
         classified.push(publicMapping(mapping));
       }
