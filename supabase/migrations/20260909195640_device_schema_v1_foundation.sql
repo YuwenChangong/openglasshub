@@ -343,3 +343,129 @@ $$;
 create trigger catalog_audit_events_append_only
 before update or delete on public.catalog_audit_events
 for each row execute function public.prevent_catalog_audit_mutation();
+
+-- Catalog authority is intentionally narrower than forum moderation. The
+-- existing protected role lookup remains the source of truth for both.
+create or replace function public.is_catalog_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select public.current_user_role() = 'admin'), false);
+$$;
+
+revoke all on function public.is_catalog_admin() from public;
+grant execute on function public.is_catalog_admin() to authenticated;
+
+-- Keep the legacy published-device read and staff read policies intact, but
+-- replace only catalog mutations with the admin-only authority boundary.
+drop policy if exists "devices_insert_staff" on public.devices;
+create policy "devices_insert_catalog_admin"
+on public.devices for insert to authenticated
+with check ((select public.is_catalog_admin()));
+
+drop policy if exists "devices_update_staff" on public.devices;
+create policy "devices_update_catalog_admin"
+on public.devices for update to authenticated
+using ((select public.is_catalog_admin()))
+with check ((select public.is_catalog_admin()));
+
+drop policy if exists "devices_delete_staff" on public.devices;
+create policy "devices_delete_catalog_admin"
+on public.devices for delete to authenticated
+using ((select public.is_catalog_admin()));
+
+-- Normalized catalog data is never directly readable by anon. Authenticated
+-- catalog administrators receive the table privileges required for the RLS
+-- policies below; ordinary authenticated users remain denied by RLS.
+revoke all on table public.device_spec_definitions, public.device_specs,
+  public.device_sources, public.device_source_links, public.device_spec_evidence
+from anon;
+grant select, insert, update, delete on table public.device_spec_definitions,
+  public.device_specs, public.device_sources, public.device_source_links,
+  public.device_spec_evidence to authenticated;
+
+create policy "device_spec_definitions_select_catalog_admin"
+on public.device_spec_definitions for select to authenticated
+using ((select public.is_catalog_admin()));
+create policy "device_spec_definitions_insert_catalog_admin"
+on public.device_spec_definitions for insert to authenticated
+with check ((select public.is_catalog_admin()));
+create policy "device_spec_definitions_update_catalog_admin"
+on public.device_spec_definitions for update to authenticated
+using ((select public.is_catalog_admin()))
+with check ((select public.is_catalog_admin()));
+create policy "device_spec_definitions_delete_catalog_admin"
+on public.device_spec_definitions for delete to authenticated
+using ((select public.is_catalog_admin()));
+
+create policy "device_specs_select_catalog_admin"
+on public.device_specs for select to authenticated
+using ((select public.is_catalog_admin()));
+create policy "device_specs_insert_catalog_admin"
+on public.device_specs for insert to authenticated
+with check ((select public.is_catalog_admin()));
+create policy "device_specs_update_catalog_admin"
+on public.device_specs for update to authenticated
+using ((select public.is_catalog_admin()))
+with check ((select public.is_catalog_admin()));
+create policy "device_specs_delete_catalog_admin"
+on public.device_specs for delete to authenticated
+using ((select public.is_catalog_admin()));
+
+create policy "device_sources_select_catalog_admin"
+on public.device_sources for select to authenticated
+using ((select public.is_catalog_admin()));
+create policy "device_sources_insert_catalog_admin"
+on public.device_sources for insert to authenticated
+with check ((select public.is_catalog_admin()));
+create policy "device_sources_update_catalog_admin"
+on public.device_sources for update to authenticated
+using ((select public.is_catalog_admin()))
+with check ((select public.is_catalog_admin()));
+create policy "device_sources_delete_catalog_admin"
+on public.device_sources for delete to authenticated
+using ((select public.is_catalog_admin()));
+
+create policy "device_source_links_select_catalog_admin"
+on public.device_source_links for select to authenticated
+using ((select public.is_catalog_admin()));
+create policy "device_source_links_insert_catalog_admin"
+on public.device_source_links for insert to authenticated
+with check ((select public.is_catalog_admin()));
+create policy "device_source_links_update_catalog_admin"
+on public.device_source_links for update to authenticated
+using ((select public.is_catalog_admin()))
+with check ((select public.is_catalog_admin()));
+create policy "device_source_links_delete_catalog_admin"
+on public.device_source_links for delete to authenticated
+using ((select public.is_catalog_admin()));
+
+create policy "device_spec_evidence_select_catalog_admin"
+on public.device_spec_evidence for select to authenticated
+using ((select public.is_catalog_admin()));
+create policy "device_spec_evidence_insert_catalog_admin"
+on public.device_spec_evidence for insert to authenticated
+with check ((select public.is_catalog_admin()));
+create policy "device_spec_evidence_update_catalog_admin"
+on public.device_spec_evidence for update to authenticated
+using ((select public.is_catalog_admin()))
+with check ((select public.is_catalog_admin()));
+create policy "device_spec_evidence_delete_catalog_admin"
+on public.device_spec_evidence for delete to authenticated
+using ((select public.is_catalog_admin()));
+
+-- The Release C audit entity has no application writer in this release, but
+-- its database boundary is append-only from the outset.
+revoke all on table public.catalog_audit_events from anon;
+revoke update, delete on table public.catalog_audit_events from authenticated;
+grant select, insert on table public.catalog_audit_events to authenticated;
+
+create policy "catalog_audit_events_select_catalog_admin"
+on public.catalog_audit_events for select to authenticated
+using ((select public.is_catalog_admin()));
+create policy "catalog_audit_events_insert_catalog_admin"
+on public.catalog_audit_events for insert to authenticated
+with check ((select public.is_catalog_admin()));

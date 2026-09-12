@@ -11,7 +11,7 @@ async function main() {
     mapDatabaseError,
     toDeviceRow,
   } = await import("../src/lib/server/device-admin.ts");
-  const { requireModerator } = await import("../src/lib/server/admin-auth.ts");
+  const { requireAdmin } = await import("../src/lib/server/admin-auth.ts");
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
@@ -22,7 +22,7 @@ async function main() {
       return new Response(JSON.stringify(token === "staff" ? { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } : { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.includes("/rest/v1/profiles")) {
-      return new Response(JSON.stringify([{ role: token === "staff" ? "admin" : "user", username: null, display_name: null, avatar_url: null }]), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify([{ role: token === "staff" ? "admin" : token === "moderator" ? "moderator" : "user", username: null, display_name: null, avatar_url: null }]), { status: 200, headers: { "content-type": "application/json" } });
     }
     return new Response("{}", { status: 404, headers: { "content-type": "application/json" } });
   };
@@ -38,7 +38,7 @@ async function main() {
   };
   const handlers = createDeviceAdminHandlers({
     authorize: async (request) => {
-      try { return await requireModerator(request, env); }
+      try { return await requireAdmin(request, env); }
       catch (error) { return error instanceof Response ? error : null; }
     },
     repositoryFor: () => repository,
@@ -54,6 +54,8 @@ async function main() {
   assert(unauthorized.status === 401, "Unauthenticated GET must be rejected.");
   const nonstaff = await handlers.GET(new Request("https://example.test/api/admin/devices", { headers: { authorization: "Bearer user" } }));
   assert(nonstaff.status === 403, "Authenticated nonstaff GET must be rejected by requireModerator.");
+  const moderator = await handlers.POST(new Request("https://example.test/api/admin/devices", { method: "POST", headers: { authorization: "Bearer moderator" }, body: JSON.stringify(base) }));
+  assert(moderator.status === 403, "Moderator-only catalog mutation must be rejected by requireAdmin.");
   const created = await handlers.POST(new Request("https://example.test/api/admin/devices", { method: "POST", headers: { authorization: "Bearer staff" }, body: JSON.stringify(base) }));
   assert(created.status === 201, "Staff can create a draft.");
   const createdBody = await created.json();

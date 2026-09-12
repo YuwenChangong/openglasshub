@@ -274,7 +274,16 @@ export async function runEnforcement() {
     assert.equal(migrations.length, 1, "Expected exactly one foundation migration");
     const migration = await readFile(path.join(root, "supabase/migrations", migrations[0]), "utf8");
     const fixture = await readFile(path.join(root, "tests/fixtures/device-schema-v1/enforcement-bootstrap.sql"), "utf8");
-    const setup = await sql(`create table public.profiles (id uuid primary key); create table public.devices (id uuid primary key);\n${migration}\n${fixture}`);
+    const setup = await sql(`
+create table public.profiles (id uuid primary key, role text);
+create function public.current_user_role() returns text language sql stable security definer set search_path = public as $$
+  select p.role from public.profiles p where p.id = null::uuid
+$$;
+create role anon nologin;
+create role authenticated nologin;
+create table public.devices (id uuid primary key);
+${migration}
+${fixture}`);
     assert.equal(setup.code, 0, `Migration/fixture failed: ${setup.output}`);
     const failures = [];
     for (const test of cases()) {

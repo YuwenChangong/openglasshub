@@ -1,7 +1,7 @@
 import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createDeviceAdminHandlers, createSupabaseDeviceRepository } from "../../../lib/server/device-admin";
-import { jsonResponse, requireModerator, type RuntimeEnv } from "../../../lib/server/admin-auth";
+import { jsonResponse, requireAdmin, type RuntimeEnv } from "../../../lib/server/admin-auth";
 
 export const prerender = false;
 type RuntimeLocals = { runtime?: { env?: RuntimeEnv } };
@@ -11,7 +11,7 @@ function handlers(request: Request, locals: unknown) {
   if (!env) return null;
   return createDeviceAdminHandlers({
     authorize: async (nextRequest) => {
-      try { return await requireModerator(nextRequest, env); }
+      try { return await requireAdmin(nextRequest, env); }
       catch (error) { return error instanceof Response ? error : jsonResponse({ ok: false, code: "SERVER_ERROR", message: "操作失败，请稍后重试。" }, 500); }
     },
     repositoryFor: createSupabaseDeviceRepository,
