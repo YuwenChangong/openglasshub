@@ -54,3 +54,33 @@ DEVICE_SCHEMA_V1_NORMALIZE_OK devices=24 brands=8 specs=1488
 
 None. The existing Ray-Ban identity Release B blocker is intentionally outside
 this task and remains preserved by the normalization/identity work.
+
+## Review fix round 1
+
+The loader previously used nullish defaults for `title`, `published_at`, and
+`region`. That allowed omitted nullable fields to appear as supplied null
+values. `toRecord` now checks explicit property presence for every required
+source sidecar key before applying type validation. Nullable values must now be
+written explicitly as `null` when unavailable.
+
+Focused RED command:
+
+```powershell
+node scripts/test-device-schema-v1-sources.mjs
+```
+
+Observed RED before the fix: `AssertionError [ERR_ASSERTION]: Missing expected
+rejection` for an omitted `title` key, demonstrating the former silent default.
+
+Focused GREEN commands:
+
+```powershell
+node scripts/test-device-schema-v1-sources.mjs
+node scripts/test-device-schema-v1-normalize.mjs
+git diff --check
+```
+
+The sources test now includes negative fixtures for omitted `title`,
+`published_at`, and `region`, plus impossible `accessed_at: "2026-02-31"`.
+Calendar dates are accepted only after an ISO UTC round-trip, so rollover dates
+are rejected.

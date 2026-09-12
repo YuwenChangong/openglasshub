@@ -55,7 +55,7 @@ for (const record of metadata) {
 const directory = await mkdtemp(path.join(os.tmpdir(), "openglass-source-map-"));
 try {
   const fixturePath = path.join(directory, "metadata.json");
-  await writeFile(fixturePath, JSON.stringify([{
+  const reviewedFixture = {
     url: "https://unreviewed.example/path",
     publisher: "Unreviewed Example",
     title: null,
@@ -63,7 +63,30 @@ try {
     published_at: null,
     accessed_at: "2026-09-05",
     region: null,
-  }]), "utf8");
+  };
+  async function assertRejectedFixture(record, expectedError) {
+    await writeFile(fixturePath, JSON.stringify([record]), "utf8");
+    await assert.rejects(() => loadSourceMetadata(fixturePath), expectedError);
+  }
+
+  await assertRejectedFixture(
+    (({ title, ...record }) => record)(reviewedFixture),
+    /title is required/,
+  );
+  await assertRejectedFixture(
+    (({ published_at, ...record }) => record)(reviewedFixture),
+    /published_at is required/,
+  );
+  await assertRejectedFixture(
+    (({ region, ...record }) => record)(reviewedFixture),
+    /region is required/,
+  );
+  await assertRejectedFixture(
+    { ...reviewedFixture, accessed_at: "2026-02-31" },
+    /accessed_at is required as an ISO date/,
+  );
+
+  await writeFile(fixturePath, JSON.stringify([reviewedFixture]), "utf8");
   const fixture = await loadSourceMetadata(fixturePath);
   const unresolved = validateSourceMetadata({
     sourceUrls: ["https://unreviewed.example/path", "https://unmapped.example/product"],

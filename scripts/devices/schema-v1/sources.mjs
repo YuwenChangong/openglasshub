@@ -14,6 +14,12 @@ export const DEVICE_SOURCE_TYPES = Object.freeze([
 const SOURCE_TYPE_SET = new Set(DEVICE_SOURCE_TYPES);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+function isIsoCalendarDate(value) {
+  if (typeof value !== "string" || !ISO_DATE.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}
+
 /** Normalize a URL for deterministic reviewed-map lookup only. */
 export function normalizeSourceUrl(value) {
   if (typeof value !== "string" || !value.trim()) throw new TypeError("Source URL must be a non-empty string");
@@ -25,20 +31,23 @@ export function normalizeSourceUrl(value) {
 
 function toRecord(value, index) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`source metadata record ${index} must be an object`);
+  for (const key of ["url", "publisher", "title", "source_type", "published_at", "accessed_at", "region"]) {
+    if (!Object.hasOwn(value, key)) throw new TypeError(`source metadata record ${index} ${key} is required`);
+  }
   const record = {
     url: normalizeSourceUrl(value.url),
     publisher: value.publisher,
-    title: value.title ?? null,
+    title: value.title,
     sourceType: value.source_type,
-    publishedAt: value.published_at ?? null,
+    publishedAt: value.published_at,
     accessedAt: value.accessed_at,
-    region: value.region ?? null,
+    region: value.region,
   };
   if (typeof record.publisher !== "string" || !record.publisher.trim()) throw new TypeError(`source metadata record ${index} publisher is required`);
   if (!SOURCE_TYPE_SET.has(record.sourceType)) throw new TypeError(`source metadata record ${index} source_type is not approved`);
   if (record.title !== null && typeof record.title !== "string") throw new TypeError(`source metadata record ${index} title must be nullable text`);
-  if (record.publishedAt !== null && (!ISO_DATE.test(record.publishedAt) || Number.isNaN(Date.parse(record.publishedAt)))) throw new TypeError(`source metadata record ${index} published_at must be a nullable ISO date`);
-  if (typeof record.accessedAt !== "string" || !ISO_DATE.test(record.accessedAt) || Number.isNaN(Date.parse(record.accessedAt))) throw new TypeError(`source metadata record ${index} accessed_at is required as an ISO date`);
+  if (record.publishedAt !== null && !isIsoCalendarDate(record.publishedAt)) throw new TypeError(`source metadata record ${index} published_at must be a nullable ISO date`);
+  if (!isIsoCalendarDate(record.accessedAt)) throw new TypeError(`source metadata record ${index} accessed_at is required as an ISO date`);
   if (record.region !== null && typeof record.region !== "string") throw new TypeError(`source metadata record ${index} region must be nullable text`);
   return Object.freeze(record);
 }
