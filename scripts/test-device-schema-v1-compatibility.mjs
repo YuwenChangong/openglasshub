@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadApprovedDeviceYaml } from "./devices/schema-v1/yaml-input.mjs";
@@ -20,6 +21,8 @@ const normalized = normalizeCatalogYaml(await loadApprovedDeviceYaml(yamlPath));
 const device = normalized.devices.find((candidate) => candidate.identity.model === "XREAL One");
 assert.ok(device, "representative normalized YAML device must exist");
 
+const SAFE_BARE_IMPORTS = new Set();
+
 async function collectLocalModuleGraph(entryPath, seen = new Set()) {
   const resolvedEntry = path.resolve(entryPath);
   if (seen.has(resolvedEntry)) return seen;
@@ -29,7 +32,11 @@ async function collectLocalModuleGraph(entryPath, seen = new Set()) {
     ...source.matchAll(/\bimport\s*(?:[^"']*?\sfrom\s*)?["']([^"']+)["']/g),
     ...source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g),
   ].map((match) => match[1]);
-  for (const specifier of specifiers.filter((candidate) => candidate.startsWith("."))) {
+  for (const specifier of specifiers) {
+    if (!specifier.startsWith(".")) {
+      if (!SAFE_BARE_IMPORTS.has(specifier)) throw new Error(`UNAPPROVED_ADAPTER_IMPORT: ${specifier}`);
+      continue;
+    }
     const candidate = path.resolve(path.dirname(resolvedEntry), specifier);
     const modulePath = path.extname(candidate) ? candidate : `${candidate}.mjs`;
     await collectLocalModuleGraph(modulePath, seen);
@@ -73,6 +80,17 @@ for (const modulePath of adapterGraph) {
   const source = await readFile(modulePath, "utf8");
   assert.doesNotMatch(source, /device-catalog(?:\.ts)?/, `${path.relative(root, modulePath)} must not reference the bootstrap catalog`);
   assert.doesNotMatch(source, /keySpecs|fullSpecs/, `${path.relative(root, modulePath)} must not read bootstrap keySpecs/fullSpecs fields`);
+}
+
+const graphFixtureDirectory = await mkdtemp(path.join(os.tmpdir(), "openglass-schema-v1-compatibility-"));
+try {
+  for (const [filename, specifier] of [["bare.mjs", "bootstrap-catalog"], ["alias.mjs", "@/lib/device-catalog"]]) {
+    const fixturePath = path.join(graphFixtureDirectory, filename);
+    await writeFile(fixturePath, `import ${JSON.stringify(specifier)};\n`, "utf8");
+    await assert.rejects(() => collectLocalModuleGraph(fixturePath), new RegExp(`UNAPPROVED_ADAPTER_IMPORT: ${specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  }
+} finally {
+  await rm(graphFixtureDirectory, { recursive: true, force: true });
 }
 
 const unsafe = buildLegacyCompatibility({
