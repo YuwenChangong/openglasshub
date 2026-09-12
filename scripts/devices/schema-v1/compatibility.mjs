@@ -9,6 +9,10 @@ function isLegacyScalar(value) {
   return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
 }
 
+function pathOrder(spec) {
+  return typeof spec?.path === "string" ? spec.path : "";
+}
+
 /**
  * Produce the legacy JSONB surface solely from an already normalized YAML device.
  * State-bearing values that the string-only reader cannot faithfully express are
@@ -21,7 +25,7 @@ export function buildLegacyCompatibility(device) {
 
   const groups = new Map();
   const compatibilityGaps = [];
-  for (const spec of [...device.specs].sort((left, right) => left.path.localeCompare(right.path))) {
+  for (const spec of [...device.specs].sort((left, right) => pathOrder(left).localeCompare(pathOrder(right)))) {
     if (spec.state !== "KNOWN" && spec.state !== "CONFLICT") {
       compatibilityGaps.push(Object.freeze({
         code: "LEGACY_COMPAT_UNREPRESENTABLE_STATE", path: spec.path, state: spec.state, rawValue: spec.rawValue,

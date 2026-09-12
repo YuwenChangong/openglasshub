@@ -20,6 +20,23 @@ const normalized = normalizeCatalogYaml(await loadApprovedDeviceYaml(yamlPath));
 const device = normalized.devices.find((candidate) => candidate.identity.model === "XREAL One");
 assert.ok(device, "representative normalized YAML device must exist");
 
+async function collectLocalModuleGraph(entryPath, seen = new Set()) {
+  const resolvedEntry = path.resolve(entryPath);
+  if (seen.has(resolvedEntry)) return seen;
+  seen.add(resolvedEntry);
+  const source = await readFile(resolvedEntry, "utf8");
+  const specifiers = [
+    ...source.matchAll(/\bimport\s*(?:[^"']*?\sfrom\s*)?["']([^"']+)["']/g),
+    ...source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g),
+  ].map((match) => match[1]);
+  for (const specifier of specifiers.filter((candidate) => candidate.startsWith("."))) {
+    const candidate = path.resolve(path.dirname(resolvedEntry), specifier);
+    const modulePath = path.extname(candidate) ? candidate : `${candidate}.mjs`;
+    await collectLocalModuleGraph(modulePath, seen);
+  }
+  return seen;
+}
+
 const compatibility = buildLegacyCompatibility(device);
 assert.equal(compatibility.BOOTSTRAP_SPEC_VALUES_AUTHORITATIVE, false, "bootstrap specification values are never authoritative");
 assert.equal(compatibility.LEGACY_COMPAT_SPEC_SOURCE, "YAML_DERIVED", "legacy compatibility values come only from normalized YAML");
@@ -43,11 +60,20 @@ assert.deepEqual(
   "non-value YAML states are explicit safe compatibility gaps instead of fabricated strings",
 );
 assert.ok(compatibility.key_specs.length <= 5, "key_specs remains safe for the current five-item reader fallback");
-assert.ok(compatibility.key_specs.every((item) => fullValues.includes(item.value)), "key_specs is selected only from the YAML-derived full_specs projection");
+assert.deepEqual(compatibility.key_specs, Object.entries(expectedFullSpecs)
+  .flatMap(([group, fields]) => Object.entries(fields).map(([field, value]) => ({ field: `${group}.${field}`, label: field.split(".").at(-1).split("_").map((word) => word[0]?.toUpperCase() + word.slice(1)).join(" "), value })))
+  .slice(0, 5), "key_specs has a deterministic YAML-derived field, label, order, and value pairing");
 
-const adapterSource = await readFile(path.join(root, "scripts/devices/schema-v1/compatibility.mjs"), "utf8");
-assert.doesNotMatch(adapterSource, /device-catalog(?:\.ts)?/, "compatibility adapter must not import or read the bootstrap catalog");
-assert.doesNotMatch(adapterSource, /keySpecs|fullSpecs/, "compatibility adapter must not read bootstrap keySpecs/fullSpecs fields");
+const adapterPath = path.join(root, "scripts/devices/schema-v1/compatibility.mjs");
+const adapterGraph = await collectLocalModuleGraph(adapterPath);
+const bootstrapCatalogPath = path.join(root, "src/lib/device-catalog.ts");
+assert.ok([...adapterGraph].every((modulePath) => modulePath.startsWith(path.join(root, "scripts/devices/schema-v1"))), "adapter dependency graph is limited to approved schema-v1 local modules");
+assert.equal(adapterGraph.has(bootstrapCatalogPath), false, "adapter dependency graph must not reach src/lib/device-catalog.ts");
+for (const modulePath of adapterGraph) {
+  const source = await readFile(modulePath, "utf8");
+  assert.doesNotMatch(source, /device-catalog(?:\.ts)?/, `${path.relative(root, modulePath)} must not reference the bootstrap catalog`);
+  assert.doesNotMatch(source, /keySpecs|fullSpecs/, `${path.relative(root, modulePath)} must not read bootstrap keySpecs/fullSpecs fields`);
+}
 
 const unsafe = buildLegacyCompatibility({
   schemaType: "display_ar",
@@ -60,5 +86,27 @@ assert.deepEqual(unsafe, {
   compatibilityGaps: [{ code: "LEGACY_COMPAT_UNREPRESENTABLE_STATE", path: "display.refresh_rate", state: "NOT_DISCLOSED", rawValue: "Not disclosed" }],
   BOOTSTRAP_SPEC_VALUES_AUTHORITATIVE: false, LEGACY_COMPAT_SPEC_SOURCE: "YAML_DERIVED",
 }, "a wholly unrepresentable device safely empties legacy fields without a bootstrap fallback");
+
+const malformed = buildLegacyCompatibility({
+  schemaType: "display_ar",
+  identity: device.identity,
+  specs: [
+    { path: null, rawValue: "malformed", state: "KNOWN" },
+    { path: "display.mode", rawValue: { twoD: 120 }, state: "KNOWN" },
+    { path: "display.refresh_rate", rawValue: [120, 90], state: "KNOWN" },
+    { path: "display.valid", rawValue: "safe", state: "KNOWN" },
+  ],
+  evidence: device.evidence,
+});
+assert.deepEqual(malformed, {
+  key_specs: [{ field: "display.valid", label: "Valid", value: "safe" }],
+  full_specs: { display: { valid: "safe" } },
+  compatibilityGaps: [
+    { code: "LEGACY_COMPAT_UNREPRESENTABLE_VALUE", path: null, state: "KNOWN", rawValue: "malformed" },
+    { code: "LEGACY_COMPAT_UNREPRESENTABLE_VALUE", path: "display.mode", state: "KNOWN", rawValue: { twoD: 120 } },
+    { code: "LEGACY_COMPAT_UNREPRESENTABLE_VALUE", path: "display.refresh_rate", state: "KNOWN", rawValue: [120, 90] },
+  ],
+  BOOTSTRAP_SPEC_VALUES_AUTHORITATIVE: false, LEGACY_COMPAT_SPEC_SOURCE: "YAML_DERIVED",
+}, "invalid paths and object/array values are safely omitted with explicit compatibility gaps");
 
 console.log(`DEVICE_SCHEMA_V1_COMPATIBILITY_OK devices=${normalized.devices.length} fullSpecs=${Object.keys(compatibility.full_specs).length} keySpecs=${compatibility.key_specs.length} gaps=${compatibility.compatibilityGaps.length}`);
