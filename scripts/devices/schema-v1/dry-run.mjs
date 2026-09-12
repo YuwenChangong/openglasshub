@@ -12,10 +12,23 @@ const ENTITY_SPECS = Object.freeze([
 
 const INITIAL_IMPORT_PROVENANCE = "initial-import";
 
+function compareOrdinal(left, right) {
+  let leftIndex = 0;
+  let rightIndex = 0;
+  while (leftIndex < left.length && rightIndex < right.length) {
+    const leftPoint = left.codePointAt(leftIndex);
+    const rightPoint = right.codePointAt(rightIndex);
+    if (leftPoint !== rightPoint) return leftPoint - rightPoint;
+    leftIndex += leftPoint > 0xffff ? 2 : 1;
+    rightIndex += rightPoint > 0xffff ? 2 : 1;
+  }
+  return left.length - right.length;
+}
+
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
+    return Object.fromEntries(Object.keys(value).sort(compareOrdinal).map((key) => [key, canonicalize(value[key])]));
   }
   return value;
 }
@@ -67,7 +80,7 @@ function blockerMap(model) {
     if (!mapped.has(slug)) mapped.set(slug, []);
     mapped.get(slug).push(blocker);
   }
-  for (const blockers of mapped.values()) blockers.sort((left, right) => stableJson(left).localeCompare(stableJson(right)));
+  for (const blockers of mapped.values()) blockers.sort((left, right) => compareOrdinal(stableJson(left), stableJson(right)));
   return mapped;
 }
 
@@ -102,8 +115,20 @@ export function buildRecoveryPlan({ model, existing }) {
       }
       entries.push(Object.freeze({ entity: spec.entity, key, operation, desired, existing: current, blockers, ...(reason ? { reason } : {}) }));
     }
+    for (const [key, current] of existingByKey) {
+      if (desiredByKey.has(key)) continue;
+      entries.push(Object.freeze({
+        entity: spec.entity,
+        key,
+        operation: "CONFLICT",
+        desired: null,
+        existing: current,
+        blockers: [],
+        reason: "STALE_EXISTING_ROW_NO_DELETE",
+      }));
+    }
   }
-  entries.sort((left, right) => left.entity.localeCompare(right.entity) || left.key.localeCompare(right.key));
+  entries.sort((left, right) => compareOrdinal(left.entity, right.entity) || compareOrdinal(left.key, right.key));
   return Object.freeze({ delete: "NONE", entries: Object.freeze(entries) });
 }
 

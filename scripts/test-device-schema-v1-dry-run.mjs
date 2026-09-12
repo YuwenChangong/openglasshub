@@ -34,6 +34,7 @@ const existing = {
   devices: [
     { slug: "alpha", brand: "Alpha", model: "One", generation: "1" },
     { slug: "beta", brand: "Beta", model: "Two", generation: "2", catalogAuditProvenance: "initial-import" },
+    { slug: "retired", brand: "Retired", model: "Legacy", generation: "0", catalogAuditProvenance: "initial-import" },
   ],
   specs: [
     { deviceSlug: "alpha", definitionKey: "display.refresh_rate", region: "Global", variant: "", state: "KNOWN", valueNumber: 120 },
@@ -48,6 +49,9 @@ const existing = {
 const plan = buildRecoveryPlan({ model, existing });
 assert.equal(plan.delete, "NONE", "the dry run has an explicit immutable no-delete operation");
 assert.equal(plan.entries.some((entry) => entry.operation === "DELETE"), false, "the dry run never emits a delete entry");
+assert.deepEqual(plan.entries.find((entry) => entry.entity === "device" && entry.key === "retired"), {
+  entity: "device", key: "retired", operation: "CONFLICT", desired: null, existing: existing.devices[2], blockers: [], reason: "STALE_EXISTING_ROW_NO_DELETE",
+}, "an existing-only row is visible as a no-delete stale conflict instead of silently disappearing");
 
 const operationFor = (entity, key) => plan.entries.find((entry) => entry.entity === entity && entry.key === key)?.operation;
 assert.equal(operationFor("device", "alpha"), "UNCHANGED", "identical owned records are unchanged");
@@ -85,5 +89,18 @@ const reordered = buildRecoveryPlan({
   existing: { ...existing, devices: [...existing.devices].reverse(), specs: [...existing.specs].reverse() },
 });
 assert.equal(fingerprintRecoveryPlan(reordered), fingerprint, "sorting makes the fingerprint stable regardless of input order");
+
+const unicodePlan = buildRecoveryPlan({
+  model: {
+    definitions: [{ key: "é" }, { key: "z" }, { key: "Å" }], devices: [], specs: [], sources: [], sourceLinks: [], evidence: [], blockers: [],
+  },
+  existing: { definitions: [], devices: [], specs: [], sources: [], sourceLinks: [], evidence: [], compatibility: [] },
+});
+assert.deepEqual(unicodePlan.entries.map((entry) => entry.key), ["z", "Å", "é"], "Unicode plan keys use locale-independent code-point order");
+const reorderedUnicodePlan = buildRecoveryPlan({
+  model: { definitions: [{ key: "Å" }, { key: "é" }, { key: "z" }], devices: [], specs: [], sources: [], sourceLinks: [], evidence: [], blockers: [] },
+  existing: { definitions: [], devices: [], specs: [], sources: [], sourceLinks: [], evidence: [], compatibility: [] },
+});
+assert.equal(fingerprintRecoveryPlan(reorderedUnicodePlan), fingerprintRecoveryPlan(unicodePlan), "Unicode plan fingerprints are stable regardless of source array order");
 
 console.log(`DEVICE_SCHEMA_V1_DRY_RUN_OK entries=${plan.entries.length} inserts=${plan.entries.filter((entry) => entry.operation === "INSERT").length} updates=${plan.entries.filter((entry) => entry.operation === "UPDATE").length} unchanged=${plan.entries.filter((entry) => entry.operation === "UNCHANGED").length} conflicts=${plan.entries.filter((entry) => entry.operation === "CONFLICT").length} blocked=${plan.entries.filter((entry) => entry.operation === "BLOCKED").length}`);
