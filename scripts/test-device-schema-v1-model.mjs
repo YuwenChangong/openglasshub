@@ -18,14 +18,14 @@ const normalized = {
     identity: { brand: "Example", model: "Viewer", generation: "One", deviceType: "Glasses", status: "Available" },
     specs: [
       { path: "basic.weight_g", rawValue: 72, state: "KNOWN", value: 72, valueType: "number" },
-      { path: "display.refresh_rate", rawValue: "2D up to 120; 3D up to 90", state: "KNOWN", value: { modes: [{ mode: "2D", upToHz: 120 }, { mode: "3D", upToHz: 90 }] }, valueType: "json" },
+      { path: "display.refresh_rate", rawValue: "2D up to 120; 3D up to 90", state: "KNOWN", value: "2D up to 120; 3D up to 90", valueType: "text" },
     ],
     evidence: { region: "Global", confidence: "HIGH", verifiedAt: "2026-09-05", sourceUrls: [sourceOne, sourceTwo], conflicts: [], notes: [] },
   }],
 };
 const definitions = [
   { key: "basic.weight_g", valueType: "number", canonicalUnit: "g", measurementContext: "mass" },
-  { key: "display.refresh_rate", valueType: "json", canonicalUnit: "Hz", measurementContext: "display_mode" },
+  { key: "display.refresh_rate", valueType: "text", canonicalUnit: "Hz", measurementContext: "display_mode" },
 ];
 const sourceMetadata = [
   { url: sourceOne, publisher: "Example", title: "Product", sourceType: "current_official_product_page", publishedAt: null, accessedAt: "2026-09-05", region: "Global" },
@@ -66,11 +66,10 @@ assert.deepEqual(weight, {
 const refresh = model.specs.find((spec) => spec.definitionKey === "display.refresh_rate");
 assert.deepEqual(refresh, {
   deviceSlug: "example-viewer", definitionKey: "display.refresh_rate", state: "KNOWN",
-  valueNumber: null, valueBoolean: null, valueText: null,
-  valueJson: { modes: [{ mode: "2D", upToHz: 120 }, { mode: "3D", upToHz: 90 }] },
+  valueNumber: null, valueBoolean: null, valueText: "2D up to 120; 3D up to 90", valueJson: null,
   canonicalUnit: "Hz", measurementContext: "display_mode", rawValue: "2D up to 120; 3D up to 90",
   region: "Global", variant: "", confidence: "HIGH", verifiedAt: "2026-09-05",
-}, "multi-mode refresh remains raw plus structured JSON without an invented comparison number");
+}, "multi-mode refresh preserves Task 6 raw/text output without an invented comparison number");
 assert.equal(refresh.valueNumber, null, "multi-mode refresh cannot become an invented numeric winner");
 
 assert.deepEqual(model.evidence, [
@@ -90,5 +89,46 @@ assert.equal(unresolved.devices.length, 0, "an unresolved identity never creates
 assert.deepEqual(unresolved.blockers.at(-1), {
   code: "RAY_BAN_IDENTITY_INDETERMINATE", deviceKey: "Example|Viewer|One", path: "identity", detail: "Needs evidence",
 }, "an unresolved identity blocker is propagated without fabricating a mapping");
+
+const missingSource = buildNormalizedModel({
+  normalized,
+  definitions,
+  sourceMetadata: [sourceMetadata[1]],
+  identityMappings,
+  conflicts,
+});
+assert.deepEqual(missingSource.sourceLinks, [{ deviceSlug: "example-viewer", sourceUrl: sourceTwo, isPrimary: false }], "unreviewed URLs safely omit their dependent source links");
+assert.deepEqual(missingSource.blockers.at(-1), {
+  code: "BLOCKED_SOURCE_METADATA", deviceKey: "Example|Viewer|One", path: "evidence.source_urls", detail: sourceOne,
+}, "an unreviewed source URL becomes a deterministic blocker instead of throwing");
+assert.deepEqual(missingSource.evidence, [], "field-level evidence depending on an unreviewed source is safely omitted");
+
+const rawOnlyConflict = buildNormalizedModel({
+  normalized: {
+    blockers: [],
+    devices: [{
+      schemaType: "display_ar",
+      identity: normalized.devices[0].identity,
+      specs: [{ path: "display.resolution_per_eye", rawValue: "480×400", state: "KNOWN" }],
+      evidence: normalized.devices[0].evidence,
+    }],
+  },
+  definitions: [{ key: "display.resolution_per_eye", valueType: "text", canonicalUnit: null, measurementContext: null }],
+  sourceMetadata,
+  identityMappings,
+  conflicts: {
+    mappings: [{
+      classification: "TRUE_VALUE_CONFLICT", deviceKey: "Example|Viewer|One", canonicalKey: "display.resolution_per_eye",
+      primaryClaim: { claim: "480×400", source: sourceOne }, conflictingClaims: [{ claim: "480×640", source: sourceTwo }],
+    }],
+    blockers: [],
+  },
+});
+assert.deepEqual(rawOnlyConflict.specs, [{
+  deviceSlug: "example-viewer", definitionKey: "display.resolution_per_eye", state: "CONFLICT",
+  valueNumber: null, valueBoolean: null, valueText: null, valueJson: null,
+  canonicalUnit: null, measurementContext: null, rawValue: "480×400",
+  region: "Global", variant: "", confidence: "HIGH", verifiedAt: "2026-09-05",
+}], "a conflict with no safely typed primary preserves raw display data and null typed fields");
 
 console.log(`DEVICE_SCHEMA_V1_MODEL_OK definitions=${model.definitions.length} devices=${model.devices.length} specs=${model.specs.length} sources=${model.sources.length} sourceLinks=${model.sourceLinks.length} evidence=${model.evidence.length} blockers=${model.blockers.length}`);

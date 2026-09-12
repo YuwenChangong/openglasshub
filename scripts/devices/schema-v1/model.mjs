@@ -10,6 +10,7 @@ function requireArray(value, name) {
 function typedValues(spec) {
   const values = { valueNumber: null, valueBoolean: null, valueText: null, valueJson: null };
   if (spec.state !== "KNOWN" && spec.state !== "CONFLICT") return values;
+  if (spec.state === "CONFLICT" && spec.valueType === undefined) return values;
   if (spec.valueType === "number") values.valueNumber = spec.value;
   else if (spec.valueType === "boolean") values.valueBoolean = spec.value;
   else if (spec.valueType === "text") values.valueText = spec.value;
@@ -67,7 +68,10 @@ export function buildNormalizedModel({ normalized, definitions, sourceMetadata, 
     }));
 
     for (const sourceUrl of device.evidence.sourceUrls) {
-      if (!sourcesByUrl.has(sourceUrl)) throw new TypeError(`BLOCKED_SOURCE_METADATA: ${sourceUrl}`);
+      if (!sourcesByUrl.has(sourceUrl)) {
+        blockers.push(Object.freeze({ code: "BLOCKED_SOURCE_METADATA", deviceKey: key, path: "evidence.source_urls", detail: sourceUrl }));
+        continue;
+      }
       usedSources.add(sourceUrl);
       sourceLinks.push(Object.freeze({ deviceSlug: slug, sourceUrl, isPrimary: false }));
     }
@@ -83,9 +87,12 @@ export function buildNormalizedModel({ normalized, definitions, sourceMetadata, 
         confidence: device.evidence.confidence, verifiedAt: device.evidence.verifiedAt,
       }));
       if (conflict) {
-        evidence.push(Object.freeze({ deviceSlug: slug, definitionKey: spec.path, sourceUrl: conflict.primaryClaim.source, claimedValue: conflict.primaryClaim.claim, isPrimary: true, isConflicting: false }));
-        for (const claim of conflict.conflictingClaims) {
-          evidence.push(Object.freeze({ deviceSlug: slug, definitionKey: spec.path, sourceUrl: claim.source, claimedValue: claim.claim, isPrimary: false, isConflicting: true }));
+        const claims = [conflict.primaryClaim, ...conflict.conflictingClaims];
+        if (claims.every((claim) => sourcesByUrl.has(claim.source))) {
+          evidence.push(Object.freeze({ deviceSlug: slug, definitionKey: spec.path, sourceUrl: conflict.primaryClaim.source, claimedValue: conflict.primaryClaim.claim, isPrimary: true, isConflicting: false }));
+          for (const claim of conflict.conflictingClaims) {
+            evidence.push(Object.freeze({ deviceSlug: slug, definitionKey: spec.path, sourceUrl: claim.source, claimedValue: claim.claim, isPrimary: false, isConflicting: true }));
+          }
         }
       }
     }
