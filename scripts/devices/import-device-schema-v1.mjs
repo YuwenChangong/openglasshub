@@ -73,7 +73,7 @@ export async function runLocalSchemaV1Import({ target, plan, createClient }) {
   });
 }
 
-async function buildSchemaV1RecoveryPlan() {
+export async function buildSchemaV1RecoveryPlan({ existing = { definitions: [], devices: [], specs: [], sources: [], sourceLinks: [], evidence: [], compatibility: [] } } = {}) {
   const schemaRoot = path.join(REPOSITORY_ROOT, "scripts", "devices", "schema-v1");
   const approved = await loadApprovedDeviceYaml(path.join(REPOSITORY_ROOT, "src", "data", "devices", "openglasshub_device_data_v1.yaml"));
   const normalized = normalizeCatalogYaml(approved);
@@ -98,9 +98,28 @@ async function buildSchemaV1RecoveryPlan() {
       && candidate.identity.model === device.model && candidate.identity.generation === device.generation);
     return Object.freeze({ deviceSlug: device.slug, ...buildLegacyCompatibility(source) });
   });
+  const bootstrapBySlug = new Map(bootstrapRows.map((row) => [row.slug, row]));
+  const compatibilityBySlug = new Map(compatibility.map((row) => [row.deviceSlug, row]));
+  const deviceIdentities = model.devices.map((device) => Object.freeze({
+    slug: device.slug, brand: device.brand, model: device.model, generation: device.generation,
+  }));
+  const readerCompatibleDevices = model.devices.map((device) => {
+    const bootstrap = bootstrapBySlug.get(device.slug);
+    const legacySpecs = compatibilityBySlug.get(device.slug);
+    if (!bootstrap || !legacySpecs) throw new Error(`BLOCKED_LOCAL_READER_ROW: ${device.slug}`);
+    return Object.freeze({
+      ...bootstrap,
+      generation: device.generation,
+      schema_type: device.schemaType,
+      device_type: device.deviceType,
+      status: device.status,
+      key_specs: legacySpecs.key_specs,
+      full_specs: legacySpecs.full_specs,
+    });
+  });
   return buildRecoveryPlan({
-    model: { ...model, compatibility },
-    existing: { definitions: [], devices: [], specs: [], sources: [], sourceLinks: [], evidence: [], compatibility: [] },
+    model: { ...model, devices: readerCompatibleDevices, deviceIdentities, compatibility },
+    existing,
   });
 }
 

@@ -109,4 +109,4 @@ try {
   await rm(directory, { recursive: true, force: true });
 }
 
-console.log(`DEVICE_SCHEMA_V1_SOURCES_OK UNIQUE_SOURCE_URLS=${UNIQUE_SOURCE_URLS.length} SOURCE_METADATA_MAP_COUNT=${validation.sourceMetadataMapCount} UNMAPPED_SOURCE_URLS=${validation.unmappedSourceUrls.length} AMBIGUOUS_SOURCE_URLS=${validation.ambiguousSourceUrls.length}`);
+console.log(`DEVICE_SCHEMA_V1_SOURCES_OK YAML_SOURCE_URLS=${UNIQUE_SOURCE_URLS.length} EVIDENCE_ONLY_SOURCE_URLS=${EVIDENCE_ONLY_SOURCE_URLS.length} SOURCE_METADATA_MAP_COUNT=${validation.sourceMetadataMapCount} UNMAPPED_SOURCE_URLS=${validation.unmappedSourceUrls.length} AMBIGUOUS_SOURCE_URLS=${validation.ambiguousSourceUrls.length}`);

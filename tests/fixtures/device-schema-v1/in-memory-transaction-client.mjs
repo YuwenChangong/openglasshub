@@ -1,5 +1,4 @@
 import { writeFile } from "node:fs/promises";
-import { buildDeviceRows } from "../../../scripts/migrate-static-device-catalog-to-supabase.mjs";
 
 const ENTITIES = Object.freeze(["definition", "device", "source", "sourceLink", "spec", "evidence", "compatibility"]);
 
@@ -20,13 +19,22 @@ function upsert(rows, entity, row) {
   else rows[entity][index] = { ...rows[entity][index], ...structuredClone(row) };
 }
 
-export async function createLocalTransactionClient() {
-  const snapshotPath = process.env.OPENGLASS_LOCAL_SCHEMA_V1_SNAPSHOT_PATH;
-  if (!snapshotPath) throw new Error("OPENGLASS_LOCAL_SCHEMA_V1_SNAPSHOT_PATH is required by the owned in-memory fixture");
-  const bootstrapRows = await buildDeviceRows();
-  const rows = Object.fromEntries(ENTITIES.map((entity) => [entity, []]));
-  for (const row of bootstrapRows) rows.device.push({ ...row, publicationStatus: row.publication_status });
+function snapshotFor(rows) {
   return {
+    definitions: rows.definition,
+    devices: rows.device,
+    sources: rows.source,
+    sourceLinks: rows.sourceLink,
+    specs: rows.spec,
+    evidence: rows.evidence,
+    compatibility: rows.compatibility,
+  };
+}
+
+export async function createInMemoryTransactionClient({ snapshotPath = null } = {}) {
+  const rows = Object.fromEntries(ENTITIES.map((entity) => [entity, []]));
+  return {
+    snapshot() { return structuredClone(snapshotFor(rows)); },
     async transaction(work) {
       const before = structuredClone(rows);
       try {
@@ -43,19 +51,17 @@ export async function createLocalTransactionClient() {
             upsert(rows, entity, row);
           },
         });
-        await writeFile(snapshotPath, JSON.stringify({
-          definitions: rows.definition,
-          devices: rows.device,
-          sources: rows.source,
-          sourceLinks: rows.sourceLink,
-          specs: rows.spec,
-          evidence: rows.evidence,
-          compatibility: rows.compatibility,
-        }), "utf8");
+        if (snapshotPath) await writeFile(snapshotPath, JSON.stringify(snapshotFor(rows)), "utf8");
       } catch (error) {
         for (const entity of ENTITIES) rows[entity] = before[entity];
         throw error;
       }
     },
   };
+}
+
+export async function createLocalTransactionClient() {
+  const snapshotPath = process.env.OPENGLASS_LOCAL_SCHEMA_V1_SNAPSHOT_PATH;
+  if (!snapshotPath) throw new Error("OPENGLASS_LOCAL_SCHEMA_V1_SNAPSHOT_PATH is required by the owned in-memory fixture");
+  return createInMemoryTransactionClient({ snapshotPath });
 }

@@ -70,7 +70,10 @@ function indexRows(rows, entity, keyFor) {
 }
 
 function blockerMap(model) {
-  const deviceSlugByKey = new Map(requireRows(model.devices, "model.devices").map((device) => [
+  const identityRows = model.deviceIdentities === undefined
+    ? requireRows(model.devices, "model.devices")
+    : requireRows(model.deviceIdentities, "model.deviceIdentities");
+  const deviceSlugByKey = new Map(identityRows.map((device) => [
     `${device.brand}|${device.model}|${device.generation}`, device.slug,
   ]));
   const mapped = new Map();

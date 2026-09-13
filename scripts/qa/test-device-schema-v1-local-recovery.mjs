@@ -4,10 +4,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getPublishedDeviceBySlug, listPublishedDevices } from "../../src/lib/public-device-data.ts";
+import { createInMemoryTransactionClient } from "../../tests/fixtures/device-schema-v1/in-memory-transaction-client.mjs";
 
-let runLocalSchemaV1Import;
+let runLocalSchemaV1Import, buildSchemaV1RecoveryPlan;
 try {
-  ({ runLocalSchemaV1Import } = await import("../devices/import-device-schema-v1.mjs"));
+  ({ runLocalSchemaV1Import, buildSchemaV1RecoveryPlan } = await import("../devices/import-device-schema-v1.mjs"));
 } catch (error) {
   const blocker = new Error("LOCAL_SCHEMA_V1_IMPORTER_MISSING: runLocalSchemaV1Import is not implemented");
   blocker.cause = error;
@@ -51,6 +53,18 @@ function fakeClient({ failEntity } = {}) {
       }
     },
   };
+}
+
+function readerClient(rows) {
+  const filters = [];
+  const result = () => rows.filter((row) => filters.every(([key, value]) => row[key] === value));
+  const query = {
+    select() { return query; },
+    eq(key, value) { filters.push([key, value]); return query; },
+    order() { return Promise.resolve({ data: result(), error: null }); },
+    maybeSingle() { return Promise.resolve({ data: result()[0] ?? null, error: null }); },
+  };
+  return { from() { return query; } };
 }
 
 let clientCreations = 0;
@@ -105,21 +119,23 @@ await assert.rejects(
 );
 assert.equal(malformedClientCreations, 0, "malformed writable data cannot start a client connection");
 
-const rerunClient = fakeClient();
-rerunClient.state.device.push({ slug: "example-viewer", preserved: "admin-edit" });
-const noOverwritePlan = {
-  ...importPlan(),
-  entries: importPlan().entries.map((entry) => ({ ...entry, operation: "UNCHANGED" })),
-};
+const reusableFixture = await createInMemoryTransactionClient();
+const firstRecoveryPlan = await buildSchemaV1RecoveryPlan();
+await runLocalSchemaV1Import({
+  target: "http://localhost:54321",
+  plan: firstRecoveryPlan,
+  createClient: async () => reusableFixture,
+});
+const actualRerunPlan = await buildSchemaV1RecoveryPlan({ existing: reusableFixture.snapshot() });
+assert.ok(actualRerunPlan.entries.every((entry) => entry.operation === "UNCHANGED"), "the actual imported snapshot derives an all-UNCHANGED rerun plan");
 const noOverwriteReceipt = await runLocalSchemaV1Import({
   target: "http://localhost:54321",
-  plan: noOverwritePlan,
-  createClient: async () => rerunClient,
+  plan: actualRerunPlan,
+  createClient: async () => reusableFixture,
 });
-assert.deepEqual(rerunClient.state.device, [{ slug: "example-viewer", preserved: "admin-edit" }], "a rerun plan with only unchanged rows performs no overwrite");
 assert.deepEqual(noOverwriteReceipt.operations, {
   definition: 0, device: 0, source: 0, sourceLink: 0, spec: 0, evidence: 0, compatibility: 0,
-}, "a no-overwrite rerun receipt records zero writes");
+}, "an actual rerun against the imported fixture records zero writes");
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const dryRun = spawnSync(process.execPath, ["scripts/devices/import-device-schema-v1.mjs", "--dry-run"], {
@@ -161,15 +177,18 @@ try {
   const snapshot = JSON.parse(await readFile(snapshotPath, "utf8"));
   assert.equal(snapshot.devices.length, expected.devices, "the local reader fixture contains all recovered devices");
   assert.equal(new Set(snapshot.devices.map((device) => device.slug)).size, expected.uniqueSlugs, "recovered device slugs are unique");
-  assert.equal(snapshot.devices.filter((device) => device.publicationStatus === "published").length, expected.publishedDevices, "all recovered device rows are visible to legacy readers");
+  assert.equal(snapshot.devices.filter((device) => device.publication_status === "published").length, expected.publishedDevices, "all recovered device rows are visible to legacy readers");
   assert.deepEqual(Object.fromEntries([...snapshot.devices.reduce((counts, device) => {
     counts.set(device.brand_key, (counts.get(device.brand_key) ?? 0) + 1);
     return counts;
   }, new Map()).entries()].sort()), expected.brandCounts, "the recovered legacy reader rows retain exact product counts by brand");
   for (const slug of ["xreal-one", "ray-ban-meta", "rayneo-x2"]) {
-    const device = snapshot.devices.find((candidate) => candidate.slug === slug);
-    assert.equal(device?.publicationStatus, "published", `legacy /devices/${slug} resolves a published product row for its /products/ redirect`);
+    const device = await getPublishedDeviceBySlug(readerClient(snapshot.devices), slug);
+    assert.equal(device?.slug, slug, `legacy /devices/${slug} resolves a published product row for its /products/ redirect`);
   }
+  const published = await listPublishedDevices(readerClient(snapshot.devices));
+  assert.equal(published.length, expected.publishedDevices, "the imported empty-fixture rows satisfy the public published-device reader");
+  assert.ok(published.every((device) => device.keySpecs.length > 0 && device.specGroups.length > 0), "the imported rows carry YAML-derived legacy key/full specs for public readers");
   assert.equal(snapshot.specs.length, expected.specs, "the local reader fixture contains the exact derived spec count");
   assert.equal(snapshot.sources.length, expected.sources, "the local reader fixture contains reviewed sources");
   assert.equal(snapshot.evidence.length, expected.evidence, "the local reader fixture contains field-level evidence claims");
