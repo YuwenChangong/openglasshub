@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { types as utilTypes } from "node:util";
 
 const MIGRATION_SHA256 = "a117631dd7a1ffa848b1df8dfbc8286bc7f901a1375961b3d4fe9ad5b2a2d215";
 
@@ -14,6 +15,7 @@ function fail(message) {
 }
 
 function isPlainObject(value) {
+  if (utilTypes.isProxy(value)) return false;
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
@@ -179,6 +181,34 @@ assert.deepEqual(
   assertReleaseAProductionGate(completeEvidence({ authorization: { authorizationId: `release-a-approval-${"1".repeat(129)}`, authorizedAt: "2026-09-13T00:00:00.000Z" } })),
   { allowed: false, missing: ["RELEASE_A_PRODUCTION_AUTHORIZATION_REQUIRED"] },
   "overlong authorization identifiers are rejected by the bounded approval contract",
+);
+
+const synthesizedEvidence = completeEvidence();
+const hiddenDsn = Symbol("dsn");
+const proxyWithHiddenEvidence = new Proxy(
+  { token: "benign", [hiddenDsn]: "postgresql://user:password@example.test/db" },
+  {
+    ownKeys: () => ["localMigrationTests", "candidate", "migrationSha256", "productionSchemaPrecheck", "authorization"],
+    getOwnPropertyDescriptor: () => ({ configurable: true, enumerable: true, value: "benign", writable: true }),
+    get: (_target, key) => synthesizedEvidence[key],
+    getPrototypeOf: () => Object.prototype,
+  },
+);
+assert.throws(
+  () => assertReleaseAProductionGate(proxyWithHiddenEvidence),
+  { name: "TypeError", message: "INVALID_RELEASE_A_GATE_INPUT" },
+  "a Proxy cannot hide token or symbol DSN evidence while synthesizing valid gate properties",
+);
+
+const proxyWithThrowingPrototypeTrap = new Proxy({}, {
+  getPrototypeOf() {
+    throw new Error("untrusted proxy trap message");
+  },
+});
+assert.throws(
+  () => assertReleaseAProductionGate(proxyWithThrowingPrototypeTrap),
+  { name: "TypeError", message: "INVALID_RELEASE_A_GATE_INPUT" },
+  "a Proxy trap cannot leak caller-controlled errors through the gate",
 );
 
 console.log("DEVICE_SCHEMA_V1_RELEASE_A_GATE_OK");
