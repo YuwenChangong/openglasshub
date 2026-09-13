@@ -86,6 +86,52 @@ try {
   );
   const authorized = await writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:00:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-12T22:00:00.000Z", authorizationId: "release-b-approval-001" } } }));
   assert.match(authorized.sha256, /^[a-f0-9]{64}$/, "prior explicit authorization permits a production-write receipt");
+  const authorizedReceipt = JSON.parse(await readFile(authorized.path, "utf8"));
+  assert.equal(authorizedReceipt.production.authorizationEvidence.authorizationId, "release-b-approval-001", "the documented release approval identifier survives serialization");
+  // A broad alphabet or credential-word blacklist must not allow unrelated IDs.
+  const invalidAuthorizationIds = [
+    "production-passwords-001",
+    "database-credentials-001",
+    "prod-secretfile-001",
+    "prod-passwordfile-001",
+    "ordinary-approval-001",
+    "release-b-001",
+    "release--approval-001",
+    "release-b-approval-01",
+    "release-b-approval-001.txt",
+    "release-b-approval-001-extra",
+    "prefix-release-b-approval-001",
+    "release-B-approval-001",
+    "release-b_c-approval-001",
+    "release-b-approval-001\n",
+    "release-b-approval-001\r",
+    `release-${"b".repeat(128)}-approval-001`,
+  ];
+  for (const authorizationId of invalidAuthorizationIds) {
+    await assert.rejects(
+      () => writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:00:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-12T22:00:00.000Z", authorizationId } } })),
+      { name: "TypeError", message: "PRODUCTION_WRITE_AUTHORIZATION_REQUIRED" },
+      "only bounded release approval identifiers can enter receipt evidence; errors disclose no input",
+    );
+    assert.equal(await readFile(authorized.path, "utf8"), `${JSON.stringify(authorizedReceipt)}\n`, "invalid identifiers leave the existing receipt untouched");
+  }
+  await assert.rejects(
+    () => writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:00:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-12T23:00:00.000Z", authorizationId: "release-b-approval-001" } } })),
+    /PRODUCTION_WRITE_AUTHORIZATION_REQUIRED/,
+    "equal timestamps cannot prove prior authorization",
+  );
+  for (const section of ["localReceipt", "counts", "production"]) {
+    await assert.rejects(
+      () => writeSchemaV1Receipt(validInput({ [section]: { ...validInput()[section], extra: "unrecognized" } })),
+      /INVALID_RECEIPT: .* keys are invalid/,
+      "receipt sections reject additional keys even when their values are benign",
+    );
+  }
+  await assert.rejects(
+    () => writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:00:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-12T22:00:00.000Z", authorizationId: "release-b-approval-001", extra: "unrecognized" } } })),
+    /PRODUCTION_WRITE_AUTHORIZATION_REQUIRED/,
+    "authorization evidence rejects additional keys",
+  );
   await assert.rejects(
     () => writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:00:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-12T22:00:00.000Z", authorizationId: "production-password.txt" } } })),
     /PRODUCTION_WRITE_AUTHORIZATION_REQUIRED/,
@@ -116,4 +162,4 @@ try {
   await rm("artifacts/device-schema-v1", { recursive: true, force: true });
 }
 
-console.log("DEVICE_SCHEMA_V1_RECEIPT_OK cases=12 counts=13");
+console.log("DEVICE_SCHEMA_V1_RECEIPT_OK cases=33 counts=13");
