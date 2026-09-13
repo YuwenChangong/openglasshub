@@ -24,10 +24,21 @@ const UNIQUE_SOURCE_URLS = [...new Set(catalog.devices
 const metadata = await loadSourceMetadata(metadataPath);
 const validation = validateSourceMetadata({ sourceUrls: UNIQUE_SOURCE_URLS, metadata });
 
-assert.equal(validation.sourceMetadataMapCount, UNIQUE_SOURCE_URLS.length, "SOURCE_METADATA_MAP_COUNT equals UNIQUE_SOURCE_URLS");
+const EVIDENCE_ONLY_SOURCE_URLS = [
+  "https://shop.viture.com/ja-sg/blogs/news/mmorpgs-viture-one-dock-pack-review",
+  "https://store.viture.com/products/lite-xr-glasses",
+  "https://www.paoka.com/product/INMO-Air2",
+];
+assert.equal(validation.sourceMetadataMapCount, UNIQUE_SOURCE_URLS.length + EVIDENCE_ONLY_SOURCE_URLS.length, "SOURCE_METADATA_MAP_COUNT includes only explicitly curated evidence-only sources beyond YAML URLs");
 assert.equal(validation.unmappedSourceUrls.length, 0, "UNMAPPED_SOURCE_URLS=0");
 assert.equal(validation.ambiguousSourceUrls.length, 0, "AMBIGUOUS_SOURCE_URLS=0");
 assert.equal(validation.invalidRecords.length, 0, "all source metadata records have required fields and nullable optional dates");
+for (const url of EVIDENCE_ONLY_SOURCE_URLS) {
+  assert.ok(!UNIQUE_SOURCE_URLS.includes(url), "evidence-only provenance sources never become YAML spec-value sources");
+}
+assert.equal(metadata.find((record) => record.url === "https://shop.viture.com/ja-sg/blogs/news/mmorpgs-viture-one-dock-pack-review")?.sourceType, "archived_official");
+assert.equal(metadata.find((record) => record.url === "https://store.viture.com/products/lite-xr-glasses")?.sourceType, "archived_official");
+assert.equal(metadata.find((record) => record.url === "https://www.paoka.com/product/INMO-Air2")?.sourceType, "reputable_secondary");
 
 const allowedSourceTypes = new Set([
   "current_official_product_page",

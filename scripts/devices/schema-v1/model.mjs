@@ -90,7 +90,8 @@ export function buildNormalizedModel({ normalized, definitions, sourceMetadata, 
       if (conflict) {
         const claims = [conflict.primaryClaim, ...conflict.conflictingClaims];
         if (claims.every((claim) => sourcesByUrl.has(claim.source))) {
-          evidence.push(Object.freeze({ deviceSlug: slug, definitionKey: spec.path, sourceUrl: conflict.primaryClaim.source, claimedValue: conflict.primaryClaim.claim, isPrimary: true, isConflicting: false }));
+          for (const claim of claims) usedSources.add(claim.source);
+          evidence.push(Object.freeze({ deviceSlug: slug, definitionKey: spec.path, sourceUrl: conflict.primaryClaim.source, claimedValue: conflict.primaryClaim.rawClaim ?? conflict.primaryClaim.claim, isPrimary: true, isConflicting: false }));
           for (const claim of conflict.conflictingClaims) {
             evidence.push(Object.freeze({ deviceSlug: slug, definitionKey: spec.path, sourceUrl: claim.source, claimedValue: claim.claim, isPrimary: false, isConflicting: true }));
           }

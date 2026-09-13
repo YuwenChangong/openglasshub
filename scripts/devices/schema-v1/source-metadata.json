@@ -1,10 +1,10 @@
 [
-  { "url": "https://academy.viture.com/th-th/xr_glasses/introduction", "publisher": "VITURE Academy", "title": null, "source_type": "official_developer_docs", "published_at": null, "accessed_at": "2026-09-05", "region": "Thailand" },
-  { "url": "https://academy.viture.com/xr_glasses/introduction", "publisher": "VITURE Academy", "title": null, "source_type": "official_developer_docs", "published_at": null, "accessed_at": "2026-09-05", "region": null },
+  { "url": "https://academy.viture.com/th-th/xr_glasses/introduction", "publisher": "VITURE Academy", "title": null, "source_type": "official_spec_sheet", "published_at": null, "accessed_at": "2026-09-05", "region": "Thailand" },
+  { "url": "https://academy.viture.com/xr_glasses/introduction", "publisher": "VITURE Academy", "title": null, "source_type": "official_spec_sheet", "published_at": null, "accessed_at": "2026-09-05", "region": null },
   { "url": "https://developer.xreal.com/", "publisher": "XREAL Developer", "title": null, "source_type": "official_developer_docs", "published_at": null, "accessed_at": "2026-09-05", "region": null },
   { "url": "https://docs.brilliant.xyz/frame/hardware/", "publisher": "Brilliant Labs", "title": null, "source_type": "official_developer_docs", "published_at": null, "accessed_at": "2026-09-05", "region": null },
   { "url": "https://eu.shop.xreal.com/en-nl/products/xreal-air-official-certified-refurbished", "publisher": "XREAL", "title": null, "source_type": "archived_official", "published_at": null, "accessed_at": "2026-09-05", "region": "Europe" },
-  { "url": "https://fcc.report/FCC-ID/2A62QIMA02/6647192.pdf", "publisher": "FCC", "title": null, "source_type": "regulatory_document", "published_at": null, "accessed_at": "2026-09-05", "region": "United States" },
+  { "url": "https://fcc.report/FCC-ID/2A62QIMA02/6647192.pdf", "publisher": "SHENZHEN YINGMU TECHNOLOGY CO., LTD / INMO", "title": null, "source_type": "regulatory_document", "published_at": null, "accessed_at": "2026-09-05", "region": "United States" },
   { "url": "https://global.rokid.com/blogs/academy-glasses/glasses-1-1-overview", "publisher": "Rokid", "title": null, "source_type": "official_faq", "published_at": null, "accessed_at": "2026-09-05", "region": null },
   { "url": "https://global.rokid.com/blogs/articles/rokid-air-official-gbatemp-review-by-pranav", "publisher": "Rokid", "title": null, "source_type": "reputable_secondary", "published_at": null, "accessed_at": "2026-09-05", "region": null },
   { "url": "https://global.rokid.com/blogs/max-2/what-comes-with-the-rokid-ar-lite", "publisher": "Rokid", "title": null, "source_type": "official_faq", "published_at": null, "accessed_at": "2026-09-05", "region": null },
@@ -34,5 +34,8 @@
   { "url": "https://www.rayneo.com/products/rayneo-air-4-pro-ar-smart-glasses", "publisher": "RayNeo", "title": null, "source_type": "current_official_product_page", "published_at": null, "accessed_at": "2026-09-05", "region": null },
   { "url": "https://www.rayneo.com/products/tcl-rayneo-x2", "publisher": "RayNeo", "title": null, "source_type": "current_official_product_page", "published_at": null, "accessed_at": "2026-09-05", "region": null },
   { "url": "https://www.rayneo.com/products/x3-pro-ai-display-glasses", "publisher": "RayNeo", "title": null, "source_type": "current_official_product_page", "published_at": null, "accessed_at": "2026-09-05", "region": null },
-  { "url": "https://www.viture.com/en-SG/developer/glasses-sdk/glasses", "publisher": "VITURE", "title": null, "source_type": "official_developer_docs", "published_at": null, "accessed_at": "2026-09-05", "region": "Singapore" }
+  { "url": "https://www.viture.com/en-SG/developer/glasses-sdk/glasses", "publisher": "VITURE", "title": null, "source_type": "official_developer_docs", "published_at": null, "accessed_at": "2026-09-05", "region": "Singapore" },
+  { "url": "https://shop.viture.com/ja-sg/blogs/news/mmorpgs-viture-one-dock-pack-review", "publisher": "VITURE", "title": null, "source_type": "archived_official", "published_at": null, "accessed_at": "2026-09-13", "region": "Singapore" },
+  { "url": "https://store.viture.com/products/lite-xr-glasses", "publisher": "VITURE", "title": null, "source_type": "archived_official", "published_at": null, "accessed_at": "2026-09-13", "region": null },
+  { "url": "https://www.paoka.com/product/INMO-Air2", "publisher": "Paoka", "title": null, "source_type": "reputable_secondary", "published_at": null, "accessed_at": "2026-09-13", "region": null }
 ]

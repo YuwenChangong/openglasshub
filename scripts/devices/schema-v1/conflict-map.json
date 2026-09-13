@@ -60,6 +60,30 @@
       "deviceKey": "Ray-Ban / Meta|Ray-Ban Meta|Gen 2",
       "conflict": "Ray-Ban Meta Gen 2 is a family of frame/SKU variants. Current Wayfarer Gen 2 pages list a custom 5-microphone array and Wi-Fi 6E, while some other Gen 2 styles/official Meta pages expose different microphone/Wi-Fi wording. Treat frame/SKU-specific values as variant-sensitive rather than a universal family constant.",
       "classification": "NORMALIZATION_OR_CONTEXT_NOTE"
+    },
+    {
+      "deviceKey": "VITURE|VITURE One|One",
+      "conflict": "Recent VITURE Academy lists 50,000:1 contrast; older official/brand-hosted material has shown lower figures. Primary value set to the newer Academy value.",
+      "classification": "TRUE_VALUE_CONFLICT",
+      "canonicalKey": "display.contrast_ratio",
+      "primaryClaim": { "claim": "50,000:1", "source": "https://academy.viture.com/xr_glasses/introduction" },
+      "conflictingClaims": [{ "claim": "5,000:1", "source": "https://shop.viture.com/ja-sg/blogs/news/mmorpgs-viture-one-dock-pack-review" }]
+    },
+    {
+      "deviceKey": "VITURE|VITURE One Lite|One Lite",
+      "conflict": "Recent VITURE Academy lists 76 g; an older official store listing has shown 78 g. Primary value set to 76 g.",
+      "classification": "TRUE_VALUE_CONFLICT",
+      "canonicalKey": "basic.weight_g",
+      "primaryClaim": { "claim": 76, "source": "https://academy.viture.com/xr_glasses/introduction" },
+      "conflictingClaims": [{ "claim": 78, "source": "https://store.viture.com/products/lite-xr-glasses" }]
+    },
+    {
+      "deviceKey": "INMO|INMO Air 2|Air 2",
+      "conflict": "Official FCC manual lists approximately 99 g; some third-party sources list 79 g. Primary value set to 99 g because the regulatory manual is authoritative.",
+      "classification": "TRUE_VALUE_CONFLICT",
+      "canonicalKey": "basic.weight_g",
+      "primaryClaim": { "claim": 99, "rawClaim": "~99 g", "source": "https://fcc.report/FCC-ID/2A62QIMA02/6647192.pdf" },
+      "conflictingClaims": [{ "claim": 79, "source": "https://www.paoka.com/product/INMO-Air2" }]
     }
   ]
 }

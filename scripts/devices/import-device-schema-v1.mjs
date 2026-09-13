@@ -15,7 +15,7 @@ import { loadSourceMetadata, validateSourceMetadata } from "./schema-v1/sources.
 import { loadApprovedDeviceYaml } from "./schema-v1/yaml-input.mjs";
 
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const ENTITY_WRITE_ORDER = Object.freeze(["definition", "device", "source", "sourceLink", "spec", "evidence"]);
+const ENTITY_WRITE_ORDER = Object.freeze(["definition", "device", "source", "sourceLink", "spec", "evidence", "compatibility"]);
 const WRITABLE_OPERATIONS = new Set(["INSERT", "UPDATE"]);
 
 function targetHost(target) {
@@ -91,7 +91,7 @@ async function buildSchemaV1RecoveryPlan() {
     loadConflictMappings(path.join(schemaRoot, "conflict-map.json")),
   ]);
   const identityMappings = resolveIdentityMappings({ yamlDevices: approved.devices, bootstrapRows, mappings });
-  const conflicts = classifyConflicts({ normalized, mappings: conflictMappings });
+  const conflicts = classifyConflicts({ normalized, mappings: conflictMappings, reviewedEvidenceSourceUrls: sourceMetadata.map((source) => source.url) });
   const model = buildNormalizedModel({ normalized, definitions, sourceMetadata, identityMappings, conflicts });
   const compatibility = model.devices.map((device) => {
     const source = normalized.devices.find((candidate) => candidate.identity.brand === device.brand

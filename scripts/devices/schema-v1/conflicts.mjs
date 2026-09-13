@@ -4,6 +4,8 @@ import { normalizeSourceUrl } from "./sources.mjs";
 const CLASSIFICATIONS = new Set(["TRUE_VALUE_CONFLICT", "NORMALIZATION_OR_CONTEXT_NOTE"]);
 const NOTE_KEYS = new Set(["deviceKey", "conflict", "classification"]);
 const TRUE_CONFLICT_KEYS = new Set([...NOTE_KEYS, "canonicalKey", "primaryClaim", "conflictingClaims"]);
+const PRIMARY_CLAIM_KEYS = new Set(["claim", "source", "rawClaim"]);
+const CONFLICTING_CLAIM_KEYS = new Set(["claim", "source"]);
 
 function identityKey(device) {
   return `${device.identity.brand}|${device.identity.model}|${device.identity.generation}`;
@@ -31,7 +33,7 @@ function publicMapping(mapping) {
   return Object.freeze(result);
 }
 
-function validateMapping(mapping, index, devicesByKey) {
+function validateMapping(mapping, index, devicesByKey, reviewedEvidenceSourceUrls) {
   const label = `conflict mapping ${index}`;
   nonEmptyText(mapping?.deviceKey, `${label} deviceKey`);
   nonEmptyText(mapping?.conflict, `${label} conflict`);
@@ -47,20 +49,25 @@ function validateMapping(mapping, index, devicesByKey) {
   }
   exactKeys(mapping, TRUE_CONFLICT_KEYS, "TRUE_VALUE_CONFLICT");
   nonEmptyText(mapping.canonicalKey, `${label} canonicalKey`);
-  exactKeys(mapping.primaryClaim, new Set(["claim", "source"]), `${label} primaryClaim`);
+  const primaryKeys = new Set(Object.keys(mapping.primaryClaim ?? {}));
+  if (![2, 3].includes(primaryKeys.size) || [...primaryKeys].some((key) => !PRIMARY_CLAIM_KEYS.has(key))) {
+    throw new TypeError(`${label} primaryClaim has unsupported fields`);
+  }
   claimValue(mapping.primaryClaim.claim, `${label} primaryClaim claim`);
   nonEmptyText(mapping.primaryClaim.source, `${label} primaryClaim source`);
+  if (Object.hasOwn(mapping.primaryClaim, "rawClaim")) nonEmptyText(mapping.primaryClaim.rawClaim, `${label} primaryClaim rawClaim`);
   if (!Array.isArray(mapping.conflictingClaims) || mapping.conflictingClaims.length === 0) throw new TypeError("TRUE_VALUE_CONFLICT requires exact conflicting claim/source data");
   const spec = device.specs.find((candidate) => candidate.path === mapping.canonicalKey);
   if (!spec) throw new TypeError(`${label} canonicalKey is not a normalized device spec`);
   if (spec.rawValue !== mapping.primaryClaim.claim) throw new TypeError(`${label} primaryClaim must exactly match the normalized primary raw value`);
   const sourceUrls = new Set(device.evidence.sourceUrls.map(normalizeSourceUrl));
-  if (!sourceUrls.has(normalizeSourceUrl(mapping.primaryClaim.source))) throw new TypeError(`${label} primaryClaim source is not a device-level source URL`);
+  const allowedEvidenceSourceUrls = new Set([...sourceUrls, ...reviewedEvidenceSourceUrls]);
+  if (!allowedEvidenceSourceUrls.has(normalizeSourceUrl(mapping.primaryClaim.source))) throw new TypeError(`${label} primaryClaim source is not a reviewed device or evidence-only source URL`);
   const claimSourcePairs = new Set();
   const conflictingClaims = mapping.conflictingClaims.map((claim, claimIndex) => {
-    exactKeys(claim, new Set(["claim", "source"]), `${label} conflicting claim ${claimIndex}`);
+    exactKeys(claim, CONFLICTING_CLAIM_KEYS, `${label} conflicting claim ${claimIndex}`);
     claimValue(claim.claim, `${label} conflicting claim ${claimIndex} claim`);
-    if (!sourceUrls.has(normalizeSourceUrl(claim.source))) throw new TypeError(`${label} conflicting claim ${claimIndex} source is not a device-level source URL`);
+    if (!allowedEvidenceSourceUrls.has(normalizeSourceUrl(claim.source))) throw new TypeError(`${label} conflicting claim ${claimIndex} source is not a reviewed device or evidence-only source URL`);
     if (claim.claim === mapping.primaryClaim.claim) throw new TypeError("conflicting claim must differ from the primary claim");
     const pair = `${JSON.stringify(claim.claim)}\u0000${normalizeSourceUrl(claim.source)}`;
     if (claimSourcePairs.has(pair)) throw new TypeError("duplicate conflicting claim/source mapping");
@@ -83,13 +90,15 @@ export async function loadConflictMappings(mappingPath) {
  * Classify only reviewed YAML conflict prose. Unmapped prose blocks evidence
  * creation instead of guessing a canonical field or source link.
  */
-export function classifyConflicts({ normalized, mappings }) {
+export function classifyConflicts({ normalized, mappings, reviewedEvidenceSourceUrls = [] }) {
   if (!normalized || !Array.isArray(normalized.devices)) throw new TypeError("Normalized catalog must contain devices");
   if (!Array.isArray(mappings)) throw new TypeError("mappings must be an array");
+  if (!Array.isArray(reviewedEvidenceSourceUrls)) throw new TypeError("reviewedEvidenceSourceUrls must be an array");
+  const reviewedSourceUrls = new Set(reviewedEvidenceSourceUrls.map(normalizeSourceUrl));
   const devicesByKey = new Map(normalized.devices.map((device) => [identityKey(device), device]));
   const mappingsByProse = new Map();
   for (const [index, mapping] of mappings.entries()) {
-    const validated = validateMapping(mapping, index, devicesByKey);
+    const validated = validateMapping(mapping, index, devicesByKey, reviewedSourceUrls);
     const key = `${validated.deviceKey}\u0000${validated.conflict}`;
     if (mappingsByProse.has(key)) throw new TypeError(`duplicate curated conflict mapping for ${validated.deviceKey}`);
     mappingsByProse.set(key, validated);

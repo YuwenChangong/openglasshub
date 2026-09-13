@@ -11,6 +11,7 @@ try {
 
 const sourceOne = "https://example.com/product";
 const sourceTwo = "https://example.com/manual";
+const sourceThree = "https://example.com/archived-review";
 const normalized = {
   blockers: [{ code: "BLOCKED_CONFIDENCE_VALUE", deviceKey: "Example|Viewer|One", path: "evidence.overall_confidence", detail: "Uncertain" }],
   devices: [{
@@ -30,6 +31,7 @@ const definitions = [
 const sourceMetadata = [
   { url: sourceOne, publisher: "Example", title: "Product", sourceType: "current_official_product_page", publishedAt: null, accessedAt: "2026-09-05", region: "Global" },
   { url: sourceTwo, publisher: "Example", title: "Manual", sourceType: "official_manual", publishedAt: null, accessedAt: "2026-09-05", region: "Global" },
+  { url: sourceThree, publisher: "Example", title: "Archived review", sourceType: "archived_official", publishedAt: null, accessedAt: "2026-09-05", region: "Global" },
 ];
 const identityMappings = [{ yamlBrand: "Example", yamlModel: "Viewer", yamlGeneration: "One", slug: "example-viewer" }];
 const conflicts = {
@@ -37,8 +39,8 @@ const conflicts = {
     classification: "TRUE_VALUE_CONFLICT",
     deviceKey: "Example|Viewer|One",
     canonicalKey: "basic.weight_g",
-    primaryClaim: { claim: 72, source: sourceOne },
-    conflictingClaims: [{ claim: 75, source: sourceTwo }],
+    primaryClaim: { claim: 72, rawClaim: "~72 g", source: sourceOne },
+    conflictingClaims: [{ claim: 75, source: sourceThree }],
   }],
   blockers: [{ code: "BLOCKED_EVIDENCE_MAP", deviceKey: "Example|Viewer|One", path: "evidence.conflicts", detail: "Unmapped prose", sourceUrls: [sourceOne, sourceTwo] }],
 };
@@ -73,8 +75,8 @@ assert.deepEqual(refresh, {
 assert.equal(refresh.valueNumber, null, "multi-mode refresh cannot become an invented numeric winner");
 
 assert.deepEqual(model.evidence, [
-  { deviceSlug: "example-viewer", definitionKey: "basic.weight_g", sourceUrl: sourceOne, claimedValue: 72, isPrimary: true, isConflicting: false },
-  { deviceSlug: "example-viewer", definitionKey: "basic.weight_g", sourceUrl: sourceTwo, claimedValue: 75, isPrimary: false, isConflicting: true },
+  { deviceSlug: "example-viewer", definitionKey: "basic.weight_g", sourceUrl: sourceOne, claimedValue: "~72 g", isPrimary: true, isConflicting: false },
+  { deviceSlug: "example-viewer", definitionKey: "basic.weight_g", sourceUrl: sourceThree, claimedValue: 75, isPrimary: false, isConflicting: true },
 ], "curated true conflicts create only exact field-level evidence claims");
 assert.deepEqual(model.blockers, [...normalized.blockers, ...conflicts.blockers], "upstream confidence and evidence-map blockers are propagated without suppression");
 
