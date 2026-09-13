@@ -48,11 +48,13 @@ identifiers only:
 - `EXACT_PRODUCTION_SCHEMA_PRECHECK_REQUIRED`
 - `RELEASE_A_PRODUCTION_AUTHORIZATION_REQUIRED`
 
-The evaluator rejects unknown fields, secret-bearing keys, DSNs, credentialed
-HTTP URLs, private-key material, and token-shaped values before evaluating the
-gate. It never echoes supplied values. A valid authorization identifier has
-the bounded form `release-a-approval-<at least three digits>` and includes a
-valid UTC timestamp.
+The evaluator rejects unknown fields, symbol keys, non-enumerable/accessor
+properties, non-plain objects, secret-bearing keys, DSNs, credentialed HTTP
+URLs, private-key material, and token-shaped values before evaluating the gate.
+It never echoes supplied values. A valid authorization identifier is at most
+128 characters and has the bounded form `release-a-approval-<at least three
+digits>`; its UTC timestamp must round-trip exactly, so impossible calendar
+dates cannot normalize into valid approval evidence.
 
 Run the local evaluator with:
 

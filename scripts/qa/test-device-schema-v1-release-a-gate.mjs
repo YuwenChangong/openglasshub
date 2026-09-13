@@ -14,19 +14,34 @@ function fail(message) {
 }
 
 function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 function assertNoSensitive(value, key = "", seen = new Set()) {
+  if (typeof key !== "string") fail("INVALID_RELEASE_A_GATE_INPUT");
   if (SENSITIVE_KEY.test(key) || (typeof value === "string" && (SENSITIVE_VALUE.test(value) || CREDENTIAL_HTTP_URL.test(value)))) fail("SECRET_OR_DSN_REJECTED");
   if (!value || typeof value !== "object") return;
+  if (!isPlainObject(value)) fail("INVALID_RELEASE_A_GATE_INPUT");
   if (seen.has(value)) fail("INVALID_RELEASE_A_GATE_INPUT");
   seen.add(value);
-  for (const [childKey, childValue] of Object.entries(value)) assertNoSensitive(childValue, childKey, seen);
+  for (const childKey of Reflect.ownKeys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, childKey);
+    if (typeof childKey !== "string" || !descriptor?.enumerable || !Object.hasOwn(descriptor, "value")) fail("INVALID_RELEASE_A_GATE_INPUT");
+    assertNoSensitive(descriptor.value, childKey, seen);
+  }
 }
 
 function hasExactKeys(value, keys) {
-  return isPlainObject(value) && Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+  if (!isPlainObject(value)) return false;
+  const ownKeys = Reflect.ownKeys(value);
+  return ownKeys.length === keys.length
+    && ownKeys.every((key) => {
+      const descriptor = typeof key === "string" ? Object.getOwnPropertyDescriptor(value, key) : null;
+      return typeof key === "string" && descriptor?.enumerable && Object.hasOwn(descriptor, "value");
+    })
+    && keys.every((key) => Object.hasOwn(value, key));
 }
 
 function isExactMigrationFingerprint(value) {
@@ -36,10 +51,12 @@ function isExactMigrationFingerprint(value) {
 function isPriorReleaseAAuthorization(value) {
   return hasExactKeys(value, ["authorizationId", "authorizedAt"])
     && typeof value.authorizationId === "string"
+    && value.authorizationId.length <= 128
     && RELEASE_A_AUTHORIZATION_ID.test(value.authorizationId)
     && typeof value.authorizedAt === "string"
     && ISO_TIMESTAMP.test(value.authorizedAt)
-    && !Number.isNaN(Date.parse(value.authorizedAt));
+    && !Number.isNaN(Date.parse(value.authorizedAt))
+    && new Date(value.authorizedAt).toISOString() === value.authorizedAt;
 }
 
 /**
@@ -120,6 +137,48 @@ assert.throws(
   () => assertReleaseAProductionGate({ ...completeEvidence(), extra: "benign" }),
   { name: "TypeError", message: "INVALID_RELEASE_A_GATE_INPUT" },
   "unknown input fields cannot alter authorization behavior",
+);
+
+const symbolDsnEvidence = completeEvidence();
+symbolDsnEvidence[Symbol("evidence")] = "postgresql://user:password@example.test/db";
+assert.throws(
+  () => assertReleaseAProductionGate(symbolDsnEvidence),
+  { name: "TypeError", message: "INVALID_RELEASE_A_GATE_INPUT" },
+  "symbol-keyed DSNs are rejected rather than bypassing value validation",
+);
+
+const nonEnumerableSecretEvidence = completeEvidence();
+Object.defineProperty(nonEnumerableSecretEvidence.candidate, "note", {
+  value: "postgresql://user:password@example.test/db",
+  enumerable: false,
+});
+assert.throws(
+  () => assertReleaseAProductionGate(nonEnumerableSecretEvidence),
+  { name: "TypeError", message: "INVALID_RELEASE_A_GATE_INPUT" },
+  "non-enumerable secret values are rejected rather than bypassing value validation",
+);
+
+const nonEnumerableUnknownEvidence = completeEvidence();
+Object.defineProperty(nonEnumerableUnknownEvidence.candidate, "extra", {
+  value: "benign",
+  enumerable: false,
+});
+assert.throws(
+  () => assertReleaseAProductionGate(nonEnumerableUnknownEvidence),
+  { name: "TypeError", message: "INVALID_RELEASE_A_GATE_INPUT" },
+  "non-enumerable unknown fields cannot bypass the exact input contract",
+);
+
+assert.deepEqual(
+  assertReleaseAProductionGate(completeEvidence({ authorization: { authorizationId: "release-a-approval-001", authorizedAt: "2026-02-31T00:00:00.000Z" } })),
+  { allowed: false, missing: ["RELEASE_A_PRODUCTION_AUTHORIZATION_REQUIRED"] },
+  "an impossible authorization date does not normalize into valid approval evidence",
+);
+
+assert.deepEqual(
+  assertReleaseAProductionGate(completeEvidence({ authorization: { authorizationId: `release-a-approval-${"1".repeat(129)}`, authorizedAt: "2026-09-13T00:00:00.000Z" } })),
+  { allowed: false, missing: ["RELEASE_A_PRODUCTION_AUTHORIZATION_REQUIRED"] },
+  "overlong authorization identifiers are rejected by the bounded approval contract",
 );
 
 console.log("DEVICE_SCHEMA_V1_RELEASE_A_GATE_OK");
