@@ -109,7 +109,7 @@ const CANONICAL_MIGRATION_SHA256 = new Map([
   ["20260829_device_slug_lock.sql", "26e47a4a68d8201bfb87aed906e054e08e5a4f3e010557289ae05dd673dd4543"],
   ["20260902042807_forward_reconcile_devices.sql", "2f98fea88b4b5619dce82a0e48c0653c96f4db3e212d6f52a85fbab083405e65"],
   ["20260904054013_forward_reconcile_security_privileges.sql", "98819214e5bece6d659e0b0cc2a3b16865f84227e8ab6a1d4dbcac0b7cddf3c5"],
-  ["20260909195640_device_schema_v1_foundation.sql", "7b5d4a09b76f780755e1f925b8a1517e9291e7f91409bdbcda60a6d3fa6e1849"],
+  ["20260909195640_device_schema_v1_foundation.sql", "a117631dd7a1ffa848b1df8dfbc8286bc7f901a1375961b3d4fe9ad5b2a2d215"],
 ]);
 const legalPrerequisiteNames = [
   "20260703_moderation_action_notifications.sql",

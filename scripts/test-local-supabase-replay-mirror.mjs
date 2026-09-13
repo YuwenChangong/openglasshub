@@ -101,7 +101,7 @@ test("accepts the current 50-file canonical inventory in its reviewed replay ord
   assert.equal(report.migrationCount, 50);
   assert.equal(report.temporaryVersionCount, 50);
   assert.equal(report.mappings[49].canonicalFile, "20260909195640_device_schema_v1_foundation.sql");
-  assert.equal(report.mappings[49].canonicalSha256, "7b5d4a09b76f780755e1f925b8a1517e9291e7f91409bdbcda60a6d3fa6e1849");
+  assert.equal(report.mappings[49].canonicalSha256, "a117631dd7a1ffa848b1df8dfbc8286bc7f901a1375961b3d4fe9ad5b2a2d215");
   assert.equal(report.mappings[49].temporaryVersion, "20260909000001");
   assert.deepEqual(report.mappings.map((entry) => entry.canonicalFile), expectedOrder);
   assert.deepEqual(report.bomTransformedFiles, [
