@@ -77,12 +77,31 @@ try {
   await assert.rejects(
     () => writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:00:00.000Z", authorizationEvidence: null } })),
     /PRODUCTION_WRITE_AUTHORIZATION_REQUIRED/,
-    "a production-write receipt needs later explicit authorization evidence",
+    "a production-write receipt needs separate prior authorization evidence",
   );
-  const authorized = await writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:00:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-13T00:00:00.000Z", authorizationId: "release-b-approval-001" } } }));
-  assert.match(authorized.sha256, /^[a-f0-9]{64}$/, "later explicit authorization evidence permits a production-write receipt");
+  await assert.rejects(
+    () => writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:00:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-13T00:00:00.000Z", authorizationId: "release-b-approval-001" } } })),
+    /PRODUCTION_WRITE_AUTHORIZATION_REQUIRED/,
+    "post-hoc authorization cannot legitimize a production-write receipt",
+  );
+  const authorized = await writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:00:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-12T22:00:00.000Z", authorizationId: "release-b-approval-001" } } }));
+  assert.match(authorized.sha256, /^[a-f0-9]{64}$/, "prior explicit authorization permits a production-write receipt");
+  const changedWriteTime = await writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:01:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-12T22:00:00.000Z", authorizationId: "release-b-approval-001" } } }));
+  const productionReceipt = JSON.parse(await readFile(changedWriteTime.path, "utf8"));
+  assert.equal(productionReceipt.production.writeOccurredAt, "2026-09-12T23:01:00.000Z", "canonical production evidence retains the write timestamp");
+  assert.notEqual(authorized.sha256, changedWriteTime.sha256, "different production write times produce distinct receipt fingerprints");
+  await assert.rejects(
+    () => writeSchemaV1Receipt(validInput({ localReceipt: { ...validInput().localReceipt, extra: { note: "C:/restricted/production-password.txt" } } })),
+    /SECRET_OR_DSN_REJECTED/,
+    "nested credential-bearing filesystem paths are rejected without being written",
+  );
+  await assert.rejects(
+    () => writeSchemaV1Receipt(validInput({ counts: { ...exactCounts, extra: { note: "https://user:password@example.test/receipt" } } })),
+    /SECRET_OR_DSN_REJECTED/,
+    "credential-bearing HTTPS URLs cannot be smuggled through extra objects",
+  );
 } finally {
   await rm("artifacts/device-schema-v1", { recursive: true, force: true });
 }
 
-console.log("DEVICE_SCHEMA_V1_RECEIPT_OK cases=5 counts=13");
+console.log("DEVICE_SCHEMA_V1_RECEIPT_OK cases=8 counts=13");
