@@ -10,3 +10,4 @@ supabase/.temp/
 Thumbs.db
 .tmp-*.log
 artifacts/qa/
+artifacts/device-schema-v1/
