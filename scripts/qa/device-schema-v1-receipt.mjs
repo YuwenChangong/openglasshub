@@ -7,6 +7,7 @@ const RECEIPT_VERSION = "openglass-device-schema-v1-recovery-evidence-v1";
 const SHA256 = /^[a-f0-9]{64}$/i;
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SAFE_AUTHORIZATION_ID = /^[a-z0-9][a-z0-9._-]{2,127}$/i;
+const CREDENTIAL_LIKE_AUTHORIZATION_ID = /(?:^|[-_.])(?:password|secret|token|key|api[_-]?key|service[_-]?role|anon[_-]?key|dsn|credential|private[_-]?key|access[_-]?key|client[_-]?secret)(?:[-_.]|$)/i;
 const SENSITIVE_KEY = /(?:password|secret|token|api[_-]?key|service[_-]?role|anon[_-]?key|dsn|credential|connection[_-]?string|pgpassword|private[_-]?key|access[_-]?key|client[_-]?secret)/i;
 const SENSITIVE_VALUE = /(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/|-----BEGIN [^-\r\n]*PRIVATE KEY-----|\b(?:sk|rk|pk|ghp|xox[baprs])[-_][a-z0-9_-]{16,}\b|\beyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/i;
 const CREDENTIAL_HTTP_URL = /\bhttps?:\/\/[^\s\/@]+@/i;
@@ -90,7 +91,7 @@ function validateProduction(production) {
   if (!production.authorizationEvidence) fail("PRODUCTION_WRITE_AUTHORIZATION_REQUIRED");
   assertPlainObject(production.authorizationEvidence, "production.authorizationEvidence");
   const { authorizationId, authorizedAt } = production.authorizationEvidence;
-  if (Object.keys(production.authorizationEvidence).length !== 2 || typeof authorizationId !== "string" || !SAFE_AUTHORIZATION_ID.test(authorizationId)) fail("PRODUCTION_WRITE_AUTHORIZATION_REQUIRED");
+  if (Object.keys(production.authorizationEvidence).length !== 2 || typeof authorizationId !== "string" || !SAFE_AUTHORIZATION_ID.test(authorizationId) || CREDENTIAL_LIKE_AUTHORIZATION_ID.test(authorizationId)) fail("PRODUCTION_WRITE_AUTHORIZATION_REQUIRED");
   const normalizedAuthorizedAt = assertTimestamp(authorizedAt, "production.authorizationEvidence.authorizedAt");
   // Same-instant evidence cannot prove authorization occurred before the write.
   if (Date.parse(normalizedAuthorizedAt) >= Date.parse(writeOccurredAt)) fail("PRODUCTION_WRITE_AUTHORIZATION_REQUIRED");
