@@ -91,6 +91,13 @@ try {
     /PRODUCTION_WRITE_AUTHORIZATION_REQUIRED/,
     "credential-like bare filenames cannot be serialized as authorization identifiers",
   );
+  for (const authorizationId of ["production-passwords.txt", "database-credentials.json", "prod-secretfile.txt"]) {
+    await assert.rejects(
+      () => writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:00:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-12T22:00:00.000Z", authorizationId } } })),
+      /PRODUCTION_WRITE_AUTHORIZATION_REQUIRED/,
+      "credential-like filename variants cannot be serialized as authorization identifiers",
+    );
+  }
   const changedWriteTime = await writeSchemaV1Receipt(validInput({ production: { writes: 1, writeOccurredAt: "2026-09-12T23:01:00.000Z", authorizationEvidence: { authorizedAt: "2026-09-12T22:00:00.000Z", authorizationId: "release-b-approval-001" } } }));
   const productionReceipt = JSON.parse(await readFile(changedWriteTime.path, "utf8"));
   assert.equal(productionReceipt.production.writeOccurredAt, "2026-09-12T23:01:00.000Z", "canonical production evidence retains the write timestamp");
@@ -109,4 +116,4 @@ try {
   await rm("artifacts/device-schema-v1", { recursive: true, force: true });
 }
 
-console.log("DEVICE_SCHEMA_V1_RECEIPT_OK cases=9 counts=13");
+console.log("DEVICE_SCHEMA_V1_RECEIPT_OK cases=12 counts=13");
