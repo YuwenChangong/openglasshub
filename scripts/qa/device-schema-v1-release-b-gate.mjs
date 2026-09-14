@@ -35,6 +35,7 @@ export const RELEASE_B_PACKET = Object.freeze({
 });
 
 const OPERATIONS = Object.freeze({ definition: 92, device: 24, source: 39, sourceLink: 46, spec: 1488, evidence: 15, compatibility: 24 });
+const ZERO_OPERATIONS = Object.freeze({ definition: 0, device: 0, source: 0, sourceLink: 0, spec: 0, evidence: 0, compatibility: 0 });
 const EMPTY_TARGET_ROWS = Object.freeze({ devices: 0, definitions: 0, specs: 0, sources: 0, sourceLinks: 0, evidence: 0, auditEvents: 0 });
 
 function fail(message) {
@@ -146,10 +147,16 @@ function validLocalRehearsal(value) {
 }
 
 function validLocalSqlRehearsal(value) {
-  return hasExactKeys(value, ["status", "target", "constraints", "repaired", "idempotent", "secondDryRunBlocked", "secondDryRunDelete", "operations"])
+  return hasExactKeys(value, ["status", "target", "fullCanonicalMigrationChain", "manuallyRecreatedSchemaObjects", "constraints", "repaired", "operations", "afterCounts", "sqlConstraintFailures", "sqlTriggerFailures", "deleteOperations", "rollbackAtomicity", "rowsCommittedAfterFailure", "idempotent", "secondDryRunBlocked", "secondDryRunDelete", "secondRunOperations", "legacyYamlDerived", "productCompatibility"])
     && value.status === "PASS" && value.target === "LOCAL_DISPOSABLE_SQL" && value.constraints === "PASS"
-    && value.repaired === false && value.idempotent === true
-    && value.secondDryRunBlocked === 0 && value.secondDryRunDelete === "NONE" && validOperations(value.operations);
+    && value.fullCanonicalMigrationChain === true && value.manuallyRecreatedSchemaObjects === 0
+    && value.repaired === false && validOperations(value.operations)
+    && exactObject(value.afterCounts, RELEASE_B_PACKET.expectedAfterCounts)
+    && value.sqlConstraintFailures === 0 && value.sqlTriggerFailures === 0 && value.deleteOperations === 0
+    && value.rollbackAtomicity === "PASS" && value.rowsCommittedAfterFailure === 0
+    && value.idempotent === true && value.secondDryRunBlocked === 0 && value.secondDryRunDelete === "NONE"
+    && exactObject(value.secondRunOperations, ZERO_OPERATIONS)
+    && value.legacyYamlDerived === true && value.productCompatibility === "PASS";
 }
 
 function validCompatibility(value) {

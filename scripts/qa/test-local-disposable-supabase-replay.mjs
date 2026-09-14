@@ -830,6 +830,8 @@ test("a matching fingerprint removes its separate evidence directory after clean
   let runtimeRoot;
   let candidatePath;
   let containerListCalls = 0;
+  let ledgerValidated = false;
+  let hookCalls = 0;
   const config = `project_id = "test"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[analytics]\nport = 54327\n[db.pooler]\nport = 54329\n[edge_runtime]\ninspector_port = 54383\n`;
   const execute = async (command, args, options = {}) => {
     calls.push({ command, args });
@@ -839,6 +841,7 @@ test("a matching fingerprint removes its separate evidence directory after clean
     }
     if (command === "docker" && args[0] === "exec") {
       const mirror = JSON.parse(await readFile(path.join(runtimeRoot, "mapping.json"), "utf8"));
+      ledgerValidated = true;
       return { stdout: `version,name\n${mirror.mappings.map(({ temporaryVersion, temporaryFile }) => `${temporaryVersion},${temporaryFile.replace(/^\d+_/, "").replace(/\.sql$/, "")}`).join("\n")}\n`, stderr: "" };
     }
     if (args.includes("init")) {
@@ -856,8 +859,22 @@ test("a matching fingerprint removes its separate evidence directory after clean
     throw new Error(`unexpected command ${command}`);
   };
 
-  const result = await runLocalDisposableReplay({ root, runId: "cd34ab12", environment: { PATH: process.env.PATH }, execute });
+  const result = await runLocalDisposableReplay({
+    root,
+    runId: "cd34ab12",
+    environment: { PATH: process.env.PATH },
+    execute,
+    afterMigrationLedgerValidated: async ({ target, executeSql }) => {
+      hookCalls += 1;
+      assert.equal(ledgerValidated, true, "the hook runs only after the canonical migration ledger is validated");
+      assert.equal(target, "http://127.0.0.1:54321");
+      assert.equal(typeof executeSql, "function");
+      return { rehearsal: "PASS" };
+    },
+  });
   assert.equal(result.localReplay, "PASS");
+  assert.equal(hookCalls, 1, "the post-ledger hook runs exactly once while the owned database is alive");
+  assert.deepEqual(result.afterMigrationLedgerValidated, { rehearsal: "PASS" });
   assert.equal(calls.filter(({ args }) => args.includes("stop")).length, 1, "the owned project is stopped after a matching fingerprint");
   assert.equal(await exists(runtimeRoot), false, "the disposable runtime is removed after a matching fingerprint");
   assert.equal(await exists(path.dirname(candidatePath)), false, "matching evidence does not remain after cleanup");

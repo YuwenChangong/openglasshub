@@ -22,7 +22,15 @@ function completeEvidence(overrides = {}) {
     },
     dryRun: { blocked: 0, delete: "NONE", conflicts: 0, operations: { definition: 92, device: 24, source: 39, sourceLink: 46, spec: 1488, evidence: 15, compatibility: 24 } },
     localRehearsal: { status: "PASS", constraints: "PASS", repaired: false, idempotent: true, secondDryRunBlocked: 0, secondDryRunDelete: "NONE", operations: { definition: 92, device: 24, source: 39, sourceLink: 46, spec: 1488, evidence: 15, compatibility: 24 } },
-    localSqlRehearsal: { status: "PASS", target: "LOCAL_DISPOSABLE_SQL", constraints: "PASS", repaired: false, idempotent: true, secondDryRunBlocked: 0, secondDryRunDelete: "NONE", operations: { definition: 92, device: 24, source: 39, sourceLink: 46, spec: 1488, evidence: 15, compatibility: 24 } },
+    localSqlRehearsal: {
+      status: "PASS", target: "LOCAL_DISPOSABLE_SQL", fullCanonicalMigrationChain: true, manuallyRecreatedSchemaObjects: 0,
+      constraints: "PASS", repaired: false,
+      operations: { definition: 92, device: 24, source: 39, sourceLink: 46, spec: 1488, evidence: 15, compatibility: 24 },
+      afterCounts: { ...RELEASE_B_PACKET.expectedAfterCounts }, sqlConstraintFailures: 0, sqlTriggerFailures: 0, deleteOperations: 0,
+      rollbackAtomicity: "PASS", rowsCommittedAfterFailure: 0, idempotent: true, secondDryRunBlocked: 0, secondDryRunDelete: "NONE",
+      secondRunOperations: { definition: 0, device: 0, source: 0, sourceLink: 0, spec: 0, evidence: 0, compatibility: 0 },
+      legacyYamlDerived: true, productCompatibility: "PASS",
+    },
     compatibility: { status: "PASS", productsRoute: "PASS", brandGrouping: "PASS", rayBanMetaRoute: "PASS", yamlDerivedSpecs: "PASS" },
     releaseQa: { status: "PASS", productionConnections: 0, providerWrites: 0 },
     productionPrecheck: {
@@ -51,6 +59,9 @@ const missingCases = [
   ["unlocked normalized payload", { payload: { ...completeEvidence().payload, independentRebuildSha256: "0".repeat(64) } }, "LOCKED_NORMALIZED_PAYLOAD_REQUIRED"],
   ["wrong expected after count", { expectedAfterCounts: { ...RELEASE_B_PACKET.expectedAfterCounts, devices: 23 } }, "EXACT_PRODUCTION_AFTER_COUNTS_REQUIRED"],
   ["missing real local SQL rehearsal", { localSqlRehearsal: { ...completeEvidence().localSqlRehearsal, status: "NOT_RUN" } }, "LOCAL_SQL_TRANSACTIONAL_REHEARSAL_REQUIRED"],
+  ["SQL rehearsal without rollback atomicity", { localSqlRehearsal: { ...completeEvidence().localSqlRehearsal, rollbackAtomicity: "BLOCKED" } }, "LOCAL_SQL_TRANSACTIONAL_REHEARSAL_REQUIRED"],
+  ["SQL rehearsal with wrong committed counts", { localSqlRehearsal: { ...completeEvidence().localSqlRehearsal, afterCounts: { ...RELEASE_B_PACKET.expectedAfterCounts, specs: 1487 } } }, "LOCAL_SQL_TRANSACTIONAL_REHEARSAL_REQUIRED"],
+  ["SQL rehearsal with a nonzero second run", { localSqlRehearsal: { ...completeEvidence().localSqlRehearsal, secondRunOperations: { ...completeEvidence().localSqlRehearsal.secondRunOperations, spec: 1 } } }, "LOCAL_SQL_TRANSACTIONAL_REHEARSAL_REQUIRED"],
 ];
 
 for (const [name, overrides, expected] of missingCases) {

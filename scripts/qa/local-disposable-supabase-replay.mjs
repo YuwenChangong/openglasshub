@@ -666,6 +666,26 @@ function dockerPsqlResult({ environment, containerId, sql }) {
   });
 }
 
+function dockerPsqlCsv({ environment, containerId, sql }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("docker", ["exec", "-i", containerId, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose", "-U", "postgres", "-d", "postgres", "--csv"], { env: environment, windowsHide: true, stdio: "pipe" });
+    let stdout = "", stderr = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve(stdout);
+      else {
+        const error = new Error(`Owned disposable PostgreSQL transaction exited ${code}`);
+        error.exitCode = code;
+        error.sqlState = /\b(?:ERROR|FATAL):\s+([0-9A-Z]{5}):/.exec(stderr)?.[1] ?? null;
+        reject(error);
+      }
+    });
+    child.stdin.end(sql);
+  });
+}
+
 function dockerPsqlSession({ environment, containerId }) {
   const child = spawn("docker", ["exec", "-i", containerId, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose", "-U", "postgres", "-d", "postgres", "-At"], { env: environment, windowsHide: true, stdio: "pipe" });
   let output = "", sequence = 0, pending;
@@ -709,7 +729,7 @@ export async function cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot
   return true;
 }
 
-export async function runLocalDisposableReplay({ root = REPOSITORY_ROOT, runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false, diagnosticStartFailure = false, startupOnly = false, migrationLimit, enforcementRunner = runDeviceSchemaV1EnforcementAgainstSql } = {}) {
+export async function runLocalDisposableReplay({ root = REPOSITORY_ROOT, runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false, diagnosticStartFailure = false, startupOnly = false, migrationLimit, enforcementRunner = runDeviceSchemaV1EnforcementAgainstSql, afterMigrationLedgerValidated } = {}) {
   if (startupOnly && diagnosticStartFailure) throw new Error("Startup-only mode forbids diagnostic start capture");
   const plan = buildLocalDisposableReplayPlan({ root, runId, startupOnly, migrationLimit });
   if (dryRun) return plan;
@@ -819,6 +839,15 @@ export async function runLocalDisposableReplay({ root = REPOSITORY_ROOT, runId =
           createSession: () => dockerPsqlSession({ environment: safeEnvironment, containerId: container.id }),
         })
         : { status: "NOT_RUN", assertions: 0 };
+      const postLedgerResult = typeof afterMigrationLedgerValidated === "function"
+        ? await afterMigrationLedgerValidated(Object.freeze({
+          target: status.API_URL,
+          canonicalMigrationCount: mirror.migrationCount,
+          executeSql: execute === runCommand
+            ? (sql) => dockerPsqlCsv({ environment: safeEnvironment, containerId: container.id, sql })
+            : (sql) => executeUnixSocketPsql({ execute, environment: safeEnvironment, containerId: container.id, sql }),
+        }))
+        : undefined;
       result = {
         localReplay: "PASS",
         localReplayTarget: "DISPOSABLE",
@@ -828,6 +857,7 @@ export async function runLocalDisposableReplay({ root = REPOSITORY_ROOT, runId =
         migrationLedger: "PASS",
         deviceSchemaV1Enforcement: enforcement.status,
         deviceSchemaV1Assertions: enforcement.assertions,
+        ...(postLedgerResult === undefined ? {} : { afterMigrationLedgerValidated: postLedgerResult }),
         remoteConnections: 0,
       };
     }

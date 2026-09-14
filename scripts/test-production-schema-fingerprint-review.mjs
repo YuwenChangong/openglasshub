@@ -94,6 +94,23 @@ test("review accepts a strict Release A delta without absorbing it into the hist
   assert.doesNotThrow(() => assertFingerprintReviewMatches(review));
 });
 
+test("review accepts only the exact Release A device policy replacements", () => {
+  const row = (name, operation, hash = name) => ({ objectType: "policy", schema: "public", name: "devices", identity: `public.devices.${name}`, attribute: operation, deterministicSha256: hash });
+  const shared = { objectType: "table", schema: "public", name: "devices", identity: "public.devices", attribute: "rls_state", deterministicSha256: "same" };
+  const historicalPolicies = [row("devices_insert_staff", "INSERT"), row("devices_update_staff", "UPDATE"), row("devices_delete_staff", "DELETE")];
+  const catalogPolicies = [row("devices_insert_catalog_admin", "INSERT"), row("devices_update_catalog_admin", "UPDATE"), row("devices_delete_catalog_admin", "DELETE")];
+  const expected = fingerprint({ migrations: Array.from({ length: 49 }, (_, index) => `migration_${index + 1}`), objects: [shared, ...historicalPolicies] });
+  const candidate = fingerprint({ migrations: [...Array.from({ length: 49 }, (_, index) => `migration_${index + 1}`), "device_schema_v1_foundation"], objects: [shared, ...catalogPolicies] });
+  const accepted = reviewFingerprintCandidate({ expected, candidate });
+  assert.equal(accepted.releaseDeltaMatchesCandidate, true);
+  assert.equal(accepted.classification, "RELEASE_A_DELTA_ACCEPTED");
+  assert.doesNotThrow(() => assertFingerprintReviewMatches(accepted));
+
+  const unrelatedRemoval = reviewFingerprintCandidate({ expected: fingerprint({ migrations: expected.localMigrationLedger.map(({ name }) => name), objects: [shared, ...historicalPolicies, row("devices_select_published_public", "SELECT")] }), candidate });
+  assert.equal(unrelatedRemoval.releaseDeltaMatchesCandidate, false, "an unrelated missing policy remains a fingerprint blocker");
+  assert.throws(() => assertFingerprintReviewMatches(unrelatedRemoval), /fixture review required/i);
+});
+
 test("generated fingerprint scope follows the applied local migration ledger", () => {
   const rows = [
     { section: "migration_ledger", object_type: "migration", schema_name: "supabase_migrations", object_name: "one", identity: "20260901000001", attribute: "statement_count", value: "1", definition_hash: "" },

@@ -25,16 +25,36 @@ function objectIndex(fingerprint) {
   return new Map(fingerprint.objects.map((entry) => [objectKey(entry), entry.deterministicSha256]));
 }
 
-function isStrictForwardDelta({ expectedLedgerIds, candidateLedgerIds, expectedObjects, candidateObjects, review }) {
+const RELEASE_A_REPLACED_DEVICE_POLICIES = new Set([
+  "policy|public|devices|public.devices.devices_delete_staff|DELETE",
+  "policy|public|devices|public.devices.devices_insert_staff|INSERT",
+  "policy|public|devices|public.devices.devices_update_staff|UPDATE",
+]);
+const RELEASE_A_CATALOG_DEVICE_POLICIES = new Set([
+  "policy|public|devices|public.devices.devices_delete_catalog_admin|DELETE",
+  "policy|public|devices|public.devices.devices_insert_catalog_admin|INSERT",
+  "policy|public|devices|public.devices.devices_update_catalog_admin|UPDATE",
+]);
+
+function exactIdentitySet(values, expected) {
+  return values.length === expected.size && values.every((value) => expected.has(value));
+}
+
+function approvedReleaseAObjectTransition(review, candidateObjects) {
+  if (review.objectIdentity.missingFromCandidate.length === 0) return true;
+  return exactIdentitySet(review.objectIdentity.missingFromCandidate, RELEASE_A_REPLACED_DEVICE_POLICIES)
+    && [...RELEASE_A_CATALOG_DEVICE_POLICIES].every((key) => candidateObjects.has(key));
+}
+
+function isStrictForwardDelta({ expectedLedgerIds, candidateLedgerIds, candidateObjects, review }) {
   return candidateLedgerIds.length === expectedLedgerIds.length + 1
     && review.migrationLedger.orderMatchesForSharedEntries
     && review.migrationLedger.missingFromCandidate.length === 0
     && review.migrationLedger.addedByCandidate.length === 1
     && review.migrationLedger.addedByCandidate[0]?.name === "device_schema_v1_foundation"
-    && review.objectIdentity.missingFromCandidate.length === 0
+    && approvedReleaseAObjectTransition(review, candidateObjects)
     && review.objectIdentity.addedByCandidate.length > 0
-    && review.objectIdentity.divergentDefinitions.length === 0
-    && [...expectedObjects.keys()].every((key) => candidateObjects.has(key));
+    && review.objectIdentity.divergentDefinitions.length === 0;
 }
 
 function stableReviewId(review) {
@@ -81,7 +101,7 @@ export function reviewFingerprintCandidate({ expected, candidate }) {
     && review.objectIdentity.missingFromCandidate.length === 0
     && review.objectIdentity.addedByCandidate.length === 0
     && review.objectIdentity.divergentDefinitions.length === 0;
-  review.releaseDeltaMatchesCandidate = isStrictForwardDelta({ expectedLedgerIds, candidateLedgerIds, expectedObjects, candidateObjects, review });
+  review.releaseDeltaMatchesCandidate = isStrictForwardDelta({ expectedLedgerIds, candidateLedgerIds, candidateObjects, review });
   if (review.releaseDeltaMatchesCandidate) review.classification = "RELEASE_A_DELTA_ACCEPTED";
   else if (expectedLedgerIds.every((identity, index) => candidateLedgerIds[index] === identity) && candidateLedger.length > expectedLedger.length) review.classification = "STALE_CANONICAL_MANIFEST";
   return { ...review, reviewId: stableReviewId(review) };

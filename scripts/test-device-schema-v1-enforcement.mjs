@@ -193,6 +193,17 @@ insert into public.device_sources (id,publisher,url,source_type,accessed_at) val
 `;
 }
 
+export function disposableSupabaseCleanupSql() {
+  return `begin;
+delete from public.device_spec_evidence where id in (${[401, 402, 403].map(id).join(",")});
+delete from public.device_specs where device_id in (${[1, 2, 3].map(id).join(",")});
+delete from public.device_source_links where device_id in (${[1, 2, 3].map(id).join(",")}) or source_id in (${[301, 302, 303].map(id).join(",")});
+delete from public.device_sources where id in (${[301, 302, 303].map(id).join(",")});
+delete from public.device_spec_definitions where id in (${[101, 102, 103, 104].map(id).join(",")});
+delete from public.devices where id in (${[1, 2, 3].map(id).join(",")});
+commit;`;
+}
+
 async function runSharedEnforcementCases({ sql, createSession }) {
   const failures = [];
   const expectOk = async (stage, operation) => {
@@ -244,8 +255,13 @@ async function runSharedEnforcementCases({ sql, createSession }) {
 export async function runDeviceSchemaV1EnforcementAgainstSql({ sql, createSession }) {
   const setup = await sql(disposableSupabaseBootstrapSql());
   assert.equal(setup.code, 0, `Disposable Supabase enforcement bootstrap failed: ${setup.output}`);
-  const result = await runSharedEnforcementCases({ sql, createSession });
-  return { status: "PASS", ...result };
+  try {
+    const result = await runSharedEnforcementCases({ sql, createSession });
+    return { status: "PASS", ...result };
+  } finally {
+    const cleanup = await sql(disposableSupabaseCleanupSql());
+    assert.equal(cleanup.code, 0, `Disposable Supabase enforcement fixture cleanup failed: ${cleanup.output}`);
+  }
 }
 
 export async function runEnforcement() {

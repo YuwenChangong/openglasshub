@@ -64,10 +64,15 @@ successful adapter constraints with no repair, and its second dry run requires
 zero blockers and `DELETE=NONE`; it is not SQL constraint evidence.
 
 A separate `localSqlRehearsal` record is mandatory. It must identify
-`LOCAL_DISPOSABLE_SQL`, have `status=PASS` and `constraints=PASS`, carry the
-same exact operation counts, state `repaired=false`, and prove an idempotent
-second dry run with zero blockers and `DELETE=NONE`. `NOT_RUN`, in-memory-only,
-or non-disposable evidence is blocked by
+`LOCAL_DISPOSABLE_SQL`, have `status=PASS`, `fullCanonicalMigrationChain=true`,
+`manuallyRecreatedSchemaObjects=0`, and `constraints=PASS`, carry the same exact
+operation counts and exact committed after-counts, and state `repaired=false`.
+It must record zero SQL constraint failures, trigger failures, and Release B
+delete operations. It must also prove a late invalid-payload rollback with zero
+committed rows, an idempotent second run with zero blockers, `DELETE=NONE`, and
+zero operations in every entity class, plus YAML-derived legacy columns and
+product-reader compatibility. `NOT_RUN`, in-memory-only, incomplete rollback
+evidence, nonzero second-run work, or non-disposable evidence is blocked by
 `LOCAL_SQL_TRANSACTIONAL_REHEARSAL_REQUIRED`. Compatibility evidence must pass locally for `/products/`,
 brand grouping, the `ray-ban-meta` route, and YAML-derived `key_specs` and
 `full_specs` (`YAML_SPEC_VALUE_SINGLE_SOURCE=true`,
@@ -95,13 +100,67 @@ or manual retry under this packet. A distinct bounded authorization object is
 also mandatory: `release-b-approval-<at least three digits>` plus a strict UTC
 millisecond timestamp. Release A authorization does not satisfy this field.
 
+### Real disposable SQL rehearsal command and receipt
+
+Run the owned local replay and Release B rehearsal with no target arguments:
+
+```powershell
+node scripts/qa/device-schema-v1-release-b-sql-rehearsal.mjs
+```
+
+The runner creates a disposable Supabase project, replays all 50 canonical
+migrations including Release A, validates the exact ledger and schema
+fingerprint, and uses the owned database container's Unix socket. It first runs
+the existing 89-assertion Schema v1 enforcement suite and removes only that
+suite's synthetic rows. The post-ledger lifecycle hook then executes the frozen
+Release B recovery plan through `runLocalSchemaV1Import` and the local PostgreSQL
+transaction adapter. It never accepts a DSN, linked project, Production target,
+service-role credential, or remote URL.
+
+The 2026-09-14 rehearsal receipt reported: 24 devices, 24 unique slugs, 24
+published devices, 92 definitions, 1,488 specs, 39 sources, 46 source links, 15
+evidence rows, and zero audit events. Valid import constraint/trigger failures
+and Release B deletes were all zero. A payload derived from the valid plan was
+made invalid only in the final compatibility update; PostgreSQL returned
+SQLSTATE `23514`, and all seven target-table counts remained zero after
+rollback. The valid import then committed, all conflict/duplicate/unknown-data
+checks passed, the product reader passed against SQL-sourced rows, and the
+second plan contained zero blockers, `DELETE=NONE`, and zero writes in every
+entity class. The plan fingerprint remained
+`c1583080fdffa004861c70ab9c2987a19839b87b30846cbf9983994e6b64e5e7`.
+
+Map that receipt into `localSqlRehearsal` without adding connection metadata:
+
+```json
+{
+  "status": "PASS",
+  "target": "LOCAL_DISPOSABLE_SQL",
+  "fullCanonicalMigrationChain": true,
+  "manuallyRecreatedSchemaObjects": 0,
+  "constraints": "PASS",
+  "repaired": false,
+  "operations": { "definition": 92, "device": 24, "source": 39, "sourceLink": 46, "spec": 1488, "evidence": 15, "compatibility": 24 },
+  "afterCounts": { "devices": 24, "uniqueSlugs": 24, "publishedDevices": 24, "definitions": 92, "specs": 1488, "sources": 39, "sourceLinks": 46, "evidence": 15, "auditEvents": 0 },
+  "sqlConstraintFailures": 0,
+  "sqlTriggerFailures": 0,
+  "deleteOperations": 0,
+  "rollbackAtomicity": "PASS",
+  "rowsCommittedAfterFailure": 0,
+  "idempotent": true,
+  "secondDryRunBlocked": 0,
+  "secondDryRunDelete": "NONE",
+  "secondRunOperations": { "definition": 0, "device": 0, "source": 0, "sourceLink": 0, "spec": 0, "evidence": 0, "compatibility": 0 },
+  "legacyYamlDerived": true,
+  "productCompatibility": "PASS"
+}
+```
+
 ## Current authorization state
 
-This document and evaluator prepare the gate only. They do not manufacture a
-successful local SQL rehearsal or `qa:release` result. Current readiness is
-blocked: no real local/disposable SQL rehearsal has been supplied, and the
-latest `qa:release` result is not a pass. Until every supplied record passes
-and a separate Release B authorization exists, the evaluator returns
+This document and evaluator prepare the gate only. The real disposable SQL
+rehearsal above supplies the local SQL evidence; it does not authorize or run a
+Production import. Until every other supplied record passes and a separate
+Release B authorization exists, the evaluator returns
 `allowed: false`; a synthetic all-pass evaluator fixture is a contract test,
 not operational readiness evidence.
 
