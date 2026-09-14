@@ -86,9 +86,11 @@ assert.throws(
 assert.equal(getterInvocations, 0, "an executable identity getter is never evaluated");
 
 let proxyTrapInvocations = 0;
+let callableInvocations = 0;
 const callableProxy = new Proxy(() => {}, {
   get() { proxyTrapInvocations += 1; return "OPERATOR_APPROVED_GEN2"; },
   ownKeys() { proxyTrapInvocations += 1; return []; },
+  apply() { callableInvocations += 1; return "unexpected callable result"; },
 });
 assert.throws(
   () => assertReleaseBProductionGate(completeEvidence({ identity: callableProxy })),
@@ -96,6 +98,7 @@ assert.throws(
   "callable Proxy identity evidence is rejected before proxy traps",
 );
 assert.equal(proxyTrapInvocations, 0, "a callable Proxy cannot execute a trap during validation");
+assert.equal(callableInvocations, 0, "a callable Proxy identity is never invoked during validation");
 
 assert.throws(
   () => assertReleaseBProductionGate({ ...completeEvidence(), unknown: "benign" }),
