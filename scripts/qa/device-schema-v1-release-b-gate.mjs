@@ -21,6 +21,17 @@ export const RELEASE_B_PACKET = Object.freeze({
     recoveryPlan: "c1583080fdffa004861c70ab9c2987a19839b87b30846cbf9983994e6b64e5e7",
     importerCode: "ee78b01ecdeb63161978bf91791e05c9ea56cef1fbba4d8761d6fd332f7c32c9",
   }),
+  expectedAfterCounts: Object.freeze({
+    devices: 24,
+    uniqueSlugs: 24,
+    publishedDevices: 24,
+    definitions: 92,
+    specs: 1488,
+    sources: 39,
+    sourceLinks: 46,
+    evidence: 15,
+    auditEvents: 0,
+  }),
 });
 
 const OPERATIONS = Object.freeze({ definition: 92, device: 24, source: 39, sourceLink: 46, spec: 1488, evidence: 15, compatibility: 24 });
@@ -40,6 +51,7 @@ function isPlainObject(value) {
 function assertNoSensitive(value, key = "", seen = new Set()) {
   if (typeof key !== "string") fail("INVALID_RELEASE_B_GATE_INPUT");
   if (SENSITIVE_KEY.test(key) || (typeof value === "string" && (SENSITIVE_VALUE.test(value) || CREDENTIAL_HTTP_URL.test(value)))) fail("SECRET_OR_DSN_REJECTED");
+  if (typeof value === "function") fail("INVALID_RELEASE_B_GATE_INPUT");
   if (!value || typeof value !== "object") return;
   if (!isPlainObject(value) || seen.has(value)) fail("INVALID_RELEASE_B_GATE_INPUT");
   seen.add(value);
@@ -95,6 +107,14 @@ function validIdentity(value) {
     && value.rayBanIdentityStatus === "OPERATOR_APPROVED_GEN2" && value.rayBanCanonicalSlug === "ray-ban-meta";
 }
 
+function identityMissingCode(value) {
+  const keys = ["yamlDeviceCount", "yamlBrandCount", "identityMapCount", "uniqueTargetSlugs", "unresolvedIdentities", "rayBanIdentityStatus", "rayBanCanonicalSlug"];
+  if (!hasExactKeys(value, keys)) return "EXACT_IDENTITY_COUNTS_REQUIRED";
+  return value.rayBanIdentityStatus !== "OPERATOR_APPROVED_GEN2" || value.rayBanCanonicalSlug !== "ray-ban-meta"
+    ? "RAY_BAN_IDENTITY_REQUIRED"
+    : "EXACT_IDENTITY_COUNTS_REQUIRED";
+}
+
 function validMapping(value) {
   return hasExactKeys(value, ["unmappedSourceUrls", "ambiguousSourceUrls", "unresolvedEvidenceMaps", "trueValueConflictCount", "trueValueConflictsValid"])
     && value.unmappedSourceUrls === 0 && value.ambiguousSourceUrls === 0 && value.unresolvedEvidenceMaps === 0
@@ -125,6 +145,13 @@ function validLocalRehearsal(value) {
     && value.secondDryRunBlocked === 0 && value.secondDryRunDelete === "NONE" && validOperations(value.operations);
 }
 
+function validLocalSqlRehearsal(value) {
+  return hasExactKeys(value, ["status", "target", "constraints", "repaired", "idempotent", "secondDryRunBlocked", "secondDryRunDelete", "operations"])
+    && value.status === "PASS" && value.target === "LOCAL_DISPOSABLE_SQL" && value.constraints === "PASS"
+    && value.repaired === false && value.idempotent === true
+    && value.secondDryRunBlocked === 0 && value.secondDryRunDelete === "NONE" && validOperations(value.operations);
+}
+
 function validCompatibility(value) {
   return hasExactKeys(value, ["status", "productsRoute", "brandGrouping", "rayBanMetaRoute", "yamlDerivedSpecs"])
     && Object.values(value).every((item) => item === "PASS");
@@ -151,22 +178,22 @@ function validExecution(value) {
 /** Evaluate a value-blind, supplied Release B packet; it performs no I/O or mutation. */
 export function assertReleaseBProductionGate(input) {
   assertNoSensitive(input);
-  const keys = ["releaseA", "candidate", "fingerprints", "identity", "mapping", "payload", "dryRun", "localRehearsal", "compatibility", "releaseQa", "productionPrecheck", "execution", "authorization"];
+  const keys = ["releaseA", "candidate", "fingerprints", "identity", "mapping", "payload", "dryRun", "localRehearsal", "localSqlRehearsal", "compatibility", "releaseQa", "productionPrecheck", "expectedAfterCounts", "execution", "authorization"];
   if (!hasExactKeys(input, keys)) fail("INVALID_RELEASE_B_GATE_INPUT");
   const missing = [];
   if (!validReleaseA(input.releaseA)) missing.push("RELEASE_A_VERIFICATION_REQUIRED");
   if (!validCandidate(input.candidate)) missing.push("CLEAN_COMMITTED_CANDIDATE_REQUIRED");
   if (!exactFingerprints(input.fingerprints)) missing.push("LOCKED_SOURCE_FINGERPRINTS_REQUIRED");
-  if (!validIdentity(input.identity)) {
-    missing.push(input.identity?.rayBanIdentityStatus !== "OPERATOR_APPROVED_GEN2" || input.identity?.rayBanCanonicalSlug !== "ray-ban-meta" ? "RAY_BAN_IDENTITY_REQUIRED" : "EXACT_IDENTITY_COUNTS_REQUIRED");
-  }
+  if (!validIdentity(input.identity)) missing.push(identityMissingCode(input.identity));
   if (!validMapping(input.mapping)) missing.push("COMPLETE_SOURCE_AND_CONFLICT_MAPPING_REQUIRED");
   if (!validPayload(input.payload)) missing.push("LOCKED_NORMALIZED_PAYLOAD_REQUIRED");
   if (!validDryRun(input.dryRun)) missing.push("NON_DESTRUCTIVE_DRY_RUN_REQUIRED");
   if (!validLocalRehearsal(input.localRehearsal)) missing.push("LOCAL_TRANSACTIONAL_REHEARSAL_REQUIRED");
+  if (!validLocalSqlRehearsal(input.localSqlRehearsal)) missing.push("LOCAL_SQL_TRANSACTIONAL_REHEARSAL_REQUIRED");
   if (!validCompatibility(input.compatibility)) missing.push("LEGACY_READER_COMPATIBILITY_REQUIRED");
   if (!validReleaseQa(input.releaseQa)) missing.push("RELEASE_QA_PASS_REQUIRED");
   if (!validProductionPrecheck(input.productionPrecheck)) missing.push("EMPTY_PRODUCTION_TARGET_REQUIRED");
+  if (!exactObject(input.expectedAfterCounts, RELEASE_B_PACKET.expectedAfterCounts)) missing.push("EXACT_PRODUCTION_AFTER_COUNTS_REQUIRED");
   if (!validExecution(input.execution)) missing.push("ONE_TRANSACTION_ONE_ATTEMPT_REQUIRED");
   if (!validAuthorization(input.authorization)) missing.push("RELEASE_B_PRODUCTION_AUTHORIZATION_REQUIRED");
   return Object.freeze({ allowed: missing.length === 0, missing: Object.freeze(missing) });

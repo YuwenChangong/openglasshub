@@ -56,12 +56,19 @@ has exactly one primary claim and at least one conflicting claim. The payload
 has 24 devices, 1,488 specs, and zero duplicate device/spec/source/evidence
 identities.
 
-The dry run and local rehearsal each require these operation counts: 92
+The dry run and in-memory importer-contract rehearsal each require these operation counts: 92
 definitions, 24 devices, 39 sources, 46 source links, 1,488 specs, 15 evidence
 rows, and 24 compatibility rows. Both require `DELETE=NONE`; the first dry run
-also requires zero blockers/conflicts. The local rehearsal requires successful
-constraints with no repair, and its second dry run requires zero blockers and
-`DELETE=NONE`. Compatibility evidence must pass locally for `/products/`,
+also requires zero blockers/conflicts. The in-memory rehearsal requires
+successful adapter constraints with no repair, and its second dry run requires
+zero blockers and `DELETE=NONE`; it is not SQL constraint evidence.
+
+A separate `localSqlRehearsal` record is mandatory. It must identify
+`LOCAL_DISPOSABLE_SQL`, have `status=PASS` and `constraints=PASS`, carry the
+same exact operation counts, state `repaired=false`, and prove an idempotent
+second dry run with zero blockers and `DELETE=NONE`. `NOT_RUN`, in-memory-only,
+or non-disposable evidence is blocked by
+`LOCAL_SQL_TRANSACTIONAL_REHEARSAL_REQUIRED`. Compatibility evidence must pass locally for `/products/`,
 brand grouping, the `ray-ban-meta` route, and YAML-derived `key_specs` and
 `full_specs` (`YAML_SPEC_VALUE_SINGLE_SOURCE=true`,
 `BOOTSTRAP_SPEC_VALUES_AUTHORITATIVE=false`,
@@ -75,6 +82,12 @@ policies; required functions and triggers present; and zero rows in devices,
 definitions, specs, sources, source links, evidence, and audit events. Any
 unknown count or drift blocks the gate.
 
+Expected post-commit counts are separately exact: 24 devices, 24 unique slugs,
+24 published devices, 92 definitions, 1,488 specs, 39 sources, 46 source
+links, 15 evidence rows, and zero audit events. The importer has no audit-event
+write entity, so `auditEvents=0` is a required exact count. A mismatch blocks
+with `EXACT_PRODUCTION_AFTER_COUNTS_REQUIRED`.
+
 Future execution evidence is constrained to `transaction=ONE`, `attempts=1`,
 `retry=FORBIDDEN`, and `failureDisposition=STOP_UNKNOWN_STATE`. A failure,
 timeout, ambiguity, or unknown state ends the procedure without an automatic
@@ -85,10 +98,12 @@ millisecond timestamp. Release A authorization does not satisfy this field.
 ## Current authorization state
 
 This document and evaluator prepare the gate only. They do not manufacture a
-successful local-rehearsal or `qa:release` result. Until every supplied record
-passes and a separate Release B authorization exists, the evaluator returns
-`allowed: false`; with otherwise complete evidence and no authorization, its
-only missing identifier is `RELEASE_B_PRODUCTION_AUTHORIZATION_REQUIRED`.
+successful local SQL rehearsal or `qa:release` result. Current readiness is
+blocked: no real local/disposable SQL rehearsal has been supplied, and the
+latest `qa:release` result is not a pass. Until every supplied record passes
+and a separate Release B authorization exists, the evaluator returns
+`allowed: false`; a synthetic all-pass evaluator fixture is a contract test,
+not operational readiness evidence.
 
 Run the offline evaluator with:
 
