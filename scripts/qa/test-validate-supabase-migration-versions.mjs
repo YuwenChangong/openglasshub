@@ -13,6 +13,29 @@ const current = await analyzeMigrations(path.join(root, "supabase", "migrations"
 assert.equal(current.duplicateGroups.length, 11, "the old unconditional rule sees the historical duplicate groups");
 assert.doesNotThrow(() => assertMigrationVersionBaseline({ analysis: current, baseline }), "the exact reviewed historical baseline is accepted");
 
+const knownGroup = current.duplicateGroups.find(({ version }) => version === "20260525");
+assert.ok(knownGroup, "the fixture contains the reviewed 20260525 duplicate group");
+assert.throws(
+  () => assertMigrationVersionBaseline({
+    analysis: { ...current, duplicateGroups: current.duplicateGroups.map((group) => group.version === knownGroup.version
+      ? { ...group, files: group.files.slice(1) }
+      : group) },
+    baseline,
+  }),
+  /baseline hash mismatch: 20260525/,
+  "removing a member from a grandfathered duplicate group is rejected",
+);
+assert.throws(
+  () => assertMigrationVersionBaseline({
+    analysis: { ...current, duplicateGroups: current.duplicateGroups.map((group) => group.version === knownGroup.version
+      ? { ...group, files: [...group.files, { filename: "20260525_unreviewed_extra.sql", sha256: "0".repeat(64) }] }
+      : group) },
+    baseline,
+  }),
+  /baseline hash mismatch: 20260525/,
+  "adding a member to a grandfathered duplicate group is rejected",
+);
+
 const temporary = await mkdtemp(path.join(os.tmpdir(), "openglass-migration-version-baseline-"));
 try {
   await writeFile(path.join(temporary, "20260525_forum_phase4_video_media.sql"), "changed", "utf8");
