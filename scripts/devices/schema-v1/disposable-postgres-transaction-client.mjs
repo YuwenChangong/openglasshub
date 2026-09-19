@@ -119,20 +119,38 @@ const RENDERERS = Object.freeze({
   compatibility: compatibilitySql,
 });
 
-export function createDisposablePostgresTransactionClient({ executeSql }) {
+export function createDisposablePostgresTransactionClient({ executeSql, createSession }) {
   if (typeof executeSql !== "function") throw new TypeError("Owned disposable SQL executor is required");
   return Object.freeze({
     async transaction(work) {
       if (typeof work !== "function") throw new TypeError("Transaction work callback is required");
       const writes = [];
-      await work(Object.freeze({
-        async upsert(entity, row) {
-          if (!ENTITY_ORDER.includes(entity)) throw new TypeError(`Unsupported disposable SQL entity: ${entity}`);
-          writes.push([entity, row]);
-        },
-      }));
-      const statements = writes.map(([entity, row]) => RENDERERS[entity](row));
-      await executeSql(["BEGIN;", "SET CONSTRAINTS ALL DEFERRED;", ...statements, "COMMIT;", ""].join("\n"));
+      const session = createSession ? await createSession() : null;
+      let failure;
+      try {
+        if (session) await session.query("BEGIN;\nSET CONSTRAINTS ALL DEFERRED;");
+        await work(Object.freeze({
+          async readPrecheckForUpdate(sql) {
+            if (!session) throw new Error("RELEASE_B_TRANSACTION_SESSION_REQUIRED");
+            if (typeof sql !== "string" || !sql.trim()) throw new TypeError("Disposable transaction precheck SQL is required");
+            if (writes.length) throw new Error("RELEASE_B_PRECHECK_MUST_PRECEDE_WRITES");
+            return parseSchemaV1SqlState(await session.query(sql));
+          },
+          async upsert(entity, row) {
+            if (!ENTITY_ORDER.includes(entity)) throw new TypeError(`Unsupported disposable SQL entity: ${entity}`);
+            writes.push([entity, row]);
+          },
+        }));
+        const statements = writes.map(([entity, row]) => RENDERERS[entity](row));
+        if (session) await session.query([...statements, "COMMIT;", ""].join("\n"));
+        else await executeSql(["BEGIN;", "SET CONSTRAINTS ALL DEFERRED;", ...statements, "COMMIT;", ""].join("\n"));
+      } catch (error) {
+        failure = error;
+        if (session) try { await session.query("ROLLBACK;"); } catch { /* Connection closure also aborts the open transaction. */ }
+        throw error;
+      } finally {
+        if (session) try { await session.close(); } catch (error) { if (!failure) throw error; }
+      }
     },
   });
 }

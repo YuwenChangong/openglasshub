@@ -33,6 +33,11 @@ function canonicalize(value) {
 
 function fail(code) { throw new Error(code); }
 
+function isAmbiguous(error) {
+  return [error?.code, error?.sqlState].some((code) => /^(?:(?:TRANSPORT_|NETWORK_).+|PROVIDER_UNKNOWN|COMMIT_UNKNOWN|TIMEOUT|ECONNRESET|EPIPE|ETIMEDOUT|57P01)$/.test(String(code ?? "")))
+    || /(?:timeout|transport loss|provider unknown|uncertain commit)/i.test(String(error?.message ?? ""));
+}
+
 function freezePacket(packet) { return Object.freeze({
   sourceCommit: packet.sourceCommit,
   targetProjectRef: packet.projectRef,
@@ -135,32 +140,33 @@ function assertPostcheck(postcheck, frozen) {
     || postcheck.conflictInvariants !== "PASS" || postcheck.rayBanIdentity !== "ray-ban-meta" || postcheck.unexpectedDeletes !== 0) fail("RELEASE_B_POSTCOMMIT_VERIFICATION_BLOCKED");
 }
 
-async function consumeAuthorization({ ledgerDirectory, approvalId, authorizationReceiptSha256 }) {
-  if (typeof ledgerDirectory !== "string" || !ledgerDirectory.trim()) fail("RELEASE_B_EXPLICIT_LEDGER_REQUIRED");
-  const canonicalRoot = path.resolve(PRODUCTION_LEDGER_DIRECTORY);
-  const supplied = path.resolve(ledgerDirectory);
-  if (supplied !== canonicalRoot && !supplied.startsWith(`${canonicalRoot}${path.sep}`)) fail("RELEASE_B_LEDGER_IDENTITY_MISMATCH");
-  await mkdir(canonicalRoot, { recursive: true });
-  // The caller may select a child directory for test isolation, but never the
-  // durable ledger identity: every approval is consumed in this single root.
-  const entryPath = path.join(canonicalRoot, `${approvalId}.json`);
-  let handle;
-  try {
-    handle = await open(entryPath, "wx", 0o600);
-  } catch (error) {
-    if (error?.code === "EEXIST") fail("RELEASE_B_APPROVAL_ALREADY_CONSUMED");
-    throw error;
-  }
-  await handle.writeFile(`${JSON.stringify(canonicalize({ schemaVersion: "openglass-device-schema-v1-release-b-consumption-v1", approvalId, authorizationReceiptSha256, status: "STARTED" }))}\n`, "utf8");
-  await handle.close();
-  return entryPath;
+export function createReleaseBConsumptionStore(directory) {
+  if (typeof directory !== "string" || !directory.trim()) fail("RELEASE_B_EXPLICIT_LEDGER_REQUIRED");
+  const root = path.resolve(directory);
+  return Object.freeze({ async consume({ approvalId, authorizationReceiptSha256 }) {
+    if (!APPROVAL_ID.test(approvalId)) fail("INVALID_RELEASE_B_APPROVAL_ID");
+    await mkdir(root, { recursive: true });
+    const entryPath = path.join(root, `${approvalId}.json`);
+    let handle;
+    try {
+      handle = await open(entryPath, "wx", 0o600);
+    } catch (error) {
+      if (error?.code === "EEXIST") fail("RELEASE_B_APPROVAL_ALREADY_CONSUMED");
+      throw error;
+    }
+    try {
+      await handle.writeFile(`${JSON.stringify(canonicalize({ schemaVersion: "openglass-device-schema-v1-release-b-consumption-v1", approvalId, authorizationReceiptSha256, status: "STARTED" }))}\n`, "utf8");
+      await handle.sync();
+    } finally { await handle.close(); }
+    return entryPath;
+  } });
 }
 
 /**
  * Bounded offline-testable coordinator. It has no provider client, environment target,
- * migration command, DDL path, retry loop, or default ledger location.
+ * migration command, DDL path, or retry loop.
  */
-export async function executeReleaseBProductionImport({ args, authorizationReceipt, authorizationReceiptSha256, ledgerDirectory, transport, plan }) {
+async function executeReleaseBImport({ args, authorizationReceipt, authorizationReceiptSha256, transport, plan }, consumptionStore) {
   if (!Array.isArray(args) || args.length !== 1 || args[0] !== "--execute-production") fail("RELEASE_B_EXECUTION_FLAG_REQUIRED");
   const frozen = await loadTask17FrozenGate();
   assertAuthorizationReceipt(authorizationReceipt, authorizationReceiptSha256, frozen);
@@ -176,23 +182,32 @@ export async function executeReleaseBProductionImport({ args, authorizationRecei
   if (!transport || typeof transport.identifyTarget !== "function" || typeof transport.readPrecheck !== "function" || typeof transport.readPostcheck !== "function") fail("RELEASE_B_TRANSPORT_CONTRACT_REQUIRED");
   const target = await transport.identifyTarget();
   if (!target || target.projectRef !== frozen.targetProjectRef || target.targetClass !== frozen.targetClass) fail("RELEASE_B_TARGET_MISMATCH");
-  const consumptionPath = await consumeAuthorization({ ledgerDirectory, approvalId: authorizationReceipt.approvalId, authorizationReceiptSha256 });
+  const consumptionPath = await consumptionStore.consume({ approvalId: authorizationReceipt.approvalId, authorizationReceiptSha256 });
   try {
     await runRecoveryPlanTransaction({ client: transport, writes, beforeWrites: async (transaction) => {
       if (typeof transaction.readPrecheckForUpdate !== "function") fail("RELEASE_B_TRANSACTION_PRECHECK_LOCK_REQUIRED");
       assertPrecheck(await transaction.readPrecheckForUpdate(), frozen);
     } });
   } catch (error) {
-    if (/^(?:TRANSPORT_|NETWORK_|PROVIDER_UNKNOWN|COMMIT_UNKNOWN|TIMEOUT)/.test(String(error?.code ?? "")) || /(?:timeout|transport loss|provider unknown|uncertain commit)/i.test(String(error?.message ?? ""))) error.code = "RELEASE_B_EXECUTION_AMBIGUOUS";
+    if (isAmbiguous(error)) error.code = "RELEASE_B_EXECUTION_AMBIGUOUS";
     throw error;
   }
   try { assertPostcheck(await transport.readPostcheck(), frozen); } catch (error) {
-    if (/^(?:TRANSPORT_|NETWORK_|PROVIDER_UNKNOWN|COMMIT_UNKNOWN|TIMEOUT)/.test(String(error?.code ?? "")) || /(?:timeout|transport loss|provider unknown|uncertain commit)/i.test(String(error?.message ?? ""))) error.code = "RELEASE_B_EXECUTION_AMBIGUOUS";
+    if (isAmbiguous(error)) error.code = "RELEASE_B_EXECUTION_AMBIGUOUS";
     else error.code = "RELEASE_B_POSTCOMMIT_VERIFICATION_BLOCKED";
     throw error;
   }
   return Object.freeze({ status: "COMMITTED", approvalId: authorizationReceipt.approvalId, authorizationReceiptSha256, consumptionPath, operations: operationCountsForWrites(writes) });
 }
+
+export function createReleaseBImportExecutor({ consumptionStore }) {
+  if (!consumptionStore || typeof consumptionStore.consume !== "function") fail("RELEASE_B_CONSUMPTION_STORE_REQUIRED");
+  return (input) => executeReleaseBImport(input, consumptionStore);
+}
+
+// The public production entry point always uses the durable canonical store.
+// Tests construct a separate executor with an owned temporary consumption store.
+export const executeReleaseBProductionImport = createReleaseBImportExecutor({ consumptionStore: createReleaseBConsumptionStore(PRODUCTION_LEDGER_DIRECTORY) });
 
 async function main() {
   // Deliberately no CLI adapter: a future reviewed transport must be supplied through

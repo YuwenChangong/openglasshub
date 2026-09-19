@@ -713,6 +713,52 @@ function dockerPsqlSession({ environment, containerId }) {
   };
 }
 
+// A persistent, owned Unix-socket session for the Release B coordinator. No URL,
+// inherited database credential, remote host, or caller-selected container is used.
+function dockerPsqlCsvSession({ environment, containerId }) {
+  const child = spawn("docker", ["exec", "-i", containerId, "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose", "-U", "postgres", "-d", "postgres", "--csv"], { env: environment, windowsHide: true, stdio: "pipe" });
+  let stdout = "", stderr = "", pending, ended, inputError;
+  const sqlError = (code) => Object.assign(new Error(`Owned disposable PostgreSQL session exited ${code}`), {
+    exitCode: code, sqlState: /\b(?:ERROR|FATAL):\s+([0-9A-Z]{5}):/.exec(stderr)?.[1] ?? null,
+  });
+  const closed = new Promise((resolve) => {
+    child.on("error", (error) => { ended = error; pending?.reject(error); resolve(); });
+    child.on("close", (code) => {
+      const databaseError = sqlError(code);
+      ended = code === 0 ? { closed: true } : databaseError.sqlState ? databaseError : inputError ?? databaseError;
+      pending?.reject(ended);
+      resolve();
+    });
+  });
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk;
+    if (pending && stdout.includes(pending.marker)) pending.resolve(stdout.slice(0, stdout.indexOf(pending.marker)).trim());
+  });
+  // ON_ERROR_STOP can close psql while a large write batch is still being sent.
+  // Wait for close/stderr so an actual SQL constraint failure is not hidden by EOF.
+  child.stdin.on("error", (error) => { inputError = error; });
+  return {
+    async query(sql) {
+      if (ended) throw ended instanceof Error ? ended : Object.assign(new Error("Owned PostgreSQL session is closed"), { code: "EPIPE" });
+      if (pending) throw new Error("Concurrent disposable session queries are forbidden");
+      stdout = "";
+      const marker = `RELEASE_B_SQL_READY_${randomUUID().replaceAll("-", "")}`;
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => { child.kill(); pending?.reject(Object.assign(new Error("Owned PostgreSQL session timed out"), { code: "ETIMEDOUT" })); }, 15000);
+        const finish = (action, value) => { clearTimeout(timeout); pending = undefined; action(value); };
+        pending = { marker, resolve: (value) => finish(resolve, value), reject: (error) => finish(reject, error) };
+        child.stdin.write(`${sql}\n\\echo ${marker}\n`);
+      });
+    },
+    async close() {
+      if (!ended) child.stdin.end();
+      await closed;
+      if (ended instanceof Error) throw ended;
+    },
+  };
+}
+
 export async function cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot, startAttempted, execute, environment, removeRoot = rm }) {
   const ownedRoot = assertOwnedDisposableRoot({ disposableRoot: runtimeRoot, repositoryRoot });
   let cleanupError;
@@ -846,6 +892,9 @@ export async function runLocalDisposableReplay({ root = REPOSITORY_ROOT, runId =
           executeSql: execute === runCommand
             ? (sql) => dockerPsqlCsv({ environment: safeEnvironment, containerId: container.id, sql })
             : (sql) => executeUnixSocketPsql({ execute, environment: safeEnvironment, containerId: container.id, sql }),
+          createSqlSession: execute === runCommand
+            ? () => dockerPsqlCsvSession({ environment: safeEnvironment, containerId: container.id })
+            : undefined,
         }))
         : undefined;
       result = {

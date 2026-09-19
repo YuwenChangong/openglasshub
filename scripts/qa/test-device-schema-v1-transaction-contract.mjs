@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { rm } from "node:fs/promises";
+import fs from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { buildSchemaV1RecoveryPlan } from "../devices/import-device-schema-v1.mjs";
 import { fingerprintRecoveryPlan } from "../devices/schema-v1/dry-run.mjs";
-import { createDisposablePostgresTransactionClient } from "../devices/schema-v1/disposable-postgres-transaction-client.mjs";
+import { createReleaseBDisposableTransport } from "./release-b-disposable-transport.mjs";
+import { createReleaseBTestFixture } from "./release-b-test-fixture.mjs";
 
 let productionExecutor;
 try {
@@ -14,7 +16,29 @@ try {
   throw blocker;
 }
 
-const { AUTHORIZATION_RECEIPT_SCHEMA_VERSION, PRODUCTION_LEDGER_DIRECTORY, executeReleaseBProductionImport, hashAuthorizationReceipt, loadTask17FrozenGate } = productionExecutor;
+const { AUTHORIZATION_RECEIPT_SCHEMA_VERSION, PRODUCTION_LEDGER_DIRECTORY, hashAuthorizationReceipt, loadTask17FrozenGate } = productionExecutor;
+const fixture = await createReleaseBTestFixture();
+// Canonical filesystem calls are redirected only for a default-executor sentinel
+// check, then prohibited entirely. The real durable ledger is never accessed.
+let sandboxCanonical = true;
+let canonicalAccesses = 0;
+const originals = new Map();
+for (const method of ["readFile", "open", "mkdir", "rm", "readdir", "stat", "lstat", "writeFile"]) {
+  originals.set(method, fs[method]);
+  fs[method] = async (file, ...rest) => {
+    const target = path.resolve(String(file));
+    const canonical = target === PRODUCTION_LEDGER_DIRECTORY || target.startsWith(`${PRODUCTION_LEDGER_DIRECTORY}${path.sep}`);
+    assert.ok(method !== "rm" || !PRODUCTION_LEDGER_DIRECTORY.startsWith(`${target}${path.sep}`), "canonical ledger ancestor cleanup forbidden");
+    if (canonical) {
+      canonicalAccesses++;
+      assert.ok(sandboxCanonical, `canonical ledger filesystem access forbidden: ${method}`);
+      return originals.get(method)(path.join(fixture.canonicalSandbox, path.relative(PRODUCTION_LEDGER_DIRECTORY, target)), ...rest);
+    }
+    return originals.get(method)(file, ...rest);
+  };
+}
+syncBuiltinESMExports();
+const executeReleaseBProductionImport = fixture.execute;
 const RELEASE_B_FROZEN = await loadTask17FrozenGate();
 const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
 
@@ -58,9 +82,13 @@ const frozenPlan = { ...recoveryPlan, normalizedPayloadSha256: RELEASE_B_FROZEN.
 assert.equal(frozenPlan.dryRunFingerprint, RELEASE_B_FROZEN.dryRunFingerprint, "the test rebuild uses the committed Task 17 frozen plan");
 assert.match(hashAuthorizationReceipt(receipt()), /^[a-f0-9]{64}$/, "authorization receipts have a stable content-address");
 
-const temporaryDirectory = path.join(PRODUCTION_LEDGER_DIRECTORY, `test-${process.pid}`);
-await rm(PRODUCTION_LEDGER_DIRECTORY, { recursive: true, force: true });
+const temporaryDirectory = fixture.directory;
 try {
+  const canonicalTransport = createTransport();
+  await assert.rejects(() => productionExecutor.executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: receipt(), authorizationReceiptSha256: hashAuthorizationReceipt(receipt()), transport: canonicalTransport }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "a preexisting canonical STARTED approval blocks the default production entry point");
+  assert.equal(canonicalTransport.state.transactionCount, 0);
+  assert.equal(canonicalAccesses, 2, "default executor mkdir/open are safely redirected into the canonical namespace sandbox");
+  sandboxCanonical = false;
   const ignoredCallerPlanTransport = createTransport();
   const ignoredCallerPlanReceipt = receipt({ approvalId: "release-b-approval-20260916" });
   const ignoredCallerPlan = await executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: ignoredCallerPlanReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(ignoredCallerPlanReceipt), ledgerDirectory: temporaryDirectory, transport: ignoredCallerPlanTransport });
@@ -125,14 +153,43 @@ try {
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: postcheckLossReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(postcheckLossReceipt), ledgerDirectory: path.join(temporaryDirectory, "postcheck-loss"), transport: postcheckLossTransport, plan: frozenPlan }), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", "post-commit provider loss is classified as an ambiguous consumed execution");
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: postcheckLossReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(postcheckLossReceipt), ledgerDirectory: path.join(temporaryDirectory, "another-directory"), transport: postcheckLossTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "post-commit transport loss cannot retry in another supplied directory");
 
-  let disposableSql = "";
-  const ownedAdapter = createDisposablePostgresTransactionClient({ executeSql: async (sql) => { disposableSql = sql; throw new Error("owned disposable SQL constraint failure"); } });
-  const disposableTransport = createTransport();
-  disposableTransport.transaction = async (work) => ownedAdapter.transaction((transaction) => work({ ...transaction, async readPrecheckForUpdate() { return { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: { ...RELEASE_B_FROZEN.expectedBeforeCounts } }; } }));
-  const disposableReceipt = receipt({ approvalId: "release-b-approval-2006" });
-  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: disposableReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(disposableReceipt), ledgerDirectory: path.join(temporaryDirectory, "owned-disposable-sql"), transport: disposableTransport, plan: frozenPlan }), /owned disposable SQL constraint failure/, "the executor and shared coordinator pass the whole frozen plan to the owned disposable SQL transaction adapter");
-  assert.match(disposableSql, /^BEGIN;/, "the owned disposable adapter receives one atomic SQL transaction");
-  assert.match(disposableSql, /COMMIT;\s*$/, "the adapter's atomic transcript reaches commit only after all Release B writes");
-} finally { await rm(PRODUCTION_LEDGER_DIRECTORY, { recursive: true, force: true }); }
+  for (const [index, failure] of [{ code: "ECONNRESET" }, { code: "EPIPE" }, { code: "ETIMEDOUT" }, { code: "57P01" }, { code: "TRANSPORT_DISCONNECTED" }, { code: "NETWORK_LOST" }, { sqlState: "57P01" }].entries()) {
+    const code = failure.code ?? failure.sqlState;
+    for (const phase of ["transaction", "readPostcheck"]) {
+      const transport = createTransport();
+      let calls = 0;
+      transport[phase] = async () => { calls++; throw Object.assign(new Error("native failure"), failure); };
+      const authorizationReceipt = receipt({ approvalId: `release-b-approval-${3000 + index * 2 + (phase === "transaction" ? 0 : 1)}` });
+      const input = { args: ["--execute-production"], authorizationReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(authorizationReceipt), transport };
+      await assert.rejects(() => executeReleaseBProductionImport(input), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", `${code} during ${phase} is ambiguous`);
+      await assert.rejects(() => executeReleaseBProductionImport(input), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/);
+      assert.equal(calls, 1, "native transport failures never retry");
+    }
+  }
 
-console.log("DEVICE_SCHEMA_V1_TRANSACTION_CONTRACT_OK cases=17");
+  const sessionSql = [];
+  const driftState = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: true, counts: { ...RELEASE_B_FROZEN.expectedBeforeCounts, devices: 1 } };
+  const lockedTransport = createReleaseBDisposableTransport({
+    executeSql: async () => { throw new Error("precheck must use the open transaction session"); },
+    createSession: () => ({
+      async query(sql) { sessionSql.push(sql); return `payload\n${Buffer.from(JSON.stringify(driftState)).toString("hex")}\n`; },
+      async close() {},
+    }),
+    beforeCounts: { ...RELEASE_B_FROZEN.expectedBeforeCounts }, afterCounts: { ...RELEASE_B_FROZEN.expectedAfterCounts },
+  });
+  const lockedReceipt = receipt({ approvalId: "release-b-approval-2007" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: lockedReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(lockedReceipt), transport: lockedTransport }), /RELEASE_B_PRODUCTION_PRECONDITION_DRIFT/, "actual transaction-session counts override invented caller counts");
+  assert.match(sessionSql[0], /^BEGIN;/);
+  assert.match(sessionSql[1], /LOCK TABLE public\.devices/);
+  assert.match(sessionSql[1], /SHARE ROW EXCLUSIVE MODE/);
+  assert.match(sessionSql[1], /SELECT count\(\*\).*public\.devices/);
+  assert.equal(sessionSql.at(-1), "ROLLBACK;");
+  assert.ok(sessionSql.every((sql) => !sql.includes("INSERT INTO")), "drift is rejected before any SQL write");
+} finally {
+  await fixture.close();
+  assert.equal(canonicalAccesses, 2, "the injected test executor and cleanup never access the canonical ledger");
+  for (const [method, original] of originals) fs[method] = original;
+  syncBuiltinESMExports();
+}
+
+console.log("DEVICE_SCHEMA_V1_TRANSACTION_CONTRACT_OK canonical_ledger_access=0 ambiguous_no_retry_cases=14");
