@@ -20,11 +20,12 @@ export function collectApprovedRecoveryWrites(plan, { permittedEntities = ENTITY
 }
 
 /** Execute the validated Release B write list inside one caller-provided atomic transaction. */
-export async function runRecoveryPlanTransaction({ client, writes }) {
+export async function runRecoveryPlanTransaction({ client, writes, beforeWrites = null }) {
   if (!client || typeof client.transaction !== "function") throw new TypeError("Transaction client must implement transaction(work)");
   if (!Array.isArray(writes)) throw new TypeError("Recovery transaction writes are required");
   await client.transaction(async (transaction) => {
     if (!transaction || typeof transaction.upsert !== "function") throw new TypeError("Recovery transaction must implement upsert(entity, row)");
+    if (beforeWrites) await beforeWrites(transaction);
     for (const entry of writes) await transaction.upsert(entry.entity, entry.desired);
   });
 }

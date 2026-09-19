@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
+import { rm } from "node:fs/promises";
 import path from "node:path";
 import { buildSchemaV1RecoveryPlan } from "../devices/import-device-schema-v1.mjs";
 import { fingerprintRecoveryPlan } from "../devices/schema-v1/dry-run.mjs";
+import { createDisposablePostgresTransactionClient } from "../devices/schema-v1/disposable-postgres-transaction-client.mjs";
 
 let productionExecutor;
 try {
@@ -14,7 +14,8 @@ try {
   throw blocker;
 }
 
-const { AUTHORIZATION_RECEIPT_SCHEMA_VERSION, RELEASE_B_FROZEN, executeReleaseBProductionImport, hashAuthorizationReceipt } = productionExecutor;
+const { AUTHORIZATION_RECEIPT_SCHEMA_VERSION, PRODUCTION_LEDGER_DIRECTORY, executeReleaseBProductionImport, hashAuthorizationReceipt, loadTask17FrozenGate } = productionExecutor;
+const RELEASE_B_FROZEN = await loadTask17FrozenGate();
 const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
 
 function receipt(overrides = {}) {
@@ -41,7 +42,10 @@ function createTransport({ failEntity, target = { projectRef: "xcbnxzjlsvtgzixur
       state.transactionCount += 1;
       const pending = [];
       try {
-        await work({ async upsert(entity, row) { if (entity === failEntity) throw new Error(`simulated ${entity} constraint failure`); pending.push({ entity, row }); } });
+        await work({
+          async readPrecheckForUpdate() { return { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: beforeCounts }; },
+          async upsert(entity, row) { if (entity === failEntity) throw new Error(`simulated ${entity} constraint failure`); pending.push({ entity, row }); },
+        });
         state.writes.push(...pending);
       } catch (error) { state.rollbackCount += 1; throw error; }
     },
@@ -54,8 +58,15 @@ const frozenPlan = { ...recoveryPlan, normalizedPayloadSha256: RELEASE_B_FROZEN.
 assert.equal(frozenPlan.dryRunFingerprint, RELEASE_B_FROZEN.dryRunFingerprint, "the test rebuild uses the committed Task 17 frozen plan");
 assert.match(hashAuthorizationReceipt(receipt()), /^[a-f0-9]{64}$/, "authorization receipts have a stable content-address");
 
-const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "openglass-release-b-production-contract-"));
+const temporaryDirectory = path.join(PRODUCTION_LEDGER_DIRECTORY, `test-${process.pid}`);
+await rm(PRODUCTION_LEDGER_DIRECTORY, { recursive: true, force: true });
 try {
+  const ignoredCallerPlanTransport = createTransport();
+  const ignoredCallerPlanReceipt = receipt({ approvalId: "release-b-approval-20260916" });
+  const ignoredCallerPlan = await executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: ignoredCallerPlanReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(ignoredCallerPlanReceipt), ledgerDirectory: temporaryDirectory, transport: ignoredCallerPlanTransport });
+  assert.equal(ignoredCallerPlan.status, "COMMITTED", "the executor applies its independently rebuilt immutable plan without a caller-supplied plan");
+  assert.deepEqual(ignoredCallerPlan.operations, { definition: 92, device: 24, source: 39, sourceLink: 46, spec: 1488, evidence: 15, compatibility: 24 });
+
   const validTransport = createTransport();
   const valid = await executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: receipt(), authorizationReceiptSha256: hashAuthorizationReceipt(receipt()), ledgerDirectory: temporaryDirectory, transport: validTransport, plan: frozenPlan });
   assert.equal(valid.status, "COMMITTED", "one valid authorization applies the frozen plan atomically through the injected transport");
@@ -63,6 +74,7 @@ try {
   assert.ok(validTransport.state.writes.every((write) => ["definition", "device", "source", "sourceLink", "spec", "evidence", "compatibility"].includes(write.entity)), "the coordinator permits only approved Release B entity classes");
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: receipt(), authorizationReceiptSha256: hashAuthorizationReceipt(receipt()), ledgerDirectory: temporaryDirectory, transport: validTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "the same authorization cannot write twice");
   assert.equal(validTransport.state.transactionCount, 1, "a consumed approval cannot open a second transaction");
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: receipt(), authorizationReceiptSha256: hashAuthorizationReceipt(receipt()), ledgerDirectory: path.join(temporaryDirectory, "different-caller-directory"), transport: validTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "changing a caller ledger directory cannot reset durable approval consumption");
 
   const rejectedCases = [
     ["missing explicit execution flag", { args: [] }, /RELEASE_B_EXECUTION_FLAG_REQUIRED/],
@@ -87,7 +99,8 @@ try {
   const driftTransport = createTransport({ beforeCounts: { ...RELEASE_B_FROZEN.expectedBeforeCounts, devices: 1 } });
   const driftReceipt = receipt({ approvalId: "release-b-approval-2001" });
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: driftReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(driftReceipt), ledgerDirectory: path.join(temporaryDirectory, "drift"), transport: driftTransport, plan: frozenPlan }), /RELEASE_B_PRODUCTION_PRECONDITION_DRIFT/, "before-count drift rejects before the transaction");
-  assert.equal(driftTransport.state.transactionCount, 0);
+  assert.equal(driftTransport.state.transactionCount, 1, "the concurrency-safe precheck executes inside the one transaction before writes");
+  assert.deepEqual(driftTransport.state.writes, []);
 
   const wrongTargetTransport = createTransport({ target: { projectRef: "wrong-project", targetClass: "OpenGlass Hub Supabase Production" } });
   const targetReceipt = receipt({ approvalId: "release-b-approval-2002" });
@@ -100,6 +113,26 @@ try {
   assert.deepEqual(failingTransport.state.writes, [], "failed production transaction leaves zero partial committed rows");
   assert.equal(failingTransport.state.rollbackCount, 1);
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: failedReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(failedReceipt), ledgerDirectory: path.join(temporaryDirectory, "rollback"), transport: failingTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "a failed or ambiguous outcome remains consumed and cannot retry");
-} finally { await rm(temporaryDirectory, { recursive: true, force: true }); }
+
+  const timeoutTransport = createTransport();
+  timeoutTransport.transaction = async () => { const error = new Error("transport timeout"); error.code = "TRANSPORT_TIMEOUT"; throw error; };
+  const timeoutReceipt = receipt({ approvalId: "release-b-approval-2004" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: timeoutReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(timeoutReceipt), ledgerDirectory: path.join(temporaryDirectory, "timeout"), transport: timeoutTransport, plan: frozenPlan }), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", "transport timeout is ambiguous and cannot become a retry");
+
+  const postcheckLossTransport = createTransport();
+  postcheckLossTransport.readPostcheck = async () => { const error = new Error("provider unknown after commit"); error.code = "PROVIDER_UNKNOWN"; throw error; };
+  const postcheckLossReceipt = receipt({ approvalId: "release-b-approval-2005" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: postcheckLossReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(postcheckLossReceipt), ledgerDirectory: path.join(temporaryDirectory, "postcheck-loss"), transport: postcheckLossTransport, plan: frozenPlan }), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", "post-commit provider loss is classified as an ambiguous consumed execution");
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: postcheckLossReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(postcheckLossReceipt), ledgerDirectory: path.join(temporaryDirectory, "another-directory"), transport: postcheckLossTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "post-commit transport loss cannot retry in another supplied directory");
+
+  let disposableSql = "";
+  const ownedAdapter = createDisposablePostgresTransactionClient({ executeSql: async (sql) => { disposableSql = sql; throw new Error("owned disposable SQL constraint failure"); } });
+  const disposableTransport = createTransport();
+  disposableTransport.transaction = async (work) => ownedAdapter.transaction((transaction) => work({ ...transaction, async readPrecheckForUpdate() { return { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: { ...RELEASE_B_FROZEN.expectedBeforeCounts } }; } }));
+  const disposableReceipt = receipt({ approvalId: "release-b-approval-2006" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: disposableReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(disposableReceipt), ledgerDirectory: path.join(temporaryDirectory, "owned-disposable-sql"), transport: disposableTransport, plan: frozenPlan }), /owned disposable SQL constraint failure/, "the executor and shared coordinator pass the whole frozen plan to the owned disposable SQL transaction adapter");
+  assert.match(disposableSql, /^BEGIN;/, "the owned disposable adapter receives one atomic SQL transaction");
+  assert.match(disposableSql, /COMMIT;\s*$/, "the adapter's atomic transcript reaches commit only after all Release B writes");
+} finally { await rm(PRODUCTION_LEDGER_DIRECTORY, { recursive: true, force: true }); }
 
 console.log("DEVICE_SCHEMA_V1_TRANSACTION_CONTRACT_OK cases=17");
