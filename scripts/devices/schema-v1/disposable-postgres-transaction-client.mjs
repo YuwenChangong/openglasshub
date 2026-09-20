@@ -119,6 +119,12 @@ const RENDERERS = Object.freeze({
   compatibility: compatibilitySql,
 });
 
+/** Shared, closed Release B operation renderer. It accepts no table name or raw SQL. */
+export function renderReleaseBAuthorizedOperation({ entity, row }) {
+  if (!Object.hasOwn(RENDERERS, entity)) throw new TypeError(`Unsupported Release B SQL entity: ${entity}`);
+  return RENDERERS[entity](row);
+}
+
 export function createDisposablePostgresTransactionClient({ executeSql, createSession }) {
   if (typeof executeSql !== "function") throw new TypeError("Owned disposable SQL executor is required");
   return Object.freeze({
@@ -141,7 +147,7 @@ export function createDisposablePostgresTransactionClient({ executeSql, createSe
             writes.push([entity, row]);
           },
         }));
-        const statements = writes.map(([entity, row]) => RENDERERS[entity](row));
+        const statements = writes.map(([entity, row]) => renderReleaseBAuthorizedOperation({ entity, row }));
         if (session) await session.query([...statements, "COMMIT;", ""].join("\n"));
         else await executeSql(["BEGIN;", "SET CONSTRAINTS ALL DEFERRED;", ...statements, "COMMIT;", ""].join("\n"));
       } catch (error) {

@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { collectApprovedRecoveryWrites, operationCountsForWrites, runRecoveryPlanTransaction } from "../devices/schema-v1/recovery-transaction.mjs";
 import { buildSchemaV1RecoveryPlan } from "../devices/import-device-schema-v1.mjs";
 import { fingerprintRecoveryPlan } from "../devices/schema-v1/dry-run.mjs";
+import { preflightReleaseBProductionTransport } from "./lib/release-b-production-transport.mjs";
 
 export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION = "openglass-device-schema-v1-release-b-authorization-v1";
 const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
@@ -209,10 +210,22 @@ export function createReleaseBImportExecutor({ consumptionStore }) {
 // Tests construct a separate executor with an owned temporary consumption store.
 export const executeReleaseBProductionImport = createReleaseBImportExecutor({ consumptionStore: createReleaseBConsumptionStore(PRODUCTION_LEDGER_DIRECTORY) });
 
+/** Offline-only wiring validation. This never opens a session or consumes an approval. */
+export function preflightReleaseBProductionImport({ environment = process.env } = {}) {
+  const transport = preflightReleaseBProductionTransport({ environment });
+  return Object.freeze({ ...transport, executorRequiresExplicitTransportInjection: true, authorizationConsumed: false, productionConnections: 0 });
+}
+
 async function main() {
   // Deliberately no CLI adapter: a future reviewed transport must be supplied through
   // the programmatic boundary after a separate authorization artifact is reviewed.
-  if (process.argv.slice(2).length !== 1 || process.argv[2] !== "--execute-production") fail("RELEASE_B_EXECUTION_FLAG_REQUIRED");
+  const args = process.argv.slice(2);
+  if (args.length !== 1) fail("RELEASE_B_EXECUTION_FLAG_REQUIRED");
+  if (args[0] === "--preflight-production-transport") {
+    console.log(JSON.stringify(preflightReleaseBProductionImport()));
+    return;
+  }
+  if (args[0] !== "--execute-production") fail("RELEASE_B_EXECUTION_FLAG_REQUIRED");
   fail("RELEASE_B_TRANSPORT_INJECTION_REQUIRED");
 }
 

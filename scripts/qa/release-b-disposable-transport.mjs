@@ -22,7 +22,7 @@ const PRECHECK_SQL = `SELECT encode(convert_to(jsonb_build_object(
 )::text, 'UTF8'), 'hex') AS payload;`;
 // Relation locks cover empty tables too, and conflict with ordinary INSERT/UPDATE/DELETE.
 // The migration ledger is only read and locked; this adapter never writes it.
-const LOCKED_PRECHECK_SQL = `LOCK TABLE ${TABLE_NAMES.map((table) => `public.${table}`).join(", ")}, supabase_migrations.schema_migrations IN SHARE ROW EXCLUSIVE MODE;\n${PRECHECK_SQL}`;
+export const RELEASE_B_LOCKED_PRECHECK_SQL = `LOCK TABLE ${TABLE_NAMES.map((table) => `public.${table}`).join(", ")}, supabase_migrations.schema_migrations IN SHARE ROW EXCLUSIVE MODE;\n${PRECHECK_SQL}`;
 
 /** Test-only transport: the replay owns the local SQL closures; the target identity is simulated. */
 export function createReleaseBDisposableTransport({ executeSql, createSession } = {}) {
@@ -34,7 +34,7 @@ export function createReleaseBDisposableTransport({ executeSql, createSession } 
     async transaction(work) {
       return client.transaction((transaction) => work(Object.freeze({
         ...transaction,
-        async readPrecheckForUpdate() { return transaction.readPrecheckForUpdate(LOCKED_PRECHECK_SQL); },
+        async readPrecheckForUpdate() { return transaction.readPrecheckForUpdate(RELEASE_B_LOCKED_PRECHECK_SQL); },
       })));
     },
     async readPostcheck() {
