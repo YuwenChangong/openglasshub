@@ -106,7 +106,7 @@ function evidenceSql(input) {
 
 function compatibilitySql(input) {
   const row = requiredRow(input, "compatibility");
-  return `DO $openglass_compat$ BEGIN UPDATE public.devices SET key_specs = ${json(row.key_specs)}, full_specs = ${json(row.full_specs)} WHERE slug = ${text(row.deviceSlug)}; IF NOT FOUND THEN RAISE EXCEPTION 'DEVICE_SCHEMA_V1_COMPATIBILITY_DEVICE_MISSING'; END IF; END $openglass_compat$;`;
+  return `UPDATE public.devices SET key_specs = ${json(row.key_specs)}, full_specs = ${json(row.full_specs)} WHERE slug = ${text(row.deviceSlug)};`;
 }
 
 const RENDERERS = Object.freeze({

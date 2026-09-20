@@ -15,15 +15,16 @@ assert.throws(
 );
 
 const environment = { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres:unit-test-password@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require" };
-function sessionFactory({ identity = { current_database: "postgres", current_user: "postgres" }, state = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: { devices: 0, deviceSpecDefinitions: 0, deviceSpecs: 0, deviceSources: 0, deviceSourceLinks: 0, deviceSpecEvidence: 0, catalogAuditEvents: 0 } }, failOn = null } = {}) {
+function sessionFactory({ identity = { current_database: "postgres", current_user: "postgres", server_port: "5432" }, targetIdentity = { projectRef: "xcbnxzjlsvtgzixurcof", host: "db.xcbnxzjlsvtgzixurcof.supabase.co", port: 5432 }, state = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: { devices: 0, deviceSpecDefinitions: 0, deviceSpecs: 0, deviceSources: 0, deviceSourceLinks: 0, deviceSpecEvidence: 0, catalogAuditEvents: 0 } }, failOn = null } = {}) {
   const queries = [];
   return {
     queries,
     async createSession() {
       return {
+        targetIdentity,
         async query(sql) {
           queries.push(sql);
-          if (failOn && sql === failOn.sql) throw Object.assign(new Error("simulated native loss"), { code: failOn.code });
+          if (failOn && sql.startsWith(failOn.sql)) throw Object.assign(new Error("simulated native loss"), { code: failOn.code });
           if (sql.startsWith("SELECT current_database")) return { rows: [identity] };
           if (sql.startsWith("LOCK TABLE")) return { rows: [{ release_b_state: state }] };
           return { rows: [] };
@@ -38,37 +39,62 @@ const happy = sessionFactory();
 const transport = productionTransport.createReleaseBProductionTransport({
   environment,
   createSession: happy.createSession,
-  renderAuthorizedOperation: ({ entity }) => entity === "device" ? "INSERT INTO public.devices (slug) VALUES ('unit');" : "DELETE FROM public.devices;",
   readPostcheck: async () => ({ verified: true }),
 });
 assert.deepEqual(await transport.identifyTarget(), { projectRef: "xcbnxzjlsvtgzixurcof", targetClass: "OpenGlass Hub Supabase Production" }, "validated endpoint and read-only database identity bind the fixed target before any write");
 await transport.transaction(async (transaction) => { await transaction.readPrecheckForUpdate(); await transaction.upsert("device", { slug: "unit" }); });
+assert.equal(happy.queries.includes("BEGIN;\nSET CONSTRAINTS ALL DEFERRED;"), false, "the actual adapter sends transaction control as discrete session statements");
 assert.ok(happy.queries.some((sql) => sql.startsWith("LOCK TABLE public.devices")), "the final precheck locks all seven allowed relations in the mutation transaction");
 assert.ok(happy.queries.includes("COMMIT;"), "a valid structured operation commits once");
 
-for (const [name, operation, expected, forbiddenSql] of [
-  ["out-of-scope table", ({ entity }) => entity === "device" ? "INSERT INTO public.unapproved_table (id) VALUES (1);" : "", /WRITE_SCOPE_VIOLATION/, /INSERT INTO public\.unapproved_table/i],
-  ["delete", () => "DELETE FROM public.devices;", /WRITE_FORBIDDEN/, /^DELETE FROM public\.devices/i],
-  ["DDL", () => "ALTER TABLE public.devices ADD COLUMN nope text;", /WRITE_FORBIDDEN/, /^ALTER TABLE public\.devices/i],
-  ["migration history", () => "INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('x');", /WRITE_FORBIDDEN/, /^INSERT INTO supabase_migrations/i],
+const compatibilitySession = sessionFactory();
+const compatibilityTransport = productionTransport.createReleaseBProductionTransport({
+  environment,
+  createSession: compatibilitySession.createSession,
+  readPostcheck: async () => ({}),
+});
+await compatibilityTransport.transaction(async (transaction) => {
+  await transaction.readPrecheckForUpdate();
+  await transaction.upsert("compatibility", { deviceSlug: "unit", key_specs: {}, full_specs: {} });
+});
+const compatibilityWrite = compatibilitySession.queries.find((sql) => /public\.devices/i.test(sql) && !sql.startsWith("LOCK TABLE"));
+assert.match(compatibilityWrite, /^UPDATE public\.devices\s+SET/i, "compatibility mutation is a single table-scoped UPDATE, never a procedural DO body");
+assert.doesNotMatch(compatibilityWrite, /\bDO\b|;[\s\S]*\b(?:UPDATE|INSERT|DELETE|ALTER|DROP|CREATE)\b/i, "compatibility mutation cannot hide additional statements inside a DO body");
+
+for (const [name, operation] of [
+  ["out-of-scope table", () => "INSERT INTO public.unapproved_table (id) VALUES (1);"],
+  ["delete", () => "DELETE FROM public.devices;"],
+  ["DDL", () => "ALTER TABLE public.devices ADD COLUMN nope text;"],
+  ["migration history", () => "INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('x');"],
+  ["second unapproved statement", () => "INSERT INTO public.devices (slug) VALUES ('unit'); UPDATE public.unapproved_table SET id = 1;"],
+  ["compatibility DO body bypass", () => "DO $openglass_compat$ BEGIN UPDATE public.unapproved_table SET id = 1; END $openglass_compat$;"],
 ]) {
   const fake = sessionFactory();
-  const rejected = productionTransport.createReleaseBProductionTransport({ environment, createSession: fake.createSession, renderAuthorizedOperation: operation, readPostcheck: async () => ({}) });
-  await assert.rejects(() => rejected.transaction(async (transaction) => { await transaction.readPrecheckForUpdate(); await transaction.upsert("device", { slug: name }); }), expected, `${name} is rejected by the transport before SQL execution`);
-  assert.equal(fake.queries.some((sql) => forbiddenSql.test(sql)), false, `${name} is never sent to the session`);
+  assert.throws(() => productionTransport.createReleaseBProductionTransport({ environment, createSession: fake.createSession, renderAuthorizedOperation: operation, readPostcheck: async () => ({}) }), /RELEASE_B_PRODUCTION_RENDERER_INJECTION_FORBIDDEN/, `${name} cannot inject a raw renderer into the actual adapter`);
+  assert.equal(fake.queries.length, 0, `${name} cannot execute SQL while attempting renderer injection`);
 }
 
-const wrongTarget = sessionFactory({ identity: { current_database: "postgres", current_user: "wrong-user" } });
+const wrongTarget = sessionFactory({ identity: { current_database: "postgres", current_user: "wrong-user", server_port: "5432" } });
 const mismatch = productionTransport.createReleaseBProductionTransport({ environment, createSession: wrongTarget.createSession, readPostcheck: async () => ({}) });
 await assert.rejects(() => mismatch.identifyTarget(), /RELEASE_B_TARGET_MISMATCH/, "a database identity mismatch fails before a transaction can start");
+const sameDatabaseWrongProject = sessionFactory({ targetIdentity: { projectRef: "other-project", host: "db.other-project.supabase.co", port: 5432 } });
+const independentMismatch = productionTransport.createReleaseBProductionTransport({ environment, createSession: sameDatabaseWrongProject.createSession, readPostcheck: async () => ({}) });
+await assert.rejects(() => independentMismatch.identifyTarget(), /RELEASE_B_TARGET_MISMATCH/, "a matching database and user without the expected project-bound connection identity fails closed before a transaction");
 const unsafePostcheck = productionTransport.createReleaseBProductionTransport({ environment, createSession: happy.createSession, readPostcheck: async ({ queryReadOnly }) => queryReadOnly("UPDATE public.devices SET name = 'nope';") });
 await assert.rejects(() => unsafePostcheck.readPostcheck(), /RELEASE_B_PRODUCTION_READ_ONLY_VIOLATION/, "post-commit verification cannot become a hidden write escape hatch");
-assert.equal(productionTransport.classifyReleaseBConnectionFailure({ code: "ECONNRESET" }, "AFTER_BEGIN_BEFORE_FIRST_WRITE"), "RELEASE_B_SAFE_FAILURE");
+assert.equal(productionTransport.classifyReleaseBConnectionFailure({ code: "ECONNRESET" }, "BEFORE_BEGIN"), "RELEASE_B_SAFE_FAILURE_BEFORE_BEGIN");
+assert.equal(productionTransport.classifyReleaseBConnectionFailure({ code: "ECONNRESET" }, "AFTER_BEGIN_BEFORE_FIRST_WRITE"), "RELEASE_B_SAFE_FAILURE_BEFORE_FIRST_WRITE");
 assert.equal(productionTransport.classifyReleaseBConnectionFailure({ code: "ECONNRESET" }, "AFTER_FIRST_WRITE_BEFORE_COMMIT"), "TRANSPORT_AFTER_FIRST_WRITE");
 assert.equal(productionTransport.classifyReleaseBConnectionFailure({ code: "ECONNRESET" }, "COMMIT_SENT_ACK_NOT_RECEIVED"), "COMMIT_UNKNOWN");
-const lostAfterWrite = sessionFactory({ failOn: { sql: "INSERT INTO public.devices (slug) VALUES ('unit');", code: "ECONNRESET" } });
-const uncertainWrite = productionTransport.createReleaseBProductionTransport({ environment, createSession: lostAfterWrite.createSession, renderAuthorizedOperation: () => "INSERT INTO public.devices (slug) VALUES ('unit');", readPostcheck: async () => ({}) });
+assert.equal(productionTransport.classifyReleaseBConnectionFailure(new Error("connection terminated unexpectedly"), "AFTER_FIRST_WRITE_BEFORE_COMMIT"), "TRANSPORT_AFTER_FIRST_WRITE");
+const lostAfterWrite = sessionFactory({ failOn: { sql: "INSERT INTO public.devices", code: "ECONNRESET" } });
+const uncertainWrite = productionTransport.createReleaseBProductionTransport({ environment, createSession: lostAfterWrite.createSession, readPostcheck: async () => ({}) });
 await assert.rejects(() => uncertainWrite.transaction(async (transaction) => { await transaction.readPrecheckForUpdate(); await transaction.upsert("device", { slug: "unit" }); }), /TRANSPORT_AFTER_FIRST_WRITE/, "a connection loss while a write is in flight is consumed and never classified as a safe rollback");
+const lostBeforeBegin = productionTransport.createReleaseBProductionTransport({ environment, createSession: async () => { throw Object.assign(new Error("session open lost"), { code: "ECONNRESET" }); }, readPostcheck: async () => ({}) });
+await assert.rejects(() => lostBeforeBegin.transaction(async () => {}), /RELEASE_B_SAFE_FAILURE_BEFORE_BEGIN/, "a native connection loss while opening the session is phase-aware and safe before BEGIN");
+const deterministicFailure = sessionFactory({ failOn: { sql: "INSERT INTO public.devices", code: "23514" } });
+const deterministicTransport = productionTransport.createReleaseBProductionTransport({ environment, createSession: deterministicFailure.createSession, readPostcheck: async () => ({}) });
+await assert.rejects(() => deterministicTransport.transaction(async (transaction) => { await transaction.readPrecheckForUpdate(); await transaction.upsert("device", { slug: "unit" }); }), (error) => error.code === "23514" && deterministicFailure.queries.at(-1) === "ROLLBACK;", "a deterministic SQL failure preserves its SQLSTATE after an acknowledged rollback");
 const metadata = productionTransport.preflightReleaseBProductionTransport({ environment, createSession: happy.createSession, readPostcheck: async () => ({}) });
 assert.deepEqual([metadata.credentialSource, metadata.connects, metadata.startsTransaction, metadata.runsSql], ["P9_PRODUCTION_DATABASE_URL", false, false, false], "preflight is value-blind metadata validation and performs no I/O");
 const executor = await import("./release-b-production-import.mjs");

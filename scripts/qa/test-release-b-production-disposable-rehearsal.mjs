@@ -3,8 +3,9 @@ import { readFile } from "node:fs/promises";
 import { runLocalDisposableReplay } from "./local-disposable-supabase-replay.mjs";
 import { createReleaseBTestFixture } from "./release-b-test-fixture.mjs";
 import { createReleaseBDisposableTransport } from "./release-b-disposable-transport.mjs";
+import { createReleaseBProductionTransport } from "./lib/release-b-production-transport.mjs";
 import { hashAuthorizationReceipt } from "./release-b-production-import.mjs";
-import { readSchemaV1SqlVerification } from "../devices/schema-v1/disposable-postgres-transaction-client.mjs";
+import { parseSchemaV1SqlState, readSchemaV1SqlVerification } from "../devices/schema-v1/disposable-postgres-transaction-client.mjs";
 
 const fixture = await createReleaseBTestFixture();
 try {
@@ -21,6 +22,34 @@ try {
         transcripts.push(transcript);
         return { async query(sql) { transcript.push(sql); return session.query(sql); }, close: () => session.close() };
       };
+      const productionAdapterEnvironment = { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres:owned-disposable@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require" };
+      const productionAdapterTranscripts = [];
+      const createOwnedProductionAdapter = ({ precheckOverride } = {}) => createReleaseBProductionTransport({
+        environment: productionAdapterEnvironment,
+        createSession: () => {
+          const session = createSqlSession();
+          const transcript = [];
+          productionAdapterTranscripts.push(transcript);
+          return {
+            targetIdentity: { projectRef: "xcbnxzjlsvtgzixurcof", host: "db.xcbnxzjlsvtgzixurcof.supabase.co", port: 5432 },
+            async query(sql) {
+              if (sql.startsWith("SELECT current_database")) {
+                await session.query("SELECT 1;");
+                return { rows: [{ current_database: "postgres", current_user: "postgres", server_port: "5432" }] };
+              }
+              transcript.push(sql);
+              const output = await session.query(sql);
+              if (sql.startsWith("LOCK TABLE")) return { rows: [{ release_b_state: precheckOverride ?? parseSchemaV1SqlState(output) }] };
+              return { rows: [] };
+            },
+            close: () => session.close(),
+          };
+        },
+        readPostcheck: async ({ queryReadOnly }) => {
+          await queryReadOnly("SELECT 1;");
+          return { counts: { devices: 24, deviceSpecDefinitions: 92, deviceSpecs: 1488, deviceSources: 39, deviceSourceLinks: 46, deviceSpecEvidence: 15, catalogAuditEvents: 0 }, uniqueSlugs: 24, publishedDevices: 24, conflictInvariants: "PASS", rayBanIdentity: "ray-ban-meta", unexpectedDeletes: 0 };
+        },
+      });
       const transport = createReleaseBDisposableTransport({ executeSql, createSession });
       const invoke = (approvalId, selectedTransport = transport) => {
         const authorizationReceipt = fixture.receipt({ approvalId });
@@ -30,6 +59,17 @@ try {
         const counts = await readSchemaV1SqlVerification({ executeSql });
         assert.equal(counts.devices + counts.definitions + counts.specs + counts.sources + counts.sourceLinks + counts.evidence + counts.auditEvents, 0, "failed executor transaction leaves zero committed application rows");
       };
+
+      // The reviewed Production adapter is exercised against this owned local
+      // endpoint wrapper; no Production socket is opened. A real transaction-
+      // bound precheck mismatch must receive an acknowledged SQL rollback.
+      const adapterDriftState = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: { devices: 1, deviceSpecDefinitions: 0, deviceSpecs: 0, deviceSources: 0, deviceSourceLinks: 0, deviceSpecEvidence: 0, catalogAuditEvents: 0 } };
+      await assert.rejects(() => invoke("release-b-approval-6999", createOwnedProductionAdapter({ precheckOverride: adapterDriftState })), /RELEASE_B_PRODUCTION_PRECONDITION_DRIFT/, "the actual Production adapter rejects a transaction-bound precheck mismatch");
+      const adapterTranscript = productionAdapterTranscripts.find((entry) => entry.some((sql) => sql.startsWith("BEGIN;")));
+      assert.ok(adapterTranscript, "the actual Production adapter opened a transaction session");
+      assert.equal(adapterTranscript.at(-1), "ROLLBACK;", "the actual Production adapter acknowledged rollback after precheck drift");
+      assert.equal(adapterTranscript.some((sql) => sql.startsWith("INSERT INTO")), false, "the actual Production adapter sends no write after precheck drift");
+      await assertEmpty();
 
       // Introduce actual concurrent drift after BEGIN, before the locked read.
       const driftTransport = createReleaseBDisposableTransport({ executeSql, createSession: () => {

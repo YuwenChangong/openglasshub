@@ -6,6 +6,7 @@ import { buildSchemaV1RecoveryPlan } from "../devices/import-device-schema-v1.mj
 import { fingerprintRecoveryPlan } from "../devices/schema-v1/dry-run.mjs";
 import { createReleaseBDisposableTransport } from "./release-b-disposable-transport.mjs";
 import { createReleaseBTestFixture } from "./release-b-test-fixture.mjs";
+import { createReleaseBProductionTransport } from "./lib/release-b-production-transport.mjs";
 
 let productionExecutor;
 try {
@@ -16,7 +17,7 @@ try {
   throw blocker;
 }
 
-const { AUTHORIZATION_RECEIPT_SCHEMA_VERSION, PRODUCTION_LEDGER_DIRECTORY, hashAuthorizationReceipt, loadTask17FrozenGate } = productionExecutor;
+const { AUTHORIZATION_RECEIPT_SCHEMA_VERSION, RELEASE_B_EXECUTOR_SURFACE_VERSION, PRODUCTION_LEDGER_DIRECTORY, hashAuthorizationReceipt, loadTask17FrozenGate } = productionExecutor;
 const fixture = await createReleaseBTestFixture();
 // Canonical filesystem calls are redirected only for a default-executor sentinel
 // check, then prohibited entirely. The real durable ledger is never accessed.
@@ -52,7 +53,7 @@ function receipt(overrides = {}) {
     importerCodeFingerprint: RELEASE_B_FROZEN.importerCodeFingerprint, expectedBeforeCounts: { ...RELEASE_B_FROZEN.expectedBeforeCounts },
     expectedAfterCounts: { ...RELEASE_B_FROZEN.expectedAfterCounts }, authorizedOperation: "RELEASE_B_PRODUCTION_IMPORT", maxAttempts: 1,
     allowDeletes: false, allowSchemaMutation: false, allowMigrationHistoryMutation: false, allowCloudflareWrites: false,
-    allowDeployment: false, allowPush: false, allowMerge: false, allowQaProd: false, ...overrides,
+    allowDeployment: false, allowPush: false, allowMerge: false, allowQaProd: false, executorSurfaceVersion: RELEASE_B_EXECUTOR_SURFACE_VERSION, ...overrides,
   };
 }
 
@@ -74,6 +75,32 @@ function createTransport({ failEntity, target = { projectRef: "xcbnxzjlsvtgzixur
       } catch (error) { state.rollbackCount += 1; throw error; }
     },
     async readPostcheck() { return { counts: { ...RELEASE_B_FROZEN.expectedAfterCounts }, uniqueSlugs: 24, publishedDevices: 24, conflictInvariants: "PASS", rayBanIdentity: "ray-ban-meta", unexpectedDeletes: 0 }; },
+  };
+}
+
+function createActualAdapterTransport({ precheck = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: RELEASE_B_FROZEN.expectedBeforeCounts }, failCommitAck = false } = {}) {
+  const state = { queries: [], sessions: 0 };
+  const environment = { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres:unit-test-password@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require" };
+  return {
+    state,
+    transport: createReleaseBProductionTransport({
+      environment,
+      async createSession() {
+        state.sessions += 1;
+        return {
+          targetIdentity: { projectRef: "xcbnxzjlsvtgzixurcof", host: "db.xcbnxzjlsvtgzixurcof.supabase.co", port: 5432 },
+          async query(sql) {
+            state.queries.push(sql);
+            if (sql.startsWith("SELECT current_database")) return { rows: [{ current_database: "postgres", current_user: "postgres", server_port: "5432" }] };
+            if (sql.startsWith("LOCK TABLE")) return { rows: [{ release_b_state: precheck }] };
+            if (failCommitAck && sql === "COMMIT;") throw Object.assign(new Error("lost commit acknowledgement"), { code: "ECONNRESET" });
+            return { rows: [] };
+          },
+          async close() {},
+        };
+      },
+      readPostcheck: async () => ({ counts: { ...RELEASE_B_FROZEN.expectedAfterCounts }, uniqueSlugs: 24, publishedDevices: 24, conflictInvariants: "PASS", rayBanIdentity: "ray-ban-meta", unexpectedDeletes: 0 }),
+    }),
   };
 }
 
@@ -111,6 +138,7 @@ try {
     ["non-Z timestamp", { authorizationReceipt: receipt({ authorizedAtUtc: "2026-09-17T04:15:00+00:00" }) }, /INVALID_RELEASE_B_AUTHORIZED_AT_UTC/],
     ["malformed UTC timestamp", { authorizationReceipt: receipt({ authorizedAtUtc: "2026-09-17T25:15:00Z" }) }, /INVALID_RELEASE_B_AUTHORIZED_AT_UTC/],
     ["Task 17 commit mismatch", { authorizationReceipt: receipt({ task17Commit: "0".repeat(40) }) }, /TASK_17_COMMIT_MISMATCH/],
+    ["historical receipt lacks executor surface binding", { authorizationReceipt: receipt({ executorSurfaceVersion: undefined }) }, /RELEASE_B_EXECUTOR_SURFACE_MISMATCH/],
     ["payload hash mismatch", { plan: { ...frozenPlan, normalizedPayloadSha256: "0".repeat(64) } }, /RELEASE_B_NORMALIZED_PAYLOAD_MISMATCH/],
     ["dry-run fingerprint mismatch", { plan: { ...frozenPlan, dryRunFingerprint: "0".repeat(64) } }, /RELEASE_B_DRY_RUN_FINGERPRINT_MISMATCH/],
     ["delete operation", { plan: { ...frozenPlan, delete: "DELETE" } }, /RELEASE_B_DELETE_FORBIDDEN/],
@@ -162,10 +190,25 @@ try {
       const authorizationReceipt = receipt({ approvalId: `release-b-approval-${3000 + index * 2 + (phase === "transaction" ? 0 : 1)}` });
       const input = { args: ["--execute-production"], authorizationReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(authorizationReceipt), transport };
       await assert.rejects(() => executeReleaseBProductionImport(input), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", `${code} during ${phase} is ambiguous`);
-      await assert.rejects(() => executeReleaseBProductionImport(input), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/);
+  await assert.rejects(() => executeReleaseBProductionImport(input), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/);
       assert.equal(calls, 1, "native transport failures never retry");
     }
   }
+
+  const adapterDrift = createActualAdapterTransport({ precheck: { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: { ...RELEASE_B_FROZEN.expectedBeforeCounts, devices: 1 } } });
+  const adapterDriftReceipt = receipt({ approvalId: "release-b-approval-4101" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: adapterDriftReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(adapterDriftReceipt), transport: adapterDrift.transport }), (error) => error.code === "RELEASE_B_PRODUCTION_PRECONDITION_DRIFT", "the actual adapter preserves the locked precheck mismatch after an acknowledged rollback");
+  assert.equal(adapterDrift.state.queries.at(-1), "ROLLBACK;", "a precheck mismatch through the actual adapter receives an explicit rollback acknowledgement");
+  assert.equal(adapterDrift.state.queries.some((sql) => sql.startsWith("INSERT INTO")), false, "a transaction-bound precheck mismatch sends no write through the actual adapter");
+
+  const adapterCommitLoss = createActualAdapterTransport({ failCommitAck: true });
+  const adapterCommitLossReceipt = receipt({ approvalId: "release-b-approval-4102" });
+  const adapterCommitLossInput = { args: ["--execute-production"], authorizationReceipt: adapterCommitLossReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(adapterCommitLossReceipt), transport: adapterCommitLoss.transport };
+  await assert.rejects(() => executeReleaseBProductionImport(adapterCommitLossInput), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", "the actual adapter maps a lost commit acknowledgement to an ambiguous execution");
+  assert.equal(adapterCommitLoss.state.queries.includes("ROLLBACK;"), false, "a lost commit acknowledgement never claims rollback");
+  const transactionBeginsBeforeRetry = adapterCommitLoss.state.queries.filter((sql) => sql.startsWith("BEGIN;")).length;
+  await assert.rejects(() => executeReleaseBProductionImport(adapterCommitLossInput), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "a commit-ambiguous approval is consumed and cannot open a retry transaction");
+  assert.equal(adapterCommitLoss.state.queries.filter((sql) => sql.startsWith("BEGIN;")).length, transactionBeginsBeforeRetry, "the consumed ambiguous approval performs no second adapter transaction");
 
   const sessionSql = [];
   const driftState = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: true, counts: { ...RELEASE_B_FROZEN.expectedBeforeCounts, devices: 1 } };

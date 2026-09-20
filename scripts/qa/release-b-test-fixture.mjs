@@ -28,7 +28,7 @@ export async function createReleaseBTestFixture() {
         expectedBeforeCounts: { ...frozen.expectedBeforeCounts }, expectedAfterCounts: { ...frozen.expectedAfterCounts },
         authorizedOperation: "RELEASE_B_PRODUCTION_IMPORT", maxAttempts: 1, allowDeletes: false, allowSchemaMutation: false,
         allowMigrationHistoryMutation: false, allowCloudflareWrites: false, allowDeployment: false, allowPush: false,
-        allowMerge: false, allowQaProd: false, ...overrides,
+        allowMerge: false, allowQaProd: false, executorSurfaceVersion: executor.RELEASE_B_EXECUTOR_SURFACE_VERSION, ...overrides,
       };
     },
     async close() {

@@ -10,6 +10,7 @@ import { fingerprintRecoveryPlan } from "../devices/schema-v1/dry-run.mjs";
 import { preflightReleaseBProductionTransport } from "./lib/release-b-production-transport.mjs";
 
 export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION = "openglass-device-schema-v1-release-b-authorization-v1";
+export const RELEASE_B_EXECUTOR_SURFACE_VERSION = "release-b-production-transport-v2";
 const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
 const APPROVAL_ID = /^release-b-approval-[0-9]+$(?![\s\S])/;
 const UTC_SECONDS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
@@ -32,7 +33,7 @@ function canonicalize(value) {
   return value;
 }
 
-function fail(code) { throw new Error(code); }
+function fail(code) { const error = new Error(code); error.code = code; throw error; }
 
 function isAmbiguous(error) {
   return [error?.code, error?.sqlState].some((code) => /^(?:(?:TRANSPORT_|NETWORK_).+|PROVIDER_UNKNOWN|COMMIT_UNKNOWN|TIMEOUT|ECONNRESET|EPIPE|ETIMEDOUT|57P01)$/.test(String(code ?? "")))
@@ -99,7 +100,7 @@ function assertAuthorizationReceipt(receipt, sha256, frozen) {
     "schemaVersion", "approvalId", "authorizedAtUtc", "targetProjectRef", "targetClass", "task17Commit", "gateSourceCommit",
     "normalizedPayloadSha256", "dryRunFingerprint", "identityMapFingerprint", "sourceMetadataFingerprint", "conflictMapFingerprint", "importerCodeFingerprint",
     "expectedBeforeCounts", "expectedAfterCounts", "authorizedOperation", "maxAttempts", "allowDeletes", "allowSchemaMutation", "allowMigrationHistoryMutation",
-    "allowCloudflareWrites", "allowDeployment", "allowPush", "allowMerge", "allowQaProd",
+    "allowCloudflareWrites", "allowDeployment", "allowPush", "allowMerge", "allowQaProd", "executorSurfaceVersion",
   ];
   if (!receipt || typeof receipt !== "object" || Array.isArray(receipt) || Object.keys(receipt).length !== expectedKeys.length || expectedKeys.some((key) => !Object.hasOwn(receipt, key))) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
   if (typeof sha256 !== "string" || !SHA256.test(sha256) || hashAuthorizationReceipt(receipt) !== sha256) fail("AUTHORIZATION_RECEIPT_SHA256_MISMATCH");
@@ -116,6 +117,7 @@ function assertAuthorizationReceipt(receipt, sha256, frozen) {
   })) if (receipt[key] !== expected) fail(`RELEASE_B_${key.toUpperCase()}_MISMATCH`);
   if (!exactObject(receipt.expectedBeforeCounts, frozen.expectedBeforeCounts) || !exactObject(receipt.expectedAfterCounts, frozen.expectedAfterCounts)) fail("RELEASE_B_COUNT_BINDING_MISMATCH");
   if (receipt.authorizedOperation !== "RELEASE_B_PRODUCTION_IMPORT" || receipt.maxAttempts !== 1) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
+  if (receipt.executorSurfaceVersion !== RELEASE_B_EXECUTOR_SURFACE_VERSION) fail("RELEASE_B_EXECUTOR_SURFACE_MISMATCH");
   for (const key of ["allowDeletes", "allowSchemaMutation", "allowMigrationHistoryMutation", "allowCloudflareWrites", "allowDeployment", "allowPush", "allowMerge", "allowQaProd"]) if (receipt[key] !== false) fail("RELEASE_B_FORBIDDEN_CAPABILITY");
 }
 
