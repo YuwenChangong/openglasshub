@@ -106,7 +106,7 @@ function evidenceSql(input) {
 
 function compatibilitySql(input) {
   const row = requiredRow(input, "compatibility");
-  return `UPDATE public.devices SET key_specs = ${json(row.key_specs)}, full_specs = ${json(row.full_specs)} WHERE slug = ${text(row.deviceSlug)};`;
+  return `UPDATE public.devices SET key_specs = ${json(row.key_specs)}, full_specs = ${json(row.full_specs)} WHERE slug = ${text(row.deviceSlug)} RETURNING 1 AS updated;`;
 }
 
 const RENDERERS = Object.freeze({

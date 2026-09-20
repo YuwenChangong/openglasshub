@@ -15,7 +15,7 @@ assert.throws(
 );
 
 const environment = { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres:unit-test-password@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require" };
-function sessionFactory({ identity = { current_database: "postgres", current_user: "postgres", server_port: "5432" }, targetIdentity = { projectRef: "xcbnxzjlsvtgzixurcof", host: "db.xcbnxzjlsvtgzixurcof.supabase.co", port: 5432 }, state = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: { devices: 0, deviceSpecDefinitions: 0, deviceSpecs: 0, deviceSources: 0, deviceSourceLinks: 0, deviceSpecEvidence: 0, catalogAuditEvents: 0 } }, failOn = null } = {}) {
+function sessionFactory({ identity = { current_database: "postgres", current_user: "postgres", server_port: "5432" }, targetIdentity = { projectRef: "xcbnxzjlsvtgzixurcof", host: "db.xcbnxzjlsvtgzixurcof.supabase.co", port: 5432 }, state = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: { devices: 0, deviceSpecDefinitions: 0, deviceSpecs: 0, deviceSources: 0, deviceSourceLinks: 0, deviceSpecEvidence: 0, catalogAuditEvents: 0 } }, failOn = null, compatibilityResult = { rows: [{ updated: 1 }], rowCount: 1 } } = {}) {
   const queries = [];
   return {
     queries,
@@ -27,6 +27,7 @@ function sessionFactory({ identity = { current_database: "postgres", current_use
           if (failOn && sql.startsWith(failOn.sql)) throw Object.assign(new Error("simulated native loss"), { code: failOn.code });
           if (sql.startsWith("SELECT current_database")) return { rows: [identity] };
           if (sql.startsWith("LOCK TABLE")) return { rows: [{ release_b_state: state }] };
+          if (sql.startsWith("UPDATE public.devices") && sql.includes(" RETURNING 1 AS updated")) return compatibilityResult;
           return { rows: [] };
         },
         async close() {},
@@ -60,6 +61,17 @@ await compatibilityTransport.transaction(async (transaction) => {
 const compatibilityWrite = compatibilitySession.queries.find((sql) => /public\.devices/i.test(sql) && !sql.startsWith("LOCK TABLE"));
 assert.match(compatibilityWrite, /^UPDATE public\.devices\s+SET/i, "compatibility mutation is a single table-scoped UPDATE, never a procedural DO body");
 assert.doesNotMatch(compatibilityWrite, /\bDO\b|;[\s\S]*\b(?:UPDATE|INSERT|DELETE|ALTER|DROP|CREATE)\b/i, "compatibility mutation cannot hide additional statements inside a DO body");
+assert.match(compatibilityWrite, /RETURNING 1 AS updated;$/, "compatibility mutation proves the target device row exists");
+const missingCompatibilitySession = sessionFactory({ compatibilityResult: { rows: [], rowCount: 0 } });
+const missingCompatibility = productionTransport.createReleaseBProductionTransport({
+  environment,
+  createSession: missingCompatibilitySession.createSession,
+  readPostcheck: async () => ({}),
+});
+await assert.rejects(() => missingCompatibility.transaction(async (transaction) => {
+  await transaction.readPrecheckForUpdate();
+  await transaction.upsert("compatibility", { deviceSlug: "missing", key_specs: {}, full_specs: {} });
+}), /RELEASE_B_COMPATIBILITY_DEVICE_MISSING/, "compatibility update fails closed when the target device row is absent");
 
 for (const [name, operation] of [
   ["out-of-scope table", () => "INSERT INTO public.unapproved_table (id) VALUES (1);"],

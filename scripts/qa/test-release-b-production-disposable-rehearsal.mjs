@@ -40,6 +40,10 @@ try {
               transcript.push(sql);
               const output = await session.query(sql);
               if (sql.startsWith("LOCK TABLE")) return { rows: [{ release_b_state: precheckOverride ?? parseSchemaV1SqlState(output) }] };
+              if (sql.startsWith("UPDATE public.devices") && sql.includes(" RETURNING 1 AS updated")) {
+                const lines = String(output).trim().split(/\r?\n/);
+                return { rows: lines[0] === "updated" && lines[1] === "1" ? [{ updated: 1 }] : [], rowCount: lines[0] === "updated" && lines[1] === "1" ? 1 : 0 };
+              }
               return { rows: [] };
             },
             close: () => session.close(),

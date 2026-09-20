@@ -54,6 +54,10 @@ function readOnlySql(sql) {
   if (!/^(?:SELECT|WITH|SHOW)\b/i.test(normalized) || /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP|ALTER|CREATE|GRANT|REVOKE|COPY|VACUUM|ANALYZE)\b/i.test(normalized)) throw failure("RELEASE_B_PRODUCTION_READ_ONLY_VIOLATION");
   return normalized;
 }
+function assertCompatibilityUpdated(result) {
+  if (result?.rowCount === 1 || result?.affectedRows === 1 || rows(result).length === 1) return;
+  throw failure("RELEASE_B_COMPATIBILITY_DEVICE_MISSING");
+}
 
 function isConnectionLoss(error) {
   const code = String(error?.code ?? error?.sqlState ?? "");
@@ -105,10 +109,16 @@ export function createReleaseBProductionTransport(options = {}) {
       let pendingError;
       try {
         session = await open();
-        await session.query("BEGIN;\nSET CONSTRAINTS ALL DEFERRED;"); phase = "AFTER_BEGIN_BEFORE_FIRST_WRITE";
+        await session.query("BEGIN;");
+        await session.query("SET CONSTRAINTS ALL DEFERRED;"); phase = "AFTER_BEGIN_BEFORE_FIRST_WRITE";
         await work(Object.freeze({
           async readPrecheckForUpdate() { if (phase !== "AFTER_BEGIN_BEFORE_FIRST_WRITE") throw failure("RELEASE_B_PRECHECK_MUST_PRECEDE_WRITES"); return resultState(await session.query(RELEASE_B_LOCKED_PRECHECK_SQL)); },
-          async upsert(entity, row) { const sql = allowedSql(entity, renderReleaseBAuthorizedOperation({ entity, row })); phase = "AFTER_FIRST_WRITE_BEFORE_COMMIT"; await session.query(sql); },
+          async upsert(entity, row) {
+            const sql = allowedSql(entity, renderReleaseBAuthorizedOperation({ entity, row }));
+            phase = "AFTER_FIRST_WRITE_BEFORE_COMMIT";
+            const result = await session.query(sql);
+            if (entity === "compatibility") assertCompatibilityUpdated(result);
+          },
         }));
         phase = "COMMIT_SENT_ACK_NOT_RECEIVED"; await session.query("COMMIT;"); committed = true; phase = "COMMIT_SENT_ACK_RECEIVED";
       } catch (error) {
