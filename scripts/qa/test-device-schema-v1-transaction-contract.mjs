@@ -17,12 +17,13 @@ try {
   throw blocker;
 }
 
-const { AUTHORIZATION_RECEIPT_SCHEMA_VERSION, RELEASE_B_EXECUTOR_SURFACE_VERSION, PRODUCTION_LEDGER_DIRECTORY, hashAuthorizationReceipt, loadTask17FrozenGate } = productionExecutor;
+const { AUTHORIZATION_RECEIPT_SCHEMA_VERSION, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1, PRODUCTION_LEDGER_DIRECTORY, hashAuthorizationReceipt, loadTask17FrozenGate } = productionExecutor;
 const fixture = await createReleaseBTestFixture();
 // Canonical filesystem calls are redirected only for a default-executor sentinel
 // check, then prohibited entirely. The real durable ledger is never accessed.
 let sandboxCanonical = true;
 let canonicalAccesses = 0;
+let canonicalLedgerSentinelChecked = false;
 const originals = new Map();
 for (const method of ["readFile", "open", "mkdir", "rm", "readdir", "stat", "lstat", "writeFile"]) {
   originals.set(method, fs[method]);
@@ -42,6 +43,7 @@ syncBuiltinESMExports();
 const executeReleaseBProductionImport = fixture.execute;
 const RELEASE_B_FROZEN = await loadTask17FrozenGate();
 const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
+const EXECUTION_SURFACE = await productionExecutor.computeReleaseBExecutionSurfaceFingerprints();
 
 function receipt(overrides = {}) {
   return {
@@ -53,7 +55,59 @@ function receipt(overrides = {}) {
     importerCodeFingerprint: RELEASE_B_FROZEN.importerCodeFingerprint, expectedBeforeCounts: { ...RELEASE_B_FROZEN.expectedBeforeCounts },
     expectedAfterCounts: { ...RELEASE_B_FROZEN.expectedAfterCounts }, authorizedOperation: "RELEASE_B_PRODUCTION_IMPORT", maxAttempts: 1,
     allowDeletes: false, allowSchemaMutation: false, allowMigrationHistoryMutation: false, allowCloudflareWrites: false,
-    allowDeployment: false, allowPush: false, allowMerge: false, allowQaProd: false, executorSurfaceVersion: RELEASE_B_EXECUTOR_SURFACE_VERSION, ...overrides,
+    allowDeployment: false, allowPush: false, allowMerge: false, allowQaProd: false, automaticRetry: false,
+    task18TransportCommit: EXECUTION_SURFACE.task18TransportCommit,
+    task18ExecutorCommit: EXECUTION_SURFACE.task18ExecutorCommit,
+    productionTransportFingerprint: EXECUTION_SURFACE.productionTransportFingerprint,
+    productionExecutorFingerprint: EXECUTION_SURFACE.productionExecutorFingerprint,
+    ...overrides,
+  };
+}
+
+function historicalV1Receipt(overrides = {}) {
+  const current = receipt({ schemaVersion: AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1, ...overrides });
+  delete current.task18TransportCommit;
+  delete current.task18ExecutorCommit;
+  delete current.productionTransportFingerprint;
+  delete current.productionExecutorFingerprint;
+  delete current.automaticRetry;
+  return current;
+}
+
+async function receiptV2(overrides = {}) {
+  const surface = await productionExecutor.loadReleaseBExecutionSurfaceBinding();
+  return {
+    schemaVersion: productionExecutor.AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2,
+    approvalId: "release-b-approval-20260918",
+    authorizedAtUtc: "2026-09-18T04:15:00Z",
+    targetProjectRef: "xcbnxzjlsvtgzixurcof",
+    targetClass: "OpenGlass Hub Supabase Production",
+    task17Commit: TASK_17_COMMIT,
+    gateSourceCommit: RELEASE_B_FROZEN.sourceCommit,
+    task18TransportCommit: surface.task18TransportCommit,
+    task18ExecutorCommit: surface.task18ExecutorCommit,
+    normalizedPayloadSha256: RELEASE_B_FROZEN.normalizedPayloadSha256,
+    dryRunFingerprint: RELEASE_B_FROZEN.dryRunFingerprint,
+    identityMapFingerprint: RELEASE_B_FROZEN.identityMapFingerprint,
+    sourceMetadataFingerprint: RELEASE_B_FROZEN.sourceMetadataFingerprint,
+    conflictMapFingerprint: RELEASE_B_FROZEN.conflictMapFingerprint,
+    importerCodeFingerprint: RELEASE_B_FROZEN.importerCodeFingerprint,
+    productionTransportFingerprint: surface.productionTransportFingerprint,
+    productionExecutorFingerprint: surface.productionExecutorFingerprint,
+    expectedBeforeCounts: { ...RELEASE_B_FROZEN.expectedBeforeCounts },
+    expectedAfterCounts: { ...RELEASE_B_FROZEN.expectedAfterCounts },
+    authorizedOperation: "RELEASE_B_PRODUCTION_IMPORT",
+    maxAttempts: 1,
+    automaticRetry: false,
+    allowDeletes: false,
+    allowSchemaMutation: false,
+    allowMigrationHistoryMutation: false,
+    allowCloudflareWrites: false,
+    allowDeployment: false,
+    allowPush: false,
+    allowMerge: false,
+    allowQaProd: false,
+    ...overrides,
   };
 }
 
@@ -112,10 +166,22 @@ assert.match(hashAuthorizationReceipt(receipt()), /^[a-f0-9]{64}$/, "authorizati
 
 const temporaryDirectory = fixture.directory;
 try {
+  const v1ExecutionTransport = createTransport();
+  const v1ExecutionReceipt = historicalV1Receipt({ approvalId: "release-b-approval-4090" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: v1ExecutionReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(v1ExecutionReceipt), ledgerDirectory: path.join(temporaryDirectory, "v1-execution-rejected"), transport: v1ExecutionTransport, plan: frozenPlan }), /RELEASE_B_AUTHORIZATION_V2_REQUIRED/, "current Release B Production execution rejects legacy v1 receipts before mutation");
+  assert.equal(v1ExecutionTransport.state.transactionCount, 0, "legacy v1 execution rejection occurs before any transaction");
+
+  const v2ValidTransport = createTransport();
+  const v2ValidReceipt = await receiptV2({ approvalId: "release-b-approval-4091" });
+  const v2Valid = await executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: v2ValidReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(v2ValidReceipt), ledgerDirectory: path.join(temporaryDirectory, "v2-valid"), transport: v2ValidTransport, plan: frozenPlan });
+  assert.equal(v2Valid.status, "COMMITTED", "an exact v2 receipt validates and executes through the injected offline transport");
+  assert.equal(v2ValidTransport.state.transactionCount, 1);
+
   const canonicalTransport = createTransport();
   await assert.rejects(() => productionExecutor.executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: receipt(), authorizationReceiptSha256: hashAuthorizationReceipt(receipt()), transport: canonicalTransport }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "a preexisting canonical STARTED approval blocks the default production entry point");
   assert.equal(canonicalTransport.state.transactionCount, 0);
   assert.equal(canonicalAccesses, 2, "default executor mkdir/open are safely redirected into the canonical namespace sandbox");
+  canonicalLedgerSentinelChecked = true;
   sandboxCanonical = false;
   const ignoredCallerPlanTransport = createTransport();
   const ignoredCallerPlanReceipt = receipt({ approvalId: "release-b-approval-20260916" });
@@ -139,7 +205,7 @@ try {
     ["non-Z timestamp", { authorizationReceipt: receipt({ authorizedAtUtc: "2026-09-17T04:15:00+00:00" }) }, /INVALID_RELEASE_B_AUTHORIZED_AT_UTC/],
     ["malformed UTC timestamp", { authorizationReceipt: receipt({ authorizedAtUtc: "2026-09-17T25:15:00Z" }) }, /INVALID_RELEASE_B_AUTHORIZED_AT_UTC/],
     ["Task 17 commit mismatch", { authorizationReceipt: receipt({ task17Commit: "0".repeat(40) }) }, /TASK_17_COMMIT_MISMATCH/],
-    ["historical receipt lacks executor surface binding", { authorizationReceipt: receipt({ executorSurfaceVersion: undefined }) }, /RELEASE_B_EXECUTOR_SURFACE_MISMATCH/],
+    ["historical v1 receipt cannot execute current Production path", { authorizationReceipt: historicalV1Receipt({ approvalId: "release-b-approval-1006" }) }, /RELEASE_B_AUTHORIZATION_V2_REQUIRED/],
     ["payload hash mismatch", { plan: { ...frozenPlan, normalizedPayloadSha256: "0".repeat(64) } }, /RELEASE_B_NORMALIZED_PAYLOAD_MISMATCH/],
     ["dry-run fingerprint mismatch", { plan: { ...frozenPlan, dryRunFingerprint: "0".repeat(64) } }, /RELEASE_B_DRY_RUN_FINGERPRINT_MISMATCH/],
     ["delete operation", { plan: { ...frozenPlan, delete: "DELETE" } }, /RELEASE_B_DELETE_FORBIDDEN/],
@@ -231,7 +297,7 @@ try {
   assert.ok(sessionSql.every((sql) => !sql.includes("INSERT INTO")), "drift is rejected before any SQL write");
 } finally {
   await fixture.close();
-  assert.equal(canonicalAccesses, 2, "the injected test executor and cleanup never access the canonical ledger");
+  if (canonicalLedgerSentinelChecked) assert.equal(canonicalAccesses, 2, "the injected test executor and cleanup never access the canonical ledger");
   for (const [method, original] of originals) fs[method] = original;
   syncBuiltinESMExports();
 }

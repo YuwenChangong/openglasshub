@@ -15,6 +15,7 @@ export async function createReleaseBTestFixture() {
   const sentinelBytes = '{"approvalId":"release-b-approval-20260917","status":"STARTED"}\n';
   await writeFile(sentinel, sentinelBytes, { flag: "wx" });
   const frozen = await executor.loadTask17FrozenGate();
+  const executionSurface = await executor.computeReleaseBExecutionSurfaceFingerprints();
   return {
     root, directory, frozen, canonicalSandbox,
     execute: executor.createReleaseBImportExecutor({ consumptionStore: executor.createReleaseBConsumptionStore(directory) }),
@@ -28,7 +29,12 @@ export async function createReleaseBTestFixture() {
         expectedBeforeCounts: { ...frozen.expectedBeforeCounts }, expectedAfterCounts: { ...frozen.expectedAfterCounts },
         authorizedOperation: "RELEASE_B_PRODUCTION_IMPORT", maxAttempts: 1, allowDeletes: false, allowSchemaMutation: false,
         allowMigrationHistoryMutation: false, allowCloudflareWrites: false, allowDeployment: false, allowPush: false,
-        allowMerge: false, allowQaProd: false, executorSurfaceVersion: executor.RELEASE_B_EXECUTOR_SURFACE_VERSION, ...overrides,
+        allowMerge: false, allowQaProd: false, automaticRetry: false,
+        task18TransportCommit: executionSurface.task18TransportCommit,
+        task18ExecutorCommit: executionSurface.task18ExecutorCommit,
+        productionTransportFingerprint: executionSurface.productionTransportFingerprint,
+        productionExecutorFingerprint: executionSurface.productionExecutorFingerprint,
+        ...overrides,
       };
     },
     async close() {

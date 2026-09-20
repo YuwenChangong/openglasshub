@@ -9,17 +9,31 @@ import { buildSchemaV1RecoveryPlan } from "../devices/import-device-schema-v1.mj
 import { fingerprintRecoveryPlan } from "../devices/schema-v1/dry-run.mjs";
 import { preflightReleaseBProductionTransport } from "./lib/release-b-production-transport.mjs";
 
-export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION = "openglass-device-schema-v1-release-b-authorization-v1";
+export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1 = "openglass-device-schema-v1-release-b-authorization-v1";
+export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2 = "openglass-device-schema-v1-release-b-authorization-v2";
+export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION = AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2;
 export const RELEASE_B_EXECUTOR_SURFACE_VERSION = "release-b-production-transport-v2";
 const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
+export const TASK_18_TRANSPORT_COMMIT = "fced699e7b5fb1c96832fe52ed9230e281b29e74";
 const APPROVAL_ID = /^release-b-approval-[0-9]+$(?![\s\S])/;
 const UTC_SECONDS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const SHA256 = /^[a-f0-9]{64}$/;
+const GIT_COMMIT = /^[a-f0-9]{40}$/;
 const ALLOWED_ENTITIES = Object.freeze(["definition", "device", "source", "sourceLink", "spec", "evidence", "compatibility"]);
 const EXPECTED_OPERATIONS = Object.freeze({ definition: 92, device: 24, source: 39, sourceLink: 46, spec: 1488, evidence: 15, compatibility: 24 });
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 export const PRODUCTION_LEDGER_DIRECTORY = path.join(REPOSITORY_ROOT, "artifacts", "device-schema-v1", "release-b-production-ledger");
 const execFile = promisify(execFileCallback);
+const V1_AUTHORIZATION_KEYS = Object.freeze([
+  "schemaVersion", "approvalId", "authorizedAtUtc", "targetProjectRef", "targetClass", "task17Commit", "gateSourceCommit",
+  "normalizedPayloadSha256", "dryRunFingerprint", "identityMapFingerprint", "sourceMetadataFingerprint", "conflictMapFingerprint", "importerCodeFingerprint",
+  "expectedBeforeCounts", "expectedAfterCounts", "authorizedOperation", "maxAttempts", "allowDeletes", "allowSchemaMutation", "allowMigrationHistoryMutation",
+  "allowCloudflareWrites", "allowDeployment", "allowPush", "allowMerge", "allowQaProd",
+]);
+const V2_AUTHORIZATION_KEYS = Object.freeze([
+  ...V1_AUTHORIZATION_KEYS,
+  "task18TransportCommit", "task18ExecutorCommit", "productionTransportFingerprint", "productionExecutorFingerprint", "automaticRetry",
+]);
 
 function exactObject(value, expected) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -34,6 +48,23 @@ function canonicalize(value) {
 }
 
 function fail(code) { const error = new Error(code); error.code = code; throw error; }
+
+async function gitShowBytes(commit, relativePath) {
+  if (typeof commit !== "string" || !GIT_COMMIT.test(commit)) fail("RELEASE_B_EXECUTION_SURFACE_COMMIT_INVALID");
+  const { stdout } = await execFile("git", ["show", `${commit}:${relativePath}`], { cwd: REPOSITORY_ROOT, encoding: "buffer" });
+  return Buffer.from(stdout);
+}
+
+async function gitHeadCommit() {
+  const { stdout } = await execFile("git", ["rev-parse", "HEAD"], { cwd: REPOSITORY_ROOT, encoding: "utf8" });
+  const commit = stdout.trim();
+  if (!GIT_COMMIT.test(commit)) fail("RELEASE_B_EXECUTION_SURFACE_COMMIT_INVALID");
+  return commit;
+}
+
+function sha256Bytes(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
 
 function isAmbiguous(error) {
   return [error?.code, error?.sqlState].some((code) => /^(?:(?:TRANSPORT_|NETWORK_).+|PROVIDER_UNKNOWN|COMMIT_UNKNOWN|TIMEOUT|ECONNRESET|EPIPE|ETIMEDOUT|57P01)$/.test(String(code ?? "")))
@@ -91,20 +122,37 @@ export function hashAuthorizationReceipt(receipt) {
   return createHash("sha256").update(`${JSON.stringify(canonicalize(receipt))}\n`, "utf8").digest("hex");
 }
 
+export async function computeReleaseBExecutionSurfaceFingerprints({
+  task18TransportCommit = TASK_18_TRANSPORT_COMMIT,
+  task18ExecutorCommit,
+  transportBytes,
+  executorBytes,
+} = {}) {
+  const executorCommit = task18ExecutorCommit ?? await gitHeadCommit();
+  return Object.freeze({
+    task18TransportCommit,
+    task18ExecutorCommit: executorCommit,
+    productionTransportFingerprint: sha256Bytes(transportBytes ?? await gitShowBytes(task18TransportCommit, "scripts/qa/lib/release-b-production-transport.mjs")),
+    productionExecutorFingerprint: sha256Bytes(executorBytes ?? await gitShowBytes(executorCommit, "scripts/qa/release-b-production-import.mjs")),
+  });
+}
+
+export function loadReleaseBExecutionSurfaceBinding(options = {}) {
+  return computeReleaseBExecutionSurfaceFingerprints(options);
+}
+
 function assertStrictUtc(value) {
   if (typeof value !== "string" || !UTC_SECONDS.test(value) || Number.isNaN(Date.parse(value)) || new Date(value).toISOString() !== `${value.slice(0, -1)}.000Z`) fail("INVALID_RELEASE_B_AUTHORIZED_AT_UTC");
 }
 
-function assertAuthorizationReceipt(receipt, sha256, frozen) {
-  const expectedKeys = [
-    "schemaVersion", "approvalId", "authorizedAtUtc", "targetProjectRef", "targetClass", "task17Commit", "gateSourceCommit",
-    "normalizedPayloadSha256", "dryRunFingerprint", "identityMapFingerprint", "sourceMetadataFingerprint", "conflictMapFingerprint", "importerCodeFingerprint",
-    "expectedBeforeCounts", "expectedAfterCounts", "authorizedOperation", "maxAttempts", "allowDeletes", "allowSchemaMutation", "allowMigrationHistoryMutation",
-    "allowCloudflareWrites", "allowDeployment", "allowPush", "allowMerge", "allowQaProd", "executorSurfaceVersion",
-  ];
+function assertExactReceiptShape(receipt, expectedKeys) {
   if (!receipt || typeof receipt !== "object" || Array.isArray(receipt) || Object.keys(receipt).length !== expectedKeys.length || expectedKeys.some((key) => !Object.hasOwn(receipt, key))) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
+}
+
+function assertAuthorizationReceiptCore(receipt, sha256, frozen, schemaVersion, expectedKeys) {
+  assertExactReceiptShape(receipt, expectedKeys);
   if (typeof sha256 !== "string" || !SHA256.test(sha256) || hashAuthorizationReceipt(receipt) !== sha256) fail("AUTHORIZATION_RECEIPT_SHA256_MISMATCH");
-  if (receipt.schemaVersion !== AUTHORIZATION_RECEIPT_SCHEMA_VERSION) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
+  if (receipt.schemaVersion !== schemaVersion) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
   if (typeof receipt.approvalId !== "string" || !APPROVAL_ID.test(receipt.approvalId)) fail("INVALID_RELEASE_B_APPROVAL_ID");
   assertStrictUtc(receipt.authorizedAtUtc);
   if (receipt.targetProjectRef !== frozen.targetProjectRef || receipt.targetClass !== frozen.targetClass) fail("RELEASE_B_TARGET_MISMATCH");
@@ -117,8 +165,59 @@ function assertAuthorizationReceipt(receipt, sha256, frozen) {
   })) if (receipt[key] !== expected) fail(`RELEASE_B_${key.toUpperCase()}_MISMATCH`);
   if (!exactObject(receipt.expectedBeforeCounts, frozen.expectedBeforeCounts) || !exactObject(receipt.expectedAfterCounts, frozen.expectedAfterCounts)) fail("RELEASE_B_COUNT_BINDING_MISMATCH");
   if (receipt.authorizedOperation !== "RELEASE_B_PRODUCTION_IMPORT" || receipt.maxAttempts !== 1) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
-  if (receipt.executorSurfaceVersion !== RELEASE_B_EXECUTOR_SURFACE_VERSION) fail("RELEASE_B_EXECUTOR_SURFACE_MISMATCH");
   for (const key of ["allowDeletes", "allowSchemaMutation", "allowMigrationHistoryMutation", "allowCloudflareWrites", "allowDeployment", "allowPush", "allowMerge", "allowQaProd"]) if (receipt[key] !== false) fail("RELEASE_B_FORBIDDEN_CAPABILITY");
+}
+
+export function validateHistoricalReleaseBAuthorizationReceiptV1(receipt, sha256, frozen) {
+  assertAuthorizationReceiptCore(receipt, sha256, frozen, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1, V1_AUTHORIZATION_KEYS);
+  return Object.freeze({ schemaVersion: AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1, approvalId: receipt.approvalId });
+}
+
+export function validateCurrentReleaseBAuthorizationReceiptV2(receipt, sha256, frozen, executionSurface) {
+  if (receipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1) fail("RELEASE_B_AUTHORIZATION_V2_REQUIRED");
+  assertAuthorizationReceiptCore(receipt, sha256, frozen, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2, V2_AUTHORIZATION_KEYS);
+  if (receipt.task18TransportCommit !== TASK_18_TRANSPORT_COMMIT) fail("RELEASE_B_TASK18_TRANSPORT_COMMIT_MISMATCH");
+  if (!executionSurface || receipt.task18ExecutorCommit !== executionSurface.task18ExecutorCommit) fail("RELEASE_B_TASK18_EXECUTOR_COMMIT_MISMATCH");
+  if (receipt.productionTransportFingerprint !== executionSurface.productionTransportFingerprint) fail("RELEASE_B_PRODUCTION_TRANSPORT_FINGERPRINT_MISMATCH");
+  if (receipt.productionExecutorFingerprint !== executionSurface.productionExecutorFingerprint) fail("RELEASE_B_PRODUCTION_EXECUTOR_FINGERPRINT_MISMATCH");
+  if (receipt.automaticRetry !== false) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
+  return Object.freeze({ schemaVersion: AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2, approvalId: receipt.approvalId });
+}
+
+export function createReleaseBAuthorizationReceiptV2({ approvalId, authorizedAtUtc, frozen, executionSurface }) {
+  if (!frozen || !executionSurface) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
+  return {
+    schemaVersion: AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2,
+    approvalId,
+    authorizedAtUtc,
+    targetProjectRef: frozen.targetProjectRef,
+    targetClass: frozen.targetClass,
+    task17Commit: TASK_17_COMMIT,
+    gateSourceCommit: frozen.sourceCommit,
+    normalizedPayloadSha256: frozen.normalizedPayloadSha256,
+    dryRunFingerprint: frozen.dryRunFingerprint,
+    identityMapFingerprint: frozen.identityMapFingerprint,
+    sourceMetadataFingerprint: frozen.sourceMetadataFingerprint,
+    conflictMapFingerprint: frozen.conflictMapFingerprint,
+    importerCodeFingerprint: frozen.importerCodeFingerprint,
+    expectedBeforeCounts: { ...frozen.expectedBeforeCounts },
+    expectedAfterCounts: { ...frozen.expectedAfterCounts },
+    authorizedOperation: "RELEASE_B_PRODUCTION_IMPORT",
+    maxAttempts: 1,
+    allowDeletes: false,
+    allowSchemaMutation: false,
+    allowMigrationHistoryMutation: false,
+    allowCloudflareWrites: false,
+    allowDeployment: false,
+    allowPush: false,
+    allowMerge: false,
+    allowQaProd: false,
+    task18TransportCommit: executionSurface.task18TransportCommit,
+    task18ExecutorCommit: executionSurface.task18ExecutorCommit,
+    productionTransportFingerprint: executionSurface.productionTransportFingerprint,
+    productionExecutorFingerprint: executionSurface.productionExecutorFingerprint,
+    automaticRetry: false,
+  };
 }
 
 function assertFrozenPlan(plan, frozen) {
@@ -172,7 +271,7 @@ export function createReleaseBConsumptionStore(directory) {
 async function executeReleaseBImport({ args, authorizationReceipt, authorizationReceiptSha256, transport, plan }, consumptionStore) {
   if (!Array.isArray(args) || args.length !== 1 || args[0] !== "--execute-production") fail("RELEASE_B_EXECUTION_FLAG_REQUIRED");
   const frozen = await loadTask17FrozenGate();
-  assertAuthorizationReceipt(authorizationReceipt, authorizationReceiptSha256, frozen);
+  validateCurrentReleaseBAuthorizationReceiptV2(authorizationReceipt, authorizationReceiptSha256, frozen, await computeReleaseBExecutionSurfaceFingerprints());
   // Rebuild from committed repository inputs at the last safe point before the
   // target check and transaction. It has no provider or write dependency.
   await assertCommittedInputBytes(frozen);
@@ -210,7 +309,9 @@ export function createReleaseBImportExecutor({ consumptionStore }) {
 
 // The public production entry point always uses the durable canonical store.
 // Tests construct a separate executor with an owned temporary consumption store.
-export const executeReleaseBProductionImport = createReleaseBImportExecutor({ consumptionStore: createReleaseBConsumptionStore(PRODUCTION_LEDGER_DIRECTORY) });
+export function executeReleaseBProductionImport(input) {
+  return executeReleaseBImport(input, createReleaseBConsumptionStore(PRODUCTION_LEDGER_DIRECTORY));
+}
 
 /** Offline-only wiring validation. This never opens a session or consumes an approval. */
 export function preflightReleaseBProductionImport({ environment = process.env } = {}) {
