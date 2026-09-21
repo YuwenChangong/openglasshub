@@ -4,12 +4,27 @@ import { runLocalDisposableReplay } from "./local-disposable-supabase-replay.mjs
 import { createReleaseBTestFixture } from "./release-b-test-fixture.mjs";
 import { createReleaseBDisposableTransport } from "./release-b-disposable-transport.mjs";
 import { createReleaseBProductionTransport } from "./lib/release-b-production-transport.mjs";
-import { hashAuthorizationReceipt } from "./release-b-production-import.mjs";
+import { computeReleaseBExecutionSurfaceFingerprints, createReleaseBAuthorizationReceiptV4, hashAuthorizationReceipt } from "./release-b-production-import.mjs";
 import { parseSchemaV1SqlState, readSchemaV1SqlVerification } from "../devices/schema-v1/disposable-postgres-transaction-client.mjs";
+
+function disposableEnvironment() {
+  const {
+    P9_PRODUCTION_DATABASE_URL: _p9ProductionDatabaseUrl,
+    PGHOST: _pgHost,
+    PGPORT: _pgPort,
+    PGDATABASE: _pgDatabase,
+    PGUSER: _pgUser,
+    PGPASSWORD: _pgPassword,
+    DATABASE_URL: _databaseUrl,
+    ...safe
+  } = process.env;
+  return safe;
+}
 
 const fixture = await createReleaseBTestFixture();
 try {
   const replay = await runLocalDisposableReplay({
+    environment: disposableEnvironment(),
     afterMigrationLedgerValidated: async ({ executeSql, createSqlSession, canonicalMigrationCount }) => {
       assert.equal(canonicalMigrationCount, 50);
       assert.equal(typeof createSqlSession, "function", "the owned replay exposes a persistent local PostgreSQL session");
@@ -55,8 +70,15 @@ try {
         },
       });
       const transport = createReleaseBDisposableTransport({ executeSql, createSession });
+      const executionSurface = await computeReleaseBExecutionSurfaceFingerprints();
+      const receiptFor = (approvalId) => createReleaseBAuthorizationReceiptV4({
+        approvalId,
+        authorizedAtUtc: "2026-09-21T00:00:00Z",
+        frozen: fixture.frozen,
+        executionSurface,
+      });
       const invoke = (approvalId, selectedTransport = transport) => {
-        const authorizationReceipt = fixture.receipt({ approvalId });
+        const authorizationReceipt = receiptFor(approvalId);
         return fixture.execute({ args: ["--execute-production"], authorizationReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(authorizationReceipt), transport: selectedTransport });
       };
       const assertEmpty = async () => {
