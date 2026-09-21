@@ -132,11 +132,21 @@ async function receiptV2(overrides = {}) {
   };
 }
 
-function createTransport({ failEntity, target = { projectRef: "xcbnxzjlsvtgzixurcof", targetClass: "OpenGlass Hub Supabase Production" }, beforeCounts = RELEASE_B_FROZEN.expectedBeforeCounts } = {}) {
-  const state = { writes: [], transactionCount: 0, rollbackCount: 0 };
+function failure(code, message = code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function createTransport({ failEntity, target = { projectRef: "xcbnxzjlsvtgzixurcof", targetClass: "OpenGlass Hub Supabase Production" }, beforeCounts = RELEASE_B_FROZEN.expectedBeforeCounts, identifyFailure = null } = {}) {
+  const state = { writes: [], identifyCount: 0, transactionCount: 0, rollbackCount: 0, postcheckCount: 0 };
   return {
     state,
-    async identifyTarget() { return target; },
+    async identifyTarget() {
+      state.identifyCount += 1;
+      if (identifyFailure) throw identifyFailure;
+      return target;
+    },
     async readPrecheck() { return { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: beforeCounts }; },
     async transaction(work) {
       state.transactionCount += 1;
@@ -149,7 +159,10 @@ function createTransport({ failEntity, target = { projectRef: "xcbnxzjlsvtgzixur
         state.writes.push(...pending);
       } catch (error) { state.rollbackCount += 1; throw error; }
     },
-    async readPostcheck() { return { counts: { ...RELEASE_B_FROZEN.expectedAfterCounts }, uniqueSlugs: 24, publishedDevices: 24, conflictInvariants: "PASS", rayBanIdentity: "ray-ban-meta", unexpectedDeletes: 0 }; },
+    async readPostcheck() {
+      state.postcheckCount += 1;
+      return { counts: { ...RELEASE_B_FROZEN.expectedAfterCounts }, uniqueSlugs: 24, publishedDevices: 24, conflictInvariants: "PASS", rayBanIdentity: "ray-ban-meta", unexpectedDeletes: 0 };
+    },
   };
 }
 
@@ -186,6 +199,28 @@ assert.equal(frozenPlan.dryRunFingerprint, RELEASE_B_FROZEN.dryRunFingerprint, "
 assert.match(hashAuthorizationReceipt(receipt()), /^[a-f0-9]{64}$/, "authorization receipts have a stable content-address");
 
 const temporaryDirectory = fixture.directory;
+async function ledgerEntry(approvalId) {
+  try {
+    return JSON.parse(await fs.readFile(path.join(temporaryDirectory, `${approvalId}.json`), "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function assertLedgerAbsent(approvalId, message) {
+  assert.equal(await ledgerEntry(approvalId), null, message);
+}
+
+async function assertStartedLedger(approvalId, authorizationReceiptSha256) {
+  assert.deepEqual(await ledgerEntry(approvalId), {
+    approvalId,
+    authorizationReceiptSha256,
+    schemaVersion: "openglass-device-schema-v1-release-b-consumption-v1",
+    status: "STARTED",
+  }, `${approvalId} keeps a durable STARTED ledger entry`);
+}
+
 try {
   const v1ExecutionTransport = createTransport();
   const v1ExecutionReceipt = historicalV1Receipt({ approvalId: "release-b-approval-4090" });
@@ -244,34 +279,135 @@ try {
     assert.equal(transport.state.transactionCount, 0, `${name} cannot begin a transaction`);
   }
 
+  for (const [index, [label, transport, expected]] of [
+    ["identify connect failure", createTransport({ identifyFailure: failure("ECONNREFUSED", "synthetic identify connect failure") }), /synthetic identify connect failure/],
+    ["identify auth failure", createTransport({ identifyFailure: failure("28P01", "synthetic identify auth failure") }), /synthetic identify auth failure/],
+    ["identify target mismatch", createTransport({ target: { projectRef: "wrong-project", targetClass: "OpenGlass Hub Supabase Production" } }), /RELEASE_B_TARGET_MISMATCH/],
+  ].entries()) {
+    const approvalId = `release-b-approval-${5000 + index}`;
+    const authorizationReceipt = receipt({ approvalId });
+    await assertLedgerAbsent(approvalId, `${label} starts without a sandbox ledger entry`);
+    await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(authorizationReceipt), transport, plan: frozenPlan }), expected, `${label} rejects before ledger consumption`);
+    assert.equal(transport.state.identifyCount, 1, `${label} identifies exactly once`);
+    assert.equal(transport.state.transactionCount, 0, `${label} cannot begin a transaction`);
+    await assertLedgerAbsent(approvalId, `${label} leaves the sandbox ledger absent`);
+  }
+
   const driftTransport = createTransport({ beforeCounts: { ...RELEASE_B_FROZEN.expectedBeforeCounts, devices: 1 } });
   const driftReceipt = receipt({ approvalId: "release-b-approval-2001" });
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: driftReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(driftReceipt), ledgerDirectory: path.join(temporaryDirectory, "drift"), transport: driftTransport, plan: frozenPlan }), /RELEASE_B_PRODUCTION_PRECONDITION_DRIFT/, "before-count drift rejects before the transaction");
   assert.equal(driftTransport.state.transactionCount, 1, "the concurrency-safe precheck executes inside the one transaction before writes");
   assert.deepEqual(driftTransport.state.writes, []);
+  await assertStartedLedger(driftReceipt.approvalId, hashAuthorizationReceipt(driftReceipt));
 
   const wrongTargetTransport = createTransport({ target: { projectRef: "wrong-project", targetClass: "OpenGlass Hub Supabase Production" } });
   const targetReceipt = receipt({ approvalId: "release-b-approval-2002" });
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: targetReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(targetReceipt), ledgerDirectory: path.join(temporaryDirectory, "wrong-target"), transport: wrongTargetTransport, plan: frozenPlan }), /RELEASE_B_TARGET_MISMATCH/, "target mismatch is rejected before transaction");
   assert.equal(wrongTargetTransport.state.transactionCount, 0);
+  await assertLedgerAbsent(targetReceipt.approvalId, "target mismatch leaves no consumed ledger entry");
+
+  const beforeBeginTransport = createTransport();
+  beforeBeginTransport.transaction = async () => {
+    beforeBeginTransport.state.transactionCount += 1;
+    throw failure("ECONNRESET", "connection lost before BEGIN");
+  };
+  const beforeBeginReceipt = receipt({ approvalId: "release-b-approval-5100" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: beforeBeginReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(beforeBeginReceipt), transport: beforeBeginTransport, plan: frozenPlan }), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", "before-BEGIN connection loss is consumed and ambiguous");
+  assert.equal(beforeBeginTransport.state.transactionCount, 1, "before-BEGIN connection loss is attempted once");
+  await assertStartedLedger(beforeBeginReceipt.approvalId, hashAuthorizationReceipt(beforeBeginReceipt));
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: beforeBeginReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(beforeBeginReceipt), transport: beforeBeginTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "before-BEGIN connection loss cannot retry");
+  assert.equal(beforeBeginTransport.state.transactionCount, 1, "before-BEGIN consumed approval performs no retry");
+
+  const authFailureTransport = createTransport();
+  authFailureTransport.transaction = async () => {
+    authFailureTransport.state.transactionCount += 1;
+    throw failure("28P01", "transaction authentication failed");
+  };
+  const authFailureReceipt = receipt({ approvalId: "release-b-approval-5101" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: authFailureReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(authFailureReceipt), transport: authFailureTransport, plan: frozenPlan }), /transaction authentication failed/, "transaction authentication failure is consumed without retry");
+  assert.equal(authFailureTransport.state.transactionCount, 1);
+  await assertStartedLedger(authFailureReceipt.approvalId, hashAuthorizationReceipt(authFailureReceipt));
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: authFailureReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(authFailureReceipt), transport: authFailureTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/);
+  assert.equal(authFailureTransport.state.transactionCount, 1, "transaction authentication failure performs no retry");
 
   const failingTransport = createTransport({ failEntity: "evidence" });
   const failedReceipt = receipt({ approvalId: "release-b-approval-2003" });
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: failedReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(failedReceipt), ledgerDirectory: path.join(temporaryDirectory, "rollback"), transport: failingTransport, plan: frozenPlan }), /simulated evidence constraint failure/, "a constraint failure rolls back every pending Release B row");
   assert.deepEqual(failingTransport.state.writes, [], "failed production transaction leaves zero partial committed rows");
   assert.equal(failingTransport.state.rollbackCount, 1);
+  await assertStartedLedger(failedReceipt.approvalId, hashAuthorizationReceipt(failedReceipt));
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: failedReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(failedReceipt), ledgerDirectory: path.join(temporaryDirectory, "rollback"), transport: failingTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "a failed or ambiguous outcome remains consumed and cannot retry");
+  assert.equal(failingTransport.state.transactionCount, 1, "deterministic write failure performs no retry");
+
+  const afterWriteLossTransport = createTransport();
+  afterWriteLossTransport.transaction = async (work) => {
+    afterWriteLossTransport.state.transactionCount += 1;
+    await work({
+      async readPrecheckForUpdate() { return { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: RELEASE_B_FROZEN.expectedBeforeCounts }; },
+      async upsert(entity, row) {
+        afterWriteLossTransport.state.writes.push({ entity, row });
+        throw failure("ECONNRESET", "connection lost after first write");
+      },
+    });
+  };
+  const afterWriteLossReceipt = receipt({ approvalId: "release-b-approval-5102" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: afterWriteLossReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(afterWriteLossReceipt), transport: afterWriteLossTransport, plan: frozenPlan }), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", "connection loss after first write is ambiguous");
+  assert.equal(afterWriteLossTransport.state.transactionCount, 1);
+  assert.equal(afterWriteLossTransport.state.writes.length, 1, "after-write loss stops after the first attempted write");
+  await assertStartedLedger(afterWriteLossReceipt.approvalId, hashAuthorizationReceipt(afterWriteLossReceipt));
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: afterWriteLossReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(afterWriteLossReceipt), transport: afterWriteLossTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/);
+  assert.equal(afterWriteLossTransport.state.transactionCount, 1, "after-write connection loss performs no retry");
+
+  const rollbackFailureTransport = createTransport();
+  rollbackFailureTransport.transaction = async () => {
+    rollbackFailureTransport.state.transactionCount += 1;
+    rollbackFailureTransport.state.rollbackCount += 1;
+    throw failure("TRANSPORT_AFTER_FIRST_WRITE", "rollback acknowledgement lost after write failure");
+  };
+  const rollbackFailureReceipt = receipt({ approvalId: "release-b-approval-5103" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: rollbackFailureReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(rollbackFailureReceipt), transport: rollbackFailureTransport, plan: frozenPlan }), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", "rollback failure after a write is ambiguous");
+  assert.equal(rollbackFailureTransport.state.transactionCount, 1);
+  assert.equal(rollbackFailureTransport.state.rollbackCount, 1);
+  await assertStartedLedger(rollbackFailureReceipt.approvalId, hashAuthorizationReceipt(rollbackFailureReceipt));
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: rollbackFailureReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(rollbackFailureReceipt), transport: rollbackFailureTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/);
+  assert.equal(rollbackFailureTransport.state.transactionCount, 1, "rollback failure performs no retry");
 
   const timeoutTransport = createTransport();
   timeoutTransport.transaction = async () => { const error = new Error("transport timeout"); error.code = "TRANSPORT_TIMEOUT"; throw error; };
   const timeoutReceipt = receipt({ approvalId: "release-b-approval-2004" });
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: timeoutReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(timeoutReceipt), ledgerDirectory: path.join(temporaryDirectory, "timeout"), transport: timeoutTransport, plan: frozenPlan }), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", "transport timeout is ambiguous and cannot become a retry");
+  await assertStartedLedger(timeoutReceipt.approvalId, hashAuthorizationReceipt(timeoutReceipt));
 
   const postcheckLossTransport = createTransport();
-  postcheckLossTransport.readPostcheck = async () => { const error = new Error("provider unknown after commit"); error.code = "PROVIDER_UNKNOWN"; throw error; };
+  let postcheckLossAttempts = 0;
+  postcheckLossTransport.readPostcheck = async () => {
+    postcheckLossAttempts += 1;
+    const error = new Error("provider unknown after commit");
+    error.code = "PROVIDER_UNKNOWN";
+    throw error;
+  };
   const postcheckLossReceipt = receipt({ approvalId: "release-b-approval-2005" });
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: postcheckLossReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(postcheckLossReceipt), ledgerDirectory: path.join(temporaryDirectory, "postcheck-loss"), transport: postcheckLossTransport, plan: frozenPlan }), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", "post-commit provider loss is classified as an ambiguous consumed execution");
+  assert.equal(postcheckLossTransport.state.transactionCount, 1);
+  assert.equal(postcheckLossAttempts, 1, "postcheck provider loss is attempted exactly once");
+  await assertStartedLedger(postcheckLossReceipt.approvalId, hashAuthorizationReceipt(postcheckLossReceipt));
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: postcheckLossReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(postcheckLossReceipt), ledgerDirectory: path.join(temporaryDirectory, "another-directory"), transport: postcheckLossTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "post-commit transport loss cannot retry in another supplied directory");
+  assert.equal(postcheckLossTransport.state.transactionCount, 1, "postcheck provider loss performs no retry");
+  assert.equal(postcheckLossAttempts, 1, "postcheck provider loss performs no second verification");
+
+  const postcheckMismatchTransport = createTransport();
+  postcheckMismatchTransport.readPostcheck = async () => {
+    postcheckMismatchTransport.state.postcheckCount += 1;
+    return { counts: { ...RELEASE_B_FROZEN.expectedAfterCounts, devices: 23 }, uniqueSlugs: 24, publishedDevices: 24, conflictInvariants: "PASS", rayBanIdentity: "ray-ban-meta", unexpectedDeletes: 0 };
+  };
+  const postcheckMismatchReceipt = receipt({ approvalId: "release-b-approval-5104" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: postcheckMismatchReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(postcheckMismatchReceipt), transport: postcheckMismatchTransport, plan: frozenPlan }), (error) => error.code === "RELEASE_B_POSTCOMMIT_VERIFICATION_BLOCKED", "deterministic postcheck mismatch is verification-blocked, not ambiguous");
+  assert.equal(postcheckMismatchTransport.state.transactionCount, 1);
+  assert.equal(postcheckMismatchTransport.state.postcheckCount, 1);
+  await assertStartedLedger(postcheckMismatchReceipt.approvalId, hashAuthorizationReceipt(postcheckMismatchReceipt));
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: postcheckMismatchReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(postcheckMismatchReceipt), transport: postcheckMismatchTransport, plan: frozenPlan }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/);
+  assert.equal(postcheckMismatchTransport.state.transactionCount, 1, "postcheck mismatch performs no retry");
+  assert.equal(postcheckMismatchTransport.state.postcheckCount, 1, "postcheck mismatch performs no second verification");
 
   for (const [index, failure] of [{ code: "ECONNRESET" }, { code: "EPIPE" }, { code: "ETIMEDOUT" }, { code: "57P01" }, { code: "TRANSPORT_DISCONNECTED" }, { code: "NETWORK_LOST" }, { sqlState: "57P01" }].entries()) {
     const code = failure.code ?? failure.sqlState;
@@ -282,7 +418,8 @@ try {
       const authorizationReceipt = receipt({ approvalId: `release-b-approval-${3000 + index * 2 + (phase === "transaction" ? 0 : 1)}` });
       const input = { args: ["--execute-production"], authorizationReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(authorizationReceipt), transport };
       await assert.rejects(() => executeReleaseBProductionImport(input), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", `${code} during ${phase} is ambiguous`);
-  await assert.rejects(() => executeReleaseBProductionImport(input), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/);
+      await assertStartedLedger(authorizationReceipt.approvalId, hashAuthorizationReceipt(authorizationReceipt));
+      await assert.rejects(() => executeReleaseBProductionImport(input), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/);
       assert.equal(calls, 1, "native transport failures never retry");
     }
   }
@@ -298,6 +435,7 @@ try {
   const adapterCommitLossInput = { args: ["--execute-production"], authorizationReceipt: adapterCommitLossReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(adapterCommitLossReceipt), transport: adapterCommitLoss.transport };
   await assert.rejects(() => executeReleaseBProductionImport(adapterCommitLossInput), (error) => error.code === "RELEASE_B_EXECUTION_AMBIGUOUS", "the actual adapter maps a lost commit acknowledgement to an ambiguous execution");
   assert.equal(adapterCommitLoss.state.queries.includes("ROLLBACK;"), false, "a lost commit acknowledgement never claims rollback");
+  await assertStartedLedger(adapterCommitLossReceipt.approvalId, hashAuthorizationReceipt(adapterCommitLossReceipt));
   const transactionBeginsBeforeRetry = adapterCommitLoss.state.queries.filter((sql) => sql.startsWith("BEGIN;")).length;
   await assert.rejects(() => executeReleaseBProductionImport(adapterCommitLossInput), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "a commit-ambiguous approval is consumed and cannot open a retry transaction");
   assert.equal(adapterCommitLoss.state.queries.filter((sql) => sql.startsWith("BEGIN;")).length, transactionBeginsBeforeRetry, "the consumed ambiguous approval performs no second adapter transaction");

@@ -89,9 +89,26 @@ for (const [name, operation] of [
 const wrongTarget = sessionFactory({ identity: { current_database: "postgres", current_user: "wrong-user", server_port: "5432" } });
 const mismatch = productionTransport.createReleaseBProductionTransport({ environment, createSession: wrongTarget.createSession, readPostcheck: async () => ({}) });
 await assert.rejects(() => mismatch.identifyTarget(), /RELEASE_B_TARGET_MISMATCH/, "a database identity mismatch fails before a transaction can start");
+assert.equal(wrongTarget.queries.length, 1, "identify-target mismatch performs exactly one identity query");
 const sameDatabaseWrongProject = sessionFactory({ targetIdentity: { projectRef: "other-project", host: "db.other-project.supabase.co", port: 5432 } });
 const independentMismatch = productionTransport.createReleaseBProductionTransport({ environment, createSession: sameDatabaseWrongProject.createSession, readPostcheck: async () => ({}) });
 await assert.rejects(() => independentMismatch.identifyTarget(), /RELEASE_B_TARGET_MISMATCH/, "a matching database and user without the expected project-bound connection identity fails closed before a transaction");
+assert.equal(sameDatabaseWrongProject.queries.length, 1, "project identity mismatch performs exactly one identity query");
+let identifyConnectAttempts = 0;
+const connectFailureTransport = productionTransport.createReleaseBProductionTransport({
+  environment,
+  createSession: async () => {
+    identifyConnectAttempts += 1;
+    throw Object.assign(new Error("identify session connect lost"), { code: "ECONNREFUSED" });
+  },
+  readPostcheck: async () => ({}),
+});
+await assert.rejects(() => connectFailureTransport.identifyTarget(), /identify session connect lost/, "identify-target connection failure is preserved before transaction");
+assert.equal(identifyConnectAttempts, 1, "identify-target connection failure is not retried");
+const identifyAuthFailure = sessionFactory({ failOn: { sql: "SELECT current_database", code: "28P01" } });
+const authFailureTransport = productionTransport.createReleaseBProductionTransport({ environment, createSession: identifyAuthFailure.createSession, readPostcheck: async () => ({}) });
+await assert.rejects(() => authFailureTransport.identifyTarget(), (error) => error.code === "28P01", "identify-target authentication failure preserves SQLSTATE before transaction");
+assert.equal(identifyAuthFailure.queries.length, 1, "identify-target authentication failure is not retried");
 const unsafePostcheck = productionTransport.createReleaseBProductionTransport({ environment, createSession: happy.createSession, readPostcheck: async ({ queryReadOnly }) => queryReadOnly("UPDATE public.devices SET name = 'nope';") });
 await assert.rejects(() => unsafePostcheck.readPostcheck(), /RELEASE_B_PRODUCTION_READ_ONLY_VIOLATION/, "post-commit verification cannot become a hidden write escape hatch");
 assert.equal(productionTransport.classifyReleaseBConnectionFailure({ code: "ECONNRESET" }, "BEFORE_BEGIN"), "RELEASE_B_SAFE_FAILURE_BEFORE_BEGIN");
@@ -104,9 +121,22 @@ const uncertainWrite = productionTransport.createReleaseBProductionTransport({ e
 await assert.rejects(() => uncertainWrite.transaction(async (transaction) => { await transaction.readPrecheckForUpdate(); await transaction.upsert("device", { slug: "unit" }); }), /TRANSPORT_AFTER_FIRST_WRITE/, "a connection loss while a write is in flight is consumed and never classified as a safe rollback");
 const lostBeforeBegin = productionTransport.createReleaseBProductionTransport({ environment, createSession: async () => { throw Object.assign(new Error("session open lost"), { code: "ECONNRESET" }); }, readPostcheck: async () => ({}) });
 await assert.rejects(() => lostBeforeBegin.transaction(async () => {}), /RELEASE_B_SAFE_FAILURE_BEFORE_BEGIN/, "a native connection loss while opening the session is phase-aware and safe before BEGIN");
+const commitAckLoss = sessionFactory({ failOn: { sql: "COMMIT;", code: "ECONNRESET" } });
+const commitUnknown = productionTransport.createReleaseBProductionTransport({ environment, createSession: commitAckLoss.createSession, readPostcheck: async () => ({}) });
+await assert.rejects(() => commitUnknown.transaction(async (transaction) => { await transaction.readPrecheckForUpdate(); await transaction.upsert("device", { slug: "unit" }); }), /COMMIT_UNKNOWN/, "a lost commit acknowledgement remains execution-ambiguous for the executor");
+assert.equal(commitAckLoss.queries.filter((sql) => sql === "COMMIT;").length, 1, "lost commit acknowledgement is not retried");
+assert.equal(commitAckLoss.queries.includes("ROLLBACK;"), false, "lost commit acknowledgement never claims rollback");
 const deterministicFailure = sessionFactory({ failOn: { sql: "INSERT INTO public.devices", code: "23514" } });
 const deterministicTransport = productionTransport.createReleaseBProductionTransport({ environment, createSession: deterministicFailure.createSession, readPostcheck: async () => ({}) });
 await assert.rejects(() => deterministicTransport.transaction(async (transaction) => { await transaction.readPrecheckForUpdate(); await transaction.upsert("device", { slug: "unit" }); }), (error) => error.code === "23514" && deterministicFailure.queries.at(-1) === "ROLLBACK;", "a deterministic SQL failure preserves its SQLSTATE after an acknowledged rollback");
+const postcheckProviderLoss = sessionFactory({ failOn: { sql: "SELECT 1", code: "57P01" } });
+const postcheckLossTransport = productionTransport.createReleaseBProductionTransport({
+  environment,
+  createSession: postcheckProviderLoss.createSession,
+  readPostcheck: async ({ queryReadOnly }) => queryReadOnly("SELECT 1", []),
+});
+await assert.rejects(() => postcheckLossTransport.readPostcheck(), (error) => error.code === "57P01", "postcheck provider loss is preserved for executor ambiguity mapping");
+assert.equal(postcheckProviderLoss.queries.filter((sql) => sql === "SELECT 1").length, 1, "postcheck provider loss is not retried");
 const metadata = productionTransport.preflightReleaseBProductionTransport({ environment, createSession: happy.createSession, readPostcheck: async () => ({}) });
 assert.deepEqual([metadata.credentialSource, metadata.connects, metadata.startsTransaction, metadata.runsSql], ["P9_PRODUCTION_DATABASE_URL", false, false, false], "preflight is value-blind metadata validation and performs no I/O");
 const executor = await import("./release-b-production-import.mjs");

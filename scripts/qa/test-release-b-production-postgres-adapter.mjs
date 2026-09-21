@@ -32,7 +32,7 @@ assert.equal(typeof adapter.createSession, "function");
 assert.equal(typeof adapter.readPostcheck, "function");
 assert(Object.isFrozen(adapter));
 
-function createCountingClientClass({ failOnConnect = false, failOnQuery = false, failOnEnd = false } = {}) {
+function createCountingClientClass({ failOnConnect = false, failOnQuery = false, failOnEnd = false, connectCode = "SYNTHETIC_CONNECT", queryCode = "SYNTHETIC_QUERY" } = {}) {
   const state = {
     constructed: 0,
     connectCalls: 0,
@@ -50,13 +50,13 @@ function createCountingClientClass({ failOnConnect = false, failOnQuery = false,
 
     async connect() {
       state.connectCalls += 1;
-      if (failOnConnect) throw Object.assign(new Error("synthetic connect failure"), { code: "SYNTHETIC_CONNECT" });
+      if (failOnConnect) throw Object.assign(new Error("synthetic connect failure"), { code: connectCode });
     }
 
     async query(sql, params) {
       state.queryCalls += 1;
       state.queries.push({ sql, params });
-      if (failOnQuery) throw Object.assign(new Error("synthetic query failure"), { code: "SYNTHETIC_QUERY" });
+      if (failOnQuery) throw Object.assign(new Error("synthetic query failure"), { code: queryCode });
       return { rows: [{ value: 7 }], rowCount: 1 };
     }
 
@@ -126,6 +126,17 @@ const failingConnectAdapter = createReleaseBProductionPostgresAdapter({
 await assert.rejects(() => failingConnectAdapter.createSession(), /synthetic connect failure/);
 assert.equal(failingConnect.state.constructed, 1);
 assert.equal(failingConnect.state.connectCalls, 1);
+assert.equal(failingConnect.state.endCalls, 0, "connect failure cannot run close cleanup against an unopened session");
+
+const authFailure = createCountingClientClass({ failOnConnect: true, connectCode: "28P01" });
+const authFailureAdapter = createReleaseBProductionPostgresAdapter({
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  Client: authFailure.Client,
+});
+await assert.rejects(() => authFailureAdapter.createSession(), (error) => error.code === "28P01", "authentication failure preserves SQLSTATE for caller classification");
+assert.equal(authFailure.state.constructed, 1);
+assert.equal(authFailure.state.connectCalls, 1, "authentication failure is not retried");
+assert.equal(authFailure.state.endCalls, 0, "authentication failure does not reconnect or close a nonexistent session");
 
 const failingQuery = createCountingClientClass({ failOnQuery: true });
 const failingQuerySession = await createReleaseBProductionPostgresAdapter({
@@ -136,6 +147,16 @@ await assert.rejects(() => failingQuerySession.query("SELECT 1", []), /synthetic
 assert.equal(failingQuery.state.queryCalls, 1);
 await failingQuerySession.close();
 assert.equal(failingQuery.state.endCalls, 1);
+
+const providerLossQuery = createCountingClientClass({ failOnQuery: true, queryCode: "57P01" });
+const providerLossSession = await createReleaseBProductionPostgresAdapter({
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  Client: providerLossQuery.Client,
+}).createSession();
+await assert.rejects(() => providerLossSession.query("SELECT 1", []), (error) => error.code === "57P01", "provider-loss query preserves SQLSTATE for executor ambiguity");
+assert.equal(providerLossQuery.state.queryCalls, 1, "provider-loss query is not retried");
+await providerLossSession.close();
+assert.equal(providerLossQuery.state.endCalls, 1);
 
 const failingEnd = createCountingClientClass({ failOnEnd: true });
 const failingEndSession = await createReleaseBProductionPostgresAdapter({
