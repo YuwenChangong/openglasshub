@@ -185,4 +185,70 @@ await assert.rejects(
   "adapter TLS config fails closed on unsupported downgrade",
 );
 
+const observedPostcheckRow = {
+  devices: 24,
+  device_spec_definitions: 92,
+  device_specs: 1488,
+  device_sources: 39,
+  device_source_links: 46,
+  device_spec_evidence: 15,
+  catalog_audit_events: 0,
+  unique_slugs: 24,
+  published_devices: 24,
+  constraint_failures: 0,
+  trigger_failures: 0,
+  duplicate_failures: 0,
+  conflict_evidence_failures: 0,
+  unknown_unverified_known_data: 0,
+  ray_ban_identity: "ray-ban-meta",
+  unexpected_deletes: 0,
+};
+
+const postcheckSqlCalls = [];
+const observedPostcheck = await adapter.readPostcheck({
+  async queryReadOnly(sql, params) {
+    postcheckSqlCalls.push({ sql, params });
+    return {
+      rows: [{
+        ...observedPostcheckRow,
+        devices: 23,
+      }],
+    };
+  },
+});
+
+assert.equal(postcheckSqlCalls.length, 1, "readPostcheck must issue one fixed read-only verification query");
+assert.match(postcheckSqlCalls[0].sql, /^\s*(?:WITH|SELECT)\b/i, "postcheck query must be read-only SQL");
+assert.deepEqual(postcheckSqlCalls[0].params, [], "postcheck query must not depend on caller-supplied parameters");
+assert.deepEqual(postcheckSqlCalls[0].sql.match(/\$[0-9]+/g), null, "postcheck query must not have unbound parameters");
+assert.deepEqual(postcheckSqlCalls[0].sql.match(/\bexpected\b/gi), null, "adapter postcheck must not encode Release B expected-count policy");
+assert.deepEqual(postcheckSqlCalls[0].sql.match(/\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE)\b|\bsupabase_migrations\b/gi), null, "postcheck query must not contain mutation or migration-history SQL");
+assert.deepEqual(observedPostcheck, {
+  counts: {
+    devices: 23,
+    deviceSpecDefinitions: 92,
+    deviceSpecs: 1488,
+    deviceSources: 39,
+    deviceSourceLinks: 46,
+    deviceSpecEvidence: 15,
+    catalogAuditEvents: 0,
+  },
+  uniqueSlugs: 24,
+  publishedDevices: 24,
+  conflictInvariants: "PASS",
+  rayBanIdentity: "ray-ban-meta",
+  unexpectedDeletes: 0,
+});
+
+const mutationGuardSqlCalls = [];
+await adapter.readPostcheck({
+  async queryReadOnly(sql, params) {
+    mutationGuardSqlCalls.push({ sql, params });
+    assert.match(sql, /^\s*(?:WITH|SELECT)\b/i, "postcheck must use SELECT/WITH only");
+    assert.doesNotMatch(sql, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE)\b|\bsupabase_migrations\b/i, "postcheck query must stay read-only and avoid migration history");
+    return { rows: [observedPostcheckRow] };
+  },
+});
+assert.equal(mutationGuardSqlCalls.length, 1, "mutation guard must observe the fixed postcheck query");
+
 console.log("RELEASE_B_PRODUCTION_POSTGRES_ADAPTER_UNIT_OK");
