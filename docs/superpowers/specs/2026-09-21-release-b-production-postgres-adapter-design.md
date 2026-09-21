@@ -112,8 +112,10 @@ requires:
 The transport calls `createSession({ pgEnv, safeTarget })`. The returned session
 must be an object with:
 
-- `targetIdentity`: object describing the connected peer. It must include
-  `projectRef`, `host`, and `port` matching `safeTarget`.
+- `targetIdentity`: expected/config-derived connection-target metadata. It must
+  include `projectRef`, `host`, and `port` matching `safeTarget`, and it is used
+  to prove the adapter did not swap the parsed target while constructing the
+  driver session. It is not independently observed remote database identity.
 - `query(sql, params?)`: async function returning driver-shaped result objects.
   The transport uses `.rows` and sometimes `.rowCount` / `.affectedRows`.
 - `close()`: async or promise-compatible function. It must close the session
@@ -141,6 +143,11 @@ The transport, not the adapter, sends:
 The transport enforces:
 
 - target identity match before writes
+- database-observed identity checks from
+  `SELECT current_database() AS current_database, current_user AS current_user,
+  inet_server_port()::text AS server_port;`; these values are the observed
+  server-side evidence and must continue to be validated separately from
+  config-derived `targetIdentity`
 - single-statement write scope
 - no DELETE, TRUNCATE, DDL, grants, revokes, COPY, VACUUM, ANALYZE, comments, or
   migration-history mutation
@@ -323,16 +330,48 @@ Repository evidence shows `@supabase/supabase-js` and its
 `@supabase/postgrest-js` dependency, but no installed native PostgreSQL driver
 such as `pg`, `postgres`, or `postgres.js`.
 
-Decision: use a minimal standard native PostgreSQL Node driver dependency in the
-future implementation. The expected dependency is `pg` unless the implementation
-review discovers a stronger already-installed native driver before code is
-written. `pg` is preferred because it provides a direct client, parameterized
-queries, SQLSTATE exposure, explicit connection close, SSL configuration, and no
-ORM or pooling requirement.
+Decision: use a minimal standard native PostgreSQL Node driver dependency for
+the QA/operator adapter in the future implementation. The expected dependency is
+`pg` unless the implementation review discovers a stronger already-installed
+native driver before code is written. `pg` is preferred because it provides a
+direct client, parameterized queries, SQLSTATE exposure, explicit connection
+close, TLS configuration, and no ORM or pooling requirement.
+
+Because the adapter lives under `scripts/qa` and is not part of the
+Astro/Cloudflare application runtime, `pg` should be added as a `devDependency`.
+The implementation must verify that the normal application build does not bundle
+or require `pg` in the deployed Cloudflare runtime, and no app/runtime source may
+import `scripts/qa/lib/release-b-production-postgres-adapter.mjs`. If current
+package conventions make `devDependencies` impossible, the implementation plan
+must record the evidence before choosing another dependency scope.
 
 The adapter must use a single `Client` per session. It must not use a `Pool`
 unless a later reviewed spec changes the requirement; pooling is unnecessary for
 one bounded operation and complicates lifecycle evidence.
+
+## TLS Contract
+
+The implementation must determine and document the exact supported `pg.Client`
+TLS configuration before code is finalized. This spec deliberately does not
+invent that final configuration because the current repository does not contain
+provider- or driver-specific evidence sufficient to prove it.
+
+Load-bearing requirements:
+
+- encrypted TLS is mandatory for Production sessions
+- the adapter must fail closed rather than downgrade TLS
+- `rejectUnauthorized: false` is forbidden unless a separate reviewed security
+  decision proves it necessary and acceptable
+- hostname and certificate verification must be preserved when supported by the
+  provider and driver configuration
+- implementation planning may include a documentation verification step for the
+  chosen `pg` / Supabase configuration
+- contract tests must assert that the adapter does not silently weaken TLS
+  settings to make a connection succeed
+- disposable integration evidence must cover the final TLS branch where a local
+  TLS target is available; if local TLS is not available, tests must still prove
+  the Production configuration object fails closed on unsupported or explicitly
+  downgraded TLS settings
 
 ## Adapter API
 
@@ -361,7 +400,9 @@ retry, ledger, or payload behavior.
 - constructs one native PostgreSQL client from `pgEnv`
 - connects once
 - returns `{ targetIdentity, query, close }`
-- sets `targetIdentity` from `safeTarget`, not from a credential string
+- sets `targetIdentity` from `safeTarget`, not from a credential string; this is
+  expected/config-derived target metadata only, and not database-observed proof
+  by itself
 - implements `query(sql, params)` by delegating to the native driver without
   logging SQL or parameters
 - implements `close()` by closing the native client and never retrying close
@@ -386,7 +427,8 @@ For each transport call:
 1. Transport calls `createSession({ pgEnv, safeTarget })`.
 2. Adapter validates Session Pooler endpoint class.
 3. Adapter creates a native client with `host`, `port`, `database`, `user`,
-   password, and `ssl` equivalent to `PGSSLMODE=require`.
+   password, and the reviewed TLS configuration derived from the existing
+   Production `PGSSLMODE=require` contract.
 4. Adapter connects once.
 5. Adapter returns a session wrapper.
 6. Transport calls `session.query(...)` as needed.
@@ -396,6 +438,19 @@ For each transport call:
 The adapter must not implicitly reconnect a closed session. A query on a closed
 or broken session must surface the native error with its SQLSTATE or connection
 code preserved where possible.
+
+Target metadata semantics:
+
+- expected/config-derived properties: `safeTarget.mode`, `safeTarget.host`,
+  `safeTarget.projectRef`, `safeTarget.port`, `safeTarget.database`,
+  `safeTarget.endpointClass`, and session `targetIdentity`
+- database-observed properties: `current_database`, `current_user`, and
+  `server_port` returned by the existing transport identity query
+
+The design must not treat copying `safeTarget` into `targetIdentity` as
+sufficient proof of remote identity. The existing transport identity query must
+remain the database-side evidence. No new target-discovery SQL is required by
+the current contract.
 
 ## Transaction Semantics
 
@@ -483,15 +538,18 @@ Release B expectations.
 |---|---|---:|---|---:|---|
 | Missing `P9_PRODUCTION_DATABASE_URL` | adapter/transport construction | no | not consumed | no | `PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE` |
 | Invalid target shape or non-Session Pooler for adapter execution | adapter/transport construction | no | not consumed | no | `PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE` or adapter-specific fail-closed code before connection |
-| Native connect failure before `BEGIN` | `BEFORE_BEGIN` | no transaction | consumed only if after executor ledger step | no | `RELEASE_B_SAFE_FAILURE_BEFORE_BEGIN` when surfaced through transaction |
-| Authentication failure before `BEGIN` | `BEFORE_BEGIN` | no transaction | consumed only if after executor ledger step | no | deterministic native auth code unless transport classifies as connection loss |
-| Target identity mismatch | `identifyTarget()` | no | not consumed | no | `RELEASE_B_TARGET_MISMATCH` |
+| Identify-target session connection failure | `identifyTarget()` before durable ledger consumption | no transaction | not consumed; ledger remains absent | no | deterministic target/connection classification; connection-loss codes must not consume authorization because this happens before ledger creation |
+| Identify-target authentication failure | `identifyTarget()` before durable ledger consumption | no transaction | not consumed; ledger remains absent | no | deterministic native auth classification with secret-safe reporting |
+| Target identity mismatch | `identifyTarget()` database-observed identity check | no | not consumed | no | `RELEASE_B_TARGET_MISMATCH` |
+| Transaction-session connection failure before `BEGIN` succeeds | `BEFORE_BEGIN` after durable `STARTED` ledger entry | no transaction | consumed; ledger must not be deleted or reset | no | `RELEASE_B_SAFE_FAILURE_BEFORE_BEGIN` when surfaced through transaction |
+| Transaction-session authentication failure before `BEGIN` succeeds | `BEFORE_BEGIN` after durable `STARTED` ledger entry | no transaction | consumed; ledger must not be deleted or reset | no | deterministic native auth code unless transport classifies as connection loss |
 | Transaction-bound precheck drift | after `BEGIN`, before first write | yes, must attempt rollback | consumed | no | `RELEASE_B_PRODUCTION_PRECONDITION_DRIFT` |
 | Deterministic SQL failure before commit | after first write, before commit | yes, must attempt rollback | consumed | no | preserve native error code / SQLSTATE |
 | Rollback acknowledgement lost | rollback path | no acknowledged rollback | consumed | no | phase-based connection-loss classification, ambiguous if executor receives ambiguity predicate |
 | Connection loss after first write before commit | after first write, before commit | rollback may be impossible | consumed | no | `TRANSPORT_AFTER_FIRST_WRITE`, then executor maps ambiguity to `RELEASE_B_EXECUTION_AMBIGUOUS` |
 | Commit acknowledgement lost | `COMMIT_SENT_ACK_NOT_RECEIVED` | no rollback claim | consumed | no | `COMMIT_UNKNOWN`, then executor maps to `RELEASE_B_EXECUTION_AMBIGUOUS` |
 | Close failure after acknowledged commit | after `COMMIT_SENT_ACK_RECEIVED` | no | consumed | no | ignored unless it blocks postcheck |
+| Postcheck-session connection or authentication failure | after acknowledged `COMMIT`, before/during read-only verification | no | consumed; ledger must not be deleted or reset | no | inability to prove post-commit state preserves existing ambiguity / postcommit verification semantics |
 | Postcheck deterministic mismatch | post-commit verification | no | consumed | no | `RELEASE_B_POSTCOMMIT_VERIFICATION_BLOCKED` |
 | Postcheck transport/provider loss | post-commit verification | no | consumed | no | `RELEASE_B_EXECUTION_AMBIGUOUS` |
 
@@ -574,6 +632,9 @@ Synthetic/fake collaborators only:
 - direct endpoint is rejected for adapter execution unless a separate review
   authorizes it
 - Session Pooler target creates a single client session
+- Production TLS configuration is explicit, encrypted, and fail-closed; tests
+  must reject silent downgrade, including any unreviewed
+  `rejectUnauthorized: false`
 - `query(sql, params)` passes SQL and params through to the driver
 - `close()` ends the client once
 - close failure does not trigger retry
@@ -594,6 +655,8 @@ Production transport:
   `createReleaseBProductionTransport()`
 - transport construction still opens zero sessions
 - `identifyTarget()` validates both database identity and `targetIdentity`
+- tests distinguish identify-target, transaction-session, and postcheck-session
+  connection/authentication failures and their ledger consequences
 - transaction sends discrete `BEGIN;`, `SET CONSTRAINTS ALL DEFERRED;`, locked
   precheck, writes, and `COMMIT;`
 - deterministic SQLSTATE is preserved after acknowledged rollback
@@ -706,6 +769,16 @@ The first Production connection must not happen before explicit
 payload/count bindings, and all local fail-closed validation up to the
 `identifyTarget()` stage.
 
+Connection-stage consequences are ordered by this section:
+
+- identify-target session failures happen at stage 13, before the durable ledger
+  entry is created at stage 14, so the approval remains unconsumed
+- transaction-session failures happen at stage 16 or later, after the durable
+  `STARTED` ledger entry, so authorization is consumed and must not be retried
+- postcheck-session failures happen at stage 26 or later, after acknowledged
+  commit, so authorization is consumed and inability to prove final state must
+  preserve the existing ambiguity / postcommit verification semantics
+
 ## Observability / Evidence
 
 Evidence must be value-blind.
@@ -760,8 +833,10 @@ read-only P9 tooling, local disposable replay tooling, and historical v1/v2/v3
 tests must continue to run.
 
 If `pg` is added, `package.json` and `package-lock.json` must change in the same
-implementation commit as adapter tests. No global driver abstraction or runtime
-database client migration is part of this work.
+implementation commit as adapter tests. It should be added as a QA/operator
+`devDependency`; the implementation must prove the normal Astro/Cloudflare
+runtime build does not bundle or require it. No global driver abstraction or
+runtime database client migration is part of this work.
 
 ## Security Invariants
 
@@ -783,6 +858,11 @@ database client migration is part of this work.
 - no `qa:prod`
 - no automatic retry
 - no hidden reconnect
+- no TLS downgrade; Production TLS must fail closed if the reviewed driver
+  configuration cannot preserve required encryption and verification semantics
+- no app/runtime import of the Production PostgreSQL adapter
+- native PostgreSQL driver dependency remains QA/operator-only unless a separate
+  evidence-backed packaging decision is reviewed
 
 ## Implementation Boundaries
 
@@ -835,6 +915,15 @@ Files intentionally untouched:
 - Commit ambiguity is preserved as `RELEASE_B_EXECUTION_AMBIGUOUS`.
 - No retry occurs.
 - No Production connection occurs during implementation or verification.
+- TLS cannot silently downgrade; final `pg.Client` TLS behavior is explicitly
+  reviewed, encrypted, and covered by contract/integration evidence.
+- Identify-target, transaction-session, and postcheck-session
+  connection/authentication failures have distinct ledger and authorization
+  semantics consistent with Production execution ordering.
+- Expected/config-derived target metadata is not treated as observed server
+  identity; the existing database-observed identity query remains required.
+- `pg` remains QA/operator-only and does not enter the deployed
+  Astro/Cloudflare runtime bundle.
 
 ## Open Questions
 
