@@ -5,11 +5,12 @@ import {
   RELEASE_B_PRODUCTION_RUNNER_PATH,
   AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1,
   AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2,
+  AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3,
   executeReleaseBProductionImport,
   hashAuthorizationReceipt,
   loadTask17FrozenGate,
   computeReleaseBExecutionSurfaceFingerprints,
-  validateCurrentReleaseBAuthorizationReceiptV3,
+  validateCurrentReleaseBAuthorizationReceiptV4,
 } from "./release-b-production-import.mjs";
 import {
   createReleaseBProductionTransport,
@@ -75,9 +76,13 @@ export async function runReleaseBProductionRunner({
   executeProductionImport = executeReleaseBProductionImport,
 } = {}) {
   if (!Array.isArray(args) || args.length !== 1 || args[0] !== "--execute-production") fail("RELEASE_B_EXECUTION_FLAG_REQUIRED");
-  if (authorizationReceipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1 || authorizationReceipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2) fail("RELEASE_B_AUTHORIZATION_V3_REQUIRED");
+  if (
+    authorizationReceipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1
+    || authorizationReceipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2
+    || authorizationReceipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3
+  ) fail("RELEASE_B_AUTHORIZATION_V4_REQUIRED");
   const frozen = await loadTask17FrozenGate();
-  validateCurrentReleaseBAuthorizationReceiptV3(
+  validateCurrentReleaseBAuthorizationReceiptV4(
     authorizationReceipt,
     authorizationReceiptSha256,
     frozen,

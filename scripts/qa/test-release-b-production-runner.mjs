@@ -4,10 +4,12 @@ import {
   AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1,
   AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2,
   AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3,
+  AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4,
   computeReleaseBExecutionSurfaceFingerprints,
+  createReleaseBAuthorizationReceiptV4,
   hashAuthorizationReceipt,
   loadTask17FrozenGate,
-  validateCurrentReleaseBAuthorizationReceiptV3,
+  validateCurrentReleaseBAuthorizationReceiptV4,
 } from "./release-b-production-import.mjs";
 import {
   RELEASE_B_PRODUCTION_RUNNER_PATH,
@@ -24,6 +26,14 @@ const executionSurface = await computeReleaseBExecutionSurfaceFingerprints({ run
 const headExecutionSurface = await computeReleaseBExecutionSurfaceFingerprints();
 
 function receipt(schemaVersion, overrides = {}) {
+  if (schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4) {
+    return { ...createReleaseBAuthorizationReceiptV4({
+      approvalId: "release-b-approval-4",
+      authorizedAtUtc: "2026-09-21T00:00:00Z",
+      frozen,
+      executionSurface,
+    }), ...overrides };
+  }
   const base = {
     schemaVersion,
     approvalId: schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3 ? "release-b-approval-3" : "release-b-approval-2",
@@ -97,9 +107,11 @@ assert.equal(JSON.stringify(transport).includes("query"), false, "runner does no
 
 let clientConstructed = 0;
 let clientConnected = 0;
-const runnerComposedReceipt = receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3, {
+const runnerComposedReceipt = receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4, {
   runnerCommit: headExecutionSurface.runnerCommit,
   productionRunnerFingerprint: headExecutionSurface.productionRunnerFingerprint,
+  productionPostgresAdapterCommit: headExecutionSurface.productionPostgresAdapterCommit,
+  productionPostgresAdapterFingerprint: headExecutionSurface.productionPostgresAdapterFingerprint,
 });
 const runnerCompositionResult = await (await import("./release-b-production-runner.mjs")).runReleaseBProductionRunner({
   args: ["--execute-production"],
@@ -133,30 +145,36 @@ assert.equal(clientConstructed, 1, "adapter construction itself opens zero sessi
 assert.equal(clientConnected, 1, "runner composition supplies a real adapter createSession collaborator to the reviewed transport");
 
 assert.throws(
-  () => validateCurrentReleaseBAuthorizationReceiptV3(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1), hashAuthorizationReceipt(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1)), frozen, executionSurface),
-  /RELEASE_B_AUTHORIZATION_V3_REQUIRED/,
-  "historical v1 cannot authorize the new runner",
+  () => validateCurrentReleaseBAuthorizationReceiptV4(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1), hashAuthorizationReceipt(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1)), frozen, executionSurface),
+  /RELEASE_B_AUTHORIZATION_V4_REQUIRED/,
+  "historical v1 cannot authorize the adapter-bound runner",
 );
 assert.throws(
-  () => validateCurrentReleaseBAuthorizationReceiptV3(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2), hashAuthorizationReceipt(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2)), frozen, executionSurface),
-  /RELEASE_B_AUTHORIZATION_V3_REQUIRED/,
-  "historical approval-2/v2 cannot authorize the new runner",
+  () => validateCurrentReleaseBAuthorizationReceiptV4(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2), hashAuthorizationReceipt(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2)), frozen, executionSurface),
+  /RELEASE_B_AUTHORIZATION_V4_REQUIRED/,
+  "historical approval-2/v2 cannot authorize the adapter-bound runner",
+);
+assert.throws(
+  () => validateCurrentReleaseBAuthorizationReceiptV4(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3), hashAuthorizationReceipt(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3)), frozen, executionSurface),
+  /RELEASE_B_AUTHORIZATION_V4_REQUIRED/,
+  "historical approval-3/v3 cannot authorize the adapter-bound runner",
 );
 
 for (const [name, overrides, pattern] of [
-  ["historical approval id wrapped as v3", { approvalId: "release-b-approval-2" }, /RELEASE_B_HISTORICAL_APPROVAL_NOT_EXECUTABLE/],
+  ["historical approval id wrapped as v4", { approvalId: "release-b-approval-3" }, /RELEASE_B_HISTORICAL_APPROVAL_NOT_EXECUTABLE/],
   ["runner fingerprint", { productionRunnerFingerprint: "0".repeat(64) }, /RELEASE_B_PRODUCTION_RUNNER_FINGERPRINT_MISMATCH/],
   ["runner path", { runnerPath: "scripts/qa/other-runner.mjs" }, /RELEASE_B_PRODUCTION_RUNNER_PATH_MISMATCH/],
   ["runner commit", { runnerCommit: "0".repeat(40) }, /RELEASE_B_PRODUCTION_RUNNER_COMMIT_MISMATCH/],
+  ["adapter fingerprint", { productionPostgresAdapterFingerprint: "0".repeat(64) }, /RELEASE_B_PRODUCTION_POSTGRES_ADAPTER_FINGERPRINT_MISMATCH/],
   ["unknown field", { unexpected: true }, /INVALID_RELEASE_B_AUTHORIZATION_RECEIPT/],
   ["maxAttempts", { maxAttempts: 2 }, /INVALID_RELEASE_B_AUTHORIZATION_RECEIPT/],
   ["automaticRetry", { automaticRetry: true }, /INVALID_RELEASE_B_AUTHORIZATION_RECEIPT/],
 ]) {
-  const candidate = receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3, overrides);
+  const candidate = receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4, overrides);
   assert.throws(
-    () => validateCurrentReleaseBAuthorizationReceiptV3(candidate, hashAuthorizationReceipt(candidate), frozen, executionSurface),
+    () => validateCurrentReleaseBAuthorizationReceiptV4(candidate, hashAuthorizationReceipt(candidate), frozen, executionSurface),
     pattern,
-    `${name} fails v3 authorization before transport construction`,
+    `${name} fails v4 authorization before transport construction`,
   );
 }
 

@@ -17,7 +17,7 @@ try {
   throw blocker;
 }
 
-const { AUTHORIZATION_RECEIPT_SCHEMA_VERSION, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1, PRODUCTION_LEDGER_DIRECTORY, hashAuthorizationReceipt, loadTask17FrozenGate } = productionExecutor;
+const { AUTHORIZATION_RECEIPT_SCHEMA_VERSION, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3, PRODUCTION_LEDGER_DIRECTORY, hashAuthorizationReceipt, loadTask17FrozenGate } = productionExecutor;
 const fixture = await createReleaseBTestFixture();
 // Canonical filesystem calls are redirected only for a default-executor sentinel
 // check, then prohibited entirely. The real durable ledger is never accessed.
@@ -44,7 +44,7 @@ const executeReleaseBProductionImport = fixture.execute;
 const RELEASE_B_FROZEN = await loadTask17FrozenGate();
 const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
 const RUNNER_BYTES = await fs.readFile(new URL("./release-b-production-runner.mjs", import.meta.url));
-const EXECUTION_SURFACE = await productionExecutor.computeReleaseBExecutionSurfaceFingerprints({ runnerBytes: RUNNER_BYTES });
+const EXECUTION_SURFACE = await productionExecutor.computeReleaseBExecutionSurfaceFingerprints();
 
 function receipt(overrides = {}) {
   return {
@@ -64,6 +64,9 @@ function receipt(overrides = {}) {
     productionTransportFingerprint: EXECUTION_SURFACE.productionTransportFingerprint,
     productionExecutorFingerprint: EXECUTION_SURFACE.productionExecutorFingerprint,
     productionRunnerFingerprint: EXECUTION_SURFACE.productionRunnerFingerprint,
+    productionPostgresAdapterPath: productionExecutor.RELEASE_B_PRODUCTION_POSTGRES_ADAPTER_PATH,
+    productionPostgresAdapterCommit: EXECUTION_SURFACE.productionPostgresAdapterCommit,
+    productionPostgresAdapterFingerprint: EXECUTION_SURFACE.productionPostgresAdapterFingerprint,
     ...overrides,
   };
 }
@@ -77,7 +80,18 @@ function historicalV1Receipt(overrides = {}) {
   delete current.runnerPath;
   delete current.runnerCommit;
   delete current.productionRunnerFingerprint;
+  delete current.productionPostgresAdapterPath;
+  delete current.productionPostgresAdapterCommit;
+  delete current.productionPostgresAdapterFingerprint;
   delete current.automaticRetry;
+  return current;
+}
+
+function historicalV3Receipt(overrides = {}) {
+  const current = receipt({ schemaVersion: AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3, approvalId: "release-b-approval-3", ...overrides });
+  delete current.productionPostgresAdapterPath;
+  delete current.productionPostgresAdapterCommit;
+  delete current.productionPostgresAdapterFingerprint;
   return current;
 }
 
@@ -182,6 +196,11 @@ try {
   const v2ValidReceipt = await receiptV2({ approvalId: "release-b-approval-4091" });
   await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: v2ValidReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(v2ValidReceipt), ledgerDirectory: path.join(temporaryDirectory, "v2-valid"), transport: v2ValidTransport, plan: frozenPlan }), /RELEASE_B_AUTHORIZATION_V3_REQUIRED/, "an exact historical v2 receipt cannot execute the current runner-bound Production path");
   assert.equal(v2ValidTransport.state.transactionCount, 0);
+
+  const v3HistoricalTransport = createTransport();
+  const v3HistoricalReceipt = historicalV3Receipt({ approvalId: "release-b-approval-4092" });
+  await assert.rejects(() => executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: v3HistoricalReceipt, authorizationReceiptSha256: hashAuthorizationReceipt(v3HistoricalReceipt), ledgerDirectory: path.join(temporaryDirectory, "v3-historical"), transport: v3HistoricalTransport, plan: frozenPlan }), /RELEASE_B_AUTHORIZATION_V4_REQUIRED/, "historical approval-3/v3 cannot execute the adapter-bound Production path");
+  assert.equal(v3HistoricalTransport.state.transactionCount, 0);
 
   const canonicalTransport = createTransport();
   await assert.rejects(() => productionExecutor.executeReleaseBProductionImport({ args: ["--execute-production"], authorizationReceipt: receipt(), authorizationReceiptSha256: hashAuthorizationReceipt(receipt()), transport: canonicalTransport }), /RELEASE_B_APPROVAL_ALREADY_CONSUMED/, "a preexisting canonical STARTED approval blocks the default production entry point");
