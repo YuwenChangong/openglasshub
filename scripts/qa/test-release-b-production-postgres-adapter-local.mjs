@@ -81,10 +81,37 @@ function quoteIdentifier(identifier) {
 }
 
 function scrubbedLocalReplayEnvironment() {
+  const inherited = { ...process.env };
+  for (const name of Object.keys(inherited)) {
+    if (/^PG[A-Z0-9_]*$/i.test(name)) inherited[name] = "";
+  }
   return {
-    ...process.env,
+    ...inherited,
     ...Object.fromEntries(LOCAL_REPLAY_ENVIRONMENT_BLOCKLIST.map((name) => [name, ""])),
   };
+}
+
+function assertInheritedPgEnvironmentIsScrubbed() {
+  const seeded = {
+    PGPASSWORD: "production-derived-password",
+    PGUSER: "production-derived-user",
+    PGDATABASE: "production-derived-database",
+    PGSSLMODE: "require",
+    PGAPPNAME: "production-derived-app",
+  };
+  const previous = Object.fromEntries(Object.keys(seeded).map((name) => [name, process.env[name]]));
+  try {
+    Object.assign(process.env, seeded);
+    const environment = scrubbedLocalReplayEnvironment();
+    for (const name of Object.keys(seeded)) {
+      assert.equal(environment[name], "", `${name} must not leak into disposable replay child environment`);
+    }
+  } finally {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
 }
 
 async function assertTcpLoopbackReachable({ host, port }) {
@@ -189,6 +216,8 @@ async function runAdapterLifecycleProof({ target, createSqlSession }) {
     commitAckAmbiguityCoverage: COMMIT_ACK_AMBIGUITY_COVERAGE,
   };
 }
+
+assertInheritedPgEnvironmentIsScrubbed();
 
 const result = await runLocalDisposableReplay({
   environment: scrubbedLocalReplayEnvironment(),
