@@ -73,9 +73,12 @@ export async function writeReleaseBAuthorizationReceiptV2() {
 }
 
 async function main() {
+  if (!process.argv.includes("--historical-v2-validation-only")) {
+    throw new Error("RELEASE_B_AUTHORIZATION_RECEIPT_V3_REQUIRED");
+  }
   const packet = await writeReleaseBAuthorizationReceiptV2();
   console.log(JSON.stringify({
-    RELEASE_B_AUTHORIZATION_RECEIPT_V2: "PASS",
+    RELEASE_B_AUTHORIZATION_RECEIPT_V2_HISTORICAL_VALIDATION_ONLY: "PASS",
     APPROVAL_ID,
     AUTHORIZED_AT_UTC,
     AUTHORIZATION_RECEIPT_PATH: path.relative(REPOSITORY_ROOT, packet.receiptPath).replaceAll(path.sep, "/"),

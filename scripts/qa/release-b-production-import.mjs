@@ -11,8 +11,10 @@ import { preflightReleaseBProductionTransport } from "./lib/release-b-production
 
 export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1 = "openglass-device-schema-v1-release-b-authorization-v1";
 export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2 = "openglass-device-schema-v1-release-b-authorization-v2";
-export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION = AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2;
+export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3 = "openglass-device-schema-v1-release-b-authorization-v3";
+export const AUTHORIZATION_RECEIPT_SCHEMA_VERSION = AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3;
 export const RELEASE_B_EXECUTOR_SURFACE_VERSION = "release-b-production-transport-v2";
+export const RELEASE_B_PRODUCTION_RUNNER_PATH = "scripts/qa/release-b-production-runner.mjs";
 const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
 export const TASK_18_TRANSPORT_COMMIT = "fced699e7b5fb1c96832fe52ed9230e281b29e74";
 const APPROVAL_ID = /^release-b-approval-[0-9]+$(?![\s\S])/;
@@ -33,6 +35,10 @@ const V1_AUTHORIZATION_KEYS = Object.freeze([
 const V2_AUTHORIZATION_KEYS = Object.freeze([
   ...V1_AUTHORIZATION_KEYS,
   "task18TransportCommit", "task18ExecutorCommit", "productionTransportFingerprint", "productionExecutorFingerprint", "automaticRetry",
+]);
+const V3_AUTHORIZATION_KEYS = Object.freeze([
+  ...V2_AUTHORIZATION_KEYS,
+  "runnerPath", "runnerCommit", "productionRunnerFingerprint",
 ]);
 
 function exactObject(value, expected) {
@@ -125,15 +131,20 @@ export function hashAuthorizationReceipt(receipt) {
 export async function computeReleaseBExecutionSurfaceFingerprints({
   task18TransportCommit = TASK_18_TRANSPORT_COMMIT,
   task18ExecutorCommit,
+  runnerCommit,
   transportBytes,
   executorBytes,
+  runnerBytes,
 } = {}) {
   const executorCommit = task18ExecutorCommit ?? await gitHeadCommit();
+  const resolvedRunnerCommit = runnerCommit ?? executorCommit;
   return Object.freeze({
     task18TransportCommit,
     task18ExecutorCommit: executorCommit,
+    runnerCommit: resolvedRunnerCommit,
     productionTransportFingerprint: sha256Bytes(transportBytes ?? await gitShowBytes(task18TransportCommit, "scripts/qa/lib/release-b-production-transport.mjs")),
     productionExecutorFingerprint: sha256Bytes(executorBytes ?? await gitShowBytes(executorCommit, "scripts/qa/release-b-production-import.mjs")),
+    productionRunnerFingerprint: sha256Bytes(runnerBytes ?? await gitShowBytes(resolvedRunnerCommit, RELEASE_B_PRODUCTION_RUNNER_PATH)),
   });
 }
 
@@ -184,6 +195,21 @@ export function validateCurrentReleaseBAuthorizationReceiptV2(receipt, sha256, f
   return Object.freeze({ schemaVersion: AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2, approvalId: receipt.approvalId });
 }
 
+export function validateCurrentReleaseBAuthorizationReceiptV3(receipt, sha256, frozen, executionSurface) {
+  if (receipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1 || receipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2) fail("RELEASE_B_AUTHORIZATION_V3_REQUIRED");
+  assertAuthorizationReceiptCore(receipt, sha256, frozen, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3, V3_AUTHORIZATION_KEYS);
+  if (receipt.approvalId === "release-b-approval-1" || receipt.approvalId === "release-b-approval-2") fail("RELEASE_B_HISTORICAL_APPROVAL_NOT_EXECUTABLE");
+  if (receipt.task18TransportCommit !== TASK_18_TRANSPORT_COMMIT) fail("RELEASE_B_TASK18_TRANSPORT_COMMIT_MISMATCH");
+  if (!executionSurface || receipt.task18ExecutorCommit !== executionSurface.task18ExecutorCommit) fail("RELEASE_B_TASK18_EXECUTOR_COMMIT_MISMATCH");
+  if (receipt.runnerPath !== RELEASE_B_PRODUCTION_RUNNER_PATH) fail("RELEASE_B_PRODUCTION_RUNNER_PATH_MISMATCH");
+  if (receipt.runnerCommit !== executionSurface.runnerCommit) fail("RELEASE_B_PRODUCTION_RUNNER_COMMIT_MISMATCH");
+  if (receipt.productionTransportFingerprint !== executionSurface.productionTransportFingerprint) fail("RELEASE_B_PRODUCTION_TRANSPORT_FINGERPRINT_MISMATCH");
+  if (receipt.productionExecutorFingerprint !== executionSurface.productionExecutorFingerprint) fail("RELEASE_B_PRODUCTION_EXECUTOR_FINGERPRINT_MISMATCH");
+  if (receipt.productionRunnerFingerprint !== executionSurface.productionRunnerFingerprint) fail("RELEASE_B_PRODUCTION_RUNNER_FINGERPRINT_MISMATCH");
+  if (receipt.automaticRetry !== false) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
+  return Object.freeze({ schemaVersion: AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3, approvalId: receipt.approvalId });
+}
+
 export function createReleaseBAuthorizationReceiptV2({ approvalId, authorizedAtUtc, frozen, executionSurface }) {
   if (!frozen || !executionSurface) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
   return {
@@ -217,6 +243,17 @@ export function createReleaseBAuthorizationReceiptV2({ approvalId, authorizedAtU
     productionTransportFingerprint: executionSurface.productionTransportFingerprint,
     productionExecutorFingerprint: executionSurface.productionExecutorFingerprint,
     automaticRetry: false,
+  };
+}
+
+export function createReleaseBAuthorizationReceiptV3({ approvalId, authorizedAtUtc, frozen, executionSurface }) {
+  const receipt = createReleaseBAuthorizationReceiptV2({ approvalId, authorizedAtUtc, frozen, executionSurface });
+  return {
+    ...receipt,
+    schemaVersion: AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3,
+    runnerPath: RELEASE_B_PRODUCTION_RUNNER_PATH,
+    runnerCommit: executionSurface.runnerCommit,
+    productionRunnerFingerprint: executionSurface.productionRunnerFingerprint,
   };
 }
 
@@ -270,8 +307,9 @@ export function createReleaseBConsumptionStore(directory) {
  */
 async function executeReleaseBImport({ args, authorizationReceipt, authorizationReceiptSha256, transport, plan }, consumptionStore) {
   if (!Array.isArray(args) || args.length !== 1 || args[0] !== "--execute-production") fail("RELEASE_B_EXECUTION_FLAG_REQUIRED");
+  if (authorizationReceipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1 || authorizationReceipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2) fail("RELEASE_B_AUTHORIZATION_V3_REQUIRED");
   const frozen = await loadTask17FrozenGate();
-  validateCurrentReleaseBAuthorizationReceiptV2(authorizationReceipt, authorizationReceiptSha256, frozen, await computeReleaseBExecutionSurfaceFingerprints());
+  validateCurrentReleaseBAuthorizationReceiptV3(authorizationReceipt, authorizationReceiptSha256, frozen, await computeReleaseBExecutionSurfaceFingerprints());
   // Rebuild from committed repository inputs at the last safe point before the
   // target check and transaction. It has no provider or write dependency.
   await assertCommittedInputBytes(frozen);

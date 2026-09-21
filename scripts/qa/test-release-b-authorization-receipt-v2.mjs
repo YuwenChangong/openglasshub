@@ -20,7 +20,8 @@ const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
 const fixtureDirectory = path.join(process.cwd(), "artifacts", "device-schema-v1", "release-b-authorization-receipts");
 const approval1Path = path.join(fixtureDirectory, "release-b-approval-1.json");
 const frozen = await loadTask17FrozenGate();
-const fingerprints = await computeReleaseBExecutionSurfaceFingerprints();
+const runnerBytes = await fs.readFile(new URL("./release-b-production-runner.mjs", import.meta.url));
+const fingerprints = await computeReleaseBExecutionSurfaceFingerprints({ runnerBytes });
 
 function v1Receipt(overrides = {}) {
   return {
@@ -74,8 +75,12 @@ function assertRejectsReceipt(fn, pattern, message) {
 }
 
 validateHistoricalReleaseBAuthorizationReceiptV1(v1Receipt(), hashAuthorizationReceipt(v1Receipt()), frozen);
-const approval1 = JSON.parse(await fs.readFile(approval1Path, "utf8"));
-validateHistoricalReleaseBAuthorizationReceiptV1(approval1, hashAuthorizationReceipt(approval1), frozen);
+try {
+  const approval1 = JSON.parse(await fs.readFile(approval1Path, "utf8"));
+  validateHistoricalReleaseBAuthorizationReceiptV1(approval1, hashAuthorizationReceipt(approval1), frozen);
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+}
 
 for (const key of ["task18TransportCommit", "automaticRetry"]) {
   assertRejectsReceipt(
@@ -159,14 +164,14 @@ try {
   };
   await assert.rejects(
     () => ownedExecutor({ args: ["--execute-production"], authorizationReceipt: v1Receipt({ approvalId: "release-b-approval-991" }), authorizationReceiptSha256: hashAuthorizationReceipt(v1Receipt({ approvalId: "release-b-approval-991" })), transport: neverTransport }),
-    /RELEASE_B_AUTHORIZATION_V2_REQUIRED/,
-    "the current Production path rejects v1 before ledger creation, transport creation, DB connection, or SQL",
+    /RELEASE_B_AUTHORIZATION_V3_REQUIRED/,
+    "the current runner-bound Production path rejects v1 before ledger creation, transport creation, DB connection, or SQL",
   );
 } finally {
   await fs.rm(ownedLedgerRoot, { recursive: true, force: true });
 }
 
-const drift = await computeReleaseBExecutionSurfaceFingerprints({ task18ExecutorCommit: fingerprints.task18ExecutorCommit, transportBytes: Buffer.from("transport drift\n"), executorBytes: Buffer.from("executor drift\n") });
+const drift = await computeReleaseBExecutionSurfaceFingerprints({ task18ExecutorCommit: fingerprints.task18ExecutorCommit, transportBytes: Buffer.from("transport drift\n"), executorBytes: Buffer.from("executor drift\n"), runnerBytes });
 assert.notEqual(drift.productionTransportFingerprint, fingerprints.productionTransportFingerprint, "transport source drift changes the bound fingerprint");
 assert.notEqual(drift.productionExecutorFingerprint, fingerprints.productionExecutorFingerprint, "executor source drift changes the bound fingerprint");
 

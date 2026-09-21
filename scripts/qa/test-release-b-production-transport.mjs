@@ -9,7 +9,7 @@ try {
 }
 
 assert.throws(
-  () => productionTransport.createReleaseBProductionTransport({ createSession: async () => ({}) }),
+  () => productionTransport.createReleaseBProductionTransport({ environment: {}, createSession: async () => ({}), readPostcheck: async () => ({}) }),
   /PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE/,
   "a Production transport without the existing approved DSN source fails closed before any session is opened",
 );
