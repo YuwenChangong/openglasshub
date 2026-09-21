@@ -15,6 +15,7 @@ import {
   RELEASE_B_PRODUCTION_RUNNER_PATH,
   createReleaseBProductionRunnerTransport,
   preflightReleaseBProductionRunner,
+  runReleaseBProductionRunner,
 } from "./release-b-production-runner.mjs";
 
 const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
@@ -104,6 +105,41 @@ const transport = createReleaseBProductionRunnerTransport({
 assert.equal(typeof transport.identifyTarget, "function", "runner injects the existing reviewed transport factory");
 assert.equal(sessions, 0, "transport construction does not connect");
 assert.equal(JSON.stringify(transport).includes("query"), false, "runner does not expose an alternate SQL client surface");
+
+let injectedSessionOpened = 0;
+let injectedPostcheckRead = 0;
+let injectedExecuteCalled = 0;
+const collaboratorInjectionReceipt = receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4, {
+  runnerCommit: headExecutionSurface.runnerCommit,
+  productionRunnerFingerprint: headExecutionSurface.productionRunnerFingerprint,
+  productionPostgresAdapterCommit: headExecutionSurface.productionPostgresAdapterCommit,
+  productionPostgresAdapterFingerprint: headExecutionSurface.productionPostgresAdapterFingerprint,
+});
+await assert.rejects(
+  () => runReleaseBProductionRunner({
+    args: ["--execute-production"],
+    environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+    authorizationReceipt: collaboratorInjectionReceipt,
+    authorizationReceiptSha256: hashAuthorizationReceipt(collaboratorInjectionReceipt),
+    createSession: async () => {
+      injectedSessionOpened += 1;
+      throw new Error("manual createSession must be rejected before opening a session");
+    },
+    readPostcheck: async () => {
+      injectedPostcheckRead += 1;
+      throw new Error("manual readPostcheck must be rejected before postcheck reads");
+    },
+    executeProductionImport: async () => {
+      injectedExecuteCalled += 1;
+      throw new Error("manual transport collaborators must be rejected before executor handoff");
+    },
+  }),
+  /RELEASE_B_RUNNER_TRANSPORT_COLLABORATOR_INJECTION_FORBIDDEN/,
+  "adapter-bound runner rejects manual transport collaborator injection even with a valid v4 receipt",
+);
+assert.equal(injectedSessionOpened, 0, "manual createSession is rejected before opening a session");
+assert.equal(injectedPostcheckRead, 0, "manual readPostcheck is rejected before postcheck reads");
+assert.equal(injectedExecuteCalled, 0, "manual collaborators are rejected before transport handoff");
 
 let clientConstructed = 0;
 let clientConnected = 0;

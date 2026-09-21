@@ -88,13 +88,12 @@ export async function runReleaseBProductionRunner({
     frozen,
     await computeReleaseBExecutionSurfaceFingerprints(),
   );
-  const adapter = createSession && readPostcheck
-    ? null
-    : createReleaseBProductionPostgresAdapter({ environment, Client: PostgresClient });
+  if (createSession || readPostcheck) fail("RELEASE_B_RUNNER_TRANSPORT_COLLABORATOR_INJECTION_FORBIDDEN");
+  const adapter = createReleaseBProductionPostgresAdapter({ environment, Client: PostgresClient });
   const transport = createReleaseBProductionRunnerTransport({
     environment,
-    createSession: createSession ?? adapter.createSession,
-    readPostcheck: readPostcheck ?? adapter.readPostcheck,
+    createSession: adapter.createSession,
+    readPostcheck: adapter.readPostcheck,
   });
   return executeProductionImport({ args, authorizationReceipt, authorizationReceiptSha256, transport });
 }
