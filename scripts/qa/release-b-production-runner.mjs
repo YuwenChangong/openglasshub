@@ -15,6 +15,7 @@ import {
   createReleaseBProductionTransport,
   preflightReleaseBProductionTransport,
 } from "./lib/release-b-production-transport.mjs";
+import { createReleaseBProductionPostgresAdapter } from "./lib/release-b-production-postgres-adapter.mjs";
 
 export { RELEASE_B_PRODUCTION_RUNNER_PATH };
 
@@ -70,6 +71,8 @@ export async function runReleaseBProductionRunner({
   authorizationReceiptSha256,
   createSession,
   readPostcheck,
+  PostgresClient,
+  executeProductionImport = executeReleaseBProductionImport,
 } = {}) {
   if (!Array.isArray(args) || args.length !== 1 || args[0] !== "--execute-production") fail("RELEASE_B_EXECUTION_FLAG_REQUIRED");
   if (authorizationReceipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1 || authorizationReceipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2) fail("RELEASE_B_AUTHORIZATION_V3_REQUIRED");
@@ -80,8 +83,15 @@ export async function runReleaseBProductionRunner({
     frozen,
     await computeReleaseBExecutionSurfaceFingerprints(),
   );
-  const transport = createReleaseBProductionRunnerTransport({ environment, createSession, readPostcheck });
-  return executeReleaseBProductionImport({ args, authorizationReceipt, authorizationReceiptSha256, transport });
+  const adapter = createSession && readPostcheck
+    ? null
+    : createReleaseBProductionPostgresAdapter({ environment, Client: PostgresClient });
+  const transport = createReleaseBProductionRunnerTransport({
+    environment,
+    createSession: createSession ?? adapter.createSession,
+    readPostcheck: readPostcheck ?? adapter.readPostcheck,
+  });
+  return executeProductionImport({ args, authorizationReceipt, authorizationReceiptSha256, transport });
 }
 
 async function main() {

@@ -21,6 +21,7 @@ const TRANSACTION_DSN = "postgresql://postgres.xcbnxzjlsvtgzixurcof:test-only@aw
 const frozen = await loadTask17FrozenGate();
 const runnerBytes = await readFile(new URL("./release-b-production-runner.mjs", import.meta.url));
 const executionSurface = await computeReleaseBExecutionSurfaceFingerprints({ runnerBytes });
+const headExecutionSurface = await computeReleaseBExecutionSurfaceFingerprints();
 
 function receipt(schemaVersion, overrides = {}) {
   const base = {
@@ -93,6 +94,43 @@ const transport = createReleaseBProductionRunnerTransport({
 assert.equal(typeof transport.identifyTarget, "function", "runner injects the existing reviewed transport factory");
 assert.equal(sessions, 0, "transport construction does not connect");
 assert.equal(JSON.stringify(transport).includes("query"), false, "runner does not expose an alternate SQL client surface");
+
+let clientConstructed = 0;
+let clientConnected = 0;
+const runnerComposedReceipt = receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3, {
+  runnerCommit: headExecutionSurface.runnerCommit,
+  productionRunnerFingerprint: headExecutionSurface.productionRunnerFingerprint,
+});
+const runnerCompositionResult = await (await import("./release-b-production-runner.mjs")).runReleaseBProductionRunner({
+  args: ["--execute-production"],
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  authorizationReceipt: runnerComposedReceipt,
+  authorizationReceiptSha256: hashAuthorizationReceipt(runnerComposedReceipt),
+  PostgresClient: class FakeRunnerClient {
+    constructor(config) {
+      clientConstructed += 1;
+      this.config = config;
+    }
+    async connect() {
+      clientConnected += 1;
+    }
+    async query(sql) {
+      if (sql.startsWith("SELECT current_database")) {
+        return { rows: [{ current_database: "postgres", current_user: "postgres.xcbnxzjlsvtgzixurcof", server_port: "5432" }] };
+      }
+      throw new Error("runner composition test must stop before non-identity SQL");
+    }
+    async end() {}
+  },
+  executeProductionImport: async ({ transport: composedTransport }) => composedTransport.identifyTarget(),
+});
+assert.deepEqual(
+  runnerCompositionResult,
+  { projectRef: "xcbnxzjlsvtgzixurcof", targetClass: "OpenGlass Hub Supabase Production" },
+  "runner execution composes the reviewed postgres adapter collaborators when manual injection is absent",
+);
+assert.equal(clientConstructed, 1, "adapter construction itself opens zero sessions; the executor-controlled target check opens the first one");
+assert.equal(clientConnected, 1, "runner composition supplies a real adapter createSession collaborator to the reviewed transport");
 
 assert.throws(
   () => validateCurrentReleaseBAuthorizationReceiptV3(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1), hashAuthorizationReceipt(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1)), frozen, executionSurface),
