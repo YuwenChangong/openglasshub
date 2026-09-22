@@ -63,7 +63,7 @@ function createDisposablePostgresClient({ createSqlSession, state }) {
       const output = await this.session.query(sql);
 
       if (sql.startsWith("SELECT current_database")) {
-        return { rows: [{ current_database: "postgres", current_user: "postgres.xcbnxzjlsvtgzixurcof", server_port: "5432" }], rowCount: 1 };
+        return { rows: [{ current_database: "postgres", current_user: "postgres", server_port: "5432" }], rowCount: 1 };
       }
       if (sql.startsWith("UPDATE public.devices") && sql.includes(" RETURNING 1 AS updated")) {
         const rows = parseCsvRows(output);

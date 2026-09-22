@@ -168,7 +168,7 @@ function createTransport({ failEntity, target = { projectRef: "xcbnxzjlsvtgzixur
 
 function createActualAdapterTransport({ precheck = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: RELEASE_B_FROZEN.expectedBeforeCounts }, failCommitAck = false } = {}) {
   const state = { queries: [], sessions: 0 };
-  const environment = { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres:unit-test-password@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require" };
+  const environment = { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres.xcbnxzjlsvtgzixurcof:unit-test-password@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require" };
   return {
     state,
     transport: createReleaseBProductionTransport({
@@ -176,7 +176,7 @@ function createActualAdapterTransport({ precheck = { releaseAHistory: "PRESENT",
       async createSession() {
         state.sessions += 1;
         return {
-          targetIdentity: { projectRef: "xcbnxzjlsvtgzixurcof", host: "db.xcbnxzjlsvtgzixurcof.supabase.co", port: 5432 },
+          targetIdentity: { projectRef: "xcbnxzjlsvtgzixurcof", host: "aws-1-ap-northeast-1.pooler.supabase.com", port: 5432, database: "postgres", databaseRole: "postgres", endpointClass: "SUPAVISOR_SESSION" },
           async query(sql) {
             state.queries.push(sql);
             if (sql.startsWith("SELECT current_database")) return { rows: [{ current_database: "postgres", current_user: "postgres", server_port: "5432" }] };

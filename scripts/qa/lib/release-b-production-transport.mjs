@@ -14,6 +14,7 @@ export const RELEASE_B_AUTHORIZED_TABLES = Object.freeze({
 });
 const IDENTITY_SQL = "SELECT current_database() AS current_database, current_user AS current_user, inet_server_port()::text AS server_port;";
 const FORBIDDEN_WRITE = /\b(?:DELETE|TRUNCATE|DROP|ALTER|CREATE|GRANT|REVOKE|VACUUM|ANALYZE|COPY|COMMENT\s+ON)\b|\bsupabase_migrations\b/i;
+const RELEASE_B_PRODUCTION_DATABASE_ROLE = "postgres";
 
 function failure(code) { const error = new Error(code); error.code = code; return error; }
 function rows(result) { if (!Array.isArray(result?.rows)) throw failure("RELEASE_B_PRODUCTION_RESULT_INVALID"); return result.rows; }
@@ -26,7 +27,14 @@ function resultState(result) {
 function safeDsn(environment) {
   const dsn = environment?.[RELEASE_B_PRODUCTION_CREDENTIAL_ENV];
   if (typeof dsn !== "string" || !dsn.trim()) throw failure("PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE");
-  try { return parseP9Connection({ mode: "PRODUCTION", dsn }); } catch { throw failure("PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE"); }
+  try {
+    const connection = parseP9Connection({ mode: "PRODUCTION", dsn });
+    if (connection.safeTarget.endpointClass !== "SUPAVISOR_SESSION" || connection.safeTarget.database !== "postgres") throw failure("PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE");
+    return Object.freeze({
+      ...connection,
+      safeTarget: Object.freeze({ ...connection.safeTarget, databaseRole: RELEASE_B_PRODUCTION_DATABASE_ROLE }),
+    });
+  } catch { throw failure("PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE"); }
 }
 function assertSession(session) { if (!session || typeof session.query !== "function" || typeof session.close !== "function" || !session.targetIdentity || typeof session.targetIdentity !== "object") throw failure("RELEASE_B_PRODUCTION_SESSION_FACTORY_INVALID"); return session; }
 function exactlyOneSqlStatement(sql) {
@@ -94,7 +102,7 @@ export function createReleaseBProductionTransport(options = {}) {
   const identify = async (session) => {
     const identity = rows(await session.query(IDENTITY_SQL))[0];
     const peer = session.targetIdentity;
-    if (identity?.current_database !== connection.safeTarget.database || identity?.current_user !== connection.pgEnv.PGUSER
+    if (identity?.current_database !== connection.safeTarget.database || identity?.current_user !== connection.safeTarget.databaseRole
       || identity?.server_port !== String(connection.safeTarget.port)
       || peer.projectRef !== connection.safeTarget.projectRef || peer.host !== connection.safeTarget.host || Number(peer.port) !== connection.safeTarget.port) throw failure("RELEASE_B_TARGET_MISMATCH");
     return { projectRef: connection.safeTarget.projectRef, targetClass: "OpenGlass Hub Supabase Production" };

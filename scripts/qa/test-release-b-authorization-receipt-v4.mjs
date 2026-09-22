@@ -15,9 +15,10 @@ import {
 } from "./release-b-production-import.mjs";
 
 const frozen = await loadTask17FrozenGate();
+const transportBytes = await readFile(new URL("./lib/release-b-production-transport.mjs", import.meta.url));
 const runnerBytes = await readFile(new URL("./release-b-production-runner.mjs", import.meta.url));
 const adapterBytes = await readFile(new URL("./lib/release-b-production-postgres-adapter.mjs", import.meta.url));
-const executionSurface = await computeReleaseBExecutionSurfaceFingerprints({ runnerBytes, adapterBytes });
+const executionSurface = await computeReleaseBExecutionSurfaceFingerprints({ transportBytes, runnerBytes, adapterBytes });
 
 function v4Receipt(overrides = {}) {
   return createReleaseBAuthorizationReceiptV4({
@@ -57,6 +58,8 @@ assert.match(executionSurface.productionPostgresAdapterFingerprint, /^[a-f0-9]{6
 
 const valid = v4Receipt();
 assert.equal(valid.schemaVersion, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4);
+assert.equal(valid.task18TransportCommit, executionSurface.task18TransportCommit);
+assert.equal(valid.productionTransportFingerprint, executionSurface.productionTransportFingerprint);
 assert.equal(valid.productionPostgresAdapterPath, RELEASE_B_PRODUCTION_POSTGRES_ADAPTER_PATH);
 assert.equal(valid.productionPostgresAdapterCommit, executionSurface.productionPostgresAdapterCommit);
 assert.equal(valid.productionPostgresAdapterFingerprint, executionSurface.productionPostgresAdapterFingerprint);
@@ -87,6 +90,8 @@ for (const key of ["productionPostgresAdapterPath", "productionPostgresAdapterCo
 
 for (const [name, overrides, pattern] of [
   ["target", { targetProjectRef: "wrong-project" }, /RELEASE_B_TARGET_MISMATCH/],
+  ["transport commit", { task18TransportCommit: "0".repeat(40) }, /RELEASE_B_TASK18_TRANSPORT_COMMIT_MISMATCH/],
+  ["transport fingerprint", { productionTransportFingerprint: "0".repeat(64) }, /RELEASE_B_PRODUCTION_TRANSPORT_FINGERPRINT_MISMATCH/],
   ["executor commit", { task18ExecutorCommit: "0".repeat(40) }, /RELEASE_B_TASK18_EXECUTOR_COMMIT_MISMATCH/],
   ["runner path", { runnerPath: "scripts/qa/other-runner.mjs" }, /RELEASE_B_PRODUCTION_RUNNER_PATH_MISMATCH/],
   ["adapter path", { productionPostgresAdapterPath: "scripts/qa/lib/other-adapter.mjs" }, /RELEASE_B_PRODUCTION_POSTGRES_ADAPTER_PATH_MISMATCH/],
@@ -105,6 +110,7 @@ for (const [name, overrides, pattern] of [
 }
 
 const adapterDrift = await computeReleaseBExecutionSurfaceFingerprints({
+  transportBytes,
   runnerBytes,
   adapterBytes: Buffer.from("adapter drift\n"),
 });
@@ -112,6 +118,17 @@ assert.notEqual(
   adapterDrift.productionPostgresAdapterFingerprint,
   executionSurface.productionPostgresAdapterFingerprint,
   "adapter source drift changes the bound v4 fingerprint",
+);
+
+const transportDrift = await computeReleaseBExecutionSurfaceFingerprints({
+  transportBytes: Buffer.from("transport drift\n"),
+  runnerBytes,
+  adapterBytes,
+});
+assert.notEqual(
+  transportDrift.productionTransportFingerprint,
+  executionSurface.productionTransportFingerprint,
+  "transport source drift changes the bound v4 fingerprint",
 );
 
 console.log("RELEASE_B_AUTHORIZATION_RECEIPT_V4_CONTRACT_OK");

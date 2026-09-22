@@ -37,7 +37,7 @@ try {
         transcripts.push(transcript);
         return { async query(sql) { transcript.push(sql); return session.query(sql); }, close: () => session.close() };
       };
-      const productionAdapterEnvironment = { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres:owned-disposable@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require" };
+      const productionAdapterEnvironment = { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres.xcbnxzjlsvtgzixurcof:owned-disposable@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require" };
       const productionAdapterTranscripts = [];
       const createOwnedProductionAdapter = ({ precheckOverride } = {}) => createReleaseBProductionTransport({
         environment: productionAdapterEnvironment,
@@ -46,7 +46,7 @@ try {
           const transcript = [];
           productionAdapterTranscripts.push(transcript);
           return {
-            targetIdentity: { projectRef: "xcbnxzjlsvtgzixurcof", host: "db.xcbnxzjlsvtgzixurcof.supabase.co", port: 5432 },
+            targetIdentity: { projectRef: "xcbnxzjlsvtgzixurcof", host: "aws-1-ap-northeast-1.pooler.supabase.com", port: 5432, database: "postgres", databaseRole: "postgres", endpointClass: "SUPAVISOR_SESSION" },
             async query(sql) {
               if (sql.startsWith("SELECT current_database")) {
                 await session.query("SELECT 1;");

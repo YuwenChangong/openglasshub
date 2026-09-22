@@ -135,7 +135,7 @@ export function hashAuthorizationReceipt(receipt) {
 }
 
 export async function computeReleaseBExecutionSurfaceFingerprints({
-  task18TransportCommit = TASK_18_TRANSPORT_COMMIT,
+  task18TransportCommit,
   task18ExecutorCommit,
   runnerCommit,
   adapterCommit,
@@ -145,14 +145,15 @@ export async function computeReleaseBExecutionSurfaceFingerprints({
   adapterBytes,
 } = {}) {
   const executorCommit = task18ExecutorCommit ?? await gitHeadCommit();
+  const resolvedTransportCommit = task18TransportCommit ?? executorCommit;
   const resolvedRunnerCommit = runnerCommit ?? executorCommit;
   const resolvedAdapterCommit = adapterCommit ?? executorCommit;
   return Object.freeze({
-    task18TransportCommit,
+    task18TransportCommit: resolvedTransportCommit,
     task18ExecutorCommit: executorCommit,
     runnerCommit: resolvedRunnerCommit,
     productionPostgresAdapterCommit: resolvedAdapterCommit,
-    productionTransportFingerprint: sha256Bytes(transportBytes ?? await gitShowBytes(task18TransportCommit, "scripts/qa/lib/release-b-production-transport.mjs")),
+    productionTransportFingerprint: sha256Bytes(transportBytes ?? await gitShowBytes(resolvedTransportCommit, "scripts/qa/lib/release-b-production-transport.mjs")),
     productionExecutorFingerprint: sha256Bytes(executorBytes ?? await gitShowBytes(executorCommit, "scripts/qa/release-b-production-import.mjs")),
     productionRunnerFingerprint: sha256Bytes(runnerBytes ?? await gitShowBytes(resolvedRunnerCommit, RELEASE_B_PRODUCTION_RUNNER_PATH)),
     productionPostgresAdapterFingerprint: sha256Bytes(adapterBytes ?? await gitShowBytes(resolvedAdapterCommit, RELEASE_B_PRODUCTION_POSTGRES_ADAPTER_PATH)),
@@ -198,8 +199,8 @@ export function validateHistoricalReleaseBAuthorizationReceiptV1(receipt, sha256
 export function validateCurrentReleaseBAuthorizationReceiptV2(receipt, sha256, frozen, executionSurface) {
   if (receipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1) fail("RELEASE_B_AUTHORIZATION_V2_REQUIRED");
   assertAuthorizationReceiptCore(receipt, sha256, frozen, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2, V2_AUTHORIZATION_KEYS);
-  if (receipt.task18TransportCommit !== TASK_18_TRANSPORT_COMMIT) fail("RELEASE_B_TASK18_TRANSPORT_COMMIT_MISMATCH");
-  if (!executionSurface || receipt.task18ExecutorCommit !== executionSurface.task18ExecutorCommit) fail("RELEASE_B_TASK18_EXECUTOR_COMMIT_MISMATCH");
+  if (!executionSurface || receipt.task18TransportCommit !== executionSurface.task18TransportCommit) fail("RELEASE_B_TASK18_TRANSPORT_COMMIT_MISMATCH");
+  if (receipt.task18ExecutorCommit !== executionSurface.task18ExecutorCommit) fail("RELEASE_B_TASK18_EXECUTOR_COMMIT_MISMATCH");
   if (receipt.productionTransportFingerprint !== executionSurface.productionTransportFingerprint) fail("RELEASE_B_PRODUCTION_TRANSPORT_FINGERPRINT_MISMATCH");
   if (receipt.productionExecutorFingerprint !== executionSurface.productionExecutorFingerprint) fail("RELEASE_B_PRODUCTION_EXECUTOR_FINGERPRINT_MISMATCH");
   if (receipt.automaticRetry !== false) fail("INVALID_RELEASE_B_AUTHORIZATION_RECEIPT");
@@ -210,8 +211,8 @@ export function validateCurrentReleaseBAuthorizationReceiptV3(receipt, sha256, f
   if (receipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1 || receipt?.schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2) fail("RELEASE_B_AUTHORIZATION_V3_REQUIRED");
   assertAuthorizationReceiptCore(receipt, sha256, frozen, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3, V3_AUTHORIZATION_KEYS);
   if (receipt.approvalId === "release-b-approval-1" || receipt.approvalId === "release-b-approval-2") fail("RELEASE_B_HISTORICAL_APPROVAL_NOT_EXECUTABLE");
-  if (receipt.task18TransportCommit !== TASK_18_TRANSPORT_COMMIT) fail("RELEASE_B_TASK18_TRANSPORT_COMMIT_MISMATCH");
-  if (!executionSurface || receipt.task18ExecutorCommit !== executionSurface.task18ExecutorCommit) fail("RELEASE_B_TASK18_EXECUTOR_COMMIT_MISMATCH");
+  if (!executionSurface || receipt.task18TransportCommit !== executionSurface.task18TransportCommit) fail("RELEASE_B_TASK18_TRANSPORT_COMMIT_MISMATCH");
+  if (receipt.task18ExecutorCommit !== executionSurface.task18ExecutorCommit) fail("RELEASE_B_TASK18_EXECUTOR_COMMIT_MISMATCH");
   if (receipt.runnerPath !== RELEASE_B_PRODUCTION_RUNNER_PATH) fail("RELEASE_B_PRODUCTION_RUNNER_PATH_MISMATCH");
   if (receipt.runnerCommit !== executionSurface.runnerCommit) fail("RELEASE_B_PRODUCTION_RUNNER_COMMIT_MISMATCH");
   if (receipt.productionTransportFingerprint !== executionSurface.productionTransportFingerprint) fail("RELEASE_B_PRODUCTION_TRANSPORT_FINGERPRINT_MISMATCH");
@@ -229,8 +230,8 @@ export function validateCurrentReleaseBAuthorizationReceiptV4(receipt, sha256, f
   ) fail("RELEASE_B_AUTHORIZATION_V4_REQUIRED");
   assertAuthorizationReceiptCore(receipt, sha256, frozen, AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4, V4_AUTHORIZATION_KEYS);
   if (receipt.approvalId === "release-b-approval-1" || receipt.approvalId === "release-b-approval-2" || receipt.approvalId === "release-b-approval-3") fail("RELEASE_B_HISTORICAL_APPROVAL_NOT_EXECUTABLE");
-  if (receipt.task18TransportCommit !== TASK_18_TRANSPORT_COMMIT) fail("RELEASE_B_TASK18_TRANSPORT_COMMIT_MISMATCH");
-  if (!executionSurface || receipt.task18ExecutorCommit !== executionSurface.task18ExecutorCommit) fail("RELEASE_B_TASK18_EXECUTOR_COMMIT_MISMATCH");
+  if (!executionSurface || receipt.task18TransportCommit !== executionSurface.task18TransportCommit) fail("RELEASE_B_TASK18_TRANSPORT_COMMIT_MISMATCH");
+  if (receipt.task18ExecutorCommit !== executionSurface.task18ExecutorCommit) fail("RELEASE_B_TASK18_EXECUTOR_COMMIT_MISMATCH");
   if (receipt.runnerPath !== RELEASE_B_PRODUCTION_RUNNER_PATH) fail("RELEASE_B_PRODUCTION_RUNNER_PATH_MISMATCH");
   if (receipt.runnerCommit !== executionSurface.runnerCommit) fail("RELEASE_B_PRODUCTION_RUNNER_COMMIT_MISMATCH");
   if (receipt.productionPostgresAdapterPath !== RELEASE_B_PRODUCTION_POSTGRES_ADAPTER_PATH) fail("RELEASE_B_PRODUCTION_POSTGRES_ADAPTER_PATH_MISMATCH");

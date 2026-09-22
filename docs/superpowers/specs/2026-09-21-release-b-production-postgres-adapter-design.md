@@ -197,7 +197,11 @@ It rejects Transaction Pooler port `6543` and any other host/user/project shape.
 It returns:
 
 - `safeTarget`: value-blind target metadata including `mode`, `host`,
-  `projectRef`, `port`, `database`, and `endpointClass`
+  `projectRef`, `port`, `database`, and `endpointClass`.
+  Release B adapter/transport execution enriches this target with
+  `databaseRole`, the PostgreSQL session role `postgres`; it is intentionally
+  distinct from the Supabase Session Pooler login username
+  `postgres.<project-ref>`.
 - `pgEnv`: libpq-style fields `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`,
   `PGPASSWORD`, and `PGSSLMODE`
 
@@ -443,9 +447,14 @@ Target metadata semantics:
 
 - expected/config-derived properties: `safeTarget.mode`, `safeTarget.host`,
   `safeTarget.projectRef`, `safeTarget.port`, `safeTarget.database`,
-  `safeTarget.endpointClass`, and session `targetIdentity`
+  `safeTarget.databaseRole`, `safeTarget.endpointClass`, and session
+  `targetIdentity`
 - database-observed properties: `current_database`, `current_user`, and
   `server_port` returned by the existing transport identity query
+
+For the reviewed Production Session Pooler path, `PGUSER` remains the pooler
+authentication username, while database identity validation compares
+`current_user` with `safeTarget.databaseRole`.
 
 The design must not treat copying `safeTarget` into `targetIdentity` as
 sufficient proof of remote identity. The existing transport identity query must

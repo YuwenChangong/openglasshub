@@ -177,7 +177,7 @@ const runnerCompositionResult = await (await import("./release-b-production-runn
     }
     async query(sql) {
       if (sql.startsWith("SELECT current_database")) {
-        return { rows: [{ current_database: "postgres", current_user: "postgres.xcbnxzjlsvtgzixurcof", server_port: "5432" }] };
+        return { rows: [{ current_database: "postgres", current_user: "postgres", server_port: "5432" }] };
       }
       throw new Error("runner composition test must stop before non-identity SQL");
     }

@@ -7,6 +7,7 @@ import { parseP9Connection } from "../p9-readonly-postgres-transport.mjs";
 const { Client: PgClient } = pg;
 export const RELEASE_B_PRODUCTION_CA_CERT_PATH_ENV = "P9_PRODUCTION_DATABASE_CA_CERT_PATH";
 const CERTIFICATE_BLOCK = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g;
+const RELEASE_B_PRODUCTION_DATABASE_ROLE = "postgres";
 
 function failure(code) {
   const error = new Error(code);
@@ -29,6 +30,17 @@ function assertSessionPooler(safeTarget) {
   if (safeTarget?.endpointClass !== "SUPAVISOR_SESSION") {
     throw failure("RELEASE_B_POSTGRES_ADAPTER_SESSION_POOLER_REQUIRED");
   }
+}
+
+function withReleaseBProductionDatabaseRole(connection) {
+  if (connection?.safeTarget?.database !== "postgres") throw failure("PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE");
+  return Object.freeze({
+    ...connection,
+    safeTarget: Object.freeze({
+      ...connection.safeTarget,
+      databaseRole: RELEASE_B_PRODUCTION_DATABASE_ROLE,
+    }),
+  });
 }
 
 async function loadVerifiedCa(environment) {
@@ -83,6 +95,7 @@ function createTargetIdentity(safeTarget) {
     projectRef: safeTarget.projectRef,
     port: safeTarget.port,
     database: safeTarget.database,
+    databaseRole: safeTarget.databaseRole,
     endpointClass: safeTarget.endpointClass,
   });
 }
@@ -182,8 +195,9 @@ function numberField(row, key) {
 
 export function createReleaseBProductionPostgresAdapter({ environment = process.env, Client = PgClient } = {}) {
   async function createSession(input = null) {
-    const { pgEnv, safeTarget } = input ?? parseEnvironment(environment);
-    assertSessionPooler(safeTarget);
+    const connection = input ?? parseEnvironment(environment);
+    assertSessionPooler(connection.safeTarget);
+    const { pgEnv, safeTarget } = withReleaseBProductionDatabaseRole(connection);
     const ca = await loadVerifiedCa(environment);
     const client = new Client(createClientConfig(pgEnv, ca));
     await client.connect();

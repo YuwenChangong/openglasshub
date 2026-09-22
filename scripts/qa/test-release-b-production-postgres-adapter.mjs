@@ -142,6 +142,7 @@ assert.deepEqual(session.targetIdentity, {
   projectRef: "xcbnxzjlsvtgzixurcof",
   port: 5432,
   database: "postgres",
+  databaseRole: "postgres",
   endpointClass: "SUPAVISOR_SESSION",
 });
 assert.deepEqual(await session.query("SELECT $1::int AS value", [7]), { rows: [{ value: 7 }], rowCount: 1 });
@@ -234,6 +235,7 @@ await assert.rejects(
       projectRef: "xcbnxzjlsvtgzixurcof",
       port: 5432,
       database: "postgres",
+      databaseRole: "postgres",
       endpointClass: "SUPAVISOR_SESSION",
     },
   }),

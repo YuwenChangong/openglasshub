@@ -14,8 +14,10 @@ assert.throws(
   "a Production transport without the existing approved DSN source fails closed before any session is opened",
 );
 
-const environment = { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres:unit-test-password@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require" };
-function sessionFactory({ identity = { current_database: "postgres", current_user: "postgres", server_port: "5432" }, targetIdentity = { projectRef: "xcbnxzjlsvtgzixurcof", host: "db.xcbnxzjlsvtgzixurcof.supabase.co", port: 5432 }, state = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: { devices: 0, deviceSpecDefinitions: 0, deviceSpecs: 0, deviceSources: 0, deviceSourceLinks: 0, deviceSpecEvidence: 0, catalogAuditEvents: 0 } }, failOn = null, compatibilityResult = { rows: [{ updated: 1 }], rowCount: 1 } } = {}) {
+const sessionPoolerEnvironment = { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres.xcbnxzjlsvtgzixurcof:unit-test-password@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require" };
+const sessionPoolerIdentity = { projectRef: "xcbnxzjlsvtgzixurcof", host: "aws-1-ap-northeast-1.pooler.supabase.com", port: 5432 };
+const environment = sessionPoolerEnvironment;
+function sessionFactory({ identity = { current_database: "postgres", current_user: "postgres", server_port: "5432" }, targetIdentity = sessionPoolerIdentity, state = { releaseAHistory: "PRESENT", schemaPostconditions: "PASS", releaseBApplied: false, counts: { devices: 0, deviceSpecDefinitions: 0, deviceSpecs: 0, deviceSources: 0, deviceSourceLinks: 0, deviceSpecEvidence: 0, catalogAuditEvents: 0 } }, failOn = null, compatibilityResult = { rows: [{ updated: 1 }], rowCount: 1 } } = {}) {
   const queries = [];
   return {
     queries,
@@ -73,6 +75,18 @@ await assert.rejects(() => missingCompatibility.transaction(async (transaction) 
   await transaction.upsert("compatibility", { deviceSlug: "missing", key_specs: {}, full_specs: {} });
 }), /RELEASE_B_COMPATIBILITY_DEVICE_MISSING/, "compatibility update fails closed when the target device row is absent");
 
+const realSessionPoolerIdentity = sessionFactory({ targetIdentity: sessionPoolerIdentity });
+const sessionPoolerTransport = productionTransport.createReleaseBProductionTransport({
+  environment: sessionPoolerEnvironment,
+  createSession: realSessionPoolerIdentity.createSession,
+  readPostcheck: async () => ({}),
+});
+assert.deepEqual(
+  await sessionPoolerTransport.identifyTarget(),
+  { projectRef: "xcbnxzjlsvtgzixurcof", targetClass: "OpenGlass Hub Supabase Production" },
+  "Session Pooler target validation accepts the distinct pooler login username and postgres database role",
+);
+
 for (const [name, operation] of [
   ["out-of-scope table", () => "INSERT INTO public.unapproved_table (id) VALUES (1);"],
   ["delete", () => "DELETE FROM public.devices;"],
@@ -90,7 +104,29 @@ const wrongTarget = sessionFactory({ identity: { current_database: "postgres", c
 const mismatch = productionTransport.createReleaseBProductionTransport({ environment, createSession: wrongTarget.createSession, readPostcheck: async () => ({}) });
 await assert.rejects(() => mismatch.identifyTarget(), /RELEASE_B_TARGET_MISMATCH/, "a database identity mismatch fails before a transaction can start");
 assert.equal(wrongTarget.queries.length, 1, "identify-target mismatch performs exactly one identity query");
-const sameDatabaseWrongProject = sessionFactory({ targetIdentity: { projectRef: "other-project", host: "db.other-project.supabase.co", port: 5432 } });
+for (const [name, factoryOptions] of [
+  ["wrong Session Pooler database role", { identity: { current_database: "postgres", current_user: "some_other_role", server_port: "5432" }, targetIdentity: sessionPoolerIdentity }],
+  ["wrong Session Pooler database", { identity: { current_database: "other_database", current_user: "postgres", server_port: "5432" }, targetIdentity: sessionPoolerIdentity }],
+  ["wrong Session Pooler reported port", { identity: { current_database: "postgres", current_user: "postgres", server_port: "6543" }, targetIdentity: sessionPoolerIdentity }],
+  ["wrong Session Pooler peer project", { targetIdentity: { ...sessionPoolerIdentity, projectRef: "other-project" } }],
+  ["wrong Session Pooler peer host", { targetIdentity: { ...sessionPoolerIdentity, host: "other.pooler.supabase.com" } }],
+  ["wrong Session Pooler peer port", { targetIdentity: { ...sessionPoolerIdentity, port: 6543 } }],
+]) {
+  const fake = sessionFactory(factoryOptions);
+  const candidate = productionTransport.createReleaseBProductionTransport({ environment: sessionPoolerEnvironment, createSession: fake.createSession, readPostcheck: async () => ({}) });
+  await assert.rejects(() => candidate.identifyTarget(), /RELEASE_B_TARGET_MISMATCH/, `${name} fails closed before a transaction can start`);
+  assert.equal(fake.queries.length, 1, `${name} performs exactly one identity query`);
+}
+assert.throws(
+  () => productionTransport.createReleaseBProductionTransport({
+    environment: { P9_PRODUCTION_DATABASE_URL: "postgresql://postgres.wrongproject:unit-test-password@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require" },
+    createSession: sessionFactory({ targetIdentity: sessionPoolerIdentity }).createSession,
+    readPostcheck: async () => ({}),
+  }),
+  /PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE/,
+  "wrong pooler login username remains rejected before any Production session is opened",
+);
+const sameDatabaseWrongProject = sessionFactory({ targetIdentity: { projectRef: "other-project", host: "aws-1-ap-northeast-1.pooler.supabase.com", port: 5432 } });
 const independentMismatch = productionTransport.createReleaseBProductionTransport({ environment, createSession: sameDatabaseWrongProject.createSession, readPostcheck: async () => ({}) });
 await assert.rejects(() => independentMismatch.identifyTarget(), /RELEASE_B_TARGET_MISMATCH/, "a matching database and user without the expected project-bound connection identity fails closed before a transaction");
 assert.equal(sameDatabaseWrongProject.queries.length, 1, "project identity mismatch performs exactly one identity query");

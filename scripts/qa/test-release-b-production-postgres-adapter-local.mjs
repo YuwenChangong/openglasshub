@@ -171,6 +171,7 @@ async function runAdapterLifecycleProof({ target, createSqlSession }) {
     projectRef: "local-disposable",
     port: localTarget.port,
     database: "postgres",
+    databaseRole: "postgres",
     endpointClass: "SUPAVISOR_SESSION",
   };
   const table = quoteIdentifier(`release_b_adapter_local_${randomUUID().replaceAll("-", "").slice(0, 24)}`);
