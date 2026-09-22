@@ -2,6 +2,9 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import assert from "node:assert/strict";
+import { buildDefinitionRegistry } from "./devices/schema-v1/definitions.mjs";
+import { normalizeCatalogYaml } from "./devices/schema-v1/normalize.mjs";
+import { loadApprovedDeviceYaml } from "./devices/schema-v1/yaml-input.mjs";
 
 const root = process.cwd();
 const fixturePath = path.join(root, "tests/fixtures/device-schema-v1/schema-contract-cases.json");
@@ -207,7 +210,7 @@ function assertNoNormalizedPublicAccess(sql, contract, policies = finalPolicies(
   }
 }
 
-function assertStructuralContract(migrationText, contract) {
+function assertStructuralContract(migrationText, contract, { requireDefinitionSeeds = true } = {}) {
   const sql = withoutSqlComments(migrationText);
   const policies = finalPolicies(sql);
   assertNoNormalizedPublicAccess(sql, contract, policies);
@@ -255,12 +258,14 @@ function assertStructuralContract(migrationText, contract) {
   assert.match(evidenceBody, /\bis_conflicting\s+boolean\b/i, "Evidence must define is_conflicting in its table body");
   assert.match(evidenceBody, /check\s*\(\s*not\s*\(\s*is_primary\s+and\s+is_conflicting\s*\)\s*\)/i, "Evidence must locally prohibit primary and conflicting together");
 
-  const definitionSeeds = statementsMatching(sql, "insert\\s+into").filter((statement) => /\binsert\s+into\s+(?:public\.)?device_spec_definitions\b/i.test(statement));
-  for (const seed of contract.definitionSeedCases ?? []) {
-    const matchingSeed = definitionSeeds.some((statement) =>
-      new RegExp(seed.keyPattern, "i").test(statement) && new RegExp(seed.contextPattern, "i").test(statement),
-    );
-    assert.ok(matchingSeed, `Definition seed missing key/context: ${seed.name}`);
+  if (requireDefinitionSeeds) {
+    const definitionSeeds = statementsMatching(sql, "insert\\s+into").filter((statement) => /\binsert\s+into\s+(?:public\.)?device_spec_definitions\b/i.test(statement));
+    for (const seed of contract.definitionSeedCases ?? []) {
+      const matchingSeed = definitionSeeds.some((statement) =>
+        new RegExp(seed.keyPattern, "i").test(statement) && new RegExp(seed.contextPattern, "i").test(statement),
+      );
+      assert.ok(matchingSeed, `Definition seed missing key/context: ${seed.name}`);
+    }
   }
 }
 
@@ -298,7 +303,7 @@ export function assertSyntheticWeakCases(contract) {
  * The migration is intentionally supplied by a later task; this task defines
  * the contract and keeps the suite RED while that migration is absent.
  */
-export function assertSchemaV1Contract({ migrationText, cases }) {
+export function assertSchemaV1Contract({ migrationText, cases, requireDefinitionSeeds = true }) {
   assert.equal(typeof migrationText, "string", "migrationText must be SQL text");
   assert.match(migrationText, /create table.*public\.device_specs/s, "Foundation must create device_specs");
   const contract = cases ?? { required: [], forbidden: [] };
@@ -309,7 +314,21 @@ export function assertSchemaV1Contract({ migrationText, cases }) {
   for (const testCase of contract.forbidden ?? []) {
     assert.doesNotMatch(migrationText, regexFromCase(testCase), `Forbidden Schema v1 SQL: ${testCase.name}`);
   }
-  assertStructuralContract(migrationText, contract);
+  assertStructuralContract(migrationText, contract, { requireDefinitionSeeds });
+  return true;
+}
+
+export async function assertCanonicalDefinitionPipeline({ expectedDefinitionCount = 92 } = {}) {
+  const approvedCatalog = await loadApprovedDeviceYaml(path.join(root, "src/data/devices/openglasshub_device_data_v1.yaml"));
+  const definitions = buildDefinitionRegistry(normalizeCatalogYaml(approvedCatalog));
+  assert.equal(definitions.length, expectedDefinitionCount, "Approved Schema v1 catalog must produce the final canonical definition count");
+
+  const byKey = new Map(definitions.map((definition) => [definition.key, definition]));
+  const eyeBrightness = byKey.get("display.eye_brightness");
+  assert.ok(eyeBrightness, "Canonical definitions must include display.eye_brightness");
+  assert.equal(eyeBrightness.measurementContext, "eye_brightness");
+  assert.equal(eyeBrightness.label, "Eye Brightness");
+  assert.equal(byKey.has("display.brightness"), false, "Canonical definitions must not reintroduce generic display.brightness");
   return true;
 }
 
@@ -410,7 +429,8 @@ async function main() {
     console.log("DEVICE_SCHEMA_V1_FOUNDATION_OK");
     return;
   }
-  assertSchemaV1Contract({ migrationText, cases: contract });
+  assertSchemaV1Contract({ migrationText, cases: contract, requireDefinitionSeeds: false });
+  await assertCanonicalDefinitionPipeline();
   console.log("DEVICE_SCHEMA_V1_CONTRACT_OK");
 }
 
