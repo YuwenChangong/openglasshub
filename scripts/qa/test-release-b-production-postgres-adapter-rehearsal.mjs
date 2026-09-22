@@ -70,6 +70,9 @@ function createDisposablePostgresClient({ createSqlSession, state }) {
         return { rows, rowCount: rows.length };
       }
       if (sql.startsWith("LOCK TABLE")) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (sql.startsWith("SELECT encode")) {
         if (state.precheckDrift) {
           state.precheckDrift = false;
           return {

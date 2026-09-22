@@ -180,7 +180,8 @@ function createActualAdapterTransport({ precheck = { releaseAHistory: "PRESENT",
           async query(sql) {
             state.queries.push(sql);
             if (sql.startsWith("SELECT current_database")) return { rows: [{ current_database: "postgres", current_user: "postgres", server_port: "5432" }] };
-            if (sql.startsWith("LOCK TABLE")) return { rows: [{ release_b_state: precheck }] };
+            if (sql.startsWith("LOCK TABLE")) return { rows: [] };
+            if (sql.startsWith("SELECT encode")) return { rows: [{ release_b_state: precheck }] };
             if (sql.startsWith("UPDATE public.devices") && sql.includes(" RETURNING 1 AS updated")) return { rows: [{ updated: 1 }], rowCount: 1 };
             if (failCommitAck && sql === "COMMIT;") throw Object.assign(new Error("lost commit acknowledgement"), { code: "ECONNRESET" });
             return { rows: [] };

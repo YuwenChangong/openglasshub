@@ -1,6 +1,6 @@
 import { parseP9Connection } from "../p9-readonly-postgres-transport.mjs";
 import { renderReleaseBAuthorizedOperation } from "../../devices/schema-v1/disposable-postgres-transaction-client.mjs";
-import { RELEASE_B_LOCKED_PRECHECK_SQL } from "../release-b-disposable-transport.mjs";
+import { RELEASE_B_LOCK_SQL, RELEASE_B_LOCKED_PRECHECK_SQL, RELEASE_B_PRECHECK_SELECT_SQL } from "../release-b-disposable-transport.mjs";
 
 export const RELEASE_B_PRODUCTION_CREDENTIAL_ENV = "P9_PRODUCTION_DATABASE_URL";
 export const RELEASE_B_AUTHORIZED_TABLES = Object.freeze({
@@ -120,7 +120,11 @@ export function createReleaseBProductionTransport(options = {}) {
         await session.query("BEGIN;");
         await session.query("SET CONSTRAINTS ALL DEFERRED;"); phase = "AFTER_BEGIN_BEFORE_FIRST_WRITE";
         await work(Object.freeze({
-          async readPrecheckForUpdate() { if (phase !== "AFTER_BEGIN_BEFORE_FIRST_WRITE") throw failure("RELEASE_B_PRECHECK_MUST_PRECEDE_WRITES"); return resultState(await session.query(RELEASE_B_LOCKED_PRECHECK_SQL)); },
+          async readPrecheckForUpdate() {
+            if (phase !== "AFTER_BEGIN_BEFORE_FIRST_WRITE") throw failure("RELEASE_B_PRECHECK_MUST_PRECEDE_WRITES");
+            await session.query(RELEASE_B_LOCK_SQL, []);
+            return resultState(await session.query(RELEASE_B_PRECHECK_SELECT_SQL, []));
+          },
           async upsert(entity, row) {
             const sql = allowedSql(entity, renderReleaseBAuthorizedOperation({ entity, row }));
             phase = "AFTER_FIRST_WRITE_BEFORE_COMMIT";
