@@ -18,13 +18,22 @@ Future execution, only after a fresh v4 authorization receipt is reviewed:
 node .\scripts\qa\release-b-production-runner.mjs --execute-production --authorization-receipt <reviewed-v4-receipt.json> --authorization-receipt-sha256 <reviewed-v4-receipt-sha256>
 ```
 
-The runner reads `P9_PRODUCTION_DATABASE_URL` only from the operator process environment. There is no DSN command-line argument, repository file, dotenv loader, provider console path, or fallback source. The value must be the Production Session Pooler shape accepted by the existing P9 contract; the adapter-bound path rejects the direct endpoint and Transaction Pooler. The runner, adapter, transport, executor, receipts, and evidence must never print, log, store, hash for output, or serialize the DSN or any host/user/password fragments. Clear the transient process credential after the operation attempt completes or blocks.
+The runner reads `P9_PRODUCTION_DATABASE_URL` only from the operator process environment. There is no DSN command-line argument, repository file, dotenv loader, provider console path, or fallback source. The value must be the Production Session Pooler shape accepted by the existing P9 contract; the adapter-bound path rejects the direct endpoint and Transaction Pooler. The runner, adapter, transport, executor, receipts, and evidence must never print, log, store, hash for output, or serialize the DSN or any host/user/password fragments.
+
+The native PostgreSQL adapter also requires `P9_PRODUCTION_DATABASE_CA_CERT_PATH` in the same operator PowerShell Process environment. Download the official Supabase database CA certificate or bundle from the Supabase Dashboard database SSL configuration area, save it outside the repository, and set only the local filesystem path in this variable. Do not put certificate bytes, the DSN, the password, or any database URL in `P9_PRODUCTION_DATABASE_CA_CERT_PATH`. The adapter parses the PEM certificate blocks locally before constructing `pg.Client`, passes the validated PEM bundle as `ssl.ca`, keeps `ssl.rejectUnauthorized: true`, and preserves the reviewed servername behavior. Missing, unreadable, empty, or invalid CA input fails closed before any connection attempt. Do not use `rejectUnauthorized: false` or any TLS downgrade.
+
+Clear both transient Process environment variables after the operation attempt completes or blocks:
+
+```powershell
+Remove-Item Env:\P9_PRODUCTION_DATABASE_URL -ErrorAction SilentlyContinue
+Remove-Item Env:\P9_PRODUCTION_DATABASE_CA_CERT_PATH -ErrorAction SilentlyContinue
+```
 
 Importing the runner and adapter has no side effects. Preflight validates only value-blind structure and wiring metadata; it does not connect, run SQL, start a transaction, consume an approval, create or mutate a ledger entry, or write Production.
 
 ## Current authorization binding
 
-The current adapter-bound execution schema is `openglass-device-schema-v1-release-b-authorization-v4`. Historical v1/v2/v3 receipts remain validateable where tests require them, but they cannot execute the adapter-bound runner path. `release-b-approval-2` and `release-b-approval-3` are historical and cannot authorize this runner.
+The current adapter-bound execution schema is `openglass-device-schema-v1-release-b-authorization-v4`. Historical v1/v2/v3 receipts remain validateable where tests require them, but they cannot execute the adapter-bound runner path. `release-b-approval-2`, `release-b-approval-3`, and the pre-CA-trust `release-b-approval-4` are historical and cannot authorize the changed adapter fingerprint. A new human authorization is required for the changed execution surface; the expected next approval ID is `release-b-approval-5`.
 
 The v4 receipt is canonical recursive-key-sorted JSON with a trailing newline for receipt hashing. Arrays retain order, UTF-8 is required, unknown fields are rejected, and no secret material is permitted. It must bind at least:
 
@@ -64,6 +73,6 @@ Only these application tables are in write scope: `public.devices`, `public.devi
 
 `node scripts/qa/test-release-b-authorization-receipt-v4.mjs` covers v4 schema strictness and adapter fingerprint binding.
 
-`node scripts/qa/test-release-b-production-postgres-adapter.mjs`, `node scripts/qa/test-release-b-production-postgres-adapter-local.mjs`, and `node scripts/qa/test-release-b-production-postgres-adapter-rehearsal.mjs` cover the adapter contract, disposable PostgreSQL behavior, full disposable Release B rehearsal, Session Pooler-only execution, TLS fail-closed behavior, no retry, and no Production access.
+`node scripts/qa/test-release-b-production-postgres-adapter.mjs`, `node scripts/qa/test-release-b-production-postgres-adapter-local.mjs`, and `node scripts/qa/test-release-b-production-postgres-adapter-rehearsal.mjs` cover the adapter contract, explicit Supabase CA path requirement, PEM parsing fail-closed behavior before client construction, disposable PostgreSQL behavior, full disposable Release B rehearsal, Session Pooler-only execution, TLS verification, no retry, and no Production access.
 
 `node scripts/qa/test-device-schema-v1-transaction-contract.mjs` and `node scripts/qa/test-release-b-production-transport.mjs` cover immutable-plan binding, transaction ordering, no-delete/no-DDL/no-migration-history gates, ambiguity classification, no retry, durable consumption, and transport safety without Production access.

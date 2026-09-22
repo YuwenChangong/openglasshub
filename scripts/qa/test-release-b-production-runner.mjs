@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
+import { execFile as execFileCallback } from "node:child_process";
+import { mkdtemp } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { readFile } from "node:fs/promises";
+import { promisify } from "node:util";
 import {
   AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1,
   AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2,
@@ -21,6 +26,11 @@ import {
 const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
 const SESSION_DSN = "postgresql://postgres.xcbnxzjlsvtgzixurcof:test-only@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
 const TRANSACTION_DSN = "postgresql://postgres.xcbnxzjlsvtgzixurcof:test-only@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require";
+const TEST_CA_ENV = "P9_PRODUCTION_DATABASE_CA_CERT_PATH";
+const execFile = promisify(execFileCallback);
+const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "release-b-runner-ca-test-"));
+const validCaPath = path.join(temporaryDirectory, "synthetic-test-ca.pem");
+await execFile("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", path.join(temporaryDirectory, "synthetic-test-ca.key"), "-out", validCaPath, "-days", "1", "-subj", "/CN=Release B Runner Test CA"]);
 const frozen = await loadTask17FrozenGate();
 const runnerBytes = await readFile(new URL("./release-b-production-runner.mjs", import.meta.url));
 const executionSurface = await computeReleaseBExecutionSurfaceFingerprints({ runnerBytes });
@@ -151,13 +161,16 @@ const runnerComposedReceipt = receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4, {
 });
 const runnerCompositionResult = await (await import("./release-b-production-runner.mjs")).runReleaseBProductionRunner({
   args: ["--execute-production"],
-  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
   authorizationReceipt: runnerComposedReceipt,
   authorizationReceiptSha256: hashAuthorizationReceipt(runnerComposedReceipt),
   PostgresClient: class FakeRunnerClient {
     constructor(config) {
       clientConstructed += 1;
       this.config = config;
+      assert.equal(typeof config?.ssl?.ca, "string", "runner-composed adapter supplies explicit CA trust");
+      assert.equal(config?.ssl?.rejectUnauthorized, true, "runner-composed adapter keeps TLS verification enabled");
+      assert.equal(config?.ssl?.servername, "aws-1-ap-northeast-1.pooler.supabase.com", "runner-composed adapter preserves SNI servername");
     }
     async connect() {
       clientConnected += 1;

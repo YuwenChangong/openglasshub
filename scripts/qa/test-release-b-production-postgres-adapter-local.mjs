@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import { execFile as execFileCallback } from "node:child_process";
 import net from "node:net";
 import { randomUUID } from "node:crypto";
+import { mkdtemp } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 
 import pg from "pg";
 
@@ -8,8 +13,10 @@ import { runLocalDisposableReplay } from "./local-disposable-supabase-replay.mjs
 import { createReleaseBProductionPostgresAdapter } from "./lib/release-b-production-postgres-adapter.mjs";
 
 const { Client: PgClient } = pg;
+const TEST_CA_ENV = "P9_PRODUCTION_DATABASE_CA_CERT_PATH";
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const COMMIT_ACK_AMBIGUITY_COVERAGE = "SYNTHETIC_CONTRACT_ONLY_NOT_NETWORK_LEVEL";
+const execFile = promisify(execFileCallback);
 const LOCAL_REPLAY_ENVIRONMENT_BLOCKLIST = [
   "P9_PRODUCTION_DATABASE_URL",
   "POSTGRES_URL",
@@ -134,6 +141,9 @@ async function runAdapterLifecycleProof({ target, createSqlSession }) {
   assert.equal(typeof createSqlSession, "function", "disposable harness must expose its owned local SQL session seam");
   const localTarget = disposableDatabasePortFromApiTarget(target);
   await assertTcpLoopbackReachable(localTarget);
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "release-b-adapter-local-ca-test-"));
+  const validCaPath = path.join(temporaryDirectory, "synthetic-test-ca.pem");
+  await execFile("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", path.join(temporaryDirectory, "synthetic-test-ca.key"), "-out", validCaPath, "-days", "1", "-subj", "/CN=Release B Adapter Local Test CA"]);
 
   const state = {
     constructed: 0,
@@ -144,6 +154,7 @@ async function runAdapterLifecycleProof({ target, createSqlSession }) {
     clients: [],
   };
   const adapter = createReleaseBProductionPostgresAdapter({
+    environment: { [TEST_CA_ENV]: validCaPath },
     Client: createLoopbackOnlyPgClientClass({ state }),
   });
   const pgEnv = {

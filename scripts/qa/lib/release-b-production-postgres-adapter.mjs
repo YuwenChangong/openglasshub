@@ -1,8 +1,12 @@
+import { X509Certificate } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import pg from "pg";
 
 import { parseP9Connection } from "../p9-readonly-postgres-transport.mjs";
 
 const { Client: PgClient } = pg;
+export const RELEASE_B_PRODUCTION_CA_CERT_PATH_ENV = "P9_PRODUCTION_DATABASE_CA_CERT_PATH";
+const CERTIFICATE_BLOCK = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g;
 
 function failure(code) {
   const error = new Error(code);
@@ -27,7 +31,30 @@ function assertSessionPooler(safeTarget) {
   }
 }
 
-function createClientConfig(pgEnv) {
+async function loadVerifiedCa(environment) {
+  const caPath = environment?.[RELEASE_B_PRODUCTION_CA_CERT_PATH_ENV];
+  if (typeof caPath !== "string" || !caPath.trim()) throw failure("RELEASE_B_POSTGRES_ADAPTER_CA_CERT_PATH_REQUIRED");
+
+  let pem;
+  try {
+    pem = await readFile(caPath, "utf8");
+  } catch {
+    throw failure("RELEASE_B_POSTGRES_ADAPTER_CA_CERT_UNREADABLE");
+  }
+
+  const blocks = pem.match(CERTIFICATE_BLOCK) ?? [];
+  if (blocks.length === 0 || pem.replace(CERTIFICATE_BLOCK, "").trim()) throw failure("RELEASE_B_POSTGRES_ADAPTER_CA_CERT_INVALID");
+
+  try {
+    for (const block of blocks) new X509Certificate(block);
+  } catch {
+    throw failure("RELEASE_B_POSTGRES_ADAPTER_CA_CERT_INVALID");
+  }
+
+  return pem;
+}
+
+function createClientConfig(pgEnv, ca) {
   if (pgEnv?.PGSSLMODE !== "require" && pgEnv?.PGSSLMODE !== "verify-full") {
     throw failure("RELEASE_B_POSTGRES_ADAPTER_TLS_DOWNGRADE_FORBIDDEN");
   }
@@ -42,6 +69,7 @@ function createClientConfig(pgEnv) {
     user: pgEnv.PGUSER,
     password: pgEnv.PGPASSWORD,
     ssl: {
+      ca,
       rejectUnauthorized: true,
       servername: pgEnv.PGHOST,
     },
@@ -156,7 +184,8 @@ export function createReleaseBProductionPostgresAdapter({ environment = process.
   async function createSession(input = null) {
     const { pgEnv, safeTarget } = input ?? parseEnvironment(environment);
     assertSessionPooler(safeTarget);
-    const client = new Client(createClientConfig(pgEnv));
+    const ca = await loadVerifiedCa(environment);
+    const client = new Client(createClientConfig(pgEnv, ca));
     await client.connect();
 
     let closed = false;

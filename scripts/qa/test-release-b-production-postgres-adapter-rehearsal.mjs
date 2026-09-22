@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { execFile as execFileCallback } from "node:child_process";
+import { mkdtemp, readFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 
 import { readSchemaV1SqlVerification } from "../devices/schema-v1/disposable-postgres-transaction-client.mjs";
 import { runLocalDisposableReplay } from "./local-disposable-supabase-replay.mjs";
@@ -13,6 +17,8 @@ import { runReleaseBProductionRunner } from "./release-b-production-runner.mjs";
 
 const SESSION_DSN = "postgresql://postgres.xcbnxzjlsvtgzixurcof:test-only@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
 const EXPECTED_COUNTS = Object.freeze([24, 92, 1488, 39, 46, 15, 0, 24, 24]);
+const TEST_CA_ENV = "P9_PRODUCTION_DATABASE_CA_CERT_PATH";
+const execFile = promisify(execFileCallback);
 
 function disposableEnvironment() {
   const {
@@ -38,6 +44,7 @@ function parseCsvRows(csv) {
 function createDisposablePostgresClient({ createSqlSession, state }) {
   return class DisposablePostgresClient {
     constructor(config) {
+      assert.equal(typeof config?.ssl?.ca, "string", "adapter must pass explicit CA trust to the client boundary");
       assert.equal(config?.ssl?.rejectUnauthorized, true, "adapter must preserve verified TLS configuration even in local client injection");
       assert.equal(Object.hasOwn(config, "password"), true, "adapter passes the parsed in-memory credential to the client boundary");
       state.constructed += 1;
@@ -112,7 +119,10 @@ try {
       assert.equal(typeof createSqlSession, "function", "full rehearsal requires an owned persistent disposable PostgreSQL session");
       assert.equal(process.env.LOCAL_TEST, undefined, "Production-visible LOCAL_TEST must not be required for adapter rehearsal");
 
-      const environment = { P9_PRODUCTION_DATABASE_URL: SESSION_DSN };
+      const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "release-b-rehearsal-ca-test-"));
+      const validCaPath = path.join(temporaryDirectory, "synthetic-test-ca.pem");
+      await execFile("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", path.join(temporaryDirectory, "synthetic-test-ca.key"), "-out", validCaPath, "-days", "1", "-subj", "/CN=Release B Rehearsal Test CA"]);
+      const environment = { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath };
       const clientState = { constructed: 0, connects: 0, ends: 0, queries: [] };
       const PostgresClient = createDisposablePostgresClient({ createSqlSession, state: clientState });
       const executionSurface = await computeReleaseBExecutionSurfaceFingerprints();
@@ -165,7 +175,7 @@ try {
       assert.equal(counts.conflictEvidenceFailures, 0);
       assert.equal(counts.unknownUnverifiedKnownData, 0);
 
-      const postcheckSession = new PostgresClient({ ssl: { rejectUnauthorized: true }, password: "test-only" });
+      const postcheckSession = new PostgresClient({ ssl: { ca: await readFile(validCaPath, "utf8"), rejectUnauthorized: true }, password: "test-only" });
       await postcheckSession.connect();
       try {
         const postcheck = await (await import("./lib/release-b-production-postgres-adapter.mjs"))

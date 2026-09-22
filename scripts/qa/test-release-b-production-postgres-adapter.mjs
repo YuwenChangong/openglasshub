@@ -1,10 +1,27 @@
 import assert from "node:assert/strict";
+import { execFile as execFileCallback } from "node:child_process";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 
 import { createReleaseBProductionPostgresAdapter } from "./lib/release-b-production-postgres-adapter.mjs";
 
 const SESSION_DSN = "postgresql://postgres.xcbnxzjlsvtgzixurcof:test-only@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
 const DIRECT_DSN = "postgresql://postgres:test-only@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require";
 const TRANSACTION_DSN = "postgresql://postgres.xcbnxzjlsvtgzixurcof:test-only@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require";
+const TEST_CA_ENV = "P9_PRODUCTION_DATABASE_CA_CERT_PATH";
+const execFile = promisify(execFileCallback);
+
+const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "release-b-ca-test-"));
+const validCaPath = path.join(temporaryDirectory, "synthetic-test-ca.pem");
+const validCaKeyPath = path.join(temporaryDirectory, "synthetic-test-ca.key");
+const emptyCaPath = path.join(temporaryDirectory, "empty.pem");
+const invalidPemPath = path.join(temporaryDirectory, "invalid.pem");
+await execFile("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", validCaKeyPath, "-out", validCaPath, "-days", "1", "-subj", "/CN=Release B Test CA"]);
+const syntheticTestCaPem = await readFile(validCaPath, "utf8");
+await writeFile(emptyCaPath, "", "utf8");
+await writeFile(invalidPemPath, "-----BEGIN NOT A CERTIFICATE-----\ntest-only\n-----END NOT A CERTIFICATE-----\n", "utf8");
 
 let clientConstructed = 0;
 let connectCalls = 0;
@@ -72,7 +89,7 @@ function createCountingClientClass({ failOnConnect = false, failOnQuery = false,
 async function assertRejectsWithoutClientConstruction({ dsn, pattern }) {
   const { Client, state } = createCountingClientClass();
   const candidate = createReleaseBProductionPostgresAdapter({
-    environment: dsn ? { P9_PRODUCTION_DATABASE_URL: dsn } : {},
+    environment: dsn ? { P9_PRODUCTION_DATABASE_URL: dsn, [TEST_CA_ENV]: validCaPath } : {},
     Client,
   });
 
@@ -94,9 +111,25 @@ await assertRejectsWithoutClientConstruction({
   pattern: /RELEASE_B_POSTGRES_ADAPTER_SESSION_POOLER_REQUIRED/,
 });
 
+for (const [name, caPath, pattern] of [
+  ["missing CA path", undefined, /RELEASE_B_POSTGRES_ADAPTER_CA_CERT_PATH_REQUIRED/],
+  ["unreadable CA path", path.join(temporaryDirectory, "missing-ca.pem"), /RELEASE_B_POSTGRES_ADAPTER_CA_CERT_UNREADABLE/],
+  ["empty CA file", emptyCaPath, /RELEASE_B_POSTGRES_ADAPTER_CA_CERT_INVALID/],
+  ["invalid PEM", invalidPemPath, /RELEASE_B_POSTGRES_ADAPTER_CA_CERT_INVALID/],
+]) {
+  const { Client, state } = createCountingClientClass();
+  const candidate = createReleaseBProductionPostgresAdapter({
+    environment: caPath ? { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: caPath } : { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+    Client,
+  });
+  await assert.rejects(() => candidate.createSession(), pattern, `${name} fails closed before network`);
+  assert.equal(state.constructed, 0, `${name} must fail before Client construction`);
+  assert.equal(state.connectCalls, 0, `${name} must fail before connect`);
+}
+
 const happyClient = createCountingClientClass();
 const happyAdapter = createReleaseBProductionPostgresAdapter({
-  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
   Client: happyClient.Client,
 });
 
@@ -120,7 +153,7 @@ assert.equal(happyClient.state.connectCalls, 1, "second close must not reconnect
 
 const failingConnect = createCountingClientClass({ failOnConnect: true });
 const failingConnectAdapter = createReleaseBProductionPostgresAdapter({
-  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
   Client: failingConnect.Client,
 });
 await assert.rejects(() => failingConnectAdapter.createSession(), /synthetic connect failure/);
@@ -130,7 +163,7 @@ assert.equal(failingConnect.state.endCalls, 0, "connect failure cannot run close
 
 const authFailure = createCountingClientClass({ failOnConnect: true, connectCode: "28P01" });
 const authFailureAdapter = createReleaseBProductionPostgresAdapter({
-  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
   Client: authFailure.Client,
 });
 await assert.rejects(() => authFailureAdapter.createSession(), (error) => error.code === "28P01", "authentication failure preserves SQLSTATE for caller classification");
@@ -140,7 +173,7 @@ assert.equal(authFailure.state.endCalls, 0, "authentication failure does not rec
 
 const failingQuery = createCountingClientClass({ failOnQuery: true });
 const failingQuerySession = await createReleaseBProductionPostgresAdapter({
-  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
   Client: failingQuery.Client,
 }).createSession();
 await assert.rejects(() => failingQuerySession.query("SELECT 1", []), /synthetic query failure/);
@@ -150,7 +183,7 @@ assert.equal(failingQuery.state.endCalls, 1);
 
 const providerLossQuery = createCountingClientClass({ failOnQuery: true, queryCode: "57P01" });
 const providerLossSession = await createReleaseBProductionPostgresAdapter({
-  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
   Client: providerLossQuery.Client,
 }).createSession();
 await assert.rejects(() => providerLossSession.query("SELECT 1", []), (error) => error.code === "57P01", "provider-loss query preserves SQLSTATE for executor ambiguity");
@@ -160,7 +193,7 @@ assert.equal(providerLossQuery.state.endCalls, 1);
 
 const failingEnd = createCountingClientClass({ failOnEnd: true });
 const failingEndSession = await createReleaseBProductionPostgresAdapter({
-  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
   Client: failingEnd.Client,
 }).createSession();
 await assert.rejects(() => failingEndSession.close(), /synthetic end failure/);
@@ -173,16 +206,18 @@ assert.equal(failingEnd.state.connectCalls, 1, "close failure must not reconnect
 // - Supabase docs say sslmode=require prevents plaintext fallback, while verification needs verify-full/root-cert-equivalent driver configuration.
 const tlsClient = createCountingClientClass();
 await createReleaseBProductionPostgresAdapter({
-  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
   Client: tlsClient.Client,
 }).createSession();
 const tlsConfig = tlsClient.state.configs[0];
+assert.equal(tlsConfig.ssl?.ca, syntheticTestCaPem);
 assert.equal(tlsConfig.ssl?.rejectUnauthorized, true);
 assert.equal(tlsConfig.ssl?.servername, "aws-1-ap-northeast-1.pooler.supabase.com");
 assert.notEqual(tlsConfig.ssl?.rejectUnauthorized, false);
 
 await assert.rejects(
   () => createReleaseBProductionPostgresAdapter({
+    environment: { [TEST_CA_ENV]: validCaPath },
     Client: tlsClient.Client,
   }).createSession({
     pgEnv: {
@@ -203,7 +238,7 @@ await assert.rejects(
     },
   }),
   /RELEASE_B_POSTGRES_ADAPTER_TLS_DOWNGRADE_FORBIDDEN/,
-  "adapter TLS config fails closed on unsupported downgrade",
+    "adapter TLS config fails closed on unsupported downgrade",
 );
 
 const observedPostcheckRow = {
