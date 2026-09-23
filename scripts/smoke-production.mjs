@@ -10,7 +10,11 @@ function readOption(name, fallback = undefined) {
   return args[index + 1] ?? fallback;
 }
 
-const baseUrl = resolveSiteOrigin(readOption("--url", process.env.BASE_URL));
+const requestedBaseUrl = readOption("--url", process.env.BASE_URL);
+if (typeof requestedBaseUrl !== "string" || requestedBaseUrl.trim() === "") {
+  throw new Error("SMOKE_PRODUCTION_BASE_URL_REQUIRED");
+}
+const baseUrl = resolveSiteOrigin(requestedBaseUrl);
 const adminBearer = String(process.env.ADMIN_BEARER || "").trim();
 
 const requiredChecks = [

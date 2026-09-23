@@ -14,7 +14,11 @@ function readOption(name, fallback = null) {
   return args[index + 1] ?? fallback;
 }
 
-const baseUrl = resolveSiteOrigin(readOption("--url", process.env.BASE_URL));
+const requestedBaseUrl = readOption("--url", process.env.BASE_URL);
+if (typeof requestedBaseUrl !== "string" || requestedBaseUrl.trim() === "") {
+  throw new Error("POST_LAUNCH_BASE_URL_REQUIRED");
+}
+const baseUrl = resolveSiteOrigin(requestedBaseUrl);
 const strict = readFlag("--strict");
 const verbose = readFlag("--verbose");
 

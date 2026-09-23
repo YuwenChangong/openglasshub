@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createServer } from "vite";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../src/lib/auth-redirect.ts";
 
 const trustedOrigin = "https://openglasshub.pages.dev";
+const workerOrigin = "https://openglasshub.ogh.workers.dev";
+const productionConfig = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8").split("[env.production.vars]")[1];
+assert.equal(productionConfig.match(/^SITE_ORIGIN\s*=\s*"([^"]+)"/m)?.[1], workerOrigin);
 const preparedWorkerOrigin = "https://openglass-hub-transition-test.workers.dev";
 const fallback = "/feed/";
 const safeOutput = (input) => getSafeNext(input, fallback);
@@ -105,6 +109,10 @@ try {
 }
 
 assert.equal(buildResetPasswordRedirect(trustedOrigin), `${trustedOrigin}/auth/reset-password/`);
+assert.equal(buildAuthCallbackRedirect(workerOrigin, "/feed/"), `${workerOrigin}/auth/callback/?next=%2Ffeed%2F`);
+assert.equal(buildResetPasswordRedirect(workerOrigin), `${workerOrigin}/auth/reset-password/`);
+assert.equal(buildAuthCallbackRedirect("http://openglasshub.ogh.workers.dev", "/feed/"), undefined);
+assert.equal(buildResetPasswordRedirect("https://not-openglasshub.ogh.workers.dev"), undefined);
 assert.equal(buildResetPasswordRedirect("https://preview.openglasshub.pages.dev"), "https://preview.openglasshub.pages.dev/auth/reset-password/");
 assert.equal(buildResetPasswordRedirect("https://evil.example"), undefined);
 assert.equal(buildResetPasswordRedirect("javascript:alert(1)"), undefined);

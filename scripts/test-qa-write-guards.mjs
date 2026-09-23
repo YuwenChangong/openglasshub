@@ -147,6 +147,12 @@ try {
   assert.equal(cleanupDryRun.status, 0, `cleanup dry run failed: ${cleanupDryRun.output}`);
   assert.match(cleanupDryRun.output, /"legacyCleanup": true/, "cleanup dry run must identify legacy cleanup");
 
+  const workerPreviewMismatch = runDryScript("scripts/qa/cleanup-preview-test-accounts.mjs", ["--marker", "qa-run-12345"], {
+    QA_BASE_URL: "https://openglasshub.ogh.workers.dev",
+  });
+  assert.notEqual(workerPreviewMismatch.status, 0, "Worker production URL with a preview Supabase ref must fail");
+  assert.match(workerPreviewMismatch.output, /QA_BASE_URL_TARGET_MISMATCH/);
+
   const confirmedProductionDryRun = runDryScript("scripts/qa/create-preview-test-accounts.mjs", ["--confirm-run", "qa-run-12345"], {
     QA_SUPABASE_URL: productionUrl,
     QA_EXPECTED_SUPABASE_REF: productionRef,
