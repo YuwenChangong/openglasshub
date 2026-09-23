@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { buildLocalSupabaseReplayMirror, ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
+import { verifyBypass } from "./test-verified-session-bypass.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const migration = path.join(root, "supabase/migrations/20260923000000_ogh_verified_session_v1.sql");
@@ -452,8 +453,11 @@ try {
   assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(db.hostname), "Only local DB target is allowed");
   pool = new pg.Pool({ connectionString: status.DB_URL, max: 12 });
   const client = await pool.connect();
-  try { await verify(client); await verifyTask3(client, pool); } finally { client.release(); }
-  console.log(`PASS verified session SQL: ${checks} assertions; disposable local Supabase; four-table migration replay`);
+  try {
+    if (!process.argv.includes("--bypass-only")) { await verify(client); await verifyTask3(client, pool); }
+    await verifyBypass({ pool, status });
+  } finally { client.release(); }
+  if (!process.argv.includes("--bypass-only")) console.log(`PASS verified session SQL: ${checks} assertions; disposable local Supabase; four-table migration replay`);
 } finally {
   await pool?.end();
   if (started) await run(process.execPath, [cli, "stop", "--no-backup", "--workdir", ownedRoot], ownedRoot);
