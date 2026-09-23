@@ -152,6 +152,7 @@ begin
     for update;
   if found then
     if not p_resend then return 'PENDING'; end if;
+    if v_previous.attempts >= 5 then return 'EMAIL_BUDGET_EXHAUSTED'; end if;
     if v_previous.send_count >= 3 then return 'EMAIL_BUDGET_EXHAUSTED'; end if;
     if v_now < v_previous.next_send_at then return 'RESEND_COOLDOWN'; end if;
   elsif p_resend then
@@ -310,15 +311,24 @@ set search_path = ''
 as $$
 declare
   v_now timestamptz := pg_catalog.clock_timestamp();
+  v_existing private.ogh_verified_sessions%rowtype;
 begin
   if p_user_id is null or p_session_id is null then return false; end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_session_id::text, 729401));
   if not exists (select 1 from auth.sessions s where s.id = p_session_id and s.user_id = p_user_id for share) then
     return false;
   end if;
-  update private.ogh_verified_sessions
-    set revoked_at = v_now
-    where session_id = p_session_id and user_id = p_user_id and revoked_at is null;
+  select * into v_existing from private.ogh_verified_sessions v
+    where v.session_id = p_session_id for update;
+  if found then
+    if v_existing.user_id <> p_user_id then return false; end if;
+    update private.ogh_verified_sessions set revoked_at = greatest(v_now, v_existing.verified_at)
+      where session_id = p_session_id and revoked_at is null;
+  else
+    -- A revoked row also closes the gap before provider signout of a pending session.
+    insert into private.ogh_verified_sessions (session_id,user_id,verified_at,verification_kind,revoked_at)
+      values (p_session_id,p_user_id,v_now,'login_challenge',v_now);
+  end if;
   update private.ogh_login_challenges
     set superseded_at = v_now
     where session_id = p_session_id and user_id = p_user_id

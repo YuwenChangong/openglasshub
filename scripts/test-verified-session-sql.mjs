@@ -265,6 +265,72 @@ async function verifyTask3(client, pool) {
   check(logoutRace[1]===true && ["VERIFIED","CHALLENGE_SUPERSEDED"].includes(logoutRace[0]),"logout and verify serialize");
   check(!(await predicate(client,{user:raceUser,session:raceSession})),"logout race ends unverified");
 
+  const pendingUser=randomUUID(), pendingSession=randomUUID(), pendingChallenge=randomUUID();
+  await client.query("INSERT INTO auth.users(id,aud,role) VALUES($1,'authenticated','authenticated')",[pendingUser]);
+  await client.query("INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)",[pendingSession,pendingUser]);
+  check(await reserve(pendingSession,pendingChallenge,digest,"ip-pending",false,pendingUser)==="RESERVED","pending revoke fixture reserved");
+  check(await finalize(pendingSession,pendingChallenge,true,pendingUser),"pending revoke fixture accepted");
+  check(await actorRpc(pool,"service_role","ogh_revoke_verified_session",[pendingUser,pendingSession]),"pending session revoked before provider signout");
+  const pendingMarker=await query(client,"SELECT verified_at,revoked_at FROM private.ogh_verified_sessions WHERE session_id=$1",[pendingSession]);
+  check(pendingMarker.length===1 && pendingMarker[0].revoked_at!==null,"pending revocation persists a deny marker");
+  const pendingBudgetBefore=await query(client,"SELECT scope,send_count FROM private.ogh_email_send_budget WHERE scope='session' AND scope_key=$1",[pendingSession]);
+  check(await reserve(pendingSession,randomUUID(),digest,"ip-pending",false,pendingUser)!=="RESERVED","revoked pending session cannot start again while live");
+  const pendingBudgetAfter=await query(client,"SELECT scope,send_count FROM private.ogh_email_send_budget WHERE scope='session' AND scope_key=$1",[pendingSession]);
+  check(JSON.stringify(pendingBudgetAfter)===JSON.stringify(pendingBudgetBefore),"revoked pending start does not charge quota");
+  check(await consume(pendingSession,pendingChallenge,digest,pendingUser)!=="VERIFIED","revoked pending challenge cannot verify");
+  check(!(await actorRpc(pool,"service_role","ogh_activate_signup_session",[pendingUser,pendingSession])),"revoked pending session cannot activate signup");
+  check(!(await predicate(client,{user:pendingUser,session:pendingSession})),"revoked pending session fails predicate");
+  const pendingWithoutChallenge=randomUUID();
+  await client.query("INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)",[pendingWithoutChallenge,pendingUser]);
+  check(await actorRpc(pool,"service_role","ogh_revoke_verified_session",[pendingUser,pendingWithoutChallenge]),"pending session without challenge revokes");
+  check(await reserve(pendingWithoutChallenge,randomUUID(),digest,"ip-pending",false,pendingUser)!=="RESERVED","challenge-free revoked session cannot start");
+
+  const exhaustedUser=randomUUID(), exhaustedSession=randomUUID(), exhaustedChallenge=randomUUID();
+  await client.query("INSERT INTO auth.users(id,aud,role) VALUES($1,'authenticated','authenticated')",[exhaustedUser]);
+  await client.query("INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)",[exhaustedSession,exhaustedUser]);
+  check(await reserve(exhaustedSession,exhaustedChallenge,digest,"ip-exhausted",false,exhaustedUser)==="RESERVED","exhaustion fixture reserved");
+  check(await finalize(exhaustedSession,exhaustedChallenge,true,exhaustedUser),"exhaustion fixture delivered");
+  for(let n=0;n<5;n++) await consume(exhaustedSession,exhaustedChallenge,otherDigest,exhaustedUser);
+  const exhaustedState=await query(client,"SELECT attempts FROM private.ogh_login_challenges WHERE id=$1",[exhaustedChallenge]);
+  check(exhaustedState[0].attempts===5,"five wrong attempts exhaust challenge");
+  await client.query("UPDATE private.ogh_login_challenges SET next_send_at=clock_timestamp()-interval '1 second' WHERE id=$1",[exhaustedChallenge]);
+  const budgetBefore=await query(client,"SELECT scope,scope_key,send_count FROM private.ogh_email_send_budget WHERE scope_key=ANY($1::text[]) ORDER BY scope,scope_key",[["all",exhaustedUser,exhaustedSession,"ip-exhausted"]]);
+  check(await reserve(exhaustedSession,randomUUID(),digest,"ip-exhausted",true,exhaustedUser)!=="RESERVED","exhausted challenge cannot reserve resend");
+  const budgetAfter=await query(client,"SELECT scope,scope_key,send_count FROM private.ogh_email_send_budget WHERE scope_key=ANY($1::text[]) ORDER BY scope,scope_key",[["all",exhaustedUser,exhaustedSession,"ip-exhausted"]]);
+  check(JSON.stringify(budgetAfter)===JSON.stringify(budgetBefore),"exhausted resend charges no quota");
+  const activeExhausted=await query(client,"SELECT count(*)::int AS n FROM private.ogh_login_challenges WHERE session_id=$1 AND consumed_at IS NULL AND superseded_at IS NULL",[exhaustedSession]);
+  check(activeExhausted[0].n===1,"exhausted resend creates no new challenge");
+
+  const invertedUser=randomUUID(), invertedSession=randomUUID(), invertedChallenge=randomUUID();
+  await client.query("INSERT INTO auth.users(id,aud,role) VALUES($1,'authenticated','authenticated')",[invertedUser]);
+  await client.query("INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)",[invertedSession,invertedUser]);
+  check(await reserve(invertedSession,invertedChallenge,digest,"ip-inverted",false,invertedUser)==="RESERVED","inverted clock fixture reserved");
+  check(await finalize(invertedSession,invertedChallenge,true,invertedUser),"inverted clock fixture delivered");
+  const holder=await pool.connect();
+  let revokeStarted;
+  try {
+    await holder.query("BEGIN");
+    await holder.query("SET LOCAL ROLE service_role");
+    await holder.query("SELECT pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1,729401))",[invertedSession]);
+    revokeStarted=actorRpc(pool,"service_role","ogh_revoke_verified_session",[invertedUser,invertedSession]);
+    let waiting=false;
+    for(let n=0;n<100;n++) {
+      const rows=await query(client,"SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%ogh_revoke_verified_session%' AND pid<>pg_backend_pid()");
+      if(rows.length) { waiting=true; break; }
+      await new Promise((resolve)=>setTimeout(resolve,20));
+    }
+    check(waiting,"revocation captured entry clock then waited for session lock");
+    check(await rpc(holder,"ogh_consume_login_challenge",[invertedUser,invertedSession,invertedChallenge,digest])==="VERIFIED","consume commits after revocation entered");
+    await holder.query("COMMIT");
+    check(await revokeStarted,"waiting revocation succeeds after later verification");
+  } finally {
+    if(holder) { await holder.query("ROLLBACK"); holder.release(); }
+    if(revokeStarted) await revokeStarted.catch(()=>{});
+  }
+  const invertedRow=await query(client,"SELECT verified_at,revoked_at FROM private.ogh_verified_sessions WHERE session_id=$1",[invertedSession]);
+  check(invertedRow[0].revoked_at>=invertedRow[0].verified_at,"serialized revocation timestamp satisfies constraint");
+  check(!(await predicate(client,{user:invertedUser,session:invertedSession})),"inverted clock session ends revoked");
+
   const utcDay=(await query(client,"SELECT (clock_timestamp() AT TIME ZONE 'UTC')::date AS day"))[0].day;
   await client.query("INSERT INTO private.ogh_email_send_budget(utc_day,scope,scope_key,send_count) VALUES($1::date-1,'user',$2,5)",[utcDay,quotaUser]);
   check(await reserve(quotaSession,randomUUID(),digest,"ip-day",false,quotaUser)==="RESERVED","prior UTC day budget does not block today");
@@ -287,7 +353,7 @@ async function verifyTask3(client, pool) {
   check(globalRace.filter((v)=>v==="RESERVED").length===1 && globalRace.includes("EMAIL_BUDGET_EXHAUSTED"),"global budget race capped at one hundred");
   const globalAfter=(await query(client,"SELECT send_count FROM private.ogh_email_send_budget WHERE utc_day=$1 AND scope='global' AND scope_key='all'",[utcDay]))[0].send_count;
   check(globalAfter===100 && globalBefore<100,"global count cannot exceed 100");
-  await client.query("DELETE FROM auth.users WHERE id=ANY($1::uuid[])",[[...extraUsers,...ipUsers,...globalUsers]]);
+  await client.query("DELETE FROM auth.users WHERE id=ANY($1::uuid[])",[[...extraUsers,...ipUsers,...globalUsers,pendingUser,exhaustedUser,invertedUser]]);
   await client.query("DELETE FROM auth.users WHERE id IN ($1,$2)",[user,other]);
 }
 async function verify(client) {
