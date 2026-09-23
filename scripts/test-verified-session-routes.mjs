@@ -39,16 +39,20 @@ function validToken(token) {
 const response = (body, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { "content-type": "application/json" },
 });
-function fixture({ verified = false, policy = false, policyStatus = 200, rpcStatus = 200, authStatus = 200, profileRole = "moderator" } = {}) {
+function fixture({ verified = false, policy = false, policyStatus = 200, rpcStatus = 200, authStatus = 200, secondAuthStatus = 200, secondAuthNetworkFailure = false, secondUserId = userId, profileRole = "moderator" } = {}) {
   const calls = [];
+  let authCalls = 0;
   const previous = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(input);
     const token = new Headers(init.headers).get("authorization")?.replace(/^Bearer /, "");
     calls.push({ path: url.pathname, token, body: init.body });
     if (url.pathname === "/auth/v1/user") {
-      if (authStatus !== 200) return response({ message: "unavailable" }, authStatus);
-      return validToken(token) ? response({ id: userId, email: "local@example.test", email_confirmed_at: "2026-01-01T00:00:00Z" }) : response({ message: "invalid" }, 401);
+      authCalls++;
+      if (authCalls === 2 && secondAuthNetworkFailure) throw new Error("offline test transport failure");
+      const status = authCalls === 2 ? secondAuthStatus : authStatus;
+      if (status !== 200) return response({ message: "local auth failure" }, status);
+      return validToken(token) ? response({ id: authCalls === 2 ? secondUserId : userId, email: "local@example.test", email_confirmed_at: "2026-01-01T00:00:00Z" }) : response({ message: "invalid" }, 401);
     }
     if (url.pathname === "/rest/v1/rpc/ogh_is_verified_session") {
       return rpcStatus === 200 ? response(verified) : response({ message: "unavailable" }, rpcStatus);
@@ -119,6 +123,22 @@ for (const [name, guard] of [["MODERATOR", requireModerator], ["FORUM_USER", req
     assert.equal(auth.profile.role, "member");
     assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/auth/v1/user", "/rest/v1/profiles"]);
     console.log("PASS VERIFIED_FORUM_USER");
+  } finally { test.restore(); }
+}
+for (const [name, options, status, code] of [
+  ["FORUM_SECOND_AUTH_503", { secondAuthStatus: 503 }, 503, "VERIFICATION_SERVICE_UNAVAILABLE"],
+  ["FORUM_SECOND_AUTH_NETWORK", { secondAuthNetworkFailure: true }, 503, "VERIFICATION_SERVICE_UNAVAILABLE"],
+  ["FORUM_SECOND_AUTH_401", { secondAuthStatus: 401 }, 401, "INVALID_AUTH"],
+  ["FORUM_SECOND_AUTH_MISMATCH", { secondUserId: sessionId }, 401, "INVALID_AUTH"],
+]) {
+  const test = fixture({ verified: true, ...options });
+  try {
+    const error = await requireForumUser(request(`Bearer ${token}`), env).then(() => null, (failure) => failure);
+    assert.equal(error.status, status, name);
+    assert.deepEqual(await error.json(), { error: code }, name);
+    assert.equal(error.headers.get("cache-control"), "no-store", name);
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/auth/v1/user"], name);
+    console.log(`PASS ${name}`);
   } finally { test.restore(); }
 }
 {

@@ -102,9 +102,23 @@ export async function requireForumUser(request: Request, env: ForumRuntimeEnv): 
     }
     throw jsonResponse({ error: "VERIFICATION_SERVICE_UNAVAILABLE" }, 503);
   });
-  const { data: authData, error: authError } = await client.auth.getUser(token);
-  if (authError || !authData.user || authData.user.id !== claims.userId) {
-    throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
+  let authData;
+  try {
+    const result = await client.auth.getUser(token);
+    if (result.error) {
+      const status = result.error.status;
+      if (typeof status === "number" && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        throw jsonResponse({ error: "INVALID_AUTH" }, 401);
+      }
+      throw jsonResponse({ error: "VERIFICATION_SERVICE_UNAVAILABLE" }, 503);
+    }
+    authData = result.data;
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    throw jsonResponse({ error: "VERIFICATION_SERVICE_UNAVAILABLE" }, 503);
+  }
+  if (!authData.user || authData.user.id !== claims.userId) {
+    throw jsonResponse({ error: "INVALID_AUTH" }, 401);
   }
 
   const { data: profile, error: profileError } = await client
