@@ -111,6 +111,13 @@ await test("CURRENT_CONFIRMED_PROVIDER_EMAIL", async () => {
   const claims = await getTrustedSessionClaims(sign(base), env);
   assert.deepEqual(await getCurrentConfirmedAuthUser(sign(base), env, claims), { id: userId, email: provider.email });
 });
+{
+  const mock = harness({ user: { ...provider, email_confirmed_at: "2024-02-29T23:59:59.123456+00:00" } });
+  try {
+    assert.deepEqual(await getCurrentConfirmedAuthUser(sign(base), env, { userId, sessionId, amr: base.amr, expiresAt: base.exp }), { id: userId, email: provider.email });
+    count++; console.log("PASS VALID_LEAP_DAY_CONFIRMATION");
+  } finally { mock.restore(); }
+}
 await test("REQUEST_AND_JWT_EMAIL_IGNORED", async (mock) => {
   const token = sign({ ...base, email: "jwt-attacker@example.test" });
   const claims = await getTrustedSessionClaims(token, env);
@@ -124,6 +131,9 @@ for (const [name, user] of Object.entries({
   UNCONFIRMED_EMAIL: { ...provider, email_confirmed_at: undefined, confirmed_at: "2026-01-01T00:00:00Z" },
   MISSING_EMAIL: { ...provider, email: undefined },
   BAD_CONFIRMATION_DATE: { ...provider, email_confirmed_at: "not-a-date" },
+  CALENDAR_INVALID_FEBRUARY_30: { ...provider, email_confirmed_at: "2026-02-30T00:00:00Z" },
+  CALENDAR_INVALID_APRIL_31: { ...provider, email_confirmed_at: "2026-04-31T00:00:00Z" },
+  CALENDAR_INVALID_NON_LEAP_DAY: { ...provider, email_confirmed_at: "2025-02-29T00:00:00Z" },
 })) {
   const mock = harness({ user });
   try { await assert.rejects(getCurrentConfirmedAuthUser(sign(base), env, { userId, sessionId, amr: base.amr, expiresAt: base.exp })); count++; console.log(`PASS ${name}`); }

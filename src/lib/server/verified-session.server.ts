@@ -18,6 +18,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isValidConfirmedAt(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const date = /^(\d{4}-\d{2}-\d{2})T/.exec(value)?.[1];
+  if (!date || !Number.isFinite(Date.parse(value))) return false;
+  const midnight = Date.parse(`${date}T00:00:00Z`);
+  return Number.isFinite(midnight) && new Date(midnight).toISOString().slice(0, 10) === date;
+}
+
 export async function getTrustedSessionClaims(token: string, env: RuntimeEnv): Promise<VerifiedSessionClaims> {
   if (!token) throw invalidAuth();
   const client = createUserClient(env, token);
@@ -67,8 +75,7 @@ export async function getCurrentConfirmedAuthUser(
   }
   const confirmedAt = user?.email_confirmed_at;
   if (user?.id !== claims.userId || typeof user.email !== "string" || !user.email.trim() ||
-      typeof confirmedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(confirmedAt) ||
-      !Number.isFinite(Date.parse(confirmedAt))) {
+      !isValidConfirmedAt(confirmedAt)) {
     throw invalidAuth();
   }
   return { id: user.id, email: user.email };
