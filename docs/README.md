@@ -47,6 +47,8 @@ Current direction:
 
 ## Device Library
 
+The following baseline records the earlier Device Library release; it is not the current production-origin guidance. See the public [Search Console checklist](/about/search-console-launch-checklist/) for the current site URL.
+
 Current production baseline:
 - Production URL: `https://openglasshub.pages.dev`
 - Latest production/main commit: `475fd71eee66d62b8962323879158ba27169a652`

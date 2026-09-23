@@ -124,7 +124,7 @@ function resolveRuntimeConfig(env) {
 function isCanonicalProductionBaseUrl(value) {
   try {
     const url = new URL(value);
-    return url.hostname === "openglasshub.pages.dev";
+    return url.hostname === "openglasshub.pages.dev" || url.hostname === "openglasshub.ogh.workers.dev";
   } catch {
     return false;
   }

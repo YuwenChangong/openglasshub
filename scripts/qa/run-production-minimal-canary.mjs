@@ -6,7 +6,7 @@ import { CANARY_APPROVAL, createJournal, createMarkers, executeMinimalCanary, re
 import { createProductionMinimalCanaryHttpAdapter } from "./production-minimal-canary-http-adapter.mjs";
 import { printQaWriteGuardError, readQaWriteGuardConfig, validateQaWriteTarget } from "./target-write-guard.mjs";
 
-const CANONICAL_PRODUCTION_URL = "https://openglasshub.pages.dev";
+const CANONICAL_PRODUCTION_URL = "https://openglasshub.ogh.workers.dev";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function arg(name, argv) { const index = argv.indexOf(name); return index < 0 ? null : String(argv[index + 1] ?? "").trim() || null; }
 function parse(argv) {

@@ -2,6 +2,7 @@ import { LEGACY_PAGES_ORIGIN } from "./site-origin.ts";
 
 const FALLBACK_PATH = "/";
 const TRUSTED_APPLICATION_ORIGIN = LEGACY_PAGES_ORIGIN;
+const CURRENT_WORKER_ORIGIN = "https://openglasshub.ogh.workers.dev";
 const LEGACY_PAGES_HOSTNAME = new URL(LEGACY_PAGES_ORIGIN).hostname;
 const SAFE_ORIGIN_HOSTS = new Set([LEGACY_PAGES_HOSTNAME, "localhost", "127.0.0.1"]);
 const CONTROL_OR_BACKSLASH = /[\u0000-\u001f\u007f\\]/u;
@@ -90,10 +91,11 @@ function getTrustedApplicationOrigin(origin: string | undefined, options?: AuthR
     const isLegacyOrLocalHost =
       SAFE_ORIGIN_HOSTS.has(originUrl.hostname) || originUrl.hostname.endsWith(`.${LEGACY_PAGES_HOSTNAME}`);
     const isApprovedTransition = isApprovedTransitionOrigin(originUrl, options);
+    const isCurrentWorker = originUrl.origin === CURRENT_WORKER_ORIGIN;
 
     if (
       !["http:", "https:"].includes(originUrl.protocol)
-      || (!isLegacyOrLocalHost && !isApprovedTransition)
+      || (!isLegacyOrLocalHost && !isApprovedTransition && !isCurrentWorker)
       || originUrl.username
       || originUrl.password
       || originUrl.pathname !== "/"
