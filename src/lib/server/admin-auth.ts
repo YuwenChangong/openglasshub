@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { requireVerifiedSession } from "./verified-session.server.ts";
 
 export type RuntimeEnv = Record<string, string | undefined>;
 
@@ -56,21 +57,18 @@ export function createUserClient(env: RuntimeEnv, bearerToken: string): Supabase
 }
 
 export async function requireModerator(request: Request, env: RuntimeEnv): Promise<ModeratorAuthResult> {
-  const token = getBearerToken(request);
-  if (!token) {
-    throw jsonResponse({ error: "Missing bearer token" }, 401);
-  }
-
-  const client = createUserClient(env, token);
-  const { data: authData, error: authError } = await client.auth.getUser(token);
-  if (authError || !authData.user) {
-    throw jsonResponse({ error: "Invalid auth token" }, 401);
-  }
+  const { claims, client } = await requireVerifiedSession(request, env).catch((error) => {
+    if (error instanceof Response) {
+      const code = error.status === 401 ? "INVALID_AUTH" : error.status === 403 ? "VERIFICATION_REQUIRED" : "VERIFICATION_SERVICE_UNAVAILABLE";
+      throw jsonResponse({ error: code }, error.status);
+    }
+    throw jsonResponse({ error: "VERIFICATION_SERVICE_UNAVAILABLE" }, 503);
+  });
 
   const { data: profile, error: profileError } = await client
     .from("profiles")
     .select("role,username,display_name,avatar_url")
-    .eq("id", authData.user.id)
+    .eq("id", claims.userId)
     .maybeSingle();
 
   // Note: admin access still reads profiles.role, but that field is intended to be
@@ -90,7 +88,7 @@ export async function requireModerator(request: Request, env: RuntimeEnv): Promi
   }
 
   return {
-    user: { id: authData.user.id },
+    user: { id: claims.userId },
     profile: {
       role: profile.role,
       username: profile.username ?? null,

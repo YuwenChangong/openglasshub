@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
-import { isModeratorRole } from "./admin-auth";
+import { getBearerToken, isModeratorRole } from "./admin-auth.ts";
+import { requireVerifiedSession } from "./verified-session.server.ts";
 
 export type ForumRuntimeEnv = Record<string, string | undefined>;
 
@@ -34,13 +35,7 @@ export function jsonResponse(data: unknown, status = 200): Response {
   });
 }
 
-export function getBearerToken(request: Request): string | null {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader) return null;
-  const [scheme, token] = authHeader.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
-  return token.trim();
-}
+export { getBearerToken } from "./admin-auth.ts";
 
 export function requireEnv(env: ForumRuntimeEnv, key: string): string {
   const value = env[key];
@@ -100,9 +95,15 @@ export async function requireForumUser(request: Request, env: ForumRuntimeEnv): 
     throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
   }
 
-  const client = createUserClient(env, token);
+  const { claims, client } = await requireVerifiedSession(request, env).catch((error) => {
+    if (error instanceof Response) {
+      const code = error.status === 401 ? "INVALID_AUTH" : error.status === 403 ? "VERIFICATION_REQUIRED" : "VERIFICATION_SERVICE_UNAVAILABLE";
+      throw jsonResponse({ error: code }, error.status);
+    }
+    throw jsonResponse({ error: "VERIFICATION_SERVICE_UNAVAILABLE" }, 503);
+  });
   const { data: authData, error: authError } = await client.auth.getUser(token);
-  if (authError || !authData.user) {
+  if (authError || !authData.user || authData.user.id !== claims.userId) {
     throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
   }
 
