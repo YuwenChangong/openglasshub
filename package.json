@@ -106,7 +106,8 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "sharp": "0.35.4",
-    "tus-js-client": "^4.3.1"
+    "tus-js-client": "^4.3.1",
+    "yaml": "2.9.1"
   },
   "overrides": {
     "@cloudflare/vite-plugin": "1.53.1",
@@ -117,6 +118,7 @@
     "@astrojs/check": "0.9.4",
     "jsdom": "^29.1.1",
     "miniflare": "5.20260820.0-alpha",
+    "pg": "^8.23.0",
     "playwright": "1.62.1",
     "supabase": "2.115.0",
     "typescript": "5.7.3"

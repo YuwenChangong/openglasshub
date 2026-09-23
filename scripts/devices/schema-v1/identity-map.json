@@ -1,0 +1,29 @@
+{
+  "rayBanGenerationResolution": "OPERATOR_APPROVED_GEN2",
+  "mappings": [
+    { "yamlBrand": "XREAL", "yamlModel": "XREAL One", "yamlGeneration": "One series", "slug": "xreal-one" },
+    { "yamlBrand": "XREAL", "yamlModel": "XREAL One Pro", "yamlGeneration": "One Pro", "slug": "xreal-one-pro" },
+    { "yamlBrand": "XREAL", "yamlModel": "XREAL Air 2 Pro", "yamlGeneration": "Air 2 series", "slug": "xreal-air-2-pro" },
+    { "yamlBrand": "XREAL", "yamlModel": "XREAL Air 2 Ultra", "yamlGeneration": "Air 2 Ultra", "slug": "xreal-air-2-ultra" },
+    { "yamlBrand": "XREAL", "yamlModel": "XREAL Air", "yamlGeneration": "Original Air", "slug": "xreal-air" },
+    { "yamlBrand": "XREAL", "yamlModel": "XREAL Air 2", "yamlGeneration": "Air 2 series", "slug": "xreal-air-2" },
+    { "yamlBrand": "RayNeo", "yamlModel": "RayNeo X2", "yamlGeneration": "X2", "slug": "rayneo-x2" },
+    { "yamlBrand": "RayNeo", "yamlModel": "RayNeo Air 2", "yamlGeneration": "Air 2", "slug": "rayneo-air-2" },
+    { "yamlBrand": "RayNeo", "yamlModel": "RayNeo Air 2s", "yamlGeneration": "Air 2s", "slug": "rayneo-air-2s" },
+    { "yamlBrand": "RayNeo", "yamlModel": "RayNeo Air 3s", "yamlGeneration": "Air 3s", "slug": "rayneo-air-3s" },
+    { "yamlBrand": "RayNeo", "yamlModel": "RayNeo Air 4 Pro", "yamlGeneration": "Air 4 Pro", "slug": "rayneo-air-4-pro" },
+    { "yamlBrand": "RayNeo", "yamlModel": "RayNeo X3 Pro", "yamlGeneration": "X3 Pro", "slug": "rayneo-x3-pro" },
+    { "yamlBrand": "Rokid", "yamlModel": "Rokid Max", "yamlGeneration": "Max", "slug": "rokid-max" },
+    { "yamlBrand": "Rokid", "yamlModel": "Rokid Air", "yamlGeneration": "Air", "slug": "rokid-air" },
+    { "yamlBrand": "Rokid", "yamlModel": "Rokid AR Lite", "yamlGeneration": "AR Lite bundle", "slug": "rokid-ar-lite" },
+    { "yamlBrand": "Rokid", "yamlModel": "Rokid Glasses", "yamlGeneration": "Rokid Glasses", "slug": "rokid-glasses" },
+    { "yamlBrand": "VITURE", "yamlModel": "VITURE Pro", "yamlGeneration": "Pro", "slug": "viture-pro" },
+    { "yamlBrand": "VITURE", "yamlModel": "VITURE One", "yamlGeneration": "One", "slug": "viture-one" },
+    { "yamlBrand": "VITURE", "yamlModel": "VITURE One Lite", "yamlGeneration": "One Lite", "slug": "viture-one-lite" },
+    { "yamlBrand": "INMO", "yamlModel": "INMO Air 2", "yamlGeneration": "Air 2", "slug": "inmo-air-2" },
+    { "yamlBrand": "INMO", "yamlModel": "INMO GO3", "yamlGeneration": "GO3", "slug": "inmo-go3" },
+    { "yamlBrand": "Brilliant Labs", "yamlModel": "Frame", "yamlGeneration": "Frame", "slug": "brilliant-labs-frame" },
+    { "yamlBrand": "Even Realities", "yamlModel": "G1", "yamlGeneration": "G1", "slug": "even-realities-g1" },
+    { "yamlBrand": "Ray-Ban / Meta", "yamlModel": "Ray-Ban Meta", "yamlGeneration": "Gen 2", "slug": "ray-ban-meta", "resolution": "OPERATOR_APPROVED_GEN2" }
+  ]
+}

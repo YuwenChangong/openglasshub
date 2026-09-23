@@ -1,0 +1,230 @@
+import assert from "node:assert/strict";
+import { execFile as execFileCallback } from "node:child_process";
+import { mkdtemp } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { readFile } from "node:fs/promises";
+import { promisify } from "node:util";
+import {
+  AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1,
+  AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2,
+  AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3,
+  AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4,
+  computeReleaseBExecutionSurfaceFingerprints,
+  createReleaseBAuthorizationReceiptV4,
+  hashAuthorizationReceipt,
+  loadTask17FrozenGate,
+  validateCurrentReleaseBAuthorizationReceiptV4,
+} from "./release-b-production-import.mjs";
+import {
+  RELEASE_B_PRODUCTION_RUNNER_PATH,
+  createReleaseBProductionRunnerTransport,
+  preflightReleaseBProductionRunner,
+  runReleaseBProductionRunner,
+} from "./release-b-production-runner.mjs";
+
+const TASK_17_COMMIT = "ddb7de82c7cb4f76adc79fdb7f2a6410ec6b4c4a";
+const SESSION_DSN = "postgresql://postgres.xcbnxzjlsvtgzixurcof:test-only@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
+const TRANSACTION_DSN = "postgresql://postgres.xcbnxzjlsvtgzixurcof:test-only@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require";
+const TEST_CA_ENV = "P9_PRODUCTION_DATABASE_CA_CERT_PATH";
+const execFile = promisify(execFileCallback);
+const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "release-b-runner-ca-test-"));
+const validCaPath = path.join(temporaryDirectory, "synthetic-test-ca.pem");
+await execFile("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", path.join(temporaryDirectory, "synthetic-test-ca.key"), "-out", validCaPath, "-days", "1", "-subj", "/CN=Release B Runner Test CA"]);
+const frozen = await loadTask17FrozenGate();
+const runnerBytes = await readFile(new URL("./release-b-production-runner.mjs", import.meta.url));
+const executionSurface = await computeReleaseBExecutionSurfaceFingerprints({ runnerBytes });
+const headExecutionSurface = await computeReleaseBExecutionSurfaceFingerprints();
+
+function receipt(schemaVersion, overrides = {}) {
+  if (schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4) {
+    return { ...createReleaseBAuthorizationReceiptV4({
+      approvalId: "release-b-approval-4",
+      authorizedAtUtc: "2026-09-21T00:00:00Z",
+      frozen,
+      executionSurface,
+    }), ...overrides };
+  }
+  const base = {
+    schemaVersion,
+    approvalId: schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3 ? "release-b-approval-3" : "release-b-approval-2",
+    authorizedAtUtc: "2026-09-21T00:00:00Z",
+    targetProjectRef: frozen.targetProjectRef,
+    targetClass: frozen.targetClass,
+    task17Commit: TASK_17_COMMIT,
+    gateSourceCommit: frozen.sourceCommit,
+    normalizedPayloadSha256: frozen.normalizedPayloadSha256,
+    dryRunFingerprint: frozen.dryRunFingerprint,
+    identityMapFingerprint: frozen.identityMapFingerprint,
+    sourceMetadataFingerprint: frozen.sourceMetadataFingerprint,
+    conflictMapFingerprint: frozen.conflictMapFingerprint,
+    importerCodeFingerprint: frozen.importerCodeFingerprint,
+    expectedBeforeCounts: { ...frozen.expectedBeforeCounts },
+    expectedAfterCounts: { ...frozen.expectedAfterCounts },
+    authorizedOperation: "RELEASE_B_PRODUCTION_IMPORT",
+    maxAttempts: 1,
+    allowDeletes: false,
+    allowSchemaMutation: false,
+    allowMigrationHistoryMutation: false,
+    allowCloudflareWrites: false,
+    allowDeployment: false,
+    allowPush: false,
+    allowMerge: false,
+    allowQaProd: false,
+    task18TransportCommit: executionSurface.task18TransportCommit,
+    task18ExecutorCommit: executionSurface.task18ExecutorCommit,
+    productionTransportFingerprint: executionSurface.productionTransportFingerprint,
+    productionExecutorFingerprint: executionSurface.productionExecutorFingerprint,
+    automaticRetry: false,
+  };
+  if (schemaVersion === AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3) {
+    base.runnerPath = RELEASE_B_PRODUCTION_RUNNER_PATH;
+    base.runnerCommit = executionSurface.runnerCommit;
+    base.productionRunnerFingerprint = executionSurface.productionRunnerFingerprint;
+  }
+  return { ...base, ...overrides };
+}
+
+assert.equal(RELEASE_B_PRODUCTION_RUNNER_PATH, "scripts/qa/release-b-production-runner.mjs", "runner is a separate reviewed composition root");
+
+assert.throws(
+  () => preflightReleaseBProductionRunner({ environment: {} }),
+  /PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE/,
+  "missing P9_PRODUCTION_DATABASE_URL fails closed before session construction",
+);
+
+assert.throws(
+  () => preflightReleaseBProductionRunner({ environment: { P9_PRODUCTION_DATABASE_URL: TRANSACTION_DSN } }),
+  /PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE/,
+  "transaction pooler or otherwise invalid DSN fails through the existing P9 contract",
+);
+
+const preflight = preflightReleaseBProductionRunner({ environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN } });
+assert.deepEqual(
+  [preflight.runnerPath, preflight.targetEndpointClass, preflight.connects, preflight.startsTransaction, preflight.runsSql, preflight.authorizationConsumed],
+  [RELEASE_B_PRODUCTION_RUNNER_PATH, "SUPAVISOR_SESSION", false, false, false, false],
+  "valid synthetic Session Pooler DSN constructs only value-blind runner metadata",
+);
+
+let sessions = 0;
+const transport = createReleaseBProductionRunnerTransport({
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+  createSession: async () => { sessions += 1; throw new Error("test session should not be opened by construction"); },
+  readPostcheck: async () => ({}),
+});
+assert.equal(typeof transport.identifyTarget, "function", "runner injects the existing reviewed transport factory");
+assert.equal(sessions, 0, "transport construction does not connect");
+assert.equal(JSON.stringify(transport).includes("query"), false, "runner does not expose an alternate SQL client surface");
+
+let injectedSessionOpened = 0;
+let injectedPostcheckRead = 0;
+let injectedExecuteCalled = 0;
+const collaboratorInjectionReceipt = receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4, {
+  runnerCommit: headExecutionSurface.runnerCommit,
+  productionRunnerFingerprint: headExecutionSurface.productionRunnerFingerprint,
+  productionPostgresAdapterCommit: headExecutionSurface.productionPostgresAdapterCommit,
+  productionPostgresAdapterFingerprint: headExecutionSurface.productionPostgresAdapterFingerprint,
+});
+await assert.rejects(
+  () => runReleaseBProductionRunner({
+    args: ["--execute-production"],
+    environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+    authorizationReceipt: collaboratorInjectionReceipt,
+    authorizationReceiptSha256: hashAuthorizationReceipt(collaboratorInjectionReceipt),
+    createSession: async () => {
+      injectedSessionOpened += 1;
+      throw new Error("manual createSession must be rejected before opening a session");
+    },
+    readPostcheck: async () => {
+      injectedPostcheckRead += 1;
+      throw new Error("manual readPostcheck must be rejected before postcheck reads");
+    },
+    executeProductionImport: async () => {
+      injectedExecuteCalled += 1;
+      throw new Error("manual transport collaborators must be rejected before executor handoff");
+    },
+  }),
+  /RELEASE_B_RUNNER_TRANSPORT_COLLABORATOR_INJECTION_FORBIDDEN/,
+  "adapter-bound runner rejects manual transport collaborator injection even with a valid v4 receipt",
+);
+assert.equal(injectedSessionOpened, 0, "manual createSession is rejected before opening a session");
+assert.equal(injectedPostcheckRead, 0, "manual readPostcheck is rejected before postcheck reads");
+assert.equal(injectedExecuteCalled, 0, "manual collaborators are rejected before transport handoff");
+
+let clientConstructed = 0;
+let clientConnected = 0;
+const runnerComposedReceipt = receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4, {
+  runnerCommit: headExecutionSurface.runnerCommit,
+  productionRunnerFingerprint: headExecutionSurface.productionRunnerFingerprint,
+  productionPostgresAdapterCommit: headExecutionSurface.productionPostgresAdapterCommit,
+  productionPostgresAdapterFingerprint: headExecutionSurface.productionPostgresAdapterFingerprint,
+});
+const runnerCompositionResult = await (await import("./release-b-production-runner.mjs")).runReleaseBProductionRunner({
+  args: ["--execute-production"],
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
+  authorizationReceipt: runnerComposedReceipt,
+  authorizationReceiptSha256: hashAuthorizationReceipt(runnerComposedReceipt),
+  PostgresClient: class FakeRunnerClient {
+    constructor(config) {
+      clientConstructed += 1;
+      this.config = config;
+      assert.equal(typeof config?.ssl?.ca, "string", "runner-composed adapter supplies explicit CA trust");
+      assert.equal(config?.ssl?.rejectUnauthorized, true, "runner-composed adapter keeps TLS verification enabled");
+      assert.equal(config?.ssl?.servername, "aws-1-ap-northeast-1.pooler.supabase.com", "runner-composed adapter preserves SNI servername");
+    }
+    async connect() {
+      clientConnected += 1;
+    }
+    async query(sql) {
+      if (sql.startsWith("SELECT current_database")) {
+        return { rows: [{ current_database: "postgres", current_user: "postgres", server_port: "5432" }] };
+      }
+      throw new Error("runner composition test must stop before non-identity SQL");
+    }
+    async end() {}
+  },
+  executeProductionImport: async ({ transport: composedTransport }) => composedTransport.identifyTarget(),
+});
+assert.deepEqual(
+  runnerCompositionResult,
+  { projectRef: "xcbnxzjlsvtgzixurcof", targetClass: "OpenGlass Hub Supabase Production" },
+  "runner execution composes the reviewed postgres adapter collaborators when manual injection is absent",
+);
+assert.equal(clientConstructed, 1, "adapter construction itself opens zero sessions; the executor-controlled target check opens the first one");
+assert.equal(clientConnected, 1, "runner composition supplies a real adapter createSession collaborator to the reviewed transport");
+
+assert.throws(
+  () => validateCurrentReleaseBAuthorizationReceiptV4(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1), hashAuthorizationReceipt(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V1)), frozen, executionSurface),
+  /RELEASE_B_AUTHORIZATION_V4_REQUIRED/,
+  "historical v1 cannot authorize the adapter-bound runner",
+);
+assert.throws(
+  () => validateCurrentReleaseBAuthorizationReceiptV4(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2), hashAuthorizationReceipt(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V2)), frozen, executionSurface),
+  /RELEASE_B_AUTHORIZATION_V4_REQUIRED/,
+  "historical approval-2/v2 cannot authorize the adapter-bound runner",
+);
+assert.throws(
+  () => validateCurrentReleaseBAuthorizationReceiptV4(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3), hashAuthorizationReceipt(receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V3)), frozen, executionSurface),
+  /RELEASE_B_AUTHORIZATION_V4_REQUIRED/,
+  "historical approval-3/v3 cannot authorize the adapter-bound runner",
+);
+
+for (const [name, overrides, pattern] of [
+  ["historical approval id wrapped as v4", { approvalId: "release-b-approval-3" }, /RELEASE_B_HISTORICAL_APPROVAL_NOT_EXECUTABLE/],
+  ["runner fingerprint", { productionRunnerFingerprint: "0".repeat(64) }, /RELEASE_B_PRODUCTION_RUNNER_FINGERPRINT_MISMATCH/],
+  ["runner path", { runnerPath: "scripts/qa/other-runner.mjs" }, /RELEASE_B_PRODUCTION_RUNNER_PATH_MISMATCH/],
+  ["runner commit", { runnerCommit: "0".repeat(40) }, /RELEASE_B_PRODUCTION_RUNNER_COMMIT_MISMATCH/],
+  ["adapter fingerprint", { productionPostgresAdapterFingerprint: "0".repeat(64) }, /RELEASE_B_PRODUCTION_POSTGRES_ADAPTER_FINGERPRINT_MISMATCH/],
+  ["unknown field", { unexpected: true }, /INVALID_RELEASE_B_AUTHORIZATION_RECEIPT/],
+  ["maxAttempts", { maxAttempts: 2 }, /INVALID_RELEASE_B_AUTHORIZATION_RECEIPT/],
+  ["automaticRetry", { automaticRetry: true }, /INVALID_RELEASE_B_AUTHORIZATION_RECEIPT/],
+]) {
+  const candidate = receipt(AUTHORIZATION_RECEIPT_SCHEMA_VERSION_V4, overrides);
+  assert.throws(
+    () => validateCurrentReleaseBAuthorizationReceiptV4(candidate, hashAuthorizationReceipt(candidate), frozen, executionSurface),
+    pattern,
+    `${name} fails v4 authorization before transport construction`,
+  );
+}
+
+console.log("RELEASE_B_PRODUCTION_RUNNER_CONTRACT_OK");

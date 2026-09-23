@@ -1,0 +1,190 @@
+{
+  "format": "openglass-historical-duplicate-migration-version-baseline-v1",
+  "classification": "PREEXISTING_DUPLICATE_MIGRATION_VERSION_BASELINE",
+  "provenance": "Verified against pre-Schema-v1 baseline d2b56e7a10271f75dfe24027d5b40e7990d8ff5d; canonical mirror normalizes each migration ordinal, preserving source bytes.",
+  "duplicateGroups": [
+    {
+      "version": "20260525",
+      "files": [
+        {
+          "filename": "20260525_forum_phase4_video_media.sql",
+          "sha256": "ee26a91b82d17302438d862638b92915b4d292cda1820c193500dc1eb254b90d"
+        },
+        {
+          "filename": "20260525_forum_phase5_circle_creator_and_images.sql",
+          "sha256": "62c0af5ca0dff6548449720f274b1d267e3e83b76a99572d90e3af23193d6739"
+        },
+        {
+          "filename": "20260525_forum_phase5_publish_posts_rls.sql",
+          "sha256": "37b615099e2e255666201e5f7ca65b4f75d22d625e32d6a0347862f4825d92c5"
+        }
+      ]
+    },
+    {
+      "version": "20260603",
+      "files": [
+        {
+          "filename": "20260603_forum_circle_owner_management.sql",
+          "sha256": "c3e7d38f03d3b4e3e49d58acc932b3bc392907b976e27571d388125988e0510f"
+        },
+        {
+          "filename": "20260603_forum_comments_interactions.sql",
+          "sha256": "e7b7187ccb3f0f660d3f5e367bb1e791d14335e1365e7aded8fbe4c64fbc6300"
+        },
+        {
+          "filename": "20260603_forum_hot_sort_and_circle_name_guard.sql",
+          "sha256": "562338885bd27b18ade1d7ad5bbf45726bd26f7286b1a3437da96415e121429c"
+        }
+      ]
+    },
+    {
+      "version": "20260604",
+      "files": [
+        {
+          "filename": "20260604_circle_cover_storage_policy.sql",
+          "sha256": "b6bd9197865429711f90634384f724acfbdd8084503f9708e11c16ad1ee490e0"
+        },
+        {
+          "filename": "20260604_forum_circle_soft_delete_and_management.sql",
+          "sha256": "564874a3d66450492e5819a81ba54bf42ebcbcac4e99c5439327f9efa7d142d9"
+        }
+      ]
+    },
+    {
+      "version": "20260605",
+      "files": [
+        {
+          "filename": "20260605_circle_cover_public_select.sql",
+          "sha256": "3a18980810d10e237663562e2960136976bbc8250004099a745426cc8cbf842f"
+        },
+        {
+          "filename": "20260605_forum_posts_body_short_content.sql",
+          "sha256": "21ce077f23c4aa14911b20cd00545190e3fba7410821f3b0be5aa449de260eaa"
+        },
+        {
+          "filename": "20260605_forum_rate_limit_purposes.sql",
+          "sha256": "9e44b98b5c0ff8d9e0cfca61fd5cf87f2404c436d414153ad54bd59d91480ee3"
+        }
+      ]
+    },
+    {
+      "version": "20260606",
+      "files": [
+        {
+          "filename": "20260606_forum_notifications_mvp.sql",
+          "sha256": "dda6e1880623bf4b8ac25e3fb2d5f3e6a13f11c91a0a41963d1ff38e4c2a63dd"
+        },
+        {
+          "filename": "20260606_profile_banner_and_storage.sql",
+          "sha256": "a35f93b2897b9baf80cb58f135ed81254f151579c4f074dcdb11eb0fccd0a29a"
+        }
+      ]
+    },
+    {
+      "version": "20260607",
+      "files": [
+        {
+          "filename": "20260607_auth_resend_confirmation_limit.sql",
+          "sha256": "f4ad22566547c9507c5d63aca7edec9643ce773fcad765f10a08df8fa32f9706"
+        },
+        {
+          "filename": "20260607_enable_forum_realtime.sql",
+          "sha256": "0f967e7c373e6aa7b078a33e2bf2a79257f337cc08388714af9f8ea8e79c2b6c"
+        },
+        {
+          "filename": "20260607_fix_notification_relike_update_guard.sql",
+          "sha256": "77803c5f67c5ab24597ec752d67b795255d442eacae9c983df447c21f907930a"
+        }
+      ]
+    },
+    {
+      "version": "20260611",
+      "files": [
+        {
+          "filename": "20260611_fix_forum_notification_realtime.sql",
+          "sha256": "4818c597e624219a559d4e5808413354674ac28ef5a5c0b4b826811ece51d836"
+        },
+        {
+          "filename": "20260611_forum_permission_lockdown.sql",
+          "sha256": "6efd25f000f4562149c9b48c5498e9da0d2059425542d93f0e6eed6f13b88848"
+        },
+        {
+          "filename": "20260611_stabilize_forum_notifications_realtime_permissions.sql",
+          "sha256": "aff3d78f91bad8f62a993bb541433ddc1ea0f086bad55439ff1cba42db45a170"
+        }
+      ]
+    },
+    {
+      "version": "20260612",
+      "files": [
+        {
+          "filename": "20260612_hot_news_mvp.sql",
+          "sha256": "e19091424cda9bba8ba2118032533e07f39b0922918261bff40cd73c499c93ce"
+        },
+        {
+          "filename": "20260612_news_media_storage_policy.sql",
+          "sha256": "f4cf5ad75cd07f70d51ac267963c17348d972f73de1160b9a56c02d5b84a7f5b"
+        },
+        {
+          "filename": "20260612_news_view_count_and_pagination.sql",
+          "sha256": "19fbd86b4157693ef485e7d9ac53c364f8576b1b0c383a79960c816c346464bf"
+        }
+      ]
+    },
+    {
+      "version": "20260620",
+      "files": [
+        {
+          "filename": "20260620_admin_qa_role_grant_path.sql",
+          "sha256": "3cfde2376d29d4e28dd6336167a09ce15161081980c9e2b732e9813215fc353e"
+        },
+        {
+          "filename": "20260620_lock_profile_role_updates.sql",
+          "sha256": "ab48116782a8c7855ac2a43856b8164d7e0f73ebb6989289241d830e17fc9d30"
+        }
+      ]
+    },
+    {
+      "version": "20260713",
+      "files": [
+        {
+          "filename": "20260713_comment_creation_circle_authorization.sql",
+          "sha256": "84fdaa9b3519ff38ecf1b3ecf43e3601bc28d72f842418e986b351bb32618f26"
+        },
+        {
+          "filename": "20260713_comment_reaction_visibility_authorization.sql",
+          "sha256": "09cd413ff6d6271522f59066a4e698188c4ea41b914c795e377a96eccda07bb6"
+        },
+        {
+          "filename": "20260713_comment_read_circle_visibility_authorization.sql",
+          "sha256": "a09a1bbe73e3bc7729cb5d41d312e4a2487d3f1109317840ec6d6f802fa99845"
+        },
+        {
+          "filename": "20260713_forum_posts_circle_authorization.sql",
+          "sha256": "5486fe9dcbc4123f35d2f0640a0cbdf0d90790710af6a6f2bddb49b627f13a5a"
+        },
+        {
+          "filename": "20260713_forum_report_target_authorization.sql",
+          "sha256": "e1513ee78cd48dfaaa686f66a7b123a7270c88de06964ef015e94168a1128121"
+        },
+        {
+          "filename": "20260713_post_bound_media_provenance.sql",
+          "sha256": "b8c18247dba2f62f373d61bf8ed6ef3c7d556b01fa791cc51c35fef42c82d59e"
+        }
+      ]
+    },
+    {
+      "version": "20260829",
+      "files": [
+        {
+          "filename": "20260829_device_library_admin.sql",
+          "sha256": "16a02a35648513534bfb059678a3bf580ac9e4a8016724dee23342dec9d87e51"
+        },
+        {
+          "filename": "20260829_device_slug_lock.sql",
+          "sha256": "4517d9d5d10245e810d0dbc2a132bc2845e613077aacde2cda1242da0562daa4"
+        }
+      ]
+    }
+  ]
+}

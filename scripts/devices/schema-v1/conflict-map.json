@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "deviceKey": "XREAL|XREAL One|One series",
+      "conflict": "Official current product page lists 82 g; official tutorial/spec page has also listed 84 g. Primary value set to 82 g because the current product page is the higher-priority source.",
+      "classification": "TRUE_VALUE_CONFLICT",
+      "canonicalKey": "basic.weight_g",
+      "primaryClaim": { "claim": 82, "source": "https://us.shop.xreal.com/products/xreal-one" },
+      "conflictingClaims": [{ "claim": 84, "source": "https://tutorials.xreal.com/docs/glasses/one-series/spec/" }]
+    },
+    {
+      "deviceKey": "RayNeo|RayNeo X2|X2",
+      "conflict": "The official X2 product page contains both 1000-nit and 1500-nit marketing statements. Primary value set to 1000 nits from the main/current product technical presentation.",
+      "classification": "TRUE_VALUE_CONFLICT",
+      "canonicalKey": "display.eye_brightness",
+      "primaryClaim": { "claim": 1000, "source": "https://www.rayneo.com/products/tcl-rayneo-x2" },
+      "conflictingClaims": [{ "claim": 1500, "source": "https://www.rayneo.com/products/tcl-rayneo-x2" }]
+    },
+    {
+      "deviceKey": "RayNeo|RayNeo X2|X2",
+      "conflict": "Official current product material does not clearly publish display pixel resolution or FOV; both remain Not disclosed.",
+      "classification": "NORMALIZATION_OR_CONTEXT_NOTE"
+    },
+    {
+      "deviceKey": "RayNeo|RayNeo Air 2|Air 2",
+      "conflict": "RayNeo technical material exposes a much higher internal/panel brightness figure (4000 nits) while the consumer-visible eye/perceived brightness is 600 nits. These are stored separately and must never be directly ranked against one another.",
+      "classification": "NORMALIZATION_OR_CONTEXT_NOTE"
+    },
+    {
+      "deviceKey": "RayNeo|RayNeo Air 2s|Air 2s",
+      "conflict": "RayNeo technical material exposes 5000 nits internal/panel brightness while consumer-visible eye/perceived brightness is 600 nits. Store separately.",
+      "classification": "NORMALIZATION_OR_CONTEXT_NOTE"
+    },
+    {
+      "deviceKey": "RayNeo|RayNeo Air 4 Pro|Air 4 Pro",
+      "conflict": "Official dedicated product headline/spec area lists 46° FOV, while an official comparison table on the same page lists 47°. Primary value set to 46°.",
+      "classification": "TRUE_VALUE_CONFLICT",
+      "canonicalKey": "display.fov_deg",
+      "primaryClaim": { "claim": 46, "source": "https://www.rayneo.com/products/rayneo-air-4-pro-ar-smart-glasses" },
+      "conflictingClaims": [{ "claim": 47, "source": "https://www.rayneo.com/products/rayneo-air-4-pro-ar-smart-glasses" }]
+    },
+    {
+      "deviceKey": "Rokid|Rokid Max|Max",
+      "conflict": "Legacy Rokid product material mentions 3DoF head tracking, while newer Rokid support material clarifies Station 2 is required for 3DoF on Max/Max 2. Normalized as accessory 3DoF rather than native 3DoF.",
+      "classification": "NORMALIZATION_OR_CONTEXT_NOTE"
+    },
+    {
+      "deviceKey": "Rokid|Rokid Glasses|Rokid Glasses",
+      "conflict": "Current official Rokid product page lists 480×400, while the August 2026 official Academy and official FAQ list 480×640 per eye. Primary value set to 480×400 because the live product specification page is the direct product source; preserve 480×640 as an official-source conflict.",
+      "classification": "TRUE_VALUE_CONFLICT",
+      "canonicalKey": "display.resolution_per_eye",
+      "primaryClaim": { "claim": "480×400", "source": "https://global.rokid.com/products/rokid-glasses" },
+      "conflictingClaims": [
+        { "claim": "480×640", "source": "https://global.rokid.com/blogs/academy-glasses/glasses-1-1-overview" },
+        { "claim": "480×640", "source": "https://global.rokid.com/pages/faq" }
+      ]
+    },
+    {
+      "deviceKey": "Ray-Ban / Meta|Ray-Ban Meta|Gen 2",
+      "conflict": "Ray-Ban Meta Gen 2 is a family of frame/SKU variants. Current Wayfarer Gen 2 pages list a custom 5-microphone array and Wi-Fi 6E, while some other Gen 2 styles/official Meta pages expose different microphone/Wi-Fi wording. Treat frame/SKU-specific values as variant-sensitive rather than a universal family constant.",
+      "classification": "NORMALIZATION_OR_CONTEXT_NOTE"
+    },
+    {
+      "deviceKey": "VITURE|VITURE One|One",
+      "conflict": "Recent VITURE Academy lists 50,000:1 contrast; older official/brand-hosted material has shown lower figures. Primary value set to the newer Academy value.",
+      "classification": "TRUE_VALUE_CONFLICT",
+      "canonicalKey": "display.contrast_ratio",
+      "primaryClaim": { "claim": "50,000:1", "source": "https://academy.viture.com/xr_glasses/introduction" },
+      "conflictingClaims": [{ "claim": "5,000:1", "source": "https://shop.viture.com/ja-sg/blogs/news/mmorpgs-viture-one-dock-pack-review" }]
+    },
+    {
+      "deviceKey": "VITURE|VITURE One Lite|One Lite",
+      "conflict": "Recent VITURE Academy lists 76 g; an older official store listing has shown 78 g. Primary value set to 76 g.",
+      "classification": "TRUE_VALUE_CONFLICT",
+      "canonicalKey": "basic.weight_g",
+      "primaryClaim": { "claim": 76, "source": "https://academy.viture.com/xr_glasses/introduction" },
+      "conflictingClaims": [{ "claim": 78, "source": "https://store.viture.com/products/lite-xr-glasses" }]
+    },
+    {
+      "deviceKey": "INMO|INMO Air 2|Air 2",
+      "conflict": "Official FCC manual lists approximately 99 g; some third-party sources list 79 g. Primary value set to 99 g because the regulatory manual is authoritative.",
+      "classification": "TRUE_VALUE_CONFLICT",
+      "canonicalKey": "basic.weight_g",
+      "primaryClaim": { "claim": 99, "rawClaim": "~99 g", "source": "https://fcc.report/FCC-ID/2A62QIMA02/6647192.pdf" },
+      "conflictingClaims": [{ "claim": 79, "source": "https://www.paoka.com/product/INMO-Air2" }]
+    }
+  ]
+}

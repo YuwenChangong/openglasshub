@@ -1,0 +1,312 @@
+import assert from "node:assert/strict";
+import { execFile as execFileCallback } from "node:child_process";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
+
+import { createReleaseBProductionPostgresAdapter } from "./lib/release-b-production-postgres-adapter.mjs";
+
+const SESSION_DSN = "postgresql://postgres.xcbnxzjlsvtgzixurcof:test-only@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
+const DIRECT_DSN = "postgresql://postgres:test-only@db.xcbnxzjlsvtgzixurcof.supabase.co:5432/postgres?sslmode=require";
+const TRANSACTION_DSN = "postgresql://postgres.xcbnxzjlsvtgzixurcof:test-only@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require";
+const TEST_CA_ENV = "P9_PRODUCTION_DATABASE_CA_CERT_PATH";
+const execFile = promisify(execFileCallback);
+
+const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "release-b-ca-test-"));
+const validCaPath = path.join(temporaryDirectory, "synthetic-test-ca.pem");
+const validCaKeyPath = path.join(temporaryDirectory, "synthetic-test-ca.key");
+const emptyCaPath = path.join(temporaryDirectory, "empty.pem");
+const invalidPemPath = path.join(temporaryDirectory, "invalid.pem");
+await execFile("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", validCaKeyPath, "-out", validCaPath, "-days", "1", "-subj", "/CN=Release B Test CA"]);
+const syntheticTestCaPem = await readFile(validCaPath, "utf8");
+await writeFile(emptyCaPath, "", "utf8");
+await writeFile(invalidPemPath, "-----BEGIN NOT A CERTIFICATE-----\ntest-only\n-----END NOT A CERTIFICATE-----\n", "utf8");
+
+let clientConstructed = 0;
+let connectCalls = 0;
+
+class ConstructionOnlyClient {
+  constructor() {
+    clientConstructed += 1;
+  }
+
+  async connect() {
+    connectCalls += 1;
+  }
+}
+
+assert.equal(typeof createReleaseBProductionPostgresAdapter, "function");
+
+const adapter = createReleaseBProductionPostgresAdapter({
+  environment: {},
+  Client: ConstructionOnlyClient,
+});
+
+assert.equal(clientConstructed, 0, "adapter construction must not construct Client");
+assert.equal(connectCalls, 0, "adapter construction must not connect");
+assert.equal(typeof adapter.createSession, "function");
+assert.equal(typeof adapter.readPostcheck, "function");
+assert(Object.isFrozen(adapter));
+
+function createCountingClientClass({ failOnConnect = false, failOnQuery = false, failOnEnd = false, connectCode = "SYNTHETIC_CONNECT", queryCode = "SYNTHETIC_QUERY" } = {}) {
+  const state = {
+    constructed: 0,
+    connectCalls: 0,
+    queryCalls: 0,
+    endCalls: 0,
+    configs: [],
+    queries: [],
+  };
+
+  class CountingClient {
+    constructor(config) {
+      state.constructed += 1;
+      state.configs.push(config);
+    }
+
+    async connect() {
+      state.connectCalls += 1;
+      if (failOnConnect) throw Object.assign(new Error("synthetic connect failure"), { code: connectCode });
+    }
+
+    async query(sql, params) {
+      state.queryCalls += 1;
+      state.queries.push({ sql, params });
+      if (failOnQuery) throw Object.assign(new Error("synthetic query failure"), { code: queryCode });
+      return { rows: [{ value: 7 }], rowCount: 1 };
+    }
+
+    async end() {
+      state.endCalls += 1;
+      if (failOnEnd) throw Object.assign(new Error("synthetic end failure"), { code: "SYNTHETIC_END" });
+    }
+  }
+
+  return { Client: CountingClient, state };
+}
+
+async function assertRejectsWithoutClientConstruction({ dsn, pattern }) {
+  const { Client, state } = createCountingClientClass();
+  const candidate = createReleaseBProductionPostgresAdapter({
+    environment: dsn ? { P9_PRODUCTION_DATABASE_URL: dsn, [TEST_CA_ENV]: validCaPath } : {},
+    Client,
+  });
+
+  await assert.rejects(() => candidate.createSession(), pattern);
+  assert.equal(state.constructed, 0, "fail-closed validation must happen before Client construction");
+  assert.equal(state.connectCalls, 0, "fail-closed validation must happen before connect");
+}
+
+await assertRejectsWithoutClientConstruction({
+  dsn: null,
+  pattern: /PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE/,
+});
+await assertRejectsWithoutClientConstruction({
+  dsn: TRANSACTION_DSN,
+  pattern: /PRODUCTION_CONNECTION_SOURCE_UNAVAILABLE/,
+});
+await assertRejectsWithoutClientConstruction({
+  dsn: DIRECT_DSN,
+  pattern: /RELEASE_B_POSTGRES_ADAPTER_SESSION_POOLER_REQUIRED/,
+});
+
+for (const [name, caPath, pattern] of [
+  ["missing CA path", undefined, /RELEASE_B_POSTGRES_ADAPTER_CA_CERT_PATH_REQUIRED/],
+  ["unreadable CA path", path.join(temporaryDirectory, "missing-ca.pem"), /RELEASE_B_POSTGRES_ADAPTER_CA_CERT_UNREADABLE/],
+  ["empty CA file", emptyCaPath, /RELEASE_B_POSTGRES_ADAPTER_CA_CERT_INVALID/],
+  ["invalid PEM", invalidPemPath, /RELEASE_B_POSTGRES_ADAPTER_CA_CERT_INVALID/],
+]) {
+  const { Client, state } = createCountingClientClass();
+  const candidate = createReleaseBProductionPostgresAdapter({
+    environment: caPath ? { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: caPath } : { P9_PRODUCTION_DATABASE_URL: SESSION_DSN },
+    Client,
+  });
+  await assert.rejects(() => candidate.createSession(), pattern, `${name} fails closed before network`);
+  assert.equal(state.constructed, 0, `${name} must fail before Client construction`);
+  assert.equal(state.connectCalls, 0, `${name} must fail before connect`);
+}
+
+const happyClient = createCountingClientClass();
+const happyAdapter = createReleaseBProductionPostgresAdapter({
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
+  Client: happyClient.Client,
+});
+
+const session = await happyAdapter.createSession();
+assert.equal(happyClient.state.constructed, 1, "SESSION_DSN constructs one Client inside createSession");
+assert.equal(happyClient.state.connectCalls, 1, "SESSION_DSN connects once inside createSession");
+assert.deepEqual(session.targetIdentity, {
+  mode: "PRODUCTION",
+  host: "aws-1-ap-northeast-1.pooler.supabase.com",
+  projectRef: "xcbnxzjlsvtgzixurcof",
+  port: 5432,
+  database: "postgres",
+  databaseRole: "postgres",
+  endpointClass: "SUPAVISOR_SESSION",
+});
+assert.deepEqual(await session.query("SELECT $1::int AS value", [7]), { rows: [{ value: 7 }], rowCount: 1 });
+assert.deepEqual(happyClient.state.queries, [{ sql: "SELECT $1::int AS value", params: [7] }]);
+await session.close();
+await session.close();
+assert.equal(happyClient.state.endCalls, 1, "close must end the client once");
+assert.equal(happyClient.state.connectCalls, 1, "second close must not reconnect");
+
+const failingConnect = createCountingClientClass({ failOnConnect: true });
+const failingConnectAdapter = createReleaseBProductionPostgresAdapter({
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
+  Client: failingConnect.Client,
+});
+await assert.rejects(() => failingConnectAdapter.createSession(), /synthetic connect failure/);
+assert.equal(failingConnect.state.constructed, 1);
+assert.equal(failingConnect.state.connectCalls, 1);
+assert.equal(failingConnect.state.endCalls, 0, "connect failure cannot run close cleanup against an unopened session");
+
+const authFailure = createCountingClientClass({ failOnConnect: true, connectCode: "28P01" });
+const authFailureAdapter = createReleaseBProductionPostgresAdapter({
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
+  Client: authFailure.Client,
+});
+await assert.rejects(() => authFailureAdapter.createSession(), (error) => error.code === "28P01", "authentication failure preserves SQLSTATE for caller classification");
+assert.equal(authFailure.state.constructed, 1);
+assert.equal(authFailure.state.connectCalls, 1, "authentication failure is not retried");
+assert.equal(authFailure.state.endCalls, 0, "authentication failure does not reconnect or close a nonexistent session");
+
+const failingQuery = createCountingClientClass({ failOnQuery: true });
+const failingQuerySession = await createReleaseBProductionPostgresAdapter({
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
+  Client: failingQuery.Client,
+}).createSession();
+await assert.rejects(() => failingQuerySession.query("SELECT 1", []), /synthetic query failure/);
+assert.equal(failingQuery.state.queryCalls, 1);
+await failingQuerySession.close();
+assert.equal(failingQuery.state.endCalls, 1);
+
+const providerLossQuery = createCountingClientClass({ failOnQuery: true, queryCode: "57P01" });
+const providerLossSession = await createReleaseBProductionPostgresAdapter({
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
+  Client: providerLossQuery.Client,
+}).createSession();
+await assert.rejects(() => providerLossSession.query("SELECT 1", []), (error) => error.code === "57P01", "provider-loss query preserves SQLSTATE for executor ambiguity");
+assert.equal(providerLossQuery.state.queryCalls, 1, "provider-loss query is not retried");
+await providerLossSession.close();
+assert.equal(providerLossQuery.state.endCalls, 1);
+
+const failingEnd = createCountingClientClass({ failOnEnd: true });
+const failingEndSession = await createReleaseBProductionPostgresAdapter({
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
+  Client: failingEnd.Client,
+}).createSession();
+await assert.rejects(() => failingEndSession.close(), /synthetic end failure/);
+await assert.rejects(() => failingEndSession.close(), /synthetic end failure/);
+assert.equal(failingEnd.state.endCalls, 1, "close failure must not trigger retry");
+assert.equal(failingEnd.state.connectCalls, 1, "close failure must not reconnect");
+
+// TLS evidence verified 2026-09-21:
+// - node-postgres SSL config passes the ssl object to Node's TLSSocket and warns that connection-string sslmode can overwrite ssl config.
+// - Supabase docs say sslmode=require prevents plaintext fallback, while verification needs verify-full/root-cert-equivalent driver configuration.
+const tlsClient = createCountingClientClass();
+await createReleaseBProductionPostgresAdapter({
+  environment: { P9_PRODUCTION_DATABASE_URL: SESSION_DSN, [TEST_CA_ENV]: validCaPath },
+  Client: tlsClient.Client,
+}).createSession();
+const tlsConfig = tlsClient.state.configs[0];
+assert.equal(tlsConfig.ssl?.ca, syntheticTestCaPem);
+assert.equal(tlsConfig.ssl?.rejectUnauthorized, true);
+assert.equal(tlsConfig.ssl?.servername, "aws-1-ap-northeast-1.pooler.supabase.com");
+assert.notEqual(tlsConfig.ssl?.rejectUnauthorized, false);
+
+await assert.rejects(
+  () => createReleaseBProductionPostgresAdapter({
+    environment: { [TEST_CA_ENV]: validCaPath },
+    Client: tlsClient.Client,
+  }).createSession({
+    pgEnv: {
+      PGHOST: "aws-1-ap-northeast-1.pooler.supabase.com",
+      PGPORT: "5432",
+      PGDATABASE: "postgres",
+      PGUSER: "postgres.xcbnxzjlsvtgzixurcof",
+      PGPASSWORD: "test-only",
+      PGSSLMODE: "no-verify",
+    },
+    safeTarget: {
+      mode: "PRODUCTION",
+      host: "aws-1-ap-northeast-1.pooler.supabase.com",
+      projectRef: "xcbnxzjlsvtgzixurcof",
+      port: 5432,
+      database: "postgres",
+      databaseRole: "postgres",
+      endpointClass: "SUPAVISOR_SESSION",
+    },
+  }),
+  /RELEASE_B_POSTGRES_ADAPTER_TLS_DOWNGRADE_FORBIDDEN/,
+    "adapter TLS config fails closed on unsupported downgrade",
+);
+
+const observedPostcheckRow = {
+  devices: 24,
+  device_spec_definitions: 92,
+  device_specs: 1488,
+  device_sources: 39,
+  device_source_links: 46,
+  device_spec_evidence: 15,
+  catalog_audit_events: 0,
+  unique_slugs: 24,
+  published_devices: 24,
+  constraint_failures: 0,
+  trigger_failures: 0,
+  duplicate_failures: 0,
+  conflict_evidence_failures: 0,
+  unknown_unverified_known_data: 0,
+  ray_ban_identity: "ray-ban-meta",
+  unexpected_deletes: 0,
+};
+
+const postcheckSqlCalls = [];
+const observedPostcheck = await adapter.readPostcheck({
+  async queryReadOnly(sql, params) {
+    postcheckSqlCalls.push({ sql, params });
+    return {
+      rows: [{
+        ...observedPostcheckRow,
+        devices: 23,
+      }],
+    };
+  },
+});
+
+assert.equal(postcheckSqlCalls.length, 1, "readPostcheck must issue one fixed read-only verification query");
+assert.match(postcheckSqlCalls[0].sql, /^\s*(?:WITH|SELECT)\b/i, "postcheck query must be read-only SQL");
+assert.deepEqual(postcheckSqlCalls[0].params, [], "postcheck query must not depend on caller-supplied parameters");
+assert.deepEqual(postcheckSqlCalls[0].sql.match(/\$[0-9]+/g), null, "postcheck query must not have unbound parameters");
+assert.deepEqual(postcheckSqlCalls[0].sql.match(/\bexpected\b/gi), null, "adapter postcheck must not encode Release B expected-count policy");
+assert.deepEqual(postcheckSqlCalls[0].sql.match(/\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE)\b|\bsupabase_migrations\b/gi), null, "postcheck query must not contain mutation or migration-history SQL");
+assert.deepEqual(observedPostcheck, {
+  counts: {
+    devices: 23,
+    deviceSpecDefinitions: 92,
+    deviceSpecs: 1488,
+    deviceSources: 39,
+    deviceSourceLinks: 46,
+    deviceSpecEvidence: 15,
+    catalogAuditEvents: 0,
+  },
+  uniqueSlugs: 24,
+  publishedDevices: 24,
+  conflictInvariants: "PASS",
+  rayBanIdentity: "ray-ban-meta",
+  unexpectedDeletes: 0,
+});
+
+const mutationGuardSqlCalls = [];
+await adapter.readPostcheck({
+  async queryReadOnly(sql, params) {
+    mutationGuardSqlCalls.push({ sql, params });
+    assert.match(sql, /^\s*(?:WITH|SELECT)\b/i, "postcheck must use SELECT/WITH only");
+    assert.doesNotMatch(sql, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE)\b|\bsupabase_migrations\b/i, "postcheck query must stay read-only and avoid migration history");
+    return { rows: [observedPostcheckRow] };
+  },
+});
+assert.equal(mutationGuardSqlCalls.length, 1, "mutation guard must observe the fixed postcheck query");
+
+console.log("RELEASE_B_PRODUCTION_POSTGRES_ADAPTER_UNIT_OK");

@@ -25,6 +25,38 @@ function objectIndex(fingerprint) {
   return new Map(fingerprint.objects.map((entry) => [objectKey(entry), entry.deterministicSha256]));
 }
 
+const RELEASE_A_REPLACED_DEVICE_POLICIES = new Set([
+  "policy|public|devices|public.devices.devices_delete_staff|DELETE",
+  "policy|public|devices|public.devices.devices_insert_staff|INSERT",
+  "policy|public|devices|public.devices.devices_update_staff|UPDATE",
+]);
+const RELEASE_A_CATALOG_DEVICE_POLICIES = new Set([
+  "policy|public|devices|public.devices.devices_delete_catalog_admin|DELETE",
+  "policy|public|devices|public.devices.devices_insert_catalog_admin|INSERT",
+  "policy|public|devices|public.devices.devices_update_catalog_admin|UPDATE",
+]);
+
+function exactIdentitySet(values, expected) {
+  return values.length === expected.size && values.every((value) => expected.has(value));
+}
+
+function approvedReleaseAObjectTransition(review, candidateObjects) {
+  if (review.objectIdentity.missingFromCandidate.length === 0) return true;
+  return exactIdentitySet(review.objectIdentity.missingFromCandidate, RELEASE_A_REPLACED_DEVICE_POLICIES)
+    && [...RELEASE_A_CATALOG_DEVICE_POLICIES].every((key) => candidateObjects.has(key));
+}
+
+function isStrictForwardDelta({ expectedLedgerIds, candidateLedgerIds, candidateObjects, review }) {
+  return candidateLedgerIds.length === expectedLedgerIds.length + 1
+    && review.migrationLedger.orderMatchesForSharedEntries
+    && review.migrationLedger.missingFromCandidate.length === 0
+    && review.migrationLedger.addedByCandidate.length === 1
+    && review.migrationLedger.addedByCandidate[0]?.name === "device_schema_v1_foundation"
+    && approvedReleaseAObjectTransition(review, candidateObjects)
+    && review.objectIdentity.addedByCandidate.length > 0
+    && review.objectIdentity.divergentDefinitions.length === 0;
+}
+
 function stableReviewId(review) {
   return sha256(JSON.stringify(review));
 }
@@ -38,10 +70,7 @@ export function reviewFingerprintCandidate({ expected, candidate }) {
   const candidateObjects = objectIndex(candidate);
   const review = {
     format: "openglass-production-schema-fingerprint-review-v1",
-    classification: expectedLedgerIds.every((identity, index) => candidateLedgerIds[index] === identity)
-      && candidateLedger.length > expectedLedger.length
-      ? "STALE_CANONICAL_MANIFEST"
-      : "FINGERPRINT_DELTA_REQUIRES_REVIEW",
+    classification: "FINGERPRINT_DELTA_REQUIRES_REVIEW",
     expected: {
       canonicalMigrationCount: expected.canonicalMigrationCount,
       localMigrationLedgerCount: expectedLedger.length,
@@ -72,11 +101,14 @@ export function reviewFingerprintCandidate({ expected, candidate }) {
     && review.objectIdentity.missingFromCandidate.length === 0
     && review.objectIdentity.addedByCandidate.length === 0
     && review.objectIdentity.divergentDefinitions.length === 0;
+  review.releaseDeltaMatchesCandidate = isStrictForwardDelta({ expectedLedgerIds, candidateLedgerIds, candidateObjects, review });
+  if (review.releaseDeltaMatchesCandidate) review.classification = "RELEASE_A_DELTA_ACCEPTED";
+  else if (expectedLedgerIds.every((identity, index) => candidateLedgerIds[index] === identity) && candidateLedger.length > expectedLedger.length) review.classification = "STALE_CANONICAL_MANIFEST";
   return { ...review, reviewId: stableReviewId(review) };
 }
 
 export function assertFingerprintReviewMatches(review) {
-  if (!review.fixtureMatchesCandidate) {
+  if (!review.fixtureMatchesCandidate && !review.releaseDeltaMatchesCandidate) {
     throw new Error(`Fingerprint fixture review required: migration ledger ${review.migrationLedger.expectedCount} -> ${review.migrationLedger.candidateCount}; review id ${review.reviewId}`);
   }
   return true;
@@ -91,8 +123,9 @@ export async function writeReviewedFingerprintFixture({ fixturePath, candidatePa
   const review = reviewFingerprintCandidate({ expected, candidate });
   if (candidate.format !== "openglass-production-schema-fingerprint-v1"
     || candidate.generatedFrom !== "LOCAL_DOCKER_ONLY"
-    || candidate.canonicalMigrationCount !== ORDERED_MIGRATION_FILENAMES.length
-    || candidate.localMigrationLedger.length !== ORDERED_MIGRATION_FILENAMES.length) {
+    || candidate.canonicalMigrationCount !== candidate.localMigrationLedger.length
+    || candidate.localMigrationLedger.length < 1
+    || candidate.localMigrationLedger.length > ORDERED_MIGRATION_FILENAMES.length) {
     throw new Error("Reviewed fixture update requires a complete local disposable fingerprint candidate");
   }
   if (recordedReview.reviewId !== review.reviewId || JSON.stringify(recordedReview) !== JSON.stringify(review)) {

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "openglass-device-schema-v1-recovery-provenance-v1",
+  "authorizationId": "release-b-approval-10",
+  "authorizationSchema": "openglass-device-schema-v1-release-b-authorization-v4",
+  "targetProjectRef": "xcbnxzjlsvtgzixurcof",
+  "transactionCount": 1,
+  "provenance": {
+    "specCommit": "d3e4c0ce5f218bc4e0f388873e629b45e88e8211",
+    "planCommit": "bbb095f65ac5fe5e1779112c708771a3c7a04fcc",
+    "migrationCommit": "a8dd407cf7835c5e043f87f0045d307502730014",
+    "task19Commit": "9f55cbb899ebc9935c3d82a1d4adbc7bd8cf8124",
+    "releaseBHead": "7d582553e86dab001f42f7389b2417a3f1a1684f"
+  },
+  "artifacts": {
+    "authorizationReceiptPath": "artifacts/device-schema-v1/release-b-authorization-receipts/release-b-approval-10.json",
+    "authorizationReceiptSha256": "af2a409ef251bebfc64aa8c5c091065e9a9be30496ff31fae5977a0d3098a93f",
+    "ledgerArtifactPath": "artifacts/device-schema-v1/release-b-production-ledger/release-b-approval-10.json",
+    "ledgerArtifactSha256": "8ac6d22d7aae9fbfadb3b4d6f0f063f0d8f8cb1d6a467cdd72fe4e263a6f98fd",
+    "ledgerStatus": "STARTED"
+  },
+  "fingerprints": {
+    "migration": "a117631dd7a1ffa848b1df8dfbc8286bc7f901a1375961b3d4fe9ad5b2a2d215",
+    "yaml": "a4da41f5011911ddbc9f602a7bd3322148a71314955303f67d08ef2d95bddc9b",
+    "source": "1a46f7676847d9064e53c5031af065f5d0e306bd2c3e002bcbdf3e8ecd3dc1f2",
+    "conflict": "056d89a95abce13b898913bed7ce2712bd738cd5dec5560a4143cfc48bba4a28",
+    "identity": "82801dc594469010c70dcf086396824f86ae22e55e35896015045a9af1b0a2b2",
+    "model": "b9cf3dc49010200f5b5d3b2fa4e2edae1a4e9d89c02e47e7327680febbf27451",
+    "normalizedPayload": "c4b2bbaca63376402fcd4ca00af108a953a0b94d0975db2c579698e8a08aa333",
+    "dryRun": "c1583080fdffa004861c70ab9c2987a19839b87b30846cbf9983994e6b64e5e7"
+  },
+  "counts": {
+    "pre": {
+      "devices": 0,
+      "deviceSpecDefinitions": 0,
+      "deviceSpecs": 0,
+      "deviceSources": 0,
+      "deviceSourceLinks": 0,
+      "deviceSpecEvidence": 0,
+      "catalogAuditEvents": 0
+    },
+    "post": {
+      "devices": 24,
+      "deviceSpecDefinitions": 92,
+      "deviceSpecs": 1488,
+      "deviceSources": 39,
+      "deviceSourceLinks": 46,
+      "deviceSpecEvidence": 15,
+      "catalogAuditEvents": 0,
+      "publishedDevices": 24,
+      "uniqueDeviceSlugs": 24
+    }
+  },
+  "routeResult": {
+    "status": "PASS",
+    "productsRoute": "PASS",
+    "brandCounts": "PASS",
+    "deviceRedirects": "PASS",
+    "yamlCompatibility": "PASS",
+    "unexpected500Classification": "PASS"
+  },
+  "safety": {
+    "productionConnectionsPerformedByCloseout": 0,
+    "productionWritesPerformedByCloseout": 0,
+    "qaProdRunsPerformedByCloseout": 0,
+    "providerMutationsPerformedByCloseout": 0,
+    "containsExecutableCommands": false
+  }
+}

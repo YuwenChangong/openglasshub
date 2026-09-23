@@ -250,7 +250,7 @@
       "statementCount": 24
     }
   ],
-  "objectCount": 1247,
+  "objectCount": 1240,
   "objects": [
     {
       "objectType": "column",
@@ -14410,46 +14410,6 @@
       "schema": "public",
       "name": "enforce_device_slug_lock",
       "identity": "enforce_device_slug_lock()",
-      "attribute": "anon:EXECUTE",
-      "normalizedStructuralDefinition": "grantable=false",
-      "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
-      "sourceMigrations": [
-        "20260829_device_slug_lock.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "firstIntroducedMigration": "20260829_device_slug_lock.sql",
-      "laterModifyingMigrations": [
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "securityRelevant": true,
-      "legalConsentPrerequisite": true,
-      "label": "migration-managed"
-    },
-    {
-      "objectType": "function_grant",
-      "schema": "public",
-      "name": "enforce_device_slug_lock",
-      "identity": "enforce_device_slug_lock()",
-      "attribute": "authenticated:EXECUTE",
-      "normalizedStructuralDefinition": "grantable=false",
-      "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
-      "sourceMigrations": [
-        "20260829_device_slug_lock.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "firstIntroducedMigration": "20260829_device_slug_lock.sql",
-      "laterModifyingMigrations": [
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "securityRelevant": true,
-      "legalConsentPrerequisite": true,
-      "label": "migration-managed"
-    },
-    {
-      "objectType": "function_grant",
-      "schema": "public",
-      "name": "enforce_device_slug_lock",
-      "identity": "enforce_device_slug_lock()",
       "attribute": "postgres:EXECUTE",
       "normalizedStructuralDefinition": "grantable=false",
       "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
@@ -14471,26 +14431,6 @@
       "name": "enforce_device_slug_lock",
       "identity": "enforce_device_slug_lock()",
       "attribute": "PUBLIC:EXECUTE",
-      "normalizedStructuralDefinition": "grantable=false",
-      "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
-      "sourceMigrations": [
-        "20260829_device_slug_lock.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "firstIntroducedMigration": "20260829_device_slug_lock.sql",
-      "laterModifyingMigrations": [
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "securityRelevant": true,
-      "legalConsentPrerequisite": true,
-      "label": "migration-managed"
-    },
-    {
-      "objectType": "function_grant",
-      "schema": "public",
-      "name": "enforce_device_slug_lock",
-      "identity": "enforce_device_slug_lock()",
-      "attribute": "service_role:EXECUTE",
       "normalizedStructuralDefinition": "grantable=false",
       "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
       "sourceMigrations": [
@@ -20352,58 +20292,6 @@
       "schema": "public",
       "name": "devices",
       "identity": "public.devices",
-      "attribute": "anon:DELETE",
-      "normalizedStructuralDefinition": "grantable=false",
-      "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
-      "sourceMigrations": [
-        "20260612_hot_news_mvp.sql",
-        "20260829_device_library_admin.sql",
-        "20260829_device_slug_lock.sql",
-        "20260829054707_device_service_role_bootstrap_grants.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "firstIntroducedMigration": "20260612_hot_news_mvp.sql",
-      "laterModifyingMigrations": [
-        "20260829_device_library_admin.sql",
-        "20260829_device_slug_lock.sql",
-        "20260829054707_device_service_role_bootstrap_grants.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "securityRelevant": true,
-      "legalConsentPrerequisite": true,
-      "label": "migration-managed"
-    },
-    {
-      "objectType": "table_grant",
-      "schema": "public",
-      "name": "devices",
-      "identity": "public.devices",
-      "attribute": "anon:INSERT",
-      "normalizedStructuralDefinition": "grantable=false",
-      "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
-      "sourceMigrations": [
-        "20260612_hot_news_mvp.sql",
-        "20260829_device_library_admin.sql",
-        "20260829_device_slug_lock.sql",
-        "20260829054707_device_service_role_bootstrap_grants.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "firstIntroducedMigration": "20260612_hot_news_mvp.sql",
-      "laterModifyingMigrations": [
-        "20260829_device_library_admin.sql",
-        "20260829_device_slug_lock.sql",
-        "20260829054707_device_service_role_bootstrap_grants.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "securityRelevant": true,
-      "legalConsentPrerequisite": true,
-      "label": "migration-managed"
-    },
-    {
-      "objectType": "table_grant",
-      "schema": "public",
-      "name": "devices",
-      "identity": "public.devices",
       "attribute": "anon:MAINTAIN",
       "normalizedStructuralDefinition": "grantable=false",
       "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
@@ -20509,32 +20397,6 @@
       "name": "devices",
       "identity": "public.devices",
       "attribute": "anon:TRUNCATE",
-      "normalizedStructuralDefinition": "grantable=false",
-      "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
-      "sourceMigrations": [
-        "20260612_hot_news_mvp.sql",
-        "20260829_device_library_admin.sql",
-        "20260829_device_slug_lock.sql",
-        "20260829054707_device_service_role_bootstrap_grants.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "firstIntroducedMigration": "20260612_hot_news_mvp.sql",
-      "laterModifyingMigrations": [
-        "20260829_device_library_admin.sql",
-        "20260829_device_slug_lock.sql",
-        "20260829054707_device_service_role_bootstrap_grants.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "securityRelevant": true,
-      "legalConsentPrerequisite": true,
-      "label": "migration-managed"
-    },
-    {
-      "objectType": "table_grant",
-      "schema": "public",
-      "name": "devices",
-      "identity": "public.devices",
-      "attribute": "anon:UPDATE",
       "normalizedStructuralDefinition": "grantable=false",
       "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
       "sourceMigrations": [
@@ -20951,32 +20813,6 @@
       "name": "devices",
       "identity": "public.devices",
       "attribute": "postgres:UPDATE",
-      "normalizedStructuralDefinition": "grantable=false",
-      "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
-      "sourceMigrations": [
-        "20260612_hot_news_mvp.sql",
-        "20260829_device_library_admin.sql",
-        "20260829_device_slug_lock.sql",
-        "20260829054707_device_service_role_bootstrap_grants.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "firstIntroducedMigration": "20260612_hot_news_mvp.sql",
-      "laterModifyingMigrations": [
-        "20260829_device_library_admin.sql",
-        "20260829_device_slug_lock.sql",
-        "20260829054707_device_service_role_bootstrap_grants.sql",
-        "20260902042807_forward_reconcile_devices.sql"
-      ],
-      "securityRelevant": true,
-      "legalConsentPrerequisite": true,
-      "label": "migration-managed"
-    },
-    {
-      "objectType": "table_grant",
-      "schema": "public",
-      "name": "devices",
-      "identity": "public.devices",
-      "attribute": "service_role:DELETE",
       "normalizedStructuralDefinition": "grantable=false",
       "deterministicSha256": "ae42a6d95b6f9d9b7dc4965551a93a81dae9e5245a884eb33fd05a4af8867c7e",
       "sourceMigrations": [

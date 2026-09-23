@@ -53,6 +53,7 @@ const COMMANDS = Object.freeze({
   'qa-harness-profiles': Object.freeze([NODE, '--test', 'scripts/qa/test-qa-harness-profiles.mjs']),
   'qa-harness-receipt': Object.freeze([NODE, '--test', 'scripts/qa/test-qa-harness-receipt.mjs']),
   'qa-harness-risk': Object.freeze([NODE, '--test', 'scripts/qa/test-qa-harness-risk.mjs']),
+  'release-b-postgres-adapter-runtime-isolation': Object.freeze([NODE, 'scripts/qa/test-release-b-postgres-adapter-runtime-isolation.mjs']),
   search: Object.freeze([NODE, '--experimental-strip-types', 'scripts/test-search.mjs']),
   'security-headers': Object.freeze([NODE, 'scripts/test-security-headers.mjs']),
   'security-privilege-convergence': Object.freeze([NODE, '--test', 'scripts/qa/test-security-privilege-convergence.mjs']),
@@ -73,6 +74,10 @@ const COMMANDS = Object.freeze({
 
 const REAL_BROWSER_CHECK_ID = 'targeted-browser-journey';
 const SELECTED_IDS = Object.freeze([...Object.keys(COMMANDS), REAL_BROWSER_CHECK_ID].sort());
+const DATABASE_AREA_CHECK_IDS = Object.freeze([
+  'database-migration-versions',
+  'release-b-postgres-adapter-runtime-isolation',
+]);
 const FORBIDDEN_CHECKS = Object.freeze([
   Object.freeze({ id: 'database-replay', reason: 'release_verification_forbids_database_replay' }),
   Object.freeze({ id: 'deployment', reason: 'release_verification_forbids_deployment' }),
@@ -390,10 +395,13 @@ export function resolveReleaseChecks(context = {}) {
   const databaseRequired = areas.includes('database');
   const selectedIds = databaseRequired
     ? SELECTED_IDS
-    : SELECTED_IDS.filter((id) => id !== 'database-migration-versions');
+    : SELECTED_IDS.filter((id) => !DATABASE_AREA_CHECK_IDS.includes(id));
   const skippedChecks = databaseRequired
     ? FORBIDDEN_CHECKS
-    : [...FORBIDDEN_CHECKS, Object.freeze({ id: 'database-migration-versions', reason: 'database_area_not_changed' })]
+    : [
+        ...FORBIDDEN_CHECKS,
+        ...DATABASE_AREA_CHECK_IDS.map((id) => Object.freeze({ id, reason: 'database_area_not_changed' })),
+      ]
       .sort((left, right) => left.id.localeCompare(right.id));
   return Object.freeze({
     profile: QA_PROFILES.RELEASE,
