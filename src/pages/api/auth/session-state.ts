@@ -2,7 +2,7 @@ import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createUserClient, getBearerToken, jsonResponse, type RuntimeEnv } from "../../../lib/server/admin-auth.ts";
 import { requireCurrentPolicyConsent } from "../../../lib/server/legal-consent-mutation.server.ts";
-import { getTrustedSessionClaims } from "../../../lib/server/verified-session.server.ts";
+import { getLiveProviderSessionUser, getTrustedSessionClaims } from "../../../lib/server/verified-session.server.ts";
 
 export const prerender = false;
 
@@ -11,7 +11,8 @@ export async function handleSessionState(request: Request, env: RuntimeEnv): Pro
   if (!token) return jsonResponse({ state: "ANONYMOUS", policy: "UNAVAILABLE" });
 
   try {
-    await getTrustedSessionClaims(token, env);
+    const claims = await getTrustedSessionClaims(token, env);
+    await getLiveProviderSessionUser(token, env, claims);
   } catch (error) {
     if (error instanceof Response && error.status === 401) {
       return jsonResponse({ state: "ANONYMOUS", policy: "UNAVAILABLE" });

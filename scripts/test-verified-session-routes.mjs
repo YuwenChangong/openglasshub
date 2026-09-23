@@ -17,6 +17,7 @@ const { GET, ALL } = await import("../src/pages/api/auth/session-state.ts");
 const { requireModerator } = await import("../src/lib/server/admin-auth.ts");
 const { requireForumUser } = await import("../src/lib/server/circle-management.ts");
 const { requireVerifiedLegalConsentMutation } = await import("../src/lib/server/legal-consent-mutation.server.ts");
+const { requireVerifiedSession } = await import("../src/lib/server/verified-session.server.ts");
 
 const userId = "11111111-1111-4111-8111-111111111111";
 const sessionId = "22222222-2222-4222-8222-222222222222";
@@ -51,7 +52,7 @@ function fixture({ verified = false, policy = false, policyStatus = 200, rpcStat
       authCalls++;
       if (authCalls === 2 && secondAuthNetworkFailure) throw new Error("offline test transport failure");
       const status = authCalls === 2 ? secondAuthStatus : authStatus;
-      if (status !== 200) return response({ message: "local auth failure" }, status);
+      if (status !== 200) return response(status === 400 && authCalls === 2 ? { message: "session gone", error_code: "session_not_found" } : { message: "local auth failure" }, status);
       return validToken(token) ? response({ id: authCalls === 2 ? secondUserId : userId, email: "local@example.test", email_confirmed_at: "2026-01-01T00:00:00Z" }) : response({ message: "invalid" }, 401);
     }
     if (url.pathname === "/rest/v1/rpc/ogh_is_verified_session") {
@@ -86,14 +87,32 @@ await check("ANONYMOUS", {}, null, { status: 200, body: { state: "ANONYMOUS", po
 await check("MALFORMED_BEARER", {}, "Bearer bad token", { status: 200, body: { state: "ANONYMOUS", policy: "UNAVAILABLE" } }, []);
 await check("STALE_TOKEN", {}, `Bearer ${sign({ ...claims, exp: 1 })}`, { status: 200, body: { state: "ANONYMOUS", policy: "UNAVAILABLE" } }, []);
 await check("INVALID_TOKEN", {}, "Bearer invalid", { status: 200, body: { state: "ANONYMOUS", policy: "UNAVAILABLE" } }, []);
-await check("PENDING_POLICY_REQUIRED", { verified: false }, `Bearer ${token}`, { status: 200, body: { state: "PENDING_VERIFICATION", policy: "NEEDS_ACCEPTANCE" } }, ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"]);
-await check("PENDING_POLICY_CURRENT", { verified: false, policy: true }, `Bearer ${token}`, { status: 200, body: { state: "PENDING_VERIFICATION", policy: "CURRENT" } }, ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"]);
-await check("VERIFIED_POLICY_REQUIRED", { verified: true }, `Bearer ${token}`, { status: 200, body: { state: "VERIFIED_AUTHENTICATED", policy: "NEEDS_ACCEPTANCE" } }, ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"]);
-await check("VERIFIED_POLICY_CURRENT", { verified: true, policy: true }, `Bearer ${token}`, { status: 200, body: { state: "VERIFIED_AUTHENTICATED", policy: "CURRENT" } }, ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"]);
-await check("PENDING_POLICY_UNAVAILABLE", { verified: false, policyStatus: 503 }, `Bearer ${token}`, { status: 200, body: { state: "PENDING_VERIFICATION", policy: "UNAVAILABLE" } }, ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"]);
-await check("VERIFICATION_DB_UNAVAILABLE", { rpcStatus: 503 }, `Bearer ${token}`, { status: 503, body: { error: "VERIFICATION_SERVICE_UNAVAILABLE" } }, ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session"]);
+await check("PENDING_POLICY_REQUIRED", { verified: false }, `Bearer ${token}`, { status: 200, body: { state: "PENDING_VERIFICATION", policy: "NEEDS_ACCEPTANCE" } }, ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"]);
+await check("PENDING_POLICY_CURRENT", { verified: false, policy: true }, `Bearer ${token}`, { status: 200, body: { state: "PENDING_VERIFICATION", policy: "CURRENT" } }, ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"]);
+await check("VERIFIED_POLICY_REQUIRED", { verified: true }, `Bearer ${token}`, { status: 200, body: { state: "VERIFIED_AUTHENTICATED", policy: "NEEDS_ACCEPTANCE" } }, ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"]);
+await check("VERIFIED_POLICY_CURRENT", { verified: true, policy: true }, `Bearer ${token}`, { status: 200, body: { state: "VERIFIED_AUTHENTICATED", policy: "CURRENT" } }, ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"]);
+await check("PENDING_POLICY_UNAVAILABLE", { verified: false, policyStatus: 503 }, `Bearer ${token}`, { status: 200, body: { state: "PENDING_VERIFICATION", policy: "UNAVAILABLE" } }, ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"]);
+await check("VERIFICATION_DB_UNAVAILABLE", { rpcStatus: 503 }, `Bearer ${token}`, { status: 503, body: { error: "VERIFICATION_SERVICE_UNAVAILABLE" } }, ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session"]);
 await check("AUTH_UNAVAILABLE", { authStatus: 503 }, `Bearer ${token}`, { status: 503, body: { error: "VERIFICATION_SERVICE_UNAVAILABLE" } }, ["/auth/v1/user"]);
+await check("SIGNED_STALE_SESSION", { secondAuthStatus: 400 }, `Bearer ${token}`, { status: 200, body: { state: "ANONYMOUS", policy: "UNAVAILABLE" } }, ["/auth/v1/user", "/auth/v1/user"]);
+await check("LIVE_PROVIDER_ID_MISMATCH", { secondUserId: sessionId }, `Bearer ${token}`, { status: 200, body: { state: "ANONYMOUS", policy: "UNAVAILABLE" } }, ["/auth/v1/user", "/auth/v1/user"]);
+await check("LIVE_PROVIDER_OUTAGE", { secondAuthStatus: 503 }, `Bearer ${token}`, { status: 503, body: { error: "VERIFICATION_SERVICE_UNAVAILABLE" } }, ["/auth/v1/user", "/auth/v1/user"]);
 assert.equal((await ALL()).status, 405);
+
+for (const [name, options, status, code] of [
+  ["GUARD_SIGNED_STALE", { secondAuthStatus: 400 }, 401, "INVALID_AUTH"],
+  ["GUARD_PROVIDER_ID_MISMATCH", { secondUserId: sessionId }, 401, "INVALID_AUTH"],
+  ["GUARD_PROVIDER_OUTAGE", { secondAuthStatus: 503 }, 503, "VERIFICATION_SERVICE_UNAVAILABLE"],
+]) {
+  const test = fixture({ verified: false, ...options });
+  try {
+    const error = await requireVerifiedSession(request(`Bearer ${token}`), env).then(() => null, (failure) => failure);
+    assert.equal(error.status, status, name);
+    assert.deepEqual(await error.json(), { error: code }, name);
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user"], name);
+    console.log(`PASS ${name}`);
+  } finally { test.restore(); }
+}
 
 for (const [name, guard] of [["MODERATOR", requireModerator], ["FORUM_USER", requireForumUser]]) {
   const test = fixture({ verified: false });
@@ -101,7 +120,7 @@ for (const [name, guard] of [["MODERATOR", requireModerator], ["FORUM_USER", req
     const error = await guard(request(`Bearer ${token}`), env).then(() => null, (failure) => failure);
     assert.equal(error.status, 403, name);
     assert.deepEqual(await error.json(), { error: "VERIFICATION_REQUIRED" }, name);
-    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session"], name);
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session"], name);
     console.log(`PASS ${name}_PENDING_NO_PROFILE`);
   } finally { test.restore(); }
 }
@@ -111,7 +130,7 @@ for (const [name, guard] of [["MODERATOR", requireModerator], ["FORUM_USER", req
     const auth = await requireModerator(request(`Bearer ${token}`), env);
     assert.equal(auth.user.id, userId);
     assert.equal(auth.profile.role, "moderator");
-    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/profiles"]);
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/profiles"]);
     console.log("PASS VERIFIED_MODERATOR");
   } finally { test.restore(); }
 }
@@ -121,7 +140,7 @@ for (const [name, guard] of [["MODERATOR", requireModerator], ["FORUM_USER", req
     const auth = await requireForumUser(request(`Bearer ${token}`), env);
     assert.equal(auth.user.id, userId);
     assert.equal(auth.profile.role, "member");
-    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/auth/v1/user", "/rest/v1/profiles"]);
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/profiles"]);
     console.log("PASS VERIFIED_FORUM_USER");
   } finally { test.restore(); }
 }
@@ -137,7 +156,7 @@ for (const [name, options, status, code] of [
     assert.equal(error.status, status, name);
     assert.deepEqual(await error.json(), { error: code }, name);
     assert.equal(error.headers.get("cache-control"), "no-store", name);
-    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/auth/v1/user"], name);
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user"], name);
     console.log(`PASS ${name}`);
   } finally { test.restore(); }
 }
@@ -145,7 +164,7 @@ for (const [name, options, status, code] of [
   const test = fixture({ verified: true, profileRole: "member" });
   try {
     await assert.rejects(requireModerator(request(`Bearer ${token}`), env), (error) => error.status === 403);
-    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/profiles"]);
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/profiles"]);
     console.log("PASS VERIFIED_ROLE_DENIAL");
   } finally { test.restore(); }
 }
@@ -156,7 +175,7 @@ for (const [name, options, status, code] of [
     assert.equal(result.ok, false);
     assert.equal(result.response.status, 403);
     assert.deepEqual(await result.response.json(), { error: "VERIFICATION_REQUIRED" });
-    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session"]);
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session"]);
     console.log("PASS PENDING_NO_CONSENT_READ");
   } finally { test.restore(); }
 }
@@ -170,7 +189,7 @@ for (const [name, policy, policyStatus, status] of [
     const result = await requireVerifiedLegalConsentMutation(request(`Bearer ${token}`), env);
     assert.equal(result.ok, status === 200, name);
     if (!result.ok) assert.equal(result.response.status, status, name);
-    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"], name);
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"], name);
     console.log(`PASS ${name}_GUARD`);
   } finally { test.restore(); }
 }

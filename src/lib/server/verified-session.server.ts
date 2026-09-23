@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createUserClient, getBearerToken, requireEnv, type RuntimeEnv } from "./admin-auth.ts";
 
 export type VerifiedSessionClaims = {
@@ -8,7 +8,7 @@ export type VerifiedSessionClaims = {
   expiresAt: number;
 };
 
-export type VerifiedSession = { claims: VerifiedSessionClaims; client: SupabaseClient };
+export type VerifiedSession = { claims: VerifiedSessionClaims; client: SupabaseClient; user: User };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const invalidAuth = () => new Response(JSON.stringify({ error: "INVALID_AUTH" }), { status: 401 });
@@ -70,9 +70,9 @@ export async function getTrustedSessionClaims(token: string, env: RuntimeEnv): P
   };
 }
 
-export async function getCurrentConfirmedAuthUser(
+export async function getLiveProviderSessionUser(
   token: string, env: RuntimeEnv, claims: VerifiedSessionClaims,
-): Promise<{ id: string; email: string }> {
+): Promise<User> {
   if (!token) throw invalidAuth();
   let user;
   try {
@@ -82,8 +82,16 @@ export async function getCurrentConfirmedAuthUser(
   } catch (error) {
     throw authFailure(error);
   }
+  if (!user || user.id !== claims.userId) throw invalidAuth();
+  return user;
+}
+
+export async function getCurrentConfirmedAuthUser(
+  token: string, env: RuntimeEnv, claims: VerifiedSessionClaims,
+): Promise<{ id: string; email: string }> {
+  const user = await getLiveProviderSessionUser(token, env, claims);
   const confirmedAt = user?.email_confirmed_at;
-  if (user?.id !== claims.userId || typeof user.email !== "string" || !user.email.trim() ||
+  if (typeof user.email !== "string" || !user.email.trim() ||
       !isValidConfirmedAt(confirmedAt)) {
     throw invalidAuth();
   }
@@ -94,6 +102,7 @@ export async function requireVerifiedSession(request: Request, env: RuntimeEnv):
   const token = getBearerToken(request);
   if (!token) throw invalidAuth();
   const claims = await getTrustedSessionClaims(token, env);
+  const user = await getLiveProviderSessionUser(token, env, claims);
   const client = createUserClient(env, token);
   let result;
   try {
@@ -103,5 +112,5 @@ export async function requireVerifiedSession(request: Request, env: RuntimeEnv):
   }
   if (result.error || typeof result.data !== "boolean") throw unavailable();
   if (!result.data) throw new Response(JSON.stringify({ error: "VERIFICATION_REQUIRED" }), { status: 403 });
-  return { claims, client };
+  return { claims, client, user };
 }

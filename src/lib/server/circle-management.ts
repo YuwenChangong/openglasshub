@@ -95,36 +95,17 @@ export async function requireForumUser(request: Request, env: ForumRuntimeEnv): 
     throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
   }
 
-  const { claims, client } = await requireVerifiedSession(request, env).catch((error) => {
+  const { claims, client, user } = await requireVerifiedSession(request, env).catch((error) => {
     if (error instanceof Response) {
       const code = error.status === 401 ? "INVALID_AUTH" : error.status === 403 ? "VERIFICATION_REQUIRED" : "VERIFICATION_SERVICE_UNAVAILABLE";
       throw jsonResponse({ error: code }, error.status);
     }
     throw jsonResponse({ error: "VERIFICATION_SERVICE_UNAVAILABLE" }, 503);
   });
-  let authData;
-  try {
-    const result = await client.auth.getUser(token);
-    if (result.error) {
-      const status = result.error.status;
-      if (typeof status === "number" && status >= 400 && status < 500 && status !== 408 && status !== 429) {
-        throw jsonResponse({ error: "INVALID_AUTH" }, 401);
-      }
-      throw jsonResponse({ error: "VERIFICATION_SERVICE_UNAVAILABLE" }, 503);
-    }
-    authData = result.data;
-  } catch (error) {
-    if (error instanceof Response) throw error;
-    throw jsonResponse({ error: "VERIFICATION_SERVICE_UNAVAILABLE" }, 503);
-  }
-  if (!authData.user || authData.user.id !== claims.userId) {
-    throw jsonResponse({ error: "INVALID_AUTH" }, 401);
-  }
-
   const { data: profile, error: profileError } = await client
     .from("profiles")
     .select("id, role, username, display_name, avatar_url")
-    .eq("id", authData.user.id)
+    .eq("id", claims.userId)
     .maybeSingle();
 
   if (profileError) {
@@ -137,7 +118,7 @@ export async function requireForumUser(request: Request, env: ForumRuntimeEnv): 
   return {
     token,
     client,
-    user: authData.user,
+    user,
     profile: profile as ForumProfile,
   };
 }
