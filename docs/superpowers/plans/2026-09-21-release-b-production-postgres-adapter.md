@@ -806,4 +806,3 @@ git commit -m "docs: update Release B postgres adapter runbook"
 - [ ] **Step 15: Whole-branch review gate**
 
 Request one final whole-branch review before any Production authorization or execution. Review must check: no second importer, no duplicate transaction owner, no generalized DB abstraction, no Production testing, no hidden retry, TLS hardening, three connection stages, target identity semantics, runtime isolation, v4 adapter binding, and ambiguous commit behavior.
-
