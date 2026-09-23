@@ -23,17 +23,25 @@ function tokenFor(payload = claims) {
   const input = `${encode({ alg: "HS256", typ: "JWT" })}.${encode(payload)}`;
   return `${input}.${createHmac("sha256", secret).update(input).digest("base64url")}`;
 }
-function harness({ reserve = "RESERVED", user = provider, authFailure = false, rpcFailure = false, finalize = true, consume = "VERIFIED", delivery = "accepted" } = {}) {
+function harness({ reserve = "RESERVED", user = provider, authFailure = false, authFailureOnCall = 0, rpcFailure = false, finalize = true, consume = "VERIFIED", delivery = "accepted" } = {}) {
   const calls = [];
+  let authCalls = 0;
   const previous = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(input);
     const body = init.body ? JSON.parse(init.body) : undefined;
     calls.push({ path: url.pathname, body, headers: new Headers(init.headers) });
     const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
-    if (url.pathname === "/auth/v1/user") return authFailure ? json({ message: "unavailable" }, 503) : json(user);
+    if (url.pathname === "/auth/v1/user") {
+      authCalls++;
+      if (user === null) return json({ message: "not found" }, 404);
+      return authFailure || authCalls === authFailureOnCall ? json({ message: "unavailable" }, 503) : json(user);
+    }
     if (url.pathname === "/rest/v1/rpc/ogh_reserve_login_challenge") return rpcFailure ? json({ message: "unavailable" }, 503) : json(reserve);
-    if (url.pathname === "/rest/v1/rpc/ogh_finalize_login_delivery") return rpcFailure ? json({ message: "unavailable" }, 503) : json(finalize);
+    if (url.pathname === "/rest/v1/rpc/ogh_finalize_login_delivery") {
+      if (finalize === "lost-response") throw new Error("response lost after possible commit");
+      return rpcFailure ? json({ message: "unavailable" }, 503) : json(finalize);
+    }
     if (url.pathname === "/rest/v1/rpc/ogh_consume_login_challenge") return rpcFailure ? json({ message: "unavailable" }, 503) : json(consume);
     throw new Error(`Unexpected local mock path: ${url.pathname}`);
   };
@@ -46,7 +54,7 @@ function harness({ reserve = "RESERVED", user = provider, authFailure = false, r
   };
   return { calls, providerCalls, send, restore: () => { globalThis.fetch = previous; } };
 }
-const options = { token: tokenFor(), ipHash: "local-ip-hash" };
+const options = { token: tokenFor(), ipHash: "a".repeat(64) };
 let passed = 0;
 async function test(name, setup, run) {
   const mock = harness(setup);
@@ -104,7 +112,7 @@ for (const [name, setup, input, code] of [
   ["DUPLICATE_START", { reserve: "PENDING" }, options, null],
   ["QUOTA", { reserve: "EMAIL_BUDGET_EXHAUSTED" }, options, "EMAIL_BUDGET_EXHAUSTED"],
   ["NO_PASSWORD_AMR", {}, { ...options, token: tokenFor({ ...claims, amr: [{ method: "otp" }] }) }, "INVALID_AUTH"],
-  ["GET_USER_FAILURE", { authFailure: true }, options, "INVALID_AUTH"],
+  ["GET_USER_FAILURE", { authFailure: true }, options, "VERIFICATION_SERVICE_UNAVAILABLE"],
   ["UNKNOWN_ACCOUNT", { user: null }, options, "INVALID_AUTH"],
   ["ID_MISMATCH", { user: { ...provider, id: sessionId } }, options, "INVALID_AUTH"],
   ["MISSING_EMAIL", { user: { ...provider, email: undefined } }, options, "INVALID_AUTH"],
@@ -121,6 +129,25 @@ for (const [name, setup, input, code] of [
     }
   });
 }
+for (const [name, ipHash] of Object.entries({
+  RAW_IP: "192.0.2.1", UPPERCASE: "A".repeat(64), TOO_SHORT: "a".repeat(63),
+  TOO_LONG: "a".repeat(65), WHITESPACE: ` ${"a".repeat(64)}`,
+})) {
+  await test(`IP_HASH_${name}_REJECTED`, {}, async ({ send, providerCalls, calls }) => {
+    await assert.rejects(startChallenge({ ...options, ipHash }, env, send), (error) => error?.code === "INVALID_REQUEST" && error.status === 400);
+    assert.equal(providerCalls.length, 0);
+    assert.equal(calls.some((call) => call.path.endsWith("ogh_reserve_login_challenge")), false);
+  });
+}
+await test("RESEND_REJECTS_RAW_IP", {}, async ({ send, providerCalls }) => {
+  await assert.rejects(resendChallenge({ ...options, ipHash: "192.0.2.1" }, env, send), errorCode("INVALID_REQUEST"));
+  assert.equal(providerCalls.length, 0);
+});
+await test("GET_USER_OUTAGE_AFTER_RESERVE", { authFailureOnCall: 2 }, async ({ send, providerCalls, calls }) => {
+  await assert.rejects(startChallenge(options, env, send), (error) => error?.code === "VERIFICATION_SERVICE_UNAVAILABLE" && error.status === 503);
+  assert.equal(providerCalls.length, 0);
+  assert.equal(calls.find((call) => call.path.endsWith("ogh_finalize_login_delivery")).body.p_accepted, false);
+});
 await test("MISSING_PEPPER", {}, async ({ send, providerCalls, calls }) => {
   await assert.rejects(startChallenge(options, { ...env, OGH_LOGIN_CODE_PEPPER: undefined }, send), errorCode("VERIFICATION_SERVICE_UNAVAILABLE"));
   assert.equal(providerCalls.length, 0);
@@ -147,6 +174,12 @@ await test("RESEND_SUCCESS", {}, async ({ send, providerCalls }) => {
 await test("FINALIZE_FAILURE_NEVER_SUCCESS", { finalize: false }, async ({ send }) => {
   await assert.rejects(startChallenge(options, env, send), errorCode("VERIFICATION_SERVICE_UNAVAILABLE"));
 });
+await test("FINALIZE_RESPONSE_LOSS_RETURNS_503_WITHOUT_RETRY", { finalize: "lost-response" }, async ({ send, calls, providerCalls }) => {
+  await assert.rejects(startChallenge(options, env, send),
+    (error) => error?.code === "VERIFICATION_SERVICE_UNAVAILABLE" && error.status === 503);
+  assert.equal(providerCalls.length, 1);
+  assert.equal(calls.filter((call) => call.path.endsWith("ogh_finalize_login_delivery")).length, 1);
+});
 await test("VERIFY_ATOMIC_RPC", {}, async ({ calls }) => {
   assert.deepEqual(await verifyChallenge({ token: options.token, challengeId: "33333333-3333-4333-8333-333333333333", code: "123456" }, env), { status: "VERIFIED" });
   const call = calls.find((item) => item.path.endsWith("ogh_consume_login_challenge"));
@@ -156,7 +189,13 @@ await test("VERIFY_ATOMIC_RPC", {}, async ({ calls }) => {
 });
 for (const result of ["CHALLENGE_INVALID", "CHALLENGE_EXPIRED", "CHALLENGE_SUPERSEDED", "CHALLENGE_EXHAUSTED", "SESSION_GONE"]) {
   await test(`VERIFY_${result}`, { consume: result }, async () => {
-    await assert.rejects(verifyChallenge({ token: options.token, challengeId: "33333333-3333-4333-8333-333333333333", code: "123456" }, env), errorCode(result));
+    await assert.rejects(verifyChallenge({ token: options.token, challengeId: "33333333-3333-4333-8333-333333333333", code: "123456" }, env),
+      (error) => error?.code === result && error.status === (result === "SESSION_GONE" ? 401 : 400));
   });
 }
+await test("VERIFY_MALFORMED_CODE_IS_400", {}, async ({ calls }) => {
+  await assert.rejects(verifyChallenge({ token: options.token, challengeId: "33333333-3333-4333-8333-333333333333", code: "12345" }, env),
+    (error) => error?.code === "CHALLENGE_INVALID" && error.status === 400);
+  assert.equal(calls.some((call) => call.path.endsWith("ogh_consume_login_challenge")), false);
+});
 console.log(JSON.stringify({ passed }));

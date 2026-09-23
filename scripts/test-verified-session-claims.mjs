@@ -25,7 +25,7 @@ function validSignature(token) {
   const expected = createHmac("sha256", secret).update(`${parts[0]}.${parts[1]}`).digest("base64url");
   return parts[2] === expected;
 }
-function harness({ user = provider, rpc = true, authFailure = false } = {}) {
+function harness({ user = provider, rpc = true, authFailure = false, authStatus = 0, networkFailure = false } = {}) {
   const calls = [];
   const prior = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
@@ -34,6 +34,8 @@ function harness({ user = provider, rpc = true, authFailure = false } = {}) {
     calls.push({ path: url.pathname, token, body: init.body });
     const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
     if (url.pathname === "/auth/v1/user") {
+      if (networkFailure) throw new Error("local network outage");
+      if (authStatus) return json({ message: "local auth failure" }, authStatus);
       if (authFailure || !token || !validSignature(token)) return json({ message: "invalid token" }, 401);
       return json(user ?? { message: "no user" }, user ? 200 : 401);
     }
@@ -46,6 +48,23 @@ function harness({ user = provider, rpc = true, authFailure = false } = {}) {
   return { calls, restore: () => { globalThis.fetch = prior; } };
 }
 let count = 0;
+for (const [name, setup, status] of [
+  ["CLAIMS_PROVIDER_503", { authStatus: 503 }, 503],
+  ["CLAIMS_NETWORK_FAILURE", { networkFailure: true }, 503],
+  ["CLAIMS_INVALID_IDENTITY", { authStatus: 401 }, 401],
+  ["USER_PROVIDER_503", { authStatus: 503 }, 503],
+  ["USER_NETWORK_FAILURE", { networkFailure: true }, 503],
+  ["USER_INVALID_IDENTITY", { authStatus: 401 }, 401],
+]) {
+  const mock = harness(setup);
+  try {
+    const operation = name.startsWith("CLAIMS")
+      ? getTrustedSessionClaims(sign(base), env)
+      : getCurrentConfirmedAuthUser(sign(base), env, { userId, sessionId, amr: base.amr, expiresAt: base.exp });
+    await assert.rejects(operation, (error) => error instanceof Response && error.status === status);
+    count++; console.log(`PASS ${name}`);
+  } finally { mock.restore(); }
+}
 async function test(name, fn) {
   const mock = harness();
   try { await fn(mock); count++; console.log(`PASS ${name}`); }

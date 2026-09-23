@@ -9,6 +9,7 @@ type ChallengeResult = { status: "SENT"; challengeId: string } | { status: "PEND
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const unavailable = () => challengeError("VERIFICATION_SERVICE_UNAVAILABLE", 503);
 const invalidAuth = () => challengeError("INVALID_AUTH", 401);
+const authError = (error: unknown) => error instanceof Response && error.status === 503 ? unavailable() : invalidAuth();
 
 function serviceClient(env: RuntimeEnv): SupabaseClient {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) throw unavailable();
@@ -26,7 +27,7 @@ function validateBody(body: unknown): void {
 
 async function signedClaims(token: string, env: RuntimeEnv): Promise<VerifiedSessionClaims> {
   try { return await getTrustedSessionClaims(token, env); }
-  catch { throw invalidAuth(); }
+  catch (error) { throw authError(error); }
 }
 
 async function digest(env: RuntimeEnv, challengeId: string, claims: VerifiedSessionClaims, code: string): Promise<string> {
@@ -66,7 +67,7 @@ async function issue(input: StartInput, env: RuntimeEnv, fetchImpl: typeof fetch
   validateBody(input.body);
   const claims = await signedClaims(input.token, env);
   if (!claims.amr.some((entry) => entry.method === "password")) throw invalidAuth();
-  if (typeof input.ipHash !== "string" || input.ipHash.length < 1 || input.ipHash.length > 128) {
+  if (typeof input.ipHash !== "string" || !/^[0-9a-f]{64}$/.test(input.ipHash)) {
     throw challengeError("INVALID_REQUEST", 400);
   }
   const client = serviceClient(env);
@@ -87,9 +88,9 @@ async function issue(input: StartInput, env: RuntimeEnv, fetchImpl: typeof fetch
   let email: string;
   try {
     email = (await getCurrentConfirmedAuthUser(input.token, env, claims)).email;
-  } catch {
+  } catch (error) {
     await finalize(client, claims, challengeId, false);
-    throw invalidAuth();
+    throw authError(error);
   }
 
   try {
@@ -112,7 +113,7 @@ export function resendChallenge(input: StartInput, env: RuntimeEnv, fetchImpl: t
 
 export async function verifyChallenge(input: VerifyInput, env: RuntimeEnv): Promise<{ status: "VERIFIED" }> {
   const claims = await signedClaims(input.token, env);
-  if (!uuid.test(input.challengeId) || !/^\d{6}$/.test(input.code)) throw challengeError("CHALLENGE_INVALID", 401);
+  if (!uuid.test(input.challengeId) || !/^\d{6}$/.test(input.code)) throw challengeError("CHALLENGE_INVALID", 400);
   const codeDigest = await digest(env, input.challengeId, claims, input.code);
   const result = await rpc<unknown>(serviceClient(env), "ogh_consume_login_challenge", {
     p_user_id: claims.userId, p_session_id: claims.sessionId,
@@ -120,10 +121,10 @@ export async function verifyChallenge(input: VerifyInput, env: RuntimeEnv): Prom
   });
   if (result === "VERIFIED") return { status: "VERIFIED" };
   const errors: Record<string, { code: ChallengeError["code"]; status: number }> = {
-    CHALLENGE_INVALID: { code: "CHALLENGE_INVALID", status: 401 },
-    CHALLENGE_EXPIRED: { code: "CHALLENGE_EXPIRED", status: 401 },
-    CHALLENGE_SUPERSEDED: { code: "CHALLENGE_SUPERSEDED", status: 401 },
-    CHALLENGE_EXHAUSTED: { code: "CHALLENGE_EXHAUSTED", status: 429 },
+    CHALLENGE_INVALID: { code: "CHALLENGE_INVALID", status: 400 },
+    CHALLENGE_EXPIRED: { code: "CHALLENGE_EXPIRED", status: 400 },
+    CHALLENGE_SUPERSEDED: { code: "CHALLENGE_SUPERSEDED", status: 400 },
+    CHALLENGE_EXHAUSTED: { code: "CHALLENGE_EXHAUSTED", status: 400 },
     SESSION_GONE: { code: "SESSION_GONE", status: 401 },
   };
   if (typeof result === "string" && errors[result]) throw challengeError(errors[result].code, errors[result].status);

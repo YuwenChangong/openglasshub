@@ -18,6 +18,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function authFailure(error: unknown): Response {
+  if (isRecord(error) && typeof error.status === "number") {
+    if (error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500) return unavailable();
+    if (error.status >= 400 && error.status < 500) return invalidAuth();
+  }
+  if (error instanceof SyntaxError || (isRecord(error) && error.name === "AuthInvalidJwtError")) return invalidAuth();
+  return unavailable();
+}
+
 function isValidConfirmedAt(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const date = /^(\d{4}-\d{2}-\d{2})T/.exec(value)?.[1];
@@ -34,8 +43,8 @@ export async function getTrustedSessionClaims(token: string, env: RuntimeEnv): P
     const result = await client.auth.getClaims(token);
     if (result.error) throw result.error;
     claims = result.data?.claims;
-  } catch {
-    throw invalidAuth();
+  } catch (error) {
+    throw authFailure(error);
   }
 
   const expectedIssuer = `${new URL(requireEnv(env, "SUPABASE_URL")).origin}/auth/v1`;
@@ -70,8 +79,8 @@ export async function getCurrentConfirmedAuthUser(
     const result = await createUserClient(env, token).auth.getUser(token);
     if (result.error) throw result.error;
     user = result.data.user;
-  } catch {
-    throw invalidAuth();
+  } catch (error) {
+    throw authFailure(error);
   }
   const confirmedAt = user?.email_confirmed_at;
   if (user?.id !== claims.userId || typeof user.email !== "string" || !user.email.trim() ||
