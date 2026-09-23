@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
@@ -21,6 +21,7 @@ const privateReads = new Set([
   "catalog_audit_events",
 ]);
 const mixedReads = new Set(["circles", "posts", "comments", "post_media", "news_articles", "devices"]);
+const behavioralTables = new Set(["profiles", "circles", "posts", "comments", "post_votes", "bookmarks", "post_media", "forum_notifications", "news_articles", "devices"]);
 const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } };
 const serviceOnlyRpc = [
   "record_current_legal_policy_acceptance(uuid,text,text,text,text,smallint,text)",
@@ -60,6 +61,24 @@ async function rpc(base, key, token, name, body) {
   return rest(base, key, token, `rpc/${name}`, "POST", body);
 }
 
+async function subscribe(channel, label) {
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} Realtime subscription timed out`)), 15000);
+    channel.subscribe((state) => {
+      if (state === "SUBSCRIBED") { clearTimeout(timer); resolve(); }
+      if (state === "CHANNEL_ERROR" || state === "TIMED_OUT") { clearTimeout(timer); reject(new Error(`${label} Realtime ${state}`)); }
+    });
+  });
+}
+
+async function waitForEvent(events, id, label) {
+  const deadline = Date.now() + 5000;
+  while (!events.some((event) => event.new?.id === id || event.old?.id === id)) {
+    if (Date.now() >= deadline) throw new Error(`${label} Realtime event not delivered`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 export async function verifyBypass({ pool, status }) {
   const base = localUrl(status.API_URL);
   const service = createClient(base, status.SERVICE_ROLE_KEY, clientOptions);
@@ -80,8 +99,14 @@ export async function verifyBypass({ pool, status }) {
 
   const db = await pool.connect();
   try {
-    const { rows: policies } = await db.query(`select tablename, cmd, permissive, qual, with_check
+    const { rows: policies } = await db.query(`select tablename, cmd, permissive, qual, with_check,
+      'authenticated'::name = any(roles) as applies_authenticated
       from pg_policies where schemaname='public' and tablename=any($1::text[])`, [tables]);
+    const { rows: tableSecurity } = await db.query(`select c.relname, c.relrowsecurity
+      from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where n.nspname='public' and c.relname=any($1::text[])`, [tables]);
+    assert.equal(tableSecurity.length, tables.length, "complete ledger table catalog");
+    assert.ok(tableSecurity.every((row) => row.relrowsecurity), "all ledger tables enforce RLS");
     for (const table of tables) {
       const owned = policies.filter((p) => p.tablename === table);
       assert.ok(owned.length, `${table} has policies`);
@@ -89,12 +114,14 @@ export async function verifyBypass({ pool, status }) {
         const relevant = owned.filter((p) => p.cmd === cmd || p.cmd === "ALL");
         const { rows: [{ allowed }] } = await db.query("select has_table_privilege('authenticated',$1,$2) as allowed", [`public.${table}`, cmd]);
         if (allowed && relevant.some((p) => p.permissive === "PERMISSIVE")) {
-          assert.ok(relevant.some((p) => p.permissive === "RESTRICTIVE" &&
-            `${p.qual ?? ""} ${p.with_check ?? ""}`.includes("ogh_is_verified_session")), `${table} ${cmd} verified RLS`);
+          assert.ok(relevant.some((p) => p.permissive === "RESTRICTIVE" && p.applies_authenticated &&
+            (cmd === "INSERT" ? p.with_check?.includes("ogh_is_verified_session")
+              : cmd === "UPDATE" ? p.qual?.includes("ogh_is_verified_session") && p.with_check?.includes("ogh_is_verified_session")
+                : p.qual?.includes("ogh_is_verified_session"))), `${table} ${cmd} verified RLS`);
         }
       }
       if (privateReads.has(table) || mixedReads.has(table)) {
-        assert.ok(owned.some((p) => p.cmd === "SELECT" && p.permissive === "RESTRICTIVE" &&
+        assert.ok(owned.some((p) => p.cmd === "SELECT" && p.permissive === "RESTRICTIVE" && p.applies_authenticated &&
           (p.qual ?? "").includes("ogh_is_verified_session")), `${table} private SELECT verified RLS`);
       }
     }
@@ -132,16 +159,66 @@ export async function verifyBypass({ pool, status }) {
       const feed = await rest(base, status.ANON_KEY, actorToken, "posts", "GET", undefined, `?select=id&id=eq.${postId}`);
       assert.deepEqual(feed.data, [{ id: postId }], "published feed visible anonymously and while pending");
     }
+    const ownProfile = await rest(base, status.ANON_KEY, token, "profiles", "GET", undefined, `?select=id&id=eq.${user.id}`);
+    assert.deepEqual(ownProfile.data, [{ id: user.id }], "public profile remains visible while pending");
+    await db.query(`insert into public.legal_policy_acceptances
+      (user_id,bundle_version,terms_version,privacy_version,guidelines_version,minimum_age,first_acceptance_source,last_confirmation_source)
+      values($1,'local-bundle','local-terms','local-privacy','local-guidelines',16,'registration','registration')`, [user.id]);
+    const pendingConsent = await rest(base, status.ANON_KEY, token, "legal_policy_acceptances", "GET", undefined, `?select=user_id&user_id=eq.${user.id}`);
+    assert.deepEqual(pendingConsent.data, [{ user_id: user.id }], "own historical consent bootstrap read remains available while pending");
+    const privateCircleId = randomUUID(), privatePostId = randomUUID();
+    const privateCommentId = randomUUID(), privateMediaId = randomUUID(), publicCommentId = randomUUID(), publicMediaId = randomUUID();
+    await db.query("insert into public.circles(id,slug,name,type,owner_id,status) values($1,$2,'Local private circle','topic',$3,'deleted')", [privateCircleId, `verified-private-${randomUUID().slice(0, 8)}`, user.id]);
+    await db.query("insert into public.posts(id,author_id,circle_id,type,title,body,status,moderation_status) values($1,$2,$3,'experience','Local private post','A pending local post fixture.','pending','pending_review')", [privatePostId, user.id, circleId]);
+    await db.query("insert into public.comments(id,post_id,author_id,body,status,moderation_status) values($1,$2,$3,'Hidden local comment','hidden','hidden_by_admin')", [privateCommentId, postId, user.id]);
+    await db.query("insert into public.comments(id,post_id,author_id,body,status,moderation_status) values($1,$2,$3,'Visible local comment','published','published')", [publicCommentId, postId, user.id]);
+    await db.query("insert into public.post_media(id,post_id,user_id,kind,storage_path) values($1,$2,$3,'image',$4)", [privateMediaId, privatePostId, user.id, `${user.id}/${privatePostId}/1-private.png`]);
+    await db.query("insert into public.post_media(id,post_id,user_id,kind,storage_path) values($1,$2,$3,'image',$4)", [publicMediaId, postId, user.id, `${user.id}/${postId}/1-public.png`]);
+    const bookmarkId = randomUUID();
+    await db.query("insert into public.bookmarks(id,user_id,post_id) values($1,$2,$3)", [bookmarkId, user.id, postId]);
+    const { rows: [{ uploadSelectGrant }] } = await db.query("select has_table_privilege('authenticated','public.forum_upload_attempts','SELECT') as \"uploadSelectGrant\"");
+    assert.equal(uploadSelectGrant, false, "upload attempts private read is protected by effective grant");
+    const mixedRows = [
+      ["circles", circleId, privateCircleId], ["posts", postId, privatePostId],
+      ["comments", publicCommentId, privateCommentId], ["post_media", publicMediaId, privateMediaId],
+    ];
+    for (const [table, publicId, privateId] of mixedRows) {
+      for (const actorToken of [null, token]) {
+        const publicRow = publicId && await rest(base, status.ANON_KEY, actorToken, table, "GET", undefined, `?select=id&id=eq.${publicId}`);
+        if (publicId) assert.deepEqual(publicRow.data, [{ id: publicId }], `${table} public branch`);
+        const privateRow = await rest(base, status.ANON_KEY, actorToken, table, "GET", undefined, `?select=id&id=eq.${privateId}`);
+        assert.deepEqual(privateRow.data, [], `${table} private branch denied to anonymous/pending`);
+      }
+    }
+    for (const [table, id] of [["bookmarks", bookmarkId]]) {
+      const privateRow = await rest(base, status.ANON_KEY, token, table, "GET", undefined, `?select=id&id=eq.${id}`);
+      assert.deepEqual(privateRow.data, [], `${table} private SELECT denied while pending`);
+    }
     const { rows: [{ view_count: beforePostView }] } = await db.query("select view_count from public.posts where id=$1", [postId]);
     const publicPostCounter = await rpc(base, status.ANON_KEY, null, "increment_post_view_count", { p_post_id: postId });
     assert.ok(publicPostCounter.status < 300, "public post counter remains callable");
     const { rows: [{ view_count: afterPostView }] } = await db.query("select view_count from public.posts where id=$1", [postId]);
     assert.equal(afterPostView, beforePostView + 1, "public post counter still increments");
-    const resendBudget = await rpc(base, status.ANON_KEY, null, "consume_verification_email_resend_limit", {
-      input_ip_hash: `local-${randomUUID()}`, max_attempts: 5, window_hours: 24,
+    const budgetHash = randomBytes(32).toString("hex");
+    for (let n = 1; n <= 5; n++) {
+      const resendBudget = await rpc(base, status.ANON_KEY, null, "consume_verification_email_resend_limit", {
+        input_ip_hash: budgetHash, max_attempts: 5, window_hours: 24,
+      });
+      assert.equal(resendBudget.status, 200, "public signup resend budget remains callable");
+      assert.deepEqual(resendBudget.data, [{ allowed: true, attempts: n }]);
+    }
+    const bypassBudget = await rpc(base, status.ANON_KEY, null, "consume_verification_email_resend_limit", {
+      input_ip_hash: budgetHash, max_attempts: 1000000, window_hours: 1,
     });
-    assert.equal(resendBudget.status, 200, "public signup resend budget remains callable");
-    assert.equal(resendBudget.data[0]?.allowed, true);
+    assert.deepEqual(bypassBudget.data, [{ allowed: false, attempts: 5 }], "caller limits cannot override signup budget");
+    const rotatedBudget = await rpc(base, status.ANON_KEY, null, "consume_verification_email_resend_limit", {
+      input_ip_hash: randomBytes(32).toString("hex"), max_attempts: 5, window_hours: 24,
+    });
+    assert.deepEqual(rotatedBudget.data, [{ allowed: true, attempts: 1 }], "residual: direct caller can rotate hash without trusted IP binding");
+    const raceHash = randomBytes(32).toString("hex");
+    const race = await Promise.all(Array.from({ length: 8 }, () => rpc(base, status.ANON_KEY, null,
+      "consume_verification_email_resend_limit", { input_ip_hash: raceHash, max_attempts: 5, window_hours: 24 })));
+    assert.equal(race.filter((result) => result.data?.[0]?.allowed).length, 5, "same-hash concurrent budget capped at five");
 
     const notificationId = randomUUID();
     await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like')", [notificationId, user.id]);
@@ -157,56 +234,100 @@ export async function verifyBypass({ pool, status }) {
     assert.ok(deniedRpc.status >= 400, "pending cannot call service-only QA role RPC");
     const draftId = randomUUID();
     await db.query("insert into public.news_articles(id,slug,title,status) values($1,$2,'Local draft','draft')", [draftId, `verified-bypass-${randomUUID().slice(0, 8)}`]);
+    const draftDeviceId = randomUUID();
+    await db.query(`insert into public.devices(id,slug,brand_key,brand_name,name,short_description,long_description,
+      image_alt,category,route_label,route_description,publication_status)
+      values($1,$2,'local','Local','Local draft device','Local description','Local long description',
+      'Local device','ar_glasses','Local route','Local route description','draft')`,
+      [draftDeviceId, `verified-device-${randomUUID().slice(0, 8)}`]);
+    const publicDeviceId = randomUUID();
+    await db.query(`insert into public.devices(id,slug,brand_key,brand_name,name,short_description,long_description,
+      image_alt,category,route_label,route_description,publication_status)
+      values($1,$2,'local','Local','Local public device','Local description','Local long description',
+      'Local device','ar_glasses','Local route','Local route description','published')`,
+      [publicDeviceId, `verified-public-device-${randomUUID().slice(0, 8)}`]);
+    for (const actorToken of [null, token]) {
+      const publicDevice = await rest(base, status.ANON_KEY, actorToken, "devices", "GET", undefined, `?select=id&id=eq.${publicDeviceId}`);
+      assert.deepEqual(publicDevice.data, [{ id: publicDeviceId }], "devices published branch remains public");
+    }
     await db.query("update public.profiles set role='moderator' where id=$1", [user.id]);
     const pendingStaffRead = await rest(base, status.ANON_KEY, token, "news_articles", "GET", undefined, `?select=id&id=eq.${draftId}`);
     assert.deepEqual(pendingStaffRead.data, [], "pending staff cannot read draft news");
+    const pendingDeviceRead = await rest(base, status.ANON_KEY, token, "devices", "GET", undefined, `?select=id&id=eq.${draftDeviceId}`);
+    assert.deepEqual(pendingDeviceRead.data, [], "pending staff cannot read draft device");
     const pendingStaffWrite = await rest(base, status.ANON_KEY, token, "news_articles", "PATCH", { title: "Pending staff edit" }, `?id=eq.${draftId}`);
     assert.deepEqual(pendingStaffWrite.data, [], "pending staff cannot write draft news");
+    const mediaCases = [
+      { family: "post", path: `${user.id}/${postId}/1-owner.png`, privateRead: true },
+      { family: "circle", path: `circle-covers/${user.id}/1-owner.png`, privateRead: true },
+      { family: "profile", path: `profile-avatars/${user.id}/1-owner.png`, privateRead: false },
+      { family: "news", path: `news-covers/${user.id}/1-owner.png`, privateRead: false },
+    ];
+    for (const entry of mediaCases) {
+      const pendingUpload = await auth.storage.from("post-media").upload(entry.path, new Uint8Array([1, 2, 3]), { contentType: "image/png" });
+      assert.ok(pendingUpload.error, `${entry.family} pending Storage INSERT denied`);
+    }
+    const insertCases = [
+      { table: "circles", id: randomUUID(), body: { slug: `verified-insert-${randomUUID().slice(0, 8)}`, name: "Local insert circle", type: "topic", owner_id: user.id }, update: { name: "Verified circle update" }, deleteControl: false },
+      { table: "posts", id: randomUUID(), body: { author_id: user.id, circle_id: circleId, type: "experience", title: "Inserted local post", body: "A valid published local post.", status: "published" }, update: { title: "Verified post update" } },
+      { table: "comments", id: randomUUID(), body: { post_id: postId, author_id: user.id, body: "Inserted local comment", status: "published" }, update: { body: "Verified comment update" } },
+      { table: "post_votes", id: randomUUID(), body: { post_id: postId, user_id: user.id, vote: 1 }, update: { vote: -1 } },
+      { table: "bookmarks", id: randomUUID(), body: { post_id: privatePostId, user_id: user.id }, update: { user_id: user.id } },
+      { table: "news_articles", id: randomUUID(), body: { slug: `verified-news-${randomUUID().slice(0, 8)}`, title: "Inserted local news", status: "draft" }, update: { title: "Verified news update" } },
+    ];
+    for (const entry of insertCases) {
+      const pendingInsert = await rest(base, status.ANON_KEY, token, entry.table, "POST", { id: entry.id, ...entry.body });
+      assert.equal(pendingInsert.data?.code, "42501", `${entry.table} pending INSERT denied by RLS`);
+    }
     const { rows: [{ view_count: beforeView }] } = await db.query("select view_count from public.news_articles where slug='community-discussion-shifts-to-real-usage'");
     const publicCounter = await rpc(base, status.ANON_KEY, null, "increment_news_article_view", { p_slug: "community-discussion-shifts-to-real-usage" });
     assert.ok(publicCounter.status < 300, "public news counter remains callable");
     const { rows: [{ view_count: afterView }] } = await db.query("select view_count from public.news_articles where slug='community-discussion-shifts-to-real-usage'");
     assert.equal(afterView, beforeView + 1, "public counter still increments");
 
-    const { rows: publication } = await db.query("select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='forum_notifications'");
-    assert.equal(publication.length, 1, "notification Realtime publication remains enabled");
+    const { rows: publication } = await db.query("select tablename from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename=any($1::text[]) order by tablename", [["comments", "post_votes", "comment_reactions", "forum_notifications"]]);
+    assert.deepEqual(publication.map((row) => row.tablename), ["comment_reactions", "comments", "forum_notifications", "post_votes"], "all reviewed Realtime tables remain published");
     const pendingEvents = [];
     auth.realtime.setAuth(token);
     const channel = auth.channel(`verified-session-bypass-${randomUUID()}`)
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "forum_notifications" }, (event) => pendingEvents.push(event));
+      .on("postgres_changes", { event: "*", schema: "public", table: "forum_notifications" }, (event) => pendingEvents.push(event));
     try {
-      await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("Local Realtime subscription timed out")), 15000);
-        channel.subscribe((state) => {
-          if (state === "SUBSCRIBED") { clearTimeout(timer); resolve(); }
-          if (state === "CHANNEL_ERROR" || state === "TIMED_OUT") { clearTimeout(timer); reject(new Error(`Local Realtime ${state}`)); }
-        });
-      });
+      await subscribe(channel, "pending private");
       const deletedId = randomUUID();
       await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like')", [deletedId, user.id]);
       await new Promise((resolve) => setTimeout(resolve, 500));
       await db.query("delete from public.forum_notifications where id=$1", [deletedId]);
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const realtimePublicCommentId = randomUUID();
+      await db.query("insert into public.comments(id,post_id,author_id,body,status,moderation_status) values($1,$2,$3,'Realtime public control','published','published')", [realtimePublicCommentId, postId, user.id]);
+      const realtimePublicRead = await rest(base, status.ANON_KEY, token, "comments", "GET", undefined, `?select=id&id=eq.${realtimePublicCommentId}`);
+      assert.deepEqual(realtimePublicRead.data, [{ id: realtimePublicCommentId }], "pending REST sees public comment event row");
+      await new Promise((resolve) => setTimeout(resolve, 500));
       assert.equal(pendingEvents.length, 0, "pending must not receive private notification DELETE events");
     } finally { await auth.removeChannel(channel); }
     await db.query("insert into private.ogh_verified_sessions(session_id,user_id,verification_kind) values($1,$2,'login_challenge')", [claims.session_id, user.id]);
+    for (const [table, , privateId] of mixedRows) {
+      const privateRow = await rest(base, status.ANON_KEY, token, table, "GET", undefined, `?select=id&id=eq.${privateId}`);
+      assert.deepEqual(privateRow.data, [{ id: privateId }], `${table} verified owner private SELECT`);
+    }
+    for (const [table, id] of [["bookmarks", bookmarkId]]) {
+      const privateRow = await rest(base, status.ANON_KEY, token, table, "GET", undefined, `?select=id&id=eq.${id}`);
+      assert.deepEqual(privateRow.data, [{ id }], `${table} verified private SELECT`);
+    }
     const verifiedEvents = [];
     const verifiedChannel = auth.channel(`verified-session-control-${randomUUID()}`)
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "forum_notifications" }, (event) => verifiedEvents.push(event));
+      .on("postgres_changes", { event: "*", schema: "public", table: "forum_notifications" }, (event) => verifiedEvents.push(event));
     try {
-      await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("Verified Realtime subscription timed out")), 15000);
-        verifiedChannel.subscribe((state) => {
-          if (state === "SUBSCRIBED") { clearTimeout(timer); resolve(); }
-          if (state === "CHANNEL_ERROR" || state === "TIMED_OUT") { clearTimeout(timer); reject(new Error(`Verified Realtime ${state}`)); }
-        });
-      });
+      await subscribe(verifiedChannel, "verified private");
       const controlId = randomUUID();
       await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like')", [controlId, user.id]);
+      await waitForEvent(verifiedEvents, controlId, "verified notification INSERT");
       await new Promise((resolve) => setTimeout(resolve, 500));
       await db.query("delete from public.forum_notifications where id=$1", [controlId]);
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      assert.ok(verifiedEvents.some((event) => event.old?.id === controlId), "verified Realtime DELETE control delivered");
+      const deadline = Date.now() + 5000;
+      while (!verifiedEvents.some((event) => event.old?.id === controlId)) {
+        if (Date.now() >= deadline) throw new Error("verified notification DELETE event not delivered");
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
     } finally { await auth.removeChannel(verifiedChannel); auth.realtime.disconnect(); }
     const verifiedNotifications = await rest(base, status.ANON_KEY, token, "forum_notifications", "GET", undefined, `?select=id&id=eq.${notificationId}`);
     assert.deepEqual(verifiedNotifications.data, [{ id: notificationId }], "verified recipient can read notifications");
@@ -214,24 +335,64 @@ export async function verifyBypass({ pool, status }) {
     assert.deepEqual(verifiedUpdate.data.map((row) => row.id), [user.id], "verified owner can write profile");
     const verifiedStaffRead = await rest(base, status.ANON_KEY, token, "news_articles", "GET", undefined, `?select=id&id=eq.${draftId}`);
     assert.deepEqual(verifiedStaffRead.data, [{ id: draftId }], "verified staff can read draft news");
+    const verifiedDeviceRead = await rest(base, status.ANON_KEY, token, "devices", "GET", undefined, `?select=id&id=eq.${draftDeviceId}`);
+    assert.deepEqual(verifiedDeviceRead.data, [{ id: draftDeviceId }], "verified staff can read draft device");
     const verifiedStaffWrite = await rest(base, status.ANON_KEY, token, "news_articles", "PATCH", { title: "Verified staff edit" }, `?id=eq.${draftId}`);
     assert.deepEqual(verifiedStaffWrite.data.map((row) => row.id), [draftId], "verified staff can write draft news");
-    const verifiedStorage = await auth.storage.from("post-media").upload(`profile-avatars/${user.id}/2-verified.png`, new Uint8Array([1, 2, 3]), { contentType: "image/png" });
-    assert.ifError(verifiedStorage.error);
-    const publicMediaPath = `news-covers/${user.id}/3-public.png`;
-    const newsUpload = await auth.storage.from("post-media").upload(publicMediaPath, new Uint8Array([1, 2, 3]), { contentType: "image/png" });
-    assert.ifError(newsUpload.error);
+    for (const entry of insertCases) {
+      const verifiedInsert = await rest(base, status.ANON_KEY, token, entry.table, "POST", { id: entry.id, ...entry.body });
+      assert.equal(verifiedInsert.status, 201, `${entry.table} verified INSERT: ${JSON.stringify(verifiedInsert.data)}`);
+      assert.deepEqual(verifiedInsert.data.map((row) => row.id), [entry.id]);
+    }
+    const pendingAgain = createClient(base, status.ANON_KEY, clientOptions);
+    const { data: secondLogin, error: secondError } = await pendingAgain.auth.signInWithPassword({ email, password });
+    assert.ifError(secondError);
+    assert.ok(secondLogin.session?.access_token, "second real password session");
+    const secondToken = secondLogin.session.access_token;
+    for (const entry of insertCases) {
+      const pendingUpdate = await rest(base, status.ANON_KEY, secondToken, entry.table, "PATCH", entry.update, `?id=eq.${entry.id}`);
+      assert.deepEqual(pendingUpdate.data, [], `${entry.table} pending UPDATE denied`);
+      const verifiedUpdate = await rest(base, status.ANON_KEY, token, entry.table, "PATCH", entry.update, `?id=eq.${entry.id}`);
+      assert.deepEqual(verifiedUpdate.data.map((row) => row.id), [entry.id], `${entry.table} verified UPDATE`);
+    }
+    for (const entry of [...insertCases].reverse()) {
+      if (entry.deleteControl === false) continue;
+      const pendingDelete = await rest(base, status.ANON_KEY, secondToken, entry.table, "DELETE", undefined, `?id=eq.${entry.id}`);
+      assert.deepEqual(pendingDelete.data, [], `${entry.table} pending DELETE denied`);
+      const verifiedDelete = await rest(base, status.ANON_KEY, token, entry.table, "DELETE", undefined, `?id=eq.${entry.id}`);
+      assert.deepEqual(verifiedDelete.data.map((row) => row.id), [entry.id], `${entry.table} verified DELETE`);
+    }
     const anonMedia = createClient(base, status.ANON_KEY, clientOptions);
-    const publicMedia = await anonMedia.storage.from("post-media").download(publicMediaPath);
-    assert.ifError(publicMedia.error);
-    assert.deepEqual([...new Uint8Array(await publicMedia.data.arrayBuffer())], [1, 2, 3], "public news media remains readable");
+    for (const entry of mediaCases) {
+      const verifiedUpload = await auth.storage.from("post-media").upload(entry.path, new Uint8Array([1, 2, 3]), { contentType: "image/png" });
+      assert.ifError(verifiedUpload.error);
+      if (entry.family === "profile") await db.query("update public.profiles set avatar_url=$1 where id=$2", [entry.path, user.id]);
+      const readClient = entry.privateRead ? auth : anonMedia;
+      const readable = await readClient.storage.from("post-media").download(entry.path);
+      assert.ifError(readable.error);
+      assert.deepEqual([...new Uint8Array(await readable.data.arrayBuffer())], [1, 2, 3], `${entry.family} owner/public Storage SELECT`);
+      const pendingRead = await pendingAgain.storage.from("post-media").download(entry.path);
+      if (entry.privateRead) assert.ok(pendingRead.error, `${entry.family} private Storage SELECT denied`);
+      else assert.ifError(pendingRead.error);
+      const pendingUpdate = await pendingAgain.storage.from("post-media").update(entry.path, new Uint8Array([4, 5, 6]), { contentType: "image/png" });
+      assert.ok(pendingUpdate.error, `${entry.family} pending Storage UPDATE denied`);
+      const verifiedUpdate = await auth.storage.from("post-media").update(entry.path, new Uint8Array([4, 5, 6]), { contentType: "image/png" });
+      assert.ifError(verifiedUpdate.error);
+      const pendingDelete = await pendingAgain.storage.from("post-media").remove([entry.path]);
+      assert.ok(pendingDelete.error || !pendingDelete.data?.length, `${entry.family} pending Storage DELETE denied`);
+      const stillReadable = await readClient.storage.from("post-media").download(entry.path);
+      assert.ifError(stillReadable.error);
+      const verifiedDelete = await auth.storage.from("post-media").remove([entry.path]);
+      assert.ifError(verifiedDelete.error);
+      assert.ok(verifiedDelete.data?.length, `${entry.family} verified Storage DELETE`);
+    }
   } finally {
     auth.realtime.disconnect();
     db.release();
     const { error } = await service.auth.admin.deleteUser(user.id);
     assert.ifError(error);
   }
-  console.log(`PASS verified session bypass: ${tables.length} table surfaces; local REST, Storage, RPC and Realtime`);
+  console.log(`PASS verified session bypass: catalog/RLS=${tables.length}, REST behavior=${behavioralTables.size}, Storage families=4, live Realtime=forum_notifications; residual=caller-controlled resend hash`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url).toLowerCase() === process.argv[1].toLowerCase()) {
