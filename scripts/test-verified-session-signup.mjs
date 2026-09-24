@@ -105,11 +105,33 @@ const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement,
   Event: dom.window.Event, MouseEvent: dom.window.MouseEvent, IS_REACT_ACT_ENVIRONMENT: true });
 Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator, configurable: true });
+globalThis.__testBrowserClient = null;
 const { createRoot } = await import("react-dom/client");
 const ReactRuntime = await import("react");
 const { act, createElement } = ReactRuntime;
 globalThis.React = ReactRuntime.default;
-const vite = await createServer({ plugins: [react()], server: { middlewareMode: true }, appType: "custom" });
+const browserClientMock = {
+  name: "signup-browser-client-test-double",
+  enforce: "pre",
+  resolveId(id) {
+    if (id.endsWith("/lib/supabase-browser") || id.endsWith("/lib/supabase-browser.ts")) return "\0signup-browser-client";
+  },
+  load(id) {
+    if (id === "\0signup-browser-client") return "export const createBrowserSupabaseClient = () => globalThis.__testBrowserClient;";
+  },
+  transform(source, id) {
+    const mutation = process.env.VERIFIED_SESSION_SIGNUP_TEST_MUTATION;
+    if (mutation === "omit-policy" && /SignupConfirmation\.tsx(?:\?|$)/.test(id)) {
+      assert.ok(source.includes("acceptedPolicies: true,"));
+      return source.replace("acceptedPolicies: true,", "acceptedPolicies: false,");
+    }
+    if (mutation === "global-signout" && /AuthPanel\.tsx(?:\?|$)/.test(id)) {
+      assert.ok(source.includes('supabase.auth.signOut({ scope: "local" })'));
+      return source.replace('supabase.auth.signOut({ scope: "local" })', "supabase.auth.signOut()");
+    }
+  },
+};
+const vite = await createServer({ plugins: [browserClientMock, react()], server: { middlewareMode: true }, appType: "custom" });
 try {
   const { default: AuthPanel } = await vite.ssrLoadModule("/src/components/forum/AuthPanel.tsx");
   const pause = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -119,10 +141,10 @@ try {
     node.dispatchEvent(new Event("change", { bubbles: true }));
   };
   const findButton = (label) => [...document.querySelectorAll("button")].find((node) => node.textContent?.includes(label));
-  function mount(adapter, consentAdapter, navigationAdapter) {
+  function mount(adapter, consentAdapter, navigationAdapter, next = "/me/") {
     const root = createRoot(document.getElementById("root"));
     return { root, render: () => act(async () => {
-      root.render(createElement(AuthPanel, { initialMode: "signup", authAdapter: adapter, consentAdapter, navigationAdapter, next: "/me/" }));
+      root.render(createElement(AuthPanel, { initialMode: "signup", authAdapter: adapter, consentAdapter, navigationAdapter, next }));
       await pause();
     }) };
   }
@@ -136,14 +158,48 @@ try {
   assert.ok(document.querySelector('input[autocomplete="one-time-code"]'), "code entry opens without signUp");
   await act(async () => { view.root.unmount(); });
   assert.equal(window.localStorage.length, 0, "signup email and code are not persisted");
-  view = mount(adapter, null, navigation);
+  const reentryEvents = [];
+  const browserClient = { auth: {
+    getSession: async () => ({ data: { session: null }, error: null }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+    setSession: async (tokens) => { reentryEvents.push({ kind: "setSession", tokens }); return { error: null }; },
+  } };
+  globalThis.__testBrowserClient = browserClient;
+  const reentryNavigation = { ...navigation, navigate: (destination) => reentryEvents.push({ kind: "navigate", destination }) };
+  view = mount(adapter, null, reentryNavigation, "https://external.example/path");
   await view.render();
   assert.equal(document.querySelector('input[autocomplete="one-time-code"]'), null, "reload starts without in-memory code screen");
   await act(async () => { findButton("已有注册验证码").click(); await pause(); });
   assert.equal(document.querySelector('input[autocomplete="one-time-code"]'), null, "code entry requires an entered email");
-  await act(async () => { setValue(document.querySelector('input[type="email"]'), email); findButton("已有注册验证码").click(); await pause(); });
+  const reenteredEmail = "reentered@example.test";
+  await act(async () => { setValue(document.querySelector('input[type="email"]'), reenteredEmail); findButton("已有注册验证码").click(); await pause(); });
   assert.ok(document.querySelector('input[autocomplete="one-time-code"]'), "entered email restores code entry after reload");
+  const originalFetch = globalThis.fetch;
+  const confirmationCalls = [];
+  globalThis.fetch = async (input, init) => {
+    confirmationCalls.push({ path: input, method: init.method, body: JSON.parse(init.body) });
+    assert.equal(input, "/api/auth/signup-confirm");
+    return json({ access_token: "confirmed-access", refresh_token: "confirmed-refresh" });
+  };
+  try {
+    await act(async () => {
+      setValue(document.querySelector('input[autocomplete="one-time-code"]'), "654321");
+      document.querySelector('input#signup-confirm-policy').click();
+    });
+    await act(async () => {
+      document.querySelector("form.auth-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await pause(); await pause();
+    });
+  } finally { globalThis.fetch = originalFetch; }
+  assert.deepEqual(confirmationCalls, [{ path: "/api/auth/signup-confirm", method: "POST", body: {
+    email: reenteredEmail, code: "654321", acceptedPolicies: true, policyVersions: versions,
+  } }], "re-entry submits newly entered email, code, and exact explicit current policy acceptance");
+  assert.deepEqual(reentryEvents, [
+    { kind: "setSession", tokens: { access_token: "confirmed-access", refresh_token: "confirmed-refresh" } },
+    { kind: "navigate", destination: "/" },
+  ], "provider tokens install before sanitized navigation");
   await act(async () => { view.root.unmount(); });
+  globalThis.__testBrowserClient = null;
 
   const calls = { signup: 0, signOut: 0, consent: 0, navigation: 0 };
   const immediate = { viewState: "signed_out", getSession: async () => null,
@@ -186,8 +242,63 @@ try {
   assert.equal(calls.navigation, 0);
   assert.match(document.body.textContent, /临时会话未能清除.*联系支持/, "signout failure remains actionable and closed");
   await act(async () => { view.root.unmount(); });
-  const panelSource = await readFile(new URL("../src/components/forum/AuthPanel.tsx", import.meta.url), "utf8");
-  assert.match(panelSource, /auth\.signOut\(\{ scope: "local" \}\)/, "browser-issued immediate session uses local signout");
+
+  async function exerciseBrowserImmediate(signOutError) {
+    const events = [];
+    const fetches = [];
+    let listener;
+    globalThis.__testBrowserClient = { auth: {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      onAuthStateChange: (callback) => {
+        listener = callback;
+        return { data: { subscription: { unsubscribe() {} } } };
+      },
+      signUp: async () => {
+        events.push({ kind: "signUp" });
+        listener?.("SIGNED_IN", { user: { id: userId } });
+        return { data: { session: { access_token: "unexpected-provider-session", user: { id: userId } } }, error: null };
+      },
+      signOut: async (options) => {
+        events.push({ kind: "signOut", options });
+        if (!signOutError) listener?.("SIGNED_OUT", null);
+        return { error: signOutError };
+      },
+    } };
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      fetches.push(String(input));
+      throw new Error("unexpected legacy consent or signup activation request");
+    };
+    const browserNavigation = { navigate: (destination) => events.push({ kind: "navigate", destination }),
+      replace: (destination) => events.push({ kind: "replace", destination }), getCurrentUrl: () => "/login/" };
+    const browserView = mount(undefined, undefined, browserNavigation);
+    try {
+      await browserView.render();
+      await act(async () => {
+        setValue(document.querySelector('input[type="email"]'), email);
+        setValue(document.querySelector('input[type="password"]'), "Password123!");
+        document.querySelector('input[type="checkbox"]').click();
+      });
+      await act(async () => {
+        document.querySelector("form.auth-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        await pause(); await pause();
+      });
+      assert.deepEqual(events, [{ kind: "signUp" }, { kind: "signOut", options: { scope: "local" } }],
+        "browser-issued session gets only local signout and never success navigation");
+      assert.deepEqual(fetches, [], "immediate browser session cannot write consent or activate signup");
+      assert.equal(document.querySelector('input[autocomplete="one-time-code"]'), null);
+      assert.equal(document.querySelector(".auth-user-state"), null, "signed-in UI is suppressed even if local signout fails");
+      assert.match(document.body.textContent, signOutError
+        ? /临时会话未能清除.*联系支持/
+        : /注册配置无法使用邮箱验证码.*联系支持/);
+    } finally {
+      await act(async () => { browserView.root.unmount(); });
+      globalThis.fetch = previousFetch;
+      globalThis.__testBrowserClient = null;
+    }
+  }
+  await exerciseBrowserImmediate(null);
+  await exerciseBrowserImmediate(new Error("local signout rejected"));
   console.log("PASS AuthPanel code re-entry and immediate-session fail-closed branches");
 } finally {
   await vite.close();
@@ -200,6 +311,7 @@ try {
   delete globalThis.IS_REACT_ACT_ENVIRONMENT;
   delete globalThis.React;
   delete globalThis.navigator;
+  delete globalThis.__testBrowserClient;
 }
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
