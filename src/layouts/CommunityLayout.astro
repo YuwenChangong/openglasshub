@@ -69,7 +69,7 @@ const consentAccessMode = classifyLegalConsentRoute(Astro.url.pathname);
     <CommunityHeader
       currentPath={Astro.url.pathname}
       currentSection={activeSection}
-      next={Astro.url.pathname}
+      next={`${Astro.url.pathname}${Astro.url.search}`}
       showSearch={showHeaderSearch}
     />
     <slot name="belowHeader" />

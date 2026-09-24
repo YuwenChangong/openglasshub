@@ -86,6 +86,12 @@ async function run() {
   const warnings = [];
 
   try {
+    const layoutProbe = await browser.newPage();
+    const deepLink = await layoutProbe.request.get(new URL("/me/?tab=saved", baseURL).toString());
+    assert(deepLink.status() === 200, "community profile layout should render locally.");
+    assert((await deepLink.text()).includes('href="/login/?next=%2Fme%2F%3Ftab%3Dsaved"'),
+      "community layout preserves the safe query continuation in the anonymous header.");
+    await layoutProbe.close();
     if (screenshotDir) await fs.mkdir(screenshotDir, { recursive: true });
     for (const viewport of viewports) {
       for (const route of requiredRoutes) {

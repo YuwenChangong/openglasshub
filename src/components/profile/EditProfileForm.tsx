@@ -87,6 +87,7 @@ export default function EditProfileForm() {
   const [success, setSuccess] = useState("");
   const [profile, setProfile] = useState<EditableProfile | null>(null);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+  const [failedUserId, setFailedUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
@@ -106,10 +107,13 @@ export default function EditProfileForm() {
     async function load() {
       if (authStatus !== "signed_in" || !verifiedUser) return;
       setLoading(true);
+      setError("");
+      setFailedUserId(null);
       if (!supabase) {
         if (!cancelled) {
           setLoading(false);
           setError("当前环境未启用登录。");
+          setFailedUserId(verifiedUser.id);
         }
         return;
       }
@@ -123,6 +127,7 @@ export default function EditProfileForm() {
         if (!cancelled) {
           setLoading(false);
           setError("当前账号还没有可用的个人资料。");
+          setFailedUserId(verifiedUser.id);
         }
         return;
       }
@@ -139,6 +144,7 @@ export default function EditProfileForm() {
       if (!cancelled) {
         setProfile(profileRow);
         setLoadedUserId(verifiedUser.id);
+        setFailedUserId(null);
         setDisplayName(profileRow.display_name ?? "");
         setUsername(profileRow.username ?? "");
         setBio(profileRow.bio ?? "");
@@ -152,6 +158,7 @@ export default function EditProfileForm() {
       if (cancelled) return;
       setLoading(false);
       setError(requestError instanceof Error ? requestError.message : "加载资料失败。");
+      setFailedUserId(verifiedUser?.id ?? null);
     });
 
     return () => {
@@ -371,7 +378,7 @@ export default function EditProfileForm() {
     return <section className="community-surface community-surface--padded profile-shell"><h1>编辑资料</h1><p className="community-meta">{authStatus === "pending_verification" ? "请先完成账号验证" : authStatus === "checking" ? "正在加载..." : "请先登录"}</p></section>;
   }
 
-  if (loadedUserId !== verifiedUser?.id) {
+  if (loadedUserId !== verifiedUser?.id && (loading || failedUserId !== verifiedUser?.id)) {
     return <section className="community-surface community-surface--padded profile-shell"><h1>编辑资料</h1><p className="community-meta">正在加载...</p></section>;
   }
 
@@ -384,7 +391,7 @@ export default function EditProfileForm() {
     );
   }
 
-  if (error && !profile) {
+  if (error && (failedUserId === verifiedUser?.id || !profile)) {
     return (
       <section className="community-surface community-surface--padded profile-shell">
         <h1>编辑资料</h1>

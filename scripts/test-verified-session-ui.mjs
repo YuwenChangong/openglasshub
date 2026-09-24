@@ -371,6 +371,7 @@ try {
   await act(async () => { authListener("SIGNED_IN", currentSession); await pause(); });
   assert.equal(document.querySelector('[aria-label="打开账户菜单"]'), null);
   assert.equal(document.querySelector('a[href="/me/"]'), null);
+  assert.equal(document.querySelector('a[href^="/admin"]'), null, "pending has no admin navigation");
   assert.equal(privateCalls.filter((path) => path === "/api/users/me/summary").length, 0);
   summaryStatus = 500;
   browserState = "VERIFIED_AUTHENTICATED";
@@ -452,5 +453,44 @@ try {
   assert.equal(profileQueries.length, 0, "pending session does not read owner profile data");
   assert.equal(document.querySelector('a[href="/me/edit/"]'), null, "pending session has no profile navigation");
   await act(async () => { profileRoot.unmount(); });
+
+  browserState = "VERIFIED_AUTHENTICATED";
+  for (const failureMode of ["missing", "failed"]) {
+    const verifiedProfileRoot = createRoot(document.getElementById("root"));
+    globalThis.__testBrowserClient.from = (table) => {
+      profileQueries.push(table);
+      if (failureMode === "failed") throw new Error("profile lookup unavailable");
+      return query;
+    };
+    await act(async () => { verifiedProfileRoot.render(createElement("div", null,
+      createElement(MyProfilePage, { initialPageData: { profile: { id: otherSessionId, display_name: "Previous user" } } }),
+      createElement(EditProfileForm))); await pause(); });
+    await act(async () => { await pause(); });
+    const profileText = document.getElementById("root").textContent;
+    assert.ok(profileText.includes(failureMode === "missing" ? "当前用户还没有可用的个人资料" : "profile lookup unavailable"),
+      `verified ${failureMode} profile shows an error instead of perpetual loading`);
+    assert.ok(!profileText.includes("Previous user"), "previous account data remains hidden");
+    assert.equal(document.querySelectorAll(".profile-editor").length, 0, "failed edit profile has no editor controls");
+    await act(async () => { verifiedProfileRoot.unmount(); });
+  }
+
+  const priorProfileRoot = createRoot(document.getElementById("root"));
+  const profileForCurrentSession = {
+    select() { return this; }, eq() { return this; },
+    maybeSingle: async () => ({ data: currentSession.user.id === userId
+      ? { id: userId, username: "previous", display_name: "Previous user", avatar_url: null, banner_url: null, bio: null, role: "member", created_at: "2026-01-01" }
+      : null, error: null }),
+  };
+  globalThis.__testBrowserClient.from = (table) => table === "profiles" ? profileForCurrentSession : query;
+  await act(async () => { priorProfileRoot.render(createElement(EditProfileForm)); await pause(); });
+  await act(async () => { await pause(); });
+  assert.ok(document.querySelector(".profile-editor"), "first verified user loads editor");
+  currentSession = { access_token: token, user: { id: otherSessionId } };
+  await act(async () => { authListener("SIGNED_IN", currentSession); await pause(); });
+  assert.equal(document.querySelector(".profile-editor"), null, "new session immediately hides previous editor");
+  await act(async () => { await pause(); });
+  assert.ok(document.getElementById("root").textContent.includes("当前账号还没有可用的个人资料"));
+  assert.ok(!document.getElementById("root").textContent.includes("Previous user"));
+  await act(async () => { priorProfileRoot.unmount(); });
 } finally { await vite.close(); dom.window.close(); }
 console.log("PASS verified-session UI and logout boundary");

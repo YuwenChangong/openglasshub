@@ -118,6 +118,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
   const [tab, setTab] = useState<OwnTab>(() => readTabFromLocation() ?? initialTab);
   const [pageData, setPageData] = useState<LoadedProfilePage | null>(initialPageData);
   const [loadedOwnerId, setLoadedOwnerId] = useState<string | null>(null);
+  const [failedOwnerId, setFailedOwnerId] = useState<string | null>(null);
   const [likedPosts, setLikedPosts] = useState<CollectionPost[]>([]);
   const [savedPosts, setSavedPosts] = useState<CollectionPost[]>([]);
   const [savedPostsAvailable, setSavedPostsAvailable] = useState(false);
@@ -129,11 +130,16 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
     async function load() {
       if (!profileId && authStatus !== "signed_in") return;
       if (profileId && authStatus === "checking") return;
-      if (!profileId) setLoading(true);
+      if (!profileId) {
+        setLoading(true);
+        setError("");
+        setFailedOwnerId(null);
+      }
       if (!supabase) {
         if (!cancelled) {
           setLoading(false);
           setError("当前环境未启用登录。");
+          setFailedOwnerId(verifiedUser?.id ?? null);
         }
         return;
       }
@@ -158,6 +164,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
         if (!cancelled) {
           setLoading(false);
           setError("当前用户还没有可用的个人资料。");
+          setFailedOwnerId(viewerId);
         }
         return;
       }
@@ -202,7 +209,10 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
       if (cancelled) return;
 
       setPageData(profilePage);
-      if (!profileId) setLoadedOwnerId(viewerId);
+      if (!profileId) {
+        setLoadedOwnerId(viewerId);
+        setFailedOwnerId(null);
+      }
       setLikedPosts(liked);
 
       const bookmarksAvailable = ownsProfile && !bookmarksResult.error;
@@ -221,6 +231,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
       if (cancelled) return;
       setLoading(false);
       setError(requestError instanceof Error ? requestError.message : "加载我的主页失败。");
+      setFailedOwnerId(verifiedUser?.id ?? null);
     });
 
     return () => {
@@ -290,7 +301,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
     return <section className="community-surface community-surface--padded profile-shell"><h1>我的主页</h1><p className="community-meta">{authStatus === "pending_verification" ? "请先完成账号验证" : authStatus === "checking" ? "正在加载..." : "请先登录"}</p></section>;
   }
 
-  if (!profileId && loadedOwnerId !== verifiedUser?.id) {
+  if (!profileId && loadedOwnerId !== verifiedUser?.id && (loading || failedOwnerId !== verifiedUser?.id)) {
     return <section className="community-surface community-surface--padded profile-shell"><h1>我的主页</h1><p className="community-meta">正在加载...</p></section>;
   }
 
