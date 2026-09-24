@@ -14,6 +14,9 @@ function finding(overrides = {}) {
 }
 
 assert.equal(finding(), null, "the current legal-consent writer must be the exact safe exception");
+assert.notEqual(finding({ routeSource: routeSource.replace("claims = await getTrustedSessionClaims(token, env);", "claims = request.claims;") }), null, "unsigned claims must not reach the writer");
+assert.notEqual(finding({ routeSource: routeSource.replace("await getLiveProviderSessionUser(token, env, claims);", "") }), null, "signed claims still require a live matching provider user");
+assert.notEqual(finding({ routeSource: routeSource.replace("userId: claims.userId,", "userId: request.userId,") }), null, "the writer actor must come from signed claims");
 assert.notEqual(finding({ apiSource: apiSource.replace(
   "const payload = await parseLegalConsentPostPayload(request);",
   "const unsafeWriter = dependencies.createWriteRepository(\"request-controlled\");\n  const payload = await parseLegalConsentPostPayload(request);",
@@ -57,4 +60,4 @@ assert.equal(rateLimitServiceRoleFinding({ relativePath: rateLimitRelativePath, 
 assert.notEqual(rateLimitServiceRoleFinding({ relativePath: rateLimitRelativePath, repositorySource: `${rateLimitSource}\nclient.from("forum_upload_attempts");` }), null, "rate-limit wrapper cannot expose table access");
 assert.notEqual(rateLimitServiceRoleFinding({ relativePath: rateLimitRelativePath, repositorySource: rateLimitSource.replace('"consume_forum_rate_limit"', "rpcName") }), null, "rate-limit wrapper cannot select an arbitrary RPC");
 
-console.log("LEGAL_CONSENT_SERVICE_ROLE_AUDIT_OK safe=3 unsafe-patterns=10 offline-only");
+console.log("LEGAL_CONSENT_SERVICE_ROLE_AUDIT_OK safe=3 unsafe-patterns=13 offline-only");

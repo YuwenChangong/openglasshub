@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createServer } from "vite";
@@ -8,6 +9,13 @@ const root = process.cwd();
 const ACTOR_ID = "00000000-0000-0000-0000-000000000001";
 const OTHER_USER_ID = "00000000-0000-0000-0000-000000000002";
 const POST_ID = "00000000-0000-0000-0000-000000000003";
+const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+const tokenBody = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
+  iss: "https://supabase.example/auth/v1", aud: "authenticated", role: "authenticated",
+  sub: ACTOR_ID, session_id: "00000000-0000-0000-0000-000000000004",
+  exp: Math.floor(Date.now() / 1000) + 3600, is_anonymous: false, amr: [{ method: "password" }],
+})}`;
+const verifiedToken = `${tokenBody}.${createHmac("sha256", "external-video-local-test-signing").update(tokenBody).digest("base64url")}`;
 
 let createExternalVideoUploadPost;
 
@@ -158,7 +166,7 @@ async function runScenario({
     },
   });
 
-  const headers = authenticated ? { authorization: "Bearer test-token" } : {};
+  const headers = authenticated ? { authorization: `Bearer ${verifiedToken}` } : {};
   const request = new Request("https://local.test/api/forum/external-video-upload", {
     method: "POST",
     headers,
@@ -171,7 +179,21 @@ async function runScenario({
     }),
   });
   const originalWarn = console.warn;
+  const originalFetch = globalThis.fetch;
   console.warn = (...args) => logs.push(args);
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const suppliedToken = new Headers(init.headers).get("authorization")?.replace(/^Bearer /, "");
+    if (url.pathname === "/auth/v1/user") {
+      return new Response(JSON.stringify(suppliedToken === verifiedToken ? { id: ACTOR_ID } : { message: "invalid" }), {
+        status: suppliedToken === verifiedToken ? 200 : 401, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.pathname === "/rest/v1/rpc/ogh_is_verified_session") {
+      return new Response("true", { status: 200, headers: { "content-type": "application/json" } });
+    }
+    throw new Error(`Unexpected verification request ${url.pathname}`);
+  };
   try {
     const response = await handler({
       request,
@@ -188,6 +210,7 @@ async function runScenario({
     return { response, calls, effects, logs };
   } finally {
     console.warn = originalWarn;
+    globalThis.fetch = originalFetch;
   }
 }
 

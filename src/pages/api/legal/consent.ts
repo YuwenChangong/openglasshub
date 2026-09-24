@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { env as runtimeEnv } from "cloudflare:workers";
 import { createUserClient, getBearerToken, type RuntimeEnv } from "../../../lib/server/admin-auth";
+import { getLiveProviderSessionUser, getTrustedSessionClaims } from "../../../lib/server/verified-session.server";
 import {
   handleLegalConsentGet,
   handleLegalConsentPost,
@@ -17,12 +18,18 @@ async function authenticate(request: Request, env: RuntimeEnv) {
   const token = getBearerToken(request);
   if (!token) return null;
 
-  const client = createUserClient(env, token);
-  const { data, error } = await client.auth.getUser(token);
-  if (error || !data.user) return null;
+  let claims;
+  try {
+    claims = await getTrustedSessionClaims(token, env);
+    await getLiveProviderSessionUser(token, env, claims);
+  } catch (error) {
+    if (error instanceof Response && error.status === 401) return null;
+    throw error;
+  }
 
+  const client = createUserClient(env, token);
   return {
-    userId: data.user.id,
+    userId: claims.userId,
     readRepository: createLegalConsentReadRepository(client),
   };
 }
@@ -37,13 +44,21 @@ function dependenciesFor(request: Request, env: RuntimeEnv) {
 export const GET: APIRoute = async ({ request }) => {
   const env = runtimeEnv as RuntimeEnv;
   if (!env) return legalConsentJson({ error: "LEGAL_CONSENT_UNAVAILABLE" }, 500);
-  return handleLegalConsentGet(request, dependenciesFor(request, env));
+  try {
+    return await handleLegalConsentGet(request, dependenciesFor(request, env));
+  } catch {
+    return legalConsentJson({ error: "LEGAL_CONSENT_UNAVAILABLE" }, 503);
+  }
 };
 
 export const POST: APIRoute = async ({ request }) => {
   const env = runtimeEnv as RuntimeEnv;
   if (!env) return legalConsentJson({ error: "LEGAL_CONSENT_UNAVAILABLE" }, 500);
-  return handleLegalConsentPost(request, dependenciesFor(request, env));
+  try {
+    return await handleLegalConsentPost(request, dependenciesFor(request, env));
+  } catch {
+    return legalConsentJson({ error: "LEGAL_CONSENT_UNAVAILABLE" }, 503);
+  }
 };
 
 export const ALL: APIRoute = () => legalConsentJson({ error: "METHOD_NOT_ALLOWED" }, 405);

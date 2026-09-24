@@ -1,5 +1,6 @@
 import process from "node:process";
 import { readFile } from "node:fs/promises";
+import { createHmac } from "node:crypto";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -13,16 +14,34 @@ async function main() {
   } = await import("../src/lib/server/device-admin.ts");
   const { requireAdmin } = await import("../src/lib/server/admin-auth.ts");
 
+  const actorIds = {
+    staff: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    moderator: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    user: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  };
+  const secret = "device-admin-local-test-signing";
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const tokens = Object.fromEntries(Object.entries(actorIds).map(([actor, id]) => {
+    const body = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
+      iss: "https://local.test/auth/v1", aud: "authenticated", role: "authenticated",
+      sub: id, session_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", exp: Math.floor(Date.now() / 1000) + 3600,
+      is_anonymous: false, amr: [{ method: "password" }],
+    })}`;
+    return [actor, `${body}.${createHmac("sha256", secret).update(body).digest("base64url")}`];
+  }));
+
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = String(input);
     const authorization = new Headers(init.headers).get("authorization") ?? "";
     const token = authorization.replace(/^Bearer\s+/i, "");
+    const actor = Object.keys(tokens).find((name) => tokens[name] === token);
     if (url.includes("/auth/v1/user")) {
-      return new Response(JSON.stringify(token === "staff" ? { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } : { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify(actor ? { id: actorIds[actor] } : { message: "invalid token" }), { status: actor ? 200 : 401, headers: { "content-type": "application/json" } });
     }
+    if (url.includes("/rest/v1/rpc/ogh_is_verified_session")) return new Response("true", { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("/rest/v1/profiles")) {
-      return new Response(JSON.stringify([{ role: token === "staff" ? "admin" : token === "moderator" ? "moderator" : "user", username: null, display_name: null, avatar_url: null }]), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify([{ role: actor === "staff" ? "admin" : actor === "moderator" ? "moderator" : "user", username: null, display_name: null, avatar_url: null }]), { status: 200, headers: { "content-type": "application/json" } });
     }
     return new Response("{}", { status: 404, headers: { "content-type": "application/json" } });
   };
@@ -52,21 +71,21 @@ async function main() {
 
   const unauthorized = await handlers.GET(new Request("https://example.test/api/admin/devices"));
   assert(unauthorized.status === 401, "Unauthenticated GET must be rejected.");
-  const nonstaff = await handlers.GET(new Request("https://example.test/api/admin/devices", { headers: { authorization: "Bearer user" } }));
+  const nonstaff = await handlers.GET(new Request("https://example.test/api/admin/devices", { headers: { authorization: `Bearer ${tokens.user}` } }));
   assert(nonstaff.status === 403, "Authenticated nonstaff GET must be rejected by requireModerator.");
-  const moderator = await handlers.POST(new Request("https://example.test/api/admin/devices", { method: "POST", headers: { authorization: "Bearer moderator" }, body: JSON.stringify(base) }));
+  const moderator = await handlers.POST(new Request("https://example.test/api/admin/devices", { method: "POST", headers: { authorization: `Bearer ${tokens.moderator}` }, body: JSON.stringify(base) }));
   assert(moderator.status === 403, "Moderator-only catalog mutation must be rejected by requireAdmin.");
-  const created = await handlers.POST(new Request("https://example.test/api/admin/devices", { method: "POST", headers: { authorization: "Bearer staff" }, body: JSON.stringify(base) }));
+  const created = await handlers.POST(new Request("https://example.test/api/admin/devices", { method: "POST", headers: { authorization: `Bearer ${tokens.staff}` }, body: JSON.stringify(base) }));
   assert(created.status === 201, "Staff can create a draft.");
   const createdBody = await created.json();
   assert(createdBody.device.publicationStatus === "draft" && createdBody.device.slug === "test-device", "Create must default to draft and generate slug.");
-  const unknown = await handlers.POST(new Request("https://example.test/api/admin/devices", { method: "POST", headers: { authorization: "Bearer staff" }, body: JSON.stringify({ ...base, role: "admin" }) }));
+  const unknown = await handlers.POST(new Request("https://example.test/api/admin/devices", { method: "POST", headers: { authorization: `Bearer ${tokens.staff}` }, body: JSON.stringify({ ...base, role: "admin" }) }));
   assert(unknown.status === 400, "Server-managed and unknown fields must be rejected.");
-  const published = await handlers.PATCH(new Request("https://example.test/api/admin/devices", { method: "PATCH", headers: { authorization: "Bearer staff" }, body: JSON.stringify({ id: createdBody.device.id, publicationStatus: "published" }) }));
+  const published = await handlers.PATCH(new Request("https://example.test/api/admin/devices", { method: "PATCH", headers: { authorization: `Bearer ${tokens.staff}` }, body: JSON.stringify({ id: createdBody.device.id, publicationStatus: "published" }) }));
   assert(published.status === 200 && (await published.clone().json()).device.slugLocked === true, "First publish must lock slug.");
-  const lockedSlug = await handlers.PATCH(new Request("https://example.test/api/admin/devices", { method: "PATCH", headers: { authorization: "Bearer staff" }, body: JSON.stringify({ id: createdBody.device.id, slug: "changed" }) }));
+  const lockedSlug = await handlers.PATCH(new Request("https://example.test/api/admin/devices", { method: "PATCH", headers: { authorization: `Bearer ${tokens.staff}` }, body: JSON.stringify({ id: createdBody.device.id, slug: "changed" }) }));
   assert(lockedSlug.status === 400, "Locked slug changes must be rejected.");
-  const deletePublished = await handlers.DELETE(new Request("https://example.test/api/admin/devices", { method: "DELETE", headers: { authorization: "Bearer staff" }, body: JSON.stringify({ id: createdBody.device.id, confirmPermanentDelete: true }) }));
+  const deletePublished = await handlers.DELETE(new Request("https://example.test/api/admin/devices", { method: "DELETE", headers: { authorization: `Bearer ${tokens.staff}` }, body: JSON.stringify({ id: createdBody.device.id, confirmPermanentDelete: true }) }));
   assert(deletePublished.status === 400, "Non-archived hard delete must be rejected.");
   assert(mapDatabaseError({ code: "23505" }).code === "DEVICE_SLUG_CONFLICT", "Duplicate errors must be sanitized.");
   assert(mapDatabaseError({ code: "23503" }).code === "DEVICE_REFERENCED", "FK errors must be sanitized.");

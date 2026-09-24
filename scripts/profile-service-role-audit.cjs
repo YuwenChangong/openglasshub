@@ -63,11 +63,15 @@ function legalConsentServiceRoleFinding({ relativePath, repositorySource, routeS
     !/(?:console\.|logger\.|throw new Error\([^)]*SUPABASE_SERVICE_ROLE_KEY)/.test(repositorySource),
   ].every(Boolean);
 
-  const routeBindsActor = [
-    /const token = getBearerToken\(request\);[\s\S]*?const client = createUserClient\(env, token\);[\s\S]*?client\.auth\.getUser\(token\)/.test(routeSource),
-    /userId: data\.user\.id,/.test(routeSource),
-    /createWriteRepository:\s*\(verifiedUserId\)\s*=>\s*createLegalConsentWriteRepository\(env, verifiedUserId\)/.test(routeSource),
-  ].every(Boolean);
+  const tokenIndex = routeSource.indexOf("const token = getBearerToken(request);");
+  const claimsIndex = routeSource.indexOf("claims = await getTrustedSessionClaims(token, env);");
+  const liveUserIndex = routeSource.indexOf("await getLiveProviderSessionUser(token, env, claims);");
+  const clientIndex = routeSource.indexOf("const client = createUserClient(env, token);");
+  const actorIndex = routeSource.indexOf("userId: claims.userId,");
+  const routeBindsActor = tokenIndex !== -1
+    && tokenIndex < claimsIndex && claimsIndex < liveUserIndex
+    && liveUserIndex < clientIndex && clientIndex < actorIndex
+    && /createWriteRepository:\s*\(verifiedUserId\)\s*=>\s*createLegalConsentWriteRepository\(env, verifiedUserId\)/.test(routeSource);
 
   const apiOrdersWriterAfterAuthAndPayload = authIndex !== -1
     && payloadIndex !== -1

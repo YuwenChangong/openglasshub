@@ -46,7 +46,7 @@ function validToken(token) {
 const response = (body, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { "content-type": "application/json" },
 });
-function fixture({ verified = false, policy = false, policyStatus = 200, rpcStatus = 200, authStatus = 200, secondAuthStatus = 200, secondAuthNetworkFailure = false, secondUserId = userId, profileRole = "moderator" } = {}) {
+function fixture({ verified = false, policy = false, policyStatus = 200, rpcStatus = 200, authStatus = 200, secondAuthStatus = 200, secondAuthNetworkFailure = false, secondUserId = userId, profileRole = "moderator", publicCommentRead = false } = {}) {
   const calls = [];
   let authCalls = 0;
   const previous = globalThis.fetch;
@@ -69,7 +69,11 @@ function fixture({ verified = false, policy = false, policyStatus = 200, rpcStat
       return policyStatus === 200 ? response(policy) : response({ message: "unavailable" }, policyStatus);
     }
     if (url.pathname === "/rest/v1/profiles") return response(profileRole ? [{ id: userId, role: profileRole, username: "local", display_name: "Local", avatar_url: null }] : []);
-    if (url.pathname === "/rest/v1/circles") return response([]);
+    if (url.pathname === "/rest/v1/posts" && publicCommentRead) return response({ id: userId, circle_id: sessionId, status: "published", moderation_status: "published" });
+    if (url.pathname === "/rest/v1/circles") return response(publicCommentRead && url.searchParams.has("id") ? { id: sessionId, slug: "local", name: "Local", status: "active" } : []);
+    if (url.pathname === "/rest/v1/comments" && publicCommentRead) return response([]);
+    if (url.pathname === "/rest/v1/legal_policy_acceptances") return response(null);
+    if (url.pathname === "/rest/v1/rpc/record_current_legal_policy_acceptance") return response(null);
     throw new Error(`Unexpected request ${url.pathname}`);
   };
   return { calls, restore: () => { globalThis.fetch = previous; } };
@@ -269,6 +273,71 @@ for (const [name, headers, expectedPaths] of [
     console.log(`PASS ${name}`);
   } finally { test.restore(); }
 }
+const { GET: publicCommentsGet } = await import("../src/pages/api/forum/comments.ts");
+const { GET: publicSearchGet } = await import("../src/pages/api/forum/search.ts");
+for (const [path, handler, suffix, expectedBodyKey, expectedPublicPaths] of [
+  ["comments", publicCommentsGet, `?post_id=${userId}`, "comments", ["/rest/v1/posts", "/rest/v1/circles", "/rest/v1/comments"]],
+  ["search", publicSearchGet, "?q=local&type=circles", "results", ["/rest/v1/circles"]],
+]) {
+  for (const [name, headers, authPaths] of [
+    ["ANONYMOUS", {}, []],
+    ["PENDING", { authorization: `Bearer ${token}` }, path === "comments" ? verificationCalls : []],
+  ]) {
+    const test = fixture({ publicCommentRead: path === "comments" });
+    try {
+      const result = await handler({ request: new Request(`https://app.test/api/forum/${path}${suffix}`, { headers }), locals: {} });
+      assert.equal(result.status, 200, `${name} PUBLIC ${path}`);
+      assert.ok(expectedBodyKey in await result.json(), `${name} PUBLIC ${path}`);
+      assert.deepEqual(test.calls.map((call) => call.path), [...authPaths, ...expectedPublicPaths], `${name} PUBLIC ${path}`);
+      assert.ok(test.calls.slice(authPaths.length).every((call) => call.token === env.SUPABASE_ANON_KEY), `${name} PUBLIC ${path}: anon reads`);
+      console.log(`PASS ${name}_PUBLIC_${path.toUpperCase()}`);
+    } finally { test.restore(); }
+  }
+}
+const { POST: legalConsentPost } = await import("../src/pages/api/legal/consent.ts");
+env.SUPABASE_SERVICE_ROLE_KEY = "local-service";
+try {
+  for (const [name, authorization, options, expectedStatus, expectedPaths] of [
+    ["FORGED", `Bearer ${token.slice(0, -1)}x`, {}, 401, ["/auth/v1/user"]],
+    ["INVALID_SIGNED_CLAIMS", `Bearer ${sign({ ...claims, aud: "anon" })}`, {}, 401, ["/auth/v1/user"]],
+    ["SIGNED_SUB_MISMATCH", `Bearer ${sign({ ...claims, sub: sessionId })}`, {}, 401, ["/auth/v1/user", "/auth/v1/user"]],
+    ["LIVE_USER_MISMATCH", `Bearer ${token}`, { secondUserId: sessionId }, 401, ["/auth/v1/user", "/auth/v1/user"]],
+    ["AUTH_OUTAGE", `Bearer ${token}`, { secondAuthStatus: 503 }, 503, ["/auth/v1/user", "/auth/v1/user"]],
+  ]) {
+    const test = fixture(options);
+    try {
+      const result = await legalConsentPost({ request: new Request("https://app.test/api/legal/consent", {
+        method: "POST", headers: { authorization, "content-type": "application/json" }, body: JSON.stringify({ accepted: true, source: "login" }),
+      }) });
+      assert.equal(result.status, expectedStatus, name);
+      assert.deepEqual(test.calls.map((call) => call.path), expectedPaths, name);
+      assert.equal(test.calls.some((call) => call.path.includes("record_current_legal_policy_acceptance")), false, name);
+      console.log(`PASS LEGAL_${name}_NO_WRITER`);
+    } finally { test.restore(); }
+  }
+  {
+    const test = fixture();
+    try {
+      const result = await legalConsentPost({ request: new Request("https://app.test/api/legal/consent", {
+        method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ accepted: false, source: "login" }),
+      }) });
+      assert.equal(result.status, 400, "unchecked consent");
+      assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user"]);
+      console.log("PASS LEGAL_UNCHECKED_NO_WRITER");
+    } finally { test.restore(); }
+  }
+  const test = fixture({ verified: false });
+  try {
+    const result = await legalConsentPost({ request: new Request("https://app.test/api/legal/consent", {
+      method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ accepted: true, source: "login" }),
+    }) });
+    assert.equal(result.status, 200, "pending consent bootstrap");
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user", "/rest/v1/legal_policy_acceptances", "/rest/v1/rpc/record_current_legal_policy_acceptance"]);
+    assert.equal(test.calls.at(-1).token, env.SUPABASE_SERVICE_ROLE_KEY);
+    assert.equal(JSON.parse(test.calls.at(-1).body).p_user_id, userId);
+    console.log("PASS LEGAL_PENDING_ACTOR_BOUND_BOOTSTRAP");
+  } finally { test.restore(); }
+} finally { delete env.SUPABASE_SERVICE_ROLE_KEY; }
 const { handleAdminCirclePurge } = await import("../src/lib/server/admin-circle-purge.server.ts");
 const { handleTrustedAdminRuntimeCapability } = await import("../src/lib/server/supabase-admin.server.ts");
 for (const [name, invoke] of [
