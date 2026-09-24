@@ -27,6 +27,7 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
 
   const [status, setStatus] = useState("正在完成登录确认...");
   const [error, setError] = useState("");
+  const [pendingCallback, setPendingCallback] = useState(false);
 
   useEffect(() => {
     if (!supabase && !authAdapter) {
@@ -51,8 +52,14 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
           setError("暂时无法检查会话状态，请返回登录页重试。");
           return;
         }
+        if (!mounted) return;
+        if (sessionState.state === "PENDING_VERIFICATION") {
+          setStatus("此链接未完成登录验证。请选择注册验证码或重新使用密码登录。");
+          setPendingCallback(true);
+          return;
+        }
         if (sessionState.state !== "VERIFIED_AUTHENTICATED") {
-          navigation.replace(`/login/?next=${encodeURIComponent(safeNext)}`);
+          setError("无法确认当前会话，请重新登录。");
           return;
         }
         try {
@@ -123,6 +130,12 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
         <p style={{ margin: 0, color: "var(--text-muted)" }}>OpenGlass Hub 正在处理邮箱确认或登录回调。</p>
       </div>
       <div className="auth-alert">{status}</div>
+      {pendingCallback ? (
+        <div className="community-cta-row">
+          <a className="community-button--secondary auth-button" href={`/login/?mode=signup&next=${encodeURIComponent(safeNext)}`}>输入注册验证码</a>
+          <a className="community-button auth-button" href={`/login/?next=${encodeURIComponent(safeNext)}`}>使用密码登录</a>
+        </div>
+      ) : null}
       {error ? (
         <div className="auth-feedback">
           <div className="auth-alert auth-alert--error">{error}</div>

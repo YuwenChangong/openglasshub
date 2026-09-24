@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 
-export default function ResetPasswordForm() {
+export default function ResetPasswordForm({ onReturnToLogin }: { onReturnToLogin?: () => void } = {}) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -115,7 +115,8 @@ export default function ResetPasswordForm() {
       const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
       if (signOutError) throw signOutError;
       setMessage("密码已更新，请使用新密码登录并完成邮箱验证。");
-      window.location.assign("/login/");
+      if (onReturnToLogin) onReturnToLogin();
+      else window.location.assign("/login/");
     } catch {
       setError("密码更新或退出重置会话失败，请重试；如密码已更新，请使用新密码重新登录。");
     } finally {

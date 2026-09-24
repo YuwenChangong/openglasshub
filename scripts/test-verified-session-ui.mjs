@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { registerHooks } from "node:module";
-import { readFile } from "node:fs/promises";
 import { JSDOM } from "jsdom";
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
@@ -84,6 +83,7 @@ try {
   const { default: AuthPanel } = await vite.ssrLoadModule("/src/components/forum/AuthPanel.tsx");
   const { default: AuthCallback } = await vite.ssrLoadModule("/src/components/auth/AuthCallback.tsx");
   const { default: LoginVerification } = await vite.ssrLoadModule("/src/components/auth/LoginVerification.tsx");
+  const { default: ResetPasswordForm } = await vite.ssrLoadModule("/src/components/auth/ResetPasswordForm.tsx");
   const pause = () => new Promise((resolve) => setTimeout(resolve, 0));
   const setValue = (node, value) => {
     Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(node, value);
@@ -164,12 +164,48 @@ try {
   sessionState = "PENDING_VERIFICATION";
   const callbackRoot = createRoot(document.getElementById("root"));
   const callbackNavigations = [];
+  const callbackRequestsBefore = requests.length;
   await act(async () => { callbackRoot.render(createElement(AuthCallback, {
     next: "%252f%252fevil.example", authAdapter: signedInAdapter,
     navigationAdapter: { ...navigation, replace: (url) => callbackNavigations.push(url) },
   })); await pause(); });
-  assert.deepEqual(callbackNavigations, ["/login/?next=%2F"], "generic callback stays pending and uses safe next");
+  await act(async () => { await pause(); });
+  assert.deepEqual(callbackNavigations, [], "pending callback cannot enter login-code verification");
+  assert.equal(requests.slice(callbackRequestsBefore).filter((call) => call.path.includes("login-challenge")).length, 0);
+  assert.deepEqual([...document.querySelectorAll("a")].map((link) => [link.getAttribute("href"), link.textContent?.trim()]), [
+    ["/login/?mode=signup&next=%2F", "输入注册验证码"],
+    ["/login/?next=%2F", "使用密码登录"],
+  ]);
   await act(async () => { callbackRoot.unmount(); });
+
+  const pendingRoot = createRoot(document.getElementById("root"));
+  const pendingRequestsBefore = requests.length;
+  const restartEvents = [];
+  await act(async () => { pendingRoot.render(createElement(AuthPanel, {
+    next: "/me/", authAdapter: { ...signedInAdapter, signOut: async () => {
+      assert.equal(requests.at(-1).path, "/api/auth/logout", "restart revokes before local sign-out");
+      restartEvents.push("local-signout"); return null;
+    } }, navigationAdapter: { ...navigation, navigate: () => restartEvents.push("navigate") },
+  })); await pause(); });
+  assert.equal(document.querySelector('input[autocomplete="one-time-code"]'), null, "reload has no usable challenge ID");
+  assert.equal(button("重新发送验证码"), undefined, "reload must not offer unusable resend");
+  assert.ok(button("使用密码重新登录"), "reload offers explicit restart");
+  assert.equal(requests.slice(pendingRequestsBefore).filter((call) => call.path.includes("login-challenge")).length, 0);
+  await act(async () => { button("使用密码重新登录").click(); await pause(); });
+  assert.deepEqual(restartEvents, ["local-signout", "navigate"]);
+  await act(async () => { pendingRoot.unmount(); });
+
+  const signupRoot = createRoot(document.getElementById("root"));
+  const signupRequestsBefore = requests.length;
+  await act(async () => { signupRoot.render(createElement(AuthPanel, {
+    next: "/me/", initialMode: "signup", authAdapter: signedInAdapter, navigationAdapter: navigation,
+  })); await pause(); });
+  assert.ok(button("已有注册验证码"), "signup callback has a separate code-entry path");
+  await act(async () => { setValue(document.querySelector('input[type="email"]'), "user@example.test");
+    button("已有注册验证码").click(); await pause(); });
+  assert.ok(document.querySelector('input[autocomplete="one-time-code"]'), "signup code entry opens without password challenge");
+  assert.equal(requests.slice(signupRequestsBefore).filter((call) => call.path.includes("login-challenge")).length, 0);
+  await act(async () => { signupRoot.unmount(); });
 
   const originalNow = Date.now;
   const originalSetInterval = window.setInterval;
@@ -217,10 +253,42 @@ try {
   await act(async () => { button("验证").click(); await pause(); });
   assert.ok(consentNavigation[0]?.startsWith("/legal-consent/?next="), "verified session completes policy separately");
   await act(async () => { consentRoot.unmount(); });
-} finally { await vite.close(); dom.window.close(); }
 
-for (const path of ["src/pages/login/index.astro", "src/pages/auth/callback.astro", "src/components/auth/AuthCallback.tsx", "src/components/auth/ResetPasswordForm.tsx"]) {
-  const source = await readFile(path, "utf8");
-  assert.ok(source.includes("getSafeNext") || source.includes("/login/"), `${path} retains a safe continuation`);
-}
+  for (const unsafeNext of ["https://evil.example", "%252f%252fevil.example", "/%ZZ"]) {
+    const destinations = [];
+    const unsafeRoot = createRoot(document.getElementById("root"));
+    await act(async () => { unsafeRoot.render(createElement(LoginVerification, {
+      next: unsafeNext, initialChallengeId: sessionId, getAccessToken: async () => token,
+      onVerified: (destination) => destinations.push(destination), onUsePassword: () => {},
+    })); await pause(); });
+    await act(async () => { setValue(document.querySelector('input[autocomplete="one-time-code"]'), "123456"); await pause(); });
+    await act(async () => { button("验证").click(); await pause(); });
+    assert.deepEqual(destinations, ["/"], `${unsafeNext} cannot become a continuation`);
+    await act(async () => { unsafeRoot.unmount(); });
+  }
+
+  const recoveryEvents = [];
+  const recoveryRequestsBefore = requests.length;
+  const priorFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    if (new URL(input, "https://app.test").pathname === "/api/auth/logout") recoveryEvents.push("revoke");
+    return priorFetch(input, init);
+  };
+  globalThis.__testBrowserClient = { auth: {
+    getSession: async () => ({ data: { session: { access_token: token } }, error: null }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+    updateUser: async () => { recoveryEvents.push("update-password"); return { error: null }; },
+    signOut: async (options) => { recoveryEvents.push(`sign-out:${options.scope}`); return { error: null }; },
+  } };
+  const recoveryRoot = createRoot(document.getElementById("root"));
+  await act(async () => { recoveryRoot.render(createElement(ResetPasswordForm, {
+    onReturnToLogin: () => recoveryEvents.push("fresh-login"),
+  })); await pause(); });
+  await act(async () => { setValue(document.querySelector('input[autocomplete="new-password"]'), "newpassword123");
+    setValue(document.querySelectorAll('input[autocomplete="new-password"]')[1], "newpassword123"); await pause(); });
+  await act(async () => { button("更新密码").click(); await pause(); });
+  assert.deepEqual(recoveryEvents, ["update-password", "revoke", "sign-out:local", "fresh-login"]);
+  assert.equal(requests.slice(recoveryRequestsBefore).filter((call) => call.path.includes("login-challenge")).length, 0);
+  await act(async () => { recoveryRoot.unmount(); });
+} finally { await vite.close(); dom.window.close(); }
 console.log("PASS verified-session UI and logout boundary");

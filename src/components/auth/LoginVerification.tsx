@@ -89,6 +89,15 @@ export default function LoginVerification({ next, initialChallengeId, getAccessT
     }
   }
 
+  if (!challengeId) {
+    return (
+      <div className="auth-form">
+        <div className="auth-alert">此会话没有可用的登录验证码。请退出后重新输入密码。</div>
+        <button className="community-button auth-button" type="button" onClick={onUsePassword} disabled={busy}>使用密码重新登录</button>
+      </div>
+    );
+  }
+
   return (
     <div className="auth-form">
       <div className="auth-alert">{message || "请输入登录验证码。"}</div>
