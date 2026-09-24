@@ -7,6 +7,9 @@ registerHooks({
     if (specifier === "cloudflare:workers") {
       return { url: "data:text/javascript,export const env = globalThis.__routeTestEnv", shortCircuit: true };
     }
+    if (process.env.VERIFIED_SESSION_ROUTE_TEST_MUTATION === "missing-start-export" && specifier.endsWith("/login-challenge/start.ts")) {
+      return { url: "data:text/javascript,export const prerender=false", shortCircuit: true };
+    }
     try { return nextResolve(specifier, context); }
     catch (error) {
       if (error.code === "ERR_MODULE_NOT_FOUND" && specifier.startsWith(".") && !/\.(?:ts|tsx|js|mjs|json)$/i.test(specifier)) {
@@ -358,4 +361,181 @@ for (const [name, invoke] of [
     console.log(`PASS ${name}_PENDING_NO_ADMIN_CLIENT`);
   } finally { test.restore(); }
 }
+const { handleStart } = await import("../src/pages/api/auth/login-challenge/start.ts");
+const { handleResend } = await import("../src/pages/api/auth/login-challenge/resend.ts");
+const { handleVerify } = await import("../src/pages/api/auth/login-challenge/verify.ts");
+const challengeEnv = { ...env, SUPABASE_SERVICE_ROLE_KEY: "local-service", OGH_LOGIN_CODE_PEPPER: "local-pepper", RATE_LIMIT_SALT: "local-ip-key", BREVO_API_KEY: "local-brevo", BREVO_VERIFIED_SENDER_EMAIL: "sender@example.test" };
+const currentEmail = "current@example.test";
+function challengeFixture({ reserve = "RESERVED", consume = "VERIFIED", authStatus = 200, authStatusOnCall = 0, provider = { id: userId, email: currentEmail, email_confirmed_at: "2026-01-01T00:00:00Z" }, rpcStatus = 200, delivery = 201, finalize = true } = {}) {
+  const calls = [];
+  const previous = globalThis.fetch;
+  let authCalls = 0;
+  let consumeCalls = 0;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const body = init.body ? JSON.parse(init.body) : undefined;
+    calls.push({ path: url.pathname, body });
+    if (url.pathname === "/auth/v1/user") {
+      authCalls++;
+      const status = authCalls === authStatusOnCall ? 503 : authStatus;
+      return status === 200 ? response(provider) : response({ message: "auth failed" }, status);
+    }
+    if (url.pathname === "/rest/v1/rpc/ogh_reserve_login_challenge") return response(reserve, rpcStatus);
+    if (url.pathname === "/rest/v1/rpc/ogh_finalize_login_delivery") {
+      if (finalize === "lost-response") throw new Error("mocked lost acknowledgement");
+      return response(finalize, rpcStatus);
+    }
+    if (url.pathname === "/rest/v1/rpc/ogh_consume_login_challenge") {
+      consumeCalls++;
+      return response(typeof consume === "function" ? consume(body, consumeCalls) : consume, rpcStatus);
+    }
+    throw new Error(`Unexpected mocked request ${url.pathname}`);
+  };
+  const sends = [];
+  const send = async (url, init) => { sends.push({ url, body: JSON.parse(init.body) }); return new Response(null, { status: delivery }); };
+  return { calls, sends, send, restore: () => { globalThis.fetch = previous; } };
+}
+const challengeRequest = (route, body = {}, auth = `Bearer ${token}`, headers = {}) => new Request(`https://app.test/api/auth/login-challenge/${route}`, {
+  method: "POST", headers: { authorization: auth, "content-type": "application/json", "cf-connecting-ip": "192.0.2.10", ...headers }, body: JSON.stringify(body),
+});
+async function challengeCase(name, route, options, body, expectedStatus, expectedError, assertion) {
+  const fixture = challengeFixture(options);
+  try {
+    const handler = route === "start" ? handleStart : route === "resend" ? handleResend : handleVerify;
+    const result = await handler(challengeRequest(route, body), challengeEnv, fixture.send);
+    assert.equal(result.status, expectedStatus, name);
+    assert.equal(result.headers.get("cache-control"), "no-store", name);
+    const payload = await result.json();
+    if (expectedError) assert.deepEqual(payload, { error: expectedError }, name);
+    await assertion?.(payload, fixture);
+    console.log(`PASS CHALLENGE_${name}`);
+  } finally { fixture.restore(); }
+}
+await challengeCase("START_PROVIDER_EMAIL", "start", {}, { next: "/me/" }, 200, null, (payload, f) => {
+  assert.equal(payload.status, "SENT"); assert.match(payload.challengeId, /^[0-9a-f-]{36}$/i); assert.equal(payload.next, "/me/");
+  assert.equal(f.sends.length, 1); assert.deepEqual(f.sends[0].body.to, [{ email: currentEmail }]);
+  const hash = f.calls.find((c) => c.path.endsWith("ogh_reserve_login_challenge")).body.p_ip_hash;
+  assert.equal(hash, createHmac("sha256", challengeEnv.RATE_LIMIT_SALT).update("ogh-login-challenge-ip-budget-v1\0" + "192.0.2.10").digest("hex"));
+  assert.equal(f.calls.filter((c) => c.path.endsWith("ogh_finalize_login_delivery")).length, 1);
+});
+{
+  const f = challengeFixture();
+  try {
+    const jwtEmail = "stale-jwt@example.test";
+    const misleadingToken = sign({ ...claims, email: jwtEmail });
+    const result = await handleStart(challengeRequest("start", {}, `Bearer ${misleadingToken}`), challengeEnv, f.send);
+    assert.equal(result.status, 200);
+    assert.equal((await result.json()).status, "SENT");
+    assert.equal(f.sends.length, 1);
+    assert.deepEqual(f.sends[0].body.to, [{ email: currentEmail }]);
+    assert.notEqual(f.sends[0].body.to[0].email, jwtEmail);
+    console.log("PASS CHALLENGE_JWT_EMAIL_IGNORED_CURRENT_PROVIDER_RECIPIENT");
+  } finally { f.restore(); }
+}
+for (const field of ["email", "userId", "sessionId", "amr", "confirmed", "ipHash"]) {
+  await challengeCase(`BODY_${field}`, "start", {}, { [field]: "attacker" }, 400, "INVALID_REQUEST", (_, f) => {
+    assert.equal(f.calls.length, 0); assert.equal(f.sends.length, 0);
+  });
+}
+await challengeCase("UNSAFE_NEXT", "start", {}, { next: "https://evil.test/" }, 200, null, (payload) => assert.equal(payload.next, "/"));
+{
+  const f = challengeFixture();
+  try {
+    const request = challengeRequest("start");
+    request.headers.delete("cf-connecting-ip");
+    request.headers.set("x-forwarded-for", "192.0.2.10");
+    const result = await handleStart(request, challengeEnv, f.send);
+    assert.equal(result.status, 503);
+    assert.deepEqual(await result.json(), { error: "VERIFICATION_SERVICE_UNAVAILABLE" });
+    assert.equal(f.sends.length, 0);
+    console.log("PASS CHALLENGE_MISSING_TRUSTED_IP");
+  } finally { f.restore(); }
+}
+for (const [name, options, code] of [
+  ["STALE", { reserve: "SESSION_GONE" }, "INVALID_AUTH"],
+  ["QUOTA", { reserve: "EMAIL_BUDGET_EXHAUSTED" }, "EMAIL_BUDGET_EXHAUSTED"],
+  ["PROVIDER_FAIL", { authStatusOnCall: 2 }, "VERIFICATION_SERVICE_UNAVAILABLE"],
+  ["PROVIDER_MISMATCH", { provider: { id: sessionId, email: currentEmail, email_confirmed_at: "2026-01-01T00:00:00Z" } }, "INVALID_AUTH"],
+  ["PROVIDER_UNCONFIRMED", { provider: { id: userId, email: currentEmail } }, "INVALID_AUTH"],
+  ["PROVIDER_NO_EMAIL", { provider: { id: userId, email_confirmed_at: "2026-01-01T00:00:00Z" } }, "INVALID_AUTH"],
+  ["DB_FAIL", { rpcStatus: 503 }, "VERIFICATION_SERVICE_UNAVAILABLE"],
+  ["DELIVERY_AMBIGUOUS", { delivery: 503 }, "VERIFICATION_SERVICE_UNAVAILABLE"],
+  ["FINALIZE_AMBIGUOUS", { finalize: "lost-response" }, "VERIFICATION_SERVICE_UNAVAILABLE"],
+]) await challengeCase(name, "start", options, {}, code === "EMAIL_BUDGET_EXHAUSTED" ? 429 : code === "INVALID_AUTH" ? 401 : 503, code, (_, f) => {
+  assert.equal(f.sends.length, name === "DELIVERY_AMBIGUOUS" || name === "FINALIZE_AMBIGUOUS" ? 1 : 0);
+  if (name === "FINALIZE_AMBIGUOUS") assert.equal(f.calls.filter((c) => c.path.endsWith("ogh_finalize_login_delivery")).length, 1);
+  if (name === "PROVIDER_FAIL") {
+    const reserveAt = f.calls.findIndex((c) => c.path.endsWith("ogh_reserve_login_challenge"));
+    const finalizeAt = f.calls.findIndex((c) => c.path.endsWith("ogh_finalize_login_delivery"));
+    assert.ok(reserveAt >= 0 && finalizeAt > reserveAt);
+    assert.equal(f.calls[finalizeAt].body.p_accepted, false);
+    assert.equal(f.calls.filter((c) => c.path === "/auth/v1/user").length, 2);
+  }
+});
+await challengeCase("DUPLICATE", "start", { reserve: "PENDING" }, {}, 200, null, (payload, f) => {
+  assert.deepEqual(payload, { status: "PENDING", next: "/" }); assert.equal(f.sends.length, 0);
+});
+await challengeCase("COOLDOWN", "resend", { reserve: "RESEND_COOLDOWN" }, {}, 429, "RESEND_COOLDOWN", (_, f) => assert.equal(f.sends.length, 0));
+await challengeCase("RESEND", "resend", {}, {}, 200, null, (payload, f) => {
+  assert.equal(payload.status, "SENT"); assert.equal(f.sends.length, 1);
+  assert.equal(f.calls.find((c) => c.path.endsWith("ogh_reserve_login_challenge")).body.p_resend, true);
+});
+await challengeCase("RESEND_BODY_EMAIL", "resend", {}, { email: "attacker@example.test" }, 400, "INVALID_REQUEST", (_, f) => {
+  assert.equal(f.calls.length, 0); assert.equal(f.sends.length, 0);
+});
+const verifyBody = { challengeId: "33333333-3333-4333-8333-333333333333", code: "123456" };
+await challengeCase("VERIFY", "verify", {}, { ...verifyBody, next: "/me/" }, 200, null, (payload, f) => {
+  assert.deepEqual(payload, { status: "VERIFIED", next: "/me/" }); assert.equal(f.sends.length, 0);
+});
+{
+  const f = challengeFixture({ consume: (_body, attempt) => attempt === 1 ? "VERIFIED" : "CHALLENGE_INVALID" });
+  try {
+    const first = await handleVerify(challengeRequest("verify", verifyBody), challengeEnv);
+    assert.equal(first.status, 200);
+    assert.equal((await first.json()).status, "VERIFIED");
+    const replay = await handleVerify(challengeRequest("verify", verifyBody), challengeEnv);
+    assert.equal(replay.status, 400);
+    assert.deepEqual(await replay.json(), { error: "CHALLENGE_INVALID" });
+    assert.equal(f.calls.filter((call) => call.path.endsWith("ogh_consume_login_challenge")).length, 2);
+    assert.equal(f.sends.length, 0);
+    console.log("PASS CHALLENGE_VERIFY_REPLAY_DENIED_BY_SQL");
+  } finally { f.restore(); }
+}
+{
+  const otherSessionId = "44444444-4444-4444-8444-444444444444";
+  const f = challengeFixture({ consume: (body) => body.p_session_id === sessionId ? "VERIFIED" : "CHALLENGE_INVALID" });
+  try {
+    const otherToken = sign({ ...claims, session_id: otherSessionId });
+    const crossSession = await handleVerify(challengeRequest("verify", verifyBody, `Bearer ${otherToken}`), challengeEnv);
+    assert.equal(crossSession.status, 400);
+    assert.deepEqual(await crossSession.json(), { error: "CHALLENGE_INVALID" });
+    const consumeCall = f.calls.find((call) => call.path.endsWith("ogh_consume_login_challenge"));
+    assert.equal(consumeCall.body.p_session_id, otherSessionId);
+    assert.equal(f.sends.length, 0);
+    console.log("PASS CHALLENGE_VERIFY_CROSS_SESSION_DENIED_BY_SQL");
+  } finally { f.restore(); }
+}
+for (const outcome of ["CHALLENGE_INVALID", "CHALLENGE_EXPIRED", "CHALLENGE_SUPERSEDED", "CHALLENGE_EXHAUSTED", "SESSION_GONE"]) {
+  await challengeCase(`VERIFY_${outcome}`, "verify", { consume: outcome }, verifyBody, outcome === "SESSION_GONE" ? 401 : 400, outcome);
+}
+await challengeCase("VERIFY_BAD_CODE", "verify", {}, { ...verifyBody, code: "12345" }, 400, "CHALLENGE_INVALID", (_, f) => assert.equal(f.calls.some((c) => c.path.endsWith("ogh_consume_login_challenge")), false));
+for (const [name, auth] of [["MISSING_BEARER", ""], ["FORGED_TOKEN", "Bearer forged.token.value"], ["NO_PASSWORD", `Bearer ${sign({ ...claims, amr: [{ method: "otp" }] })}`]]) {
+  const f = challengeFixture();
+  try {
+    const result = await handleStart(challengeRequest("start", {}, auth), challengeEnv, f.send);
+    assert.equal(result.status, 401, name);
+    assert.deepEqual(await result.json(), { error: "INVALID_AUTH" }, name);
+    assert.equal(f.sends.length, 0, name);
+    console.log(`PASS CHALLENGE_${name}`);
+  } finally { f.restore(); }
+}
+for (const body of [{ ...verifyBody, email: currentEmail }, { ...verifyBody, sessionId }, { ...verifyBody, code: "1234567" }]) {
+  const f = challengeFixture();
+  try {
+    const result = await handleVerify(challengeRequest("verify", body), challengeEnv);
+    assert.equal(result.status, 400);
+    assert.equal(f.calls.some((c) => c.path.endsWith("ogh_consume_login_challenge")), false);
+  } finally { f.restore(); }
+}
+console.log("PASS CHALLENGE_VERIFY_REJECTS_EXTRA_IDENTITY_AND_CODE");
 console.log("VERIFIED_SESSION_ROUTES_OK");
