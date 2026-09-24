@@ -5,6 +5,7 @@ import { recordLegalConsent } from "../../lib/legal-consent-client";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import SignupConfirmation from "../auth/SignupConfirmation";
+import LoginVerification from "../auth/LoginVerification";
 import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 
 type Mode = "login" | "signup";
@@ -59,6 +60,10 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [signupConfirmationEmail, setSignupConfirmationEmail] = useState("");
   const [signupConfigUnavailable, setSignupConfigUnavailable] = useState(false);
+  const [loginChallengeId, setLoginChallengeId] = useState<string | null>(null);
+  const [loginPending, setLoginPending] = useState(false);
+  const [verifiedSession, setVerifiedSession] = useState(false);
+  const [policyNeedsConsent, setPolicyNeedsConsent] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [legalAcknowledged, setLegalAcknowledged] = useState(false);
   const [legalAcknowledgementError, setLegalAcknowledgementError] = useState("");
@@ -67,6 +72,45 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   const browserAuthState = useBrowserAuthState(supabase);
   const status = authAdapter?.viewState ?? browserAuthState.status;
   const user = authAdapter?.userPresent ? { id: "adapter-user" } : browserAuthState.user;
+
+  useEffect(() => {
+    if (status !== "signed_in" || loginPending || signupConfirmationEmail) return;
+    let mounted = true;
+    async function inspectSession() {
+      try {
+        const token = authAdapter ? (await authAdapter.getSession())?.accessToken : (await supabase!.auth.getSession()).data.session?.access_token;
+        if (!token) return;
+        const response = await fetch("/api/auth/session-state", { headers: { authorization: `Bearer ${token}` } });
+        const result = await response.json();
+        if (!mounted) return;
+        setVerifiedSession(response.ok && result.state === "VERIFIED_AUTHENTICATED");
+        setLoginPending(response.ok && result.state === "PENDING_VERIFICATION");
+      } catch {
+        if (mounted) setError("暂时无法检查会话状态，请稍后重试。");
+      }
+    }
+    void inspectSession();
+    return () => { mounted = false; };
+  }, [status, loginPending, signupConfirmationEmail, authAdapter, supabase]);
+
+  async function getAccessToken(): Promise<string | null> {
+    if (authAdapter) return (await authAdapter.getSession())?.accessToken ?? null;
+    return (await supabase?.auth.getSession())?.data.session?.access_token ?? null;
+  }
+
+  async function revokeAndSignOut(): Promise<void> {
+    const token = await getAccessToken();
+    if (!token) throw new Error("当前会话不可用，请刷新后重试。");
+    const response = await fetch("/api/auth/logout", { method: "POST", headers: { authorization: `Bearer ${token}` } });
+    if (!response.ok) throw new Error("退出登录失败，请稍后重试。");
+    const signOutError = authAdapter?.signOut
+      ? await authAdapter.signOut()
+      : (await supabase!.auth.signOut({ scope: "local" })).error;
+    if (signOutError) throw new Error("服务端会话已撤销，但本地退出失败，请重试。");
+    setLoginPending(false);
+    setVerifiedSession(false);
+    setLoginChallengeId(null);
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -177,18 +221,29 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
         if (signInError) throw signInError;
         const accessToken = signInData?.accessToken;
         if (!accessToken) {
-          navigation.navigate(consentRecoveryHref(safeNext));
-          return;
+          throw new Error("登录会话未建立，请重试。");
         }
         setMessage("正在记录政策确认...");
+        setPolicyNeedsConsent(false);
         try {
           if (consentAdapter) await consentAdapter.recordCurrentConsent({ accessToken, source: "login" }); else await recordLegalConsent({ accessToken, source: "login" });
         } catch {
-          navigation.navigate(consentRecoveryHref(safeNext));
-          return;
+          setPolicyNeedsConsent(true);
         }
         setSignupConfigUnavailable(false);
-        navigation.navigate(safeNext);
+        setLoginPending(true);
+        setLoginChallengeId(null);
+        const response = await fetch("/api/auth/login-challenge/start", {
+          method: "POST",
+          headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+          body: JSON.stringify({ next: safeNext }),
+        });
+        const challenge = await response.json().catch(() => null);
+        if (!response.ok || !challenge || !["SENT", "PENDING"].includes(challenge.status)) {
+          throw new Error("暂时无法发送登录验证码，请稍后重试。");
+        }
+        if (challenge.status === "SENT" && typeof challenge.challengeId === "string") setLoginChallengeId(challenge.challengeId);
+        setMessage("");
         return;
       }
 
@@ -307,13 +362,14 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   }
 
   async function handleSignOut() {
-    if (!supabase) return;
+    if (!supabase && !authAdapter) return;
     setLoading(true);
     setError("");
     setMessage("");
-    const signOutError = authAdapter?.signOut ? await authAdapter.signOut() : (await supabase!.auth.signOut()).error;
-    if (signOutError) {
-      setError(mapAuthError(signOutError.message));
+    try {
+      await revokeAndSignOut();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "退出登录失败，请稍后重试。");
       setLoading(false);
       return;
     }
@@ -353,9 +409,18 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
         </div>
       </div>
 
-      {status === "checking" ? (
+      {loginPending && mode === "login" ? (
+        <LoginVerification key={loginChallengeId ?? "pending"} next={safeNext} initialChallengeId={loginChallengeId}
+          getAccessToken={getAccessToken} onVerified={() => {
+            setVerifiedSession(true);
+            setLoginPending(false);
+            if (policyNeedsConsent) navigation.navigate(consentRecoveryHref(safeNext));
+            else navigation.navigate(safeNext);
+          }}
+          onUsePassword={() => { void handleSignOut(); }} />
+      ) : status === "checking" ? (
         <div className="auth-alert">正在检查当前登录状态...</div>
-      ) : status === "signed_in" && user && !signupConfigUnavailable ? (
+      ) : status === "signed_in" && user && verifiedSession && !signupConfigUnavailable ? (
         <div className="auth-user-state">
           <div className="auth-alert auth-alert--success">当前已登录。</div>
           <div className="community-cta-row">

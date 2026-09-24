@@ -106,13 +106,18 @@ export default function ResetPasswordForm() {
       if (updateError) {
         throw updateError;
       }
-
-      setMessage("密码已更新，请重新登录。");
-      window.setTimeout(() => {
-        window.location.assign("/login/");
-      }, 1200);
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) throw new Error("RECOVERY_SESSION_MISSING");
+      const revokeResponse = await fetch("/api/auth/logout", {
+        method: "POST", headers: { authorization: `Bearer ${data.session.access_token}` },
+      });
+      if (!revokeResponse.ok) throw new Error("RECOVERY_REVOKE_FAILED");
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) throw signOutError;
+      setMessage("密码已更新，请使用新密码登录并完成邮箱验证。");
+      window.location.assign("/login/");
     } catch {
-      setError("更新密码失败，请重新进入邮件中的链接后再试。");
+      setError("密码更新或退出重置会话失败，请重试；如密码已更新，请使用新密码重新登录。");
     } finally {
       setLoading(false);
     }

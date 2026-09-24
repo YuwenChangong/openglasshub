@@ -43,6 +43,18 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
       if (!mounted) return;
 
       if (data.session?.access_token) {
+        const stateResponse = await fetch("/api/auth/session-state", {
+          headers: { authorization: `Bearer ${data.session.access_token}` },
+        });
+        const sessionState = await stateResponse.json().catch(() => null);
+        if (!stateResponse.ok || !sessionState) {
+          setError("暂时无法检查会话状态，请返回登录页重试。");
+          return;
+        }
+        if (sessionState.state !== "VERIFIED_AUTHENTICATED") {
+          navigation.replace(`/login/?next=${encodeURIComponent(safeNext)}`);
+          return;
+        }
         try {
           const consent = consentAdapter ? await consentAdapter.getCurrentConsent(data.session.access_token) : await getLegalConsentStatus(data.session.access_token);
           navigation.replace(consent.current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
@@ -58,7 +70,7 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
         const code = currentUrl.searchParams.get("code");
 
         if (code && !authAdapter) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          const { error: exchangeError } = await supabase!.auth.exchangeCodeForSession(code);
           if (exchangeError) {
             throw exchangeError;
           }
