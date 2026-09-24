@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
+import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { getProfileById, type ProfileRecord } from "../../lib/profile-data";
 import { isValidProfileUsername } from "../../lib/profile-links";
 import { resolveProfileAvatarUrl, resolveProfileBannerUrl } from "../../lib/profile-media";
@@ -76,6 +77,7 @@ function validateProfileInput(values: {
 
 export default function EditProfileForm() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const { status: authStatus, user: verifiedUser } = useBrowserAuthState(supabase);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,6 +86,7 @@ export default function EditProfileForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [profile, setProfile] = useState<EditableProfile | null>(null);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
@@ -101,6 +104,8 @@ export default function EditProfileForm() {
     let cancelled = false;
 
     async function load() {
+      if (authStatus !== "signed_in" || !verifiedUser) return;
+      setLoading(true);
       if (!supabase) {
         if (!cancelled) {
           setLoading(false);
@@ -111,10 +116,7 @@ export default function EditProfileForm() {
 
       const { data } = await supabase.auth.getSession();
       const session = data.session;
-      if (!session?.user) {
-        window.location.replace(buildLoginHref("/me/edit/"));
-        return;
-      }
+      if (session?.user?.id !== verifiedUser.id) return;
 
       const profileRow = (await getProfileById(supabase, session.user.id)) as EditableProfile | null;
       if (!profileRow) {
@@ -136,6 +138,7 @@ export default function EditProfileForm() {
 
       if (!cancelled) {
         setProfile(profileRow);
+        setLoadedUserId(verifiedUser.id);
         setDisplayName(profileRow.display_name ?? "");
         setUsername(profileRow.username ?? "");
         setBio(profileRow.bio ?? "");
@@ -154,7 +157,7 @@ export default function EditProfileForm() {
     return () => {
       cancelled = true;
     };
-  }, [supabase]);
+  }, [authStatus, supabase, verifiedUser?.id]);
 
   useEffect(() => {
     return () => {
@@ -164,6 +167,7 @@ export default function EditProfileForm() {
   }, [avatarPending.previewUrl, bannerPending.previewUrl]);
 
   async function getSessionToken() {
+    if (!supabase || authStatus !== "signed_in") return "";
     const { data } = await supabase.auth.getSession();
     return data.session?.access_token ?? "";
   }
@@ -361,6 +365,14 @@ export default function EditProfileForm() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (authStatus !== "signed_in") {
+    return <section className="community-surface community-surface--padded profile-shell"><h1>编辑资料</h1><p className="community-meta">{authStatus === "pending_verification" ? "请先完成账号验证" : authStatus === "checking" ? "正在加载..." : "请先登录"}</p></section>;
+  }
+
+  if (loadedUserId !== verifiedUser?.id) {
+    return <section className="community-surface community-surface--padded profile-shell"><h1>编辑资料</h1><p className="community-meta">正在加载...</p></section>;
   }
 
   if (loading) {

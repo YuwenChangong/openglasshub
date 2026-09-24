@@ -64,6 +64,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
   const [summaryState, setSummaryState] = useState<SummaryState>({ status: "idle" });
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
   const [position, setPosition] = useState<PopoverPosition>({
     top: 0,
@@ -90,6 +91,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
 
     let cancelled = false;
     async function loadSummary() {
+      if (!supabase) return;
       setSummaryState({ status: "loading" });
       try {
         const { data } = await supabase.auth.getSession();
@@ -111,7 +113,8 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
         }
 
         const payload = (await response.json().catch(() => null)) as HeaderSummary | null;
-        if (!cancelled && payload?.ok) {
+        if (!cancelled && payload?.ok && payload.profile && typeof payload.profile.id === "string" &&
+          payload.stats && Number.isFinite(payload.stats.post_count) && Number.isFinite(payload.stats.received_like_count)) {
           setSummaryState({ status: "ready", data: payload });
         } else if (!cancelled) {
           setSummaryState({ status: "error" });
@@ -250,19 +253,30 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
   async function handleSignOut() {
     if (!supabase) return;
     setSigningOut(true);
-    await supabase.auth.signOut();
-    window.location.reload();
+    setSignOutError(false);
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) throw new Error("missing session");
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { authorization: `Bearer ${data.session.access_token}` },
+      });
+      if (!response.ok) throw new Error("revocation failed");
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
+      window.location.reload();
+    } catch {
+      setSignOutError(true);
+      setSigningOut(false);
+    }
   }
 
-  if (status === "checking") {
+  if (status === "pending_verification") {
     return (
       <div className="ogh-auth-inline">
-        <a href={buildLoginHref(safeNext)} className="ogh-login-button">
-          登录
-        </a>
-        <a href={buildLoginHref(safeNext)} className="ogh-register-button">
-          注册
-        </a>
+        <a href={buildLoginHref(safeNext)} className="ogh-auth-secondary">验证账号</a>
+        <button type="button" className="ogh-auth-secondary ogh-auth-button-reset" onClick={() => void handleSignOut()} disabled={signingOut}>退出</button>
+        {signOutError ? <span role="alert" className="ogh-auth-status">退出失败</span> : null}
       </div>
     );
   }
@@ -270,11 +284,9 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
   if (status !== "signed_in" || !user) {
     return (
       <div className="ogh-auth-inline">
-        <a href={buildLoginHref(safeNext)} className="ogh-login-button">
-          登录
-        </a>
-        <a href={buildLoginHref(safeNext)} className="ogh-register-button">
-          注册
+        <a href={buildLoginHref(safeNext)} className="ogh-login-button ogh-login-button--identity">
+          <span className="header-user-menu__avatar header-user-menu__avatar--fallback" aria-hidden="true">U</span>
+          <span>未登录</span>
         </a>
       </div>
     );
@@ -282,14 +294,10 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
 
   const summary = summaryState.status === "ready" ? summaryState.data : null;
   const summaryReady = summaryState.status === "ready";
-  const displayName = summaryReady
-    ? summary?.profile.display_name?.trim() || summary?.profile.username?.trim() || shortenUserId(summary?.profile.id ?? user.id)
-    : "";
+  const displayName = summary?.profile.display_name?.trim() || summary?.profile.username?.trim() || shortenUserId(user.id);
   const avatarUrl = summary?.profile.avatar_resolved_url ?? null;
   const profileHref = summary?.profile.profile_href ?? `/users/${encodeURIComponent(user.id)}/`;
   const identityId = summary?.profile.id ?? user.id;
-  const postCount = summary?.stats.post_count ?? 0;
-  const receivedLikeCount = Math.max(0, summary?.stats.received_like_count ?? 0);
 
   const popover = open && portalReady
     ? createPortal(
@@ -320,31 +328,31 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
             ) : (
               <span
                 className={`header-user-menu__profile-avatar header-user-menu__profile-avatar--fallback${
-                  !summaryReady ? " header-user-menu__avatar--skeleton" : ""
+                  summaryState.status === "loading" ? " header-user-menu__avatar--skeleton" : ""
                 }`}
                 aria-hidden="true"
               >
-                {summaryReady ? getInitial(displayName) : ""}
+                {getInitial(displayName)}
               </span>
             )}
             <div className="header-user-menu__identity">
               <div className="header-user-menu__identity-top">
-                <strong>{summaryReady ? displayName : ""}</strong>
+                <strong>{displayName}</strong>
               </div>
-              {summaryReady ? <span className="header-user-menu__identity-id">ID: {identityId}</span> : null}
+              <span className="header-user-menu__identity-id">ID: {identityId}</span>
             </div>
           </div>
 
-          <div className="header-user-menu__stats">
+          {summaryReady && summary ? <div className="header-user-menu__stats">
             <div className="header-user-menu__stat">
               <span>发帖</span>
-              <strong>{postCount}</strong>
+              <strong>{summary.stats.post_count}</strong>
             </div>
             <div className="header-user-menu__stat">
               <span>获赞</span>
-              <strong>{receivedLikeCount}</strong>
+              <strong>{Math.max(0, summary.stats.received_like_count)}</strong>
             </div>
-          </div>
+          </div> : null}
 
           <div className="header-user-menu__actions">
             <a href={profileHref} className="header-user-menu__action" role="menuitem" onClick={() => setOpen(false)}>
@@ -362,6 +370,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
             >
               {signingOut ? "退出中..." : "退出登录"}
             </button>
+            {signOutError ? <span role="alert" className="ogh-auth-status">退出失败</span> : null}
           </div>
         </div>,
         document.body,
@@ -386,7 +395,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
       <button
         ref={attachTriggerRef}
         type="button"
-        className={`header-user-menu__trigger${open ? " is-open" : ""}${!summaryReady ? " is-loading" : ""}`}
+        className={`header-user-menu__trigger${open ? " is-open" : ""}${summaryState.status === "loading" ? " is-loading" : ""}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="header-user-menu"
@@ -397,19 +406,19 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
         ) : (
           <span
             className={`header-user-menu__avatar header-user-menu__avatar--fallback${
-              !summaryReady ? " header-user-menu__avatar--skeleton" : ""
+              summaryState.status === "loading" ? " header-user-menu__avatar--skeleton" : ""
             }`}
             aria-hidden="true"
           >
-            {summaryReady ? getInitial(displayName) : ""}
+            {getInitial(displayName)}
           </span>
         )}
         <span
           className={`header-user-menu__trigger-copy${
-            !summaryReady ? " header-user-menu__trigger-copy--loading" : ""
+            summaryState.status === "loading" ? " header-user-menu__trigger-copy--loading" : ""
           }`}
         >
-          <strong>{summaryReady ? displayName : ""}</strong>
+          <strong>{displayName}</strong>
         </span>
         <span className="header-user-menu__chevron" aria-hidden="true">
           ▾

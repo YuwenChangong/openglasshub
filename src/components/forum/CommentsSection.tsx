@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
+import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import CommentForm from "./CommentForm";
 import { buildProfileHref } from "../../lib/profile-links";
 import ReportTrigger from "../reports/ReportTrigger";
@@ -57,6 +58,7 @@ function authorDisplayName(author: Author | null): string {
 
 export default function CommentsSection({ postId, postAuthorId, refreshKey, loginHref }: CommentsSectionProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const { status: authStatus, user: verifiedUser } = useBrowserAuthState(supabase);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -87,8 +89,9 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
       const headers: Record<string, string> = {};
       if (supabase) {
         const { data } = await supabase.auth.getSession();
-        if (data.session?.access_token) {
-          headers.authorization = `Bearer ${data.session.access_token}`;
+        const session = data.session;
+        if (authStatus === "signed_in" && verifiedUser && session?.user.id === verifiedUser.id && session.access_token) {
+          headers.authorization = `Bearer ${session.access_token}`;
         }
       }
       const res = await fetch(`/api/forum/comments?post_id=${encodeURIComponent(postId)}`, { headers });
@@ -112,7 +115,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
     } finally {
       setLoading(false);
     }
-  }, [hasLoadedOnce, postId, supabase]);
+  }, [authStatus, hasLoadedOnce, postId, supabase, verifiedUser?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,14 +133,14 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
   );
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || authStatus !== "signed_in" || !verifiedUser) return;
 
     let cancelled = false;
     let channel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
 
     const setupChannel = async () => {
-      await syncBrowserRealtimeAuth(supabase);
-      if (cancelled) return;
+      const accessToken = await syncBrowserRealtimeAuth(supabase);
+      if (!accessToken || cancelled) return;
 
       channel = supabase
         .channel(`forum-comments-${postId}`)
@@ -184,7 +187,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
         void supabase.removeChannel(channel);
       }
     };
-  }, [fetchComments, postId, supabase, visibleCommentIds]);
+  }, [authStatus, fetchComments, postId, supabase, verifiedUser?.id, visibleCommentIds]);
 
   useEffect(() => {
     return () => {

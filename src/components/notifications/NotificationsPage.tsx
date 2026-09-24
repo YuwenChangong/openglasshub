@@ -40,6 +40,8 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [markingAll, setMarkingAll] = useState(false);
   const hasMarkedOnEntryRef = useRef(false);
+  const activeUserIdRef = useRef<string | null>(null);
+  activeUserIdRef.current = status === "signed_in" ? user?.id ?? null : null;
 
   const loadNotifications = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (status !== "signed_in" || !user || !supabase) {
@@ -48,6 +50,8 @@ export default function NotificationsPage() {
       setLoading(false);
       return;
     }
+    const requestedUserId = user.id;
+    const stillVerified = () => activeUserIdRef.current === requestedUserId;
 
     if (!silent) {
       setLoading(true);
@@ -55,8 +59,9 @@ export default function NotificationsPage() {
     }
     try {
       const { data } = await supabase.auth.getSession();
+      if (!stillVerified()) return;
       const accessToken = data.session?.access_token;
-      if (!accessToken) throw new Error("UNAUTHORIZED");
+      if (!accessToken || data.session?.user.id !== requestedUserId) throw new Error("UNAUTHORIZED");
 
       const response = await fetch("/api/users/me/notifications?limit=50", {
         headers: {
@@ -64,6 +69,7 @@ export default function NotificationsPage() {
         },
       });
       const payload = (await response.json().catch(() => null)) as NotificationsPayload | { error?: string } | null;
+      if (!stillVerified()) return;
       if (!response.ok || !payload || !("ok" in payload)) {
         throw new Error((payload as { error?: string } | null)?.error || "NOTIFICATIONS_FETCH_FAILED");
       }
@@ -71,11 +77,11 @@ export default function NotificationsPage() {
       setUnreadCount(payload.unread_count);
       setNotifications(sortNotificationsByLatestEvent(payload.notifications));
     } catch (fetchError) {
-      if (!silent) {
+      if (!silent && stillVerified()) {
         setError(fetchError instanceof Error ? fetchError.message : "NOTIFICATIONS_FETCH_FAILED");
       }
     } finally {
-      if (!silent) {
+      if (!silent && stillVerified()) {
         setLoading(false);
       }
     }

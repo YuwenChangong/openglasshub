@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
 
-export type BrowserAuthStatus = "checking" | "signed_in" | "signed_out" | "error" | "timeout";
+export type BrowserAuthStatus = "checking" | "pending_verification" | "signed_in" | "signed_out" | "error" | "timeout";
 
 export interface BrowserAuthState {
   status: BrowserAuthStatus;
@@ -29,55 +29,77 @@ export function useBrowserAuthState(
     }
 
     let mounted = true;
-    let resolved = false;
+    let generation = 0;
+    let timeoutId: number | undefined;
 
-    const applyState = (nextState: BrowserAuthState) => {
-      if (!mounted) return;
-      resolved = true;
-      setState(nextState);
+    const checkSession = async (session: Session | null) => {
+      const current = ++generation;
+      window.clearTimeout(timeoutId);
+      if (!session?.access_token || !session.user) {
+        setState({ status: "signed_out", user: null });
+        return;
+      }
+
+      setState({ status: "checking", user: null });
+      timeoutId = window.setTimeout(() => {
+        if (mounted && current === generation) {
+          ++generation;
+          setState({ status: "timeout", user: null });
+        }
+      }, timeoutMs);
+      try {
+        const response = await fetch("/api/auth/session-state", {
+          headers: { authorization: `Bearer ${session.access_token}` },
+        });
+        const payload = await response.json().catch(() => null) as { state?: string } | null;
+        if (!mounted || current !== generation) return;
+        window.clearTimeout(timeoutId);
+        if (!response.ok) {
+          setState({ status: "error", user: null });
+        } else if (payload?.state === "VERIFIED_AUTHENTICATED") {
+          setState({ status: "signed_in", user: session.user });
+        } else if (payload?.state === "PENDING_VERIFICATION") {
+          setState({ status: "pending_verification", user: null });
+        } else if (payload?.state === "ANONYMOUS") {
+          setState({ status: "signed_out", user: null });
+        } else {
+          setState({ status: "error", user: null });
+        }
+      } catch {
+        if (mounted && current === generation) {
+          window.clearTimeout(timeoutId);
+          setState({ status: "error", user: null });
+        }
+      }
     };
 
-    setState((current) => (current.status === "signed_in" ? current : { status: "checking", user: null }));
-
-    const timeoutId = window.setTimeout(() => {
-      if (resolved) return;
-      applyState({ status: "timeout", user: null });
-    }, timeoutMs);
+    setState({ status: "checking", user: null });
 
     supabase.auth
       .getSession()
       .then(({ data, error }) => {
-        if (resolved || !mounted) return;
+        if (!mounted || generation > 0) return;
         if (error) {
           console.warn("[browser-auth] getSession failed", error.message);
-          applyState({ status: "error", user: null });
+          setState({ status: "error", user: null });
           return;
         }
-
-        const user = data.session?.user ?? null;
-        applyState({
-          status: user ? "signed_in" : "signed_out",
-          user,
-        });
+        void checkSession(data.session);
       })
       .catch((error) => {
-        if (resolved || !mounted) return;
+        if (!mounted || generation > 0) return;
         console.warn("[browser-auth] getSession crashed", error);
-        applyState({ status: "error", user: null });
+        setState({ status: "error", user: null });
       });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      window.clearTimeout(timeoutId);
       if (!mounted) return;
-      const user = session?.user ?? null;
-      applyState({
-        status: user ? "signed_in" : "signed_out",
-        user,
-      });
+      void checkSession(session);
     });
 
     return () => {
       mounted = false;
+      ++generation;
       window.clearTimeout(timeoutId);
       listener.subscription.unsubscribe();
     };

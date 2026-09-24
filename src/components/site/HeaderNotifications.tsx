@@ -109,6 +109,8 @@ export default function HeaderNotifications() {
   const triggerCleanupRef = useRef<(() => void) | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
+  const activeUserIdRef = useRef<string | null>(null);
+  activeUserIdRef.current = status === "signed_in" ? user?.id ?? null : null;
 
   const applyUnreadState = useCallback((payload: NotificationsPayload) => {
     const unreadItems = sortNotificationsByLatestEvent(
@@ -145,6 +147,8 @@ export default function HeaderNotifications() {
       setNotificationsState({ status: "idle" });
       return;
     }
+    const requestedUserId = user.id;
+    const stillVerified = () => activeUserIdRef.current === requestedUserId;
 
     if (!silent) {
       setNotificationsState((current) => (current.status === "ready" ? current : { status: "loading" }));
@@ -152,8 +156,9 @@ export default function HeaderNotifications() {
 
     try {
       const { data } = await supabase.auth.getSession();
+      if (!stillVerified()) return;
       const accessToken = data.session?.access_token;
-      if (!accessToken) {
+      if (!accessToken || data.session?.user.id !== requestedUserId) {
         if (!silent) setNotificationsState({ status: "error" });
         return;
       }
@@ -163,6 +168,7 @@ export default function HeaderNotifications() {
           authorization: `Bearer ${accessToken}`,
         },
       });
+      if (!stillVerified()) return;
 
       if (!response.ok) {
         if (!silent) setNotificationsState({ status: "error" });
@@ -170,13 +176,14 @@ export default function HeaderNotifications() {
       }
 
       const payload = (await response.json().catch(() => null)) as NotificationsPayload | null;
+      if (!stillVerified()) return;
       if (payload?.ok) {
         applyUnreadState(payload);
       } else if (!silent) {
         setNotificationsState({ status: "error" });
       }
     } catch {
-      if (!silent) {
+      if (!silent && stillVerified()) {
         setNotificationsState({ status: "error" });
       }
     }

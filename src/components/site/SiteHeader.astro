@@ -246,6 +246,15 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     backdrop-filter: blur(10px) saturate(112%);
     -webkit-backdrop-filter: blur(10px) saturate(112%);
   }
+  :global(.ogh-login-button--identity) {
+    gap: 8px;
+  }
+  :global(.ogh-login-button--identity .header-user-menu__avatar) {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    font-size: 0.7rem;
+  }
   :global(.ogh-login-button),
   :global(.ogh-auth-secondary) {
     background: rgba(255,255,255,0.045);

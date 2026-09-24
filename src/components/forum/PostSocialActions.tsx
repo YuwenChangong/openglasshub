@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
+import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 
 interface PostSocialActionsProps {
   postId: string;
@@ -10,10 +11,6 @@ interface PostSocialActionsProps {
   onBookmarkChange?: (bookmarked: boolean) => void;
 }
 
-type AuthState = {
-  userId: string;
-} | null;
-
 export default function PostSocialActions({
   postId,
   initialLikeCount = 0,
@@ -22,7 +19,8 @@ export default function PostSocialActions({
   onBookmarkChange,
 }: PostSocialActionsProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [authState, setAuthState] = useState<AuthState>(null);
+  const { status, user } = useBrowserAuthState(supabase);
+  const userId = status === "signed_in" ? user?.id : null;
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
@@ -42,21 +40,21 @@ export default function PostSocialActions({
         .select("id", { count: "exact", head: true })
         .eq("post_id", postId)
         .eq("vote", 1),
-      authState?.userId
+      userId
         ? supabase
             .from("post_votes")
             .select("id, vote")
             .eq("post_id", postId)
-            .eq("user_id", authState.userId)
+            .eq("user_id", userId)
             .eq("vote", 1)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
-      authState?.userId
+      userId
         ? supabase
             .from("bookmarks")
             .select("id")
             .eq("post_id", postId)
-            .eq("user_id", authState.userId)
+            .eq("user_id", userId)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
     ]);
@@ -72,39 +70,11 @@ export default function PostSocialActions({
     if (!bookmarkResult.error) {
       setBookmarked(Boolean(bookmarkResult.data));
     }
-  }, [authState?.userId, postId, supabase]);
+  }, [userId, postId, supabase]);
 
   useEffect(() => {
     if (!supabase) return;
-    let mounted = true;
-
-    supabase.auth.getUser().then(({ data }) => {
-      if (!mounted) return;
-      const user = data.user;
-
-      if (!user) {
-        setAuthState(null);
-        setLiked(false);
-        setBookmarked(false);
-        return;
-      }
-
-      setAuthState({ userId: user.id });
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      const user = session?.user;
-      setAuthState(user ? { userId: user.id } : null);
-      if (!user) {
-        setLiked(false);
-        setBookmarked(false);
-      }
-    });
-
     return () => {
-      mounted = false;
-      listener.subscription.unsubscribe();
       if (likeTimerRef.current !== null) {
         window.clearTimeout(likeTimerRef.current);
       }
@@ -113,6 +83,12 @@ export default function PostSocialActions({
       }
     };
   }, [postId, supabase]);
+
+  useEffect(() => {
+    if (userId) return;
+    setLiked(false);
+    setBookmarked(false);
+  }, [userId]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -126,14 +102,14 @@ export default function PostSocialActions({
   }, [refreshSocialState, supabase]);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || !userId) return;
 
     let cancelled = false;
     let channel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
 
     const setupChannel = async () => {
-      await syncBrowserRealtimeAuth(supabase);
-      if (cancelled) return;
+      const accessToken = await syncBrowserRealtimeAuth(supabase);
+      if (!accessToken || cancelled) return;
 
       channel = supabase
         .channel(`forum-post-votes-${postId}`)
@@ -164,7 +140,7 @@ export default function PostSocialActions({
         void supabase.removeChannel(channel);
       }
     };
-  }, [postId, refreshSocialState, supabase]);
+  }, [postId, refreshSocialState, supabase, userId]);
 
   function requireLogin() {
     const next = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -194,8 +170,8 @@ export default function PostSocialActions({
   }
 
   async function handleToggleLike() {
-    if (loadingLike) return;
-    if (!authState) {
+    if (loadingLike || !supabase) return;
+    if (!userId) {
       requireLogin();
       return;
     }
@@ -213,7 +189,7 @@ export default function PostSocialActions({
         const { error } = await supabase.from("post_votes").upsert(
           {
             post_id: postId,
-            user_id: authState.userId,
+            user_id: userId,
             vote: 1,
           },
           { onConflict: "post_id,user_id" },
@@ -224,7 +200,7 @@ export default function PostSocialActions({
           .from("post_votes")
           .delete()
           .eq("post_id", postId)
-          .eq("user_id", authState.userId);
+          .eq("user_id", userId);
         if (error) throw error;
       }
       onLikeChange?.(nextLiked, nextCount);
@@ -237,8 +213,8 @@ export default function PostSocialActions({
   }
 
   async function handleToggleBookmark() {
-    if (loadingBookmark) return;
-    if (!authState) {
+    if (loadingBookmark || !supabase) return;
+    if (!userId) {
       requireLogin();
       return;
     }
@@ -253,7 +229,7 @@ export default function PostSocialActions({
         const { error } = await supabase.from("bookmarks").upsert(
           {
             post_id: postId,
-            user_id: authState.userId,
+            user_id: userId,
           },
           { onConflict: "user_id,post_id" },
         );
@@ -263,7 +239,7 @@ export default function PostSocialActions({
           .from("bookmarks")
           .delete()
           .eq("post_id", postId)
-          .eq("user_id", authState.userId);
+          .eq("user_id", userId);
         if (error) throw error;
       }
       onBookmarkChange?.(nextBookmarked);

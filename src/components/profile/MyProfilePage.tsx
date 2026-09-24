@@ -3,6 +3,7 @@ import type { ResolvedPostMedia } from "../../lib/forum-media";
 import { buildResolvedPostMediaMap } from "../../lib/forum-media";
 import { buildPostCommentCountMap, buildPostLikeCountMap } from "../../lib/post-engagement";
 import { buildLoginHref } from "../../lib/auth-redirect";
+import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import {
   getProfileById,
@@ -111,10 +112,12 @@ async function loadCollectionPosts(
 
 export default function MyProfilePage({ profileId, initialPageData = null, initialTab = "posts" }: MyProfilePageProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const { status: authStatus, user: verifiedUser } = useBrowserAuthState(supabase);
   const [loading, setLoading] = useState(initialPageData ? false : true);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<OwnTab>(() => readTabFromLocation() ?? initialTab);
   const [pageData, setPageData] = useState<LoadedProfilePage | null>(initialPageData);
+  const [loadedOwnerId, setLoadedOwnerId] = useState<string | null>(null);
   const [likedPosts, setLikedPosts] = useState<CollectionPost[]>([]);
   const [savedPosts, setSavedPosts] = useState<CollectionPost[]>([]);
   const [savedPostsAvailable, setSavedPostsAvailable] = useState(false);
@@ -124,6 +127,9 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
     let cancelled = false;
 
     async function load() {
+      if (!profileId && authStatus !== "signed_in") return;
+      if (profileId && authStatus === "checking") return;
+      if (!profileId) setLoading(true);
       if (!supabase) {
         if (!cancelled) {
           setLoading(false);
@@ -134,7 +140,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
 
       const { data } = await supabase.auth.getSession();
       const session = data.session;
-      const viewerId = session?.user?.id ?? null;
+      const viewerId = authStatus === "signed_in" && verifiedUser && verifiedUser.id === session?.user?.id ? verifiedUser.id : null;
       const targetProfileId = profileId ?? viewerId;
 
       if (!targetProfileId) {
@@ -196,6 +202,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
       if (cancelled) return;
 
       setPageData(profilePage);
+      if (!profileId) setLoadedOwnerId(viewerId);
       setLikedPosts(liked);
 
       const bookmarksAvailable = ownsProfile && !bookmarksResult.error;
@@ -219,7 +226,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
     return () => {
       cancelled = true;
     };
-  }, [initialPageData, profileId, supabase]);
+  }, [authStatus, initialPageData, profileId, supabase, verifiedUser?.id]);
 
   useEffect(() => {
     if (!savedPostsAvailable && tab === "saved") {
@@ -277,6 +284,14 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
       }
       return current;
     });
+  }
+
+  if (!profileId && authStatus !== "signed_in") {
+    return <section className="community-surface community-surface--padded profile-shell"><h1>我的主页</h1><p className="community-meta">{authStatus === "pending_verification" ? "请先完成账号验证" : authStatus === "checking" ? "正在加载..." : "请先登录"}</p></section>;
+  }
+
+  if (!profileId && loadedOwnerId !== verifiedUser?.id) {
+    return <section className="community-surface community-surface--padded profile-shell"><h1>我的主页</h1><p className="community-meta">正在加载...</p></section>;
   }
 
   if (loading) {

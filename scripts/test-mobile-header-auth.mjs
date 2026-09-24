@@ -4,12 +4,14 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 const baseURL = process.env.OPENGLASS_BASE_URL || "http://127.0.0.1:4323";
-const requiredRoutes = ["/", "/products/"];
-const bestEffortRoutes = ["/feed/", "/circles/"];
-const mobileViewports = [
+const requiredRoutes = ["/"];
+const bestEffortRoutes = ["/products/", "/feed/", "/circles/"];
+const viewports = [
   { label: "390x844", width: 390, height: 844 },
   { label: "430x932", width: 430, height: 932 },
+  { label: "desktop-1440x900", width: 1440, height: 900 },
 ];
+const screenshotDir = process.env.OPENGLASS_SCREENSHOT_DIR;
 
 function assert(condition, message) {
   if (!condition) {
@@ -84,7 +86,8 @@ async function run() {
   const warnings = [];
 
   try {
-    for (const viewport of mobileViewports) {
+    if (screenshotDir) await fs.mkdir(screenshotDir, { recursive: true });
+    for (const viewport of viewports) {
       for (const route of requiredRoutes) {
         const page = await browser.newPage({ viewport });
         const url = new URL(route, baseURL).toString();
@@ -92,13 +95,15 @@ async function run() {
         assert(response, `${route} should respond.`);
         assert(response.status() === 200, `${route} should return 200, got ${response?.status()}.`);
 
-        const login = page.getByRole("link", { name: "登录" });
-        const register = page.getByRole("link", { name: "注册" });
-        await assertClickableInViewport(page, login, viewport, `${route} 登录`);
-        await assertClickableInViewport(page, register, viewport, `${route} 注册`);
+        const identity = page.locator(".og-header__auth .ogh-login-button--identity");
+        await assertClickableInViewport(page, identity, viewport, `${route} 未登录`);
+        assert((await identity.getAttribute("href"))?.startsWith("/login/?next="), `${route} has an internal login continuation.`);
+        assert(await page.locator(".og-header__auth .ogh-login-button--identity").count() === 1, "anonymous header has one identity link.");
 
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
         assert(!overflow, `${route} should not overflow horizontally at ${viewport.label}.`);
+
+        if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, `home-${viewport.label}.png`) });
 
         results.push(`${route} ${viewport.label} OK`);
         await page.close();
@@ -115,10 +120,8 @@ async function run() {
           continue;
         }
 
-        const login = page.getByRole("link", { name: "登录" });
-        const register = page.getByRole("link", { name: "注册" });
-        await assertClickableInViewport(page, login, viewport, `${route} 登录`);
-        await assertClickableInViewport(page, register, viewport, `${route} 注册`);
+        const identity = page.locator(".og-header__auth .ogh-login-button--identity");
+        await assertClickableInViewport(page, identity, viewport, `${route} 未登录`);
 
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
         assert(!overflow, `${route} should not overflow horizontally at ${viewport.label}.`);
@@ -126,6 +129,15 @@ async function run() {
         results.push(`${route} ${viewport.label} OK`);
         await page.close();
       }
+
+      const loginPage = await browser.newPage({ viewport });
+      const loginResponse = await loginPage.goto(new URL("/login/", baseURL).toString(), { waitUntil: "networkidle" });
+      assert(loginResponse?.status() === 200, `/login/ should return 200 at ${viewport.label}.`);
+      const loginOverflow = await loginPage.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+      assert(!loginOverflow, `/login/ should not overflow horizontally at ${viewport.label}.`);
+      if (screenshotDir) await loginPage.screenshot({ path: path.join(screenshotDir, `login-${viewport.label}.png`) });
+      results.push(`/login/ ${viewport.label} OK`);
+      await loginPage.close();
     }
   } finally {
     await browser.close();

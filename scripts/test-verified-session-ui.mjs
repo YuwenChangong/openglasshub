@@ -78,7 +78,7 @@ const { act, createElement } = await import("react");
 globalThis.React = (await import("react")).default;
 const vite = await createServer({ plugins: [{ name: "mock-browser", enforce: "pre", resolveId(id) {
   if (id.endsWith("/lib/supabase-browser") || id.endsWith("/lib/supabase-browser.ts")) return "\0test-browser";
-}, load(id) { if (id === "\0test-browser") return "export const createBrowserSupabaseClient = () => globalThis.__testBrowserClient;"; } }, react()], server: { middlewareMode: true }, appType: "custom" });
+}, load(id) { if (id === "\0test-browser") return "export const createBrowserSupabaseClient = () => globalThis.__testBrowserClient; export const syncBrowserRealtimeAuth = async () => 'local-token';"; } }, react()], server: { middlewareMode: true }, appType: "custom" });
 try {
   const { default: AuthPanel } = await vite.ssrLoadModule("/src/components/forum/AuthPanel.tsx");
   const { default: AuthCallback } = await vite.ssrLoadModule("/src/components/auth/AuthCallback.tsx");
@@ -290,5 +290,167 @@ try {
   assert.deepEqual(recoveryEvents, ["update-password", "revoke", "sign-out:local", "fresh-login"]);
   assert.equal(requests.slice(recoveryRequestsBefore).filter((call) => call.path.includes("login-challenge")).length, 0);
   await act(async () => { recoveryRoot.unmount(); });
+
+  const { useBrowserAuthState } = await vite.ssrLoadModule("/src/components/auth/useBrowserAuthState.ts");
+  window.requestAnimationFrame = (callback) => window.setTimeout(callback, 0);
+  window.cancelAnimationFrame = (id) => window.clearTimeout(id);
+  const { default: HeaderUserMenu } = await vite.ssrLoadModule("/src/components/site/HeaderUserMenu.tsx");
+  const { default: HeaderNotifications } = await vite.ssrLoadModule("/src/components/site/HeaderNotifications.tsx");
+  const { default: NotificationsPage } = await vite.ssrLoadModule("/src/components/notifications/NotificationsPage.tsx");
+  let authListener;
+  const authListeners = new Set();
+  let currentSession = null;
+  let browserState = "ANONYMOUS";
+  let summaryStatus = 200;
+  const privateCalls = [];
+  globalThis.fetch = async (input, init = {}) => {
+    const path = new URL(input, "https://app.test").pathname;
+    privateCalls.push(path);
+    if (path === "/api/auth/session-state") return browserState === "DB_UNAVAILABLE"
+      ? json({ error: "VERIFICATION_SERVICE_UNAVAILABLE" }, 503) : json({ state: browserState, policy: "CURRENT" });
+    if (path === "/api/users/me/summary") return summaryStatus === 500 ? json({ error: "FAILED" }, 500)
+      : summaryStatus === 201 ? json({ ok: true })
+      : json({ ok: true, profile: { id: userId, username: "tester", display_name: "Tester", avatar_url: null,
+        role: "member", profile_href: "/users/tester/", avatar_resolved_url: null },
+        stats: { post_count: 4, received_like_count: 8 } });
+    if (path === "/api/users/me/notifications") return json({ ok: true, unread_count: 0, notifications: [] });
+    if (path === "/api/auth/logout") return json({ ok: true });
+    throw Error(`unexpected ${path}`);
+  };
+  globalThis.__testBrowserClient = { auth: {
+    getSession: async () => ({ data: { session: currentSession }, error: null }),
+    onAuthStateChange: (callback) => { authListener = callback; authListeners.add(callback);
+      return { data: { subscription: { unsubscribe() { authListeners.delete(callback); } } } }; },
+    signOut: async () => ({ error: null }),
+  }, channel: () => { throw Error("pending must not subscribe"); } };
+  function StateProbe() {
+    const state = useBrowserAuthState(globalThis.__testBrowserClient);
+    return createElement("output", null, `${state.status}:${state.user?.id ?? "none"}`);
+  }
+  const stateRoot = createRoot(document.getElementById("root"));
+  await act(async () => { stateRoot.render(createElement(StateProbe)); await pause(); });
+  assert.equal(document.querySelector("output").textContent, "signed_out:none");
+  currentSession = { access_token: token, user: { id: userId } };
+  browserState = "PENDING_VERIFICATION";
+  await act(async () => { authListener("SIGNED_IN", currentSession); await pause(); });
+  assert.equal(document.querySelector("output").textContent, "pending_verification:none");
+  browserState = "VERIFIED_AUTHENTICATED";
+  await act(async () => { authListener("TOKEN_REFRESHED", currentSession); await pause(); });
+  assert.equal(document.querySelector("output").textContent, `signed_in:${userId}`);
+  browserState = "DB_UNAVAILABLE";
+  await act(async () => { authListener("TOKEN_REFRESHED", currentSession); await pause(); });
+  assert.equal(document.querySelector("output").textContent, "error:none");
+  browserState = "ANONYMOUS";
+  await act(async () => { authListener("TOKEN_REFRESHED", currentSession); await pause(); });
+  assert.equal(document.querySelector("output").textContent, "signed_out:none");
+  await act(async () => { stateRoot.unmount(); });
+
+  let finishStaleRequest;
+  const regularFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => new URL(input, "https://app.test").pathname === "/api/auth/session-state"
+    ? new Promise((resolve) => { finishStaleRequest = () => resolve(json({ state: "VERIFIED_AUTHENTICATED" })); })
+    : regularFetch(input, init);
+  currentSession = { access_token: token, user: { id: userId } };
+  const staleRoot = createRoot(document.getElementById("root"));
+  await act(async () => { staleRoot.render(createElement(StateProbe)); await pause(); });
+  assert.equal(typeof finishStaleRequest, "function");
+  await act(async () => { authListener("SIGNED_OUT", null); await pause(); });
+  await act(async () => { finishStaleRequest(); await pause(); });
+  assert.equal(document.querySelector("output").textContent, "signed_out:none", "late verification cannot restore logged-out UI");
+  await act(async () => { staleRoot.unmount(); });
+  globalThis.fetch = regularFetch;
+
+  const headerRoot = createRoot(document.getElementById("root"));
+  currentSession = null;
+  await act(async () => { headerRoot.render(createElement(HeaderUserMenu, { next: "https://evil.example" })); await pause(); });
+  assert.equal(document.querySelectorAll(".ogh-auth-inline a").length, 1);
+  assert.equal(document.querySelector(".ogh-auth-inline a span:last-child")?.textContent?.trim(), "未登录");
+  assert.equal(document.querySelector(".ogh-auth-inline a")?.getAttribute("href"), "/login/?next=%2F");
+  currentSession = { access_token: token, user: { id: userId } };
+  browserState = "PENDING_VERIFICATION";
+  await act(async () => { authListener("SIGNED_IN", currentSession); await pause(); });
+  assert.equal(document.querySelector('[aria-label="打开账户菜单"]'), null);
+  assert.equal(document.querySelector('a[href="/me/"]'), null);
+  assert.equal(privateCalls.filter((path) => path === "/api/users/me/summary").length, 0);
+  summaryStatus = 500;
+  browserState = "VERIFIED_AUTHENTICATED";
+  await act(async () => { authListener("TOKEN_REFRESHED", currentSession); await pause(); });
+  await act(async () => { await pause(); });
+  assert.ok(document.querySelector('[aria-label="打开账户菜单"]'), "verified identity survives summary 500");
+  await act(async () => { document.querySelector('[aria-label="打开账户菜单"]').click(); await pause(); });
+  assert.equal(document.querySelector(".header-user-menu__stats"), null, "failed summary cannot show fabricated zeroes");
+  assert.ok(document.querySelector('a[href="/me/edit/"]'));
+  summaryStatus = 201;
+  currentSession = { access_token: token, user: { id: userId } };
+  await act(async () => { authListener("TOKEN_REFRESHED", currentSession); await pause(); });
+  await act(async () => { await pause(); });
+  assert.ok(document.querySelector('[aria-label="打开账户菜单"]'), "malformed summary keeps verified identity");
+  assert.equal(document.querySelector(".header-user-menu__stats"), null, "malformed summary cannot show counters");
+  summaryStatus = 200;
+  currentSession = { access_token: token, user: { id: userId } };
+  await act(async () => { authListener("TOKEN_REFRESHED", currentSession); await pause(); });
+  await act(async () => { await pause(); });
+  await act(async () => { document.querySelector('[aria-label="打开账户菜单"]').click(); await pause(); });
+  assert.equal(document.querySelector(".header-user-menu__stats")?.textContent?.replace(/\s/g, ""), "发帖4获赞8");
+  await act(async () => { headerRoot.unmount(); });
+
+  const notificationRoot = createRoot(document.getElementById("root"));
+  browserState = "PENDING_VERIFICATION";
+  const notificationsBefore = privateCalls.filter((path) => path === "/api/users/me/notifications").length;
+  await act(async () => { notificationRoot.render(createElement(HeaderNotifications)); await pause(); });
+  assert.equal(document.querySelector(".header-notifications"), null);
+  assert.equal(privateCalls.filter((path) => path === "/api/users/me/notifications").length, notificationsBefore);
+  await act(async () => { notificationRoot.unmount(); });
+
+  const notificationsPageRoot = createRoot(document.getElementById("root"));
+  await act(async () => { notificationsPageRoot.render(createElement(NotificationsPage)); await pause(); });
+  assert.equal(privateCalls.filter((path) => path === "/api/users/me/notifications").length, notificationsBefore);
+  assert.ok(document.querySelector(".notifications-page__signed-out"), "pending cannot view private notifications");
+  await act(async () => { notificationsPageRoot.unmount(); });
+
+  const { default: PostSocialActions } = await vite.ssrLoadModule("/src/components/forum/PostSocialActions.tsx");
+  const { default: CommentsSection } = await vite.ssrLoadModule("/src/components/forum/CommentsSection.tsx");
+  const { default: MyProfilePage } = await vite.ssrLoadModule("/src/components/profile/MyProfilePage.tsx");
+  const { default: EditProfileForm } = await vite.ssrLoadModule("/src/components/profile/EditProfileForm.tsx");
+  const channels = [];
+  const removedChannels = [];
+  const query = { select() { return this; }, eq() { return this; }, maybeSingle: async () => ({ data: null, error: null }),
+    then(resolve) { return Promise.resolve({ count: 0, data: [], error: null }).then(resolve); } };
+  globalThis.__testBrowserClient.from = () => query;
+  globalThis.__testBrowserClient.channel = (name) => {
+    const channel = { name, on() { return this; }, subscribe() { return this; } };
+    channels.push(channel);
+    return channel;
+  };
+  globalThis.__testBrowserClient.removeChannel = async (channel) => { removedChannels.push(channel); };
+  const realtimeFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    if (new URL(input, "https://app.test").pathname === "/api/forum/comments") return json({ comments: [] });
+    return realtimeFetch(input, init);
+  };
+  currentSession = { access_token: token, user: { id: userId } };
+  browserState = "PENDING_VERIFICATION";
+  const socialRoot = createRoot(document.getElementById("root"));
+  await act(async () => { socialRoot.render(createElement("div", null,
+    createElement(PostSocialActions, { postId: "post-1" }), createElement(CommentsSection, { postId: "post-1" }))); await pause(); });
+  assert.equal(channels.length, 0, "pending session has no private post/comment subscriptions");
+  browserState = "VERIFIED_AUTHENTICATED";
+  await act(async () => { for (const listener of authListeners) listener("TOKEN_REFRESHED", currentSession); await pause(); });
+  await act(async () => { await pause(); });
+  assert.deepEqual(channels.map((channel) => channel.name).sort(), ["forum-comments-post-1", "forum-post-votes-post-1"]);
+  browserState = "PENDING_VERIFICATION";
+  await act(async () => { for (const listener of authListeners) listener("TOKEN_REFRESHED", currentSession); await pause(); });
+  assert.equal(removedChannels.length, 2, "verified-state loss removes both channels");
+  await act(async () => { socialRoot.unmount(); });
+
+  browserState = "PENDING_VERIFICATION";
+  const profileRoot = createRoot(document.getElementById("root"));
+  const profileQueries = [];
+  globalThis.__testBrowserClient.from = (table) => { profileQueries.push(table); return query; };
+  await act(async () => { profileRoot.render(createElement("div", null,
+    createElement(MyProfilePage), createElement(EditProfileForm))); await pause(); });
+  assert.equal(profileQueries.length, 0, "pending session does not read owner profile data");
+  assert.equal(document.querySelector('a[href="/me/edit/"]'), null, "pending session has no profile navigation");
+  await act(async () => { profileRoot.unmount(); });
 } finally { await vite.close(); dom.window.close(); }
 console.log("PASS verified-session UI and logout boundary");
