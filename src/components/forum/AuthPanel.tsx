@@ -58,6 +58,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   const [resending, setResending] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [signupConfirmationEmail, setSignupConfirmationEmail] = useState("");
+  const [signupConfigUnavailable, setSignupConfigUnavailable] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [legalAcknowledged, setLegalAcknowledged] = useState(false);
   const [legalAcknowledgementError, setLegalAcknowledgementError] = useState("");
@@ -141,6 +142,18 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
     if (checked) setLegalAcknowledgementError("");
   }
 
+  function showSignupConfirmation() {
+    const enteredEmail = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(enteredEmail)) {
+      setError("请先输入注册邮箱。");
+      return;
+    }
+    setError("");
+    setMessage("请输入邮件中的六位验证码。");
+    setPendingVerificationEmail(enteredEmail);
+    setSignupConfirmationEmail(enteredEmail);
+  }
+
   async function handleAuthSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!supabase && !authAdapter) return;
@@ -174,6 +187,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
           navigation.navigate(consentRecoveryHref(safeNext));
           return;
         }
+        setSignupConfigUnavailable(false);
         navigation.navigate(safeNext);
         return;
       }
@@ -192,15 +206,21 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
 
       const accessToken = signUpData?.accessToken;
       if (accessToken) {
-        setMessage("正在记录政策确认...");
+        setSignupConfigUnavailable(true);
+        setPendingVerificationEmail("");
+        setSignupConfirmationEmail("");
+        let signOutFailed = false;
         try {
-          if (consentAdapter) await consentAdapter.recordCurrentConsent({ accessToken, source: "registration" }); else await recordLegalConsent({ accessToken, source: "registration" });
-          navigation.navigate(safeNext);
-          return;
+          if (authAdapter?.signOut) signOutFailed = Boolean(await authAdapter.signOut());
+          else if (supabase) signOutFailed = Boolean((await supabase.auth.signOut({ scope: "local" })).error);
+          else signOutFailed = true;
         } catch {
-          navigation.navigate(consentRecoveryHref(safeNext));
-          return;
+          signOutFailed = true;
         }
+        setError(signOutFailed
+          ? "当前注册配置无法使用邮箱验证码，临时会话未能清除。请勿继续操作，并联系支持。"
+          : "当前注册配置无法使用邮箱验证码。请联系支持后再试，不要继续使用此会话。");
+        return;
       }
 
       setPendingVerificationEmail(email.trim());
@@ -335,7 +355,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
 
       {status === "checking" ? (
         <div className="auth-alert">正在检查当前登录状态...</div>
-      ) : status === "signed_in" && user ? (
+      ) : status === "signed_in" && user && !signupConfigUnavailable ? (
         <div className="auth-user-state">
           <div className="auth-alert auth-alert--success">当前已登录。</div>
           <div className="community-cta-row">
@@ -359,7 +379,14 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
           </div>
         </div>
       ) : signupConfirmationEmail && mode === "signup" ? (
-        <SignupConfirmation email={signupConfirmationEmail} next={safeNext} onConfirmed={navigation.navigate} />
+        <>
+          <SignupConfirmation email={signupConfirmationEmail} next={safeNext} onConfirmed={navigation.navigate} />
+          <button type="button" className="auth-forgot-link" onClick={() => {
+            setSignupConfirmationEmail("");
+            setPendingVerificationEmail("");
+            setMessage("");
+          }}>更换邮箱</button>
+        </>
       ) : forgotMode ? (
         <form onSubmit={handleResetPasswordEmail} className="auth-form">
           <label>
@@ -468,7 +495,11 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
               {mode === "login" ? "切换到注册" : "切换到登录"}
             </button>
           </div>
-          {mode === "login" ? (
+          {mode === "signup" ? (
+            <button type="button" className="auth-forgot-link" onClick={showSignupConfirmation} disabled={signupConfigUnavailable}>
+              已有注册验证码？输入验证码
+            </button>
+          ) : (
             <button
               type="button"
               className="auth-forgot-link"
@@ -482,7 +513,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
             >
               忘记密码？
             </button>
-          ) : null}
+          )}
         </form>
       )}
 
@@ -492,7 +523,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
         {pendingVerificationEmail ? (
           <div className="auth-resend">
             <div className="auth-resend__copy">
-              <span className="auth-resend__note">已发送，请检查邮箱或垃圾箱。</span>
+              <span className="auth-resend__note">请检查邮箱或垃圾箱。</span>
               <span className="auth-resend__hint">如果没有收到邮件，请检查垃圾箱，或稍后重新发送。</span>
             </div>
             <div className="auth-resend__actions">

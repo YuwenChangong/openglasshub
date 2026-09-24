@@ -8,6 +8,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { JSDOM } from "jsdom";
+import { createServer } from "vite";
+import react from "@vitejs/plugin-react";
 import pg from "pg";
 import { buildLocalSupabaseReplayMirror, ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 
@@ -97,6 +100,107 @@ const resendWithSelectedType = await resendConfirmation({ request: new Request("
   body: JSON.stringify({ email, next: "/", type: "email" }),
 }) });
 assert.equal(resendWithSelectedType.status, 400, "resend rejects client-selected OTP type before provider access");
+
+const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", { url: "https://app.test/login/?mode=register" });
+Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement,
+  Event: dom.window.Event, MouseEvent: dom.window.MouseEvent, IS_REACT_ACT_ENVIRONMENT: true });
+Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator, configurable: true });
+const { createRoot } = await import("react-dom/client");
+const ReactRuntime = await import("react");
+const { act, createElement } = ReactRuntime;
+globalThis.React = ReactRuntime.default;
+const vite = await createServer({ plugins: [react()], server: { middlewareMode: true }, appType: "custom" });
+try {
+  const { default: AuthPanel } = await vite.ssrLoadModule("/src/components/forum/AuthPanel.tsx");
+  const pause = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const setValue = (node, value) => {
+    Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(node, value);
+    node.dispatchEvent(new Event("input", { bubbles: true }));
+    node.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  const findButton = (label) => [...document.querySelectorAll("button")].find((node) => node.textContent?.includes(label));
+  function mount(adapter, consentAdapter, navigationAdapter) {
+    const root = createRoot(document.getElementById("root"));
+    return { root, render: () => act(async () => {
+      root.render(createElement(AuthPanel, { initialMode: "signup", authAdapter: adapter, consentAdapter, navigationAdapter, next: "/me/" }));
+      await pause();
+    }) };
+  }
+  const adapter = { viewState: "signed_out", getSession: async () => null, signUp: async () => { throw Error("signup must not repeat"); } };
+  const navigation = { navigate: () => { throw Error("unexpected navigation"); }, replace: () => {}, getCurrentUrl: () => "/login/" };
+  let view = mount(adapter, null, navigation);
+  await view.render();
+  await act(async () => { setValue(document.querySelector('input[type="email"]'), email); });
+  assert.ok(findButton("已有注册验证码"), "signup mode needs a code-entry path");
+  await act(async () => { findButton("已有注册验证码").click(); await pause(); });
+  assert.ok(document.querySelector('input[autocomplete="one-time-code"]'), "code entry opens without signUp");
+  await act(async () => { view.root.unmount(); });
+  assert.equal(window.localStorage.length, 0, "signup email and code are not persisted");
+  view = mount(adapter, null, navigation);
+  await view.render();
+  assert.equal(document.querySelector('input[autocomplete="one-time-code"]'), null, "reload starts without in-memory code screen");
+  await act(async () => { findButton("已有注册验证码").click(); await pause(); });
+  assert.equal(document.querySelector('input[autocomplete="one-time-code"]'), null, "code entry requires an entered email");
+  await act(async () => { setValue(document.querySelector('input[type="email"]'), email); findButton("已有注册验证码").click(); await pause(); });
+  assert.ok(document.querySelector('input[autocomplete="one-time-code"]'), "entered email restores code entry after reload");
+  await act(async () => { view.root.unmount(); });
+
+  const calls = { signup: 0, signOut: 0, consent: 0, navigation: 0 };
+  const immediate = { viewState: "signed_out", getSession: async () => null,
+    signUp: async () => { calls.signup++; return { data: { accessToken: "issued-session" }, error: null }; },
+    signOut: async () => { calls.signOut++; return null; } };
+  const consent = { recordCurrentConsent: async () => { calls.consent++; } };
+  const nav = { navigate: () => { calls.navigation++; }, replace: () => { calls.navigation++; }, getCurrentUrl: () => "/login/" };
+  view = mount(immediate, consent, nav);
+  await view.render();
+  await act(async () => {
+    setValue(document.querySelector('input[type="email"]'), email);
+    setValue(document.querySelector('input[type="password"]'), "Password123!");
+    document.querySelector('input[type="checkbox"]').click();
+  });
+  await act(async () => {
+    document.querySelector("form.auth-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await pause(); await pause();
+  });
+  assert.equal(calls.signup, 1);
+  assert.equal(calls.signOut, 1, "unexpected provider session must be signed out");
+  assert.equal(calls.consent, 0, "immediate session must not write legacy consent");
+  assert.equal(calls.navigation, 0, "immediate session must not navigate");
+  assert.equal(document.querySelector('input[autocomplete="one-time-code"]'), null, "no code flow is claimed under incompatible configuration");
+  assert.match(document.body.textContent, /注册配置无法使用邮箱验证码.*联系支持/, "show actionable provider-config error");
+  await act(async () => { view.root.unmount(); });
+
+  const signOutFailure = { ...immediate, signOut: async () => { calls.signOut++; return new Error("local signout failed"); } };
+  view = mount(signOutFailure, consent, nav);
+  await view.render();
+  await act(async () => {
+    setValue(document.querySelector('input[type="email"]'), email);
+    setValue(document.querySelector('input[type="password"]'), "Password123!");
+    document.querySelector('input[type="checkbox"]').click();
+  });
+  await act(async () => {
+    document.querySelector("form.auth-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await pause(); await pause();
+  });
+  assert.equal(calls.consent, 0);
+  assert.equal(calls.navigation, 0);
+  assert.match(document.body.textContent, /临时会话未能清除.*联系支持/, "signout failure remains actionable and closed");
+  await act(async () => { view.root.unmount(); });
+  const panelSource = await readFile(new URL("../src/components/forum/AuthPanel.tsx", import.meta.url), "utf8");
+  assert.match(panelSource, /auth\.signOut\(\{ scope: "local" \}\)/, "browser-issued immediate session uses local signout");
+  console.log("PASS AuthPanel code re-entry and immediate-session fail-closed branches");
+} finally {
+  await vite.close();
+  dom.window.close();
+  delete globalThis.window;
+  delete globalThis.document;
+  delete globalThis.HTMLElement;
+  delete globalThis.Event;
+  delete globalThis.MouseEvent;
+  delete globalThis.IS_REACT_ACT_ENVIRONMENT;
+  delete globalThis.React;
+  delete globalThis.navigator;
+}
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "node_modules/supabase/dist/supabase.js");
