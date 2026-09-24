@@ -4,6 +4,7 @@ import { LEGAL_POLICY } from "../../lib/legal-policy";
 import { recordLegalConsent } from "../../lib/legal-consent-client";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
+import SignupConfirmation from "../auth/SignupConfirmation";
 import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 
 type Mode = "login" | "signup";
@@ -56,6 +57,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   const [sendingReset, setSendingReset] = useState(false);
   const [resending, setResending] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
+  const [signupConfirmationEmail, setSignupConfirmationEmail] = useState("");
   const [forgotMode, setForgotMode] = useState(false);
   const [legalAcknowledged, setLegalAcknowledged] = useState(false);
   const [legalAcknowledgementError, setLegalAcknowledgementError] = useState("");
@@ -119,6 +121,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
 
   function selectAuthMode(nextMode: Mode) {
     setMode(nextMode);
+    setSignupConfirmationEmail("");
     setLegalAcknowledged(false);
     setLegalAcknowledgementError("");
     setError("");
@@ -201,7 +204,8 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
       }
 
       setPendingVerificationEmail(email.trim());
-      setMessage("验证邮件已发送。请先完成邮箱验证，再返回站内继续。");
+      setSignupConfirmationEmail(email.trim());
+      setMessage("验证邮件已发送，请输入邮件中的六位验证码。");
     } catch (authError) {
       const rawMessage = authError instanceof Error ? authError.message : "请求失败。";
       if (/Email not confirmed/i.test(rawMessage)) {
@@ -354,6 +358,8 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
             </button>
           </div>
         </div>
+      ) : signupConfirmationEmail && mode === "signup" ? (
+        <SignupConfirmation email={signupConfirmationEmail} next={safeNext} onConfirmed={navigation.navigate} />
       ) : forgotMode ? (
         <form onSubmit={handleResetPasswordEmail} className="auth-form">
           <label>

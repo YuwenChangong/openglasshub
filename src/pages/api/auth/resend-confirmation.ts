@@ -42,6 +42,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const payload = (await request.json().catch(() => null)) as ResendPayload | null;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) ||
+        Object.keys(payload).some((key) => key !== "email" && key !== "next") ||
+        typeof payload.email !== "string" ||
+        (payload.next != null && typeof payload.next !== "string")) {
+      return json({ ok: false, error: "INVALID_REQUEST" }, 400);
+    }
     const email = String(payload?.email ?? "").trim().toLowerCase();
     const safeNext = getSafeNext(payload?.next ?? null);
     if (!isValidEmail(email)) {
