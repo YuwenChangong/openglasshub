@@ -24,7 +24,7 @@ assert.notEqual(finding({ apiSource: apiSource.replace(
 assert.notEqual(finding({ routeSource: routeSource.replace("(verifiedUserId)", "(requestUserId)") }), null, "request-controlled actor scope must fail");
 assert.notEqual(finding({ repositorySource: `${repositorySource}\nclient.from(\"profiles\");` }), null, "arbitrary table access must fail");
 assert.notEqual(finding({ repositorySource: repositorySource.replace(
-  '"record_current_legal_policy_acceptance"',
+  '"ogh_record_policy_acceptance"',
   "actionName",
 ) }), null, "an arbitrary RPC must fail");
 assert.notEqual(finding({ repositorySource: `${repositorySource}\nconsole.log(requireEnv(env, \"SUPABASE_SERVICE_ROLE_KEY\"));` }), null, "service-key exposure must fail");

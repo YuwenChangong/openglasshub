@@ -23,7 +23,7 @@ type ResendResponse =
 
 const RESEND_COOLDOWN_MS = 60_000;
 const RESEND_COOLDOWN_STORAGE_KEY = "auth-resend-confirmation-cooldown-until";
-const LEGAL_ACKNOWLEDGEMENT_ERROR = `请确认您已年满 ${LEGAL_POLICY.minimumAge} 周岁，并阅读相关政策后继续。`;
+const LEGAL_ACKNOWLEDGEMENT_ERROR = "请阅读并确认当前政策后继续。";
 
 function consentRecoveryHref(next: string): string {
   return `/legal-consent/?next=${encodeURIComponent(getSafeNext(next))}&reason=callback`;
@@ -449,7 +449,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
               aria-describedby={legalAcknowledgementError ? "auth-legal-acknowledgement-error" : undefined}
             />
             <label htmlFor="auth-legal-acknowledgement">
-              我确认已年满 {LEGAL_POLICY.minimumAge} 周岁，并已阅读并同意
+              我已阅读并同意
               <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
                 《服务条款》
               </a>
@@ -463,7 +463,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
               </a>
               。
               <span lang="en">
-                I confirm that I am at least {LEGAL_POLICY.minimumAge} years old, agree to the{" "}
+                I agree to the{" "}
                 <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
                   Terms of Service
                 </a>

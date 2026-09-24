@@ -15,7 +15,6 @@ export type ActiveLegalBundle = {
   termsVersion: string;
   privacyVersion: string;
   guidelinesVersion: string;
-  minimumAge: number;
   consentUrl: string;
 };
 
@@ -25,8 +24,6 @@ export type LegalConsentRecord = {
   termsVersion: string;
   privacyVersion: string;
   guidelinesVersion: string;
-  minimumAge: number;
-  lastConfirmedAt: string;
 };
 
 export type LegalConsentReadRepository = {
@@ -40,7 +37,6 @@ export type LegalConsentWriteRepository = {
 export type CurrentLegalConsentStatus = {
   current: boolean;
   activeBundle: ActiveLegalBundle;
-  lastConfirmedAt: string | null;
 };
 
 export function getActiveLegalBundle(): ActiveLegalBundle {
@@ -49,11 +45,9 @@ export function getActiveLegalBundle(): ActiveLegalBundle {
     termsVersion: LEGAL_POLICY.termsVersion,
     privacyVersion: LEGAL_POLICY.privacyVersion,
     guidelinesVersion: LEGAL_POLICY.guidelinesVersion,
-    minimumAge: LEGAL_POLICY.minimumAge,
     consentUrl: LEGAL_POLICY.routes.consent,
   };
 }
-
 export function isLegalConsentSource(value: unknown): value is LegalConsentSource {
   return typeof value === "string" && (LEGAL_CONSENT_SOURCES as readonly string[]).includes(value);
 }
@@ -62,8 +56,7 @@ function recordMatchesActiveBundle(record: LegalConsentRecord, bundle: ActiveLeg
   return record.bundleVersion === bundle.bundleVersion
     && record.termsVersion === bundle.termsVersion
     && record.privacyVersion === bundle.privacyVersion
-    && record.guidelinesVersion === bundle.guidelinesVersion
-    && record.minimumAge === bundle.minimumAge;
+    && record.guidelinesVersion === bundle.guidelinesVersion;
 }
 
 export async function getCurrentConsentStatus(
@@ -76,7 +69,6 @@ export async function getCurrentConsentStatus(
   return {
     current: Boolean(record && recordMatchesActiveBundle(record, activeBundle)),
     activeBundle,
-    lastConfirmedAt: record?.lastConfirmedAt ?? null,
   };
 }
 
@@ -97,7 +89,6 @@ export function buildSafeConsentResponse(status: Pick<CurrentLegalConsentStatus,
   return {
     current: status.current,
     bundleVersion: status.activeBundle.bundleVersion,
-    minimumAge: status.activeBundle.minimumAge,
     consentUrl: status.activeBundle.consentUrl,
   };
 }
@@ -114,14 +105,4 @@ export async function requireCurrentLegalConsent(
     error: "LEGAL_CONSENT_REQUIRED",
     consentUrl: status.activeBundle.consentUrl,
   };
-}
-
-export function isLegalConsentReconfirmationRateLimited(
-  status: CurrentLegalConsentStatus,
-  nowMs = Date.now(),
-  windowMs = 60_000,
-): boolean {
-  if (!status.current || !status.lastConfirmedAt) return false;
-  const lastConfirmedMs = Date.parse(status.lastConfirmedAt);
-  return Number.isFinite(lastConfirmedMs) && nowMs - lastConfirmedMs < windowMs;
 }

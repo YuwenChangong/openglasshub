@@ -115,7 +115,7 @@ for (const payload of [
   const result = await responseJson(await handleLegalConsentPost(request(validPayload), fixture.dependencies));
   assert.deepEqual(result, {
     status: 200,
-    body: { current: true, bundleVersion: LEGAL_POLICY.bundleVersion, minimumAge: LEGAL_POLICY.minimumAge, consentUrl: "/legal-consent/" },
+    body: { current: true, bundleVersion: LEGAL_POLICY.bundleVersion, consentUrl: "/legal-consent/" },
   });
   assert.deepEqual(fixture.events, [
     "authenticate:Bearer verified-token",
@@ -129,7 +129,6 @@ for (const payload of [
     termsVersion: LEGAL_POLICY.termsVersion,
     privacyVersion: LEGAL_POLICY.privacyVersion,
     guidelinesVersion: LEGAL_POLICY.guidelinesVersion,
-    minimumAge: LEGAL_POLICY.minimumAge,
     consentUrl: "/legal-consent/",
     source: "login",
   }]);
@@ -148,7 +147,7 @@ for (const payload of [
   const second = await responseJson(await handleLegalConsentPost(request(validPayload), fixture.dependencies));
   assert.equal(first.status, 200);
   assert.equal(second.status, 200);
-  assert.deepEqual(fixture.writes[0], fixture.writes[1], "retries submit the same actor-bound active bundle for the RPC upsert boundary");
+  assert.deepEqual(fixture.writes[0], fixture.writes[1], "stale-read retries submit the same actor-bound bundle");
 }
 
 {
@@ -157,7 +156,7 @@ for (const payload of [
     now: "2026-07-14T00:00:30.000Z",
   });
   const result = await responseJson(await handleLegalConsentPost(request(validPayload), fixture.dependencies));
-  assert.deepEqual(result, { status: 429, body: { error: "LEGAL_CONSENT_RATE_LIMITED" } });
+  assert.deepEqual(result, { status: 200, body: { current: true, bundleVersion: LEGAL_POLICY.bundleVersion, consentUrl: "/legal-consent/" } });
   assert.equal(fixture.events.some((event) => event.startsWith("writer:")), false);
 }
 
@@ -168,4 +167,4 @@ for (const options of [{ readFailure: true }, { writeFailure: true }]) {
   assert.equal("message" in result.body, false);
 }
 
-console.log("LEGAL_CONSENT_API_POST_OK offline auth=4 invalid=8 actor-bound-writer=1 rate=1 sanitized-failures=2 real-operations=0");
+console.log("LEGAL_CONSENT_API_POST_OK offline auth=4 invalid=8 actor-bound-writer=1 idempotent-current=1 sanitized-failures=2 real-operations=0");

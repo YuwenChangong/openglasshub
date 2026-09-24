@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { classifyLegalConsentRoute, isLegalConsentRedirectTarget } from "../src/lib/legal-consent-route-policy.ts";
 
 const cases = {
@@ -9,4 +10,13 @@ const cases = {
 for (const [route, expected] of Object.entries(cases)) assert.equal(classifyLegalConsentRoute(route), expected, route);
 assert.equal(isLegalConsentRedirectTarget("/legal-consent/"), false);
 assert.equal(isLegalConsentRedirectTarget("/notifications/"), true);
+const gate = await readFile("src/components/legal/LegalConsentGate.tsx", "utf8");
+const page = await readFile("src/components/legal/LegalConsentPage.tsx", "utf8");
+const layout = await readFile("src/layouts/CommunityLayout.astro", "utf8");
+assert.match(gate, /if \(mode === "exempt"\) \{ reveal\(\); return; \}/);
+assert.match(gate, /if \(!consent\.current\)/);
+assert.doesNotMatch(`${gate}\n${page}\n${layout}`, /minimumAge|已年满|years old|\{siteName\} · .*\+/);
+for (const legalRoute of ["/terms/", "/privacy/", "/community-guidelines/", "/safety/"]) {
+  assert.equal(classifyLegalConsentRoute(legalRoute), "exempt", legalRoute);
+}
 console.log("LEGAL_CONSENT_PAGE_GATE_OK routes=" + Object.keys(cases).length);

@@ -6,39 +6,26 @@ import type {
 } from "./legal-consent.server.ts";
 import { requireEnv, type RuntimeEnv } from "./admin-auth.ts";
 
-type LegalConsentRow = {
-  user_id: string;
-  bundle_version: string;
-  terms_version: string;
-  privacy_version: string;
-  guidelines_version: string;
-  minimum_age: number;
-  last_confirmed_at: string;
-};
-
-function toRecord(row: LegalConsentRow): LegalConsentRecord {
-  return {
-    userId: row.user_id,
-    bundleVersion: row.bundle_version,
-    termsVersion: row.terms_version,
-    privacyVersion: row.privacy_version,
-    guidelinesVersion: row.guidelines_version,
-    minimumAge: row.minimum_age,
-    lastConfirmedAt: row.last_confirmed_at,
-  };
-}
+import { LEGAL_POLICY } from "../legal-policy.ts";
 
 export function createLegalConsentReadRepository(client: SupabaseClient): LegalConsentReadRepository {
   return {
     async findByUserAndBundle(userId, bundleVersion) {
-      const { data, error } = await client
-        .from("legal_policy_acceptances")
-        .select("user_id,bundle_version,terms_version,privacy_version,guidelines_version,minimum_age,last_confirmed_at")
-        .eq("user_id", userId)
-        .eq("bundle_version", bundleVersion)
-        .maybeSingle();
-      if (error) throw new Error("LEGAL_CONSENT_READ_FAILED");
-      return data ? toRecord(data as LegalConsentRow) : null;
+      if (bundleVersion !== LEGAL_POLICY.bundleVersion) return null;
+      const { data, error } = await client.rpc("ogh_has_current_policy_acceptance", {
+        p_bundle: bundleVersion,
+        p_terms: LEGAL_POLICY.termsVersion,
+        p_privacy: LEGAL_POLICY.privacyVersion,
+        p_guidelines: LEGAL_POLICY.guidelinesVersion,
+      });
+      if (error || typeof data !== "boolean") throw new Error("LEGAL_CONSENT_READ_FAILED");
+      return data ? {
+        userId,
+        bundleVersion,
+        termsVersion: LEGAL_POLICY.termsVersion,
+        privacyVersion: LEGAL_POLICY.privacyVersion,
+        guidelinesVersion: LEGAL_POLICY.guidelinesVersion,
+      } satisfies LegalConsentRecord : null;
     },
   };
 }
@@ -56,13 +43,12 @@ export function createLegalConsentWriteRepository(
   const client = createLegalConsentWriteClient(env);
   return {
     async recordCurrentAcceptance(params) {
-      const { error } = await client.rpc("record_current_legal_policy_acceptance", {
+      const { error } = await client.rpc("ogh_record_policy_acceptance", {
         p_user_id: verifiedUserId,
-        p_bundle_version: params.bundleVersion,
-        p_terms_version: params.termsVersion,
-        p_privacy_version: params.privacyVersion,
-        p_guidelines_version: params.guidelinesVersion,
-        p_minimum_age: params.minimumAge,
+        p_bundle: params.bundleVersion,
+        p_terms: params.termsVersion,
+        p_privacy: params.privacyVersion,
+        p_guidelines: params.guidelinesVersion,
         p_source: params.source,
       });
       if (error) throw new Error("LEGAL_CONSENT_WRITE_FAILED");

@@ -10,7 +10,7 @@ import type { AuthPanelAdapter, LegalConsentAdapter, LegalConsentAuthAdapter, Le
 import { LEGAL_CONSENT_STATE_MATRIX } from "../legal-consent-state-matrix.mjs";
 
 type Scenario = string;
-const status = (current: boolean): LegalConsentStatus => ({ current, bundleVersion: "test-policy", minimumAge: 16, consentUrl: "/legal-consent/" });
+const status = (current: boolean): LegalConsentStatus => ({ current, bundleVersion: "test-policy", consentUrl: "/legal-consent/" });
 
 function Harness() {
   const [scenario, setScenario] = useState<Scenario>("consent-missing-unchecked");

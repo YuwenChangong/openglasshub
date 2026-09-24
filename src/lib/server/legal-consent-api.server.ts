@@ -1,7 +1,6 @@
 import {
   buildSafeConsentResponse,
   getCurrentConsentStatus,
-  isLegalConsentReconfirmationRateLimited,
   isLegalConsentSource,
   recordCurrentLegalConsent,
   type LegalConsentReadRepository,
@@ -19,7 +18,6 @@ type LegalConsentAuthContext = {
 export type LegalConsentApiDependencies = {
   authenticate(request: Request): Promise<LegalConsentAuthContext | null>;
   createWriteRepository(verifiedUserId: string): LegalConsentWriteRepository;
-  now?: () => number;
 };
 
 export function legalConsentJson(data: unknown, status = 200): Response {
@@ -102,9 +100,7 @@ export async function handleLegalConsentPost(request: Request, dependencies: Leg
 
   try {
     const status = await getCurrentConsentStatus(auth.readRepository, auth.userId);
-    if (isLegalConsentReconfirmationRateLimited(status, dependencies.now?.())) {
-      return legalConsentJson({ error: "LEGAL_CONSENT_RATE_LIMITED" }, 429);
-    }
+    if (status.current) return legalConsentJson(buildSafeConsentResponse(status));
 
     const writeRepository = dependencies.createWriteRepository(auth.userId);
     const activeBundle = await recordCurrentLegalConsent(writeRepository, payload.source);

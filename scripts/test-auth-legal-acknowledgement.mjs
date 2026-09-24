@@ -19,7 +19,7 @@ async function main() {
   const registerPage = await read("src/pages/register/index.astro");
   const docs = await read("docs/ops/legal-trust-policy-management.md");
 
-  assert(legalPolicy.includes("minimumAge: 16"), "The central legal configuration must retain the 16+ rule.");
+  assert(legalPolicy.includes("minimumAge: 16"), "Published legal text retains its current version pending policy-owner review.");
   assert(authPanel.includes('import { LEGAL_POLICY } from "../../lib/legal-policy";'), "Auth UI must import central legal policy configuration.");
   assert(!/const\s+(?:MINIMUM_AGE|LEGAL_MINIMUM_AGE)\s*=\s*16/.test(authPanel), "Auth UI must not define a conflicting minimum-age constant.");
   assert(authPanel.includes("const [legalAcknowledged, setLegalAcknowledged] = useState(false);"), "Legal acknowledgement must be unchecked by default.");
@@ -34,8 +34,7 @@ async function main() {
   assert(authPanel.includes("LEGAL_POLICY.routes.privacy"), "Privacy link must use the central route.");
   assert((authPanel.match(/target="_blank" rel="noopener noreferrer"/g) ?? []).length === 6, "Each bilingual policy link must open safely in a new tab.");
   assert((authPanel.match(/event\.stopPropagation\(\)/g) ?? []).length === 6, "Policy links must not toggle acknowledgement or submit auth.");
-  assert(authPanel.includes("我确认已年满 {LEGAL_POLICY.minimumAge} 周岁"), "Chinese acknowledgement must use the central age.");
-  assert(authPanel.includes("I confirm that I am at least {LEGAL_POLICY.minimumAge} years old"), "English acknowledgement must use the central age.");
+  assert(!/minimumAge|已年满|years old/.test(authPanel), "Auth acknowledgement must be policy-only.");
   assert(!/marketing|analytics/i.test(authPanel), "No optional marketing or analytics consent may be bundled into auth.");
   assert(authPanel.includes('source: "login"'), "Authenticated login must persist the current acknowledgement.");
 

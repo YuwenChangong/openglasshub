@@ -3,7 +3,6 @@ import type { LegalConsentSource } from "./server/legal-consent.server";
 export type LegalConsentStatus = {
   current: boolean;
   bundleVersion: string;
-  minimumAge: number;
   consentUrl: string;
 };
 
@@ -20,7 +19,7 @@ async function parseResponse(response: Response): Promise<LegalConsentStatus> {
     if (response.status === 429) throw new LegalConsentClientError("RATE_LIMITED");
     throw new LegalConsentClientError("UNAVAILABLE");
   }
-  if (!payload || typeof payload.current !== "boolean" || typeof payload.bundleVersion !== "string" || typeof payload.minimumAge !== "number" || typeof payload.consentUrl !== "string") {
+  if (!payload || typeof payload.current !== "boolean" || typeof payload.bundleVersion !== "string" || typeof payload.consentUrl !== "string" || "minimumAge" in payload) {
     throw new LegalConsentClientError("INVALID_RESPONSE");
   }
   return payload;

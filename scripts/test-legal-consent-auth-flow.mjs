@@ -15,12 +15,13 @@ async function main() {
   assert(helper.includes('fetch("/api/legal/consent"'));
   assert(helper.includes('authorization: `Bearer ${accessToken}`'));
   assert(helper.includes('JSON.stringify({ accepted: true, source: params.source })'));
-  assert(!/userId|bundleVersion|minimumAge|acceptedAt/.test(helper.match(/recordLegalConsent[\s\S]*/)?.[0] ?? ""));
+  assert(!/userId|bundleVersion|minimumAge|acceptedAt/.test(helper.match(/export async function recordLegalConsent[\s\S]*/)?.[0] ?? ""));
+  assert(!/minimumAge:\s*number/.test(helper), "client status is policy-only");
   assert(!/localStorage|document\.cookie|SUPABASE_SERVICE_ROLE_KEY/.test(helper));
 
   assert(authPanel.indexOf("signInWithPassword") < authPanel.indexOf('source: "login"'));
   assert(authPanel.indexOf('source: "login"') < authPanel.indexOf("navigation.navigate(safeNext)"));
-  assert(authPanel.includes('source: "registration"'));
+  assert(!/minimumAge|已年满|years old/.test(authPanel), "auth checkbox must not attest age");
   assert(authPanel.includes("const accessToken = signUpData?.accessToken"));
   assert(authPanel.includes("if (accessToken)"));
   assert(authPanel.includes("验证邮件已发送"));
@@ -36,6 +37,7 @@ async function main() {
 
   assert(consentRoute.includes("LegalConsentPage"));
   assert(consentPage.includes('type="checkbox"'));
+  assert(!/minimumAge|已年满|周岁/.test(consentPage), "consent page must not attest age");
   assert(consentPage.includes('htmlFor="legal-consent-acknowledgement"'));
   assert(consentPage.includes('role="alert"'));
   assert(consentPage.includes("记录政策确认"));

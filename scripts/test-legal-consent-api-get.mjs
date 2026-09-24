@@ -58,11 +58,13 @@ async function main() {
   const migration = await readFile(path.join(root, "supabase/migrations/20260712_legal_policy_acceptances.sql"), "utf8");
 
   assert.match(route, /getBearerToken\(request\)/);
-  assert.match(route, /client\.auth\.getUser\(token\)/);
+  assert.match(route, /getTrustedSessionClaims\(token, env\)/);
+  assert.match(route, /getLiveProviderSessionUser\(token, env, claims\)/);
   assert.match(route, /createWriteRepository:\s*\(verifiedUserId\)\s*=>\s*createLegalConsentWriteRepository\(env, verifiedUserId\)/);
   assert.match(api, /handleLegalConsentGet[\s\S]*?dependencies\.authenticate\(request\)[\s\S]*?getCurrentConsentStatus/);
   assert.doesNotMatch(api.match(/export async function handleLegalConsentGet[\s\S]*?\n}\n/)?.[0] ?? "", /createWriteRepository|recordCurrentLegalConsent|\.rpc\(/);
-  assert.match(repository, /\.eq\("user_id", userId\)[\s\S]*?\.eq\("bundle_version", bundleVersion\)/);
+  assert.match(repository, /client\.rpc\("ogh_has_current_policy_acceptance"/);
+  assert.doesNotMatch(repository, /\.from\("legal_policy_acceptances"\)/);
   assert.match(migration, /legal_policy_acceptances_select_own[\s\S]*?using \(user_id = auth\.uid\(\)\)/i);
   assert.match(migration, /revoke all on table public\.legal_policy_acceptances from anon, authenticated/i);
   assert.doesNotMatch(api, /analytics|marketing/i);
@@ -76,7 +78,7 @@ async function main() {
     const events = [];
     const response = await json(await handleLegalConsentGet(new Request(`https://unit.test/api/legal/consent?user_id=${otherUserId}`, { headers: { authorization: "Bearer verified-token" } }), dependenciesFor(record, events)));
     assert.equal(response.status, 200, name);
-    assert.deepEqual(response.body, { current: expectedCurrent, bundleVersion: LEGAL_POLICY.bundleVersion, minimumAge: LEGAL_POLICY.minimumAge, consentUrl: "/legal-consent/" }, name);
+    assert.deepEqual(response.body, { current: expectedCurrent, bundleVersion: LEGAL_POLICY.bundleVersion, consentUrl: "/legal-consent/" }, name);
     assert.deepEqual(events, [`authenticate:Bearer verified-token`, `read:${actorId}:${LEGAL_POLICY.bundleVersion}`], name);
     assert.equal("userId" in response.body, false, name);
     assert.equal("lastConfirmedAt" in response.body, false, name);

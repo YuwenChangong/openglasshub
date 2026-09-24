@@ -52,8 +52,12 @@ async function main() {
   const migration = await read("supabase/migrations/20260712_legal_policy_acceptances.sql");
   const route = await read("src/pages/api/legal/consent.ts");
   const repository = await read("src/lib/server/legal-consent-repository.server.ts");
+  const forwardMigration = await read("supabase/migrations/20260923000000_ogh_verified_session_v1.sql");
 
-  assert.equal(LEGAL_POLICY.minimumAge, 16);
+  assert.match(forwardMigration, /create function public\.ogh_has_current_policy_acceptance/i);
+  assert.match(forwardMigration, /create function public\.ogh_record_policy_acceptance/i);
+  assert.match(forwardMigration, /from public\.legal_policy_acceptances[\s\S]*p\.guidelines_version = p_guidelines/i);
+  assert.doesNotMatch(forwardMigration.match(/create function public\.ogh_has_current_policy_acceptance[\s\S]*?alter function public\.ogh_has_current_policy_acceptance/)?.[0] ?? "", /minimum_age/i);
   assert.equal(getActiveLegalBundle().bundleVersion, LEGAL_POLICY.bundleVersion);
   assert.match(migration, /create table if not exists public\.legal_policy_acceptances/i);
   for (const column of [
@@ -83,14 +87,13 @@ async function main() {
     async findByUserAndBundle(foundUserId, bundleVersion) {
       assert.equal(foundUserId, userId);
       assert.equal(bundleVersion, LEGAL_POLICY.bundleVersion);
-      return activeRecord();
+      return activeRecord({ minimumAge: 12 });
     },
   }, userId);
   assert.equal(currentStatus.current, true);
   assert.deepEqual(buildSafeConsentResponse(currentStatus), {
     current: true,
     bundleVersion: LEGAL_POLICY.bundleVersion,
-    minimumAge: 16,
     consentUrl: "/legal-consent/",
   });
   assert.equal("lastConfirmedAt" in buildSafeConsentResponse(currentStatus), false);
@@ -101,6 +104,10 @@ async function main() {
     },
   }, userId);
   assert.equal(outdatedStatus.current, false);
+  for (const key of ["privacyVersion", "guidelinesVersion", "bundleVersion"]) {
+    const stale = await getCurrentConsentStatus({ async findByUserAndBundle() { return activeRecord({ [key]: "old-version" }); } }, userId);
+    assert.equal(stale.current, false, `${key} change requires consent`);
+  }
   assert.deepEqual(await requireCurrentLegalConsent({ async findByUserAndBundle() { return null; } }, userId), {
     ok: false,
     error: "LEGAL_CONSENT_REQUIRED",
@@ -114,7 +121,7 @@ async function main() {
     },
   }, "login");
   assert.equal("userId" in recorded, false);
-  assert.equal(recorded.minimumAge, 16);
+  assert.equal("minimumAge" in recorded, false);
   assert.equal(recorded.bundleVersion, LEGAL_POLICY.bundleVersion);
   assert.equal("acceptedAt" in recorded, false);
 
@@ -139,7 +146,7 @@ async function main() {
   };
   const getResult = await responseJson(await handleLegalConsentGet(new Request("https://unit.test"), dependencies));
   assert.equal(getResult.status, 200);
-  assert.deepEqual(getResult.body, { current: false, bundleVersion: LEGAL_POLICY.bundleVersion, minimumAge: 16, consentUrl: "/legal-consent/" });
+  assert.deepEqual(getResult.body, { current: false, bundleVersion: LEGAL_POLICY.bundleVersion, consentUrl: "/legal-consent/" });
 
   for (const [label, badRequest, expectedStatus] of [
     ["content type", request(JSON.stringify({ accepted: true, source: "login" }), { headers: { "content-type": "text/plain" } }), 415],
@@ -159,7 +166,7 @@ async function main() {
 
   const postResult = await responseJson(await handleLegalConsentPost(request(JSON.stringify({ accepted: true, source: "login" })), dependencies));
   assert.equal(postResult.status, 200);
-  assert.deepEqual(postResult.body, { current: true, bundleVersion: LEGAL_POLICY.bundleVersion, minimumAge: 16, consentUrl: "/legal-consent/" });
+  assert.deepEqual(postResult.body, { current: true, bundleVersion: LEGAL_POLICY.bundleVersion, consentUrl: "/legal-consent/" });
   assert.equal(recorded.source, "login");
 
   const rateLimitedDependencies = {
@@ -167,13 +174,18 @@ async function main() {
     async authenticate() { return { userId, readRepository: { async findByUserAndBundle() { return activeRecord(); } } }; },
     now: () => Date.parse("2026-07-12T00:00:30.000Z"),
   };
-  assert.equal((await responseJson(await handleLegalConsentPost(request(JSON.stringify({ accepted: true, source: "login" })), rateLimitedDependencies))).status, 429);
+  assert.equal((await responseJson(await handleLegalConsentPost(request(JSON.stringify({ accepted: true, source: "login" })), rateLimitedDependencies))).status, 200);
+  assert.equal(writeRepositoryCreated, 1, "already-current consent must not construct the writer again");
 
   assert.match(route, /getBearerToken\(request\)/);
-  assert.match(route, /client\.auth\.getUser\(token\)/);
+  assert.match(route, /getTrustedSessionClaims\(token, env\)/);
+  assert.match(route, /getLiveProviderSessionUser\(token, env, claims\)/);
   assert.match(route, /createWriteRepository:\s*\(verifiedUserId\)[\s\S]*?createLegalConsentWriteRepository\([\s\S]*?verifiedUserId/);
   assert.match(route, /createLegalConsentWriteRepository\(env, verifiedUserId\)/);
-  assert(route.indexOf("client.auth.getUser(token)") < route.indexOf("createLegalConsentWriteRepository(env, verifiedUserId)"));
+  assert(route.indexOf("getLiveProviderSessionUser(token, env, claims)") < route.indexOf("createLegalConsentWriteRepository(env, verifiedUserId)"));
+  assert.match(repository, /ogh_has_current_policy_acceptance/);
+  assert.match(repository, /ogh_record_policy_acceptance/);
+  assert.doesNotMatch(repository, /record_current_legal_policy_acceptance|p_minimum_age|\.from\("legal_policy_acceptances"\)/);
   assert.match(repository, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(repository, /function createLegalConsentWriteClient\(env: RuntimeEnv\): Pick<SupabaseClient, "rpc">/);
   assert.doesNotMatch(repository, /export function createLegalConsent(?:Service|Write)Client/);

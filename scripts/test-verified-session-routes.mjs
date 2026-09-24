@@ -75,8 +75,7 @@ function fixture({ verified = false, policy = false, policyStatus = 200, rpcStat
     if (url.pathname === "/rest/v1/posts" && publicCommentRead) return response({ id: userId, circle_id: sessionId, status: "published", moderation_status: "published" });
     if (url.pathname === "/rest/v1/circles") return response(publicCommentRead && url.searchParams.has("id") ? { id: sessionId, slug: "local", name: "Local", status: "active" } : []);
     if (url.pathname === "/rest/v1/comments" && publicCommentRead) return response([]);
-    if (url.pathname === "/rest/v1/legal_policy_acceptances") return response(null);
-    if (url.pathname === "/rest/v1/rpc/record_current_legal_policy_acceptance") return response(null);
+    if (url.pathname === "/rest/v1/rpc/ogh_record_policy_acceptance") return response(null);
     throw new Error(`Unexpected request ${url.pathname}`);
   };
   return { calls, restore: () => { globalThis.fetch = previous; } };
@@ -314,7 +313,7 @@ try {
       }) });
       assert.equal(result.status, expectedStatus, name);
       assert.deepEqual(test.calls.map((call) => call.path), expectedPaths, name);
-      assert.equal(test.calls.some((call) => call.path.includes("record_current_legal_policy_acceptance")), false, name);
+      assert.equal(test.calls.some((call) => call.path.includes("ogh_record_policy_acceptance")), false, name);
       console.log(`PASS LEGAL_${name}_NO_WRITER`);
     } finally { test.restore(); }
   }
@@ -335,9 +334,11 @@ try {
       method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ accepted: true, source: "login" }),
     }) });
     assert.equal(result.status, 200, "pending consent bootstrap");
-    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user", "/rest/v1/legal_policy_acceptances", "/rest/v1/rpc/record_current_legal_policy_acceptance"]);
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_has_current_policy_acceptance", "/rest/v1/rpc/ogh_record_policy_acceptance"]);
+    assert.deepEqual(JSON.parse(test.calls[2].body), { p_bundle: "2026-07", p_terms: "2026-07", p_privacy: "2026-07", p_guidelines: "2026-07" });
     assert.equal(test.calls.at(-1).token, env.SUPABASE_SERVICE_ROLE_KEY);
     assert.equal(JSON.parse(test.calls.at(-1).body).p_user_id, userId);
+    assert.equal("p_minimum_age" in JSON.parse(test.calls.at(-1).body), false);
     console.log("PASS LEGAL_PENDING_ACTOR_BOUND_BOOTSTRAP");
   } finally { test.restore(); }
 } finally { delete env.SUPABASE_SERVICE_ROLE_KEY; }

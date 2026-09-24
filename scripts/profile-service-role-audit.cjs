@@ -56,9 +56,11 @@ function legalConsentServiceRoleFinding({ relativePath, repositorySource, routeS
     /function createLegalConsentWriteClient\(env: RuntimeEnv\): Pick<SupabaseClient, "rpc">/.test(repositorySource),
     /export function createLegalConsentWriteRepository\(\s*env: RuntimeEnv,\s*verifiedUserId: string,\s*\)/s.test(repositorySource),
     /const client = createLegalConsentWriteClient\(env\);/.test(repositorySource),
-    /client\.rpc\("record_current_legal_policy_acceptance", \{[\s\S]*?p_user_id: verifiedUserId/.test(repositorySource),
+    /client\.rpc\("ogh_record_policy_acceptance", \{[\s\S]*?p_user_id: verifiedUserId/.test(repositorySource),
+    !/record_current_legal_policy_acceptance|p_minimum_age|\.from\(/.test(repositorySource),
     !/client\.(?:from|storage|functions)\(/.test(repositorySource),
-    (repositorySource.match(/\.rpc\(/g) ?? []).length === 1,
+    (repositorySource.match(/\.rpc\(/g) ?? []).length === 2,
+    /client\.rpc\("ogh_has_current_policy_acceptance", \{/.test(repositorySource),
     serviceKeyUses.length === 1,
     !/(?:console\.|logger\.|throw new Error\([^)]*SUPABASE_SERVICE_ROLE_KEY)/.test(repositorySource),
   ].every(Boolean);
