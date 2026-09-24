@@ -215,8 +215,8 @@ async function verifyTask3(client, pool) {
   check(await policy(user),"new policy acceptance true");
   check(!(await policy(other)),"policy user isolation");
   check(!(await policy(user,[bundle,terms,"privacy-v2",guidelines])),"version mismatch false");
-  await client.query("INSERT INTO public.legal_policy_acceptances(user_id,bundle_version,terms_version,privacy_version,guidelines_version,minimum_age,first_acceptance_source,last_confirmation_source) VALUES($1,$2,$3,$4,$5,16,'registration','registration')",[other,bundle,terms,privacy,guidelines]);
-  check(await policy(other),"historical age row accepted by versions");
+  await client.query("INSERT INTO public.legal_policy_acceptances(user_id,bundle_version,terms_version,privacy_version,guidelines_version,minimum_age,first_acceptance_source,last_confirmation_source) VALUES($1,$2,$3,$4,$5,15,'registration','registration')",[other,bundle,terms,privacy,guidelines]);
+  check(await policy(other),"historical differing-age row accepted by versions");
   check(!(await actorRpc(pool,"authenticated","ogh_has_current_policy_acceptance",[bundle,terms,privacy,guidelines],{sub:other,role:"authenticated",is_anonymous:true})),"anonymous claim denied");
   const accepted=await query(client,"SELECT accepted_at FROM private.ogh_policy_acceptances WHERE user_id=$1 AND bundle_version=$2",[user,bundle]);
   check(Math.abs(Date.now()-accepted[0].accepted_at.getTime())<120000,"policy timestamp uses DB time");

@@ -6,6 +6,9 @@ const LEGAL_ROUTE = "src/pages/api/legal/consent.ts";
 const LEGAL_API = "src/lib/server/legal-consent-api.server.ts";
 const MODERATION_REPOSITORY = "src/lib/server/moderation-notifications.server.ts";
 const RATE_LIMIT_REPOSITORY = "src/lib/server/consume-forum-rate-limit.server.ts";
+const LOGIN_CHALLENGE = "src/lib/server/login-challenge.server.ts";
+const LOGOUT_ROUTE = "src/pages/api/auth/logout.ts";
+const SIGNUP_ROUTE = "src/pages/api/auth/signup-confirm.ts";
 const MODERATION_ROUTES = [
   "src/pages/api/admin/users/[id]/ban.ts",
   "src/pages/api/admin/users/[id]/clear-warning.ts",
@@ -127,6 +130,35 @@ function rateLimitServiceRoleFinding({ relativePath, repositorySource }) {
   return safe ? null : "rate-limit service-role wrapper is not a narrow fail-closed fixed-RPC boundary";
 }
 
+function verifiedSessionServiceRoleFinding(relativePath, source) {
+  const before = (first, second) => source.indexOf(first) >= 0 && source.indexOf(second) > source.indexOf(first);
+  const rpcNames = [...source.matchAll(/(?:\.rpc\(|rpc<unknown>\((?:client|serviceClient\(env\)), )"([a-z_]+)"/g)].map((match) => match[1]).sort();
+  const expected = relativePath === LOGIN_CHALLENGE
+    ? ["ogh_consume_login_challenge", "ogh_finalize_login_delivery", "ogh_reserve_login_challenge"]
+    : relativePath === LOGOUT_ROUTE
+      ? ["ogh_revoke_verified_session"]
+      : ["ogh_activate_signup_session", "ogh_record_policy_acceptance"];
+  const rpcCallCount = (source.match(/\.rpc\(/g) ?? []).length;
+  const callsFixedRpc = JSON.stringify(rpcNames) === JSON.stringify(expected)
+    && rpcCallCount === (relativePath === SIGNUP_ROUTE ? 2 : 1);
+  const noBroadClient = !/\b(?:client|service)\.(?:from|storage|functions|auth\.admin)\b/.test(source);
+  const expectedServiceKeyUses = relativePath === SIGNUP_ROUTE ? 1 : 2;
+  const serviceKeyUsesMatch = (source.match(/SUPABASE_SERVICE_ROLE_KEY/g) ?? []).length === expectedServiceKeyUses;
+  const actorBound = relativePath === LOGIN_CHALLENGE
+    ? before("await signedClaims(input.token, env)", "const client = serviceClient(env)")
+      && /p_user_id: claims\.userId, p_session_id: claims\.sessionId/.test(source)
+      && /getCurrentConfirmedAuthUser\(input\.token, env, claims\)/.test(source)
+    : relativePath === LOGOUT_ROUTE
+      ? before("await getLiveProviderSessionUser(token, env, claims)", "const client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY")
+        && /p_user_id: claims\.userId,\s*p_session_id: claims\.sessionId/.test(source)
+      : before('type: "signup"', 'const service = createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_SERVICE_ROLE_KEY")')
+        && before("await getCurrentConfirmedAuthUser(session.access_token, env, claims)", "const service = createClient")
+        && /p_user_id: claims\.userId/.test(source)
+        && /p_user_id: claims\.userId, p_session_id: claims\.sessionId/.test(source);
+  return callsFixedRpc && noBroadClient && serviceKeyUsesMatch && actorBound
+    ? null : "verified-session service-role caller is not limited to actor-bound fixed RPCs";
+}
+
 function findUnsafeServiceRoleUsage(rootDir, srcDir) {
   const routeSource = read(rootDir, LEGAL_ROUTE);
   const apiSource = read(rootDir, LEGAL_API);
@@ -134,7 +166,9 @@ function findUnsafeServiceRoleUsage(rootDir, srcDir) {
 
   return collectServiceRoleHits(rootDir, srcDir).flatMap((relativePath) => {
     const repositorySource = read(rootDir, relativePath);
-    const finding = relativePath === LEGAL_REPOSITORY
+    const finding = [LOGIN_CHALLENGE, LOGOUT_ROUTE, SIGNUP_ROUTE].includes(relativePath)
+      ? verifiedSessionServiceRoleFinding(relativePath, repositorySource)
+      : relativePath === LEGAL_REPOSITORY
       ? legalConsentServiceRoleFinding({ relativePath, repositorySource, routeSource, apiSource })
       : relativePath === RATE_LIMIT_REPOSITORY
         ? rateLimitServiceRoleFinding({ relativePath, repositorySource })

@@ -260,6 +260,18 @@ for (const [path, methods, suffix = ""] of protectedRoutes) {
   }
 }
 assert.deepEqual(routeFailures, [], `Protected route failures:\n${routeFailures.join("\n")}`);
+{
+  const test = fixture({ verified: true, secondAuthStatus: 400 });
+  try {
+    const { GET: summaryGet } = await import("../src/pages/api/users/me/summary.ts");
+    const result = await summaryGet({ request: new Request("https://app.test/api/users/me/summary", {
+      headers: { authorization: `Bearer ${token}` },
+    }), locals: {} });
+    assert.equal(result.status, 401, "signed stale session denied by protected route");
+    assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user"], "no profile or service work after provider signout");
+    console.log("PASS STALE_SIGNED_TOKEN_PROTECTED_ROUTE_NO_DOWNSTREAM");
+  } finally { test.restore(); }
+}
 const { GET: publicCirclesGet } = await import("../src/pages/api/forum/circles.ts");
 for (const [name, headers, expectedPaths] of [
   ["ANONYMOUS_PUBLIC_CIRCLES", {}, ["/rest/v1/circles"]],

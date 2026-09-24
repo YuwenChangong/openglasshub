@@ -438,6 +438,9 @@ try {
   assert.notEqual((await confirm(genericCode)).status, 200, "generic email OTP cannot activate signup");
   const genericExchange = await anon.auth.verifyOtp({ email: localEmail, token: genericCode, type: "email" });
   assert.equal(genericExchange.error, null, "generic artifact is valid for email OTP");
+  const genericClaims = await anon.auth.getClaims(genericExchange.data.session.access_token);
+  const genericRow = await pool.query("SELECT 1 FROM private.ogh_verified_sessions WHERE session_id=$1", [genericClaims.data.claims.session_id]);
+  assert.equal(genericRow.rowCount, 0, "valid generic OTP session remains unverified");
   assert.notEqual((await confirm(genericCode)).status, 200, "email OTP exchange is not signup provenance");
 
   await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -450,6 +453,8 @@ try {
   const changeCode = await latestCode(status.INBUCKET_URL, changedEmail);
   assert.notEqual((await confirm(changeCode, changedEmail)).status, 200, "email-change artifact denied");
   assert.notEqual((await confirm("000000", localEmail)).status, 200, "non-signup code denied");
+  const verifiedRows = await pool.query("SELECT count(*)::int AS total FROM private.ogh_verified_sessions WHERE verification_kind='signup'");
+  assert.equal(verifiedRows.rows[0].total, 2, "only the two genuine signup artifacts created verified rows");
   console.log("PASS genuine local signup, replay, resend, supersession, cross-email, generic OTP, recovery and email-change denial");
 } finally {
   if (pool) await pool.end();

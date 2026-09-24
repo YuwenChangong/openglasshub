@@ -98,6 +98,7 @@ export async function verifyBypass({ pool, status }) {
   assert.ok(claims.session_id);
 
   const db = await pool.connect();
+  let otherUserId;
   try {
     const { rows: policies } = await db.query(`select tablename, cmd, permissive, qual, with_check,
       'authenticated'::name = any(roles) as applies_authenticated
@@ -386,11 +387,50 @@ export async function verifyBypass({ pool, status }) {
       assert.ifError(verifiedDelete.error);
       assert.ok(verifiedDelete.data?.length, `${entry.family} verified Storage DELETE`);
     }
+    const otherEmail = `verified-other-${randomUUID()}@example.test`;
+    const { data: otherCreated, error: otherCreateError } = await service.auth.admin.createUser({
+      email: otherEmail, password, email_confirm: true, user_metadata: { role: "admin", is_admin: true },
+    });
+    assert.ifError(otherCreateError);
+    otherUserId = otherCreated.user.id;
+    const otherAuth = createClient(base, status.ANON_KEY, clientOptions);
+    const { data: otherLogin, error: otherLoginError } = await otherAuth.auth.signInWithPassword({ email: otherEmail, password });
+    assert.ifError(otherLoginError);
+    const otherToken = otherLogin.session.access_token;
+    const otherClaims = JSON.parse(Buffer.from(otherToken.split(".")[1], "base64url").toString("utf8"));
+    assert.equal(otherClaims.user_metadata.role, "admin", "adversarial metadata reached the token");
+    await db.query("insert into private.ogh_verified_sessions(session_id,user_id,verification_kind) values($1,$2,'login_challenge')", [otherClaims.session_id, otherUserId]);
+    const otherProfile = await rest(base, status.ANON_KEY, otherToken, "profiles", "GET", undefined, `?select=id,role&id=eq.${otherUserId}`);
+    assert.deepEqual(otherProfile.data, [{ id: otherUserId, role: "user" }], "metadata does not grant staff role");
+    const crossOwnerWrite = await rest(base, status.ANON_KEY, otherToken, "profiles", "PATCH", { display_name: "Cross-owner bypass" }, `?id=eq.${user.id}`);
+    assert.deepEqual(crossOwnerWrite.data, [], "verified B cannot write A's profile");
+    const { rows: [ownerProfile] } = await db.query("select display_name, role from public.profiles where id=$1", [user.id]);
+    assert.equal(ownerProfile.display_name, "Verified actor", "cross-owner denial preserves A's profile");
+    assert.equal(ownerProfile.role, "moderator", "cross-owner denial preserves A's staff role");
+    const crossRecipientRead = await rest(base, status.ANON_KEY, otherToken, "forum_notifications", "GET", undefined, `?select=id&id=eq.${notificationId}`);
+    assert.deepEqual(crossRecipientRead.data, [], "verified B cannot read A's notification");
+    const metadataStaffRead = await rest(base, status.ANON_KEY, otherToken, "news_articles", "GET", undefined, `?select=id&id=eq.${draftId}`);
+    assert.deepEqual(metadataStaffRead.data, [], "metadata admin hint cannot read staff draft");
+    const signedOldToken = token;
+    const { error: signOutError } = await auth.auth.signOut({ scope: "local" });
+    assert.ifError(signOutError);
+    const { error: oldUserError } = await service.auth.getUser(signedOldToken);
+    assert.ok(oldUserError, "provider rejects old signed token after logout");
+    const oldPrivate = await rest(base, status.ANON_KEY, signedOldToken, "forum_notifications", "GET", undefined, `?select=id&id=eq.${notificationId}`);
+    assert.deepEqual(oldPrivate.data, [], "old signed JWT cannot read private notifications");
+    const oldWrite = await rest(base, status.ANON_KEY, signedOldToken, "profiles", "PATCH", { display_name: "Old JWT bypass" }, `?id=eq.${user.id}`);
+    assert.deepEqual(oldWrite.data, [], "old signed JWT cannot write own profile");
+    const oldPublic = await rest(base, status.ANON_KEY, signedOldToken, "posts", "GET", undefined, `?select=id&id=eq.${postId}`);
+    assert.deepEqual(oldPublic.data, [{ id: postId }], "public post remains readable with old signed JWT");
   } finally {
     auth.realtime.disconnect();
     db.release();
     const { error } = await service.auth.admin.deleteUser(user.id);
     assert.ifError(error);
+    if (otherUserId) {
+      const { error: otherDeleteError } = await service.auth.admin.deleteUser(otherUserId);
+      assert.ifError(otherDeleteError);
+    }
   }
   console.log(`PASS verified session bypass: catalog/RLS=${tables.length}, REST behavior=${behavioralTables.size}, Storage families=4, live Realtime=forum_notifications; residual=caller-controlled resend hash`);
 }
