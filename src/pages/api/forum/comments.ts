@@ -24,6 +24,7 @@ import { createLegalConsentReadRepository } from "../../../lib/server/legal-cons
 import { enforceUserRateLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 import { isPublicVisibleCircle } from "../../../lib/site-navigation";
+import { verifiedSessionOrResponse } from "../../../lib/server/verified-session.server";
 
 export const prerender = false;
 
@@ -375,7 +376,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const token = getBearerToken(request);
     let client = createAnonClient(env);
     let viewerUserId: string | null = null;
+    let viewerVerified = false;
     if (token) {
+      viewerVerified = !(await verifiedSessionOrResponse(request, env) instanceof Response);
+    }
+    if (token && viewerVerified) {
       const candidate = createUserClient(env, token);
       const { data: authData } = await candidate.auth.getUser(token).catch(() => ({ data: { user: null } }));
       if (authData?.user) {
@@ -476,7 +481,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     let myUserId: string | null = viewerUserId;
     let myRole: string | null = null;
 
-    if (token && !myUserId) {
+    if (token && viewerVerified && !myUserId) {
       try {
         const userClient = createUserClient(env, token);
         const { data: authData } = await userClient.auth.getUser(token);
@@ -562,6 +567,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: "Missing bearer token" }, 401);
     }
 
+    const verified = await verifiedSessionOrResponse(request, env);
+    if (verified instanceof Response) return verified;
     const userClient = createUserClient(env, token);
     const { data: authData, error: authError } = await userClient.auth.getUser(token);
     if (authError || !authData.user) {
@@ -729,6 +736,9 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       return json({ error: "Missing bearer token" }, 401);
     }
 
+    const verified = await verifiedSessionOrResponse(request, env);
+    if (verified instanceof Response) return verified;
+
     const url = new URL(request.url);
     const payload = (await request.json().catch(() => null)) as { comment_id?: string } | null;
     const commentId = String(url.searchParams.get("id") ?? payload?.comment_id ?? "").trim();
@@ -819,6 +829,8 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       return json({ error: "Missing bearer token" }, 401);
     }
 
+    const verified = await verifiedSessionOrResponse(request, env);
+    if (verified instanceof Response) return verified;
     const userClient = createUserClient(env, token);
     const { data: authData, error: authError } = await userClient.auth.getUser(token);
     if (authError || !authData.user) {

@@ -18,6 +18,7 @@ import { resolveProfileAvatarUrl } from "../../../../lib/profile-media";
 import { isPublicVisibleCircle } from "../../../../lib/site-navigation";
 import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
 import { createLegalConsentReadRepository } from "../../../../lib/server/legal-consent-repository.server";
+import { verifiedSessionOrResponse } from "../../../../lib/server/verified-session.server";
 
 export const prerender = false;
 
@@ -291,6 +292,8 @@ async function authenticate(request: Request, locals: unknown): Promise<Authenti
   if (!hasRuntimeBindings(env)) return { error: json({ ok: false, error: "NOTIFICATIONS_UNAVAILABLE" }, 500) };
 
   try {
+    const verified = await verifiedSessionOrResponse(request, env);
+    if (verified instanceof Response) return { error: verified };
     const client = createUserClient(env, token);
     const { data, error } = await client.auth.getUser(token);
     if (error || !data.user || !isNotificationResourceId(data.user.id)) return { error: json({ ok: false, error: "UNAUTHORIZED" }, 401) };

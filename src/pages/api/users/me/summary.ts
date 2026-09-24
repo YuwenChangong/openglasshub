@@ -3,6 +3,7 @@ import type { APIRoute } from "astro";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildProfileHref } from "../../../../lib/profile-links";
 import { isProfileMediaPathForUser, resolveProfileAvatarUrl } from "../../../../lib/profile-media";
+import { verifiedSessionOrResponse } from "../../../../lib/server/verified-session.server";
 
 export const prerender = false;
 
@@ -41,6 +42,8 @@ function createUserClient(env: RuntimeEnv & { SUPABASE_URL: string; SUPABASE_ANO
 async function authenticate(request: Request, env: RuntimeEnv): Promise<SummaryAuth | { error: Response }> {
   const token = getBearerToken(request);
   if (!token) return { error: json({ ok: false, error: "NOT_AUTHENTICATED" }, 401) };
+  const verified = await verifiedSessionOrResponse(request, env);
+  if (verified instanceof Response) return { error: verified };
   const client = createUserClient(env as RuntimeEnv & { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }, token);
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user?.id) return { error: json({ ok: false, error: "NOT_AUTHENTICATED" }, 401) };

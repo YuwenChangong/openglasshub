@@ -7,7 +7,13 @@ registerHooks({
     if (specifier === "cloudflare:workers") {
       return { url: "data:text/javascript,export const env = globalThis.__routeTestEnv", shortCircuit: true };
     }
-    return nextResolve(specifier, context);
+    try { return nextResolve(specifier, context); }
+    catch (error) {
+      if (error.code === "ERR_MODULE_NOT_FOUND" && specifier.startsWith(".") && !/\.(?:ts|tsx|js|mjs|json)$/i.test(specifier)) {
+        return nextResolve(`${specifier}.ts`, context);
+      }
+      throw error;
+    }
   },
 });
 
@@ -63,6 +69,7 @@ function fixture({ verified = false, policy = false, policyStatus = 200, rpcStat
       return policyStatus === 200 ? response(policy) : response({ message: "unavailable" }, policyStatus);
     }
     if (url.pathname === "/rest/v1/profiles") return response(profileRole ? [{ id: userId, role: profileRole, username: "local", display_name: "Local", avatar_url: null }] : []);
+    if (url.pathname === "/rest/v1/circles") return response([]);
     throw new Error(`Unexpected request ${url.pathname}`);
   };
   return { calls, restore: () => { globalThis.fetch = previous; } };
@@ -191,6 +198,95 @@ for (const [name, policy, policyStatus, status] of [
     if (!result.ok) assert.equal(result.response.status, status, name);
     assert.deepEqual(test.calls.map((call) => call.path), ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session", "/rest/v1/rpc/ogh_has_current_policy_acceptance"], name);
     console.log(`PASS ${name}_GUARD`);
+  } finally { test.restore(); }
+}
+const protectedRoutes = [
+  ["users/me/summary", "GET"], ["users/me/profile", "POST"],
+  ["users/me/notifications", "GET PATCH"],
+  ["forum/posts", "POST PATCH DELETE"],
+  ["forum/posts", "GET", "?moderation_check=1"],
+  ["forum/posts", "GET", `?ownership_check=${userId}`],
+  ["forum/comments", "POST PUT DELETE"],
+  ["forum/circles", "POST PATCH"], ["forum/reports", "POST"],
+  ["forum/post-media", "POST"], ["forum/media-upload-guard", "POST"],
+  ["forum/external-video-upload", "POST"],
+  ["forum/circles/[slug]/posts", "GET PATCH DELETE"],
+  ["forum/circles/[slug]/comments", "GET PATCH DELETE"],
+  ["forum/circles/[slug]/manage", "GET PATCH DELETE"],
+  ["admin/devices", "GET POST PATCH DELETE"], ["admin/news", "GET POST PATCH DELETE"],
+  ["admin/reports", "GET"], ["admin/reports/[id]", "GET"],
+  ["admin/reports/[id]/action", "POST"], ["admin/users", "GET"],
+  ["admin/forum/me", "GET"], ["admin/forum/media", "GET DELETE"],
+  ["admin/forum/posts", "GET PATCH DELETE"], ["admin/forum/reports", "GET"],
+  ["admin/forum/circles", "GET POST PATCH"], ["admin/forum/circles/purge", "POST"],
+  ["admin/moderation/approve", "POST"], ["admin/moderation/hide", "POST"],
+  ["admin/moderation/reject", "POST"], ["admin/moderation/queue", "GET"],
+  ["admin/moderation/lexicon-health", "GET"],
+  ["admin/users/[id]/ban", "POST"], ["admin/users/[id]/unban", "POST"],
+  ["admin/users/[id]/suspend", "POST"], ["admin/users/[id]/warn", "POST"],
+  ["admin/users/[id]/clear-warning", "POST"], ["admin/users/[id]/safety", "GET"],
+  ["admin/trusted-runtime/capability", "GET"],
+];
+const verificationCalls = ["/auth/v1/user", "/auth/v1/user", "/rest/v1/rpc/ogh_is_verified_session"];
+const routeFailures = [];
+for (const [path, methods, suffix = ""] of protectedRoutes) {
+  console.log(`CHECK ${path} ${methods}${suffix}`);
+  const route = await import(`../src/pages/api/${path}.ts`);
+  for (const method of methods.split(" ")) {
+    const name = `${path} ${method}${suffix}`;
+    const test = fixture({ verified: false });
+    try {
+      const result = await route[method]({
+        request: new Request(`https://app.test/api/${path.replaceAll("[slug]", "local").replaceAll("[id]", userId)}${suffix}`, {
+          method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+          ...(["POST", "PUT", "PATCH"].includes(method) ? { body: "{}" } : {}),
+        }),
+        params: { slug: "local", id: userId }, locals: {},
+      });
+      assert.equal(result.status, 403, name);
+      assert.deepEqual(await result.json(), { error: "VERIFICATION_REQUIRED" }, name);
+      assert.equal(result.headers.get("cache-control"), "no-store", `${name}: cache policy`);
+      assert.deepEqual(test.calls.map((call) => call.path), verificationCalls, `${name}: downstream call`);
+      console.log(`PASS PENDING ${name}`);
+    } catch (error) {
+      routeFailures.push(`${name}: ${error.message}`);
+    } finally { test.restore(); }
+  }
+}
+assert.deepEqual(routeFailures, [], `Protected route failures:\n${routeFailures.join("\n")}`);
+const { GET: publicCirclesGet } = await import("../src/pages/api/forum/circles.ts");
+for (const [name, headers, expectedPaths] of [
+  ["ANONYMOUS_PUBLIC_CIRCLES", {}, ["/rest/v1/circles"]],
+  ["PENDING_PUBLIC_CIRCLES", { authorization: `Bearer ${token}` }, ["/rest/v1/circles"]],
+]) {
+  const test = fixture();
+  try {
+    const result = await publicCirclesGet({ request: new Request("https://app.test/api/forum/circles", { headers }), locals: {} });
+    assert.equal(result.status, 200, name);
+    assert.deepEqual((await result.json()).circles, [], name);
+    assert.deepEqual(test.calls.map((call) => call.path), expectedPaths, name);
+    assert.equal(test.calls[0].token, env.SUPABASE_ANON_KEY, `${name}: anon client`);
+    console.log(`PASS ${name}`);
+  } finally { test.restore(); }
+}
+const { handleAdminCirclePurge } = await import("../src/lib/server/admin-circle-purge.server.ts");
+const { handleTrustedAdminRuntimeCapability } = await import("../src/lib/server/supabase-admin.server.ts");
+for (const [name, invoke] of [
+  ["PURGE_HELPER", handleAdminCirclePurge],
+  ["TRUSTED_RUNTIME_HELPER", handleTrustedAdminRuntimeCapability],
+]) {
+  const test = fixture({ verified: false });
+  let clientCreations = 0;
+  try {
+    const result = await invoke(new Request("https://app.test/api/admin/probe", {
+      method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ id: userId, action: "preview" }),
+    }), env, { createAdminClient: () => { clientCreations++; throw new Error("privileged client constructed"); } });
+    assert.equal(result.status, 403, name);
+    assert.deepEqual(await result.json(), { error: "VERIFICATION_REQUIRED" }, name);
+    assert.equal(clientCreations, 0, name);
+    assert.deepEqual(test.calls.map((call) => call.path), verificationCalls, name);
+    console.log(`PASS ${name}_PENDING_NO_ADMIN_CLIENT`);
   } finally { test.restore(); }
 }
 console.log("VERIFIED_SESSION_ROUTES_OK");

@@ -7,6 +7,7 @@ import { shouldRequireUploadTurnstile, validateTurnstileToken } from "../../../l
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 import { requireAuthenticatedLegalConsent } from "../../../lib/server/legal-consent-mutation.server";
 import { createLegalConsentReadRepository } from "../../../lib/server/legal-consent-repository.server";
+import { verifiedSessionOrResponse } from "../../../lib/server/verified-session.server";
 
 export const prerender = false;
 
@@ -41,6 +42,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const token = getBearerToken(request);
     if (!token) return json({ error: "Missing bearer token" }, 401);
+
+    const verified = await verifiedSessionOrResponse(request, env);
+    if (verified instanceof Response) return verified;
 
     const supabase = createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_ANON_KEY"), {
       global: { headers: { Authorization: `Bearer ${token}` } },

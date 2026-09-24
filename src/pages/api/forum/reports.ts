@@ -17,6 +17,7 @@ import {
 } from "../../../lib/server/reports.server";
 import { requireAuthenticatedLegalConsent } from "../../../lib/server/legal-consent-mutation.server";
 import { createLegalConsentReadRepository } from "../../../lib/server/legal-consent-repository.server";
+import { verifiedSessionOrResponse } from "../../../lib/server/verified-session.server";
 import { assertUserCanWrite, getSafetyWriteBlockResponse } from "../../../lib/server/user-safety.server";
 
 export const prerender = false;
@@ -48,6 +49,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const token = getBearerToken(request);
     if (!token) return jsonResponse({ error: "Missing bearer token" }, 401);
+
+    const verified = await verifiedSessionOrResponse(request, env);
+    if (verified instanceof Response) return verified;
 
     const client = createUserClient(env, token);
     const { data: authData, error: authError } = await client.auth.getUser(token);

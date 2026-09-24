@@ -55,14 +55,15 @@ export async function handleAdminCirclePurge(
   dependencies: PurgeDependencies = {},
 ): Promise<Response> {
   try {
+    const authorize = dependencies.authorize ?? requireAdmin;
+    await authorize(request, env);
+
     const payload = (await request.json().catch(() => null)) as { id?: string; action?: string; confirmationName?: string } | null;
     const circleId = String(payload?.id ?? "").trim();
     if (!UUID_PATTERN.test(circleId)) return jsonResponse({ error: "INVALID_CIRCLE_ID" }, 400);
     if (payload?.action !== "preview" && payload?.action !== "purge") return jsonResponse({ error: "INVALID_PURGE_ACTION" }, 400);
 
-    const authorize = dependencies.authorize ?? requireAdmin;
     const createAdminClient = dependencies.createAdminClient ?? createServerAdminSupabaseClient;
-    await authorize(request, env);
     const client = createAdminClient(env);
     const preview = await loadPreview(client, circleId);
 

@@ -24,6 +24,7 @@ import {
 } from "../../../../lib/profile-media";
 import { isValidProfileUsername } from "../../../../lib/profile-links";
 import { createUserClient, jsonResponse } from "../../../../lib/server/circle-management";
+import { verifiedSessionOrResponse } from "../../../../lib/server/verified-session.server";
 import { requireAuthenticatedLegalConsent } from "../../../../lib/server/legal-consent-mutation.server";
 import { createLegalConsentReadRepository } from "../../../../lib/server/legal-consent-repository.server";
 import { sanitizeApiError } from "../../../../lib/server/error-response";
@@ -111,6 +112,8 @@ function requireRuntimeBindings(env: Record<string, string | undefined> | undefi
 async function authenticateProfileActor(request: Request, env: Record<string, string | undefined>) {
   const token = getStrictBearerToken(request);
   if (!token) throw jsonResponse({ error: "NOT_AUTHENTICATED" }, 401);
+  const verified = await verifiedSessionOrResponse(request, env);
+  if (verified instanceof Response) throw verified;
 
   const client = createUserClient(env, token);
   const { data, error } = await client.auth.getUser(token);

@@ -114,3 +114,13 @@ export async function requireVerifiedSession(request: Request, env: RuntimeEnv):
   if (!result.data) throw new Response(JSON.stringify({ error: "VERIFICATION_REQUIRED" }), { status: 403 });
   return { claims, client, user };
 }
+
+export async function verifiedSessionOrResponse(request: Request, env: RuntimeEnv): Promise<VerifiedSession | Response> {
+  try {
+    return await requireVerifiedSession(request, env);
+  } catch (error) {
+    const response = error instanceof Response ? error : unavailable();
+    response.headers.set("cache-control", "no-store");
+    return response;
+  }
+}

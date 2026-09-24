@@ -396,6 +396,9 @@ export async function verifyBypass({ pool, status }) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url).toLowerCase() === process.argv[1].toLowerCase()) {
+  const routes = spawnSync(process.execPath, ["--experimental-transform-types", fileURLToPath(new URL("./test-verified-session-routes.mjs", import.meta.url))], { stdio: "inherit" });
+  if (routes.error) throw routes.error;
+  if (routes.status !== 0) throw new Error("Verified Session Worker route matrix failed");
   const result = spawnSync(process.execPath, [fileURLToPath(new URL("./test-verified-session-sql.mjs", import.meta.url)), "--bypass-only"], { stdio: "inherit" });
   if (result.error) throw result.error;
   process.exitCode = result.status ?? 1;
