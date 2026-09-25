@@ -42,11 +42,11 @@ const serviceOnlyRpc = [
   "ogh_activate_signup_session(uuid,uuid)",
   "ogh_revoke_verified_session(uuid,uuid)",
   "ogh_record_policy_acceptance(uuid,text,text,text,text,text)",
+  "consume_verification_email_resend_limit(text,integer,integer)",
 ];
 const publicRpc = [
   "increment_post_view_count(uuid)",
   "increment_news_article_view(text)",
-  "consume_verification_email_resend_limit(text,integer,integer)",
 ];
 
 function localUrl(value) {
@@ -153,6 +153,7 @@ export async function verifyBypass({ pool, status }) {
 
   const db = await pool.connect();
   let otherUserId;
+  let realtimeControlUserId;
   try {
     const { rows: policies } = await db.query(`select tablename, cmd, permissive, qual, with_check,
       'authenticated'::name = any(roles) as applies_authenticated
@@ -259,24 +260,43 @@ export async function verifyBypass({ pool, status }) {
     assert.ok(publicPostCounter.status < 300, "public post counter remains callable");
     const { rows: [{ view_count: afterPostView }] } = await db.query("select view_count from public.posts where id=$1", [postId]);
     assert.equal(afterPostView, beforePostView + 1, "public post counter still increments");
+    const { rows: [{ anon_execute, authenticated_execute, service_execute }] } = await db.query(`select
+      has_function_privilege('anon', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') as anon_execute,
+      has_function_privilege('authenticated', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') as authenticated_execute,
+      has_function_privilege('service_role', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') as service_execute`);
+    assert.equal(anon_execute, false, "anon cannot execute the resend limiter directly");
+    assert.equal(authenticated_execute, false, "authenticated cannot execute the resend limiter directly");
+    assert.equal(service_execute, true, "only the service role can execute the resend limiter");
     const budgetHash = randomBytes(32).toString("hex");
+    for (const actorToken of [null, token]) {
+      const denied = await rpc(base, status.ANON_KEY, actorToken, "consume_verification_email_resend_limit", {
+        input_ip_hash: randomBytes(32).toString("hex"), max_attempts: 1000000, window_hours: 1,
+      });
+      assert.ok([401, 403].includes(denied.status), "direct browser resend limiter RPC is denied");
+      assert.equal(denied.data?.code, "42501", "direct browser denial is an EXECUTE privilege failure");
+    }
     for (let n = 1; n <= 5; n++) {
-      const resendBudget = await rpc(base, status.ANON_KEY, null, "consume_verification_email_resend_limit", {
+      const resendBudget = await rpc(base, status.SERVICE_ROLE_KEY, null, "consume_verification_email_resend_limit", {
         input_ip_hash: budgetHash, max_attempts: 5, window_hours: 24,
       });
-      assert.equal(resendBudget.status, 200, "public signup resend budget remains callable");
+      assert.equal(resendBudget.status, 200, "service-owned signup resend budget remains callable");
       assert.deepEqual(resendBudget.data, [{ allowed: true, attempts: n }]);
     }
-    const bypassBudget = await rpc(base, status.ANON_KEY, null, "consume_verification_email_resend_limit", {
+    const bypassBudget = await rpc(base, status.SERVICE_ROLE_KEY, null, "consume_verification_email_resend_limit", {
       input_ip_hash: budgetHash, max_attempts: 1000000, window_hours: 1,
     });
-    assert.deepEqual(bypassBudget.data, [{ allowed: false, attempts: 5 }], "caller limits cannot override signup budget");
-    const rotatedBudget = await rpc(base, status.ANON_KEY, null, "consume_verification_email_resend_limit", {
+    assert.deepEqual(bypassBudget.data, [{ allowed: false, attempts: 5 }], "excessive max attempts cannot override fixed five-attempt budget");
+    await db.query("update public.forum_upload_attempts set created_at=now()-interval '2 hours' where purpose='verification_email_resend' and ip_hash=$1", [budgetHash]);
+    const shortenedWindow = await rpc(base, status.SERVICE_ROLE_KEY, null, "consume_verification_email_resend_limit", {
+      input_ip_hash: budgetHash, max_attempts: 5, window_hours: 1,
+    });
+    assert.deepEqual(shortenedWindow.data, [{ allowed: false, attempts: 5 }], "one-hour argument cannot shorten fixed 24-hour window");
+    const rotatedBudget = await rpc(base, status.SERVICE_ROLE_KEY, null, "consume_verification_email_resend_limit", {
       input_ip_hash: randomBytes(32).toString("hex"), max_attempts: 5, window_hours: 24,
     });
-    assert.deepEqual(rotatedBudget.data, [{ allowed: true, attempts: 1 }], "residual: direct caller can rotate hash without trusted IP binding");
+    assert.deepEqual(rotatedBudget.data, [{ allowed: true, attempts: 1 }], "different server-derived IP hash gets its own bucket");
     const raceHash = randomBytes(32).toString("hex");
-    const race = await Promise.all(Array.from({ length: 8 }, () => rpc(base, status.ANON_KEY, null,
+    const race = await Promise.all(Array.from({ length: 8 }, () => rpc(base, status.SERVICE_ROLE_KEY, null,
       "consume_verification_email_resend_limit", { input_ip_hash: raceHash, max_attempts: 5, window_hours: 24 })));
     assert.equal(race.filter((result) => result.data?.[0]?.allowed).length, 5, "same-hash concurrent budget capped at five");
 
@@ -348,24 +368,70 @@ export async function verifyBypass({ pool, status }) {
 
     const { rows: publication } = await db.query("select tablename from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename=any($1::text[]) order by tablename", [["comments", "post_votes", "comment_reactions", "forum_notifications"]]);
     assert.deepEqual(publication.map((row) => row.tablename), ["comment_reactions", "comments", "forum_notifications", "post_votes"], "all reviewed Realtime tables remain published");
+    const controlEmail = `verified-realtime-${randomUUID()}@example.test`;
+    const { data: controlCreated, error: controlCreateError } = await service.auth.admin.createUser({ email: controlEmail, password, email_confirm: true });
+    assert.ifError(controlCreateError);
+    realtimeControlUserId = controlCreated.user.id;
+    const controlAuth = createClient(base, status.ANON_KEY, clientOptions);
+    const { data: controlLogin, error: controlLoginError } = await controlAuth.auth.signInWithPassword({ email: controlEmail, password });
+    assert.ifError(controlLoginError);
+    const controlToken = controlLogin.session.access_token;
+    const controlClaims = JSON.parse(Buffer.from(controlToken.split(".")[1], "base64url").toString("utf8"));
+    await db.query("insert into private.ogh_verified_sessions(session_id,user_id,verification_kind) values($1,$2,'login_challenge')", [controlClaims.session_id, realtimeControlUserId]);
     const pendingEvents = [];
+    const controlEvents = [];
     auth.realtime.setAuth(token);
+    controlAuth.realtime.setAuth(controlToken);
     const channel = auth.channel(`verified-session-bypass-${randomUUID()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "forum_notifications" }, (event) => pendingEvents.push(event));
+    const controlChannel = controlAuth.channel(`verified-session-positive-${randomUUID()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "forum_notifications" }, (event) => controlEvents.push(event));
     try {
       await subscribe(channel, "pending private");
-      const deletedId = randomUUID();
-      await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like')", [deletedId, user.id]);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      assert.equal(pendingEvents.length, 0, "pending cannot receive private notification INSERT");
-      await db.query("delete from public.forum_notifications where id=$1", [deletedId]);
+      await subscribe(controlChannel, "verified private positive control");
+      const startupId = randomUUID();
+      await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like')", [startupId, realtimeControlUserId]);
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      const readinessId = randomUUID();
+      await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like')", [readinessId, realtimeControlUserId]);
+      await waitForEvent(controlEvents, readinessId, "verified notification readiness", 10_000);
+      assert.equal(pendingEvents.length, 0, "pending receives no verified readiness event");
+      const observationStart = Date.now();
+      const controlIds = [];
+      let sentinelEventCount = 0;
+      for (let index = 0; index < 4; index++) {
+        const pendingId = randomUUID();
+        const controlId = randomUUID();
+        controlIds.push(controlId);
+        await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like'),($3,$4,'post_like')", [pendingId, user.id, controlId, realtimeControlUserId]);
+        sentinelEventCount += 2;
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const deliveryDeadline = observationStart + 14_500;
+      let receivedControlIds = new Set(controlEvents.map((event) => event.new?.id).filter((id) => controlIds.includes(id)));
+      while (receivedControlIds.size < controlIds.length && Date.now() < deliveryDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        receivedControlIds = new Set(controlEvents.map((event) => event.new?.id).filter((id) => controlIds.includes(id)));
+      }
+      const observationWindowMs = Date.now() - observationStart;
+      console.log(`OBSERVATION_WINDOW_MS=${observationWindowMs}`);
+      console.log(`SENTINEL_EVENT_COUNT=${sentinelEventCount}`);
+      console.log(`PENDING_EVENTS_RECEIVED=${pendingEvents.length}`);
+      console.log(`VERIFIED_EVENTS_RECEIVED=${receivedControlIds.size}`);
+      console.log(`VERIFIED_SENTINEL_INDICES=${controlIds.map((id, index) => receivedControlIds.has(id) ? index + 1 : "MISSING").join(",")}`);
+      assert.ok(observationWindowMs >= 10000 && observationWindowMs <= 15000, "bounded 10-15 second local observation");
+      assert.equal(pendingEvents.length, 0, "pending receives zero private notification events");
+      assert.equal(receivedControlIds.size, 4, "verified recipient receives every positive-control sentinel");
       const realtimePublicCommentId = randomUUID();
       await db.query("insert into public.comments(id,post_id,author_id,body,status,moderation_status) values($1,$2,$3,'Realtime public control','published','published')", [realtimePublicCommentId, postId, user.id]);
       const realtimePublicRead = await rest(base, status.ANON_KEY, token, "comments", "GET", undefined, `?select=id&id=eq.${realtimePublicCommentId}`);
       assert.deepEqual(realtimePublicRead.data, [{ id: realtimePublicCommentId }], "pending REST sees public comment event row");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      assert.equal(pendingEvents.length, 0, "pending must not receive private notification DELETE events");
-    } finally { await auth.removeChannel(channel); }
+    } finally {
+      await auth.removeChannel(channel);
+      await controlAuth.removeChannel(controlChannel);
+      controlAuth.realtime.disconnect();
+    }
     await db.query("insert into private.ogh_verified_sessions(session_id,user_id,verification_kind) values($1,$2,'login_challenge')", [claims.session_id, user.id]);
     for (const [table, , privateId] of mixedRows) {
       const privateRow = await rest(base, status.ANON_KEY, token, table, "GET", undefined, `?select=id&id=eq.${privateId}`);
@@ -492,8 +558,12 @@ export async function verifyBypass({ pool, status }) {
       const { error: otherDeleteError } = await service.auth.admin.deleteUser(otherUserId);
       assert.ifError(otherDeleteError);
     }
+    if (realtimeControlUserId) {
+      const { error: controlDeleteError } = await service.auth.admin.deleteUser(realtimeControlUserId);
+      assert.ifError(controlDeleteError);
+    }
   }
-  console.log(`PASS verified session bypass: catalog/RLS=${tables.length}, REST behavior=${behavioralTables.size}, Storage families=4, live Realtime=forum_notifications; residual=caller-controlled resend hash`);
+  console.log(`PASS verified session bypass: catalog/RLS=${tables.length}, REST behavior=${behavioralTables.size}, Storage families=4, live Realtime=forum_notifications, resend RPC service-role only`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url).toLowerCase() === process.argv[1].toLowerCase()) {

@@ -2,8 +2,8 @@ import { env as runtimeEnv } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { buildAuthCallbackRedirect, getSafeNext } from "../../../lib/auth-redirect";
-import { getRequestIp } from "../../../lib/request-ip";
-import { consumeVerificationEmailResendLimit, hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { hashRateLimitIp } from "../../../lib/server/rate-limit";
+import { consumeVerificationEmailResendLimit } from "../../../lib/server/consume-verification-email-resend-limit.server";
 
 export const prerender = false;
 
@@ -59,13 +59,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
     const salt = requireEnv(env, "RATE_LIMIT_SALT");
-    const ipHash = await hashRateLimitIp(getRequestIp(request), salt);
-    const rateLimit = await consumeVerificationEmailResendLimit({
-      client: supabase,
-      ipHash,
-      maxAttempts: 5,
-      windowHours: 24,
-    });
+    const trustedIp = request.headers.get("cf-connecting-ip");
+    if (!trustedIp || trustedIp !== trustedIp.trim() || trustedIp.includes(",")) {
+      return json({ ok: false, error: "RESEND_CONFIRMATION_FAILED" }, 500);
+    }
+    const ipHash = await hashRateLimitIp(trustedIp, salt);
+    const rateLimit = await consumeVerificationEmailResendLimit(env, ipHash);
 
     if (!rateLimit.allowed) {
       if (rateLimit.reason === "RATE_LIMITED") {

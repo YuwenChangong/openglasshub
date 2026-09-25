@@ -12,6 +12,7 @@ import { verifyBypass } from "./test-verified-session-bypass.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const migration = path.join(root, "supabase/migrations/20260923000000_ogh_verified_session_v1.sql");
+const resendMigration = path.join(root, "supabase/migrations/20260925012231_lock_verification_email_resend_limit.sql");
 const cli = path.join(root, "node_modules/supabase/dist/supabase.js");
 const id = randomUUID().replaceAll("-", "").slice(0, 8);
 const projectId = `ogh-verified-sql-${id}`;
@@ -443,8 +444,9 @@ try {
   await buildLocalSupabaseReplayMirror({ canonicalDirectory: historical, outputDirectory: path.join(ownedRoot, "supabase/migrations"), mappingPath: path.join(ownedRoot, "mapping.json"), repositoryRoot: root });
   const files = await readdir(path.join(ownedRoot, "supabase/migrations"));
   const last = files.sort().at(-1);
-  const next = String(BigInt(last.slice(0, 14)) + 1n);
+  const next = BigInt(last.slice(0, 14)) + 1n;
   await cp(migration, path.join(ownedRoot, "supabase/migrations", `${next}_ogh_verified_session_v1.sql`));
+  await cp(resendMigration, path.join(ownedRoot, "supabase/migrations", `${next + 1n}_lock_verification_email_resend_limit.sql`));
   started = true;
   await run(process.execPath, [cli, "start", "--workdir", ownedRoot], ownedRoot);
   const statusOutput = await run(process.execPath, [cli, "status", "--output", "json", "--workdir", ownedRoot], ownedRoot);

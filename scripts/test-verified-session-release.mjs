@@ -18,6 +18,25 @@ assert.equal(lock.packages["node_modules/@supabase/auth-js"].version, "2.112.4")
 assert.equal(lock.packages["node_modules/supabase"].version, "2.115.0");
 
 const migration = read("supabase/migrations/20260923000000_ogh_verified_session_v1.sql");
+const resendMigration = read("supabase/migrations/20260925012231_lock_verification_email_resend_limit.sql");
+const assertResendMigration = (source) => {
+  includesAll(source.toLowerCase(), [
+    "create or replace function public.consume_verification_email_resend_limit(",
+    "v_count >= 5", "interval '24 hours'",
+    "revoke all on function public.consume_verification_email_resend_limit(text, integer, integer)",
+    "from public, anon, authenticated, service_role",
+    "grant execute on function public.consume_verification_email_resend_limit(text, integer, integer)",
+    "to service_role",
+  ], "resend migration");
+  assert.doesNotMatch(source, /v_count\s*>=\s*max_attempts|make_interval\s*\(\s*hours\s*=>\s*window_hours/i,
+    "caller-provided max/window cannot weaken effective policy");
+  const grants = [...source.matchAll(/\bgrant\s+(execute|all(?:\s+privileges)?)\s+on\s+function\s+public\.consume_verification_email_resend_limit\s*\(\s*text\s*,\s*integer\s*,\s*integer\s*\)\s+to\s+([^;]+);/gi)];
+  assert.equal(grants.length, 1, "exactly one resend EXECUTE grant");
+  assert.equal(grants[0][1].toLowerCase(), "execute", "grant only the required privilege");
+  assert.deepEqual(grants[0][2].toLowerCase().split(",").map((role) => role.trim()), ["service_role"],
+    "only service_role may execute the resend limiter");
+};
+assertResendMigration(resendMigration);
 const tables = ["ogh_verified_sessions", "ogh_login_challenges", "ogh_email_send_budget", "ogh_policy_acceptances"];
 const functions = [
   "ogh_is_verified_session()",
@@ -46,9 +65,13 @@ includesAll(packet, [
   "Bounded auth verification", "Release closeout", "Rollback", "Evidence record",
   "getClaims", "JWKS", "session_id", "amr", 'type:"signup"', "{{ .Token }}",
   "Brevo Free", "shared", "sender", "API key", "Terms", "Privacy", "Guidelines",
-  "effective Production ACL", "local/preview", "Realtime", "caller-controlled resend-hash",
-  "one-second", "risk decision", "fail closed", "no 16+ auth gate",
+  "effective Production ACL", "local/preview", "Realtime", "service-role-only resend limiter",
+  "OBSERVATION_WINDOW_MS", "SENTINEL_EVENT_COUNT", "hosted effective ACL", "hosted/preview", "fail closed", "no 16+ auth gate",
 ], "release packet gate");
+assert.match(packet, /AUTH_RELEASE_STATUS=NO_GO/, "production release remains closed");
+assert.match(packet, /anon.*authenticated.*EXECUTE.*revoked/i, "direct browser RPC grant removed");
+assert.match(packet, /fixed effective 5\/24/i, "fixed policy recorded");
+assert.doesNotMatch(packet, /accepted unresolved repository risk/i, "resend bypass is not risk-accepted");
 includesAll(packet, tables.map((name) => `private.${name}`), "private table ledger");
 includesAll(packet, functions.map((name) => `public.${name}`), "function ledger");
 const section = (source, heading) => {
@@ -112,6 +135,11 @@ assert.doesNotMatch(packet, /(?:paid tier|plan upgrade|auto(?:matic)? fallback t
   "packet must not require paid service or default-open fallback");
 
 const mutations = [
+  ["resend anon grant restored", () => assertResendMigration(resendMigration.replace("from public, anon, authenticated, service_role", "from service_role"))],
+  ["resend policy caller-controlled", () => assertResendMigration(resendMigration.replace("v_count >= 5", "v_count >= max_attempts"))],
+  ["resend anon grant appended", () => assertResendMigration(`${resendMigration}\ngrant execute on function public.consume_verification_email_resend_limit(text, integer, integer) to anon;`)],
+  ["resend mixed grant appended", () => assertResendMigration(`${resendMigration}\ngrant execute on function public.consume_verification_email_resend_limit(text, integer, integer) to service_role, anon;`)],
+  ["resend ALL grant appended", () => assertResendMigration(`${resendMigration}\ngrant all on function public.consume_verification_email_resend_limit(text, integer, integer) to authenticated;`)],
   ["fifth table with IF NOT EXISTS", () => assertMigrationTables(`${migration}\nCREATE TABLE IF NOT EXISTS private.ogh_signup_intents (id uuid);`)],
   ["bulleted qa:prod", () => assertNoReleaseCommands(`${packet}\n- Run npm run qa:prod`)],
   ["numbered deploy", () => assertNoReleaseCommands(`${packet}\n1. Deploy with npx wrangler deploy`)],

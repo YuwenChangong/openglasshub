@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   consumeForumRateLimit,
   type ConsumeForumRateLimitInput,
@@ -47,22 +46,4 @@ export function enforceUploadRateLimit(params: {
   bytes: number;
 }) {
   return enforceRateLimit(params.env, { userId: params.userId, ipHash: params.ipHash, purpose: params.purpose, bytes: params.bytes });
-}
-
-// Resend intentionally retains its separate existing RPC contract.
-export async function consumeVerificationEmailResendLimit(params: {
-  client: SupabaseClient;
-  ipHash: string;
-  maxAttempts?: number;
-  windowHours?: number;
-}): Promise<ForumRateLimitResult> {
-  const { data, error } = await params.client.rpc("consume_verification_email_resend_limit", {
-    input_ip_hash: params.ipHash,
-    max_attempts: Math.max(1, Math.trunc(params.maxAttempts ?? 5)),
-    window_hours: Math.max(1, Math.trunc(params.windowHours ?? 24)),
-  });
-  if (error || !Array.isArray(data) || data.length !== 1 || typeof data[0]?.allowed !== "boolean") {
-    return { allowed: false, reason: "RATE_LIMIT_SERVICE_UNAVAILABLE" };
-  }
-  return data[0].allowed ? { allowed: true, reason: "ALLOWED" } : { allowed: false, reason: "RATE_LIMITED" };
 }

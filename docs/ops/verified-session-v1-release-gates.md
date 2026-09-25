@@ -2,6 +2,8 @@
 
 **NON-EXECUTABLE review packet. Status: NO_GO.** This document records future gates; it is not approval to run a release stage. Each future Production mutation, hosted configuration change, deploy, email test, or verification stage needs separate authorization and an operator-owned evidence record. There is no default-open fallback. A failed, unknown, or incomplete gate stops the sequence and leaves Verified Session v1 inactive.
 
+AUTH_RELEASE_STATUS=NO_GO
+
 ## Reviewed baseline
 
 - Review the exact commit, diff, dependency lockfile, migration checksum, and owning operators before any stage. `@supabase/supabase-js` and `@supabase/auth-js` resolve to 2.112.4 in the lockfile; Supabase CLI resolves to 2.115.0. Revalidate if the deployed artifact differs.
@@ -44,8 +46,8 @@
 
 ## Task 13 residual decisions
 
-- **Realtime bounded observation:** Local pending private-notification denial was observed in two one-second windows, with a separate newly subscribed verified positive control, plus direct RLS/REST denial. This does not prove absence at arbitrary delay; an upgraded-in-place subscription did not deliver a usable public or private marker. Require a reviewed longer/bounded hosted or preview observation design and effective publication/RLS audit before closeout. Do not label the current observation exhaustive.
-- **caller-controlled resend-hash residual:** The public `consume_verification_email_resend_limit` RPC caps five attempts per 24 hours for one hash, but a caller can rotate that hash to create fresh buckets and attempt rows. Server application paths derive their hash; Task 13 did not establish a mail-send bypass. The route/RPC owner must document an explicit risk decision or a separately reviewed trusted-caller redesign, plus effective hosted EXECUTE exposure, before activation. Unknown risk disposition is a stop gate.
+- **Realtime bounded observation:** The local harness subscribes a pending actor and a distinct verified recipient concurrently, requires a verified readiness event after startup, then emits eight private notification sentinel rows over a 10-15 second observation. Disposable local full SQL regression result: `OBSERVATION_WINDOW_MS=12043`, `SENTINEL_EVENT_COUNT=8`, `PENDING_EVENTS_RECEIVED=0`, `VERIFIED_EVENTS_RECEIVED=4` (all four verified-recipient sentinels). Missing positive control fails closed. Local evidence does not prove hosted behavior or absence at arbitrary delay. A later authorized hosted/preview bounded observation and effective publication/RLS audit remain required before closeout.
+- **Resend repository remediation:** A forward migration makes `consume_verification_email_resend_limit` a service-role-only resend limiter: anon and authenticated `EXECUTE` revoked; fixed effective 5/24 policy ignores compatibility max/window arguments. The route derives the IP hash from server `RATE_LIMIT_SALT` and the Cloudflare-provided request IP, failing closed when the trusted header is absent. It invokes a narrow server-only service-role helper with timeout and fail-closed behavior, and keeps the Auth resend client anon-key based. Disposable local direct-RPC regression covers denied browser roles and fixed policy. This resolves the repository caller-controlled resend-hash residual, but hosted effective ACL proof is still required before activation. An unknown or divergent hosted grant is a stop gate.
 
 ## Future staged gates
 
@@ -63,7 +65,7 @@ With separate Production authorization, activate the reviewed verified-session c
 
 ### 4. Bounded auth verification
 
-With separate Production verification authorization, use operator-approved bounded identities and evidence handling. Prove public anonymous reads, pending denial at direct DB/RPC/Storage/Realtime and Worker/service-role boundaries, verified access, logout/old-JWT denial, fresh-login challenge and provider-native signup/resend negative controls, current policy consent as a separate axis, and no age auth gate. Review actual hosted signing, sender/quota, template, ACL, and both Task 13 residual decisions. A failed or unknown control is a stop and keeps status NO_GO; a test exit code alone is not acceptance.
+With separate Production verification authorization, use operator-approved bounded identities and evidence handling. Prove public anonymous reads, pending denial at direct DB/RPC/Storage/Realtime and Worker/service-role boundaries, verified access, logout/old-JWT denial, fresh-login challenge and provider-native signup/resend negative controls, current policy consent as a separate axis, and no age auth gate. Review actual hosted signing, sender/quota, template, effective resend RPC ACL, and a separately authorized bounded hosted Realtime observation. A failed or unknown control is a stop and keeps status NO_GO; a test exit code alone is not acceptance.
 
 ### 5. Release closeout
 
@@ -75,4 +77,4 @@ Rollback preserves the verified gate and public reads. An authorized operator ma
 
 ## Evidence record
 
-For each future stage record: stage and authorization reference; operator and independent reviewer; timestamp and environment; commit, built artifact and migration checksum; exact effective ACL/RLS/function/publication snapshot and drift disposition; hosted signing/session/AMR proof; provider template/type and sender/quota proof; route, direct DB/RPC/Storage/Realtime matrix results with bounded observation windows; public-read and logout controls; legal owner wording decision; Task 13 residual risk decisions; redacted aggregate reason codes and request IDs only; stop or proceed decision and rollback owner. Never attach credential-derived values or raw logs. Until those records and authorizations exist, status remains NO_GO.
+For each future stage record: stage and authorization reference; operator and independent reviewer; timestamp and environment; commit, built artifact and migration checksum; exact effective ACL/RLS/function/publication snapshot and drift disposition, including the resend RPC grant; hosted signing/session/AMR proof; provider template/type and sender/quota proof; route, direct DB/RPC/Storage/Realtime matrix results with bounded observation windows; public-read and logout controls; legal owner wording decision; redacted aggregate reason codes and request IDs only; stop or proceed decision and rollback owner. Never attach credential-derived values or raw logs. Until those records and authorizations exist, status remains NO_GO.
