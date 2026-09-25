@@ -189,6 +189,16 @@ function verifiedSessionServiceRoleFinding(relativePath, source) {
       && !nodes.some((part) => ts.isVariableDeclaration(part) && ts.isIdentifier(part.name) && part.name.text === "Array");
     return !globalArray;
   });
+  const restrictedMethods = new Set(["from", "storage", "functions", "admin", "rpc"]);
+  const noMethodExtraction = !nodes.some((node) => {
+    if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
+      const name = node.propertyName ?? node.name;
+      const literal = ts.isComputedPropertyName(name) ? name.expression : name;
+      return (ts.isIdentifier(literal) || ts.isStringLiteralLike(literal)) && restrictedMethods.has(literal.text);
+    }
+    const method = member(node);
+    return method === "rpc" && !(ts.isCallExpression(node.parent) && node.parent.expression === node);
+  });
   const serviceKeyUsesMatch = serviceCreates.length === 1;
   const actorBound = relativePath === LOGIN_CHALLENGE
     ? serviceCreates[0]?.pos >= functions.get("serviceClient")?.body?.pos
@@ -207,7 +217,7 @@ function verifiedSessionServiceRoleFinding(relativePath, source) {
           const type = objectValue(node.arguments[0], "type");
           return type && ts.isStringLiteralLike(type) && type.text === "signup";
         });
-  return callsFixedRpc && noBroadClient && serviceKeyUsesMatch && actorBound
+  return callsFixedRpc && noBroadClient && noMethodExtraction && serviceKeyUsesMatch && actorBound
     ? null : "verified-session service-role caller is not limited to actor-bound fixed RPCs";
 }
 

@@ -8,6 +8,9 @@ const cases = [
   ["src/lib/server/login-challenge.server.ts", "const client = serviceClient(env);", 'const elevated = client; elevated.from("profiles");', true],
   ["src/pages/api/auth/logout.ts", "const result = await client.rpc", 'const elevated = client; elevated["from"]("profiles");', false],
   ["src/pages/api/auth/signup-confirm.ts", "const acceptance = await service.rpc", 'const elevated = service; elevated.from("profiles");', false],
+  ["src/lib/server/login-challenge.server.ts", "const client = serviceClient(env);", 'const { from: broadRead } = client; broadRead("profiles");', true],
+  ["src/pages/api/auth/logout.ts", "const result = await client.rpc", 'const { rpc: runRpc } = client; runRpc("unreviewed_rpc", {});', false],
+  ["src/pages/api/auth/signup-confirm.ts", "const acceptance = await service.rpc", 'const { storage: storageApi } = service; storageApi.getBucket("private");', false],
 ];
 
 for (const [relativePath, marker, mutation, after] of cases) {
@@ -18,4 +21,4 @@ for (const [relativePath, marker, mutation, after] of cases) {
   assert.match(verifiedSessionServiceRoleFinding(relativePath, mutated), /service-role caller/, `${relativePath} alias mutation rejected`);
 }
 
-console.log("PASS verified-session service-role audit rejects renamed and computed broad client calls");
+console.log("PASS verified-session service-role audit rejects renamed, computed, and destructured broad client calls");
