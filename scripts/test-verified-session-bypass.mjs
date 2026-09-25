@@ -135,6 +135,18 @@ async function verifyAnonymousPages(status, fixtures) {
 
 export async function verifyBypass({ pool, status }) {
   const base = localUrl(status.API_URL);
+  const { rows: finalPolicies } = await pool.query(`select schemaname, tablename, policyname, permissive, roles
+    from pg_policies where policyname like 'ogh_verified_%'`);
+  const expectedPolicies = [
+    ...tables.flatMap((table) => ["insert", "update", "delete"].map((command) => `public.${table}.ogh_verified_${command}`)),
+    ...[...privateReads, ...mixedReads].map((table) => `public.${table}.ogh_verified_select`),
+    ...["insert", "update", "delete", "select"].map((command) => `storage.objects.ogh_verified_storage_${command}`),
+  ].sort();
+  assert.deepEqual(finalPolicies.map((entry) => {
+    assert.equal(entry.permissive, "RESTRICTIVE", "D policies remain restrictive");
+    assert.equal(entry.roles, "{authenticated}", "D policies apply to authenticated actors");
+    return `${entry.schemaname}.${entry.tablename}.${entry.policyname}`;
+  }).sort(), expectedPolicies, "bypass controls require the complete final D policy inventory");
   const service = createClient(base, status.SERVICE_ROLE_KEY, clientOptions);
   const email = `verified-bypass-${randomUUID()}@example.test`;
   const password = `Local-${randomUUID()}!`;
@@ -378,6 +390,9 @@ export async function verifyBypass({ pool, status }) {
     const controlToken = controlLogin.session.access_token;
     const controlClaims = JSON.parse(Buffer.from(controlToken.split(".")[1], "base64url").toString("utf8"));
     await db.query("insert into private.ogh_verified_sessions(session_id,user_id,verification_kind) values($1,$2,'login_challenge')", [controlClaims.session_id, realtimeControlUserId]);
+    const controlPredicate = await rpc(base, status.ANON_KEY, controlToken, "ogh_is_verified_session", {});
+    assert.equal(controlPredicate.status, 200, "verified Realtime control predicate is callable");
+    assert.equal(controlPredicate.data, true, "verified Realtime control has a live verified session");
     const pendingEvents = [];
     const controlEvents = [];
     auth.realtime.setAuth(token);
@@ -389,12 +404,23 @@ export async function verifyBypass({ pool, status }) {
     try {
       await subscribe(channel, "pending private");
       await subscribe(controlChannel, "verified private positive control");
-      const startupId = randomUUID();
-      await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like')", [startupId, realtimeControlUserId]);
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-      const readinessId = randomUUID();
-      await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like')", [readinessId, realtimeControlUserId]);
-      await waitForEvent(controlEvents, readinessId, "verified notification readiness", 10_000);
+      const readinessDeadline = Date.now() + 30_000;
+      const readinessIds = new Set();
+      const hasReadinessEvent = () => controlEvents.some((event) => readinessIds.has(event.new?.id));
+      let ready = false;
+      while (!ready && Date.now() < readinessDeadline) {
+        const readinessId = randomUUID();
+        readinessIds.add(readinessId);
+        await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like')", [readinessId, realtimeControlUserId]);
+        const controlRead = await rest(base, status.ANON_KEY, controlToken, "forum_notifications", "GET", undefined, `?select=id&id=eq.${readinessId}`);
+        assert.deepEqual(controlRead.data, [{ id: readinessId }], "verified Realtime control row is visible through REST");
+        const attemptDeadline = Math.min(Date.now() + 2500, readinessDeadline);
+        while (!hasReadinessEvent() && Date.now() < attemptDeadline) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        ready = hasReadinessEvent();
+      }
+      assert.ok(ready, `verified notification readiness Realtime event not delivered; received=${controlEvents.length}`);
       assert.equal(pendingEvents.length, 0, "pending receives no verified readiness event");
       const observationStart = Date.now();
       const controlIds = [];

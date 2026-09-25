@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -542,6 +542,125 @@ async function verifyFoundationResend(client, pool) {
     "advisory lock caps concurrent resend to five");
 }
 
+async function verifyEnforcementResend(client) {
+  const [acl] = await query(client, `SELECT
+    EXISTS (SELECT 1 FROM pg_proc p, LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+      WHERE p.oid='public.consume_verification_email_resend_limit(text, integer, integer)'::regprocedure
+        AND a.grantee=0 AND a.privilege_type='EXECUTE') AS public_execute,
+    has_function_privilege('anon', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') AS anon_execute,
+    has_function_privilege('authenticated', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') AS authenticated_execute,
+    has_function_privilege('service_role', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') AS service_execute`);
+  check(!acl.public_execute && !acl.anon_execute && !acl.authenticated_execute && acl.service_execute,
+    "Enforcement resend is service_role only");
+  await expectDenied(client, "anon", "SELECT * FROM public.consume_verification_email_resend_limit('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 5, 24)");
+  await expectDenied(client, "authenticated", "SELECT * FROM public.consume_verification_email_resend_limit('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 5, 24)");
+  await client.query("BEGIN");
+  try {
+    await client.query("SET LOCAL ROLE service_role");
+    const [result] = await query(client, "SELECT allowed FROM public.consume_verification_email_resend_limit($1, 5, 24)", ["d".repeat(64)]);
+    check(result.allowed, "service_role can execute final resend RPC");
+  } finally { await client.query("ROLLBACK"); }
+}
+
+async function expectEnforcementRefused(client, enforcementSql, mutate) {
+  const before = await query(client, "SELECT schemaname, tablename, policyname FROM pg_policies WHERE policyname LIKE 'ogh_verified_%' ORDER BY 1,2,3");
+  await client.query("BEGIN");
+  try {
+    if (mutate) await mutate();
+    await assert.rejects(client.query(enforcementSql), /OGH_FOUNDATION_REQUIRED/);
+    checks++;
+  } finally { await client.query("ROLLBACK"); }
+  assert.deepEqual(await query(client, "SELECT schemaname, tablename, policyname FROM pg_policies WHERE policyname LIKE 'ogh_verified_%' ORDER BY 1,2,3"), before);
+  checks++;
+}
+
+async function finalCatalogSnapshot(client) {
+  const statements = {
+    schemas: `SELECT n.nspname, pg_get_userbyid(n.nspowner) AS owner,
+        has_schema_privilege('anon', n.oid, 'USAGE') AS anon_usage,
+        has_schema_privilege('anon', n.oid, 'CREATE') AS anon_create,
+        has_schema_privilege('authenticated', n.oid, 'USAGE') AS authenticated_usage,
+        has_schema_privilege('authenticated', n.oid, 'CREATE') AS authenticated_create,
+        has_schema_privilege('service_role', n.oid, 'USAGE') AS service_usage,
+        has_schema_privilege('service_role', n.oid, 'CREATE') AS service_create
+      FROM pg_namespace n WHERE n.nspname IN ('private','public','storage') ORDER BY n.nspname`,
+    tables: `SELECT c.relname, pg_get_userbyid(c.relowner) AS owner, c.relacl::text AS acl
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='private' AND c.relname LIKE 'ogh_%' AND c.relkind='r' ORDER BY c.relname`,
+    columns: `SELECT table_name, column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns WHERE table_schema='private' AND table_name LIKE 'ogh_%'
+      ORDER BY table_name, ordinal_position`,
+    constraints: `SELECT c.relname, pg_get_constraintdef(k.oid) AS definition
+      FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='private' AND c.relname LIKE 'ogh_%' ORDER BY c.relname, definition`,
+    indexes: `SELECT tablename, indexdef FROM pg_indexes WHERE schemaname='private' AND tablename LIKE 'ogh_%'
+      ORDER BY tablename, indexname`,
+    functions: `SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS arguments,
+        pg_get_function_result(p.oid) AS result, pg_get_userbyid(p.proowner) AS owner,
+        p.prosecdef, p.provolatile, p.proparallel, p.proisstrict, p.proleakproof,
+        l.lanname AS language, p.proconfig, p.prosrc, p.proacl::text AS acl,
+        pg_get_function_arguments(p.oid) AS arguments_with_defaults, p.proargdefaults::text AS defaults
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang
+      WHERE n.nspname='public' AND (p.proname LIKE 'ogh_%' OR p.proname='consume_verification_email_resend_limit')
+      ORDER BY p.proname, arguments`,
+    policies: `SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check
+      FROM pg_policies WHERE schemaname IN ('public','storage') ORDER BY schemaname, tablename, policyname`,
+    rls: `SELECT n.nspname, c.relname, c.relrowsecurity, c.relforcerowsecurity
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname IN ('private','public','storage') AND c.relkind IN ('r','p')
+      ORDER BY n.nspname,c.relname`,
+    readAcl: `SELECT c.relname,
+        has_table_privilege('anon',c.oid,'SELECT') AS anon_select,
+        has_table_privilege('authenticated',c.oid,'SELECT') AS authenticated_select
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='public' AND c.relname IN ('devices','posts','circles','comments','news_articles','post_media')
+      ORDER BY c.relname`,
+    publication: `SELECT pubname, schemaname, tablename FROM pg_publication_tables
+      WHERE schemaname='public' AND tablename='forum_notifications' ORDER BY pubname`,
+  };
+  const snapshot = {};
+  for (const [key, sql] of Object.entries(statements)) snapshot[key] = await query(client, sql);
+  return snapshot;
+}
+
+async function verifyOldNewEquivalence(client, foundationSql, enforcementSql) {
+  const oldFoundation = execFileSync("git", ["cat-file", "blob", "b4d9f3e3:supabase/migrations/20260923000000_ogh_verified_session_v1.sql"], { cwd: root, encoding: "utf8" });
+  const oldResend = execFileSync("git", ["cat-file", "blob", "b4d9f3e3:supabase/migrations/20260925012231_lock_verification_email_resend_limit.sql"], { cwd: root, encoding: "utf8" });
+  await client.query("BEGIN");
+  let oldSnapshot;
+  try {
+    await client.query(oldFoundation);
+    await client.query(oldResend);
+    oldSnapshot = await finalCatalogSnapshot(client);
+  } finally { await client.query("ROLLBACK"); }
+  const missingPolicyMutant = enforcementSql.replace("'profiles', 'circles'", "'circles'");
+  check(missingPolicyMutant !== enforcementSql, "missing-policy mutant applied");
+  await client.query("BEGIN");
+  try {
+    await client.query(foundationSql);
+    await client.query(missingPolicyMutant);
+    const mutantSnapshot = await finalCatalogSnapshot(client);
+    check(JSON.stringify(mutantSnapshot.policies) !== JSON.stringify(oldSnapshot.policies),
+      "missing-policy mutant fails old/new equivalence");
+  } finally { await client.query("ROLLBACK"); }
+  await client.query("BEGIN");
+  try {
+    await client.query(foundationSql);
+    await client.query(enforcementSql);
+    await client.query("ALTER TABLE public.devices DISABLE ROW LEVEL SECURITY");
+    const mutantSnapshot = await finalCatalogSnapshot(client);
+    check(JSON.stringify(mutantSnapshot.rls) !== JSON.stringify(oldSnapshot.rls),
+      "public RLS drift mutant fails old/new equivalence");
+  } finally { await client.query("ROLLBACK"); }
+  await client.query(foundationSql);
+  await client.query(enforcementSql);
+  const currentSnapshot = await finalCatalogSnapshot(client);
+  for (const key of Object.keys(oldSnapshot)) {
+    assert.deepEqual(currentSnapshot[key], oldSnapshot[key], `${key} differs from pinned old pair`);
+    checks++;
+  }
+}
+
 let ownedRoot, started = false, pool;
 try {
   ownedRoot = await mkdtemp(path.join(os.tmpdir(), `ogh-verified-sql-${id}-`));
@@ -566,13 +685,6 @@ try {
     await writeFile(path.join(historical, filename), bytes);
   }
   await buildLocalSupabaseReplayMirror({ canonicalDirectory: historical, outputDirectory: path.join(ownedRoot, "supabase/migrations"), mappingPath: path.join(ownedRoot, "mapping.json"), repositoryRoot: root });
-  const files = await readdir(path.join(ownedRoot, "supabase/migrations"));
-  const last = files.sort().at(-1);
-  const next = BigInt(last.slice(0, 14)) + 1n;
-  if (!foundationOnly) {
-    await cp(migration, path.join(ownedRoot, "supabase/migrations", `${next}_ogh_verified_session_v1_foundation.sql`));
-    await cp(resendMigration, path.join(ownedRoot, "supabase/migrations", `${next + 1n}_ogh_verified_session_v1_enforcement.sql`));
-  }
   started = true;
   await run(process.execPath, [cli, "start", "--workdir", ownedRoot], ownedRoot);
   const statusOutput = await run(process.execPath, [cli, "status", "--output", "json", "--workdir", ownedRoot], ownedRoot);
@@ -584,16 +696,27 @@ try {
   try {
     if (foundationOnly) {
       const foundationSql = await readFile(migration, "utf8");
+      const enforcementSql = await readFile(resendMigration, "utf8");
       const baselinePolicies = await query(client, "SELECT schemaname, tablename, policyname, cmd, qual, with_check FROM pg_policies ORDER BY schemaname, tablename, policyname");
+      await expectEnforcementRefused(client, enforcementSql);
       await verifyPrivateSchemaFixtures(client, foundationSql);
       await client.query(foundationSql);
+      await expectEnforcementRefused(client, enforcementSql,
+        () => client.query("ALTER FUNCTION public.ogh_is_verified_session() SET search_path = public"));
+      await expectEnforcementRefused(client, enforcementSql,
+        () => client.query("CREATE OR REPLACE FUNCTION public.ogh_is_verified_session() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$ SELECT true $$"));
+      await expectEnforcementRefused(client, enforcementSql,
+        () => client.query("ALTER FUNCTION public.ogh_is_verified_session() IMMUTABLE"));
+      await expectEnforcementRefused(client, enforcementSql,
+        () => client.query("ALTER TABLE private.ogh_email_send_budget ADD COLUMN drifted boolean"));
       assert.deepEqual(await query(client, "SELECT schemaname, tablename, policyname, cmd, qual, with_check FROM pg_policies ORDER BY schemaname, tablename, policyname"), baselinePolicies);
       checks++;
       await verify(client);
       await verifyTask3(client, pool);
       await verifyFoundationResend(client, pool);
     } else {
-      if (!process.argv.includes("--bypass-only")) { await verify(client); await verifyTask3(client, pool); }
+      await verifyOldNewEquivalence(client, await readFile(migration, "utf8"), await readFile(resendMigration, "utf8"));
+      if (!process.argv.includes("--bypass-only")) { await verify(client); await verifyTask3(client, pool); await verifyEnforcementResend(client); }
       await verifyBypass({ pool, status });
     }
   } finally { client.release(); }

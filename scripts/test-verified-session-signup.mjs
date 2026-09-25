@@ -388,8 +388,9 @@ try {
   }
   await buildLocalSupabaseReplayMirror({ canonicalDirectory: historical, outputDirectory: path.join(ownedRoot, "supabase/migrations"), mappingPath: path.join(ownedRoot, "mapping.json"), repositoryRoot: root });
   const files = await readdir(path.join(ownedRoot, "supabase/migrations"));
-  const next = String(BigInt(files.sort().at(-1).slice(0, 14)) + 1n);
-  await cp(path.join(root, "supabase/migrations/20260923000000_ogh_verified_session_v1.sql"), path.join(ownedRoot, "supabase/migrations", `${next}_ogh_verified_session_v1.sql`));
+  const next = BigInt(files.sort().at(-1).slice(0, 14)) + 1n;
+  await cp(path.join(root, "supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql"), path.join(ownedRoot, "supabase/migrations", `${next}_ogh_verified_session_v1_foundation.sql`));
+  await cp(path.join(root, "supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql"), path.join(ownedRoot, "supabase/migrations", `${next + 1n}_ogh_verified_session_v1_enforcement.sql`));
   started = true;
   await runCli(["start", "--workdir", ownedRoot], ownedRoot);
   const statusOutput = await runCli(["status", "--output", "json", "--workdir", ownedRoot], ownedRoot);
