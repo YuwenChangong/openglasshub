@@ -105,7 +105,7 @@ async function command(exe, args, cwd, env = childEnv(), timeoutMs = 0) {
   });
 }
 
-async function git(args, cwd = ROOT) { return (await command("git", args, cwd)).trim(); }
+async function git(args, cwd = ROOT) { return (await command("git", args, cwd)).trimEnd(); }
 
 async function freePort() {
   const server = net.createServer();
@@ -147,6 +147,7 @@ function assertAllowedRootStatus(status) {
     "?? scripts/test-verified-session-cutover-matrix.mjs",
     "?? scripts/test-verified-session-local-outbound.mjs",
     "?? scripts/lib/verified-session-local-outbound.mjs",
+    " M scripts/test-verified-session-cutover-matrix.mjs",
   ]);
   for (const line of status.split("\n").filter(Boolean)) assert.ok(allowed.has(line), "DIRTY_ROOT_CHECKOUT");
 }
@@ -280,6 +281,7 @@ async function proveBaseline(worker, status, dbUrl) {
     });
     assert.equal(consent.status, 200, "BASELINE_LEGAL_CONSENT_WRITE_FAILED");
     assert.equal((await consent.json()).current, true, "BASELINE_LEGAL_CONSENT_NOT_CURRENT");
+    const quotaBefore = await db.query("SELECT count(*)::int AS n FROM public.forum_upload_attempts WHERE purpose='verification_email_resend'");
     const resend = await worker.dispatchFetch("http://127.0.0.1/api/auth/resend-confirmation", {
       method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "127.0.0.1" },
       body: JSON.stringify({ email }),
@@ -287,8 +289,54 @@ async function proveBaseline(worker, status, dbUrl) {
     assert.equal(resend.status, 200, "BASELINE_OLD_ANON_RESEND_FAILED");
     assert.equal((await resend.json()).ok, true, "BASELINE_OLD_ANON_RESEND_NOT_OK");
     const quota = await db.query("SELECT count(*)::int AS n FROM public.forum_upload_attempts WHERE purpose='verification_email_resend'");
-    assert.equal(quota.rows[0].n, 1, "BASELINE_OLD_ANON_RESEND_RPC_NOT_USED");
+    assert.equal(quota.rows[0].n - quotaBefore.rows[0].n, 1, "BASELINE_OLD_ANON_RESEND_RPC_NOT_USED");
   } finally { await db.end(); }
+}
+
+async function applyAndVerifyFoundation(dbUrl) {
+  const sql = await readFile(path.join(ROOT, "supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql"), "utf8");
+  const pool = new pg.Pool({ connectionString: dbUrl, max: 12 });
+  const policies = `SELECT schemaname, tablename, policyname, cmd, qual, with_check
+    FROM pg_policies ORDER BY schemaname, tablename, policyname`;
+  try {
+    const before = (await pool.query(policies)).rows;
+    await pool.query(sql);
+    assert.deepEqual((await pool.query(policies)).rows, before, "FOUNDATION_CHANGED_BASELINE_POLICIES");
+    const [inventory] = (await pool.query(`SELECT
+      (SELECT count(*)::int FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE n.nspname='private' AND c.relkind='r' AND c.relname LIKE 'ogh_%') AS tables,
+      (SELECT count(*)::int FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname='public' AND p.proname LIKE 'ogh_%') AS functions,
+      has_function_privilege('anon', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') AS anon_execute,
+      has_function_privilege('authenticated', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') AS authenticated_execute,
+      has_function_privilege('service_role', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') AS service_execute`)).rows;
+    assert.equal(inventory.tables, 4, "FOUNDATION_TABLE_INVENTORY_INVALID");
+    assert.equal(inventory.functions, 8, "FOUNDATION_FUNCTION_INVENTORY_INVALID");
+    assert.ok(inventory.anon_execute && inventory.authenticated_execute && inventory.service_execute,
+      "FOUNDATION_RESEND_ACL_INVALID");
+    async function call(role, hash) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(`SET LOCAL ROLE ${role}`);
+        const [result] = (await client.query(
+          "SELECT allowed, attempts FROM public.consume_verification_email_resend_limit($1,999,1)", [hash])).rows;
+        await client.query("COMMIT");
+        return result;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally { client.release(); }
+    }
+    const hash = randomUUID().replaceAll("-", "").repeat(2);
+    const concurrent = await Promise.all(Array.from({ length: 8 }, () => call("anon", hash)));
+    assert.equal(concurrent.filter((result) => result.allowed).length, 5, "FOUNDATION_RESEND_CONCURRENCY_INVALID");
+    const oldHash = randomUUID().replaceAll("-", "").repeat(2);
+    for (let i = 0; i < 5; i++) await pool.query(
+      "INSERT INTO public.forum_upload_attempts (user_id,ip_hash,bytes,purpose,created_at) VALUES (NULL,$1,0,'verification_email_resend',clock_timestamp()-interval '2 hours')",
+      [oldHash]);
+    assert.equal((await call("authenticated", oldHash)).allowed, false, "FOUNDATION_RESEND_WINDOW_INVALID");
+  } finally { await pool.end(); }
 }
 
 async function portOpen(urlText) {
@@ -390,7 +438,9 @@ async function main() {
     console.log("MATRIX_A_GUARDS=PASS");
     return;
   }
-  assert.deepEqual(process.argv.slice(2), ["--state", "A"], "TASK6_STATE_A_ONLY");
+  assert.ok(process.argv.length === 4 && process.argv[2] === "--state" && ["A", "B"].includes(process.argv[3]),
+    "TASK7_STATE_A_OR_B_ONLY");
+  const state = process.argv[3];
   await assertRoot();
   const id = randomUUID().slice(0, 8);
   const ownedRoot = await mkdtemp(path.join(os.tmpdir(), `${OWNED_PREFIX}${id}-`));
@@ -407,6 +457,7 @@ async function main() {
     cli = await configureSupabase(ownedRoot, `${OWNED_PREFIX}${id}`);
     supabaseStarted = true;
     status = await startSupabase(cli, ownedRoot);
+    if (state === "B") await applyAndVerifyFoundation(status.DB_URL);
     try {
       if (process.platform === "win32") {
         await command(process.env.ComSpec ?? "C:\\Windows\\System32\\cmd.exe",
@@ -460,10 +511,10 @@ async function main() {
     }
     if (cleanupErrors.length) throw new Error(cleanupErrors.join(","));
   }
-  console.log(`MATRIX_A=PASS OLD_WORKER_SOURCE=${OLD_COMMIT} OLD_ARTIFACT_SHA256=${digest} DB_STAGE=PRE_V1 OLD_PREV1_PAIRING=ALLOW BINDINGS_LOCAL_ONLY=true HOSTED_BINDINGS_PRESENT=false PRODUCTION_BINDINGS_PRESENT=false PUBLIC_READS=PASS AUTH_BASELINE_LOGIN=PASS AUTHENTICATED_WRITE=PASS OLD_RESEND=PASS LEGAL_CONSENT_BASELINE=PASS TEARDOWN_BOUNDED=PASS OWNED_PROCESSES_REMAINING=0 OWNED_RUNTIME_RESOURCES_REMAINING=0`);
+  console.log(`MATRIX_${state}=PASS OLD_WORKER_SOURCE=${OLD_COMMIT} OLD_ARTIFACT_SHA256=${digest} DB_STAGE=${state === "A" ? "PRE_V1" : "FOUNDATION"} OLD_${state === "A" ? "PREV1" : "FOUNDATION"}_PAIRING=ALLOW BINDINGS_LOCAL_ONLY=true HOSTED_BINDINGS_PRESENT=false PRODUCTION_BINDINGS_PRESENT=false PUBLIC_READS=PASS AUTH_BASELINE_LOGIN=PASS AUTHENTICATED_WRITE=PASS OLD_RESEND=PASS LEGAL_CONSENT_BASELINE=PASS TEARDOWN_BOUNDED=PASS OWNED_PROCESSES_REMAINING=0 OWNED_RUNTIME_RESOURCES_REMAINING=0${state === "B" ? " FOUNDATION_WEAKENS_BASELINE=false FOUNDATION_RESEND_FIXED_5_24=PASS FOUNDATION_RESEND_CONCURRENCY=PASS OLD_ROLLBACK_VIABLE=true" : ""}`);
 }
 
 main().catch((error) => {
-  console.error(`MATRIX_A=BLOCKED ${error.message}`);
+  console.error(`MATRIX_${process.argv[3] ?? "UNKNOWN"}=BLOCKED ${error.message}`);
   process.exitCode = 1;
 });
