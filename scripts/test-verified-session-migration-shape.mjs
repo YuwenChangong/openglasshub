@@ -63,6 +63,9 @@ function validateShape(foundationSource, enforcementSource) {
   assert.equal(arrays.length, 2, "ENFORCEMENT_POLICY_ARRAYS");
   assert.deepEqual(arrayNames(arrays[0][1]), mutationTables.slice().sort(), "ENFORCEMENT_MUTATION_MANIFEST");
   assert.deepEqual(arrayNames(arrays[1][1]), privateReads.slice().sort(), "ENFORCEMENT_PRIVATE_READ_MANIFEST");
+  assert.match(enforcementSource,
+    /execute\s+format\('create policy ogh_verified_select on public\.%I as restrictive for select to authenticated using \(\(select public\.ogh_is_verified_session\(\)\)\)'\s*,\s*target\)/i,
+    "ENFORCEMENT_PRIVATE_READ_POLICY_MISSING");
   assert.deepEqual(names(enforcementSource, /create\s+policy\s+ogh_verified_select\s+on\s+public\.(\w+)/gi),
     mixedReads.slice().sort(), "ENFORCEMENT_MIXED_READ_MANIFEST");
   assert.deepEqual(names(enforcementSource, /create\s+policy\s+ogh_verified_storage_(\w+)\s+on\s+storage\.objects/gi),
@@ -86,6 +89,9 @@ assert.throws(() => validateShape(first.replace("create table private.ogh_policy
   /FOUNDATION_TABLE_MANIFEST/);
 assert.throws(() => validateShape(first, second.replace("'catalog_audit_events'", "'unlisted_table'")),
   /ENFORCEMENT_MUTATION_MANIFEST/);
+assert.throws(() => validateShape(first, second.replace(
+  "execute format('create policy ogh_verified_select on public.%I as restrictive for select to authenticated using ((select public.ogh_is_verified_session()))', target);",
+  "")), /ENFORCEMENT_PRIVATE_READ_POLICY_MISSING/);
 assert.throws(() => validateShape(`${first}\ncreate policy ogh_verified_insert on public.posts`, second),
   /FOUNDATION_HAS_FINAL_POLICY/);
 
