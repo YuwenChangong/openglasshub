@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { buildLocalSupabaseReplayMirror, ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 import { verifyBypass } from "./test-verified-session-bypass.mjs";
+import { classifyVerifiedSessionDbStage } from "./lib/verified-session-db-stage.mjs";
+import { REVIEWED_LOCAL_STAGE_DIGESTS } from "./test-verified-session-db-stage.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const migration = path.join(root, "supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql");
@@ -576,7 +578,7 @@ async function expectEnforcementRefused(client, enforcementSql, mutate) {
 
 async function finalCatalogSnapshot(client) {
   const statements = {
-    schemas: `SELECT n.nspname, pg_get_userbyid(n.nspowner) AS owner,
+    schemas: `SELECT n.nspname, pg_get_userbyid(n.nspowner) AS owner, n.nspacl::text AS acl,
         has_schema_privilege('anon', n.oid, 'USAGE') AS anon_usage,
         has_schema_privilege('anon', n.oid, 'CREATE') AS anon_create,
         has_schema_privilege('authenticated', n.oid, 'USAGE') AS authenticated_usage,
@@ -584,9 +586,37 @@ async function finalCatalogSnapshot(client) {
         has_schema_privilege('service_role', n.oid, 'USAGE') AS service_usage,
         has_schema_privilege('service_role', n.oid, 'CREATE') AS service_create
       FROM pg_namespace n WHERE n.nspname IN ('private','public','storage') ORDER BY n.nspname`,
-    tables: `SELECT c.relname, pg_get_userbyid(c.relowner) AS owner, c.relacl::text AS acl
+    objects: `SELECT 'relation' AS kind, n.nspname AS schema, c.relname AS name,
+        c.relkind::text AS detail, pg_get_userbyid(c.relowner) AS owner
       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='private' AND c.relname LIKE 'ogh_%' AND c.relkind='r' ORDER BY c.relname`,
+      WHERE c.relname LIKE 'ogh_%' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+      UNION ALL
+      SELECT 'function', n.nspname, p.proname,
+        pg_get_function_identity_arguments(p.oid), pg_get_userbyid(p.proowner)
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE p.proname LIKE 'ogh_%' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+      UNION ALL
+      SELECT 'type', n.nspname, t.typname, t.typtype::text, pg_get_userbyid(t.typowner)
+      FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
+      WHERE t.typname LIKE 'ogh_%' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+      ORDER BY kind, schema, name, detail`,
+    tables: `SELECT c.relname, c.relkind, pg_get_userbyid(c.relowner) AS owner, c.relacl::text AS acl,
+        jsonb_build_object(
+          'anon_select',has_table_privilege('anon',c.oid,'SELECT'),
+          'anon_insert',has_table_privilege('anon',c.oid,'INSERT'),
+          'anon_update',has_table_privilege('anon',c.oid,'UPDATE'),
+          'anon_delete',has_table_privilege('anon',c.oid,'DELETE'),
+          'authenticated_select',has_table_privilege('authenticated',c.oid,'SELECT'),
+          'authenticated_insert',has_table_privilege('authenticated',c.oid,'INSERT'),
+          'authenticated_update',has_table_privilege('authenticated',c.oid,'UPDATE'),
+          'authenticated_delete',has_table_privilege('authenticated',c.oid,'DELETE'),
+          'service_select',has_table_privilege('service_role',c.oid,'SELECT'),
+          'service_insert',has_table_privilege('service_role',c.oid,'INSERT'),
+          'service_update',has_table_privilege('service_role',c.oid,'UPDATE'),
+          'service_delete',has_table_privilege('service_role',c.oid,'DELETE')
+        ) AS effective_acl
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='private' AND c.relname LIKE 'ogh_%' AND c.relkind <> 'i' ORDER BY c.relname`,
     columns: `SELECT table_name, column_name, data_type, is_nullable, column_default
       FROM information_schema.columns WHERE table_schema='private' AND table_name LIKE 'ogh_%'
       ORDER BY table_name, ordinal_position`,
@@ -599,6 +629,9 @@ async function finalCatalogSnapshot(client) {
         pg_get_function_result(p.oid) AS result, pg_get_userbyid(p.proowner) AS owner,
         p.prosecdef, p.provolatile, p.proparallel, p.proisstrict, p.proleakproof,
         l.lanname AS language, p.proconfig, p.prosrc, p.proacl::text AS acl,
+        has_function_privilege('anon',p.oid,'EXECUTE') AS anon_execute,
+        has_function_privilege('authenticated',p.oid,'EXECUTE') AS authenticated_execute,
+        has_function_privilege('service_role',p.oid,'EXECUTE') AS service_execute,
         pg_get_function_arguments(p.oid) AS arguments_with_defaults, p.proargdefaults::text AS defaults
       FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang
       WHERE n.nspname='public' AND (p.proname LIKE 'ogh_%' OR p.proname='consume_verification_email_resend_limit')
@@ -621,6 +654,14 @@ async function finalCatalogSnapshot(client) {
   const snapshot = {};
   for (const [key, sql] of Object.entries(statements)) snapshot[key] = await query(client, sql);
   return snapshot;
+}
+
+async function expectUnknownCatalogMutation(client, mutation, label) {
+  await client.query("BEGIN");
+  try {
+    await client.query(mutation);
+    check(classifyVerifiedSessionDbStage(await finalCatalogSnapshot(client), REVIEWED_LOCAL_STAGE_DIGESTS) === "UNKNOWN", label);
+  } finally { await client.query("ROLLBACK"); }
 }
 
 async function verifyOldNewEquivalence(client, foundationSql, enforcementSql) {
@@ -653,12 +694,22 @@ async function verifyOldNewEquivalence(client, foundationSql, enforcementSql) {
       "public RLS drift mutant fails old/new equivalence");
   } finally { await client.query("ROLLBACK"); }
   await client.query(foundationSql);
+  const foundationSnapshot = await finalCatalogSnapshot(client);
+  await expectUnknownCatalogMutation(client,
+    "REVOKE EXECUTE ON FUNCTION public.consume_verification_email_resend_limit(text,integer,integer) FROM anon",
+    "mixed Foundation resend ACL is UNKNOWN");
   await client.query(enforcementSql);
   const currentSnapshot = await finalCatalogSnapshot(client);
+  await expectUnknownCatalogMutation(client, "DROP POLICY ogh_verified_insert ON public.devices", "partial Enforcement is UNKNOWN");
+  await expectUnknownCatalogMutation(client, "CREATE VIEW public.ogh_unexpected AS SELECT 1 AS id", "extra ogh view is UNKNOWN");
   for (const key of Object.keys(oldSnapshot)) {
-    assert.deepEqual(currentSnapshot[key], oldSnapshot[key], `${key} differs from pinned old pair`);
+    const comparable = (rows) => key === "schemas"
+      ? rows.map(({ acl, ...row }) => row.nspname === "private" ? row : { ...row, acl })
+      : rows;
+    assert.deepEqual(comparable(currentSnapshot[key]), comparable(oldSnapshot[key]), `${key} differs from pinned old pair`);
     checks++;
   }
+  return { foundationSnapshot, currentSnapshot };
 }
 
 let ownedRoot, started = false, pool;
@@ -697,10 +748,12 @@ try {
     if (foundationOnly) {
       const foundationSql = await readFile(migration, "utf8");
       const enforcementSql = await readFile(resendMigration, "utf8");
+      check(classifyVerifiedSessionDbStage(await finalCatalogSnapshot(client), REVIEWED_LOCAL_STAGE_DIGESTS) === "PRE_V1", "historical catalog is PRE_V1");
       const baselinePolicies = await query(client, "SELECT schemaname, tablename, policyname, cmd, qual, with_check FROM pg_policies ORDER BY schemaname, tablename, policyname");
       await expectEnforcementRefused(client, enforcementSql);
       await verifyPrivateSchemaFixtures(client, foundationSql);
       await client.query(foundationSql);
+      check(classifyVerifiedSessionDbStage(await finalCatalogSnapshot(client), REVIEWED_LOCAL_STAGE_DIGESTS) === "FOUNDATION", "Foundation catalog is exact");
       await expectEnforcementRefused(client, enforcementSql,
         () => client.query("ALTER FUNCTION public.ogh_is_verified_session() SET search_path = public"));
       await expectEnforcementRefused(client, enforcementSql,
@@ -715,9 +768,14 @@ try {
       await verifyTask3(client, pool);
       await verifyFoundationResend(client, pool);
     } else {
-      await verifyOldNewEquivalence(client, await readFile(migration, "utf8"), await readFile(resendMigration, "utf8"));
-      if (!process.argv.includes("--bypass-only")) { await verify(client); await verifyTask3(client, pool); await verifyEnforcementResend(client); }
-      await verifyBypass({ pool, status });
+      const preSnapshot = await finalCatalogSnapshot(client);
+      await expectUnknownCatalogMutation(client, "CREATE SCHEMA private", "partial Foundation is UNKNOWN");
+      const { foundationSnapshot, currentSnapshot } = await verifyOldNewEquivalence(client, await readFile(migration, "utf8"), await readFile(resendMigration, "utf8"));
+      check(classifyVerifiedSessionDbStage(preSnapshot, REVIEWED_LOCAL_STAGE_DIGESTS) === "PRE_V1", "historical catalog is PRE_V1");
+      check(classifyVerifiedSessionDbStage(foundationSnapshot, REVIEWED_LOCAL_STAGE_DIGESTS) === "FOUNDATION", "Foundation catalog is exact");
+      check(classifyVerifiedSessionDbStage(currentSnapshot, REVIEWED_LOCAL_STAGE_DIGESTS) === "ENFORCEMENT", "Enforcement catalog is exact");
+      if (!process.argv.includes("--bypass-only") && !process.argv.includes("--stage-classifier-only")) { await verify(client); await verifyTask3(client, pool); await verifyEnforcementResend(client); }
+      if (!process.argv.includes("--stage-classifier-only")) await verifyBypass({ pool, status });
     }
   } finally { client.release(); }
   if (!process.argv.includes("--bypass-only")) console.log(`PASS verified session SQL: ${checks} assertions; disposable local Supabase; ${foundationOnly ? "Foundation" : "Enforcement"} replay`);
