@@ -11,8 +11,9 @@ import { buildLocalSupabaseReplayMirror, ORDERED_MIGRATION_FILENAMES } from "./b
 import { verifyBypass } from "./test-verified-session-bypass.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const migration = path.join(root, "supabase/migrations/20260923000000_ogh_verified_session_v1.sql");
-const resendMigration = path.join(root, "supabase/migrations/20260925012231_lock_verification_email_resend_limit.sql");
+const migration = path.join(root, "supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql");
+const resendMigration = path.join(root, "supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql");
+const foundationOnly = process.argv.includes("--stage") && process.argv.includes("foundation");
 const cli = path.join(root, "node_modules/supabase/dist/supabase.js");
 const id = randomUUID().replaceAll("-", "").slice(0, 8);
 const projectId = `ogh-verified-sql-${id}`;
@@ -117,14 +118,14 @@ async function actorRpc(pool, role, name, args, claims) {
     throw error;
   } finally { client.release(); }
 }
-async function verifyTask3(client, pool) {
+async function verifyTask3(client, pool, expectedServiceSchemaUsage = false) {
   for (const table of expectedTables) {
     const [{ allowed }] = await query(client,"SELECT has_table_privilege('service_role',$1,'SELECT,INSERT,UPDATE,DELETE') AS allowed",[`private.${table}`]);
     check(!allowed,`service_role cannot access ${table} directly`);
     await expectDenied(client,"service_role",`SELECT * FROM private.${table}`);
   }
   const [{ schema_usage }] = await query(client,"SELECT has_schema_privilege('service_role','private','USAGE') AS schema_usage");
-  check(!schema_usage,"service_role cannot use private schema directly");
+  check(schema_usage === expectedServiceSchemaUsage, "service_role private schema usage matches fixture baseline");
   for (const [name, args, result, role] of signatures) {
     const rows = await query(client, `SELECT p.oid, pg_get_userbyid(p.proowner) AS owner, p.prosecdef AS definer, p.proconfig AS config,
       pg_get_function_result(p.oid) AS result,
@@ -418,6 +419,129 @@ async function verify(client) {
   await client.query("DELETE FROM auth.users WHERE id IN ($1,$2)", [user, other]);
 }
 
+async function verifyPrivateSchemaFixtures(client, foundationSql) {
+  const [{ present }] = await query(client, "SELECT to_regnamespace('private') IS NOT NULL AS present");
+  check(!present, "canonical historical replay has no private schema");
+
+  await client.query("BEGIN");
+  try {
+    await client.query("CREATE ROLE ogh_foundation_fixture_owner NOLOGIN");
+    await client.query("GRANT ogh_foundation_fixture_owner TO CURRENT_USER");
+    await client.query("CREATE SCHEMA private AUTHORIZATION ogh_foundation_fixture_owner");
+    await assert.rejects(client.query(foundationSql), /OGH_PRIVATE_SCHEMA_CONFLICT/);
+    checks++;
+  } finally { await client.query("ROLLBACK"); }
+
+  await client.query("BEGIN");
+  try {
+    await client.query("CREATE SCHEMA private");
+    await client.query("CREATE TABLE private.unrelated_fixture (id integer)");
+    await client.query("GRANT USAGE ON SCHEMA private TO authenticated");
+    await assert.rejects(client.query(foundationSql), /OGH_PRIVATE_SCHEMA_CONFLICT/);
+    checks++;
+  } finally { await client.query("ROLLBACK"); }
+
+  await client.query("BEGIN");
+  try {
+    await client.query("CREATE SCHEMA private");
+    await client.query("GRANT CREATE ON SCHEMA private TO anon");
+    await assert.rejects(client.query(foundationSql), /OGH_PRIVATE_SCHEMA_CONFLICT/);
+    checks++;
+  } finally { await client.query("ROLLBACK"); }
+
+  await client.query("BEGIN");
+  try {
+    await client.query("CREATE SCHEMA private");
+    await client.query("CREATE TABLE private.unrelated_fixture (id integer)");
+    await client.query("GRANT USAGE ON SCHEMA private TO service_role");
+    await client.query("GRANT SELECT ON private.unrelated_fixture TO service_role");
+    const unrelatedBefore = await query(client, `SELECT pg_get_userbyid(c.relowner) AS owner, c.relacl::text AS acl
+      FROM pg_class c WHERE c.oid = 'private.unrelated_fixture'::regclass`);
+    await client.query(foundationSql);
+    const [{ owner, unrelated, service_usage, direct_table }] = await query(client, `
+      SELECT pg_get_userbyid(n.nspowner) AS owner,
+             to_regclass('private.unrelated_fixture') IS NOT NULL AS unrelated,
+             has_schema_privilege('service_role', 'private', 'USAGE') AS service_usage,
+             has_table_privilege('service_role', 'private.ogh_verified_sessions', 'SELECT') AS direct_table
+      FROM pg_namespace n WHERE n.nspname = 'private'`);
+    check(owner === "postgres" && unrelated && service_usage && !direct_table,
+      "Foundation preserves unrelated private schema object/grant without direct new-table access");
+    assert.deepEqual(await query(client, `SELECT pg_get_userbyid(c.relowner) AS owner, c.relacl::text AS acl
+      FROM pg_class c WHERE c.oid = 'private.unrelated_fixture'::regclass`), unrelatedBefore);
+    checks++;
+  } finally { await client.query("ROLLBACK"); }
+
+  const schemaRevokeMutant = foundationSql.replace(
+    "create schema if not exists private;",
+    "create schema if not exists private;\nrevoke all on schema private from service_role;");
+  check(schemaRevokeMutant !== foundationSql, "schema revoke mutant applied");
+  await client.query("BEGIN");
+  try {
+    await client.query("CREATE SCHEMA private");
+    await client.query("GRANT USAGE ON SCHEMA private TO service_role");
+    await client.query(schemaRevokeMutant);
+    const [{ preserved }] = await query(client,
+      "SELECT has_schema_privilege('service_role', 'private', 'USAGE') AS preserved");
+    check(!preserved, "schema revoke mutant is detected by preservation check");
+  } finally { await client.query("ROLLBACK"); }
+
+  const resendGrant = "to anon, authenticated, service_role;";
+  const grantMutant = foundationSql.replace(resendGrant, "to anon, authenticated;");
+  check(grantMutant !== foundationSql, "service-role resend grant mutant applied");
+  await client.query("BEGIN");
+  try {
+    await client.query(grantMutant);
+    const [{ allowed }] = await query(client,
+      "SELECT has_function_privilege('service_role', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') AS allowed");
+    check(!allowed, "service-role grant mutant is detected by ACL check");
+  } finally { await client.query("ROLLBACK"); }
+}
+
+async function verifyFoundationResend(client, pool) {
+  const [acl] = await query(client, `SELECT
+    EXISTS (SELECT 1 FROM pg_proc p, LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+      WHERE p.oid='public.consume_verification_email_resend_limit(text, integer, integer)'::regprocedure
+        AND a.grantee=0 AND a.privilege_type='EXECUTE') AS public_execute,
+    has_function_privilege('anon', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') AS anon_execute,
+    has_function_privilege('authenticated', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') AS authenticated_execute,
+    has_function_privilege('service_role', 'public.consume_verification_email_resend_limit(text, integer, integer)', 'EXECUTE') AS service_execute`);
+  check(!acl.public_execute && acl.anon_execute && acl.authenticated_execute && acl.service_execute,
+    "Foundation resend exact temporary grants");
+
+  async function call(role, hash, max = 5, hours = 24) {
+    const actor = await pool.connect();
+    try {
+      await actor.query("BEGIN");
+      await actor.query(`SET LOCAL ROLE ${role}`);
+      const [result] = (await actor.query(
+        "SELECT allowed, attempts FROM public.consume_verification_email_resend_limit($1,$2,$3)",
+        [hash, max, hours])).rows;
+      await actor.query("COMMIT");
+      return result;
+    } catch (error) {
+      await actor.query("ROLLBACK");
+      throw error;
+    } finally { actor.release(); }
+  }
+
+  const arbitraryHash = "a".repeat(64);
+  check((await call("anon", arbitraryHash, 999, 1)).allowed, "legacy anon direct RPC remains temporarily callable");
+  for (let i = 0; i < 4; i++) check((await call("anon", arbitraryHash, 999, 1)).allowed, "fixed quota allows first five");
+  check(!(await call("anon", arbitraryHash, 999, 1)).allowed, "caller max cannot exceed fixed five");
+  const invalid = await call("service_role", "not-a-hash", 999, 1);
+  check(!invalid.allowed && invalid.attempts === 0, "invalid hash denied");
+
+  const oldHash = "b".repeat(64);
+  for (let i = 0; i < 5; i++) await client.query(
+    "INSERT INTO public.forum_upload_attempts (user_id,ip_hash,bytes,purpose,created_at) VALUES (NULL,$1,0,'verification_email_resend',clock_timestamp()-interval '2 hours')",
+    [oldHash]);
+  check(!(await call("authenticated", oldHash, 5, 1)).allowed, "caller window cannot shorten fixed 24 hours");
+
+  const concurrent = await Promise.all(Array.from({ length: 8 }, () => call("service_role", "c".repeat(64), 999, 1)));
+  check(concurrent.filter((result) => result.allowed).length === 5,
+    "advisory lock caps concurrent resend to five");
+}
+
 let ownedRoot, started = false, pool;
 try {
   ownedRoot = await mkdtemp(path.join(os.tmpdir(), `ogh-verified-sql-${id}-`));
@@ -445,8 +569,10 @@ try {
   const files = await readdir(path.join(ownedRoot, "supabase/migrations"));
   const last = files.sort().at(-1);
   const next = BigInt(last.slice(0, 14)) + 1n;
-  await cp(migration, path.join(ownedRoot, "supabase/migrations", `${next}_ogh_verified_session_v1.sql`));
-  await cp(resendMigration, path.join(ownedRoot, "supabase/migrations", `${next + 1n}_lock_verification_email_resend_limit.sql`));
+  if (!foundationOnly) {
+    await cp(migration, path.join(ownedRoot, "supabase/migrations", `${next}_ogh_verified_session_v1_foundation.sql`));
+    await cp(resendMigration, path.join(ownedRoot, "supabase/migrations", `${next + 1n}_ogh_verified_session_v1_enforcement.sql`));
+  }
   started = true;
   await run(process.execPath, [cli, "start", "--workdir", ownedRoot], ownedRoot);
   const statusOutput = await run(process.execPath, [cli, "status", "--output", "json", "--workdir", ownedRoot], ownedRoot);
@@ -456,10 +582,22 @@ try {
   pool = new pg.Pool({ connectionString: status.DB_URL, max: 12 });
   const client = await pool.connect();
   try {
-    if (!process.argv.includes("--bypass-only")) { await verify(client); await verifyTask3(client, pool); }
-    await verifyBypass({ pool, status });
+    if (foundationOnly) {
+      const foundationSql = await readFile(migration, "utf8");
+      const baselinePolicies = await query(client, "SELECT schemaname, tablename, policyname, cmd, qual, with_check FROM pg_policies ORDER BY schemaname, tablename, policyname");
+      await verifyPrivateSchemaFixtures(client, foundationSql);
+      await client.query(foundationSql);
+      assert.deepEqual(await query(client, "SELECT schemaname, tablename, policyname, cmd, qual, with_check FROM pg_policies ORDER BY schemaname, tablename, policyname"), baselinePolicies);
+      checks++;
+      await verify(client);
+      await verifyTask3(client, pool);
+      await verifyFoundationResend(client, pool);
+    } else {
+      if (!process.argv.includes("--bypass-only")) { await verify(client); await verifyTask3(client, pool); }
+      await verifyBypass({ pool, status });
+    }
   } finally { client.release(); }
-  if (!process.argv.includes("--bypass-only")) console.log(`PASS verified session SQL: ${checks} assertions; disposable local Supabase; four-table migration replay`);
+  if (!process.argv.includes("--bypass-only")) console.log(`PASS verified session SQL: ${checks} assertions; disposable local Supabase; ${foundationOnly ? "Foundation" : "Enforcement"} replay`);
 } finally {
   await pool?.end();
   if (started) await run(process.execPath, [cli, "stop", "--no-backup", "--workdir", ownedRoot], ownedRoot);

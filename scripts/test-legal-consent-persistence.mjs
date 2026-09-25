@@ -52,7 +52,7 @@ async function main() {
   const migration = await read("supabase/migrations/20260712_legal_policy_acceptances.sql");
   const route = await read("src/pages/api/legal/consent.ts");
   const repository = await read("src/lib/server/legal-consent-repository.server.ts");
-  const forwardMigration = await read("supabase/migrations/20260923000000_ogh_verified_session_v1.sql");
+  const forwardMigration = await read("supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql");
 
   assert.match(forwardMigration, /create function public\.ogh_has_current_policy_acceptance/i);
   assert.match(forwardMigration, /create function public\.ogh_record_policy_acceptance/i);

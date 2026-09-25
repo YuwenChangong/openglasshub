@@ -1,3 +1,22 @@
+do $$
+begin
+  if exists (
+    select 1
+    from pg_namespace n
+    where n.nspname = 'private'
+      and (
+        pg_get_userbyid(n.nspowner) <> 'postgres'
+        or has_schema_privilege('anon', n.oid, 'USAGE')
+        or has_schema_privilege('anon', n.oid, 'CREATE')
+        or has_schema_privilege('authenticated', n.oid, 'USAGE')
+        or has_schema_privilege('authenticated', n.oid, 'CREATE')
+      )
+  ) then
+    raise exception 'OGH_PRIVATE_SCHEMA_CONFLICT';
+  end if;
+end;
+$$;
+
 create schema if not exists private;
 
 create table private.ogh_verified_sessions (
