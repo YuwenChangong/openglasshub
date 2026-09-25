@@ -1,7 +1,4 @@
 create schema if not exists private;
-alter schema private owner to postgres;
-revoke all on schema private from public, anon, authenticated;
-grant usage on schema private to service_role;
 
 create table private.ogh_verified_sessions (
   session_id uuid primary key not null,
@@ -67,10 +64,7 @@ alter table private.ogh_policy_acceptances owner to postgres;
 
 revoke all on table private.ogh_verified_sessions, private.ogh_login_challenges,
   private.ogh_email_send_budget, private.ogh_policy_acceptances
-  from public, anon, authenticated;
-grant select, insert, update, delete on table private.ogh_verified_sessions,
-  private.ogh_login_challenges, private.ogh_email_send_budget,
-  private.ogh_policy_acceptances to service_role;
+  from public, anon, authenticated, service_role;
 
 create function public.ogh_is_verified_session()
 returns boolean
@@ -409,86 +403,8 @@ alter function public.ogh_has_current_policy_acceptance(text, text, text, text) 
 revoke all on function public.ogh_has_current_policy_acceptance(text, text, text, text) from public, anon, authenticated;
 grant execute on function public.ogh_has_current_policy_acceptance(text, text, text, text) to authenticated;
 
-revoke all on table private.ogh_verified_sessions, private.ogh_login_challenges,
-  private.ogh_email_send_budget, private.ogh_policy_acceptances from service_role;
-revoke usage on schema private from service_role;
-
--- Keep the existing permissive owner/staff policies. These restrictive policies
--- add session proof to every authenticated mutation in the reviewed ledger.
-do $$
-declare
-  target text;
-begin
-  foreach target in array array[
-    'profiles', 'circles', 'posts', 'comments', 'reports', 'report_events',
-    'moderation_actions', 'post_votes', 'bookmarks', 'comment_reactions',
-    'post_media', 'forum_upload_attempts', 'forum_notifications',
-    'user_safety_states', 'user_safety_events', 'legal_policy_acceptances',
-    'news_articles', 'devices', 'device_spec_definitions', 'device_specs',
-    'device_sources', 'device_source_links', 'device_spec_evidence',
-    'catalog_audit_events'
-  ] loop
-    execute format('create policy ogh_verified_insert on public.%I as restrictive for insert to authenticated with check ((select public.ogh_is_verified_session()))', target);
-    execute format('create policy ogh_verified_update on public.%I as restrictive for update to authenticated using ((select public.ogh_is_verified_session())) with check ((select public.ogh_is_verified_session()))', target);
-    execute format('create policy ogh_verified_delete on public.%I as restrictive for delete to authenticated using ((select public.ogh_is_verified_session()))', target);
-  end loop;
-end;
-$$;
-
--- Only the public branch of a mixed SELECT remains available to pending users.
--- The original permissive policy still supplies owner/staff and row visibility.
-create policy ogh_verified_select on public.circles as restrictive for select to authenticated
-  using (public.can_access_public_circle(id) or (select public.ogh_is_verified_session()));
-create policy ogh_verified_select on public.posts as restrictive for select to authenticated
-  using ((status = 'published' and moderation_status = 'published' and public.can_access_public_circle(circle_id))
-    or (select public.ogh_is_verified_session()));
-create policy ogh_verified_select on public.comments as restrictive for select to authenticated
-  using (public.can_access_public_comment_read_target(id) or (select public.ogh_is_verified_session()));
-create policy ogh_verified_select on public.post_media as restrictive for select to authenticated
-  using (public.can_access_public_post_media_object(storage_path) or (select public.ogh_is_verified_session()));
-create policy ogh_verified_select on public.news_articles as restrictive for select to authenticated
-  using (status = 'published' or (select public.ogh_is_verified_session()));
-create policy ogh_verified_select on public.devices as restrictive for select to authenticated
-  using (publication_status = 'published' or (select public.ogh_is_verified_session()));
-
-do $$
-declare
-  target text;
-begin
-  foreach target in array array[
-    'reports', 'report_events', 'moderation_actions', 'bookmarks',
-    'forum_upload_attempts', 'forum_notifications', 'user_safety_states',
-    'user_safety_events', 'device_spec_definitions', 'device_specs',
-    'device_sources', 'device_source_links', 'device_spec_evidence',
-    'catalog_audit_events'
-  ] loop
-    execute format('create policy ogh_verified_select on public.%I as restrictive for select to authenticated using ((select public.ogh_is_verified_session()))', target);
-  end loop;
-end;
-$$;
-
--- Historical consent rows are an explicit pending-session bootstrap read.
--- The existing owner policy still limits them to their own user.
-
-create policy ogh_verified_storage_insert on storage.objects as restrictive for insert to authenticated
-  with check (bucket_id <> 'post-media' or (select public.ogh_is_verified_session()));
-create policy ogh_verified_storage_update on storage.objects as restrictive for update to authenticated
-  using (bucket_id <> 'post-media' or (select public.ogh_is_verified_session()))
-  with check (bucket_id <> 'post-media' or (select public.ogh_is_verified_session()));
-create policy ogh_verified_storage_delete on storage.objects as restrictive for delete to authenticated
-  using (bucket_id <> 'post-media' or (select public.ogh_is_verified_session()));
-create policy ogh_verified_storage_select on storage.objects as restrictive for select to authenticated
-  using (
-    bucket_id <> 'post-media'
-    or (select public.ogh_is_verified_session())
-    or public.can_access_public_post_media_object(name)
-    or public.can_access_public_profile_media_object(name)
-    or public.can_access_public_circle_cover_object(name)
-    or (storage.foldername(name))[1] in ('news-covers', 'news-content')
-  );
-
--- Signup resend is intentionally callable before verification, including by
--- anon. Pin its limits in SQL so direct RPC callers cannot choose a quota.
+-- Old and new Workers share this fixed-policy RPC until Enforcement closes the
+-- legacy browser-role EXECUTE grants.
 create or replace function public.consume_verification_email_resend_limit(
   input_ip_hash text, max_attempts integer default 5, window_hours integer default 24
 )
@@ -522,6 +438,6 @@ end;
 $$;
 alter function public.consume_verification_email_resend_limit(text, integer, integer) owner to postgres;
 revoke all on function public.consume_verification_email_resend_limit(text, integer, integer)
-  from public, service_role;
+  from public, anon, authenticated, service_role;
 grant execute on function public.consume_verification_email_resend_limit(text, integer, integer)
-  to anon, authenticated;
+  to anon, authenticated, service_role;
