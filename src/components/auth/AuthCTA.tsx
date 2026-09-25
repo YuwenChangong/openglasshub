@@ -33,12 +33,26 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
   const safeNext = useMemo(() => getSafeNext(next), [next]);
   const { status, user } = useBrowserAuthState(supabase);
   const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState(false);
 
   async function handleSignOut() {
-    if (!supabase) return;
+    if (!supabase || signingOut) return;
     setSigningOut(true);
-    await supabase.auth.signOut();
-    window.location.reload();
+    setSignOutError(false);
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) throw new Error("missing session");
+      const response = await fetch("/api/auth/logout", {
+        method: "POST", headers: { authorization: `Bearer ${data.session.access_token}` },
+      });
+      if (!response.ok) throw new Error("revocation failed");
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
+      window.location.reload();
+    } catch {
+      setSignOutError(true);
+      setSigningOut(false);
+    }
   }
 
   if (status === "checking") {
@@ -68,6 +82,7 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
       <button type="button" onClick={handleSignOut} className="ogh-auth-secondary ogh-auth-button-reset" disabled={signingOut}>
         {signingOut ? "退出中..." : "退出"}
       </button>
+      {signOutError ? <span role="alert">退出失败，请稍后重试。</span> : null}
     </div>
   ) : (
     <div style={{ display: "grid", gap: "0.85rem", padding: "1rem 0" }}>
@@ -79,6 +94,7 @@ export default function AuthCTA({ next = "/", compact = false }: AuthCTAProps) {
         <button type="button" onClick={handleSignOut} style={secondaryButtonStyle} disabled={signingOut}>
           {signingOut ? "退出中..." : "退出登录"}
         </button>
+        {signOutError ? <span role="alert">退出失败，请稍后重试。</span> : null}
       </div>
     </div>
   );

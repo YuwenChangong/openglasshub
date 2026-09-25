@@ -492,5 +492,45 @@ try {
   assert.ok(document.getElementById("root").textContent.includes("当前账号还没有可用的个人资料"));
   assert.ok(!document.getElementById("root").textContent.includes("Previous user"));
   await act(async () => { priorProfileRoot.unmount(); });
+
+  const { default: LegalConsentPage } = await vite.ssrLoadModule("/src/components/legal/LegalConsentPage.tsx");
+  const { default: AuthCTA } = await vite.ssrLoadModule("/src/components/auth/AuthCTA.tsx");
+  const logoutOrder = [];
+  const logoutNavigation = [];
+  let rejectLogout = true;
+  globalThis.__testBrowserClient = { auth: {
+    getSession: async () => ({ data: { session: { access_token: token, user: { id: userId } } }, error: null }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+    signOut: async (options) => { logoutOrder.push(`local:${options?.scope ?? "global"}`); return { error: null }; },
+  } };
+  globalThis.fetch = async (input) => {
+    const path = new URL(input, "https://app.test").pathname;
+    if (path === "/api/auth/session-state") return json({ state: "VERIFIED_AUTHENTICATED" });
+    if (path === "/api/auth/logout") { logoutOrder.push("revoke"); return rejectLogout ? json({ error: "unavailable" }, 503) : json({ ok: true }); }
+    throw Error(`unexpected ${path}`);
+  };
+  const legalNavigation = { navigate: (url) => logoutNavigation.push(url), replace: () => {}, getCurrentUrl: () => "/legal-consent/" };
+  const legalConsent = { getCurrentConsent: async () => ({ current: false }), recordCurrentConsent: async () => ({ current: true }) };
+  const legalRoot = createRoot(document.getElementById("root"));
+  await act(async () => { legalRoot.render(createElement(LegalConsentPage, { consentAdapter: legalConsent, navigationAdapter: legalNavigation })); await pause(); });
+  await act(async () => { button("退出登录").click(); await pause(); });
+  assert.deepEqual(logoutOrder, ["revoke"], "legal exit does not sign out when revocation fails");
+  assert.deepEqual(logoutNavigation, [], "legal exit does not navigate when revocation fails");
+  assert.ok(document.querySelector('[role="alert"]'), "legal exit surfaces revocation failure");
+  rejectLogout = false;
+  await act(async () => { button("退出登录").click(); await pause(); });
+  assert.deepEqual(logoutOrder, ["revoke", "revoke", "local:local"], "legal exit revokes before local-only sign-out");
+  assert.equal(logoutNavigation.length, 1, "legal exit navigates only after both steps succeed");
+  await act(async () => { legalRoot.unmount(); });
+
+  logoutOrder.length = 0;
+  rejectLogout = true;
+  const ctaRoot = createRoot(document.getElementById("root"));
+  await act(async () => { ctaRoot.render(createElement(AuthCTA)); await pause(); });
+  await act(async () => { await pause(); });
+  await act(async () => { button("退出登录").click(); await pause(); });
+  assert.deepEqual(logoutOrder, ["revoke"], "auth CTA also preserves local session on revocation failure");
+  assert.ok(document.querySelector('[role="alert"]'), "auth CTA surfaces revocation failure");
+  await act(async () => { ctaRoot.unmount(); });
 } finally { await vite.close(); dom.window.close(); }
 console.log("PASS verified-session UI and logout boundary");

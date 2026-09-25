@@ -83,10 +83,27 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
   }
 
   async function signOut() {
-    if (!supabase && !authAdapter) return;
+    if ((!supabase && !authAdapter) || busy) return;
     setBusy(true);
-    if (authAdapter?.signOut) await authAdapter.signOut(); else await supabase!.auth.signOut();
-    navigation.navigate(`/login/?next=${encodeURIComponent("/legal-consent/")}`);
+    setError("");
+    try {
+      const session = authAdapter ? await authAdapter.getSession() : (await supabase!.auth.getSession()).data.session;
+      const token = session && ("accessToken" in session ? session.accessToken : session.access_token);
+      if (!token) throw new Error("missing session");
+      const response = await fetch("/api/auth/logout", {
+        method: "POST", headers: { authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error("revocation failed");
+      const signOutError = authAdapter?.signOut
+        ? await authAdapter.signOut({ scope: "local" })
+        : (await supabase!.auth.signOut({ scope: "local" })).error;
+      if (signOutError) throw signOutError;
+      navigation.navigate(`/login/?next=${encodeURIComponent("/legal-consent/")}`);
+    } catch {
+      setError("退出失败，请稍后重试。");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (state === "loading") return <section className="auth-card"><div className="auth-alert" role="status">正在检查政策确认状态...</div></section>;
