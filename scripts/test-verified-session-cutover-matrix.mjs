@@ -11,9 +11,11 @@ import { convertV4MiniflareOptions, Miniflare } from "miniflare";
 import pg from "pg";
 import { buildLocalSupabaseReplayMirror, ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 import { createTaskOwnedSupabaseOutbound } from "./lib/verified-session-local-outbound.mjs";
+import { LEGAL_POLICY } from "../src/lib/legal-policy.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OLD_COMMIT = "e6c2141be8827d961fc49462d66be8da9b4993eb";
+const NEW_COMMIT = "6e7e1622234b89209f0307d088900526bf2dfc7f";
 const OWNED_PREFIX = "ogh-cutover-a-";
 const LOCAL_KV_NAMESPACES = ["SESSION"];
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
@@ -159,7 +161,7 @@ async function assertRoot() {
   assert.equal(await git(["cat-file", "-t", OLD_COMMIT]), "commit", "PINNED_OLD_SOURCE_MISSING");
 }
 
-async function configureSupabase(ownedRoot, projectId) {
+async function configureSupabase(ownedRoot, projectId, localOtp = false) {
   const cli = path.join(ROOT, "node_modules/supabase/dist/supabase.js");
   await command(process.execPath, [cli, "init", "--yes", "--workdir", ownedRoot], ownedRoot);
   const configPath = path.join(ownedRoot, "supabase/config.toml");
@@ -175,6 +177,12 @@ async function configureSupabase(ownedRoot, projectId) {
   }
   config = config.replace(/(\[db\][\s\S]*?\nshadow_port\s*=\s*)\d+/, `$1${await freePort()}`);
   config = config.replace(/(\[auth\.email\]\s*[\s\S]*?enable_confirmations\s*=\s*)false/, "$1true");
+  if (localOtp) {
+    config = config.replace(/(\[auth\.email\]\s*[\s\S]*?max_frequency\s*=\s*)"[^"]+"/, '$1"1s"');
+    config += '\n[auth.email.template.confirmation]\nsubject = "Local code"\ncontent_path = "./supabase/templates/confirmation.html"\n';
+    await mkdir(path.join(ownedRoot, "supabase/templates"));
+    await writeFile(path.join(ownedRoot, "supabase/templates/confirmation.html"), "<p>{{ .Token }}</p>");
+  }
   await writeFile(configPath, config);
 
   const historical = path.join(ownedRoot, "historical-migrations");
@@ -291,6 +299,151 @@ async function proveBaseline(worker, status, dbUrl) {
     const quota = await db.query("SELECT count(*)::int AS n FROM public.forum_upload_attempts WHERE purpose='verification_email_resend'");
     assert.equal(quota.rows[0].n - quotaBefore.rows[0].n, 1, "BASELINE_OLD_ANON_RESEND_RPC_NOT_USED");
   } finally { await db.end(); }
+}
+
+async function proveBridge(worker, status, dbUrl, sentCodes) {
+  const anon = createClient(status.API_URL, status.ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const email = `matrix-c-${randomUUID()}@example.test`;
+  const password = `LocalOnly-${randomUUID()}!`;
+  const created = await anon.auth.signUp({ email, password });
+  assert.equal(created.error, null, "BRIDGE_SIGNUP_FAILED");
+  const db = new pg.Pool({ connectionString: dbUrl });
+  try {
+    await db.query("UPDATE auth.users SET email_confirmed_at = now() WHERE email = $1", [email]);
+    const login = await anon.auth.signInWithPassword({ email, password });
+    assert.equal(login.error, null, "BRIDGE_LOGIN_FAILED");
+    const token = login.data.session?.access_token;
+    assert.ok(token, "BRIDGE_SESSION_MISSING");
+    for (const pathname of ["/products/", "/feed/", "/news/", "/api/news"]) {
+      const response = await worker.dispatchFetch(`http://127.0.0.1${pathname}`);
+      assert.equal(response.status, 200, `BRIDGE_PUBLIC_READ_FAILED:${pathname}`);
+      assert.ok((await response.text()).length > 0, `BRIDGE_PUBLIC_READ_EMPTY:${pathname}`);
+    }
+    const headers = { authorization: `Bearer ${token}` };
+    const state = await worker.dispatchFetch("http://127.0.0.1/api/auth/session-state", { headers });
+    assert.equal(state.status, 200, "BRIDGE_SESSION_STATE_FAILED");
+    assert.equal((await state.json()).state, "PENDING_VERIFICATION", "BRIDGE_SESSION_NOT_PENDING");
+    const consent = await worker.dispatchFetch("http://127.0.0.1/api/legal/consent", {
+      method: "POST", headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ accepted: true, source: "login" }),
+    });
+    assert.equal(consent.status, 200, "BRIDGE_PENDING_POLICY_CONSENT_FAILED");
+    assert.equal((await consent.json()).current, true, "BRIDGE_PENDING_POLICY_NOT_CURRENT");
+    const protectedWrite = await worker.dispatchFetch("http://127.0.0.1/api/forum/posts", {
+      method: "POST", headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ title: "Local matrix", body: "Pending actor must be denied" }),
+    });
+    assert.equal(protectedWrite.status, 403, "BRIDGE_PENDING_MUTATION_NOT_DENIED");
+    assert.equal((await protectedWrite.json()).error, "VERIFICATION_REQUIRED", "BRIDGE_PENDING_DENIAL_CODE_WRONG");
+    const challengeHeaders = { ...headers, "content-type": "application/json", "cf-connecting-ip": "127.0.0.1" };
+    const start = await worker.dispatchFetch("http://127.0.0.1/api/auth/login-challenge/start", {
+      method: "POST", headers: challengeHeaders, body: "{}",
+    });
+    assert.equal(start.status, 200, "BRIDGE_CHALLENGE_START_FAILED");
+    let challenge = await start.json();
+    assert.equal(challenge.status, "SENT", "BRIDGE_CHALLENGE_NOT_SENT");
+    await db.query("UPDATE private.ogh_login_challenges SET next_send_at=clock_timestamp()-interval '1 second' WHERE id=$1", [challenge.challengeId]);
+    const resend = await worker.dispatchFetch("http://127.0.0.1/api/auth/login-challenge/resend", {
+      method: "POST", headers: challengeHeaders, body: "{}",
+    });
+    assert.equal(resend.status, 200, "BRIDGE_CHALLENGE_RESEND_FAILED");
+    const resent = await resend.json();
+    assert.equal(resent.status, "SENT", "BRIDGE_CHALLENGE_NOT_RESENT");
+    assert.notEqual(resent.challengeId, challenge.challengeId, "BRIDGE_CHALLENGE_ID_NOT_ROTATED");
+    challenge = resent;
+    const code = sentCodes.get(email);
+    assert.match(code ?? "", /^\d{6}$/, "BRIDGE_LOCAL_EMAIL_MISSING");
+    const second = await anon.auth.signInWithPassword({ email, password });
+    assert.equal(second.error, null, "BRIDGE_SECOND_LOGIN_FAILED");
+    const secondToken = second.data.session?.access_token;
+    assert.ok(secondToken && secondToken !== token, "BRIDGE_SECOND_SESSION_NOT_DISTINCT");
+    const verify = await worker.dispatchFetch("http://127.0.0.1/api/auth/login-challenge/verify", {
+      method: "POST", headers: challengeHeaders,
+      body: JSON.stringify({ challengeId: challenge.challengeId, code }),
+    });
+    assert.equal(verify.status, 200, "BRIDGE_CHALLENGE_VERIFY_FAILED");
+    assert.equal((await verify.json()).status, "VERIFIED", "BRIDGE_CHALLENGE_NOT_VERIFIED");
+    const verifiedState = await worker.dispatchFetch("http://127.0.0.1/api/auth/session-state", { headers });
+    assert.equal(verifiedState.status, 200, "BRIDGE_VERIFIED_STATE_FAILED");
+    assert.equal((await verifiedState.json()).state, "VERIFIED_AUTHENTICATED", "BRIDGE_SESSION_NOT_VERIFIED");
+    const otherState = await worker.dispatchFetch("http://127.0.0.1/api/auth/session-state", {
+      headers: { authorization: `Bearer ${secondToken}` },
+    });
+    assert.equal(otherState.status, 200, "BRIDGE_OTHER_SESSION_STATE_FAILED");
+    assert.equal((await otherState.json()).state, "PENDING_VERIFICATION", "BRIDGE_OTHER_SESSION_AUTO_VERIFIED");
+    const direct = await anon.from("profiles").update({ display_name: "Foundation direct baseline" })
+      .eq("id", login.data.user.id).select("display_name").single();
+    assert.equal(direct.error, null, "BRIDGE_DIRECT_POSTGREST_BASELINE_BROKEN");
+    assert.equal(direct.data.display_name, "Foundation direct baseline", "BRIDGE_DIRECT_POSTGREST_WRITE_MISSING");
+    const verifiedWrite = await worker.dispatchFetch("http://127.0.0.1/api/forum/posts", {
+      method: "POST", headers: { ...headers, "content-type": "application/json" }, body: "{}",
+    });
+    assert.equal(verifiedWrite.status, 400, "BRIDGE_VERIFIED_WRITE_GUARD_NOT_PASSED");
+    const logout = await worker.dispatchFetch("http://127.0.0.1/api/auth/logout", {
+      method: "POST", headers: { ...headers, "content-type": "application/json" }, body: "{}",
+    });
+    assert.equal(logout.status, 200, "BRIDGE_LOGOUT_FAILED");
+    assert.equal((await logout.json()).ok, true, "BRIDGE_LOGOUT_NOT_REVOKED");
+    const revokedWrite = await worker.dispatchFetch("http://127.0.0.1/api/forum/posts", {
+      method: "POST", headers: { ...headers, "content-type": "application/json" }, body: "{}",
+    });
+    assert.equal(revokedWrite.status, 403, "BRIDGE_REVOKED_JWT_NOT_DENIED");
+    assert.equal((await revokedWrite.json()).error, "VERIFICATION_REQUIRED", "BRIDGE_REVOKED_DENIAL_CODE_WRONG");
+
+    const signupEmail = `matrix-signup-${randomUUID()}@example.test`;
+    const signup = await anon.auth.signUp({ email: signupEmail, password: `LocalOnly-${randomUUID()}!` });
+    assert.equal(signup.error, null, "BRIDGE_NATIVE_SIGNUP_FAILED");
+    const signupCode = await latestLocalCode(status.INBUCKET_URL, signupEmail);
+    const confirmation = await worker.dispatchFetch("http://127.0.0.1/api/auth/signup-confirm", {
+      method: "POST", headers: { origin: "http://127.0.0.1", "content-type": "application/json" },
+      body: JSON.stringify({ email: signupEmail, code: signupCode, acceptedPolicies: true, policyVersions: {
+        bundle: LEGAL_POLICY.bundleVersion, terms: LEGAL_POLICY.termsVersion,
+        privacy: LEGAL_POLICY.privacyVersion, guidelines: LEGAL_POLICY.guidelinesVersion,
+      } }),
+    });
+    assert.equal(confirmation.status, 200, "BRIDGE_NATIVE_SIGNUP_CONFIRM_FAILED");
+    const signupSession = await confirmation.json();
+    assert.ok(signupSession.access_token && signupSession.refresh_token, "BRIDGE_NATIVE_SIGNUP_SESSION_MISSING");
+    const signupState = await worker.dispatchFetch("http://127.0.0.1/api/auth/session-state", {
+      headers: { authorization: `Bearer ${signupSession.access_token}` },
+    });
+    assert.equal(signupState.status, 200, "BRIDGE_NATIVE_SIGNUP_STATE_FAILED");
+    assert.equal((await signupState.json()).state, "VERIFIED_AUTHENTICATED", "BRIDGE_NATIVE_SIGNUP_NOT_VERIFIED");
+  } finally { await db.end(); }
+}
+
+async function latestLocalCode(mailUrl, recipient) {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const list = await fetch(`${mailUrl}/api/v1/messages`).then((response) => response.json());
+    for (const item of list.messages ?? []) {
+      if (!JSON.stringify(item.To ?? item.to ?? "").toLowerCase().includes(recipient.toLowerCase())) continue;
+      const message = await fetch(`${mailUrl}/api/v1/message/${item.ID ?? item.id}`)
+        .then((response) => response.json());
+      const code = /\b\d{6}\b/.exec(`${message.Text ?? ""} ${message.HTML ?? ""}`)?.[0];
+      if (code) return code;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  throw new Error("BRIDGE_LOCAL_SIGNUP_CODE_UNAVAILABLE");
+}
+
+function createBridgeOutbound(apiOrigin, sentCodes) {
+  const supabaseOutbound = createTaskOwnedSupabaseOutbound(apiOrigin);
+  return async (request) => {
+    if (request.url !== "https://api.brevo.com/v3/smtp/email") return supabaseOutbound(request);
+    assert.equal(request.method, "POST", "BRIDGE_EMAIL_METHOD_DENIED");
+    assert.equal(request.headers.get("api-key"), "local-mock-only", "BRIDGE_EMAIL_KEY_DENIED");
+    const payload = JSON.parse(Buffer.from(await request.arrayBuffer()).toString("utf8"));
+    assert.equal(payload.sender?.email, "matrix@example.test", "BRIDGE_EMAIL_SENDER_DENIED");
+    assert.ok(Array.isArray(payload.to) && payload.to.length === 1, "BRIDGE_EMAIL_RECIPIENT_INVALID");
+    assert.ok(typeof payload.to[0].email === "string" && payload.to[0].email.endsWith("@example.test"),
+      "BRIDGE_EMAIL_RECIPIENT_DENIED");
+    const code = /^.*<strong>(\d{6})<\/strong>.*$/s.exec(payload.htmlContent)?.[1];
+    assert.ok(code, "BRIDGE_EMAIL_CODE_MISSING");
+    sentCodes.set(payload.to[0].email, code);
+    return new Response(null, { status: 201 });
+  };
 }
 
 async function applyAndVerifyFoundation(dbUrl) {
@@ -438,9 +591,10 @@ async function main() {
     console.log("MATRIX_A_GUARDS=PASS");
     return;
   }
-  assert.ok(process.argv.length === 4 && process.argv[2] === "--state" && ["A", "B"].includes(process.argv[3]),
-    "TASK7_STATE_A_OR_B_ONLY");
+  assert.ok(process.argv.length === 4 && process.argv[2] === "--state" && ["A", "B", "C"].includes(process.argv[3]),
+    "TASK8_STATE_A_B_OR_C_ONLY");
   const state = process.argv[3];
+  const sourceCommit = state === "C" ? NEW_COMMIT : OLD_COMMIT;
   await assertRoot();
   const id = randomUUID().slice(0, 8);
   const ownedRoot = await mkdtemp(path.join(os.tmpdir(), `${OWNED_PREFIX}${id}-`));
@@ -448,16 +602,16 @@ async function main() {
   let worktreeAdded = false, supabaseStarted = false, cli, worker, status, digest;
   try {
     await ownedPath(ownedRoot, os.tmpdir());
-    assert.equal(await git(["cat-file", "-t", OLD_COMMIT]), "commit", "PINNED_OLD_SOURCE_MISSING");
-    await git(["worktree", "add", "--detach", oldRoot, OLD_COMMIT]);
+    assert.equal(await git(["cat-file", "-t", sourceCommit]), "commit", "PINNED_WORKER_SOURCE_MISSING");
+    await git(["worktree", "add", "--detach", oldRoot, sourceCommit]);
     worktreeAdded = true;
     await ownedPath(oldRoot, ownedRoot);
-    assert.equal(await git(["rev-parse", "HEAD"], oldRoot), OLD_COMMIT, "OLD_SOURCE_IDENTITY_MISMATCH");
-    assert.equal(await git(["status", "--porcelain"], oldRoot), "", "OLD_SOURCE_DIRTY");
-    cli = await configureSupabase(ownedRoot, `${OWNED_PREFIX}${id}`);
+    assert.equal(await git(["rev-parse", "HEAD"], oldRoot), sourceCommit, "WORKER_SOURCE_IDENTITY_MISMATCH");
+    assert.equal(await git(["status", "--porcelain"], oldRoot), "", "WORKER_SOURCE_DIRTY");
+    cli = await configureSupabase(ownedRoot, `${OWNED_PREFIX}${id}`, state === "C");
     supabaseStarted = true;
     status = await startSupabase(cli, ownedRoot);
-    if (state === "B") await applyAndVerifyFoundation(status.DB_URL);
+    if (state !== "A") await applyAndVerifyFoundation(status.DB_URL);
     try {
       if (process.platform === "win32") {
         await command(process.env.ComSpec ?? "C:\\Windows\\System32\\cmd.exe",
@@ -470,17 +624,26 @@ async function main() {
         ? "OFFLINE_DEPENDENCY_CACHE_MISSING" : "OFFLINE_NPM_CI_FAILED");
     }
     const built = await localOldBuild(oldRoot, status);
+    const sentCodes = new Map();
+    if (state === "C") Object.assign(built.configVars, {
+      BREVO_API_KEY: "local-mock-only",
+      BREVO_VERIFIED_SENDER_EMAIL: "matrix@example.test",
+      OGH_LOGIN_CODE_PEPPER: `local-${randomUUID()}`,
+    });
     worker = createLocalWorker({
       modules: await oldWorkerModules(built.entry), modulesRoot: path.dirname(built.entry),
       compatibilityDate: built.generated.compatibility_date ?? "2026-05-17",
       compatibilityFlags: built.generated.compatibility_flags ?? ["nodejs_compat"],
       kvNamespaces: LOCAL_KV_NAMESPACES,
       bindings: built.configVars, assets: { directory: built.assets, binding: "ASSETS", run_worker_first: true, routerConfig: { has_user_worker: true } },
-      outboundService: createTaskOwnedSupabaseOutbound(status.API_URL),
+      outboundService: state === "C"
+        ? createBridgeOutbound(status.API_URL, sentCodes)
+        : createTaskOwnedSupabaseOutbound(status.API_URL),
     });
     const runtimeBindings = await worker.getBindings();
     assert.ok(runtimeBindings.SUPABASE_SERVICE_ROLE_KEY, "LOCAL_SERVICE_BINDING_MISSING");
-    await proveBaseline(worker, status, status.DB_URL);
+    if (state === "C") await proveBridge(worker, status, status.DB_URL, sentCodes);
+    else await proveBaseline(worker, status, status.DB_URL);
     digest = built.digest;
   } finally {
     const cleanupErrors = [];
@@ -498,7 +661,7 @@ async function main() {
     if (worktreeAdded) {
       try {
         await ownedPath(oldRoot, ownedRoot);
-        assert.equal(await git(["rev-parse", "HEAD"], oldRoot), OLD_COMMIT, "CLEANUP_OLD_SOURCE_IDENTITY_MISMATCH");
+        assert.equal(await git(["rev-parse", "HEAD"], oldRoot), sourceCommit, "CLEANUP_WORKER_SOURCE_IDENTITY_MISMATCH");
         assert.equal(path.resolve(await git(["rev-parse", "--show-toplevel"], oldRoot)).toLowerCase(),
           oldRoot.toLowerCase(), "CLEANUP_WORKTREE_PATH_MISMATCH");
         await git(["worktree", "remove", "--force", oldRoot]);
@@ -511,7 +674,17 @@ async function main() {
     }
     if (cleanupErrors.length) throw new Error(cleanupErrors.join(","));
   }
-  console.log(`MATRIX_${state}=PASS OLD_WORKER_SOURCE=${OLD_COMMIT} OLD_ARTIFACT_SHA256=${digest} DB_STAGE=${state === "A" ? "PRE_V1" : "FOUNDATION"} OLD_${state === "A" ? "PREV1" : "FOUNDATION"}_PAIRING=ALLOW BINDINGS_LOCAL_ONLY=true HOSTED_BINDINGS_PRESENT=false PRODUCTION_BINDINGS_PRESENT=false PUBLIC_READS=PASS AUTH_BASELINE_LOGIN=PASS AUTHENTICATED_WRITE=PASS OLD_RESEND=PASS LEGAL_CONSENT_BASELINE=PASS TEARDOWN_BOUNDED=PASS OWNED_PROCESSES_REMAINING=0 OWNED_RUNTIME_RESOURCES_REMAINING=0${state === "B" ? " FOUNDATION_WEAKENS_BASELINE=false FOUNDATION_RESEND_FIXED_5_24=PASS FOUNDATION_RESEND_CONCURRENCY=PASS OLD_ROLLBACK_VIABLE=true" : ""}`);
+  if (state === "C") {
+    const routes = await command(process.execPath,
+      ["--experimental-transform-types", "scripts/test-verified-session-routes.mjs"], ROOT);
+    assert.ok(routes.includes("VERIFIED_SESSION_ROUTES_OK"), "BRIDGE_ROUTES_REGRESSION_FAILED");
+    const ui = await command(process.execPath, ["scripts/test-verified-session-ui.mjs"], ROOT);
+    assert.ok(ui.includes("PASS verified-session UI and logout boundary"), "BRIDGE_UI_REGRESSION_FAILED");
+    const resend = await command(process.execPath, ["scripts/test-verification-resend-helper.mjs"], ROOT);
+    assert.ok(resend.includes("PASS verification resend helper"), "BRIDGE_RESEND_REGRESSION_FAILED");
+    console.log(`MATRIX_C=PASS NEW_WORKER_SOURCE=${sourceCommit} NEW_ARTIFACT_SHA256=${digest} DB_STAGE=FOUNDATION PUBLIC_READS=PASS PENDING_SESSION=PASS PENDING_MUTATION_DENIED=PASS CHALLENGE_START_RESEND_VERIFY=PASS EXACT_SESSION_ACTIVATION=PASS SIGNUP_NATIVE_OTP=PASS POLICY_PENDING_CONSENT=PASS DIRECT_POSTGREST_BASELINE=PASS LOGOUT_OLD_JWT_DENIED=PASS ROUTES_UI_REGRESSIONS=PASS VERIFIED_SESSION_FULLY_ACTIVE=false TEARDOWN_BOUNDED=PASS OWNED_RUNTIME_RESOURCES_REMAINING=0`);
+  }
+  else console.log(`MATRIX_${state}=PASS OLD_WORKER_SOURCE=${OLD_COMMIT} OLD_ARTIFACT_SHA256=${digest} DB_STAGE=${state === "A" ? "PRE_V1" : "FOUNDATION"} OLD_${state === "A" ? "PREV1" : "FOUNDATION"}_PAIRING=ALLOW BINDINGS_LOCAL_ONLY=true HOSTED_BINDINGS_PRESENT=false PRODUCTION_BINDINGS_PRESENT=false PUBLIC_READS=PASS AUTH_BASELINE_LOGIN=PASS AUTHENTICATED_WRITE=PASS OLD_RESEND=PASS LEGAL_CONSENT_BASELINE=PASS TEARDOWN_BOUNDED=PASS OWNED_PROCESSES_REMAINING=0 OWNED_RUNTIME_RESOURCES_REMAINING=0${state === "B" ? " FOUNDATION_WEAKENS_BASELINE=false FOUNDATION_RESEND_FIXED_5_24=PASS FOUNDATION_RESEND_CONCURRENCY=PASS OLD_ROLLBACK_VIABLE=true" : ""}`);
 }
 
 main().catch((error) => {
