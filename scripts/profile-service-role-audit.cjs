@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const ts = require("typescript");
 
 const LEGAL_REPOSITORY = "src/lib/server/legal-consent-repository.server.ts";
 const LEGAL_ROUTE = "src/pages/api/legal/consent.ts";
@@ -131,30 +132,81 @@ function rateLimitServiceRoleFinding({ relativePath, repositorySource }) {
 }
 
 function verifiedSessionServiceRoleFinding(relativePath, source) {
-  const before = (first, second) => source.indexOf(first) >= 0 && source.indexOf(second) > source.indexOf(first);
-  const rpcNames = [...source.matchAll(/(?:\.rpc\(|rpc<unknown>\((?:client|serviceClient\(env\)), )"([a-z_]+)"/g)].map((match) => match[1]).sort();
+  const tree = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const nodes = [];
+  const visit = (node) => { nodes.push(node); ts.forEachChild(node, visit); };
+  visit(tree);
+  const member = (node) => ts.isPropertyAccessExpression(node) ? node.name.text
+    : ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) ? node.argumentExpression.text : null;
+  const callName = (node) => ts.isCallExpression(node) ? (ts.isIdentifier(node.expression) ? node.expression.text : member(node.expression)) : null;
+  const calls = nodes.filter(ts.isCallExpression);
+  const functions = new Map(nodes.filter(ts.isFunctionDeclaration).filter((node) => node.name).map((node) => [node.name.text, node]));
+  const functionCalls = (name) => {
+    const body = functions.get(name)?.body;
+    return body ? calls.filter((node) => node.pos >= body.pos && node.end <= body.end) : [];
+  };
+  const keyIn = (node) => {
+    let found = false;
+    const scan = (part) => {
+      if ((ts.isIdentifier(part) || ts.isStringLiteralLike(part)) && part.text === "SUPABASE_SERVICE_ROLE_KEY") found = true;
+      ts.forEachChild(part, scan);
+    };
+    if (node) scan(node);
+    return found;
+  };
+  const isServiceCreate = (node) => callName(node) === "createClient" && keyIn(node.arguments[1]);
+  const serviceCreates = calls.filter(isServiceCreate);
+  const firstCall = (within, name) => within.find((node) => callName(node) === name);
+  const guardedBefore = (within, guard, create) => {
+    const guardCall = firstCall(within, guard);
+    const createCall = within.find(create);
+    return Boolean(guardCall && createCall && guardCall.pos < createCall.pos);
+  };
+  const objectValue = (node, key) => ts.isObjectLiteralExpression(node)
+    ? node.properties.find((property) => ts.isPropertyAssignment(property) && property.name.getText(tree) === key)?.initializer
+    : null;
+  const isClaimsMember = (node, field) => ts.isPropertyAccessExpression(node)
+    && ts.isIdentifier(node.expression) && node.expression.text === "claims" && node.name.text === field;
+  const namedRpcCalls = calls.filter((node) => callName(node) === "rpc"
+    && node.arguments.some((arg) => ts.isStringLiteralLike(arg) && arg.text.startsWith("ogh_")));
+  const rpcName = (node) => node.arguments.find((arg) => ts.isStringLiteralLike(arg) && arg.text.startsWith("ogh_"))?.text;
+  const rpcArgs = (node) => node.arguments.find(ts.isObjectLiteralExpression);
   const expected = relativePath === LOGIN_CHALLENGE
     ? ["ogh_consume_login_challenge", "ogh_finalize_login_delivery", "ogh_reserve_login_challenge"]
     : relativePath === LOGOUT_ROUTE
       ? ["ogh_revoke_verified_session"]
       : ["ogh_activate_signup_session", "ogh_record_policy_acceptance"];
-  const rpcCallCount = (source.match(/\.rpc\(/g) ?? []).length;
+  const rpcNames = namedRpcCalls.map(rpcName).sort();
+  const directRpcCalls = calls.filter((node) => member(node.expression) === "rpc");
   const callsFixedRpc = JSON.stringify(rpcNames) === JSON.stringify(expected)
-    && rpcCallCount === (relativePath === SIGNUP_ROUTE ? 2 : 1);
-  const noBroadClient = !/\b(?:client|service)\.(?:from|storage|functions|auth\.admin)\b/.test(source);
-  const expectedServiceKeyUses = relativePath === SIGNUP_ROUTE ? 1 : 2;
-  const serviceKeyUsesMatch = (source.match(/SUPABASE_SERVICE_ROLE_KEY/g) ?? []).length === expectedServiceKeyUses;
+    && directRpcCalls.length === (relativePath === LOGIN_CHALLENGE ? 1 : expected.length)
+    && namedRpcCalls.every((node) => isClaimsMember(objectValue(rpcArgs(node), "p_user_id"), "userId")
+      && (rpcName(node) === "ogh_record_policy_acceptance" || isClaimsMember(objectValue(rpcArgs(node), "p_session_id"), "sessionId")));
+  const noBroadClient = !nodes.some((node) => {
+    const property = member(node);
+    if (!["from", "storage", "functions", "admin"].includes(property)) return false;
+    const globalArray = property === "from" && ts.isIdentifier(node.expression) && node.expression.text === "Array"
+      && !nodes.some((part) => ts.isVariableDeclaration(part) && ts.isIdentifier(part.name) && part.name.text === "Array");
+    return !globalArray;
+  });
+  const serviceKeyUsesMatch = serviceCreates.length === 1;
   const actorBound = relativePath === LOGIN_CHALLENGE
-    ? before("await signedClaims(input.token, env)", "const client = serviceClient(env)")
-      && /p_user_id: claims\.userId, p_session_id: claims\.sessionId/.test(source)
-      && /getCurrentConfirmedAuthUser\(input\.token, env, claims\)/.test(source)
+    ? serviceCreates[0]?.pos >= functions.get("serviceClient")?.body?.pos
+      && serviceCreates[0]?.end <= functions.get("serviceClient")?.body?.end
+      && guardedBefore(functionCalls("issue"), "signedClaims", (node) => callName(node) === "serviceClient")
+      && guardedBefore(functionCalls("verifyChallenge"), "signedClaims", (node) => callName(node) === "serviceClient")
+      && Boolean(firstCall(functionCalls("issue"), "getCurrentConfirmedAuthUser"))
     : relativePath === LOGOUT_ROUTE
-      ? before("await getLiveProviderSessionUser(token, env, claims)", "const client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY")
-        && /p_user_id: claims\.userId,\s*p_session_id: claims\.sessionId/.test(source)
-      : before('type: "signup"', 'const service = createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_SERVICE_ROLE_KEY")')
-        && before("await getCurrentConfirmedAuthUser(session.access_token, env, claims)", "const service = createClient")
-        && /p_user_id: claims\.userId/.test(source)
-        && /p_user_id: claims\.userId, p_session_id: claims\.sessionId/.test(source);
+      ? guardedBefore(functionCalls("handleLogout"), "getTrustedSessionClaims", isServiceCreate)
+        && guardedBefore(functionCalls("handleLogout"), "getLiveProviderSessionUser", isServiceCreate)
+      : guardedBefore(functionCalls("handleSignupConfirm"), "verifyOtp", isServiceCreate)
+        && guardedBefore(functionCalls("handleSignupConfirm"), "getTrustedSessionClaims", isServiceCreate)
+        && guardedBefore(functionCalls("handleSignupConfirm"), "getCurrentConfirmedAuthUser", isServiceCreate)
+        && functionCalls("handleSignupConfirm").some((node) => {
+          if (callName(node) !== "verifyOtp") return false;
+          const type = objectValue(node.arguments[0], "type");
+          return type && ts.isStringLiteralLike(type) && type.text === "signup";
+        });
   return callsFixedRpc && noBroadClient && serviceKeyUsesMatch && actorBound
     ? null : "verified-session service-role caller is not limited to actor-bound fixed RPCs";
 }
@@ -177,4 +229,4 @@ function findUnsafeServiceRoleUsage(rootDir, srcDir) {
   });
 }
 
-module.exports = { findUnsafeServiceRoleUsage, legalConsentServiceRoleFinding, moderationNotificationServiceRoleFinding, rateLimitServiceRoleFinding };
+module.exports = { findUnsafeServiceRoleUsage, legalConsentServiceRoleFinding, moderationNotificationServiceRoleFinding, rateLimitServiceRoleFinding, verifiedSessionServiceRoleFinding };

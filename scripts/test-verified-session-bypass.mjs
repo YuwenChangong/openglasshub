@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
+import { open, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import net from "node:net";
+import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const tables = [
@@ -21,6 +24,11 @@ const privateReads = new Set([
   "catalog_audit_events",
 ]);
 const mixedReads = new Set(["circles", "posts", "comments", "post_media", "news_articles", "devices"]);
+const mixedPublicPredicate = {
+  circles: "can_access_public_circle", posts: "can_access_public_circle",
+  comments: "can_access_public_comment_read_target", post_media: "can_access_public_post_media_object",
+  news_articles: "status = 'published'", devices: "publication_status = 'published'",
+};
 const behavioralTables = new Set(["profiles", "circles", "posts", "comments", "post_votes", "bookmarks", "post_media", "forum_notifications", "news_articles", "devices"]);
 const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } };
 const serviceOnlyRpc = [
@@ -71,11 +79,57 @@ async function subscribe(channel, label) {
   });
 }
 
-async function waitForEvent(events, id, label) {
-  const deadline = Date.now() + 5000;
+async function waitForEvent(events, id, label, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
   while (!events.some((event) => event.new?.id === id || event.old?.id === id)) {
     if (Date.now() >= deadline) throw new Error(`${label} Realtime event not delivered`);
     await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+async function verifyAnonymousPages(status, fixtures) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const devVars = path.join(root, ".dev.vars");
+  const apiUrl = localUrl(status.API_URL);
+  const listener = net.createServer();
+  await new Promise((resolve, reject) => { listener.once("error", reject); listener.listen(0, "127.0.0.1", resolve); });
+  const port = listener.address().port;
+  await new Promise((resolve) => listener.close(resolve));
+  const file = await open(devVars, "wx");
+  let server;
+  try {
+    await file.writeFile(`SUPABASE_URL=${JSON.stringify(apiUrl)}\nSUPABASE_ANON_KEY=${JSON.stringify(status.ANON_KEY)}\n`);
+    await file.close();
+    const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+      /^(path|systemroot|windir|temp|tmp|comspec|pathext|appdata|localappdata|userprofile)$/i.test(key)));
+    server = spawn(process.execPath, [path.join(root, "node_modules", "astro", "bin", "astro.mjs"),
+      "dev", "--ignore-lock", "--host", "127.0.0.1", "--port", String(port)], {
+      cwd: root, env: { ...cleanEnv, ASTRO_DEV_BACKGROUND: "1", CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false" },
+      stdio: "ignore", windowsHide: true,
+    });
+    const deadline = Date.now() + 30000;
+    for (const [route, marker] of [
+      ["products", fixtures.device], ["feed", fixtures.post], ["circles", fixtures.circle],
+    ]) {
+      let response;
+      while (Date.now() < deadline) {
+        if (server.exitCode !== null) throw new Error(`local Astro exited ${server.exitCode}`);
+        try { response = await fetch(`http://127.0.0.1:${port}/${route}/`); }
+        catch { await new Promise((resolve) => setTimeout(resolve, 200)); continue; }
+        break;
+      }
+      assert.ok(response, `${route} local Astro response`);
+      assert.equal(response.status, 200, `anonymous /${route}/ with disposable local Supabase`);
+      assert.ok((await response.text()).includes(marker), `anonymous /${route}/ renders disposable published fixture`);
+    }
+    console.log("PASS anonymous Astro /products/, /feed/, /circles/: local Supabase published fixtures");
+  } finally {
+    if (server && server.exitCode === null) {
+      server.kill();
+      await new Promise((resolve) => server.once("exit", resolve));
+    }
+    await file.close().catch(() => {});
+    await rm(devVars);
   }
 }
 
@@ -124,6 +178,11 @@ export async function verifyBypass({ pool, status }) {
       if (privateReads.has(table) || mixedReads.has(table)) {
         assert.ok(owned.some((p) => p.cmd === "SELECT" && p.permissive === "RESTRICTIVE" && p.applies_authenticated &&
           (p.qual ?? "").includes("ogh_is_verified_session")), `${table} private SELECT verified RLS`);
+      }
+      if (mixedReads.has(table)) {
+        assert.ok(owned.some((p) => p.cmd === "SELECT" && p.permissive === "RESTRICTIVE" && p.applies_authenticated &&
+          (p.qual ?? "").includes(mixedPublicPredicate[table]) && /\bor\b/i.test(p.qual ?? "")),
+        `${table} mixed SELECT keeps explicit public OR verified branch`);
       }
     }
     const { rows: privateFunctions } = await db.query(`select p.oid::regprocedure::text as signature,
@@ -251,6 +310,7 @@ export async function verifyBypass({ pool, status }) {
       const publicDevice = await rest(base, status.ANON_KEY, actorToken, "devices", "GET", undefined, `?select=id&id=eq.${publicDeviceId}`);
       assert.deepEqual(publicDevice.data, [{ id: publicDeviceId }], "devices published branch remains public");
     }
+    await verifyAnonymousPages(status, { device: "Local public device", post: "Local public post", circle: "Local feed fixture" });
     await db.query("update public.profiles set role='moderator' where id=$1", [user.id]);
     const pendingStaffRead = await rest(base, status.ANON_KEY, token, "news_articles", "GET", undefined, `?select=id&id=eq.${draftId}`);
     assert.deepEqual(pendingStaffRead.data, [], "pending staff cannot read draft news");
@@ -296,13 +356,14 @@ export async function verifyBypass({ pool, status }) {
       await subscribe(channel, "pending private");
       const deletedId = randomUUID();
       await db.query("insert into public.forum_notifications(id,recipient_id,type) values($1,$2,'post_like')", [deletedId, user.id]);
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      assert.equal(pendingEvents.length, 0, "pending cannot receive private notification INSERT");
       await db.query("delete from public.forum_notifications where id=$1", [deletedId]);
       const realtimePublicCommentId = randomUUID();
       await db.query("insert into public.comments(id,post_id,author_id,body,status,moderation_status) values($1,$2,$3,'Realtime public control','published','published')", [realtimePublicCommentId, postId, user.id]);
       const realtimePublicRead = await rest(base, status.ANON_KEY, token, "comments", "GET", undefined, `?select=id&id=eq.${realtimePublicCommentId}`);
       assert.deepEqual(realtimePublicRead.data, [{ id: realtimePublicCommentId }], "pending REST sees public comment event row");
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       assert.equal(pendingEvents.length, 0, "pending must not receive private notification DELETE events");
     } finally { await auth.removeChannel(channel); }
     await db.query("insert into private.ogh_verified_sessions(session_id,user_id,verification_kind) values($1,$2,'login_challenge')", [claims.session_id, user.id]);
