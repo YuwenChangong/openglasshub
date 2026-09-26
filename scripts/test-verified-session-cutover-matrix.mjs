@@ -151,6 +151,7 @@ function assertAllowedRootStatus(status) {
     "?? scripts/test-verified-session-local-outbound.mjs",
     "?? scripts/lib/verified-session-local-outbound.mjs",
     " M scripts/test-verified-session-cutover-matrix.mjs",
+    "?? scripts/test-verified-session-cutover-final.mjs",
   ]);
   for (const line of status.split("\n").filter(Boolean)) assert.ok(allowed.has(line), "DIRTY_ROOT_CHECKOUT");
 }
@@ -573,6 +574,17 @@ async function teardownDiagnostic(kind) {
 }
 
 async function main() {
+  if (process.argv.length === 3 && process.argv[2] === "--all") {
+    for (const state of ["A", "B", "C", "D", "C-D"]) {
+      const output = await command(process.execPath, [fileURLToPath(import.meta.url), "--state", state], ROOT,
+        childEnv(), 600_000);
+      const marker = output.split(/\r?\n/).find((line) => line.startsWith(`MATRIX_${state.replace("-", "_")}=PASS `));
+      assert.ok(marker, `MATRIX_${state}_CURRENT_RUN_PROOF_MISSING`);
+      console.log(marker);
+    }
+    console.log("MATRIX_ALL=PASS STATES=A,B,C,D,C-D CURRENT_RUN=true");
+    return;
+  }
   if (process.argv.length === 3 && process.argv[2].startsWith("--teardown-diagnostic=")) {
     const kind = process.argv[2].split("=")[1];
     assert.ok(["T1", "T2", "T3"].includes(kind), "TASK6_DIAGNOSTIC_KIND_INVALID");
