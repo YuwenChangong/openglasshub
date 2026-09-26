@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { assertWorkerDbPairing } from "./lib/verified-session-cutover-guard.mjs";
+import { assertCanEnterStateC, assertWorkerDbPairing } from "./lib/verified-session-cutover-guard.mjs";
 
 const old = Object.freeze({
   sourceCommit: "e6c2141be8827d961fc49462d66be8da9b4993eb",
@@ -45,4 +45,46 @@ function guardedAction(input) {
 assert.throws(() => guardedAction({ workerIdentity: observed(next), dbStage: "PRE_V1", locks }), /PAIRING_GUARD_DENY/);
 assert.equal(actions, 0, "forbidden pair is rejected before any external action");
 assert.throws(() => assertWorkerDbPairing(null), /PAIRING_GUARD_DENY/);
-console.log("PASS Worker/DB pairing guard: A/B/C/D allowed, forbidden pairs and identity drift denied");
+const h = (character) => character.repeat(64);
+const complete = {
+  dbStage: "FOUNDATION", workerIdentity: observed(next), locks,
+  oldRollbackIdentity: observed(old),
+  artifacts: { foundationSha256: h("1"), enforcementSha256: h("2"), reviewedEnforcementSha256: h("2"),
+    cSmokePlanSha256: h("3"), authDPacketSha256: h("4") },
+  matrix: {
+    A: { status: "PASS", sourceCommit: old.sourceCommit, workerBuildSha256: old.buildSha256 },
+    B: { status: "PASS", sourceCommit: old.sourceCommit, workerBuildSha256: old.buildSha256,
+      foundationSha256: h("1") },
+    C: { status: "PASS", sourceCommit: next.sourceCommit, workerBuildSha256: next.buildSha256,
+      foundationSha256: h("1") },
+    D: { status: "PASS", sourceCommit: next.sourceCommit, workerBuildSha256: next.buildSha256,
+      foundationSha256: h("1"), enforcementSha256: h("2") },
+  },
+  enforcementPreflight: { status: "PASS", artifactSha256: h("2") },
+  cSmokePlan: { reviewed: true, sha256: h("3") },
+  authDPacket: { prepared: true, executionStatus: "NOT_EXECUTED", sha256: h("4") },
+  sourceLock: { sourceCommit: next.sourceCommit, buildSha256: next.buildSha256 },
+  window: { id: "c-window-local-1", startedAtUtc: "2026-09-26T00:00:00.000Z",
+    deadlineAtUtc: "2026-09-26T01:00:00.000Z" },
+  nowUtc: "2026-09-26T00:01:00.000Z",
+};
+assert.equal(assertCanEnterStateC(complete), "STATE_C_ENTRY_ELIGIBLE");
+assert.throws(() => assertCanEnterStateC({}), /STATE_C_ENTRY_DENIED/);
+for (const mutation of [
+  { ...complete, dbStage: "UNKNOWN" },
+  { ...complete, workerIdentity: observed(old) },
+  { ...complete, oldRollbackIdentity: observed(next) },
+  { ...complete, artifacts: { ...complete.artifacts, reviewedEnforcementSha256: h("5") } },
+  { ...complete, matrix: { ...complete.matrix, D: { ...complete.matrix.D, status: "MISSING" } } },
+  { ...complete, matrix: { ...complete.matrix, B: { ...complete.matrix.B, status: "MISSING" } } },
+  { ...complete, matrix: { ...complete.matrix, B: { ...complete.matrix.B, foundationSha256: h("5") } } },
+  { ...complete, matrix: { ...complete.matrix, A: { ...complete.matrix.A, workerBuildSha256: h("5") } } },
+  { ...complete, enforcementPreflight: { ...complete.enforcementPreflight, artifactSha256: h("5") } },
+  { ...complete, cSmokePlan: { ...complete.cSmokePlan, reviewed: false } },
+  { ...complete, authDPacket: { ...complete.authDPacket, prepared: false } },
+  { ...complete, authDPacket: { ...complete.authDPacket, executionStatus: "EXECUTED" } },
+  { ...complete, sourceLock: { ...complete.sourceLock, buildSha256: h("5") } },
+  { ...complete, window: { ...complete.window, deadlineAtUtc: "2026-09-26T01:00:01.000Z" } },
+  { ...complete, nowUtc: "2026-09-26T01:00:01.000Z" },
+]) assert.throws(() => assertCanEnterStateC(mutation), /STATE_C_ENTRY_DENIED/);
+console.log("PASS Worker/DB pairing guard: A/B/C/D allowed, forbidden pairs and identity drift denied; C entry evidence gated");
