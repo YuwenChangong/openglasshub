@@ -51,29 +51,33 @@ AUTH_RELEASE_STATUS=NO_GO
 
 ## Future staged gates
 
-### 1. Backward-compatible code ready
+### AUTH-A. Hosted inventory and provenance
 
-Separately authorize and review a deployment mechanism against the actual repository and deployed topology. Establish which capabilities can be present before the database migration without claiming Verified Session enforcement or depending on absent tables. Preserve public reads and availability. If the mechanism cannot make this intermediate state safe, stop for architecture review; do not improvise a default-open fallback.
+A separate single-use authorization permits only its bounded read-only inventory. Bind the actual deployed old Worker source/build/configuration, target identity, effective catalog and migration provenance to reviewed A/B/D expectations; the pinned local old Worker is not evidence of the hosted deployment. Review signing mode, provider template, sender and shared Free quota without disclosing secrets. Unknown provenance, target drift, or catalog stage UNKNOWN is a stop; no later authorization is implied.
 
-### 2. DB security layer
+### AUTH-B. Foundation
 
-With separate Production authorization, review the forward migration, four-table/eight-function inventory, owners, ACLs, restrictive RLS/RPC/Storage policies, effective Production drift, and live-session predicate. Prove pending direct PostgREST/RPC/Storage and private Realtime denial before continuing. Failure or an unknown effective grant stops the sequence; never relax the gate to proceed.
+A separate single-use authorization may cover only the reviewed Foundation artifact and exact target after AUTH-A proves PRE_V1 and the old Worker pairing. Verify four private tables, eight functions, fixed 5/24 resend with temporary anon/authenticated/service_role EXECUTE, unchanged public policies and old Worker login/write/resend behavior. Ambiguous application, unexpected ACL, or old Worker regression is a stop. No automatic retry or destructive reversal.
 
-### 3. Worker/API enforcement activation
+### AUTH-C. Transient Worker
 
-With separate Production authorization, activate the reviewed verified-session checks before every protected route and service-role operation. Confirm no privileged path accepts a password-only pending session, and owner/role/current-policy checks remain. Use only a repository-appropriate, reviewed activation mechanism; this packet invents no flag or deploy procedure. Any pending bypass or incomplete guard evidence is a stop and keeps status NO_GO.
+A separate single-use authorization may cover one locked Worker build paired with FOUNDATION only after A/B/C/D local matrix proof, matching build/environment/configuration fingerprints, the reviewed Enforcement hash and preflight, a prepared but NOT_EXECUTED AUTH-D packet, reviewed C smoke plan, and a proven old Worker rollback artifact. The State C window records UTC start and deadline no more than 60 minutes apart. State C is transient, not a release state. A failed C smoke or blocked D must trigger same-window B rollback; unknown pairing or an expired window is a stop. Do not enter C without a ready D path and rollback owner.
 
-### 4. Bounded auth verification
+### AUTH-D. Enforcement
 
-With separate Production verification authorization, use operator-approved bounded identities and evidence handling. Prove public anonymous reads, pending denial at direct DB/RPC/Storage/Realtime and Worker/service-role boundaries, verified access, logout/old-JWT denial, fresh-login challenge and provider-native signup/resend negative controls, current policy consent as a separate axis, and no age auth gate. Review actual hosted signing, sender/quota, template, effective resend RPC ACL, and a separately authorized bounded hosted Realtime observation. A failed or unknown control is a stop and keeps status NO_GO; a test exit code alone is not acceptance.
+A separate single-use authorization may cover the exact Enforcement artifact only while the same Worker remains paired with FOUNDATION and the C window is valid. Verify the catalog prerequisite and migration provenance before the forward change; then require effective 24-table restrictive mutation policies, six mixed and 14 private SELECT policies, four Storage policies, publication and final service-role-only resend ACL. Direct PostgREST/RPC/Storage/Realtime pending denial and verified positive control must pass. Unknown or ambiguous application is a stop, never a retry. After D, rollback floor is a verified-capable Worker, not the old Worker.
 
-### 5. Release closeout
+### AUTH-E. Bounded hosted verification
 
-Only after every preceding gate is evidenced and separately approved may an authorized release owner decide whether Verified Session v1 is fully active. Record the decision, reviewers, exact artifacts, exceptions, and remaining risks. Any pending direct or privileged bypass, unexplained hosted difference, or unresolved residual keeps status NO_GO.
+A separate single-use authorization may cover only explicitly owned identities, sends, sentinel rows and cleanup with enforceable numeric caps after AUTH-D. Prove public anonymous reads, pending denial at direct DB/RPC/Storage/Realtime and Worker/service-role boundaries, verified access, logout/old-JWT denial, fresh-login challenge, provider-native signup/resend negative controls, and current policy consent independently. Hosted signing, template, sender and shared quota must be positively checked. A failed or unknown control is a stop and retains NO_GO; local success or a test exit code alone is insufficient.
+
+### AUTH-F. Release closeout
+
+A separate single-use authorization may cover only the owner/reviewer closeout decision after every earlier evidence packet and cleanup receipt is reviewed. Record actual deployment, catalog stage, matching artifact hashes, bounded verification, exceptions and rollback owner. Any pending bypass, suspect-row uncertainty, unexplained hosted difference, or missing proof is a stop and leaves AUTH_RELEASE_STATUS=NO_GO.
 
 ## Rollback
 
-Rollback preserves the verified gate and public reads. An authorized operator may disable new challenge issuance if necessary, but must leave pending sessions without privileged access; there is no default-open fallback and no automatic single-factor mode. A security-contract reversal or cleanup of orphan records requires its own reviewed, bounded decision and authorization. Do not drop the RLS/Worker gate while password-issued sessions remain.
+Before Enforcement, B rollback returns the pinned old Worker while FOUNDATION remains and baseline authenticated behavior is proven. C exit must advance to D or return to B in the same-window plan; record C start/end UTC and classify verification integrity. A suspect-row window requires an exact affected-row inventory, independent valid-row proof or separately authorized bounded revocation, and a separately authorized read-only postcondition before reentry. UI/public-read-only failure is not proof of row integrity without positive challenge/activation/signed-mapping/bypass evidence. After Enforcement, the rollback floor is the same verified-capable Worker; old Worker plus ENFORCEMENT is forbidden. No default-open fallback, automatic retry, destructive down-migration, or silent grandfathering.
 
 ## Evidence record
 

@@ -2,25 +2,22 @@
 
 ## Status
 
-READINESS_STATUS=BLOCKED_NO_SAFE_CUTOVER
+HOSTED_READINESS_STATUS=READY_FOR_BOUNDED_HOSTED_AUTHORIZATION
 AUTH_RELEASE_STATUS=NO_GO
 
-This is a repository-only, non-executable review. No hosted access, deploy, migration, email, test identity, or authorization was performed. The current feature artifact and the current database migration cannot be ordered safely against the old runtime without a separately reviewed intermediate cutover mechanism. The configured preview Worker is not an isolated Auth/database target.
+This is a repository-only, non-executable review. No hosted access, deploy, migration, email, test identity, or authorization was performed. Local A/B/C/D and same-build C-to-D proofs establish a candidate forward ordering, not a hosted outcome. Every external stage still requires its own single-use authorization. The configured preview Worker is not an isolated Auth/database target.
 
 ## Reviewed artifact identity
 
 | Artifact | SHA-256 |
 | --- | --- |
-| `supabase/migrations/20260923000000_ogh_verified_session_v1.sql` | `7a63681acf541cd9b895d2af92e2c3fc345a21957bbb753ad09048f329ace8ae` |
-| `supabase/migrations/20260925012231_lock_verification_email_resend_limit.sql` | `87a124e9ee0113eeedb81be670fe1235f165d3fa2dfdfe25ac2b99535a3a0a56` |
-| `package-lock.json` | `4014fa5046e955c58dc676dcbb2b90cbc70140e154841809b3b42028a855d982` |
-| `wrangler.toml` | `d100aff387782a281f320694ab11048c42fb3da2f459adf311a7fa6c2ac450e7` |
-| `astro.config.mjs` | `3409251b7bdb69b42121228e3b637edb4117afb8a8c60a01aba6367f970df7a2` |
-| `scripts/build-workers.mjs` | `43e0fabd8e28f275d1a92242da0aa0d10ff185694041b9611f01339585c04b94` |
-| `docs/ops/verified-session-v1-release-gates.md` | `2fc501a3169dbcace43f674cb16c3c86e0b7e92d687939c26e51e721a9cf1d6a` |
+| `supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql` | `575cfcea2ed0e4415e07370d97474518c957ba409248790b2f6309748c1597f9` |
+| `supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql` | `89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e` |
 
 ```text
-SOURCE_COMMIT=54a56b9b9a7b106e8925efea7e1d6164e04b8614
+LOCAL_REVIEW_BASE_COMMIT=2185dac0c5632d1fa86537ea2fbdd0860de0c2da
+PINNED_OLD_WORKER_SOURCE=e6c2141be8827d961fc49462d66be8da9b4993eb
+PINNED_NEW_WORKER_SOURCE=6e7e1622234b89209f0307d088900526bf2dfc7f
 BRANCH=feature/auth-verified-session-v1
 SPEC_COMMIT=251ff339766b10a67731cfcc2ff97c705c3e6c78
 PLAN_COMMIT=612e2de47d41f7337a8f42afe3280d5c9a0ca668
@@ -28,7 +25,7 @@ ORIGIN_MAIN_AT_REVIEW=e6c2141be8827d961fc49462d66be8da9b4993eb
 BASE_DRIFT=NONE_FROM_PRIOR_REVIEWED_BASELINE
 ```
 
-The future authorization must fail if the source commit, any listed hash, build artifact, target project, or target Worker differs. No secret value belongs in the evidence record.
+The future authorization must fail if the reviewed source/build/configuration identity, either migration hash, target project, or target Worker differs. A hosted AUTH-A must observe the deployed identity rather than assume the pinned local old source equals Production. No secret value belongs in the evidence record.
 
 ## Deployment topology
 
@@ -53,21 +50,20 @@ The `preview` Worker configuration points at the same Supabase Auth/database pro
 
 ## Cutover ordering proof
 
-PRE_DB_CODE_DEPLOY_SAFE=false. At this commit, `src/lib/server/verified-session.server.ts` calls `ogh_is_verified_session` on protected requests; `src/pages/api/auth/session-state.ts` returns 503 for an authenticated session if that RPC is absent. Signup and challenge paths also call new `ogh_*` functions. Anonymous public reads may continue, but ordinary login/protected flows cannot be called backward-compatible. There is no reviewed default-off enforcement flag.
+PRE_DB_CODE_DEPLOY_SAFE=false. The Verified Session Worker calls new `ogh_*` functions and cannot pair with PRE_V1. The old Worker pairs with PRE_V1 and FOUNDATION only. The Verified Session Worker pairs with FOUNDATION and ENFORCEMENT only; any unknown Worker/catalog combination stops before external action.
 
-DB_BEFORE_NEW_WORKER_SAFE=false. `supabase/migrations/20260923000000_ogh_verified_session_v1.sql` adds restrictive `ogh_is_verified_session()` gates to 24 public table mutation surfaces, private reads, and selected Storage operations. The old Worker (as represented by `origin/main`) validates `getUser` but does not create a verified-session row, so existing password sessions fail those new gates. The subsequent resend-lock migration revokes anon/authenticated EXECUTE while the old `src/pages/api/auth/resend-confirmation.ts` still invokes the RPC with an anon client. Public SELECT branches are deliberately preserved, but that alone does not preserve authenticated behavior. The actual deployed commit is unknown, so a hosted inventory is also mandatory.
+FOUNDATION_BEFORE_NEW_WORKER_LOCALLY_PROVEN=true. The reviewed Foundation creates the four tables and eight functions, fixes resend 5/24 while retaining temporary browser EXECUTE, and adds no restrictive `ogh_verified_*` policies. Disposable State B preserved old Worker public reads, login, authenticated writes and resend. This does not prove hosted migration provenance, target, deployed old Worker identity or capacity; AUTH-A must establish those facts before AUTH-B.
 
-RECOMMENDED_CUTOVER_ORDER=NONE_UNTIL_REVIEWED_INTERMEDIATE_ARTIFACT. The design's five stages are not executable as written. Conditional future sequence: P0 lock source and hosted baseline; P1 design, implement, locally prove, and independently review a backward-compatible intermediate runtime or other safe activation mechanism; P2 separately authorize that exact intermediate artifact; P3 separately authorize DB migration with effective-ACL stop gates; P4 separately authorize final Worker enforcement; P5 separately authorize bounded hosted verification; P6 owner closeout. P1 has no artifact today, so P2-P6 are blocked. Never treat a 503 loop or a blanket default-open fallback as a safe intermediate state.
+RECOMMENDED_CUTOVER_ORDER=AUTH-A_THEN_B_THEN_C_THEN_D_THEN_E_THEN_F. State C pairs the same locked new Worker with FOUNDATION for at most 60 minutes, with a prepared but NOT_EXECUTED AUTH-D packet and proven old Worker rollback before entry. A C failure or blocked D returns to B in the same-window plan. After D, a verified-capable Worker is the rollback floor; old Worker plus ENFORCEMENT is forbidden. State C cannot be treated as fully active. A suspect C verification window requires exact affected-row inventory, independent valid-row proof or separately authorized bounded revocation, and a separately authorized postcondition before reentry. Never treat a 503 loop, public-read-only rollback or default-open fallback as sufficient.
 
-| Conditional stage | Preconditions and artifact | Allowed future action and expected mutation | Stop, rollback, evidence |
-| --- | --- | --- | --- |
-| P0 | Reconfirm hashes, target, deployed commit, free quotas, operator/reviewer | Repository/approved hosted inventory only; no mutation in this task | Drift or unknown target stops. Record exact reviewed artifacts. |
-| P1 | New reviewed cutover artifact not yet available | Separate repository work and local proof only | Must prove both intermediate orders, public reads, login, writes, resend, and failure behavior before any deploy. |
-| P2 | P1 proven and separately approved | At most one explicitly scoped runtime deployment | Stop on mismatch; rollback only to an artifact proven compatible with the current DB. Record artifact and smoke evidence. |
-| P3 | Compatible runtime live, catalog preflight authorized, migration hashes locked | Explicitly authorized forward DB migrations, exact two artifacts | Stop on drift/failure/ambiguous commit. No blind down-migration; require reviewed compensating plan. |
-| P4 | DB effective ACL/RLS passes, final Worker artifact locked | One explicitly authorized runtime activation | Stop on 5xx/login/public regression; rollback must preserve deny-by-default and DB compatibility. |
-| P5 | Runtime and DB proven, owned test identities, bounded budgets authorized | Explicit test rows, Auth sessions and bounded email sends only | Stop at first failed positive/negative control or cap. Clean only owned fixtures under authorization. |
-| P6 | All evidence passes and owner approves | Documentation/status decision only | NO_GO remains until a distinct release decision. |
+| Gate | Bounded future scope | Required stop evidence |
+| --- | --- | --- |
+| AUTH-A | Separate single-use authorization for read-only hosted inventory: actual deployed Worker, catalog stage, migration provenance, target and free provider capacity. | Unknown or drifted identity/catalog/provenance stops. |
+| AUTH-B | Separate single-use authorization for Foundation only after PRE_V1 and old Worker pairing are proven. | Ambiguous migration, ACL drift or baseline regression stops. |
+| AUTH-C | Separate single-use authorization for one locked Worker deployment into transient State C with D artifact/preflight/AUTH-D packet and B rollback prepared. | Record UTC start/deadline, C smoke and rollback owner; expired window or failed smoke stops. |
+| AUTH-D | Separate single-use authorization for Enforcement only with the same Worker and valid C window. | Catalog prerequisite, effective ACL/RLS/Storage/Realtime and direct-bypass proof; ambiguous commit stops. |
+| AUTH-E | Separate single-use authorization for bounded hosted verification and owned cleanup. | Caps, positive/negative controls, hosted signing/template/quota and suspect-row resolution; failure stops. |
+| AUTH-F | Separate single-use authorization for owner/reviewer closeout only. | Missing packet, residual bypass or unknown cleanup retains NO_GO. |
 
 ## Required hosted evidence
 
@@ -135,11 +131,11 @@ Teardown subscriptions; revoke/logout test sessions; delete only exact notificat
 
 ## Rollback
 
-The forward migrations add a deny-by-default security layer. Blind down-migration would reopen access and is not an approved rollback. Any future deployment rollback must be checked against the *current* DB state; the old Worker is not compatible with the new restrictive RLS/resend ACL. A failed or ambiguous DB migration requires an operator-reviewed state assessment and separately authorized compensating forward action. No automatic deploy, migration, email, or test retry is permitted.
+Foundation with the old Worker is the B rollback floor before Enforcement; the old Worker is forbidden after Enforcement. During C record UTC start/end and complete D or B rollback in the same-window plan. A suspect-row C window cannot be trusted merely because public reads work: inventory exact affected sessions, prove each valid row independently or obtain a separate bounded revocation authorization, then obtain a separate read-only postcondition authorization. After D, retain the verified-capable Worker as the rollback floor. Blind down-migration would reopen access and is not approved. An ambiguous DB change requires state assessment and new authorization, never automatic deploy, migration, email or test retry.
 
 ## Stop conditions
 
-Stop for artifact/target drift; no safe cutover artifact; preview pointing to Production backend; missing or unexpected ACL/table/function/publication; unknown signing mode or live-session semantics; unproven sender/template/Free quota; any positive-control failure; public-read regression; unexpected 5xx or privileged pending access; cap exhaustion; ambiguous mutation; or cleanup failure. `AUTH_RELEASE_STATUS` remains `NO_GO` throughout this packet.
+Stop for artifact/target drift; missing migration provenance; preview pointing to Production backend; missing or unexpected ACL/table/function/publication; missing AUTH-D packet or C rollback; expired 60-minute C window; unresolved suspect-row inventory; unknown signing mode or live-session semantics; unproven sender/template/Free quota; any positive-control failure; public-read regression; unexpected 5xx or privileged pending access; cap exhaustion; ambiguous mutation; or cleanup failure. `AUTH_RELEASE_STATUS` remains `NO_GO` throughout this packet.
 
 ## Legal wording decision
 
@@ -151,18 +147,20 @@ ZERO_PAID_INFRA_POLICY=true. The proposed design requires no paid Supabase branc
 
 ## Authorization template
 
-The following is a template, NOT an approval. Leave every bracketed field unfilled until a new explicit authorization, after the cutover blocker is resolved. A single-use authorization is bound to exact commit, file hashes, built artifact, Worker and Supabase target, and numeric budgets; it expires on any drift and is consumed by one attempted external run. No automatic retry. It cannot approve a main merge, PR, Product Detail v2, or unrelated Production work. A failed external attempt needs a new authorization unless a narrowly documented pre-boundary resume is explicitly permitted.
+The following is a template, NOT an approval. Leave every bracketed field unfilled until a new explicit authorization. Each AUTH-A through AUTH-F stage receives a distinct single-use authorization bound to exact source commit, file hashes, built artifact, Worker and Supabase target, stage scope and numeric budgets; it expires on drift and is consumed by one attempted external run. No automatic retry. It cannot approve a main merge, PR, Product Detail v2, or unrelated Production work. A failed external attempt needs a new authorization unless a narrowly documented pre-boundary resume is explicitly permitted.
 
 ```text
 AUTHORIZATION_ID=<new-single-use-id>
+AUTH_STAGE=<AUTH-A|AUTH-B|AUTH-C|AUTH-D|AUTH-E|AUTH-F>
 AUTHORIZED_BY=<named-human-operator>
 AUTHORIZED_AT_UTC=<machine-current-utc-at-authorization>
 TARGET_ENVIRONMENT=<exact-hosted-environment>
 TARGET_SUPABASE_PROJECT=<exact-project-reference>
 TARGET_WORKER=<exact-worker-environment>
-SOURCE_COMMIT=54a56b9b9a7b106e8925efea7e1d6164e04b8614
-MIGRATION_1_SHA256=<reviewed-sha256>
-MIGRATION_2_SHA256=<reviewed-sha256>
+SOURCE_COMMIT=<reviewed-current-source-commit>
+WORKER_BUILD_SHA256=<reviewed-build-sha256>
+FOUNDATION_SHA256=575cfcea2ed0e4415e07370d97474518c957ba409248790b2f6309748c1597f9
+ENFORCEMENT_SHA256=89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e
 MAX_TEST_USERS=<approved-integer>
 MAX_DATABASE_TEST_ROWS=<approved-integer-and-scope>
 MAX_EMAIL_SENDS=<approved-integer>
@@ -175,4 +173,4 @@ AUTOMATIC_RETRY=false
 REUSABLE=false
 ```
 
-NEXT_ACTION=RESOLVE_SAFE_CUTOVER_IN_REPOSITORY_AND_REVIEW_AGAIN. Do not execute the template.
+NEXT_ACTION=INDEPENDENT_REVIEW_THEN_SEPARATELY_AUTHORIZE_BOUNDED_AUTH_A. Do not execute the template.

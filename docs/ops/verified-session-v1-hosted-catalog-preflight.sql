@@ -19,12 +19,43 @@ from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'private' and c.relkind in ('r','p') and left(c.relname, 4) = 'ogh_'
 order by c.relname;
 
-select has_schema_privilege('anon', 'private', 'USAGE') as anon_usage,
-       has_schema_privilege('authenticated', 'private', 'USAGE') as authenticated_usage,
-       has_schema_privilege('service_role', 'private', 'USAGE') as service_usage;
+select n.oid is not null as private_schema_present,
+       pg_get_userbyid(n.nspowner) as owner,
+       case when n.oid is not null then has_schema_privilege('anon', n.oid, 'USAGE') end as anon_usage,
+       case when n.oid is not null then has_schema_privilege('authenticated', n.oid, 'USAGE') end as authenticated_usage,
+       case when n.oid is not null then has_schema_privilege('service_role', n.oid, 'USAGE') end as service_usage
+from (select to_regnamespace('private') as oid) lookup
+left join pg_namespace n on n.oid = lookup.oid;
+
+select c.relname as table_name, a.attname as column_name, a.attnum as column_position,
+       format_type(a.atttypid, a.atttypmod) as data_type, a.attnotnull as not_null,
+       pg_get_expr(d.adbin, d.adrelid) as default_expression
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+join pg_attribute a on a.attrelid = c.oid
+left join pg_attrdef d on d.adrelid = c.oid and d.adnum = a.attnum
+where n.nspname = 'private' and c.relname in
+  ('ogh_verified_sessions','ogh_login_challenges','ogh_email_send_budget','ogh_policy_acceptances')
+  and a.attnum > 0 and not a.attisdropped
+order by c.relname, a.attnum;
+
+select c.relname as table_name, con.conname as constraint_name,
+       pg_get_constraintdef(con.oid) as constraint_definition
+from pg_constraint con join pg_class c on c.oid = con.conrelid
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'private' and c.relname like 'ogh_%'
+order by c.relname, con.conname;
+
+select t.relname as table_name, i.relname as index_name, pg_get_indexdef(i.oid) as index_definition
+from pg_index x join pg_class t on t.oid = x.indrelid
+join pg_class i on i.oid = x.indexrelid
+join pg_namespace n on n.oid = t.relnamespace
+where n.nspname = 'private' and t.relname like 'ogh_%'
+order by t.relname, i.relname;
 
 select p.oid::regprocedure::text as signature, pg_get_userbyid(p.proowner) as owner,
-       p.prosecdef as security_definer, p.proconfig as function_config,
+       p.prosecdef as security_definer, p.provolatile as volatility,
+       p.prorettype::regtype::text as return_type, p.proconfig as function_config,
+       md5(pg_get_functiondef(p.oid)) as body_digest,
        has_function_privilege('anon', p.oid, 'EXECUTE') as anon_execute,
        has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated_execute,
        has_function_privilege('service_role', p.oid, 'EXECUTE') as service_execute,
@@ -35,7 +66,9 @@ where n.nspname = 'public' and left(p.proname, 4) = 'ogh_'
 order by p.proname, p.oid::regprocedure::text;
 
 select p.oid::regprocedure::text as signature, pg_get_userbyid(p.proowner) as owner,
-       p.prosecdef as security_definer, p.proconfig as function_config,
+       p.prosecdef as security_definer, p.provolatile as volatility,
+       p.prorettype::regtype::text as return_type, p.proconfig as function_config,
+       md5(pg_get_functiondef(p.oid)) as body_digest,
        has_function_privilege('anon', p.oid, 'EXECUTE') as anon_execute,
        has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated_execute,
        has_function_privilege('service_role', p.oid, 'EXECUTE') as service_execute,

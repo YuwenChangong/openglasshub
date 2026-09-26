@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (name) => readFileSync(path.join(root, name), "utf8");
@@ -17,8 +18,11 @@ assert.equal(lock.packages["node_modules/@supabase/supabase-js"].version, "2.112
 assert.equal(lock.packages["node_modules/@supabase/auth-js"].version, "2.112.4");
 assert.equal(lock.packages["node_modules/supabase"].version, "2.115.0");
 
-const migration = read("supabase/migrations/20260923000000_ogh_verified_session_v1.sql");
-const resendMigration = read("supabase/migrations/20260925012231_lock_verification_email_resend_limit.sql");
+const foundationPath = "supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql";
+const enforcementPath = "supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql";
+const migration = read(foundationPath);
+const resendMigration = read(foundationPath);
+const enforcement = read(enforcementPath);
 const assertResendMigration = (source) => {
   includesAll(source.toLowerCase(), [
     "create or replace function public.consume_verification_email_resend_limit(",
@@ -26,17 +30,19 @@ const assertResendMigration = (source) => {
     "revoke all on function public.consume_verification_email_resend_limit(text, integer, integer)",
     "from public, anon, authenticated, service_role",
     "grant execute on function public.consume_verification_email_resend_limit(text, integer, integer)",
-    "to service_role",
+    "to anon, authenticated, service_role",
   ], "resend migration");
   assert.doesNotMatch(source, /v_count\s*>=\s*max_attempts|make_interval\s*\(\s*hours\s*=>\s*window_hours/i,
     "caller-provided max/window cannot weaken effective policy");
   const grants = [...source.matchAll(/\bgrant\s+(execute|all(?:\s+privileges)?)\s+on\s+function\s+public\.consume_verification_email_resend_limit\s*\(\s*text\s*,\s*integer\s*,\s*integer\s*\)\s+to\s+([^;]+);/gi)];
   assert.equal(grants.length, 1, "exactly one resend EXECUTE grant");
   assert.equal(grants[0][1].toLowerCase(), "execute", "grant only the required privilege");
-  assert.deepEqual(grants[0][2].toLowerCase().split(",").map((role) => role.trim()), ["service_role"],
-    "only service_role may execute the resend limiter");
+  assert.deepEqual(grants[0][2].toLowerCase().split(",").map((role) => role.trim()), ["anon", "authenticated", "service_role"],
+    "Foundation preserves old browser and service callers");
 };
 assertResendMigration(resendMigration);
+assert.match(enforcement, /revoke all on function public\.consume_verification_email_resend_limit\(text, integer, integer\)[\s\S]*?from public, anon, authenticated, service_role;/i);
+assert.match(enforcement, /grant execute on function public\.consume_verification_email_resend_limit\(text, integer, integer\)[\s\S]*?to service_role;/i);
 const tables = ["ogh_verified_sessions", "ogh_login_challenges", "ogh_email_send_budget", "ogh_policy_acceptances"];
 const functions = [
   "ogh_is_verified_session()",
@@ -61,8 +67,7 @@ assert.deepEqual(actualFunctions.sort(), functions.map(normalized).sort(), "exac
 const packet = read("docs/ops/verified-session-v1-release-gates.md");
 includesAll(packet, [
   "NON-EXECUTABLE", "NO_GO", "separate authorization", "no default-open fallback",
-  "Backward-compatible code ready", "DB security layer", "Worker/API enforcement activation",
-  "Bounded auth verification", "Release closeout", "Rollback", "Evidence record",
+  "AUTH-A", "AUTH-B", "AUTH-C", "AUTH-D", "AUTH-E", "AUTH-F", "Rollback", "Evidence record",
   "getClaims", "JWKS", "session_id", "amr", 'type:"signup"', "{{ .Token }}",
   "Brevo Free", "shared", "sender", "API key", "Terms", "Privacy", "Guidelines",
   "effective Production ACL", "local/preview", "Realtime", "service-role-only resend limiter",
@@ -102,17 +107,37 @@ const assertPacketLedger = (source) => {
 assertPacketLedger(packet);
 const assertStopGates = (source) => {
   const stagedText = section(source, "Future staged gates");
-  const headings = [...stagedText.matchAll(/^### (\d)\. ([^\n]+)$/gm)];
-  assert.deepEqual(headings.map((stage) => stage[2]), ["Backward-compatible code ready", "DB security layer", "Worker/API enforcement activation", "Bounded auth verification", "Release closeout"]);
+  const headings = [...stagedText.matchAll(/^### (AUTH-[A-F])\. ([^\n]+)$/gm)];
+  assert.deepEqual(headings.map((stage) => stage[1]), ["AUTH-A", "AUTH-B", "AUTH-C", "AUTH-D", "AUTH-E", "AUTH-F"]);
   for (const [index, stage] of headings.entries()) {
     const number = stage[1];
     const title = stage[2];
     const body = stagedText.slice(stage.index + stage[0].length, headings[index + 1]?.index);
-    assert.match(body, /separat(?:e|ely)/i, `stage ${number} ${title}: separate authorization`);
+    assert.match(body, /single-use authorization/i, `stage ${number} ${title}: single-use authorization`);
     assert.match(body, /\bstop\b|\bstops\b|NO_GO/i, `stage ${number} ${title}: explicit stop`);
   }
+  assert.match(stagedText, /AUTH-B[\s\S]*?Ambiguous application, unexpected ACL, or old Worker regression is a stop\./);
+  assert.match(stagedText, /AUTH-C[\s\S]*?unknown pairing or an expired window is a stop\./i);
+  assert.match(stagedText, /AUTH-D[\s\S]*?Unknown or ambiguous application is a stop/i);
+  includesAll(stagedText, ["migration provenance", "AUTH-D packet", "60 minutes", "same-window", "suspect-row", "verified-capable"], "cutover gates");
 };
 assertStopGates(packet);
+const readiness = read("docs/ops/verified-session-v1-hosted-readiness.md");
+const catalog = read("docs/ops/verified-session-v1-hosted-catalog-preflight.sql");
+const digest = (name) => createHash("sha256").update(readFileSync(path.join(root, name))).digest("hex");
+for (const name of [foundationPath, enforcementPath]) {
+  includesAll(readiness, [name, digest(name)], "current artifact identity");
+  assert.ok(!readiness.includes(name.replace("_foundation", "").replace("_enforcement", "")), "old migration name refused");
+}
+includesAll(readiness, ["HOSTED_READINESS_STATUS=READY_FOR_BOUNDED_HOSTED_AUTHORIZATION", "AUTH_RELEASE_STATUS=NO_GO",
+  "AUTH-A", "AUTH-B", "AUTH-C", "AUTH-D", "AUTH-E", "AUTH-F", "migration provenance", "State C", "same-window", "suspect-row", "verified-capable"], "hosted readiness");
+assert.doesNotMatch(readiness, /READINESS_STATUS=BLOCKED_NO_SAFE_CUTOVER|SOURCE_COMMIT=54a56b9/i);
+assert.doesNotMatch(readiness, /20260923000000_ogh_verified_session_v1\.sql|20260925012231_lock_verification_email_resend_limit\.sql/i);
+includesAll(catalog, ["to_regnamespace('private')", "ogh_verified_sessions", "ogh_login_challenges", "ogh_email_send_budget",
+  "ogh_policy_acceptances", "consume_verification_email_resend_limit", "pg_policy", "pg_publication_tables", "has_function_privilege", "has_table_privilege"], "catalog packet");
+assert.doesNotMatch(catalog, /has_schema_privilege\([^\n]*'private'/i, "private schema must be null-safe");
+assert.match(catalog, /^\s*select\b/im, "catalog packet must remain read-only");
+assert.doesNotMatch(catalog, /\b(insert|update|delete|alter|create|drop|grant|revoke|execute)\s+(?:into|table|function|schema|policy|on)\b/i);
 const assertLocalPreviewGate = (source) => {
   const local = section(source, "Hosted prerequisites and local/preview matrix");
   const start = local.indexOf("- **Local/preview schema gate:**");
@@ -131,11 +156,12 @@ const assertNoReleaseCommands = (source) => {
   }
 };
 assertNoReleaseCommands(packet);
+assertNoReleaseCommands(readiness);
 assert.doesNotMatch(packet, /(?:paid tier|plan upgrade|auto(?:matic)? fallback to single.factor)/i,
   "packet must not require paid service or default-open fallback");
 
 const mutations = [
-  ["resend anon grant restored", () => assertResendMigration(resendMigration.replace("from public, anon, authenticated, service_role", "from service_role"))],
+  ["resend browser grant removed", () => assertResendMigration(resendMigration.replace("to anon, authenticated, service_role", "to service_role"))],
   ["resend policy caller-controlled", () => assertResendMigration(resendMigration.replace("v_count >= 5", "v_count >= max_attempts"))],
   ["resend anon grant appended", () => assertResendMigration(`${resendMigration}\ngrant execute on function public.consume_verification_email_resend_limit(text, integer, integer) to anon;`)],
   ["resend mixed grant appended", () => assertResendMigration(`${resendMigration}\ngrant execute on function public.consume_verification_email_resend_limit(text, integer, integer) to service_role, anon;`)],
@@ -148,8 +174,8 @@ const mutations = [
   ["missing RLS ledger row", () => assertPacketLedger(packet.replace(/^\| RLS tables \|.*$/m, "| RLS tables | omitted |"))],
   ["RLS item moved outside ledger", () => assertPacketLedger(packet.replace(/^(\| RLS tables \|.*?)post_votes/m, "$1omitted") + "\npost_votes")],
   ["auth route moved outside ledger", () => assertPacketLedger(packet.replace(/^(\| Auth routes \|.*?)\/api\/auth\/login-challenge\/verify/m, "$1/omitted") + "\n/api/auth/login-challenge/verify")],
-  ["missing DB stop gate", () => assertStopGates(packet.replace(/Failure or an unknown effective grant stops the sequence; never relax the gate to proceed\./, ""))],
-  ["missing Worker stop gate", () => assertStopGates(packet.replace(/Any pending bypass or incomplete guard evidence is a stop and keeps status NO_GO\./, ""))],
+  ["missing DB stop gate", () => assertStopGates(packet.replace("Unknown or ambiguous application is a stop", "Unknown or ambiguous application is ignored"))],
+  ["missing Worker stop gate", () => assertStopGates(packet.replace("unknown pairing or an expired window is a stop", "unknown pairing or an expired window is ignored"))],
   ["missing local/preview schema gate", () => assertLocalPreviewGate(packet.replace("- **Local/preview schema gate:**", "- **Schema notes:**"))],
   ["local/preview table absent", () => assertLocalPreviewGate(packet.replace(/(\*\*Local\/preview schema gate:\*\*[\s\S]*?)private\.ogh_verified_sessions/, "$1private.omitted"))],
   ["local/preview function absent", () => assertLocalPreviewGate(packet.replace(/(\*\*Local\/preview schema gate:\*\*[\s\S]*?)public\.ogh_is_verified_session\(\)/, "$1public.omitted()"))],
