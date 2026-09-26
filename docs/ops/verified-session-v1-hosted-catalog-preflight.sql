@@ -1,106 +1,115 @@
--- NON-EXECUTED review artifact. Catalog metadata only; no user rows or mutations.
--- A later operator must bind this exact file hash and target to separate approval.
+-- CATALOG_01: schemas
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT n.nspname, pg_get_userbyid(n.nspowner) AS owner, n.nspacl::text AS acl,
+        has_schema_privilege('anon', n.oid, 'USAGE') AS anon_usage,
+        has_schema_privilege('anon', n.oid, 'CREATE') AS anon_create,
+        has_schema_privilege('authenticated', n.oid, 'USAGE') AS authenticated_usage,
+        has_schema_privilege('authenticated', n.oid, 'CREATE') AS authenticated_create,
+        has_schema_privilege('service_role', n.oid, 'USAGE') AS service_usage,
+        has_schema_privilege('service_role', n.oid, 'CREATE') AS service_create
+      FROM pg_namespace n WHERE n.nspname IN ('private','public','storage') ORDER BY n.nspname
+) AS q;
 
-select n.nspname as schema_name, c.relname as table_name, c.relrowsecurity as rls_enabled,
-       pg_get_userbyid(c.relowner) as owner,
-       has_table_privilege('anon', c.oid, 'SELECT') as anon_select,
-       has_table_privilege('anon', c.oid, 'INSERT') as anon_insert,
-       has_table_privilege('anon', c.oid, 'UPDATE') as anon_update,
-       has_table_privilege('anon', c.oid, 'DELETE') as anon_delete,
-       has_table_privilege('authenticated', c.oid, 'SELECT') as authenticated_select,
-       has_table_privilege('authenticated', c.oid, 'INSERT') as authenticated_insert,
-       has_table_privilege('authenticated', c.oid, 'UPDATE') as authenticated_update,
-       has_table_privilege('authenticated', c.oid, 'DELETE') as authenticated_delete,
-       has_table_privilege('service_role', c.oid, 'SELECT') as service_select,
-       has_table_privilege('service_role', c.oid, 'INSERT') as service_insert,
-       has_table_privilege('service_role', c.oid, 'UPDATE') as service_update,
-       has_table_privilege('service_role', c.oid, 'DELETE') as service_delete
-from pg_class c join pg_namespace n on n.oid = c.relnamespace
-where n.nspname = 'private' and c.relkind in ('r','p') and left(c.relname, 4) = 'ogh_'
-order by c.relname;
+-- CATALOG_02: objects
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT 'relation' AS kind, n.nspname AS schema, c.relname AS name,
+        c.relkind::text AS detail, pg_get_userbyid(c.relowner) AS owner
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE c.relname LIKE 'ogh_%' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+      UNION ALL
+      SELECT 'function', n.nspname, p.proname,
+        pg_get_function_identity_arguments(p.oid), pg_get_userbyid(p.proowner)
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE p.proname LIKE 'ogh_%' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+      UNION ALL
+      SELECT 'type', n.nspname, t.typname, t.typtype::text, pg_get_userbyid(t.typowner)
+      FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
+      WHERE t.typname LIKE 'ogh_%' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+      ORDER BY kind, schema, name, detail
+) AS q;
 
-select n.oid is not null as private_schema_present,
-       pg_get_userbyid(n.nspowner) as owner,
-       case when n.oid is not null then has_schema_privilege('anon', n.oid, 'USAGE') end as anon_usage,
-       case when n.oid is not null then has_schema_privilege('authenticated', n.oid, 'USAGE') end as authenticated_usage,
-       case when n.oid is not null then has_schema_privilege('service_role', n.oid, 'USAGE') end as service_usage
-from (select to_regnamespace('private') as oid) lookup
-left join pg_namespace n on n.oid = lookup.oid;
+-- CATALOG_03: tables
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT c.relname, c.relkind, pg_get_userbyid(c.relowner) AS owner, c.relacl::text AS acl,
+        jsonb_build_object(
+          'anon_select',has_table_privilege('anon',c.oid,'SELECT'),
+          'anon_insert',has_table_privilege('anon',c.oid,'INSERT'),
+          'anon_update',has_table_privilege('anon',c.oid,'UPDATE'),
+          'anon_delete',has_table_privilege('anon',c.oid,'DELETE'),
+          'authenticated_select',has_table_privilege('authenticated',c.oid,'SELECT'),
+          'authenticated_insert',has_table_privilege('authenticated',c.oid,'INSERT'),
+          'authenticated_update',has_table_privilege('authenticated',c.oid,'UPDATE'),
+          'authenticated_delete',has_table_privilege('authenticated',c.oid,'DELETE'),
+          'service_select',has_table_privilege('service_role',c.oid,'SELECT'),
+          'service_insert',has_table_privilege('service_role',c.oid,'INSERT'),
+          'service_update',has_table_privilege('service_role',c.oid,'UPDATE'),
+          'service_delete',has_table_privilege('service_role',c.oid,'DELETE')
+        ) AS effective_acl
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='private' AND c.relname LIKE 'ogh_%' AND c.relkind <> 'i' ORDER BY c.relname
+) AS q;
 
-select c.relname as table_name, a.attname as column_name, a.attnum as column_position,
-       format_type(a.atttypid, a.atttypmod) as data_type, a.attnotnull as not_null,
-       pg_get_expr(d.adbin, d.adrelid) as default_expression
-from pg_class c join pg_namespace n on n.oid = c.relnamespace
-join pg_attribute a on a.attrelid = c.oid
-left join pg_attrdef d on d.adrelid = c.oid and d.adnum = a.attnum
-where n.nspname = 'private' and c.relname in
-  ('ogh_verified_sessions','ogh_login_challenges','ogh_email_send_budget','ogh_policy_acceptances')
-  and a.attnum > 0 and not a.attisdropped
-order by c.relname, a.attnum;
+-- CATALOG_04: columns
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT table_name, column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns WHERE table_schema='private' AND table_name LIKE 'ogh_%'
+      ORDER BY table_name, ordinal_position
+) AS q;
 
-select c.relname as table_name, con.conname as constraint_name,
-       pg_get_constraintdef(con.oid) as constraint_definition
-from pg_constraint con join pg_class c on c.oid = con.conrelid
-join pg_namespace n on n.oid = c.relnamespace
-where n.nspname = 'private' and c.relname like 'ogh_%'
-order by c.relname, con.conname;
+-- CATALOG_05: constraints
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT c.relname, pg_get_constraintdef(k.oid) AS definition
+      FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='private' AND c.relname LIKE 'ogh_%' ORDER BY c.relname, definition
+) AS q;
 
-select t.relname as table_name, i.relname as index_name, pg_get_indexdef(i.oid) as index_definition
-from pg_index x join pg_class t on t.oid = x.indrelid
-join pg_class i on i.oid = x.indexrelid
-join pg_namespace n on n.oid = t.relnamespace
-where n.nspname = 'private' and t.relname like 'ogh_%'
-order by t.relname, i.relname;
+-- CATALOG_06: indexes
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT tablename, indexdef FROM pg_indexes WHERE schemaname='private' AND tablename LIKE 'ogh_%'
+      ORDER BY tablename, indexname
+) AS q;
 
-select p.oid::regprocedure::text as signature, pg_get_userbyid(p.proowner) as owner,
-       p.prosecdef as security_definer, p.provolatile as volatility,
-       p.prorettype::regtype::text as return_type, p.proconfig as function_config,
-       md5(pg_get_functiondef(p.oid)) as body_digest,
-       has_function_privilege('anon', p.oid, 'EXECUTE') as anon_execute,
-       has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated_execute,
-       has_function_privilege('service_role', p.oid, 'EXECUTE') as service_execute,
-       case when p.proname = 'ogh_is_verified_session'
-         then pg_get_functiondef(p.oid) ~ 'join auth.sessions' end as live_session_dependency
-from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public' and left(p.proname, 4) = 'ogh_'
-order by p.proname, p.oid::regprocedure::text;
+-- CATALOG_07: functions
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS arguments,
+        pg_get_function_result(p.oid) AS result, pg_get_userbyid(p.proowner) AS owner,
+        p.prosecdef, p.provolatile, p.proparallel, p.proisstrict, p.proleakproof,
+        l.lanname AS language, p.proconfig, p.prosrc, p.proacl::text AS acl,
+        has_function_privilege('anon',p.oid,'EXECUTE') AS anon_execute,
+        has_function_privilege('authenticated',p.oid,'EXECUTE') AS authenticated_execute,
+        has_function_privilege('service_role',p.oid,'EXECUTE') AS service_execute,
+        pg_get_function_arguments(p.oid) AS arguments_with_defaults, p.proargdefaults::text AS defaults
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang
+      WHERE n.nspname='public' AND (p.proname LIKE 'ogh_%' OR p.proname='consume_verification_email_resend_limit')
+      ORDER BY p.proname, arguments
+) AS q;
 
-select p.oid::regprocedure::text as signature, pg_get_userbyid(p.proowner) as owner,
-       p.prosecdef as security_definer, p.provolatile as volatility,
-       p.prorettype::regtype::text as return_type, p.proconfig as function_config,
-       md5(pg_get_functiondef(p.oid)) as body_digest,
-       has_function_privilege('anon', p.oid, 'EXECUTE') as anon_execute,
-       has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated_execute,
-       has_function_privilege('service_role', p.oid, 'EXECUTE') as service_execute,
-       pg_get_functiondef(p.oid) ~ 'v_count >= 5' as fixed_five,
-       pg_get_functiondef(p.oid) ~ 'interval ''24 hours''' as fixed_24_hours
-from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public' and p.proname = 'consume_verification_email_resend_limit';
+-- CATALOG_08: policies
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT schemaname, tablename, policyname, permissive, roles::text AS roles, cmd, qual, with_check
+      FROM pg_policies WHERE schemaname IN ('public','storage') ORDER BY schemaname, tablename, policyname
+) AS q;
 
-select n.nspname as schema_name, c.relname as table_name, p.polname as policy_name,
-       p.polcmd as command, p.polpermissive as permissive, p.polroles::text as roles,
-       pg_get_expr(p.polqual, p.polrelid) as using_expression,
-       pg_get_expr(p.polwithcheck, p.polrelid) as check_expression
-from pg_policy p join pg_class c on c.oid = p.polrelid
-join pg_namespace n on n.oid = c.relnamespace
-where (n.nspname = 'public' and p.polname like 'ogh_verified_%')
-   or (n.nspname = 'storage' and c.relname = 'objects' and p.polname like 'ogh_verified_%')
-order by n.nspname, c.relname, p.polname;
+-- CATALOG_09: rls
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT n.nspname, c.relname, c.relrowsecurity, c.relforcerowsecurity
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname IN ('private','public','storage') AND c.relkind IN ('r','p')
+      ORDER BY n.nspname,c.relname
+) AS q;
 
-select schemaname, tablename, pubname
-from pg_publication_tables
-where pubname = 'supabase_realtime' and schemaname = 'public'
-  and tablename in ('forum_notifications','comments','post_votes','comment_reactions')
-order by tablename;
+-- CATALOG_10: readAcl
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT c.relname,
+        has_table_privilege('anon',c.oid,'SELECT') AS anon_select,
+        has_table_privilege('authenticated',c.oid,'SELECT') AS authenticated_select
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='public' AND c.relname IN ('devices','posts','circles','comments','news_articles','post_media')
+      ORDER BY c.relname
+) AS q;
 
-select c.relname as table_name, a.attname as column_name,
-       format_type(a.atttypid, a.atttypmod) as data_type
-from pg_class c join pg_namespace n on n.oid = c.relnamespace
-join pg_attribute a on a.attrelid = c.oid
-where n.nspname = 'auth' and c.relname = 'sessions'
-  and a.attname in ('id','user_id') and a.attnum > 0 and not a.attisdropped
-order by a.attname;
-
-select n.nspname as schema_name, c.relname as table_name, c.relrowsecurity as rls_enabled
-from pg_class c join pg_namespace n on n.oid = c.relnamespace
-where n.nspname = 'storage' and c.relname = 'objects';
+-- CATALOG_11: publication
+SELECT encode(convert_to(row_to_json(q)::text, 'UTF8'), 'hex') AS payload FROM (
+SELECT pubname, schemaname, tablename FROM pg_publication_tables
+      WHERE schemaname='public' AND tablename='forum_notifications' ORDER BY pubname
+) AS q;

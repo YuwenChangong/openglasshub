@@ -13,12 +13,12 @@ This is an offline review packet, not an execution command or approval. It autho
 
 | Input | Reviewed identity |
 | --- | --- |
-| Branch and packet-preparation source | `feature/auth-verified-session-v1` at `c7bf0326f9ec8916ffb50807372e3e17b889e48a` |
+| Branch and packet-preparation source | `feature/auth-verified-session-v1`; exact packet commit must be bound by the future reviewer |
 | Pinned old Worker source expectation | `e6c2141be8827d961fc49462d66be8da9b4993eb` |
 | Pinned reviewed new Worker source | `6e7e1622234b89209f0307d088900526bf2dfc7f` |
 | Foundation | `supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql`; SHA-256 `575cfcea2ed0e4415e07370d97474518c957ba409248790b2f6309748c1597f9` |
 | Enforcement | `supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql`; SHA-256 `89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e` |
-| Read-only catalog packet | `docs/ops/verified-session-v1-hosted-catalog-preflight.sql`; SHA-256 `f110454fe7ba5da07af0633e4be88119eeb24f21177d4be6ef302fd24268c0b8` |
+| Read-only catalog packet | `docs/ops/verified-session-v1-hosted-catalog-preflight.sql`; SHA-256 `b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7` |
 | Existing migration-history metadata packet | `docs/ops/p9-migration-history-rows-read-only.sql`; SHA-256 `6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002` |
 
 Both pinned source commits exist locally. These hashes were recomputed from the files in the reviewed worktree; a future operator must recompute and bind them again before any hosted read. A mismatch means `AUTH_A_PACKET_STATUS=BLOCKED_ARTIFACT_DRIFT` and stop. The AUTH-A execution authorization must bind the *then-current* packet commit and packet-file SHA-256; this preparation commit is not an approval or a claim about the deployed Worker.
@@ -32,7 +32,7 @@ Expected canonical Production Worker origin is `https://openglasshub.ogh.workers
 | Observation class | Maximum future attempts/requests | Permitted evidence | Excluded |
 | --- | --- | --- | --- |
 | Production PostgreSQL Session Pooler | One connection attempt, one session, no reconnect | The reviewed catalog packet and separately bound migration-history metadata packet in a read-only transaction; exact target identity, catalog and provenance metadata only | User/application rows, mutations, migration repair, test fixtures |
-| Cloudflare control-plane read | Two requests, zero retries | Current `openglasshub` deployment/version ID, script ETag if exposed, and non-secret binding names/types; environment requires independent evidence | Deploy, Worker invocation/smoke, secret values, KV/R2/route/config mutation |
+| Cloudflare control-plane read | Two requests, zero retries | Current `openglasshub` deployment/version ID, exact-version module and runtime/config digests, and non-secret binding names/types; environment requires independent evidence | Deploy, Worker invocation/smoke, secret values, KV/R2/route/config mutation |
 | Supabase control-plane read | Two requests, zero retries | Exact project ref/status and its organization's Free plan; remaining quota stays `UNKNOWN` | Auth config, Auth sign-in, `getClaims`, user/session reads, template test, settings mutation |
 | Brevo control-plane read | Two requests, zero retries | Free email send-limit credit fact, relay-enabled flag and configured sender `active` state; this does not prove sender ownership or delivery | Sending mail, reading API-key value, template send/test, plan change |
 
@@ -40,7 +40,7 @@ Provider read mechanisms and their exact permissions must be independently revie
 
 ## Database catalog and semantic stage
 
-Use only the existing `docs/ops/verified-session-v1-hosted-catalog-preflight.sql` for the catalog observation, without widening it to row-level data. It reads catalog metadata for the four `private.ogh_*` tables (names, columns, constraints, indexes, RLS, owner and effective role privileges), eight `public.ogh_*` function identities/bodies/owners/return types/search paths/effective EXECUTE, resend RPC identity/body/fixed-policy markers/effective EXECUTE, `ogh_verified_*` public and Storage policies, relevant Realtime publication membership, and `auth.sessions` **column metadata only**. Its private-schema lookup is null-safe at PRE_V1. It does not read `auth.sessions`, `auth.users`, challenge, Storage object, forum, or private user rows.
+Use only `docs/ops/verified-session-v1-hosted-catalog-preflight.sql` for the catalog observation, without widening it to row-level data. Its 11 SELECTs are generated from the same metadata queries as the reviewed local stage collector and cover exactly the schema/object/table/column/constraint/index/function/policy/RLS/read-ACL/publication families. Rows are hex-encoded JSON inside the P9 transcript, then strictly decoded and typed internally; neither encoded rows nor function source enter the shared receipt. It does not read `auth.sessions`, `auth.users`, challenge, Storage object, forum, or private user rows.
 
 The observed catalog must be normalized to the reviewed `scripts/lib/verified-session-db-stage.mjs` contract and compared with the locked local A/B/D expectations in `scripts/test-verified-session-db-stage.mjs`: exact schema/object/table/column/constraint/index/function/policy/RLS/ACL/publication families. A partial, mixed, unexpected, or insufficient snapshot is `DB_STAGE=UNKNOWN`, never a guessed stage. The only labels are `PRE_V1`, `FOUNDATION`, `ENFORCEMENT`, and `UNKNOWN`. Migration filenames or history version numbers alone never classify the stage. Before AUTH-B, require `DB_STAGE=PRE_V1`, zero v1 private tables, zero v1 functions, zero v1 restrictive policies, and baseline resend identity/grants. `FOUNDATION`, `ENFORCEMENT`, or `UNKNOWN` blocks AUTH-B pending review.
 
@@ -57,11 +57,11 @@ Check these four exact filename stems (allow only the ledger's documented `.sql`
 | `NEW_FOUNDATION_APPLIED` | `20260923000000` | `ogh_verified_session_v1_foundation` | `false` |
 | `NEW_ENFORCEMENT_APPLIED` | `20260925012231` | `ogh_verified_session_v1_enforcement` | `false` |
 
-Old and new artifacts reuse two version numbers. A version-only match cannot distinguish them. Ledger name, statement count, and current catalog must be reconciled with authoritative deployment/audit provenance for the exact target; the count is not a content hash, and an absent current row cannot by itself prove a migration was **never** applied manually or later removed. If the history lacks names, shows either old/new name, conflicts with catalog, has a duplicate/collision, or cannot establish historical completeness/content attribution, report `MIGRATION_PROVENANCE=UNKNOWN` and `AUTH_A_RESULT=NO_GO`. Do not rewrite history, infer absence from the repository, or silently rename a deployed migration. `CLEAN_UNSHIPPED_V1` requires affirmative, independently reviewed evidence that all four are absent and no equivalent v1 effect was applied, plus semantic `PRE_V1`.
+Old and new artifacts reuse two version numbers. A version-only match cannot distinguish them. `CLEAN_UNSHIPPED_V1` requires a complete reviewed migration-history metadata result, no exact old/new identity, no same-version collision, and the exact semantic `PRE_V1` catalog digest. This is a statement about the authoritative ledger and present catalog, not proof that nobody ever manually created and later removed an equivalent object. Any incomplete result, collision, or non-PRE_V1 catalog is `UNKNOWN` or `DIVERGENT`. Do not rewrite history, infer absence from the repository, or silently rename a deployed migration.
 
 ## Deployed Worker identity
 
-Observe the actual current deployment rather than treating the pinned old commit as deployed. The fixed API path binds Worker name `openglasshub`; the two response contracts do not themselves attest an environment field. Record immutable deployment/version identifiers, creation metadata, script ETag and non-secret binding names/types only as actually exposed. The script ETag is a provider content hash, not an asserted Git SHA or local SHA-256. A source commit is `UNKNOWN` unless provider-attested metadata binds it; a version ID alone is not a source commit. If source attribution is unavailable, the fallback identity is the immutable deployed version ID **plus** independently obtainable artifact digest and configuration/environment fingerprint, bound to a separately reviewed old-build artifact. No such old-build mapping is present in this review. If any component or the independent match is unavailable, set `DEPLOYED_WORKER_IDENTITY_MATCH=false`, `DEPLOYED_WORKER_IDENTITY_DRIFT=UNKNOWN`, and block AUTH-A. A provable mismatch sets `DEPLOYED_WORKER_IDENTITY_DRIFT=true`. Do not guess old/new from behavior or deploy during AUTH-A.
+Observe the actual current deployment rather than treating the pinned old commit as deployed. Read `result.deployments[0]`, require one 100% active version, then request that exact ID at `/workers/workers/openglasshub/versions/{version_id}?include=modules`. Compare canonical raw-module-byte and non-secret runtime/config digests with an independently built, deterministic, deployable artifact from pinned source `e6c2141be8827d961fc49462d66be8da9b4993eb`. Historical UUID/ETag mapping is not required. The local Task 6 behavioral build uses loopback bindings and a random salt, so it is **not** yet an exact deployable Production artifact. The exact-version body cap is 10,250,096 bytes, derived from 6,114,708 bytes of local pinned build output plus Base64 expansion and 2 MiB headroom, under a 16 MiB absolute ceiling. Repeated production-config builds changed one module's bytes; until a deterministic pinned deployable artifact is independently established, `DEPLOYED_WORKER_IDENTITY_MATCH=false` and AUTH-A remains blocked. Do not claim Cloudflare attested a source commit, guess identity from a version ID or URL, or deploy during AUTH-A.
 
 ## Signing, provider and free-capacity boundary
 
@@ -102,7 +102,7 @@ AUTHORIZED_BY=<human-approver>
 TARGET=<exact-Production-Worker-and-Supabase-project>
 SOURCE_HEAD=<reviewed-current-commit>
 PACKET_SHA256=<hash-of-this-committed-packet>
-CATALOG_PACKET_SHA256=f110454fe7ba5da07af0633e4be88119eeb24f21177d4be6ef302fd24268c0b8
+CATALOG_PACKET_SHA256=b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7
 MIGRATION_HISTORY_PACKET_SHA256=6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002
 MAX_READ_ONLY_CONNECTIONS=1
 MAX_CLOUDFLARE_READ_REQUESTS=2

@@ -86,9 +86,10 @@ test("AUTH-A combined packet uses one real disposable local read-only psql sessi
     { status: "PASS", attempts: 1, processes: 1, queries: 12,
       readOnly: true, sameBackend: true, rollback: "EXPLICIT_ROLLBACK" });
     const classified = classifyAuthADatabase(internal);
-    assert.equal(classified.dbStage, "UNKNOWN");
-    assert.equal(classified.catalogPass, false);
-    assert.equal(classified.catalogDrift, "INSUFFICIENT_PACKET_FOR_REVIEWED_DIGEST");
+    assert.equal(classified.dbStage, "ENFORCEMENT");
+    assert.equal(classified.catalogPass, true);
+    assert.equal(classified.catalogDrift, "none");
+    assert.equal(classified.migrationProvenance, "UNKNOWN");
     assert.equal(JSON.stringify(classified).includes("rows"), false);
   } finally {
     try { if (attemptedStart) await command(SUPABASE, ["stop", "--no-backup", "--workdir", runtime]); }

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { CATALOG_FAMILIES, catalogPacket } from "./lib/verified-session-catalog-contract.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (name) => readFileSync(path.join(root, name), "utf8");
@@ -133,10 +134,11 @@ includesAll(readiness, ["HOSTED_READINESS_STATUS=READY_FOR_BOUNDED_HOSTED_AUTHOR
   "AUTH-A", "AUTH-B", "AUTH-C", "AUTH-D", "AUTH-E", "AUTH-F", "migration provenance", "State C", "same-window", "suspect-row", "verified-capable"], "hosted readiness");
 assert.doesNotMatch(readiness, /READINESS_STATUS=BLOCKED_NO_SAFE_CUTOVER|SOURCE_COMMIT=54a56b9/i);
 assert.doesNotMatch(readiness, /20260923000000_ogh_verified_session_v1\.sql|20260925012231_lock_verification_email_resend_limit\.sql/i);
-includesAll(catalog, ["to_regnamespace('private')", "ogh_verified_sessions", "ogh_login_challenges", "ogh_email_send_budget",
-  "ogh_policy_acceptances", "consume_verification_email_resend_limit", "pg_policy", "pg_publication_tables", "has_function_privilege", "has_table_privilege"], "catalog packet");
-assert.doesNotMatch(catalog, /has_schema_privilege\([^\n]*'private'/i, "private schema must be null-safe");
-assert.match(catalog, /^\s*select\b/im, "catalog packet must remain read-only");
+assert.equal(catalog, catalogPacket(), "catalog packet must match shared metadata contract");
+assert.equal(CATALOG_FAMILIES.length, 11);
+includesAll(catalog, ["consume_verification_email_resend_limit", "pg_policies", "pg_publication_tables",
+  "has_function_privilege", "has_table_privilege", "row_to_json"], "catalog packet");
+assert.match(catalog, /^SELECT\b/im, "catalog packet must remain read-only");
 assert.doesNotMatch(catalog, /\b(insert|update|delete|alter|create|drop|grant|revoke|execute)\s+(?:into|table|function|schema|policy|on)\b/i);
 const assertLocalPreviewGate = (source) => {
   const local = section(source, "Hosted prerequisites and local/preview matrix");

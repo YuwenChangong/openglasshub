@@ -9,7 +9,11 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { buildLocalSupabaseReplayMirror, ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 import { verifyBypass } from "./test-verified-session-bypass.mjs";
-import { classifyVerifiedSessionDbStage } from "./lib/verified-session-db-stage.mjs";
+import { catalogDigest, classifyVerifiedSessionDbStage } from "./lib/verified-session-db-stage.mjs";
+import { CATALOG_FAMILIES, collectLocalCatalog, normalizeCatalogCapture } from "./lib/verified-session-catalog-contract.mjs";
+import { runP9ReadOnlyCapture } from "./qa/p9-readonly-postgres-transport.mjs";
+import { AUTH_A_CATALOG_SHA256 } from "./qa/verified-session-auth-a-db-capture.mjs";
+import { classifyAuthADatabase } from "./qa/verified-session-auth-a-db-classify.mjs";
 import { REVIEWED_LOCAL_STAGE_DIGESTS } from "./test-verified-session-db-stage.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -577,83 +581,35 @@ async function expectEnforcementRefused(client, enforcementSql, mutate) {
 }
 
 async function finalCatalogSnapshot(client) {
-  const statements = {
-    schemas: `SELECT n.nspname, pg_get_userbyid(n.nspowner) AS owner, n.nspacl::text AS acl,
-        has_schema_privilege('anon', n.oid, 'USAGE') AS anon_usage,
-        has_schema_privilege('anon', n.oid, 'CREATE') AS anon_create,
-        has_schema_privilege('authenticated', n.oid, 'USAGE') AS authenticated_usage,
-        has_schema_privilege('authenticated', n.oid, 'CREATE') AS authenticated_create,
-        has_schema_privilege('service_role', n.oid, 'USAGE') AS service_usage,
-        has_schema_privilege('service_role', n.oid, 'CREATE') AS service_create
-      FROM pg_namespace n WHERE n.nspname IN ('private','public','storage') ORDER BY n.nspname`,
-    objects: `SELECT 'relation' AS kind, n.nspname AS schema, c.relname AS name,
-        c.relkind::text AS detail, pg_get_userbyid(c.relowner) AS owner
-      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE c.relname LIKE 'ogh_%' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
-      UNION ALL
-      SELECT 'function', n.nspname, p.proname,
-        pg_get_function_identity_arguments(p.oid), pg_get_userbyid(p.proowner)
-      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-      WHERE p.proname LIKE 'ogh_%' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
-      UNION ALL
-      SELECT 'type', n.nspname, t.typname, t.typtype::text, pg_get_userbyid(t.typowner)
-      FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
-      WHERE t.typname LIKE 'ogh_%' AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
-      ORDER BY kind, schema, name, detail`,
-    tables: `SELECT c.relname, c.relkind, pg_get_userbyid(c.relowner) AS owner, c.relacl::text AS acl,
-        jsonb_build_object(
-          'anon_select',has_table_privilege('anon',c.oid,'SELECT'),
-          'anon_insert',has_table_privilege('anon',c.oid,'INSERT'),
-          'anon_update',has_table_privilege('anon',c.oid,'UPDATE'),
-          'anon_delete',has_table_privilege('anon',c.oid,'DELETE'),
-          'authenticated_select',has_table_privilege('authenticated',c.oid,'SELECT'),
-          'authenticated_insert',has_table_privilege('authenticated',c.oid,'INSERT'),
-          'authenticated_update',has_table_privilege('authenticated',c.oid,'UPDATE'),
-          'authenticated_delete',has_table_privilege('authenticated',c.oid,'DELETE'),
-          'service_select',has_table_privilege('service_role',c.oid,'SELECT'),
-          'service_insert',has_table_privilege('service_role',c.oid,'INSERT'),
-          'service_update',has_table_privilege('service_role',c.oid,'UPDATE'),
-          'service_delete',has_table_privilege('service_role',c.oid,'DELETE')
-        ) AS effective_acl
-      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='private' AND c.relname LIKE 'ogh_%' AND c.relkind <> 'i' ORDER BY c.relname`,
-    columns: `SELECT table_name, column_name, data_type, is_nullable, column_default
-      FROM information_schema.columns WHERE table_schema='private' AND table_name LIKE 'ogh_%'
-      ORDER BY table_name, ordinal_position`,
-    constraints: `SELECT c.relname, pg_get_constraintdef(k.oid) AS definition
-      FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='private' AND c.relname LIKE 'ogh_%' ORDER BY c.relname, definition`,
-    indexes: `SELECT tablename, indexdef FROM pg_indexes WHERE schemaname='private' AND tablename LIKE 'ogh_%'
-      ORDER BY tablename, indexname`,
-    functions: `SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS arguments,
-        pg_get_function_result(p.oid) AS result, pg_get_userbyid(p.proowner) AS owner,
-        p.prosecdef, p.provolatile, p.proparallel, p.proisstrict, p.proleakproof,
-        l.lanname AS language, p.proconfig, p.prosrc, p.proacl::text AS acl,
-        has_function_privilege('anon',p.oid,'EXECUTE') AS anon_execute,
-        has_function_privilege('authenticated',p.oid,'EXECUTE') AS authenticated_execute,
-        has_function_privilege('service_role',p.oid,'EXECUTE') AS service_execute,
-        pg_get_function_arguments(p.oid) AS arguments_with_defaults, p.proargdefaults::text AS defaults
-      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang
-      WHERE n.nspname='public' AND (p.proname LIKE 'ogh_%' OR p.proname='consume_verification_email_resend_limit')
-      ORDER BY p.proname, arguments`,
-    policies: `SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check
-      FROM pg_policies WHERE schemaname IN ('public','storage') ORDER BY schemaname, tablename, policyname`,
-    rls: `SELECT n.nspname, c.relname, c.relrowsecurity, c.relforcerowsecurity
-      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname IN ('private','public','storage') AND c.relkind IN ('r','p')
-      ORDER BY n.nspname,c.relname`,
-    readAcl: `SELECT c.relname,
-        has_table_privilege('anon',c.oid,'SELECT') AS anon_select,
-        has_table_privilege('authenticated',c.oid,'SELECT') AS authenticated_select
-      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='public' AND c.relname IN ('devices','posts','circles','comments','news_articles','post_media')
-      ORDER BY c.relname`,
-    publication: `SELECT pubname, schemaname, tablename FROM pg_publication_tables
-      WHERE schemaname='public' AND tablename='forum_notifications' ORDER BY pubname`,
-  };
-  const snapshot = {};
-  for (const [key, sql] of Object.entries(statements)) snapshot[key] = await query(client, sql);
-  return snapshot;
+  return collectLocalCatalog(client);
+}
+
+async function verifyAuthACatalogStage(dsn, stage) {
+  const packet = await readFile(path.join(root, "docs/ops/verified-session-v1-hosted-catalog-preflight.sql"), "utf8");
+  const result = await runP9ReadOnlyCapture({ mode: "LOCAL_TEST", dsn, packet,
+    packetContract: { packetHash: AUTH_A_CATALOG_SHA256.toUpperCase(),
+      queryIds: CATALOG_FAMILIES.map((_, index) => `CATALOG_${String(index + 1).padStart(2, "0")}`) },
+    psqlPath: "psql.exe" });
+  assert.equal(result.acceptanceResult, "PASS");
+  assert.equal(result.psqlProcessCount, 1);
+  assert.equal(result.transactionReadOnlyValue, "on");
+  assert.equal(result.backendSessionCorrelation, true);
+  const snapshot = normalizeCatalogCapture(result.perQuery);
+  assert.equal(catalogDigest(snapshot), REVIEWED_LOCAL_STAGE_DIGESTS[stage]);
+  assert.equal(classifyVerifiedSessionDbStage(snapshot, REVIEWED_LOCAL_STAGE_DIGESTS), stage);
+  const classified = classifyAuthADatabase({ transportProof: { status: "PASS" },
+    queryResults: [...result.perQuery, { queryId: "HISTORY_01", completed: true,
+      fields: ["version", "name", "created_by", "idempotency_key", "statement_count", "rollback_statement_count"],
+      rows: [], rowCount: 0 }] });
+  assert.equal(classified.dbStage, stage);
+  assert.equal(classified.migrationProvenance, stage === "PRE_V1" ? "CLEAN_UNSHIPPED_V1" : "UNKNOWN");
+  for (const family of CATALOG_FAMILIES) {
+    const changed = structuredClone(snapshot);
+    changed[family].push({ __mutated: true });
+    assert.equal(classifyVerifiedSessionDbStage(changed, REVIEWED_LOCAL_STAGE_DIGESTS), "UNKNOWN");
+  }
+  console.log(`AUTH_A_CATALOG_${stage}=PASS`);
+  checks += 4 + CATALOG_FAMILIES.length;
 }
 
 async function expectUnknownCatalogMutation(client, mutation, label) {
@@ -664,7 +620,7 @@ async function expectUnknownCatalogMutation(client, mutation, label) {
   } finally { await client.query("ROLLBACK"); }
 }
 
-async function verifyOldNewEquivalence(client, foundationSql, enforcementSql) {
+async function verifyOldNewEquivalence(client, foundationSql, enforcementSql, dsn) {
   const oldFoundation = execFileSync("git", ["cat-file", "blob", "b4d9f3e3:supabase/migrations/20260923000000_ogh_verified_session_v1.sql"], { cwd: root, encoding: "utf8" });
   const oldResend = execFileSync("git", ["cat-file", "blob", "b4d9f3e3:supabase/migrations/20260925012231_lock_verification_email_resend_limit.sql"], { cwd: root, encoding: "utf8" });
   await client.query("BEGIN");
@@ -695,6 +651,7 @@ async function verifyOldNewEquivalence(client, foundationSql, enforcementSql) {
   } finally { await client.query("ROLLBACK"); }
   await client.query(foundationSql);
   const foundationSnapshot = await finalCatalogSnapshot(client);
+  if (process.argv.includes("--auth-a-catalog-proof")) await verifyAuthACatalogStage(dsn, "FOUNDATION");
   await expectUnknownCatalogMutation(client,
     "REVOKE EXECUTE ON FUNCTION public.consume_verification_email_resend_limit(text,integer,integer) FROM anon",
     "mixed Foundation resend ACL is UNKNOWN");
@@ -749,11 +706,13 @@ try {
       const foundationSql = await readFile(migration, "utf8");
       const enforcementSql = await readFile(resendMigration, "utf8");
       check(classifyVerifiedSessionDbStage(await finalCatalogSnapshot(client), REVIEWED_LOCAL_STAGE_DIGESTS) === "PRE_V1", "historical catalog is PRE_V1");
+      if (process.argv.includes("--auth-a-catalog-proof")) await verifyAuthACatalogStage(status.DB_URL, "PRE_V1");
       const baselinePolicies = await query(client, "SELECT schemaname, tablename, policyname, cmd, qual, with_check FROM pg_policies ORDER BY schemaname, tablename, policyname");
       await expectEnforcementRefused(client, enforcementSql);
       await verifyPrivateSchemaFixtures(client, foundationSql);
       await client.query(foundationSql);
       check(classifyVerifiedSessionDbStage(await finalCatalogSnapshot(client), REVIEWED_LOCAL_STAGE_DIGESTS) === "FOUNDATION", "Foundation catalog is exact");
+      if (process.argv.includes("--auth-a-catalog-proof")) await verifyAuthACatalogStage(status.DB_URL, "FOUNDATION");
       await expectEnforcementRefused(client, enforcementSql,
         () => client.query("ALTER FUNCTION public.ogh_is_verified_session() SET search_path = public"));
       await expectEnforcementRefused(client, enforcementSql,
@@ -769,16 +728,22 @@ try {
       await verifyFoundationResend(client, pool);
     } else {
       const preSnapshot = await finalCatalogSnapshot(client);
+      if (process.argv.includes("--auth-a-catalog-proof")) await verifyAuthACatalogStage(status.DB_URL, "PRE_V1");
       await expectUnknownCatalogMutation(client, "CREATE SCHEMA private", "partial Foundation is UNKNOWN");
-      const { foundationSnapshot, currentSnapshot } = await verifyOldNewEquivalence(client, await readFile(migration, "utf8"), await readFile(resendMigration, "utf8"));
+      const { foundationSnapshot, currentSnapshot } = await verifyOldNewEquivalence(client, await readFile(migration, "utf8"), await readFile(resendMigration, "utf8"), status.DB_URL);
       check(classifyVerifiedSessionDbStage(preSnapshot, REVIEWED_LOCAL_STAGE_DIGESTS) === "PRE_V1", "historical catalog is PRE_V1");
       check(classifyVerifiedSessionDbStage(foundationSnapshot, REVIEWED_LOCAL_STAGE_DIGESTS) === "FOUNDATION", "Foundation catalog is exact");
       check(classifyVerifiedSessionDbStage(currentSnapshot, REVIEWED_LOCAL_STAGE_DIGESTS) === "ENFORCEMENT", "Enforcement catalog is exact");
+      if (process.argv.includes("--auth-a-catalog-proof")) {
+        // verifyOldNewEquivalence has committed both stages by this point.
+        await verifyAuthACatalogStage(status.DB_URL, "ENFORCEMENT");
+      }
       if (!process.argv.includes("--bypass-only") && !process.argv.includes("--stage-classifier-only")) { await verify(client); await verifyTask3(client, pool); await verifyEnforcementResend(client); }
       if (!process.argv.includes("--stage-classifier-only")) await verifyBypass({ pool, status });
     }
   } finally { client.release(); }
   if (!process.argv.includes("--bypass-only")) console.log(`PASS verified session SQL: ${checks} assertions; disposable local Supabase; ${foundationOnly ? "Foundation" : "Enforcement"} replay`);
+  if (process.argv.includes("--auth-a-catalog-proof")) console.log("AUTH_A_CATALOG_STAGE_DIGEST_EQUIVALENCE=PASS");
 } finally {
   await pool?.end();
   if (started) await run(process.execPath, [cli, "stop", "--no-backup", "--workdir", ownedRoot], ownedRoot);

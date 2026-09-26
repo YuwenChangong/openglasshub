@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { createP9MigrationHistoryComparison } from "./p9-migration-history-join.mjs";
+import { analyzeMigrations } from "./local-supabase-migration-mirror.mjs";
 
-test("P9P2-09 produces a deterministic 35-file comparison table with all collision files represented", async () => {
+test("P9P2-09 produces a deterministic current-inventory comparison with all collision files represented", async () => {
   const comparison = await createP9MigrationHistoryComparison({
     productionRows: [{ version: "20260611", name: "first-applied", statement_count: "4", rollback_statement_count: "0" }],
   });
-  assert.equal(comparison.rows.length, 35);
-  assert.equal(comparison.uniqueRepositoryVersionCount, 19);
-  assert.equal(comparison.collisionGroupCount, 10);
+  const analysis = await analyzeMigrations(fileURLToPath(new URL("../../supabase/migrations/", import.meta.url)));
+  assert.equal(comparison.rows.length, analysis.files.length);
+  assert.equal(comparison.uniqueRepositoryVersionCount, analysis.uniqueVersionCount);
+  assert.equal(comparison.collisionGroupCount, analysis.duplicateGroups.length);
+  assert.deepEqual(comparison.rows.map((row) => row.repository_file).sort(),
+    analysis.files.map((file) => file.filename).sort());
   const collisionRows = comparison.rows.filter((row) => row.repository_version === "20260611");
   assert(collisionRows.length > 1);
   assert(collisionRows.every((row) => row.production_history_present === true));

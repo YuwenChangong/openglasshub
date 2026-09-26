@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { parseP9Connection, loadReadOnlyPacketUnits, runP9ReadOnlyCapture } from "./p9-readonly-postgres-transport.mjs";
 
-export const AUTH_A_CATALOG_SHA256 = "f110454fe7ba5da07af0633e4be88119eeb24f21177d4be6ef302fd24268c0b8";
+export const AUTH_A_CATALOG_SHA256 = "b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7";
 export const AUTH_A_HISTORY_SHA256 = "6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002";
 const CATALOG_IDS = Array.from({ length: 11 }, (_, index) => `CATALOG_${String(index + 1).padStart(2, "0")}`);
 const HISTORY_IDS = ["HISTORY_01"];
