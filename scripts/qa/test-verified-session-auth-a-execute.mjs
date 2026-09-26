@@ -12,6 +12,12 @@ const base = { mode: "LOCAL_TEST", authorization, sourceHead, observedHead: sour
 
 function fixture() {
   const calls = [];
+  const queryResults = [...Array.from({ length: 11 }, (_, index) => ({
+    queryId: `CATALOG_${String(index + 1).padStart(2, "0")}`, completed: true,
+    fields: ["observed"], rows: [], rowCount: 0 })),
+  { queryId: "HISTORY_01", completed: true,
+    fields: ["version", "name", "created_by", "idempotency_key", "statement_count",
+      "rollback_statement_count"], rows: [], rowCount: 0 }];
   const steps = {
     async cloudflare() { calls.push("cloudflare"); return { requestCount: 2, workerName: "openglasshub",
       versionId: "version", scriptEtag: "reviewed-etag" }; },
@@ -20,7 +26,9 @@ function fixture() {
     async brevo() { calls.push("brevo"); return { requestCount: 2, plan: "FREE", senderReady: true }; },
     async database() { calls.push("database"); return { status: "PASS", connectionAttempts: 1,
       psqlProcessCount: 1, queryCount: 12, transactionReadOnly: true, sameBackend: true,
-      rollbackMode: "EXPLICIT_ROLLBACK" }; },
+      rollbackMode: "EXPLICIT_ROLLBACK", transportProof: { status: "PASS", connectionAttempts: 1,
+      psqlProcessCount: 1, queryCount: 12, transactionReadOnly: true, sameBackend: true,
+      rollbackMode: "EXPLICIT_ROLLBACK" }, queryResults }; },
     async classify() { calls.push("classify"); return { dbStage: "PRE_V1",
       migrationProvenance: "CLEAN_UNSHIPPED_V1", catalogPass: true }; },
   };
@@ -31,10 +39,20 @@ test("AUTH-A local contract orders bounded reads, identity gate and one DB sessi
   const { calls, steps } = fixture();
   const result = await runAuthAOrchestrator({ ...base, steps,
     reviewedWorkerIdentity: { versionId: "version", scriptEtag: "reviewed-etag" } });
-  assert.deepEqual(calls, ["cloudflare", "supabase", "brevo", "database", "classify"]);
-  assert.equal(result.authAStatus, "PASS");
+  assert.deepEqual(calls, ["cloudflare", "supabase", "brevo", "database"]);
+  assert.equal(result.authAStatus, "BLOCKED");
   assert.equal(result.freeCapacityStatus, "UNKNOWN");
   assert.equal(result.capacityGate, "BLOCKED_BEFORE_AUTH_B");
+});
+
+test("fake PRE_V1 callback cannot override DB-derived UNKNOWN", async () => {
+  const { calls, steps } = fixture();
+  steps.classify = async () => { calls.push("classify"); return { dbStage: "PRE_V1",
+    migrationProvenance: "CLEAN_UNSHIPPED_V1", catalogPass: true }; };
+  const result = await runAuthAOrchestrator({ ...base, steps,
+    reviewedWorkerIdentity: { versionId: "version", scriptEtag: "reviewed-etag" } });
+  assert.equal(result.authAStatus, "BLOCKED");
+  assert.equal(calls.includes("classify"), false);
 });
 
 test("AUTH-A-001, source drift and Production stop before any read", async () => {

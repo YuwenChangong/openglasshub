@@ -19,7 +19,7 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
 
   // No hosted dispatch until Production client authorization is independently reviewed.
   if (mode !== "LOCAL_TEST") fail("PRODUCTION_DISABLED");
-  if (!steps || ["cloudflare", "supabase", "brevo", "database", "classify"]
+  if (!steps || ["cloudflare", "supabase", "brevo", "database"]
     .some((name) => typeof steps[name] !== "function")) fail("STEPS_INVALID");
 
   try {
@@ -36,10 +36,11 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
       || reviewedWorkerIdentity.versionId !== cf.versionId
       || reviewedWorkerIdentity.scriptEtag !== cf.scriptEtag) fail("TARGET_OR_WORKER_IDENTITY_UNKNOWN");
     const db = await steps.database();
-    if (db.status !== "PASS" || db.connectionAttempts !== 1 || db.psqlProcessCount !== 1
-      || db.queryCount !== 12 || db.transactionReadOnly !== true || db.sameBackend !== true
-      || db.rollbackMode !== "EXPLICIT_ROLLBACK") fail("DATABASE_UNKNOWN");
-    const classified = await steps.classify();
+    const proof = db?.transportProof;
+    if (proof?.status !== "PASS" || proof.connectionAttempts !== 1 || proof.psqlProcessCount !== 1
+      || proof.queryCount !== 12 || proof.transactionReadOnly !== true || proof.sameBackend !== true
+      || proof.rollbackMode !== "EXPLICIT_ROLLBACK") fail("DATABASE_UNKNOWN");
+    const classified = classifyAuthADatabase(db);
     const inventoryPass = classified?.dbStage === "PRE_V1"
       && classified.migrationProvenance === "CLEAN_UNSHIPPED_V1"
       && classified.catalogPass === true;
@@ -57,3 +58,4 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
       productionWrites: 0, emailSends: 0, deploys: 0 });
   }
 }
+import { classifyAuthADatabase } from "./verified-session-auth-a-db-classify.mjs";

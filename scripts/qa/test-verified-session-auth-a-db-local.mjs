@@ -10,7 +10,8 @@ import { test } from "node:test";
 import { assertOwnedRuntimeRoot, cleanupOwnedRoot, initializeRuntimeConfig } from "./p6b-local-e2e-runner.mjs";
 import { createMirror, validateMirror } from "./local-supabase-migration-mirror.mjs";
 import { parseP9Connection } from "./p9-readonly-postgres-transport.mjs";
-import { runAuthADbCapture } from "./verified-session-auth-a-db-capture.mjs";
+import { runAuthADbCaptureInternal } from "./verified-session-auth-a-db-capture.mjs";
+import { classifyAuthADatabase } from "./verified-session-auth-a-db-classify.mjs";
 
 const ROOT = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const SUPABASE = join(ROOT, "node_modules", "@supabase", "cli-windows-x64", "bin", "supabase.exe");
@@ -76,13 +77,19 @@ test("AUTH-A combined packet uses one real disposable local read-only psql sessi
       readFile(join(ROOT, "docs", "ops", "verified-session-v1-hosted-catalog-preflight.sql"), "utf8"),
       readFile(join(ROOT, "docs", "ops", "p9-migration-history-rows-read-only.sql"), "utf8"),
     ]);
-    const result = await runAuthADbCapture({ mode: "LOCAL_TEST", dsn, catalog, history, psqlPath: PSQL });
+    const internal = await runAuthADbCaptureInternal({ mode: "LOCAL_TEST", dsn, catalog, history, psqlPath: PSQL });
+    const result = internal.transportProof;
     assert.deepEqual({ status: result.status, attempts: result.connectionAttempts,
       processes: result.psqlProcessCount, queries: result.queryCount,
       readOnly: result.transactionReadOnly, sameBackend: result.sameBackend,
       rollback: result.rollbackMode },
     { status: "PASS", attempts: 1, processes: 1, queries: 12,
       readOnly: true, sameBackend: true, rollback: "EXPLICIT_ROLLBACK" });
+    const classified = classifyAuthADatabase(internal);
+    assert.equal(classified.dbStage, "UNKNOWN");
+    assert.equal(classified.catalogPass, false);
+    assert.equal(classified.catalogDrift, "INSUFFICIENT_PACKET_FOR_REVIEWED_DIGEST");
+    assert.equal(JSON.stringify(classified).includes("rows"), false);
   } finally {
     try { if (attemptedStart) await command(SUPABASE, ["stop", "--no-backup", "--workdir", runtime]); }
     finally { await cleanupOwnedRoot({ root: runtime, repoSupabase }); }

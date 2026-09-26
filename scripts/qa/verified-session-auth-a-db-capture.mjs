@@ -26,7 +26,7 @@ export function prepareAuthADbPacket({ catalog, history } = {}) {
     historySha256: AUTH_A_HISTORY_SHA256 };
 }
 
-export async function runAuthADbCapture({ mode = "LOCAL_TEST", dsn, catalog, history,
+export async function runAuthADbCaptureInternal({ mode = "LOCAL_TEST", dsn, catalog, history,
   spawnImpl, psqlPath, nonce } = {}) {
   parseP9Connection({ mode, dsn });
   const prepared = prepareAuthADbPacket({ catalog, history });
@@ -46,5 +46,10 @@ export async function runAuthADbCapture({ mode = "LOCAL_TEST", dsn, catalog, his
     firstFailureQueryId: result.firstFailureQueryId ?? null,
     failureClass: result.firstFailureClass ?? null,
   };
-  return shared;
+  return { transportProof: shared, queryResults: result.acceptanceResult === "PASS" ? result.perQuery : [] };
+}
+
+export async function runAuthADbCapture(options) {
+  const internal = await runAuthADbCaptureInternal(options);
+  return internal.transportProof;
 }

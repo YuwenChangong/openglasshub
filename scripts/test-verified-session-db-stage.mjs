@@ -3,12 +3,8 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { catalogDigest, classifyVerifiedSessionDbStage } from "./lib/verified-session-db-stage.mjs";
-
-export const REVIEWED_LOCAL_STAGE_DIGESTS = Object.freeze({
-  PRE_V1: "56b5ad002613e69bfd88e88ac28c97445c187ff90bc413a7a83ad1e0678c81f9",
-  FOUNDATION: "e1ada2f02b029458b5f6090a50b09bb44a53c7fcb26114ba8cb87e34754d3f1a",
-  ENFORCEMENT: "38e8d6a30402035dcad6966d03acd602ac08c3df70162363ddb5e6e526380797",
-});
+import { REVIEWED_LOCAL_STAGE_DIGESTS } from "./lib/verified-session-stage-digests.mjs";
+export { REVIEWED_LOCAL_STAGE_DIGESTS } from "./lib/verified-session-stage-digests.mjs";
 
 const families = ["schemas", "objects", "tables", "columns", "constraints", "indexes", "functions", "policies", "rls", "readAcl", "publication"];
 const baseline = Object.fromEntries(families.map((family) => [family, []]));

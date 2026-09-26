@@ -6,7 +6,8 @@ import { readSupabaseInventory } from "./verified-session-auth-a-supabase-read.m
 
 const ref = "xcbnxzjlsvtgzixurcof";
 const project = { ref, organization_slug: "reviewed-org", status: "ACTIVE_HEALTHY",
-  database_host: `db.${ref}.supabase.co`, name: "private-project-name" };
+  database: { host: `db.${ref}.supabase.co`, version: "17", postgres_engine: "postgres",
+    release_channel: "stable" }, name: "private-project-name" };
 
 async function serve(handler, fn) {
   const server = createServer(handler);
@@ -44,6 +45,17 @@ test("SB target ambiguity and project drift stop before organization request", a
     });
     assert.equal(requests, 1);
   }
+});
+
+test("SB legacy database_host alias cannot prove target when database.host is absent", async () => {
+  await serve((req, res) => { res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(req.url === "/v1/projects"
+      ? [{ ...project, database: undefined, database_host: `db.${ref}.supabase.co` }]
+      : { slug: "reviewed-org", plan: "free" }));
+  }, async (origin) => {
+    const result = await readSupabaseInventory({ mode: "LOCAL_TEST", origin, token: "dummy-token" });
+    assert.equal(result.targetMatch, false);
+  });
 });
 
 test("SB status, org identity and plan must be independently proven", async () => {

@@ -21,7 +21,7 @@ export async function readSupabaseInventory({ mode = "LOCAL_TEST", origin = PROD
   const organization = await client.get(`/v1/organizations/${organizationSlug}`);
   if (!organization || typeof organization !== "object" || organization.slug !== organizationSlug)
     fail("ORGANIZATION_DRIFT");
-  const hostMatch = project.database_host === `db.${TARGET_REF}.supabase.co`;
+  const hostMatch = project.database?.host === `db.${TARGET_REF}.supabase.co`;
   return {
     projectRef: TARGET_REF,
     projectStatus: project.status === "ACTIVE_HEALTHY" ? "ACTIVE_HEALTHY" : "UNKNOWN",
