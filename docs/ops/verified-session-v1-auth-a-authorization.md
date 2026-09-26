@@ -15,6 +15,7 @@ This is an offline review packet, not an execution command or approval. It autho
 | --- | --- |
 | Branch and packet-preparation source | `feature/auth-verified-session-v1`; exact packet commit must be bound by the future reviewer |
 | Pinned old Worker source expectation | `e6c2141be8827d961fc49462d66be8da9b4993eb` |
+| Historical old Worker version binding | `dba19da7-2fa8-4055-a94d-25c83ad3a02a` for `openglasshub` at `https://openglasshub.ogh.workers.dev`; owner-supplied prior Production-origin release evidence in `docs/ops/verified-session-v1-old-worker-baseline.md` |
 | Pinned reviewed new Worker source | `6e7e1622234b89209f0307d088900526bf2dfc7f` |
 | Foundation | `supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql`; SHA-256 `575cfcea2ed0e4415e07370d97474518c957ba409248790b2f6309748c1597f9` |
 | Enforcement | `supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql`; SHA-256 `89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e` |
@@ -32,7 +33,7 @@ Expected canonical Production Worker origin is `https://openglasshub.ogh.workers
 | Observation class | Maximum future attempts/requests | Permitted evidence | Excluded |
 | --- | --- | --- | --- |
 | Production PostgreSQL Session Pooler | One connection attempt, one session, no reconnect | The reviewed catalog packet and separately bound migration-history metadata packet in a read-only transaction; exact target identity, catalog and provenance metadata only | User/application rows, mutations, migration repair, test fixtures |
-| Cloudflare control-plane read | Two requests, zero retries | Current `openglasshub` deployment/version ID, exact-version module and runtime/config digests, and non-secret binding names/types; environment requires independent evidence | Deploy, Worker invocation/smoke, secret values, KV/R2/route/config mutation |
+| Cloudflare control-plane read | Two requests, zero retries | Current `openglasshub` deployment/version ID, exact-version metadata and non-secret runtime/config facts; environment requires independent evidence | Module/source download, deploy, Worker invocation/smoke, secret values, KV/R2/route/config mutation |
 | Supabase control-plane read | Two requests, zero retries | Exact project ref/status and its organization's Free plan; remaining quota stays `UNKNOWN` | Auth config, Auth sign-in, `getClaims`, user/session reads, template test, settings mutation |
 | Brevo control-plane read | Two requests, zero retries | Free email send-limit credit fact, relay-enabled flag and configured sender `active` state; this does not prove sender ownership or delivery | Sending mail, reading API-key value, template send/test, plan change |
 
@@ -61,7 +62,9 @@ Old and new artifacts reuse two version numbers. A version-only match cannot dis
 
 ## Deployed Worker identity
 
-Observe the actual current deployment rather than treating the pinned old commit as deployed. Read `result.deployments[0]`, require one 100% active version, then request that exact ID at `/workers/workers/openglasshub/versions/{version_id}?include=modules`. Compare canonical raw-module-byte and non-secret runtime/config digests with an independently built, deterministic, deployable artifact from pinned source `e6c2141be8827d961fc49462d66be8da9b4993eb`. Historical UUID/ETag mapping is not required. The local Task 6 behavioral build uses loopback bindings and a random salt, so it is **not** yet an exact deployable Production artifact. The exact-version body cap is 10,250,096 bytes, derived from 6,114,708 bytes of local pinned build output plus Base64 expansion and 2 MiB headroom, under a 16 MiB absolute ceiling. Repeated production-config builds changed one module's bytes; until a deterministic pinned deployable artifact is independently established, `DEPLOYED_WORKER_IDENTITY_MATCH=false` and AUTH-A remains blocked. Do not claim Cloudflare attested a source commit, guess identity from a version ID or URL, or deploy during AUTH-A.
+The owner-supplied historical Production-origin release evidence binds immutable Worker version `dba19da7-2fa8-4055-a94d-25c83ad3a02a` to old source commit `e6c2141be8827d961fc49462d66be8da9b4993eb`; see `docs/ops/verified-session-v1-old-worker-baseline.md`. This is `HISTORICAL_RELEASE_EVIDENCE`, not a new provider observation or Cloudflare-attested source commit. Future AUTH-A must freshly read `result.deployments[0]`, require exactly one 100% active version matching that frozen version ID, then request only its metadata at `/workers/scripts/openglasshub/versions/{version_id}` and require CF-2's returned ID to equal CF-1's ID. The version path is derived only from CF-1. A missing, split, malformed, non-100%, changed or ambiguous active version blocks AUTH-A. No module/source download, `include=modules`, Builds API, third request, retry, Worker invocation or artifact reconstruction is allowed.
+
+`WORKER_IDENTITY_METHOD=HISTORICAL_VERIFIED_VERSION_BINDING_PLUS_FRESH_ACTIVE_VERSION`. Rebuilding old source cannot establish raw artifact equality: Astro embeds a runtime-semantic generated server-island key when `ASTRO_KEY` is unset. `PINNED_OLD_WORKER_ARTIFACT_SHA256`, `PINNED_OLD_WORKER_CONFIG_SHA256` and `PINNED_SOURCE_TO_ARTIFACT_EQUIVALENCE` are not AUTH-A prerequisites. The key must not be canonicalized away. A separate AUTH-C review should define a stable key build contract for the new Worker; this packet does not implement it.
 
 ## Signing, provider and free-capacity boundary
 
@@ -127,9 +130,11 @@ AUTHORIZATION_CONSUMED=true|false
 TARGET_WORKER=<observed-name/environment/version-id>
 TARGET_SUPABASE=<observed-project-ref>
 TARGET_MATCH=true|false
-DEPLOYED_WORKER_IDENTITY=<attested-source-or-immutable-version/artifact/config-digests-or-UNKNOWN>
+DEPLOYED_WORKER_IDENTITY=<historically-bound-immutable-version-or-UNKNOWN>
 DEPLOYED_WORKER_IDENTITY_MATCH=true|false
 DEPLOYED_WORKER_IDENTITY_DRIFT=true|false|UNKNOWN
+DEPLOYED_WORKER_SOURCE_EQUIVALENCE=PROVEN_BY_HISTORICAL_VERSION_BINDING|UNKNOWN
+EXPECTED_SOURCE_COMMIT=e6c2141be8827d961fc49462d66be8da9b4993eb
 DB_STAGE=PRE_V1|FOUNDATION|ENFORCEMENT|UNKNOWN
 EXPECTED_DB_STAGE=PRE_V1
 MIGRATION_PROVENANCE=CLEAN_UNSHIPPED_V1|UNKNOWN|DIVERGENT

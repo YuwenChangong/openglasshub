@@ -1,12 +1,15 @@
+import { EXPECTED_OLD_WORKER } from "../lib/verified-session-old-worker-baseline.mjs";
+import { classifyAuthADatabase } from "./verified-session-auth-a-db-classify.mjs";
+
 const SHA256 = /^[a-f0-9]{64}$/;
 const HEAD = /^[a-f0-9]{40}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-const PINNED_OLD_SOURCE = "e6c2141be8827d961fc49462d66be8da9b4993eb";
 const fail = (code) => { throw new Error(`AUTH_A_ORCHESTRATOR_${code}`); };
 
 export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
   sourceHead, observedHead, packetSha256, observedPacketSha256, worktreeClean,
-  pinnedWorkerArtifact, steps } = {}) {
+  steps } = {}) {
   if (authorization?.AUTH_A_EXECUTE !== "1"
     || !/^auth-a-verified-session-[0-9]+$/.test(authorization?.AUTHORIZATION_ID ?? "")
     || authorization.AUTHORIZATION_ID === "auth-a-verified-session-001"
@@ -25,13 +28,11 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
 
   try {
     const cf = await steps.cloudflare();
-    if (cf.requestCount !== 2 || cf.workerName !== "openglasshub"
-      || !SHA256.test(cf.artifactSha256 ?? "") || !SHA256.test(cf.configSha256 ?? "")
-      || !pinnedWorkerArtifact || pinnedWorkerArtifact.sourceCommit !== PINNED_OLD_SOURCE
-      || !SHA256.test(pinnedWorkerArtifact.artifactSha256 ?? "")
-      || !SHA256.test(pinnedWorkerArtifact.configSha256 ?? "")
-      || cf.artifactSha256 !== pinnedWorkerArtifact.artifactSha256
-      || cf.configSha256 !== pinnedWorkerArtifact.configSha256) fail("WORKER_ARTIFACT_MISMATCH");
+    if (cf?.requestCount !== 2 || cf?.workerName !== EXPECTED_OLD_WORKER.workerName
+      || !UUID.test(cf?.activeVersionId ?? "") || !UUID.test(cf?.versionId ?? ""))
+      fail("WORKER_IDENTITY_UNKNOWN");
+    if (cf.activeVersionId !== EXPECTED_OLD_WORKER.versionId
+      || cf.versionId !== cf.activeVersionId) fail("WORKER_VERSION_DRIFT");
     const sb = await steps.supabase();
     if (sb.requestCount !== 2) fail("SUPABASE_UNKNOWN");
     const br = await steps.brevo();
@@ -54,16 +55,21 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
     return Object.freeze({ authAStatus: inventoryPass ? "PASS" : "BLOCKED",
       authReleaseStatus: "NO_GO", projectRef: sb.projectRef,
       deployedWorkerIdentityMatch: true,
-      deployedWorkerSourceEquivalence: "PROVEN_BY_EXACT_ARTIFACT",
+      deployedWorkerIdentityDrift: false,
+      deployedWorkerSourceEquivalence: "PROVEN_BY_HISTORICAL_VERSION_BINDING",
+      expectedSourceCommit: EXPECTED_OLD_WORKER.sourceCommit,
+      workerIdentityProvenance: EXPECTED_OLD_WORKER.provenance,
       freeCapacityStatus: "UNKNOWN", capacityGate: "BLOCKED_BEFORE_AUTH_B",
       nextAction: inventoryPass ? "REQUEST_SEPARATE_CAPACITY_REVIEW" : "STOP_FOR_REVIEW",
       cloudflareReadRequests: 2, supabaseReadRequests: 2, brevoReadRequests: 2,
       databaseConnectionAttempts: 1, productionWrites: 0, emailSends: 0, deploys: 0 });
-  } catch {
+  } catch (error) {
+    const versionDrift = ["AUTH_A_CF_VERSION_DRIFT", "AUTH_A_ORCHESTRATOR_WORKER_VERSION_DRIFT"]
+      .includes(error?.message);
     return Object.freeze({ authAStatus: "BLOCKED", authReleaseStatus: "NO_GO",
-      deployedWorkerIdentityMatch: false, freeCapacityStatus: "UNKNOWN",
+      deployedWorkerIdentityMatch: false, deployedWorkerIdentityDrift: versionDrift ? true : "UNKNOWN",
+      freeCapacityStatus: "UNKNOWN",
       capacityGate: "BLOCKED_BEFORE_AUTH_B", nextAction: "STOP_FOR_REVIEW",
       productionWrites: 0, emailSends: 0, deploys: 0 });
   }
 }
-import { classifyAuthADatabase } from "./verified-session-auth-a-db-classify.mjs";
