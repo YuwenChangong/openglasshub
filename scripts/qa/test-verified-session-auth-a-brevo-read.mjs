@@ -12,23 +12,25 @@ async function serve(handler, fn) {
   finally { server.close(); await once(server, "close"); }
 }
 
-test("BR-01..08 two GETs, free credits and verified sender without PII", async () => {
+test("BR-01..08 two GETs, free email credits and active sender without PII", async () => {
   const requests = [];
   await serve((req, res) => {
     requests.push({ method: req.method, path: req.url });
     res.setHeader("content-type", "application/json");
-    if (req.url === "/v3/account") res.end(JSON.stringify({ plan: [{ type: "free", credits: 100 }],
+    if (req.url === "/v3/account") res.end(JSON.stringify({ plan: [
+      { type: "sms", credits: 999, creditsType: "sms" },
+      { type: "free", credits: 100, creditsType: "sendLimit" }],
       relay: { enabled: true, password: "dummy-secret" }, email: "owner@example.test" }));
     else if (req.url === "/v3/senders") res.end(JSON.stringify({ senders: [
-      { email: "expected@example.test", active: true, verified: true },
-      { email: "other@example.test", active: true, verified: true },
+      { email: "expected@example.test", active: true },
+      { email: "other@example.test", active: true },
     ] }));
     else { res.statusCode = 404; res.end("{}"); }
   }, async (origin) => {
     const result = await readBrevoReadiness({ mode: "LOCAL_TEST", origin,
       token: "dummy-key", expectedSenderEmail: "expected@example.test", minimumCredits: 9 });
     assert.deepEqual(result, { plan: "FREE", creditsAvailable: 100,
-      capacitySufficient: true, senderVerified: true, requestCount: 2 });
+      capacitySufficient: true, senderReady: true, requestCount: 2 });
     for (const secret of ["dummy-secret", "dummy-key", "expected@example.test", "owner@example.test"])
       assert.equal(JSON.stringify(result).includes(secret), false);
   });
@@ -37,18 +39,26 @@ test("BR-01..08 two GETs, free credits and verified sender without PII", async (
   ]);
 });
 
-test("BR-04..06 paid, missing credits or unverified sender cannot pass", async () => {
+test("BR-04..06 missing email plan, credits or active sender cannot pass", async () => {
   for (const [account, senders] of [
-    [{ plan: [{ type: "paid", credits: 100 }] }, { senders: [{ email: "expected@example.test", active: true, verified: true }] }],
-    [{ plan: [{ type: "free" }] }, { senders: [{ email: "expected@example.test", active: true, verified: true }] }],
-    [{ plan: [{ type: "free", credits: 100 }] }, { senders: [{ email: "expected@example.test", active: true, verified: false }] }],
+    [{ plan: [{ type: "sms", credits: 100, creditsType: "sms" }] }, { senders: [{ email: "expected@example.test", active: true }] }],
+    [{ plan: [{ type: "free", creditsType: "sendLimit" }] }, { senders: [{ email: "expected@example.test", active: true }] }],
+    [{ plan: [{ type: "free", credits: 100, creditsType: "sendLimit" }], relay: { enabled: true } },
+      { senders: [{ email: "expected@example.test", active: false }] }],
+    [{ plan: [{ type: "free", credits: 100, creditsType: "sendLimit" }], relay: { enabled: false } },
+      { senders: [{ email: "expected@example.test", active: true }] }],
+    [{ plan: [{ type: "free", credits: 100, creditsType: "sendLimit" },
+      { type: "free", credits: 100, creditsType: "sendLimit" }], relay: { enabled: true } },
+      { senders: [{ email: "expected@example.test", active: true }] }],
+    [{ plan: [{ type: "free", credits: 100, creditsType: "sendLimit" }], relay: { enabled: true } },
+      { senders: [{ email: "expected@example.test", active: true }, { email: "expected@example.test", active: true }] }],
   ]) await serve((req, res) => {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(req.url === "/v3/account" ? account : senders));
   }, async (origin) => {
     const result = await readBrevoReadiness({ mode: "LOCAL_TEST", origin,
       token: "dummy-key", expectedSenderEmail: "expected@example.test", minimumCredits: 9 });
-    assert.equal(result.capacitySufficient && result.senderVerified && result.plan === "FREE", false);
+    assert.equal(result.capacitySufficient && result.senderReady && result.plan === "FREE", false);
   });
 });
 
@@ -64,4 +74,10 @@ test("BR-09..12 redirect/error stops after one request and never sends email", a
     });
     assert.deepEqual(paths, ["/v3/account"]);
   }
+});
+
+test("BR Production origin cannot be caller-substituted", async () => {
+  await assert.rejects(readBrevoReadiness({ mode: "PRODUCTION", origin: "https://example.invalid/",
+    token: "dummy-key", expectedSenderEmail: "expected@example.test", minimumCredits: 1 }),
+  /AUTH_A_BREVO_ORIGIN_DENIED/);
 });

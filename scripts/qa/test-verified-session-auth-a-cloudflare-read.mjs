@@ -9,10 +9,13 @@ const deploymentId = "11111111-1111-4111-8111-111111111111";
 const versionId = "22222222-2222-4222-8222-222222222222";
 const base = `/client/v4/accounts/${accountId}/workers/scripts/openglasshub`;
 const deployment = { id: deploymentId, versions: [{ version_id: versionId, percentage: 100 }], created_on: "2026-09-26T00:00:00Z" };
-const version = { id: versionId, name: "openglasshub", environment: "production",
-  compatibility_date: "2026-05-17", compatibility_flags: ["nodejs_compat"],
-  bindings: [{ name: "SESSION", type: "kv_namespace", secret_value: "dummy-secret" }],
-  metadata: { created_on: "2026-09-26T00:00:00Z", source_commit: "not-attested" } };
+const version = { id: versionId,
+  metadata: { created_on: "2026-09-26T00:00:00Z", source: "wrangler", source_commit: "not-attested" },
+  resources: {
+    bindings: [{ name: "SESSION", type: "kv_namespace", secret_value: "dummy-secret" }],
+    script: { etag: "script-content-etag" },
+    script_runtime: { compatibility_date: "2026-05-17", compatibility_flags: ["nodejs_compat"] },
+  } };
 
 async function serve(handler, fn) {
   const server = createServer(handler);
@@ -36,15 +39,35 @@ test("CF-01..09 fixed two GETs, single active version and redacted metadata", as
     assert.equal(result.requestCount, 2);
     assert.equal(result.deploymentId, deploymentId);
     assert.equal(result.versionId, versionId);
-    assert.deepEqual(result.bindings, [{ name: "SESSION", type: "kv_namespace" }]);
+    assert.deepEqual(result.bindingNamesAndTypes, [{ name: "SESSION", type: "kv_namespace" }]);
+    assert.equal(result.scriptEtag, "script-content-etag");
+    assert.equal(result.versionSource, "wrangler");
+    assert.equal(result.compatibilityDate, "2026-05-17");
     assert.equal(JSON.stringify(result).includes("dummy-secret"), false);
     assert.equal(JSON.stringify(result).includes("dummy-token"), false);
-    assert.equal(result.sourceCommit, "UNKNOWN");
+    assert.equal(JSON.stringify(result).includes("not-attested"), false);
   });
   assert.deepEqual(requests, [
     { method: "GET", path: `${base}/deployments` },
     { method: "GET", path: `${base}/versions/${versionId}` },
   ]);
+});
+
+test("CF documented resource shape fails closed on missing or malformed resource fields", async () => {
+  for (const badVersion of [
+    { ...version, resources: undefined },
+    { ...version, resources: { ...version.resources, bindings: [{ name: "SESSION", type: "?" }] } },
+    { ...version, id: deploymentId },
+  ]) {
+    let requests = 0;
+    await serve((req, res) => { requests++; res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ success: true, result: req.url.endsWith("/deployments") ? [deployment] : badVersion }));
+    }, async (origin) => {
+      await assert.rejects(readCloudflareWorker({ mode: "LOCAL_TEST", origin, accountId,
+        token: "dummy-token" }), /AUTH_A_CF_/);
+    });
+    assert.equal(requests, 2);
+  }
 });
 
 test("CF-05 multi-version traffic and CF-09 target drift stop before version GET", async () => {
@@ -73,4 +96,9 @@ test("CF-10..13 failures, redirects, no retry and no token disclosure", async ()
     });
     assert.equal(requests, 1);
   }
+});
+
+test("CF Production origin cannot be caller-substituted", async () => {
+  await assert.rejects(readCloudflareWorker({ mode: "PRODUCTION", origin: "https://example.invalid/",
+    accountId, token: "dummy-token" }), /AUTH_A_CF_ORIGIN_DENIED/);
 });

@@ -12,3 +12,9 @@ supabase/migrations/20260713_comment_read_circle_visibility_authorization.sql te
 supabase/migrations/20260713_forum_posts_circle_authorization.sql text eol=lf
 supabase/migrations/20260713_forum_report_target_authorization.sql text eol=lf
 supabase/migrations/20260713_post_bound_media_provenance.sql text eol=lf
+docs/ops/p8-production-history-read-only.sql text eol=lf
+docs/ops/p9-migration-history-rows-read-only.sql text eol=lf
+docs/ops/verified-session-v1-hosted-catalog-preflight.sql text eol=lf
+supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql text eol=lf
+supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql text eol=lf
+docs/ops/verified-session-v1-auth-a-authorization.md text eol=lf

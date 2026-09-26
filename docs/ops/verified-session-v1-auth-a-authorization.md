@@ -19,7 +19,7 @@ This is an offline review packet, not an execution command or approval. It autho
 | Foundation | `supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql`; SHA-256 `575cfcea2ed0e4415e07370d97474518c957ba409248790b2f6309748c1597f9` |
 | Enforcement | `supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql`; SHA-256 `89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e` |
 | Read-only catalog packet | `docs/ops/verified-session-v1-hosted-catalog-preflight.sql`; SHA-256 `f110454fe7ba5da07af0633e4be88119eeb24f21177d4be6ef302fd24268c0b8` |
-| Existing migration-history metadata packet | `docs/ops/p9-migration-history-rows-read-only.sql`; SHA-256 `1f4178d5b13fecd07160fe464f5edb9bcb4d6db9263324c2381e0b26c3cd4198` |
+| Existing migration-history metadata packet | `docs/ops/p9-migration-history-rows-read-only.sql`; SHA-256 `6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002` |
 
 Both pinned source commits exist locally. These hashes were recomputed from the files in the reviewed worktree; a future operator must recompute and bind them again before any hosted read. A mismatch means `AUTH_A_PACKET_STATUS=BLOCKED_ARTIFACT_DRIFT` and stop. The AUTH-A execution authorization must bind the *then-current* packet commit and packet-file SHA-256; this preparation commit is not an approval or a claim about the deployed Worker.
 
@@ -32,9 +32,9 @@ Expected canonical Production Worker origin is `https://openglasshub.ogh.workers
 | Observation class | Maximum future attempts/requests | Permitted evidence | Excluded |
 | --- | --- | --- | --- |
 | Production PostgreSQL Session Pooler | One connection attempt, one session, no reconnect | The reviewed catalog packet and separately bound migration-history metadata packet in a read-only transaction; exact target identity, catalog and provenance metadata only | User/application rows, mutations, migration repair, test fixtures |
-| Cloudflare control-plane read | Two requests, zero retries | Current `openglasshub` Production deployment/version identity, immutable version or artifact digest if exposed, environment and non-secret binding names/types | Deploy, Worker invocation/smoke, secret values, KV/R2/route/config mutation |
-| Supabase control-plane read | Two requests, zero retries | Project identity, non-secret signing configuration, plan/usage metadata if safely exposed | Auth sign-in, `getClaims` with a real account, user/session reads, template test, settings mutation |
-| Brevo control-plane read | Two requests, zero retries | Verified-sender status and non-secret Free-plan/remaining-quota metadata if safely exposed | Sending mail, reading API-key value, template send/test, plan change |
+| Cloudflare control-plane read | Two requests, zero retries | Current `openglasshub` deployment/version ID, script ETag if exposed, and non-secret binding names/types; environment requires independent evidence | Deploy, Worker invocation/smoke, secret values, KV/R2/route/config mutation |
+| Supabase control-plane read | Two requests, zero retries | Exact project ref/status and its organization's Free plan; remaining quota stays `UNKNOWN` | Auth config, Auth sign-in, `getClaims`, user/session reads, template test, settings mutation |
+| Brevo control-plane read | Two requests, zero retries | Free email send-limit credit fact, relay-enabled flag and configured sender `active` state; this does not prove sender ownership or delivery | Sending mail, reading API-key value, template send/test, plan change |
 
 Provider read mechanisms and their exact permissions must be independently reviewed and bound in the later execution authorization; this packet invents no endpoint or CLI. If any observation needs more than the enumerated requests, cannot prove it is read-only, or encounters an ambiguous response, stop and request a new scope. No polling, automatic retry, second database connection, Worker HTTP probe, or alternative SQL client is implicitly permitted. Provider dashboard observation is subject to the same zero-mutation and redacted-evidence rules.
 
@@ -61,16 +61,16 @@ Old and new artifacts reuse two version numbers. A version-only match cannot dis
 
 ## Deployed Worker identity
 
-Observe the actual current Production deployment rather than treating the pinned old commit as deployed. Record canonical Worker name/environment, immutable deployment/version identifier, creation metadata and non-secret binding names/types. Record an exposed script/artifact digest only if the provider's read-only metadata actually supplies it. A source commit is `UNKNOWN` unless provider-attested metadata binds it; a version ID alone is not a source commit. If source attribution is unavailable, the fallback identity is the immutable deployed version ID **plus** independently obtainable artifact digest and configuration/environment fingerprint, bound to a separately reviewed old-build artifact. If any component or the independent match is unavailable, set `DEPLOYED_WORKER_IDENTITY_MATCH=false`, `DEPLOYED_WORKER_IDENTITY_DRIFT=UNKNOWN`, and block AUTH-B. A provable mismatch sets `DEPLOYED_WORKER_IDENTITY_DRIFT=true`. Do not guess old/new from behavior or deploy during AUTH-A.
+Observe the actual current deployment rather than treating the pinned old commit as deployed. The fixed API path binds Worker name `openglasshub`; the two response contracts do not themselves attest an environment field. Record immutable deployment/version identifiers, creation metadata, script ETag and non-secret binding names/types only as actually exposed. The script ETag is a provider content hash, not an asserted Git SHA or local SHA-256. A source commit is `UNKNOWN` unless provider-attested metadata binds it; a version ID alone is not a source commit. If source attribution is unavailable, the fallback identity is the immutable deployed version ID **plus** independently obtainable artifact digest and configuration/environment fingerprint, bound to a separately reviewed old-build artifact. No such old-build mapping is present in this review. If any component or the independent match is unavailable, set `DEPLOYED_WORKER_IDENTITY_MATCH=false`, `DEPLOYED_WORKER_IDENTITY_DRIFT=UNKNOWN`, and block AUTH-A. A provable mismatch sets `DEPLOYED_WORKER_IDENTITY_DRIFT=true`. Do not guess old/new from behavior or deploy during AUTH-A.
 
 ## Signing, provider and free-capacity boundary
 
 | Fact | AUTH-A classification | Rule |
 | --- | --- | --- |
-| Supabase signing mode and documented official claims path | `READ_ONLY_SAFE` for provider configuration only | Record asymmetric/JWKS versus symmetric/Auth verification as observed, or `UNKNOWN`; no real JWT or account operation |
+| Supabase signing mode and documented official claims path | `DEFER_TO_AUTH_E` | The two AUTH-A inventory reads do not expose signing configuration; no auth-config request, real JWT or account operation |
 | Genuine `getClaims`, signed `session_id`, password `amr`, refresh and live `auth.sessions` proof | `DEFER_TO_AUTH_E` | Requires owned sessions and Auth state changes; zero AUTH-A Auth calls |
-| Signup template configuration, including six-digit `{{ .Token }}` | `READ_ONLY_SAFE` only if exposed as non-secret configuration within the bound Supabase read budget; otherwise `DEFER_TO_AUTH_E` | No OTP request, preview send or recipient data |
-| Brevo verified sender and Free-plan remaining quota | `READ_ONLY_SAFE` only for non-secret provider metadata within the bound Brevo budget; otherwise `DEFER_TO_AUTH_E` | No email, API-key value or provider mutation |
+| Signup template configuration, including six-digit `{{ .Token }}` | `DEFER_TO_AUTH_E` | Not exposed by the two AUTH-A inventory reads; no OTP request, preview send or recipient data |
+| Brevo active sender and Free email send-limit credits | `READ_ONLY_SAFE` for the two bounded account/senders reads | Active listing is not independent ownership verification; no email, API-key value or provider mutation |
 | Brevo transactional key usability and actual email delivery | `DEFER_TO_AUTH_E` | Cannot be certified from metadata alone |
 
 `ZERO_PAID_INFRA=true`: no new Supabase project or paid branch, Cloudflare paid service, paid email tier, SMS, overage or automatic upgrade. Free plan identity, project health, and actual remaining capacity are distinct facts. Two bounded Supabase project/organization metadata reads cannot by themselves establish every remaining quota needed for AUTH-B..E. Record `FREE_CAPACITY_STATUS=UNKNOWN` when any required remaining capacity is not positively observed. This does **not** turn an otherwise complete AUTH-A inventory into a false capacity PASS; it does set `CAPACITY_GATE=BLOCKED_BEFORE_AUTH_B`. A separate, explicitly authorized and independently reviewed read-only capacity assessment is required before any later stage whose writes may consume unknown capacity. No AUTH-B mutation may begin on a plan label or healthy-project status alone.
@@ -103,7 +103,7 @@ TARGET=<exact-Production-Worker-and-Supabase-project>
 SOURCE_HEAD=<reviewed-current-commit>
 PACKET_SHA256=<hash-of-this-committed-packet>
 CATALOG_PACKET_SHA256=f110454fe7ba5da07af0633e4be88119eeb24f21177d4be6ef302fd24268c0b8
-MIGRATION_HISTORY_PACKET_SHA256=1f4178d5b13fecd07160fe464f5edb9bcb4d6db9263324c2381e0b26c3cd4198
+MIGRATION_HISTORY_PACKET_SHA256=6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002
 MAX_READ_ONLY_CONNECTIONS=1
 MAX_CLOUDFLARE_READ_REQUESTS=2
 MAX_SUPABASE_CONTROL_PLANE_READ_REQUESTS=2

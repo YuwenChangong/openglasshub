@@ -35,10 +35,23 @@ export function createAuthAReadClient({ mode, origin, token, headerName, allowed
       if (response.status !== 200) fail("HTTP_FAILURE");
       const length = Number(response.headers.get("content-length"));
       if (Number.isFinite(length) && length > MAX_BODY_BYTES) fail("BODY_TOO_LARGE");
-      let body;
-      try { body = await response.text(); } catch { fail("BODY_READ_FAILURE"); }
-      if (Buffer.byteLength(body) > MAX_BODY_BYTES) fail("BODY_TOO_LARGE");
-      try { return JSON.parse(body); } catch { fail("JSON_INVALID"); }
+      if (!response.body) fail("BODY_READ_FAILURE");
+      const reader = response.body.getReader();
+      const chunks = [];
+      let bytes = 0;
+      while (true) {
+        let part;
+        try { part = await reader.read(); } catch { fail("BODY_READ_FAILURE"); }
+        if (part.done) break;
+        bytes += part.value.byteLength;
+        if (bytes > MAX_BODY_BYTES) {
+          await reader.cancel().catch(() => {});
+          fail("BODY_TOO_LARGE");
+        }
+        chunks.push(part.value);
+      }
+      try { return JSON.parse(Buffer.concat(chunks).toString("utf8")); }
+      catch { fail("JSON_INVALID"); }
     },
   });
 }

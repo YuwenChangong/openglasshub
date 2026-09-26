@@ -29,3 +29,19 @@ test("production origins stay disabled before reviewed orchestration", () => {
   assert.throws(() => createAuthAReadClient({ mode: "LOCAL_TEST", origin: "http://localhost.example.invalid/",
     token: "dummy-token", headerName: "Authorization", allowedPaths: ["/one"], maxRequests: 1 }), /AUTH_A_READ_ORIGIN_INVALID/);
 });
+
+test("body budget stops an unlengthened stream before full consumption", async () => {
+  let pulls = 0;
+  const fetchImpl = async () => new Response(new ReadableStream({
+    pull(controller) {
+      pulls++;
+      if (pulls > 4) throw new Error("unbounded-read");
+      controller.enqueue(new Uint8Array(70 * 1024));
+    },
+  }), { status: 200 });
+  const client = createAuthAReadClient({ mode: "LOCAL_TEST", origin: "http://127.0.0.1:1234/",
+    token: "dummy-token", headerName: "Authorization", allowedPaths: ["/one"], maxRequests: 1,
+    fetchImpl });
+  await assert.rejects(client.get("/one"), /AUTH_A_READ_BODY_TOO_LARGE/);
+  assert.ok(pulls <= 4);
+});
