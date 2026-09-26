@@ -5,6 +5,7 @@
 PACKET_STATUS=NOT_AUTHORIZED
 AUTH_RELEASE_STATUS=NO_GO
 AUTH_A_EXECUTION_STATUS=NOT_STARTED
+AUTH_A_001_STATUS=VOID_UNEXECUTED
 
 This is an offline review packet, not an execution command or approval. It authorizes nothing by itself. AUTH-A may be attempted only after a human approves one exact `auth-a-verified-session-<digits>` identifier and binds the target, immutable artifacts, observation methods, read budgets, and operator. AUTH-B through AUTH-F require their own later single-use authorizations. No stage advances automatically.
 
@@ -72,7 +73,7 @@ Observe the actual current Production deployment rather than treating the pinned
 | Brevo verified sender and Free-plan remaining quota | `READ_ONLY_SAFE` only for non-secret provider metadata within the bound Brevo budget; otherwise `DEFER_TO_AUTH_E` | No email, API-key value or provider mutation |
 | Brevo transactional key usability and actual email delivery | `DEFER_TO_AUTH_E` | Cannot be certified from metadata alone |
 
-`ZERO_PAID_INFRA=true`: no new Supabase project or paid branch, Cloudflare paid service, paid email tier, SMS, overage or automatic upgrade. Record `FREE_CAPACITY=UNKNOWN` if current free capacity cannot be positively established through the bounded read-only metadata. In that case AUTH-A may retain catalog evidence but `AUTH_A_RESULT=NO_GO`; no later stage whose writes might exceed unknown capacity may begin. Provider uncertainties do not become optimistic PASS values.
+`ZERO_PAID_INFRA=true`: no new Supabase project or paid branch, Cloudflare paid service, paid email tier, SMS, overage or automatic upgrade. Free plan identity, project health, and actual remaining capacity are distinct facts. Two bounded Supabase project/organization metadata reads cannot by themselves establish every remaining quota needed for AUTH-B..E. Record `FREE_CAPACITY_STATUS=UNKNOWN` when any required remaining capacity is not positively observed. This does **not** turn an otherwise complete AUTH-A inventory into a false capacity PASS; it does set `CAPACITY_GATE=BLOCKED_BEFORE_AUTH_B`. A separate, explicitly authorized and independently reviewed read-only capacity assessment is required before any later stage whose writes may consume unknown capacity. No AUTH-B mutation may begin on a plan label or healthy-project status alone.
 
 ## Frozen mutation and failure limits
 
@@ -88,7 +89,7 @@ MAX_CONFIG_CHANGES=0
 AUTOMATIC_RETRY=false
 MANUAL_RETRY_WITH_SAME_AUTHORIZATION=false
 
-One attempted external run consumes its authorization whether it passes, fails, or becomes ambiguous. Stop on target, artifact, catalog, provenance, provider, capacity or identity uncertainty. No automatic AUTH-B request is an execution permission. No `qa:prod`, migration, Auth call, email, deploy, Cloudflare mutation, database write, or user-data query belongs to AUTH-A.
+One attempted external run consumes its authorization whether it passes, fails, or becomes ambiguous. Stop on target, artifact, catalog, provenance, provider or identity uncertainty; preserve unknown capacity as a separate blocking gate before AUTH-B. No automatic AUTH-B request is an execution permission. No `qa:prod`, migration, Auth call, email, deploy, Cloudflare mutation, database write, or user-data query belongs to AUTH-A.
 
 ## Fields for a later human authorization
 
@@ -143,6 +144,7 @@ RESEND_EFFECTIVE_ACL=<non-secret-role-summary-or-UNKNOWN>
 CATALOG_PREFLIGHT_STATUS=PASS|FAIL|UNKNOWN
 CATALOG_DRIFT=none|<non-secret-summary>|UNKNOWN
 FREE_CAPACITY_STATUS=PASS|UNKNOWN|FAIL
+CAPACITY_GATE=CLEARED|BLOCKED_BEFORE_AUTH_B
 PRODUCTION_CONNECTION_ATTEMPTS=<0-or-1>
 PRODUCTION_WRITES=0
 AUTH_STATE_CHANGES=0
@@ -151,7 +153,7 @@ STORAGE_WRITES=0
 REALTIME_SENTINELS=0
 DEPLOYS=0
 CONFIG_CHANGES=0
-NEXT_ACTION=REQUEST_AUTH_B_FOUNDATION_AUTHORIZATION|STOP_FOR_REVIEW
+NEXT_ACTION=REQUEST_AUTH_B_FOUNDATION_AUTHORIZATION|REQUEST_SEPARATE_CAPACITY_REVIEW|STOP_FOR_REVIEW
 ```
 
-`AUTH_A_STATUS=PASS` is permitted only with exact target and deployed-old identity match, semantic `PRE_V1`, complete `CLEAN_UNSHIPPED_V1` provenance, the expected empty v1 inventory and baseline resend ACL, catalog preflight PASS/no drift, and positively established free capacity. Even then `AUTH_RELEASE_STATUS=NO_GO`; `NEXT_ACTION=REQUEST_AUTH_B_FOUNDATION_AUTHORIZATION` requests a **new** decision, not an automatic migration. Every other outcome is BLOCKED/`STOP_FOR_REVIEW`. Keep raw provider output, SQL text/results and any identifiers that could reveal secrets out of the shared receipt.
+`AUTH_A_STATUS=PASS` is permitted only with exact target and deployed-old identity match, semantic `PRE_V1`, complete `CLEAN_UNSHIPPED_V1` provenance, the expected empty v1 inventory and baseline resend ACL, and catalog preflight PASS/no drift. Capacity remains an independent fail-closed prerequisite for mutation: with `FREE_CAPACITY_STATUS=UNKNOWN`, set `CAPACITY_GATE=BLOCKED_BEFORE_AUTH_B` and `NEXT_ACTION=REQUEST_SEPARATE_CAPACITY_REVIEW`; do not request or execute AUTH-B yet. Only an independently reviewed positive capacity proof may set `CAPACITY_GATE=CLEARED` and permit `NEXT_ACTION=REQUEST_AUTH_B_FOUNDATION_AUTHORIZATION`. `AUTH_RELEASE_STATUS` stays `NO_GO` in every case. A target, identity, catalog or provenance failure is AUTH-A BLOCKED/`STOP_FOR_REVIEW`. Keep raw provider output, SQL text/results and any identifiers that could reveal secrets out of the shared receipt.
