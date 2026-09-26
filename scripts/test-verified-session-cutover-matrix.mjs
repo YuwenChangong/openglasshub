@@ -11,6 +11,7 @@ import { convertV4MiniflareOptions, Miniflare } from "miniflare";
 import pg from "pg";
 import { buildLocalSupabaseReplayMirror, ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 import { createTaskOwnedSupabaseOutbound } from "./lib/verified-session-local-outbound.mjs";
+import { verifyBypass } from "./test-verified-session-bypass.mjs";
 import { LEGAL_POLICY } from "../src/lib/legal-policy.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -301,7 +302,7 @@ async function proveBaseline(worker, status, dbUrl) {
   } finally { await db.end(); }
 }
 
-async function proveBridge(worker, status, dbUrl, sentCodes) {
+async function proveBridge(worker, status, dbUrl, sentCodes, stage) {
   const anon = createClient(status.API_URL, status.ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const email = `matrix-c-${randomUUID()}@example.test`;
   const password = `LocalOnly-${randomUUID()}!`;
@@ -373,8 +374,11 @@ async function proveBridge(worker, status, dbUrl, sentCodes) {
     assert.equal((await otherState.json()).state, "PENDING_VERIFICATION", "BRIDGE_OTHER_SESSION_AUTO_VERIFIED");
     const direct = await anon.from("profiles").update({ display_name: "Foundation direct baseline" })
       .eq("id", login.data.user.id).select("display_name").single();
-    assert.equal(direct.error, null, "BRIDGE_DIRECT_POSTGREST_BASELINE_BROKEN");
-    assert.equal(direct.data.display_name, "Foundation direct baseline", "BRIDGE_DIRECT_POSTGREST_WRITE_MISSING");
+    if (stage === "D") assert.ok(direct.error, "ENFORCEMENT_DIRECT_POSTGREST_BYPASS");
+    else {
+      assert.equal(direct.error, null, "BRIDGE_DIRECT_POSTGREST_BASELINE_BROKEN");
+      assert.equal(direct.data.display_name, "Foundation direct baseline", "BRIDGE_DIRECT_POSTGREST_WRITE_MISSING");
+    }
     const verifiedWrite = await worker.dispatchFetch("http://127.0.0.1/api/forum/posts", {
       method: "POST", headers: { ...headers, "content-type": "application/json" }, body: "{}",
     });
@@ -492,6 +496,15 @@ async function applyAndVerifyFoundation(dbUrl) {
   } finally { await pool.end(); }
 }
 
+async function applyAndVerifyEnforcement(dbUrl, status) {
+  const sql = await readFile(path.join(ROOT, "supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql"), "utf8");
+  const pool = new pg.Pool({ connectionString: dbUrl, max: 12 });
+  try {
+    await pool.query(sql);
+    await verifyBypass({ pool, status });
+  } finally { await pool.end(); }
+}
+
 async function portOpen(urlText) {
   const url = new URL(urlText);
   return new Promise((resolve) => {
@@ -591,11 +604,16 @@ async function main() {
     console.log("MATRIX_A_GUARDS=PASS");
     return;
   }
-  assert.ok(process.argv.length === 4 && process.argv[2] === "--state" && ["A", "B", "C"].includes(process.argv[3]),
-    "TASK8_STATE_A_B_OR_C_ONLY");
+  assert.ok(process.argv.length === 4 && process.argv[2] === "--state" && ["A", "B", "C", "D", "C-D"].includes(process.argv[3]),
+    "TASK10_STATE_A_B_C_D_OR_TRANSITION_ONLY");
   const state = process.argv[3];
-  const sourceCommit = state === "C" ? NEW_COMMIT : OLD_COMMIT;
+  const newWorker = ["C", "D", "C-D"].includes(state);
+  const sourceCommit = newWorker ? NEW_COMMIT : OLD_COMMIT;
   await assertRoot();
+  if (["D", "C-D"].includes(state)) {
+    const guard = await command(process.execPath, ["scripts/test-verified-session-cutover-guard.mjs"], ROOT);
+    assert.ok(guard.includes("forbidden pairs and identity drift denied"), "FORBIDDEN_PAIRING_PREACTION_GUARD_FAILED");
+  }
   const id = randomUUID().slice(0, 8);
   const ownedRoot = await mkdtemp(path.join(os.tmpdir(), `${OWNED_PREFIX}${id}-`));
   const oldRoot = path.join(ownedRoot, `${OWNED_PREFIX}worktree`);
@@ -608,10 +626,11 @@ async function main() {
     await ownedPath(oldRoot, ownedRoot);
     assert.equal(await git(["rev-parse", "HEAD"], oldRoot), sourceCommit, "WORKER_SOURCE_IDENTITY_MISMATCH");
     assert.equal(await git(["status", "--porcelain"], oldRoot), "", "WORKER_SOURCE_DIRTY");
-    cli = await configureSupabase(ownedRoot, `${OWNED_PREFIX}${id}`, state === "C");
+    cli = await configureSupabase(ownedRoot, `${OWNED_PREFIX}${id}`, newWorker);
     supabaseStarted = true;
     status = await startSupabase(cli, ownedRoot);
     if (state !== "A") await applyAndVerifyFoundation(status.DB_URL);
+    if (state === "D") await applyAndVerifyEnforcement(status.DB_URL, status);
     try {
       if (process.platform === "win32") {
         await command(process.env.ComSpec ?? "C:\\Windows\\System32\\cmd.exe",
@@ -625,7 +644,7 @@ async function main() {
     }
     const built = await localOldBuild(oldRoot, status);
     const sentCodes = new Map();
-    if (state === "C") Object.assign(built.configVars, {
+    if (newWorker) Object.assign(built.configVars, {
       BREVO_API_KEY: "local-mock-only",
       BREVO_VERIFIED_SENDER_EMAIL: "matrix@example.test",
       OGH_LOGIN_CODE_PEPPER: `local-${randomUUID()}`,
@@ -636,13 +655,17 @@ async function main() {
       compatibilityFlags: built.generated.compatibility_flags ?? ["nodejs_compat"],
       kvNamespaces: LOCAL_KV_NAMESPACES,
       bindings: built.configVars, assets: { directory: built.assets, binding: "ASSETS", run_worker_first: true, routerConfig: { has_user_worker: true } },
-      outboundService: state === "C"
+      outboundService: newWorker
         ? createBridgeOutbound(status.API_URL, sentCodes)
         : createTaskOwnedSupabaseOutbound(status.API_URL),
     });
     const runtimeBindings = await worker.getBindings();
     assert.ok(runtimeBindings.SUPABASE_SERVICE_ROLE_KEY, "LOCAL_SERVICE_BINDING_MISSING");
-    if (state === "C") await proveBridge(worker, status, status.DB_URL, sentCodes);
+    if (state === "C-D") {
+      await proveBridge(worker, status, status.DB_URL, sentCodes, "C");
+      await applyAndVerifyEnforcement(status.DB_URL, status);
+      await proveBridge(worker, status, status.DB_URL, sentCodes, "D");
+    } else if (newWorker) await proveBridge(worker, status, status.DB_URL, sentCodes, state);
     else await proveBaseline(worker, status, status.DB_URL);
     digest = built.digest;
   } finally {
@@ -674,7 +697,7 @@ async function main() {
     }
     if (cleanupErrors.length) throw new Error(cleanupErrors.join(","));
   }
-  if (state === "C") {
+  if (newWorker) {
     const routes = await command(process.execPath,
       ["--experimental-transform-types", "scripts/test-verified-session-routes.mjs"], ROOT);
     assert.ok(routes.includes("VERIFIED_SESSION_ROUTES_OK"), "BRIDGE_ROUTES_REGRESSION_FAILED");
@@ -682,7 +705,9 @@ async function main() {
     assert.ok(ui.includes("PASS verified-session UI and logout boundary"), "BRIDGE_UI_REGRESSION_FAILED");
     const resend = await command(process.execPath, ["scripts/test-verification-resend-helper.mjs"], ROOT);
     assert.ok(resend.includes("PASS verification resend helper"), "BRIDGE_RESEND_REGRESSION_FAILED");
-    console.log(`MATRIX_C=PASS NEW_WORKER_SOURCE=${sourceCommit} NEW_ARTIFACT_SHA256=${digest} DB_STAGE=FOUNDATION PUBLIC_READS=PASS PENDING_SESSION=PASS PENDING_MUTATION_DENIED=PASS CHALLENGE_START_RESEND_VERIFY=PASS EXACT_SESSION_ACTIVATION=PASS SIGNUP_NATIVE_OTP=PASS POLICY_PENDING_CONSENT=PASS DIRECT_POSTGREST_BASELINE=PASS LOGOUT_OLD_JWT_DENIED=PASS ROUTES_UI_REGRESSIONS=PASS VERIFIED_SESSION_FULLY_ACTIVE=false TEARDOWN_BOUNDED=PASS OWNED_RUNTIME_RESOURCES_REMAINING=0`);
+    if (state === "C") console.log(`MATRIX_C=PASS NEW_WORKER_SOURCE=${sourceCommit} NEW_ARTIFACT_SHA256=${digest} DB_STAGE=FOUNDATION PUBLIC_READS=PASS PENDING_SESSION=PASS PENDING_MUTATION_DENIED=PASS CHALLENGE_START_RESEND_VERIFY=PASS EXACT_SESSION_ACTIVATION=PASS SIGNUP_NATIVE_OTP=PASS POLICY_PENDING_CONSENT=PASS DIRECT_POSTGREST_BASELINE=PASS LOGOUT_OLD_JWT_DENIED=PASS ROUTES_UI_REGRESSIONS=PASS VERIFIED_SESSION_FULLY_ACTIVE=false TEARDOWN_BOUNDED=PASS OWNED_RUNTIME_RESOURCES_REMAINING=0`);
+    else if (state === "D") console.log(`MATRIX_D=PASS NEW_WORKER_SOURCE=${sourceCommit} NEW_ARTIFACT_SHA256=${digest} DB_STAGE=ENFORCEMENT PUBLIC_READS=PASS PENDING_SESSION=PASS PENDING_API_DENIED=PASS DIRECT_BYPASS_DENIED=PASS CHALLENGE_START_RESEND_VERIFY=PASS EXACT_SESSION_ACTIVATION=PASS SIGNUP_NATIVE_OTP=PASS LOGOUT_OLD_JWT_DENIED=PASS ROUTES_UI_REGRESSIONS=PASS PAIRING_GUARD=DENY VERIFIED_SESSION_FULLY_ACTIVE_ELIGIBLE=true TEARDOWN_BOUNDED=PASS OWNED_RUNTIME_RESOURCES_REMAINING=0`);
+    else console.log(`MATRIX_C_D=PASS NEW_WORKER_SOURCE=${sourceCommit} NEW_ARTIFACT_SHA256=${digest} SAME_WORKER_ARTIFACT=true FOUNDATION_TO_ENFORCEMENT=PASS C_DIRECT_BASELINE=PASS D_DIRECT_BYPASS_DENIED=PASS PAIRING_GUARD=DENY VERIFIED_SESSION_FULLY_ACTIVE_ELIGIBLE=true TEARDOWN_BOUNDED=PASS OWNED_RUNTIME_RESOURCES_REMAINING=0`);
   }
   else console.log(`MATRIX_${state}=PASS OLD_WORKER_SOURCE=${OLD_COMMIT} OLD_ARTIFACT_SHA256=${digest} DB_STAGE=${state === "A" ? "PRE_V1" : "FOUNDATION"} OLD_${state === "A" ? "PREV1" : "FOUNDATION"}_PAIRING=ALLOW BINDINGS_LOCAL_ONLY=true HOSTED_BINDINGS_PRESENT=false PRODUCTION_BINDINGS_PRESENT=false PUBLIC_READS=PASS AUTH_BASELINE_LOGIN=PASS AUTHENTICATED_WRITE=PASS OLD_RESEND=PASS LEGAL_CONSENT_BASELINE=PASS TEARDOWN_BOUNDED=PASS OWNED_PROCESSES_REMAINING=0 OWNED_RUNTIME_RESOURCES_REMAINING=0${state === "B" ? " FOUNDATION_WEAKENS_BASELINE=false FOUNDATION_RESEND_FIXED_5_24=PASS FOUNDATION_RESEND_CONCURRENCY=PASS OLD_ROLLBACK_VIABLE=true" : ""}`);
 }
