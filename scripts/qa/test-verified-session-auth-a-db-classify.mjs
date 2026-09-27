@@ -15,6 +15,53 @@ function capture(rows = []) {
   ] };
 }
 
+const historyRow = (version, name = "forum_phase1_schema") => ({
+  version, name, created_by: "", idempotency_key: "",
+  statement_count: "1", rollback_statement_count: "",
+});
+
+test("8-digit historical version reaches catalog classification unchanged", () => {
+  const result = classifyAuthADatabase(capture([historyRow("20260518")]));
+  assert.equal(result.v1PrivateTableCount, 0);
+  assert.equal(result.oldMonolithApplied, false);
+  assert.equal(result.newFoundationApplied, false);
+  assert.equal(result.catalogPass, false);
+});
+
+test("14-digit historical version remains valid without becoming a target", () => {
+  const result = classifyAuthADatabase(capture([historyRow("20260902042807")]));
+  assert.equal(result.v1PrivateTableCount, 0);
+  assert.equal(result.oldMonolithApplied, false);
+  assert.equal(result.newFoundationApplied, false);
+});
+
+test("short, long and nonnumeric migration versions fail closed", () => {
+  for (const version of ["2026051", "202609230000000", "2026-05-18"]) {
+    const result = classifyAuthADatabase(capture([historyRow(version)]));
+    assert.equal(result.v1PrivateTableCount, "UNKNOWN");
+    assert.equal(result.oldMonolithApplied, "UNKNOWN");
+    assert.equal(result.migrationProvenance, "UNKNOWN");
+  }
+});
+
+test("8-digit lookalike is not padded to a Verified Session target", () => {
+  const result = classifyAuthADatabase(capture([
+    historyRow("20260923", "ogh_verified_session_v1_foundation"),
+  ]));
+  assert.equal(result.v1PrivateTableCount, 0);
+  assert.equal(result.newFoundationApplied, false);
+  assert.equal(result.migrationProvenance, "UNKNOWN");
+});
+
+test("exact target-version collision still marks history divergent", () => {
+  const result = classifyAuthADatabase(capture([
+    historyRow("20260923000000", "unexpected_target_name"),
+  ]));
+  assert.equal(result.oldMonolithApplied, false);
+  assert.equal(result.newFoundationApplied, false);
+  assert.equal(result.migrationProvenance, "DIVERGENT");
+});
+
 test("complete history without target versions remains UNKNOWN when semantic catalog is not reviewed", () => {
   const result = classifyAuthADatabase(capture());
   assert.equal(result.dbStage, "UNKNOWN");

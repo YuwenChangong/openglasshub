@@ -29,7 +29,7 @@ export function classifyAuthADatabase(capture) {
   if (JSON.stringify(history.fields) !== JSON.stringify(HISTORY_FIELDS)) return unknown;
   const identities = new Set();
   for (const row of history.rows) {
-    if (!row || !/^\d{14}$/.test(row.version ?? "")
+    if (!row || !/^\d{8,14}$/.test(row.version ?? "")
       || typeof row.name !== "string" || !/^[a-z0-9_]+(?:\.sql)?$/.test(row.name)
       || typeof row.created_by !== "string" || typeof row.idempotency_key !== "string"
       || !/^(?:|\d+)$/.test(row.statement_count ?? "")
