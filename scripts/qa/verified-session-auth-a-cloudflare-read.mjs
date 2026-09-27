@@ -20,15 +20,16 @@ export async function readCloudflareWorker({ mode = "LOCAL_TEST", origin = PRODU
     allowedPaths: [`${root}/deployments`, new RegExp(`^${versionRoot}/[a-f0-9-]{36}$`)],
     maxRequests: 2, ...(fetchImpl ? { fetchImpl } : {}) });
   const list = await client.get(`${root}/deployments`);
-  if (list?.success !== true || !object(list.result) ||
-    !Array.isArray(list.result.deployments) || list.result.deployments.length !== 1)
-    fail("DEPLOYMENT_UNKNOWN");
+  if (list?.success === false) fail("PROVIDER_REPORTED_FAILURE");
+  if (list?.success !== true || !object(list.result)
+    || !Array.isArray(list.result.deployments)) fail("DEPLOYMENT_RESPONSE_INVALID");
+  if (list.result.deployments.length !== 1) fail("DEPLOYMENT_COUNT_INVALID");
   const deployment = list.result.deployments[0];
   if (!object(deployment) || !UUID.test(deployment.id ?? "")
     || (deployment.script_name !== undefined && deployment.script_name !== "openglasshub")
     || !Array.isArray(deployment.versions) || deployment.versions.length !== 1
     || !UUID.test(deployment.versions[0]?.version_id ?? "")
-    || deployment.versions[0].percentage !== 100) fail("DEPLOYMENT_AMBIGUOUS");
+    || deployment.versions[0].percentage !== 100) fail("DEPLOYMENT_SHAPE_INVALID");
   const versionId = deployment.versions[0].version_id;
   if (versionId !== EXPECTED_OLD_WORKER.versionId) fail("VERSION_DRIFT");
   const detail = await client.get(`${versionRoot}/${versionId}`);

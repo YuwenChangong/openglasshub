@@ -21,7 +21,7 @@ This is an offline review packet, not an execution command or approval. It autho
 | Enforcement | `supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql`; SHA-256 `89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e` |
 | Read-only catalog packet | `docs/ops/verified-session-v1-hosted-catalog-preflight.sql`; SHA-256 `b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7` |
 | Existing migration-history metadata packet | `docs/ops/p9-migration-history-rows-read-only.sql`; SHA-256 `6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002` |
-| AUTH-A execution-path review | `docs/ops/verified-session-v1-auth-a-transport-review.md`; SHA-256 `2e64d01da72bdc54cf3dd7aa7997896cc70424cf6b4db0aab5f423714681d46e`; binds the implementation-path hashes listed there |
+| AUTH-A execution-path review | `docs/ops/verified-session-v1-auth-a-transport-review.md`; SHA-256 `91b94982574e0be0c2b669cb90c38a56a63a7ce29aa85e8063760fe7edba1736`; binds the implementation-path hashes listed there |
 
 Both pinned source commits exist locally. These hashes were recomputed from the files in the reviewed worktree; a future operator must recompute and bind them again before any hosted read. A mismatch means `AUTH_A_PACKET_STATUS=BLOCKED_ARTIFACT_DRIFT` and stop. The AUTH-A execution authorization must bind the *then-current* packet commit and packet-file SHA-256; this preparation commit is not an approval or a claim about the deployed Worker.
 
@@ -109,7 +109,7 @@ SOURCE_HEAD=<reviewed-current-commit>
 PACKET_SHA256=<hash-of-this-committed-packet>
 CATALOG_PACKET_SHA256=b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7
 MIGRATION_HISTORY_PACKET_SHA256=6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002
-AUTH_A_TRANSPORT_REVIEW_SHA256=2e64d01da72bdc54cf3dd7aa7997896cc70424cf6b4db0aab5f423714681d46e
+AUTH_A_TRANSPORT_REVIEW_SHA256=91b94982574e0be0c2b669cb90c38a56a63a7ce29aa85e8063760fe7edba1736
 MAX_READ_ONLY_CONNECTIONS=1
 MAX_CLOUDFLARE_READ_REQUESTS=2
 MAX_SUPABASE_CONTROL_PLANE_READ_REQUESTS=2
@@ -138,6 +138,8 @@ DEPLOYED_WORKER_IDENTITY_MATCH=true|false
 DEPLOYED_WORKER_IDENTITY_DRIFT=true|false|UNKNOWN
 DEPLOYED_WORKER_SOURCE_EQUIVALENCE=PROVEN_BY_HISTORICAL_VERSION_BINDING|UNKNOWN
 EXPECTED_SOURCE_COMMIT=e6c2141be8827d961fc49462d66be8da9b4993eb
+CLOUDFLARE_FAILURE_STAGE=REQUEST_1|REQUEST_2|NONE|UNKNOWN
+CLOUDFLARE_FAILURE_CLASS=AUTHENTICATION_OR_PERMISSION|HTTP_STATUS|REDIRECT|TIMEOUT|TRANSPORT|RESPONSE_TOO_LARGE|INVALID_JSON|PROVIDER_REPORTED_FAILURE|DEPLOYMENT_RESPONSE_INVALID|DEPLOYMENT_COUNT_INVALID|DEPLOYMENT_SHAPE_INVALID|VERSION_DRIFT|NONE|UNKNOWN
 DB_STAGE=PRE_V1|FOUNDATION|ENFORCEMENT|UNKNOWN
 EXPECTED_DB_STAGE=PRE_V1
 MIGRATION_PROVENANCE=CLEAN_UNSHIPPED_V1|UNKNOWN|DIVERGENT

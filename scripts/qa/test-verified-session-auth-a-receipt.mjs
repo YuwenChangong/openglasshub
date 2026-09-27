@@ -54,11 +54,14 @@ test("RECEIPT-01..02 complete PASS contains frozen redacted inventory facts", ()
   assert.equal(actual.DB_FAILURE_STAGE, "NONE");
   assert.equal(actual.DB_FAILURE_CLASS, "NONE");
   assert.equal(actual.DB_FAILURE_QUERY_ID, "NONE");
+  assert.equal(actual.CLOUDFLARE_FAILURE_STAGE, "NONE");
+  assert.equal(actual.CLOUDFLARE_FAILURE_CLASS, "NONE");
   const required = ["AUTH_A_STATUS", "AUTH_RELEASE_STATUS", "AUTHORIZATION_ID", "AUTHORIZATION_VALID",
     "AUTHORIZATION_CONSUMED", "REUSABLE", "SOURCE_HEAD", "PACKET_SHA256", "CATALOG_PACKET_SHA256",
     "MIGRATION_HISTORY_PACKET_SHA256", "FOUNDATION_SHA256", "ENFORCEMENT_SHA256", "TARGET_WORKER",
     "TARGET_SUPABASE", "TARGET_MATCH", "DEPLOYED_WORKER_IDENTITY", "DEPLOYED_WORKER_IDENTITY_MATCH",
     "DEPLOYED_WORKER_IDENTITY_DRIFT", "DEPLOYED_WORKER_SOURCE_EQUIVALENCE", "EXPECTED_SOURCE_COMMIT",
+    "CLOUDFLARE_FAILURE_STAGE", "CLOUDFLARE_FAILURE_CLASS",
     "DB_STAGE", "DB_FAILURE_STAGE", "DB_FAILURE_CLASS", "DB_FAILURE_QUERY_ID",
     "EXPECTED_DB_STAGE", "MIGRATION_PROVENANCE", "OLD_MONOLITH_APPLIED",
     "OLD_RESEND_LOCK_APPLIED", "NEW_FOUNDATION_APPLIED", "NEW_ENFORCEMENT_APPLIED",
@@ -108,8 +111,12 @@ test("RECEIPT-03..10 blocked before DB remains UNKNOWN and never leaks arbitrary
   markAuthAExternalDispatch(capability, "cloudflare");
   const result = { authAStatus: "BLOCKED", blockerClass: "Bearer secret-token password=dummy-password",
     nextAction: "REQUEST_AUTH_B_FOUNDATION_AUTHORIZATION", targetSupabase: "sender@example.test",
+    cloudflareFailureStage: "REQUEST_1\nSECRET", cloudflareFailureClass: "fake-provider-body-marker",
     dbStage: "PRE_V1", migrationProvenance: "CLEAN_UNSHIPPED_V1" };
   const receipt = production.formatAuthAProductionReceipt({ authorization, capability, result });
+  assert.equal(fields(receipt).CLOUDFLARE_FAILURE_STAGE, "UNKNOWN");
+  assert.equal(fields(receipt).CLOUDFLARE_FAILURE_CLASS, "UNKNOWN");
+  assert.equal(receipt.includes("fake-provider-body-marker"), false);
   const actual = fields(receipt);
   assert.equal(actual.AUTH_A_STATUS, "BLOCKED");
   assert.equal(actual.AUTHORIZATION_CONSUMED, "true");

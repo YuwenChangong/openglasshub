@@ -15,7 +15,13 @@ const PRODUCTION_PATHS = Object.freeze({
   supabase: [/^\/v1\/projects$/, /^\/v1\/organizations\/[a-z0-9][a-z0-9-]{0,62}$/],
   brevo: [/^\/v3\/account$/, /^\/v3\/senders$/],
 });
-const fail = (code) => { throw new Error(`AUTH_A_READ_${code}`); };
+const fail = (code, diagnosticCode = code) => {
+  const error = new Error(`AUTH_A_READ_${code}`);
+  error.authAReadCode = diagnosticCode;
+  throw error;
+};
+const timedOut = (error, signal) => error?.name === "TimeoutError"
+  || (signal.aborted && signal.reason?.name === "TimeoutError");
 
 export function createAuthAReadClient({ mode, origin, token, headerName, allowedPaths, maxRequests,
   capability,
@@ -51,13 +57,17 @@ export function createAuthAReadClient({ mode, origin, token, headerName, allowed
       if (productionProvider) markAuthAExternalDispatch(capability, productionProvider);
       requests += 1;
       let response;
+      const signal = AbortSignal.timeout(10_000);
       try {
         response = await (fetchImpl ?? fetch)(new URL(path, base), {
-          method: "GET", redirect: "manual", headers: { [headerName]: headerName === "Authorization" ? `Bearer ${token}` : token,
+          method: "GET", redirect: "manual", signal,
+          headers: { [headerName]: headerName === "Authorization" ? `Bearer ${token}` : token,
             Accept: "application/json" },
         });
-      } catch { fail("NETWORK_FAILURE"); }
-      if (response.status !== 200) fail("HTTP_FAILURE");
+      } catch (error) { fail("NETWORK_FAILURE", timedOut(error, signal) ? "TIMEOUT" : "TRANSPORT"); }
+      if (response.status !== 200) fail("HTTP_FAILURE", [401, 403].includes(response.status)
+        ? "AUTH_OR_PERMISSION" : response.status >= 300 && response.status < 400
+          ? "REDIRECT" : "HTTP_STATUS");
       const length = Number(response.headers.get("content-length"));
       if (Number.isFinite(length) && length > bodyLimit) fail("BODY_TOO_LARGE");
       if (!response.body) fail("BODY_READ_FAILURE");
@@ -66,7 +76,8 @@ export function createAuthAReadClient({ mode, origin, token, headerName, allowed
       let bytes = 0;
       while (true) {
         let part;
-        try { part = await reader.read(); } catch { fail("BODY_READ_FAILURE"); }
+        try { part = await reader.read(); }
+        catch (error) { fail("BODY_READ_FAILURE", timedOut(error, signal) ? "TIMEOUT" : "TRANSPORT"); }
         if (part.done) break;
         bytes += part.value.byteLength;
         if (bytes > bodyLimit) {

@@ -18,6 +18,25 @@ const P9_ERROR_STAGES = new Map([
   ["P9_RESULT_CSV_INVALID", "RESULT_PARSING"],
   ["P9_SESSION_PROOF_FAILURE", "SESSION_PROOF"],
 ]);
+const CF_FAILURE_CLASSES = new Map([
+  ["AUTH_A_READ_AUTH_OR_PERMISSION", "AUTHENTICATION_OR_PERMISSION"],
+  ["AUTH_A_READ_HTTP_STATUS", "HTTP_STATUS"],
+  ["AUTH_A_READ_REDIRECT", "REDIRECT"],
+  ["AUTH_A_READ_TIMEOUT", "TIMEOUT"],
+  ["AUTH_A_READ_TRANSPORT", "TRANSPORT"],
+  ["AUTH_A_READ_BODY_READ_FAILURE", "TRANSPORT"],
+  ["AUTH_A_READ_BODY_TOO_LARGE", "RESPONSE_TOO_LARGE"],
+  ["AUTH_A_READ_JSON_INVALID", "INVALID_JSON"],
+  ["AUTH_A_CF_PROVIDER_REPORTED_FAILURE", "PROVIDER_REPORTED_FAILURE"],
+  ["AUTH_A_CF_DEPLOYMENT_RESPONSE_INVALID", "DEPLOYMENT_RESPONSE_INVALID"],
+  ["AUTH_A_CF_DEPLOYMENT_COUNT_INVALID", "DEPLOYMENT_COUNT_INVALID"],
+  ["AUTH_A_CF_DEPLOYMENT_SHAPE_INVALID", "DEPLOYMENT_SHAPE_INVALID"],
+  ["AUTH_A_CF_VERSION_DRIFT", "VERSION_DRIFT"],
+  ["AUTH_A_CF_VERSION_TARGET_DRIFT", "DEPLOYMENT_RESPONSE_INVALID"],
+  ["AUTH_A_CF_RESOURCES_UNKNOWN", "DEPLOYMENT_RESPONSE_INVALID"],
+  ["AUTH_A_CF_BINDINGS_UNKNOWN", "DEPLOYMENT_RESPONSE_INVALID"],
+  ["AUTH_A_CF_BINDINGS_AMBIGUOUS", "DEPLOYMENT_RESPONSE_INVALID"],
+]);
 const safeQueryId = (value) => value === "SESSION" || value === "SESSION_FINAL"
   || value === "HISTORY_01" || /^CATALOG_(?:0[1-9]|1[01])$/.test(value ?? "")
   ? value : value == null ? "NONE" : "UNKNOWN";
@@ -51,6 +70,7 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
     { authorization, observedHead, observedPacketSha256, branch, worktreeClean });
 
   const observed = { targetWorker: "UNKNOWN", targetSupabase: "UNKNOWN", targetMatch: "UNKNOWN",
+    cloudflareFailureStage: "UNKNOWN", cloudflareFailureClass: "UNKNOWN",
     deployedWorkerIdentity: "UNKNOWN", deployedWorkerIdentityMatch: false,
     deployedWorkerIdentityDrift: "UNKNOWN", deployedWorkerSourceEquivalence: "UNKNOWN",
     dbStage: "UNKNOWN", migrationProvenance: "UNKNOWN",
@@ -72,6 +92,7 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
     if (cf.activeVersionId !== EXPECTED_OLD_WORKER.versionId
       || cf.versionId !== cf.activeVersionId) fail("WORKER_VERSION_DRIFT");
     Object.assign(observed, { targetWorker: EXPECTED_OLD_WORKER.workerName,
+      cloudflareFailureStage: "NONE", cloudflareFailureClass: "NONE",
       deployedWorkerIdentityMatch: true, deployedWorkerIdentityDrift: false,
       deployedWorkerSourceEquivalence: "PROVEN_BY_HISTORICAL_VERSION_BINDING" });
     stage = "SUPABASE";
@@ -127,6 +148,17 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
       cloudflareReadRequests: 2, supabaseReadRequests: 2, brevoReadRequests: 2,
       databaseConnectionAttempts: 1, productionWrites: 0, emailSends: 0, deploys: 0 });
   } catch (error) {
+    if (stage === "CLOUDFLARE") {
+      const dispatched = mode === "PRODUCTION"
+        ? getAuthAProductionAttempt(capability).counts.cloudflare : 0;
+      observed.cloudflareFailureStage = dispatched === 1 ? "REQUEST_1"
+        : dispatched === 2 ? "REQUEST_2" : "UNKNOWN";
+      const key = error?.message === "AUTH_A_READ_HTTP_FAILURE"
+        || error?.message === "AUTH_A_READ_NETWORK_FAILURE"
+        || error?.message === "AUTH_A_READ_BODY_READ_FAILURE"
+        ? `AUTH_A_READ_${error?.authAReadCode}` : error?.message;
+      observed.cloudflareFailureClass = CF_FAILURE_CLASSES.get(key) ?? "UNKNOWN";
+    }
     if (stage === "DATABASE" && !dbFailureObserved && P9_ERROR_STAGES.has(error?.code)) {
       observed.dbFailureStage = P9_ERROR_STAGES.get(error.code);
       observed.dbFailureClass = error.code;

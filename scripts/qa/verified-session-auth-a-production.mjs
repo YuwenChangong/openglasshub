@@ -79,6 +79,11 @@ const DB_FAILURE_CLASSES = ["AUTHENTICATION_FAILED", "DNS_FAILURE", "SSL_FAILURE
   "P9_SESSION_PROOF_FAILURE", "NONE", "UNKNOWN"];
 const DB_FAILURE_QUERY_IDS = ["SESSION", ...Array.from({ length: 11 }, (_, index) =>
   `CATALOG_${String(index + 1).padStart(2, "0")}`), "HISTORY_01", "SESSION_FINAL", "NONE", "UNKNOWN"];
+const CF_FAILURE_STAGES = ["REQUEST_1", "REQUEST_2", "NONE", "UNKNOWN"];
+const CF_FAILURE_CLASSES = ["AUTHENTICATION_OR_PERMISSION", "HTTP_STATUS", "REDIRECT", "TIMEOUT",
+  "TRANSPORT", "RESPONSE_TOO_LARGE", "INVALID_JSON", "PROVIDER_REPORTED_FAILURE",
+  "DEPLOYMENT_RESPONSE_INVALID", "DEPLOYMENT_COUNT_INVALID", "DEPLOYMENT_SHAPE_INVALID",
+  "VERSION_DRIFT", "NONE", "UNKNOWN"];
 const acl = (value) => value && typeof value === "object"
   && [value.anon, value.authenticated, value.service].every((part) => typeof part === "boolean")
   ? `anon=${value.anon},authenticated=${value.authenticated},service=${value.service}` : "UNKNOWN";
@@ -126,6 +131,8 @@ export function formatAuthAProductionReceipt({ authorization, capability, result
     `DEPLOYED_WORKER_SOURCE_EQUIVALENCE=${oneOf(result?.deployedWorkerSourceEquivalence,
       ["PROVEN_BY_HISTORICAL_VERSION_BINDING", "UNKNOWN"])}`,
     `EXPECTED_SOURCE_COMMIT=${EXPECTED_OLD_WORKER.sourceCommit}`,
+    `CLOUDFLARE_FAILURE_STAGE=${status === "PASS" ? "NONE" : oneOf(result?.cloudflareFailureStage, CF_FAILURE_STAGES)}`,
+    `CLOUDFLARE_FAILURE_CLASS=${status === "PASS" ? "NONE" : oneOf(result?.cloudflareFailureClass, CF_FAILURE_CLASSES)}`,
     `DB_STAGE=${oneOf(db?.dbStage, ["PRE_V1", "FOUNDATION", "ENFORCEMENT", "UNKNOWN"])}`,
     `DB_FAILURE_STAGE=${dbFailure(dbDiagnostics?.dbFailureStage, DB_FAILURE_STAGES)}`,
     `DB_FAILURE_CLASS=${dbFailure(dbDiagnostics?.dbFailureClass, DB_FAILURE_CLASSES)}`,

@@ -13,10 +13,10 @@ runner was reused; no second executor was created.
 | Path | SHA-256 |
 | --- | --- |
 | `scripts/lib/verified-session-auth-a-production-gate.mjs` | `a2702247e7ff636979224af64fb4ae6f706eecc07035e4946d20cadfc435c3be` |
-| `scripts/qa/verified-session-auth-a-production.mjs` | `7034900491c1ae6b9f811326374aedaedfcf51990e869f3c2e9212abb2fce4a9` |
-| `scripts/qa/verified-session-auth-a-execute.mjs` | `1c3b95743a86ead884dff936170eb915cf224c3e2dc8eabd5ed5b4da6a05a36d` |
-| `scripts/qa/verified-session-auth-a-read-client.mjs` | `cc5d50bb09ddfe532576f187acf86a3133296366a2daeba66f78c67262537934` |
-| `scripts/qa/verified-session-auth-a-cloudflare-read.mjs` | `2bbe69358b5ca52092d478441fa8e10a4badc951ad98722e8864ef25da281198` |
+| `scripts/qa/verified-session-auth-a-production.mjs` | `921b64ea8475ea0911ae90cfc3b0ef8104a420ca5922f024922cee9bd19493ab` |
+| `scripts/qa/verified-session-auth-a-execute.mjs` | `ef3aa5bffc7b428e0dd4a09c14b1cf140a80beac3398f76b1bb29285c1024585` |
+| `scripts/qa/verified-session-auth-a-read-client.mjs` | `bdd9bff456fdffdc2769e36806b7e8dc44e1ca1b4f3be4d945d22f88bd2f9fd5` |
+| `scripts/qa/verified-session-auth-a-cloudflare-read.mjs` | `b3513b26ff61e10a17a55ec06219a6e3689eee3da7c341c1af13ec6e398f41e5` |
 | `scripts/qa/verified-session-auth-a-supabase-read.mjs` | `c219576e22954eeb7413edd75d74f1ea12fbb3ad5651c2988b51c7a811d3bda4` |
 | `scripts/qa/verified-session-auth-a-brevo-read.mjs` | `739f3cee459100b66af878133156825c306ff35275323ffbfa7686e605ab160d` |
 | `scripts/qa/verified-session-auth-a-db-capture.mjs` | `15ead04234c831a9d8fb1844ef864a586431ef759a9e69921373410e25677d5f` |
@@ -48,6 +48,15 @@ and SELECT-unit identities are checked before spawn. `psql` uses `-X`,
 `ON_ERROR_STOP`, one process, read-only transaction proof, same-backend proof
 and explicit rollback. Ambiguous, partial or malformed results stop without
 retry. No transport exposes a write operation.
+
+The HTTP client has a 10-second per-request timeout. Cloudflare failures carry
+only a fixed `REQUEST_1`/`REQUEST_2` stage and a bounded class in the public
+receipt: authentication/permission, HTTP status, redirect, timeout, transport,
+response too large, invalid JSON, provider-reported failure, invalid deployment
+response/count/shape, version drift, or `UNKNOWN`. The historical active-version
+drift still produces `WORKER_VERSION_DRIFT`. Neither HTTP bodies nor token,
+header, URL, provider message or stack text enters those fields. This is
+diagnostic-only: no retries, extra requests or relaxed response contracts.
 
 ## Single use and output
 
