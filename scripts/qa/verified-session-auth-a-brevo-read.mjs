@@ -22,7 +22,7 @@ export async function readBrevoReadiness({ mode = "LOCAL_TEST", origin = PRODUCT
   const senders = await client.get("/v3/senders");
   if (!Array.isArray(senders?.senders)) fail("SENDERS_UNKNOWN");
   const matching = senders.senders.filter((sender) => sender?.email === expectedSenderEmail);
-  const senderReady = matching.length === 1 && matching[0].active === true;
+  const senderReady = matching.some((sender) => sender.active === true);
   return { plan, creditsAvailable: credits,
     capacitySufficient: plan === "FREE" && relayReady && credits !== null && credits >= minimumCredits,
     senderReady, requestCount: client.requestCount };

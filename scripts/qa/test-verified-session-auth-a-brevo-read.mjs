@@ -4,6 +4,51 @@ import { once } from "node:events";
 import { test } from "node:test";
 import { readBrevoReadiness } from "./verified-session-auth-a-brevo-read.mjs";
 
+test("BR duplicate exact-email active sender records are ready", async () => {
+  const paths = [];
+  const fetchImpl = async (url) => {
+    paths.push(url.pathname);
+    return Response.json(url.pathname === "/v3/account"
+      ? { plan: [{ type: "free", creditsType: "sendLimit", credits: 10 }], relay: { enabled: true } }
+      : { senders: [
+        { id: 1, name: "Primary", email: "expected@example.test", active: true },
+        { id: 2, name: "Secondary", email: "expected@example.test", active: true },
+      ] });
+  };
+  const result = await readBrevoReadiness({ mode: "LOCAL_TEST", origin: "http://127.0.0.1/",
+    token: "dummy-key", expectedSenderEmail: "expected@example.test", minimumCredits: 9, fetchImpl });
+  assert.deepEqual(paths, ["/v3/account", "/v3/senders"]);
+  assert.equal(result.requestCount, 2);
+  assert.equal(result.capacitySufficient, true);
+  assert.equal(result.senderReady, true);
+});
+
+test("BR sender readiness requires at least one active exact-email record", async () => {
+  const expected = "expected@example.test";
+  for (const [senders, senderReady] of [
+    [[{ email: expected, active: true }, { email: expected, active: false }], true],
+    [[{ email: expected, active: false }], false],
+    [[{ email: expected, active: false }, { email: expected, active: false }], false],
+    [[], false],
+    [[{ email: "other@example.test", active: true }], false],
+    [[{ email: "Expected@example.test", active: true }], false],
+  ]) {
+    const paths = [];
+    const fetchImpl = async (url) => {
+      paths.push(url.pathname);
+      return Response.json(url.pathname === "/v3/account"
+        ? { plan: [{ type: "free", creditsType: "sendLimit", credits: 10 }], relay: { enabled: true } }
+        : { senders });
+    };
+    const result = await readBrevoReadiness({ mode: "LOCAL_TEST", origin: "http://127.0.0.1/",
+      token: "dummy-key", expectedSenderEmail: expected, minimumCredits: 9, fetchImpl });
+    assert.equal(result.senderReady, senderReady);
+    assert.equal(result.capacitySufficient, true);
+    assert.equal(result.requestCount, 2);
+    assert.deepEqual(paths, ["/v3/account", "/v3/senders"]);
+  }
+});
+
 async function serve(handler, fn) {
   const server = createServer(handler);
   server.listen(0, "127.0.0.1");
@@ -50,8 +95,6 @@ test("BR-04..06 missing email plan, credits or active sender cannot pass", async
     [{ plan: [{ type: "free", credits: 100, creditsType: "sendLimit" },
       { type: "free", credits: 100, creditsType: "sendLimit" }], relay: { enabled: true } },
       { senders: [{ email: "expected@example.test", active: true }] }],
-    [{ plan: [{ type: "free", credits: 100, creditsType: "sendLimit" }], relay: { enabled: true } },
-      { senders: [{ email: "expected@example.test", active: true }, { email: "expected@example.test", active: true }] }],
   ]) await serve((req, res) => {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(req.url === "/v3/account" ? account : senders));
