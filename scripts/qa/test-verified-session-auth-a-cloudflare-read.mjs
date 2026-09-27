@@ -114,7 +114,7 @@ test("WID-11,12 body cap, redirect and third-request budget deny without retry",
   await assert.rejects(client.get("/one"), /AUTH_A_READ_BUDGET_EXCEEDED/);
 });
 
-test("WID-13 Production dispatch remains hard disabled", async () => {
+test("WID-13 Production origin substitution remains denied", async () => {
   await assert.rejects(readCloudflareWorker({ mode: "PRODUCTION", origin: "https://example.invalid/",
     accountId, token: "dummy" }), /AUTH_A_CF_ORIGIN_DENIED/);
 });

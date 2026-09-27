@@ -5,7 +5,7 @@ import { EXPECTED_OLD_WORKER } from "../lib/verified-session-old-worker-baseline
 
 const sourceHead = "a".repeat(40);
 const packetSha256 = "b".repeat(64);
-const authorization = { AUTH_A_EXECUTE: "1", AUTHORIZATION_ID: "auth-a-verified-session-002",
+const authorization = { AUTH_A_EXECUTE: "1", AUTHORIZATION_ID: "auth-a-verified-session-003",
   AUTHORIZED_AT_UTC: "2026-09-26T00:00:00.000Z", SOURCE_HEAD: sourceHead,
   PACKET_SHA256: packetSha256 };
 const base = { mode: "LOCAL_TEST", authorization, sourceHead, observedHead: sourceHead,
@@ -25,7 +25,8 @@ function fixture() {
       versionId: EXPECTED_OLD_WORKER.versionId, sourceCommit: "f".repeat(40) }; },
     async supabase() { calls.push("supabase"); return { requestCount: 2,
       projectRef: "xcbnxzjlsvtgzixurcof", targetMatch: true, projectStatus: "ACTIVE_HEALTHY", freePlan: true }; },
-    async brevo() { calls.push("brevo"); return { requestCount: 2, plan: "FREE", senderReady: true }; },
+    async brevo() { calls.push("brevo"); return { requestCount: 2, plan: "FREE",
+      senderReady: true, capacitySufficient: true }; },
     async database() { calls.push("database"); return { status: "PASS", connectionAttempts: 1,
       psqlProcessCount: 1, queryCount: 12, transactionReadOnly: true, sameBackend: true,
       rollbackMode: "EXPLICIT_ROLLBACK", transportProof: { status: "PASS", connectionAttempts: 1,
@@ -55,13 +56,13 @@ test("fake PRE_V1 callback cannot override DB-derived UNKNOWN", async () => {
   assert.equal(calls.includes("classify"), false);
 });
 
-test("AUTH-A-001, source drift and Production stop before any read", async () => {
+test("AUTH-A-001/002 and source drift stop before any read", async () => {
   for (const options of [
     { authorization: { ...authorization, AUTHORIZATION_ID: "auth-a-verified-session-001" } },
+    { authorization: { ...authorization, AUTHORIZATION_ID: "auth-a-verified-session-002" } },
     { observedHead: "c".repeat(40) },
     { observedPacketSha256: "d".repeat(64) },
     { worktreeClean: false },
-    { mode: "PRODUCTION" },
   ]) {
     const { calls, steps } = fixture();
     await assert.rejects(runAuthAOrchestrator({ ...base, ...options, steps }), /AUTH_A_ORCHESTRATOR_/);

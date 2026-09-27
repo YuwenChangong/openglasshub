@@ -7,14 +7,14 @@ const fail = (code) => { throw new Error(`AUTH_A_CF_${code}`); };
 const object = (value) => value && typeof value === "object" && !Array.isArray(value);
 
 export async function readCloudflareWorker({ mode = "LOCAL_TEST", origin = PRODUCTION_ORIGIN,
-  accountId, token } = {}) {
+  accountId, token, capability, fetchImpl } = {}) {
   if (mode === "PRODUCTION" && origin !== PRODUCTION_ORIGIN) fail("ORIGIN_DENIED");
   if (typeof accountId !== "string" || !/^[a-f0-9]{32}$/i.test(accountId)) fail("ACCOUNT_INVALID");
   const root = `/client/v4/accounts/${accountId}/workers/scripts/openglasshub`;
   const versionRoot = `${root}/versions`;
-  const client = createAuthAReadClient({ mode, origin, token, headerName: "Authorization",
+  const client = createAuthAReadClient({ mode, origin, token, capability, headerName: "Authorization",
     allowedPaths: [`${root}/deployments`, new RegExp(`^${versionRoot}/[a-f0-9-]{36}$`)],
-    maxRequests: 2 });
+    maxRequests: 2, ...(fetchImpl ? { fetchImpl } : {}) });
   const list = await client.get(`${root}/deployments`);
   if (list?.success !== true || !object(list.result) ||
     !Array.isArray(list.result.deployments) || !list.result.deployments.length) fail("DEPLOYMENT_UNKNOWN");

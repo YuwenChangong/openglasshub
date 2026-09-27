@@ -22,10 +22,10 @@ test("GET-only path/budget enforcement happens before dispatch", async () => {
   } finally { server.close(); await once(server, "close"); }
 });
 
-test("production origins stay disabled before reviewed orchestration", () => {
+test("production origins require capability before dispatch", () => {
   for (const origin of ["https://api.cloudflare.com/", "https://api.brevo.com/", "https://api.supabase.com/"])
     assert.throws(() => createAuthAReadClient({ mode: "PRODUCTION", origin, token: "dummy-token",
-      headerName: "Authorization", allowedPaths: ["/one"], maxRequests: 1 }), /AUTH_A_READ_PRODUCTION_DISABLED/);
+      headerName: "Authorization", allowedPaths: ["/one"], maxRequests: 1 }), /AUTH_A_PRODUCTION_GATE_CAPABILITY_INVALID/);
   assert.throws(() => createAuthAReadClient({ mode: "LOCAL_TEST", origin: "http://localhost.example.invalid/",
     token: "dummy-token", headerName: "Authorization", allowedPaths: ["/one"], maxRequests: 1 }), /AUTH_A_READ_ORIGIN_INVALID/);
 });

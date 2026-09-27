@@ -4,12 +4,13 @@ const PRODUCTION_ORIGIN = "https://api.brevo.com/";
 const fail = (code) => { throw new Error(`AUTH_A_BREVO_${code}`); };
 
 export async function readBrevoReadiness({ mode = "LOCAL_TEST", origin = PRODUCTION_ORIGIN,
-  token, expectedSenderEmail, minimumCredits } = {}) {
+  token, expectedSenderEmail, minimumCredits, capability, fetchImpl } = {}) {
   if (mode === "PRODUCTION" && origin !== PRODUCTION_ORIGIN) fail("ORIGIN_DENIED");
   if (typeof expectedSenderEmail !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(expectedSenderEmail)
     || !Number.isInteger(minimumCredits) || minimumCredits < 0) fail("CONTRACT_INVALID");
-  const client = createAuthAReadClient({ mode, origin, token, headerName: "api-key",
-    allowedPaths: ["/v3/account", "/v3/senders"], maxRequests: 2 });
+  const client = createAuthAReadClient({ mode, origin, token, capability, headerName: "api-key",
+    allowedPaths: ["/v3/account", "/v3/senders"], maxRequests: 2,
+    ...(fetchImpl ? { fetchImpl } : {}) });
   const account = await client.get("/v3/account");
   if (!account || typeof account !== "object" || !Array.isArray(account.plan)) fail("ACCOUNT_UNKNOWN");
   const plans = account.plan;

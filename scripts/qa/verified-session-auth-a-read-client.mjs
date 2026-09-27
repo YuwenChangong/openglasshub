@@ -1,16 +1,37 @@
+import { assertAuthAProductionCapability, markAuthAExternalDispatch } from
+  "../lib/verified-session-auth-a-production-gate.mjs";
+
 const MAX_BODY_BYTES = 128 * 1024;
+const PRODUCTION_ORIGINS = new Map([
+  ["https://api.cloudflare.com/", "cloudflare"],
+  ["https://api.supabase.com/", "supabase"],
+  ["https://api.brevo.com/", "brevo"],
+]);
+const PRODUCTION_PATHS = Object.freeze({
+  cloudflare: [
+    /^\/client\/v4\/accounts\/[a-f0-9]{32}\/workers\/scripts\/openglasshub\/deployments$/,
+    /^\/client\/v4\/accounts\/[a-f0-9]{32}\/workers\/scripts\/openglasshub\/versions\/[a-f0-9-]{36}$/,
+  ],
+  supabase: [/^\/v1\/projects$/, /^\/v1\/organizations\/[a-z0-9][a-z0-9-]{0,62}$/],
+  brevo: [/^\/v3\/account$/, /^\/v3\/senders$/],
+});
 const fail = (code) => { throw new Error(`AUTH_A_READ_${code}`); };
 
 export function createAuthAReadClient({ mode, origin, token, headerName, allowedPaths, maxRequests,
-  fetchImpl = fetch } = {}) {
+  capability,
+  fetchImpl } = {}) {
   let base;
   try { base = new URL(origin); } catch { fail("ORIGIN_INVALID"); }
   if (base.username || base.password || base.pathname !== "/" || base.search || base.hash) fail("ORIGIN_INVALID");
+  let productionProvider;
   if (mode === "LOCAL_TEST") {
     if (base.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(base.hostname)) fail("ORIGIN_INVALID");
   } else if (mode === "PRODUCTION") {
-    // No hosted dispatch until a reviewed orchestrator binds a new authorization.
-    fail("PRODUCTION_DISABLED");
+    productionProvider = PRODUCTION_ORIGINS.get(origin);
+    if (!productionProvider) fail("ORIGIN_INVALID");
+    const verified = assertAuthAProductionCapability(capability);
+    if (verified.testOnly && typeof fetchImpl !== "function") fail("TEST_TRANSPORT_REQUIRED");
+    if (!verified.testOnly && fetchImpl !== undefined) fail("TEST_TRANSPORT_DENIED");
   } else fail("MODE_INVALID");
   if (typeof token !== "string" || !token || !["Authorization", "api-key"].includes(headerName)
     || !Array.isArray(allowedPaths) || !allowedPaths.length
@@ -22,13 +43,16 @@ export function createAuthAReadClient({ mode, origin, token, headerName, allowed
   return Object.freeze({
     get requestCount() { return requests; },
     async get(path) {
+      if (productionProvider && !PRODUCTION_PATHS[productionProvider].some((pattern) => pattern.test(path)))
+        fail("PATH_DENIED");
       if (!allowedPaths.some((part) => typeof part === "string" ? part === path : part.test(path))) fail("PATH_DENIED");
       const bodyLimit = MAX_BODY_BYTES;
       if (requests >= maxRequests) fail("BUDGET_EXCEEDED");
+      if (productionProvider) markAuthAExternalDispatch(capability, productionProvider);
       requests += 1;
       let response;
       try {
-        response = await fetchImpl(new URL(path, base), {
+        response = await (fetchImpl ?? fetch)(new URL(path, base), {
           method: "GET", redirect: "manual", headers: { [headerName]: headerName === "Authorization" ? `Bearer ${token}` : token,
             Accept: "application/json" },
         });

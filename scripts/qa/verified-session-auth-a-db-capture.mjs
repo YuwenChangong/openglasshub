@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import { parseP9Connection, loadReadOnlyPacketUnits, runP9ReadOnlyCapture } from "./p9-readonly-postgres-transport.mjs";
+import { spawn } from "node:child_process";
+import { assertAuthAProductionCapability, markAuthAExternalDispatch } from
+  "../lib/verified-session-auth-a-production-gate.mjs";
+import { P9_EXPECTED_PROJECT_REF, parseP9Connection, loadReadOnlyPacketUnits,
+  runP9ReadOnlyCapture } from "./p9-readonly-postgres-transport.mjs";
 
 export const AUTH_A_CATALOG_SHA256 = "b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7";
 export const AUTH_A_HISTORY_SHA256 = "6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002";
@@ -27,16 +31,29 @@ export function prepareAuthADbPacket({ catalog, history } = {}) {
 }
 
 export async function runAuthADbCaptureInternal({ mode = "LOCAL_TEST", dsn, catalog, history,
-  spawnImpl, psqlPath, nonce } = {}) {
+  spawnImpl, psqlPath, nonce, capability } = {}) {
+  if (mode === "PRODUCTION") {
+    const verified = assertAuthAProductionCapability(capability);
+    if (verified.testOnly && typeof spawnImpl !== "function")
+      throw new Error("AUTH_A_DB_PACKET_TEST_TRANSPORT_REQUIRED");
+    if (!verified.testOnly && (spawnImpl !== undefined || psqlPath !== undefined || nonce !== undefined))
+      throw new Error("AUTH_A_DB_PACKET_TEST_TRANSPORT_DENIED");
+  }
   parseP9Connection({ mode, dsn });
   const prepared = prepareAuthADbPacket({ catalog, history });
-  if (mode !== "LOCAL_TEST") throw new Error("AUTH_A_PRODUCTION_EXECUTION_NOT_FROZEN");
+  const guardedSpawn = mode === "PRODUCTION" ? (...args) => {
+    markAuthAExternalDispatch(capability, "database");
+    return (spawnImpl ?? spawn)(...args);
+  } : spawnImpl;
   const result = await runP9ReadOnlyCapture({ mode, dsn, packet: prepared.packet,
-    packetContract: prepared.packetContract, ...(spawnImpl ? { spawnImpl } : {}),
+    packetContract: prepared.packetContract, ...(guardedSpawn ? { spawnImpl: guardedSpawn } : {}),
     ...(psqlPath ? { psqlPath } : {}), ...(nonce ? { nonce } : {}) });
   const shared = {
     status: result.acceptanceResult === "PASS" ? "PASS" : "BLOCKED",
-    targetClass: "LOCAL_TEST", connectionAttempts: result.connectionAttempted ? 1 : 0,
+    targetClass: mode === "LOCAL_TEST" ? "LOCAL_TEST"
+      : result.targetMode === "PRODUCTION" && result.targetRef === P9_EXPECTED_PROJECT_REF
+        ? "PRODUCTION" : "UNKNOWN",
+    connectionAttempts: result.connectionAttempted ? 1 : 0,
     psqlProcessCount: result.psqlProcessCount ?? (result.connectionAttempted ? 1 : 0),
     queryCount: result.queriesCaptured ?? 0,
     transactionReadOnly: result.transactionReadOnlyValue === "on",

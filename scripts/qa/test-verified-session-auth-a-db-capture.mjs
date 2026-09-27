@@ -86,7 +86,7 @@ test("DB-10..12 first/second packet failure closes without a reconnect", async (
 test("DB-13 wrong target fails before spawn; DB-14 shared evidence omits secrets", async () => {
   const mock = mockPsql({ secret: "fake-password" });
   await assert.rejects(runAuthADbCapture({ mode: "PRODUCTION", dsn: "postgresql://postgres:fake-password@wrong.invalid/postgres",
-    catalog, history, spawnImpl: mock.spawnImpl, nonce }), /P9_TARGET_VALIDATION_FAILED/);
+    catalog, history, spawnImpl: mock.spawnImpl, nonce }), /AUTH_A_PRODUCTION_GATE_CAPABILITY_INVALID/);
   assert.equal(mock.spawns, 0);
   const result = await runAuthADbCapture({ mode: "LOCAL_TEST", dsn, catalog, history,
     spawnImpl: mock.spawnImpl, nonce });
