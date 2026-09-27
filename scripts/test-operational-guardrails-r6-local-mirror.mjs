@@ -30,11 +30,13 @@ const psql = (sql) => {
 };
 const waitForReady = async () => {
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    const ready = spawnSync("docker", ["exec", container, "pg_isready", "-U", "postgres"], { encoding: "utf8" });
-    if (ready.status === 0) return;
+    const logs = spawnSync("docker", ["logs", container], { encoding: "utf8" });
+    const finalServerStarted = `${logs.stdout}\n${logs.stderr}`.includes("PostgreSQL init process complete; ready for start up.");
+    const ready = spawnSync("docker", ["exec", container, "pg_isready", "-U", "postgres", "-d", "postgres"], { encoding: "utf8" });
+    if (finalServerStarted && ready.status === 0) return;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error("local R6 mirror PostgreSQL did not become ready");
+  throw new Error("local R6 mirror PostgreSQL did not reach its final ready state");
 };
 const packetRows = (text) => text.trim().split(/\r?\n/).filter(Boolean).map((line) => {
   const values = line.split("\t");
