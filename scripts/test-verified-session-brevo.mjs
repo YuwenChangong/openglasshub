@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { sendFreshLoginCode } from "../src/lib/server/brevo-challenge.server.ts";
 import { startChallenge, resendChallenge, verifyChallenge } from "../src/lib/server/login-challenge.server.ts";
+import { findPrivilegedClientSurfaceFindings } from "./lib/operational-guardrails-privileged-client-surface.mjs";
+
+const challengeSource = await readFile("src/lib/server/login-challenge.server.ts", "utf8");
+assert.deepEqual(findPrivilegedClientSurfaceFindings(challengeSource, "src/lib/server/login-challenge.server.ts"), []);
+for (const name of ["ogh_reserve_login_challenge", "ogh_finalize_login_delivery", "ogh_consume_login_challenge"]) {
+  assert.match(challengeSource, new RegExp(`\\.rpc\\(\\"${name}\\"`));
+}
 
 const userId = "11111111-1111-4111-8111-111111111111";
 const sessionId = "22222222-2222-4222-8222-222222222222";
@@ -186,6 +194,11 @@ await test("VERIFY_ATOMIC_RPC", {}, async ({ calls }) => {
   assert.equal(call.body.p_user_id, userId);
   assert.equal(call.body.p_session_id, sessionId);
   assert.match(call.body.p_digest, /^\\x[0-9a-f]{64}$/);
+});
+await test("VERIFY_RPC_FAILURE_DENIES", { rpcFailure: true }, async ({ calls }) => {
+  await assert.rejects(verifyChallenge({ token: options.token, challengeId: "33333333-3333-4333-8333-333333333333", code: "123456" }, env),
+    (error) => error?.code === "VERIFICATION_SERVICE_UNAVAILABLE" && error.status === 503);
+  assert.equal(calls.filter((call) => call.path.endsWith("ogh_consume_login_challenge")).length, 1);
 });
 for (const result of ["CHALLENGE_INVALID", "CHALLENGE_EXPIRED", "CHALLENGE_SUPERSEDED", "CHALLENGE_EXHAUSTED", "SESSION_GONE"]) {
   await test(`VERIFY_${result}`, { consume: result }, async () => {

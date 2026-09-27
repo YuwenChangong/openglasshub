@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { verifiedSessionServiceRoleFinding } = require("./profile-service-role-audit.cjs");
+const { verifiedSessionServiceRoleFinding, resendLimitServiceRoleFinding } = require("./profile-service-role-audit.cjs");
 
 const root = path.join(__dirname, "..");
 const cases = [
@@ -19,6 +19,17 @@ for (const [relativePath, marker, mutation, after] of cases) {
   assert.ok(source.includes(marker), `${relativePath} mutation target`);
   const mutated = source.replace(marker, after ? `${marker}\n    ${mutation}` : `${mutation}\n    ${marker}`);
   assert.match(verifiedSessionServiceRoleFinding(relativePath, mutated), /service-role caller/, `${relativePath} alias mutation rejected`);
+}
+
+const resendPath = "src/lib/server/consume-verification-email-resend-limit.server.ts";
+const resendSource = fs.readFileSync(path.join(root, resendPath), "utf8");
+assert.equal(resendLimitServiceRoleFinding(resendPath, resendSource), null, "resend limiter is a fixed, fail-closed RPC consumer");
+for (const mutation of [
+  resendSource.replace('"consume_verification_email_resend_limit"', "requestRpcName"),
+  `${resendSource}\nclient.from(tableName);`,
+  `${resendSource}\nconsole.log(env.SUPABASE_SERVICE_ROLE_KEY);`,
+]) {
+  assert.notEqual(resendLimitServiceRoleFinding(resendPath, mutation), null, "resend limiter broadening is rejected");
 }
 
 console.log("PASS verified-session service-role audit rejects renamed, computed, and destructured broad client calls");

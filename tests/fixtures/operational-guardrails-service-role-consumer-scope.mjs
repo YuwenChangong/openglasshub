@@ -23,6 +23,31 @@ export const ACTIVE_CONSUMERS = [
     purpose: "fixed forum rate-limit RPC",
     importerPaths: ["src/lib/server/rate-limit.ts"],
   },
+  {
+    path: "src/lib/server/login-challenge.server.ts",
+    purpose: "fixed login challenge reserve, finalize, and consume RPCs",
+    importerPaths: [
+      "src/pages/api/auth/login-challenge/start.ts",
+      "src/pages/api/auth/login-challenge/verify.ts",
+    ],
+  },
+  {
+    path: "src/lib/server/consume-verification-email-resend-limit.server.ts",
+    purpose: "fixed verification email resend limit RPC",
+    importerPaths: ["src/pages/api/auth/resend-confirmation.ts"],
+  },
+  {
+    path: "src/pages/api/auth/signup-confirm.ts",
+    purpose: "fixed policy acceptance and signup session activation RPCs",
+    entrypoint: true,
+    importerPaths: [],
+  },
+  {
+    path: "src/pages/api/auth/logout.ts",
+    purpose: "fixed verified session revocation RPC",
+    entrypoint: true,
+    importerPaths: [],
+  },
 ];
 
 export function assertExactConsumerAllowlist(allowlist) {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import ts from "typescript";
 import {
   ACTIVE_CONSUMERS,
   EXACT_APPROVED_ALLOWLIST,
@@ -40,7 +41,11 @@ const expectedDirectConsumers = ACTIVE_CONSUMERS.map((consumer) => consumer.path
 
 assert.deepEqual(directConsumers, expectedDirectConsumers, "complete source inventory must change on any new, moved, or removed direct service-role consumer");
 assertExactConsumerAllowlist(EXACT_APPROVED_ALLOWLIST);
+for (const reviewed of EXACT_APPROVED_ALLOWLIST) {
+  assert.throws(() => assertExactConsumerAllowlist(EXACT_APPROVED_ALLOWLIST.filter((entry) => entry !== reviewed)), /exact reviewed/);
+}
 assert.throws(() => assertExactConsumerAllowlist([...EXACT_APPROVED_ALLOWLIST, "src/lib/server/new-consumer.server.ts"]), /exact reviewed/);
+assert.throws(() => assertExactConsumerAllowlist([...EXACT_APPROVED_ALLOWLIST.slice(1), EXACT_APPROVED_ALLOWLIST[1]]), /duplicate paths/);
 assert.throws(() => assertExactConsumerAllowlist(["src/lib/server/**", ...EXACT_APPROVED_ALLOWLIST.slice(1)]), /exact reviewed/);
 assert.throws(() => assertExactConsumerAllowlist(["src/lib/server/", ...EXACT_APPROVED_ALLOWLIST.slice(1)]), /exact reviewed/);
 assert.throws(() => assertExactConsumerAllowlist(EXACT_APPROVED_ALLOWLIST.map((entry) => entry.replace("consume-forum-rate-limit", "moved-rate-limit"))), /exact reviewed/);
@@ -50,6 +55,13 @@ for (const consumer of ACTIVE_CONSUMERS) {
   assert.ok(source, `${consumer.path} must remain an active source file`);
   assert.match(source, new RegExp(SERVICE_ROLE_BINDING));
   assert.doesNotMatch(source, /(?:console\.|logger\.|JSON\.stringify\([^)]*SUPABASE_SERVICE_ROLE_KEY|throw new Error\([^)]*SUPABASE_SERVICE_ROLE_KEY)/);
+  if (consumer.entrypoint === true) {
+    assert.match(consumer.path, /^src\/pages\/api\/.*\.ts$/);
+    assert.deepEqual(consumer.importerPaths, []);
+    assert.match(source, /export const POST: APIRoute/);
+  } else {
+    assert.ok(consumer.importerPaths.length > 0, `${consumer.path} needs a reviewed importer`);
+  }
   for (const importerPath of consumer.importerPaths) {
     const importer = sourceByPath[importerPath];
     assert.ok(importer, `${consumer.path} importer ${importerPath} must remain in the active source graph`);
@@ -61,7 +73,23 @@ for (const consumer of ACTIVE_CONSUMERS) {
 const browserSources = (await walk("src/components")).filter((relativePath) => /\.(?:tsx|jsx)$/.test(relativePath));
 for (const relativePath of browserSources) {
   const source = sourceByPath[relativePath] ?? await sourceText(relativePath);
-  assert.doesNotMatch(source, /SUPABASE_SERVICE_ROLE_KEY|PUBLIC_SUPABASE_SERVICE_ROLE_KEY|legal-consent-repository\.server|moderation-notifications\.server|consume-forum-rate-limit\.server/);
+  assert.doesNotMatch(source, /SUPABASE_SERVICE_ROLE_KEY|PUBLIC_SUPABASE_SERVICE_ROLE_KEY/);
+  const parsed = ts.createSourceFile(relativePath, source, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TSX);
+  const imports = [];
+  const collectImports = (node) => {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      imports.push(node.moduleSpecifier.text);
+    }
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 && ts.isStringLiteral(node.arguments[0])) imports.push(node.arguments[0].text);
+    ts.forEachChild(node, collectImports);
+  };
+  collectImports(parsed);
+  for (const consumer of ACTIVE_CONSUMERS) {
+    const stem = path.basename(consumer.path).replace(/\.ts$/, "");
+    assert.equal(imports.some((specifier) => specifier.endsWith(`/${stem}`) || specifier.endsWith(`/${stem}.ts`)), false,
+      `${relativePath} imports ${consumer.path}`);
+  }
 }
 const publicEnvSources = await Promise.all([sourceText("src/lib/supabase-browser.ts"), sourceText("src/lib/supabase-server.ts"), sourceText("wrangler.toml")]);
 assert.doesNotMatch(publicEnvSources.join("\n"), /PUBLIC_[A-Z0-9_]*SERVICE_ROLE/i, "no public service-role binding is allowed");
@@ -98,5 +126,5 @@ console.log(JSON.stringify({
   browserExposure: false,
   generatedClientAssetFiles: generatedClientAssets.length,
   renderedHtmlFiles: renderedHtml.length,
-  allowlistPolicy: "exact-approved-three-consumer-allowlist",
+  allowlistPolicy: "exact-reviewed-service-role-consumer-allowlist",
 }));

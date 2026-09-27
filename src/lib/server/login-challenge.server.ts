@@ -47,20 +47,14 @@ function sixDigitCode(): string {
   return String(value % 1000000).padStart(6, "0");
 }
 
-async function rpc<T>(client: SupabaseClient, name: string, args: Record<string, unknown>): Promise<T> {
-  try {
-    const result = await client.rpc(name, args);
-    if (result.error) throw result.error;
-    return result.data as T;
-  } catch { throw unavailable(); }
-}
-
 async function finalize(client: SupabaseClient, claims: VerifiedSessionClaims, challengeId: string, accepted: boolean): Promise<void> {
-  const result = await rpc<unknown>(client, "ogh_finalize_login_delivery", {
-    p_user_id: claims.userId, p_session_id: claims.sessionId,
-    p_challenge_id: challengeId, p_accepted: accepted,
-  });
-  if (result !== true) throw unavailable();
+  try {
+    const result = await client.rpc("ogh_finalize_login_delivery", {
+      p_user_id: claims.userId, p_session_id: claims.sessionId,
+      p_challenge_id: challengeId, p_accepted: accepted,
+    });
+    if (result.error || result.data !== true) throw unavailable();
+  } catch { throw unavailable(); }
 }
 
 async function issue(input: StartInput, env: RuntimeEnv, fetchImpl: typeof fetch, resend: boolean): Promise<ChallengeResult> {
@@ -74,11 +68,16 @@ async function issue(input: StartInput, env: RuntimeEnv, fetchImpl: typeof fetch
   const challengeId = crypto.randomUUID();
   const code = sixDigitCode();
   const codeDigest = await digest(env, challengeId, claims, code);
-  const reserved = await rpc<unknown>(client, "ogh_reserve_login_challenge", {
-    p_user_id: claims.userId, p_session_id: claims.sessionId,
-    p_challenge_id: challengeId, p_digest: codeDigest,
-    p_ip_hash: input.ipHash, p_resend: resend,
-  });
+  let reserved: unknown;
+  try {
+    const result = await client.rpc("ogh_reserve_login_challenge", {
+      p_user_id: claims.userId, p_session_id: claims.sessionId,
+      p_challenge_id: challengeId, p_digest: codeDigest,
+      p_ip_hash: input.ipHash, p_resend: resend,
+    });
+    if (result.error) throw unavailable();
+    reserved = result.data;
+  } catch { throw unavailable(); }
   if (reserved === "PENDING") return { status: "PENDING" };
   if (reserved === "SESSION_GONE") throw invalidAuth();
   if (reserved === "RESEND_COOLDOWN") throw challengeError("RESEND_COOLDOWN", 429);
@@ -115,10 +114,15 @@ export async function verifyChallenge(input: VerifyInput, env: RuntimeEnv): Prom
   const claims = await signedClaims(input.token, env);
   if (!uuid.test(input.challengeId) || !/^\d{6}$/.test(input.code)) throw challengeError("CHALLENGE_INVALID", 400);
   const codeDigest = await digest(env, input.challengeId, claims, input.code);
-  const result = await rpc<unknown>(serviceClient(env), "ogh_consume_login_challenge", {
-    p_user_id: claims.userId, p_session_id: claims.sessionId,
-    p_challenge_id: input.challengeId, p_digest: codeDigest,
-  });
+  let result: unknown;
+  try {
+    const response = await serviceClient(env).rpc("ogh_consume_login_challenge", {
+      p_user_id: claims.userId, p_session_id: claims.sessionId,
+      p_challenge_id: input.challengeId, p_digest: codeDigest,
+    });
+    if (response.error) throw unavailable();
+    result = response.data;
+  } catch { throw unavailable(); }
   if (result === "VERIFIED") return { status: "VERIFIED" };
   const errors: Record<string, { code: ChallengeError["code"]; status: number }> = {
     CHALLENGE_INVALID: { code: "CHALLENGE_INVALID", status: 400 },

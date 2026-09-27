@@ -7,6 +7,7 @@ const LEGAL_ROUTE = "src/pages/api/legal/consent.ts";
 const LEGAL_API = "src/lib/server/legal-consent-api.server.ts";
 const MODERATION_REPOSITORY = "src/lib/server/moderation-notifications.server.ts";
 const RATE_LIMIT_REPOSITORY = "src/lib/server/consume-forum-rate-limit.server.ts";
+const RESEND_LIMIT_REPOSITORY = "src/lib/server/consume-verification-email-resend-limit.server.ts";
 const LOGIN_CHALLENGE = "src/lib/server/login-challenge.server.ts";
 const LOGOUT_ROUTE = "src/pages/api/auth/logout.ts";
 const SIGNUP_ROUTE = "src/pages/api/auth/signup-confirm.ts";
@@ -131,6 +132,22 @@ function rateLimitServiceRoleFinding({ relativePath, repositorySource }) {
   return safe ? null : "rate-limit service-role wrapper is not a narrow fail-closed fixed-RPC boundary";
 }
 
+function resendLimitServiceRoleFinding(relativePath, source) {
+  if (relativePath !== RESEND_LIMIT_REPOSITORY) return "service-role usage is not the reviewed resend limiter";
+  const safe = [
+    /createClient\(requireEnv\(env, "SUPABASE_URL"\), requireEnv\(env, "SUPABASE_SERVICE_ROLE_KEY"\)/.test(source),
+    /client\.rpc\("consume_verification_email_resend_limit", \{[\s\S]*?input_ip_hash: ipHash,[\s\S]*?max_attempts: 5,[\s\S]*?window_hours: 24,/s.test(source),
+    (source.match(/\.rpc\(/g) ?? []).length === 1,
+    (source.match(/SUPABASE_SERVICE_ROLE_KEY/g) ?? []).length === 1,
+    !/client\.(?:from|storage|functions)\(/.test(source),
+    /RESEND_LIMIT_DEADLINE_MS = 4_000/.test(source),
+    /controller\.abort\(\)/.test(source),
+    /if \(error \|\| !Array\.isArray\(data\) \|\| data\.length !== 1/.test(source),
+    !/(?:console\.|logger\.|throw new Error\([^)]*SUPABASE_SERVICE_ROLE_KEY)/.test(source),
+  ].every(Boolean);
+  return safe ? null : "resend limiter is not a narrow fail-closed fixed-RPC boundary";
+}
+
 function verifiedSessionServiceRoleFinding(relativePath, source) {
   const tree = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const nodes = [];
@@ -179,7 +196,7 @@ function verifiedSessionServiceRoleFinding(relativePath, source) {
   const rpcNames = namedRpcCalls.map(rpcName).sort();
   const directRpcCalls = calls.filter((node) => member(node.expression) === "rpc");
   const callsFixedRpc = JSON.stringify(rpcNames) === JSON.stringify(expected)
-    && directRpcCalls.length === (relativePath === LOGIN_CHALLENGE ? 1 : expected.length)
+    && directRpcCalls.length === expected.length
     && namedRpcCalls.every((node) => isClaimsMember(objectValue(rpcArgs(node), "p_user_id"), "userId")
       && (rpcName(node) === "ogh_record_policy_acceptance" || isClaimsMember(objectValue(rpcArgs(node), "p_session_id"), "sessionId")));
   const noBroadClient = !nodes.some((node) => {
@@ -234,9 +251,11 @@ function findUnsafeServiceRoleUsage(rootDir, srcDir) {
       ? legalConsentServiceRoleFinding({ relativePath, repositorySource, routeSource, apiSource })
       : relativePath === RATE_LIMIT_REPOSITORY
         ? rateLimitServiceRoleFinding({ relativePath, repositorySource })
+        : relativePath === RESEND_LIMIT_REPOSITORY
+          ? resendLimitServiceRoleFinding(relativePath, repositorySource)
         : moderationNotificationServiceRoleFinding({ relativePath, repositorySource, routeSources });
     return finding ? [`${relativePath}: ${finding}`] : [];
   });
 }
 
-module.exports = { findUnsafeServiceRoleUsage, legalConsentServiceRoleFinding, moderationNotificationServiceRoleFinding, rateLimitServiceRoleFinding, verifiedSessionServiceRoleFinding };
+module.exports = { findUnsafeServiceRoleUsage, legalConsentServiceRoleFinding, moderationNotificationServiceRoleFinding, rateLimitServiceRoleFinding, resendLimitServiceRoleFinding, verifiedSessionServiceRoleFinding };

@@ -19,6 +19,22 @@ function isRawClientType(node, sourceFile) {
 export function findPrivilegedClientSurfaceFindings(source, fileName = "fixture.ts") {
   const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
   const findings = [];
+  const staticFromClasses = new Set();
+  let arrayShadowed = false;
+
+  const inspectDeclarations = (node) => {
+    if (ts.isClassDeclaration(node) && node.name?.text) {
+      if (node.members.some((member) => ts.isMethodDeclaration(member) && member.name?.getText(sourceFile) === "from" &&
+        member.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword))) {
+        staticFromClasses.add(node.name.text);
+      }
+    }
+    if ((ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isClassDeclaration(node) ||
+      ts.isFunctionDeclaration(node) || ts.isImportSpecifier(node)) &&
+      node.name && ts.isIdentifier(node.name) && node.name.text === "Array") arrayShadowed = true;
+    ts.forEachChild(node, inspectDeclarations);
+  };
+  inspectDeclarations(sourceFile);
 
   const visit = (node) => {
     if (ts.isFunctionDeclaration(node) && isExported(node)) {
@@ -47,12 +63,20 @@ export function findPrivilegedClientSurfaceFindings(source, fileName = "fixture.
     if (ts.isExportDeclaration(node) && /(?:service-role|privileged|supabase)/i.test(node.getText(sourceFile))) {
       findings.push("privileged-client-re-export");
     }
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.arguments.length > 0) {
+      const { expression: receiver, name } = node.expression;
+      const dynamicName = !ts.isStringLiteral(node.arguments[0]) && !ts.isNoSubstitutionTemplateLiteral(node.arguments[0]);
+      if (dynamicName && name.text === "from") {
+        const constructorCall = ts.isIdentifier(receiver) &&
+          ((receiver.text === "Array" && !arrayShadowed) || staticFromClasses.has(receiver.text));
+        if (!constructorCall) findings.push("arbitrary-table-name");
+      }
+      if (dynamicName && name.text === "rpc") findings.push("arbitrary-rpc-name");
+    }
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
 
-  if (/\.from\(\s*(?!["'])\w+/.test(source)) findings.push("arbitrary-table-name");
-  if (/\.rpc\(\s*(?!["'])\w+/.test(source)) findings.push("arbitrary-rpc-name");
   if (/\.auth\.admin\b/.test(source)) findings.push("generic-auth-admin-exposure");
   if (/\.storage\b/.test(source)) findings.push("generic-storage-exposure");
   return [...new Set(findings)].sort();
