@@ -24,6 +24,9 @@ const result = await verifySealedRecoveryToken({ tokenPath, tokenShaPath, output
 assert.equal(result.classification, "COMMITTED_EXACTLY");
 assert.deepEqual(JSON.parse(await readFile(path.join(root, "evidence.json"), "utf8")), packet);
 assert.match(await readFile(path.join(root, "verification.json"), "utf8"), /"token_sha_verified": true/);
+const verificationMetadata = JSON.parse(await readFile(path.join(root, "verification.json"), "utf8"));
+assert.equal(verificationMetadata.sealed_sql_sha256, "7062795128ba2bdff6d06cb5ead8492120f9b1a226005ebfc57c1fa007f46c28");
+assert.notEqual(verificationMetadata.sealed_sql_sha256, "1cce650d890fe481a5c9d83033ab88ea189ee28168a6ff91df24513d2d65f819");
 await assert.rejects(() => access(path.join(root, "raw-connector-envelope.json")));
 await assert.rejects(() => verifySealedRecoveryToken({ tokenPath, tokenShaPath, outputPath: path.join(process.cwd(), "r6-sealed-evidence.json"), outputShaPath: path.join(root, "inside-repository.sha256"), verificationPath: path.join(root, "inside-repository-verification.json"), baselinePath, baselineSha256: baselineHash, approvedCommit: "5ab57dc7e597ffd16616108eb5ad60e58d966605" }), /PATH_MUST_BE_OUTSIDE_REPOSITORY/);
 

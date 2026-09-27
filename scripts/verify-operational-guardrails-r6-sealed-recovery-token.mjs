@@ -6,7 +6,7 @@ import { classifyRecovery, loadBaseline, parseRecoveryPacket } from "./validate-
 import { decodeSealedRecoveryToken, sha256 } from "./lib/operational-guardrails-r6-sealed-token.mjs";
 
 const safeError = (code) => new Error(code);
-const REVIEWED_SQL_SHA256 = "1cce650d890fe481a5c9d83033ab88ea189ee28168a6ff91df24513d2d65f819";
+const REVIEWED_SQL_SHA256 = "7062795128ba2bdff6d06cb5ead8492120f9b1a226005ebfc57c1fa007f46c28";
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 async function requireUnused(target) {
