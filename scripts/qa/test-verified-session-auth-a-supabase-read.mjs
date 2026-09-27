@@ -5,9 +5,26 @@ import { test } from "node:test";
 import { readSupabaseInventory } from "./verified-session-auth-a-supabase-read.mjs";
 
 const ref = "xcbnxzjlsvtgzixurcof";
-const project = { ref, organization_slug: "reviewed-org", status: "ACTIVE_HEALTHY",
+const organizationId = "fixture-organization-id";
+const project = { ref, organization_id: organizationId, organization_slug: "reviewed-org", status: "ACTIVE_HEALTHY",
   database: { host: `db.${ref}.supabase.co`, version: "17", postgres_engine: "postgres",
     release_channel: "stable" }, name: "private-project-name" };
+
+test("SB documented organization response binds by id without a slug field", async () => {
+  const paths = [];
+  const fetchImpl = async (url) => {
+    paths.push(url.pathname);
+    return Response.json(url.pathname === "/v1/projects"
+      ? [project]
+      : { id: organizationId, name: "Fixture Organization", plan: "free" });
+  };
+  const result = await readSupabaseInventory({ mode: "LOCAL_TEST", origin: "http://127.0.0.1/",
+    token: "dummy-token", fetchImpl });
+  assert.equal(result.targetMatch, true);
+  assert.equal(result.freePlan, true);
+  assert.equal(result.requestCount, 2);
+  assert.deepEqual(paths, ["/v1/projects", "/v1/organizations/reviewed-org"]);
+});
 
 async function serve(handler, fn) {
   const server = createServer(handler);
@@ -22,7 +39,7 @@ test("SB-01..15 two derived GETs prove inventory, never capacity or PII", async 
   await serve((req, res) => { requests.push({ method: req.method, path: req.url });
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(req.url === "/v1/projects" ? [project]
-      : { slug: "reviewed-org", plan: "free", name: "private-owner", email: "owner@example.test" }));
+      : { id: organizationId, plan: "free", name: "private-owner", email: "owner@example.test" }));
   }, async (origin) => {
     const result = await readSupabaseInventory({ mode: "LOCAL_TEST", origin, token: "dummy-token" });
     assert.deepEqual(result, { projectRef: ref, projectStatus: "ACTIVE_HEALTHY",
@@ -37,7 +54,9 @@ test("SB-01..15 two derived GETs prove inventory, never capacity or PII", async 
 
 test("SB target ambiguity and project drift stop before organization request", async () => {
   for (const projects of [[], [{ ...project, ref: "wrong" }], [project, project],
-    [{ ...project, organization_slug: "../wrong" }]]) {
+    [{ ...project, organization_slug: "../wrong" }],
+    [{ ...project, organization_id: undefined }], [{ ...project, organization_id: "" }],
+    [{ ...project, organization_id: 42 }]]) {
     let requests = 0;
     await serve((_req, res) => { requests++; res.setHeader("content-type", "application/json");
       res.end(JSON.stringify(projects)); }, async (origin) => {
@@ -48,10 +67,12 @@ test("SB target ambiguity and project drift stop before organization request", a
 });
 
 test("SB legacy database_host alias cannot prove target when database.host is absent", async () => {
-  await serve((req, res) => { res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify(req.url === "/v1/projects"
-      ? [{ ...project, database: undefined, database_host: `db.${ref}.supabase.co` }]
-      : { slug: "reviewed-org", plan: "free" }));
+  for (const changedProject of [
+    { ...project, database: undefined, database_host: `db.${ref}.supabase.co` },
+    { ...project, database: { host: "db.other-ref.supabase.co" } },
+  ]) await serve((req, res) => { res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(req.url === "/v1/projects" ? [changedProject]
+      : { id: organizationId, plan: "free" }));
   }, async (origin) => {
     const result = await readSupabaseInventory({ mode: "LOCAL_TEST", origin, token: "dummy-token" });
     assert.equal(result.targetMatch, false);
@@ -60,8 +81,8 @@ test("SB legacy database_host alias cannot prove target when database.host is ab
 
 test("SB status, org identity and plan must be independently proven", async () => {
   for (const [projects, organization] of [
-    [[{ ...project, status: "INACTIVE" }], { slug: "reviewed-org", plan: "free" }],
-    [[project], { slug: "reviewed-org", plan: "pro" }],
+    [[{ ...project, status: "INACTIVE" }], { id: organizationId, plan: "free" }],
+    [[project], { id: organizationId, plan: "pro" }],
   ]) await serve((req, res) => { res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(req.url === "/v1/projects" ? projects : organization));
   }, async (origin) => {
@@ -70,7 +91,7 @@ test("SB status, org identity and plan must be independently proven", async () =
     assert.equal(result.freeCapacityStatus, "UNKNOWN");
   });
   await serve((req, res) => { res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify(req.url === "/v1/projects" ? [project] : { slug: "other-org", plan: "free" }));
+    res.end(JSON.stringify(req.url === "/v1/projects" ? [project] : { id: "other-org-id", plan: "free" }));
   }, async (origin) => {
     await assert.rejects(readSupabaseInventory({ mode: "LOCAL_TEST", origin, token: "dummy-token" }),
       /AUTH_A_SB_ORGANIZATION_DRIFT/);

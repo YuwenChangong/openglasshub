@@ -16,11 +16,14 @@ export async function readSupabaseInventory({ mode = "LOCAL_TEST", origin = PROD
   const matches = projects.filter((entry) => entry?.ref === TARGET_REF);
   if (matches.length !== 1) fail("TARGET_AMBIGUOUS");
   const project = matches[0];
+  const organizationId = project.organization_id;
+  if (typeof organizationId !== "string" || !organizationId.trim()) fail("ORGANIZATION_UNKNOWN");
   const organizationSlug = project.organization_slug;
   if (typeof organizationSlug !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(organizationSlug))
     fail("ORGANIZATION_UNKNOWN");
   const organization = await client.get(`/v1/organizations/${organizationSlug}`);
-  if (!organization || typeof organization !== "object" || organization.slug !== organizationSlug)
+  if (!organization || typeof organization !== "object" || Array.isArray(organization)
+    || organization.id !== organizationId)
     fail("ORGANIZATION_DRIFT");
   const hostMatch = project.database?.host === `db.${TARGET_REF}.supabase.co`;
   return {

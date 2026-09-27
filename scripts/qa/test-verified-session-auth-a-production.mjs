@@ -55,10 +55,10 @@ function fakeProviders({ version = EXPECTED_OLD_WORKER.versionId, projectRef = r
         script_runtime: { compatibility_date: "2026-05-17", compatibility_flags: ["nodejs_compat"] },
         bindings: [] } } };
     else if (target.host === "api.supabase.com" && target.pathname === "/v1/projects")
-      body = [{ ref: projectRef, organization_slug: "test-org", status: "ACTIVE_HEALTHY",
+      body = [{ ref: projectRef, organization_id: "fixture-organization-id", organization_slug: "test-org", status: "ACTIVE_HEALTHY",
         database: { host: `db.${projectRef}.supabase.co` } }];
     else if (target.host === "api.supabase.com" && target.pathname === "/v1/organizations/test-org")
-      body = { slug: "test-org", plan: "free" };
+      body = { id: "fixture-organization-id", name: "Fixture Organization", plan: "free" };
     else if (target.host === "api.brevo.com" && target.pathname === "/v3/account")
       body = { plan: [{ type: brevoReady ? "free" : "paid", creditsType: "sendLimit", credits: 1 }],
         relay: { enabled: relayEnabled } };
