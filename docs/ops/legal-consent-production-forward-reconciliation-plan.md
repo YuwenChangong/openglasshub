@@ -68,7 +68,7 @@ The order keeps a table before its constraints/indexes/RLS/RPC, a predicate func
 | W3B comments/reactions | 11 | Comment-create/read/reaction predicates, comment/reaction policies, and unexpected direct grants. Depends on W3A. | Published comment/post/circle ancestry mismatch, zero-write denied-path test failure, or extra policy intent unresolved. |
 | W4 posts/reports | 7 | Posts RLS set, `can_create_user_report_target`, reports INSERT policy, and view-count index. Depends on W3A and W1. | Public post/report target can bypass moderation/circle visibility, or view count caller cannot use the narrowed ACL. |
 | W5 media provenance/delivery | 13 | Canonical media-key and delivery predicates, post-media/storage policies, and bucket configuration. Depends on W3A and W4. | Cross-user/post media key, private-circle object, or malformed storage path is accepted; bucket state differs from reviewed target. |
-| W6 operational guardrails | 2 pending | `INDEX_STAGES_APPLIED_POSTFLIGHT_VERIFIED_POLICY_PRIVILEGE_HOLD`: both purpose-leading rate-limit indexes have verified production shapes. R6P sealed catalog recovery classified the rate-limit function mutation `COMMITTED_EXACTLY` and matched the protected baseline. The extra policies remain held because `authenticated` lacks effective SELECT/INSERT privilege, so runtime preservation is not proven. | The authenticated table-privilege contract remains unreconciled, policy-removal behavior is not source-proven, or a future catalog preflight finds index drift. |
+| W6 operational guardrails | 2 pending | Both purpose-leading indexes are verified and R6P classified the rate-limit RPC `COMMITTED_EXACTLY`. The two extra policies remain technical cleanup objects but are RLS-redundant under the reviewed catalog and safe to retain through Beta; policy cleanup is not a Beta prerequisite. The current fail-closed runtime still needs Production deployment and verification. | Runtime deployment, target/binding proof, smoke/canary, or residue/direct-access verification fails. Policy removal remains held for separate Stage C approval; future index drift stops. |
 
 No wave exceeds 15 logical objects or six tables. Every item has a forward-only strategy, verification step, and rollback/forward-fix class in the manifest. A failed verification means stop the wave and prepare a reviewed forward fix; do not roll back access control by broadly restoring old policies.
 
@@ -84,11 +84,13 @@ exact reviewed definition, the post-view body restored its moderation and
 public-circle predicates, and the verified ACLs are recorded in the Wave 1
 execution record. The production `hidden` status constraint, broad
 `circles_select_public`, and extra delete policy were reconciled in Wave 3A with
-verified postflight. W6's R6P sealed recovery has closed the rate-limit SQL
-catalog ambiguity without resolving its two held policies. The next
-repository-only action is to reconcile the authenticated table-privilege and
-runtime-preservation contract for those policies. This does not authorize a W6
-policy change or alter Wave 1/W3A status.
+verified postflight. W6's R6P sealed recovery closed the rate-limit SQL
+catalog ambiguity. The offline policy/privilege/runtime review classifies both
+held policies safe to retain through Beta: `TECHNICAL_RECONCILIATION_PENDING=2`
+and `PUBLIC_BETA_BLOCKING_POLICY_OBJECTS=0`. Production deployment and
+verification of the current fail-closed runtime is a separate P1 Beta gate;
+see `reconciliation/w6-policy-privilege-runtime-beta-reconciliation.md`.
+This does not authorize a W6 policy change or alter Wave 1/W3A status.
 `can_create_user_report_target` remains in W4 with its report-policy dependency.
 No generic function grant is permitted.
 
@@ -122,8 +124,8 @@ W5 requires aggregate-only preflight for storage paths with wrong actor/post/cir
 - [ ] Legal/operations owner resolves active policy bundle and public contact/legal-review blockers.
 - [ ] Human approval is recorded for each wave before any non-production or production action.
 
-Production remains `NO_GO`. The next safe action is repository-only review of
-the authenticated table-privilege and runtime-preservation contract for
-`forum_upload_attempts_insert_self` and `forum_upload_attempts_select_self`.
-No production repair SQL, deployment, migration execution, or migration-history
-operation is authorized by this plan.
+Production remains `NO_GO`. Both extra W6 policies may remain installed through
+Beta; their cleanup is not a release prerequisite. The next release decision
+must separately authorize and verify deployment of the fail-closed R4 runtime
+after global blocker and Auth audit. This plan authorizes no Production SQL,
+deployment, migration execution, or migration-history operation.
