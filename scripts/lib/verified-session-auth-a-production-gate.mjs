@@ -43,9 +43,14 @@ function validateBinding({ authorization, observedHead, observedPacketSha256, br
 
 function createCapability(binding, testOnly) {
   const verified = validateBinding(binding);
+  if (testOnly && (typeof binding.sentinelDir !== "string" || !path.isAbsolute(binding.sentinelDir)))
+    fail("TEST_SENTINEL_DIR_INVALID");
+  const sentinelPath = testOnly
+    ? path.join(binding.sentinelDir, verified.id)
+    : path.resolve(ROOT, git(["rev-parse", "--git-path", `ogh-auth-a-consumed/${verified.id}`]));
   const capability = Object.freeze(Object.create(null));
   capabilities.set(capability, { ...verified, testOnly, claimed: false, consumed: false, index: 0,
-    counts: { cloudflare: 0, supabase: 0, brevo: 0, database: 0 } });
+    sentinelPath, counts: { cloudflare: 0, supabase: 0, brevo: 0, database: 0 } });
   return capability;
 }
 
@@ -70,6 +75,7 @@ export function assertAuthAProductionCapability(capability) {
 
 export function claimAuthAProductionAttempt(capability, binding) {
   const state = stateFor(capability, { claimed: false });
+  if (existsSync(state.sentinelPath)) fail("AUTHORIZATION_ALREADY_CONSUMED");
   if (state.claimed || claimedIds.has(state.id)) fail("ATTEMPT_ALREADY_CLAIMED");
   const verified = validateBinding(binding);
   if (verified.id !== state.id || verified.at !== state.at || verified.head !== state.head
@@ -81,6 +87,20 @@ export function claimAuthAProductionAttempt(capability, binding) {
 export function markAuthAExternalDispatch(capability, provider) {
   const state = stateFor(capability);
   if (DISPATCH_ORDER[state.index] !== provider) fail("DISPATCH_ORDER_OR_BUDGET");
+  if (!state.consumed) {
+    try {
+      mkdirSync(path.dirname(state.sentinelPath), { recursive: true });
+      const fd = openSync(state.sentinelPath, "wx", 0o600);
+      try {
+        writeFileSync(fd, JSON.stringify({ AUTHORIZATION_ID: state.id,
+          AUTHORIZED_AT_UTC: state.at, SOURCE_HEAD: state.head,
+          PACKET_SHA256: state.packet, CONSUMED_AT_UTC: new Date().toISOString() }));
+      } finally { closeSync(fd); }
+    } catch (error) {
+      if (error?.code === "EEXIST") fail("AUTHORIZATION_ALREADY_CONSUMED");
+      fail("SENTINEL_PERSIST_FAILED");
+    }
+  }
   state.consumed = true;
   state.index += 1;
   state.counts[provider] += 1;
@@ -88,11 +108,13 @@ export function markAuthAExternalDispatch(capability, provider) {
 
 export function getAuthAProductionAttempt(capability) {
   const state = stateFor(capability, { claimed: false });
-  return Object.freeze({ authorized: true, consumed: state.consumed,
+  return Object.freeze({ authorized: true, authorizationId: state.id,
+    sourceHead: state.head, packetSha256: state.packet,
+    consumed: state.consumed || existsSync(state.sentinelPath),
     counts: Object.freeze({ ...state.counts }) });
 }
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

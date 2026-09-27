@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { test } from "node:test";
+import { after, test } from "node:test";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { createAuthAProductionTestCapability, getAuthAProductionAttempt,
   claimAuthAProductionAttempt, markAuthAExternalDispatch } from
   "../lib/verified-session-auth-a-production-gate.mjs";
@@ -24,12 +27,14 @@ const credentials = { cloudflareToken: "dummy-cloudflare", cloudflareAccountId: 
 const catalog = readFileSync("docs/ops/verified-session-v1-hosted-catalog-preflight.sql", "utf8");
 const history = readFileSync("docs/ops/p9-migration-history-rows-read-only.sql", "utf8");
 const nonce = "a".repeat(32);
+const sentinelDir = mkdtempSync(path.join(tmpdir(), "auth-a-production-test-"));
+after(() => rmSync(sentinelDir, { recursive: true, force: true }));
 
 function fixture(id = "003") {
   const authorization = { AUTH_A_EXECUTE: "1", AUTHORIZATION_ID: `auth-a-verified-session-${id}`,
     AUTHORIZED_AT_UTC: new Date().toISOString(), SOURCE_HEAD: head, PACKET_SHA256: packet };
   const binding = { authorization, observedHead: head, observedPacketSha256: packet,
-    branch: "feature/auth-verified-session-v1", worktreeClean: true };
+    branch: "feature/auth-verified-session-v1", worktreeClean: true, sentinelDir };
   return { authorization, binding, capability: createAuthAProductionTestCapability(binding) };
 }
 
@@ -246,4 +251,24 @@ test("Production DB shared proof preserves target and refuses a second process",
   assert.equal(first.transportProof.rollbackMode, "EXPLICIT_ROLLBACK");
   await assert.rejects(runAuthADbCaptureInternal(options), /AUTH_A_PRODUCTION_GATE_DISPATCH_ORDER_OR_BUDGET/);
   assert.equal(psql.spawns, 1);
+});
+
+test("failed first provider response leaves durable authorization consumed before fake fetch", async () => {
+  const { authorization, binding, capability } = fixture("023");
+  claimAuthAProductionAttempt(capability, binding);
+  const sentinel = path.join(sentinelDir, authorization.AUTHORIZATION_ID);
+  const allowedPath = `/client/v4/accounts/${accountId}/workers/scripts/openglasshub/deployments`;
+  const client = createAuthAReadClient({ mode: "PRODUCTION", origin: "https://api.cloudflare.com/",
+    capability, token: "dummy", headerName: "Authorization", allowedPaths: [allowedPath], maxRequests: 2,
+    fetchImpl: async () => {
+      assert.equal(existsSync(sentinel), true);
+      return new Response("{}", { status: 503 });
+    } });
+  await assert.rejects(client.get(allowedPath), /AUTH_A_READ_HTTP_FAILURE/);
+  assert.equal(existsSync(sentinel), true);
+  assert.equal(getAuthAProductionAttempt(capability).consumed, true);
+  const restarted = await import(`../lib/verified-session-auth-a-production-gate.mjs?failed=${Date.now()}`);
+  const duplicate = restarted.createAuthAProductionTestCapability(binding);
+  assert.throws(() => restarted.claimAuthAProductionAttempt(duplicate, binding),
+    /AUTH_A_PRODUCTION_GATE_AUTHORIZATION_ALREADY_CONSUMED/);
 });

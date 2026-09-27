@@ -45,6 +45,11 @@ test("AUTH-A local contract orders bounded reads, identity gate and one DB sessi
   assert.equal(result.authAStatus, "BLOCKED");
   assert.equal(result.freeCapacityStatus, "UNKNOWN");
   assert.equal(result.capacityGate, "BLOCKED_BEFORE_AUTH_B");
+  assert.equal(result.dbStage, "UNKNOWN");
+  assert.equal(result.migrationProvenance, "UNKNOWN");
+  assert.equal(result.catalogPreflightStatus, "FAIL");
+  assert.equal(result.targetWorker, "openglasshub");
+  assert.equal(result.targetSupabase, "xcbnxzjlsvtgzixurcof");
 });
 
 test("fake PRE_V1 callback cannot override DB-derived UNKNOWN", async () => {
@@ -121,4 +126,7 @@ test("non-Free or inactive sender stops before DB", async () => {
   const result = await runAuthAOrchestrator({ ...base, steps });
   assert.deepEqual(calls, ["cloudflare", "supabase", "brevo"]);
   assert.equal(result.authAStatus, "BLOCKED");
+  assert.equal(result.dbStage, "UNKNOWN");
+  assert.equal(result.catalogPreflightStatus, "UNKNOWN");
+  assert.equal(result.blockerClass, "BREVO_BLOCKED");
 });

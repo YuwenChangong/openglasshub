@@ -36,24 +36,46 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
   if (mode === "PRODUCTION") claimAuthAProductionAttempt(capability,
     { authorization, observedHead, observedPacketSha256, branch, worktreeClean });
 
+  const observed = { targetWorker: "UNKNOWN", targetSupabase: "UNKNOWN", targetMatch: "UNKNOWN",
+    deployedWorkerIdentity: "UNKNOWN", deployedWorkerIdentityMatch: false,
+    deployedWorkerIdentityDrift: "UNKNOWN", deployedWorkerSourceEquivalence: "UNKNOWN",
+    dbStage: "UNKNOWN", migrationProvenance: "UNKNOWN",
+    oldMonolithApplied: "UNKNOWN", oldResendLockApplied: "UNKNOWN",
+    newFoundationApplied: "UNKNOWN", newEnforcementApplied: "UNKNOWN",
+    v1PrivateTableCount: "UNKNOWN", v1FunctionCount: "UNKNOWN",
+    v1RestrictivePolicyCount: "UNKNOWN", resendEffectiveAcl: "UNKNOWN",
+    catalogPreflightStatus: "UNKNOWN", catalogDrift: "UNKNOWN" };
+  let stage = "CLOUDFLARE";
   try {
     const cf = await steps.cloudflare();
     requireDispatchCounts(mode, capability, { cloudflare: 2, supabase: 0, brevo: 0, database: 0 });
     if (cf?.requestCount !== 2 || cf?.workerName !== EXPECTED_OLD_WORKER.workerName
       || !UUID.test(cf?.activeVersionId ?? "") || !UUID.test(cf?.versionId ?? ""))
       fail("WORKER_IDENTITY_UNKNOWN");
+    observed.deployedWorkerIdentity = cf.activeVersionId;
     if (cf.activeVersionId !== EXPECTED_OLD_WORKER.versionId
       || cf.versionId !== cf.activeVersionId) fail("WORKER_VERSION_DRIFT");
+    Object.assign(observed, { targetWorker: EXPECTED_OLD_WORKER.workerName,
+      deployedWorkerIdentityMatch: true, deployedWorkerIdentityDrift: false,
+      deployedWorkerSourceEquivalence: "PROVEN_BY_HISTORICAL_VERSION_BINDING" });
+    stage = "SUPABASE";
     const sb = await steps.supabase();
     requireDispatchCounts(mode, capability, { cloudflare: 2, supabase: 2, brevo: 0, database: 0 });
     if (sb.requestCount !== 2) fail("SUPABASE_UNKNOWN");
     if (sb.projectRef !== "xcbnxzjlsvtgzixurcof" || sb.targetMatch !== true
-      || sb.projectStatus !== "ACTIVE_HEALTHY" || sb.freePlan !== true) fail("TARGET_UNKNOWN");
+      || sb.projectStatus !== "ACTIVE_HEALTHY" || sb.freePlan !== true) {
+      observed.targetMatch = false;
+      fail("TARGET_UNKNOWN");
+    }
+    observed.targetSupabase = sb.projectRef;
+    observed.targetMatch = true;
+    stage = "BREVO";
     const br = await steps.brevo();
     requireDispatchCounts(mode, capability, { cloudflare: 2, supabase: 2, brevo: 2, database: 0 });
     if (br.requestCount !== 2 || br.plan !== "FREE" || br.senderReady !== true
       || br.capacitySufficient !== true)
       fail("BREVO_UNKNOWN");
+    stage = "DATABASE";
     const db = await steps.database();
     requireDispatchCounts(mode, capability, { cloudflare: 2, supabase: 2, brevo: 2, database: 1 });
     const proof = db?.transportProof;
@@ -62,30 +84,32 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
       || proof.queryCount !== 12 || proof.transactionReadOnly !== true || proof.sameBackend !== true
       || proof.rollbackMode !== "EXPLICIT_ROLLBACK") fail("DATABASE_UNKNOWN");
     const classified = classifyAuthADatabase(db);
+    Object.assign(observed, { ...classified,
+      catalogPreflightStatus: classified.catalogPass ? "PASS" : "FAIL" });
     const inventoryPass = classified?.dbStage === "PRE_V1"
       && classified.migrationProvenance === "CLEAN_UNSHIPPED_V1"
       && classified.catalogPass === true
       && classified.v1PrivateTableCount === 0
       && classified.v1FunctionCount === 0
       && classified.v1RestrictivePolicyCount === 0;
-    return Object.freeze({ authAStatus: inventoryPass ? "PASS" : "BLOCKED",
+    return Object.freeze({ ...observed, authAStatus: inventoryPass ? "PASS" : "BLOCKED",
       authReleaseStatus: "NO_GO", projectRef: sb.projectRef,
-      deployedWorkerIdentityMatch: true,
-      deployedWorkerIdentityDrift: false,
-      deployedWorkerSourceEquivalence: "PROVEN_BY_HISTORICAL_VERSION_BINDING",
       expectedSourceCommit: EXPECTED_OLD_WORKER.sourceCommit,
       workerIdentityProvenance: EXPECTED_OLD_WORKER.provenance,
       freeCapacityStatus: "UNKNOWN", capacityGate: "BLOCKED_BEFORE_AUTH_B",
       nextAction: inventoryPass ? "REQUEST_SEPARATE_CAPACITY_REVIEW" : "STOP_FOR_REVIEW",
+      blockerClass: inventoryPass ? "NONE" : "DATABASE_INVENTORY_BLOCKED",
       cloudflareReadRequests: 2, supabaseReadRequests: 2, brevoReadRequests: 2,
       databaseConnectionAttempts: 1, productionWrites: 0, emailSends: 0, deploys: 0 });
   } catch (error) {
     const versionDrift = ["AUTH_A_CF_VERSION_DRIFT", "AUTH_A_ORCHESTRATOR_WORKER_VERSION_DRIFT"]
       .includes(error?.message);
-    return Object.freeze({ authAStatus: "BLOCKED", authReleaseStatus: "NO_GO",
-      deployedWorkerIdentityMatch: false, deployedWorkerIdentityDrift: versionDrift ? true : "UNKNOWN",
+    return Object.freeze({ ...observed, authAStatus: "BLOCKED", authReleaseStatus: "NO_GO",
+      deployedWorkerIdentityMatch: versionDrift ? false : observed.deployedWorkerIdentityMatch,
+      deployedWorkerIdentityDrift: versionDrift ? true : observed.deployedWorkerIdentityDrift,
       freeCapacityStatus: "UNKNOWN",
       capacityGate: "BLOCKED_BEFORE_AUTH_B", nextAction: "STOP_FOR_REVIEW",
+      blockerClass: versionDrift ? "WORKER_VERSION_DRIFT" : `${stage}_BLOCKED`,
       productionWrites: 0, emailSends: 0, deploys: 0 });
   }
 }
