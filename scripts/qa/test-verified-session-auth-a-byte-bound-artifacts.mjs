@@ -9,8 +9,8 @@ const expected = new Map([
   ["docs/ops/verified-session-v1-hosted-catalog-preflight.sql", "b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7"],
   ["supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql", "575cfcea2ed0e4415e07370d97474518c957ba409248790b2f6309748c1597f9"],
   ["supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql", "89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e"],
-  ["docs/ops/verified-session-v1-auth-a-transport-review.md", "91b94982574e0be0c2b669cb90c38a56a63a7ce29aa85e8063760fe7edba1736"],
-  ["docs/ops/verified-session-v1-auth-a-authorization.md", "2a9dcf8ca1b075e09203b7963b02d87a997c659cea5159bb20d1b272cd7df422"],
+  ["docs/ops/verified-session-v1-auth-a-transport-review.md", "d99c948954fcaee05fb7221e2fe6e167be97ffb586b6eb9a3e7f18d30313d9c5"],
+  ["docs/ops/verified-session-v1-auth-a-authorization.md", "d67aa09e15ee81ce4f6bc8f2b15de37ac0595e92a6ea5b3e8950b0bbd6d0d493"],
 ]);
 
 test("byte-bound artifacts retain reviewed raw LF hashes in this checkout", () => {

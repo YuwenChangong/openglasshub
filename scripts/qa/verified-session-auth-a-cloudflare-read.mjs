@@ -23,7 +23,7 @@ export async function readCloudflareWorker({ mode = "LOCAL_TEST", origin = PRODU
   if (list?.success === false) fail("PROVIDER_REPORTED_FAILURE");
   if (list?.success !== true || !object(list.result)
     || !Array.isArray(list.result.deployments)) fail("DEPLOYMENT_RESPONSE_INVALID");
-  if (list.result.deployments.length !== 1) fail("DEPLOYMENT_COUNT_INVALID");
+  if (list.result.deployments.length < 1) fail("DEPLOYMENT_COUNT_INVALID");
   const deployment = list.result.deployments[0];
   if (!object(deployment) || !UUID.test(deployment.id ?? "")
     || (deployment.script_name !== undefined && deployment.script_name !== "openglasshub")

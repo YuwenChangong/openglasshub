@@ -12,6 +12,9 @@ const versionId = EXPECTED_OLD_WORKER.versionId;
 const base = `/client/v4/accounts/${accountId}/workers/scripts/openglasshub`;
 const versionPath = `${base}/versions/${versionId}`;
 const deployment = { id: deploymentId, versions: [{ version_id: versionId, percentage: 100 }] };
+const historical = { id: "22222222-2222-4222-8222-222222222222",
+  versions: [{ version_id: "33333333-3333-4333-8333-333333333333", percentage: 100 }],
+  raw_body: "fake-provider-body-marker", token: "fake-token-marker" };
 const version = { id: versionId,
   metadata: { created_on: "2026-09-26T00:00:00Z", source: "wrangler", source_commit: "untrusted" },
   resources: { bindings: [{ name: "SESSION", type: "kv_namespace", secret_value: "dummy-secret" }],
@@ -51,6 +54,37 @@ test("WID-01,09,10,11 historical active version uses exactly two metadata GETs",
   });
 });
 
+test("deployment history leaves the first active deployment and its version as the only identity", async () => {
+  for (const deployments of [[deployment, historical],
+    [deployment, historical, { ...historical, id: "44444444-4444-4444-8444-444444444444" },
+      { ...historical, id: "55555555-5555-4555-8555-555555555555" }]]) {
+    await serve(list(deployments), detail(), async (origin, requests) => {
+      const result = await readCloudflareWorker(options(origin));
+      assert.equal(result.deploymentId, deploymentId);
+      assert.equal(result.activeVersionId, versionId);
+      assert.equal(result.requestCount, 2);
+      assert.equal(JSON.stringify(result).includes("fake-provider-body-marker"), false);
+      assert.equal(JSON.stringify(result).includes("fake-token-marker"), false);
+      assert.deepEqual(requests, [{ method: "GET", path: `${base}/deployments` },
+        { method: "GET", path: versionPath }]);
+    });
+  }
+});
+
+test("malformed first deployment cannot fall back to valid history", async () => {
+  await serve(list([{ ...deployment, versions: [] }, deployment]), detail(), async (origin, requests) => {
+    await assert.rejects(readCloudflareWorker(options(origin)), /AUTH_A_CF_DEPLOYMENT_SHAPE_INVALID/);
+    assert.deepEqual(requests, [{ method: "GET", path: `${base}/deployments` }]);
+  });
+});
+
+test("drifted first deployment cannot search history for the expected version", async () => {
+  await serve(list([historical, deployment]), detail(), async (origin, requests) => {
+    await assert.rejects(readCloudflareWorker(options(origin)), /AUTH_A_CF_VERSION_DRIFT/);
+    assert.deepEqual(requests, [{ method: "GET", path: `${base}/deployments` }]);
+  });
+});
+
 test("WID-02,03 a different active version blocks before CF-2", async () => {
   for (const other of [versionId.slice(0, -1) + "b", "22222222-2222-4222-8222-222222222222"]) {
     await serve(list([{ ...deployment, versions: [{ version_id: other, percentage: 100 }] }]),
@@ -64,7 +98,6 @@ test("WID-02,03 a different active version blocks before CF-2", async () => {
 test("WID-04,05 missing, split, malformed and 99% deployment block", async () => {
   for (const first of [
     { success: true, result: [deployment] }, list([]),
-    list([deployment, { ...deployment, id: "22222222-2222-4222-8222-222222222222" }]),
     list([{ ...deployment, versions: [{ version_id: versionId, percentage: 50 },
       { version_id: deploymentId, percentage: 50 }] }]),
     list([{ ...deployment, versions: [{ version_id: versionId, percentage: 99 }] }]),

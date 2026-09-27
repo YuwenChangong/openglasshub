@@ -50,6 +50,7 @@ async function observe(id, first, second = null) {
   assert.equal(getAuthAProductionAttempt(capability).counts.database, 0);
   assert.equal(receipt.includes("fake-token-marker"), false);
   assert.equal(receipt.includes("fake-provider-body-marker"), false);
+  assert.equal(receipt.includes("api.cloudflare.com"), false);
   assert.equal(receipt.includes("stack"), false);
   return { result, receipt, requests };
 }
@@ -69,7 +70,7 @@ const cases = [
   ["111", () => json({ success: true, result: null }), "DEPLOYMENT_RESPONSE_INVALID"],
   ["112", () => json({ success: true, result: {} }), "DEPLOYMENT_RESPONSE_INVALID"],
   ["113", () => json(list([])), "DEPLOYMENT_COUNT_INVALID"],
-  ["114", () => json(list([deployment, deployment])), "DEPLOYMENT_COUNT_INVALID"],
+  ["114", () => json(list([{ ...deployment, versions: [] }, deployment])), "DEPLOYMENT_SHAPE_INVALID"],
   ["115", () => json(list([{ ...deployment, versions: [] }])), "DEPLOYMENT_SHAPE_INVALID"],
   ["116", () => json(list([{ ...deployment, versions: [{ version_id: versionId, percentage: "100" }] }])),
     "DEPLOYMENT_SHAPE_INVALID"],
@@ -90,6 +91,16 @@ test("historical version drift keeps WORKER_VERSION_DRIFT", async () => {
   const other = "22222222-2222-4222-8222-222222222222";
   const { result, receipt, requests } = await observe("118", () => json(list([{ ...deployment,
     versions: [{ version_id: other, percentage: 100 }] }])));
+  assert.equal(requests, 1);
+  assert.equal(result.blockerClass, "WORKER_VERSION_DRIFT");
+  assert.match(receipt, /^CLOUDFLARE_FAILURE_STAGE=REQUEST_1$/m);
+  assert.match(receipt, /^CLOUDFLARE_FAILURE_CLASS=VERSION_DRIFT$/m);
+});
+
+test("a matching historical entry cannot override drift in the first deployment", async () => {
+  const other = "22222222-2222-4222-8222-222222222222";
+  const { result, receipt, requests } = await observe("120", () => json(list([
+    { ...deployment, versions: [{ version_id: other, percentage: 100 }] }, deployment])));
   assert.equal(requests, 1);
   assert.equal(result.blockerClass, "WORKER_VERSION_DRIFT");
   assert.match(receipt, /^CLOUDFLARE_FAILURE_STAGE=REQUEST_1$/m);

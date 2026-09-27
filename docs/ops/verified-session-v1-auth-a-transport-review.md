@@ -16,7 +16,7 @@ runner was reused; no second executor was created.
 | `scripts/qa/verified-session-auth-a-production.mjs` | `921b64ea8475ea0911ae90cfc3b0ef8104a420ca5922f024922cee9bd19493ab` |
 | `scripts/qa/verified-session-auth-a-execute.mjs` | `ef3aa5bffc7b428e0dd4a09c14b1cf140a80beac3398f76b1bb29285c1024585` |
 | `scripts/qa/verified-session-auth-a-read-client.mjs` | `bdd9bff456fdffdc2769e36806b7e8dc44e1ca1b4f3be4d945d22f88bd2f9fd5` |
-| `scripts/qa/verified-session-auth-a-cloudflare-read.mjs` | `b3513b26ff61e10a17a55ec06219a6e3689eee3da7c341c1af13ec6e398f41e5` |
+| `scripts/qa/verified-session-auth-a-cloudflare-read.mjs` | `6e156b82c7d39c0cf12e2874c7b94c38069ad02661ec9abbc503aa4cb9e2e203` |
 | `scripts/qa/verified-session-auth-a-supabase-read.mjs` | `c219576e22954eeb7413edd75d74f1ea12fbb3ad5651c2988b51c7a811d3bda4` |
 | `scripts/qa/verified-session-auth-a-brevo-read.mjs` | `739f3cee459100b66af878133156825c306ff35275323ffbfa7686e605ab160d` |
 | `scripts/qa/verified-session-auth-a-db-capture.mjs` | `15ead04234c831a9d8fb1844ef864a586431ef759a9e69921373410e25677d5f` |
@@ -36,7 +36,7 @@ fresh single-use authorization ID and machine-current UTC are required.
 | Class | Credential name | Host, method and exact path | Maximum | Accepted facts |
 | --- | --- | --- | --- | --- |
 | PostgreSQL | `P9_PRODUCTION_DATABASE_URL` | Exact project direct DB host or reviewed Session Pooler host on port 5432; one `psql` process, `BEGIN READ ONLY`, 11 frozen catalog SELECT units plus one frozen migration-history SELECT in the same session, explicit `ROLLBACK` | One connection/session, no reconnect or retry; 8 MiB combined output and 30 s process limit | Read-only transaction and same backend proof, typed metadata catalog and migration provenance; no application rows |
-| Cloudflare | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | `https://api.cloudflare.com`; GET `/client/v4/accounts/{bound_account_id}/workers/scripts/openglasshub/deployments`, then GET `/client/v4/accounts/{bound_account_id}/workers/scripts/openglasshub/versions/{version_id}` where the version ID comes only from the first validated result | Two requests, no retry | Exactly one deployment with one 100% active historical version, matching second response ID, bounded non-secret runtime/binding metadata |
+| Cloudflare | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | `https://api.cloudflare.com`; GET `/client/v4/accounts/{bound_account_id}/workers/scripts/openglasshub/deployments`, then GET `/client/v4/accounts/{bound_account_id}/workers/scripts/openglasshub/versions/{version_id}` where the version ID comes only from the validated first deployment | Two requests, no retry | Nonempty deployment list; first entry has exactly one 100% active historical version, matching second response ID; bounded non-secret runtime/binding metadata |
 | Supabase | `SUPABASE_ACCESS_TOKEN` | `https://api.supabase.com`; GET `/v1/projects`, then GET `/v1/organizations/{organization_slug}` derived from the unique target project | Two requests, no retry | Exact project ref/status and matching organization Free plan; remaining capacity stays `UNKNOWN` |
 | Brevo | `BREVO_API_KEY`, `BREVO_VERIFIED_SENDER_EMAIL` | `https://api.brevo.com`; GET `/v3/account`, then GET `/v3/senders` | Two requests, no retry | One Free email send-limit plan, nonnegative credit fact, relay-enabled flag and at least one exact-email active sender; no ownership or delivery claim |
 
@@ -48,6 +48,15 @@ and SELECT-unit identities are checked before spawn. `psql` uses `-X`,
 `ON_ERROR_STOP`, one process, read-only transaction proof, same-backend proof
 and explicit rollback. Ambiguous, partial or malformed results stop without
 retry. No transport exposes a write operation.
+
+Cloudflare defines the first deployment in the list as the latest deployment
+actively serving traffic. The reader selects only `result.deployments[0]`;
+older entries are neither sorted nor searched for a matching expected version.
+An empty list blocks before CF-2. A malformed or drifted first entry blocks
+without falling back to history. No query parameter, pagination or additional
+request is used. The consumed attempt `auth-a-verified-session-1790508308`
+reported a non-one deployment count, but its receipt cannot distinguish zero
+from multiple entries.
 
 The HTTP client has a 10-second per-request timeout. Cloudflare failures carry
 only a fixed `REQUEST_1`/`REQUEST_2` stage and a bounded class in the public

@@ -21,7 +21,7 @@ This is an offline review packet, not an execution command or approval. It autho
 | Enforcement | `supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql`; SHA-256 `89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e` |
 | Read-only catalog packet | `docs/ops/verified-session-v1-hosted-catalog-preflight.sql`; SHA-256 `b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7` |
 | Existing migration-history metadata packet | `docs/ops/p9-migration-history-rows-read-only.sql`; SHA-256 `6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002` |
-| AUTH-A execution-path review | `docs/ops/verified-session-v1-auth-a-transport-review.md`; SHA-256 `91b94982574e0be0c2b669cb90c38a56a63a7ce29aa85e8063760fe7edba1736`; binds the implementation-path hashes listed there |
+| AUTH-A execution-path review | `docs/ops/verified-session-v1-auth-a-transport-review.md`; SHA-256 `d99c948954fcaee05fb7221e2fe6e167be97ffb586b6eb9a3e7f18d30313d9c5`; binds the implementation-path hashes listed there |
 
 Both pinned source commits exist locally. These hashes were recomputed from the files in the reviewed worktree; a future operator must recompute and bind them again before any hosted read. A mismatch means `AUTH_A_PACKET_STATUS=BLOCKED_ARTIFACT_DRIFT` and stop. The AUTH-A execution authorization must bind the *then-current* packet commit and packet-file SHA-256; this preparation commit is not an approval or a claim about the deployed Worker.
 
@@ -63,7 +63,7 @@ Old and new artifacts reuse two version numbers. A version-only match cannot dis
 
 ## Deployed Worker identity
 
-The owner-supplied historical Production-origin release evidence binds immutable Worker version `dba19da7-2fa8-4055-a94d-25c83ad3a02a` to old source commit `e6c2141be8827d961fc49462d66be8da9b4993eb`; see `docs/ops/verified-session-v1-old-worker-baseline.md`. This is `HISTORICAL_RELEASE_EVIDENCE`, not a new provider observation or Cloudflare-attested source commit. Future AUTH-A must freshly read `result.deployments[0]`, require exactly one 100% active version matching that frozen version ID, then request only its metadata at `/workers/scripts/openglasshub/versions/{version_id}` and require CF-2's returned ID to equal CF-1's ID. The version path is derived only from CF-1. A missing, split, malformed, non-100%, changed or ambiguous active version blocks AUTH-A. No module/source download, `include=modules`, Builds API, third request, retry, Worker invocation or artifact reconstruction is allowed.
+The owner-supplied historical Production-origin release evidence binds immutable Worker version `dba19da7-2fa8-4055-a94d-25c83ad3a02a` to old source commit `e6c2141be8827d961fc49462d66be8da9b4993eb`; see `docs/ops/verified-session-v1-old-worker-baseline.md`. This is `HISTORICAL_RELEASE_EVIDENCE`, not a new provider observation or Cloudflare-attested source commit. Cloudflare's deployment-list contract makes `result.deployments[0]` the latest deployment actively serving traffic; historical entries may follow. Future AUTH-A must freshly read that first entry, require exactly one 100% active version matching the frozen version ID, then request only its metadata at `/workers/scripts/openglasshub/versions/{version_id}` and require CF-2's returned ID to equal CF-1's ID. The version path is derived only from the validated first entry. An empty list or a missing, split, malformed, non-100%, changed or ambiguous first entry blocks AUTH-A; historical entries are never fallback candidates. No module/source download, `include=modules`, Builds API, third request, retry, Worker invocation or artifact reconstruction is allowed.
 
 `WORKER_IDENTITY_METHOD=HISTORICAL_VERIFIED_VERSION_BINDING_PLUS_FRESH_ACTIVE_VERSION`. Rebuilding old source cannot establish raw artifact equality: Astro embeds a runtime-semantic generated server-island key when `ASTRO_KEY` is unset. `PINNED_OLD_WORKER_ARTIFACT_SHA256`, `PINNED_OLD_WORKER_CONFIG_SHA256` and `PINNED_SOURCE_TO_ARTIFACT_EQUIVALENCE` are not AUTH-A prerequisites. The key must not be canonicalized away. A separate AUTH-C review should define a stable key build contract for the new Worker; this packet does not implement it.
 
@@ -109,7 +109,7 @@ SOURCE_HEAD=<reviewed-current-commit>
 PACKET_SHA256=<hash-of-this-committed-packet>
 CATALOG_PACKET_SHA256=b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7
 MIGRATION_HISTORY_PACKET_SHA256=6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002
-AUTH_A_TRANSPORT_REVIEW_SHA256=91b94982574e0be0c2b669cb90c38a56a63a7ce29aa85e8063760fe7edba1736
+AUTH_A_TRANSPORT_REVIEW_SHA256=d99c948954fcaee05fb7221e2fe6e167be97ffb586b6eb9a3e7f18d30313d9c5
 MAX_READ_ONLY_CONNECTIONS=1
 MAX_CLOUDFLARE_READ_REQUESTS=2
 MAX_SUPABASE_CONTROL_PLANE_READ_REQUESTS=2
