@@ -17,6 +17,7 @@
 | R6 envelope bridge | `scripts/capture-operational-guardrails-r6-envelope-structure.mjs` and `scripts/test-operational-guardrails-r6-envelope-bridge.mjs` |
 | R6 compact stdin transport | `scripts/run-operational-guardrails-r6-compact-recovery-transport.mjs` and `scripts/test-operational-guardrails-r6-compact-recovery-transport.mjs` |
 | R6 sealed recovery | `operational-guardrails-r6-production-postflight-recovery-sealed.sql` SHA-256 `7062795128ba2bdff6d06cb5ead8492120f9b1a226005ebfc57c1fa007f46c28`, `scripts/lib/operational-guardrails-r6-sealed-extraction.mjs`, `scripts/verify-operational-guardrails-r6-sealed-recovery-token.mjs`, and exact-PostgreSQL/local wrapper tests |
+| R6P Production recovery closure | `operational-guardrails-r6p-production-recovery-closure.md`; one read-only sealed query, `COMMITTED_EXACTLY`, outside-Git evidence |
 | R6 exact envelope fixture | `tests/fixtures/operational-guardrails-r6-exact-envelope.mjs` |
 | R7 Stage C | `operational-guardrails-r7-stage-c-{preflight,policy-cleanup,postflight,rollback}.sql` |
 
@@ -58,14 +59,20 @@ The approved constant-only probe proved the exact connector path
 that fenced wrapper path plus the pre-existing direct row-array path used by
 local synthetic tests.
 
-## R6-6 recovery hold
+## R6-6 recovery history and closure
 
 `R6-5` was submitted exactly once. Its connector returned a success empty
 result, but the once-submitted full R6-6 postflight exceeded the capture budget
-before the committed bridge could persist its packet. The state is therefore
+before the committed bridge could persist its packet. The historical state was
 `CATALOG_STATE_UNVERIFIED_AFTER_SINGLE_MUTATION_SUBMISSION`; the operator-held
 failure marker is outside Git and must not be overwritten. The original full
 postflight and R2 proposal hashes above remain immutable.
+
+R6P subsequently ran one separately authorized read-only sealed recovery query.
+Its reviewed local verification classified the R6-5 mutation `COMMITTED_EXACTLY`
+and closed R6-6 catalog recovery. The approval is consumed and non-reusable;
+R6-5 must never be replayed. Runtime, canary, residue, and the W6 policy hold
+remain unresolved. See `operational-guardrails-r6p-production-recovery-closure.md`.
 
 The recovery packet is a single catalog-only row containing no function body,
 application row, auth-user field, credential, or raw connector envelope. Its
@@ -96,5 +103,7 @@ a particular pipe mechanism, so the root cause remains
 `RUNNER_PREPARSE_FAILURE_EVIDENCE_DEFECT`: the old runner initialized failure
 handling too late. R6L corrects that ordering repository-only and adds a
 checked-in shell-free Node Buffer transport. No R6-5 replay, full postflight,
-Production query, cloud action, or deployment occurred. A future recovery needs
-fresh approval for `APPROVE_R6M_ONE_COMPACT_READ_ONLY_RECOVERY_EXECUTION_WITH_HARDENED_TRANSPORT`.
+Production query, cloud action, or deployment occurred in that R6L repair. At
+that point, a future recovery would have needed fresh approval for
+`APPROVE_R6M_ONE_COMPACT_READ_ONLY_RECOVERY_EXECUTION_WITH_HARDENED_TRANSPORT`;
+the later R6P authorization and closure are recorded above.

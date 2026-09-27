@@ -1,8 +1,11 @@
 # R6 Sealed Recovery
 
-Status: `R6_SEALED_TOKEN_EXTRACTION_READY` (repository-only). The previous
-single sealed query returned no extractable token. R6O replaces its
-source-proven oversized payload before any future, separately approved query.
+Status: `R6P_PRODUCTION_RECOVERY_VERIFIED_COMMITTED_EXACTLY`. The earlier R6N
+sealed query returned no extractable token; R6O replaced its source-proven
+oversized payload. A separately authorized R6P query then ran once and passed
+the reviewed extraction, token persistence, and verifier chain. The R6P
+authorization is consumed and non-reusable; see
+`operational-guardrails-r6p-production-recovery-closure.md`.
 
 The sealed recovery path exists because the Production connector exposes a
 result to the agent layer but has no byte-safe object-to-local-stdin bridge for
@@ -30,7 +33,7 @@ local PostgreSQL 17 image; no extension is created or changed.
 
 ## Token contract
 
-Only this exact token is transferable from a future approved connector result:
+Only this exact token was transferable from the approved connector result:
 
 `R6SEALED1.<payload_byte_length>.<payload_sha256_hex>.<payload_base64url>`
 
@@ -74,10 +77,9 @@ token. The source-proven extraction classification is
 `SEALED_TOKEN_SIZE_BUDGET_DEFECT`; this does not prove whether the historic SQL
 statement otherwise succeeded.
 
-No Production query is permitted until this repository checkpoint is committed,
-pushed, and separately authorized. A sealed `NOT_COMMITTED` result never
-authorizes replaying R6-5. Any token extraction or verification failure is a
-mandatory stop with no supplementary query.
+The R6P query used its separate, now-consumed authorization. A sealed
+`NOT_COMMITTED` result never authorizes replaying R6-5. Any token extraction
+or verification failure is a mandatory stop with no supplementary query.
 
 ## Wrapper and diagnostics contract
 
@@ -90,6 +92,6 @@ prefix and token-like counts, JSON parseability, the supported wrapper type,
 error state, and probable truncation. They never retain a connector response,
 excerpt, token, payload, credential, or business value.
 
-No Production or cloud action is authorized by this repository checkpoint. The
-next possible approval is
-`APPROVE_R6P_ONE_SEALED_READ_ONLY_RECOVERY_EXECUTION_WITH_PROVEN_TOKEN_CONTRACT`.
+This documentation closure authorizes no Production or cloud action. R6 SQL
+catalog recovery is verified; runtime, canary, residue, and W6 policy/privilege
+work remain separate gates.

@@ -117,7 +117,7 @@ classify committed, not committed, or conflicting.
 
 The approved R6-5 mutation was submitted once and must never be replayed. The
 original full R6-6 result was not persisted after connector output exceeded the
-capture budget, so its state is
+capture budget, leaving the historical state
 `CATALOG_STATE_UNVERIFIED_AFTER_SINGLE_MUTATION_SUBMISSION`. The recovery query
 is a distinct one-row, read-only catalog packet. It reports only fixed
 booleans, counts, and redacted MD5 fingerprints for the target function,
@@ -167,7 +167,12 @@ former database-produced token was too large for that observed transfer budget.
 It replaces only the sealed payload serialization with a fixed-order compact
 array, reconstructs the complete packet locally, and pins strict known-wrapper
 extraction with value-blind diagnostics. No Production or cloud action occurs
-in R6O. A future query requires the separate R6P approval.
+in R6O. R6P later used a separate, single-use approval for one read-only sealed
+catalog query. Its persisted token and canonical packet were verified against
+the R6-2 baseline and classified `COMMITTED_EXACTLY`; see
+`operational-guardrails-r6p-production-recovery-closure.md`. R6-5 remains
+permanently non-replayable. R6-6 SQL catalog recovery is closed, but deployment,
+runtime, canary, and residue gates remain unresolved.
 
 Runtime deployment is blocked until binding and SQL postflight pass. It must
 deploy the approved merge commit only, confirm target/ref equality with SQL,
