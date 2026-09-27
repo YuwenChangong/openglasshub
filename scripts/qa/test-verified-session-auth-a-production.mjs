@@ -32,7 +32,8 @@ after(() => rmSync(sentinelDir, { recursive: true, force: true }));
 
 function fixture(id = "003") {
   const authorization = { AUTH_A_EXECUTE: "1", AUTHORIZATION_ID: `auth-a-verified-session-${id}`,
-    AUTHORIZED_AT_UTC: new Date().toISOString(), SOURCE_HEAD: head, PACKET_SHA256: packet };
+    AUTHORIZED_AT_UTC: new Date().toISOString(), SOURCE_HEAD: head, PACKET_SHA256: packet,
+    TARGET_CLOUDFLARE_ACCOUNT_ID: accountId };
   const binding = { authorization, observedHead: head, observedPacketSha256: packet,
     branch: "feature/auth-verified-session-v1", worktreeClean: true, sentinelDir };
   return { authorization, binding, capability: createAuthAProductionTestCapability(binding) };
@@ -192,6 +193,19 @@ test("missing credentials and unsafe DSN block before any provider dispatch", ()
   assert.equal(getAuthAProductionAttempt(capability).consumed, false);
 });
 
+test("wrong Cloudflare account binding blocks before the first provider request", async () => {
+  const { authorization, binding, capability } = fixture("017");
+  const providers = fakeProviders();
+  const steps = createAuthAProductionSteps({ capability,
+    credentials: { ...credentials, cloudflareAccountId: "d".repeat(32) },
+    fetchImpl: providers.fetchImpl, spawnImpl: fakePsql().spawnImpl, nonce });
+  const result = await runAuthAOrchestrator({ mode: "PRODUCTION", authorization,
+    sourceHead: head, packetSha256: packet, ...binding, capability, steps });
+  assert.equal(result.authAStatus, "BLOCKED");
+  assert.equal(providers.calls.length, 0);
+  assert.equal(getAuthAProductionAttempt(capability).consumed, false);
+});
+
 test("Production rejects fabricated step counts without tracked dispatch", async () => {
   const { authorization, binding, capability } = fixture("014");
   let laterCalled = false;
@@ -322,4 +336,25 @@ test("failed first provider response leaves durable authorization consumed befor
   const duplicate = restarted.createAuthAProductionTestCapability(binding);
   assert.throws(() => restarted.claimAuthAProductionAttempt(duplicate, binding),
     /AUTH_A_PRODUCTION_GATE_AUTHORIZATION_ALREADY_CONSUMED/);
+});
+
+test("ambiguous first provider response consumes authorization without leaking fake secrets", async () => {
+  const { authorization, binding, capability } = fixture("024");
+  claimAuthAProductionAttempt(capability, binding);
+  const allowedPath = `/client/v4/accounts/${accountId}/workers/scripts/openglasshub/deployments`;
+  const client = createAuthAReadClient({ mode: "PRODUCTION", origin: "https://api.cloudflare.com/",
+    capability, token: "fake-api-key-marker", headerName: "Authorization",
+    allowedPaths: [allowedPath], maxRequests: 2,
+    fetchImpl: async () => new Response("{fake-api-key-marker", { status: 200 }) });
+  await assert.rejects(client.get(allowedPath), (error) => {
+    assert.equal(error.message, "AUTH_A_READ_JSON_INVALID");
+    assert.equal(JSON.stringify(error).includes("fake-api-key-marker"), false);
+    return true;
+  });
+  assert.equal(getAuthAProductionAttempt(capability).consumed, true);
+  const restarted = await import(`../lib/verified-session-auth-a-production-gate.mjs?ambiguous=${Date.now()}`);
+  const duplicate = restarted.createAuthAProductionTestCapability(binding);
+  assert.throws(() => restarted.claimAuthAProductionAttempt(duplicate, binding),
+    /AUTH_A_PRODUCTION_GATE_AUTHORIZATION_ALREADY_CONSUMED/);
+  assert.equal(authorization.AUTHORIZATION_ID.includes("fake-api-key-marker"), false);
 });

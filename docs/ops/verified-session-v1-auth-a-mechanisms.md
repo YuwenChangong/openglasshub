@@ -1,12 +1,15 @@
 # Verified Session v1 AUTH-A mechanism review
 
-**OFFLINE REVIEW ONLY. NOT AUTHORIZED. ZERO EXTERNAL REQUESTS.**
+**HISTORICAL OFFLINE MECHANISM SNAPSHOT. NOT AUTHORIZED.** The later
+`verified-session-v1-auth-a-transport-review.md` supersedes this file's
+execution-path readiness assessment. Production-disabled statements below
+describe this earlier snapshot, not the current runner.
 
 AUTH_RELEASE_STATUS=NO_GO
 AUTH_A_001_STATUS=VOID_UNEXECUTED
 AUTH_A_001_EXTERNAL_REQUESTS=0
 AUTH_A_001_REUSABLE=false
-MECHANISM_FREEZE_STATUS=BLOCKED
+MECHANISM_FREEZE_STATUS=SUPERSEDED_BY_TRANSPORT_REVIEW
 
 This file records the exact local implementation and the remaining review blockers. It is not a Production command, an AUTH-A receipt, or permission to reuse `auth-a-verified-session-001`. All new provider clients and the database aggregator are hard-disabled for Production until a separately reviewed orchestrator and a new human authorization exist.
 
@@ -83,4 +86,4 @@ Execution order remains source/hash/new-authorization validation, Cloudflare rea
 
 Run `node --test scripts/qa/test-verified-session-auth-a-byte-bound-artifacts.mjs scripts/qa/test-verified-session-auth-a-db-capture.mjs scripts/qa/test-verified-session-auth-a-db-local.mjs scripts/qa/test-verified-session-auth-a-read-client.mjs scripts/qa/test-verified-session-auth-a-cloudflare-read.mjs scripts/qa/test-verified-session-auth-a-supabase-read.mjs scripts/qa/test-verified-session-auth-a-brevo-read.mjs scripts/qa/test-verified-session-auth-a-execute.mjs` and the affected existing P9 suites. The database acceptance uses a disposable local Supabase instance only. No mock fixture or unit test confers Production authorization. Supabase/Brevo response shapes have only user-supplied contract and local fixture proof in this offline task; independent schema and security review remain required before enabling hosted reads.
 
-NEXT_ACTION=INDEPENDENT_SECURITY_REVIEW_OF_PACKET_AND_PARTIAL_MECHANISMS_THEN_NEW_SCOPE_DECISION
+NEXT_ACTION=READ_CURRENT_AUTH_A_TRANSPORT_REVIEW_AND_REQUIRE_NEW_HUMAN_AUTHORIZATION

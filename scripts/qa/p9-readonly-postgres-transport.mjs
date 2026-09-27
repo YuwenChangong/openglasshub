@@ -153,7 +153,7 @@ export function parsePsqlTranscript({ stdout, protocol, units }) {
   } catch (error) { if (error?.code) throw error; throw failure('P9_RESULT_PRESERVATION_FAILURE'); }
 }
 
-function runPsql({ executable, args, env, input, spawnImpl }) {
+function runPsql({ executable, args, env, input, spawnImpl, maxOutputBytes, timeoutMs }) {
   return new Promise((resolve, reject) => {
     let child;
     try { child = spawnImpl(executable, args, { env, shell: false, stdio: ['pipe', 'pipe', 'pipe'] }); }
@@ -162,19 +162,44 @@ function runPsql({ executable, args, env, input, spawnImpl }) {
         ? error : failure('P9_PSQL_PROCESS_FAILURE'));
       return;
     }
-    let stdout = ''; let stderr = '';
-    child.stdout.on('data', (data) => { stdout += data; }); child.stderr.on('data', (data) => { stderr += data; });
-    child.on('error', () => reject(failure('P9_PSQL_PROCESS_FAILURE')));
-    child.on('close', (exitCode) => resolve({ stdout, stderr, exitCode, childPid: child.pid ?? null }));
+    let stdout = ''; let stderr = ''; let bytes = 0; let settled = false;
+    const stopChild = () => { try { child.kill?.(); } catch {} };
+    const timer = timeoutMs === null ? null : setTimeout(() => {
+      if (settled) return;
+      settled = true; stopChild(); reject(failure('P9_PROCESS_TIMEOUT'));
+    }, timeoutMs);
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      callback();
+    };
+    const collect = (data, stream) => {
+      if (settled) return;
+      bytes += Buffer.byteLength(data);
+      if (maxOutputBytes !== null && bytes > maxOutputBytes) {
+        finish(() => { stopChild(); reject(failure('P9_RESULT_SIZE_LIMIT')); });
+        return;
+      }
+      if (stream === 'stdout') stdout += data; else stderr += data;
+    };
+    child.stdout.on('data', (data) => collect(data, 'stdout'));
+    child.stderr.on('data', (data) => collect(data, 'stderr'));
+    child.on('error', () => finish(() => reject(failure('P9_PSQL_PROCESS_FAILURE'))));
+    child.on('close', (exitCode) => finish(() => resolve({ stdout, stderr, exitCode, childPid: child.pid ?? null })));
     child.stdin.end(input);
   });
 }
 
-export async function runP9ReadOnlyCapture({ mode, dsn, packet, packetContract = P9_DEFAULT_PACKET_CONTRACT, psqlPath = 'psql', spawnImpl = spawn, nonce = randomUUID().replace(/-/g, ''), testOnlyWriteProbeSql = null }) {
+export async function runP9ReadOnlyCapture({ mode, dsn, packet, packetContract = P9_DEFAULT_PACKET_CONTRACT, psqlPath = 'psql', spawnImpl = spawn, nonce = randomUUID().replace(/-/g, ''), testOnlyWriteProbeSql = null, maxOutputBytes = null, timeoutMs = null }) {
   if (testOnlyWriteProbeSql !== null && mode !== 'LOCAL_TEST') throw failure('P9_LOCAL_TEST_PROBE_FORBIDDEN');
+  if ((maxOutputBytes !== null && (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes < 1))
+    || (timeoutMs !== null && (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1)))
+    throw failure('P9_CAPTURE_LIMIT_INVALID');
   const connection = parseP9Connection({ mode, dsn }); const units = loadReadOnlyPacketUnits({ packet, packetContract }); const protocol = { nonce };
   const script = createPsqlTranscript({ protocol, units, testOnlyWriteProbeSql }); const args = ['-X', '-q', '-v', 'ON_ERROR_STOP=1'];
-  const processResult = await runPsql({ executable: psqlPath, args, env: { ...process.env, ...connection.pgEnv }, input: script, spawnImpl });
+  const processResult = await runPsql({ executable: psqlPath, args, env: { ...process.env, ...connection.pgEnv }, input: script, spawnImpl,
+    maxOutputBytes, timeoutMs });
   const productionCounter = mode === 'PRODUCTION' ? 1 : 0;
   if (processResult.exitCode !== 0) return { acceptanceResult: 'BLOCKED', targetMode: mode, targetRef: connection.safeTarget.projectRef, targetHost: connection.safeTarget.host, targetEndpointClass: connection.safeTarget.endpointClass, packetHash: packetContract.packetHash, connectionAttempted: true, psqlProcessExited: true, connectionClosed: true, psqlExitCode: processResult.exitCode, rollbackMode: 'CONNECTION_CLOSE_ROLLBACK', firstFailureStage: 'PSQL_EXECUTION', firstFailureClass: classifyPsqlFailure(processResult.stderr), firstFailureQueryId: lastStartedQueryId(processResult.stdout, protocol, units), localWriteRejection: testOnlyWriteProbeSql && /read-only transaction/i.test(processResult.stderr) ? 'PASS' : null, productionConnections: productionCounter, productionSqlRequests: productionCounter, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, secretAudit: 'PASS' };
   const parsed = parsePsqlTranscript({ stdout: processResult.stdout, protocol, units });

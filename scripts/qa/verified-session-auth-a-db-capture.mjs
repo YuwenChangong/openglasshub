@@ -47,7 +47,8 @@ export async function runAuthADbCaptureInternal({ mode = "LOCAL_TEST", dsn, cata
   } : spawnImpl;
   const result = await runP9ReadOnlyCapture({ mode, dsn, packet: prepared.packet,
     packetContract: prepared.packetContract, ...(guardedSpawn ? { spawnImpl: guardedSpawn } : {}),
-    ...(psqlPath ? { psqlPath } : {}), ...(nonce ? { nonce } : {}) });
+    ...(psqlPath ? { psqlPath } : {}), ...(nonce ? { nonce } : {}),
+    maxOutputBytes: 8 * 1024 * 1024, timeoutMs: 30_000 });
   const shared = {
     status: result.acceptanceResult === "PASS" ? "PASS" : "BLOCKED",
     targetClass: mode === "LOCAL_TEST" ? "LOCAL_TEST"

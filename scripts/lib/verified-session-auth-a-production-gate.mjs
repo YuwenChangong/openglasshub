@@ -2,6 +2,18 @@ const HEAD = /^[a-f0-9]{40}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 const BRANCH = "feature/auth-verified-session-v1";
+const ARTIFACT_HASHES = Object.freeze({
+  foundation: "575cfcea2ed0e4415e07370d97474518c957ba409248790b2f6309748c1597f9",
+  enforcement: "89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e",
+  catalog: "b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7",
+  history: "6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002",
+});
+const ARTIFACT_PATHS = Object.freeze({
+  foundation: "supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql",
+  enforcement: "supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql",
+  catalog: "docs/ops/verified-session-v1-hosted-catalog-preflight.sql",
+  history: "docs/ops/p9-migration-history-rows-read-only.sql",
+});
 const MAX_AUTHORIZATION_AGE_MS = 15 * 60 * 1000;
 const MAX_FUTURE_SKEW_MS = 30 * 1000;
 const DISPATCH_ORDER = ["cloudflare", "cloudflare", "supabase", "supabase", "brevo", "brevo", "database"];
@@ -18,11 +30,19 @@ function git(args) {
 }
 
 export function observeAuthARepository() {
+  const hashes = Object.fromEntries(Object.entries(ARTIFACT_PATHS).map(([name, file]) =>
+    [name, createHash("sha256").update(readFileSync(path.join(ROOT, file))).digest("hex")]));
+  validateAuthAArtifactHashes(hashes);
   return Object.freeze({ observedHead: git(["rev-parse", "HEAD"]),
     branch: git(["branch", "--show-current"]),
     worktreeClean: git(["status", "--porcelain"]) === "",
     observedPacketSha256: createHash("sha256").update(readFileSync(path.join(ROOT,
       "docs/ops/verified-session-v1-auth-a-authorization.md"))).digest("hex") });
+}
+
+export function validateAuthAArtifactHashes(hashes) {
+  if (!hashes || Object.entries(ARTIFACT_HASHES).some(([name, expected]) => hashes[name] !== expected))
+    fail("ARTIFACT_DRIFT");
 }
 
 function validateBinding({ authorization, observedHead, observedPacketSha256, branch, worktreeClean }) {
@@ -33,12 +53,14 @@ function validateBinding({ authorization, observedHead, observedPacketSha256, br
   const age = Date.now() - time;
   if (authorization?.AUTH_A_EXECUTE !== "1"
     || !/^auth-a-verified-session-[0-9]+$/.test(authorization?.AUTHORIZATION_ID ?? "")
+    || !/^[a-f0-9]{32}$/i.test(authorization?.TARGET_CLOUDFLARE_ACCOUNT_ID ?? "")
     || ["auth-a-verified-session-001", "auth-a-verified-session-002"].includes(authorization.AUTHORIZATION_ID)
     || !canonicalTime || age > MAX_AUTHORIZATION_AGE_MS || age < -MAX_FUTURE_SKEW_MS
     || !HEAD.test(observedHead ?? "") || authorization.SOURCE_HEAD !== observedHead
     || !SHA256.test(observedPacketSha256 ?? "") || authorization.PACKET_SHA256 !== observedPacketSha256
     || branch !== BRANCH || worktreeClean !== true) fail("AUTHORIZATION_INVALID");
-  return { id: authorization.AUTHORIZATION_ID, at, head: observedHead, packet: observedPacketSha256 };
+  return { id: authorization.AUTHORIZATION_ID, at, head: observedHead, packet: observedPacketSha256,
+    cloudflareAccountId: authorization.TARGET_CLOUDFLARE_ACCOUNT_ID.toLowerCase() };
 }
 
 function createCapability(binding, testOnly) {
@@ -70,7 +92,7 @@ function stateFor(capability, { claimed = true } = {}) {
 
 export function assertAuthAProductionCapability(capability) {
   const state = stateFor(capability);
-  return Object.freeze({ testOnly: state.testOnly });
+  return Object.freeze({ testOnly: state.testOnly, cloudflareAccountId: state.cloudflareAccountId });
 }
 
 export function claimAuthAProductionAttempt(capability, binding) {
@@ -79,6 +101,7 @@ export function claimAuthAProductionAttempt(capability, binding) {
   if (state.claimed || claimedIds.has(state.id)) fail("ATTEMPT_ALREADY_CLAIMED");
   const verified = validateBinding(binding);
   if (verified.id !== state.id || verified.at !== state.at || verified.head !== state.head
+    || verified.cloudflareAccountId !== state.cloudflareAccountId
     || verified.packet !== state.packet) fail("BINDING_DRIFT");
   claimedIds.add(state.id);
   state.claimed = true;

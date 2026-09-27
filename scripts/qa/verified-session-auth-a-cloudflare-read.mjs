@@ -1,5 +1,6 @@
 import { createAuthAReadClient } from "./verified-session-auth-a-read-client.mjs";
 import { EXPECTED_OLD_WORKER } from "../lib/verified-session-old-worker-baseline.mjs";
+import { assertAuthAProductionCapability } from "../lib/verified-session-auth-a-production-gate.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRODUCTION_ORIGIN = "https://api.cloudflare.com/";
@@ -10,6 +11,9 @@ export async function readCloudflareWorker({ mode = "LOCAL_TEST", origin = PRODU
   accountId, token, capability, fetchImpl } = {}) {
   if (mode === "PRODUCTION" && origin !== PRODUCTION_ORIGIN) fail("ORIGIN_DENIED");
   if (typeof accountId !== "string" || !/^[a-f0-9]{32}$/i.test(accountId)) fail("ACCOUNT_INVALID");
+  if (mode === "PRODUCTION"
+    && assertAuthAProductionCapability(capability).cloudflareAccountId !== accountId.toLowerCase())
+    fail("ACCOUNT_TARGET_DRIFT");
   const root = `/client/v4/accounts/${accountId}/workers/scripts/openglasshub`;
   const versionRoot = `${root}/versions`;
   const client = createAuthAReadClient({ mode, origin, token, capability, headerName: "Authorization",
@@ -17,7 +21,8 @@ export async function readCloudflareWorker({ mode = "LOCAL_TEST", origin = PRODU
     maxRequests: 2, ...(fetchImpl ? { fetchImpl } : {}) });
   const list = await client.get(`${root}/deployments`);
   if (list?.success !== true || !object(list.result) ||
-    !Array.isArray(list.result.deployments) || !list.result.deployments.length) fail("DEPLOYMENT_UNKNOWN");
+    !Array.isArray(list.result.deployments) || list.result.deployments.length !== 1)
+    fail("DEPLOYMENT_UNKNOWN");
   const deployment = list.result.deployments[0];
   if (!object(deployment) || !UUID.test(deployment.id ?? "")
     || (deployment.script_name !== undefined && deployment.script_name !== "openglasshub")

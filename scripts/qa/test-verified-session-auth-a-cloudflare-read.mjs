@@ -64,6 +64,7 @@ test("WID-02,03 a different active version blocks before CF-2", async () => {
 test("WID-04,05 missing, split, malformed and 99% deployment block", async () => {
   for (const first of [
     { success: true, result: [deployment] }, list([]),
+    list([deployment, { ...deployment, id: "22222222-2222-4222-8222-222222222222" }]),
     list([{ ...deployment, versions: [{ version_id: versionId, percentage: 50 },
       { version_id: deploymentId, percentage: 50 }] }]),
     list([{ ...deployment, versions: [{ version_id: versionId, percentage: 99 }] }]),

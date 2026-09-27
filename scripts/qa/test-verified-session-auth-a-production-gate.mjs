@@ -6,15 +6,17 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createAuthAProductionCapability, createAuthAProductionTestCapability,
   claimAuthAProductionAttempt, markAuthAExternalDispatch, getAuthAProductionAttempt,
-  assertAuthAProductionCapability } from "../lib/verified-session-auth-a-production-gate.mjs";
+  assertAuthAProductionCapability, validateAuthAArtifactHashes } from "../lib/verified-session-auth-a-production-gate.mjs";
 
 const head = "a".repeat(40);
 const packet = "b".repeat(64);
 const branch = "feature/auth-verified-session-v1";
+const accountId = "a".repeat(32);
 const sentinelDir = mkdtempSync(path.join(tmpdir(), "auth-a-gate-test-"));
 after(() => rmSync(sentinelDir, { recursive: true, force: true }));
 const authorization = () => ({ AUTH_A_EXECUTE: "1", AUTHORIZATION_ID: "auth-a-verified-session-003",
-  AUTHORIZED_AT_UTC: new Date().toISOString(), SOURCE_HEAD: head, PACKET_SHA256: packet });
+  AUTHORIZED_AT_UTC: new Date().toISOString(), SOURCE_HEAD: head, PACKET_SHA256: packet,
+  TARGET_CLOUDFLARE_ACCOUNT_ID: accountId });
 const input = () => ({ authorization: authorization(), observedHead: head,
   observedPacketSha256: packet, branch, worktreeClean: true, sentinelDir });
 
@@ -28,11 +30,27 @@ test("PROD gate rejects missing, void, stale and drifting authorization before d
     { authorization: { ...valid.authorization, AUTHORIZED_AT_UTC: "not-utc" } },
     { authorization: { ...valid.authorization, SOURCE_HEAD: "c".repeat(40) } },
     { authorization: { ...valid.authorization, PACKET_SHA256: "d".repeat(64) } },
+    { authorization: { ...valid.authorization, TARGET_CLOUDFLARE_ACCOUNT_ID: undefined } },
+    { authorization: { ...valid.authorization, TARGET_CLOUDFLARE_ACCOUNT_ID: "wrong" } },
     { observedHead: "c".repeat(40) }, { observedPacketSha256: "d".repeat(64) },
     { branch: "main" }, { worktreeClean: false },
   ]) assert.throws(() => createAuthAProductionTestCapability({ ...valid, ...change }), /AUTH_A_PRODUCTION_GATE_/);
   assert.throws(() => createAuthAProductionCapability({ authorization: valid.authorization }),
     /AUTH_A_PRODUCTION_GATE_/);
+});
+
+test("frozen AUTH-A artifact hashes reject drift before Production dispatch", () => {
+  const expected = {
+    foundation: "575cfcea2ed0e4415e07370d97474518c957ba409248790b2f6309748c1597f9",
+    enforcement: "89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e",
+    catalog: "b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7",
+    history: "6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002",
+  };
+  assert.doesNotThrow(() => validateAuthAArtifactHashes(expected));
+  for (const name of Object.keys(expected)) {
+    assert.throws(() => validateAuthAArtifactHashes({ ...expected, [name]: "0".repeat(64) }),
+      /AUTH_A_PRODUCTION_GATE_ARTIFACT_DRIFT/);
+  }
 });
 
 test("PROD gate accepts dummy 003, consumes before first dispatch and cannot start twice", () => {

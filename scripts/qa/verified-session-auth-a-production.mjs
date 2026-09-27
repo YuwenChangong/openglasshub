@@ -29,7 +29,8 @@ const deny = () => { throw new Error("AUTH_A_PRODUCTION_PREFLIGHT_BLOCKED"); };
 function authorizationFromEnvironment(env) {
   return { AUTH_A_EXECUTE: env.AUTH_A_EXECUTE, AUTHORIZATION_ID: env.AUTHORIZATION_ID,
     AUTHORIZED_AT_UTC: env.AUTHORIZED_AT_UTC, SOURCE_HEAD: env.SOURCE_HEAD,
-    PACKET_SHA256: env.PACKET_SHA256 };
+    PACKET_SHA256: env.PACKET_SHA256,
+    TARGET_CLOUDFLARE_ACCOUNT_ID: env.TARGET_CLOUDFLARE_ACCOUNT_ID };
 }
 
 function credentialsFromEnvironment(env) {

@@ -14,7 +14,8 @@ const packet = "b".repeat(64);
 
 function fixture(id) {
   const authorization = { AUTH_A_EXECUTE: "1", AUTHORIZATION_ID: `auth-a-verified-session-${id}`,
-    AUTHORIZED_AT_UTC: new Date().toISOString(), SOURCE_HEAD: head, PACKET_SHA256: packet };
+    AUTHORIZED_AT_UTC: new Date().toISOString(), SOURCE_HEAD: head, PACKET_SHA256: packet,
+    TARGET_CLOUDFLARE_ACCOUNT_ID: "a".repeat(32) };
   const binding = { authorization, observedHead: head, observedPacketSha256: packet,
     branch: "feature/auth-verified-session-v1", worktreeClean: true, sentinelDir };
   const capability = createAuthAProductionTestCapability(binding);

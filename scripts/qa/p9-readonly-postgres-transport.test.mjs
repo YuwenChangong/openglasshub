@@ -71,6 +71,46 @@ test("P9FAIL-01 classifies connection failures without retaining raw stderr", ()
   assert.equal(classifyPsqlFailure("psql: error: server closed the connection unexpectedly"), "SERVER_CONNECTION_LOST");
 });
 
+test("P9 AUTH-A output cap stops an oversized fake transcript without a retry", async () => {
+  let spawns = 0;
+  const packet = "SELECT 1;";
+  const packetContract = { packetHash: createHash("sha256").update(packet).digest("hex").toUpperCase(),
+    queryIds: ["ONLY"] };
+  const spawnImpl = () => {
+    spawns += 1;
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.stdin = { end() { queueMicrotask(() => child.stdout.emit("data", "x".repeat(129))); } };
+    child.kill = () => true;
+    return child;
+  };
+  await assert.rejects(runP9ReadOnlyCapture({ mode: "LOCAL_TEST",
+    dsn: "postgresql://postgres:fake-password@127.0.0.1:5432/postgres",
+    packet, packetContract, maxOutputBytes: 128, spawnImpl }), /P9_RESULT_SIZE_LIMIT/);
+  assert.equal(spawns, 1);
+});
+
+test("P9 AUTH-A timeout stops a stalled fake process without reconnecting", async () => {
+  let spawns = 0; let killed = 0;
+  const packet = "SELECT 1;";
+  const packetContract = { packetHash: createHash("sha256").update(packet).digest("hex").toUpperCase(),
+    queryIds: ["ONLY"] };
+  const spawnImpl = () => {
+    spawns += 1;
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
+    child.stdin = { end() {} };
+    child.kill = () => { killed += 1; return true; };
+    return child;
+  };
+  await assert.rejects(runP9ReadOnlyCapture({ mode: "LOCAL_TEST",
+    dsn: "postgresql://postgres:fake-password@127.0.0.1:5432/postgres",
+    packet, packetContract, timeoutMs: 5, spawnImpl }), /P9_PROCESS_TIMEOUT/);
+  assert.equal(spawns, 1);
+  assert.equal(killed, 1);
+});
+
 for (const [id, dsn] of [
   ["P9TX-02", "postgresql://postgres:fake-password@db.wrongref.supabase.co:5432/postgres"],
   ["P9TX-03", "postgresql://postgres:fake-password@db.xcbnxzjlsvtgzixurcof.supabase.co.attacker.example:5432/postgres"],

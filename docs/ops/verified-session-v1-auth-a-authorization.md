@@ -21,6 +21,7 @@ This is an offline review packet, not an execution command or approval. It autho
 | Enforcement | `supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql`; SHA-256 `89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e` |
 | Read-only catalog packet | `docs/ops/verified-session-v1-hosted-catalog-preflight.sql`; SHA-256 `b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7` |
 | Existing migration-history metadata packet | `docs/ops/p9-migration-history-rows-read-only.sql`; SHA-256 `6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002` |
+| AUTH-A execution-path review | `docs/ops/verified-session-v1-auth-a-transport-review.md`; SHA-256 `2e64d01da72bdc54cf3dd7aa7997896cc70424cf6b4db0aab5f423714681d46e`; binds the implementation-path hashes listed there |
 
 Both pinned source commits exist locally. These hashes were recomputed from the files in the reviewed worktree; a future operator must recompute and bind them again before any hosted read. A mismatch means `AUTH_A_PACKET_STATUS=BLOCKED_ARTIFACT_DRIFT` and stop. The AUTH-A execution authorization must bind the *then-current* packet commit and packet-file SHA-256; this preparation commit is not an approval or a claim about the deployed Worker.
 
@@ -37,7 +38,7 @@ Expected canonical Production Worker origin is `https://openglasshub.ogh.workers
 | Supabase control-plane read | Two requests, zero retries | Exact project ref/status and its organization's Free plan; remaining quota stays `UNKNOWN` | Auth config, Auth sign-in, `getClaims`, user/session reads, template test, settings mutation |
 | Brevo control-plane read | Two requests, zero retries | Free email send-limit credit fact, relay-enabled flag and configured sender `active` state; this does not prove sender ownership or delivery | Sending mail, reading API-key value, template send/test, plan change |
 
-Provider read mechanisms and their exact permissions must be independently reviewed and bound in the later execution authorization; this packet invents no endpoint or CLI. If any observation needs more than the enumerated requests, cannot prove it is read-only, or encounters an ambiguous response, stop and request a new scope. No polling, automatic retry, second database connection, Worker HTTP probe, or alternative SQL client is implicitly permitted. Provider dashboard observation is subject to the same zero-mutation and redacted-evidence rules.
+The offline execution-path review is `docs/ops/verified-session-v1-auth-a-transport-review.md`. Its frozen implementation fingerprints, fixed endpoints, target and account binding, and exact permissions must be independently rechecked and bound in the later execution authorization. This packet itself grants no execution. If any observation needs more than the enumerated requests, cannot prove it is read-only, or encounters an ambiguous response, stop and request a new scope. No polling, automatic retry, second database connection, Worker HTTP probe, or alternative SQL client is implicitly permitted. Provider dashboard observation is subject to the same zero-mutation and redacted-evidence rules.
 
 ## Database catalog and semantic stage
 
@@ -103,10 +104,12 @@ AUTHORIZATION_ID=<auth-a-verified-session-NNN>
 AUTHORIZED_AT_UTC=<machine-current-UTC-at-authorization>
 AUTHORIZED_BY=<human-approver>
 TARGET=<exact-Production-Worker-and-Supabase-project>
+TARGET_CLOUDFLARE_ACCOUNT_ID=<exact-account-id-bound-to-operator-credential>
 SOURCE_HEAD=<reviewed-current-commit>
 PACKET_SHA256=<hash-of-this-committed-packet>
 CATALOG_PACKET_SHA256=b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7
 MIGRATION_HISTORY_PACKET_SHA256=6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002
+AUTH_A_TRANSPORT_REVIEW_SHA256=2e64d01da72bdc54cf3dd7aa7997896cc70424cf6b4db0aab5f423714681d46e
 MAX_READ_ONLY_CONNECTIONS=1
 MAX_CLOUDFLARE_READ_REQUESTS=2
 MAX_SUPABASE_CONTROL_PLANE_READ_REQUESTS=2
