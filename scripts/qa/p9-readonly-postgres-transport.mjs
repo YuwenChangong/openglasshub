@@ -135,8 +135,12 @@ function parseBlock(stdout, protocol, id) {
 }
 
 function lastStartedQueryId(stdout, protocol, units) {
-  const ids = ['SESSION', ...units.map((unit) => unit.queryId), 'SESSION_FINAL']; let last = null; let lastPosition = -1;
-  for (const id of ids) { const position = stdout.lastIndexOf(marker(protocol, 'BEGIN', id)); if (position > lastPosition) { last = id; lastPosition = position; } }
+  const ids = new Set(['SESSION', ...units.map((unit) => unit.queryId), 'SESSION_FINAL']);
+  const prefix = `P9::${protocol.nonce}::BEGIN::`;
+  let last = null;
+  for (const line of stdout.split(/\r?\n/)) {
+    if (line.startsWith(prefix) && ids.has(line.slice(prefix.length))) last = line.slice(prefix.length);
+  }
   return last;
 }
 
@@ -151,7 +155,14 @@ export function parsePsqlTranscript({ stdout, protocol, units }) {
 
 function runPsql({ executable, args, env, input, spawnImpl }) {
   return new Promise((resolve, reject) => {
-    const child = spawnImpl(executable, args, { env, shell: false, stdio: ['pipe', 'pipe', 'pipe'] }); let stdout = ''; let stderr = '';
+    let child;
+    try { child = spawnImpl(executable, args, { env, shell: false, stdio: ['pipe', 'pipe', 'pipe'] }); }
+    catch (error) {
+      reject(/^AUTH_A_PRODUCTION_GATE_[A-Z_]+$/.test(error?.message ?? '')
+        ? error : failure('P9_PSQL_PROCESS_FAILURE'));
+      return;
+    }
+    let stdout = ''; let stderr = '';
     child.stdout.on('data', (data) => { stdout += data; }); child.stderr.on('data', (data) => { stderr += data; });
     child.on('error', () => reject(failure('P9_PSQL_PROCESS_FAILURE')));
     child.on('close', (exitCode) => resolve({ stdout, stderr, exitCode, childPid: child.pid ?? null }));

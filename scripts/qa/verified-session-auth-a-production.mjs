@@ -70,6 +70,13 @@ export function createAuthAProductionSteps({ capability, credentials, fetchImpl,
 const flag = (value) => value === true ? "true" : value === false ? "false" : "UNKNOWN";
 const count = (value) => Number.isSafeInteger(value) && value >= 0 ? String(value) : "UNKNOWN";
 const oneOf = (value, choices) => choices.includes(value) ? value : "UNKNOWN";
+const DB_FAILURE_STAGES = ["PSQL_EXECUTION", "PROCESS", "RESULT_PARSING", "SESSION_PROOF", "NONE", "UNKNOWN"];
+const DB_FAILURE_CLASSES = ["AUTHENTICATION_FAILED", "DNS_FAILURE", "SSL_FAILURE",
+  "SERVER_CONNECTION_LOST", "NETWORK_UNREACHABLE", "TRANSPORT_UNKNOWN_CONNECTION_FAILURE",
+  "P9_PSQL_PROCESS_FAILURE", "P9_RESULT_PRESERVATION_FAILURE", "P9_RESULT_CSV_INVALID",
+  "P9_SESSION_PROOF_FAILURE", "NONE", "UNKNOWN"];
+const DB_FAILURE_QUERY_IDS = ["SESSION", ...Array.from({ length: 11 }, (_, index) =>
+  `CATALOG_${String(index + 1).padStart(2, "0")}`), "HISTORY_01", "SESSION_FINAL", "NONE", "UNKNOWN"];
 const acl = (value) => value && typeof value === "object"
   && [value.anon, value.authenticated, value.service].every((part) => typeof part === "boolean")
   ? `anon=${value.anon},authenticated=${value.authenticated},service=${value.service}` : "UNKNOWN";
@@ -83,6 +90,9 @@ export function formatAuthAProductionReceipt({ authorization, capability, result
   const status = result?.authAStatus === "PASS" && completeDispatch ? "PASS" : "BLOCKED";
   const blocker = status === "PASS" ? "NONE"
     : BLOCKERS.has(result?.blockerClass) ? result.blockerClass : "UNKNOWN";
+  const dbDiagnostics = counts.database === 1
+    && ["DATABASE_BLOCKED", "DATABASE_INVENTORY_BLOCKED"].includes(blocker) ? result : null;
+  const dbFailure = (value, choices) => status === "PASS" ? "NONE" : oneOf(value, choices);
   const lines = [
     `AUTH_A_STATUS=${status}`,
     "AUTH_RELEASE_STATUS=NO_GO",
@@ -111,6 +121,9 @@ export function formatAuthAProductionReceipt({ authorization, capability, result
       ["PROVEN_BY_HISTORICAL_VERSION_BINDING", "UNKNOWN"])}`,
     `EXPECTED_SOURCE_COMMIT=${EXPECTED_OLD_WORKER.sourceCommit}`,
     `DB_STAGE=${oneOf(db?.dbStage, ["PRE_V1", "FOUNDATION", "ENFORCEMENT", "UNKNOWN"])}`,
+    `DB_FAILURE_STAGE=${dbFailure(dbDiagnostics?.dbFailureStage, DB_FAILURE_STAGES)}`,
+    `DB_FAILURE_CLASS=${dbFailure(dbDiagnostics?.dbFailureClass, DB_FAILURE_CLASSES)}`,
+    `DB_FAILURE_QUERY_ID=${dbFailure(dbDiagnostics?.dbFailureQueryId, DB_FAILURE_QUERY_IDS)}`,
     "EXPECTED_DB_STAGE=PRE_V1",
     `MIGRATION_PROVENANCE=${oneOf(db?.migrationProvenance, ["CLEAN_UNSHIPPED_V1", "DIVERGENT", "UNKNOWN"])}`,
     `OLD_MONOLITH_APPLIED=${flag(db?.oldMonolithApplied)}`,

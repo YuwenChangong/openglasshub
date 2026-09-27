@@ -49,12 +49,16 @@ test("RECEIPT-01..02 complete PASS contains frozen redacted inventory facts", ()
     catalogPreflightStatus: "PASS", catalogDrift: "none", blockerClass: "NONE" };
   const receipt = production.formatAuthAProductionReceipt({ authorization, capability, result });
   const actual = fields(receipt);
+  assert.equal(actual.DB_FAILURE_STAGE, "NONE");
+  assert.equal(actual.DB_FAILURE_CLASS, "NONE");
+  assert.equal(actual.DB_FAILURE_QUERY_ID, "NONE");
   const required = ["AUTH_A_STATUS", "AUTH_RELEASE_STATUS", "AUTHORIZATION_ID", "AUTHORIZATION_VALID",
     "AUTHORIZATION_CONSUMED", "REUSABLE", "SOURCE_HEAD", "PACKET_SHA256", "CATALOG_PACKET_SHA256",
     "MIGRATION_HISTORY_PACKET_SHA256", "FOUNDATION_SHA256", "ENFORCEMENT_SHA256", "TARGET_WORKER",
     "TARGET_SUPABASE", "TARGET_MATCH", "DEPLOYED_WORKER_IDENTITY", "DEPLOYED_WORKER_IDENTITY_MATCH",
     "DEPLOYED_WORKER_IDENTITY_DRIFT", "DEPLOYED_WORKER_SOURCE_EQUIVALENCE", "EXPECTED_SOURCE_COMMIT",
-    "DB_STAGE", "EXPECTED_DB_STAGE", "MIGRATION_PROVENANCE", "OLD_MONOLITH_APPLIED",
+    "DB_STAGE", "DB_FAILURE_STAGE", "DB_FAILURE_CLASS", "DB_FAILURE_QUERY_ID",
+    "EXPECTED_DB_STAGE", "MIGRATION_PROVENANCE", "OLD_MONOLITH_APPLIED",
     "OLD_RESEND_LOCK_APPLIED", "NEW_FOUNDATION_APPLIED", "NEW_ENFORCEMENT_APPLIED",
     "V1_PRIVATE_TABLE_COUNT", "V1_FUNCTION_COUNT", "V1_RESTRICTIVE_POLICY_COUNT",
     "RESEND_EFFECTIVE_ACL", "CATALOG_PREFLIGHT_STATUS", "CATALOG_DRIFT", "FREE_CAPACITY_STATUS",
@@ -107,6 +111,9 @@ test("RECEIPT-03..10 blocked before DB remains UNKNOWN and never leaks arbitrary
   assert.equal(actual.AUTHORIZATION_CONSUMED, "true");
   assert.equal(actual.CLOUDFLARE_READ_REQUESTS, "1");
   assert.equal(actual.PRODUCTION_CONNECTION_ATTEMPTS, "0");
+  assert.equal(actual.DB_FAILURE_STAGE, "UNKNOWN");
+  assert.equal(actual.DB_FAILURE_CLASS, "UNKNOWN");
+  assert.equal(actual.DB_FAILURE_QUERY_ID, "UNKNOWN");
   assert.equal(actual.DB_STAGE, "UNKNOWN");
   assert.equal(actual.MIGRATION_PROVENANCE, "UNKNOWN");
   assert.equal(actual.OLD_MONOLITH_APPLIED, "UNKNOWN");
@@ -148,4 +155,21 @@ test("receipt binding comes from verified capability, not mutable caller data", 
   assert.equal(actual.AUTHORIZATION_ID, "auth-a-verified-session-026");
   assert.equal(actual.SOURCE_HEAD, head);
   assert.equal(actual.PACKET_SHA256, packet);
+});
+
+test("database diagnostics accept only fixed enum values and query identifiers", () => {
+  const { authorization, capability } = fixture("027");
+  for (const provider of ["cloudflare", "cloudflare", "supabase", "supabase", "brevo", "brevo", "database"])
+    markAuthAExternalDispatch(capability, provider);
+  const receipt = production.formatAuthAProductionReceipt({ authorization, capability, result: {
+    authAStatus: "BLOCKED", blockerClass: "DATABASE_BLOCKED",
+    dbFailureStage: "PROCESS\nDB_STAGE=PRE_V1", dbFailureClass: "password=fake-token",
+    dbFailureQueryId: "CATALOG_12\nAUTH_RELEASE_STATUS=GO" } });
+  const actual = fields(receipt);
+  assert.equal(actual.DB_FAILURE_STAGE, "UNKNOWN");
+  assert.equal(actual.DB_FAILURE_CLASS, "UNKNOWN");
+  assert.equal(actual.DB_FAILURE_QUERY_ID, "UNKNOWN");
+  assert.equal(receipt.includes("fake-token"), false);
+  assert.doesNotMatch(receipt, /^DB_STAGE=PRE_V1$/m);
+  assert.doesNotMatch(receipt, /^AUTH_RELEASE_STATUS=GO$/m);
 });

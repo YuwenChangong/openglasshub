@@ -60,6 +60,8 @@ export async function runAuthADbCaptureInternal({ mode = "LOCAL_TEST", dsn, cata
     sameBackend: result.backendSessionCorrelation === true,
     rollbackMode: result.rollbackMode,
     catalogSha256: prepared.catalogSha256, historySha256: prepared.historySha256,
+    firstFailureStage: ["PSQL_EXECUTION", "PROCESS", "RESULT_PARSING", "SESSION_PROOF"]
+      .includes(result.firstFailureStage) ? result.firstFailureStage : null,
     firstFailureQueryId: result.firstFailureQueryId ?? null,
     failureClass: result.firstFailureClass ?? null,
   };

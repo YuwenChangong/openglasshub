@@ -8,7 +8,7 @@ import { createAuthAProductionTestCapability, getAuthAProductionAttempt,
   claimAuthAProductionAttempt, markAuthAExternalDispatch } from
   "../lib/verified-session-auth-a-production-gate.mjs";
 import { EXPECTED_OLD_WORKER } from "../lib/verified-session-old-worker-baseline.mjs";
-import { createAuthAProductionSteps } from "./verified-session-auth-a-production.mjs";
+import { createAuthAProductionSteps, formatAuthAProductionReceipt } from "./verified-session-auth-a-production.mjs";
 import { runAuthAOrchestrator } from "./verified-session-auth-a-execute.mjs";
 import { createAuthAReadClient } from "./verified-session-auth-a-read-client.mjs";
 import { runAuthADbCaptureInternal } from "./verified-session-auth-a-db-capture.mjs";
@@ -71,11 +71,13 @@ function fakeProviders({ version = EXPECTED_OLD_WORKER.versionId, projectRef = r
   return { calls, fetchImpl };
 }
 
-function fakePsql() {
+function fakePsql({ stderr = "", stdoutExtra = "", failAt = null, processError = false,
+  spawnThrows = false, badSession = false, badTranscript = false } = {}) {
   let spawns = 0;
   let transcript = "";
   const spawnImpl = (_executable, args, options) => {
     spawns += 1;
+    if (spawnThrows) throw new Error("password=forbidden");
     assert.deepEqual(args, ["-X", "-q", "-v", "ON_ERROR_STOP=1"]);
     assert.equal(options.shell, false);
     const child = new EventEmitter();
@@ -85,14 +87,21 @@ function fakePsql() {
     child.stdin = { end(input) {
       transcript = input;
       queueMicrotask(() => {
+        if (processError) { child.emit("error", new Error("password=forbidden")); return; }
         const frame = (id, rows) => [`P9::${nonce}::BEGIN::${id}`, ...rows, `P9::${nonce}::END::${id}`];
         const lines = frame("SESSION", ["transaction_read_only,current_database,current_user,backend_pid",
           `on,postgres,postgres.${ref},777`]);
-        for (let i = 1; i <= 11; i++) lines.push(...frame(`CATALOG_${String(i).padStart(2, "0")}`, ["fact"]));
-        lines.push(...frame("HISTORY_01", ["fact"]));
-        lines.push(...frame("SESSION_FINAL", ["backend_pid", "777"]));
-        child.stdout.emit("data", lines.join("\n"));
-        child.emit("close", 0);
+        for (let i = 1; i <= 11; i++) {
+          const id = `CATALOG_${String(i).padStart(2, "0")}`;
+          if (id === failAt) { lines.push(`P9::${nonce}::BEGIN::${id}`); break; }
+          lines.push(...frame(id, ["fact"]));
+        }
+        if (!failAt && badTranscript) lines.push(`P9::${nonce}::BEGIN::HISTORY_01`);
+        else if (!failAt) lines.push(...frame("HISTORY_01", ["fact"]));
+        if (!failAt) lines.push(...frame("SESSION_FINAL", ["backend_pid", badSession ? "778" : "777"]));
+        child.stdout.emit("data", [...lines, stdoutExtra].filter(Boolean).join("\n"));
+        if (stderr) child.stderr.emit("data", stderr);
+        child.emit("close", stderr || failAt ? 1 : 0);
       });
     } };
     return child;
@@ -100,16 +109,42 @@ function fakePsql() {
   return { spawnImpl, get spawns() { return spawns; }, get transcript() { return transcript; } };
 }
 
-async function runFixture(id, providerOptions = {}) {
+async function runFixture(id, providerOptions = {}, psqlOptions = {}) {
   const { authorization, binding, capability } = fixture(id);
   const providers = fakeProviders(providerOptions);
-  const psql = fakePsql();
+  const psql = fakePsql(psqlOptions);
   const steps = createAuthAProductionSteps({ capability, credentials,
     fetchImpl: providers.fetchImpl, spawnImpl: psql.spawnImpl, nonce });
   const result = await runAuthAOrchestrator({ mode: "PRODUCTION", authorization,
     sourceHead: head, packetSha256: packet, ...binding, capability, steps });
-  return { result, providers, psql, attempt: getAuthAProductionAttempt(capability) };
+  return { result, providers, psql, attempt: getAuthAProductionAttempt(capability), authorization, capability };
 }
+
+test("DB failure receipt preserves only bounded transport diagnostics", async () => {
+  for (const [id, options, expectedStage, expectedClass, expectedQuery] of [
+    ["030", { stderr: "password authentication failed password=fake-password token=fake-token postgresql://private.invalid/db\nDB_STAGE=PRE_V1",
+      stdoutExtra: "password=stdout-secret" },
+      "PSQL_EXECUTION", "AUTHENTICATION_FAILED", "SESSION_FINAL"],
+    ["031", { stderr: "could not translate host name" }, "PSQL_EXECUTION", "DNS_FAILURE", "SESSION_FINAL"],
+    ["032", { stderr: "ERROR: read-only SQL failed", failAt: "CATALOG_03" },
+      "PSQL_EXECUTION", "TRANSPORT_UNKNOWN_CONNECTION_FAILURE", "CATALOG_03"],
+    ["033", { processError: true }, "PROCESS", "P9_PSQL_PROCESS_FAILURE", "UNKNOWN"],
+    ["034", { badSession: true }, "SESSION_PROOF", "P9_SESSION_PROOF_FAILURE", "UNKNOWN"],
+    ["035", { badTranscript: true }, "RESULT_PARSING", "P9_RESULT_PRESERVATION_FAILURE", "UNKNOWN"],
+    ["036", { spawnThrows: true }, "PROCESS", "P9_PSQL_PROCESS_FAILURE", "UNKNOWN"],
+  ]) {
+    const { result, authorization, capability, attempt } = await runFixture(id, {}, options);
+    const receipt = formatAuthAProductionReceipt({ result, authorization, capability });
+    assert.match(receipt, new RegExp(`^DB_FAILURE_STAGE=${expectedStage}$`, "m"));
+    assert.match(receipt, new RegExp(`^DB_FAILURE_CLASS=${expectedClass}$`, "m"));
+    assert.match(receipt, new RegExp(`^DB_FAILURE_QUERY_ID=${expectedQuery}$`, "m"));
+    assert.match(receipt, /^BLOCKER_CLASS=DATABASE_BLOCKED$/m);
+    assert.deepEqual(attempt.counts, { cloudflare: 2, supabase: 2, brevo: 2, database: 1 });
+    for (const secret of ["fake-password", "fake-token", "stdout-secret", "postgresql://", "private.invalid"])
+      assert.equal(receipt.includes(secret), false);
+    assert.doesNotMatch(receipt, /^DB_STAGE=PRE_V1$/m);
+  }
+});
 
 test("PROD-01..07 missing/invalid capability, 001/002 and drift stop before reads", async () => {
   for (const id of ["001", "002"]) {
@@ -170,6 +205,8 @@ test("PROD-08,12,13 valid dummy fixture uses 2/2/2/1 and read-only P9", async ()
   assert.deepEqual(attempt.counts, { cloudflare: 2, supabase: 2, brevo: 2, database: 1 });
   assert.equal(attempt.consumed, true);
   assert.equal(result.authReleaseStatus, "NO_GO");
+  assert.deepEqual([result.dbFailureStage, result.dbFailureClass, result.dbFailureQueryId],
+    ["NONE", "NONE", "NONE"]);
   assert.equal(result.freeCapacityStatus, "UNKNOWN");
   assert.equal(result.capacityGate, "BLOCKED_BEFORE_AUTH_B");
   assert.equal(JSON.stringify(result).includes("dummy-password"), false);

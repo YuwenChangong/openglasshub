@@ -7,6 +7,20 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const HEAD = /^[a-f0-9]{40}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+const DB_FAILURE_STAGES = new Set(["PSQL_EXECUTION", "PROCESS", "RESULT_PARSING", "SESSION_PROOF"]);
+const DB_FAILURE_CLASSES = new Set(["AUTHENTICATION_FAILED", "DNS_FAILURE", "SSL_FAILURE",
+  "SERVER_CONNECTION_LOST", "NETWORK_UNREACHABLE", "TRANSPORT_UNKNOWN_CONNECTION_FAILURE",
+  "P9_PSQL_PROCESS_FAILURE", "P9_RESULT_PRESERVATION_FAILURE", "P9_RESULT_CSV_INVALID",
+  "P9_SESSION_PROOF_FAILURE"]);
+const P9_ERROR_STAGES = new Map([
+  ["P9_PSQL_PROCESS_FAILURE", "PROCESS"],
+  ["P9_RESULT_PRESERVATION_FAILURE", "RESULT_PARSING"],
+  ["P9_RESULT_CSV_INVALID", "RESULT_PARSING"],
+  ["P9_SESSION_PROOF_FAILURE", "SESSION_PROOF"],
+]);
+const safeQueryId = (value) => value === "SESSION" || value === "SESSION_FINAL"
+  || value === "HISTORY_01" || /^CATALOG_(?:0[1-9]|1[01])$/.test(value ?? "")
+  ? value : value == null ? "NONE" : "UNKNOWN";
 const fail = (code) => { throw new Error(`AUTH_A_ORCHESTRATOR_${code}`); };
 
 function requireDispatchCounts(mode, capability, expected) {
@@ -44,8 +58,10 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
     newFoundationApplied: "UNKNOWN", newEnforcementApplied: "UNKNOWN",
     v1PrivateTableCount: "UNKNOWN", v1FunctionCount: "UNKNOWN",
     v1RestrictivePolicyCount: "UNKNOWN", resendEffectiveAcl: "UNKNOWN",
-    catalogPreflightStatus: "UNKNOWN", catalogDrift: "UNKNOWN" };
+    catalogPreflightStatus: "UNKNOWN", catalogDrift: "UNKNOWN",
+    dbFailureStage: "UNKNOWN", dbFailureClass: "UNKNOWN", dbFailureQueryId: "UNKNOWN" };
   let stage = "CLOUDFLARE";
+  let dbFailureObserved = false;
   try {
     const cf = await steps.cloudflare();
     requireDispatchCounts(mode, capability, { cloudflare: 2, supabase: 0, brevo: 0, database: 0 });
@@ -79,10 +95,19 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
     const db = await steps.database();
     requireDispatchCounts(mode, capability, { cloudflare: 2, supabase: 2, brevo: 2, database: 1 });
     const proof = db?.transportProof;
+    if (proof?.status === "BLOCKED") {
+      dbFailureObserved = true;
+      observed.dbFailureStage = DB_FAILURE_STAGES.has(proof.firstFailureStage)
+        ? proof.firstFailureStage : "UNKNOWN";
+      observed.dbFailureClass = DB_FAILURE_CLASSES.has(proof.failureClass)
+        ? proof.failureClass : "UNKNOWN";
+      observed.dbFailureQueryId = safeQueryId(proof.firstFailureQueryId);
+    }
     if (proof?.status !== "PASS" || (mode === "PRODUCTION" && proof.targetClass !== "PRODUCTION")
       || proof.connectionAttempts !== 1 || proof.psqlProcessCount !== 1
       || proof.queryCount !== 12 || proof.transactionReadOnly !== true || proof.sameBackend !== true
       || proof.rollbackMode !== "EXPLICIT_ROLLBACK") fail("DATABASE_UNKNOWN");
+    Object.assign(observed, { dbFailureStage: "NONE", dbFailureClass: "NONE", dbFailureQueryId: "NONE" });
     const classified = classifyAuthADatabase(db);
     Object.assign(observed, { ...classified,
       catalogPreflightStatus: classified.catalogPass ? "PASS" : "FAIL" });
@@ -102,6 +127,10 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
       cloudflareReadRequests: 2, supabaseReadRequests: 2, brevoReadRequests: 2,
       databaseConnectionAttempts: 1, productionWrites: 0, emailSends: 0, deploys: 0 });
   } catch (error) {
+    if (stage === "DATABASE" && !dbFailureObserved && P9_ERROR_STAGES.has(error?.code)) {
+      observed.dbFailureStage = P9_ERROR_STAGES.get(error.code);
+      observed.dbFailureClass = error.code;
+    }
     const versionDrift = ["AUTH_A_CF_VERSION_DRIFT", "AUTH_A_ORCHESTRATOR_WORKER_VERSION_DRIFT"]
       .includes(error?.message);
     return Object.freeze({ ...observed, authAStatus: "BLOCKED", authReleaseStatus: "NO_GO",

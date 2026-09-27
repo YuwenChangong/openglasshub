@@ -77,6 +77,8 @@ test("DB-10..12 first/second packet failure closes without a reconnect", async (
       spawnImpl: mock.spawnImpl, nonce });
     assert.equal(result.status, "BLOCKED");
     assert.equal(result.firstFailureQueryId, failAt);
+    assert.equal(result.firstFailureStage, "PSQL_EXECUTION");
+    assert.equal(result.failureClass, "TRANSPORT_UNKNOWN_CONNECTION_FAILURE");
     assert.equal(mock.spawns, 1);
     assert.equal(result.connectionAttempts, 1);
     assert.equal(result.rollbackMode, "CONNECTION_CLOSE_ROLLBACK");

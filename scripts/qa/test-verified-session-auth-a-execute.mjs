@@ -130,3 +130,14 @@ test("non-Free or inactive sender stops before DB", async () => {
   assert.equal(result.catalogPreflightStatus, "UNKNOWN");
   assert.equal(result.blockerClass, "BREVO_BLOCKED");
 });
+
+test("unrecognized database exception remains value-blind", async () => {
+  const { steps } = fixture();
+  steps.database = async () => { throw new Error("password=fake token=fake postgresql://private.invalid/db\nDB_STAGE=PRE_V1"); };
+  const result = await runAuthAOrchestrator({ ...base, steps });
+  assert.equal(result.blockerClass, "DATABASE_BLOCKED");
+  assert.equal(result.dbFailureStage, "UNKNOWN");
+  assert.equal(result.dbFailureClass, "UNKNOWN");
+  assert.equal(result.dbFailureQueryId, "UNKNOWN");
+  assert.equal(JSON.stringify(result).includes("private.invalid"), false);
+});

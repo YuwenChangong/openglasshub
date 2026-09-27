@@ -151,6 +151,23 @@ test("P9TX-18 treats a missing framed packet result as a failure", () => {
   assert.throws(() => parsePsqlTranscript({ stdout: "", protocol, units }), /P9_RESULT_PRESERVATION_FAILURE/);
 });
 
+test("P9 failure query identifier uses a complete frame marker", async () => {
+  const packet = await readFile(packetPath, "utf8");
+  const nonce = "9bdea1a5cf8b44f796db910e0c5845af";
+  const spawnImpl = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
+    child.stdin = { end() { queueMicrotask(() => {
+      child.stdout.emit("data", `P9::${nonce}::BEGIN::SESSION\nP9::${nonce}::BEGIN::SESSION_FINAL`);
+      child.emit("close", 1);
+    }); } };
+    return child;
+  };
+  const result = await runP9ReadOnlyCapture({ mode: "LOCAL_TEST",
+    dsn: "postgresql://postgres:dummy@127.0.0.1:5432/postgres", packet, spawnImpl, nonce });
+  assert.equal(result.firstFailureQueryId, "SESSION_FINAL");
+});
+
 test("P9TX-29 rejects the consumed management API rows-empty shape", () => {
   assert.deepEqual(classifyLegacyManagementResult({ rows: [] }), {
     accepted: false,
