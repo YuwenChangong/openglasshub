@@ -11,6 +11,7 @@ import { readSupabaseInventory } from "./verified-session-auth-a-supabase-read.m
 import { readBrevoReadiness } from "./verified-session-auth-a-brevo-read.mjs";
 import { runAuthAOrchestrator } from "./verified-session-auth-a-execute.mjs";
 import { parseP9Connection } from "./p9-readonly-postgres-transport.mjs";
+import { CATALOG_FAMILIES } from "../lib/verified-session-catalog-contract.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CATALOG = "docs/ops/verified-session-v1-hosted-catalog-preflight.sql";
@@ -80,6 +81,10 @@ const DB_FAILURE_QUERY_IDS = ["SESSION", ...Array.from({ length: 11 }, (_, index
 const acl = (value) => value && typeof value === "object"
   && [value.anon, value.authenticated, value.service].every((part) => typeof part === "boolean")
   ? `anon=${value.anon},authenticated=${value.authenticated},service=${value.service}` : "UNKNOWN";
+const mismatchFamilies = (value) => value === "none" ? "none"
+  : typeof value === "string" && value.length > 0
+    && value === CATALOG_FAMILIES.filter((family) => value.split(",").includes(family)).join(",")
+    ? value : "UNKNOWN";
 
 export function formatAuthAProductionReceipt({ authorization, capability, result } = {}) {
   const attempt = capability ? getAuthAProductionAttempt(capability) : null;
@@ -136,6 +141,7 @@ export function formatAuthAProductionReceipt({ authorization, capability, result
     `RESEND_EFFECTIVE_ACL=${acl(db?.resendEffectiveAcl)}`,
     `CATALOG_PREFLIGHT_STATUS=${oneOf(db?.catalogPreflightStatus, ["PASS", "FAIL", "UNKNOWN"])}`,
     `CATALOG_DRIFT=${oneOf(db?.catalogDrift, ["none", "UNKNOWN"])}`,
+    `CATALOG_PRE_V1_MISMATCH_FAMILIES=${mismatchFamilies(db?.catalogPreV1MismatchFamilies)}`,
     "FREE_CAPACITY_STATUS=UNKNOWN",
     "CAPACITY_GATE=BLOCKED_BEFORE_AUTH_B",
     `CLOUDFLARE_READ_REQUESTS=${counts.cloudflare}`,

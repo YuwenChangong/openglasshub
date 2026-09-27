@@ -33,6 +33,21 @@ export function catalogDigest(snapshot) {
   return encoded === null ? null : createHash("sha256").update(encoded).digest("hex");
 }
 
+export function catalogFamilyDigest(family, rows) {
+  if (!FAMILIES.includes(family) || !Array.isArray(rows)) return null;
+  const encoded = canonical({ [family]: rows });
+  return encoded === null ? null : createHash("sha256").update(encoded).digest("hex");
+}
+
+export function catalogMismatchFamilies(snapshot, expected) {
+  if (!catalogDigest(snapshot) || !expected || Object.getPrototypeOf(expected) !== Object.prototype
+    || JSON.stringify(Object.keys(expected).sort()) !== JSON.stringify([...FAMILIES].sort())
+    || FAMILIES.some((family) => typeof expected[family] !== "string" || !SHA256.test(expected[family])))
+    return "UNKNOWN";
+  const mismatches = FAMILIES.filter((family) => catalogFamilyDigest(family, snapshot[family]) !== expected[family]);
+  return mismatches.length ? mismatches.join(",") : "none";
+}
+
 export function classifyVerifiedSessionDbStage(snapshot, expected) {
   const digest = catalogDigest(snapshot);
   if (!digest || !expected || Object.getPrototypeOf(expected) !== Object.prototype) return "UNKNOWN";

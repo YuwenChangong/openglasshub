@@ -88,6 +88,7 @@ test("AUTH-A combined packet uses one real disposable local read-only psql sessi
     const classified = classifyAuthADatabase(internal);
     assert.equal(classified.dbStage, "ENFORCEMENT");
     assert.equal(classified.catalogPass, true);
+    assert.match(classified.catalogPreV1MismatchFamilies, /^[A-Za-z]+(?:,[A-Za-z]+)*$/);
     assert.equal(classified.catalogDrift, "none");
     assert.equal(classified.migrationProvenance, "UNKNOWN");
     assert.equal(JSON.stringify(classified).includes("rows"), false);

@@ -58,7 +58,7 @@ export async function runAuthAOrchestrator({ mode = "LOCAL_TEST", authorization,
     newFoundationApplied: "UNKNOWN", newEnforcementApplied: "UNKNOWN",
     v1PrivateTableCount: "UNKNOWN", v1FunctionCount: "UNKNOWN",
     v1RestrictivePolicyCount: "UNKNOWN", resendEffectiveAcl: "UNKNOWN",
-    catalogPreflightStatus: "UNKNOWN", catalogDrift: "UNKNOWN",
+    catalogPreflightStatus: "UNKNOWN", catalogDrift: "UNKNOWN", catalogPreV1MismatchFamilies: "UNKNOWN",
     dbFailureStage: "UNKNOWN", dbFailureClass: "UNKNOWN", dbFailureQueryId: "UNKNOWN" };
   let stage = "CLOUDFLARE";
   let dbFailureObserved = false;

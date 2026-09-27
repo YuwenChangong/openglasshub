@@ -146,6 +146,20 @@ test("DB failure receipt preserves only bounded transport diagnostics", async ()
   }
 });
 
+test("catalog mismatch receipt emits only allowlisted families and remains blocked", async () => {
+  const { result, authorization, capability } = await runFixture("037");
+  const receipt = formatAuthAProductionReceipt({ result, authorization, capability });
+  assert.match(receipt, /^AUTH_A_STATUS=BLOCKED$/m);
+  assert.match(receipt, /^AUTH_RELEASE_STATUS=NO_GO$/m);
+  assert.match(receipt, /^DB_STAGE=UNKNOWN$/m);
+  assert.match(receipt, /^CATALOG_PREFLIGHT_STATUS=FAIL$/m);
+  assert.match(receipt, /^CATALOG_PRE_V1_MISMATCH_FAMILIES=(?:[A-Za-z]+(?:,[A-Za-z]+)*|none)$/m);
+  const injected = formatAuthAProductionReceipt({ result: {
+    ...result, catalogPreV1MismatchFamilies: "schemas,secret-raw-row" }, authorization, capability });
+  assert.match(injected, /^CATALOG_PRE_V1_MISMATCH_FAMILIES=UNKNOWN$/m);
+  assert.equal(injected.includes("secret-raw-row"), false);
+});
+
 test("PROD-01..07 missing/invalid capability, 001/002 and drift stop before reads", async () => {
   for (const id of ["001", "002"]) {
     const authorization = { AUTH_A_EXECUTE: "1", AUTHORIZATION_ID: `auth-a-verified-session-${id}`,

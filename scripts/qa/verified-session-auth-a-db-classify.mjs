@@ -1,6 +1,6 @@
 import { normalizeCatalogCapture } from "../lib/verified-session-catalog-contract.mjs";
-import { catalogDigest, classifyVerifiedSessionDbStage } from "../lib/verified-session-db-stage.mjs";
-import { REVIEWED_LOCAL_STAGE_DIGESTS } from "../lib/verified-session-stage-digests.mjs";
+import { catalogDigest, catalogMismatchFamilies, classifyVerifiedSessionDbStage } from "../lib/verified-session-db-stage.mjs";
+import { REVIEWED_LOCAL_PRE_V1_FAMILY_DIGESTS, REVIEWED_LOCAL_STAGE_DIGESTS } from "../lib/verified-session-stage-digests.mjs";
 
 const IDS = [...Array.from({ length: 11 }, (_, index) => `CATALOG_${String(index + 1).padStart(2, "0")}`), "HISTORY_01"];
 const HISTORY_FIELDS = ["version", "name", "created_by", "idempotency_key",
@@ -18,7 +18,7 @@ export function classifyAuthADatabase(capture) {
     newFoundationApplied: "UNKNOWN", newEnforcementApplied: "UNKNOWN",
     v1PrivateTableCount: "UNKNOWN", v1FunctionCount: "UNKNOWN",
     v1RestrictivePolicyCount: "UNKNOWN", resendEffectiveAcl: "UNKNOWN",
-    catalogPass: false, catalogDrift: "UNKNOWN" };
+    catalogPass: false, catalogDrift: "UNKNOWN", catalogPreV1MismatchFamilies: "UNKNOWN" };
   if (capture?.transportProof?.status !== "PASS" || !Array.isArray(capture.queryResults)
     || capture.queryResults.length !== IDS.length
     || capture.queryResults.some((entry, index) => entry?.queryId !== IDS[index]
@@ -61,5 +61,6 @@ export function classifyAuthADatabase(capture) {
     resendEffectiveAcl: resend ? { anon: resend.anon_execute, authenticated: resend.authenticated_execute,
       service: resend.service_execute } : "UNKNOWN",
     catalogPass, catalogDrift: catalogPass ? "none" : "UNKNOWN",
-    catalogSha256: catalogDigest(snapshot) };
+    catalogSha256: catalogDigest(snapshot),
+    catalogPreV1MismatchFamilies: catalogMismatchFamilies(snapshot, REVIEWED_LOCAL_PRE_V1_FAMILY_DIGESTS) };
 }

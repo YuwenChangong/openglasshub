@@ -46,7 +46,8 @@ test("RECEIPT-01..02 complete PASS contains frozen redacted inventory facts", ()
     newEnforcementApplied: false, v1PrivateTableCount: 0, v1FunctionCount: 0,
     v1RestrictivePolicyCount: 0,
     resendEffectiveAcl: { anon: false, authenticated: false, service: true },
-    catalogPreflightStatus: "PASS", catalogDrift: "none", blockerClass: "NONE" };
+    catalogPreflightStatus: "PASS", catalogDrift: "none",
+    catalogPreV1MismatchFamilies: "none", blockerClass: "NONE" };
   const receipt = production.formatAuthAProductionReceipt({ authorization, capability, result });
   const actual = fields(receipt);
   assert.equal(actual.DB_FAILURE_STAGE, "NONE");
@@ -61,7 +62,8 @@ test("RECEIPT-01..02 complete PASS contains frozen redacted inventory facts", ()
     "EXPECTED_DB_STAGE", "MIGRATION_PROVENANCE", "OLD_MONOLITH_APPLIED",
     "OLD_RESEND_LOCK_APPLIED", "NEW_FOUNDATION_APPLIED", "NEW_ENFORCEMENT_APPLIED",
     "V1_PRIVATE_TABLE_COUNT", "V1_FUNCTION_COUNT", "V1_RESTRICTIVE_POLICY_COUNT",
-    "RESEND_EFFECTIVE_ACL", "CATALOG_PREFLIGHT_STATUS", "CATALOG_DRIFT", "FREE_CAPACITY_STATUS",
+    "RESEND_EFFECTIVE_ACL", "CATALOG_PREFLIGHT_STATUS", "CATALOG_DRIFT",
+    "CATALOG_PRE_V1_MISMATCH_FAMILIES", "FREE_CAPACITY_STATUS",
     "CAPACITY_GATE", "CLOUDFLARE_READ_REQUESTS", "SUPABASE_CONTROL_PLANE_READ_REQUESTS",
     "BREVO_READ_REQUESTS", "PRODUCTION_CONNECTION_ATTEMPTS", "PRODUCTION_WRITES", "AUTH_STATE_CHANGES",
     "EMAIL_SENDS", "STORAGE_WRITES", "REALTIME_SENTINELS", "DEPLOYS", "CONFIG_CHANGES",
@@ -80,6 +82,7 @@ test("RECEIPT-01..02 complete PASS contains frozen redacted inventory facts", ()
   assert.equal(actual.V1_PRIVATE_TABLE_COUNT, "0");
   assert.equal(actual.RESEND_EFFECTIVE_ACL, "anon=false,authenticated=false,service=true");
   assert.equal(actual.CATALOG_PREFLIGHT_STATUS, "PASS");
+  assert.equal(actual.CATALOG_PRE_V1_MISMATCH_FAMILIES, "none");
   assert.equal(actual.CLOUDFLARE_READ_REQUESTS, "2");
   assert.equal(actual.SUPABASE_CONTROL_PLANE_READ_REQUESTS, "2");
   assert.equal(actual.BREVO_READ_REQUESTS, "2");

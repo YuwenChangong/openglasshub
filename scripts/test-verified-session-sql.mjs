@@ -9,12 +9,13 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { buildLocalSupabaseReplayMirror, ORDERED_MIGRATION_FILENAMES } from "./build-local-supabase-replay-mirror.mjs";
 import { verifyBypass } from "./test-verified-session-bypass.mjs";
-import { catalogDigest, classifyVerifiedSessionDbStage } from "./lib/verified-session-db-stage.mjs";
+import { catalogDigest, catalogFamilyDigest, catalogMismatchFamilies, classifyVerifiedSessionDbStage } from "./lib/verified-session-db-stage.mjs";
 import { CATALOG_FAMILIES, collectLocalCatalog, normalizeCatalogCapture } from "./lib/verified-session-catalog-contract.mjs";
 import { runP9ReadOnlyCapture } from "./qa/p9-readonly-postgres-transport.mjs";
 import { AUTH_A_CATALOG_SHA256 } from "./qa/verified-session-auth-a-db-capture.mjs";
 import { classifyAuthADatabase } from "./qa/verified-session-auth-a-db-classify.mjs";
 import { REVIEWED_LOCAL_STAGE_DIGESTS } from "./test-verified-session-db-stage.mjs";
+import { REVIEWED_LOCAL_PRE_V1_FAMILY_DIGESTS } from "./lib/verified-session-stage-digests.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const migration = path.join(root, "supabase/migrations/20260923000000_ogh_verified_session_v1_foundation.sql");
@@ -603,6 +604,8 @@ async function verifyAuthACatalogStage(dsn, stage) {
       rows: [], rowCount: 0 }] });
   assert.equal(classified.dbStage, stage);
   assert.equal(classified.migrationProvenance, stage === "PRE_V1" ? "CLEAN_UNSHIPPED_V1" : "UNKNOWN");
+  assert.equal(classified.catalogPreV1MismatchFamilies === "none", stage === "PRE_V1");
+  assert.equal(classified.catalogPass, true);
   for (const family of CATALOG_FAMILIES) {
     const changed = structuredClone(snapshot);
     changed[family].push({ __mutated: true });
@@ -706,6 +709,24 @@ try {
       const foundationSql = await readFile(migration, "utf8");
       const enforcementSql = await readFile(resendMigration, "utf8");
       check(classifyVerifiedSessionDbStage(await finalCatalogSnapshot(client), REVIEWED_LOCAL_STAGE_DIGESTS) === "PRE_V1", "historical catalog is PRE_V1");
+      if (process.argv.includes("--auth-a-catalog-proof")) {
+        const snapshot = await collectLocalCatalog(client);
+        assert.equal(catalogDigest(snapshot), REVIEWED_LOCAL_STAGE_DIGESTS.PRE_V1);
+        for (const family of CATALOG_FAMILIES)
+          assert.equal(catalogFamilyDigest(family, snapshot[family]), REVIEWED_LOCAL_PRE_V1_FAMILY_DIGESTS[family]);
+        assert.equal(catalogMismatchFamilies(snapshot, REVIEWED_LOCAL_PRE_V1_FAMILY_DIGESTS), "none");
+        for (const family of CATALOG_FAMILIES) {
+          const changed = structuredClone(snapshot);
+          changed[family].push({ diagnosticProbe: true });
+          assert.equal(catalogMismatchFamilies(changed, REVIEWED_LOCAL_PRE_V1_FAMILY_DIGESTS), family);
+          assert.equal(classifyVerifiedSessionDbStage(changed, REVIEWED_LOCAL_STAGE_DIGESTS), "UNKNOWN");
+        }
+        const twoChanged = structuredClone(snapshot);
+        twoChanged.schemas.push({ diagnosticProbe: true });
+        twoChanged.publication.push({ diagnosticProbe: true });
+        assert.equal(catalogMismatchFamilies(twoChanged, REVIEWED_LOCAL_PRE_V1_FAMILY_DIGESTS), "schemas,publication");
+        console.log("AUTH_A_PRE_V1_FAMILY_BASELINE=PASS");
+      }
       if (process.argv.includes("--auth-a-catalog-proof")) await verifyAuthACatalogStage(status.DB_URL, "PRE_V1");
       const baselinePolicies = await query(client, "SELECT schemaname, tablename, policyname, cmd, qual, with_check FROM pg_policies ORDER BY schemaname, tablename, policyname");
       await expectEnforcementRefused(client, enforcementSql);

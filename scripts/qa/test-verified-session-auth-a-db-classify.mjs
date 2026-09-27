@@ -64,6 +64,8 @@ test("exact target-version collision still marks history divergent", () => {
 
 test("complete history without target versions remains UNKNOWN when semantic catalog is not reviewed", () => {
   const result = classifyAuthADatabase(capture());
+  assert.equal(typeof result.catalogPreV1MismatchFamilies, "string");
+  assert.notEqual(result.catalogPreV1MismatchFamilies, "UNKNOWN");
   assert.equal(result.dbStage, "UNKNOWN");
   assert.equal(result.migrationProvenance, "UNKNOWN");
   assert.equal(result.catalogPass, false);
@@ -92,10 +94,13 @@ test("version plus exact name identifies old and new collisions without exposing
 test("missing query, duplicate identity or changed field set fails closed", () => {
   const missing = capture(); missing.queryResults.pop();
   assert.equal(classifyAuthADatabase(missing).migrationProvenance, "UNKNOWN");
+  assert.equal(classifyAuthADatabase(missing).catalogPreV1MismatchFamilies, "UNKNOWN");
   const row = { version: "20260923000000", name: "ogh_verified_session_v1",
     created_by: "", idempotency_key: "",
     statement_count: "1", rollback_statement_count: "" };
   assert.equal(classifyAuthADatabase(capture([row, row])).migrationProvenance, "UNKNOWN");
   const changed = capture(); changed.queryResults[11].fields.push("unexpected");
   assert.equal(classifyAuthADatabase(changed).migrationProvenance, "UNKNOWN");
+  const malformedCatalog = capture(); malformedCatalog.queryResults[0].fields = ["raw"];
+  assert.equal(classifyAuthADatabase(malformedCatalog).catalogPreV1MismatchFamilies, "UNKNOWN");
 });
