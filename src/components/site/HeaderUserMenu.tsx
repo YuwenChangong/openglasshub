@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { buildLoginHref, getSafeNext } from "../../lib/auth-redirect";
+import { buildLoginHref, buildSignupHref, getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 
@@ -260,7 +260,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
         <a href={buildLoginHref(safeNext)} className="ogh-login-button">
           登录
         </a>
-        <a href={buildLoginHref(safeNext)} className="ogh-register-button">
+        <a href={buildSignupHref(safeNext)} className="ogh-register-button">
           注册
         </a>
       </div>
@@ -273,7 +273,7 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
         <a href={buildLoginHref(safeNext)} className="ogh-login-button">
           登录
         </a>
-        <a href={buildLoginHref(safeNext)} className="ogh-register-button">
+        <a href={buildSignupHref(safeNext)} className="ogh-register-button">
           注册
         </a>
       </div>

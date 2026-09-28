@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import * as publicDeviceData from "../src/lib/public-device-data.ts";
+import { loadApprovedDeviceYaml } from "./devices/schema-v1/yaml-input.mjs";
+import { normalizeCatalogYaml } from "./devices/schema-v1/normalize.mjs";
+import { buildLegacyCompatibility } from "./devices/schema-v1/compatibility.mjs";
 import {
   listPublishedDevices,
   getPublishedDeviceBySlug,
@@ -37,6 +41,56 @@ assert.equal(published[0].publicationStatus, undefined);
 assert.equal(published[0].id, undefined);
 assert.equal(published[0].slug, "public-device");
 assert.equal(published[0].specGroups[0].items[0].value, "20g");
+
+assert.equal(typeof publicDeviceData.getPublicDeviceSpecValue, "function", "canonical UI spec reader must exist");
+const catalog = await loadApprovedDeviceYaml(new URL("../src/data/devices/openglasshub_device_data_v1.yaml", import.meta.url));
+const normalized = normalizeCatalogYaml(catalog);
+for (const brand of ["XREAL", "RayNeo", "Ray-Ban / Meta"]) {
+  const device = normalized.devices.find((device) => device.identity.brand === brand);
+  assert.ok(device, `approved ${brand} device exists`);
+  const compatibility = buildLegacyCompatibility(device);
+  const actual = (await listPublishedDevices(clientWith([row(compatibility)]).client))[0];
+  for (const [field, path, unit] of [
+    ["weight", "basic.weight_g", "g"],
+    ["display_type", "display.display_technology", null],
+    ["resolution", "display.resolution_per_eye", "(per eye)"],
+    ["field_of_view", "display.fov_deg", "deg"],
+    ["refresh_rate_hz", "display.refresh_rate_hz", "Hz"],
+    ["eye_brightness_nits", "display.eye_brightness", "nits"],
+    ["panel_or_projector_brightness_nits", "display.panel_or_projector_brightness", "nits"],
+  ]) {
+    const source = device.specs.find((spec) => spec.path === path);
+    const value = publicDeviceData.getPublicDeviceSpecValue(actual, field);
+    if (!source || source.state !== "KNOWN") assert.equal(value, null, `${brand} omitted unknown ${field} stays unknown`);
+    else {
+      assert.ok(value?.startsWith(String(source.rawValue)), `${brand} ${field} retains approved source value`);
+      if (unit) assert.ok(value.endsWith(unit), `${brand} ${field} has correct unit`);
+    }
+  }
+}
+const canonical = (await listPublishedDevices(clientWith([row({ full_specs: {
+  basic: { weight_g: "82" },
+  display: { display_technology: "Micro-OLED", resolution_per_eye: "1920x1080", fov_deg: "46", refresh_rate_hz: "Up to 120", eye_brightness: "500", panel_or_projector_brightness: "100000" },
+  compute: { soc: "Not disclosed" }, camera: { camera_present: "No" }, power: { typical_runtime: "Not applicable" },
+} })]).client))[0];
+const spec = (field) => publicDeviceData.getPublicDeviceSpecValue(canonical, field);
+assert.equal(spec("weight"), "82 g");
+assert.equal(spec("display_type"), "Micro-OLED");
+assert.equal(spec("resolution"), "1920x1080 (per eye)");
+assert.equal(spec("field_of_view"), "46 deg");
+assert.equal(spec("refresh_rate_hz"), "Up to 120 Hz");
+assert.equal(spec("eye_brightness_nits"), "500 nits");
+assert.equal(spec("panel_or_projector_brightness_nits"), "100000 nits");
+assert.equal(spec("brightness"), null, "different brightness contexts must not be conflated");
+assert.equal(spec("chipset"), "Not disclosed");
+assert.equal(spec("camera"), "No");
+assert.equal(spec("battery_life"), "Not applicable");
+assert.equal(publicDeviceData.getPublicDeviceSpecValue(published[0], "weight"), "20g", "legacy values remain readable");
+assert.equal(spec("unknown_field"), null);
+const withUnits = (await listPublishedDevices(clientWith([row({ full_specs: { basic: { weight_g: "72 g" }, display: { refresh_rate_hz: "120 Hz", fov_deg: "50 deg" } } })]).client))[0];
+assert.equal(publicDeviceData.getPublicDeviceSpecValue(withUnits, "weight"), "72 g");
+assert.equal(publicDeviceData.getPublicDeviceSpecValue(withUnits, "refresh_rate_hz"), "120 Hz");
+assert.equal(publicDeviceData.getPublicDeviceSpecValue(withUnits, "field_of_view"), "50 deg");
 
 const detail = clientWith([row()]);
 assert.equal((await getPublishedDeviceBySlug(detail.client, "public-device"))?.slug, "public-device");

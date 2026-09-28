@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer } from "vite";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../src/lib/auth-redirect.ts";
+import * as authRedirect from "../src/lib/auth-redirect.ts";
+
+assert.equal(typeof authRedirect.buildSignupHref, "function", "signup CTA needs an explicit signup destination");
+assert.equal(authRedirect.buildSignupHref("/feed/?sort=latest#reply"), "/login/?mode=register&next=%2Ffeed%2F%3Fsort%3Dlatest%23reply");
+assert.equal(authRedirect.buildSignupHref("https://evil.example"), "/login/?mode=register&next=%2F");
+const headerSource = readFileSync(new URL("../src/components/site/HeaderUserMenu.tsx", import.meta.url), "utf8");
+assert.equal((headerSource.match(/href=\{buildSignupHref\(safeNext\)\} className="ogh-register-button"/g) ?? []).length, 2);
 
 const trustedOrigin = "https://openglasshub.pages.dev";
 const workerOrigin = "https://openglasshub.ogh.workers.dev";

@@ -19,6 +19,42 @@ function specGroups(value: unknown) {
   });
 }
 
+type DeviceSpecs = { specGroups?: ReturnType<typeof specGroups> };
+const canonicalUiSpecs: Record<string, { paths: readonly string[]; unit?: string }> = {
+  display_type: { paths: ["display.display_technology"] },
+  resolution: { paths: ["display.resolution_per_eye"], unit: "(per eye)" },
+  weight: { paths: ["basic.weight_g"], unit: "g" },
+  field_of_view: { paths: ["display.fov_deg"], unit: "deg" },
+  refresh_rate_hz: { paths: ["display.refresh_rate_hz"], unit: "Hz" },
+  eye_brightness_nits: { paths: ["display.eye_brightness"], unit: "nits" },
+  panel_or_projector_brightness_nits: { paths: ["display.panel_or_projector_brightness"], unit: "nits" },
+  chipset: { paths: ["compute.soc"] },
+  camera: { paths: ["camera.camera_sensor", "camera.camera_mp", "camera.camera_present"] },
+  battery_life: { paths: ["power.typical_runtime", "battery.official_typical_runtime"] },
+};
+
+export function getPublicDeviceSpecValue(product: DeviceSpecs, field: string): string | null {
+  const mapping = canonicalUiSpecs[field];
+  for (const path of mapping?.paths ?? []) {
+    const [groupKey, specField] = path.split(".");
+    const value = product.specGroups?.find((group) => group.key === groupKey)?.items.find((item) => item.field === specField)?.value;
+    if (!value) continue;
+    if (/^(?:Not disclosed|Not applicable|No|TBD)$/i.test(value.trim())) return value;
+    const unit = path === "camera.camera_mp" ? "MP" : mapping.unit;
+    if (!unit) return value;
+    const hasUnit = unit === "g" ? /\b(?:g|grams?)\b/i.test(value)
+      : unit === "deg" ? /\u00b0|\bdeg(?:rees)?\b/i.test(value)
+      : unit === "(per eye)" ? /per[ -]eye/i.test(value)
+      : new RegExp(`\\b${unit}\\b`, "i").test(value);
+    return hasUnit ? value : `${value} ${unit}`;
+  }
+  for (const group of product.specGroups ?? []) {
+    const value = group.items.find((item) => item.field === field)?.value;
+    if (value) return value;
+  }
+  return null;
+}
+
 function mapPublicDevice(row: PublicRow) {
   const media = record(row.media);
   const imageAlt = text(media.imageAlt) ?? text(row.image_alt) ?? row.name;
