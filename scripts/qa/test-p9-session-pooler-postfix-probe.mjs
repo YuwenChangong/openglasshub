@@ -89,6 +89,7 @@ test("one fixed SQL command uses isolated effective PG target and consumes befor
       PGPASSWORD: "old", PGCONNECT_TIMEOUT: "999", PATH: "synthetic-path" } });
   assert.equal(result.P9_SESSION_POOLER_PROBE_STATUS, "PASS");
   assert.equal(result.RESULT_CLASS, "SESSION_POOLER_CREDENTIAL_VALID");
+  assert.equal(result.DNS_RESULT_CLASS, "DNS_MULTIPLE_ADDRESSES_FIRST_SELECTED");
   assert.equal(result.SQL_EXECUTED, true);
   assert.equal(result.PRODUCTION_CONNECTION_ATTEMPTS, 1);
   assert.equal(result.RETRIES, 0);
@@ -181,7 +182,7 @@ test("DNS failure consumes once, makes no database attempt and cannot replay", a
   const { receipt: first, audit } = await simulateP9PostfixProbeTest({
     authorization: authorization(id), snapshot, now, testSentinelDir: testRoot, dnsOutcome: "error" });
   assert.equal(first.P9_SESSION_POOLER_PROBE_STATUS, "BLOCKED");
-  assert.equal(first.RESULT_CLASS, "DNS_RESOLUTION_BLOCKED");
+  assert.equal(first.RESULT_CLASS, "DNS_RESOLVER_ERROR");
   assert.equal(first.PRODUCTION_CONNECTION_ATTEMPTS, 0);
   assert.equal(audit.sentinelConsumedBeforeDns, true);
   assert.equal(audit.calls.length, 0);
@@ -198,8 +199,59 @@ test("redirected private DNS address is rejected before psql dispatch", async ()
     authorization: authorization("p9-session-pooler-postfix-1790560009"),
     snapshot, now, testSentinelDir: testRoot, dnsOutcome: "redirected" });
   assert.equal(result.P9_SESSION_POOLER_PROBE_STATUS, "BLOCKED");
-  assert.equal(result.RESULT_CLASS, "DNS_RESOLUTION_BLOCKED");
+  assert.equal(result.RESULT_CLASS, "DNS_LOOPBACK_ADDRESS");
   assert.equal(result.PRODUCTION_CONNECTION_ATTEMPTS, 0);
   assert.equal(audit.sentinelConsumedBeforeDns, true);
   assert.equal(audit.calls.length, 0);
+});
+
+test("DNS outcomes have distinct sanitized classes without fallback or secret output", async () => {
+  const { simulateP9PostfixProbeTest } = await import("./p9-session-pooler-postfix-probe.mjs");
+  const cases = [
+    ["timeout", "DNS_TIMEOUT"], ["notfound", "DNS_NAME_NOT_FOUND"],
+    ["nodata", "DNS_NO_A_RECORD"], ["servfail", "DNS_SERVER_FAILURE"],
+    ["refused", "DNS_SERVER_REFUSED"], ["resolver-error", "DNS_RESOLVER_ERROR"],
+    ["resolver-config", "DNS_RESOLVER_CONFIGURATION_FAILURE"],
+    ["empty", "DNS_EMPTY_RESULT"], ["malformed", "DNS_MALFORMED_RESULT"],
+    ["private", "DNS_PRIVATE_ADDRESS"], ["loopback", "DNS_LOOPBACK_ADDRESS"],
+    ["reserved", "DNS_RESERVED_ADDRESS"], ["invalid", "DNS_INVALID_ADDRESS"],
+    ["documentation", "DNS_RESERVED_ADDRESS"],
+    ["private-then-public", "DNS_PRIVATE_ADDRESS"],
+  ];
+  for (const [index, [dnsOutcome, expected]] of cases.entries()) {
+    const id = `p9-session-pooler-postfix-${1790560100 + index}`;
+    const { receipt: result, audit } = await simulateP9PostfixProbeTest({
+      authorization: authorization(id), snapshot, now, dnsOutcome,
+      dnsTimeoutMs: 5, testSentinelDir: testRoot });
+    assert.equal(result.P9_SESSION_POOLER_PROBE_STATUS, "BLOCKED", dnsOutcome);
+    assert.equal(result.RESULT_CLASS, expected, dnsOutcome);
+    assert.equal(result.DNS_RESULT_CLASS, expected, dnsOutcome);
+    assert.equal(result.PRODUCTION_CONNECTION_ATTEMPTS, 0, dnsOutcome);
+    assert.equal(result.SQL_EXECUTED, false, dnsOutcome);
+    assert.equal(result.RETRIES, 0, dnsOutcome);
+    assert.equal(audit.dnsCalls, 1, dnsOutcome);
+    assert.equal(audit.sentinelConsumedBeforeDns, true, dnsOutcome);
+    assert.equal(audit.calls.length, 0, dnsOutcome);
+    if (dnsOutcome === "timeout") assert.equal(audit.dnsCancelled, true);
+    assert.equal(JSON.stringify(result).includes("synthetic-password"), false);
+    assert.equal(JSON.stringify(result).includes("93.184.216"), false);
+  }
+});
+
+test("one or multiple public DNS records select only the first numeric address", async () => {
+  const { simulateP9PostfixProbeTest } = await import("./p9-session-pooler-postfix-probe.mjs");
+  for (const [index, [dnsOutcome, expected]] of [
+    ["one-public", "DNS_ONE_PUBLIC_ADDRESS"],
+    ["multiple-public", "DNS_MULTIPLE_ADDRESSES_FIRST_SELECTED"],
+  ].entries()) {
+    const id = `p9-session-pooler-postfix-${1790560200 + index}`;
+    const { receipt: result, audit } = await simulateP9PostfixProbeTest({
+      authorization: authorization(id), snapshot, now, dnsOutcome, testSentinelDir: testRoot });
+    assert.equal(result.P9_SESSION_POOLER_PROBE_STATUS, "PASS");
+    assert.equal(result.DNS_RESULT_CLASS, expected);
+    assert.equal(audit.dnsCalls, 1);
+    assert.equal(audit.calls.length, 1);
+    assert.equal(audit.calls[0].options.env.PGHOSTADDR, "93.184.216.34");
+    assert.equal(audit.calls[0].options.env.PGHOST, target.TARGET_HOST);
+  }
 });

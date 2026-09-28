@@ -65,6 +65,63 @@ network destination was not independently proven.
 
 ## Offline findings
 
+### Consumed post-fix DNS-stage probe
+
+The operator reports the following one-shot outcome. This offline audit did
+not repeat the attempt or independently observe its runtime.
+
+```text
+PROBE_ID=p9-session-pooler-postfix-1790556477646
+AUTHORIZATION_CONSUMED=true
+REUSABLE=false
+RESULT_CLASS=DNS_RESOLUTION_BLOCKED
+PRODUCTION_CONNECTION_ATTEMPTS=0
+SQL_EXECUTED=false
+PRODUCTION_WRITES=0
+RETRIES=0
+PROCESS_EXIT=1
+```
+
+No psql dispatch or database connection was reported. This is not a Supabase
+authentication failure and adds no password or Supavisor evidence. Never
+reuse this ID. Its original generic receipt cannot distinguish a resolver
+error, timeout, empty/malformed answer, or rejected first address.
+
+The DNS stage now emits allowlisted error/address classifications, without
+raw error messages or addresses. Synthetic tests prove distinct timeout,
+ENOTFOUND, ENODATA, SERVFAIL, REFUSED, configuration and generic-error paths,
+empty/malformed results, rejected private/loopback/reserved/invalid addresses,
+and first-address-only selection. The address validator previously accepted
+documentation-only IPv4 ranges; that local safety defect is fixed, but no
+evidence links it to this consumed probe's failure.
+
+The production resolver remains `new Resolver().resolve4()`. A concrete,
+unproven hypothesis is that its direct DNS path behaves differently from
+Windows OS name resolution. Node's `lookup({ family: 4 })` uses OS
+getaddrinfo facilities, whereas resolve4 uses DNS directly through c-ares;
+an independent Resolver starts with default server settings. Global
+resolve4 is the same direct-DNS API family, not an OS-backed substitute.
+Windows OS policy/cache/hosts behavior can therefore differ. libpq uses
+hostname resolution when hostaddr is absent; the pinned numeric hostaddr in
+this probe deliberately bypasses that later lookup. No offline evidence
+proves that switching to lookup would fix this operator's failure, and the
+resolver architecture has not been changed.
+
+References reviewed for Node v24 and PostgreSQL 17:
+
+- https://nodejs.org/docs/latest-v24.x/api/dns.html
+- https://www.postgresql.org/docs/17/libpq-connect.html
+
+Next discriminator: separately authorize one resolve4 API invocation and one
+OS lookup API invocation for only the fixed Session Pooler hostname. These
+are two logical resolver calls, not a promise of two DNS wire packets:
+c-ares and OS resolvers may internally retransmit, query configured servers,
+or consult caches. No application retry, public-DNS override, database
+connection, psql, credentials, or AUTH-A is allowed. If a strict wire-packet
+budget is required, do not execute this candidate without a reviewed
+packet-counting mechanism. Report sanitized classes, duration, result count,
+and a boolean address-set comparison only; do not print raw answers/errors.
+
 The P9 transport previously inherited `PG*` libpq variables from its parent
 process. A synthetic test showed that `PGHOSTADDR` could reach the `psql`
 child alongside the validated `PGHOST`; libpq may use `hostaddr` as the actual
@@ -104,14 +161,18 @@ ROOT_CAUSE=SESSION_POOLER_SCRAM_AUTHENTICATION_REJECTED_SPECIFIC_CAUSE_UNKNOWN
 AUTH_A_READY=false
 NEXT_DIAGNOSTIC_AUTHORIZATION_REQUIRED=true
 
-The most practical next discriminator is one freshly authorized Session
+Before any new database connection, the current next discriminator is the
+separately approved DNS-only comparison described above. The following
+database probe scope remains conditional on resolving that DNS blocker.
+One freshly authorized Session
 Pooler reconnect against the Dashboard-confirmed target, after verifying the
 effective child environment is free of inherited libpq overrides. Scope it
 to one connection, at most one constant `SELECT 1`, zero writes, zero retries,
 and no AUTH-A dispatch. A reviewed one-shot probe mechanism and a new human
 authorization are prerequisites; this document supplies neither. The probe
 implementation and its source/binary pinning manifest are present for offline
-review in this worktree, but no Production probe has been authorized or run.
+review in this worktree. The operator reports one consumed post-fix probe
+authorization that stopped at DNS, with zero database connections.
 The future probe resolves the fixed host once after consuming authorization,
 selects one numeric address as a reviewed `PGHOSTADDR`, and launches one
 `psql`/libpq connect invocation. It does not fall through to additional DNS

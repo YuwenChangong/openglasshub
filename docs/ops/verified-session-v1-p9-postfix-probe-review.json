@@ -4,7 +4,7 @@
   "files": {
     "scripts/lib/p9-session-pooler-credential-handoff.mjs": "73fee1e344d35cc1383dd11fbf3944eb93062822c98106276b0c53245dedc793",
     "scripts/lib/p9-session-pooler-postfix-gate.mjs": "01ab7723c2f4bfb92ccdcbaa6b812381d92ae581fb02d36e3d1e65fbc1e4f360",
-    "scripts/qa/p9-session-pooler-postfix-probe.mjs": "f53ecaff53132128e8d5614d0a1b5cf8d24114245bdc49f4d6fb2b19440fb2b9",
+    "scripts/qa/p9-session-pooler-postfix-probe.mjs": "b6963b67fd8427aa552328ad2727098e86c9b5cb3b08fda382583d163fc910d9",
     "scripts/qa/p9-readonly-postgres-transport.mjs": "18e9681bff20f4f18212f6ae244ff4f953c063c9e8b69de5c2870d3d53870fce"
   },
   "psql": {

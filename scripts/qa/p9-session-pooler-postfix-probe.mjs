@@ -42,40 +42,65 @@ function childEnvironment(source, pgEnv, psqlPath) {
   return child;
 }
 
-function receipt(status, resultClass, attempts, sqlExecuted) {
+function receipt(status, resultClass, attempts, dnsResultClass = "DNS_NOT_ATTEMPTED") {
   return Object.freeze({ P9_SESSION_POOLER_PROBE_STATUS: status, RESULT_CLASS: resultClass,
+    DNS_RESULT_CLASS: dnsResultClass,
     SQL_EXECUTED: status === "PASS" ? true : attempts === 0 ? false : "UNKNOWN",
     PRODUCTION_CONNECTION_ATTEMPTS: attempts,
     PRODUCTION_WRITES: 0, RETRIES: 0 });
 }
 
-function isPublicIpv4(address) {
-  if (isIP(address) !== 4) return false;
+function addressBlockClass(address) {
+  if (typeof address !== "string") return "DNS_MALFORMED_RESULT";
+  if (isIP(address) !== 4) return "DNS_INVALID_ADDRESS";
   const [a, b, c] = address.split(".").map(Number);
-  return a > 0 && a < 224 && a !== 10 && a !== 127
-    && !(a === 100 && b >= 64 && b <= 127)
-    && !(a === 169 && b === 254) && !(a === 172 && b >= 16 && b <= 31)
-    && !(a === 192 && b === 168) && !(a === 192 && b === 0 && c === 0)
-    && !(a === 198 && (b === 18 || b === 19));
+  if (a === 127) return "DNS_LOOPBACK_ADDRESS";
+  if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168))
+    return "DNS_PRIVATE_ADDRESS";
+  if (a === 0 || a >= 224 || (a === 100 && b >= 64 && b <= 127)
+    || (a === 169 && b === 254) || (a === 192 && b === 0 && c === 0)
+    || (a === 192 && b === 0 && c === 2) || (a === 198 && (b === 18 || b === 19))
+    || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113))
+    return "DNS_RESERVED_ADDRESS";
+  return null;
 }
 
-async function resolveSingleAddress(host, resolver) {
-  let timer;
+const DNS_ERROR_CLASSES = Object.freeze({ ENOTFOUND: "DNS_NAME_NOT_FOUND",
+  ENODATA: "DNS_NO_A_RECORD", ESERVFAIL: "DNS_SERVER_FAILURE",
+  EREFUSED: "DNS_SERVER_REFUSED", ETIMEOUT: "DNS_TIMEOUT",
+  ENOTINITIALIZED: "DNS_RESOLVER_CONFIGURATION_FAILURE",
+  ELOADIPHLPAPI: "DNS_RESOLVER_CONFIGURATION_FAILURE",
+  EADDRGETNETWORKPARAMS: "DNS_RESOLVER_CONFIGURATION_FAILURE" });
+const dnsFailure = (code) => Object.assign(new Error(code), { code });
+
+async function resolveSingleAddress(host, resolver, timeoutMs) {
+  let timer; let timedOut = false; let addresses;
   try {
-    const addresses = await Promise.race([
-      resolver.resolve4(host),
+    addresses = await Promise.race([
+      Promise.resolve().then(() => resolver.resolve4(host)),
       new Promise((_, reject) => {
-        timer = setTimeout(() => { resolver.cancel?.(); reject(new Error("DNS_TIMEOUT")); }, DNS_TIMEOUT_MS);
+        timer = setTimeout(() => {
+          timedOut = true;
+          try { resolver.cancel?.(); } catch {}
+          reject(dnsFailure("DNS_TIMEOUT"));
+        }, timeoutMs);
       }),
     ]);
-    const address = addresses?.[0];
-    if (!isPublicIpv4(address)) fail("DNS_ADDRESS_INVALID");
-    return address;
+  } catch (error) {
+    throw dnsFailure(timedOut ? "DNS_TIMEOUT"
+      : DNS_ERROR_CLASSES[error?.code] ?? "DNS_RESOLVER_ERROR");
   } finally { clearTimeout(timer); }
+  if (!Array.isArray(addresses)) throw dnsFailure("DNS_MALFORMED_RESULT");
+  if (addresses.length === 0) throw dnsFailure("DNS_EMPTY_RESULT");
+  const blocked = addressBlockClass(addresses[0]);
+  if (blocked) throw dnsFailure(blocked);
+  return { address: addresses[0], dnsResultClass: addresses.length === 1
+    ? "DNS_ONE_PUBLIC_ADDRESS" : "DNS_MULTIPLE_ADDRESSES_FIRST_SELECTED" };
 }
 
 async function runP9PostfixProbeCore({ authorization, snapshot, now, dsn,
-  sourceEnvironment, spawnImpl, resolver, psqlPath, timeoutMs, terminationGraceMs, testSentinelDir }) {
+  sourceEnvironment, spawnImpl, resolver, psqlPath, dnsTimeoutMs, timeoutMs,
+  terminationGraceMs, testSentinelDir }) {
   let gate, childEnv;
   try {
     gate = createP9PostfixGate({ authorization, snapshot, now, testSentinelDir });
@@ -92,31 +117,35 @@ async function runP9PostfixProbeCore({ authorization, snapshot, now, dsn,
       || childEnv.PGDATABASE !== authorization.TARGET_DATABASE || childEnv.PGUSER !== authorization.TARGET_USER)
       fail("EFFECTIVE_TARGET_INVALID");
   } catch {
-    return receipt("BLOCKED", "PREFLIGHT_BLOCKED", 0, false);
+    return receipt("BLOCKED", "PREFLIGHT_BLOCKED", 0);
   }
-  try { gate.consume(); } catch { return receipt("BLOCKED", "AUTHORIZATION_CONSUMED_OR_UNAVAILABLE", 0, false); }
-  let address;
-  try { address = await resolveSingleAddress(childEnv.PGHOST, resolver); }
-  catch { return receipt("BLOCKED", "DNS_RESOLUTION_BLOCKED", 0, false); }
+  try { gate.consume(); } catch { return receipt("BLOCKED", "AUTHORIZATION_CONSUMED_OR_UNAVAILABLE", 0); }
+  let address, dnsResultClass;
+  try { ({ address, dnsResultClass } = await resolveSingleAddress(childEnv.PGHOST, resolver, dnsTimeoutMs)); }
+  catch (error) {
+    const resultClass = /^DNS_[A-Z_]+$/.test(error?.code ?? "") ? error.code : "DNS_RESOLVER_ERROR";
+    return receipt("BLOCKED", resultClass, 0, resultClass);
+  }
   childEnv.PGHOSTADDR = address;
+  const afterDns = (status, resultClass, attempts) => receipt(status, resultClass, attempts, dnsResultClass);
   const effectivePgKeys = Object.keys(childEnv).filter((key) => /^PG/i.test(key)).sort();
-  if (effectivePgKeys.join(",") !== PG_KEYS.join(",") || !isPublicIpv4(childEnv.PGHOSTADDR)
+  if (effectivePgKeys.join(",") !== PG_KEYS.join(",") || addressBlockClass(childEnv.PGHOSTADDR)
     || childEnv.PGSSLMODE !== "verify-full" || childEnv.PGSSLROOTCERT !== "system"
     || childEnv.PGGSSENCMODE !== "disable")
-    return receipt("BLOCKED", "EFFECTIVE_TARGET_INVALID", 0, false);
+    return afterDns("BLOCKED", "EFFECTIVE_TARGET_INVALID", 0);
   return new Promise((resolve) => {
     let child;
     try {
       child = spawnImpl(psqlPath, ["-X", "-w", "-qAt", "-v", "ON_ERROR_STOP=1", "-c", SQL],
         { shell: false, windowsHide: true, env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
-    } catch { resolve(receipt("BLOCKED", "PROCESS_START_FAILED", 1, false)); return; }
+    } catch { resolve(afterDns("BLOCKED", "PROCESS_START_FAILED", 1)); return; }
     let settled = false; let bytes = 0; let stdout = ""; let stopReason = null; let graceTimer;
     const finish = (resultClass, success = false) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       clearTimeout(graceTimer);
-      resolve(receipt(success ? "PASS" : "BLOCKED", resultClass, 1, success));
+      resolve(afterDns(success ? "PASS" : "BLOCKED", resultClass, 1));
     };
     const stop = (reason) => {
       if (settled || stopReason) return;
@@ -145,12 +174,16 @@ async function runP9PostfixProbeCore({ authorization, snapshot, now, dsn,
 
 export async function simulateP9PostfixProbeTest({ authorization, snapshot, now,
   targetVariant = "session", dnsOutcome = "success", sourceEnvironment = {}, fakeOutcome = {}, testSentinelDir,
-  timeoutMs = TIMEOUT_MS, terminationGraceMs = TERMINATION_GRACE_MS } = {}) {
+  dnsTimeoutMs = DNS_TIMEOUT_MS, timeoutMs = TIMEOUT_MS,
+  terminationGraceMs = TERMINATION_GRACE_MS } = {}) {
   const tempRoot = path.resolve(tmpdir()) + path.sep;
   if (!path.resolve(testSentinelDir ?? "").startsWith(tempRoot)
     || !path.resolve(snapshot?.commonDir ?? "").startsWith(tempRoot)
     || !["session", "transaction"].includes(targetVariant)
-    || !["success", "error", "redirected"].includes(dnsOutcome)
+    || !["success", "error", "redirected", "timeout", "notfound", "nodata", "servfail",
+      "refused", "resolver-error", "resolver-config", "empty", "malformed", "private",
+      "loopback", "reserved", "invalid", "private-then-public", "one-public",
+      "multiple-public", "documentation"].includes(dnsOutcome)
     || Object.keys(fakeOutcome).some((key) => !["stdout", "stderr", "exitCode", "neverClose", "closeOnKill"].includes(key))
     || typeof (fakeOutcome.stdout ?? "1\n") !== "string"
     || typeof (fakeOutcome.stderr ?? "") !== "string"
@@ -158,16 +191,34 @@ export async function simulateP9PostfixProbeTest({ authorization, snapshot, now,
     || typeof (fakeOutcome.neverClose ?? false) !== "boolean"
     || typeof (fakeOutcome.closeOnKill ?? false) !== "boolean"
     || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > TIMEOUT_MS
+    || !Number.isSafeInteger(dnsTimeoutMs) || dnsTimeoutMs < 1 || dnsTimeoutMs > DNS_TIMEOUT_MS
     || !Number.isSafeInteger(terminationGraceMs) || terminationGraceMs < 1
     || terminationGraceMs > TERMINATION_GRACE_MS) fail("TEST_BOUNDARY_INVALID");
   const dsn = `postgresql://postgres.xcbnxzjlsvtgzixurcof:synthetic-password@aws-1-ap-northeast-1.pooler.supabase.com:${targetVariant === "session" ? "5432" : "6543"}/postgres?sslmode=require`;
   const audit = { calls: [], dnsCalls: 0 };
-  const resolver = { resolve4: async (host) => {
+  let rejectDns;
+  const resolver = { cancel: () => {
+    audit.dnsCancelled = true;
+    rejectDns?.(Object.assign(new Error("SYNTHETIC_CANCELLED"), { code: "ECANCELLED" }));
+  }, resolve4: async (host) => {
     audit.dnsCalls += 1;
     audit.dnsHost = host;
     audit.sentinelConsumedBeforeDns = existsSync(path.join(testSentinelDir, authorization.PROBE_ID));
+    if (dnsOutcome === "timeout") return new Promise((_, reject) => { rejectDns = reject; });
+    const codes = { notfound: "ENOTFOUND", nodata: "ENODATA", servfail: "ESERVFAIL",
+      refused: "EREFUSED", "resolver-config": "ENOTINITIALIZED" };
+    if (codes[dnsOutcome]) throw Object.assign(new Error("SYNTHETIC_DNS_FAILURE"), { code: codes[dnsOutcome] });
     if (dnsOutcome === "error") throw new Error("SYNTHETIC_DNS_FAILURE");
-    if (dnsOutcome === "redirected") return ["127.0.0.1"];
+    if (dnsOutcome === "resolver-error") throw Object.assign(new Error("SYNTHETIC_DNS_FAILURE"), { code: "EUNKNOWN" });
+    if (dnsOutcome === "empty") return [];
+    if (dnsOutcome === "malformed") return { address: "93.184.216.34" };
+    if (["redirected", "loopback"].includes(dnsOutcome)) return ["127.0.0.1"];
+    if (dnsOutcome === "private") return ["10.0.0.1"];
+    if (dnsOutcome === "reserved") return ["169.254.1.1"];
+    if (dnsOutcome === "documentation") return ["203.0.113.10"];
+    if (dnsOutcome === "invalid") return ["not-an-ip"];
+    if (dnsOutcome === "private-then-public") return ["10.0.0.1", "93.184.216.34"];
+    if (dnsOutcome === "one-public") return ["93.184.216.34"];
     return ["93.184.216.34", "93.184.216.35"];
   } };
   const spawnImpl = (file, args, options) => {
@@ -189,7 +240,7 @@ export async function simulateP9PostfixProbeTest({ authorization, snapshot, now,
   };
   const result = await runP9PostfixProbeCore({ authorization, snapshot, now, dsn, sourceEnvironment,
     spawnImpl, resolver, psqlPath: path.join(testSentinelDir, "synthetic-psql.exe"), testSentinelDir,
-    timeoutMs, terminationGraceMs });
+    dnsTimeoutMs, timeoutMs, terminationGraceMs });
   return { receipt: result, audit };
 }
 
@@ -199,11 +250,15 @@ export async function runProductionP9PostfixProbe() {
     snapshot = observeP9PostfixRepository();
     const loaded = loadP9CredentialIntoEnvironment();
     dsn = loaded.dsn;
-  } catch { return receipt("BLOCKED", "PREFLIGHT_BLOCKED", 0, false); }
+  } catch { return receipt("BLOCKED", "PREFLIGHT_BLOCKED", 0); }
   const authorization = Object.fromEntries(AUTH_KEYS.map((key) => [key, process.env[key]]));
+  let resolver;
+  try { resolver = new Resolver(); }
+  catch { return receipt("BLOCKED", "DNS_RESOLVER_CONFIGURATION_FAILURE", 0,
+    "DNS_RESOLVER_CONFIGURATION_FAILURE"); }
   return runP9PostfixProbeCore({ authorization, snapshot, now: Date.now(), dsn,
-    sourceEnvironment: process.env, spawnImpl: spawn, resolver: new Resolver(), psqlPath: snapshot.psqlPath,
-    timeoutMs: TIMEOUT_MS, terminationGraceMs: TERMINATION_GRACE_MS });
+    sourceEnvironment: process.env, spawnImpl: spawn, resolver, psqlPath: snapshot.psqlPath,
+    dnsTimeoutMs: DNS_TIMEOUT_MS, timeoutMs: TIMEOUT_MS, terminationGraceMs: TERMINATION_GRACE_MS });
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
