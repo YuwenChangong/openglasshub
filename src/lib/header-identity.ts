@@ -12,10 +12,8 @@ function cleanLabel(value: unknown): string | null {
 function safeEmailLocalPart(email: string | undefined): string | null {
   if (!email || email.indexOf("@") < 1) return null;
   const local = email.slice(0, email.indexOf("@"));
-  if (!local || /[\p{Cc}\p{Cf}\p{Cs}]/u.test(local)) return null;
-  if (!/^[\p{L}\p{N}._+-]+$/u.test(local)) return null;
-  if ([...local].length >= 24 || /^(?:[\p{L}\p{N}]+\.)+[\p{L}]{2,}$/u.test(local)) return null;
-  if (/^(?:www\.)|(?:token|secret|bearer|api[_-]?key|password|eyJ)/i.test(local)) return null;
+  if (!/^[\p{L}]{1,23}$/u.test(local)) return null;
+  if (/(?:token|secret|bearer|apikey|password|eyJ)/i.test(local)) return null;
   return cleanLabel(local);
 }
 
