@@ -3,8 +3,9 @@
   "transportLineEndingCanonicalization": "LF",
   "files": {
     "scripts/lib/p9-session-pooler-credential-handoff.mjs": "73fee1e344d35cc1383dd11fbf3944eb93062822c98106276b0c53245dedc793",
-    "scripts/lib/p9-session-pooler-postfix-gate.mjs": "01ab7723c2f4bfb92ccdcbaa6b812381d92ae581fb02d36e3d1e65fbc1e4f360",
-    "scripts/qa/p9-session-pooler-postfix-probe.mjs": "b6963b67fd8427aa552328ad2727098e86c9b5cb3b08fda382583d163fc910d9",
+    "scripts/lib/p9-session-pooler-postfix-gate.mjs": "a60b4948b7d6b23eddb2ece94d7d873b65c6c6ef0cbf476cf2e110f010d83d09",
+    "scripts/qa/p9-session-pooler-postfix-probe.mjs": "64a02c3ddc02d6f56003c1cbb6e4fa3992c14a873b11928e4d33d44c851d8f31",
+    "scripts/lib/p9-bounded-os-lookup.mjs": "2fca96205429fe9f5f7447a1c4914654ce25118ea48bbb438e1a4d8e7512db66",
     "scripts/qa/p9-readonly-postgres-transport.mjs": "18e9681bff20f4f18212f6ae244ff4f953c063c9e8b69de5c2870d3d53870fce"
   },
   "psql": {

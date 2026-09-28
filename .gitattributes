@@ -27,3 +27,4 @@ scripts/qa/p9-dns-only-diagnostic.mjs text eol=lf
 scripts/qa/p9-dns-only-worker.mjs text eol=lf
 scripts/qa/test-p9-dns-only-diagnostic.mjs text eol=lf
 docs/ops/verified-session-v1-p9-dns-only-review.json text eol=lf
+scripts/lib/p9-bounded-os-lookup.mjs text eol=lf

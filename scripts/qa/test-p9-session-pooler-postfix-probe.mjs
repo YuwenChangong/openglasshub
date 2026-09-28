@@ -3,6 +3,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
+import vm from "node:vm";
+import { EventEmitter } from "node:events";
+import { isIP } from "node:net";
+import { fileURLToPath } from "node:url";
 
 const testRoot = mkdtempSync(path.join(tmpdir(), "p9-postfix-probe-test-"));
 after(() => {
@@ -86,7 +90,9 @@ test("one fixed SQL command uses isolated effective PG target and consumes befor
   const { receipt: result, audit } = await simulateP9PostfixProbeTest({ authorization: authorization(id), snapshot, now,
     testSentinelDir: testRoot,
     sourceEnvironment: { PGHOSTADDR: "elsewhere", PGSERVICE: "bad", PgHoSt: "bad",
-      PGPASSWORD: "old", PGCONNECT_TIMEOUT: "999", PATH: "synthetic-path" } });
+      PGPASSWORD: "old", PGCONNECT_TIMEOUT: "999", PATH: "synthetic-path",
+      pgservicefile: "bad", PgPassFile: "bad", PGOPTIONS: "bad", PGSSLROOTCERT: "bad",
+      PgChannelBinding: "bad" } });
   assert.equal(result.P9_SESSION_POOLER_PROBE_STATUS, "PASS");
   assert.equal(result.RESULT_CLASS, "SESSION_POOLER_CREDENTIAL_VALID");
   assert.equal(result.DNS_RESULT_CLASS, "DNS_MULTIPLE_ADDRESSES_FIRST_SELECTED");
@@ -96,6 +102,7 @@ test("one fixed SQL command uses isolated effective PG target and consumes befor
   assert.equal(audit.calls.length, 1);
   assert.equal(audit.dnsCalls, 1);
   assert.equal(audit.dnsHost, target.TARGET_HOST);
+  assert.deepEqual(audit.dnsOptions, { family: 4, all: true, verbatim: true });
   assert.equal(audit.sentinelConsumedBeforeDns, true);
   const [{ file, args, options, sentinelConsumedBeforeSpawn }] = audit.calls;
   assert.equal(sentinelConsumedBeforeSpawn, true);
@@ -217,6 +224,9 @@ test("DNS outcomes have distinct sanitized classes without fallback or secret ou
     ["reserved", "DNS_RESERVED_ADDRESS"], ["invalid", "DNS_INVALID_ADDRESS"],
     ["documentation", "DNS_RESERVED_ADDRESS"],
     ["private-then-public", "DNS_PRIVATE_ADDRESS"],
+    ["cgnat", "DNS_RESERVED_ADDRESS"], ["benchmark", "DNS_RESERVED_ADDRESS"],
+    ["multicast", "DNS_RESERVED_ADDRESS"], ["ipv6", "DNS_INVALID_ADDRESS"],
+    ["wrong-family", "DNS_INVALID_ADDRESS"],
   ];
   for (const [index, [dnsOutcome, expected]] of cases.entries()) {
     const id = `p9-session-pooler-postfix-${1790560100 + index}`;
@@ -232,10 +242,121 @@ test("DNS outcomes have distinct sanitized classes without fallback or secret ou
     assert.equal(audit.dnsCalls, 1, dnsOutcome);
     assert.equal(audit.sentinelConsumedBeforeDns, true, dnsOutcome);
     assert.equal(audit.calls.length, 0, dnsOutcome);
-    if (dnsOutcome === "timeout") assert.equal(audit.dnsCancelled, true);
+    if (dnsOutcome === "timeout") assert.equal(audit.dnsKilled, true);
     assert.equal(JSON.stringify(result).includes("synthetic-password"), false);
     assert.equal(JSON.stringify(result).includes("93.184.216"), false);
   }
+});
+
+test("Production probe has one OS lookup path and no direct resolver or fallback", () => {
+  const source = readFileSync(new URL("./p9-session-pooler-postfix-probe.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /resolve4|new Resolver|resolver\.cancel/);
+  assert.match(source, /family: 4, all: true, verbatim: true/);
+});
+
+test("bounded lookup waits for child closure even after unconfirmed termination grace", async () => {
+  const { superviseOsLookupChild } = await import("../lib/p9-bounded-os-lookup.mjs");
+  const { EventEmitter } = await import("node:events");
+  const child = new EventEmitter();
+  child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
+  let killed = 0, settled = false, signalKilled;
+  const onKill = new Promise((resolve) => { signalKilled = resolve; });
+  child.kill = () => { killed++; signalKilled(); };
+  const pending = superviseOsLookupChild(() => child, 5, 5).then(() => { settled = true; },
+    (error) => { settled = true; return error.code; });
+  await onKill;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(killed, 1);
+  assert.equal(settled, false);
+  child.emit("close", 1);
+  assert.equal(await pending, "DNS_TERMINATION_UNCONFIRMED");
+});
+
+test("exact child source uses one fixed OS lookup and preserves first-result order only", async () => {
+  const { OS_LOOKUP_WORKER_SOURCE } = await import("../lib/p9-bounded-os-lookup.mjs");
+  const source = OS_LOOKUP_WORKER_SOURCE.replace(/import[^;]+;/, "");
+  assert.doesNotMatch(source, /resolve4|Resolver|setServers|process\.env|psql|\bconnect\(/);
+  for (const rows of [[{ address: "93.184.216.35", family: 4 }],
+    [{ address: "93.184.216.35", family: 4 }, new Proxy({}, { get() { throw new Error("SECOND_RESULT_READ"); } })],
+    [], null]) {
+    const output = [], calls = [];
+    await vm.runInNewContext(`(async () => { ${source} })()`, {
+      lookup: async (host, options) => { calls.push({ host, options }); return rows; },
+      setTimeout() { return 1; }, clearTimeout() {},
+      process: { exit() { throw new Error("EXIT"); }, stdout: { write(value) { output.push(value); } } },
+    });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].host, target.TARGET_HOST);
+    assert.equal(JSON.stringify(calls[0].options), '{"family":4,"all":true,"verbatim":true}');
+    const payload = JSON.parse(output.join(""));
+    if (rows?.length) assert.equal(payload.first.address, "93.184.216.35");
+    else if (rows === null) assert.equal(payload.errorCode, "DNS_MALFORMED_RESULT");
+    else assert.equal(payload.count, 0);
+  }
+});
+
+test("mocked Production entrypoint consumes before isolated OS child and launches one pinned psql", async () => {
+  const { OS_LOOKUP_WORKER_SOURCE, superviseOsLookupChild } = await import("../lib/p9-bounded-os-lookup.mjs");
+  const { createP9PostfixGate } = await import("../lib/p9-session-pooler-postfix-gate.mjs");
+  const transport = await import("./p9-readonly-postgres-transport.mjs");
+  const url = new URL("./p9-session-pooler-postfix-probe.mjs", import.meta.url);
+  const source = readFileSync(url, "utf8").replace(/^import[^;]+;\s*/gm, "")
+    .replace(/if \(process\.argv\[1\][\s\S]*$/, "")
+    .replace(/export /g, "").replaceAll("import.meta.url", JSON.stringify(url.href));
+  const packet = authorization("p9-session-pooler-postfix-1790560300");
+  const snap = { ...snapshot, psqlPath: path.join(testRoot, "synthetic-psql.exe") };
+  const sentinel = path.join(testRoot, "ogh-p9-session-pooler-postfix-consumed", packet.PROBE_ID);
+  const launched = [], lookups = [];
+  const spawn = (file, args, options) => {
+    assert.equal(existsSync(sentinel), true);
+    launched.push({ file, args, options });
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
+    child.kill = () => queueMicrotask(() => child.emit("close", 1));
+    queueMicrotask(async () => {
+      if (file === "synthetic-node") {
+        assert.equal(args[2], OS_LOOKUP_WORKER_SOURCE);
+        assert.equal(Object.keys(options.env).some((key) => /PG|TOKEN|SECRET|KEY/i.test(key)), false);
+        await vm.runInNewContext(`(async () => { ${OS_LOOKUP_WORKER_SOURCE.replace(/import[^;]+;/, "")} })()`, {
+          lookup: async (host, config) => {
+            lookups.push({ host, config });
+            return [{ address: "93.184.216.35", family: 4 }, { address: "93.184.216.34", family: 4 }];
+          }, setTimeout() { return 1; }, clearTimeout() {},
+          process: { exit() { throw new Error("WORKER_EXIT"); },
+            stdout: { write(value) { child.stdout.emit("data", Buffer.from(value)); } } },
+        });
+      } else child.stdout.emit("data", Buffer.from("1\n"));
+      child.emit("close", 0);
+    });
+    return child;
+  };
+  class Clock extends Date { static now() { return now; } }
+  const result = await vm.runInNewContext(`${source}\nrunProductionP9PostfixProbe();`, {
+    ...transport, createP9PostfixGate, observeP9PostfixRepository: () => snap,
+    loadP9CredentialIntoEnvironment: () => ({ dsn }), OS_LOOKUP_WORKER_SOURCE, superviseOsLookupChild,
+    Date: Clock, path, fileURLToPath, Buffer, EventEmitter, isIP, tmpdir, existsSync,
+    setTimeout, clearTimeout, spawn,
+    process: { argv: ["node", "synthetic-entrypoint"], platform: "win32", execPath: "synthetic-node",
+      env: { ...packet, PGHOSTADDR: "inherited-override", PGSERVICE: "inherited-service",
+        PGSSLROOTCERT: "inherited-cert", NODE_OPTIONS: "inherited-options", P9_PRODUCTION_DATABASE_URL: dsn } },
+  });
+  assert.equal(result.P9_SESSION_POOLER_PROBE_STATUS, "PASS");
+  assert.equal(lookups.length, 1);
+  assert.equal(lookups[0].host, target.TARGET_HOST);
+  assert.equal(JSON.stringify(lookups[0].config), '{"family":4,"all":true,"verbatim":true}');
+  assert.equal(launched.length, 2);
+  const psql = launched[1];
+  assert.equal(psql.file, snap.psqlPath);
+  assert.equal(psql.options.shell, false);
+  assert.equal(psql.args.at(-1), "SELECT 1");
+  assert.equal(psql.options.env.PGHOSTADDR, "93.184.216.35");
+  assert.equal(psql.options.env.PGHOST, target.TARGET_HOST);
+  assert.equal(psql.options.env.PGSSLMODE, "verify-full");
+  assert.equal(psql.options.env.PGSSLROOTCERT, "system");
+  assert.equal(psql.options.env.PGGSSENCMODE, "disable");
+  assert.equal("PGSERVICE" in psql.options.env, false);
+  assert.equal(JSON.stringify(result).includes("synthetic-password"), false);
+  assert.equal(JSON.stringify(result).includes("93.184.216"), false);
 });
 
 test("one or multiple public DNS records select only the first numeric address", async () => {

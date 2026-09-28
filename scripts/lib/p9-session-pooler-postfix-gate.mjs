@@ -21,6 +21,7 @@ const FILES = Object.freeze([
   "scripts/lib/p9-session-pooler-postfix-gate.mjs",
   "scripts/qa/p9-session-pooler-postfix-probe.mjs",
   "scripts/qa/p9-readonly-postgres-transport.mjs",
+  "scripts/lib/p9-bounded-os-lookup.mjs",
 ]);
 const TRANSPORT = "scripts/qa/p9-readonly-postgres-transport.mjs";
 const fail = (reason) => { throw new Error(`P9_POSTFIX_GATE_${reason}`); };

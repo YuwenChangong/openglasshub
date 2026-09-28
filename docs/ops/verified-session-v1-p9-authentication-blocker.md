@@ -21,6 +21,8 @@ the first two AUTH-A attempts have separate checked-in notes):
 - `p9-session-pooler-probe-1790550656`
 - `p9-session-pooler-probe-1790551659`
 - `p9-session-pooler-probe-1790552145`
+- `p9-session-pooler-postfix-1790556477646`
+- `p9-session-pooler-dns-1790559620976`
 
 ## Consumed probe
 
@@ -95,32 +97,63 @@ and first-address-only selection. The address validator previously accepted
 documentation-only IPv4 ranges; that local safety defect is fixed, but no
 evidence links it to this consumed probe's failure.
 
-The production resolver remains `new Resolver().resolve4()`. A concrete,
-unproven hypothesis is that its direct DNS path behaves differently from
-Windows OS name resolution. Node's `lookup({ family: 4 })` uses OS
+The former production resolver used `new Resolver().resolve4()`. Node's
+`lookup({ family: 4 })` uses OS
 getaddrinfo facilities, whereas resolve4 uses DNS directly through c-ares;
 an independent Resolver starts with default server settings. Global
 resolve4 is the same direct-DNS API family, not an OS-backed substitute.
 Windows OS policy/cache/hosts behavior can therefore differ. libpq uses
 hostname resolution when hostaddr is absent; the pinned numeric hostaddr in
-this probe deliberately bypasses that later lookup. No offline evidence
-proves that switching to lookup would fix this operator's failure, and the
-resolver architecture has not been changed.
+this probe deliberately bypasses that later lookup.
+
+### Consumed DNS-only discriminator and offline correction
+
+The operator reports consumed diagnostic `p9-session-pooler-dns-1790559620976`:
+resolve4 BLOCKED / OTHER_RESOLVER_ERROR / 192 ms / UNKNOWN count; OS IPv4 lookup
+PASS / SUCCESS_MULTIPLE_IPV4 / 205 ms / count 3. Set/count comparison was
+UNKNOWN, exit code 1, retries 0, with zero DB connections, psql and writes.
+This task does not repeat or independently observe that runtime. Never reuse
+the ID. The differential outcome demonstrates local resolve4-path
+incompatibility sufficiently to justify an offline mechanism correction;
+the internal c-ares error cause remains UNKNOWN, and database authentication
+after correction remains UNPROVEN.
+
+The database probe now uses one canonical OS lookup with
+`{ family: 4, all: true, verbatim: true }`, not a fallback chain. It preserves
+returned order and inspects only the first result for selection. Unsafe or
+malformed first results BLOCK even if a later address is public. One address
+only can reach PGHOSTADDR; PGHOST retains the fixed hostname, verify-full and
+system CA roots remain enabled, and reviewed GSS behavior is unchanged.
+
+`scripts/lib/p9-bounded-os-lookup.mjs` derives child isolation from the reviewed
+DNS-only runner without launching it or changing its authorization. It has
+no credential loading or independent DNS launcher/entrypoint. The probe alone
+launches its frozen Node worker source, after consuming its existing gate.
+The child inherits no credentials or NODE_OPTIONS. It returns only first
+record metadata and a count through a private, capped pipe; raw errors never
+leave it. The parent preserves the existing address safety classifications.
+
+The local runtime is Node v24.14.1. Its inspected built-in promises.lookup
+implementation delegates to GetAddrInfoReqWrap/getaddrinfo and exposes no
+Resolver.cancel equivalent or AbortSignal control. The application deadline
+is 5000 ms; the parent requests SIGKILL and the child also self-exits on its
+own timer. No psql or final receipt is permitted until authoritative child
+close. After 500 ms without confirmed closure, the pending failure class
+becomes DNS_TERMINATION_UNCONFIRMED, but the parent keeps waiting rather than
+emitting a receipt while its DNS child may still be active. If OS termination
+fails, final completion has no provable hard wall-clock bound and requires
+operator intervention. This is explicit, not a claim of hard cancellation.
+Shared OS resolver-service retransmissions/wire packets are also not under
+Node cancellation control; no additional application lookup is issued.
 
 References reviewed for Node v24 and PostgreSQL 17:
 
 - https://nodejs.org/docs/latest-v24.x/api/dns.html
 - https://www.postgresql.org/docs/17/libpq-connect.html
 
-Next discriminator: separately authorize one resolve4 API invocation and one
-OS lookup API invocation for only the fixed Session Pooler hostname. These
-are two logical resolver calls, not a promise of two DNS wire packets:
-c-ares and OS resolvers may internally retransmit, query configured servers,
-or consult caches. No application retry, public-DNS override, database
-connection, psql, credentials, or AUTH-A is allowed. If a strict wire-packet
-budget is required, do not execute this candidate without a reviewed
-packet-counting mechanism. Report sanitized classes, duration, result count,
-and a boolean address-set comparison only; do not print raw answers/errors.
+The DNS-only discriminator above is consumed. The next action is to obtain
+a fresh human authorization for the corrected one-shot database probe only
+after offline tests/review/pinning pass. No authorization is granted here.
 
 The P9 transport previously inherited `PG*` libpq variables from its parent
 process. A synthetic test showed that `PGHOSTADDR` could reach the `psql`
@@ -158,7 +191,10 @@ ROOT_CAUSE=SESSION_POOLER_SCRAM_AUTHENTICATION_REJECTED_SPECIFIC_CAUSE_UNKNOWN
 
 ## Next bounded decision
 
-### Dedicated DNS-only runner (not executed)
+### Dedicated DNS-only runner (historical implementation contract)
+
+Its latest operator-reported execution is recorded above as consumed. The
+implementation task itself did not execute it; no repeat is authorized here.
 
 The new `scripts/qa/p9-dns-only-diagnostic.mjs` is separate from the database
 probe and credential handoff. Its gate and worker sources are byte-pinned in
@@ -220,9 +256,8 @@ configuration is printed or persisted. AUTH_A_READY remains false.
 AUTH_A_READY=false
 NEXT_DIAGNOSTIC_AUTHORIZATION_REQUIRED=true
 
-Before any new database connection, the current next discriminator is the
-separately approved DNS-only comparison described above. The following
-database probe scope remains conditional on resolving that DNS blocker.
+Before any new database connection, require new approval bound to the
+corrected OS-lookup implementation, current HEAD and current manifest hashes.
 One freshly authorized Session
 Pooler reconnect against the Dashboard-confirmed target, after verifying the
 effective child environment is free of inherited libpq overrides. Scope it
@@ -232,7 +267,7 @@ authorization are prerequisites; this document supplies neither. The probe
 implementation and its source/binary pinning manifest are present for offline
 review in this worktree. The operator reports one consumed post-fix probe
 authorization that stopped at DNS, with zero database connections.
-The future probe resolves the fixed host once after consuming authorization,
+The future probe performs one OS IPv4 lookup of the fixed host after consuming authorization,
 selects one numeric address as a reviewed `PGHOSTADDR`, and launches one
 `psql`/libpq connect invocation. It does not fall through to additional DNS
 addresses. The effective child `PGHOST` remains the fixed Session Pooler host.
