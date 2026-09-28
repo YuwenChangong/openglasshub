@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "files": {
+    "scripts/lib/p9-dns-only-gate.mjs": "5e3d814dc3502a38c4c17aab7e31ea28d2b73c931983c53ad8ef542c1df57e45",
+    "scripts/qa/p9-dns-only-diagnostic.mjs": "c4a837d55773fa42e7dcf843f694bb6671b7a3e400f0e0098fa12b0dda166746",
+    "scripts/qa/p9-dns-only-worker.mjs": "2e0637c94effb1b67155163a8d0a48035b9e9bb620ab14314e8ffedd5adb55d7"
+  }
+}

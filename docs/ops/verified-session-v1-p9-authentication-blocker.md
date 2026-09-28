@@ -158,6 +158,65 @@ ROOT_CAUSE=SESSION_POOLER_SCRAM_AUTHENTICATION_REJECTED_SPECIFIC_CAUSE_UNKNOWN
 
 ## Next bounded decision
 
+### Dedicated DNS-only runner (not executed)
+
+The new `scripts/qa/p9-dns-only-diagnostic.mjs` is separate from the database
+probe and credential handoff. Its gate and worker sources are byte-pinned in
+`docs/ops/verified-session-v1-p9-dns-only-review.json` with canonical LF rules.
+Offline synthetic verification and independent review are prerequisites to
+publishing a fresh authorization candidate. Neither implementation nor a
+candidate constitutes approval to execute it.
+
+The consumed database probe `p9-session-pooler-postfix-1790556477646` and stale
+design candidate `p9-session-pooler-dns-1790557464040` must not be reused.
+Require a new ID, strict millisecond UTC timestamp, final source HEAD, runner
+hash and manifest hash. Authorization expires after 900 seconds, allows at
+most 30 seconds of future skew, and binds the exact feature branch and clean
+worktree. Unknown fields and all alternate target/override settings block.
+
+For a separately authorized future run, the entrypoint is
+`node scripts/qa/p9-dns-only-diagnostic.mjs` with the complete authorization
+as a JSON object on standard input (all values are strings). It accepts no
+CLI arguments, environment authorization, credential input or config file.
+Do not run it as part of implementation/testing. Git observation uses the
+fixed system Git binary with bounded commands; an unavailable binary blocks.
+The repository-scoped `ogh-p9-dns-only-consumed/<DIAGNOSTIC_ID>` sentinel is
+atomically created under the Git common directory before first dispatch.
+Deleting a sentinel is forbidden; consumed IDs are permanently non-reusable.
+
+Each method runs in a separate Node child with no inherited environment,
+except fixed Windows system-directory entries where needed. Each worker also
+re-observes the repository, validates the complete authorization, and requires
+the parent consumption marker before atomically claiming its own method slot.
+The marker binds the complete authorization digest and the consuming parent's
+PID, checked against the worker's OS-reported parent PID. A different parent
+or retimed/rebound authorization cannot use an old consumption marker.
+An IPC parent alone cannot authorize a resolver call. Each slot is permanently
+one-use, including across new processes. Method 2 additionally requires a
+parent marker recording confirmed closure of method 1. Direct invocation
+without IPC or complete valid authorization is rejected. Git global/system
+configuration is disabled during observation. Method 1 is
+`new dns.promises.Resolver().resolve4()`; method 2 is OS-backed IPv4-only
+`dns.promises.lookup(..., { family: 4, all: true })`. Both receive only the
+frozen hostname. There is no retry, public DNS override or database access.
+Continuing after an ordinary first-method failure is explicitly within the
+two-method authorization. Unconfirmed child termination instead blocks the
+second method. Each parent deadline is 5000 ms, with at most 500 ms to confirm
+termination. Workers also have a self-exit deadline. The entrypoint has a
+24000 ms overall deadline including bounded authorization input and Git
+preflight. These are application bounds, not DNS wire-packet guarantees:
+configured resolvers, OS caches and API-internal retransmission remain possible.
+
+Raw results stay in memory and the private parent pipe, capped at 128 entries
+and 8192 bytes. Raw errors never cross that pipe. Standard output contains
+only method status/class/duration/count, address-set/count equality and zero
+retries. Skipped methods are BLOCKED with OTHER_RESOLVER_ERROR, zero duration
+and UNKNOWN count; they are not evidence of an attempted DNS call. Counts are
+validated raw result counts; address-set equality ignores duplicate addresses
+and order. Private, loopback and reserved/documentation results are blocked.
+Any method failure makes both comparisons UNKNOWN. No raw address or resolver
+configuration is printed or persisted. AUTH_A_READY remains false.
+
 AUTH_A_READY=false
 NEXT_DIAGNOSTIC_AUTHORIZATION_REQUIRED=true
 
