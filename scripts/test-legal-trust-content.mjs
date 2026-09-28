@@ -114,6 +114,7 @@ async function main() {
 
   const termsPage = await read("src/pages/terms/index.astro");
   const privacyPage = await read("src/pages/privacy/index.astro");
+  assert(!(await read("src/pages/search/index.astro")).includes('"测试"'), "Public search suggestions must not include a source-owned QA term.");
   const accountDeletionPage = await read("src/pages/account-deletion/index.astro");
   const safetyPage = await read("src/pages/safety/index.astro");
   const legalConsentPage = await read("src/pages/legal-consent/index.astro");
@@ -122,7 +123,7 @@ async function main() {
   assert(termsPage.includes("You retain rights in content you submit"), "Terms must preserve user ownership in English.");
   assert(termsPage.includes("LEGAL_POLICY.minimumAge"), "Terms must use the central minimum-age value.");
 
-  for (const productName of ["Supabase", "Cloudflare Pages/R2", "OpenAI moderation when enabled"]) {
+  for (const productName of ["Supabase", "Cloudflare Workers/R2", "OpenAI moderation when enabled"]) {
     assert(privacyPage.includes(productName), `Privacy policy must identify evidenced services including ${productName}.`);
   }
   assert(!accountDeletionPage.includes("承诺自动即时删除"), "Account deletion page must not promise automatic immediate deletion.");

@@ -4,7 +4,7 @@ import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import BrandMark from "../../components/products/BrandMark.astro";
 import { brandCatalog } from "../../lib/device-catalog";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
-import { listPublishedDevices } from "../../lib/public-device-data";
+import { listPublishedDevices, getPublicDeviceSpecValue } from "../../lib/public-device-data";
 
 const compareFieldOrder = [
   ["name", "产品"],
@@ -12,7 +12,8 @@ const compareFieldOrder = [
   ["display_type", "显示"],
   ["resolution", "分辨率"],
   ["refresh_rate_hz", "刷新率"],
-  ["brightness", "亮度"],
+  ["eye_brightness_nits", "入眼亮度"],
+  ["panel_or_projector_brightness_nits", "面板 / 投影亮度"],
   ["field_of_view", "FOV"],
   ["weight", "重量"],
   ["chipset", "平台 / 芯片"],
@@ -23,11 +24,7 @@ const compareFieldOrder = [
 type DeviceRecord = Awaited<ReturnType<typeof listPublishedDevices>>[number];
 
 function getSpecValue(product: DeviceRecord, field: string) {
-  for (const group of product.specGroups ?? []) {
-    const match = group.items.find((item) => item.field === field);
-    if (match?.value) return match.value;
-  }
-  return null;
+  return getPublicDeviceSpecValue(product, field);
 }
 
 function buildCardFacts(product: DeviceRecord) {

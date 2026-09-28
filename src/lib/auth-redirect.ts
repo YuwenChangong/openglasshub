@@ -119,6 +119,10 @@ export function buildLoginHref(next: string): string {
   return `/login/?next=${encodeURIComponent(getSafeNext(next))}`;
 }
 
+export function buildSignupHref(next: string): string {
+  return `/login/?mode=register&next=${encodeURIComponent(getSafeNext(next))}`;
+}
+
 export function buildAuthCallbackRedirect(origin: string | undefined, next: string, options?: AuthRedirectOriginOptions): string | undefined {
   const originUrl = getTrustedApplicationOrigin(origin, options);
   if (!originUrl) return undefined;
