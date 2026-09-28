@@ -27,6 +27,11 @@ try {
   assert.equal(identity(user(null, ""), null, "zh-CN").label, "用户");
   assert.equal([...identity(user("qa@example.test"), profile("A".repeat(60))).label].length, 48);
   console.log("fallbackLevels: 10/10");
+  const unsafeFallbacks = [
+    "docs.example.com",
+    `${"a".repeat(24)}.${"b".repeat(23)}`,
+    `${"a".repeat(24)}+${"b".repeat(23)}`,
+  ].map((local) => identity(user(`${local}@example.test`)).label);
   const origin = server.resolvedUrls.local[0];
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: "block" });
@@ -45,20 +50,29 @@ try {
   await page.getByRole("button", { name: "Sign in with pending summary" }).click();
   const label = await page.getByTestId("header-identity-label").textContent();
   const initial = await page.getByTestId("header-identity-initial").textContent();
-  await page.screenshot({ path: path.join(evidence, "baseline.png") });
+  await page.screenshot({ path: path.join(evidence, "round1-baseline.png") });
   console.log(`immediateFallback: labelNonblank=${/\S/.test(label ?? "")} initialNonblank=${/\S/.test(initial ?? "")}`);
   assert.match(label ?? "", /\S/, "signed-in label must be immediate while summary is pending");
   assert.match(initial ?? "", /\S/, "signed-in initial must be immediate while summary is pending");
+  const closedLabelVisibility = [];
   for (const [width, height] of [[390, 844], [430, 932], [1440, 900]]) {
     await page.setViewportSize({ width, height });
+    closedLabelVisibility.push(await page.getByTestId("header-identity-label").isVisible());
+    await page.screenshot({ path: path.join(evidence, `round1-closed-${width}.png`) });
     await page.getByRole("button", { name: "打开账户菜单" }).click();
     assert.equal(await page.getByRole("menu").isVisible(), true);
     assert.match(await page.getByRole("menu").textContent() ?? "", /qa/);
-    await page.screenshot({ path: path.join(evidence, `identity-${width}.png`) });
+    await page.screenshot({ path: path.join(evidence, `round1-identity-${width}.png`) });
     const overflow = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: innerWidth, elements: [...document.querySelectorAll("body *")].filter((el) => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 5).map((el) => ({ tag: el.tagName, className: el.className, right: el.getBoundingClientRect().right })) }));
     assert.equal(overflow.page > overflow.viewport, false, `overflow at ${width}: ${JSON.stringify(overflow)}`);
     await page.keyboard.press("Escape");
   }
+  console.log(`unsafeEmailFallbacks=${JSON.stringify(unsafeFallbacks)} closedLabelVisibility=${JSON.stringify(closedLabelVisibility)}`);
+  assert.deepEqual(
+    { unsafeFallbacks, closedLabelVisibility },
+    { unsafeFallbacks: ["000000…0001", "000000…0001", "000000…0001"], closedLabelVisibility: [true, true, true] },
+    "unsafe local parts must use ID fallback and the closed-menu label must be visible",
+  );
   console.log("immediateFallback: 3/3 viewports");
   await page.clock.fastForward(3001);
   assert.ok(await page.evaluate(() => window.__headerAbortCount > 0), "deadline aborts summary request");

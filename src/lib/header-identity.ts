@@ -14,8 +14,8 @@ function safeEmailLocalPart(email: string | undefined): string | null {
   const local = email.slice(0, email.indexOf("@"));
   if (!local || /[\p{Cc}\p{Cf}\p{Cs}]/u.test(local)) return null;
   if (!/^[\p{L}\p{N}._+-]+$/u.test(local)) return null;
+  if ([...local].length >= 24 || /^(?:[\p{L}\p{N}]+\.)+[\p{L}]{2,}$/u.test(local)) return null;
   if (/^(?:www\.)|(?:token|secret|bearer|api[_-]?key|password|eyJ)/i.test(local)) return null;
-  if (/^[A-Za-z0-9_-]{24,}$/.test(local)) return null;
   return cleanLabel(local);
 }
 
