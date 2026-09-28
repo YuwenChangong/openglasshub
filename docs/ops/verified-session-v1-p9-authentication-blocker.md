@@ -109,7 +109,16 @@ Pooler reconnect against the Dashboard-confirmed target, after verifying the
 effective child environment is free of inherited libpq overrides. Scope it
 to one connection, at most one constant `SELECT 1`, zero writes, zero retries,
 and no AUTH-A dispatch. A reviewed one-shot probe mechanism and a new human
-authorization are prerequisites; this document supplies neither. A success
+authorization are prerequisites; this document supplies neither. The probe
+implementation and its source/binary pinning manifest are present for offline
+review in this worktree, but no Production probe has been authorized or run.
+The future probe resolves the fixed host once after consuming authorization,
+selects one numeric address as a reviewed `PGHOSTADDR`, and launches one
+`psql`/libpq connect invocation. It does not fall through to additional DNS
+addresses. The effective child `PGHOST` remains the fixed Session Pooler host.
+The probe forces `verify-full` with system CA roots and disables GSS preference,
+so a redirected address without a trusted certificate for that host blocks.
+A success
 supports, but does not prove, the documented pooler-cache explanation. If
 authentication fails again, stop and escalate rather than repeating probes.
 The previous direct-endpoint diagnostic is inconclusive, so direct IPv6 is

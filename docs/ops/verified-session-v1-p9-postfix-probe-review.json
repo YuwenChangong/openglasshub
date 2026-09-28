@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "transportLineEndingCanonicalization": "LF",
+  "files": {
+    "scripts/lib/p9-session-pooler-credential-handoff.mjs": "73fee1e344d35cc1383dd11fbf3944eb93062822c98106276b0c53245dedc793",
+    "scripts/lib/p9-session-pooler-postfix-gate.mjs": "01ab7723c2f4bfb92ccdcbaa6b812381d92ae581fb02d36e3d1e65fbc1e4f360",
+    "scripts/qa/p9-session-pooler-postfix-probe.mjs": "f53ecaff53132128e8d5614d0a1b5cf8d24114245bdc49f4d6fb2b19440fb2b9",
+    "scripts/qa/p9-readonly-postgres-transport.mjs": "18e9681bff20f4f18212f6ae244ff4f953c063c9e8b69de5c2870d3d53870fce"
+  },
+  "psql": {
+    "path": "C:\\Users\\1\\Tools\\PostgreSQL-17\\pgsql\\bin\\psql.exe",
+    "sha256": "e43adb9c5032e7efc63eebb44c5d32b142b34e5f4207666fed2dc7a51d43b630"
+  }
+}
