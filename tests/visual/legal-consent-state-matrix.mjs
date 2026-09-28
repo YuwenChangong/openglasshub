@@ -12,7 +12,7 @@ const ids = [
 
 export const LEGAL_CONSENT_STATE_MATRIX = ids.map((id, index) => ({
   id, category: index < 11 ? "consent" : index < 24 ? "auth" : "callback",
-  screenshotRequired: index < 25,
+  screenshotRequired: index < 25 && id !== "consent-already-current",
   requiredViewports: REQUIRED_VIEWPORTS.map(({ label }) => label),
-  expectedNavigation: index >= 25 ? "replace" : "none",
+  expectedNavigation: index >= 25 || id === "consent-already-current" ? "replace" : "none",
 }));

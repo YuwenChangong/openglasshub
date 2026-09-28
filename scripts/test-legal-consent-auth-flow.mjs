@@ -41,7 +41,7 @@ async function main() {
   assert(consentPage.includes("记录政策确认"));
   assert(consentPage.includes("重试"));
   assert(consentPage.includes("退出登录"));
-  assert(consentPage.includes("getSafeNext"));
+  assert(consentPage.includes("getSafeConsentNext"));
   assert(!/row id|历史记录|历史同意/.test(consentPage));
   assert(consentPage.includes("authAdapter?: LegalConsentAuthAdapter"));
   assert(consentPage.includes("navigationAdapter?: LegalConsentNavigationAdapter"));
