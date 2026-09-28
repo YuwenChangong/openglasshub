@@ -3,28 +3,14 @@ import { createPortal } from "react-dom";
 import { buildLoginHref, buildSignupHref, getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
-
-type HeaderSummary = {
-  ok: true;
-  profile: {
-    id: string;
-    username: string | null;
-    display_name: string | null;
-    avatar_url: string | null;
-    role: string | null;
-    profile_href: string | null;
-    avatar_resolved_url: string | null;
-  };
-  stats: {
-    post_count: number;
-    received_like_count: number;
-  };
-};
+import type { User } from "@supabase/supabase-js";
+import type { AuthViewState } from "../../lib/legal-consent-adapters";
+import type { UserSummarySuccess } from "../../lib/user-summary";
+import { buildHeaderIdentity } from "../../lib/header-identity";
 
 type SummaryState =
-  | { status: "idle" | "loading" }
-  | { status: "ready"; data: HeaderSummary }
-  | { status: "error" };
+  | { actorId: string | null; status: "idle" | "loading" | "error" }
+  | { actorId: string; status: "ready"; data: UserSummarySuccess };
 
 type PopoverPosition = {
   top: number;
@@ -36,6 +22,11 @@ type PopoverPosition = {
 
 interface HeaderUserMenuProps {
   next?: string;
+  identityAdapter?: {
+    state: { viewState: AuthViewState; user: User | null };
+    getAccessToken(): Promise<string | null>;
+    loadSummary(token: string, signal: AbortSignal): Promise<UserSummarySuccess>;
+  };
 }
 
 const DESKTOP_POPOVER_WIDTH = 320;
@@ -43,25 +34,20 @@ const MOBILE_VIEWPORT_MARGIN = 12;
 const DESKTOP_VIEWPORT_MARGIN = 16;
 const CLOSE_DELAY_MS = 160;
 
-function shortenUserId(value?: string | null) {
-  if (!value) return "用户";
-  return value.length <= 12 ? value : `${value.slice(0, 6)}…${value.slice(-4)}`;
-}
-
-function getInitial(value: string) {
-  return (value.trim().charAt(0) || "U").toUpperCase();
-}
-
 function supportsHover() {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 }
 
-export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+export default function HeaderUserMenu({ next = "/", identityAdapter }: HeaderUserMenuProps) {
+  const supabase = useMemo(() => identityAdapter ? null : createBrowserSupabaseClient(), [identityAdapter]);
   const safeNext = useMemo(() => getSafeNext(next), [next]);
-  const { status, user } = useBrowserAuthState(supabase);
-  const [summaryState, setSummaryState] = useState<SummaryState>({ status: "idle" });
+  const browserAuth = useBrowserAuthState(supabase);
+  const status = identityAdapter?.state.viewState ?? browserAuth.status;
+  const user = identityAdapter ? identityAdapter.state.user : browserAuth.user;
+  const [summaryState, setSummaryState] = useState<SummaryState>({ actorId: null, status: "idle" });
+  const [retry, setRetry] = useState<{ actorId: string; count: number } | null>(null);
+  const [failedAvatar, setFailedAvatar] = useState<{ actorId: string; url: string } | null>(null);
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
@@ -76,56 +62,74 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
   const triggerCleanupRef = useRef<(() => void) | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
+  const generationRef = useRef(0);
+  const actorId = status === "signed_in" ? user?.id ?? null : null;
+  const retryCount = retry?.actorId === actorId ? retry.count : 0;
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
 
   useEffect(() => {
-    if (status !== "signed_in" || !user || !supabase) {
-      setSummaryState({ status: "idle" });
+    if (!actorId || (!supabase && !identityAdapter)) {
+      setSummaryState({ actorId: null, status: "idle" });
+      setRetry(null);
+      setFailedAvatar(null);
       setOpen(false);
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
+    const generation = ++generationRef.current;
+    let active = true;
+    const isCurrent = () => active && generationRef.current === generation;
+    const timeout = window.setTimeout(() => {
+      if (!isCurrent()) return;
+      active = false;
+      controller.abort();
+      setSummaryState({ actorId, status: "error" });
+    }, 3000);
+    setSummaryState({ actorId, status: "loading" });
+
     async function loadSummary() {
-      setSummaryState({ status: "loading" });
       try {
-        const { data } = await supabase.auth.getSession();
-        const accessToken = data.session?.access_token;
+        const accessToken = identityAdapter ? await identityAdapter.getAccessToken()
+          : (await supabase!.auth.getSession()).data.session?.access_token;
+        if (!isCurrent()) return;
         if (!accessToken) {
-          if (!cancelled) setSummaryState({ status: "error" });
-          return;
+          throw new Error("SUMMARY_TOKEN_UNAVAILABLE");
         }
 
-        const response = await fetch("/api/users/me/summary", {
-          headers: {
-            authorization: `Bearer ${accessToken}`,
-          },
-        });
-
-        if (!response.ok) {
-          if (!cancelled) setSummaryState({ status: "error" });
-          return;
-        }
-
-        const payload = (await response.json().catch(() => null)) as HeaderSummary | null;
-        if (!cancelled && payload?.ok) {
-          setSummaryState({ status: "ready", data: payload });
-        } else if (!cancelled) {
-          setSummaryState({ status: "error" });
+        const payload = identityAdapter ? await identityAdapter.loadSummary(accessToken, controller.signal)
+          : await (async () => {
+              const response = await fetch("/api/users/me/summary", {
+                headers: { authorization: `Bearer ${accessToken}` },
+                signal: controller.signal,
+              });
+              if (!response.ok) throw new Error("SUMMARY_UNAVAILABLE");
+              return response.json() as Promise<UserSummarySuccess>;
+            })();
+        if (!isCurrent()) return;
+        if (payload?.ok && payload.profile?.id === actorId) {
+          setSummaryState({ actorId, status: "ready", data: payload });
+        } else {
+          setSummaryState({ actorId, status: "error" });
         }
       } catch {
-        if (!cancelled) setSummaryState({ status: "error" });
+        if (isCurrent()) setSummaryState({ actorId, status: "error" });
+      } finally {
+        if (isCurrent()) window.clearTimeout(timeout);
       }
     }
 
     void loadSummary();
     return () => {
-      cancelled = true;
+      active = false;
+      controller.abort();
+      window.clearTimeout(timeout);
+      generationRef.current += 1;
     };
-  }, [status, supabase, user]);
+  }, [actorId, supabase, identityAdapter, retryCount]);
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current !== null) {
@@ -280,16 +284,13 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
     );
   }
 
-  const summary = summaryState.status === "ready" ? summaryState.data : null;
-  const summaryReady = summaryState.status === "ready";
-  const displayName = summaryReady
-    ? summary?.profile.display_name?.trim() || summary?.profile.username?.trim() || shortenUserId(summary?.profile.id ?? user.id)
-    : "";
-  const avatarUrl = summary?.profile.avatar_resolved_url ?? null;
+  const currentSummaryState = summaryState.actorId === actorId ? summaryState : null;
+  const summary = currentSummaryState?.status === "ready" ? currentSummaryState.data : null;
+  const identity = buildHeaderIdentity({ user, profile: summary?.profile ?? null, locale: "zh-CN" });
+  const avatarUrl = failedAvatar?.actorId === actorId && failedAvatar.url === identity.avatarUrl ? null : identity.avatarUrl;
   const profileHref = summary?.profile.profile_href ?? `/users/${encodeURIComponent(user.id)}/`;
-  const identityId = summary?.profile.id ?? user.id;
-  const postCount = summary?.stats.post_count ?? 0;
-  const receivedLikeCount = Math.max(0, summary?.stats.received_like_count ?? 0);
+  const postCount = summary?.stats.post_count;
+  const receivedLikeCount = summary?.stats.received_like_count;
 
   const popover = open && portalReady
     ? createPortal(
@@ -316,37 +317,39 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
         >
           <div className="header-user-menu__profile">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="header-user-menu__profile-avatar" decoding="async" />
+              <img src={avatarUrl} alt="" className="header-user-menu__profile-avatar" decoding="async" onError={() => setFailedAvatar({ actorId: user.id, url: avatarUrl })} />
             ) : (
               <span
-                className={`header-user-menu__profile-avatar header-user-menu__profile-avatar--fallback${
-                  !summaryReady ? " header-user-menu__avatar--skeleton" : ""
-                }`}
+                className="header-user-menu__profile-avatar header-user-menu__profile-avatar--fallback"
                 aria-hidden="true"
               >
-                {summaryReady ? getInitial(displayName) : ""}
+                {identity.initial}
               </span>
             )}
             <div className="header-user-menu__identity">
               <div className="header-user-menu__identity-top">
-                <strong>{summaryReady ? displayName : ""}</strong>
+                <strong>{identity.label}</strong>
               </div>
-              {summaryReady ? <span className="header-user-menu__identity-id">ID: {identityId}</span> : null}
             </div>
           </div>
 
           <div className="header-user-menu__stats">
             <div className="header-user-menu__stat">
               <span>发帖</span>
-              <strong>{postCount}</strong>
+              <strong>{postCount === null || postCount === undefined ? "不可用" : postCount}</strong>
             </div>
             <div className="header-user-menu__stat">
               <span>获赞</span>
-              <strong>{receivedLikeCount}</strong>
+              <strong>{receivedLikeCount === null || receivedLikeCount === undefined ? "不可用" : receivedLikeCount}</strong>
             </div>
           </div>
 
           <div className="header-user-menu__actions">
+            {currentSummaryState?.status === "error" && retryCount === 0 ? (
+              <button type="button" className="header-user-menu__action header-user-menu__action--button" onClick={() => setRetry({ actorId: user.id, count: 1 })}>
+                重试
+              </button>
+            ) : null}
             <a href={profileHref} className="header-user-menu__action" role="menuitem" onClick={() => setOpen(false)}>
               个人主页
             </a>
@@ -386,30 +389,25 @@ export default function HeaderUserMenu({ next = "/" }: HeaderUserMenuProps) {
       <button
         ref={attachTriggerRef}
         type="button"
-        className={`header-user-menu__trigger${open ? " is-open" : ""}${!summaryReady ? " is-loading" : ""}`}
+        className={`header-user-menu__trigger${open ? " is-open" : ""}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="header-user-menu"
         aria-label="打开账户菜单"
       >
         {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="header-user-menu__avatar" decoding="async" />
+          <img src={avatarUrl} alt="" className="header-user-menu__avatar" decoding="async" onError={() => setFailedAvatar({ actorId: user.id, url: avatarUrl })} />
         ) : (
           <span
-            className={`header-user-menu__avatar header-user-menu__avatar--fallback${
-              !summaryReady ? " header-user-menu__avatar--skeleton" : ""
-            }`}
+            data-testid="header-identity-initial"
+            className="header-user-menu__avatar header-user-menu__avatar--fallback"
             aria-hidden="true"
           >
-            {summaryReady ? getInitial(displayName) : ""}
+            {identity.initial}
           </span>
         )}
-        <span
-          className={`header-user-menu__trigger-copy${
-            !summaryReady ? " header-user-menu__trigger-copy--loading" : ""
-          }`}
-        >
-          <strong>{summaryReady ? displayName : ""}</strong>
+        <span className="header-user-menu__trigger-copy">
+          <strong data-testid="header-identity-label">{identity.label}</strong>
         </span>
         <span className="header-user-menu__chevron" aria-hidden="true">
           ▾
