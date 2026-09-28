@@ -15,6 +15,7 @@ const additionalCases = ["consent-submit-expired-401", "consent-submit-session-m
 
 function Harness() {
   const [scenario, setScenario] = useState<Scenario>("consent-missing-unchecked");
+  const [previewLocale, setPreviewLocale] = useState<"zh-CN" | "en">("zh-CN");
   const [calls, setCalls] = useState<string[]>([]);
   const [revision, setRevision] = useState(0);
   // Retain releases across remounts so tests can resolve requests after unmount.
@@ -29,6 +30,7 @@ function Harness() {
     getCurrentUrl: () => "http://harness.local/login/",
   }), [scenario, revision]);
   const authScenario = scenario.startsWith("login") || scenario.startsWith("register");
+  const locale = scenario.includes("-en-") ? "en" : previewLocale;
   const signedIn = !authScenario && scenario !== "consent-signed-out";
   const auth: AuthPanelAdapter & LegalConsentAuthAdapter = useMemo(() => ({
     viewState: signedIn ? "signed_in" : "signed_out", userPresent: signedIn,
@@ -76,9 +78,9 @@ function Harness() {
     },
   }), [scenario, revision]);
   const next = scenario === "consent-external-next" ? "https://example.invalid" : scenario === "consent-encoded-external-next" ? "/%252f%252fexample.invalid" : scenario === "consent-self-loop-next" ? "/%256cegal-consent/?next=%2Ffeed%2F" : scenario === "consent-submit-expired-401" ? "/circles/?sort=latest#reply" : "/feed/";
-  const content = scenario.startsWith("consent") ? <LegalConsentPage key={revision} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} next={next} reason={scenario === "consent-outdated-bundle" ? "policy-update" : scenario === "consent-callback-success" ? "callback" : undefined} />
-    : authScenario ? <AuthPanel key={revision} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} initialMode={scenario.startsWith("register") ? "signup" : "login"} next="/feed/" />
-    : <AuthCallback key={revision} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} next={scenario === "callback-external-next-rejected" ? "https://example.invalid" : "/feed/"} />;
-  return <main className="legal-harness"><nav aria-label="Visual test state">{[...LEGAL_CONSENT_STATE_MATRIX.map(({ id }) => id), ...additionalCases].map((id) => <button key={id} type="button" onClick={() => { setCalls([]); setScenario(id); setRevision((value) => value + 1); }}>{id}</button>)}<button onClick={() => pending.releaseSession()}>release-session</button><button onClick={() => pending.releaseStatus()}>release-status</button><button onClick={() => pending.releaseRecord()}>release-record</button></nav><div className="legal-harness__surface">{content}</div><output aria-live="polite">{calls.join(",")}</output></main>;
+  const content = scenario.startsWith("consent") ? <LegalConsentPage key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} next={next} reason={scenario === "consent-outdated-bundle" ? "policy-update" : scenario === "consent-callback-success" ? "callback" : undefined} />
+    : authScenario ? <AuthPanel key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} initialMode={scenario.startsWith("register") ? "signup" : "login"} next="/feed/" />
+    : <AuthCallback key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} next={scenario === "callback-external-next-rejected" ? "https://example.invalid" : "/feed/"} />;
+  return <main className="legal-harness"><nav aria-label="Visual test state">{[...LEGAL_CONSENT_STATE_MATRIX.map(({ id }) => id), ...additionalCases].map((id) => <button key={id} type="button" onClick={() => { setCalls([]); setScenario(id); setRevision((value) => value + 1); }}>{id}</button>)}<button type="button" onClick={() => { setPreviewLocale("en"); setRevision((value) => value + 1); }}>locale-en</button><button type="button" onClick={() => { setPreviewLocale("zh-CN"); setRevision((value) => value + 1); }}>locale-zh</button><button onClick={() => pending.releaseSession()}>release-session</button><button onClick={() => pending.releaseStatus()}>release-status</button><button onClick={() => pending.releaseRecord()}>release-record</button></nav><div className="legal-harness__surface">{content}</div><output aria-live="polite">{calls.join(",")}</output></main>;
 }
 createRoot(document.getElementById("root")!).render(<Harness />);

@@ -26,8 +26,49 @@ async function replaced(page, destination = "/feed/") {
   assert.equal(await page.getByText("当前政策版本已确认。", { exact: true }).count(), 0);
 }
 async function submitConsent(page) {
+  await page.locator("#legal-consent-age-eligibility").check();
   await page.locator("#legal-consent-acknowledgement").check();
   await page.getByRole("button", { name: "确认并继续", exact: true }).click();
+}
+async function singleLanguageRegistration(page) {
+  await select(page, "register-unchecked");
+  assert.equal(await page.getByRole("checkbox").count(), 2);
+  assert.equal(await page.getByRole("button", { name: "注册", exact: true }).isDisabled(), true);
+  assert.equal(await page.getByText("Terms", { exact: true }).count(), 0);
+}
+async function eligibilityStillRequired(page) {
+  await select(page, "register-unchecked");
+  await page.locator("#auth-legal-acknowledgement").check();
+  assert.equal(await page.getByRole("button", { name: "注册", exact: true }).isDisabled(), true);
+  await page.locator("#auth-age-eligibility").check();
+  assert.equal(await page.getByRole("button", { name: "注册", exact: true }).isEnabled(), true);
+}
+async function englishPreview(page) {
+  await select(page, "register-en-unchecked");
+  assert.equal(await page.getByRole("checkbox").count(), 2);
+  assert.equal(await page.getByText("Terms of Service", { exact: true }).count(), 1);
+  assert.equal(await page.getByText("服务条款", { exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Sign up", exact: true }).isDisabled(), true);
+  await select(page, "consent-en-missing-unchecked");
+  assert.equal(await page.getByText("Community Guidelines", { exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Confirm and continue", exact: true }).isDisabled(), true);
+}
+async function englishStateChecks(page) {
+  await select(page, "locale-en");
+  await select(page, "consent-session-loading");
+  await page.getByText("Checking policy confirmation...", { exact: true }).waitFor();
+  await select(page, "consent-status-failure");
+  await page.getByRole("alert").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Retry", exact: true }).count(), 1);
+  await select(page, "consent-already-current");
+  await replaced(page);
+  await select(page, "consent-missing-unchecked");
+  assert.equal(await page.getByRole("checkbox").count(), 2);
+  assert.equal(await page.getByText("Terms of Service", { exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Confirm and continue", exact: true }).isDisabled(), true);
+  await select(page, "consent-session-expired-401");
+  await page.getByRole("link", { name: "Go to login", exact: true }).waitFor();
+  await select(page, "locale-zh");
 }
 async function navigationFailureRecovers(page, mode) {
   await page.clock.install({ time: new Date("2026-09-28T00:00:00Z") });
@@ -128,6 +169,7 @@ async function consentFailuresAndLifecycle(page) {
   await page.getByRole("link", { name: "前往登录", exact: true }).waitFor();
   assert.equal(await trace(page), "statusResolved");
   await select(page, "consent-submit-pending");
+  await page.locator("#legal-consent-age-eligibility").check();
   await page.locator("#legal-consent-acknowledgement").check();
   await page.locator("form").evaluate((form) => {
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -169,6 +211,7 @@ async function consentFailuresAndLifecycle(page) {
 async function prepareScreenshot(page, id) {
   await select(page, id);
   if (["consent-missing-checked", "consent-submit-pending", "consent-submit-success", "consent-post-failure"].includes(id)) {
+    await page.locator("#legal-consent-age-eligibility").check();
     await page.locator("#legal-consent-acknowledgement").check();
     if (id !== "consent-missing-checked") await page.getByRole("button", { name: "确认并继续", exact: true }).click();
   }
@@ -201,9 +244,9 @@ async function main() {
   await fs.mkdir(evidence, { recursive: true });
   const vite = spawn(process.execPath, [path.join(root, "node_modules", "vite", "bin", "vite.js"), "--config", "vite.config.ts", "--port", String(port), "--strictPort"], { cwd: harness, stdio: "ignore", windowsHide: true });
   const ids = states.map(({ id }) => id);
-  assert(ids.length === 30, "manifest must contain exactly 30 states");
-  assert(new Set(ids).size === 30, "manifest state IDs must be unique");
-  const report = { expectedStateCount: 30, executedStateCount: 0, passedStateCount: 0, failedStateCount: 0, missingStateIds: [], duplicateStateIds: [], screenshotRequiredStateCount: 24, requiredViewportCount: 3, expectedScreenshotCount: 72, actualScreenshotCount: 0, redirectAssertionStateCount: 6, passedRedirectAssertionCount: 0, unexpectedExternalRequestCount: 0, states: ids, screenshots: [], interaction: [], accessibility: [], layout: [], blockedNetwork: [] };
+  assert(ids.length === 32, "manifest must contain exactly 32 states");
+  assert(new Set(ids).size === 32, "manifest state IDs must be unique");
+  const report = { expectedStateCount: 32, executedStateCount: 0, passedStateCount: 0, failedStateCount: 0, missingStateIds: [], duplicateStateIds: [], screenshotRequiredStateCount: 26, requiredViewportCount: 3, expectedScreenshotCount: 78, actualScreenshotCount: 0, redirectAssertionStateCount: 6, passedRedirectAssertionCount: 0, unexpectedExternalRequestCount: 0, states: ids, screenshots: [], interaction: [], accessibility: [], layout: [], blockedNetwork: [] };
   let redirects = [];
   try {
     await waitForServer();
@@ -234,7 +277,7 @@ async function main() {
       assert.equal(navigationFailures.length, 0, "navigation failure recovery assertions failed");
       const behavioralPage = await context.newPage();
       await behavioralPage.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
-      for (const test of [currentConsentReplaces, requiredConsentRecordsThenReplaces, expiredSubmissionReturnsToLogin, consentNextRejectsLoops, consentFailuresAndLifecycle]) {
+      for (const test of [singleLanguageRegistration, eligibilityStillRequired, englishPreview, englishStateChecks, currentConsentReplaces, requiredConsentRecordsThenReplaces, expiredSubmissionReturnsToLogin, consentNextRejectsLoops, consentFailuresAndLifecycle]) {
         await test(behavioralPage); report.interaction.push(`${test.name}: PASS`);
         process.stdout.write(`${test.name}: PASS\n`);
       }
@@ -257,9 +300,12 @@ async function main() {
         const checkbox = page.locator("#auth-legal-acknowledgement");
         await page.locator('input[type="email"]').fill("visual@example.invalid");
         await page.locator('input[type="password"]').fill("visual-passphrase");
-        assert(await checkbox.count() === 1 && !(await checkbox.isChecked()), "auth checkbox must be singular and unchecked");
-        await page.getByRole("button", { name: "登录", exact: true }).click();
+        const eligibility = page.locator("#auth-age-eligibility");
+        assert(await checkbox.count() === 1 && !(await checkbox.isChecked()) && !(await eligibility.isChecked()), "both auth controls must start unchecked");
+        assert(await page.getByRole("button", { name: "登录", exact: true }).isDisabled(), "unchecked login must be disabled");
         assert(!(await page.locator("output").textContent())?.includes("signIn"), "unchecked login must not authenticate");
+        await eligibility.check();
+        assert(await page.getByRole("button", { name: "登录", exact: true }).isDisabled(), "age alone must not authenticate");
         await checkbox.check(); await page.getByRole("button", { name: "登录", exact: true }).click();
         await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signIn,recordConsent:login"));
         report.interaction.push(`${viewport.label}: consent gate and ordered call flow OK`);
@@ -283,14 +329,14 @@ async function main() {
       }
       await page.close();
     } finally { await browser.close(); }
-    report.passedStateCount = 30; report.actualScreenshotCount = report.screenshots.length; report.unexpectedExternalRequestCount = report.blockedNetwork.length;
-    assert(report.executedStateCount === 30 && report.actualScreenshotCount === 72 && report.passedRedirectAssertionCount === 6 && report.unexpectedExternalRequestCount === 0, "matrix evidence invariants failed");
+    report.passedStateCount = 32; report.actualScreenshotCount = report.screenshots.length; report.unexpectedExternalRequestCount = report.blockedNetwork.length;
+    assert(report.executedStateCount === 32 && report.actualScreenshotCount === 78 && report.passedRedirectAssertionCount === 6 && report.unexpectedExternalRequestCount === 0, "matrix evidence invariants failed");
     await fs.writeFile(path.join(evidence, "matrix.json"), JSON.stringify(report, null, 2));
-    await fs.writeFile(path.join(evidence, "matrix.md"), `# Legal consent matrix\n\n30/30 states passed. ${report.actualScreenshotCount} screenshots.\n`);
+    await fs.writeFile(path.join(evidence, "matrix.md"), `# Legal consent matrix\n\n32/32 states passed. ${report.actualScreenshotCount} screenshots.\n`);
     await fs.writeFile(path.join(evidence, "redirect-results.json"), JSON.stringify(redirects, null, 2));
     for (const [name, value] of Object.entries({ "interaction-results.json": report.interaction, "accessibility-results.json": report.accessibility, "layout-results.json": report.layout, "network-results.json": { allowedLocalOrigin: `http://127.0.0.1:${port}`, blockedExternal: report.blockedNetwork, unexpectedExternalRequestCount: 0 }, "console-results.json": [] })) await fs.writeFile(path.join(evidence, name), JSON.stringify(value, null, 2));
     await fs.writeFile(path.join(evidence, "production-exclusion.json"), JSON.stringify({ passed: true, note: "Production build exclusion is checked by the release gate." }, null, 2));
-    process.stdout.write(`LEGAL_CONSENT_VISUAL_OK 30/30 states passed evidence=${evidence}\n`);
+    process.stdout.write(`LEGAL_CONSENT_VISUAL_OK 32/32 states passed evidence=${evidence}\n`);
   } finally {
     if (vite.exitCode === null) {
       const exited = new Promise((resolve) => vite.once("exit", resolve));

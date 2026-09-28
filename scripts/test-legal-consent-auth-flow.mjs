@@ -23,7 +23,7 @@ async function main() {
   assert(authPanel.includes('source: "registration"'));
   assert(authPanel.includes("const accessToken = signUpData?.accessToken"));
   assert(authPanel.includes("if (accessToken)"));
-  assert(authPanel.includes("验证邮件已发送"));
+  assert(authPanel.includes("messages.pendingCheckInbox"));
   assert(authPanel.includes("consentRecoveryHref(safeNext)"));
   assert(!authPanel.includes('from("legal_policy_acceptances")'));
   assert(authPanel.includes("authAdapter?: AuthPanelAdapter"));
@@ -37,10 +37,11 @@ async function main() {
   assert(consentRoute.includes("LegalConsentPage"));
   assert(consentPage.includes('type="checkbox"'));
   assert(consentPage.includes('htmlFor="legal-consent-acknowledgement"'));
+  assert(consentPage.includes('htmlFor="legal-consent-age-eligibility"'));
   assert(consentPage.includes('role="alert"'));
-  assert(consentPage.includes("记录政策确认"));
-  assert(consentPage.includes("重试"));
-  assert(consentPage.includes("退出登录"));
+  assert(consentPage.includes("messages.recording"));
+  assert(consentPage.includes("messages.retry"));
+  assert(consentPage.includes("messages.logout"));
   assert(consentPage.includes("getSafeConsentNext"));
   assert(!/row id|历史记录|历史同意/.test(consentPage));
   assert(consentPage.includes("authAdapter?: LegalConsentAuthAdapter"));

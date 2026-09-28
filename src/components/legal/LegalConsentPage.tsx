@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getSafeConsentNext } from "../../lib/legal-consent-navigation";
 import { getLegalConsentStatus, LegalConsentClientError, recordLegalConsent, type LegalConsentStatus } from "../../lib/legal-consent-client";
 import { LEGAL_POLICY } from "../../lib/legal-policy";
+import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { browserNavigationAdapter, type LegalConsentAdapter, type LegalConsentAuthAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 
@@ -15,15 +16,16 @@ function sourceForReason(reason: string | null) {
   return "legacy_account_gate" as const;
 }
 
-function messageForError(error: unknown) {
+function messageForError(error: unknown, messages: AuthMessages) {
   if (error instanceof LegalConsentClientError) {
-    if (error.code === "UNAUTHORIZED") return "登录状态已失效，请重新登录后继续。";
-    if (error.code === "RATE_LIMITED") return "操作过于频繁，请稍后再试。";
+    if (error.code === "UNAUTHORIZED") return messages.consentExpired;
+    if (error.code === "RATE_LIMITED") return messages.consentRateLimited;
   }
-  return "暂时无法记录政策确认。请稍后重试，或退出后重新登录。";
+  return messages.consentUnavailable;
 }
 
-export default function LegalConsentPage({ next, reason, authAdapter, consentAdapter, navigationAdapter }: { next?: string; reason?: string; authAdapter?: LegalConsentAuthAdapter; consentAdapter?: LegalConsentAdapter; navigationAdapter?: LegalConsentNavigationAdapter }) {
+export default function LegalConsentPage({ locale = "zh-CN", next, reason, authAdapter, consentAdapter, navigationAdapter }: { locale?: AuthLocale; next?: string; reason?: string; authAdapter?: LegalConsentAuthAdapter; consentAdapter?: LegalConsentAdapter; navigationAdapter?: LegalConsentNavigationAdapter }) {
+  const messages = getAuthMessages(locale);
   const supabase = useMemo(() => authAdapter ? null : createBrowserSupabaseClient(), [authAdapter]);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
   const safeNext = useMemo(() => getSafeConsentNext(next ?? (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("next"))), [next]);
@@ -32,6 +34,7 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
   const [state, setState] = useState<PageState>("loading");
   const [status, setStatus] = useState<LegalConsentStatus | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [ageEligible, setAgeEligible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lifecycle = useRef({ mounted: false, sequence: 0, locked: false, replaced: false, timers: new Set<ReturnType<typeof setTimeout>>() });
@@ -47,7 +50,7 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
       lifecycle.current.sequence += 1;
       lifecycle.current.locked = false;
       setBusy(false);
-      setError("检查或记录政策确认超时，请重试或退出后重新登录。");
+      setError(messages.consentTimedOut);
       setState("error");
     }, REQUEST_TIMEOUT_MS);
     lifecycle.current.timers.add(timer);
@@ -94,7 +97,7 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
     lifecycle.current.replaced = false;
     lifecycle.current.locked = false;
     setBusy(false);
-    setError("暂时无法前往目标页面，请重试或退出后重新登录。");
+    setError(messages.navigationFailed);
     setState("error");
   }
 
@@ -104,7 +107,7 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
   }
 
   function showFailure(failure: unknown, loading: boolean) {
-    setError(messageForError(failure));
+    setError(messageForError(failure, messages));
     if (failure instanceof LegalConsentClientError && failure.code === "UNAUTHORIZED") setState("signed_out");
     else if (loading) setState("error");
   }
@@ -113,12 +116,13 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
     if (lifecycle.current.locked || lifecycle.current.replaced) return;
     if (!supabase && !authAdapter) {
       setState("error");
-      setError("登录服务暂不可用，请稍后重试。");
+      setError(messages.configurationUnavailable);
       return;
     }
     setState("loading");
     setError("");
     setAcknowledged(false);
+    setAgeEligible(false);
     const request = beginRequest();
     try {
       const session = await getSession();
@@ -154,8 +158,8 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (state !== "needs_consent" || lifecycle.current.locked || lifecycle.current.replaced) return;
-    if (!acknowledged) {
-      setError(`请确认您已年满 ${LEGAL_POLICY.minimumAge} 周岁，并阅读相关政策后继续。`);
+    if (!ageEligible || !acknowledged) {
+      setError(messages.legalRequired);
       return;
     }
     if (!supabase && !authAdapter) return;
@@ -199,9 +203,27 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
     }
   }
 
-  if (state === "loading" || state === "redirecting") return <section className="auth-card"><div className="auth-alert" role="status">{state === "loading" ? "正在检查政策确认状态..." : "正在前往目标页面..."}</div></section>;
-  if (state === "signed_out") return <section className="auth-card"><div className="auth-alert">{error || "登录后才能记录政策确认。"}</div><a className="community-button auth-button" href={loginHref}>前往登录</a></section>;
-  if (state === "error") return <section className="auth-card"><div className="auth-alert auth-alert--error" role="alert">{error}</div><div className="community-cta-row"><button type="button" className="community-button auth-button" onClick={retry} disabled={busy}>重试</button><button type="button" className="community-button--secondary auth-button" onClick={() => void signOut()} disabled={busy}>退出登录</button></div></section>;
+  if (state === "loading" || state === "redirecting") return <section className="auth-card"><div className="auth-alert" role="status">{state === "loading" ? messages.checkingConsent : messages.redirecting}</div></section>;
+  if (state === "signed_out") return <section className="auth-card"><div className="auth-alert">{error || messages.signedOutConsent}</div><a className="community-button auth-button" href={loginHref}>{messages.goToLogin}</a></section>;
+  if (state === "error") return <section className="auth-card"><div className="auth-alert auth-alert--error" role="alert">{error}</div><div className="community-cta-row"><button type="button" className="community-button auth-button" onClick={retry} disabled={busy}>{messages.retry}</button><button type="button" className="community-button--secondary auth-button" onClick={() => void signOut()} disabled={busy}>{messages.logout}</button></div></section>;
 
-  return <section className="auth-card"><div className="auth-card__top"><h1>政策确认</h1><p>请确认已满 {status?.minimumAge ?? LEGAL_POLICY.minimumAge} 周岁，并完成当前政策确认。</p></div><form className="auth-form" onSubmit={submit}><div className="auth-legal-acknowledgement"><input id="legal-consent-acknowledgement" type="checkbox" checked={acknowledged} onChange={(event) => { setAcknowledged(event.target.checked); if (event.target.checked) setError(""); }} aria-invalid={error ? true : undefined} aria-describedby={error ? "legal-consent-error" : undefined} /><label htmlFor="legal-consent-acknowledgement">我确认已年满 {LEGAL_POLICY.minimumAge} 周岁，并已阅读并同意 <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>《服务条款》</a> 和 <a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>《社区准则》</a>，且已阅读并知悉 <a href={LEGAL_POLICY.routes.privacy} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>《隐私政策》</a>。</label></div>{error ? <div id="legal-consent-error" className="auth-alert auth-alert--error" role="alert">{error}</div> : null}<div className="community-cta-row"><button className="community-button auth-button" type="submit" disabled={busy}>{busy ? "正在记录确认..." : "确认并继续"}</button><button className="community-button--secondary auth-button" type="button" onClick={() => void signOut()} disabled={busy}>退出登录</button></div></form></section>;
+  return <section className="auth-card">
+    <div className="auth-card__top"><h1>{messages.consentHeading}</h1></div>
+    <form className="auth-form" onSubmit={submit}>
+      <div className="auth-legal-acknowledgement">
+        <input id="legal-consent-age-eligibility" type="checkbox" checked={ageEligible} onChange={(event) => { setAgeEligible(event.target.checked); if (event.target.checked) setError(""); }} aria-invalid={error ? true : undefined} aria-describedby={error ? "legal-consent-error" : undefined} />
+        <label htmlFor="legal-consent-age-eligibility">{messages.eligibility(status?.minimumAge ?? LEGAL_POLICY.minimumAge)}</label>
+      </div>
+      <div className="auth-legal-acknowledgement">
+        <input id="legal-consent-acknowledgement" type="checkbox" checked={acknowledged} onChange={(event) => { setAcknowledged(event.target.checked); if (event.target.checked) setError(""); }} aria-invalid={error ? true : undefined} aria-describedby={error ? "legal-consent-error" : undefined} />
+        <label htmlFor="legal-consent-acknowledgement">{messages.consentSentence}{" "}
+          <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>{messages.terms}</a>{" "}{messages.legalJoin}{" "}
+          <a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>{messages.guidelines}</a>{messages.privacyLead}{" "}
+          <a href={LEGAL_POLICY.routes.privacy} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>{messages.privacy}</a>{messages.consentEnd}
+        </label>
+      </div>
+      {error ? <div id="legal-consent-error" className="auth-alert auth-alert--error" role="alert">{error}</div> : null}
+      <div className="community-cta-row"><button className="community-button auth-button" type="submit" disabled={busy || !ageEligible || !acknowledged} style={{ opacity: !ageEligible || !acknowledged ? 0.55 : undefined }}>{busy ? messages.recording : messages.confirmContinue}</button><button className="community-button--secondary auth-button" type="button" onClick={() => void signOut()} disabled={busy}>{messages.logout}</button></div>
+    </form>
+  </section>;
 }

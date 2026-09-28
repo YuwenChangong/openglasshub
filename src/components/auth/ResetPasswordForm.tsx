@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { getAuthMessages, type AuthLocale } from "../../lib/auth-messages";
 
-export default function ResetPasswordForm() {
+export default function ResetPasswordForm({ locale = "zh-CN" }: { locale?: AuthLocale }) {
+  const messages = getAuthMessages(locale);
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -12,7 +14,7 @@ export default function ResetPasswordForm() {
 
   useEffect(() => {
     if (!supabase) {
-      setError("缺少 PUBLIC_SUPABASE_URL 或 PUBLIC_SUPABASE_ANON_KEY。");
+      setError(messages.configurationUnavailable);
       return;
     }
 
@@ -50,7 +52,7 @@ export default function ResetPasswordForm() {
         timeoutId = window.setTimeout(() => {
           if (!mounted) return;
           if (!ready) {
-            setError("未检测到可用的重置会话。请重新通过邮件中的重置链接进入。");
+            setError(messages.expiredRecovery);
           }
         }, 2800);
 
@@ -59,7 +61,7 @@ export default function ResetPasswordForm() {
         };
       } catch {
         if (!mounted) return;
-        setError("重置链接无效或已过期，请重新发起忘记密码流程。");
+        setError(messages.expiredRecovery);
       }
     }
 
@@ -88,15 +90,15 @@ export default function ResetPasswordForm() {
     const trimmedConfirm = confirmPassword.trim();
 
     if (!trimmedPassword) {
-      setError("新密码不能为空。");
+      setError(messages.resetEmpty);
       return;
     }
     if (trimmedPassword.length < 8) {
-      setError("密码长度至少为 8 位。");
+      setError(messages.shortPassword);
       return;
     }
     if (trimmedPassword !== trimmedConfirm) {
-      setError("两次输入的密码不一致。");
+      setError(messages.resetMismatch);
       return;
     }
 
@@ -107,12 +109,12 @@ export default function ResetPasswordForm() {
         throw updateError;
       }
 
-      setMessage("密码已更新，请重新登录。");
+      setMessage(messages.resetSuccess);
       window.setTimeout(() => {
         window.location.assign("/login/");
       }, 1200);
     } catch {
-      setError("更新密码失败，请重新进入邮件中的链接后再试。");
+      setError(messages.resetFailed);
     } finally {
       setLoading(false);
     }
@@ -125,16 +127,16 @@ export default function ResetPasswordForm() {
   return (
     <section className="auth-card">
       <div className="auth-card__top">
-        <h2 style={{ margin: 0 }}>重置密码</h2>
-        <p style={{ margin: 0, color: "var(--text-muted)" }}>请设置新密码，更新后使用新密码登录。</p>
+        <h2 style={{ margin: 0 }}>{messages.resetHeading}</h2>
+        <p style={{ margin: 0, color: "var(--text-muted)" }}>{messages.resetIntro}</p>
       </div>
 
       {!ready ? (
-        <div className="auth-alert">正在验证重置会话...</div>
+        <div className="auth-alert">{messages.checkingRecovery}</div>
       ) : (
         <form onSubmit={handleSubmit} className="auth-form">
           <label>
-            <span className="auth-label">新密码</span>
+            <span className="auth-label">{messages.newPassword}</span>
             <input
               className="community-input"
               type="password"
@@ -146,7 +148,7 @@ export default function ResetPasswordForm() {
             />
           </label>
           <label>
-            <span className="auth-label">确认新密码</span>
+            <span className="auth-label">{messages.confirmPassword}</span>
             <input
               className="community-input"
               type="password"
@@ -159,10 +161,10 @@ export default function ResetPasswordForm() {
           </label>
           <div className="community-cta-row">
             <button className="community-button auth-button" type="submit" disabled={loading}>
-              {loading ? "更新中..." : "更新密码"}
+              {loading ? messages.updating : messages.updatePassword}
             </button>
             <a href="/login/" className="community-button--secondary">
-              返回登录
+              {messages.backToLogin}
             </a>
           </div>
         </form>

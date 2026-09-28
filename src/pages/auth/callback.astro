@@ -14,7 +14,7 @@ const next = Astro.url.searchParams.get("next") ?? "/";
   noindex={true}
 >
   <section class="auth-callback-page">
-    <AuthCallback next={next} client:only="react" />
+    <AuthCallback locale="zh-CN" next={next} client:only="react" />
   </section>
 </CommunityLayout>
 

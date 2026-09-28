@@ -2,21 +2,24 @@ import { useEffect, useMemo, useState } from "react";
 import { getSafeNext } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { getLegalConsentStatus } from "../../lib/legal-consent-client";
+import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
 import { browserNavigationAdapter, type LegalConsentAdapter, type LegalConsentAuthAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 
 interface AuthCallbackProps {
+  locale?: AuthLocale;
   next?: string;
   authAdapter?: LegalConsentAuthAdapter;
   consentAdapter?: LegalConsentAdapter;
   navigationAdapter?: LegalConsentNavigationAdapter;
 }
 
-function mapCallbackError(errorMessage: string): string {
-  if (/Auth session missing/i.test(errorMessage)) return "当前还没有建立登录会话，请稍候或重新打开确认链接。";
-  return errorMessage;
+function mapCallbackError(errorMessage: string, messages: AuthMessages): string {
+  if (/Auth session missing/i.test(errorMessage)) return messages.callbackMissing;
+  return messages.callbackFailed;
 }
 
-export default function AuthCallback({ next, authAdapter, consentAdapter, navigationAdapter }: AuthCallbackProps) {
+export default function AuthCallback({ locale = "zh-CN", next, authAdapter, consentAdapter, navigationAdapter }: AuthCallbackProps) {
+  const messages = getAuthMessages(locale);
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
   const safeNext = useMemo(() => {
@@ -25,12 +28,12 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
     return getSafeNext(new URLSearchParams(window.location.search).get("next"));
   }, [next]);
 
-  const [status, setStatus] = useState("正在完成登录确认...");
+  const [status, setStatus] = useState(messages.callbackPending);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!supabase && !authAdapter) {
-      setError("缺少 PUBLIC_SUPABASE_URL 或 PUBLIC_SUPABASE_ANON_KEY。");
+      setError(messages.configurationUnavailable);
       return;
     }
 
@@ -77,7 +80,7 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
 
         timeoutId = window.setTimeout(() => {
           if (!mounted) return;
-          setStatus("仍在等待会话建立。若你刚完成邮箱验证，请稍候或重新打开确认链接。");
+          setStatus(messages.callbackWaiting);
         }, 2500);
 
         return () => {
@@ -85,8 +88,8 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
         };
       } catch (callbackError) {
         if (!mounted) return;
-        const rawMessage = callbackError instanceof Error ? callbackError.message : "登录确认失败。";
-        setError(mapCallbackError(rawMessage));
+        const rawMessage = callbackError instanceof Error ? callbackError.message : "";
+        setError(mapCallbackError(rawMessage, messages));
       }
     }
 
@@ -107,8 +110,7 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
   return (
     <section className="auth-card">
       <div className="auth-card__top">
-        <h2 style={{ margin: 0 }}>确认登录</h2>
-        <p style={{ margin: 0, color: "var(--text-muted)" }}>OpenGlass Hub 正在处理邮箱确认或登录回调。</p>
+        <h2 style={{ margin: 0 }}>{messages.callbackHeading}</h2>
       </div>
       <div className="auth-alert">{status}</div>
       {error ? (
@@ -116,7 +118,7 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
           <div className="auth-alert auth-alert--error">{error}</div>
           <div className="community-cta-row">
             <a className="community-button--secondary" href={`/login/?next=${encodeURIComponent(safeNext)}`}>
-              返回登录页
+              {messages.backToLogin}
             </a>
           </div>
         </div>
