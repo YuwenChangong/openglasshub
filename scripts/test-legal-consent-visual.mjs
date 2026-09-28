@@ -210,6 +210,10 @@ async function consentFailuresAndLifecycle(page) {
 
 async function prepareScreenshot(page, id) {
   await select(page, id);
+  if (["login-checked", "register-checked"].includes(id)) {
+    await page.locator("#auth-age-eligibility").check();
+    await page.locator("#auth-legal-acknowledgement").check();
+  }
   if (["consent-missing-checked", "consent-submit-pending", "consent-submit-success", "consent-post-failure"].includes(id)) {
     await page.locator("#legal-consent-age-eligibility").check();
     await page.locator("#legal-consent-acknowledgement").check();
@@ -246,7 +250,7 @@ async function main() {
   const ids = states.map(({ id }) => id);
   assert(ids.length === 32, "manifest must contain exactly 32 states");
   assert(new Set(ids).size === 32, "manifest state IDs must be unique");
-  const report = { expectedStateCount: 32, executedStateCount: 0, passedStateCount: 0, failedStateCount: 0, missingStateIds: [], duplicateStateIds: [], screenshotRequiredStateCount: 26, requiredViewportCount: 3, expectedScreenshotCount: 78, actualScreenshotCount: 0, redirectAssertionStateCount: 6, passedRedirectAssertionCount: 0, unexpectedExternalRequestCount: 0, states: ids, screenshots: [], interaction: [], accessibility: [], layout: [], blockedNetwork: [] };
+  const report = { expectedStateCount: 32, executedStateCount: 0, passedStateCount: 0, failedStateCount: 0, missingStateIds: [], duplicateStateIds: [], screenshotRequiredStateCount: 26, requiredViewportCount: 3, expectedScreenshotCount: 78, actualScreenshotCount: 0, checkedScreenshotAssertionCount: 0, redirectAssertionStateCount: 6, passedRedirectAssertionCount: 0, unexpectedExternalRequestCount: 0, consoleAssessment: "not collected", states: ids, screenshots: [], interaction: [], accessibility: [], layout: [], blockedNetwork: [] };
   let redirects = [];
   try {
     await waitForServer();
@@ -288,6 +292,15 @@ async function main() {
         await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
         for (const state of states.filter(({ screenshotRequired }) => screenshotRequired)) {
           await prepareScreenshot(page, state.id);
+          if (["login-checked", "register-checked", "consent-missing-checked"].includes(state.id)) {
+            const controls = page.locator(".legal-harness__surface input[type='checkbox']");
+            assert.equal(await controls.count(), 2, `${state.id} must render both attestations`);
+            assert.equal(await controls.nth(0).isChecked(), true, `${state.id} screenshot requires checked age eligibility`);
+            assert.equal(await controls.nth(1).isChecked(), true, `${state.id} screenshot requires checked legal acknowledgement`);
+            const submit = page.locator(".legal-harness__surface button[type='submit']");
+            assert.equal(await submit.isEnabled(), true, `${state.id} submit must be enabled`);
+            report.checkedScreenshotAssertionCount += 1;
+          }
           await page.waitForTimeout(25);
           const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
           assert(!overflow, `${state.id} overflows at ${viewport.label}`);
@@ -330,13 +343,13 @@ async function main() {
       await page.close();
     } finally { await browser.close(); }
     report.passedStateCount = 32; report.actualScreenshotCount = report.screenshots.length; report.unexpectedExternalRequestCount = report.blockedNetwork.length;
-    assert(report.executedStateCount === 32 && report.actualScreenshotCount === 78 && report.passedRedirectAssertionCount === 6 && report.unexpectedExternalRequestCount === 0, "matrix evidence invariants failed");
+    assert(report.executedStateCount === 32 && report.actualScreenshotCount === 78 && report.checkedScreenshotAssertionCount === 9 && report.passedRedirectAssertionCount === 6 && report.unexpectedExternalRequestCount === 0, "matrix evidence invariants failed");
     await fs.writeFile(path.join(evidence, "matrix.json"), JSON.stringify(report, null, 2));
-    await fs.writeFile(path.join(evidence, "matrix.md"), `# Legal consent matrix\n\n32/32 states passed. ${report.actualScreenshotCount} screenshots.\n`);
+    await fs.writeFile(path.join(evidence, "matrix.md"), `# Legal consent matrix\n\n32/32 entries exercised; ${report.checkedScreenshotAssertionCount} checked-state screenshot assertions; ${report.actualScreenshotCount} screenshots. Other screenshot state names are not semantic assertions. Console output was not collected.\n`);
     await fs.writeFile(path.join(evidence, "redirect-results.json"), JSON.stringify(redirects, null, 2));
-    for (const [name, value] of Object.entries({ "interaction-results.json": report.interaction, "accessibility-results.json": report.accessibility, "layout-results.json": report.layout, "network-results.json": { allowedLocalOrigin: `http://127.0.0.1:${port}`, blockedExternal: report.blockedNetwork, unexpectedExternalRequestCount: 0 }, "console-results.json": [] })) await fs.writeFile(path.join(evidence, name), JSON.stringify(value, null, 2));
+    for (const [name, value] of Object.entries({ "interaction-results.json": report.interaction, "accessibility-results.json": report.accessibility, "layout-results.json": report.layout, "network-results.json": { allowedLocalOrigin: `http://127.0.0.1:${port}`, blockedExternal: report.blockedNetwork, unexpectedExternalRequestCount: 0 } })) await fs.writeFile(path.join(evidence, name), JSON.stringify(value, null, 2));
     await fs.writeFile(path.join(evidence, "production-exclusion.json"), JSON.stringify({ passed: true, note: "Production build exclusion is checked by the release gate." }, null, 2));
-    process.stdout.write(`LEGAL_CONSENT_VISUAL_OK 32/32 states passed evidence=${evidence}\n`);
+    process.stdout.write(`LEGAL_CONSENT_VISUAL_OK 32/32 entries exercised checkedScreenshots=${report.checkedScreenshotAssertionCount} evidence=${evidence}\n`);
   } finally {
     if (vite.exitCode === null) {
       const exited = new Promise((resolve) => vite.once("exit", resolve));
