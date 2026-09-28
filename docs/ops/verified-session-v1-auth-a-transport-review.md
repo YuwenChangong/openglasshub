@@ -20,7 +20,7 @@ runner was reused; no second executor was created.
 | `scripts/qa/verified-session-auth-a-supabase-read.mjs` | `c219576e22954eeb7413edd75d74f1ea12fbb3ad5651c2988b51c7a811d3bda4` |
 | `scripts/qa/verified-session-auth-a-brevo-read.mjs` | `739f3cee459100b66af878133156825c306ff35275323ffbfa7686e605ab160d` |
 | `scripts/qa/verified-session-auth-a-db-capture.mjs` | `15ead04234c831a9d8fb1844ef864a586431ef759a9e69921373410e25677d5f` |
-| `scripts/qa/p9-readonly-postgres-transport.mjs` | `9aa1805daedf9a7c6afc4a7c65e33072eaac0a6a5442501d346d96d2d8f87d72` |
+| `scripts/qa/p9-readonly-postgres-transport.mjs` | `15cd0ef690710746c39ed02548f86b0e84423ed2e4254c250c59c1949534af79` |
 
 The Production entrypoint is `scripts/qa/verified-session-auth-a-production.mjs`.
 It uses `process.env` only in a future directly authorized operator process.
@@ -48,6 +48,14 @@ and SELECT-unit identities are checked before spawn. `psql` uses `-X`,
 `ON_ERROR_STOP`, one process, read-only transaction proof, same-backend proof
 and explicit rollback. Ambiguous, partial or malformed results stop without
 retry. No transport exposes a write operation.
+
+The P9 child process inherits ordinary execution environment entries but no
+preexisting `PG*` libpq controls. Its `PGHOST`, `PGPORT`, `PGDATABASE`,
+`PGUSER`, `PGPASSWORD`, and `PGSSLMODE` come only from the validated DSN.
+This prevents inherited `PGHOSTADDR` or `PGSERVICE` from overriding the
+reviewed target. Synthetic tests prove one URI decode into `PGPASSWORD` and
+verify the filtered child environment; they do not establish why an earlier
+Production authentication attempt failed.
 
 Cloudflare defines the first deployment in the list as the latest deployment
 actively serving traffic. The reader selects only `result.deployments[0]`;

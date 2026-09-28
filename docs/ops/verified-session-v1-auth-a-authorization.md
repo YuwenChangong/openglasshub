@@ -21,7 +21,7 @@ This is an offline review packet, not an execution command or approval. It autho
 | Enforcement | `supabase/migrations/20260925012231_ogh_verified_session_v1_enforcement.sql`; SHA-256 `89d74d4e96f1b6dcc1298ae443e21389ebc86c6ee0a6c46f7fef9dc15755d10e` |
 | Read-only catalog packet | `docs/ops/verified-session-v1-hosted-catalog-preflight.sql`; SHA-256 `b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7` |
 | Existing migration-history metadata packet | `docs/ops/p9-migration-history-rows-read-only.sql`; SHA-256 `6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002` |
-| AUTH-A execution-path review | `docs/ops/verified-session-v1-auth-a-transport-review.md`; SHA-256 `d99c948954fcaee05fb7221e2fe6e167be97ffb586b6eb9a3e7f18d30313d9c5`; binds the implementation-path hashes listed there |
+| AUTH-A execution-path review | `docs/ops/verified-session-v1-auth-a-transport-review.md`; SHA-256 `bb201f45dd1cd9b397466c3de9236013294ac33dfd6e408be00c13ff0a9610be`; binds the implementation-path hashes listed there |
 
 Both pinned source commits exist locally. These hashes were recomputed from the files in the reviewed worktree; a future operator must recompute and bind them again before any hosted read. A mismatch means `AUTH_A_PACKET_STATUS=BLOCKED_ARTIFACT_DRIFT` and stop. The AUTH-A execution authorization must bind the *then-current* packet commit and packet-file SHA-256; this preparation commit is not an approval or a claim about the deployed Worker.
 
@@ -109,7 +109,7 @@ SOURCE_HEAD=<reviewed-current-commit>
 PACKET_SHA256=<hash-of-this-committed-packet>
 CATALOG_PACKET_SHA256=b033239a1b7bc689e9ad5be1409a19363eaba2c7a8c6eddb791bcabc9cf6bfc7
 MIGRATION_HISTORY_PACKET_SHA256=6018ce149a1520c7c097e2577281ace773a2329cc8f36ca74350fd03be347002
-AUTH_A_TRANSPORT_REVIEW_SHA256=d99c948954fcaee05fb7221e2fe6e167be97ffb586b6eb9a3e7f18d30313d9c5
+AUTH_A_TRANSPORT_REVIEW_SHA256=bb201f45dd1cd9b397466c3de9236013294ac33dfd6e408be00c13ff0a9610be
 MAX_READ_ONLY_CONNECTIONS=1
 MAX_CLOUDFLARE_READ_REQUESTS=2
 MAX_SUPABASE_CONTROL_PLANE_READ_REQUESTS=2

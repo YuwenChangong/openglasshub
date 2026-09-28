@@ -52,6 +52,30 @@ test("P9POOL-01 accepts only the exact approved Supavisor session pooler target"
   });
 });
 
+test("P9 environment excludes inherited libpq controls before psql spawn", async () => {
+  const { createPsqlEnvironment } = await import("./p9-readonly-postgres-transport.mjs");
+  const parsed = parseP9Connection({ mode: "PRODUCTION", dsn: sessionPoolerDsn });
+  const env = createPsqlEnvironment({ PATH: "synthetic-path", PGHOSTADDR: "203.0.113.9",
+    PGSERVICE: "other", PGSERVICEFILE: "synthetic-service-file", PGPASSFILE: "synthetic-pass-file",
+    PGOPTIONS: "synthetic-options", PgHoSt: "wrong-host", PGPASSWORD: "wrong-password",
+    PGSSLROOTCERT: "synthetic-cert" }, parsed.pgEnv);
+  assert.equal(env.PATH, "synthetic-path");
+  assert.deepEqual(Object.keys(env).filter((key) => /^PG/i.test(key)).sort(),
+    Object.keys(parsed.pgEnv).sort());
+  assert.deepEqual(Object.fromEntries(Object.entries(env).filter(([key]) => /^PG/i.test(key))),
+    parsed.pgEnv);
+});
+
+test("P9 decodes a synthetic URI password exactly once into child PGPASSWORD", async () => {
+  const { createPsqlEnvironment } = await import("./p9-readonly-postgres-transport.mjs");
+  const dsn = sessionPoolerDsn.replace("fake-password", "synthetic%40value%23with%2525");
+  const parsed = parseP9Connection({ mode: "PRODUCTION", dsn });
+  const env = createPsqlEnvironment({ PATH: "synthetic-path" }, parsed.pgEnv);
+  assert.equal(env.PGPASSWORD, "synthetic@value#with%25");
+  assert.equal(env.PGHOST, P9_EXPECTED_SESSION_POOLER_HOST);
+  assert.equal(env.PGUSER, P9_EXPECTED_SESSION_POOLER_USER);
+});
+
 for (const [id, dsn] of [
   ["P9POOL-02", "postgresql://postgres.xcbnxzjlsvtgzixurcof:fake-password@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"],
   ["P9POOL-03", "postgresql://postgres.xcbnxzjlsvtgzixurcof:fake-password@aws-1-ap-northeast-1.pooler.supabase.com.attacker.example:5432/postgres"],
@@ -228,9 +252,20 @@ test("P9TX-06 through P9TX-08 invoke one shell-free psql process with credential
     const child = new EventEmitter(); child.pid = 1234; child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); child.stdin = { end() { queueMicrotask(() => child.emit("close", 1)); } };
     return child;
   };
-  const result = await runP9ReadOnlyCapture({ mode: "PRODUCTION", dsn: productionDsn, packet, spawnImpl, nonce: "9bdea1a5cf8b44f796db910e0c5845af" });
+  const inheritedHostAddr = process.env.PGHOSTADDR;
+  process.env.PGHOSTADDR = "203.0.113.9";
+  let result;
+  try {
+    result = await runP9ReadOnlyCapture({ mode: "PRODUCTION", dsn: productionDsn, packet, spawnImpl, nonce: "9bdea1a5cf8b44f796db910e0c5845af" });
+  } finally {
+    if (inheritedHostAddr === undefined) delete process.env.PGHOSTADDR;
+    else process.env.PGHOSTADDR = inheritedHostAddr;
+  }
   assert.equal(spawnCount, 1);
   assert.equal(observedOptions.shell, false);
+  assert.equal(Object.keys(observedOptions.env).some((key) => /^PGHOSTADDR$|^PGSERVICE$/i.test(key)), false);
+  assert.equal(observedOptions.env.PGHOST, "db.xcbnxzjlsvtgzixurcof.supabase.co");
+  assert.equal(observedOptions.env.PGPASSWORD, "fake-password");
   assert.equal(observedArgs.some((value) => value.includes("fake-password") || value.includes("postgresql://")), false);
   assert.equal(result.rollbackMode, "CONNECTION_CLOSE_ROLLBACK");
   assert.equal(result.queriesExecuted, undefined);

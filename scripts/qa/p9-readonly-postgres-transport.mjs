@@ -58,6 +58,10 @@ export function parseP9Connection({ mode, dsn }) {
   };
 }
 
+export function createPsqlEnvironment(baseEnv, pgEnv) {
+  return { ...Object.fromEntries(Object.entries(baseEnv).filter(([key]) => !/^PG/i.test(key))), ...pgEnv };
+}
+
 function splitStatements(packet) {
   const statements = []; let start = 0; let quote = false; let lineComment = false; let blockComment = false;
   for (let index = 0; index < packet.length; index += 1) {
@@ -198,7 +202,7 @@ export async function runP9ReadOnlyCapture({ mode, dsn, packet, packetContract =
     throw failure('P9_CAPTURE_LIMIT_INVALID');
   const connection = parseP9Connection({ mode, dsn }); const units = loadReadOnlyPacketUnits({ packet, packetContract }); const protocol = { nonce };
   const script = createPsqlTranscript({ protocol, units, testOnlyWriteProbeSql }); const args = ['-X', '-q', '-v', 'ON_ERROR_STOP=1'];
-  const processResult = await runPsql({ executable: psqlPath, args, env: { ...process.env, ...connection.pgEnv }, input: script, spawnImpl,
+  const processResult = await runPsql({ executable: psqlPath, args, env: createPsqlEnvironment(process.env, connection.pgEnv), input: script, spawnImpl,
     maxOutputBytes, timeoutMs });
   const productionCounter = mode === 'PRODUCTION' ? 1 : 0;
   if (processResult.exitCode !== 0) return { acceptanceResult: 'BLOCKED', targetMode: mode, targetRef: connection.safeTarget.projectRef, targetHost: connection.safeTarget.host, targetEndpointClass: connection.safeTarget.endpointClass, packetHash: packetContract.packetHash, connectionAttempted: true, psqlProcessExited: true, connectionClosed: true, psqlExitCode: processResult.exitCode, rollbackMode: 'CONNECTION_CLOSE_ROLLBACK', firstFailureStage: 'PSQL_EXECUTION', firstFailureClass: classifyPsqlFailure(processResult.stderr), firstFailureQueryId: lastStartedQueryId(processResult.stdout, protocol, units), localWriteRejection: testOnlyWriteProbeSql && /read-only transaction/i.test(processResult.stderr) ? 'PASS' : null, productionConnections: productionCounter, productionSqlRequests: productionCounter, productionMutationCount: 0, productionDDLCount: 0, productionDMLCount: 0, secretAudit: 'PASS' };
