@@ -7,6 +7,7 @@ import { browserNavigationAdapter, type LegalConsentAdapter, type LegalConsentAu
 
 type PageState = "loading" | "signed_out" | "needs_consent" | "redirecting" | "error";
 const REQUEST_TIMEOUT_MS = 8000;
+const REDIRECT_TIMEOUT_MS = 8000;
 
 function sourceForReason(reason: string | null) {
   if (reason === "callback") return "authenticated_callback" as const;
@@ -34,6 +35,8 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lifecycle = useRef({ mounted: false, sequence: 0, locked: false, replaced: false, timers: new Set<ReturnType<typeof setTimeout>>() });
+  const redirectTarget = useRef<string | null>(null);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function beginRequest() {
     const request = ++lifecycle.current.sequence;
@@ -61,9 +64,43 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
 
   function replaceOnce(url: string) {
     if (!lifecycle.current.mounted || lifecycle.current.replaced) return;
+    redirectTarget.current = url;
     lifecycle.current.replaced = true;
+    lifecycle.current.locked = true;
+    setBusy(true);
+    setError("");
     setState("redirecting");
-    navigation.replace(url);
+    // Navigation has its own deadline; finishing the consent request cannot clear it.
+    const timer = setTimeout(() => {
+      lifecycle.current.timers.delete(timer);
+      if (redirectTimer.current !== timer || !lifecycle.current.mounted) return;
+      redirectTimer.current = null;
+      navigationFailed();
+    }, REDIRECT_TIMEOUT_MS);
+    redirectTimer.current = timer;
+    lifecycle.current.timers.add(timer);
+    try {
+      navigation.replace(url);
+    } catch {
+      clearTimeout(timer);
+      lifecycle.current.timers.delete(timer);
+      redirectTimer.current = null;
+      navigationFailed();
+    }
+  }
+
+  function navigationFailed() {
+    lifecycle.current.sequence += 1;
+    lifecycle.current.replaced = false;
+    lifecycle.current.locked = false;
+    setBusy(false);
+    setError("暂时无法前往目标页面，请重试或退出后重新登录。");
+    setState("error");
+  }
+
+  function retry() {
+    if (redirectTarget.current) replaceOnce(redirectTarget.current);
+    else void loadStatus();
   }
 
   function showFailure(failure: unknown, loading: boolean) {
@@ -102,6 +139,7 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
     lifecycle.current.mounted = true;
     lifecycle.current.replaced = false;
     lifecycle.current.locked = false;
+    redirectTarget.current = null;
     setBusy(false);
     void loadStatus();
     return () => {
@@ -109,6 +147,7 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
       lifecycle.current.sequence += 1;
       for (const timer of lifecycle.current.timers) clearTimeout(timer);
       lifecycle.current.timers.clear();
+      redirectTimer.current = null;
     };
   }, [supabase, authAdapter, consentAdapter, navigation, safeNext]);
 
@@ -162,7 +201,7 @@ export default function LegalConsentPage({ next, reason, authAdapter, consentAda
 
   if (state === "loading" || state === "redirecting") return <section className="auth-card"><div className="auth-alert" role="status">{state === "loading" ? "正在检查政策确认状态..." : "正在前往目标页面..."}</div></section>;
   if (state === "signed_out") return <section className="auth-card"><div className="auth-alert">{error || "登录后才能记录政策确认。"}</div><a className="community-button auth-button" href={loginHref}>前往登录</a></section>;
-  if (state === "error") return <section className="auth-card"><div className="auth-alert auth-alert--error" role="alert">{error}</div><div className="community-cta-row"><button type="button" className="community-button auth-button" onClick={() => void loadStatus()}>重试</button><button type="button" className="community-button--secondary auth-button" onClick={() => void signOut()} disabled={busy}>退出登录</button></div></section>;
+  if (state === "error") return <section className="auth-card"><div className="auth-alert auth-alert--error" role="alert">{error}</div><div className="community-cta-row"><button type="button" className="community-button auth-button" onClick={retry} disabled={busy}>重试</button><button type="button" className="community-button--secondary auth-button" onClick={() => void signOut()} disabled={busy}>退出登录</button></div></section>;
 
   return <section className="auth-card"><div className="auth-card__top"><h1>政策确认</h1><p>请确认已满 {status?.minimumAge ?? LEGAL_POLICY.minimumAge} 周岁，并完成当前政策确认。</p></div><form className="auth-form" onSubmit={submit}><div className="auth-legal-acknowledgement"><input id="legal-consent-acknowledgement" type="checkbox" checked={acknowledged} onChange={(event) => { setAcknowledged(event.target.checked); if (event.target.checked) setError(""); }} aria-invalid={error ? true : undefined} aria-describedby={error ? "legal-consent-error" : undefined} /><label htmlFor="legal-consent-acknowledgement">我确认已年满 {LEGAL_POLICY.minimumAge} 周岁，并已阅读并同意 <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>《服务条款》</a> 和 <a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>《社区准则》</a>，且已阅读并知悉 <a href={LEGAL_POLICY.routes.privacy} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>《隐私政策》</a>。</label></div>{error ? <div id="legal-consent-error" className="auth-alert auth-alert--error" role="alert">{error}</div> : null}<div className="community-cta-row"><button className="community-button auth-button" type="submit" disabled={busy}>{busy ? "正在记录确认..." : "确认并继续"}</button><button className="community-button--secondary auth-button" type="button" onClick={() => void signOut()} disabled={busy}>退出登录</button></div></form></section>;
 }

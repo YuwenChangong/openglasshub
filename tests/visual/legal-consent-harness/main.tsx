@@ -11,7 +11,7 @@ import { LEGAL_CONSENT_STATE_MATRIX } from "../legal-consent-state-matrix.mjs";
 
 type Scenario = string;
 const status = (current: boolean): LegalConsentStatus => ({ current, bundleVersion: "2026-07", minimumAge: 16, consentUrl: "/legal-consent/" });
-const additionalCases = ["consent-submit-expired-401", "consent-submit-session-missing", "consent-delayed-current", "consent-retry-success", "consent-outdated-bundle", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-record-not-current", "consent-auth-failure", "consent-submit-auth-failure", "consent-callback-success", "consent-logout-failure"];
+const additionalCases = ["consent-submit-expired-401", "consent-submit-session-missing", "consent-delayed-current", "consent-retry-success", "consent-outdated-bundle", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-record-not-current", "consent-auth-failure", "consent-submit-auth-failure", "consent-callback-success", "consent-logout-failure", "consent-current-navigation-throw", "consent-record-navigation-throw", "consent-current-navigation-stall", "consent-record-navigation-stall"];
 
 function Harness() {
   const [scenario, setScenario] = useState<Scenario>("consent-missing-unchecked");
@@ -20,7 +20,14 @@ function Harness() {
   // Retain releases across remounts so tests can resolve requests after unmount.
   const pending = useMemo(() => ({ releaseSession: () => {}, releaseStatus: () => {}, releaseRecord: () => {} }), []);
   const record = (name: string) => setCalls((items) => [...items, name]);
-  const navigation: LegalConsentNavigationAdapter = useMemo(() => ({ navigate: (url) => record(`navigate:${url}`), replace: (url) => record(`replace:${url}`), getCurrentUrl: () => "http://harness.local/login/" }), []);
+  const navigation: LegalConsentNavigationAdapter = useMemo(() => ({
+    navigate: (url) => record(`navigate:${url}`),
+    replace: (url) => {
+      record(`replace:${url}`);
+      if (scenario.endsWith("navigation-throw") && url === "/feed/") throw new Error("fixture navigation failed");
+    },
+    getCurrentUrl: () => "http://harness.local/login/",
+  }), [scenario, revision]);
   const authScenario = scenario.startsWith("login") || scenario.startsWith("register");
   const signedIn = !authScenario && scenario !== "consent-signed-out";
   const auth: AuthPanelAdapter & LegalConsentAuthAdapter = useMemo(() => ({
@@ -52,7 +59,7 @@ function Harness() {
         if (scenario === "consent-status-failure" || scenario === "callback-status-failure" || (scenario === "consent-retry-success" && reads === 1)) throw new LegalConsentClientError("UNAVAILABLE");
         if (scenario === "consent-session-expired-401") throw new LegalConsentClientError("UNAUTHORIZED");
         if (scenario === "consent-rate-limited-429") throw new LegalConsentClientError("RATE_LIMITED");
-        const current = ["consent-already-current", "callback-current-consent", "consent-delayed-current", "consent-retry-success", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next"].includes(scenario);
+        const current = ["consent-already-current", "callback-current-consent", "consent-delayed-current", "consent-retry-success", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-current-navigation-throw", "consent-current-navigation-stall"].includes(scenario);
         return scenario === "consent-outdated-bundle" ? { ...status(false), bundleVersion: "2025-01" } : status(current);
       };
     })(),

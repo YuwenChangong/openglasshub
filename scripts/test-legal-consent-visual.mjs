@@ -29,6 +29,42 @@ async function submitConsent(page) {
   await page.locator("#legal-consent-acknowledgement").check();
   await page.getByRole("button", { name: "确认并继续", exact: true }).click();
 }
+async function navigationFailureRecovers(page, mode) {
+  await page.clock.install({ time: new Date("2026-09-28T00:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-09-28T00:01:00Z"));
+  for (const consent of ["current", "record"]) {
+    await select(page, `consent-${consent}-navigation-${mode}`);
+    if (consent === "record") await submitConsent(page);
+    await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("replace:/feed/"));
+    if (mode === "stall") {
+      await page.clock.runFor(7999);
+      assert.equal(await page.getByRole("button", { name: "重试", exact: true }).count(), 0, "redirect deadline must allow the bounded waiting interval");
+      await page.clock.runFor(2);
+    }
+    assert.equal(await page.locator(".legal-harness__surface").getByRole("alert").count(), 1, `navigation-${mode}: ${consent} consent must expose actionable error`);
+    const prefix = consent === "record" ? "getConsent,recordConsent:legacy_account_gate" : "getConsent";
+    assert.equal(await trace(page), `${prefix},replace:/feed/`);
+    await page.getByRole("button", { name: "重试", exact: true }).click();
+    await page.waitForFunction(() => (document.querySelector("output")?.textContent?.match(/replace:\/feed\//g) ?? []).length === 2);
+    assert.equal(await trace(page), `${prefix},replace:/feed/,replace:/feed/`, "navigation retry must not repeat GET or consent record");
+    if (mode === "stall") {
+      assert.equal(await page.getByRole("button", { name: "重试", exact: true }).count(), 0);
+      await page.clock.runFor(8001);
+    }
+    await page.getByRole("button", { name: "退出登录", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signOut,replace:/login/"));
+    assert.equal(await trace(page), `${prefix},replace:/feed/,replace:/feed/,signOut,replace:/login/?next=%2Flegal-consent%2F%3Fnext%3D%252Ffeed%252F`);
+    await page.clock.runFor(8001);
+    await page.getByRole("button", { name: "重试", exact: true }).click();
+    await page.waitForFunction(() => (document.querySelector("output")?.textContent?.match(/replace:\/login\//g) ?? []).length === 2);
+    assert.equal((await trace(page)).split(",").filter((call) => call === "signOut").length, 1, "logout redirect retry must not repeat signOut");
+    await select(page, "consent-signed-out");
+    await page.clock.runFor(8001);
+    assert.equal(await page.locator(".legal-harness__surface").getByRole("alert").count(), 0, "redirect deadline must be cleared on unmount");
+  }
+}
+async function throwingNavigationRecovers(page) { await navigationFailureRecovers(page, "throw"); }
+async function stalledNavigationRecovers(page) { await navigationFailureRecovers(page, "stall"); }
 async function currentConsentReplaces(page) {
   await select(page, "consent-already-current");
   // Wait for status lookup to finish so RED names the missing replacement, not networking.
@@ -184,6 +220,18 @@ async function main() {
         if (new URL(socket.url()).origin === `ws://127.0.0.1:${port}`) socket.connectToServer();
         else { report.blockedNetwork.push(new URL(socket.url()).origin); socket.close(); }
       });
+      const navigationFailures = [];
+      for (const test of [throwingNavigationRecovers, stalledNavigationRecovers]) {
+        const page = await context.newPage();
+        try {
+          await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+          await test(page);
+          report.interaction.push(`${test.name}: PASS`); process.stdout.write(`${test.name}: PASS\n`);
+        } catch (error) {
+          navigationFailures.push(error.message); process.stdout.write(`${test.name}: FAIL ${error.message}\n`);
+        } finally { await page.close(); }
+      }
+      assert.equal(navigationFailures.length, 0, "navigation failure recovery assertions failed");
       const behavioralPage = await context.newPage();
       await behavioralPage.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
       for (const test of [currentConsentReplaces, requiredConsentRecordsThenReplaces, expiredSubmissionReturnsToLogin, consentNextRejectsLoops, consentFailuresAndLifecycle]) {
