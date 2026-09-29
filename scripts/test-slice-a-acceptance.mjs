@@ -18,7 +18,7 @@ const { validateSliceAAcceptance } = await import("./lib/slice-a-acceptance.mjs"
 
 const checkNames = [
   "AUTH_SIGNUP", "AUTH_EMAIL_VERIFICATION", "AUTH_LOGIN", "AUTH_SESSION_PERSISTENCE",
-  "DEFAULT_IDENTITY", "CONSENT_FLOW", "AUTH_RESEND_VERIFICATION", "AUTH_LOGOUT",
+  "DEFAULT_IDENTITY", "NO_RUNTIME_CONSENT_GATE", "AUTH_RESEND_VERIFICATION", "AUTH_LOGOUT",
   "AUTH_RELOGIN", "AUTH_PASSWORD_RECOVERY", "EMAIL_DELIVERY",
 ];
 const utc = "2026-09-29T00:00:00Z";
@@ -52,6 +52,21 @@ test("deliveryWithoutReceiptIsPartial", () => {
   input.mailCases[0].receiptAtUtc = "UNKNOWN";
   input.mailCases[0].callbackOutcome = "NOT_RUN";
   assert.equal(validateSliceAAcceptance(input).status, "PARTIAL", "deliveredWithoutReceiptMustNotPass");
+});
+
+test("legacy consent-recording receipt cannot satisfy the new product contract", () => {
+  const input = complete();
+  input.checks.CONSENT_FLOW = input.checks.NO_RUNTIME_CONSENT_GATE;
+  delete input.checks.NO_RUNTIME_CONSENT_GATE;
+  assert.equal(validateSliceAAcceptance(input).status, "FAIL");
+});
+
+test("runtime gate absence needs independently observed evidence", () => {
+  const input = complete();
+  input.checks.NO_RUNTIME_CONSENT_GATE.evidenceKind = "SOURCE_ONLY";
+  const result = validateSliceAAcceptance(input);
+  assert.equal(result.status, "PARTIAL");
+  assert.ok(result.missing.includes("NO_RUNTIME_CONSENT_GATE"));
 });
 
 test("completeOwnedGmailFixture validates structure only", () => {

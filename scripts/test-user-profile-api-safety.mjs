@@ -85,11 +85,9 @@ async function main() {
     const fakeClient = {
       from() { calls.reads += 1; throw new Error("denied requests must not read profiles"); },
     };
-    const currentConsent = async () => ({ ok: true, userId: actorId });
     const fakeConsentRepository = () => ({ findByUserAndBundle: async () => null });
     const deniedPost = createProfilePost({
       authenticate: async () => ({ client: fakeClient, userId: actorId }),
-      requireConsent: currentConsent,
       createConsentRepository: fakeConsentRepository,
       assertWrite: async () => { calls.safety += 1; return { allowed: true, state: {} }; },
     });
@@ -104,23 +102,21 @@ async function main() {
     }
     const safetyDenied = createProfilePost({
       authenticate: async () => ({ client: fakeClient, userId: actorId }),
-      requireConsent: currentConsent,
       createConsentRepository: fakeConsentRepository,
       assertWrite: async () => ({ allowed: false, code: "USER_BANNED", status: 403, message: "blocked" }),
     });
     const safetyDeniedResponse = await safetyDenied({ request: new Request("https://app.example/api/users/me/profile", { method: "POST", headers: { authorization: "Bearer local-test-token", "content-type": "application/json" }, body: JSON.stringify({ display_name: "Alice" }) }), locals: { runtime: { env: { SUPABASE_URL: "https://example.test", SUPABASE_ANON_KEY: "anon" } } } });
     assert.equal(safetyDeniedResponse.status, 403);
     const consentCalls = [];
-    const consentDenied = createProfilePost({
+    const withoutConsent = createProfilePost({
       authenticate: async () => { consentCalls.push("authenticate"); return { client: fakeClient, userId: actorId }; },
-      createConsentRepository: () => { consentCalls.push("consent-repository"); return fakeConsentRepository(); },
-      requireConsent: async () => { consentCalls.push("consent-denied"); return { ok: false, response: new Response(JSON.stringify({ error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" }), { status: 403 }) }; },
+      createConsentRepository: () => { consentCalls.push("compatibility-repository"); return { findByUserAndBundle: async () => { consentCalls.push("unexpected-consent-read"); throw new Error("unavailable historical consent"); } }; },
       assertWrite: async () => { consentCalls.push("safety"); return { allowed: true, state: {} }; },
     });
-    const consentDeniedResponse = await consentDenied({ request: new Request("https://app.example/api/users/me/profile", { method: "POST", headers: { authorization: "Bearer local-test-token", "content-type": "application/json" }, body: JSON.stringify({ display_name: "Alice" }) }), locals: { runtime: { env: { SUPABASE_URL: "https://example.test", SUPABASE_ANON_KEY: "anon" } } } });
-    assert.equal(consentDeniedResponse.status, 403);
-    assert.deepEqual(await consentDeniedResponse.json(), { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" });
-    assert.deepEqual(consentCalls, ["authenticate", "consent-repository", "consent-denied"], "missing consent stops before safety, profile reads, moderation, storage, and profile update");
+    const withoutConsentResponse = await withoutConsent({ request: new Request("https://app.example/api/users/me/profile", { method: "POST", headers: { authorization: "Bearer local-test-token", "content-type": "application/json" }, body: JSON.stringify({ display_name: "Alice", role: "admin" }) }), locals: { runtime: { env: { SUPABASE_URL: "https://example.test", SUPABASE_ANON_KEY: "anon" } } } });
+    assert.equal(withoutConsentResponse.status, 403);
+    assert.deepEqual(await withoutConsentResponse.json(), { error: "PROFILE_FORBIDDEN_FIELD_UPDATE" });
+    assert.deepEqual(consentCalls, ["authenticate", "compatibility-repository", "safety"], "real identity helper ignores consent storage and preserves safety and role-field enforcement");
     assert.equal(calls.reads, 0, "all rejected requests stop before profile reads or writes");
     assert.equal(calls.writes, 0, "all rejected requests perform zero profile/media writes");
     assert.ok(calls.safety >= 4, "verified actor safety is checked before rejected profile payload work");

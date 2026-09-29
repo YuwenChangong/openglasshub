@@ -18,10 +18,8 @@ for (const [name, record] of [
 ]) {
   const calls = [];
   result = await requireAuthenticatedLegalConsent({ identity: { userId: "test-user" }, repository: repository(record, calls) });
-  assert.equal(result.ok, false, name);
-  assert.equal(result.response.status, 403, name);
-  assert.deepEqual(await result.response.json(), { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" }, name);
-  assert.deepEqual(calls, [{ userId: "test-user", bundleVersion: bundle.bundleVersion }], `${name} uses only the verified actor and server bundle`);
+  assert.deepEqual(result, { ok: true, userId: "test-user" }, name);
+  assert.deepEqual(calls, [], `${name} never consults historical consent`);
 }
 
 for (const [name, record] of [
@@ -36,10 +34,9 @@ for (const [name, record] of [
 const actorCalls = [];
 result = await requireAuthenticatedLegalConsent({ identity: { userId: "verified-user" }, repository: repository({ ...currentRecord(), userId: "verified-user" }, actorCalls) });
 assert.equal(result.ok, true);
-assert.deepEqual(actorCalls, [{ userId: "verified-user", bundleVersion: bundle.bundleVersion }], "request data cannot select the consent actor");
+assert.deepEqual(actorCalls, [], "request data cannot select the authenticated actor or cause a consent read");
 
 result = await requireAuthenticatedLegalConsent({ identity: { userId: "test-user" }, repository: { findByUserAndBundle: async () => { throw new Error("offline") } } });
-assert.equal(result.ok, false); assert.equal(result.response.status, 503);
-assert.deepEqual(await result.response.json(), { error: "LEGAL_CONSENT_UNAVAILABLE" });
+assert.deepEqual(result, { ok: true, userId: "test-user" });
 
-console.log("LEGAL_CONSENT_MUTATION_GUARD_OK offline cases=13");
+console.log("AUTHENTICATED_MUTATION_IDENTITY_GUARD_OK offline cases=13");

@@ -65,13 +65,14 @@ function Harness() {
   }), [scenario, revision]);
   const authScenario = scenario.startsWith("login") || scenario.startsWith("register");
   const locale = scenario.includes("-en-") ? "en" : previewLocale;
-  const signedIn = !authScenario && scenario !== "consent-signed-out";
+  const signedIn = !authScenario && scenario !== "consent-signed-out" && scenario !== "callback-no-session";
   const auth: AuthPanelAdapter & LegalConsentAuthAdapter = useMemo(() => ({
     viewState: signedIn ? "signed_in" : "signed_out", userPresent: signedIn,
     getSession: (() => {
       let reads = 0;
       return async () => {
         reads += 1;
+        if (scenario === "callback-no-session") { record("sessionMissing"); return null; }
         if (scenario === "consent-auth-failure") throw new Error("fixture session unavailable");
         if (scenario === "consent-submit-auth-failure" && reads > 1) throw new Error("fixture session unavailable");
         if (scenario === "consent-session-loading" || scenario === "callback-delayed-session" || (scenario === "consent-submit-pending" && reads > 1)) {
@@ -82,7 +83,7 @@ function Harness() {
         return signedIn ? { accessToken: "test-session" } : null;
       };
     })(),
-    signInWithPassword: async () => { record("signIn"); return scenario === "login-auth-success-consent-failure" ? { data: null, error: new Error("Invalid login credentials") } : { data: { accessToken: "test-session" }, error: null }; },
+    signInWithPassword: async () => { record("signIn"); return scenario === "login-no-session" ? { data: null, error: null } : scenario === "login-auth-success-consent-failure" ? { data: null, error: new Error("Invalid login credentials") } : { data: { accessToken: "test-session" }, error: null }; },
     signUp: async () => { record("signUp"); return scenario === "register-email-confirmation-no-session" ? { data: null, error: null } : { data: { accessToken: "test-session" }, error: null }; },
     requestPasswordReset: async ({ email, redirectTo }) => {
       record(`resetCallbackSafe:${email === "qa@example.invalid" && redirectTo === `${window.location.origin}/auth/reset-password/`}`);
@@ -136,7 +137,7 @@ function Harness() {
   };
   return <main className="legal-harness">
     <nav aria-label="Visual test state">
-      {[...LEGAL_CONSENT_STATE_MATRIX.map(({ id }) => id), ...additionalCases].map((id) => <button key={id} type="button" onClick={() => { setRecoveryScenario(false); setCalls([]); setScenario(id); setRevision((value) => value + 1); }}>{id}</button>)}
+      {[...LEGAL_CONSENT_STATE_MATRIX.map(({ id }) => id), ...additionalCases, "login-no-session", "callback-no-session"].map((id) => <button key={id} type="button" onClick={() => { setRecoveryScenario(false); setCalls([]); setScenario(id); setRevision((value) => value + 1); }}>{id}</button>)}
       <button type="button" onClick={() => { setPreviewLocale("en"); setRevision((value) => value + 1); }}>locale-en</button>
       <button type="button" onClick={() => { setPreviewLocale("zh-CN"); setRevision((value) => value + 1); }}>locale-zh</button>
       <button onClick={() => pending.releaseSession()}>release-session</button>

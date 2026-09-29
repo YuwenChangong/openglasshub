@@ -2503,6 +2503,25 @@ body {
   box-sizing: border-box;
 }
 
+.auth-signup-notice {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.auth-signup-notice a {
+  color: #8fc6ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-signup-notice a:focus-visible {
+  outline: 2px solid #8fc6ff;
+  outline-offset: 2px;
+}
+
 .auth-legal-acknowledgement {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

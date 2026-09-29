@@ -11,7 +11,7 @@ const root = process.cwd();
 const port = 4387;
 const harness = path.join(root, "tests", "visual", "legal-consent-harness");
 const runId = new Date().toISOString().replace(/[:.]/g, "-");
-const evidence = path.join(os.tmpdir(), `openglass-legal-consent-phase3b1-matrix-${runId}`);
+const evidence = path.join(root, ".superpowers", "hotfix-runtime-consent", `visual-${runId}`);
 const states = LEGAL_CONSENT_STATE_MATRIX;
 const viewports = REQUIRED_VIEWPORTS;
 
@@ -32,26 +32,21 @@ async function submitConsent(page) {
 }
 async function singleLanguageRegistration(page) {
   await select(page, "register-unchecked");
-  assert.equal(await page.getByRole("checkbox").count(), 2);
-  assert.equal(await page.getByRole("button", { name: "注册", exact: true }).isDisabled(), true);
-  assert.equal(await page.getByText("Terms", { exact: true }).count(), 0);
+  assert.equal(await page.getByRole("checkbox").count(), 0);
+  assert.equal(await page.getByRole("button", { name: "注册", exact: true }).isEnabled(), true);
+  assert.equal(await page.locator(".auth-signup-notice").textContent(), "注册即表示你同意《服务条款》，并已阅读《隐私政策》和《社区准则》。");
 }
-async function eligibilityStillRequired(page) {
+async function registrationDoesNotRequireAttestation(page) {
   await select(page, "register-unchecked");
-  await page.locator("#auth-legal-acknowledgement").check();
-  assert.equal(await page.getByRole("button", { name: "注册", exact: true }).isDisabled(), true);
-  await page.locator("#auth-age-eligibility").check();
+  assert.equal(await page.getByRole("checkbox").count(), 0);
   assert.equal(await page.getByRole("button", { name: "注册", exact: true }).isEnabled(), true);
 }
 async function englishPreview(page) {
   await select(page, "register-en-unchecked");
-  assert.equal(await page.getByRole("checkbox").count(), 2);
+  assert.equal(await page.getByRole("checkbox").count(), 0);
   assert.equal(await page.getByText("Terms of Service", { exact: true }).count(), 1);
   assert.equal(await page.getByText("服务条款", { exact: true }).count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Sign up", exact: true }).isDisabled(), true);
-  await select(page, "consent-en-missing-unchecked");
-  assert.equal(await page.getByText("Community Guidelines", { exact: true }).count(), 1);
-  assert.equal(await page.getByRole("button", { name: "Confirm and continue", exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Sign up", exact: true }).isEnabled(), true);
 }
 async function englishStateChecks(page) {
   await select(page, "locale-en");
@@ -210,10 +205,6 @@ async function consentFailuresAndLifecycle(page) {
 
 async function prepareScreenshot(page, id) {
   await select(page, id);
-  if (["login-checked", "register-checked"].includes(id)) {
-    await page.locator("#auth-age-eligibility").check();
-    await page.locator("#auth-legal-acknowledgement").check();
-  }
   if (["consent-missing-checked", "consent-submit-pending", "consent-submit-success", "consent-post-failure"].includes(id)) {
     await page.locator("#legal-consent-age-eligibility").check();
     await page.locator("#legal-consent-acknowledgement").check();
@@ -281,7 +272,7 @@ async function main() {
       assert.equal(navigationFailures.length, 0, "navigation failure recovery assertions failed");
       const behavioralPage = await context.newPage();
       await behavioralPage.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
-      for (const test of [singleLanguageRegistration, eligibilityStillRequired, englishPreview, englishStateChecks, currentConsentReplaces, requiredConsentRecordsThenReplaces, expiredSubmissionReturnsToLogin, consentNextRejectsLoops, consentFailuresAndLifecycle]) {
+      for (const test of [singleLanguageRegistration, registrationDoesNotRequireAttestation, englishPreview, englishStateChecks, currentConsentReplaces, requiredConsentRecordsThenReplaces, expiredSubmissionReturnsToLogin, consentNextRejectsLoops, consentFailuresAndLifecycle]) {
         await test(behavioralPage); report.interaction.push(`${test.name}: PASS`);
         process.stdout.write(`${test.name}: PASS\n`);
       }
@@ -292,13 +283,16 @@ async function main() {
         await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
         for (const state of states.filter(({ screenshotRequired }) => screenshotRequired)) {
           await prepareScreenshot(page, state.id);
-          if (["login-checked", "register-checked", "consent-missing-checked"].includes(state.id)) {
+          if (["login-ready", "register-ready", "consent-missing-checked"].includes(state.id)) {
             const controls = page.locator(".legal-harness__surface input[type='checkbox']");
-            assert.equal(await controls.count(), 2, `${state.id} must render both attestations`);
-            assert.equal(await controls.nth(0).isChecked(), true, `${state.id} screenshot requires checked age eligibility`);
-            assert.equal(await controls.nth(1).isChecked(), true, `${state.id} screenshot requires checked legal acknowledgement`);
-            const submit = page.locator(".legal-harness__surface button[type='submit']");
-            assert.equal(await submit.isEnabled(), true, `${state.id} submit must be enabled`);
+            if (state.id === "consent-missing-checked") {
+              assert.equal(await controls.count(), 2, "isolated historical consent UI retains both attestations");
+              assert.equal(await controls.nth(0).isChecked(), true);
+              assert.equal(await controls.nth(1).isChecked(), true);
+            } else {
+              assert.equal(await controls.count(), 0, "normal auth must not show attestations");
+            }
+            assert.equal(await page.locator(".legal-harness__surface button[type='submit']").isEnabled(), true);
             report.checkedScreenshotAssertionCount += 1;
           }
           await page.waitForTimeout(25);
@@ -310,18 +304,14 @@ async function main() {
           report.screenshots.push(path.basename(image)); report.layout.push(`${viewport.label} ${state.id} OK`); if (viewport === viewports[0]) report.executedStateCount += 1;
         }
         await page.getByRole("button", { name: "login-unchecked", exact: true }).click();
-        const checkbox = page.locator("#auth-legal-acknowledgement");
         await page.locator('input[type="email"]').fill("visual@example.invalid");
         await page.locator('input[type="password"]').fill("visual-passphrase");
-        const eligibility = page.locator("#auth-age-eligibility");
-        assert(await checkbox.count() === 1 && !(await checkbox.isChecked()) && !(await eligibility.isChecked()), "both auth controls must start unchecked");
-        assert(await page.getByRole("button", { name: "登录", exact: true }).isDisabled(), "unchecked login must be disabled");
-        assert(!(await page.locator("output").textContent())?.includes("signIn"), "unchecked login must not authenticate");
-        await eligibility.check();
-        assert(await page.getByRole("button", { name: "登录", exact: true }).isDisabled(), "age alone must not authenticate");
-        await checkbox.check(); await page.getByRole("button", { name: "登录", exact: true }).click();
-        await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signIn,recordConsent:login"));
-        report.interaction.push(`${viewport.label}: consent gate and ordered call flow OK`);
+        assert.equal(await page.getByRole("checkbox").count(), 0);
+        assert.equal(await page.getByRole("button", { name: "登录", exact: true }).isEnabled(), true);
+        await page.getByRole("button", { name: "登录", exact: true }).click();
+        await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("navigate:/feed/"));
+        assert.equal(await trace(page), "signIn,navigate:/feed/");
+        report.interaction.push(`${viewport.label}: login direct next with no consent write OK`);
         const h1Count = await page.locator("h1").count();
         assert(h1Count <= 1, "rendered surface must not have multiple H1s");
         report.accessibility.push(`${viewport.label}: labels, controls, and heading count OK`);

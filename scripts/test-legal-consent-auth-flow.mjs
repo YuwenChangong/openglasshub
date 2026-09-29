@@ -18,24 +18,20 @@ async function main() {
   assert(!/userId|bundleVersion|minimumAge|acceptedAt/.test(helper.match(/recordLegalConsent[\s\S]*/)?.[0] ?? ""));
   assert(!/localStorage|document\.cookie|SUPABASE_SERVICE_ROLE_KEY/.test(helper));
 
-  assert(authPanel.indexOf("signInWithPassword") < authPanel.indexOf('source: "login"'));
-  assert(authPanel.indexOf('source: "login"') < authPanel.indexOf("navigation.navigate(safeNext)"));
-  assert(authPanel.includes('source: "registration"'));
+  assert(!/recordLegalConsent|recordCurrentConsent|consentRecoveryHref/.test(authPanel));
   assert(authPanel.includes("const accessToken = signUpData?.accessToken"));
   assert(authPanel.includes("if (accessToken)"));
   assert(authPanel.includes("messages.pendingCheckInbox"));
-  assert(authPanel.includes("consentRecoveryHref(safeNext)"));
-  assert(!authPanel.includes('from("legal_policy_acceptances")'));
+  assert(authPanel.includes("navigation.navigate(safeNext)"));
   assert(authPanel.includes("authAdapter?: AuthPanelAdapter"));
   assert(authPanel.includes("consentAdapter?: LegalConsentAdapter"));
+  assert(!/getLegalConsentStatus|getCurrentConsent|recordLegalConsent/.test(callback));
+  assert(callback.includes("data.session?.access_token"));
+  assert(callback.includes("navigation.replace(safeNext)"));
+  assert(consentRoute.includes("Astro.redirect(getSafeConsentNext(Astro.url.searchParams.get(\"next\")), 302)"));
+  assert(!consentRoute.includes("LegalConsentPage"));
 
-  assert(callback.includes("getLegalConsentStatus"));
-  assert(callback.includes("current = consent.current"));
-  assert(callback.includes("navigation.replace(current ? safeNext"));
-  assert(callback.includes("/legal-consent/?next="));
-  assert(!callback.includes("recordLegalConsent"));
-
-  assert(consentRoute.includes("LegalConsentPage"));
+  // Historical consent UI remains isolated; its safety contract still applies if reused.
   assert(consentPage.includes('type="checkbox"'));
   assert(consentPage.includes('htmlFor="legal-consent-acknowledgement"'));
   assert(consentPage.includes('htmlFor="legal-consent-age-eligibility"'));
