@@ -1,6 +1,6 @@
 # Slice A Evidence-First Acceptance
 
-Production acceptance: **NOT_RUN**. This runbook and local fixtures do not authorize a real request, account creation, mail send, mailbox/provider inspection, password change, SQL, configuration change, merge or deployment. Task 7 implements the evidence contract only. Task 8 integration and deployed execution remain separate work.
+Production acceptance: **NOT_RUN**. This runbook and local fixtures do not authorize a real request, account creation, mail send, mailbox/provider inspection, password change, SQL, configuration change, merge or deployment. Task 7 implements the evidence contract only. Task 8 adds local engineering integration; independent review and deployed execution remain separate work.
 
 ## Authorization and Private Handoffs
 
@@ -79,6 +79,18 @@ Missing/malformed required fields, unsafe types/strings or extra keys produce FA
 Non-Gmail cases absent entirely yield `<PROVIDER>_NOT_RUN`; absent flows on a supplied provider yield `<PROVIDER>_<FLOW>_NOT_RUN`. Optional unavailable owned access yields `<PROVIDER>_<FLOW>_OWNED_ACCESS_UNAVAILABLE` and is not a test PASS. A supplied owned case without receipt/callback remains PARTIAL, and any known failure remains FAIL before availability is considered. Primary Gmail is mandatory for all three flows. UNKNOWN SMTP/Brevo operator stages yield named limitations; when Brevo is known, DELIVERED and its UTC are required. Neither SENT nor DELIVERED substitutes for Inbox/Spam receipt and callback proof.
 
 ## Local Validation and Reporting
+
+The deterministic engineering suite runs the ten existing Slice A scripts serially and stops on the first failure:
+
+```sh
+npm run test:product-recovery-slice-a
+```
+
+It covers auth/legal acknowledgement, consent auth flow and visual matrix, redirect safety, protected-page gating, actor-scoped summary, immediate header identity, redacted email diagnostics, recovery/callback handling and the evidence validator. RELEASE selects `product-recovery-slice-a` and invokes this npm script locally with no retries. The existing 90-second check timeout is retained: the fully passing guarded serial suite took 50,205 ms on the integration host. The production QA profile and generic execution/network authorization boundaries are unchanged. Run local engineering with external-network denial in Node subprocesses and browser HTTP/WebSocket guards; this command does not grant provider or Production access.
+
+Integration verification on 2026-09-29 is **not GREEN**. The registration regression failed before registration and then the QA profile tests passed 58/58. An initially stale auth-flow source assertion was reconciled under controller authorization: it now verifies both assignment from `consent.current` and routing through `current ? safeNext`. Its focused RED exited 1 and GREEN exited 0; no check was skipped or deleted. The full ten-script Slice A npm suite, profile suite, `npm test`, build and diff check then exited 0. Existing real-component current/outdated-consent and malicious-destination callback tests passed unchanged. Both subsequent full `qa:release` runs exited 1 with 34 PASS and 1 FAIL: the existing local `forum-search` response timeout. The Slice A release check passed. Earlier isolated and full-release search passes are retained alongside these failures; the latest clean full release is still FAIL. No search/product/generic timeout was changed and no readiness PASS is claimed.
+
+The consent matrix exercised 32/32 states, 78 screenshots, nine checked-state screenshot assertions and six redirect states, with zero unexpected external requests. Actual identity, consent, login and empty recovery-form screenshots were inspected at widths 390, 430 and 1440; selected surfaces showed visible identity and no clipping. Browser controls and recovery edges were exercised with explicit fakes. Independent review is pending; real inbox delivery, authenticated lifecycle acceptance and old/new-password verification remain NOT_RUN. `LEGAL_EXTERNAL_REVIEW_STATUS=NOT_CONFIRMED`; no policy change or readiness claim is made.
 
 Local tests create explicit synthetic receipts and deny networking:
 

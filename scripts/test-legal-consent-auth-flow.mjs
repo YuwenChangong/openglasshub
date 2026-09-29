@@ -30,7 +30,8 @@ async function main() {
   assert(authPanel.includes("consentAdapter?: LegalConsentAdapter"));
 
   assert(callback.includes("getLegalConsentStatus"));
-  assert(callback.includes("consent.current ? safeNext"));
+  assert(callback.includes("current = consent.current"));
+  assert(callback.includes("navigation.replace(current ? safeNext"));
   assert(callback.includes("/legal-consent/?next="));
   assert(!callback.includes("recordLegalConsent"));
 

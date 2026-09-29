@@ -19,6 +19,7 @@ import {
   terminatePosixProcessTree,
 } from './profiles/release.mjs';
 import { executeFastRun, executeFeatureRun, executeReleaseRun, renderProfileOutput } from './runner.mjs';
+import { validateSliceAAcceptance } from '../lib/slice-a-acceptance.mjs';
 
 const FOUNDATION = [
   'git-diff-check',
@@ -747,6 +748,47 @@ test('RELEASE selects critical local verification gates and excludes every mutat
   assert.equal(selected.some((id) => /(?:deploy|provider-operation|production-smoke|database-replay)/i.test(id)), false);
 });
 
+test('releaseIncludesSliceALocalChecks', async () => {
+  const selection = resolveReleaseChecks({ profile: 'RELEASE', risk: 'HIGH', expandedAreas: ['auth'] });
+  assert.equal(selection.selectedChecks.some(({ id }) => id === 'product-recovery-slice-a'), true);
+  const registered = getCheck('release:product-recovery-slice-a');
+  assert.deepEqual(registered.allowedProfiles, ['RELEASE']);
+  assert.deepEqual(registered.retryPolicy, { classification: 'LOCAL', maxRetries: 0 });
+  assert.equal(registered.timeoutMs, 90_000);
+  const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  assert.deepEqual(packageJson.scripts['test:product-recovery-slice-a'].split(' && '), [
+    'node scripts/test-auth-legal-acknowledgement.mjs',
+    'node scripts/test-legal-consent-auth-flow.mjs',
+    'node scripts/test-legal-consent-visual.mjs',
+    'node --experimental-strip-types scripts/test-auth-redirect-safety.mjs',
+    'node --experimental-strip-types scripts/test-legal-consent-page-gate.mjs',
+    'node scripts/test-user-summary-api-safety.mjs',
+    'node scripts/test-header-identity.mjs',
+    'node scripts/test-auth-email-observability.mjs',
+    'node scripts/test-password-recovery.mjs',
+    'node scripts/test-slice-a-acceptance.mjs',
+  ]);
+  assert.equal(validateSliceAAcceptance({ schemaVersion: 1, checks: {} }).status, 'FAIL');
+
+  const directory = mkdtempSync(join(tmpdir(), 'openglass-slice-a-command-'));
+  try {
+    writeFileSync(join(directory, 'package.json'), JSON.stringify({
+      private: true,
+      scripts: { 'test:product-recovery-slice-a': 'node -e "console.log(\'SLICE_A_LOCAL_COMMAND\')"' },
+    }));
+    const env = Object.fromEntries(['SystemRoot', 'ComSpec', 'Path', 'PATH', 'TEMP', 'TMP', 'NODE_OPTIONS']
+      .flatMap((name) => typeof process.env[name] === 'string' ? [[name, process.env[name]]] : []));
+    const result = await runReleaseCheck('product-recovery-slice-a', {
+      profile: 'RELEASE', cwd: directory, env: { ...env, npm_config_offline: 'true' },
+    });
+    assert.equal(result.status, 'PASS');
+    assert.equal(result.attempts, 1);
+    assert.match(result.diagnostics.stdout, /SLICE_A_LOCAL_COMMAND/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('RELEASE selection is deterministic and every selected ID is executable only through the release adapter', () => {
   const context = { profile: 'RELEASE', risk: 'LOW', expandedAreas: ['devices', 'seo'] };
   const first = resolveReleaseChecks(context);
@@ -786,7 +828,7 @@ test('RELEASE runner retains deterministic selection evidence and zero mutation 
     assert.equal(executed.includes('database-migration-versions'), false);
     assert.equal(receipt.skippedChecks.some(({ id }) => id === 'deployment'), true);
     const persisted = JSON.parse(readFileSync(join(repository.cwd, 'artifacts', 'qa', receipt.runId, 'receipt.json'), 'utf8'));
-    assert.equal(persisted.selectedChecks.length, 32);
+    assert.equal(persisted.selectedChecks.length, 33);
     assert.deepEqual(persisted.selectedChecks, receipt.selectedChecks);
     assert.deepEqual(persisted.skippedChecks, receipt.skippedChecks);
     assert.deepEqual(persisted.areas, receipt.areas);
