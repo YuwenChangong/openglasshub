@@ -41,6 +41,10 @@ export function consumeBrowserRecoveryEvent(): boolean {
   return recoveryEvents.consume(window.location.pathname);
 }
 
+export function invalidateBrowserRecoveryEvent(): void {
+  recoveryEvents.invalidate();
+}
+
 export async function syncBrowserRealtimeAuth(supabase: SupabaseClient | null): Promise<string | null> {
   if (!supabase) return null;
 

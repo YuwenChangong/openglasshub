@@ -24,18 +24,24 @@ function Harness() {
   const [revision, setRevision] = useState(0);
   const [recoveryScenario, setRecoveryScenario] = useState(false);
   const [recoveryBeforeMount, setRecoveryBeforeMount] = useState(false);
+  const [recoveryAttempt, setRecoveryAttempt] = useState(0);
   const recovery = useMemo(() => {
     let listener: ((event: string, session: object) => void) | null = null;
     const events = createRecoveryEventBuffer();
     if (recoveryBeforeMount) events.observe("PASSWORD_RECOVERY", true, "/auth/reset-password/");
     let exchanges = 0;
     let updates = 0;
+    let resolveExchange: (() => void) | undefined;
+    const emit = () => {
+      events.observe("PASSWORD_RECOVERY", true, "/auth/reset-password/");
+      listener?.("PASSWORD_RECOVERY", {});
+    };
     const client = { auth: {
       exchangeCodeForSession: async (code: string, options?: { flowId: string }) => {
         exchanges += 1;
         record(`exchange-count:${exchanges}`);
         if (code === "flow") record(`flow-preserved:${options?.flowId === "00000000-0000-4000-8000-000000000001"}`);
-        if (code === "pending") return new Promise(() => {});
+        if (code === "pending") return new Promise((resolve) => { resolveExchange = () => resolve({ error: null, data: { redirectType: "recovery" } }); });
         if (code === "failed") return { data: null, error: new Error("private provider detail") };
         return { error: null, data: { redirectType: code === "signup" ? "signup" : "recovery" } };
       },
@@ -43,9 +49,9 @@ function Harness() {
       onAuthStateChange: (callback: typeof listener) => { listener = callback; record("listener-added"); return { data: { subscription: { unsubscribe: () => { listener = null; record("listener-removed"); } } } }; },
       updateUser: async ({ password }: { password: string }) => { updates += 1; record(`update-count:${updates}`); record(`password-preserved:${password === (window as Window & { __expectedPassword?: string }).__expectedPassword}`); return { error: null }; },
     } };
-    const adapter = createPasswordRecoveryAdapter(client as unknown as SupabaseClient, () => events.consume("/auth/reset-password/"));
-    return { adapter, emit: () => listener?.("PASSWORD_RECOVERY", {}) };
-  }, [revision, recoveryBeforeMount]);
+    const adapter = createPasswordRecoveryAdapter(client as unknown as SupabaseClient, () => events.consume("/auth/reset-password/"), () => events.invalidate());
+    return { adapter, emit, complete: () => { resolveExchange?.(); emit(); record("late-completion"); } };
+  }, [recoveryAttempt, recoveryBeforeMount]);
   // Retain releases across remounts so tests can resolve requests after unmount.
   const pending = useMemo(() => ({ releaseSession: () => {}, releaseStatus: () => {}, releaseRecord: () => {} }), []);
   const record = (name: string) => setCalls((items) => [...items, name]);
@@ -123,6 +129,7 @@ function Harness() {
   const showRecovery = (suffix: string, early = false) => {
     window.history.replaceState(null, "", `/${suffix}`);
     setRecoveryBeforeMount(early);
+    setRecoveryAttempt((value) => value + 1);
     setRecoveryScenario(true);
     setCalls([]);
     setRevision((value) => value + 1);
@@ -144,6 +151,9 @@ function Harness() {
       <button onClick={() => showRecovery("?code=flow&sb_flow_id=00000000-0000-4000-8000-000000000001")}>Recovery flow id</button>
       <button onClick={() => showRecovery("?error=private-provider-detail#error_description=private-provider-detail")}>Recovery provider error</button>
       <button onClick={() => recovery.emit()}>Emit recovery session</button>
+      <button onClick={() => recovery.complete()}>Complete pending recovery</button>
+      <button onClick={() => { setRecoveryScenario(false); setScenario("login-unchecked"); }}>Unmount recovery</button>
+      <button onClick={() => { setRecoveryScenario(true); setRevision((value) => value + 1); }}>Mount recovery</button>
       <button onClick={() => { setRecoveryBeforeMount(false); setRevision((value) => value + 1); }}>Remount recovery</button>
     </nav>
     <div className="legal-harness__surface">{content}</div>

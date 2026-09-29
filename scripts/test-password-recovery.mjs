@@ -40,6 +40,15 @@ async function main() {
   events.observe("SIGNED_OUT", false, "/auth/reset-password/");
   assert.equal(events.consume("/auth/reset-password/"), false);
   process.stdout.write("recoveryEventBuffer: PASS\n");
+  let recoveryTime = 0;
+  const expiringEvents = createRecoveryEventBuffer(() => recoveryTime);
+  expiringEvents.observe("PASSWORD_RECOVERY", true, "/auth/reset-password/");
+  recoveryTime = 2800;
+  assert.equal(expiringEvents.consume("/auth/reset-password/"), false, "expired early proof rejected");
+  expiringEvents.invalidate();
+  expiringEvents.observe("PASSWORD_RECOVERY", true, "/auth/reset-password/");
+  assert.equal(expiringEvents.consume("/auth/reset-password/"), false, "invalidated proof cannot rearm");
+  process.stdout.write("recoveryProofExpiry: PASS\n");
   let browser;
   let externalRequests = 0;
   try {
@@ -159,6 +168,28 @@ async function main() {
       assert.equal((await candidate.locator("output").textContent())?.includes("flow-preserved:true"), true);
       assert.equal(new URL(candidate.url()).searchParams.has("sb_flow_id"), false);
     });
+    for (const unmount of [false, true]) {
+      await edge(unmount ? "lateUnmountCompletionCannotRevive" : "lateTimeoutCompletionCannotRevive", async (candidate) => {
+        await candidate.clock.install();
+        await select(candidate, "Recovery pending code");
+        await candidate.waitForFunction(() => document.querySelector("output")?.textContent?.includes("exchange-count:1"));
+        if (unmount) await select(candidate, "Unmount recovery");
+        else await candidate.clock.runFor(2801);
+        await select(candidate, "Complete pending recovery");
+        await candidate.waitForFunction(() => document.querySelector("output")?.textContent?.includes("late-completion"));
+        await select(candidate, unmount ? "Mount recovery" : "Remount recovery");
+        await candidate.clock.runFor(1);
+        assert.equal(await candidate.getByLabel("新密码", { exact: true }).count(), 0);
+        await select(candidate, "Emit recovery session");
+        await candidate.clock.runFor(1);
+        assert.equal(await candidate.getByLabel("新密码", { exact: true }).count(), 0, "late event after remount also rejected");
+        assert.equal(((await candidate.locator("output").textContent())?.match(/exchange-count:/g) ?? []).length, 1);
+        await candidate.evaluate(() => window.history.replaceState(null, "", "/?code=fixture-code"));
+        await select(candidate, "Remount recovery");
+        await candidate.getByLabel("新密码", { exact: true }).waitFor();
+        assert.equal(((await candidate.locator("output").textContent())?.match(/exchange-count:/g) ?? []).length, 2, "new supplied code remains independently validated");
+      });
+    }
     await edge("failedExchangeClearsUrl", async (candidate) => {
       await select(candidate, "Recovery failed code");
       await candidate.getByText("重置链接无效或已过期，请重新发起忘记密码流程。", { exact: true }).waitFor();

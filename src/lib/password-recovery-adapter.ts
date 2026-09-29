@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { consumeBrowserRecoveryEvent } from "./supabase-browser";
+import { consumeBrowserRecoveryEvent, invalidateBrowserRecoveryEvent } from "./supabase-browser";
 
 export interface PasswordRecoveryAdapter {
   exchangeCode(code: string, flowId?: string): Promise<{ error: Error | null; redirectType: string | null }>;
@@ -8,7 +8,7 @@ export interface PasswordRecoveryAdapter {
   updatePassword(password: string): Promise<{ error: Error | null }>;
 }
 
-export function createPasswordRecoveryAdapter(client: SupabaseClient, consumeRecoveryEvent = consumeBrowserRecoveryEvent): PasswordRecoveryAdapter {
+export function createPasswordRecoveryAdapter(client: SupabaseClient, consumeRecoveryEvent = consumeBrowserRecoveryEvent, invalidateRecoveryEvent = invalidateBrowserRecoveryEvent): PasswordRecoveryAdapter {
   return {
     exchangeCode: async (code, flowId) => {
       const { data, error } = await client.auth.exchangeCodeForSession(code, flowId === undefined ? undefined : { flowId });
@@ -22,13 +22,12 @@ export function createPasswordRecoveryAdapter(client: SupabaseClient, consumeRec
     onRecoverySession: (callback) => {
       let active = true;
       const { data } = client.auth.onAuthStateChange((event, session) => {
-        if (event === "PASSWORD_RECOVERY" && session && active) {
-          consumeRecoveryEvent();
+        if (event === "PASSWORD_RECOVERY" && session && active && consumeRecoveryEvent()) {
           callback();
         }
       });
       if (consumeRecoveryEvent()) queueMicrotask(() => { if (active) callback(); });
-      return () => { active = false; data.subscription.unsubscribe(); };
+      return () => { active = false; invalidateRecoveryEvent(); data.subscription.unsubscribe(); };
     },
     updatePassword: async (password) => {
       const { error } = await client.auth.updateUser({ password });

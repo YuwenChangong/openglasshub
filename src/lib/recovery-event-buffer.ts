@@ -1,16 +1,22 @@
 const RECOVERY_PATH = "/auth/reset-password/";
 
-export function createRecoveryEventBuffer() {
-  let pending = false;
+export function createRecoveryEventBuffer(now = Date.now) {
+  let expiresAt: number | null = null;
+  let closed = false;
   return {
     observe(event: string, hasSession: boolean, pathname: string): void {
-      if (event === "PASSWORD_RECOVERY" && hasSession && pathname === RECOVERY_PATH) pending = true;
-      else if (event === "SIGNED_OUT" || event === "SIGNED_IN") pending = false;
+      if (!closed && event === "PASSWORD_RECOVERY" && hasSession && pathname === RECOVERY_PATH) expiresAt = now() + 2800;
+      else if (event === "SIGNED_OUT" || event === "SIGNED_IN") expiresAt = null;
     },
     consume(pathname: string): boolean {
-      const observed = pending && pathname === RECOVERY_PATH;
-      pending = false;
+      const observed = !closed && expiresAt !== null && now() < expiresAt && pathname === RECOVERY_PATH;
+      expiresAt = null;
       return observed;
+    },
+    invalidate(): void {
+      // SDK events have no attempt id. A closed attempt cannot accept later events.
+      closed = true;
+      expiresAt = null;
     },
   };
 }
