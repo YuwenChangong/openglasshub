@@ -10,6 +10,7 @@ export interface LegalConsentAuthAdapter {
   getSession(): Promise<ConsentSession | null>;
   signInWithPassword?(input: { email: string; password: string }): Promise<AdapterResult<ConsentSession | null>>;
   signUp?(input: { email: string; password: string; emailRedirectTo?: string }): Promise<AdapterResult<ConsentSession | null>>;
+  requestPasswordReset?(input: { email: string; redirectTo: string }): Promise<{ error: Error | null }>;
   signOut?(): Promise<Error | null>;
 }
 

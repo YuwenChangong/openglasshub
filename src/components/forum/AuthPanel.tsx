@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
 import { LEGAL_POLICY } from "../../lib/legal-policy";
+import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
 import { recordLegalConsent } from "../../lib/legal-consent-client";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
@@ -9,6 +10,7 @@ import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapt
 type Mode = "login" | "signup";
 
 interface AuthPanelProps {
+  locale?: AuthLocale;
   next?: string;
   initialMode?: Mode;
   authAdapter?: AuthPanelAdapter;
@@ -22,23 +24,23 @@ type ResendResponse =
 
 const RESEND_COOLDOWN_MS = 60_000;
 const RESEND_COOLDOWN_STORAGE_KEY = "auth-resend-confirmation-cooldown-until";
-const LEGAL_ACKNOWLEDGEMENT_ERROR = `请确认您已年满 ${LEGAL_POLICY.minimumAge} 周岁，并阅读相关政策后继续。`;
 
 function consentRecoveryHref(next: string): string {
   return `/legal-consent/?next=${encodeURIComponent(getSafeNext(next))}&reason=callback`;
 }
 
-function mapAuthError(errorMessage: string): string {
-  if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
-  if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
+function mapAuthError(errorMessage: string, messages: AuthMessages): string {
+  if (/Invalid login credentials/i.test(errorMessage)) return messages.invalidCredentials;
+  if (/Email not confirmed/i.test(errorMessage)) return messages.emailUnconfirmed;
   if (/User already registered/i.test(errorMessage)) {
-    return "如果账号已存在，请直接登录；如果账号尚未完成验证，可以重新发送验证邮件。";
+    return messages.accountMayExist;
   }
-  if (/Password should be at least/i.test(errorMessage)) return "密码长度至少为 8 位。";
-  return errorMessage;
+  if (/Password should be at least/i.test(errorMessage)) return messages.shortPassword;
+  return messages.unavailable;
 }
 
-export default function AuthPanel({ next, initialMode = "login", authAdapter, consentAdapter, navigationAdapter }: AuthPanelProps) {
+export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login", authAdapter, consentAdapter, navigationAdapter }: AuthPanelProps) {
+  const messages = getAuthMessages(locale);
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
   const safeNext = useMemo(() => {
@@ -58,6 +60,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [forgotMode, setForgotMode] = useState(false);
   const [legalAcknowledged, setLegalAcknowledged] = useState(false);
+  const [ageEligible, setAgeEligible] = useState(false);
   const [legalAcknowledgementError, setLegalAcknowledgementError] = useState("");
   const [resendCooldownUntil, setResendCooldownUntil] = useState(0);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
@@ -78,6 +81,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   useEffect(() => {
     setMode(initialMode);
     setLegalAcknowledged(false);
+    setAgeEligible(false);
     setLegalAcknowledgementError("");
   }, [initialMode]);
 
@@ -120,6 +124,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   function selectAuthMode(nextMode: Mode) {
     setMode(nextMode);
     setLegalAcknowledged(false);
+    setAgeEligible(false);
     setLegalAcknowledgementError("");
     setError("");
     setMessage("");
@@ -128,6 +133,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   function returnToAuthMode() {
     setForgotMode(false);
     setLegalAcknowledged(false);
+    setAgeEligible(false);
     setLegalAcknowledgementError("");
     setError("");
     setMessage("");
@@ -142,8 +148,8 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
     event.preventDefault();
     if (!supabase && !authAdapter) return;
 
-    if (!legalAcknowledged) {
-      setLegalAcknowledgementError(LEGAL_ACKNOWLEDGEMENT_ERROR);
+    if (!ageEligible || !legalAcknowledged) {
+      setLegalAcknowledgementError(messages.legalRequired);
       return;
     }
 
@@ -164,7 +170,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
           navigation.navigate(consentRecoveryHref(safeNext));
           return;
         }
-        setMessage("正在记录政策确认...");
+        setMessage(messages.recording);
         try {
           if (consentAdapter) await consentAdapter.recordCurrentConsent({ accessToken, source: "login" }); else await recordLegalConsent({ accessToken, source: "login" });
         } catch {
@@ -189,7 +195,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
 
       const accessToken = signUpData?.accessToken;
       if (accessToken) {
-        setMessage("正在记录政策确认...");
+        setMessage(messages.recording);
         try {
           if (consentAdapter) await consentAdapter.recordCurrentConsent({ accessToken, source: "registration" }); else await recordLegalConsent({ accessToken, source: "registration" });
           navigation.navigate(safeNext);
@@ -201,13 +207,13 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
       }
 
       setPendingVerificationEmail(email.trim());
-      setMessage("验证邮件已发送。请先完成邮箱验证，再返回站内继续。");
+      setMessage(messages.pendingCheckInbox);
     } catch (authError) {
-      const rawMessage = authError instanceof Error ? authError.message : "请求失败。";
+      const rawMessage = authError instanceof Error ? authError.message : "";
       if (/Email not confirmed/i.test(rawMessage)) {
         setPendingVerificationEmail(email.trim());
       }
-      setError(mapAuthError(rawMessage));
+      setError(mapAuthError(rawMessage, messages));
     } finally {
       setLoading(false);
     }
@@ -235,7 +241,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
       const payload = (await response.json().catch(() => null)) as ResendResponse | null;
 
       if (response.status === 429 || payload?.error === "VERIFICATION_EMAIL_RATE_LIMITED") {
-        setError("今天发送次数已达上限，请明天再试。");
+        setError(messages.resendLimit);
         return;
       }
 
@@ -244,9 +250,9 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
       }
 
       startResendCooldown();
-      setMessage(payload.message || "如果该邮箱可用，我们会发送验证邮件。");
+      setMessage(messages.pendingCheckInbox);
     } catch {
-      setError("暂时无法重新发送验证邮件，请稍后再试。");
+      setError(messages.resendFailed);
     } finally {
       setResending(false);
     }
@@ -266,17 +272,17 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
           ? buildResetPasswordRedirect(window.location.origin)
           : undefined;
 
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo,
-      });
-
+      const { error: resetError } = authAdapter?.requestPasswordReset
+        ? await authAdapter.requestPasswordReset({ email: email.trim(), redirectTo: redirectTo ?? "" })
+        : await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo });
       if (resetError) {
-        throw resetError;
+        setError(messages.resetRequestFailed);
+        return;
       }
 
-      setMessage("如果该邮箱存在对应账号，我们会发送重置密码邮件。请检查邮箱并打开重置链接。");
+      setMessage(messages.pendingCheckInbox);
     } catch {
-      setError("暂时无法发送重置邮件，请稍后再试。");
+      setError(messages.resetRequestFailed);
     } finally {
       setSendingReset(false);
     }
@@ -289,7 +295,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
     setMessage("");
     const signOutError = authAdapter?.signOut ? await authAdapter.signOut() : (await supabase!.auth.signOut()).error;
     if (signOutError) {
-      setError(mapAuthError(signOutError.message));
+      setError(mapAuthError(signOutError.message, messages));
       setLoading(false);
       return;
     }
@@ -299,7 +305,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   if (!supabase && !authAdapter) {
     return (
       <section className="auth-card">
-        <div className="auth-alert auth-alert--error">登录暂不可用，缺少必要的 Supabase 公共环境变量。</div>
+        <div className="auth-alert auth-alert--error">{messages.configurationUnavailable}</div>
       </section>
     );
   }
@@ -307,7 +313,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
   return (
     <section className="auth-card">
       <div className="auth-card__top">
-        <div className="auth-switch" role="tablist" aria-label="登录注册切换">
+        <div className="auth-switch" role="tablist" aria-label={`${messages.loginHeading} / ${messages.signupHeading}`}>
           <button
             type="button"
             role="tab"
@@ -315,7 +321,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
             className={mode === "login" ? "is-active" : ""}
             onClick={() => selectAuthMode("login")}
           >
-            登录
+            {messages.login}
           </button>
           <button
             type="button"
@@ -324,25 +330,25 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
             className={mode === "signup" ? "is-active" : ""}
             onClick={() => selectAuthMode("signup")}
           >
-            注册
+            {messages.signup}
           </button>
         </div>
       </div>
 
       {status === "checking" ? (
-        <div className="auth-alert">正在检查当前登录状态...</div>
+        <div className="auth-alert">{messages.checkingAuth}</div>
       ) : status === "signed_in" && user ? (
         <div className="auth-user-state">
-          <div className="auth-alert auth-alert--success">当前已登录。</div>
+          <div className="auth-alert auth-alert--success">{messages.signedIn}</div>
           <div className="community-cta-row">
             <a href="/me/" className="community-button--secondary auth-button">
-              我的主页
+              {messages.myProfile}
             </a>
             <a href="/me/edit/" className="community-button--secondary auth-button">
-              编辑资料
+              {messages.editProfile}
             </a>
             <a href={safeNext} className="community-button">
-              继续前往
+              {messages.continue}
             </a>
             <button
               type="button"
@@ -350,14 +356,14 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
               onClick={handleSignOut}
               disabled={loading}
             >
-              {loading ? "处理中..." : "退出登录"}
+              {loading ? messages.processing : messages.logout}
             </button>
           </div>
         </div>
       ) : forgotMode ? (
         <form onSubmit={handleResetPasswordEmail} className="auth-form">
           <label>
-            <span className="auth-label">邮箱</span>
+            <span className="auth-label">{messages.email}</span>
             <input
               className="community-input"
               type="email"
@@ -369,7 +375,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
           </label>
           <div className="community-cta-row">
             <button className="community-button auth-button" type="submit" disabled={sendingReset}>
-              {sendingReset ? "发送中..." : "发送重置邮件"}
+              {sendingReset ? messages.sending : messages.requestReset}
             </button>
             <button
               type="button"
@@ -377,14 +383,14 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
               onClick={returnToAuthMode}
               disabled={sendingReset}
             >
-              返回登录
+              {messages.backToLogin}
             </button>
           </div>
         </form>
       ) : (
         <form onSubmit={handleAuthSubmit} className="auth-form">
           <label>
-            <span className="auth-label">邮箱</span>
+            <span className="auth-label">{messages.email}</span>
             <input
               className="community-input"
               type="email"
@@ -395,7 +401,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
             />
           </label>
           <label>
-            <span className="auth-label">密码</span>
+            <span className="auth-label">{messages.password}</span>
             <input
               className="community-input"
               type="password"
@@ -408,6 +414,17 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
           </label>
           <div className="auth-legal-acknowledgement">
             <input
+              id="auth-age-eligibility"
+              type="checkbox"
+              checked={ageEligible}
+              onChange={(event) => { setAgeEligible(event.target.checked); if (event.target.checked) setLegalAcknowledgementError(""); }}
+              aria-invalid={legalAcknowledgementError ? true : undefined}
+              aria-describedby={legalAcknowledgementError ? "auth-legal-acknowledgement-error" : undefined}
+            />
+            <label htmlFor="auth-age-eligibility">{messages.eligibility(LEGAL_POLICY.minimumAge)}</label>
+          </div>
+          <div className="auth-legal-acknowledgement">
+            <input
               id="auth-legal-acknowledgement"
               type="checkbox"
               checked={legalAcknowledged}
@@ -416,32 +433,19 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
               aria-describedby={legalAcknowledgementError ? "auth-legal-acknowledgement-error" : undefined}
             />
             <label htmlFor="auth-legal-acknowledgement">
-              我确认已年满 {LEGAL_POLICY.minimumAge} 周岁，并已阅读并同意
+              {messages.consentSentence}{" "}
               <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
-                《服务条款》
+                {messages.terms}
               </a>
-              和
+              {" "}{messages.legalJoin}{" "}
               <a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
-                《社区准则》
+                {messages.guidelines}
               </a>
-              ，且已阅读并知悉
+              {messages.privacyLead}{" "}
               <a href={LEGAL_POLICY.routes.privacy} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
-                《隐私政策》
+                {messages.privacy}
               </a>
-              。
-              <span lang="en">
-                I confirm that I am at least {LEGAL_POLICY.minimumAge} years old, agree to the{" "}
-                <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
-                  Terms of Service
-                </a>
-                {" "}and{" "}
-                <a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>Community Guidelines</a>, and acknowledge that I have read the
-                {" "}
-                <a href={LEGAL_POLICY.routes.privacy} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
-                  Privacy Policy
-                </a>
-                .
-              </span>
+              {messages.consentEnd}
             </label>
             {legalAcknowledgementError ? (
               <div id="auth-legal-acknowledgement-error" className="auth-alert auth-alert--error" role="alert">
@@ -450,8 +454,8 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
             ) : null}
           </div>
           <div className="community-cta-row">
-            <button className="community-button auth-button" type="submit" disabled={loading}>
-              {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
+            <button className="community-button auth-button" type="submit" disabled={loading || !ageEligible || !legalAcknowledged} style={{ opacity: !ageEligible || !legalAcknowledged ? 0.55 : undefined }}>
+              {loading ? messages.processing : mode === "login" ? messages.login : messages.signup}
             </button>
             <button
               type="button"
@@ -459,7 +463,7 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
               onClick={() => selectAuthMode(mode === "login" ? "signup" : "login")}
               disabled={loading}
             >
-              {mode === "login" ? "切换到注册" : "切换到登录"}
+              {mode === "login" ? messages.switchToSignup : messages.switchToLogin}
             </button>
           </div>
           {mode === "login" ? (
@@ -469,12 +473,13 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
               onClick={() => {
                 setForgotMode(true);
                 setLegalAcknowledged(false);
+                setAgeEligible(false);
                 setLegalAcknowledgementError("");
                 setError("");
                 setMessage("");
               }}
             >
-              忘记密码？
+              {messages.forgotPassword}
             </button>
           ) : null}
         </form>
@@ -485,10 +490,6 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
         {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
         {pendingVerificationEmail ? (
           <div className="auth-resend">
-            <div className="auth-resend__copy">
-              <span className="auth-resend__note">已发送，请检查邮箱或垃圾箱。</span>
-              <span className="auth-resend__hint">如果没有收到邮件，请检查垃圾箱，或稍后重新发送。</span>
-            </div>
             <div className="auth-resend__actions">
               <button
                 type="button"
@@ -497,10 +498,10 @@ export default function AuthPanel({ next, initialMode = "login", authAdapter, co
                 disabled={resending || resendCooldownSeconds > 0}
               >
                 {resending
-                  ? "发送中..."
+                  ? messages.sending
                   : resendCooldownSeconds > 0
-                    ? `${resendCooldownSeconds} 秒后可重新发送`
-                    : "重新发送验证邮件"}
+                    ? messages.cooldown(resendCooldownSeconds)
+                    : messages.resend}
               </button>
             </div>
           </div>

@@ -4171,10 +4171,6 @@ body {
   .header-user-menu__trigger {
     max-width: 180px;
   }
-
-  .header-user-menu__trigger-copy {
-    display: none;
-  }
 }
 
 @media (max-width: 720px) {

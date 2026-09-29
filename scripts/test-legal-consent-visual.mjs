@@ -4,6 +4,7 @@ import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import assert from "node:assert/strict";
 import { LEGAL_CONSENT_STATE_MATRIX, REQUIRED_VIEWPORTS } from "../tests/visual/legal-consent-state-matrix.mjs";
 
 const root = process.cwd();
@@ -13,7 +14,217 @@ const runId = new Date().toISOString().replace(/[:.]/g, "-");
 const evidence = path.join(os.tmpdir(), `openglass-legal-consent-phase3b1-matrix-${runId}`);
 const states = LEGAL_CONSENT_STATE_MATRIX;
 const viewports = REQUIRED_VIEWPORTS;
-const assert = (condition, message) => { if (!condition) throw new Error(message); };
+
+async function select(page, id) {
+  await page.getByRole("button", { name: id, exact: true }).click();
+}
+async function trace(page) { return (await page.locator("output").textContent()) ?? ""; }
+async function replaced(page, destination = "/feed/") {
+  await page.waitForFunction((url) => document.querySelector("output")?.textContent?.includes(`replace:${url}`), destination);
+  assert.equal((await trace(page)).split(",").filter((call) => call.startsWith("replace:")).length, 1);
+  assert.equal((await trace(page)).includes("navigate:"), false);
+  assert.equal(await page.getByText("当前政策版本已确认。", { exact: true }).count(), 0);
+}
+async function submitConsent(page) {
+  await page.locator("#legal-consent-age-eligibility").check();
+  await page.locator("#legal-consent-acknowledgement").check();
+  await page.getByRole("button", { name: "确认并继续", exact: true }).click();
+}
+async function singleLanguageRegistration(page) {
+  await select(page, "register-unchecked");
+  assert.equal(await page.getByRole("checkbox").count(), 2);
+  assert.equal(await page.getByRole("button", { name: "注册", exact: true }).isDisabled(), true);
+  assert.equal(await page.getByText("Terms", { exact: true }).count(), 0);
+}
+async function eligibilityStillRequired(page) {
+  await select(page, "register-unchecked");
+  await page.locator("#auth-legal-acknowledgement").check();
+  assert.equal(await page.getByRole("button", { name: "注册", exact: true }).isDisabled(), true);
+  await page.locator("#auth-age-eligibility").check();
+  assert.equal(await page.getByRole("button", { name: "注册", exact: true }).isEnabled(), true);
+}
+async function englishPreview(page) {
+  await select(page, "register-en-unchecked");
+  assert.equal(await page.getByRole("checkbox").count(), 2);
+  assert.equal(await page.getByText("Terms of Service", { exact: true }).count(), 1);
+  assert.equal(await page.getByText("服务条款", { exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Sign up", exact: true }).isDisabled(), true);
+  await select(page, "consent-en-missing-unchecked");
+  assert.equal(await page.getByText("Community Guidelines", { exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Confirm and continue", exact: true }).isDisabled(), true);
+}
+async function englishStateChecks(page) {
+  await select(page, "locale-en");
+  await select(page, "consent-session-loading");
+  await page.getByText("Checking policy confirmation...", { exact: true }).waitFor();
+  await select(page, "consent-status-failure");
+  await page.getByRole("alert").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Retry", exact: true }).count(), 1);
+  await select(page, "consent-already-current");
+  await replaced(page);
+  await select(page, "consent-missing-unchecked");
+  assert.equal(await page.getByRole("checkbox").count(), 2);
+  assert.equal(await page.getByText("Terms of Service", { exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Confirm and continue", exact: true }).isDisabled(), true);
+  await select(page, "consent-session-expired-401");
+  await page.getByRole("link", { name: "Go to login", exact: true }).waitFor();
+  await select(page, "locale-zh");
+}
+async function navigationFailureRecovers(page, mode) {
+  await page.clock.install({ time: new Date("2026-09-28T00:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-09-28T00:01:00Z"));
+  for (const consent of ["current", "record"]) {
+    await select(page, `consent-${consent}-navigation-${mode}`);
+    if (consent === "record") await submitConsent(page);
+    await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("replace:/feed/"));
+    if (mode === "stall") {
+      await page.clock.runFor(7999);
+      assert.equal(await page.getByRole("button", { name: "重试", exact: true }).count(), 0, "redirect deadline must allow the bounded waiting interval");
+      await page.clock.runFor(2);
+    }
+    assert.equal(await page.locator(".legal-harness__surface").getByRole("alert").count(), 1, `navigation-${mode}: ${consent} consent must expose actionable error`);
+    const prefix = consent === "record" ? "getConsent,recordConsent:legacy_account_gate" : "getConsent";
+    assert.equal(await trace(page), `${prefix},replace:/feed/`);
+    await page.getByRole("button", { name: "重试", exact: true }).click();
+    await page.waitForFunction(() => (document.querySelector("output")?.textContent?.match(/replace:\/feed\//g) ?? []).length === 2);
+    assert.equal(await trace(page), `${prefix},replace:/feed/,replace:/feed/`, "navigation retry must not repeat GET or consent record");
+    if (mode === "stall") {
+      assert.equal(await page.getByRole("button", { name: "重试", exact: true }).count(), 0);
+      await page.clock.runFor(8001);
+    }
+    await page.getByRole("button", { name: "退出登录", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signOut,replace:/login/"));
+    assert.equal(await trace(page), `${prefix},replace:/feed/,replace:/feed/,signOut,replace:/login/?next=%2Flegal-consent%2F%3Fnext%3D%252Ffeed%252F`);
+    await page.clock.runFor(8001);
+    await page.getByRole("button", { name: "重试", exact: true }).click();
+    await page.waitForFunction(() => (document.querySelector("output")?.textContent?.match(/replace:\/login\//g) ?? []).length === 2);
+    assert.equal((await trace(page)).split(",").filter((call) => call === "signOut").length, 1, "logout redirect retry must not repeat signOut");
+    await select(page, "consent-signed-out");
+    await page.clock.runFor(8001);
+    assert.equal(await page.locator(".legal-harness__surface").getByRole("alert").count(), 0, "redirect deadline must be cleared on unmount");
+  }
+}
+async function throwingNavigationRecovers(page) { await navigationFailureRecovers(page, "throw"); }
+async function stalledNavigationRecovers(page) { await navigationFailureRecovers(page, "stall"); }
+async function currentConsentReplaces(page) {
+  await select(page, "consent-already-current");
+  // Wait for status lookup to finish so RED names the missing replacement, not networking.
+  await page.waitForFunction(() => /replace:|当前政策版本已确认。/.test(document.body.textContent ?? ""));
+  assert.equal((await trace(page)).includes("replace:/feed/"), true, "currentConsentReplaces: already-current consent must replace immediately");
+  await replaced(page);
+  assert.equal((await trace(page)).includes("recordConsent"), false);
+}
+async function requiredConsentRecordsThenReplaces(page) {
+  await select(page, "consent-missing-unchecked");
+  await submitConsent(page);
+  await replaced(page);
+  assert.equal(await trace(page), "getConsent,recordConsent:legacy_account_gate,replace:/feed/");
+  await select(page, "consent-outdated-bundle");
+  await submitConsent(page);
+  await replaced(page);
+  assert.equal(await trace(page), "getConsent,recordConsent:policy_update,replace:/feed/");
+  await select(page, "consent-callback-success");
+  await submitConsent(page); await replaced(page);
+  assert.equal(await trace(page), "getConsent,recordConsent:authenticated_callback,replace:/feed/");
+}
+async function expiredSubmissionReturnsToLogin(page) {
+  for (const id of ["consent-submit-expired-401", "consent-submit-session-missing", "consent-session-expired-401"]) {
+    await select(page, id);
+    if (id !== "consent-session-expired-401") await submitConsent(page);
+    const login = page.getByRole("link", { name: "前往登录", exact: true });
+    await login.waitFor();
+    const href = await login.getAttribute("href");
+    const returnTo = new URL(href, "http://127.0.0.1").searchParams.get("next");
+    assert.equal(returnTo, id === "consent-submit-expired-401" ? "/legal-consent/?next=%2Fcircles%2F%3Fsort%3Dlatest%23reply" : "/legal-consent/?next=%2Ffeed%2F");
+    assert.equal(/replace:|navigate:/.test(await trace(page)), false);
+  }
+}
+async function consentNextRejectsLoops(page) {
+  for (const id of ["consent-external-next", "consent-encoded-external-next", "consent-self-loop-next"]) {
+    await select(page, id);
+    await replaced(page);
+    assert.equal((await trace(page)).includes("recordConsent"), false);
+  }
+}
+async function consentFailuresAndLifecycle(page) {
+  for (const id of ["consent-post-failure", "consent-record-not-current", "consent-submit-auth-failure"]) {
+    await select(page, id); await submitConsent(page);
+    await page.getByRole("alert").waitFor();
+    assert.equal(await trace(page), id === "consent-submit-auth-failure" ? "getConsent" : "getConsent,recordConsent:legacy_account_gate");
+    assert.equal(await page.getByRole("button", { name: "确认并继续", exact: true }).isEnabled(), true);
+  }
+  await select(page, "consent-retry-success");
+  await page.getByRole("button", { name: "重试", exact: true }).click();
+  await replaced(page);
+  assert.equal(await trace(page), "getConsent,getConsent,replace:/feed/");
+  await select(page, "consent-delayed-current");
+  await page.locator(".legal-harness__surface").getByRole("status").waitFor();
+  assert.equal(await trace(page), "getConsent");
+  await select(page, "release-status"); await replaced(page);
+  await select(page, "consent-delayed-current");
+  await page.locator(".legal-harness__surface").getByRole("status").waitFor();
+  await select(page, "consent-signed-out");
+  await select(page, "release-status");
+  await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("statusResolved"));
+  await page.getByRole("link", { name: "前往登录", exact: true }).waitFor();
+  assert.equal(await trace(page), "statusResolved");
+  await select(page, "consent-submit-pending");
+  await page.locator("#legal-consent-age-eligibility").check();
+  await page.locator("#legal-consent-acknowledgement").check();
+  await page.locator("form").evaluate((form) => {
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
+  await select(page, "release-session");
+  await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("recordConsent"));
+  assert.equal(await trace(page), "getConsent,recordConsent:legacy_account_gate");
+  await select(page, "release-record"); await replaced(page);
+  assert.equal(await trace(page), "getConsent,recordConsent:legacy_account_gate,recordResolved,replace:/feed/");
+  await select(page, "consent-submit-pending"); await submitConsent(page);
+  await select(page, "release-session");
+  await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("recordConsent"));
+  await select(page, "consent-signed-out"); await select(page, "release-record");
+  await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("recordResolved"));
+  assert.equal(await trace(page), "recordResolved");
+  await page.clock.install();
+  await select(page, "consent-delayed-current");
+  await page.waitForFunction(() => document.querySelector("output")?.textContent === "getConsent");
+  await page.clock.runFor(8001);
+  await page.getByRole("alert").waitFor();
+  await select(page, "release-status");
+  await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("statusResolved"));
+  assert.equal(await trace(page), "getConsent,statusResolved");
+  assert.equal(await page.getByRole("button", { name: "重试", exact: true }).count(), 1);
+  await select(page, "consent-auth-failure");
+  await page.getByRole("alert").waitFor();
+  assert.equal(await trace(page), "");
+  await select(page, "consent-status-failure");
+  await page.getByRole("button", { name: "退出登录", exact: true }).click();
+  await replaced(page, "/login/?next=%2Flegal-consent%2F%3Fnext%3D%252Ffeed%252F");
+  assert.equal(await trace(page), "getConsent,signOut,replace:/login/?next=%2Flegal-consent%2F%3Fnext%3D%252Ffeed%252F");
+  await select(page, "consent-logout-failure");
+  await page.getByRole("button", { name: "退出登录", exact: true }).click();
+  await page.getByRole("alert").waitFor();
+  assert.equal(await trace(page), "getConsent,signOut");
+}
+
+async function prepareScreenshot(page, id) {
+  await select(page, id);
+  if (["login-checked", "register-checked"].includes(id)) {
+    await page.locator("#auth-age-eligibility").check();
+    await page.locator("#auth-legal-acknowledgement").check();
+  }
+  if (["consent-missing-checked", "consent-submit-pending", "consent-submit-success", "consent-post-failure"].includes(id)) {
+    await page.locator("#legal-consent-age-eligibility").check();
+    await page.locator("#legal-consent-acknowledgement").check();
+    if (id !== "consent-missing-checked") await page.getByRole("button", { name: "确认并继续", exact: true }).click();
+  }
+  if (id === "consent-submit-success") await replaced(page);
+  if (id === "consent-post-failure") await page.getByRole("alert").waitFor();
+  if (id === "consent-submit-pending") await page.getByRole("button", { name: "正在记录确认...", exact: true }).waitFor();
+  if (["consent-status-failure", "consent-rate-limited-429"].includes(id)) await page.getByRole("alert").waitFor();
+  if (["consent-signed-out", "consent-session-expired-401"].includes(id)) await page.getByRole("link", { name: "前往登录", exact: true }).waitFor();
+}
 
 async function loadPlaywright() {
   try { return await import("playwright"); } catch { /* desktop runtime fallback */ }
@@ -37,70 +248,113 @@ async function main() {
   await fs.mkdir(evidence, { recursive: true });
   const vite = spawn(process.execPath, [path.join(root, "node_modules", "vite", "bin", "vite.js"), "--config", "vite.config.ts", "--port", String(port), "--strictPort"], { cwd: harness, stdio: "ignore", windowsHide: true });
   const ids = states.map(({ id }) => id);
-  assert(ids.length === 30, "manifest must contain exactly 30 states");
-  assert(new Set(ids).size === 30, "manifest state IDs must be unique");
-  const report = { expectedStateCount: 30, executedStateCount: 0, passedStateCount: 0, failedStateCount: 0, missingStateIds: [], duplicateStateIds: [], screenshotRequiredStateCount: 25, requiredViewportCount: 3, expectedScreenshotCount: 75, actualScreenshotCount: 0, redirectAssertionStateCount: 5, passedRedirectAssertionCount: 0, unexpectedExternalRequestCount: 0, states: ids, screenshots: [], interaction: [], accessibility: [], layout: [], blockedNetwork: [] };
+  assert(ids.length === 32, "manifest must contain exactly 32 states");
+  assert(new Set(ids).size === 32, "manifest state IDs must be unique");
+  const report = { expectedStateCount: 32, executedStateCount: 0, passedStateCount: 0, failedStateCount: 0, missingStateIds: [], duplicateStateIds: [], screenshotRequiredStateCount: 26, requiredViewportCount: 3, expectedScreenshotCount: 78, actualScreenshotCount: 0, checkedScreenshotAssertionCount: 0, redirectAssertionStateCount: 6, passedRedirectAssertionCount: 0, unexpectedExternalRequestCount: 0, consoleAssessment: "not collected", states: ids, screenshots: [], interaction: [], accessibility: [], layout: [], blockedNetwork: [] };
   let redirects = [];
   try {
     await waitForServer();
     const { chromium } = await loadPlaywright();
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: true, args: ["--disable-background-networking", "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"] });
     try {
+      const context = await browser.newContext({ serviceWorkers: "block" });
+      await context.route("**/*", async (route) => {
+        const url = new URL(route.request().url());
+        if (url.origin === `http://127.0.0.1:${port}` || url.protocol === "data:") return route.continue();
+        report.blockedNetwork.push(url.origin); await route.abort();
+      });
+      await context.routeWebSocket("**/*", (socket) => {
+        if (new URL(socket.url()).origin === `ws://127.0.0.1:${port}`) socket.connectToServer();
+        else { report.blockedNetwork.push(new URL(socket.url()).origin); socket.close(); }
+      });
+      const navigationFailures = [];
+      for (const test of [throwingNavigationRecovers, stalledNavigationRecovers]) {
+        const page = await context.newPage();
+        try {
+          await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+          await test(page);
+          report.interaction.push(`${test.name}: PASS`); process.stdout.write(`${test.name}: PASS\n`);
+        } catch (error) {
+          navigationFailures.push(error.message); process.stdout.write(`${test.name}: FAIL ${error.message}\n`);
+        } finally { await page.close(); }
+      }
+      assert.equal(navigationFailures.length, 0, "navigation failure recovery assertions failed");
+      const behavioralPage = await context.newPage();
+      await behavioralPage.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+      for (const test of [singleLanguageRegistration, eligibilityStillRequired, englishPreview, englishStateChecks, currentConsentReplaces, requiredConsentRecordsThenReplaces, expiredSubmissionReturnsToLogin, consentNextRejectsLoops, consentFailuresAndLifecycle]) {
+        await test(behavioralPage); report.interaction.push(`${test.name}: PASS`);
+        process.stdout.write(`${test.name}: PASS\n`);
+      }
+      await behavioralPage.close();
       for (const viewport of viewports) {
-        const page = await browser.newPage({ viewport });
-        await page.route("**/*", async (route) => {
-          const url = route.request().url();
-          if (url.startsWith(`http://127.0.0.1:${port}`) || url.startsWith("data:")) return route.continue();
-          report.blockedNetwork.push(new URL(url).origin);
-          await route.abort();
-        });
+        const page = await context.newPage();
+        await page.setViewportSize(viewport);
         await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
         for (const state of states.filter(({ screenshotRequired }) => screenshotRequired)) {
-          await page.getByRole("button", { name: state.id, exact: true }).click();
+          await prepareScreenshot(page, state.id);
+          if (["login-checked", "register-checked", "consent-missing-checked"].includes(state.id)) {
+            const controls = page.locator(".legal-harness__surface input[type='checkbox']");
+            assert.equal(await controls.count(), 2, `${state.id} must render both attestations`);
+            assert.equal(await controls.nth(0).isChecked(), true, `${state.id} screenshot requires checked age eligibility`);
+            assert.equal(await controls.nth(1).isChecked(), true, `${state.id} screenshot requires checked legal acknowledgement`);
+            const submit = page.locator(".legal-harness__surface button[type='submit']");
+            assert.equal(await submit.isEnabled(), true, `${state.id} submit must be enabled`);
+            report.checkedScreenshotAssertionCount += 1;
+          }
           await page.waitForTimeout(25);
           const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
           assert(!overflow, `${state.id} overflows at ${viewport.label}`);
           const image = path.join(evidence, "screenshots", `${viewport.label}-${state.id}.png`);
           await fs.mkdir(path.dirname(image), { recursive: true });
           await page.locator(".legal-harness__surface").screenshot({ path: image });
-          report.screenshots.push(path.basename(image)); report.layout.push(`${viewport.label} ${state.id} OK`); report.executedStateCount += 1;
+          report.screenshots.push(path.basename(image)); report.layout.push(`${viewport.label} ${state.id} OK`); if (viewport === viewports[0]) report.executedStateCount += 1;
         }
         await page.getByRole("button", { name: "login-unchecked", exact: true }).click();
         const checkbox = page.locator("#auth-legal-acknowledgement");
         await page.locator('input[type="email"]').fill("visual@example.invalid");
         await page.locator('input[type="password"]').fill("visual-passphrase");
-        assert(await checkbox.count() === 1 && !(await checkbox.isChecked()), "auth checkbox must be singular and unchecked");
-        await page.getByRole("button", { name: "登录", exact: true }).click();
+        const eligibility = page.locator("#auth-age-eligibility");
+        assert(await checkbox.count() === 1 && !(await checkbox.isChecked()) && !(await eligibility.isChecked()), "both auth controls must start unchecked");
+        assert(await page.getByRole("button", { name: "登录", exact: true }).isDisabled(), "unchecked login must be disabled");
         assert(!(await page.locator("output").textContent())?.includes("signIn"), "unchecked login must not authenticate");
+        await eligibility.check();
+        assert(await page.getByRole("button", { name: "登录", exact: true }).isDisabled(), "age alone must not authenticate");
         await checkbox.check(); await page.getByRole("button", { name: "登录", exact: true }).click();
-        await page.waitForTimeout(25); assert((await page.locator("output").textContent())?.includes("signIn,recordConsent"), "checked login must authenticate then record consent");
+        await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signIn,recordConsent:login"));
         report.interaction.push(`${viewport.label}: consent gate and ordered call flow OK`);
         const h1Count = await page.locator("h1").count();
         assert(h1Count <= 1, "rendered surface must not have multiple H1s");
         report.accessibility.push(`${viewport.label}: labels, controls, and heading count OK`);
         await page.close();
       }
-      const page = await browser.newPage({ viewport: viewports[0] });
+      const page = await context.newPage();
+      await page.setViewportSize(viewports[0]);
       for (const state of states.filter(({ screenshotRequired }) => !screenshotRequired)) {
         await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
-        await page.getByRole("button", { name: state.id, exact: true }).click(); await page.waitForTimeout(25);
+        await page.getByRole("button", { name: state.id, exact: true }).click();
+        await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("replace:"));
         const trace = await page.locator("output").textContent();
         assert(trace?.includes("replace:"), `${state.id} must use recorded replace navigation`);
-        redirects.push({ id: state.id, trace: trace?.replace(/test-session/g, "[redacted]") ?? "", navigation: "replace", consentPostCount: 0 });
+        assert.equal(trace?.includes("navigate:"), false);
+        assert.equal(trace?.includes("recordConsent"), false);
+        redirects.push({ id: state.id, trace: trace ?? "", navigation: "replace", consentPostCount: 0 });
         report.passedRedirectAssertionCount += 1; report.executedStateCount += 1;
       }
       await page.close();
     } finally { await browser.close(); }
-    report.passedStateCount = 30; report.actualScreenshotCount = report.screenshots.length; report.unexpectedExternalRequestCount = report.blockedNetwork.length;
-    assert(report.actualScreenshotCount >= 75 && report.passedRedirectAssertionCount === 5 && report.unexpectedExternalRequestCount === 0, "matrix evidence invariants failed");
+    report.passedStateCount = 32; report.actualScreenshotCount = report.screenshots.length; report.unexpectedExternalRequestCount = report.blockedNetwork.length;
+    assert(report.executedStateCount === 32 && report.actualScreenshotCount === 78 && report.checkedScreenshotAssertionCount === 9 && report.passedRedirectAssertionCount === 6 && report.unexpectedExternalRequestCount === 0, "matrix evidence invariants failed");
     await fs.writeFile(path.join(evidence, "matrix.json"), JSON.stringify(report, null, 2));
-    await fs.writeFile(path.join(evidence, "matrix.md"), `# Legal consent matrix\n\n30/30 states passed. ${report.actualScreenshotCount} screenshots.\n`);
+    await fs.writeFile(path.join(evidence, "matrix.md"), `# Legal consent matrix\n\n32/32 entries exercised; ${report.checkedScreenshotAssertionCount} checked-state screenshot assertions; ${report.actualScreenshotCount} screenshots. Other screenshot state names are not semantic assertions. Console output was not collected.\n`);
     await fs.writeFile(path.join(evidence, "redirect-results.json"), JSON.stringify(redirects, null, 2));
-    for (const [name, value] of Object.entries({ "interaction-results.json": report.interaction, "accessibility-results.json": report.accessibility, "layout-results.json": report.layout, "network-results.json": { allowedLocalOrigin: `http://127.0.0.1:${port}`, blockedExternal: report.blockedNetwork, unexpectedExternalRequestCount: 0 }, "console-results.json": [] })) await fs.writeFile(path.join(evidence, name), JSON.stringify(value, null, 2));
+    for (const [name, value] of Object.entries({ "interaction-results.json": report.interaction, "accessibility-results.json": report.accessibility, "layout-results.json": report.layout, "network-results.json": { allowedLocalOrigin: `http://127.0.0.1:${port}`, blockedExternal: report.blockedNetwork, unexpectedExternalRequestCount: 0 } })) await fs.writeFile(path.join(evidence, name), JSON.stringify(value, null, 2));
     await fs.writeFile(path.join(evidence, "production-exclusion.json"), JSON.stringify({ passed: true, note: "Production build exclusion is checked by the release gate." }, null, 2));
-    process.stdout.write(`LEGAL_CONSENT_VISUAL_OK 30/30 states passed evidence=${evidence}\n`);
+    process.stdout.write(`LEGAL_CONSENT_VISUAL_OK 32/32 entries exercised checkedScreenshots=${report.checkedScreenshotAssertionCount} evidence=${evidence}\n`);
   } finally {
-    vite.kill();
+    if (vite.exitCode === null) {
+      const exited = new Promise((resolve) => vite.once("exit", resolve));
+      vite.kill(); await exited;
+    }
   }
 }
 main().catch((error) => { process.stderr.write(`LEGAL_CONSENT_VISUAL_FAIL ${error.message}\n`); process.exitCode = 1; });

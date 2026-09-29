@@ -3,6 +3,18 @@ import { readFileSync } from "node:fs";
 import { createServer } from "vite";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../src/lib/auth-redirect.ts";
 import * as authRedirect from "../src/lib/auth-redirect.ts";
+import { getSafeConsentNext } from "../src/lib/legal-consent-navigation.ts";
+
+function consentNextRejectsLoops() {
+  for (const input of ["/legal-consent/?next=%2Flegal-consent%2F", "/legal-consent", "/login/?next=%2Ffeed%2F", "/register/", "/auth/callback/", "/auth/reset-password/", "/%6cegal-consent/", "/%256cegal-consent/", "/login%2f", "/auth%2fcallback/", "/foo/../legal-consent/", "/legal-consent//", "/LOGIN/", "/%252f%252fexample.invalid", "https://example.invalid", null, undefined, 42, {}]) {
+    assert.equal(getSafeConsentNext(input), "/feed/", `consentNextRejectsLoops: ${String(input)}`);
+  }
+  for (const input of ["/circles/", "/circles/?sort=latest#reply", "/forum/%E6%B5%8B%E8%AF%95", "/posts/?next=%2Flegal-consent%2F", "/login-help/", "/legal-consent-guide/", "/"]) {
+    assert.equal(getSafeConsentNext(input), input);
+  }
+  console.log("consentNextRejectsLoops: PASS rejected=19 preserved=7");
+}
+consentNextRejectsLoops();
 
 assert.equal(typeof authRedirect.buildSignupHref, "function", "signup CTA needs an explicit signup destination");
 assert.equal(authRedirect.buildSignupHref("/feed/?sort=latest#reply"), "/login/?mode=register&next=%2Ffeed%2F%3Fsort%3Dlatest%23reply");

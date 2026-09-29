@@ -1,64 +1,85 @@
 import { useEffect, useMemo, useState } from "react";
-import { getSafeNext } from "../../lib/auth-redirect";
+import { getSafeConsentNext } from "../../lib/legal-consent-navigation";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { getLegalConsentStatus } from "../../lib/legal-consent-client";
+import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
 import { browserNavigationAdapter, type LegalConsentAdapter, type LegalConsentAuthAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
+import { clearAuthCallbackUrl, hasAuthCallbackError } from "../../lib/auth-callback-url";
 
 interface AuthCallbackProps {
+  locale?: AuthLocale;
   next?: string;
   authAdapter?: LegalConsentAuthAdapter;
   consentAdapter?: LegalConsentAdapter;
   navigationAdapter?: LegalConsentNavigationAdapter;
+  codeExchange?: (code: string, flowId?: string) => Promise<{ error: Error | null }>;
 }
 
-function mapCallbackError(errorMessage: string): string {
-  if (/Auth session missing/i.test(errorMessage)) return "当前还没有建立登录会话，请稍候或重新打开确认链接。";
-  return errorMessage;
+function mapCallbackError(errorMessage: string, messages: AuthMessages): string {
+  if (/Auth session missing/i.test(errorMessage)) return messages.callbackMissing;
+  return messages.callbackFailed;
 }
 
-export default function AuthCallback({ next, authAdapter, consentAdapter, navigationAdapter }: AuthCallbackProps) {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+export default function AuthCallback({ locale = "zh-CN", next, authAdapter, consentAdapter, navigationAdapter, codeExchange }: AuthCallbackProps) {
+  const messages = getAuthMessages(locale);
+  const supabase = useMemo(() => authAdapter ? null : createBrowserSupabaseClient(), [authAdapter]);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
   const safeNext = useMemo(() => {
-    if (next) return getSafeNext(next);
-    if (typeof window === "undefined") return "/";
-    return getSafeNext(new URLSearchParams(window.location.search).get("next"));
+    if (next) return getSafeConsentNext(next);
+    if (typeof window === "undefined") return "/feed/";
+    return getSafeConsentNext(new URLSearchParams(window.location.search).get("next"));
   }, [next]);
 
-  const [status, setStatus] = useState("正在完成登录确认...");
+  const [status, setStatus] = useState(messages.callbackPending);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!supabase && !authAdapter) {
-      setError("缺少 PUBLIC_SUPABASE_URL 或 PUBLIC_SUPABASE_ANON_KEY。");
+      clearAuthCallbackUrl();
+      setError(messages.configurationUnavailable);
       return;
     }
 
     let mounted = true;
+    let redirected = false;
     let timeoutId: number | undefined;
 
     async function redirectIfReady() {
       const adapterSession = authAdapter ? await authAdapter.getSession() : null;
       const { data } = authAdapter ? { data: { session: adapterSession ? { access_token: adapterSession.accessToken } : null } } : await supabase!.auth.getSession();
-      if (!mounted) return;
+      if (!mounted || redirected) return;
 
       if (data.session?.access_token) {
+        let current = false;
         try {
           const consent = consentAdapter ? await consentAdapter.getCurrentConsent(data.session.access_token) : await getLegalConsentStatus(data.session.access_token);
-          navigation.replace(consent.current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
-        } catch {
-          navigation.replace(`/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
-        }
+          current = consent.current;
+        } catch { /* consent gate remains the safe destination */ }
+        if (!mounted || redirected) return;
+        redirected = true;
+        if (timeoutId) window.clearTimeout(timeoutId);
+        clearAuthCallbackUrl();
+        try { navigation.replace(current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`); }
+        catch { setError(messages.callbackFailed); }
       }
     }
 
     async function boot() {
       try {
         const currentUrl = new URL(window.location.href);
+        const providerError = hasAuthCallbackError(currentUrl);
         const code = currentUrl.searchParams.get("code");
+        const flowId = currentUrl.searchParams.get("sb_flow_id") ?? undefined;
+        if (providerError || currentUrl.searchParams.has("code")) {
+          if (!clearAuthCallbackUrl()) { setError(messages.callbackFailed); return; }
+        }
+        if (providerError || (currentUrl.searchParams.has("code") && !code)) {
+          setError(messages.callbackFailed);
+          return;
+        }
 
-        if (code && !authAdapter) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (code && (!authAdapter || codeExchange)) {
+          const { error: exchangeError } = codeExchange ? await codeExchange(code, flowId) : await supabase!.auth.exchangeCodeForSession(code, flowId === undefined ? undefined : { flowId });
           if (exchangeError) {
             throw exchangeError;
           }
@@ -66,7 +87,7 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
 
         await redirectIfReady();
 
-        if (authAdapter) return;
+        if (authAdapter || !mounted || redirected) return;
         const { data: listener } = supabase!.auth.onAuthStateChange((event, session) => {
           if (!mounted) return;
 
@@ -77,7 +98,8 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
 
         timeoutId = window.setTimeout(() => {
           if (!mounted) return;
-          setStatus("仍在等待会话建立。若你刚完成邮箱验证，请稍候或重新打开确认链接。");
+          clearAuthCallbackUrl();
+          setStatus(messages.callbackWaiting);
         }, 2500);
 
         return () => {
@@ -85,14 +107,16 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
         };
       } catch (callbackError) {
         if (!mounted) return;
-        const rawMessage = callbackError instanceof Error ? callbackError.message : "登录确认失败。";
-        setError(mapCallbackError(rawMessage));
+        clearAuthCallbackUrl();
+        const rawMessage = callbackError instanceof Error ? callbackError.message : "";
+        setError(mapCallbackError(rawMessage, messages));
       }
     }
 
     let unsubscribe: (() => void) | undefined;
-    boot().then((cleanup) => {
-      unsubscribe = cleanup;
+    void boot().then((cleanup) => {
+      if (!mounted) cleanup?.();
+      else unsubscribe = cleanup;
     });
 
     return () => {
@@ -102,13 +126,12 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
       }
       unsubscribe?.();
     };
-  }, [safeNext, supabase, authAdapter, consentAdapter, navigation]);
+  }, [safeNext, supabase, authAdapter, consentAdapter, navigation, codeExchange]);
 
   return (
     <section className="auth-card">
       <div className="auth-card__top">
-        <h2 style={{ margin: 0 }}>确认登录</h2>
-        <p style={{ margin: 0, color: "var(--text-muted)" }}>OpenGlass Hub 正在处理邮箱确认或登录回调。</p>
+        <h2 style={{ margin: 0 }}>{messages.callbackHeading}</h2>
       </div>
       <div className="auth-alert">{status}</div>
       {error ? (
@@ -116,7 +139,7 @@ export default function AuthCallback({ next, authAdapter, consentAdapter, naviga
           <div className="auth-alert auth-alert--error">{error}</div>
           <div className="community-cta-row">
             <a className="community-button--secondary" href={`/login/?next=${encodeURIComponent(safeNext)}`}>
-              返回登录页
+              {messages.backToLogin}
             </a>
           </div>
         </div>

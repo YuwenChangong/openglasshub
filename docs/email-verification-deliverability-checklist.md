@@ -1,14 +1,21 @@
 # Email Verification Deliverability Checklist
 
-Use this checklist when verification emails are not arriving reliably. This is an operator/developer checklist, not end-user product copy.
+Use this operator checklist with the [Slice A acceptance runbook](ops/product-recovery-slice-a-acceptance.md). It grants no mailbox, provider, Production, SQL, configuration, or sending authorization. Current Production acceptance is **NOT_RUN**. Local fixture tests establish validator behavior only.
 
-1. Check Supabase Auth SMTP settings are configured correctly.
-2. Check Brevo transactional email logs.
-3. Confirm whether the message was sent, bounced, deferred, blocked, or suppressed.
-4. Verify the sender domain SPF record.
-5. Verify the sender domain DKIM record.
-6. Verify the sender domain DMARC policy.
-7. Confirm the sender address uses a verified domain.
-8. Test delivery separately with Gmail, Outlook, QQ, and 163 mailboxes.
-9. If QQ fails but Gmail succeeds, treat it as recipient-provider filtering or deliverability behavior, not a frontend bug.
-10. Keep resend API responses generic so the product does not reveal whether an email exists.
+For SIGNUP, RESEND, and PASSWORD_RESET separately, preserve this evidence order:
+
+1. Confirm fresh, scoped authorization, the deployed commit, current ownership/access to the inbox, and the send budget. Do not inherit a previous signup approval. Primary owned Gmail is required for all three flows. Confirm mailbox permission before choosing a unique `openglasshub+qa-acceptance-...@gmail.com` alias; do not record the actual address in the receipt.
+2. Observe the browser request and normalized Auth response with exact UTC times. HTTP success and generic public success do not establish account existence, delivery, or receipt. Public resend/reset responses must remain enumeration-resistant.
+3. Obtain separately authorized operator Auth evidence when available. Correlate by owned recipient, flow/template, and narrow time window privately. Ambiguous or inaccessible evidence stays UNKNOWN; no time or result is inferred from a probe ID.
+4. Have the operator inspect SMTP enabled/configured state, credential-type validity, sender/domain ownership, From alignment, reply/contact, Site URL/redirect allowlist, templates, confirmation mode, rate limits, and sender/suppression status. Record normalized outcomes only, never configuration or secret values.
+5. Correlate the Brevo transactional event and exact UTC when available: ACCEPTED, SENT, DELIVERED, DEFERRED, SOFT_BOUNCED, HARD_BOUNCED, BLOCKED, SUPPRESSED, REJECTED, or UNKNOWN. Operator checks SPF, DKIM, DMARC and identifier alignment for the actual sender domain, including received Authentication-Results privately. Do not infer a DNS fault or recipient filtering from one failed inbox test.
+6. Human checks Inbox and Spam for up to 15 minutes and records actual receipt UTC. Absence is not a bounce; record no receipt within the window. DELIVERED is transport evidence only. Late arrival is a separate observation, never a retrospectively invented on-time receipt.
+7. Pause automation for the human to open the link privately. Disable traces, screenshots and URL logging during secret-bearing navigation; resume only once the URL is sanitized. Observe verification/recovery session outcome independently of click/open telemetry. The reset lifecycle additionally requires logout, exactly one old-password rejection, and new-password acceptance with private human password entry.
+
+Budget one send per flow/provider and at most one deliberate resend/retry after cooldown and operator diagnosis, within fresh authorization. The local 60-second cooldown supplements the existing server resend limit of 5/24h; neither proves consent or delivery. Stop on throttling, suppression or bounce; do not loop, raise limits, spoof a sender, or alter SMTP/DNS/templates to obtain a green result.
+
+Ask for a currently owned Outlook inbox; unavailable access is a coverage limitation. QQ and 163 are additional owned-access coverage. Report absent flows/providers explicitly. A supplied failing Outlook, QQ or 163 case remains failed and cannot be relabeled unavailable. Primary Gmail absence blocks functional PASS, and a Gmail-only PASS makes no universal-delivery claim.
+
+Unknown operator SMTP/Brevo evidence can remain a named limitation when independent Gmail receipt/callback proof exists. Never fabricate transport success. Diagnose before proposing remediation; any provider/configuration change needs separate authorization, reviewed before/after evidence and rollback. This checklist supplies no mutation command or grant.
+
+Store only bounded evidence references and normalized categories in the private receipt described in the runbook. Do not export mail bodies, links, OTPs, passwords, tokens, DSNs, auth metadata, browser storage or HAR. `LEGAL_EXTERNAL_REVIEW_STATUS=NOT_CONFIRMED` is informational; `REQUIRED_FOR_POLICY_CHANGE` stops that policy change. Preserve minimumAge=16, bundle/version=2026-07, consent semantics and server enforcement; do not claim legal compliance or lawyer approval.

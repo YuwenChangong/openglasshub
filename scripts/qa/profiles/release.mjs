@@ -46,6 +46,7 @@ const COMMANDS = Object.freeze({
   'media-url-privacy': Object.freeze([NODE, 'scripts/audit-media-url-privacy.mjs', '--strict', '--verbose']),
   'news-api-safety': Object.freeze([NODE, 'scripts/test-public-news-api-safety.mjs']),
   'products-page': Object.freeze([NODE, 'scripts/test-product-page.mjs']),
+  'product-recovery-slice-a': Object.freeze([...NPM, 'run', 'test:product-recovery-slice-a']),
   'project-test': Object.freeze([...NPM, 'test']),
   'qa-harness-core': Object.freeze([NODE, '--test', 'scripts/qa/test-qa-harness-core.mjs']),
   'qa-harness-executor': Object.freeze([NODE, '--test', 'scripts/qa/test-qa-harness-executor.mjs']),
