@@ -88,7 +88,7 @@ export function createResendPost(dependencies?: ResendDependencies): APIRoute {
       const result = dependencies
         ? await dependencies.resend(email, redirectTo ?? "")
         : await supabase!.auth.resend({ type: "signup", email, options: redirectTo ? { emailRedirectTo: redirectTo } : undefined });
-      observe(result.error ? classifyAuthEmailFailure(result.error) : "accepted");
+      observe(result.error !== null ? classifyAuthEmailFailure(result.error) : "accepted");
     } catch (error) {
       observe(classifyAuthEmailFailure(error));
     }

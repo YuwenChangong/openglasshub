@@ -76,6 +76,17 @@ async function main() {
     assert.equal(classifyAuthEmailFailure({ status: 400, message: "fixture private" }), "rejected");
     assert.equal(classifyAuthEmailFailure({ status: 429 }), "rate_limited");
     assert.equal(classifyAuthEmailFailure(new Error("fixture private")), "unavailable");
+    for (const value of [0, false, ""]) {
+      const falsy = await run(async () => ({ error: value }));
+      assert.deepEqual(falsy.body, accepted.body);
+      assert.equal(falsy.events[0]?.outcome, "unavailable", "non-null falsy provider error must not be accepted");
+    }
+    const hostile = { get status() { throw new Error("fixture private getter detail"); } };
+    const hostileThrown = await run(async () => { throw hostile; });
+    assert.deepEqual(hostileThrown.body, accepted.body, "hostile thrown provider error must keep generic public response");
+    assert.equal(hostileThrown.events[0]?.outcome, "unavailable");
+    assert.equal(classifyAuthEmailFailure(hostile), "unavailable");
+    console.log("hostileAndFalsyProviderErrors: PASS");
 
     assert.equal(externalAttempts, 0, "external networking denied and zero attempts");
   } finally {
@@ -102,10 +113,10 @@ async function main() {
     });
     const page = await context.newPage();
     await page.goto(origin, { waitUntil: "networkidle" });
-    for (const [scenario, expectedText] of [
-      ["login-reset-safe-callback", "如已提出请求"],
-      ["login-reset-returned-error", "如已提出请求"],
-      ["login-reset-thrown-error", "暂时无法"],
+    for (const [scenario, expectedText, failed] of [
+      ["login-reset-safe-callback", "如已提出请求", false],
+      ["login-reset-returned-error", "暂时无法请求重置邮件", true],
+      ["login-reset-thrown-error", "暂时无法请求重置邮件", true],
     ]) {
       await page.getByRole("button", { name: scenario, exact: true }).click();
       await page.getByRole("button", { name: "忘记密码？", exact: true }).click();
@@ -113,6 +124,7 @@ async function main() {
       await page.getByRole("button", { name: "发送重置邮件", exact: true }).click();
       await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("resetCallbackSafe:true"));
       assert.match(await page.locator(".legal-harness__surface").textContent(), new RegExp(expectedText));
+      if (failed) assert.doesNotMatch(await page.locator(".legal-harness__surface").textContent(), /如已提出请求/);
       assert.doesNotMatch(await page.locator(".legal-harness__surface").textContent(), /fixture private provider detail/);
     }
     assert.equal(blocked, 0);

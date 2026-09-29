@@ -272,10 +272,12 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
           ? buildResetPasswordRedirect(window.location.origin)
           : undefined;
 
-      if (authAdapter?.requestPasswordReset) {
-        await authAdapter.requestPasswordReset({ email: email.trim(), redirectTo: redirectTo ?? "" });
-      } else {
-        await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+      const { error: resetError } = authAdapter?.requestPasswordReset
+        ? await authAdapter.requestPasswordReset({ email: email.trim(), redirectTo: redirectTo ?? "" })
+        : await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+      if (resetError) {
+        setError(messages.resetRequestFailed);
+        return;
       }
 
       setMessage(messages.pendingCheckInbox);
