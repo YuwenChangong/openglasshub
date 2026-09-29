@@ -139,11 +139,21 @@ export function validateSliceAAcceptance(input) {
   }
 }
 
+function isLocalReceiptPath(value) {
+  if (typeof value !== "string" || !value || /[\u0000-\u001f]/.test(value)) return false;
+  const slashes = value.replaceAll("\\", "/");
+  if (slashes.startsWith("//") || /^\/(?:\?\?|Device|GLOBAL\?\?|DosDevices|dev)(?:\/|$)/i.test(slashes)) return false;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^[a-z]:/i.test(value)) return false;
+  return !slashes.split("/").some(segment =>
+    /^(?:CON|PRN|AUX|NUL|COM[1-9\u00b9\u00b2\u00b3]|LPT[1-9\u00b9\u00b2\u00b3]|CONIN\$|CONOUT\$|CLOCK\$)(?:[.: ]|$)/i.test(segment.replace(/^[a-z]:/i, "")));
+}
+
 async function main(args) {
   let result = failedSchema();
   let file;
   try {
-    if (args.length !== 2 || args[0] !== "--receipt" || /^[a-z][a-z0-9+.-]*:\/\//i.test(args[1])) throw new Error();
+    // Validate both spellings before any filesystem call, including UNC/device namespace access.
+    if (args.length !== 2 || args[0] !== "--receipt" || !isLocalReceiptPath(args[1]) || !isLocalReceiptPath(path.resolve(args[1]))) throw new Error();
     file = await open(args[1], "r");
     if (!(await file.stat()).isFile()) throw new Error();
     const bytes = Buffer.alloc(65537);

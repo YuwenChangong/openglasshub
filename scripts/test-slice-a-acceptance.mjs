@@ -276,12 +276,54 @@ test("validatorHandlesUntrustedObjectsWithoutReadingAccessors", () => {
   assert.equal(validateSliceAAcceptance(new Proxy({}, { ownKeys() { throw new Error("fixture-sensitive-payload"); } })).status, "FAIL");
 });
 
+test("CLI rejects network and device paths before any open", () => {
+  const cli = path.resolve("scripts/lib/slice-a-acceptance.mjs");
+  const rejected = [
+    "\\\\fixture-host\\share\\receipt.json", "//fixture-host/share/receipt.json",
+    "\\/fixture-host/share/receipt.json", "/\\fixture-host/share/receipt.json",
+    "\\\\?\\UNC\\fixture-host\\share\\receipt.json", "\\\\?\\C:\\receipt.json",
+    "\\\\.\\pipe\\fixture", "\\??\\C:\\receipt.json", "\\Device\\fixture",
+    "NUL", "CON.json", "C:\\fixtures\\AUX.txt", ".\\COM1", "LPT9:", "CONIN$", "CONOUT$",
+    "https://example.invalid/receipt.json", "file:///C:/receipt.json", "/dev/null",
+  ];
+  for (const [candidate, expectedOpens] of [
+    ...rejected.map(candidate => [candidate, 0]),
+    [".tmp/receipt.json", 1], ["../receipt.json", 1], ["C:\\fixtures\\receipt.json", 1],
+    ["C:/fixtures/receipt.json", 1], ["/tmp/receipt.json", 1], ["\\fixtures\\receipt.json", 1],
+  ]) {
+    // Replace the builtin before importing the CLI: none of these paths reaches the filesystem.
+    const source = `
+      import fs from 'node:fs/promises';
+      import { syncBuiltinESMExports } from 'node:module';
+      import { pathToFileURL } from 'node:url';
+      let opens = 0;
+      fs.open = async () => { opens += 1; throw new Error('fake open'); };
+      syncBuiltinESMExports();
+      process.argv = [process.execPath, ${JSON.stringify(cli)}, '--receipt', ${JSON.stringify(candidate)}];
+      await import(pathToFileURL(process.argv[1]).href);
+      process.stdout.write(JSON.stringify({ opens }) + '\\n');
+    `;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", source], {
+      encoding: "utf8", env: { SystemRoot: process.env.SystemRoot ?? "C:\\Windows" },
+    });
+    assert.equal(result.status, 1);
+    assert.equal(result.stderr, "");
+    const [summary, observation] = result.stdout.trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(summary, { status: "FAIL", missing: ["SCHEMA_INVALID"], providerLimitations: [] });
+    assert.equal(observation.opens, expectedOpens, "unsafe paths must be rejected before open; local paths must reach fake open");
+  }
+});
+
 test("CLI exits nonzero for not-PASS and never echoes payloads or paths", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "slice-a-fixtures-"));
   const file = path.join(directory, "receipt.json");
   const cli = path.resolve("scripts/lib/slice-a-acceptance.mjs");
   const run = args => spawnSync(process.execPath, [cli, ...args], { encoding: "utf8", env: { SystemRoot: process.env.SystemRoot ?? "C:\\Windows" } });
   try {
+    await writeFile(file, JSON.stringify(complete()));
+    const relative = run(["--receipt", path.relative(process.cwd(), file)]);
+    assert.equal(relative.status, 0);
+    assert.equal(JSON.parse(relative.stdout).status, "PASS");
     for (const [input, code, status] of [[complete(), 0, "PASS"], [{ ...complete(), password: "fixture-sensitive-payload" }, 1, "FAIL"], [{ ...complete(), mailCases: [] }, 1, "PARTIAL"]]) {
       await writeFile(file, JSON.stringify(input));
       const result = run(["--receipt", file]);
