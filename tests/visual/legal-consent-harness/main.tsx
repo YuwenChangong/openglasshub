@@ -11,7 +11,7 @@ import { LEGAL_CONSENT_STATE_MATRIX } from "../legal-consent-state-matrix.mjs";
 
 type Scenario = string;
 const status = (current: boolean): LegalConsentStatus => ({ current, bundleVersion: "2026-07", minimumAge: 16, consentUrl: "/legal-consent/" });
-const additionalCases = ["consent-submit-expired-401", "consent-submit-session-missing", "consent-delayed-current", "consent-retry-success", "consent-outdated-bundle", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-record-not-current", "consent-auth-failure", "consent-submit-auth-failure", "consent-callback-success", "consent-logout-failure", "consent-current-navigation-throw", "consent-record-navigation-throw", "consent-current-navigation-stall", "consent-record-navigation-stall"];
+const additionalCases = ["consent-submit-expired-401", "consent-submit-session-missing", "consent-delayed-current", "consent-retry-success", "consent-outdated-bundle", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-record-not-current", "consent-auth-failure", "consent-submit-auth-failure", "consent-callback-success", "consent-logout-failure", "consent-current-navigation-throw", "consent-record-navigation-throw", "consent-current-navigation-stall", "consent-record-navigation-stall", "login-reset-safe-callback", "login-reset-returned-error", "login-reset-thrown-error"];
 
 function Harness() {
   const [scenario, setScenario] = useState<Scenario>("consent-missing-unchecked");
@@ -47,6 +47,12 @@ function Harness() {
     })(),
     signInWithPassword: async () => { record("signIn"); return scenario === "login-auth-success-consent-failure" ? { data: null, error: new Error("Invalid login credentials") } : { data: { accessToken: "test-session" }, error: null }; },
     signUp: async () => { record("signUp"); return scenario === "register-email-confirmation-no-session" ? { data: null, error: null } : { data: { accessToken: "test-session" }, error: null }; },
+    requestPasswordReset: async ({ email, redirectTo }) => {
+      record(`resetCallbackSafe:${email === "qa@example.invalid" && redirectTo === `${window.location.origin}/auth/reset-password/`}`);
+      if (scenario === "login-reset-returned-error") return { error: new Error("fixture private provider detail") };
+      if (scenario === "login-reset-thrown-error") throw new Error("fixture private provider detail");
+      return { error: null };
+    },
     signOut: async () => { record("signOut"); return scenario === "consent-logout-failure" ? new Error("fixture logout unavailable") : null; },
   }), [scenario, signedIn, revision]);
   const consent: LegalConsentAdapter = useMemo(() => ({
