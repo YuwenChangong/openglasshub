@@ -4,6 +4,7 @@ import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { getLegalConsentStatus } from "../../lib/legal-consent-client";
 import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
 import { browserNavigationAdapter, type LegalConsentAdapter, type LegalConsentAuthAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
+import { clearAuthCallbackUrl, hasAuthCallbackError } from "../../lib/auth-callback-url";
 
 interface AuthCallbackProps {
   locale?: AuthLocale;
@@ -11,6 +12,7 @@ interface AuthCallbackProps {
   authAdapter?: LegalConsentAuthAdapter;
   consentAdapter?: LegalConsentAdapter;
   navigationAdapter?: LegalConsentNavigationAdapter;
+  codeExchange?: (code: string, flowId?: string) => Promise<{ error: Error | null }>;
 }
 
 function mapCallbackError(errorMessage: string, messages: AuthMessages): string {
@@ -18,9 +20,9 @@ function mapCallbackError(errorMessage: string, messages: AuthMessages): string 
   return messages.callbackFailed;
 }
 
-export default function AuthCallback({ locale = "zh-CN", next, authAdapter, consentAdapter, navigationAdapter }: AuthCallbackProps) {
+export default function AuthCallback({ locale = "zh-CN", next, authAdapter, consentAdapter, navigationAdapter, codeExchange }: AuthCallbackProps) {
   const messages = getAuthMessages(locale);
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const supabase = useMemo(() => authAdapter ? null : createBrowserSupabaseClient(), [authAdapter]);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
   const safeNext = useMemo(() => {
     if (next) return getSafeConsentNext(next);
@@ -33,6 +35,7 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
 
   useEffect(() => {
     if (!supabase && !authAdapter) {
+      clearAuthCallbackUrl();
       setError(messages.configurationUnavailable);
       return;
     }
@@ -55,6 +58,7 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
         if (!mounted || redirected) return;
         redirected = true;
         if (timeoutId) window.clearTimeout(timeoutId);
+        clearAuthCallbackUrl();
         try { navigation.replace(current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`); }
         catch { setError(messages.callbackFailed); }
       }
@@ -63,25 +67,22 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
     async function boot() {
       try {
         const currentUrl = new URL(window.location.href);
-        if (currentUrl.searchParams.has("error") || currentUrl.searchParams.has("error_code") || currentUrl.searchParams.has("error_description") || /(?:^|[&#])error(?:_code|_description)?=/.test(currentUrl.hash)) {
-          currentUrl.searchParams.delete("error");
-          currentUrl.searchParams.delete("error_code");
-          currentUrl.searchParams.delete("error_description");
-          currentUrl.searchParams.delete("code");
-          currentUrl.hash = "";
-          try { window.history.replaceState(window.history.state, "", currentUrl.pathname + currentUrl.search); } catch { /* generic error remains visible */ }
+        const providerError = hasAuthCallbackError(currentUrl);
+        const code = currentUrl.searchParams.get("code");
+        const flowId = currentUrl.searchParams.get("sb_flow_id") ?? undefined;
+        if (providerError || currentUrl.searchParams.has("code")) {
+          if (!clearAuthCallbackUrl()) { setError(messages.callbackFailed); return; }
+        }
+        if (providerError || (currentUrl.searchParams.has("code") && !code)) {
           setError(messages.callbackFailed);
           return;
         }
-        const code = currentUrl.searchParams.get("code");
 
-        if (code && !authAdapter) {
-          const { error: exchangeError } = await supabase!.auth.exchangeCodeForSession(code);
+        if (code && (!authAdapter || codeExchange)) {
+          const { error: exchangeError } = codeExchange ? await codeExchange(code, flowId) : await supabase!.auth.exchangeCodeForSession(code, flowId === undefined ? undefined : { flowId });
           if (exchangeError) {
             throw exchangeError;
           }
-          currentUrl.searchParams.delete("code");
-          try { window.history.replaceState(window.history.state, "", currentUrl.pathname + currentUrl.search + currentUrl.hash); } catch { /* navigation remains safe */ }
         }
 
         await redirectIfReady();
@@ -97,6 +98,7 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
 
         timeoutId = window.setTimeout(() => {
           if (!mounted) return;
+          clearAuthCallbackUrl();
           setStatus(messages.callbackWaiting);
         }, 2500);
 
@@ -105,6 +107,7 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
         };
       } catch (callbackError) {
         if (!mounted) return;
+        clearAuthCallbackUrl();
         const rawMessage = callbackError instanceof Error ? callbackError.message : "";
         setError(mapCallbackError(rawMessage, messages));
       }
@@ -123,7 +126,7 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
       }
       unsubscribe?.();
     };
-  }, [safeNext, supabase, authAdapter, consentAdapter, navigation]);
+  }, [safeNext, supabase, authAdapter, consentAdapter, navigation, codeExchange]);
 
   return (
     <section className="auth-card">

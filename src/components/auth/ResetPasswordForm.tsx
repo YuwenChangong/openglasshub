@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { getAuthMessages, type AuthLocale } from "../../lib/auth-messages";
 import { createPasswordRecoveryAdapter, type PasswordRecoveryAdapter } from "../../lib/password-recovery-adapter";
+import { clearAuthCallbackUrl, hasAuthCallbackError } from "../../lib/auth-callback-url";
 
 export default function ResetPasswordForm({ locale = "zh-CN", recoveryAdapter }: { locale?: AuthLocale; recoveryAdapter?: PasswordRecoveryAdapter }) {
   const messages = getAuthMessages(locale);
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const supabase = useMemo(() => recoveryAdapter ? null : createBrowserSupabaseClient(), [recoveryAdapter]);
   const adapter = useMemo(() => recoveryAdapter ?? (supabase ? createPasswordRecoveryAdapter(supabase) : null), [recoveryAdapter, supabase]);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -16,6 +17,7 @@ export default function ResetPasswordForm({ locale = "zh-CN", recoveryAdapter }:
 
   useEffect(() => {
     if (!adapter) {
+      clearAuthCallbackUrl();
       setError(messages.configurationUnavailable);
       return;
     }
@@ -32,18 +34,16 @@ export default function ResetPasswordForm({ locale = "zh-CN", recoveryAdapter }:
       if (!active || settled) return;
       settled = true;
       stop();
+      clearAuthCallbackUrl();
       setError(messages.expiredRecovery);
     };
     const succeed = async () => {
       try {
         if (!await adapter.hasSession()) { fail(); return; }
         if (!active || settled) return;
+        if (!clearAuthCallbackUrl()) { fail(); return; }
         settled = true;
         stop();
-        const cleanUrl = new URL(window.location.href);
-        cleanUrl.searchParams.delete("code");
-        cleanUrl.hash = "";
-        try { window.history.replaceState(window.history.state, "", cleanUrl.pathname + cleanUrl.search); } catch { /* recovery proof is independent of history */ }
         setError("");
         setReady(true);
       } catch { fail(); }
@@ -52,11 +52,18 @@ export default function ResetPasswordForm({ locale = "zh-CN", recoveryAdapter }:
     try {
       unsubscribe = adapter.onRecoverySession(() => { void succeed(); });
       const currentUrl = new URL(window.location.href);
+      const providerError = hasAuthCallbackError(currentUrl);
       const code = currentUrl.searchParams.get("code");
-      if (code) {
-        void adapter.exchangeCode(code).then(({ error: exchangeError }) => {
+      const flowId = currentUrl.searchParams.get("sb_flow_id") ?? undefined;
+      if (providerError || currentUrl.searchParams.has("code")) {
+        if (!clearAuthCallbackUrl()) { fail(); return () => { active = false; stop(); }; }
+      }
+      if (providerError || (currentUrl.searchParams.has("code") && !code)) {
+        fail();
+      } else if (code) {
+        void adapter.exchangeCode(code, flowId).then(({ error: exchangeError, redirectType }) => {
           if (!active || settled) return;
-          if (exchangeError) { fail(); return; }
+          if (exchangeError || redirectType !== "recovery") { fail(); return; }
           void succeed();
         }).catch(fail);
       }

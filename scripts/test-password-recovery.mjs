@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { createRecoveryEventBuffer } from "../src/lib/recovery-event-buffer.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const port = 4471;
@@ -25,6 +26,20 @@ async function select(page, name) {
 }
 
 async function main() {
+  const events = createRecoveryEventBuffer();
+  events.observe("INITIAL_SESSION", true, "/auth/reset-password/");
+  assert.equal(events.consume("/auth/reset-password/"), false);
+  events.observe("SIGNED_IN", true, "/auth/reset-password/");
+  assert.equal(events.consume("/auth/reset-password/"), false);
+  events.observe("PASSWORD_RECOVERY", true, "/login/");
+  assert.equal(events.consume("/auth/reset-password/"), false);
+  events.observe("PASSWORD_RECOVERY", true, "/auth/reset-password/");
+  assert.equal(events.consume("/auth/reset-password/"), true);
+  assert.equal(events.consume("/auth/reset-password/"), false);
+  events.observe("PASSWORD_RECOVERY", true, "/auth/reset-password/");
+  events.observe("SIGNED_OUT", false, "/auth/reset-password/");
+  assert.equal(events.consume("/auth/reset-password/"), false);
+  process.stdout.write("recoveryEventBuffer: PASS\n");
   let browser;
   let externalRequests = 0;
   try {
@@ -119,6 +134,69 @@ async function main() {
     await select(page, "release-session");
     assert.equal((await page.locator("output").textContent())?.includes("replace:"), false, "unmounted callback cannot navigate");
     process.stdout.write("callbackRoutingAndError: PASS\n");
+
+    const edgeFailures = [];
+    async function edge(name, run) {
+      const edgePage = await context.newPage();
+      try {
+        await edgePage.goto(origin, { waitUntil: "networkidle" });
+        await run(edgePage);
+        process.stdout.write(`${name}: PASS\n`);
+      } catch {
+        edgeFailures.push(name);
+        process.stdout.write(`${name}: RED\n`);
+      } finally { await edgePage.close(); }
+    }
+    await edge("eventBeforeMount", async (candidate) => {
+      await candidate.clock.install();
+      await select(candidate, "Recovery event before mount");
+      await candidate.clock.runFor(2801);
+      assert.equal(await candidate.getByLabel("新密码", { exact: true }).count(), 1);
+    });
+    await edge("capturedFlowIdPreserved", async (candidate) => {
+      await select(candidate, "Recovery flow id");
+      await candidate.getByLabel("新密码", { exact: true }).waitFor();
+      assert.equal((await candidate.locator("output").textContent())?.includes("flow-preserved:true"), true);
+      assert.equal(new URL(candidate.url()).searchParams.has("sb_flow_id"), false);
+    });
+    await edge("failedExchangeClearsUrl", async (candidate) => {
+      await select(candidate, "Recovery failed code");
+      await candidate.getByText("重置链接无效或已过期，请重新发起忘记密码流程。", { exact: true }).waitFor();
+      assert.equal(new URL(candidate.url()).searchParams.has("code"), false);
+      await select(candidate, "Remount recovery");
+      assert.equal(((await candidate.locator("output").textContent())?.match(/exchange-count:/g) ?? []).length, 1);
+      assert.equal(await candidate.getByLabel("新密码", { exact: true }).count(), 0);
+    });
+    await edge("timeoutClearsUrl", async (candidate) => {
+      await candidate.clock.install();
+      await select(candidate, "Recovery pending code");
+      await candidate.clock.runFor(2801);
+      assert.equal(new URL(candidate.url()).searchParams.has("code"), false);
+      await select(candidate, "Remount recovery");
+      assert.equal(((await candidate.locator("output").textContent())?.match(/exchange-count:/g) ?? []).length, 1);
+    });
+    await edge("nonRecoveryCodeCannotUnlock", async (candidate) => {
+      await select(candidate, "Recovery non-recovery code");
+      await candidate.waitForFunction(() => document.querySelector("output")?.textContent?.includes("exchange-count:1"));
+      assert.equal(await candidate.getByLabel("新密码", { exact: true }).count(), 0);
+    });
+    await edge("resetProviderErrorClearsUrl", async (candidate) => {
+      await select(candidate, "Recovery provider error");
+      const url = new URL(candidate.url());
+      assert.equal(url.searchParams.has("error"), false);
+      assert.equal(url.hash, "");
+      assert.equal(await candidate.getByLabel("新密码", { exact: true }).count(), 0);
+    });
+    await edge("callbackFailedExchangeClearsUrl", async (candidate) => {
+      await candidate.evaluate(() => window.history.replaceState(null, "", "/?code=failed"));
+      await select(candidate, "callback-failed-code");
+      await candidate.getByText("登录确认失败。", { exact: true }).waitFor();
+      assert.equal(new URL(candidate.url()).searchParams.has("code"), false);
+      assert.equal((await candidate.locator("output").textContent())?.includes("callbackExchange"), true);
+      await select(candidate, "callback-failed-code");
+      assert.equal((await candidate.locator("output").textContent())?.includes("callbackExchange"), false);
+    });
+    assert.deepEqual(edgeFailures, [], "Task 6 review edges");
     assert.equal(externalRequests, 0, "external requests");
     process.stdout.write("PASSWORD_RECOVERY_LOCAL_OK externalRequests=0\n");
     await context.close();
