@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getSafeNext } from "../../lib/auth-redirect";
+import { getSafeConsentNext } from "../../lib/legal-consent-navigation";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { getLegalConsentStatus } from "../../lib/legal-consent-client";
 import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
@@ -23,9 +23,9 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
   const safeNext = useMemo(() => {
-    if (next) return getSafeNext(next);
-    if (typeof window === "undefined") return "/";
-    return getSafeNext(new URLSearchParams(window.location.search).get("next"));
+    if (next) return getSafeConsentNext(next);
+    if (typeof window === "undefined") return "/feed/";
+    return getSafeConsentNext(new URLSearchParams(window.location.search).get("next"));
   }, [next]);
 
   const [status, setStatus] = useState(messages.callbackPending);
@@ -38,38 +38,55 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
     }
 
     let mounted = true;
+    let redirected = false;
     let timeoutId: number | undefined;
 
     async function redirectIfReady() {
       const adapterSession = authAdapter ? await authAdapter.getSession() : null;
       const { data } = authAdapter ? { data: { session: adapterSession ? { access_token: adapterSession.accessToken } : null } } : await supabase!.auth.getSession();
-      if (!mounted) return;
+      if (!mounted || redirected) return;
 
       if (data.session?.access_token) {
+        let current = false;
         try {
           const consent = consentAdapter ? await consentAdapter.getCurrentConsent(data.session.access_token) : await getLegalConsentStatus(data.session.access_token);
-          navigation.replace(consent.current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
-        } catch {
-          navigation.replace(`/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`);
-        }
+          current = consent.current;
+        } catch { /* consent gate remains the safe destination */ }
+        if (!mounted || redirected) return;
+        redirected = true;
+        if (timeoutId) window.clearTimeout(timeoutId);
+        try { navigation.replace(current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`); }
+        catch { setError(messages.callbackFailed); }
       }
     }
 
     async function boot() {
       try {
         const currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.has("error") || currentUrl.searchParams.has("error_code") || currentUrl.searchParams.has("error_description") || /(?:^|[&#])error(?:_code|_description)?=/.test(currentUrl.hash)) {
+          currentUrl.searchParams.delete("error");
+          currentUrl.searchParams.delete("error_code");
+          currentUrl.searchParams.delete("error_description");
+          currentUrl.searchParams.delete("code");
+          currentUrl.hash = "";
+          try { window.history.replaceState(window.history.state, "", currentUrl.pathname + currentUrl.search); } catch { /* generic error remains visible */ }
+          setError(messages.callbackFailed);
+          return;
+        }
         const code = currentUrl.searchParams.get("code");
 
         if (code && !authAdapter) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          const { error: exchangeError } = await supabase!.auth.exchangeCodeForSession(code);
           if (exchangeError) {
             throw exchangeError;
           }
+          currentUrl.searchParams.delete("code");
+          try { window.history.replaceState(window.history.state, "", currentUrl.pathname + currentUrl.search + currentUrl.hash); } catch { /* navigation remains safe */ }
         }
 
         await redirectIfReady();
 
-        if (authAdapter) return;
+        if (authAdapter || !mounted || redirected) return;
         const { data: listener } = supabase!.auth.onAuthStateChange((event, session) => {
           if (!mounted) return;
 
@@ -94,8 +111,9 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
     }
 
     let unsubscribe: (() => void) | undefined;
-    boot().then((cleanup) => {
-      unsubscribe = cleanup;
+    void boot().then((cleanup) => {
+      if (!mounted) cleanup?.();
+      else unsubscribe = cleanup;
     });
 
     return () => {

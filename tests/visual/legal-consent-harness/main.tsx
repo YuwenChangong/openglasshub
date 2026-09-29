@@ -5,19 +5,40 @@ import "./harness.css";
 import AuthPanel from "../../../src/components/forum/AuthPanel";
 import LegalConsentPage from "../../../src/components/legal/LegalConsentPage";
 import AuthCallback from "../../../src/components/auth/AuthCallback";
+import ResetPasswordForm from "../../../src/components/auth/ResetPasswordForm";
+import type { PasswordRecoveryAdapter } from "../../../src/lib/password-recovery-adapter";
 import { LegalConsentClientError, type LegalConsentStatus } from "../../../src/lib/legal-consent-client";
 import type { AuthPanelAdapter, LegalConsentAdapter, LegalConsentAuthAdapter, LegalConsentNavigationAdapter } from "../../../src/lib/legal-consent-adapters";
 import { LEGAL_CONSENT_STATE_MATRIX } from "../legal-consent-state-matrix.mjs";
 
 type Scenario = string;
 const status = (current: boolean): LegalConsentStatus => ({ current, bundleVersion: "2026-07", minimumAge: 16, consentUrl: "/legal-consent/" });
-const additionalCases = ["consent-submit-expired-401", "consent-submit-session-missing", "consent-delayed-current", "consent-retry-success", "consent-outdated-bundle", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-record-not-current", "consent-auth-failure", "consent-submit-auth-failure", "consent-callback-success", "consent-logout-failure", "consent-current-navigation-throw", "consent-record-navigation-throw", "consent-current-navigation-stall", "consent-record-navigation-stall", "login-reset-safe-callback", "login-reset-returned-error", "login-reset-thrown-error"];
+const additionalCases = ["consent-submit-expired-401", "consent-submit-session-missing", "consent-delayed-current", "consent-retry-success", "consent-outdated-bundle", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-record-not-current", "consent-auth-failure", "consent-submit-auth-failure", "consent-callback-success", "consent-logout-failure", "consent-current-navigation-throw", "consent-record-navigation-throw", "consent-current-navigation-stall", "consent-record-navigation-stall", "login-reset-safe-callback", "login-reset-returned-error", "login-reset-thrown-error", "callback-self-next", "callback-delayed-session"];
 
 function Harness() {
   const [scenario, setScenario] = useState<Scenario>("consent-missing-unchecked");
   const [previewLocale, setPreviewLocale] = useState<"zh-CN" | "en">("zh-CN");
   const [calls, setCalls] = useState<string[]>([]);
   const [revision, setRevision] = useState(0);
+  const [recoveryScenario, setRecoveryScenario] = useState(false);
+  const recovery = useMemo(() => {
+    let listener: (() => void) | null = null;
+    let exchanges = 0;
+    let updates = 0;
+    const adapter: PasswordRecoveryAdapter = {
+      exchangeCode: async () => {
+        exchanges += 1;
+        record(`exchange-count:${exchanges}`);
+        if (window.location.search.includes("pending")) return new Promise(() => {});
+        if (window.location.search.includes("failed")) return { error: new Error("private provider detail") };
+        return { error: null };
+      },
+      hasSession: async () => true,
+      onRecoverySession: (callback) => { listener = callback; record("listener-added"); return () => { listener = null; record("listener-removed"); }; },
+      updatePassword: async (password) => { updates += 1; record(`update-count:${updates}`); record(`password-preserved:${password === (window as Window & { __expectedPassword?: string }).__expectedPassword}`); return { error: null }; },
+    };
+    return { adapter, emit: () => listener?.() };
+  }, [revision]);
   // Retain releases across remounts so tests can resolve requests after unmount.
   const pending = useMemo(() => ({ releaseSession: () => {}, releaseStatus: () => {}, releaseRecord: () => {} }), []);
   const record = (name: string) => setCalls((items) => [...items, name]);
@@ -40,7 +61,10 @@ function Harness() {
         reads += 1;
         if (scenario === "consent-auth-failure") throw new Error("fixture session unavailable");
         if (scenario === "consent-submit-auth-failure" && reads > 1) throw new Error("fixture session unavailable");
-        if (scenario === "consent-session-loading" || (scenario === "consent-submit-pending" && reads > 1)) await new Promise<void>((resolve) => { pending.releaseSession = resolve; });
+        if (scenario === "consent-session-loading" || scenario === "callback-delayed-session" || (scenario === "consent-submit-pending" && reads > 1)) {
+          if (scenario === "callback-delayed-session") record("sessionPending");
+          await new Promise<void>((resolve) => { pending.releaseSession = resolve; });
+        }
         if (scenario === "consent-submit-session-missing" && reads > 1) return null;
         return signedIn ? { accessToken: "test-session" } : null;
       };
@@ -67,7 +91,7 @@ function Harness() {
         if (scenario === "consent-status-failure" || scenario === "callback-status-failure" || (scenario === "consent-retry-success" && reads === 1)) throw new LegalConsentClientError("UNAVAILABLE");
         if (scenario === "consent-session-expired-401") throw new LegalConsentClientError("UNAUTHORIZED");
         if (scenario === "consent-rate-limited-429") throw new LegalConsentClientError("RATE_LIMITED");
-        const current = ["consent-already-current", "callback-current-consent", "consent-delayed-current", "consent-retry-success", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-current-navigation-throw", "consent-current-navigation-stall"].includes(scenario);
+        const current = ["consent-already-current", "callback-current-consent", "callback-self-next", "consent-delayed-current", "consent-retry-success", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-current-navigation-throw", "consent-current-navigation-stall"].includes(scenario);
         return scenario === "consent-outdated-bundle" ? { ...status(false), bundleVersion: "2025-01" } : status(current);
       };
     })(),
@@ -84,9 +108,10 @@ function Harness() {
     },
   }), [scenario, revision]);
   const next = scenario === "consent-external-next" ? "https://example.invalid" : scenario === "consent-encoded-external-next" ? "/%252f%252fexample.invalid" : scenario === "consent-self-loop-next" ? "/%256cegal-consent/?next=%2Ffeed%2F" : scenario === "consent-submit-expired-401" ? "/circles/?sort=latest#reply" : "/feed/";
-  const content = scenario.startsWith("consent") ? <LegalConsentPage key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} next={next} reason={scenario === "consent-outdated-bundle" ? "policy-update" : scenario === "consent-callback-success" ? "callback" : undefined} />
+  const content = recoveryScenario ? <ResetPasswordForm key={revision} locale={locale} recoveryAdapter={recovery.adapter} />
+    : scenario.startsWith("consent") ? <LegalConsentPage key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} next={next} reason={scenario === "consent-outdated-bundle" ? "policy-update" : scenario === "consent-callback-success" ? "callback" : undefined} />
     : authScenario ? <AuthPanel key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} initialMode={scenario.startsWith("register") ? "signup" : "login"} next="/feed/" />
-    : <AuthCallback key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} next={scenario === "callback-external-next-rejected" ? "https://example.invalid" : "/feed/"} />;
-  return <main className="legal-harness"><nav aria-label="Visual test state">{[...LEGAL_CONSENT_STATE_MATRIX.map(({ id }) => id), ...additionalCases].map((id) => <button key={id} type="button" onClick={() => { setCalls([]); setScenario(id); setRevision((value) => value + 1); }}>{id}</button>)}<button type="button" onClick={() => { setPreviewLocale("en"); setRevision((value) => value + 1); }}>locale-en</button><button type="button" onClick={() => { setPreviewLocale("zh-CN"); setRevision((value) => value + 1); }}>locale-zh</button><button onClick={() => pending.releaseSession()}>release-session</button><button onClick={() => pending.releaseStatus()}>release-status</button><button onClick={() => pending.releaseRecord()}>release-record</button></nav><div className="legal-harness__surface">{content}</div><output aria-live="polite">{calls.join(",")}</output></main>;
+    : <AuthCallback key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} next={scenario === "callback-external-next-rejected" ? "https://example.invalid" : scenario === "callback-self-next" ? "/auth/callback/?next=%2Ffeed%2F" : "/feed/"} />;
+  return <main className="legal-harness"><nav aria-label="Visual test state">{[...LEGAL_CONSENT_STATE_MATRIX.map(({ id }) => id), ...additionalCases].map((id) => <button key={id} type="button" onClick={() => { setRecoveryScenario(false); setCalls([]); setScenario(id); setRevision((value) => value + 1); }}>{id}</button>)}<button type="button" onClick={() => { setPreviewLocale("en"); setRevision((value) => value + 1); }}>locale-en</button><button type="button" onClick={() => { setPreviewLocale("zh-CN"); setRevision((value) => value + 1); }}>locale-zh</button><button onClick={() => pending.releaseSession()}>release-session</button><button onClick={() => pending.releaseStatus()}>release-status</button><button onClick={() => pending.releaseRecord()}>release-record</button><button onClick={() => { window.history.replaceState(null, "", "/?code=fixture-code"); setRecoveryScenario(true); setCalls([]); setRevision((value) => value + 1); }}>Recovery with code</button><button onClick={() => { window.history.replaceState(null, "", "/"); setRecoveryScenario(true); setCalls([]); setRevision((value) => value + 1); }}>Recovery without code</button><button onClick={() => { window.history.replaceState(null, "", "/?code=failed"); setRecoveryScenario(true); setCalls([]); setRevision((value) => value + 1); }}>Recovery failed code</button><button onClick={() => { window.history.replaceState(null, "", "/?code=pending"); setRecoveryScenario(true); setCalls([]); setRevision((value) => value + 1); }}>Recovery pending code</button><button onClick={() => recovery.emit()}>Emit recovery session</button></nav><div className="legal-harness__surface">{content}</div><output aria-live="polite">{calls.join(",")}</output></main>;
 }
 createRoot(document.getElementById("root")!).render(<Harness />);
