@@ -9,6 +9,12 @@ export interface AuthMessages {
   confirmPassword: string;
   login: string;
   signup: string;
+  signupNoticeLead: string;
+  signupNoticeTerms: string;
+  signupNoticePrivacyLead: string;
+  signupNoticePrivacy: string;
+  signupNoticeGuidelinesLead: string;
+  signupNoticeGuidelines: string;
   consentSentence: string;
   terms: string;
   privacy: string;
@@ -75,6 +81,7 @@ export interface AuthMessages {
 
 const messages: Record<AuthLocale, AuthMessages> = {
   "zh-CN": {
+    signupNoticeLead: "注册即表示你同意", signupNoticeTerms: "《服务条款》", signupNoticePrivacyLead: "，并已阅读", signupNoticePrivacy: "《隐私政策》", signupNoticeGuidelinesLead: "和", signupNoticeGuidelines: "《社区准则》",
     loginHeading: "登录", signupHeading: "注册", email: "邮箱", password: "密码", newPassword: "新密码", confirmPassword: "确认新密码",
     login: "登录", signup: "注册", consentSentence: "我已阅读并同意", terms: "服务条款", privacy: "隐私政策", guidelines: "社区准则",
     legalJoin: "和", privacyLead: "，并已阅读并知悉", consentEnd: "。", pendingCheckInbox: "如已提出请求，请检查邮箱及垃圾箱。",
@@ -96,6 +103,7 @@ const messages: Record<AuthLocale, AuthMessages> = {
     navigationFailed: "暂时无法前往目标页面，请重试或退出后重新登录。", configurationUnavailable: "登录服务暂不可用，请稍后重试。",
   },
   en: {
+    signupNoticeLead: "By signing up, you agree to the ", signupNoticeTerms: "Terms of Service", signupNoticePrivacyLead: " and have read the ", signupNoticePrivacy: "Privacy Policy", signupNoticeGuidelinesLead: " and ", signupNoticeGuidelines: "Community Guidelines",
     loginHeading: "Log in", signupHeading: "Sign up", email: "Email", password: "Password", newPassword: "New password", confirmPassword: "Confirm password",
     login: "Log in", signup: "Sign up", consentSentence: "I have read and agree to the", terms: "Terms of Service", privacy: "Privacy Policy", guidelines: "Community Guidelines",
     legalJoin: "and the", privacyLead: ", and have read and acknowledge the", consentEnd: ".", pendingCheckInbox: "If you made a request, check your inbox and spam folder.",

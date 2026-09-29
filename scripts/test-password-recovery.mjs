@@ -124,12 +124,12 @@ async function main() {
     await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("replace:/feed/"), null, { timeout: 3000 });
     process.stdout.write("callback-current: PASS\n");
     await select(page, "callback-outdated-consent");
-    await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("replace:/legal-consent/"));
+    await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("replace:/feed/"));
     process.stdout.write("callback-outdated: PASS\n");
     await select(page, "callback-self-next");
     await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("replace:/feed/"));
     await select(page, "callback-external-next-rejected");
-    await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("replace:/legal-consent/?next=%2Ffeed%2F"));
+    await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("replace:/feed/"));
     await page.evaluate(() => window.history.replaceState(null, "", "/?error=private-provider-detail"));
     await select(page, "callback-current-consent");
     await page.getByText("登录确认失败。", { exact: true }).waitFor();

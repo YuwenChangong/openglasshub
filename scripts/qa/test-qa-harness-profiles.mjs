@@ -759,9 +759,12 @@ test('releaseIncludesSliceALocalChecks', async () => {
   assert.deepEqual(packageJson.scripts['test:product-recovery-slice-a'].split(' && '), [
     'node scripts/test-auth-legal-acknowledgement.mjs',
     'node scripts/test-legal-consent-auth-flow.mjs',
+    'node scripts/test-runtime-consent-frontend.mjs',
     'node scripts/test-legal-consent-visual.mjs',
     'node --experimental-strip-types scripts/test-auth-redirect-safety.mjs',
     'node --experimental-strip-types scripts/test-legal-consent-page-gate.mjs',
+    'node --experimental-strip-types scripts/test-runtime-mutation-identity.mjs',
+    'node --experimental-strip-types scripts/test-legal-consent-mutation-guard.mjs',
     'node scripts/test-user-summary-api-safety.mjs',
     'node scripts/test-header-identity.mjs',
     'node scripts/test-auth-email-observability.mjs',

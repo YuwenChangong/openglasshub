@@ -5,7 +5,7 @@ import { createServer } from "vite";
 import { chromium } from "playwright";
 
 const root = process.cwd();
-const evidence = path.join(root, "output/playwright/header-identity");
+const evidence = path.join(root, ".superpowers", "hotfix-runtime-consent", "header-identity");
 await mkdir(evidence, { recursive: true });
 const server = await createServer({ configFile: path.join(root, "tests/visual/header-identity-harness/vite.config.ts") });
 let browser;
@@ -36,7 +36,7 @@ try {
     "abc123def",
   ].map((local) => identity(user(`${local}@example.test`)).label);
   const origin = server.resolvedUrls.local[0];
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, args: ["--disable-background-networking", "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"] });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: "block" });
   await context.route("**/*", (route) => {
     if (new URL(route.request().url()).origin === new URL(origin).origin) return route.continue();

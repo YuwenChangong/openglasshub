@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
 import { LEGAL_POLICY } from "../../lib/legal-policy";
 import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
-import { recordLegalConsent } from "../../lib/legal-consent-client";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
@@ -14,6 +13,7 @@ interface AuthPanelProps {
   next?: string;
   initialMode?: Mode;
   authAdapter?: AuthPanelAdapter;
+  /** @deprecated Retained for adapter compatibility; runtime auth does not use consent. */
   consentAdapter?: LegalConsentAdapter;
   navigationAdapter?: LegalConsentNavigationAdapter;
 }
@@ -25,10 +25,6 @@ type ResendResponse =
 const RESEND_COOLDOWN_MS = 60_000;
 const RESEND_COOLDOWN_STORAGE_KEY = "auth-resend-confirmation-cooldown-until";
 
-function consentRecoveryHref(next: string): string {
-  return `/legal-consent/?next=${encodeURIComponent(getSafeNext(next))}&reason=callback`;
-}
-
 function mapAuthError(errorMessage: string, messages: AuthMessages): string {
   if (/Invalid login credentials/i.test(errorMessage)) return messages.invalidCredentials;
   if (/Email not confirmed/i.test(errorMessage)) return messages.emailUnconfirmed;
@@ -39,9 +35,9 @@ function mapAuthError(errorMessage: string, messages: AuthMessages): string {
   return messages.unavailable;
 }
 
-export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login", authAdapter, consentAdapter, navigationAdapter }: AuthPanelProps) {
+export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login", authAdapter, navigationAdapter }: AuthPanelProps) {
   const messages = getAuthMessages(locale);
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const supabase = useMemo(() => authAdapter ? null : createBrowserSupabaseClient(), [authAdapter]);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
   const safeNext = useMemo(() => {
     if (next) return getSafeNext(next);
@@ -59,9 +55,6 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
   const [resending, setResending] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [forgotMode, setForgotMode] = useState(false);
-  const [legalAcknowledged, setLegalAcknowledged] = useState(false);
-  const [ageEligible, setAgeEligible] = useState(false);
-  const [legalAcknowledgementError, setLegalAcknowledgementError] = useState("");
   const [resendCooldownUntil, setResendCooldownUntil] = useState(0);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
   const browserAuthState = useBrowserAuthState(supabase);
@@ -80,9 +73,6 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
 
   useEffect(() => {
     setMode(initialMode);
-    setLegalAcknowledged(false);
-    setAgeEligible(false);
-    setLegalAcknowledgementError("");
   }, [initialMode]);
 
   useEffect(() => {
@@ -123,35 +113,19 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
 
   function selectAuthMode(nextMode: Mode) {
     setMode(nextMode);
-    setLegalAcknowledged(false);
-    setAgeEligible(false);
-    setLegalAcknowledgementError("");
     setError("");
     setMessage("");
   }
 
   function returnToAuthMode() {
     setForgotMode(false);
-    setLegalAcknowledged(false);
-    setAgeEligible(false);
-    setLegalAcknowledgementError("");
     setError("");
     setMessage("");
-  }
-
-  function handleLegalAcknowledgementChange(checked: boolean) {
-    setLegalAcknowledged(checked);
-    if (checked) setLegalAcknowledgementError("");
   }
 
   async function handleAuthSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!supabase && !authAdapter) return;
-
-    if (!ageEligible || !legalAcknowledged) {
-      setLegalAcknowledgementError(messages.legalRequired);
-      return;
-    }
 
     setLoading(true);
     setError("");
@@ -166,17 +140,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
         const signInError = signInResult.error;
         if (signInError) throw signInError;
         const accessToken = signInData?.accessToken;
-        if (!accessToken) {
-          navigation.navigate(consentRecoveryHref(safeNext));
-          return;
-        }
-        setMessage(messages.recording);
-        try {
-          if (consentAdapter) await consentAdapter.recordCurrentConsent({ accessToken, source: "login" }); else await recordLegalConsent({ accessToken, source: "login" });
-        } catch {
-          navigation.navigate(consentRecoveryHref(safeNext));
-          return;
-        }
+        if (!accessToken) throw new Error("Auth session missing");
         navigation.navigate(safeNext);
         return;
       }
@@ -195,15 +159,8 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
 
       const accessToken = signUpData?.accessToken;
       if (accessToken) {
-        setMessage(messages.recording);
-        try {
-          if (consentAdapter) await consentAdapter.recordCurrentConsent({ accessToken, source: "registration" }); else await recordLegalConsent({ accessToken, source: "registration" });
-          navigation.navigate(safeNext);
-          return;
-        } catch {
-          navigation.navigate(consentRecoveryHref(safeNext));
-          return;
-        }
+        navigation.navigate(safeNext);
+        return;
       }
 
       setPendingVerificationEmail(email.trim());
@@ -412,49 +369,15 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
               required
             />
           </label>
-          <div className="auth-legal-acknowledgement">
-            <input
-              id="auth-age-eligibility"
-              type="checkbox"
-              checked={ageEligible}
-              onChange={(event) => { setAgeEligible(event.target.checked); if (event.target.checked) setLegalAcknowledgementError(""); }}
-              aria-invalid={legalAcknowledgementError ? true : undefined}
-              aria-describedby={legalAcknowledgementError ? "auth-legal-acknowledgement-error" : undefined}
-            />
-            <label htmlFor="auth-age-eligibility">{messages.eligibility(LEGAL_POLICY.minimumAge)}</label>
-          </div>
-          <div className="auth-legal-acknowledgement">
-            <input
-              id="auth-legal-acknowledgement"
-              type="checkbox"
-              checked={legalAcknowledged}
-              onChange={(event) => handleLegalAcknowledgementChange(event.target.checked)}
-              aria-invalid={legalAcknowledgementError ? true : undefined}
-              aria-describedby={legalAcknowledgementError ? "auth-legal-acknowledgement-error" : undefined}
-            />
-            <label htmlFor="auth-legal-acknowledgement">
-              {messages.consentSentence}{" "}
-              <a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
-                {messages.terms}
-              </a>
-              {" "}{messages.legalJoin}{" "}
-              <a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
-                {messages.guidelines}
-              </a>
-              {messages.privacyLead}{" "}
-              <a href={LEGAL_POLICY.routes.privacy} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
-                {messages.privacy}
-              </a>
-              {messages.consentEnd}
-            </label>
-            {legalAcknowledgementError ? (
-              <div id="auth-legal-acknowledgement-error" className="auth-alert auth-alert--error" role="alert">
-                {legalAcknowledgementError}
-              </div>
-            ) : null}
-          </div>
+          {mode === "signup" ? (
+            <p className="auth-signup-notice">
+              {messages.signupNoticeLead}<a href={LEGAL_POLICY.routes.terms} target="_blank" rel="noopener noreferrer">{messages.signupNoticeTerms}</a>
+              {messages.signupNoticePrivacyLead}<a href={LEGAL_POLICY.routes.privacy} target="_blank" rel="noopener noreferrer">{messages.signupNoticePrivacy}</a>
+              {messages.signupNoticeGuidelinesLead}<a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer">{messages.signupNoticeGuidelines}</a>{messages.consentEnd}
+            </p>
+          ) : null}
           <div className="community-cta-row">
-            <button className="community-button auth-button" type="submit" disabled={loading || !ageEligible || !legalAcknowledged} style={{ opacity: !ageEligible || !legalAcknowledged ? 0.55 : undefined }}>
+            <button className="community-button auth-button" type="submit" disabled={loading}>
               {loading ? messages.processing : mode === "login" ? messages.login : messages.signup}
             </button>
             <button
@@ -472,9 +395,6 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
               className="auth-forgot-link"
               onClick={() => {
                 setForgotMode(true);
-                setLegalAcknowledged(false);
-                setAgeEligible(false);
-                setLegalAcknowledgementError("");
                 setError("");
                 setMessage("");
               }}

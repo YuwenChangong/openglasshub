@@ -1,5 +1,11 @@
 # Slice A Evidence-First Acceptance
 
+## Superseding Runtime Contract
+
+The runtime-consent removal hotfix supersedes the historical consent architecture below. Login and signup have no age/legal acknowledgement controls or consent writes. Signup alone has a compact nonblocking linked legal notice. Auth callback establishes a real session and replaces to a safe destination without consent lookup. Normal layout content is not gated or hidden for consent; authenticated mutations retain their existing authentication, ownership, RLS, role, safety and rate-limit checks but do not query consent storage. The legacy legal-consent route redirects safely without recording consent. Historical legal tables, rows, migrations and audit evidence are retained. Terms minimum age 16 and policy bundle 2026-07 remain unchanged.
+
+The exact validator check `NO_RUNTIME_CONSENT_GATE` replaces the old `CONSENT_FLOW` key. Historical consent-recording receipts are not compatible and must not be relabeled PASS. Required observed evidence is: verified user enters the intended destination without policy interstitial; ordinary authenticated functionality is available. Consent persistence is not required. All other real-email receipt/callback, authenticated lifecycle, old-password rejection and new-password login requirements remain unchanged. The sections below containing old consent-recording requirements are historical context, superseded only on this point. This is functional product acceptance, not external legal approval.
+
 Production acceptance: **NOT_RUN**. This runbook and local fixtures do not authorize a real request, account creation, mail send, mailbox/provider inspection, password change, SQL, configuration change, merge or deployment. Task 7 implements the evidence contract only. Task 8 adds local engineering integration; independent review and deployed execution remain separate work.
 
 ## Authorization and Private Handoffs
@@ -10,7 +16,7 @@ Confirm current Gmail access/ownership and permission before selecting a unique 
 
 Budget one send per flow/provider and at most one deliberate resend/retry after cooldown/operator diagnosis. The existing server resend limit is 5/24h and local cooldown is 60 seconds. Observe Inbox/Spam for 15 minutes, record late arrivals independently, and stop on throttling, suppression or bounce. Do not loop, raise limits or destructively clean up accounts. Cleanup requires separate ownership confirmation and authorization through supported product actions; no SQL fallback.
 
-Human opens mail/links and enters all passwords privately. Pause browser automation during email, consent attestation and password/link handoffs; the human makes the actual consent decision. Disable screenshots, traces, URL logs and recordings before secret-bearing navigation; resume only after URLs and screens are sanitized. Do not export storage, HAR, raw auth/provider payloads, mail bodies, OTPs, tokens, DSNs, metadata or credential-derived values. Record only outcomes and bounded references to safe observations. A pending human handoff remains PARTIAL/NOT_RUN.
+Human opens mail/links and enters all passwords privately. Pause browser automation during email and password/link handoffs. Signup displays the nonblocking legal notice; no separate runtime consent attestation is required. Disable screenshots, traces, URL logs and recordings before secret-bearing navigation; resume only after URLs and screens are sanitized. Do not export storage, HAR, raw auth/provider payloads, mail bodies, OTPs, tokens, DSNs, metadata or credential-derived values. Record only outcomes and bounded references to safe observations. A pending human handoff remains PARTIAL/NOT_RUN.
 
 ## Ordered Mail Evidence
 
@@ -34,12 +40,12 @@ Use safe references to record each complete observed case, not merely that its s
 
 | Check | Required human/browser evidence |
 | --- | --- |
-| AUTH_SIGNUP | Fresh owned signup with actual eligibility and legal acknowledgement; request/response and account outcome. |
+| AUTH_SIGNUP | Fresh owned signup with compact nonblocking linked legal notice and no age/legal checkbox; request/response and account outcome. |
 | AUTH_EMAIL_VERIFICATION | SIGNUP Gmail receipt, private link handoff, verified session and safe callback destination; invalid/reused/expired callback remains actionable without unsafe redirect. |
 | AUTH_LOGIN | Human signs in; browser session becomes usable. |
 | AUTH_SESSION_PERSISTENCE | Same owned session survives refresh, normal navigation, and context close/reopen; one header screenshot is insufficient. |
 | DEFAULT_IDENTITY | Immediate nonblank private name/initial, including slow/unavailable optional summary; own profile route usable; unavailable stats are not fabricated zero. |
-| CONSENT_FLOW | Required/outdated bundle is actually recorded after human acceptance; current bundle replaces to safe destination with no redundant success/Continue screen or loop. Preserve protected server enforcement. |
+| NO_RUNTIME_CONSENT_GATE | Verified user enters the safe intended destination without consent lookup/write or policy interstitial; normal authenticated functionality remains available without historical consent. |
 | AUTH_RESEND_VERIFICATION | Separate unverified owned alias, bounded deliberate resend, RESEND Gmail receipt and private verification callback before confirmation. |
 | AUTH_LOGOUT | Normal logout clears the usable browser signed-in state; do not claim immediate revocation of every existing JWT. |
 | AUTH_RELOGIN | Human signs back in successfully and sees own usable identity/profile. |
@@ -48,7 +54,7 @@ Use safe references to record each complete observed case, not merely that its s
 
 Recovery sequence is: request -> human Inbox/Spam receipt and private link -> browser validated recovery session -> human enters new password -> observed password update -> logout -> exactly one human old-password login attempt rejected -> human new-password login accepted. Pause automation for each password input. Do not retry the old password, log passwords or count an already-open session as a fresh login. Successful local adapter tests, update HTTP success, or a manually asserted reset alone do not prove rejection/acceptance. Each password outcome in the receipt is boolean only; false means proof is absent/incomplete, never inferred from another step.
 
-Keep consent semantics, minimumAge=16 and bundle/version=2026-07 unchanged. Report `LEGAL_EXTERNAL_REVIEW_STATUS` separately as CONFIRMED, NOT_CONFIRMED, or REQUIRED_FOR_POLICY_CHANGE. Current external review is NOT_CONFIRMED, which does not block unchanged-policy engineering/functional acceptance and supplies no lawyer/compliance claim. REQUIRED_FOR_POLICY_CHANGE stops that specific substantive change; the validator refuses acceptance of such a receipt while unaffected engineering can continue.
+Keep Terms minimumAge=16 and bundle/version=2026-07 unchanged, with no runtime age/consent prerequisite. Report `LEGAL_EXTERNAL_REVIEW_STATUS` separately as CONFIRMED, NOT_CONFIRMED, or REQUIRED_FOR_POLICY_CHANGE. External review remains NOT_CONFIRMED; this is not lawyer/compliance approval. REQUIRED_FOR_POLICY_CHANGE stops that specific substantive change; the validator refuses acceptance of such a receipt while unaffected engineering can continue.
 
 ## Version 1 Receipt Contract
 
@@ -80,13 +86,13 @@ Non-Gmail cases absent entirely yield `<PROVIDER>_NOT_RUN`; absent flows on a su
 
 ## Local Validation and Reporting
 
-The deterministic engineering suite runs the ten existing Slice A scripts serially and stops on the first failure:
+The deterministic engineering suite runs thirteen Slice A scripts serially and stops on the first failure:
 
 ```sh
 npm run test:product-recovery-slice-a
 ```
 
-It covers auth/legal acknowledgement, consent auth flow and visual matrix, redirect safety, protected-page gating, actor-scoped summary, immediate header identity, redacted email diagnostics, recovery/callback handling and the evidence validator. RELEASE selects `product-recovery-slice-a` and invokes this npm script locally with no retries. The existing 90-second check timeout is retained: the fully passing guarded serial suite took 50,205 ms on the integration host. The production QA profile and generic execution/network authorization boundaries are unchanged. Run local engineering with external-network denial in Node subprocesses and browser HTTP/WebSocket guards; this command does not grant provider or Production access.
+It covers ungated login/signup and callback behavior, legacy visual compatibility, redirect safety, identity-only mutation guards, actor-scoped summary, immediate header identity, redacted email diagnostics, recovery/callback handling and the evidence validator. RELEASE selects `product-recovery-slice-a` and invokes this npm script locally with no retries. The existing 90-second check timeout is retained. The production QA profile and generic execution/network authorization boundaries are unchanged. Run local engineering with external-network denial in Node subprocesses and browser HTTP/WebSocket guards; this command does not grant provider or Production access.
 
 Integration verification on 2026-09-29 is **not GREEN**. The registration regression failed before registration and then the QA profile tests passed 58/58. An initially stale auth-flow source assertion was reconciled under controller authorization: it now verifies both assignment from `consent.current` and routing through `current ? safeNext`. Its focused RED exited 1 and GREEN exited 0; no check was skipped or deleted. The full ten-script Slice A npm suite, profile suite, `npm test`, build and diff check then exited 0. Existing real-component current/outdated-consent and malicious-destination callback tests passed unchanged. Both subsequent full `qa:release` runs exited 1 with 34 PASS and 1 FAIL: the existing local `forum-search` response timeout. The Slice A release check passed. Earlier isolated and full-release search passes are retained alongside these failures; the latest clean full release is still FAIL. No search/product/generic timeout was changed and no readiness PASS is claimed.
 

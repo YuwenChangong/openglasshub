@@ -66,6 +66,12 @@ function postHandler(source, start, end) {
   return source.slice(from, to === -1 ? source.length : to);
 }
 
+async function assertAuthenticatedContinuation(response, log, label) {
+  assert.equal(response.status, 201, label);
+  assert.deepEqual(await response.json(), { ok: true }, label);
+  assert.deepEqual(log, ["authenticated:verified-actor", "downstream-target-read", "downstream-rate-or-provider", "downstream-persistent-mutation"], `${label}: no consent reads, existing downstream stages retained`);
+}
+
 const representatives = expectedIds.map((id) => {
   const [sourceFile, method] = id.split("#");
   return classifyApiMethod(sourceFile, method);
@@ -289,8 +295,7 @@ for (const waveMethod of PHASE4B_WAVE1_METHODS) {
   for (const outcome of ["missing", "outdated", "failure"]) {
     const log = [];
     const response = await runGuardedRoute({ outcome, log });
-    assert.equal(response.status, outcome === "failure" ? 503 : 403, `${waveMethod.id} ${outcome}`);
-    assert.deepEqual(log.filter((entry) => entry.startsWith("downstream-")), [], `${waveMethod.id} ${outcome} produces zero downstream effects`);
+    await assertAuthenticatedContinuation(response, log, `${waveMethod.id} ${outcome}`);
   }
   const currentLog = [];
   const current = await runGuardedRoute({ outcome: "current", log: currentLog });
@@ -312,11 +317,7 @@ for (const waveMethod of PHASE4B_WAVE2_METHODS) {
   for (const outcome of ["missing", "outdated", "failure"]) {
     const log = [];
     const response = await runGuardedRoute({ outcome, log });
-    assert.equal(response.status, outcome === "failure" ? 503 : 403, `${waveMethod.id} ${outcome}`);
-    assert.deepEqual(await response.json(), outcome === "failure"
-      ? { error: "LEGAL_CONSENT_UNAVAILABLE" }
-      : { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" }, `${waveMethod.id} returns the central sanitized denial`);
-    assert.deepEqual(log.filter((entry) => entry.startsWith("downstream-")), [], `${waveMethod.id} ${outcome} produces zero report, safety, notification, audit, or mutation calls`);
+    await assertAuthenticatedContinuation(response, log, `${waveMethod.id} ${outcome}`);
   }
 
   const currentLog = [];
@@ -333,11 +334,7 @@ for (const waveMethod of PHASE4B_WAVE3_METHODS) {
   for (const outcome of ["missing", "outdated", "failure"]) {
     const log = [];
     const response = await runGuardedRoute({ outcome, log });
-    assert.equal(response.status, outcome === "failure" ? 503 : 403, `${waveMethod.id} ${outcome}`);
-    assert.deepEqual(await response.json(), outcome === "failure"
-      ? { error: "LEGAL_CONSENT_UNAVAILABLE" }
-      : { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" }, `${waveMethod.id} uses the central sanitized denial response`);
-    assert.deepEqual(log.filter((entry) => entry.startsWith("downstream-")), [], `${waveMethod.id} ${outcome} produces zero circle, safety, resource, mutation, or provider calls`);
+    await assertAuthenticatedContinuation(response, log, `${waveMethod.id} ${outcome}`);
   }
   const currentLog = [];
   const current = await runGuardedRoute({ outcome: "current", log: currentLog });
@@ -353,11 +350,7 @@ for (const waveMethod of PHASE4B_WAVE4_METHODS) {
   for (const outcome of ["missing", "outdated", "failure"]) {
     const log = [];
     const response = await runGuardedRoute({ outcome, log });
-    assert.equal(response.status, outcome === "failure" ? 503 : 403, `${waveMethod.id} ${outcome}`);
-    assert.deepEqual(await response.json(), outcome === "failure"
-      ? { error: "LEGAL_CONSENT_UNAVAILABLE" }
-      : { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" }, `${waveMethod.id} uses the central denial contract`);
-    assert.deepEqual(log.filter((entry) => entry.startsWith("downstream-")), [], `${waveMethod.id} ${outcome} produces zero resource, safety, signing, provider, mutation, cleanup, or notification effects`);
+    await assertAuthenticatedContinuation(response, log, `${waveMethod.id} ${outcome}`);
   }
   const currentLog = [];
   const current = await runGuardedRoute({ outcome: "current", log: currentLog });
@@ -389,10 +382,7 @@ for (const outcome of ["missing", "outdated", "failure"]) {
   for (const representative of PHASE4A2_REPRESENTATIVES) {
     const log = [];
     const response = await runGuardedRoute({ outcome, log });
-    assert.equal(response.status, outcome === "failure" ? 503 : 403, `${representative.id} ${outcome}`);
-    if (outcome !== "failure") assert.deepEqual(await response.json(), { error: "LEGAL_CONSENT_REQUIRED", consentUrl: "/legal-consent/" });
-    else assert.deepEqual(await response.json(), { error: "LEGAL_CONSENT_UNAVAILABLE" });
-    assert.deepEqual(log.filter((entry) => entry.startsWith("downstream-")), [], `${representative.id} ${outcome} produces zero downstream effects`);
+    await assertAuthenticatedContinuation(response, log, `${representative.id} ${outcome}`);
   }
 }
 
@@ -414,7 +404,7 @@ console.log(JSON.stringify({
   phase4BWave2: "6/6 integrated",
   phase4BWave3: "8/8 integrated",
   phase4BWave4: "8/8 integrated; 0 remaining",
-  denial: "403 missing-or-outdated, 503 infrastructure failure, zero downstream call-log entries",
+  runtimeCompatibility: "authenticated continuation with zero consent reads; anonymous and staff authorization preserved",
   exemptions: ["legal consent POST", "auth recovery", "read-only GET"],
   phase4B: "complete 37/37",
   realOperations: 0,

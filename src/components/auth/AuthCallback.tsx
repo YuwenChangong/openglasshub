@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getSafeConsentNext } from "../../lib/legal-consent-navigation";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
-import { getLegalConsentStatus } from "../../lib/legal-consent-client";
 import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
 import { browserNavigationAdapter, type LegalConsentAdapter, type LegalConsentAuthAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 import { clearAuthCallbackUrl, hasAuthCallbackError } from "../../lib/auth-callback-url";
@@ -10,6 +9,7 @@ interface AuthCallbackProps {
   locale?: AuthLocale;
   next?: string;
   authAdapter?: LegalConsentAuthAdapter;
+  /** @deprecated Retained for adapter compatibility; callback does not use consent. */
   consentAdapter?: LegalConsentAdapter;
   navigationAdapter?: LegalConsentNavigationAdapter;
   codeExchange?: (code: string, flowId?: string) => Promise<{ error: Error | null }>;
@@ -20,7 +20,7 @@ function mapCallbackError(errorMessage: string, messages: AuthMessages): string 
   return messages.callbackFailed;
 }
 
-export default function AuthCallback({ locale = "zh-CN", next, authAdapter, consentAdapter, navigationAdapter, codeExchange }: AuthCallbackProps) {
+export default function AuthCallback({ locale = "zh-CN", next, authAdapter, navigationAdapter, codeExchange }: AuthCallbackProps) {
   const messages = getAuthMessages(locale);
   const supabase = useMemo(() => authAdapter ? null : createBrowserSupabaseClient(), [authAdapter]);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
@@ -50,16 +50,10 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
       if (!mounted || redirected) return;
 
       if (data.session?.access_token) {
-        let current = false;
-        try {
-          const consent = consentAdapter ? await consentAdapter.getCurrentConsent(data.session.access_token) : await getLegalConsentStatus(data.session.access_token);
-          current = consent.current;
-        } catch { /* consent gate remains the safe destination */ }
-        if (!mounted || redirected) return;
         redirected = true;
         if (timeoutId) window.clearTimeout(timeoutId);
         clearAuthCallbackUrl();
-        try { navigation.replace(current ? safeNext : `/legal-consent/?next=${encodeURIComponent(safeNext)}&reason=callback`); }
+        try { navigation.replace(safeNext); }
         catch { setError(messages.callbackFailed); }
       }
     }
@@ -126,7 +120,7 @@ export default function AuthCallback({ locale = "zh-CN", next, authAdapter, cons
       }
       unsubscribe?.();
     };
-  }, [safeNext, supabase, authAdapter, consentAdapter, navigation, codeExchange]);
+  }, [safeNext, supabase, authAdapter, navigation, codeExchange]);
 
   return (
     <section className="auth-card">
