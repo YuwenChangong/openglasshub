@@ -101,12 +101,12 @@ export function createResendPost(dependencies?: ResendDependencies): APIRoute {
       if (result.error !== null) {
         observe(classifyAuthEmailFailure(result.error));
         if (isCaptchaFailure(result.error)) return json({ ok: false, error: "CAPTCHA_RETRY" }, 400);
-        if (classifyAuthEmailFailure(result.error) !== "rejected") return json({ ok: false, error: "RESEND_CONFIRMATION_FAILED" }, 503);
+        if (!isAccountSpecificAuthFailure(result.error)) return json({ ok: false, error: "RESEND_CONFIRMATION_FAILED" }, 503);
       } else observe("accepted");
     } catch (error) {
       observe(classifyAuthEmailFailure(error));
       if (isCaptchaFailure(error)) return json({ ok: false, error: "CAPTCHA_RETRY" }, 400);
-      if (classifyAuthEmailFailure(error) !== "rejected") return json({ ok: false, error: "RESEND_CONFIRMATION_FAILED" }, 503);
+      if (!isAccountSpecificAuthFailure(error)) return json({ ok: false, error: "RESEND_CONFIRMATION_FAILED" }, 503);
     }
 
     return json({
@@ -117,6 +117,18 @@ export function createResendPost(dependencies?: ResendDependencies): APIRoute {
     return json({ ok: false, error: "RESEND_CONFIRMATION_FAILED" }, 500);
   }
 };
+}
+
+function isAccountSpecificAuthFailure(error: unknown): boolean {
+  try {
+    if (typeof error !== "object" || error === null) return false;
+    const { status, code } = error as { status?: unknown; code?: unknown };
+    // These account-state codes are in the installed Auth ErrorCode contract; status alone is insufficient.
+    return (status === 400 || status === 404)
+      && (code === "user_not_found" || code === "email_exists" || code === "user_already_exists" || code === "email_not_confirmed");
+  } catch {
+    return false;
+  }
 }
 
 function isCaptchaFailure(error: unknown): boolean {

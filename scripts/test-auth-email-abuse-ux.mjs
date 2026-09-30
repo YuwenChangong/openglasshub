@@ -145,6 +145,8 @@ async function crossDelayedCallBarrier(page) {
 }
 
 async function checkBrowser() {
+  const routeVite = await createServer({ root: process.cwd(), logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const { createResendPost } = await routeVite.ssrLoadModule("/src/pages/api/auth/resend-confirmation.ts");
   const harnessRoot = path.join(process.cwd(), "tests", "visual", "legal-consent-harness");
   const harness = await createServer({ root: harnessRoot, configFile: path.join(harnessRoot, "vite.config.ts"), logLevel: "error", server: { host: "127.0.0.1", port: 0 } });
   let browser;
@@ -459,6 +461,41 @@ async function checkBrowser() {
       await stalePage.close();
     }
 
+    const wiredPage = await context.newPage();
+    await wiredPage.addInitScript(() => sessionStorage.setItem("auth-pending-verification-email", "qa@example.invalid"));
+    let wiredRequest;
+    let wiredResponse;
+    const wiredCalls = { limit: 0, provider: 0 };
+    const wiredPost = createResendPost({
+      resend: async () => { wiredCalls.provider++; return { error: null }; },
+      consumeLimit: async () => { wiredCalls.limit++; return { allowed: true, reason: "ALLOWED" }; },
+      observe: () => {},
+    });
+    await wiredPage.route("**/api/auth/resend-confirmation", async (route) => {
+      wiredRequest = route.request().postDataJSON();
+      setCloudflareWorkersTestBinding({ RATE_LIMIT_SALT: "fixture-salt", AUTH_CAPTCHA_MODE: "required" });
+      const response = await wiredPost({ request: new Request(route.request().url(), {
+        method: "POST", headers: { "content-type": "application/json", "cf-connecting-ip": "192.0.2.1" }, body: route.request().postData(),
+      }), locals: {} });
+      wiredResponse = { status: response.status, body: await response.json() };
+      await route.fulfill({ status: response.status, contentType: "application/json", body: JSON.stringify(wiredResponse.body) });
+    });
+    await wiredPage.goto(origin, { waitUntil: "networkidle" });
+    await wiredPage.evaluate((key) => localStorage.removeItem(key), cooldownKey);
+    await select(wiredPage, "register-abuse-initial", true);
+    await wiredPage.locator(".legal-harness__surface .auth-resend button").click();
+    await wiredPage.locator(".legal-harness__surface .auth-alert--error").waitFor();
+    await check("STALE_OFF_WIRED_REQUIRED_ROUTE", async () => {
+      assert.equal(wiredRequest.captchaToken, undefined);
+      assert.deepEqual(wiredResponse, { status: 400, body: { ok: false, error: "BOT_PROOF_REQUIRED" } });
+      assert.deepEqual(wiredCalls, { limit: 0, provider: 0 });
+      const surface = wiredPage.locator(".legal-harness__surface");
+      assert.match((await surface.locator(".auth-alert--error").textContent()) ?? "", /刷新页面后重试/);
+      assert.equal(await surface.locator(".auth-alert--success").count(), 0);
+      assert.equal(await surface.locator(".auth-resend button").isDisabled(), false);
+    });
+    await wiredPage.close();
+
     const page = await context.newPage();
     await page.clock.install({ time: new Date(fixedNow) });
     await page.goto(origin, { waitUntil: "networkidle" });
@@ -579,6 +616,7 @@ async function checkBrowser() {
   } finally {
     if (browser) await browser.close();
     await harness.close();
+    await routeVite.close();
   }
 }
 

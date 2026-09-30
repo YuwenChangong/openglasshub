@@ -5,10 +5,9 @@ import { env as runtimeEnv } from "cloudflare:workers";
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import AuthPanel from "../../components/forum/AuthPanel";
 import { getSafeNext } from "../../lib/auth-redirect";
-import { parseAuthCaptchaMode } from "../../lib/auth-captcha-mode";
+import { configureAuthLoginResponse } from "../../lib/server/auth-login-response";
 
-const captchaMode = parseAuthCaptchaMode(runtimeEnv.AUTH_CAPTCHA_MODE);
-Astro.response.headers.set("Cache-Control", "no-store");
+const captchaMode = configureAuthLoginResponse(Astro.response, runtimeEnv);
 const next = getSafeNext(Astro.url.searchParams.get("next"));
 const modeParam = Astro.url.searchParams.get("mode");
 const initialMode = modeParam === "register" || modeParam === "signup" ? "signup" : "login";

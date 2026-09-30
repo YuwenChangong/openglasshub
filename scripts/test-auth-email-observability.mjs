@@ -33,6 +33,16 @@ async function main() {
   const vite = await createServer({ root: process.cwd(), logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   try {
     const { createResendPost } = await vite.ssrLoadModule("/src/pages/api/auth/resend-confirmation.ts");
+    const { configureAuthLoginResponse } = await vite.ssrLoadModule("/src/lib/server/auth-login-response.ts");
+    const { env: loginRuntimeEnv } = await vite.ssrLoadModule("cloudflare:workers");
+    for (const mode of ["off", "required"]) {
+      setCloudflareWorkersTestBinding({ AUTH_CAPTCHA_MODE: mode });
+      const response = { headers: new Headers() };
+      assert.equal(configureAuthLoginResponse(response, loginRuntimeEnv), mode);
+      assert.equal(response.headers.get("Cache-Control"), "no-store");
+    }
+    assert.throws(() => configureAuthLoginResponse({ headers: new Headers() }, { AUTH_CAPTCHA_MODE: "invalid" }));
+    console.log("freshLoginResponseUsesCurrentRuntimeMode: PASS");
     async function run(resend, options = {}) {
       setCloudflareWorkersTestBinding({ RATE_LIMIT_SALT: "fixture-salt", AUTH_CAPTCHA_MODE: options.mode ?? "off" });
       const events = [];
@@ -71,10 +81,25 @@ async function main() {
     }
     const thrownCaptcha = await run(async () => { throw captchaError; }, { mode: "required", captchaToken: "fixture-token" });
     assert.equal(thrownCaptcha.body.error, "CAPTCHA_RETRY");
-    const loginSource = await fs.readFile(path.join(process.cwd(), "src", "pages", "login", "index.astro"), "utf8");
-    assert.match(loginSource, /parseAuthCaptchaMode\(runtimeEnv\.AUTH_CAPTCHA_MODE\)/);
-    assert.match(loginSource, /Astro\.response\.headers\.set\("Cache-Control", "no-store"\)/);
     console.log("resendCaptchaModeAndLimiterMatrix: PASS");
+
+    for (const code of ["bad_json", "validation_failed", "no_authorization", "email_provider_disabled", "signup_disabled"]) {
+      for (const disposition of ["returned", "thrown"]) {
+        const error = { status: 400, code, message: "fixture-sensitive-payload" };
+        const result = await run(async () => {
+          if (disposition === "thrown") throw error;
+          return { error };
+        });
+        assert.deepEqual(result.body, { ok: false, error: "RESEND_CONFIRMATION_FAILED" }, `${disposition} ${code}`);
+        assert.equal(result.response.status, 503);
+        assert.doesNotMatch(JSON.stringify(result.body) + JSON.stringify(result.events), /fixture-sensitive-payload/);
+      }
+    }
+    const uncoded = await run(async () => ({ error: { status: 400, message: "fixture unknown recipient" } }));
+    assert.deepEqual(uncoded.body, { ok: false, error: "RESEND_CONFIRMATION_FAILED" });
+    const mismatchedStatus = await run(async () => ({ error: { status: 429, code: "user_not_found", message: "fixture-sensitive-payload" } }));
+    assert.deepEqual(mismatchedStatus.body, { ok: false, error: "RESEND_CONFIRMATION_FAILED" });
+    console.log("definiteAuthErrorsFailGenerically: PASS");
 
     const returned = await run(async () => ({ error: { status: 503, message: "fixture-sensitive-payload" } }));
     assert.equal(returned.response.status, 503);
@@ -90,8 +115,14 @@ async function main() {
     console.log("thrownProviderErrorObserved: PASS");
 
     const accepted = await run(async () => ({ error: null }));
-    const unknown = await run(async () => ({ error: { status: 400, message: "fixture unknown recipient" } }));
+    const unknown = await run(async () => ({ error: { status: 400, code: "user_not_found", message: "fixture unknown recipient" } }));
+    const unknownThrown = await run(async () => { throw { status: 400, code: "user_not_found", message: "fixture unknown recipient" }; });
     assert.deepEqual(unknown.body, accepted.body, "unknownRecipientIndistinguishable");
+    assert.deepEqual(unknownThrown.body, accepted.body, "thrownUnknownRecipientIndistinguishable");
+    for (const code of ["email_exists", "user_already_exists", "email_not_confirmed"]) {
+      const accountSpecific = await run(async () => ({ error: { status: 400, code, message: "fixture-sensitive-payload" } }));
+      assert.deepEqual(accountSpecific.body, accepted.body, `${code} must not disclose account state`);
+    }
     assert.equal(accepted.events[0].outcome, "accepted");
     assert.equal(unknown.events[0].outcome, "rejected");
     console.log("unknownRecipientIndistinguishable: PASS");
