@@ -83,9 +83,27 @@ function Harness() {
         return signedIn ? { accessToken: "test-session" } : null;
       };
     })(),
-    signInWithPassword: async () => { record("signIn"); return scenario === "login-no-session" ? { data: null, error: null } : scenario === "login-auth-success-consent-failure" ? { data: null, error: new Error("Invalid login credentials") } : { data: { accessToken: "test-session" }, error: null }; },
-    signUp: async () => { record("signUp"); return ["register-email-confirmation-no-session", "register-abuse-initial", "register-abuse-obfuscated", "register-abuse-required"].includes(scenario) ? { data: null, error: null } : { data: { accessToken: "test-session" }, error: null }; },
+    signInWithPassword: async () => {
+      if (scenario === "login-abuse-required") {
+        window.setTimeout(() => record("signIn"), 500);
+        return { data: null, error: new Error("fixture early rejection") };
+      }
+      record("signIn");
+      return scenario === "login-no-session" ? { data: null, error: null } : scenario === "login-auth-success-consent-failure" ? { data: null, error: new Error("Invalid login credentials") } : { data: { accessToken: "test-session" }, error: null };
+    },
+    signUp: async () => {
+      if (scenario === "register-abuse-required") {
+        window.setTimeout(() => record("signUp"), 500);
+        return { data: null, error: new Error("fixture early rejection") };
+      }
+      record("signUp");
+      return ["register-email-confirmation-no-session", "register-abuse-initial", "register-abuse-obfuscated"].includes(scenario) ? { data: null, error: null } : { data: { accessToken: "test-session" }, error: null };
+    },
     requestPasswordReset: async ({ email, redirectTo }) => {
+      if (scenario === "login-abuse-required") {
+        window.setTimeout(() => record("resetCallbackSafe:true"), 500);
+        return { error: new Error("fixture early rejection") };
+      }
       record(`resetCallbackSafe:${email === "qa@example.invalid" && redirectTo === `${window.location.origin}/auth/reset-password/`}`);
       if (scenario === "login-reset-returned-error") return { error: new Error("fixture private provider detail") };
       if (scenario === "login-reset-thrown-error") throw new Error("fixture private provider detail");

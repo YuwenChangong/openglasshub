@@ -107,6 +107,16 @@ async function submitAndWaitForAuthAttempt(page, call) {
   }, { expectedCall: call, previousError });
 }
 
+async function crossDelayedCallBarrier(page) {
+  await page.evaluate(() => {
+    const output = document.querySelector("output");
+    output.dataset.abuseBarrier = "pending";
+    window.setTimeout(() => { output.dataset.abuseBarrier = "complete"; }, 750);
+  });
+  await page.clock.runFor(750);
+  await page.waitForFunction(() => document.querySelector("output")?.dataset.abuseBarrier === "complete");
+}
+
 async function checkBrowser() {
   const harnessRoot = path.join(process.cwd(), "tests", "visual", "legal-consent-harness");
   const harness = await createServer({ root: harnessRoot, configFile: path.join(harnessRoot, "vite.config.ts"), logLevel: "error", server: { host: "127.0.0.1", port: 0 } });
@@ -145,6 +155,7 @@ async function checkBrowser() {
     await clockPage.close();
 
     const page = await context.newPage();
+    await page.clock.install({ time: new Date(fixedNow) });
     await page.goto(origin, { waitUntil: "networkidle" });
     await select(page, "login-abuse-off");
     await page.getByRole("button", { name: "忘记密码？", exact: true }).click();
@@ -155,6 +166,7 @@ async function checkBrowser() {
     await select(page, "register-abuse-required");
     await fillAuthFields(page);
     await submitAndWaitForAuthAttempt(page, "signUp");
+    await crossDelayedCallBarrier(page);
     await check("SIGNUP_EMAIL_SEND_WITHOUT_BOT_PROOF", async () => {
       assert.equal((await trace(page)).includes("signUp"), false, "required mode must not call signup SDK without proof");
     });
@@ -163,6 +175,7 @@ async function checkBrowser() {
     await page.getByRole("button", { name: "忘记密码？", exact: true }).click();
     await page.locator('.legal-harness__surface input[type="email"]').fill("qa@example.invalid");
     await submitAndWaitForAuthAttempt(page, "resetCallbackSafe");
+    await crossDelayedCallBarrier(page);
     await check("PASSWORD_RESET_EMAIL_WITHOUT_BOT_PROOF", async () => {
       assert.equal((await trace(page)).includes("resetCallbackSafe:"), false, "required mode must not call reset SDK without proof");
     });
@@ -170,6 +183,7 @@ async function checkBrowser() {
     await select(page, "login-abuse-required");
     await fillAuthFields(page);
     await submitAndWaitForAuthAttempt(page, "signIn");
+    await crossDelayedCallBarrier(page);
     await check("PASSWORD_LOGIN_WITHOUT_BOT_PROOF", async () => {
       assert.equal((await trace(page)).split(",").filter((call) => call === "signIn").length, 0, "required mode must make zero sign-in SDK calls without a fresh token");
     });
@@ -188,9 +202,8 @@ async function checkBrowser() {
     await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signUp"));
     await check("EXISTING_ACCOUNT_FALSE_CHECK_INBOX_STATE", async () => {
       const surface = page.locator(".legal-harness__surface");
-      const text = await surface.innerText();
-      assert.doesNotMatch(text, /(?:^|[.!?\n]\s*)(?:check your inbox\b|(?:an?\s+)?(?:verification\s+)?email (?:sent|was sent|has been sent|is sent)\b|(?:we(?:'ve| have)?\s+)?sent (?:you\s+)?(?:an?\s+)?(?:verification\s+)?email\b)/i, "obfuscated signup must not claim email was sent or direct an unconditional inbox check");
-      assert.equal(/if.*new.*email/i.test(text), true, "no-session obfuscated signup must use conditional new-email wording");
+      const successCopy = (await surface.locator(".auth-feedback .auth-alert--success").allTextContents()).map((value) => value.replace(/\s+/g, " ").trim());
+      assert.deepEqual(successCopy, ["If this is a new email, we will send a verification email. If you already have an account, log in or use Forgot password."], "obfuscated signup must show only the approved conditional pending copy");
       assert.equal(await surface.getByRole("button", { name: /forgot password/i }).count(), 1, "pending state must offer direct recovery");
       assert.equal(await surface.getByRole("button", { name: /log in/i }).count() > 0, true, "pending state must offer direct login");
     });
