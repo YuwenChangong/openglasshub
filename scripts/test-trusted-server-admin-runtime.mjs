@@ -27,7 +27,7 @@ let viteServer;
 async function loadCapabilityHandler() {
   viteServer ??= await createServer({
     configFile: false,
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, hmr: false, ws: false },
     appType: "custom",
   });
   return viteServer.ssrLoadModule(path.resolve("src/lib/server/supabase-admin.server.ts"));

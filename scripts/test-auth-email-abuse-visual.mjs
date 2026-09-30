@@ -33,7 +33,7 @@ try {
     await page.setViewportSize({ width, height: 900 });
     await page.clock.install({ time: new Date("2026-09-30T00:00:00Z") });
     // The fake represents callback interaction only, not Cloudflare rendering or enforcement.
-    await page.addInitScript(() => {
+    if (state !== "off-unavailable") await page.addInitScript(() => {
       window.__visualWidget = null;
       window.turnstile = {
         render: (element, options) => {
@@ -91,11 +91,19 @@ try {
       }
     }
     if (state.includes("unavailable") || state === "prepare-script-failed") {
+      if (state === "off-unavailable") assert.equal(await page.evaluate(() => typeof window.turnstile), "undefined", "off-unavailable must have no Turnstile API");
       await surface.locator('input[type="email"]').fill("qa@example.invalid");
       await surface.locator('input[type="password"]').fill("fixture-passphrase");
       await surface.locator('button[type="submit"]').click();
       await page.waitForFunction(() => window.__authSdkCalls.includes("signInWithPassword"));
-      if (state === "off-unavailable") assert.equal(await page.locator('script[src*="turnstile"]').count(), 0);
+      if (state === "off-unavailable") {
+        await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("navigate:/feed/"));
+        assert.equal(await page.evaluate(() => typeof window.turnstile), "undefined");
+        assert.equal(await page.locator('script[src*="turnstile"]').count(), 0);
+        assert.equal(await surface.locator(".auth-alert--error").count(), 0);
+        assert.deepEqual(await page.evaluate(() => window.__authSdkCalls), ["signInWithPassword"]);
+        console.log(`AUTH_OFF_UNAVAILABLE ${locale}/${width}: API_ABSENT; LOGIN_SUCCESS; SCRIPT_REQUESTS=0`);
+      }
     }
     assert.equal(await surface.locator('input[type="checkbox"]').count(), 0, "no runtime consent control");
     assert.equal(await surface.locator('button[type="submit"]').count(), 1, "one active form action");

@@ -16,7 +16,7 @@ function test(name, run) {
     .then(() => console.log(`PASS ${name}`));
 }
 
-const vite = await createServer({ root, plugins: [react(), cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom" });
+const vite = await createServer({ root, plugins: [react(), cloudflareWorkersTestPlugin()], server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom" });
 const { handleAdminCirclePurge } = await vite.ssrLoadModule("/src/lib/server/admin-circle-purge.server.ts");
 const {
   getGlassConfirmDialogButtonState,
@@ -171,7 +171,7 @@ await test("admin circles GET resolves and invokes the strict admin guard", asyn
 
   const isolatedVite = await createServer({
     root,
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, hmr: false, ws: false },
     appType: "custom",
     plugins: [cloudflareWorkersTestPlugin(), {
       name: "admin-circles-get-runtime-auth",

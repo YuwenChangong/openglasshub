@@ -47,7 +47,7 @@ async function checkResendApi() {
   const originalFetch = globalThis.fetch;
   let externalAttempts = 0;
   globalThis.fetch = async () => { externalAttempts += 1; throw new Error("external networking denied"); };
-  const vite = await createServer({ root: process.cwd(), logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const vite = await createServer({ root: process.cwd(), logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   try {
     const { createResendPost } = await vite.ssrLoadModule("/src/pages/api/auth/resend-confirmation.ts");
     let resendCalls = 0;
@@ -145,7 +145,7 @@ async function crossDelayedCallBarrier(page) {
 }
 
 async function checkBrowser() {
-  const routeVite = await createServer({ root: process.cwd(), logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const routeVite = await createServer({ root: process.cwd(), logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   const { createResendPost } = await routeVite.ssrLoadModule("/src/pages/api/auth/resend-confirmation.ts");
   const harnessRoot = path.join(process.cwd(), "tests", "visual", "legal-consent-harness");
   const harness = await createServer({ root: harnessRoot, configFile: path.join(harnessRoot, "vite.config.ts"), logLevel: "error", server: { host: "127.0.0.1", port: 0 } });
