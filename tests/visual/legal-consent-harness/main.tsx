@@ -15,7 +15,7 @@ import { LEGAL_CONSENT_STATE_MATRIX } from "../legal-consent-state-matrix.mjs";
 
 type Scenario = string;
 const status = (current: boolean): LegalConsentStatus => ({ current, bundleVersion: "2026-07", minimumAge: 16, consentUrl: "/legal-consent/" });
-const additionalCases = ["consent-submit-expired-401", "consent-submit-session-missing", "consent-delayed-current", "consent-retry-success", "consent-outdated-bundle", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-record-not-current", "consent-auth-failure", "consent-submit-auth-failure", "consent-callback-success", "consent-logout-failure", "consent-current-navigation-throw", "consent-record-navigation-throw", "consent-current-navigation-stall", "consent-record-navigation-stall", "login-reset-safe-callback", "login-reset-returned-error", "login-reset-thrown-error", "register-abuse-initial", "register-abuse-obfuscated", "register-abuse-duplicate", "register-abuse-unconfirmed", "register-abuse-required", "register-abuse-off-stale", "register-abuse-prepare-stale", "register-captcha-prepare-token", "login-abuse-required", "login-abuse-off", "login-abuse-prepare", "login-abuse-off-stale", "login-abuse-prepare-stale", "login-reset-off-stale", "login-reset-prepare-stale", "login-reset-prepare-token", "login-captcha-off", "login-captcha-prepare-missing", "login-captcha-prepare-script-failed", "login-captcha-prepare-token", "login-captcha-required-missing", "login-captcha-required-error", "login-captcha-required-expired", "login-captcha-required-widget", "callback-self-next", "callback-delayed-session", "callback-failed-code"];
+const additionalCases = ["consent-submit-expired-401", "consent-submit-session-missing", "consent-delayed-current", "consent-retry-success", "consent-outdated-bundle", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-record-not-current", "consent-auth-failure", "consent-submit-auth-failure", "consent-callback-success", "consent-logout-failure", "consent-current-navigation-throw", "consent-record-navigation-throw", "consent-current-navigation-stall", "consent-record-navigation-stall", "login-reset-safe-callback", "login-reset-returned-error", "login-reset-thrown-error", "register-abuse-initial", "register-abuse-retry-fails", "register-abuse-obfuscated", "register-abuse-duplicate", "register-abuse-unconfirmed", "register-abuse-required", "register-abuse-off-stale", "register-abuse-prepare-stale", "register-captcha-prepare-token", "login-abuse-required", "login-abuse-off", "login-abuse-prepare", "login-abuse-off-stale", "login-abuse-prepare-stale", "login-reset-off-stale", "login-reset-prepare-stale", "login-reset-prepare-token", "login-captcha-off", "login-captcha-prepare-missing", "login-captcha-prepare-script-failed", "login-captcha-prepare-token", "login-captcha-required-missing", "login-captcha-required-error", "login-captcha-required-expired", "login-captcha-required-widget", "callback-self-next", "callback-delayed-session", "callback-failed-code"];
 const authSdkCalls: string[] = [];
 (window as unknown as Window & { __authSdkCalls: string[] }).__authSdkCalls = authSdkCalls;
 
@@ -102,6 +102,10 @@ function Harness() {
     },
     signUp: async (input) => {
       authSdkCalls.push("signUp");
+      if (scenario === "register-abuse-retry-fails" && authSdkCalls.filter((call) => call === "signUp").length === 2) {
+        record("signUpFailed");
+        return { data: null, error: new Error("captcha_failed") };
+      }
       if (scenario === "register-captcha-prepare-token") record(`tokenPresent:${input.captchaToken === "fixture-token"}`);
       if (scenario === "register-abuse-required") {
         window.setTimeout(() => record("signUp"), 500);
@@ -110,7 +114,7 @@ function Harness() {
       record("signUp");
       if (scenario.endsWith("-stale")) return { data: null, error: new Error("captcha_failed") };
       if (scenario === "register-abuse-duplicate") return { data: null, error: new Error("User already registered") };
-      return ["register-email-confirmation-no-session", "register-abuse-initial", "register-abuse-obfuscated", "register-abuse-unconfirmed", "register-captcha-prepare-token"].includes(scenario) ? { data: null, error: null } : { data: { accessToken: "test-session" }, error: null };
+      return ["register-email-confirmation-no-session", "register-abuse-initial", "register-abuse-retry-fails", "register-abuse-obfuscated", "register-abuse-unconfirmed", "register-captcha-prepare-token"].includes(scenario) ? { data: null, error: null } : { data: { accessToken: "test-session" }, error: null };
     },
     requestPasswordReset: async ({ email, redirectTo, captchaToken }) => {
       authSdkCalls.push("requestPasswordReset");

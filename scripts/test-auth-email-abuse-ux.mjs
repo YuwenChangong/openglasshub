@@ -320,7 +320,47 @@ async function checkBrowser() {
       assert.equal(await resend.isDisabled(), true);
       assert.match((await resend.textContent()) ?? "", /60/);
     });
+    await check("REFRESH_CLEARS_EXPIRED_OR_INVALID_COOLDOWN", async () => {
+      for (const storedValue of ["expired", "not-an-expiry"]) {
+        await clockPage.evaluate(([key, value]) => localStorage.setItem(key, value === "expired" ? String(Date.now() - 1000) : value), [cooldownKey, storedValue]);
+        await clockPage.reload({ waitUntil: "networkidle" });
+        await select(clockPage, "register-abuse-initial", true);
+        const resend = clockPage.locator(".legal-harness__surface .auth-resend button");
+        await resend.waitFor();
+        assert.equal(await resend.isDisabled(), false, "stale cooldown must leave resend available");
+        assert.equal(await clockPage.evaluate((key) => localStorage.getItem(key), cooldownKey), null, "mount must remove stale cooldown storage");
+        assert.equal(await clockPage.evaluate(() => sessionStorage.getItem("auth-pending-verification-email")), "qa@example.invalid");
+      }
+    });
     await clockPage.close();
+
+    const retryPage = await context.newPage();
+    await retryPage.clock.install({ time: new Date(fixedNow) });
+    await retryPage.goto(origin, { waitUntil: "networkidle" });
+    await retryPage.evaluate((key) => localStorage.removeItem(key), cooldownKey);
+    await select(retryPage, "register-abuse-retry-fails");
+    await fillAuth(retryPage);
+    await retryPage.waitForFunction((key) => Number(localStorage.getItem(key)) > Date.now(), cooldownKey);
+    await check("FAILED_SIGNUP_RETRY_PRESERVES_ACCEPTED_PENDING", async () => {
+      const surface = retryPage.locator(".legal-harness__surface");
+      const initialExpiry = await retryPage.evaluate((key) => localStorage.getItem(key), cooldownKey);
+      assert.equal(await retryPage.evaluate((key) => Number(localStorage.getItem(key)) > Date.now(), cooldownKey), true);
+      await surface.locator('button[type="submit"]').click();
+      await surface.locator(".auth-alert--error").waitFor();
+      assert.match((await surface.locator(".auth-alert--error").textContent()) ?? "", /refresh.*try again|刷新页面后重试/i);
+      assert.equal(await surface.locator(".auth-alert--success").count(), 0, "failed retry must not claim a new email was sent");
+      assert.equal(await retryPage.evaluate(() => sessionStorage.getItem("auth-pending-verification-email")), "qa@example.invalid");
+      assert.equal(await retryPage.evaluate((key) => localStorage.getItem(key), cooldownKey), initialExpiry);
+      assert.equal(await surface.locator(".auth-resend button").isDisabled(), true);
+      await retryPage.reload({ waitUntil: "networkidle" });
+      await select(retryPage, "register-abuse-retry-fails", true);
+      const restoredResend = retryPage.locator(".legal-harness__surface .auth-resend button");
+      await restoredResend.waitFor();
+      assert.equal(await restoredResend.isDisabled(), true);
+      assert.equal(await retryPage.evaluate(() => sessionStorage.getItem("auth-pending-verification-email")), "qa@example.invalid");
+      assert.equal(await retryPage.evaluate((key) => localStorage.getItem(key), cooldownKey), initialExpiry);
+    });
+    await retryPage.close();
 
     for (const [scenario, expectedToken] of [["register-abuse-required", null], ["register-captcha-prepare-token", "fixture-token"], ["register-abuse-initial", undefined]]) {
       const resendPage = await context.newPage();
@@ -418,7 +458,8 @@ async function checkBrowser() {
       assert.equal(await surface.getByRole("button", { name: /log in/i }).count() > 0, true, "pending state must offer direct login");
     });
     for (const scenario of ["register-abuse-initial", "register-abuse-duplicate", "register-abuse-obfuscated", "register-abuse-unconfirmed"]) {
-      await select(page, scenario, scenario === "register-abuse-duplicate");
+      if (scenario === "register-abuse-duplicate") await select(page, "login-abuse-off");
+      await select(page, scenario);
       await fillAuth(page);
       await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signUp"));
       await check(`GENERIC_SIGNUP_${scenario.toUpperCase().replaceAll("-", "_")}`, async () => {

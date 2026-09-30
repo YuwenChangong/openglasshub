@@ -106,6 +106,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
       setResendCooldownUntil(parsed);
       setCooldownNow(Date.now());
     }
+    else if (storedValue !== null) window.localStorage.removeItem(RESEND_COOLDOWN_STORAGE_KEY);
   }, []);
 
   useEffect(() => {
@@ -168,10 +169,6 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
     setError("");
     setMessage("");
     setAccountHelp(false);
-    if (mode === "signup") {
-      setPendingVerificationEmail("");
-      window.sessionStorage.removeItem(PENDING_EMAIL_STORAGE_KEY);
-    }
 
     try {
       const captchaToken = await acquireCaptchaToken();
@@ -205,6 +202,8 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
 
       const accessToken = signUpData?.accessToken;
       if (accessToken) {
+        setPendingVerificationEmail("");
+        window.sessionStorage.removeItem(PENDING_EMAIL_STORAGE_KEY);
         navigation.navigate(safeNext);
         return;
       }
