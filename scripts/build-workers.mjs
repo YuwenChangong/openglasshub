@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { unstable_readConfig } from "wrangler";
+import { withWorkerRuntimeVars } from "./lib/workers-runtime-vars.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const productionConfig = unstable_readConfig(
@@ -25,13 +26,8 @@ if (result.error) throw result.error;
 if (result.status !== 0) {
   process.exitCode = result.status ?? 1;
 } else {
-  const supabaseUrl = productionConfig.vars?.SUPABASE_URL;
-  if (typeof supabaseUrl !== "string" || supabaseUrl.trim() === "") {
-    throw new Error("WORKERS_RUNTIME_SUPABASE_URL_MISSING");
-  }
-
   const generatedPath = resolve(root, "dist", "server", "wrangler.json");
   const generated = JSON.parse(await readFile(generatedPath, "utf8"));
-  generated.vars = { ...(generated.vars ?? {}), SUPABASE_URL: supabaseUrl };
-  await writeFile(generatedPath, `${JSON.stringify(generated, null, 2)}\n`, "utf8");
+  const configured = withWorkerRuntimeVars(generated, productionConfig.vars ?? {});
+  await writeFile(generatedPath, `${JSON.stringify(configured, null, 2)}\n`, "utf8");
 }
