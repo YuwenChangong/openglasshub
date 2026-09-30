@@ -104,6 +104,10 @@ async function trace(page) {
   return (await page.locator("output").textContent()) ?? "";
 }
 
+async function authSdkCalls(page) {
+  return page.evaluate(() => window.__authSdkCalls);
+}
+
 async function waitForWidgetBlockedAttempt(page, previousResets) {
   await page.waitForFunction((previous) => {
     const surface = document.querySelector(".legal-harness__surface");
@@ -198,6 +202,7 @@ async function checkBrowser() {
       await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
       await waitForWidgetBlockedAttempt(widgetPage, null);
       await checkWidget(`WIDGET_${scenario.toUpperCase().replaceAll("-", "_")}_BLOCKS`, async () => {
+        assert.deepEqual(await authSdkCalls(widgetPage), [], "blocked attempt must make no auth SDK call");
         assert.equal((await trace(widgetPage)).includes("signIn"), false);
         assert.equal(await widgetPage.locator(".legal-harness__surface .auth-alert--error").count() > 0, true);
       });
@@ -222,12 +227,14 @@ async function checkBrowser() {
       const errorResets = await widgetPage.evaluate(() => window.__widgetResets ?? 0);
       await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
       await waitForWidgetBlockedAttempt(widgetPage, errorResets);
+      assert.deepEqual(await authSdkCalls(widgetPage), [], "error widget callback must block the auth SDK");
       assert.equal((await trace(widgetPage)).includes("signIn"), false, "error widget callback must invalidate its token");
       await widgetPage.evaluate(() => window.__widgetRenders.at(-1).callback("fixture-token"));
       await widgetPage.evaluate(() => window.__widgetRenders.at(-1)["expired-callback"]());
       const expiryResets = await widgetPage.evaluate(() => window.__widgetResets ?? 0);
       await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
       await waitForWidgetBlockedAttempt(widgetPage, expiryResets);
+      assert.deepEqual(await authSdkCalls(widgetPage), [], "expired widget callback must block the auth SDK");
       assert.equal((await trace(widgetPage)).includes("signIn"), false, "expired widget callback must invalidate its token");
       await widgetPage.evaluate(() => window.__widgetRenders.at(-1).callback("fixture-token"));
       await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
@@ -237,6 +244,7 @@ async function checkBrowser() {
       const replayResets = await widgetPage.evaluate(() => window.__widgetResets ?? 0);
       await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
       await waitForWidgetBlockedAttempt(widgetPage, replayResets);
+      assert.deepEqual(await authSdkCalls(widgetPage), ["signInWithPassword"], "one callback token permits one auth SDK attempt");
       assert.equal((await trace(widgetPage)).split(",").filter((entry) => entry === "signIn").length, 1, "one callback token permits one auth attempt");
       assert.equal(await widgetPage.evaluate(() => Object.values(localStorage).concat(Object.values(sessionStorage)).some((value) => String(value).includes("fixture-token"))), false);
       assert.equal(widgetDiagnostics.some((value) => value.includes("fixture-token") || value.includes("fixture-private-error")), false, "token and provider errors stay out of browser diagnostics");
