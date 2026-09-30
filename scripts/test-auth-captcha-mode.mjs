@@ -34,14 +34,73 @@ assert.match(responseHelper, /response\.headers\.set\(["']Cache-Control["'],\s*[
 assert.doesNotMatch(route, /PUBLIC_TURNSTILE_SITE_KEY|TURNSTILE_SECRET/);
 console.log("login SSR runtime props and no-store: PASS");
 
+function assertPreviewContract(vars) {
+  assert.equal(parseAuthCaptchaMode(vars.AUTH_CAPTCHA_MODE), "off", "preview must remain off");
+  assert.equal(vars.AUTH_CAPTCHA_MODE, "off", "preview mode must be explicitly off");
+  assert.equal(vars.PUBLIC_AUTH_TURNSTILE_SITE_KEY, undefined, "preview must not configure an Auth site key");
+}
+
+function assertProductionContract(vars) {
+  const mode = parseAuthCaptchaMode(vars.AUTH_CAPTCHA_MODE);
+  assert.equal(vars.AUTH_CAPTCHA_MODE, mode, "production mode must be explicit");
+  assert.ok(mode === "off" || mode === "prepare", "required is not authorized by the State-B release contract");
+  if (mode === "off") {
+    assert.equal(vars.PUBLIC_AUTH_TURNSTILE_SITE_KEY, undefined, "off must not configure an Auth site key");
+    return;
+  }
+  const authSiteKey = vars.PUBLIC_AUTH_TURNSTILE_SITE_KEY;
+  assert.equal(typeof authSiteKey, "string", "prepare requires a public Auth site key");
+  assert.ok(authSiteKey.trim().length > 0, "prepare requires a non-empty public Auth site key");
+  const uploadSiteKey = typeof vars.PUBLIC_TURNSTILE_SITE_KEY === "string" ? vars.PUBLIC_TURNSTILE_SITE_KEY.trim() : undefined;
+  assert.notEqual(authSiteKey.trim(), uploadSiteKey, "Auth must not reuse the upload site key");
+}
+
+const offFixture = { AUTH_CAPTCHA_MODE: "off" };
+const prepareFixture = {
+  AUTH_CAPTCHA_MODE: "prepare",
+  PUBLIC_AUTH_TURNSTILE_SITE_KEY: "fixture-auth-public-key",
+  PUBLIC_TURNSTILE_SITE_KEY: "fixture-upload-public-key",
+};
+
+assert.doesNotThrow(() => assertPreviewContract(offFixture));
+for (const fixture of [prepareFixture, { ...offFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: prepareFixture.PUBLIC_AUTH_TURNSTILE_SITE_KEY }, { AUTH_CAPTCHA_MODE: "required" }]) {
+  assert.throws(() => assertPreviewContract(fixture), { code: "ERR_ASSERTION" });
+}
+console.log("PREVIEW_OFF_NO_AUTH_SITEKEY: PASS");
+
+assert.doesNotThrow(() => assertProductionContract(offFixture));
+assert.throws(() => assertProductionContract({ ...offFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: prepareFixture.PUBLIC_AUTH_TURNSTILE_SITE_KEY }), { code: "ERR_ASSERTION" });
+console.log("PRODUCTION_OFF_NO_AUTH_SITEKEY_ALLOWED: PASS");
+
+assert.doesNotThrow(() => assertProductionContract(prepareFixture));
+for (const key of [undefined, null, "", "   ", 1]) {
+  assert.throws(() => assertProductionContract({ ...prepareFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: key }), { code: "ERR_ASSERTION" });
+}
+console.log("PRODUCTION_PREPARE_DEDICATED_AUTH_SITEKEY_REQUIRED: PASS");
+
+for (const key of [prepareFixture.PUBLIC_TURNSTILE_SITE_KEY, ` ${prepareFixture.PUBLIC_TURNSTILE_SITE_KEY} `]) {
+  assert.throws(() => assertProductionContract({ ...prepareFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: key }), { code: "ERR_ASSERTION" });
+}
+console.log("PRODUCTION_PREPARE_AUTH_KEY_MUST_DIFFER_FROM_UPLOAD_KEY: PASS");
+
+for (const fixture of [{ AUTH_CAPTCHA_MODE: "required" }, { ...prepareFixture, AUTH_CAPTCHA_MODE: "required" }]) {
+  assert.throws(() => assertProductionContract(fixture), { code: "ERR_ASSERTION" });
+}
+console.log("PRODUCTION_REQUIRED_NOT_YET_AUTHORIZED: PASS");
+
+for (const mode of ["", "OFF", "prepare ", "required ", "disabled", null, 1]) {
+  for (const contract of [assertPreviewContract, assertProductionContract]) {
+    assert.throws(() => contract({ ...prepareFixture, AUTH_CAPTCHA_MODE: mode }), (error) => error.message === "AUTH_CAPTCHA_MODE_INVALID");
+  }
+}
+console.log("ROLLOUT_INVALID_MODE_FAIL_CLOSED: PASS");
+
 for (const environment of ["preview", "production"]) {
   const config = unstable_readConfig(
     { config: resolve(root, "wrangler.toml"), env: environment },
     { hideWarnings: true },
   );
-  const vars = config.vars;
-  assert.equal(vars.AUTH_CAPTCHA_MODE, "off", `${environment} starts with auth CAPTCHA off`);
-  assert.equal(vars.PUBLIC_AUTH_TURNSTILE_SITE_KEY, undefined, `${environment} has no invented auth site key`);
-  assert.equal(parseAuthCaptchaMode(vars.AUTH_CAPTCHA_MODE), "off");
+  if (environment === "preview") assertPreviewContract(config.vars);
+  else assertProductionContract(config.vars);
 }
-console.log("preview and production safe defaults: PASS");
+console.log("preview and production State-B release contracts: PASS");
