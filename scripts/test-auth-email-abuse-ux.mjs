@@ -77,6 +77,7 @@ async function checkResendApi() {
       assert.equal(response.status, 400, "missing proof must be rejected locally");
     });
     assert.equal(externalAttempts, 0, "API fixture made no external request");
+    console.log(`API_EXTERNAL_REQUESTS: ${externalAttempts}`);
   } finally {
     await vite.close();
     globalThis.fetch = originalFetch;
@@ -101,6 +102,16 @@ async function fillAuth(page) {
 
 async function trace(page) {
   return (await page.locator("output").textContent()) ?? "";
+}
+
+async function waitForWidgetBlockedAttempt(page, previousResets) {
+  await page.waitForFunction((previous) => {
+    const surface = document.querySelector(".legal-harness__surface");
+    const submit = surface?.querySelector('button[type="submit"]');
+    return Boolean(surface?.querySelector(".auth-alert--error") && submit && !submit.disabled)
+      && (previous === null || window.__widgetResets > previous);
+  }, previousResets);
+  await crossDelayedCallBarrier(page);
 }
 
 async function submitAndWaitForAuthAttempt(page, call) {
@@ -151,6 +162,7 @@ async function checkBrowser() {
     });
 
     const widgetPage = await context.newPage();
+    await widgetPage.clock.install({ time: new Date(fixedNow) });
     const widgetDiagnostics = [];
     widgetPage.on("console", (message) => widgetDiagnostics.push(message.text()));
     widgetPage.on("pageerror", (error) => widgetDiagnostics.push(error.message));
@@ -176,7 +188,7 @@ async function checkBrowser() {
     });
     await select(widgetPage, "login-captcha-prepare-token");
     await fillAuth(widgetPage);
-    await widgetPage.waitForTimeout(100);
+    await widgetPage.waitForFunction(() => document.querySelector("output")?.textContent?.includes("resetToken"));
     await checkWidget("WIDGET_PREPARE_FRESH_TOKEN_RESET", async () => {
       assert.match(await trace(widgetPage), /acquireToken,tokenPresent:true,signIn,navigate:\/feed\/,resetToken/);
     });
@@ -184,7 +196,7 @@ async function checkBrowser() {
       await select(widgetPage, scenario);
       await fillAuthFields(widgetPage);
       await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
-      await widgetPage.waitForTimeout(50);
+      await waitForWidgetBlockedAttempt(widgetPage, null);
       await checkWidget(`WIDGET_${scenario.toUpperCase().replaceAll("-", "_")}_BLOCKS`, async () => {
         assert.equal((await trace(widgetPage)).includes("signIn"), false);
         assert.equal(await widgetPage.locator(".legal-harness__surface .auth-alert--error").count() > 0, true);
@@ -205,21 +217,26 @@ async function checkBrowser() {
         assert.equal(await widgetPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${width}px must not overflow`);
       }
       await fillAuthFields(widgetPage);
+      await widgetPage.evaluate(() => window.__widgetRenders.at(-1).callback("fixture-token"));
       await widgetPage.evaluate(() => window.__widgetRenders.at(-1)["error-callback"]("fixture-private-error"));
+      const errorResets = await widgetPage.evaluate(() => window.__widgetResets ?? 0);
       await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
-      await widgetPage.waitForTimeout(50);
+      await waitForWidgetBlockedAttempt(widgetPage, errorResets);
       assert.equal((await trace(widgetPage)).includes("signIn"), false, "error widget callback must invalidate its token");
+      await widgetPage.evaluate(() => window.__widgetRenders.at(-1).callback("fixture-token"));
       await widgetPage.evaluate(() => window.__widgetRenders.at(-1)["expired-callback"]());
+      const expiryResets = await widgetPage.evaluate(() => window.__widgetResets ?? 0);
       await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
-      await widgetPage.waitForTimeout(50);
+      await waitForWidgetBlockedAttempt(widgetPage, expiryResets);
       assert.equal((await trace(widgetPage)).includes("signIn"), false, "expired widget callback must invalidate its token");
       await widgetPage.evaluate(() => window.__widgetRenders.at(-1).callback("fixture-token"));
       await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
       await widgetPage.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signIn"));
       assert.match(await trace(widgetPage), /tokenPresent:true,signIn/);
       assert.equal(await widgetPage.evaluate(() => window.__widgetResets > 0), true);
+      const replayResets = await widgetPage.evaluate(() => window.__widgetResets ?? 0);
       await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
-      await widgetPage.waitForTimeout(50);
+      await waitForWidgetBlockedAttempt(widgetPage, replayResets);
       assert.equal((await trace(widgetPage)).split(",").filter((entry) => entry === "signIn").length, 1, "one callback token permits one auth attempt");
       assert.equal(await widgetPage.evaluate(() => Object.values(localStorage).concat(Object.values(sessionStorage)).some((value) => String(value).includes("fixture-token"))), false);
       assert.equal(widgetDiagnostics.some((value) => value.includes("fixture-token") || value.includes("fixture-private-error")), false, "token and provider errors stay out of browser diagnostics");
@@ -308,6 +325,7 @@ async function checkBrowser() {
       assert.equal(await surface.getByRole("button", { name: /log in/i }).count() > 0, true, "pending state must offer direct login");
     });
     assert.equal(blocked, 0, "browser fixture made no external request");
+    console.log(`BROWSER_EXTERNAL_REQUESTS: ${blocked}`);
     await context.close();
   } finally {
     if (browser) await browser.close();

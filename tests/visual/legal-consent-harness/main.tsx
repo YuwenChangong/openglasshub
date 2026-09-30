@@ -85,6 +85,10 @@ function Harness() {
     })(),
     signInWithPassword: async (input) => {
       if (scenario.startsWith("login-captcha-")) record(`tokenPresent:${"captchaToken" in input && input.captchaToken === "fixture-token"}`);
+      if (scenario.startsWith("login-captcha-required-") && !("captchaToken" in input)) {
+        window.setTimeout(() => record("signIn"), 500);
+        return { data: null, error: new Error("fixture early rejection") };
+      }
       if (scenario === "login-abuse-required") {
         window.setTimeout(() => record("signIn"), 500);
         return { data: null, error: new Error("fixture early rejection") };
