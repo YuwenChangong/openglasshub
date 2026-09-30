@@ -84,7 +84,8 @@ async function checkResendApi() {
   }
 }
 
-async function select(page, scenario) {
+async function select(page, scenario, preservePending = false) {
+  if (!preservePending) await page.evaluate(() => sessionStorage.removeItem("auth-pending-verification-email"));
   await page.getByRole("button", { name: scenario, exact: true }).click();
 }
 
@@ -265,19 +266,90 @@ async function checkBrowser() {
 
     const clockPage = await context.newPage();
     await clockPage.clock.install({ time: new Date(fixedNow) });
+    await clockPage.addInitScript(() => {
+      const setIntervalOriginal = window.setInterval.bind(window);
+      const clearIntervalOriginal = window.clearInterval.bind(window);
+      window.__cooldownTimerIds = new Set();
+      window.setInterval = (callback, delay, ...args) => {
+        const id = setIntervalOriginal(callback, delay, ...args);
+        if (delay === 1000) window.__cooldownTimerIds.add(id);
+        return id;
+      };
+      window.clearInterval = (id) => { window.__cooldownTimerIds.delete(id); return clearIntervalOriginal(id); };
+    });
     await clockPage.goto(origin, { waitUntil: "networkidle" });
     await select(clockPage, "register-abuse-initial");
     await fillAuth(clockPage);
     await clockPage.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signUp"));
     await check("FIRST_SIGNUP_RESEND_COOLDOWN_MISSING", async () => {
-      assert.equal(await clockPage.evaluate((key) => localStorage.getItem(key), cooldownKey), String(fixedNow + 60_000), "accepted first signup must persist a 60-second expiry");
+      const remaining = await clockPage.evaluate((key) => Number(localStorage.getItem(key)) - Date.now(), cooldownKey);
+      assert.equal(remaining > 0 && remaining <= 60_000, true, "accepted first signup must persist a 60-second expiry");
     });
     await check("RESEND_AVAILABLE_IMMEDIATELY_AFTER_INITIAL_EMAIL", async () => {
       const resend = clockPage.locator(".legal-harness__surface .auth-resend button");
       assert.equal(await resend.isDisabled(), true, "resend must be disabled immediately after accepted signup");
       assert.match((await resend.textContent()) ?? "", /60/, "initial resend countdown must start at 60 seconds");
+      assert.equal(await clockPage.evaluate(() => window.__cooldownTimerIds.size), 1, "one active countdown timer");
+    });
+    await check("INITIAL_COOLDOWN_TICKS_AND_RESTORES", async () => {
+      await clockPage.clock.runFor(1000);
+      assert.match((await clockPage.locator(".legal-harness__surface .auth-resend button").textContent()) ?? "", /59/);
+      assert.equal(await clockPage.evaluate(() => window.__cooldownTimerIds.size), 1, "refresh restores one countdown timer");
+      assert.equal(await clockPage.evaluate(() => sessionStorage.getItem("auth-pending-verification-email")), "qa@example.invalid");
+      await clockPage.reload({ waitUntil: "networkidle" });
+      await select(clockPage, "register-abuse-initial", true);
+      await clockPage.locator(".legal-harness__surface .auth-resend button").waitFor();
+      assert.equal(await clockPage.locator(".legal-harness__surface .auth-resend button").count(), 1, "refresh restores pending request");
+      assert.match((await clockPage.locator(".legal-harness__surface .auth-alert--success").allTextContents()).join(" "), /如果这是新邮箱/);
+      assert.match((await clockPage.locator(".legal-harness__surface .auth-resend button").textContent()) ?? "", /59/);
+      assert.equal(await clockPage.evaluate(() => sessionStorage.getItem("auth-pending-verification-email")), "qa@example.invalid", "pending email has no invented 24h validity record");
+    });
+    await check("COOLDOWN_EXPIRES_ONCE_AND_RESEND_RESTARTS", async () => {
+      assert.equal(await clockPage.evaluate((key) => localStorage.getItem(key) !== null, cooldownKey), true, "initial cooldown must exist before expiry test");
+      await clockPage.clock.runFor(60_000);
+      const resend = clockPage.locator(".legal-harness__surface .auth-resend button");
+      await clockPage.waitForFunction((key) => localStorage.getItem(key) === null, cooldownKey);
+      assert.equal(await resend.isDisabled(), false);
+      assert.equal(await clockPage.evaluate((key) => localStorage.getItem(key), cooldownKey), null);
+      assert.equal(await clockPage.evaluate(() => window.__cooldownTimerIds.size), 0, "expiry cleans up the timer");
+      let posts = 0;
+      await clockPage.route("**/api/auth/resend-confirmation", (route) => { posts++; return route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' }); });
+      await resend.click();
+      await clockPage.waitForFunction((key) => Number(localStorage.getItem(key)) > Date.now(), cooldownKey);
+      assert.equal(posts, 1);
+      assert.equal(await resend.isDisabled(), true);
+      assert.match((await resend.textContent()) ?? "", /60/);
     });
     await clockPage.close();
+
+    for (const [scenario, expectedToken] of [["register-abuse-required", null], ["register-captcha-prepare-token", "fixture-token"], ["register-abuse-initial", undefined]]) {
+      const resendPage = await context.newPage();
+      await resendPage.addInitScript(() => sessionStorage.setItem("auth-pending-verification-email", "qa@example.invalid"));
+      const requests = [];
+      await resendPage.route("**/api/auth/resend-confirmation", (route) => {
+        requests.push(route.request().postDataJSON());
+        return route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' });
+      });
+      await resendPage.goto(origin, { waitUntil: "networkidle" });
+      await resendPage.evaluate((key) => localStorage.removeItem(key), cooldownKey);
+      await select(resendPage, scenario, true);
+      const resend = resendPage.locator(".legal-harness__surface .auth-resend button");
+      await resend.waitFor();
+      await resend.click();
+      if (expectedToken === null) {
+        await resendPage.waitForFunction(() => document.querySelector(".legal-harness__surface .auth-alert--error") || document.querySelector(".legal-harness__surface .auth-resend button:disabled"));
+        await check("REQUIRED_RESEND_WITHOUT_PROOF_BLOCKS_FETCH", async () => {
+          assert.deepEqual(requests, []);
+        });
+      } else {
+        await resendPage.waitForFunction(() => document.querySelector("output")?.textContent?.includes("resetToken") || document.querySelector(".auth-resend button:disabled"));
+        await check(expectedToken ? "PREPARE_RESEND_FORWARDS_FRESH_TOKEN" : "OFF_RESEND_PRESERVES_NO_TOKEN_REQUEST", async () => {
+          assert.equal(requests.length, 1);
+          assert.equal(requests[0].captchaToken, expectedToken);
+        });
+      }
+      await resendPage.close();
+    }
 
     const page = await context.newPage();
     await page.clock.install({ time: new Date(fixedNow) });
@@ -287,12 +359,23 @@ async function checkBrowser() {
     await check("FORGOT_PASSWORD_STILL_SHOWS_LOGIN_SIGNUP_TABS", async () => {
       assert.equal(await page.locator(".legal-harness__surface [role='tablist']").count(), 0, "recovery must omit the login/signup tabs");
     });
+    await check("FORGOT_MODE_CONTROLS_AND_BACK", async () => {
+      const surface = page.locator(".legal-harness__surface");
+      assert.equal(await surface.locator('input[type="password"]').count(), 0);
+      assert.equal(await surface.locator(".auth-signup-notice").count(), 0);
+      assert.equal(await surface.locator('input[type="email"]').count(), 1);
+      await surface.locator('input[type="email"]').fill("qa@example.invalid");
+      await surface.getByRole("button", { name: "返回登录" }).click();
+      assert.equal(await surface.locator('input[type="email"]').inputValue(), "qa@example.invalid");
+      assert.equal(await surface.locator("[role='tablist']").count(), 1);
+    });
 
     await select(page, "register-abuse-required");
     await fillAuthFields(page);
     await submitAndWaitForAuthAttempt(page, "signUp");
     await crossDelayedCallBarrier(page);
     await check("SIGNUP_EMAIL_SEND_WITHOUT_BOT_PROOF", async () => {
+      assert.deepEqual(await authSdkCalls(page), [], "required mode must not enter signup SDK without proof");
       assert.equal((await trace(page)).includes("signUp"), false, "required mode must not call signup SDK without proof");
     });
 
@@ -302,6 +385,7 @@ async function checkBrowser() {
     await submitAndWaitForAuthAttempt(page, "resetCallbackSafe");
     await crossDelayedCallBarrier(page);
     await check("PASSWORD_RESET_EMAIL_WITHOUT_BOT_PROOF", async () => {
+      assert.deepEqual(await authSdkCalls(page), [], "required mode must not enter reset SDK without proof");
       assert.equal((await trace(page)).includes("resetCallbackSafe:"), false, "required mode must not call reset SDK without proof");
     });
 
@@ -310,6 +394,7 @@ async function checkBrowser() {
     await submitAndWaitForAuthAttempt(page, "signIn");
     await crossDelayedCallBarrier(page);
     await check("PASSWORD_LOGIN_WITHOUT_BOT_PROOF", async () => {
+      assert.deepEqual(await authSdkCalls(page), [], "required mode must not enter sign-in SDK without proof");
       assert.equal((await trace(page)).split(",").filter((call) => call === "signIn").length, 0, "required mode must make zero sign-in SDK calls without a fresh token");
     });
 
@@ -331,6 +416,53 @@ async function checkBrowser() {
       assert.deepEqual(successCopy, ["If this is a new email, we will send a verification email. If you already have an account, log in or use Forgot password."], "obfuscated signup must show only the approved conditional pending copy");
       assert.equal(await surface.getByRole("button", { name: /forgot password/i }).count(), 1, "pending state must offer direct recovery");
       assert.equal(await surface.getByRole("button", { name: /log in/i }).count() > 0, true, "pending state must offer direct login");
+    });
+    for (const scenario of ["register-abuse-initial", "register-abuse-duplicate", "register-abuse-obfuscated", "register-abuse-unconfirmed"]) {
+      await select(page, scenario, scenario === "register-abuse-duplicate");
+      await fillAuth(page);
+      await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signUp"));
+      await check(`GENERIC_SIGNUP_${scenario.toUpperCase().replaceAll("-", "_")}`, async () => {
+        const surface = page.locator(".legal-harness__surface");
+        const feedback = (await surface.locator(".auth-feedback").textContent()) ?? "";
+        assert.match(feedback, /If this is a new email, we will send a verification email/);
+        assert.equal(await surface.getByRole("button", { name: "Forgot password?" }).count(), 1);
+        assert.equal(await surface.getByRole("button", { name: "Log in", exact: true }).count(), 1);
+        if (scenario === "register-abuse-duplicate") assert.equal(await surface.locator(".auth-resend button").count(), 0, "explicit duplicate does not expose resend");
+      });
+    }
+    for (const mode of ["off", "prepare"]) {
+      for (const flow of ["login", "register", "reset"]) {
+        await select(page, `${flow === "register" ? "register" : "login"}-${flow === "reset" ? "reset-" : "abuse-"}${mode}-stale`);
+        if (flow === "reset") {
+          await page.getByRole("button", { name: "Forgot password?" }).click();
+          await page.locator('.legal-harness__surface input[type="email"]').fill("qa@example.invalid");
+          await page.locator('.legal-harness__surface button[type="submit"]').click();
+        } else await fillAuth(page);
+        await page.waitForFunction((sdk) => window.__authSdkCalls.length === 1 && window.__authSdkCalls[0] === sdk, flow === "login" ? "signInWithPassword" : flow === "register" ? "signUp" : "requestPasswordReset");
+        await page.locator(".legal-harness__surface .auth-alert--error").waitFor();
+        await check(`STALE_${mode.toUpperCase()}_${flow.toUpperCase()}_AFTER_ENFORCEMENT`, async () => {
+          const surface = page.locator(".legal-harness__surface");
+          const error = (await surface.locator(".auth-alert--error").textContent()) ?? "";
+          assert.match(error, /refresh.*try again/i);
+          assert.equal(await surface.locator(".auth-alert--success").count(), 0);
+          assert.equal((await trace(page)).includes("navigate:"), false);
+        });
+      }
+    }
+    await select(page, "register-captcha-prepare-token");
+    await fillAuth(page);
+    await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signUp"));
+    await check("SIGNUP_SDK_FRESH_TOKEN_ARGUMENT", async () => {
+      assert.match(await trace(page), /acquireToken,tokenPresent:true,signUp,resetToken/);
+    });
+    await select(page, "login-reset-prepare-token");
+    await page.getByRole("button", { name: "Forgot password?" }).click();
+    await page.locator('.legal-harness__surface input[type="email"]').fill("qa@example.invalid");
+    await page.locator('.legal-harness__surface button[type="submit"]').click();
+    await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("resetCallbackSafe"));
+    await check("RECOVERY_SDK_FRESH_TOKEN_AND_CONDITIONAL_RESULT", async () => {
+      assert.match(await trace(page), /acquireToken,tokenPresent:true,resetCallbackSafe:true,resetToken/);
+      assert.match((await page.locator(".legal-harness__surface .auth-alert--success").textContent()) ?? "", /If an account exists.*reset email/i);
     });
     assert.equal(blocked, 0, "browser fixture made no external request");
     console.log(`BROWSER_EXTERNAL_REQUESTS: ${blocked}`);

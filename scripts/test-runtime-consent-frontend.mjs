@@ -62,7 +62,7 @@ try {
     await fill(page);
     for (const box of await page.getByRole("checkbox").all()) await box.check();
     await page.locator('button[type="submit"]').click();
-    await page.getByText("如已提出请求，请检查邮箱及垃圾箱。", { exact: true }).waitFor();
+    await page.getByText("如果这是新邮箱，我们会发送验证邮件。如果你已经注册过，请直接登录或使用“忘记密码”。", { exact: true }).waitFor();
     assert.equal(await trace(page), "signUp");
   }));
   await check("CALLBACK_NO_LOOKUP_DIRECT_SAFE_NEXT", () => scenario("callback-status-failure", async (page) => {

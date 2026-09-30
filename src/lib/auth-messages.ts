@@ -23,6 +23,8 @@ export interface AuthMessages {
   privacyLead: string;
   consentEnd: string;
   pendingCheckInbox: string;
+  resendRequestReceived: string;
+  resetRequestReceived: string;
   resend: string;
   requestReset: string;
   updatePassword: string;
@@ -66,6 +68,7 @@ export interface AuthMessages {
   resendLimit: string;
   emailUnconfirmed: string;
   accountMayExist: string;
+  captchaRetry: string;
   callbackHeading: string;
   callbackPending: string;
   callbackWaiting: string;
@@ -84,7 +87,8 @@ const messages: Record<AuthLocale, AuthMessages> = {
     signupNoticeLead: "注册即表示你同意", signupNoticeTerms: "《服务条款》", signupNoticePrivacyLead: "，并已阅读", signupNoticePrivacy: "《隐私政策》", signupNoticeGuidelinesLead: "和", signupNoticeGuidelines: "《社区准则》",
     loginHeading: "登录", signupHeading: "注册", email: "邮箱", password: "密码", newPassword: "新密码", confirmPassword: "确认新密码",
     login: "登录", signup: "注册", consentSentence: "我已阅读并同意", terms: "服务条款", privacy: "隐私政策", guidelines: "社区准则",
-    legalJoin: "和", privacyLead: "，并已阅读并知悉", consentEnd: "。", pendingCheckInbox: "如已提出请求，请检查邮箱及垃圾箱。",
+    legalJoin: "和", privacyLead: "，并已阅读并知悉", consentEnd: "。", pendingCheckInbox: "如果这是新邮箱，我们会发送验证邮件。如果你已经注册过，请直接登录或使用“忘记密码”。",
+    resendRequestReceived: "如果该邮箱符合条件，我们会发送验证邮件。", resetRequestReceived: "如果账号存在，我们会发送重置邮件。请检查邮箱及垃圾箱。",
     resend: "重新发送验证邮件", requestReset: "发送重置邮件", updatePassword: "更新密码", retry: "重试", logout: "退出登录",
     invalidCredentials: "邮箱或密码错误。", unavailable: "暂时无法完成请求，请稍后重试。", expiredRecovery: "重置链接无效或已过期，请重新发起忘记密码流程。",
     eligibility: (minimumAge) => `我确认已满 ${minimumAge} 周岁。`, cooldown: (seconds) => `${seconds} 秒后可重新发送`,
@@ -95,7 +99,7 @@ const messages: Record<AuthLocale, AuthMessages> = {
     forgotPassword: "忘记密码？", resetHeading: "重置密码", resetIntro: "请设置新密码。", resetSuccess: "密码已更新，请重新登录。", resetMismatch: "两次输入的密码不一致。",
     resetEmpty: "新密码不能为空。", shortPassword: "密码长度至少为 8 位。", resetFailed: "更新密码失败，请重新进入邮件中的链接后再试。",
     resetRequestFailed: "暂时无法请求重置邮件，请稍后再试。", resendFailed: "暂时无法重新请求验证邮件，请稍后再试。", resendLimit: "今天请求次数已达上限，请明天再试。",
-    emailUnconfirmed: "请先完成邮箱验证后再登录。", accountMayExist: "如果账号已存在，请登录或重新请求验证邮件。",
+    emailUnconfirmed: "请先完成邮箱验证后再登录。", accountMayExist: "如果这是新邮箱，我们会发送验证邮件。如果你已经注册过，请直接登录或使用“忘记密码”。", captchaRetry: "验证未完成。请刷新页面后重试。",
     callbackHeading: "确认登录", callbackPending: "正在完成登录确认...", callbackWaiting: "仍在等待会话建立。请稍候或重新打开确认链接。",
     callbackMissing: "当前还没有建立登录会话，请稍候或重新打开确认链接。", callbackFailed: "登录确认失败。",
     consentUnavailable: "暂时无法记录政策确认。请稍后重试，或退出后重新登录。", consentExpired: "登录状态已失效，请重新登录后继续。",
@@ -106,7 +110,8 @@ const messages: Record<AuthLocale, AuthMessages> = {
     signupNoticeLead: "By signing up, you agree to the ", signupNoticeTerms: "Terms of Service", signupNoticePrivacyLead: " and have read the ", signupNoticePrivacy: "Privacy Policy", signupNoticeGuidelinesLead: " and ", signupNoticeGuidelines: "Community Guidelines",
     loginHeading: "Log in", signupHeading: "Sign up", email: "Email", password: "Password", newPassword: "New password", confirmPassword: "Confirm password",
     login: "Log in", signup: "Sign up", consentSentence: "I have read and agree to the", terms: "Terms of Service", privacy: "Privacy Policy", guidelines: "Community Guidelines",
-    legalJoin: "and the", privacyLead: ", and have read and acknowledge the", consentEnd: ".", pendingCheckInbox: "If you made a request, check your inbox and spam folder.",
+    legalJoin: "and the", privacyLead: ", and have read and acknowledge the", consentEnd: ".", pendingCheckInbox: "If this is a new email, we will send a verification email. If you already have an account, log in or use Forgot password.",
+    resendRequestReceived: "If this email is eligible, we will send a verification email.", resetRequestReceived: "If an account exists, we will send a reset email. Check your inbox and spam folder.",
     resend: "Request another verification email", requestReset: "Request reset email", updatePassword: "Update password", retry: "Retry", logout: "Log out",
     invalidCredentials: "Incorrect email or password.", unavailable: "Unable to complete the request. Please try again later.", expiredRecovery: "This reset link is invalid or expired. Request a new one.",
     eligibility: (minimumAge) => `I confirm I am at least ${minimumAge} years old.`, cooldown: (seconds) => `Try again in ${seconds}s`,
@@ -117,7 +122,7 @@ const messages: Record<AuthLocale, AuthMessages> = {
     forgotPassword: "Forgot password?", resetHeading: "Reset password", resetIntro: "Set a new password.", resetSuccess: "Password updated. Log in again.", resetMismatch: "Passwords do not match.",
     resetEmpty: "Enter a new password.", shortPassword: "Password must be at least 8 characters.", resetFailed: "Could not update your password. Open a new reset link and try again.",
     resetRequestFailed: "Could not request a reset email. Please try again later.", resendFailed: "Could not request another verification email. Please try later.", resendLimit: "Today's request limit has been reached. Try tomorrow.",
-    emailUnconfirmed: "Verify your email before logging in.", accountMayExist: "If the account exists, log in or request another verification email.",
+    emailUnconfirmed: "Verify your email before logging in.", accountMayExist: "If this is a new email, we will send a verification email. If you already have an account, log in or use Forgot password.", captchaRetry: "Verification could not be completed. Refresh the page and try again.",
     callbackHeading: "Confirming login", callbackPending: "Completing login confirmation...", callbackWaiting: "Still waiting for a session. Please wait or reopen the confirmation link.",
     callbackMissing: "No login session is available yet. Please wait or reopen the confirmation link.", callbackFailed: "Login confirmation failed.",
     consentUnavailable: "Could not record policy confirmation. Retry or log out and log in again.", consentExpired: "Your session expired. Log in again to continue.",
