@@ -473,6 +473,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
       <div className="auth-feedback">
         {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
         {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
+        {pendingVerificationEmail && !message ? <div className="auth-alert">{messages.pendingCheckInbox}</div> : null}
         {pendingVerificationEmail || accountHelp ? (
           <div className="auth-resend__actions">
             <button type="button" className="community-button--secondary auth-button" onClick={() => selectAuthMode("login")}>{messages.login}</button>
@@ -488,6 +489,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
         ) : null}
         {pendingVerificationEmail ? (
           <div className="auth-resend">
+            <div className="auth-resend__hint">{messages.pendingEarlierRequest(pendingVerificationEmail)}</div>
             <div className="auth-resend__actions">
               <button
                 type="button"

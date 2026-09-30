@@ -362,6 +362,29 @@ async function checkBrowser() {
     });
     await retryPage.close();
 
+    const changedEmailPage = await context.newPage();
+    await changedEmailPage.clock.install({ time: new Date(fixedNow) });
+    await changedEmailPage.goto(origin, { waitUntil: "networkidle" });
+    await select(changedEmailPage, "register-abuse-retry-fails");
+    await fillAuth(changedEmailPage);
+    await changedEmailPage.waitForFunction(() => document.querySelector(".legal-harness__surface .auth-resend button"));
+    await check("CHANGED_EMAIL_FAILED_RETRY_EXPLAINS_PRIOR_PENDING_REQUEST", async () => {
+      const surface = changedEmailPage.locator(".legal-harness__surface");
+      const initialExpiry = await changedEmailPage.evaluate((key) => localStorage.getItem(key), cooldownKey);
+      await surface.locator('input[type="email"]').fill("different@example.invalid");
+      await surface.locator('button[type="submit"]').click();
+      await surface.locator(".auth-alert--error").waitFor();
+      assert.match((await surface.locator(".auth-alert--error").textContent()) ?? "", /refresh.*try again|刷新页面后重试/i);
+      assert.match((await surface.locator(".auth-feedback").textContent()) ?? "", /如果这是新邮箱，我们会发送验证邮件/, "the prior accepted request retains conditional pending guidance");
+      assert.match((await surface.locator(".auth-resend").textContent()) ?? "", /qa@example\.invalid/, "resend is linked to the earlier accepted email");
+      assert.equal((await surface.locator(".auth-resend").textContent())?.includes("different@example.invalid"), false, "resend does not refer to the failed retry email");
+      assert.equal(await surface.locator(".auth-alert--success").count(), 0, "failed retry must not claim a new request or email succeeded");
+      assert.equal(await changedEmailPage.evaluate(() => sessionStorage.getItem("auth-pending-verification-email")), "qa@example.invalid");
+      assert.equal(await changedEmailPage.evaluate((key) => localStorage.getItem(key), cooldownKey), initialExpiry);
+      assert.equal(await surface.locator(".auth-resend button").isDisabled(), true);
+    });
+    await changedEmailPage.close();
+
     for (const [scenario, expectedToken] of [["register-abuse-required", null], ["register-captcha-prepare-token", "fixture-token"], ["register-abuse-initial", undefined]]) {
       const resendPage = await context.newPage();
       await resendPage.addInitScript(() => sessionStorage.setItem("auth-pending-verification-email", "qa@example.invalid"));
