@@ -1,8 +1,19 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { createServer } from "vite";
-import { chromium } from "playwright";
 import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
+
+async function loadChromium() {
+  try { return (await import("playwright")).chromium; } catch { /* desktop runtime fallback */ }
+  const runtimeRoot = path.join(process.env.LOCALAPPDATA ?? "", "OpenAI", "Codex", "runtimes", "cua_node");
+  for (const entry of (await fs.readdir(runtimeRoot)).sort().reverse()) {
+    const candidate = path.join(runtimeRoot, entry, "bin", "node_modules", "playwright", "index.mjs");
+    try { await fs.access(candidate); return (await import(pathToFileURL(candidate).href)).chromium; } catch { /* next runtime */ }
+  }
+  throw new Error("Playwright runtime unavailable");
+}
 
 const apiUrl = "http://127.0.0.1:4388/api/auth/resend-confirmation";
 const validContext = (email = "qa@example.invalid", next = "/feed/") => ({
@@ -99,6 +110,7 @@ async function main() {
   try {
     await harness.listen();
     const origin = new URL(harness.resolvedUrls.local[0]).origin;
+    const chromium = await loadChromium();
     browser = await chromium.launch({ headless: true, args: ["--disable-background-networking", "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"] });
     const context = await browser.newContext({ serviceWorkers: "block" });
     let blocked = 0;
