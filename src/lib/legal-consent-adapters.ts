@@ -8,9 +8,9 @@ export type AuthViewState = "checking" | "signed_in" | "signed_out" | "error" | 
 
 export interface LegalConsentAuthAdapter {
   getSession(): Promise<ConsentSession | null>;
-  signInWithPassword?(input: { email: string; password: string }): Promise<AdapterResult<ConsentSession | null>>;
-  signUp?(input: { email: string; password: string; emailRedirectTo?: string }): Promise<AdapterResult<ConsentSession | null>>;
-  requestPasswordReset?(input: { email: string; redirectTo: string }): Promise<{ error: Error | null }>;
+  signInWithPassword?(input: { email: string; password: string; captchaToken?: string }): Promise<AdapterResult<ConsentSession | null>>;
+  signUp?(input: { email: string; password: string; emailRedirectTo?: string; captchaToken?: string }): Promise<AdapterResult<ConsentSession | null>>;
+  requestPasswordReset?(input: { email: string; redirectTo: string; captchaToken?: string }): Promise<{ error: Error | null }>;
   signOut?(): Promise<Error | null>;
 }
 

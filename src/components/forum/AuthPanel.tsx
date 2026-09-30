@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
 import { LEGAL_POLICY } from "../../lib/legal-policy";
 import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { isAuthApiError } from "@supabase/supabase-js";
+import type { AuthCaptchaMode } from "../../lib/auth-captcha-mode";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
+import AuthTurnstile, { type AuthCaptchaAdapter } from "./AuthTurnstile";
 
 type Mode = "login" | "signup";
 
@@ -12,6 +15,9 @@ interface AuthPanelProps {
   locale?: AuthLocale;
   next?: string;
   initialMode?: Mode;
+  captchaMode?: AuthCaptchaMode;
+  authTurnstileSiteKey?: string;
+  captchaAdapter?: AuthCaptchaAdapter;
   authAdapter?: AuthPanelAdapter;
   /** @deprecated Retained for adapter compatibility; runtime auth does not use consent. */
   consentAdapter?: LegalConsentAdapter;
@@ -24,8 +30,21 @@ type ResendResponse =
 
 const RESEND_COOLDOWN_MS = 60_000;
 const RESEND_COOLDOWN_STORAGE_KEY = "auth-resend-confirmation-cooldown-until";
+const PENDING_EMAIL_STORAGE_KEY = "auth-pending-verification-email";
 
-function mapAuthError(errorMessage: string, messages: AuthMessages): string {
+function normalizedEmail(value: string): string {
+  const email = value.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+}
+
+function isCaptchaFailure(error: unknown): boolean {
+  if (isAuthApiError(error) && error.code === "captcha_failed") return true;
+  return error instanceof Error && /captcha[_\s-]*failed|captcha.*(?:invalid|expired|failed)/i.test(error.message);
+}
+
+function mapAuthError(error: unknown, messages: AuthMessages): string {
+  if (isCaptchaFailure(error)) return messages.captchaRetry;
+  const errorMessage = error instanceof Error ? error.message : "";
   if (/Invalid login credentials/i.test(errorMessage)) return messages.invalidCredentials;
   if (/Email not confirmed/i.test(errorMessage)) return messages.emailUnconfirmed;
   if (/User already registered/i.test(errorMessage)) {
@@ -35,7 +54,7 @@ function mapAuthError(errorMessage: string, messages: AuthMessages): string {
   return messages.unavailable;
 }
 
-export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login", authAdapter, navigationAdapter }: AuthPanelProps) {
+export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login", captchaMode = "off", authTurnstileSiteKey, captchaAdapter, authAdapter, navigationAdapter }: AuthPanelProps) {
   const messages = getAuthMessages(locale);
   const supabase = useMemo(() => authAdapter ? null : createBrowserSupabaseClient(), [authAdapter]);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
@@ -54,26 +73,48 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
   const [sendingReset, setSendingReset] = useState(false);
   const [resending, setResending] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
+  const [accountHelp, setAccountHelp] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [resendCooldownUntil, setResendCooldownUntil] = useState(0);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
+  const turnstileRef = useRef<AuthCaptchaAdapter>(null);
+  const captchaFailure = locale === "en" ? "Complete verification and try again." : "请完成验证后重试。";
+
+  async function acquireCaptchaToken(): Promise<string | null> {
+    if (captchaMode === "off") return null;
+    try { return await (captchaAdapter ?? turnstileRef.current)?.acquireToken() ?? null; }
+    catch { return null; }
+  }
+
+  function resetCaptcha() {
+    if (captchaMode !== "off") (captchaAdapter ?? turnstileRef.current)?.reset();
+  }
   const browserAuthState = useBrowserAuthState(supabase);
   const status = authAdapter?.viewState ?? browserAuthState.status;
   const user = authAdapter?.userPresent ? { id: "adapter-user" } : browserAuthState.user;
 
   useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
+    const storedEmail = window.sessionStorage.getItem(PENDING_EMAIL_STORAGE_KEY);
+    const restoredEmail = normalizedEmail(storedEmail ?? "");
+    if (restoredEmail) {
+      setPendingVerificationEmail(restoredEmail);
+      setMode("signup");
+      setMessage(messages.pendingCheckInbox);
+    }
+    else if (storedEmail !== null) window.sessionStorage.removeItem(PENDING_EMAIL_STORAGE_KEY);
     const storedValue = window.localStorage.getItem(RESEND_COOLDOWN_STORAGE_KEY);
     const parsed = Number(storedValue ?? "0");
     if (Number.isFinite(parsed) && parsed > Date.now()) {
       setResendCooldownUntil(parsed);
       setCooldownNow(Date.now());
     }
+    else if (storedValue !== null) window.localStorage.removeItem(RESEND_COOLDOWN_STORAGE_KEY);
   }, []);
-
-  useEffect(() => {
-    setMode(initialMode);
-  }, [initialMode]);
 
   useEffect(() => {
     if (!resendCooldownUntil || resendCooldownUntil <= Date.now()) {
@@ -113,12 +154,16 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
 
   function selectAuthMode(nextMode: Mode) {
     setMode(nextMode);
+    setPendingVerificationEmail("");
+    setAccountHelp(false);
+    window.sessionStorage.removeItem(PENDING_EMAIL_STORAGE_KEY);
     setError("");
     setMessage("");
   }
 
   function returnToAuthMode() {
     setForgotMode(false);
+    setMode("login");
     setError("");
     setMessage("");
   }
@@ -130,12 +175,16 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
     setLoading(true);
     setError("");
     setMessage("");
+    setAccountHelp(false);
 
     try {
+      const captchaToken = await acquireCaptchaToken();
+      if (captchaMode === "required" && !captchaToken) { setError(captchaFailure); return; }
       if (mode === "login") {
+        const input = { email, password, ...(captchaToken ? { captchaToken } : {}) };
         const signInResult = authAdapter?.signInWithPassword
-          ? await authAdapter.signInWithPassword({ email, password })
-          : await supabase!.auth.signInWithPassword({ email, password }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
+          ? await authAdapter.signInWithPassword(input)
+          : await supabase!.auth.signInWithPassword({ email, password, options: captchaToken ? { captchaToken } : undefined }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
         const signInData = signInResult.data;
         const signInError = signInResult.error;
         if (signInError) throw signInError;
@@ -150,28 +199,38 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
           ? buildAuthCallbackRedirect(window.location.origin, safeNext)
           : undefined;
 
+      const signUpInput = { email, password, emailRedirectTo, ...(captchaToken ? { captchaToken } : {}) };
       const signUpResult = authAdapter?.signUp
-        ? await authAdapter.signUp({ email, password, emailRedirectTo })
-        : await supabase!.auth.signUp({ email, password, options: { emailRedirectTo } }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
+        ? await authAdapter.signUp(signUpInput)
+        : await supabase!.auth.signUp({ email, password, options: { emailRedirectTo, ...(captchaToken ? { captchaToken } : {}) } }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
       const signUpData = signUpResult.data;
       const signUpError = signUpResult.error;
       if (signUpError) throw signUpError;
 
       const accessToken = signUpData?.accessToken;
       if (accessToken) {
+        setPendingVerificationEmail("");
+        window.sessionStorage.removeItem(PENDING_EMAIL_STORAGE_KEY);
         navigation.navigate(safeNext);
         return;
       }
 
-      setPendingVerificationEmail(email.trim());
+      const pendingEmail = normalizedEmail(email);
+      setPendingVerificationEmail(pendingEmail);
+      window.sessionStorage.setItem(PENDING_EMAIL_STORAGE_KEY, pendingEmail);
+      startResendCooldown();
       setMessage(messages.pendingCheckInbox);
     } catch (authError) {
       const rawMessage = authError instanceof Error ? authError.message : "";
-      if (/Email not confirmed/i.test(rawMessage)) {
-        setPendingVerificationEmail(email.trim());
+      if (mode === "login" && (isAuthApiError(authError) ? authError.code === "email_not_confirmed" : /Email not confirmed/i.test(rawMessage))) {
+        const pendingEmail = normalizedEmail(email);
+        setPendingVerificationEmail(pendingEmail);
+        window.sessionStorage.setItem(PENDING_EMAIL_STORAGE_KEY, pendingEmail);
       }
-      setError(mapAuthError(rawMessage, messages));
+      if (mode === "signup" && /User already registered/i.test(rawMessage)) setAccountHelp(true);
+      setError(mapAuthError(authError, messages));
     } finally {
+      resetCaptcha();
       setLoading(false);
     }
   }
@@ -184,6 +243,8 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
     setMessage("");
 
     try {
+      const captchaToken = await acquireCaptchaToken();
+      if (captchaMode === "required" && !captchaToken) { setError(captchaFailure); return; }
       const response = await fetch("/api/auth/resend-confirmation", {
         method: "POST",
         headers: {
@@ -192,13 +253,19 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
         body: JSON.stringify({
           email: pendingVerificationEmail,
           next: safeNext,
+          ...(captchaToken ? { captchaToken } : {}),
         }),
       });
 
       const payload = (await response.json().catch(() => null)) as ResendResponse | null;
 
-      if (response.status === 429 || payload?.error === "VERIFICATION_EMAIL_RATE_LIMITED") {
+      if (response.status === 429 || (payload?.ok === false && payload.error === "VERIFICATION_EMAIL_RATE_LIMITED")) {
         setError(messages.resendLimit);
+        return;
+      }
+
+      if (payload?.ok === false && /captcha|bot.proof/i.test(payload.error ?? "")) {
+        setError(messages.captchaRetry);
         return;
       }
 
@@ -207,10 +274,11 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
       }
 
       startResendCooldown();
-      setMessage(messages.pendingCheckInbox);
+      setMessage(messages.resendRequestReceived);
     } catch {
       setError(messages.resendFailed);
     } finally {
+      resetCaptcha();
       setResending(false);
     }
   }
@@ -224,23 +292,27 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
     setMessage("");
 
     try {
+      const captchaToken = await acquireCaptchaToken();
+      if (captchaMode === "required" && !captchaToken) { setError(captchaFailure); return; }
       const redirectTo =
         typeof window !== "undefined"
           ? buildResetPasswordRedirect(window.location.origin)
           : undefined;
 
+      const resetInput = { email: email.trim(), redirectTo: redirectTo ?? "", ...(captchaToken ? { captchaToken } : {}) };
       const { error: resetError } = authAdapter?.requestPasswordReset
-        ? await authAdapter.requestPasswordReset({ email: email.trim(), redirectTo: redirectTo ?? "" })
-        : await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+        ? await authAdapter.requestPasswordReset(resetInput)
+        : await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo, ...(captchaToken ? { captchaToken } : {}) });
       if (resetError) {
-        setError(messages.resetRequestFailed);
+        setError(isCaptchaFailure(resetError) ? messages.captchaRetry : messages.resetRequestFailed);
         return;
       }
 
-      setMessage(messages.pendingCheckInbox);
-    } catch {
-      setError(messages.resetRequestFailed);
+      setMessage(messages.resetRequestReceived);
+    } catch (resetError) {
+      setError(isCaptchaFailure(resetError) ? messages.captchaRetry : messages.resetRequestFailed);
     } finally {
+      resetCaptcha();
       setSendingReset(false);
     }
   }
@@ -252,7 +324,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
     setMessage("");
     const signOutError = authAdapter?.signOut ? await authAdapter.signOut() : (await supabase!.auth.signOut()).error;
     if (signOutError) {
-      setError(mapAuthError(signOutError.message, messages));
+      setError(mapAuthError(signOutError, messages));
       setLoading(false);
       return;
     }
@@ -269,7 +341,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
 
   return (
     <section className="auth-card">
-      <div className="auth-card__top">
+      {!forgotMode ? <div className="auth-card__top">
         <div className="auth-switch" role="tablist" aria-label={`${messages.loginHeading} / ${messages.signupHeading}`}>
           <button
             type="button"
@@ -290,7 +362,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
             {messages.signup}
           </button>
         </div>
-      </div>
+      </div> : null}
 
       {status === "checking" ? (
         <div className="auth-alert">{messages.checkingAuth}</div>
@@ -330,6 +402,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
               required
             />
           </label>
+          {captchaMode !== "off" && authTurnstileSiteKey && !captchaAdapter ? <AuthTurnstile ref={turnstileRef} siteKey={authTurnstileSiteKey} locale={locale} /> : null}
           <div className="community-cta-row">
             <button className="community-button auth-button" type="submit" disabled={sendingReset}>
               {sendingReset ? messages.sending : messages.requestReset}
@@ -376,6 +449,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
               {messages.signupNoticeGuidelinesLead}<a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer">{messages.signupNoticeGuidelines}</a>{messages.consentEnd}
             </p>
           ) : null}
+          {captchaMode !== "off" && authTurnstileSiteKey && !captchaAdapter ? <AuthTurnstile ref={turnstileRef} siteKey={authTurnstileSiteKey} locale={locale} /> : null}
           <div className="community-cta-row">
             <button className="community-button auth-button" type="submit" disabled={loading}>
               {loading ? messages.processing : mode === "login" ? messages.login : messages.signup}
@@ -395,6 +469,9 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
               className="auth-forgot-link"
               onClick={() => {
                 setForgotMode(true);
+                setPendingVerificationEmail("");
+                setAccountHelp(false);
+                window.sessionStorage.removeItem(PENDING_EMAIL_STORAGE_KEY);
                 setError("");
                 setMessage("");
               }}
@@ -408,8 +485,23 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
       <div className="auth-feedback">
         {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
         {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
+        {pendingVerificationEmail && !message ? <div className="auth-alert">{messages.pendingCheckInbox}</div> : null}
+        {(pendingVerificationEmail || accountHelp) && mode === "signup" ? (
+          <div className="auth-resend__actions">
+            <button type="button" className="community-button--secondary auth-button" onClick={() => selectAuthMode("login")}>{messages.login}</button>
+            <button type="button" className="community-button--secondary auth-button" onClick={() => {
+              setForgotMode(true);
+              setPendingVerificationEmail("");
+              setAccountHelp(false);
+              window.sessionStorage.removeItem(PENDING_EMAIL_STORAGE_KEY);
+              setError("");
+              setMessage("");
+            }}>{messages.forgotPassword}</button>
+          </div>
+        ) : null}
         {pendingVerificationEmail ? (
           <div className="auth-resend">
+            <div className="auth-resend__hint">{messages.pendingEarlierRequest(pendingVerificationEmail)}</div>
             <div className="auth-resend__actions">
               <button
                 type="button"

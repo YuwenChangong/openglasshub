@@ -1,15 +1,26 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { createServer } from "vite";
-import { chromium } from "playwright";
 import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
 
+async function loadChromium() {
+  try { return (await import("playwright")).chromium; } catch { /* desktop runtime fallback */ }
+  const runtimeRoot = path.join(process.env.LOCALAPPDATA ?? "", "OpenAI", "Codex", "runtimes", "cua_node");
+  for (const entry of (await fs.readdir(runtimeRoot)).sort().reverse()) {
+    const candidate = path.join(runtimeRoot, entry, "bin", "node_modules", "playwright", "index.mjs");
+    try { await fs.access(candidate); return (await import(pathToFileURL(candidate).href)).chromium; } catch { /* next runtime */ }
+  }
+  throw new Error("Playwright runtime unavailable");
+}
+
 const apiUrl = "http://127.0.0.1:4388/api/auth/resend-confirmation";
-const validContext = (email = "qa@example.invalid", next = "/feed/") => ({
+const validContext = (email = "qa@example.invalid", next = "/feed/", captchaToken) => ({
   request: new Request(apiUrl, {
     method: "POST",
     headers: { "content-type": "application/json", "cf-connecting-ip": "192.0.2.1" },
-    body: JSON.stringify({ email, next }),
+    body: JSON.stringify({ email, next, ...(captchaToken === undefined ? {} : { captchaToken }) }),
   }),
   locals: {},
 });
@@ -19,24 +30,80 @@ async function main() {
   const originalFetch = globalThis.fetch;
   let externalAttempts = 0;
   globalThis.fetch = async () => { externalAttempts += 1; throw new Error("external networking denied"); };
-  const vite = await createServer({ root: process.cwd(), logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+  const vite = await createServer({ root: process.cwd(), logLevel: "error", plugins: [cloudflareWorkersTestPlugin()], server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom", optimizeDeps: { noDiscovery: true } });
   try {
     const { createResendPost } = await vite.ssrLoadModule("/src/pages/api/auth/resend-confirmation.ts");
+    const { configureAuthLoginResponse } = await vite.ssrLoadModule("/src/lib/server/auth-login-response.ts");
+    const { env: loginRuntimeEnv } = await vite.ssrLoadModule("cloudflare:workers");
+    for (const mode of ["off", "required"]) {
+      setCloudflareWorkersTestBinding({ AUTH_CAPTCHA_MODE: mode });
+      const response = { headers: new Headers() };
+      assert.equal(configureAuthLoginResponse(response, loginRuntimeEnv), mode);
+      assert.equal(response.headers.get("Cache-Control"), "no-store");
+    }
+    assert.throws(() => configureAuthLoginResponse({ headers: new Headers() }, { AUTH_CAPTCHA_MODE: "invalid" }));
+    console.log("freshLoginResponseUsesCurrentRuntimeMode: PASS");
     async function run(resend, options = {}) {
+      setCloudflareWorkersTestBinding({ RATE_LIMIT_SALT: "fixture-salt", AUTH_CAPTCHA_MODE: options.mode ?? "off" });
       const events = [];
       const calls = { limit: 0, resend: 0 };
       const post = createResendPost({
-        resend: async (email, redirectTo) => { calls.resend += 1; assert.equal(email, "qa@example.invalid"); assert.equal(redirectTo, "http://127.0.0.1:4388/auth/callback/?next=%2Ffeed%2F"); return resend(); },
+        resend: async (email, redirectTo, captchaToken) => { calls.resend += 1; calls.captchaToken = captchaToken; assert.equal(email, "qa@example.invalid"); assert.equal(redirectTo, "http://127.0.0.1:4388/auth/callback/?next=%2Ffeed%2F"); return resend(); },
         consumeLimit: async (input) => { calls.limit += 1; assert.deepEqual([input.maxAttempts, input.windowHours], [5, 24]); assert.match(input.ipHash, /^[a-f0-9]{64}$/); return options.limit ?? { allowed: true, reason: "ALLOWED" }; },
         observe: (event) => { events.push(event); if (options.observerThrows) throw new Error("fixture observer payload"); },
       });
-      const response = await post(validContext(options.email, options.next));
+      const response = await post(validContext(options.email, options.next, options.captchaToken));
       return { response, body: await response.json(), events, calls };
     }
 
+    for (const mode of ["off", "prepare"]) {
+      const result = await run(async () => ({ error: null }), { mode });
+      assert.deepEqual([result.response.status, result.calls.limit, result.calls.resend, result.calls.captchaToken], [200, 1, 1, undefined]);
+    }
+    const prepared = await run(async () => ({ error: null }), { mode: "prepare", captchaToken: "fixture-token" });
+    assert.deepEqual([prepared.calls.limit, prepared.calls.resend, prepared.calls.captchaToken], [1, 1, "fixture-token"]);
+    const missing = await run(async () => ({ error: null }), { mode: "required" });
+    assert.deepEqual([missing.response.status, missing.calls.limit, missing.calls.resend], [400, 0, 0]);
+    assert.equal(missing.body.error, "BOT_PROOF_REQUIRED");
+    for (const captchaToken of ["", "  ", 42, "x".repeat(4097)]) {
+      const malformed = await run(async () => ({ error: null }), { mode: "prepare", captchaToken });
+      assert.deepEqual([malformed.response.status, malformed.calls.limit, malformed.calls.resend], [400, 0, 0]);
+    }
+    const required = await run(async () => ({ error: null }), { mode: "required", captchaToken: "fixture-token" });
+    assert.deepEqual([required.calls.limit, required.calls.resend, required.calls.captchaToken], [1, 1, "fixture-token"]);
+    const deniedProof = await run(async () => ({ error: null }), { mode: "required", captchaToken: "fixture-token", limit: { allowed: false, reason: "RATE_LIMITED" } });
+    assert.deepEqual([deniedProof.response.status, deniedProof.calls.limit, deniedProof.calls.resend], [429, 1, 0]);
+    const captchaError = { status: 400, code: "captcha_failed", message: "fixture-sensitive-payload" };
+    for (const mode of ["prepare", "required"]) {
+      const rejected = await run(async () => ({ error: captchaError }), { mode, captchaToken: mode === "required" ? "fixture-token" : undefined });
+      assert.deepEqual([rejected.response.status, rejected.body.error, rejected.calls.limit, rejected.calls.resend], [400, "CAPTCHA_RETRY", 1, 1]);
+      assert.doesNotMatch(JSON.stringify(rejected.body) + JSON.stringify(rejected.events), /fixture-sensitive-payload|fixture-token/);
+    }
+    const thrownCaptcha = await run(async () => { throw captchaError; }, { mode: "required", captchaToken: "fixture-token" });
+    assert.equal(thrownCaptcha.body.error, "CAPTCHA_RETRY");
+    console.log("resendCaptchaModeAndLimiterMatrix: PASS");
+
+    for (const code of ["bad_json", "validation_failed", "no_authorization", "email_provider_disabled", "signup_disabled"]) {
+      for (const disposition of ["returned", "thrown"]) {
+        const error = { status: 400, code, message: "fixture-sensitive-payload" };
+        const result = await run(async () => {
+          if (disposition === "thrown") throw error;
+          return { error };
+        });
+        assert.deepEqual(result.body, { ok: false, error: "RESEND_CONFIRMATION_FAILED" }, `${disposition} ${code}`);
+        assert.equal(result.response.status, 503);
+        assert.doesNotMatch(JSON.stringify(result.body) + JSON.stringify(result.events), /fixture-sensitive-payload/);
+      }
+    }
+    const uncoded = await run(async () => ({ error: { status: 400, message: "fixture unknown recipient" } }));
+    assert.deepEqual(uncoded.body, { ok: false, error: "RESEND_CONFIRMATION_FAILED" });
+    const mismatchedStatus = await run(async () => ({ error: { status: 429, code: "user_not_found", message: "fixture-sensitive-payload" } }));
+    assert.deepEqual(mismatchedStatus.body, { ok: false, error: "RESEND_CONFIRMATION_FAILED" });
+    console.log("definiteAuthErrorsFailGenerically: PASS");
+
     const returned = await run(async () => ({ error: { status: 503, message: "fixture-sensitive-payload" } }));
-    assert.equal(returned.response.status, 200);
-    assert.deepEqual(returned.body, { ok: true, message: "如果该邮箱可用，我们会发送验证邮件。" });
+    assert.equal(returned.response.status, 503);
+    assert.deepEqual(returned.body, { ok: false, error: "RESEND_CONFIRMATION_FAILED" });
     assert.equal(returned.events[0].outcome, "unavailable", "returnedProviderErrorObserved");
     assert.deepEqual(Object.keys(returned.events[0]).sort(), ["durationMs", "flow", "outcome", "stage"]);
     assert.doesNotMatch(JSON.stringify(returned.events), /fixture-sensitive-payload|qa@example|192\.0\.2\.1/);
@@ -48,8 +115,14 @@ async function main() {
     console.log("thrownProviderErrorObserved: PASS");
 
     const accepted = await run(async () => ({ error: null }));
-    const unknown = await run(async () => ({ error: { status: 400, message: "fixture unknown recipient" } }));
+    const unknown = await run(async () => ({ error: { status: 400, code: "user_not_found", message: "fixture unknown recipient" } }));
+    const unknownThrown = await run(async () => { throw { status: 400, code: "user_not_found", message: "fixture unknown recipient" }; });
     assert.deepEqual(unknown.body, accepted.body, "unknownRecipientIndistinguishable");
+    assert.deepEqual(unknownThrown.body, accepted.body, "thrownUnknownRecipientIndistinguishable");
+    for (const code of ["email_exists", "user_already_exists", "email_not_confirmed"]) {
+      const accountSpecific = await run(async () => ({ error: { status: 400, code, message: "fixture-sensitive-payload" } }));
+      assert.deepEqual(accountSpecific.body, accepted.body, `${code} must not disclose account state`);
+    }
     assert.equal(accepted.events[0].outcome, "accepted");
     assert.equal(unknown.events[0].outcome, "rejected");
     console.log("unknownRecipientIndistinguishable: PASS");
@@ -78,12 +151,12 @@ async function main() {
     assert.equal(classifyAuthEmailFailure(new Error("fixture private")), "unavailable");
     for (const value of [0, false, ""]) {
       const falsy = await run(async () => ({ error: value }));
-      assert.deepEqual(falsy.body, accepted.body);
+      assert.deepEqual(falsy.body, returned.body);
       assert.equal(falsy.events[0]?.outcome, "unavailable", "non-null falsy provider error must not be accepted");
     }
     const hostile = { get status() { throw new Error("fixture private getter detail"); } };
     const hostileThrown = await run(async () => { throw hostile; });
-    assert.deepEqual(hostileThrown.body, accepted.body, "hostile thrown provider error must keep generic public response");
+    assert.deepEqual(hostileThrown.body, returned.body, "hostile thrown provider error must keep generic public response");
     assert.equal(hostileThrown.events[0]?.outcome, "unavailable");
     assert.equal(classifyAuthEmailFailure(hostile), "unavailable");
     console.log("hostileAndFalsyProviderErrors: PASS");
@@ -99,6 +172,7 @@ async function main() {
   try {
     await harness.listen();
     const origin = new URL(harness.resolvedUrls.local[0]).origin;
+    const chromium = await loadChromium();
     browser = await chromium.launch({ headless: true, args: ["--disable-background-networking", "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"] });
     const context = await browser.newContext({ serviceWorkers: "block" });
     let blocked = 0;
@@ -114,7 +188,7 @@ async function main() {
     const page = await context.newPage();
     await page.goto(origin, { waitUntil: "networkidle" });
     for (const [scenario, expectedText, failed] of [
-      ["login-reset-safe-callback", "如已提出请求", false],
+      ["login-reset-safe-callback", "如果账号存在", false],
       ["login-reset-returned-error", "暂时无法请求重置邮件", true],
       ["login-reset-thrown-error", "暂时无法请求重置邮件", true],
     ]) {
@@ -124,7 +198,7 @@ async function main() {
       await page.getByRole("button", { name: "发送重置邮件", exact: true }).click();
       await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("resetCallbackSafe:true"));
       assert.match(await page.locator(".legal-harness__surface").textContent(), new RegExp(expectedText));
-      if (failed) assert.doesNotMatch(await page.locator(".legal-harness__surface").textContent(), /如已提出请求/);
+      if (failed) assert.doesNotMatch(await page.locator(".legal-harness__surface").textContent(), /如果账号存在/);
       assert.doesNotMatch(await page.locator(".legal-harness__surface").textContent(), /fixture private provider detail/);
     }
     assert.equal(blocked, 0);

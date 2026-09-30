@@ -1,28 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type {} from "../../lib/turnstile-api";
 
 const TURNSTILE_SITE_KEY =
   import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ||
   import.meta.env.ASTRO_PUBLIC_TURNSTILE_SITE_KEY ||
   "";
-
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (
-        container: string | HTMLElement,
-        options: {
-          sitekey: string;
-          size?: "normal" | "compact" | "invisible";
-          callback?: (token: string) => void;
-          "error-callback"?: () => void;
-          "expired-callback"?: () => void;
-        },
-      ) => string | number;
-      reset: (widgetId?: string | number) => void;
-      execute?: (widgetId?: string | number) => void;
-    };
-  }
-}
 
 export function useInvisibleTurnstile(errorMessage = "安全验证失败，请刷新后重试。") {
   const [ready, setReady] = useState(!TURNSTILE_SITE_KEY);

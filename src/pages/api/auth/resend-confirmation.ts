@@ -5,6 +5,7 @@ import { buildAuthCallbackRedirect, getSafeNext } from "../../../lib/auth-redire
 import { getRequestIp } from "../../../lib/request-ip";
 import { consumeVerificationEmailResendLimit, hashRateLimitIp, type ForumRateLimitResult } from "../../../lib/server/rate-limit";
 import { classifyAuthEmailFailure, type AuthEmailEvent } from "../../../lib/server/auth-email-observability";
+import { parseAuthCaptchaMode } from "../../../lib/auth-captcha-mode";
 
 export const prerender = false;
 
@@ -13,6 +14,7 @@ type RuntimeEnv = Record<string, string | undefined>;
 type ResendPayload = {
   email?: string;
   next?: string | null;
+  captchaToken?: string;
 };
 
 function json(data: unknown, status = 200): Response {
@@ -36,7 +38,7 @@ function isValidEmail(value: string): boolean {
 }
 
 type ResendDependencies = {
-  resend: (email: string, redirectTo: string) => Promise<{ error: unknown | null }>;
+  resend: (email: string, redirectTo: string, captchaToken?: string) => Promise<{ error: unknown | null }>;
   consumeLimit: (input: { ipHash: string; maxAttempts: number; windowHours: number }) => Promise<ForumRateLimitResult>;
   observe: (event: AuthEmailEvent) => void;
 };
@@ -52,8 +54,16 @@ export function createResendPost(dependencies?: ResendDependencies): APIRoute {
     const payload = (await request.json().catch(() => null)) as ResendPayload | null;
     const email = String(payload?.email ?? "").trim().toLowerCase();
     const safeNext = getSafeNext(payload?.next ?? null);
+    const captchaMode = parseAuthCaptchaMode(env.AUTH_CAPTCHA_MODE);
     if (!isValidEmail(email)) {
       return json({ ok: false, error: "INVALID_EMAIL" }, 400);
+    }
+    const captchaToken = payload?.captchaToken;
+    if (captchaToken !== undefined && (typeof captchaToken !== "string" || !captchaToken.trim() || captchaToken.length > 4096)) {
+      return json({ ok: false, error: "BOT_PROOF_REQUIRED" }, 400);
+    }
+    if (captchaMode === "required" && !captchaToken) {
+      return json({ ok: false, error: "BOT_PROOF_REQUIRED" }, 400);
     }
 
     const supabase = dependencies ? null : createClient(requireEnv(env, "SUPABASE_URL"), requireEnv(env, "SUPABASE_ANON_KEY"), {
@@ -86,11 +96,17 @@ export function createResendPost(dependencies?: ResendDependencies): APIRoute {
 
     try {
       const result = dependencies
-        ? await dependencies.resend(email, redirectTo ?? "")
-        : await supabase!.auth.resend({ type: "signup", email, options: redirectTo ? { emailRedirectTo: redirectTo } : undefined });
-      observe(result.error !== null ? classifyAuthEmailFailure(result.error) : "accepted");
+        ? await dependencies.resend(email, redirectTo ?? "", captchaToken)
+        : await supabase!.auth.resend({ type: "signup", email, options: { ...(redirectTo ? { emailRedirectTo: redirectTo } : {}), ...(captchaToken ? { captchaToken } : {}) } });
+      if (result.error !== null) {
+        observe(classifyAuthEmailFailure(result.error));
+        if (isCaptchaFailure(result.error)) return json({ ok: false, error: "CAPTCHA_RETRY" }, 400);
+        if (!isAccountSpecificAuthFailure(result.error)) return json({ ok: false, error: "RESEND_CONFIRMATION_FAILED" }, 503);
+      } else observe("accepted");
     } catch (error) {
       observe(classifyAuthEmailFailure(error));
+      if (isCaptchaFailure(error)) return json({ ok: false, error: "CAPTCHA_RETRY" }, 400);
+      if (!isAccountSpecificAuthFailure(error)) return json({ ok: false, error: "RESEND_CONFIRMATION_FAILED" }, 503);
     }
 
     return json({
@@ -101,6 +117,29 @@ export function createResendPost(dependencies?: ResendDependencies): APIRoute {
     return json({ ok: false, error: "RESEND_CONFIRMATION_FAILED" }, 500);
   }
 };
+}
+
+function isAccountSpecificAuthFailure(error: unknown): boolean {
+  try {
+    if (typeof error !== "object" || error === null) return false;
+    const { status, code } = error as { status?: unknown; code?: unknown };
+    // These account-state codes are in the installed Auth ErrorCode contract; status alone is insufficient.
+    return (status === 400 || status === 404)
+      && (code === "user_not_found" || code === "email_exists" || code === "user_already_exists" || code === "email_not_confirmed");
+  } catch {
+    return false;
+  }
+}
+
+function isCaptchaFailure(error: unknown): boolean {
+  try {
+    if (typeof error !== "object" || error === null) return false;
+    const { code, message } = error as { code?: unknown; message?: unknown };
+    return (typeof code === "string" && /^captcha[_-](?:failed|expired|invalid)$/i.test(code))
+      || (typeof message === "string" && /captcha[_\s-]*failed|captcha.*(?:invalid|expired|failed)/i.test(message));
+  } catch {
+    return false;
+  }
 }
 
 export const POST = createResendPost();

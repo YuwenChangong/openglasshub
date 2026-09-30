@@ -1,10 +1,13 @@
 ---
 export const prerender = false;
 
+import { env as runtimeEnv } from "cloudflare:workers";
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import AuthPanel from "../../components/forum/AuthPanel";
 import { getSafeNext } from "../../lib/auth-redirect";
+import { configureAuthLoginResponse } from "../../lib/server/auth-login-response";
 
+const captchaMode = configureAuthLoginResponse(Astro.response, runtimeEnv);
 const next = getSafeNext(Astro.url.searchParams.get("next"));
 const modeParam = Astro.url.searchParams.get("mode");
 const initialMode = modeParam === "register" || modeParam === "signup" ? "signup" : "login";
@@ -20,7 +23,7 @@ const initialMode = modeParam === "register" || modeParam === "signup" ? "signup
     <div class="auth-page__intro">
       <h1>登录 / 注册</h1>
     </div>
-    <AuthPanel locale="zh-CN" next={next} initialMode={initialMode} client:only="react" />
+    <AuthPanel locale="zh-CN" next={next} initialMode={initialMode} captchaMode={captchaMode} authTurnstileSiteKey={runtimeEnv.PUBLIC_AUTH_TURNSTILE_SITE_KEY} client:only="react" />
   </section>
 </CommunityLayout>
 
