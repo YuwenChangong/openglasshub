@@ -385,6 +385,33 @@ async function checkBrowser() {
     });
     await changedEmailPage.close();
 
+    const longPendingEmail = `${"a".repeat(64)}@${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(49)}.invalid`;
+    const longEmailPage = await context.newPage();
+    await longEmailPage.addInitScript((email) => sessionStorage.setItem("auth-pending-verification-email", email), longPendingEmail);
+    await longEmailPage.goto(origin, { waitUntil: "networkidle" });
+    await select(longEmailPage, "register-abuse-initial", true);
+    await longEmailPage.locator(".legal-harness__surface .auth-resend__hint").waitFor();
+    await check("LONG_PENDING_EMAIL_HINT_MOBILE_CONTAINMENT", async () => {
+      const hint = longEmailPage.locator(".legal-harness__surface .auth-resend__hint");
+      assert.equal((await hint.textContent())?.includes(longPendingEmail), true, "the full pending email must remain visible");
+      for (const width of [390, 430]) {
+        await longEmailPage.setViewportSize({ width, height: 850 });
+        const bounds = await longEmailPage.evaluate(() => {
+          const hint = document.querySelector(".legal-harness__surface .auth-resend__hint");
+          const box = hint.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(hint);
+          const textRight = Math.max(...Array.from(range.getClientRects(), (rect) => rect.right));
+          return { left: box.left, right: box.right, textRight, scrollWidth: document.documentElement.scrollWidth, viewportWidth: window.innerWidth };
+        });
+        assert.equal(bounds.left >= 0 && bounds.right <= bounds.viewportWidth, true, `${width}px hint bounds: ${JSON.stringify(bounds)}`);
+        assert.equal(bounds.textRight <= bounds.right, true, `${width}px hint text bounds: ${JSON.stringify(bounds)}`);
+        assert.equal(bounds.scrollWidth <= bounds.viewportWidth, true, `${width}px document width: ${JSON.stringify(bounds)}`);
+        console.log(`LONG_PENDING_EMAIL_${width}PX_DOM: ${JSON.stringify(bounds)}`);
+      }
+    });
+    await longEmailPage.close();
+
     for (const [scenario, expectedToken] of [["register-abuse-required", null], ["register-captcha-prepare-token", "fixture-token"], ["register-abuse-initial", undefined]]) {
       const resendPage = await context.newPage();
       await resendPage.addInitScript(() => sessionStorage.setItem("auth-pending-verification-email", "qa@example.invalid"));
