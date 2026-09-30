@@ -25,10 +25,12 @@ console.log("auth captcha mode parser: PASS");
 const route = await readFile(resolve(root, "src/pages/login/index.astro"), "utf8");
 await parse(route);
 assert.match(route, /import\s*\{\s*env\s+as\s+runtimeEnv\s*\}\s*from\s*["']cloudflare:workers["']/);
-assert.match(route, /parseAuthCaptchaMode\(runtimeEnv\.AUTH_CAPTCHA_MODE\)/);
+assert.match(route, /configureAuthLoginResponse\(Astro\.response,\s*runtimeEnv\)/);
 assert.match(route, /authTurnstileSiteKey=\{runtimeEnv\.PUBLIC_AUTH_TURNSTILE_SITE_KEY\}/);
 assert.match(route, /captchaMode=\{captchaMode\}/);
-assert.match(route, /Astro\.response\.headers\.set\(["']Cache-Control["'],\s*["']no-store["']\)/);
+const responseHelper = await readFile(resolve(root, "src/lib/server/auth-login-response.ts"), "utf8");
+assert.match(responseHelper, /parseAuthCaptchaMode\(runtimeEnv\.AUTH_CAPTCHA_MODE\)/);
+assert.match(responseHelper, /response\.headers\.set\(["']Cache-Control["'],\s*["']no-store["']\)/);
 assert.doesNotMatch(route, /PUBLIC_TURNSTILE_SITE_KEY|TURNSTILE_SECRET/);
 console.log("login SSR runtime props and no-store: PASS");
 

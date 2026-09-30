@@ -770,7 +770,14 @@ test('releaseIncludesSliceALocalChecks', async () => {
     'node scripts/test-auth-email-observability.mjs',
     'node scripts/test-password-recovery.mjs',
     'node scripts/test-slice-a-acceptance.mjs',
+    'npm run test:auth-email-abuse-ux',
   ]);
+  assert.deepEqual(packageJson.scripts['test:auth-email-abuse-ux'].split(' && '), [
+    'node scripts/test-auth-captcha-mode.mjs',
+    'node scripts/test-build-workers-runtime-vars.mjs',
+    'node scripts/test-auth-email-abuse-ux.mjs',
+  ]);
+  assert.equal(packageJson.scripts['test:auth-email-abuse-visual'], 'node scripts/test-auth-email-abuse-visual.mjs');
   assert.equal(validateSliceAAcceptance({ schemaVersion: 1, checks: {} }).status, 'FAIL');
 
   const directory = mkdtempSync(join(tmpdir(), 'openglass-slice-a-command-'));
