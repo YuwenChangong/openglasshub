@@ -43,7 +43,7 @@ async function checkWidget(name, run) {
 }
 
 async function checkResendApi() {
-  setCloudflareWorkersTestBinding({ RATE_LIMIT_SALT: "fixture-salt" });
+  setCloudflareWorkersTestBinding({ RATE_LIMIT_SALT: "fixture-salt", AUTH_CAPTCHA_MODE: "required" });
   const originalFetch = globalThis.fetch;
   let externalAttempts = 0;
   globalThis.fetch = async () => { externalAttempts += 1; throw new Error("external networking denied"); };
@@ -53,7 +53,6 @@ async function checkResendApi() {
     let resendCalls = 0;
     let limitCalls = 0;
     const post = createResendPost({
-      captchaMode: "required",
       resend: async () => { resendCalls += 1; return { error: null }; },
       consumeLimit: async ({ maxAttempts, windowHours, ipHash }) => {
         limitCalls += 1;
@@ -439,6 +438,25 @@ async function checkBrowser() {
         });
       }
       await resendPage.close();
+    }
+
+    for (const [scenario, label] of [["register-abuse-initial", "STALE_OFF_RESEND_AFTER_ENFORCEMENT"], ["register-captcha-prepare-token", "STALE_PREPARE_RESEND_AFTER_ENFORCEMENT"]]) {
+      const stalePage = await context.newPage();
+      await stalePage.addInitScript(() => sessionStorage.setItem("auth-pending-verification-email", "qa@example.invalid"));
+      await stalePage.route("**/api/auth/resend-confirmation", (route) => route.fulfill({ status: 400, contentType: "application/json", body: '{"ok":false,"error":"CAPTCHA_RETRY"}' }));
+      await stalePage.goto(origin, { waitUntil: "networkidle" });
+      await stalePage.evaluate((key) => localStorage.removeItem(key), cooldownKey);
+      await select(stalePage, scenario, true);
+      await stalePage.locator(".legal-harness__surface .auth-resend button").click();
+      await stalePage.locator(".legal-harness__surface .auth-alert--error").waitFor();
+      await check(label, async () => {
+        const surface = stalePage.locator(".legal-harness__surface");
+        assert.match((await surface.locator(".auth-alert--error").textContent()) ?? "", /刷新页面后重试/);
+        assert.equal(await surface.locator(".auth-alert--success").count(), 0);
+        assert.equal(await surface.locator(".auth-resend button").isDisabled(), false);
+        assert.equal(await stalePage.evaluate((key) => localStorage.getItem(key), cooldownKey), null);
+      });
+      await stalePage.close();
     }
 
     const page = await context.newPage();
