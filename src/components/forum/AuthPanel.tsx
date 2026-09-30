@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } from "../../lib/auth-redirect";
 import { LEGAL_POLICY } from "../../lib/legal-policy";
 import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
@@ -6,6 +6,7 @@ import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import type { AuthCaptchaMode } from "../../lib/auth-captcha-mode";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
+import AuthTurnstile, { type AuthCaptchaAdapter } from "./AuthTurnstile";
 
 type Mode = "login" | "signup";
 
@@ -15,6 +16,7 @@ interface AuthPanelProps {
   initialMode?: Mode;
   captchaMode?: AuthCaptchaMode;
   authTurnstileSiteKey?: string;
+  captchaAdapter?: AuthCaptchaAdapter;
   authAdapter?: AuthPanelAdapter;
   /** @deprecated Retained for adapter compatibility; runtime auth does not use consent. */
   consentAdapter?: LegalConsentAdapter;
@@ -38,7 +40,7 @@ function mapAuthError(errorMessage: string, messages: AuthMessages): string {
   return messages.unavailable;
 }
 
-export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login", authAdapter, navigationAdapter }: AuthPanelProps) {
+export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login", captchaMode = "off", authTurnstileSiteKey, captchaAdapter, authAdapter, navigationAdapter }: AuthPanelProps) {
   const messages = getAuthMessages(locale);
   const supabase = useMemo(() => authAdapter ? null : createBrowserSupabaseClient(), [authAdapter]);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);
@@ -60,6 +62,18 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
   const [forgotMode, setForgotMode] = useState(false);
   const [resendCooldownUntil, setResendCooldownUntil] = useState(0);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
+  const turnstileRef = useRef<AuthCaptchaAdapter>(null);
+  const captchaFailure = locale === "en" ? "Complete verification and try again." : "请完成验证后重试。";
+
+  async function acquireCaptchaToken(): Promise<string | null> {
+    if (captchaMode === "off") return null;
+    try { return await (captchaAdapter ?? turnstileRef.current)?.acquireToken() ?? null; }
+    catch { return null; }
+  }
+
+  function resetCaptcha() {
+    if (captchaMode !== "off") (captchaAdapter ?? turnstileRef.current)?.reset();
+  }
   const browserAuthState = useBrowserAuthState(supabase);
   const status = authAdapter?.viewState ?? browserAuthState.status;
   const user = authAdapter?.userPresent ? { id: "adapter-user" } : browserAuthState.user;
@@ -135,10 +149,13 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
     setMessage("");
 
     try {
+      const captchaToken = await acquireCaptchaToken();
+      if (captchaMode === "required" && !captchaToken) { setError(captchaFailure); return; }
       if (mode === "login") {
+        const input = { email, password, ...(captchaToken ? { captchaToken } : {}) };
         const signInResult = authAdapter?.signInWithPassword
-          ? await authAdapter.signInWithPassword({ email, password })
-          : await supabase!.auth.signInWithPassword({ email, password }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
+          ? await authAdapter.signInWithPassword(input)
+          : await supabase!.auth.signInWithPassword({ email, password, options: captchaToken ? { captchaToken } : undefined }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
         const signInData = signInResult.data;
         const signInError = signInResult.error;
         if (signInError) throw signInError;
@@ -153,9 +170,10 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
           ? buildAuthCallbackRedirect(window.location.origin, safeNext)
           : undefined;
 
+      const signUpInput = { email, password, emailRedirectTo, ...(captchaToken ? { captchaToken } : {}) };
       const signUpResult = authAdapter?.signUp
-        ? await authAdapter.signUp({ email, password, emailRedirectTo })
-        : await supabase!.auth.signUp({ email, password, options: { emailRedirectTo } }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
+        ? await authAdapter.signUp(signUpInput)
+        : await supabase!.auth.signUp({ email, password, options: { emailRedirectTo, ...(captchaToken ? { captchaToken } : {}) } }).then(({ data, error }) => ({ data: data.session ? { accessToken: data.session.access_token } : null, error }));
       const signUpData = signUpResult.data;
       const signUpError = signUpResult.error;
       if (signUpError) throw signUpError;
@@ -175,6 +193,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
       }
       setError(mapAuthError(rawMessage, messages));
     } finally {
+      resetCaptcha();
       setLoading(false);
     }
   }
@@ -227,14 +246,17 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
     setMessage("");
 
     try {
+      const captchaToken = await acquireCaptchaToken();
+      if (captchaMode === "required" && !captchaToken) { setError(captchaFailure); return; }
       const redirectTo =
         typeof window !== "undefined"
           ? buildResetPasswordRedirect(window.location.origin)
           : undefined;
 
+      const resetInput = { email: email.trim(), redirectTo: redirectTo ?? "", ...(captchaToken ? { captchaToken } : {}) };
       const { error: resetError } = authAdapter?.requestPasswordReset
-        ? await authAdapter.requestPasswordReset({ email: email.trim(), redirectTo: redirectTo ?? "" })
-        : await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+        ? await authAdapter.requestPasswordReset(resetInput)
+        : await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo, ...(captchaToken ? { captchaToken } : {}) });
       if (resetError) {
         setError(messages.resetRequestFailed);
         return;
@@ -244,6 +266,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
     } catch {
       setError(messages.resetRequestFailed);
     } finally {
+      resetCaptcha();
       setSendingReset(false);
     }
   }
@@ -333,6 +356,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
               required
             />
           </label>
+          {captchaMode !== "off" && authTurnstileSiteKey && !captchaAdapter ? <AuthTurnstile ref={turnstileRef} siteKey={authTurnstileSiteKey} locale={locale} /> : null}
           <div className="community-cta-row">
             <button className="community-button auth-button" type="submit" disabled={sendingReset}>
               {sendingReset ? messages.sending : messages.requestReset}
@@ -379,6 +403,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
               {messages.signupNoticeGuidelinesLead}<a href={LEGAL_POLICY.routes.guidelines} target="_blank" rel="noopener noreferrer">{messages.signupNoticeGuidelines}</a>{messages.consentEnd}
             </p>
           ) : null}
+          {captchaMode !== "off" && authTurnstileSiteKey && !captchaAdapter ? <AuthTurnstile ref={turnstileRef} siteKey={authTurnstileSiteKey} locale={locale} /> : null}
           <div className="community-cta-row">
             <button className="community-button auth-button" type="submit" disabled={loading}>
               {loading ? messages.processing : mode === "login" ? messages.login : messages.signup}

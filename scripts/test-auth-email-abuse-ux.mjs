@@ -8,6 +8,7 @@ import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./
 const cooldownKey = "auth-resend-confirmation-cooldown-until";
 const fixedNow = Date.parse("2026-09-30T00:00:00.000Z");
 const red = [];
+const widgetRed = [];
 
 async function loadChromium() {
   try { return (await import("playwright")).chromium; } catch { /* desktop runtime fallback */ }
@@ -26,6 +27,17 @@ async function check(name, run) {
   } catch (error) {
     if (error?.code !== "ERR_ASSERTION") throw error;
     red.push(name);
+    console.log(`${name}: RED assertion ${error.message.replace(/\s+/g, " ")}`);
+  }
+}
+
+async function checkWidget(name, run) {
+  try {
+    await run();
+    console.log(`${name}: PASS`);
+  } catch (error) {
+    if (error?.code !== "ERR_ASSERTION") throw error;
+    widgetRed.push(name);
     console.log(`${name}: RED assertion ${error.message.replace(/\s+/g, " ")}`);
   }
 }
@@ -138,6 +150,94 @@ async function checkBrowser() {
       else { blocked += 1; socket.close(); }
     });
 
+    const widgetPage = await context.newPage();
+    const widgetDiagnostics = [];
+    widgetPage.on("console", (message) => widgetDiagnostics.push(message.text()));
+    widgetPage.on("pageerror", (error) => widgetDiagnostics.push(error.message));
+    await widgetPage.addInitScript(() => {
+      window.__widgetRenders = [];
+      window.turnstile = {
+        render: (_element, options) => { window.__widgetRenders.push(options); return `widget-${window.__widgetRenders.length}`; },
+        reset: () => { window.__widgetResets = (window.__widgetResets ?? 0) + 1; },
+        remove: () => {},
+      };
+    });
+    await widgetPage.goto(origin, { waitUntil: "networkidle" });
+    await select(widgetPage, "login-captcha-off");
+    await checkWidget("WIDGET_OFF_NEVER_LOADS", async () => {
+      assert.equal(await widgetPage.evaluate(() => window.__widgetRenders.length), 0);
+      assert.equal(await widgetPage.locator('script[src*="turnstile"]').count(), 0);
+    });
+    await select(widgetPage, "login-captcha-prepare-missing");
+    await fillAuth(widgetPage);
+    await widgetPage.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signIn"));
+    await checkWidget("WIDGET_PREPARE_MISSING_KEY_PERMISSIVE", async () => {
+      assert.match(await trace(widgetPage), /tokenPresent:false,signIn/);
+    });
+    await select(widgetPage, "login-captcha-prepare-token");
+    await fillAuth(widgetPage);
+    await widgetPage.waitForTimeout(100);
+    await checkWidget("WIDGET_PREPARE_FRESH_TOKEN_RESET", async () => {
+      assert.match(await trace(widgetPage), /acquireToken,tokenPresent:true,signIn,navigate:\/feed\/,resetToken/);
+    });
+    for (const scenario of ["login-captcha-required-missing", "login-captcha-required-error", "login-captcha-required-expired"]) {
+      await select(widgetPage, scenario);
+      await fillAuthFields(widgetPage);
+      await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
+      await widgetPage.waitForTimeout(50);
+      await checkWidget(`WIDGET_${scenario.toUpperCase().replaceAll("-", "_")}_BLOCKS`, async () => {
+        assert.equal((await trace(widgetPage)).includes("signIn"), false);
+        assert.equal(await widgetPage.locator(".legal-harness__surface .auth-alert--error").count() > 0, true);
+      });
+    }
+    await select(widgetPage, "login-captcha-required-widget");
+    await checkWidget("WIDGET_MANAGED_CALLBACK_AND_MOBILE_WIDTH", async () => {
+      const options = await widgetPage.evaluate(() => window.__widgetRenders.at(-1) && ({
+        sitekey: window.__widgetRenders.at(-1).sitekey,
+        theme: window.__widgetRenders.at(-1).theme,
+        appearance: window.__widgetRenders.at(-1).appearance,
+        size: window.__widgetRenders.at(-1).size,
+        responseField: window.__widgetRenders.at(-1)["response-field"],
+      }));
+      assert.deepEqual(options, { sitekey: "fixture-sitekey", theme: "dark", appearance: "interaction-only", size: "flexible", responseField: false });
+      for (const width of [390, 430]) {
+        await widgetPage.setViewportSize({ width, height: 850 });
+        assert.equal(await widgetPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${width}px must not overflow`);
+      }
+      await fillAuthFields(widgetPage);
+      await widgetPage.evaluate(() => window.__widgetRenders.at(-1)["error-callback"]("fixture-private-error"));
+      await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
+      await widgetPage.waitForTimeout(50);
+      assert.equal((await trace(widgetPage)).includes("signIn"), false, "error widget callback must invalidate its token");
+      await widgetPage.evaluate(() => window.__widgetRenders.at(-1)["expired-callback"]());
+      await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
+      await widgetPage.waitForTimeout(50);
+      assert.equal((await trace(widgetPage)).includes("signIn"), false, "expired widget callback must invalidate its token");
+      await widgetPage.evaluate(() => window.__widgetRenders.at(-1).callback("fixture-token"));
+      await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
+      await widgetPage.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signIn"));
+      assert.match(await trace(widgetPage), /tokenPresent:true,signIn/);
+      assert.equal(await widgetPage.evaluate(() => window.__widgetResets > 0), true);
+      await widgetPage.locator('.legal-harness__surface button[type="submit"]').click();
+      await widgetPage.waitForTimeout(50);
+      assert.equal((await trace(widgetPage)).split(",").filter((entry) => entry === "signIn").length, 1, "one callback token permits one auth attempt");
+      assert.equal(await widgetPage.evaluate(() => Object.values(localStorage).concat(Object.values(sessionStorage)).some((value) => String(value).includes("fixture-token"))), false);
+      assert.equal(widgetDiagnostics.some((value) => value.includes("fixture-token") || value.includes("fixture-private-error")), false, "token and provider errors stay out of browser diagnostics");
+    });
+    await widgetPage.close();
+
+    const failedScriptPage = await context.newPage();
+    await failedScriptPage.route("https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit", (route) => route.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
+    await failedScriptPage.goto(origin, { waitUntil: "networkidle" });
+    await select(failedScriptPage, "login-captcha-prepare-script-failed");
+    await failedScriptPage.locator(".legal-harness__surface .auth-turnstile").waitFor();
+    await fillAuth(failedScriptPage);
+    await failedScriptPage.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signIn"));
+    await checkWidget("WIDGET_PREPARE_SCRIPT_FAILURE_PERMISSIVE", async () => {
+      assert.match(await trace(failedScriptPage), /tokenPresent:false,signIn/);
+    });
+    await failedScriptPage.close();
+
     const clockPage = await context.newPage();
     await clockPage.clock.install({ time: new Date(fixedNow) });
     await clockPage.goto(origin, { waitUntil: "networkidle" });
@@ -218,8 +318,8 @@ async function checkBrowser() {
 async function main() {
   await checkResendApi();
   await checkBrowser();
-  console.log(`AUTH_EMAIL_ABUSE_UX ${8 - red.length}/8 PASS; ${red.length}/8 RED assertion failures`);
-  if (red.length) process.exitCode = 1;
+  console.log(`AUTH_EMAIL_ABUSE_UX ${8 - red.length}/8 original PASS; ${red.length}/8 original RED; ${widgetRed.length} widget RED`);
+  if (red.length || widgetRed.length) process.exitCode = 1;
 }
 
 main().catch((error) => { console.error("AUTH_EMAIL_ABUSE_UX_SETUP_FAIL", error.message); process.exitCode = 2; });

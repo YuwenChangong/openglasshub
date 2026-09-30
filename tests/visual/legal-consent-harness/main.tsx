@@ -15,7 +15,7 @@ import { LEGAL_CONSENT_STATE_MATRIX } from "../legal-consent-state-matrix.mjs";
 
 type Scenario = string;
 const status = (current: boolean): LegalConsentStatus => ({ current, bundleVersion: "2026-07", minimumAge: 16, consentUrl: "/legal-consent/" });
-const additionalCases = ["consent-submit-expired-401", "consent-submit-session-missing", "consent-delayed-current", "consent-retry-success", "consent-outdated-bundle", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-record-not-current", "consent-auth-failure", "consent-submit-auth-failure", "consent-callback-success", "consent-logout-failure", "consent-current-navigation-throw", "consent-record-navigation-throw", "consent-current-navigation-stall", "consent-record-navigation-stall", "login-reset-safe-callback", "login-reset-returned-error", "login-reset-thrown-error", "register-abuse-initial", "register-abuse-obfuscated", "register-abuse-required", "login-abuse-required", "login-abuse-off", "login-abuse-prepare", "callback-self-next", "callback-delayed-session", "callback-failed-code"];
+const additionalCases = ["consent-submit-expired-401", "consent-submit-session-missing", "consent-delayed-current", "consent-retry-success", "consent-outdated-bundle", "consent-external-next", "consent-encoded-external-next", "consent-self-loop-next", "consent-record-not-current", "consent-auth-failure", "consent-submit-auth-failure", "consent-callback-success", "consent-logout-failure", "consent-current-navigation-throw", "consent-record-navigation-throw", "consent-current-navigation-stall", "consent-record-navigation-stall", "login-reset-safe-callback", "login-reset-returned-error", "login-reset-thrown-error", "register-abuse-initial", "register-abuse-obfuscated", "register-abuse-required", "login-abuse-required", "login-abuse-off", "login-abuse-prepare", "login-captcha-off", "login-captcha-prepare-missing", "login-captcha-prepare-script-failed", "login-captcha-prepare-token", "login-captcha-required-missing", "login-captcha-required-error", "login-captcha-required-expired", "login-captcha-required-widget", "callback-self-next", "callback-delayed-session", "callback-failed-code"];
 
 function Harness() {
   const [scenario, setScenario] = useState<Scenario>("consent-missing-unchecked");
@@ -83,7 +83,8 @@ function Harness() {
         return signedIn ? { accessToken: "test-session" } : null;
       };
     })(),
-    signInWithPassword: async () => {
+    signInWithPassword: async (input) => {
+      if (scenario.startsWith("login-captcha-")) record(`tokenPresent:${"captchaToken" in input && input.captchaToken === "fixture-token"}`);
       if (scenario === "login-abuse-required") {
         window.setTimeout(() => record("signIn"), 500);
         return { data: null, error: new Error("fixture early rejection") };
@@ -111,6 +112,13 @@ function Harness() {
     },
     signOut: async () => { record("signOut"); return scenario === "consent-logout-failure" ? new Error("fixture logout unavailable") : null; },
   }), [scenario, signedIn, revision]);
+  const captchaAdapter = useMemo(() => ({
+    acquireToken: async () => {
+      record("acquireToken");
+      return scenario === "login-captcha-prepare-token" ? "fixture-token" : null;
+    },
+    reset: () => record("resetToken"),
+  }), [scenario, revision]);
   const consent: LegalConsentAdapter = useMemo(() => ({
     getCurrentConsent: (() => {
       let reads = 0;
@@ -143,7 +151,7 @@ function Harness() {
   const callbackCodeExchange = useMemo(() => async () => { record("callbackExchange"); return { error: new Error("private provider detail") }; }, [revision, scenario]);
   const content = recoveryScenario ? <ResetPasswordForm key={revision} locale={locale} recoveryAdapter={recovery.adapter} />
     : scenario.startsWith("consent") ? <LegalConsentPage key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} next={next} reason={scenario === "consent-outdated-bundle" ? "policy-update" : scenario === "consent-callback-success" ? "callback" : undefined} />
-    : authScenario ? <AuthPanel key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} initialMode={scenario.startsWith("register") ? "signup" : "login"} next="/feed/" {...(scenario.includes("-abuse-") ? { captchaMode: scenario.endsWith("-required") ? "required" : scenario.endsWith("-prepare") ? "prepare" : "off" } : {})} />
+    : authScenario ? <AuthPanel key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} initialMode={scenario.startsWith("register") ? "signup" : "login"} next="/feed/" {...(scenario.includes("-abuse-") || scenario.includes("-captcha-") ? { captchaMode: scenario.includes("-required") ? "required" : scenario.includes("-prepare") ? "prepare" : "off" } : {})} {...(scenario.startsWith("login-captcha-") ? { authTurnstileSiteKey: ["login-captcha-off", "login-captcha-required-widget", "login-captcha-prepare-script-failed"].includes(scenario) ? "fixture-sitekey" : undefined, captchaAdapter: scenario === "login-captcha-prepare-token" || scenario === "login-captcha-required-error" || scenario === "login-captcha-required-expired" ? captchaAdapter : undefined } : {})} />
     : <AuthCallback key={revision} locale={locale} authAdapter={auth} consentAdapter={consent} navigationAdapter={navigation} codeExchange={scenario === "callback-failed-code" ? callbackCodeExchange : undefined} next={scenario === "callback-external-next-rejected" ? "https://example.invalid" : scenario === "callback-self-next" ? "/auth/callback/?next=%2Ffeed%2F" : "/feed/"} />;
   const showRecovery = (suffix: string, early = false) => {
     window.history.replaceState(null, "", `/${suffix}`);
