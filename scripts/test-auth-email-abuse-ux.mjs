@@ -75,15 +75,36 @@ async function select(page, scenario) {
   await page.getByRole("button", { name: scenario, exact: true }).click();
 }
 
-async function fillAuth(page) {
+async function fillAuthFields(page) {
   const surface = page.locator(".legal-harness__surface");
   await surface.locator('input[type="email"]').fill("qa@example.invalid");
   await surface.locator('input[type="password"]').fill("fixture-passphrase");
+}
+
+async function fillAuth(page) {
+  await fillAuthFields(page);
+  const surface = page.locator(".legal-harness__surface");
   await surface.locator('button[type="submit"]').click();
 }
 
 async function trace(page) {
   return (await page.locator("output").textContent()) ?? "";
+}
+
+async function submitAndWaitForAuthAttempt(page, call) {
+  const surface = page.locator(".legal-harness__surface");
+  const submit = surface.locator('button[type="submit"]');
+  if (await submit.isDisabled()) return;
+  const previousError = (await surface.locator(".auth-alert--error").allTextContents()).join(" ");
+  await submit.click();
+  await page.waitForFunction(({ expectedCall, previousError }) => {
+    const surface = document.querySelector(".legal-harness__surface");
+    const calls = document.querySelector("output")?.textContent?.split(",") ?? [];
+    const submit = surface?.querySelector('button[type="submit"]');
+    const error = surface?.querySelector(".auth-alert--error")?.textContent ?? "";
+    return calls.some((entry) => entry === expectedCall || entry.startsWith(`${expectedCall}:`))
+      || Boolean(error && error !== previousError && submit && !submit.disabled);
+  }, { expectedCall: call, previousError });
 }
 
 async function checkBrowser() {
@@ -132,8 +153,8 @@ async function checkBrowser() {
     });
 
     await select(page, "register-abuse-required");
-    await fillAuth(page);
-    await page.waitForTimeout(100);
+    await fillAuthFields(page);
+    await submitAndWaitForAuthAttempt(page, "signUp");
     await check("SIGNUP_EMAIL_SEND_WITHOUT_BOT_PROOF", async () => {
       assert.equal((await trace(page)).includes("signUp"), false, "required mode must not call signup SDK without proof");
     });
@@ -141,15 +162,14 @@ async function checkBrowser() {
     await select(page, "login-abuse-required");
     await page.getByRole("button", { name: "忘记密码？", exact: true }).click();
     await page.locator('.legal-harness__surface input[type="email"]').fill("qa@example.invalid");
-    await page.locator('.legal-harness__surface button[type="submit"]').click();
-    await page.waitForTimeout(100);
+    await submitAndWaitForAuthAttempt(page, "resetCallbackSafe");
     await check("PASSWORD_RESET_EMAIL_WITHOUT_BOT_PROOF", async () => {
       assert.equal((await trace(page)).includes("resetCallbackSafe:"), false, "required mode must not call reset SDK without proof");
     });
 
     await select(page, "login-abuse-required");
-    await fillAuth(page);
-    await page.waitForTimeout(100);
+    await fillAuthFields(page);
+    await submitAndWaitForAuthAttempt(page, "signIn");
     await check("PASSWORD_LOGIN_WITHOUT_BOT_PROOF", async () => {
       assert.equal((await trace(page)).split(",").filter((call) => call === "signIn").length, 0, "required mode must make zero sign-in SDK calls without a fresh token");
     });
@@ -168,7 +188,8 @@ async function checkBrowser() {
     await page.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signUp"));
     await check("EXISTING_ACCOUNT_FALSE_CHECK_INBOX_STATE", async () => {
       const surface = page.locator(".legal-harness__surface");
-      const text = (await surface.textContent()) ?? "";
+      const text = await surface.innerText();
+      assert.doesNotMatch(text, /(?:^|[.!?\n]\s*)(?:check your inbox\b|(?:an?\s+)?(?:verification\s+)?email (?:sent|was sent|has been sent|is sent)\b|(?:we(?:'ve| have)?\s+)?sent (?:you\s+)?(?:an?\s+)?(?:verification\s+)?email\b)/i, "obfuscated signup must not claim email was sent or direct an unconditional inbox check");
       assert.equal(/if.*new.*email/i.test(text), true, "no-session obfuscated signup must use conditional new-email wording");
       assert.equal(await surface.getByRole("button", { name: /forgot password/i }).count(), 1, "pending state must offer direct recovery");
       assert.equal(await surface.getByRole("button", { name: /log in/i }).count() > 0, true, "pending state must offer direct login");
