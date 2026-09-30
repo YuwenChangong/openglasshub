@@ -3,6 +3,7 @@ import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } fr
 import { LEGAL_POLICY } from "../../lib/legal-policy";
 import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import type { AuthCaptchaMode } from "../../lib/auth-captcha-mode";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 
@@ -12,6 +13,8 @@ interface AuthPanelProps {
   locale?: AuthLocale;
   next?: string;
   initialMode?: Mode;
+  captchaMode?: AuthCaptchaMode;
+  authTurnstileSiteKey?: string;
   authAdapter?: AuthPanelAdapter;
   /** @deprecated Retained for adapter compatibility; runtime auth does not use consent. */
   consentAdapter?: LegalConsentAdapter;
