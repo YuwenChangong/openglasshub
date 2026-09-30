@@ -1,20 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import type { TurnstileApi, TurnstileWidgetId } from "../../lib/turnstile-api";
 
 export interface AuthCaptchaAdapter {
   acquireToken(): Promise<string | null>;
   reset(): void;
-}
-
-interface TurnstileApi {
-  render(element: HTMLElement, options: Record<string, unknown>): string;
-  reset(widgetId: string): void;
-  remove(widgetId: string): void;
-}
-
-declare global {
-  interface Window {
-    turnstile?: TurnstileApi;
-  }
 }
 
 const SCRIPT_URL = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
@@ -46,7 +35,7 @@ interface AuthTurnstileProps {
 
 const AuthTurnstile = forwardRef<AuthCaptchaAdapter, AuthTurnstileProps>(function AuthTurnstile({ siteKey, locale }, ref) {
   const container = useRef<HTMLDivElement>(null);
-  const widgetId = useRef<string | null>(null);
+  const widgetId = useRef<TurnstileWidgetId | null>(null);
   const token = useRef<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
 
@@ -58,7 +47,7 @@ const AuthTurnstile = forwardRef<AuthCaptchaAdapter, AuthTurnstileProps>(functio
     },
     reset() {
       token.current = null;
-      if (widgetId.current && window.turnstile) {
+      if (widgetId.current !== null && window.turnstile) {
         try { window.turnstile.reset(widgetId.current); } catch { setUnavailable(true); }
       }
     },
@@ -90,7 +79,7 @@ const AuthTurnstile = forwardRef<AuthCaptchaAdapter, AuthTurnstileProps>(functio
     return () => {
       active = false;
       token.current = null;
-      if (widgetId.current && window.turnstile) {
+      if (widgetId.current !== null && window.turnstile) {
         try { window.turnstile.remove(widgetId.current); } catch { /* detached widget */ }
       }
       widgetId.current = null;

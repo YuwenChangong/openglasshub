@@ -3,6 +3,7 @@ import { buildAuthCallbackRedirect, buildResetPasswordRedirect, getSafeNext } fr
 import { LEGAL_POLICY } from "../../lib/legal-policy";
 import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { isAuthApiError } from "@supabase/supabase-js";
 import type { AuthCaptchaMode } from "../../lib/auth-captcha-mode";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
@@ -36,8 +37,14 @@ function normalizedEmail(value: string): string {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
 }
 
-function mapAuthError(errorMessage: string, messages: AuthMessages): string {
-  if (/captcha[_\s-]*failed|captcha.*(?:invalid|expired|failed)/i.test(errorMessage)) return messages.captchaRetry;
+function isCaptchaFailure(error: unknown): boolean {
+  if (isAuthApiError(error) && error.code === "captcha_failed") return true;
+  return error instanceof Error && /captcha[_\s-]*failed|captcha.*(?:invalid|expired|failed)/i.test(error.message);
+}
+
+function mapAuthError(error: unknown, messages: AuthMessages): string {
+  if (isCaptchaFailure(error)) return messages.captchaRetry;
+  const errorMessage = error instanceof Error ? error.message : "";
   if (/Invalid login credentials/i.test(errorMessage)) return messages.invalidCredentials;
   if (/Email not confirmed/i.test(errorMessage)) return messages.emailUnconfirmed;
   if (/User already registered/i.test(errorMessage)) {
@@ -215,8 +222,13 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
       setMessage(messages.pendingCheckInbox);
     } catch (authError) {
       const rawMessage = authError instanceof Error ? authError.message : "";
+      if (mode === "login" && (isAuthApiError(authError) ? authError.code === "email_not_confirmed" : /Email not confirmed/i.test(rawMessage))) {
+        const pendingEmail = normalizedEmail(email);
+        setPendingVerificationEmail(pendingEmail);
+        window.sessionStorage.setItem(PENDING_EMAIL_STORAGE_KEY, pendingEmail);
+      }
       if (mode === "signup" && /User already registered/i.test(rawMessage)) setAccountHelp(true);
-      setError(mapAuthError(rawMessage, messages));
+      setError(mapAuthError(authError, messages));
     } finally {
       resetCaptcha();
       setLoading(false);
@@ -292,13 +304,13 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
         ? await authAdapter.requestPasswordReset(resetInput)
         : await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo, ...(captchaToken ? { captchaToken } : {}) });
       if (resetError) {
-        setError(/captcha[_\s-]*failed|captcha.*(?:invalid|expired|failed)/i.test(resetError.message) ? messages.captchaRetry : messages.resetRequestFailed);
+        setError(isCaptchaFailure(resetError) ? messages.captchaRetry : messages.resetRequestFailed);
         return;
       }
 
       setMessage(messages.resetRequestReceived);
     } catch (resetError) {
-      setError(resetError instanceof Error && /captcha[_\s-]*failed|captcha.*(?:invalid|expired|failed)/i.test(resetError.message) ? messages.captchaRetry : messages.resetRequestFailed);
+      setError(isCaptchaFailure(resetError) ? messages.captchaRetry : messages.resetRequestFailed);
     } finally {
       resetCaptcha();
       setSendingReset(false);
@@ -312,7 +324,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
     setMessage("");
     const signOutError = authAdapter?.signOut ? await authAdapter.signOut() : (await supabase!.auth.signOut()).error;
     if (signOutError) {
-      setError(mapAuthError(signOutError.message, messages));
+      setError(mapAuthError(signOutError, messages));
       setLoading(false);
       return;
     }
@@ -474,7 +486,7 @@ export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login
         {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
         {message ? <div className="auth-alert auth-alert--success">{message}</div> : null}
         {pendingVerificationEmail && !message ? <div className="auth-alert">{messages.pendingCheckInbox}</div> : null}
-        {pendingVerificationEmail || accountHelp ? (
+        {(pendingVerificationEmail || accountHelp) && mode === "signup" ? (
           <div className="auth-resend__actions">
             <button type="button" className="community-button--secondary auth-button" onClick={() => selectAuthMode("login")}>{messages.login}</button>
             <button type="button" className="community-button--secondary auth-button" onClick={() => {

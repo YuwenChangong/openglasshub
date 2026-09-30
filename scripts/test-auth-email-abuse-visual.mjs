@@ -9,7 +9,7 @@ const harnessRoot = path.join(root, "tests/visual/legal-consent-harness");
 const output = path.join(root, "artifacts/qa/auth-email-abuse-visual");
 const harness = await createServer({ root: harnessRoot, configFile: path.join(harnessRoot, "vite.config.ts"),
   logLevel: "error", server: { host: "127.0.0.1", port: 0 } });
-const states = ["login", "signup", "pending-60", "resend-ready", "forgot", "widget-interaction", "widget-error", "off-unavailable", "prepare-unavailable", "prepare-script-failed"];
+const states = ["login", "signup", "pending-60", "resend-ready", "forgot", "widget-interaction", "widget-error", "off-unavailable", "prepare-unavailable", "prepare-script-failed", "unconfirmed-login", "captcha-rejected"];
 let browser;
 let external = 0;
 let checked = 0;
@@ -52,12 +52,27 @@ try {
     }
     await page.goto(origin, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: locale === "zh" ? "locale-zh" : "locale-en", exact: true }).click();
-    const scenario = state === "signup" || state === "pending-60" || state === "resend-ready" ? "register-abuse-initial"
+    const scenario = state === "unconfirmed-login" ? "login-abuse-required-unconfirmed"
+      : state === "captcha-rejected" ? "login-abuse-required-structured"
+      : state === "signup" || state === "pending-60" || state === "resend-ready" ? "register-abuse-initial"
       : state.startsWith("widget-") ? "login-captcha-required-widget"
       : state === "prepare-unavailable" ? "login-captcha-prepare-missing"
       : state === "prepare-script-failed" ? "login-captcha-prepare-script-failed" : "login-captcha-off";
     await page.getByRole("button", { name: scenario, exact: true }).click();
     const surface = page.locator(".legal-harness__surface");
+    if (state === "unconfirmed-login" || state === "captcha-rejected") {
+      await surface.locator('input[type="email"]').fill("qa@example.invalid");
+      await surface.locator('input[type="password"]').fill("fixture-passphrase");
+      await surface.locator('button[type="submit"]').click();
+      await surface.locator(".auth-alert--error").waitFor();
+      assert.equal(await surface.locator(".auth-alert--success").count(), 0);
+      if (state === "unconfirmed-login") {
+        assert.equal(await surface.locator(".auth-resend button").isDisabled(), false);
+        assert.match(await surface.locator(".auth-resend__hint").textContent(), /qa@example.invalid/);
+        assert.equal(await surface.getByRole("button", { name: locale === "zh" ? "忘记密码？" : "Forgot password?", exact: true }).count(), 1);
+        assert.equal(await surface.getByRole("button", { name: locale === "zh" ? "登录" : "Log in", exact: true }).count(), 1);
+      } else assert.equal(await surface.locator(".auth-resend").count(), 0);
+    }
     if (state === "pending-60" || state === "resend-ready") {
       await surface.locator('input[type="email"]').fill("qa@example.invalid");
       await surface.locator('input[type="password"]').fill("fixture-passphrase");
@@ -115,7 +130,7 @@ try {
     await page.close();
   }
   assert.equal(external, 0);
-  console.log(`AUTH_VISUAL_MATRIX: ${checked}/60 PASS; EXTERNAL_REQUESTS: ${external}; widget=LOCAL_FAKE`);
+  console.log(`AUTH_VISUAL_MATRIX: ${checked}/${states.length * 6} PASS; EXTERNAL_REQUESTS: ${external}; widget=LOCAL_FAKE`);
   await context.close();
 } finally {
   if (browser) await browser.close();

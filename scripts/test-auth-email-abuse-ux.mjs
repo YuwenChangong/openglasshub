@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
-import fs from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { loadChromium } from "./lib/load-auth-test-chromium.mjs";
 import { createServer } from "vite";
 import { cloudflareWorkersTestPlugin, setCloudflareWorkersTestBinding } from "./lib/cloudflare-workers-test-plugin.mjs";
 
@@ -9,16 +8,7 @@ const cooldownKey = "auth-resend-confirmation-cooldown-until";
 const fixedNow = Date.parse("2026-09-30T00:00:00.000Z");
 const red = [];
 const widgetRed = [];
-
-async function loadChromium() {
-  try { return (await import("playwright")).chromium; } catch { /* desktop runtime fallback */ }
-  const runtimeRoot = path.join(process.env.LOCALAPPDATA ?? "", "OpenAI", "Codex", "runtimes", "cua_node");
-  for (const entry of (await fs.readdir(runtimeRoot)).sort().reverse()) {
-    const candidate = path.join(runtimeRoot, entry, "bin", "node_modules", "playwright", "index.mjs");
-    try { await fs.access(candidate); return (await import(pathToFileURL(candidate).href)).chromium; } catch { /* next runtime */ }
-  }
-  throw new Error("Playwright runtime unavailable");
-}
+const finalFixOnly = process.argv.includes("--final-fix");
 
 async function check(name, run) {
   try {
@@ -167,6 +157,7 @@ async function checkBrowser() {
       else { blocked += 1; socket.close(); }
     });
 
+    if (!finalFixOnly) {
     const widgetPage = await context.newPage();
     await widgetPage.clock.install({ time: new Date(fixedNow) });
     const widgetDiagnostics = [];
@@ -180,7 +171,7 @@ async function checkBrowser() {
         remove: () => {},
       };
     });
-    await widgetPage.goto(origin, { waitUntil: "networkidle" });
+    await widgetPage.goto(origin, { waitUntil: "domcontentloaded" });
     await select(widgetPage, "login-captcha-off");
     await checkWidget("WIDGET_OFF_NEVER_LOADS", async () => {
       assert.equal(await widgetPage.evaluate(() => window.__widgetRenders.length), 0);
@@ -255,7 +246,7 @@ async function checkBrowser() {
 
     const failedScriptPage = await context.newPage();
     await failedScriptPage.route("https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit", (route) => route.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
-    await failedScriptPage.goto(origin, { waitUntil: "networkidle" });
+    await failedScriptPage.goto(origin, { waitUntil: "domcontentloaded" });
     await select(failedScriptPage, "login-captcha-prepare-script-failed");
     await failedScriptPage.locator(".legal-harness__surface .auth-turnstile").waitFor();
     await fillAuth(failedScriptPage);
@@ -264,6 +255,123 @@ async function checkBrowser() {
       assert.match(await trace(failedScriptPage), /tokenPresent:false,signIn/);
     });
     await failedScriptPage.close();
+    }
+
+    if (finalFixOnly) {
+    const finalPage = await context.newPage();
+    await finalPage.goto(origin, { waitUntil: "domcontentloaded" });
+    for (const locale of ["zh", "en"]) {
+      await select(finalPage, locale === "en" ? "locale-en" : "locale-zh");
+      for (const mode of ["off", "prepare", "required"]) {
+        for (const flow of ["login", "register", "login-reset"]) {
+          await select(finalPage, `${flow}-abuse-${mode}-structured`);
+          await finalPage.evaluate((key) => localStorage.removeItem(key), cooldownKey);
+          if (flow === "login-reset") {
+            await finalPage.locator(".legal-harness__surface").getByRole("button", { name: /忘记密码|Forgot password/ }).click();
+            await finalPage.locator('.legal-harness__surface input[type="email"]').fill("qa@example.invalid");
+            await finalPage.locator('.legal-harness__surface button[type="submit"]').click();
+          } else await fillAuth(finalPage);
+          await finalPage.locator(".legal-harness__surface .auth-alert--error").waitFor();
+          await checkWidget(`STRUCTURED_CAPTCHA_${locale}_${mode}_${flow}`, async () => {
+            const surface = finalPage.locator(".legal-harness__surface");
+            const copy = await surface.locator(".auth-alert--error").textContent();
+            assert.match(copy, locale === "en" ? /Refresh.*try again/ : /刷新页面后重试/);
+            assert.doesNotMatch(copy, /captcha protection|timeout-or-duplicate|captcha_failed/);
+            assert.equal(await surface.locator(".auth-alert--success").count(), 0);
+            assert.equal(await surface.locator(".auth-resend").count(), 0);
+            assert.equal((await trace(finalPage)).includes("navigate:"), false);
+            assert.deepEqual(await authSdkCalls(finalPage), [flow === "login" ? "signInWithPassword" : flow === "register" ? "signUp" : "requestPasswordReset"]);
+            assert.match(await trace(finalPage), new RegExp(`tokenPresent:${mode !== "off"}`));
+            if (mode !== "off") assert.match(await trace(finalPage), /acquireToken,tokenPresent:true,resetToken/);
+            assert.equal(await finalPage.evaluate((key) => localStorage.getItem(key), cooldownKey), null);
+          });
+        }
+      }
+    }
+    await finalPage.close();
+
+    for (const mode of ["off", "prepare", "required"]) {
+      const loginPage = await context.newPage();
+      await loginPage.clock.install({ time: new Date(fixedNow) });
+      await loginPage.goto(origin, { waitUntil: "domcontentloaded" });
+      await loginPage.evaluate((key) => localStorage.removeItem(key), cooldownKey);
+      await select(loginPage, `login-abuse-${mode}-unconfirmed`);
+      await fillAuth(loginPage);
+      await loginPage.locator(".legal-harness__surface .auth-alert--error").waitFor();
+      await checkWidget(`UNCONFIRMED_LOGIN_NEUTRAL_RESEND_${mode}`, async () => {
+        const surface = loginPage.locator(".legal-harness__surface");
+        assert.equal(await surface.locator(".auth-resend button").count(), 1, "supported login error must offer neutral resend without prior pending storage");
+        assert.equal(await surface.locator(".auth-resend button").isDisabled(), false);
+        assert.match(await surface.locator(".auth-resend__hint").textContent(), /qa@example.invalid/);
+        assert.equal(/earlier signup|之前接受的注册请求/i.test(await surface.locator(".auth-resend__hint").textContent()), false, "failed login must not fabricate an earlier accepted signup request");
+        assert.equal(await surface.locator(".auth-alert--success").count(), 0);
+        assert.equal(await surface.getByRole("button", { name: "忘记密码？", exact: true }).count(), 1, "login resend must retain one recovery action");
+        assert.equal(await loginPage.evaluate((key) => localStorage.getItem(key), cooldownKey), null, "failed login cannot start cooldown");
+        assert.equal(await loginPage.evaluate(() => sessionStorage.getItem("auth-pending-verification-email")), "qa@example.invalid");
+        let request;
+        let outcome = "limited";
+        let limiterCalls = 0;
+        let providerCalls = 0;
+        const proofs = new Set();
+        const post = createResendPost({
+          consumeLimit: async ({ maxAttempts, windowHours }) => {
+            limiterCalls++;
+            assert.deepEqual([maxAttempts, windowHours], [5, 24]);
+            return { allowed: outcome !== "limited", reason: outcome === "limited" ? "RATE_LIMITED" : "ALLOWED" };
+          },
+          resend: async (_email, _redirect, token) => {
+            providerCalls++;
+            assert.equal(Boolean(token), mode !== "off");
+            return { error: outcome === "captcha" ? { code: "captcha_failed", status: 400, message: "captcha protection: request disallowed (timeout-or-duplicate)" } : null };
+          }, observe: () => {},
+        });
+        await loginPage.route("**/api/auth/resend-confirmation", async (route) => {
+          request = route.request().postDataJSON();
+          setCloudflareWorkersTestBinding({ RATE_LIMIT_SALT: "fixture-salt", AUTH_CAPTCHA_MODE: mode });
+          const response = await post({ request: new Request(route.request().url(), { method: "POST", headers: { "content-type": "application/json", "cf-connecting-ip": "192.0.2.1" }, body: route.request().postData() }), locals: {} });
+          await route.fulfill({ status: response.status, contentType: "application/json", body: await response.text() });
+        });
+        if (mode === "required") {
+          await surface.locator(".auth-resend button").click();
+          await surface.locator(".auth-alert--error").waitFor();
+          await loginPage.waitForFunction(() => !document.querySelector(".auth-resend button")?.disabled);
+          assert.equal(request, undefined, "resend with consumed login proof must stop before route");
+          assert.equal(limiterCalls, 0);
+          assert.equal(providerCalls, 0);
+        }
+        for (const nextOutcome of ["limited", "captcha", "accepted"]) {
+          outcome = nextOutcome;
+          await loginPage.getByRole("button", { name: "Issue final proof", exact: true }).click();
+          await surface.locator(".auth-resend button").click();
+          await loginPage.waitForFunction(() => !document.querySelector(".auth-resend button")?.disabled || Boolean(localStorage.getItem("auth-resend-confirmation-cooldown-until")));
+          assert.equal(request.email, "qa@example.invalid");
+          assert.equal(Boolean(request.captchaToken), mode !== "off");
+          if (mode !== "off") {
+            assert.equal(proofs.has(request.captchaToken), false, "each resend must obtain newly issued proof");
+            proofs.add(request.captchaToken);
+          }
+          if (nextOutcome === "accepted") {
+            assert.equal(await surface.locator(".auth-resend button").isDisabled(), true);
+            const remaining = await loginPage.evaluate((key) => Number(localStorage.getItem(key)) - Date.now(), cooldownKey);
+            assert.equal(remaining > 0 && remaining <= 60_000, true, "accepted resend persists a bounded 60-second expiry");
+            assert.match(await surface.locator(".auth-resend button").textContent(), /60/);
+          } else {
+            assert.equal(await surface.locator(".auth-alert--success").count(), 0);
+            assert.equal(await loginPage.evaluate((key) => localStorage.getItem(key), cooldownKey), null);
+            if (nextOutcome === "captcha") assert.match(await surface.locator(".auth-alert--error").textContent(), /刷新页面后重试/);
+          }
+        }
+        assert.equal(limiterCalls, 3);
+        assert.equal(providerCalls, 2, "limiter denial must prevent provider call");
+        if (mode !== "off") assert.equal((await trace(loginPage)).split(",").filter((call) => call === "resetToken").length, mode === "required" ? 5 : 4);
+      });
+      await loginPage.close();
+    }
+    assert.equal(blocked, 0, "final regression browser made no external request");
+    console.log(`FINAL_FIX_BROWSER_EXTERNAL_REQUESTS: ${blocked}`);
+    await context.close();
+    return;
+    }
 
     const clockPage = await context.newPage();
     await clockPage.clock.install({ time: new Date(fixedNow) });
@@ -278,7 +386,7 @@ async function checkBrowser() {
       };
       window.clearInterval = (id) => { window.__cooldownTimerIds.delete(id); return clearIntervalOriginal(id); };
     });
-    await clockPage.goto(origin, { waitUntil: "networkidle" });
+    await clockPage.goto(origin, { waitUntil: "domcontentloaded" });
     await select(clockPage, "register-abuse-initial");
     await fillAuth(clockPage);
     await clockPage.waitForFunction(() => document.querySelector("output")?.textContent?.includes("signUp"));
@@ -297,7 +405,7 @@ async function checkBrowser() {
       assert.match((await clockPage.locator(".legal-harness__surface .auth-resend button").textContent()) ?? "", /59/);
       assert.equal(await clockPage.evaluate(() => window.__cooldownTimerIds.size), 1, "refresh restores one countdown timer");
       assert.equal(await clockPage.evaluate(() => sessionStorage.getItem("auth-pending-verification-email")), "qa@example.invalid");
-      await clockPage.reload({ waitUntil: "networkidle" });
+      await clockPage.reload({ waitUntil: "domcontentloaded" });
       await select(clockPage, "register-abuse-initial", true);
       await clockPage.locator(".legal-harness__surface .auth-resend button").waitFor();
       assert.equal(await clockPage.locator(".legal-harness__surface .auth-resend button").count(), 1, "refresh restores pending request");
@@ -324,7 +432,7 @@ async function checkBrowser() {
     await check("REFRESH_CLEARS_EXPIRED_OR_INVALID_COOLDOWN", async () => {
       for (const storedValue of ["expired", "not-an-expiry"]) {
         await clockPage.evaluate(([key, value]) => localStorage.setItem(key, value === "expired" ? String(Date.now() - 1000) : value), [cooldownKey, storedValue]);
-        await clockPage.reload({ waitUntil: "networkidle" });
+        await clockPage.reload({ waitUntil: "domcontentloaded" });
         await select(clockPage, "register-abuse-initial", true);
         const resend = clockPage.locator(".legal-harness__surface .auth-resend button");
         await resend.waitFor();
@@ -337,7 +445,7 @@ async function checkBrowser() {
 
     const retryPage = await context.newPage();
     await retryPage.clock.install({ time: new Date(fixedNow) });
-    await retryPage.goto(origin, { waitUntil: "networkidle" });
+    await retryPage.goto(origin, { waitUntil: "domcontentloaded" });
     await retryPage.evaluate((key) => localStorage.removeItem(key), cooldownKey);
     await select(retryPage, "register-abuse-retry-fails");
     await fillAuth(retryPage);
@@ -353,7 +461,7 @@ async function checkBrowser() {
       assert.equal(await retryPage.evaluate(() => sessionStorage.getItem("auth-pending-verification-email")), "qa@example.invalid");
       assert.equal(await retryPage.evaluate((key) => localStorage.getItem(key), cooldownKey), initialExpiry);
       assert.equal(await surface.locator(".auth-resend button").isDisabled(), true);
-      await retryPage.reload({ waitUntil: "networkidle" });
+      await retryPage.reload({ waitUntil: "domcontentloaded" });
       await select(retryPage, "register-abuse-retry-fails", true);
       const restoredResend = retryPage.locator(".legal-harness__surface .auth-resend button");
       await restoredResend.waitFor();
@@ -365,7 +473,7 @@ async function checkBrowser() {
 
     const changedEmailPage = await context.newPage();
     await changedEmailPage.clock.install({ time: new Date(fixedNow) });
-    await changedEmailPage.goto(origin, { waitUntil: "networkidle" });
+    await changedEmailPage.goto(origin, { waitUntil: "domcontentloaded" });
     await select(changedEmailPage, "register-abuse-retry-fails");
     await fillAuth(changedEmailPage);
     await changedEmailPage.waitForFunction(() => document.querySelector(".legal-harness__surface .auth-resend button"));
@@ -389,7 +497,7 @@ async function checkBrowser() {
     const longPendingEmail = `${"a".repeat(64)}@${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(49)}.invalid`;
     const longEmailPage = await context.newPage();
     await longEmailPage.addInitScript((email) => sessionStorage.setItem("auth-pending-verification-email", email), longPendingEmail);
-    await longEmailPage.goto(origin, { waitUntil: "networkidle" });
+    await longEmailPage.goto(origin, { waitUntil: "domcontentloaded" });
     await select(longEmailPage, "register-abuse-initial", true);
     await longEmailPage.locator(".legal-harness__surface .auth-resend__hint").waitFor();
     await check("LONG_PENDING_EMAIL_HINT_MOBILE_CONTAINMENT", async () => {
@@ -421,7 +529,7 @@ async function checkBrowser() {
         requests.push(route.request().postDataJSON());
         return route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' });
       });
-      await resendPage.goto(origin, { waitUntil: "networkidle" });
+      await resendPage.goto(origin, { waitUntil: "domcontentloaded" });
       await resendPage.evaluate((key) => localStorage.removeItem(key), cooldownKey);
       await select(resendPage, scenario, true);
       const resend = resendPage.locator(".legal-harness__surface .auth-resend button");
@@ -446,7 +554,7 @@ async function checkBrowser() {
       const stalePage = await context.newPage();
       await stalePage.addInitScript(() => sessionStorage.setItem("auth-pending-verification-email", "qa@example.invalid"));
       await stalePage.route("**/api/auth/resend-confirmation", (route) => route.fulfill({ status: 400, contentType: "application/json", body: '{"ok":false,"error":"CAPTCHA_RETRY"}' }));
-      await stalePage.goto(origin, { waitUntil: "networkidle" });
+      await stalePage.goto(origin, { waitUntil: "domcontentloaded" });
       await stalePage.evaluate((key) => localStorage.removeItem(key), cooldownKey);
       await select(stalePage, scenario, true);
       await stalePage.locator(".legal-harness__surface .auth-resend button").click();
@@ -480,7 +588,7 @@ async function checkBrowser() {
       wiredResponse = { status: response.status, body: await response.json() };
       await route.fulfill({ status: response.status, contentType: "application/json", body: JSON.stringify(wiredResponse.body) });
     });
-    await wiredPage.goto(origin, { waitUntil: "networkidle" });
+    await wiredPage.goto(origin, { waitUntil: "domcontentloaded" });
     await wiredPage.evaluate((key) => localStorage.removeItem(key), cooldownKey);
     await select(wiredPage, "register-abuse-initial", true);
     await wiredPage.locator(".legal-harness__surface .auth-resend button").click();
@@ -498,7 +606,7 @@ async function checkBrowser() {
 
     const page = await context.newPage();
     await page.clock.install({ time: new Date(fixedNow) });
-    await page.goto(origin, { waitUntil: "networkidle" });
+    await page.goto(origin, { waitUntil: "domcontentloaded" });
     await select(page, "login-abuse-off");
     await page.getByRole("button", { name: "忘记密码？", exact: true }).click();
     await check("FORGOT_PASSWORD_STILL_SHOWS_LOGIN_SIGNUP_TABS", async () => {
@@ -621,9 +729,9 @@ async function checkBrowser() {
 }
 
 async function main() {
-  await checkResendApi();
+  if (!finalFixOnly) await checkResendApi();
   await checkBrowser();
-  console.log(`AUTH_EMAIL_ABUSE_UX ${8 - red.length}/8 original PASS; ${red.length}/8 original RED; ${widgetRed.length} widget RED`);
+  console.log(finalFixOnly ? `AUTH_FINAL_FIX: ${21 - widgetRed.length}/21 PASS; ${widgetRed.length} RED` : `AUTH_EMAIL_ABUSE_UX ${8 - red.length}/8 original PASS; ${red.length}/8 original RED; ${widgetRed.length} widget RED`);
   if (red.length || widgetRed.length) process.exitCode = 1;
 }
 
