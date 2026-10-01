@@ -1,23 +1,26 @@
 ---
+import { getUiMessages, formatUiMessage } from "../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext;
+const text = getUiMessages(localeContext.locale).catalog;
 import { isGazeLauncherPublicEnabled } from "../lib/gaze-launcher-visibility";
 const updates = [
   {
     date: '2026-05-17',
-    title: 'OpenGlass Hub 正式上线',
-    description: 'OpenGlass Hub MVP 版本发布，包含 12 款 AR/AI 眼镜产品详情页。',
+    title: text.openGlassLaunch,
+    description: text.openGlassLaunchDetail,
     link: '/devices',
   },
   ...(isGazeLauncherPublicEnabled() ? [{
     date: '2026-05-17',
-    title: 'Gaze Launcher 启动',
-    description: 'Gaze Launcher 定位页面上线，说明面向 AR/AI 眼镜的主入口与交互方向。',
+    title: text.launcherLaunch,
+    description: text.launcherLaunchDetail,
     link: '/gaze-launcher',
   }] : []),
 ];
 ---
 
 <section class="latest-updates">
-  <h2>最新动态</h2>
+  <h2>{text.latestUpdates}</h2>
   <div class="updates-list">
     {updates.map((item) => (
       <a href={item.link} class="update-item">

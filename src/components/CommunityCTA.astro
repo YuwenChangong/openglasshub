@@ -1,20 +1,23 @@
 ---
+import { getUiMessages, formatUiMessage } from "../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext;
+const text = getUiMessages(localeContext.locale).catalog;
 // Community call-to-action component
 ---
 
 <section class="community-cta">
   <div class="cta-content">
-    <h2>加入社区</h2>
-    <p>OpenGlass Hub 的社区入口：</p>
+    <h2>{text.joinCommunity}</h2>
+    <p>{text.communityEntries}</p>
     <div class="cta-links">
       <span class="cta-link github disabled">
-        GitHub Discussions（准备中）
+        {text.githubPreparing}
       </span>
       <span class="cta-link discord disabled">
-        Discord（准备中）
+        {text.discordPreparing}
       </span>
       <span class="cta-link wechat disabled">
-        微信群（准备中）
+        {text.wechatPreparing}
       </span>
     </div>
   </div>

@@ -1,4 +1,7 @@
 ---
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext;
+const text = getUiMessages(localeContext.locale).catalog;
 interface Props {
   title: string;
   summary: string;
@@ -17,8 +20,8 @@ const { title, summary, category, href, date, pinned = false, featured = false, 
 <a href={href} class="community-news-card">
   <div class="community-news-top">
     <span class="community-tag">{category}</span>
-    {pinned ? <span class="news-state-pill">置顶</span> : null}
-    {featured ? <span class="news-state-pill news-state-pill--featured">精选</span> : null}
+    {pinned ? <span class="news-state-pill">{text.pinned}</span> : null}
+    {featured ? <span class="news-state-pill news-state-pill--featured">{text.featured}</span> : null}
     <span class="community-meta">{date}</span>
   </div>
   {coverImageUrl && (

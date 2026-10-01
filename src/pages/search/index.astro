@@ -1,4 +1,7 @@
 ---
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext;
+const text = getUiMessages(localeContext.locale).catalog;
 export const prerender = false;
 
 import { env as runtimeEnv } from "cloudflare:workers";
@@ -62,7 +65,7 @@ function formatDate(value: string | null | undefined) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("en-NZ", {
+  return date.toLocaleDateString(localeContext.locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -70,21 +73,21 @@ function formatDate(value: string | null | undefined) {
 }
 
 const resultSummary = [
-  { key: "posts", label: "Posts", count: counts.posts },
-  { key: "circles", label: "Circles", count: counts.circles },
-  { key: "users", label: "People", count: counts.users },
-  { key: "devices", label: "Devices", count: counts.devices },
+  { key: "posts", label: text.posts, count: counts.posts },
+  { key: "circles", label: text.circles, count: counts.circles },
+  { key: "users", label: text.people, count: counts.users },
+  { key: "devices", label: text.devices, count: counts.devices },
 ].filter((item) => item.count > 0);
 ---
 
 <ForumLayout
-  title="Search OpenGlass Hub"
-  description="Search posts, circles, people, and devices across OpenGlass Hub."
+  title={text.searchTitle}
+  description={text.searchDescription}
   noindex={true}
   canonical="/search/"
 >
   <section class="search-page-head">
-    <h1>Search OpenGlass Hub</h1>
+    <h1>{text.searchTitle}</h1>
   </section>
 
   <section class="community-surface community-surface--padded search-panel">
@@ -97,27 +100,27 @@ const resultSummary = [
           value={rawQuery}
           minlength={FORUM_SEARCH_LIMITS.minQueryLength}
           maxlength={FORUM_SEARCH_LIMITS.maxQueryLength}
-          placeholder="Search"
-          aria-label="Search OpenGlass Hub"
+          placeholder={text.search}
+          aria-label={text.searchTitle}
         />
-        <button type="submit" class="community-action-button community-action-button--primary" data-search-submit>Search</button>
+        <button type="submit" class="community-action-button community-action-button--primary" data-searching-label={text.searching} data-search-submit>{text.search}</button>
       </div>
       {circleSlug ? <input type="hidden" name="circle" value={circleSlug} /> : null}
       <input type="hidden" name="type" value={searchType} />
     </form>
 
     {!circleSlug ? (
-      <div class="search-filter-row" role="tablist" aria-label="Search type">
-        <a href={searchHref("all")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "all" }]} role="tab" aria-selected={searchType === "all"}>All</a>
-        <a href={searchHref("posts")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "posts" }]} role="tab" aria-selected={searchType === "posts"}>Posts</a>
-        <a href={searchHref("circles")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "circles" }]} role="tab" aria-selected={searchType === "circles"}>Circles</a>
-        <a href={searchHref("users")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "users" }]} role="tab" aria-selected={searchType === "users"}>People</a>
-        <a href={searchHref("devices")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "devices" }]} role="tab" aria-selected={searchType === "devices"}>Devices</a>
+      <div class="search-filter-row" role="tablist" aria-label={text.searchType}>
+        <a href={searchHref("all")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "all" }]} role="tab" aria-selected={searchType === "all"}>{text.all}</a>
+        <a href={searchHref("posts")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "posts" }]} role="tab" aria-selected={searchType === "posts"}>{text.posts}</a>
+        <a href={searchHref("circles")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "circles" }]} role="tab" aria-selected={searchType === "circles"}>{text.circles}</a>
+        <a href={searchHref("users")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "users" }]} role="tab" aria-selected={searchType === "users"}>{text.people}</a>
+        <a href={searchHref("devices")} class:list={["community-inline-link", { "community-inline-link--active": searchType === "devices" }]} role="tab" aria-selected={searchType === "devices"}>{text.devices}</a>
       </div>
     ) : null}
 
     {!hasQuery ? (
-      <div class="community-chip-row search-suggestions" aria-label="Common search suggestions">
+      <div class="community-chip-row search-suggestions" aria-label={text.suggestions}>
         {suggestions.map((suggestion) => (
           <a href={searchHref("all", suggestion)} class="community-chip">{suggestion}</a>
         ))}
@@ -125,7 +128,7 @@ const resultSummary = [
     ) : null}
 
     {resultSummary.length > 0 ? (
-      <div class="search-summary" aria-label="Search result counts">
+      <div class="search-summary" aria-label={text.resultCounts}>
         {resultSummary.map((item) => (
           <span class="search-summary__item">
             <strong>{item.count}</strong>
@@ -138,13 +141,13 @@ const resultSummary = [
 
   {invalidQuery ? (
     <section class="community-empty search-empty">
-      <strong>Search needs at least 2 characters</strong>
-      <p>Try another keyword</p>
+      <strong>{text.searchShort}</strong>
+      <p>{text.tryKeyword}</p>
     </section>
   ) : searchResult && !searchResult.ok ? (
     <section class="community-empty search-empty">
-      <strong>{searchResult.error === "INVALID_QUERY" ? "Search needs at least 2 characters" : "Search failed"}</strong>
-      <p>Try another keyword</p>
+      <strong>{searchResult.error === "INVALID_QUERY" ? text.searchShort : text.searchFailed}</strong>
+      <p>{text.tryKeyword}</p>
     </section>
   ) : hasQuery ? (
     hasAnyResults ? (
@@ -152,7 +155,7 @@ const resultSummary = [
         {showPostsSection ? (
           <section class="search-group">
             <div class="community-stream-head search-group__head">
-              <h2>Posts</h2>
+              <h2>{text.posts}</h2>
               <span class="community-meta">{counts.posts}</span>
             </div>
             <div class="search-card-list">
@@ -178,7 +181,7 @@ const resultSummary = [
                       ) : null}
                       {post.circle?.name ? <span>{post.circle.name}</span> : null}
                       {post.type ? <span>{post.type}</span> : null}
-                      {post.has_media ? <span>Media</span> : null}
+                      {post.has_media ? <span>{text.media}</span> : null}
                       {formatDate(post.created_at) ? <span>{formatDate(post.created_at)}</span> : null}
                     </div>
                   </div>
@@ -191,7 +194,7 @@ const resultSummary = [
         {showCirclesSection ? (
           <section class="search-group">
             <div class="community-stream-head search-group__head">
-              <h2>Circles</h2>
+              <h2>{text.circles}</h2>
               <span class="community-meta">{counts.circles}</span>
             </div>
             <div class="search-entity-grid">
@@ -204,7 +207,7 @@ const resultSummary = [
                     <strong>{circle.name}</strong>
                     {circle.description ? <p>{circle.description}</p> : null}
                     <div class="search-entity-card__meta">
-                      {circle.post_count > 0 ? <span>{circle.post_count} posts</span> : null}
+                      {circle.post_count > 0 ? <span>{formatUiMessage(text.postCount, { count: circle.post_count })}</span> : null}
                       {formatDate(circle.created_at) ? <span>{formatDate(circle.created_at)}</span> : null}
                     </div>
                   </div>
@@ -217,7 +220,7 @@ const resultSummary = [
         {showUsersSection ? (
           <section class="search-group">
             <div class="community-stream-head search-group__head">
-              <h2>People</h2>
+              <h2>{text.people}</h2>
               <span class="community-meta">{counts.users}</span>
             </div>
             <div class="search-entity-grid search-entity-grid--people">
@@ -225,12 +228,12 @@ const resultSummary = [
                 <a href={user.href || `/users/${user.id}/`} class="search-user-card">
                   {user.avatar_url ? <img src={user.avatar_url} alt="" class="search-user-card__avatar" loading="lazy" decoding="async" /> : <span class="search-user-card__avatar search-user-card__avatar--placeholder">{(user.display_name || user.username || "U").slice(0, 1).toUpperCase()}</span>}
                   <div class="search-user-card__copy">
-                    <strong>{user.display_name || user.username || "User"}</strong>
+                    <strong>{user.display_name || user.username || text.user}</strong>
                     {user.username ? <span>@{user.username}</span> : null}
                     {user.bio_excerpt ? <p>{user.bio_excerpt}</p> : null}
                     <div class="search-user-card__meta">
-                      {user.post_count > 0 ? <span>{user.post_count} posts</span> : null}
-                      {user.circle_count > 0 ? <span>{user.circle_count} circles</span> : null}
+                      {user.post_count > 0 ? <span>{formatUiMessage(text.postCount, { count: user.post_count })}</span> : null}
+                      {user.circle_count > 0 ? <span>{formatUiMessage(text.circleCount, { count: user.circle_count })}</span> : null}
                     </div>
                   </div>
                 </a>
@@ -242,7 +245,7 @@ const resultSummary = [
         {showDevicesSection ? (
           <section class="search-group">
             <div class="community-stream-head search-group__head">
-              <h2>Devices</h2>
+              <h2>{text.devices}</h2>
               <span class="community-meta">{counts.devices}</span>
             </div>
             <div class="search-entity-grid">
@@ -265,8 +268,8 @@ const resultSummary = [
       </section>
     ) : (
       <section class="community-empty search-empty">
-        <strong>No results found</strong>
-        <p>Try another keyword</p>
+        <strong>{text.noSearchResults}</strong>
+        <p>{text.tryKeyword}</p>
       </section>
     )
   ) : null}
@@ -276,7 +279,7 @@ const resultSummary = [
     const searchSubmit = document.querySelector('[data-search-submit]');
     if (searchForm instanceof HTMLFormElement && searchSubmit instanceof HTMLButtonElement) {
       searchForm.addEventListener('submit', () => {
-        searchSubmit.textContent = 'Searching…';
+        searchSubmit.textContent = searchSubmit.dataset.searchingLabel;
         searchSubmit.disabled = true;
       });
     }

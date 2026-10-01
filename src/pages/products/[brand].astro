@@ -1,4 +1,7 @@
 ---
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext;
+const text = getUiMessages(localeContext.locale).catalog;
 export const prerender = false;
 
 import { env as runtimeEnv } from "cloudflare:workers";
@@ -140,8 +143,8 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
 ---
 
 <CommunityLayout
-  title={`${brand.displayName} | 产品`}
-  description={`查看 ${brand.displayName} 当前收录的产品。`}
+  title={`${brand.displayName} | ${text.products}`}
+  description={formatUiMessage(text.brandDescription, { name: brand.displayName })}
   canonical={`/products/${brand.key}/`}
   activeSection="products"
   showHeaderSearch={false}
@@ -151,25 +154,25 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
       <BrandMark logo={brand.brandLogo} tone="accent" brandKey={brand.key} />
       <div class="brand-page-head__copy">
         <h1>{brand.displayName}</h1>
-        <span class="brand-page-head__count">{brandProducts.length} 款</span>
+        <span class="brand-page-head__count">{formatUiMessage(text.modelsCount, { count: brandProducts.length })}</span>
       </div>
     </div>
 
     <div class="brand-page-head__actions">
-      <a href="/products/" class="community-link">全部品牌</a>
-      <a href={brand.websiteUrl} target="_blank" rel="noopener noreferrer" class="community-link">官网</a>
+      <a href="/products/" class="community-link">{text.allBrands}</a>
+      <a href={brand.websiteUrl} target="_blank" rel="noopener noreferrer" class="community-link">{text.official}</a>
     </div>
   </section>
 
   <section class="brand-toolbar">
     <label class="brand-toolbar__search" for="brand-products-search">
-      <span>搜索</span>
+      <span>{text.search}</span>
       <div class="brand-toolbar__search-field">
         <input
           id="brand-products-search"
           class="glass-input"
           type="search"
-          placeholder={`搜索 ${brand.displayName} 产品，或加入其他品牌对比`}
+          placeholder={formatUiMessage(text.brandSearch, { name: brand.displayName })}
           autocomplete="off"
           aria-describedby="brand-products-count"
           aria-haspopup="listbox"
@@ -177,25 +180,25 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
           aria-controls="brand-search-dropdown"
         />
 
-        <div class="brand-search-dropdown" id="brand-search-dropdown" role="listbox" aria-label="可加入对比的产品" hidden>
+        <div class="brand-search-dropdown" id="brand-search-dropdown" role="listbox" aria-label={text.comparable} hidden>
           <div class="brand-search-dropdown__list" id="brand-search-results-list"></div>
           <p class="brand-search-dropdown__empty" id="brand-search-empty" hidden>
-            没有找到可加入对比的产品。
+            {text.noComparable}
           </p>
         </div>
       </div>
     </label>
-    <p class="brand-toolbar__meta" id="brand-products-count">{brandProducts.length} 款产品</p>
+    <p class="brand-toolbar__meta" id="brand-products-count">{formatUiMessage(text.productCount, { count: brandProducts.length })}</p>
   </section>
 
   <section class="brand-compare" id="brand-compare" hidden>
     <div class="brand-compare__head">
       <div>
-        <h2>对比</h2>
-        <p id="brand-compare-summary">选择产品进行对比，最多 3 款。</p>
+        <h2>{text.compare}</h2>
+        <p id="brand-compare-summary">{text.compareEmpty}</p>
       </div>
       <button type="button" class="brand-compare__clear" id="brand-compare-clear">
-        清空
+        {text.clear}
       </button>
     </div>
 
@@ -242,7 +245,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
           <dl class="brand-product-card__facts">
             {product.cardFacts.map((fact) => (
               <div class="brand-product-card__fact">
-                <dt>{fact.label}</dt>
+                <dt>{text.specLabels[fact.label] ?? fact.label}</dt>
                 <dd>{fact.value}</dd>
               </div>
             ))}
@@ -250,16 +253,16 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
 
           <div class="brand-product-card__footer">
             <div class="brand-product-card__links">
-              <a href={product.detailHref} class="brand-product-card__link">查看产品</a>
-              <a href={product.officialHref} target="_blank" rel="noopener noreferrer" class="brand-product-card__link">官网</a>
+              <a href={product.detailHref} class="brand-product-card__link">{text.viewProduct}</a>
+              <a href={product.officialHref} target="_blank" rel="noopener noreferrer" class="brand-product-card__link">{text.official}</a>
             </div>
             <button
               type="button"
               class="brand-product-card__compare-button"
               data-compare-button
               data-product-slug={product.slug}
-              aria-label={`添加 ${product.name} 到对比`}
-              title="添加到对比"
+              aria-label={formatUiMessage(text.addProduct, { name: product.name })}
+              title={text.addCompare}
             >
               <span aria-hidden="true">+</span>
             </button>
@@ -270,7 +273,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
   </section>
 
   <p class="brand-products-empty-state" id="brand-products-empty-state" hidden>
-    没有找到匹配结果。
+    {text.noResults}
   </p>
 
   <script
@@ -278,7 +281,8 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
     type="application/json"
     set:html={JSON.stringify({
       brandKey: brand.key,
-      compareFields: compareFieldOrder.map(([key, label]) => ({ key, label })),
+      ui: text,
+      compareFields: compareFieldOrder.map(([key, label]) => ({ key, label: text.specLabels[label] ?? label })),
       brandProducts: brandProducts.map((product) => ({
         slug: product.slug,
         searchText: product.searchText,
@@ -304,6 +308,8 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
       ? JSON.parse(dataElement.textContent)
       : { brandKey: "", brandProducts: [], compareProducts: [], compareFields: [] };
     const currentBrandKey = typeof parsed.brandKey === "string" ? parsed.brandKey : "";
+    const text = parsed.ui;
+    const formatUiMessage = (template, args) => template.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (_, key) => String(args[key]));
     const brandProducts = Array.isArray(parsed.brandProducts) ? parsed.brandProducts : [];
     const compareProducts = Array.isArray(parsed.compareProducts) ? parsed.compareProducts : [];
     const compareFields = Array.isArray(parsed.compareFields) ? parsed.compareFields : [];
@@ -373,9 +379,9 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
 
         if (inDropdown) {
           button.disabled = active;
-          button.setAttribute("aria-label", active ? `已添加 ${product?.name || "产品"}` : `添加 ${product?.name || "产品"} 到对比`);
+          button.setAttribute("aria-label", active ? formatUiMessage(text.addedProduct, { name: product?.name || text.products }) : formatUiMessage(text.addProduct, { name: product?.name || text.products }));
           button.setAttribute("aria-disabled", active ? "true" : "false");
-          button.setAttribute("title", active ? "已加入对比" : "添加到对比");
+          button.setAttribute("title", active ? text.added : text.addCompare);
           button.closest(".brand-search-result")?.classList.toggle("is-selected", active);
           button.innerHTML = active
             ? '<span class="brand-search-result__compare-state" aria-hidden="true">✓</span>'
@@ -385,8 +391,8 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
 
         button.removeAttribute("aria-disabled");
         button.disabled = false;
-        button.setAttribute("aria-label", active ? `移除 ${product?.name || "产品"}` : `添加 ${product?.name || "产品"} 到对比`);
-        button.setAttribute("title", active ? "已加入对比" : "添加到对比");
+        button.setAttribute("aria-label", active ? formatUiMessage(text.removeProduct, { name: product?.name || text.products }) : formatUiMessage(text.addProduct, { name: product?.name || text.products }));
+        button.setAttribute("title", active ? text.added : text.addCompare);
         button.innerHTML = `<span aria-hidden="true">${active ? "−" : "+"}</span>`;
       });
     }
@@ -410,7 +416,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
         const removeButton = document.createElement("button");
         removeButton.type = "button";
         removeButton.className = "brand-compare__pill-remove";
-        removeButton.setAttribute("aria-label", `移除 ${product.name}`);
+        removeButton.setAttribute("aria-label", formatUiMessage(text.removeProduct, { name: product.name }));
         removeButton.innerHTML = '<span aria-hidden="true">×</span>';
         removeButton.addEventListener("click", () => removeFromCompare(slug));
 
@@ -444,7 +450,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
         )
         .join("");
 
-      compareTableHead.innerHTML = `<tr><th scope="col">项目</th>${headerCells}</tr>`;
+      compareTableHead.innerHTML = `<tr><th scope="col">${text.item}</th>${headerCells}</tr>`;
       compareTableBody.innerHTML = visibleFields
         .map((field) => {
           const cells = selectedProducts
@@ -465,10 +471,10 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
       if (compareSummary) {
         compareSummary.textContent =
           selected.length === 0
-            ? "选择产品进行对比，最多 3 款。"
+            ? text.compareEmpty
             : selected.length === 1
-              ? "已选 1 款，再添加 1 款开始对比。"
-              : `已选 ${selected.length} 款，向右查看完整对比。`;
+              ? text.compareOne
+              : formatUiMessage(text.compareSelected, { count: selected.length });
       }
 
       renderCompareButtons();
@@ -561,7 +567,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
         button.className = "brand-search-result__compare-button";
         button.dataset.compareButton = "";
         button.dataset.productSlug = product.slug;
-        button.setAttribute("aria-label", `加入对比 ${product.name}`);
+        button.setAttribute("aria-label", formatUiMessage(text.compareProduct, { name: product.name }));
         button.addEventListener("click", () => addToCompare(product.slug));
 
         meta.append(brandPill, typePill);
@@ -593,7 +599,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
         return;
       }
       if (selected.length >= maxCompareCount) {
-        setFeedback("最多同时比较 3 款产品。");
+        setFeedback(text.compareLimit);
         renderCompareSurface();
         return;
       }
@@ -633,7 +639,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
       renderSearchResults(query, crossBrandMatches);
 
       if (countLabel) {
-        countLabel.textContent = query ? `当前品牌 ${visibleCount} 款匹配` : `${brandProducts.length} 款产品`;
+        countLabel.textContent = query ? formatUiMessage(text.matchingProducts, { count: visibleCount }) : formatUiMessage(text.productCount, { count: brandProducts.length });
       }
 
       if (emptyState) {

@@ -1,11 +1,14 @@
 ﻿---
+import { getUiMessages, formatUiMessage } from "../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext;
+const text = getUiMessages(localeContext.locale).catalog;
 export const prerender = false;
 
 import { env as runtimeEnv } from "cloudflare:workers";
 import CommunityLayout from "../layouts/CommunityLayout.astro";
 import PostCard from "../components/community/PostCard.astro";
 import EmptyFeedState from "../components/community/EmptyFeedState.astro";
-import { formatPostTime } from "../lib/format-time";
+import { formatCommunityPostTime } from "../lib/i18n/messages/community";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { listPublicNewsFeed } from "../lib/news";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../lib/forum-media";
@@ -74,14 +77,7 @@ const homeNewsFeed = supabase
   ? await listPublicNewsFeed(supabase, { filter: "recommended", page: 1, limit: 3 })
   : { articles: [], featuredArticle: null, hotArticles: [], latestArticles: [], total: 0, page: 1, limit: 3, hasMore: false };
 
-const postTypeLabels: Record<string, string> = {
-  experience: "体验/评测",
-  question: "求助",
-  review: "评测",
-  dev: "开发",
-  news: "资讯",
-  feedback: "反馈",
-};
+const postTypeLabels: Record<string, string> = getUiMessages(localeContext.locale).community.types;
 
 function excerpt(body?: string | null): string {
   const sanitized = sanitizeBodyForDisplay(body);
@@ -92,15 +88,15 @@ function excerpt(body?: string | null): string {
 
 <CommunityLayout
   title="OpenGlass Hub"
-  description="AR/AI 眼镜玩家、开发者和早期用户的中文社区。"
+  description={text.homeDescription}
   canonical="/"
   activeSection="home"
 >
   <section class="home-intro">
     <div class="home-intro__copy">
       <h1>OpenGlass Hub</h1>
-      <p>AR / AI 眼镜社区：讨论产品、体验、开发与真实使用问题。</p>
-      <small>For builders, early users, and people deciding what matters before they buy.</small>
+      <p>{text.homeLead}</p>
+      <small>{text.homeAudience}</small>
     </div>
   </section>
 
@@ -108,19 +104,19 @@ function excerpt(body?: string | null): string {
     <div class="community-feed-column">
       <div class="community-stream-head">
         <div>
-          <h2>正在讨论</h2>
-          <p>{posts.length > 0 ? `公开讨论会先从这里开始。` : "社区正在启动，公开讨论会先从这里开始。"}</p>
+          <h2>{text.discussing}</h2>
+          <p>{posts.length > 0 ? text.discussionLead : text.startingDiscussion}</p>
         </div>
         <div class="community-inline-links">
-          <a href="/feed/" class="community-inline-link community-inline-link--active">全部讨论</a>
-          <a href="/feed/?sort=latest" class="community-inline-link">最新</a>
-          <a href="/feed/?sort=hot" class="community-inline-link">热门</a>
+          <a href="/feed/" class="community-inline-link community-inline-link--active">{text.allDiscussion}</a>
+          <a href="/feed/?sort=latest" class="community-inline-link">{text.latest}</a>
+          <a href="/feed/?sort=hot" class="community-inline-link">{text.hot}</a>
         </div>
       </div>
 
       {loadError ? (
         <div class="community-empty">
-          <strong>讨论加载失败</strong>
+          <strong>{text.discussionFailed}</strong>
           <p>{loadError}</p>
         </div>
       ) : posts.length === 0 ? (
@@ -138,7 +134,7 @@ function excerpt(body?: string | null): string {
               authorName={post.profiles?.display_name || post.profiles?.username || undefined}
               authorId={post.author_id}
               authorUsername={post.profiles?.username || undefined}
-              timestamp={formatPostTime(post.created_at)}
+              timestamp={formatCommunityPostTime(post.created_at, localeContext.locale)}
               media={postMediaMap.get(post.id) ?? []}
               likeCount={likeCountMap.get(post.id) ?? 0}
             />
@@ -150,14 +146,14 @@ function excerpt(body?: string | null): string {
     <aside class="community-sidebar">
       <section class="community-sidebar-block home-sidebar-block">
         <div class="community-sidebar-head">
-          <h2>热点</h2>
-          <a href="/news/" class="community-link">全部</a>
+          <h2>{text.news}</h2>
+          <a href="/news/" class="community-link">{text.all}</a>
         </div>
         <div class="community-list">
           {homeNewsFeed.articles.slice(0, 3).map((item) => (
             <a href={`/news/${item.slug}/`} class="community-list-item">
               <strong>{item.title}</strong>
-              <span>{new Date(item.published_at ?? item.created_at).toLocaleDateString("zh-CN")}</span>
+              <span>{new Date(item.published_at ?? item.created_at).toLocaleDateString(localeContext.locale)}</span>
             </a>
           ))}
         </div>
@@ -165,14 +161,14 @@ function excerpt(body?: string | null): string {
 
       <section class="community-sidebar-block home-sidebar-block">
         <div class="community-sidebar-head">
-          <h2>热门圈子</h2>
-          <a href="/circles/" class="community-link">全部</a>
+          <h2>{text.popularCircles}</h2>
+          <a href="/circles/" class="community-link">{text.all}</a>
         </div>
         <div class="community-list">
           {homeCircles.slice(0, 4).map((circle) => (
             <a href={`/circles/${circle.slug}/`} class="community-list-item">
               <strong>{circle.name}</strong>
-              <span>{circle.description || "进入圈子查看公开讨论。"}</span>
+              <span>{circle.description || text.circleHint}</span>
             </a>
           ))}
         </div>

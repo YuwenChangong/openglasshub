@@ -1,4 +1,7 @@
 ---
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext;
+const text = getUiMessages(localeContext.locale).catalog;
 interface Props {
   label?: string;
   title: string;
@@ -6,7 +9,7 @@ interface Props {
   href: string;
 }
 
-const { label = "产品入口", title, description, href } = Astro.props;
+const { label = text.productEntry, title, description, href } = Astro.props;
 ---
 
 <a href={href} class="community-product-card">
@@ -14,6 +17,6 @@ const { label = "产品入口", title, description, href } = Astro.props;
   <h3>{title}</h3>
   <p>{description}</p>
   <div class="community-post-actions" style="padding-top: 0.35rem;">
-    <span class="community-action">进入</span>
+    <span class="community-action">{text.enter}</span>
   </div>
 </a>

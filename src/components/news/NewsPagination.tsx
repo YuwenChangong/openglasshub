@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import { useLocale } from "../i18n/useLocale";
 
 type Props = {
+  localeContext?: LocaleContext;
   currentPage: number;
   totalPages: number;
   category: string | null;
@@ -13,7 +17,9 @@ function buildHref(category: string | null, page: number) {
   return page > 1 ? `${base}${base.includes("?") ? "&" : "?"}page=${page}` : base;
 }
 
-export default function NewsPagination({ currentPage, totalPages, category }: Props) {
+export default function NewsPagination({ currentPage, totalPages, category, localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: Props) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.catalog;
   const [jumpOpen, setJumpOpen] = useState(false);
   const [jumpValue, setJumpValue] = useState("");
   const [jumpError, setJumpError] = useState("");
@@ -39,11 +45,11 @@ export default function NewsPagination({ currentPage, totalPages, category }: Pr
     event.preventDefault();
     const targetPage = Number.parseInt(jumpValue, 10);
     if (!Number.isFinite(targetPage)) {
-      setJumpError("请输入页码数字");
+      setJumpError(text.pageNumber);
       return;
     }
     if (targetPage < 1 || targetPage > totalPages) {
-      setJumpError(`请输入 1 到 ${totalPages} 之间的页码`);
+      setJumpError(formatUiMessage(text.pageRange, { count: totalPages }));
       return;
     }
     window.location.assign(buildHref(category, targetPage));
@@ -58,7 +64,7 @@ export default function NewsPagination({ currentPage, totalPages, category }: Pr
         className={`community-action-button community-action-button--muted${currentPage <= 1 ? " is-disabled" : ""}`}
         aria-disabled={currentPage <= 1}
       >
-        上一页
+        {text.previous}
       </a>
 
       <div className="news-pagination__pages">
@@ -79,8 +85,8 @@ export default function NewsPagination({ currentPage, totalPages, category }: Pr
                 {jumpOpen ? (
                   <form className="news-pagination__popover glass-modal" onSubmit={handleJumpSubmit}>
                     <div className="glass-modal__header">
-                      <h3>跳转页码</h3>
-                      <p>输入 1 - {totalPages}</p>
+                      <h3>{text.jumpPage}</h3>
+                      <p>{formatUiMessage(text.rangeHint, { count: totalPages })}</p>
                     </div>
                     <div className="glass-modal__body">
                       <input
@@ -98,10 +104,10 @@ export default function NewsPagination({ currentPage, totalPages, category }: Pr
                     </div>
                     <div className="glass-modal__actions">
                       <button type="button" className="community-button--secondary" onClick={() => setJumpOpen(false)}>
-                        取消
+                        {text.cancel}
                       </button>
                       <button type="submit" className="community-button">
-                        跳转
+                        {text.jump}
                       </button>
                     </div>
                   </form>
@@ -128,7 +134,7 @@ export default function NewsPagination({ currentPage, totalPages, category }: Pr
         className={`community-action-button community-action-button--muted${currentPage >= totalPages ? " is-disabled" : ""}`}
         aria-disabled={currentPage >= totalPages}
       >
-        下一页
+        {text.next}
       </a>
     </div>
   );

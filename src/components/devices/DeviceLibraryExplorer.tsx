@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import { useLocale } from "../i18n/useLocale";
 import {
   deviceCategoryLabels,
   deviceStatusLabels,
@@ -11,6 +14,7 @@ import {
 } from "../../data/devices";
 
 type Props = {
+  localeContext?: LocaleContext;
   devices: DeviceLibraryEntry[];
 };
 
@@ -46,13 +50,13 @@ function matchesQuery(device: DeviceLibraryEntry, query: string) {
   return haystack.includes(query);
 }
 
-function buildKeyFacts(device: DeviceLibraryEntry) {
+function buildKeyFacts(device: DeviceLibraryEntry, text: ReturnType<typeof getUiMessages>["catalog"]) {
   return [
-    device.price_label ? `价格 ${device.price_label}` : null,
-    device.weight_label ? `重量 ${device.weight_label}` : null,
-    device.display_label ? `显示 ${device.display_label}` : null,
-    device.fov_label ? `视场 ${device.fov_label}` : null,
-    device.platform_label ? `平台 ${device.platform_label}` : null,
+    device.price_label ? `${text.price} ${device.price_label}` : null,
+    device.weight_label ? `${text.weight} ${device.weight_label}` : null,
+    device.display_label ? `${text.display} ${device.display_label}` : null,
+    device.fov_label ? `${text.fov} ${device.fov_label}` : null,
+    device.platform_label ? `${text.platform} ${device.platform_label}` : null,
   ].filter(Boolean) as string[];
 }
 
@@ -74,7 +78,9 @@ function verificationTone(device: DeviceLibraryEntry) {
   }
 }
 
-export default function DeviceLibraryExplorer({ devices }: Props) {
+export default function DeviceLibraryExplorer({ devices, localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: Props) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.catalog;
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
@@ -129,7 +135,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
         return current.filter((value) => value !== slug);
       }
       if (current.length >= maxCompareCount) {
-        setCompareMessage("对比栏最多保留 3 台设备，请先移除一台再继续。");
+        setCompareMessage(text.deviceCompareLimit);
         return current;
       }
       setCompareMessage("");
@@ -142,13 +148,13 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
       <section className="community-surface device-library-toolbar">
         <div className="device-library-toolbar__search">
           <label className="device-library-toolbar__label" htmlFor="device-library-search">
-            搜索设备
+            {text.deviceSearch}
           </label>
           <input
             id="device-library-search"
             className="glass-input"
             type="search"
-            placeholder="按名称、品牌或用途搜索"
+            placeholder={text.devicePlaceholder}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -156,7 +162,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
 
         <div className="device-library-toolbar__filters">
           <label>
-            <span>分类</span>
+            <span>{text.category}</span>
             <select
               className="community-input"
               value={filters.category}
@@ -164,8 +170,8 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                 setFilters((current) => ({ ...current, category: event.target.value as FilterState["category"] }))
               }
             >
-              <option value="all">全部分类</option>
-              {Object.entries(deviceCategoryLabels).map(([value, label]) => (
+              <option value="all">{text.allCategories}</option>
+              {Object.entries(text.deviceCategory).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
@@ -174,7 +180,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
           </label>
 
           <label>
-            <span>品牌</span>
+            <span>{text.brand}</span>
             <select
               className="community-input"
               value={filters.brand}
@@ -182,7 +188,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                 setFilters((current) => ({ ...current, brand: event.target.value as FilterState["brand"] }))
               }
             >
-              <option value="all">全部品牌</option>
+              <option value="all">{text.allBrands}</option>
               {brands.map((brand) => (
                 <option key={brand} value={brand}>
                   {brand}
@@ -192,7 +198,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
           </label>
 
           <label>
-            <span>状态</span>
+            <span>{text.status}</span>
             <select
               className="community-input"
               value={filters.status}
@@ -200,8 +206,8 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                 setFilters((current) => ({ ...current, status: event.target.value as FilterState["status"] }))
               }
             >
-              <option value="all">全部状态</option>
-              {Object.entries(deviceStatusLabels).map(([value, label]) => (
+              <option value="all">{text.allStatuses}</option>
+              {Object.entries(text.deviceStatus).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
@@ -210,7 +216,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
           </label>
 
           <label>
-            <span>用途</span>
+            <span>{text.use}</span>
             <select
               className="community-input"
               value={filters.useCase}
@@ -218,8 +224,8 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                 setFilters((current) => ({ ...current, useCase: event.target.value as FilterState["useCase"] }))
               }
             >
-              <option value="all">全部用途</option>
-              {Object.entries(deviceUseCaseLabels).map(([value, label]) => (
+              <option value="all">{text.allUses}</option>
+              {Object.entries(text.deviceUses).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
@@ -230,15 +236,15 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
 
         <div className="device-library-toolbar__footer">
           <div className="community-chip-row">
-            {normalizedQuery ? <span className="community-chip">搜索: {query.trim()}</span> : null}
-            {filters.category !== "all" ? <span className="community-chip">{deviceCategoryLabels[filters.category]}</span> : null}
+            {normalizedQuery ? <span className="community-chip">{text.search}: {query.trim()}</span> : null}
+            {filters.category !== "all" ? <span className="community-chip">{text.deviceCategory[filters.category]}</span> : null}
             {filters.brand !== "all" ? <span className="community-chip">{filters.brand}</span> : null}
-            {filters.status !== "all" ? <span className="community-chip">{deviceStatusLabels[filters.status]}</span> : null}
-            {filters.useCase !== "all" ? <span className="community-chip">{deviceUseCaseLabels[filters.useCase]}</span> : null}
+            {filters.status !== "all" ? <span className="community-chip">{text.deviceStatus[filters.status]}</span> : null}
+            {filters.useCase !== "all" ? <span className="community-chip">{text.deviceUses[filters.useCase]}</span> : null}
           </div>
 
           <button type="button" className="community-button--secondary" onClick={clearFilters} disabled={activeFilterCount === 0}>
-            清除筛选
+            {text.clearFilters}
           </button>
         </div>
       </section>
@@ -246,8 +252,8 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
       <section className="community-surface community-surface--padded device-compare-tray">
         <div className="device-compare-tray__head">
           <div>
-            <h2>轻量对比</h2>
-            <p>最多选择 3 台设备。缺失字段会显示为 TBD 或 Not verified。</p>
+            <h2>{text.lightCompare}</h2>
+            <p>{text.deviceCompareHint}</p>
           </div>
           <button
             type="button"
@@ -255,7 +261,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
             onClick={clearComparison}
             disabled={selectedDevices.length === 0}
           >
-            清空对比
+            {text.clearCompare}
           </button>
         </div>
 
@@ -264,33 +270,33 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
             selectedDevices.map((device) => (
               <span key={device.slug} className="device-compare-pill">
                 <span>{device.name}</span>
-                <button type="button" aria-label={`移除 ${device.name}`} onClick={() => toggleCompare(device.slug)}>
-                  移除
+                <button type="button" aria-label={formatUiMessage(text.removeProduct, { name: device.name })} onClick={() => toggleCompare(device.slug)}>
+                  {text.remove}
                 </button>
               </span>
             ))
           ) : (
-            <p className="device-compare-tray__empty">还没有选择设备。先从下面的卡片里加入 2 到 3 台设备。</p>
+            <p className="device-compare-tray__empty">{text.noDevicesSelected}</p>
           )}
         </div>
 
         <p className="device-compare-tray__feedback" aria-live="polite">
-          {compareMessage || (selectedDevices.length > 0 ? `已选择 ${selectedDevices.length} / ${maxCompareCount} 台设备用于比较。` : "")}
+          {compareMessage || (selectedDevices.length > 0 ? formatUiMessage(text.deviceSelected, { count: selectedDevices.length, max: maxCompareCount }) : "")}
         </p>
       </section>
 
       {selectedDevices.length > 0 ? (
         <section className="community-surface device-compare-panel">
           <div className="device-compare-panel__head">
-            <h2>对比面板</h2>
-            <p>这是一张高层比较表，只帮助判断方向，不代表完整或最终规格。</p>
+            <h2>{text.comparePanel}</h2>
+            <p>{text.highLevelCompare}</p>
           </div>
 
           <div className="device-compare-table-wrap">
             <table className="device-compare-table">
               <thead>
                 <tr>
-                  <th scope="col">对比项</th>
+                  <th scope="col">{text.compareItem}</th>
                   {selectedDevices.map((device) => (
                     <th key={device.slug} scope="col">
                       <div className="device-compare-table__device">
@@ -303,57 +309,57 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
               </thead>
               <tbody>
                 <tr>
-                  <th scope="row">分类</th>
+                  <th scope="row">{text.category}</th>
                   {selectedDevices.map((device) => (
-                    <td key={`${device.slug}-category`}>{deviceCategoryLabels[device.category]}</td>
+                    <td key={`${device.slug}-category`}>{text.deviceCategory[device.category]}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">状态</th>
+                  <th scope="row">{text.status}</th>
                   {selectedDevices.map((device) => (
-                    <td key={`${device.slug}-status`}>{deviceStatusLabels[device.status]}</td>
+                    <td key={`${device.slug}-status`}>{text.deviceStatus[device.status]}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">用途</th>
+                  <th scope="row">{text.use}</th>
                   {selectedDevices.map((device) => (
-                    <td key={`${device.slug}-use-cases`}>{device.use_cases.map((useCase) => deviceUseCaseLabels[useCase]).join(" / ")}</td>
+                    <td key={`${device.slug}-use-cases`}>{device.use_cases.map((useCase) => text.deviceUses[useCase]).join(" / ")}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">价格</th>
+                  <th scope="row">{text.price}</th>
                   {selectedDevices.map((device) => (
                     <td key={`${device.slug}-price`}>{comparisonValue(device.price_label)}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">重量</th>
+                  <th scope="row">{text.weight}</th>
                   {selectedDevices.map((device) => (
                     <td key={`${device.slug}-weight`}>{comparisonValue(device.weight_label)}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">显示</th>
+                  <th scope="row">{text.display}</th>
                   {selectedDevices.map((device) => (
                     <td key={`${device.slug}-display`}>{comparisonValue(device.display_label)}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">视场</th>
+                  <th scope="row">{text.fov}</th>
                   {selectedDevices.map((device) => (
                     <td key={`${device.slug}-fov`}>{comparisonValue(device.fov_label)}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">平台</th>
+                  <th scope="row">{text.platform}</th>
                   {selectedDevices.map((device) => (
                     <td key={`${device.slug}-platform`}>{comparisonValue(device.platform_label)}</td>
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row">核验级别</th>
+                  <th scope="row">{text.verification}</th>
                   {selectedDevices.map((device) => (
-                    <td key={`${device.slug}-verification`}>{deviceVerificationLabels[device.verification_level ?? "unknown"]}</td>
+                    <td key={`${device.slug}-verification`}>{text.deviceVerification[device.verification_level ?? "unknown"]}</td>
                   ))}
                 </tr>
               </tbody>
@@ -365,7 +371,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
       {filteredDevices.length > 0 ? (
         <section className="device-library-grid" aria-live="polite">
           {filteredDevices.map((device) => {
-            const keyFacts = buildKeyFacts(device);
+            const keyFacts = buildKeyFacts(device, text);
             const isSelected = selectedSlugs.includes(device.slug);
             return (
               <article key={device.slug} className="device-library-card">
@@ -375,10 +381,10 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                     <h2>{device.name}</h2>
                   </div>
                   <div className="device-library-card__badges">
-                    <span className="community-chip">{deviceCategoryLabels[device.category]}</span>
-                    <span className="community-chip">{deviceStatusLabels[device.status]}</span>
+                    <span className="community-chip">{text.deviceCategory[device.category]}</span>
+                    <span className="community-chip">{text.deviceStatus[device.status]}</span>
                     <span className={`device-verification-badge ${verificationTone(device)}`}>
-                      {deviceVerificationLabels[device.verification_level ?? "unknown"]}
+                      {text.deviceVerification[device.verification_level ?? "unknown"]}
                     </span>
                   </div>
                 </div>
@@ -388,7 +394,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                 <div className="device-library-card__use-cases">
                   {device.use_cases.map((useCase) => (
                     <span key={useCase} className="community-chip">
-                      {deviceUseCaseLabels[useCase]}
+                      {text.deviceUses[useCase]}
                     </span>
                   ))}
                 </div>
@@ -408,7 +414,7 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="device-library-card__fallback">详细硬件信息将在后续带来源说明的版本补齐。</p>
+                  <p className="device-library-card__fallback">{text.hardwareLater}</p>
                 )}
 
                 <div className="device-library-card__actions">
@@ -417,10 +423,10 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
                     className={`community-button--secondary device-library-card__compare ${isSelected ? "is-selected" : ""}`}
                     onClick={() => toggleCompare(device.slug)}
                   >
-                    {isSelected ? "已加入对比" : "加入对比"}
+                    {isSelected ? text.added : text.joinCompare}
                   </button>
                   <a href={`/devices/${device.slug}/`} className="device-library-card__cta">
-                    查看设备页
+                    {text.viewDevice}
                   </a>
                 </div>
               </article>
@@ -429,8 +435,8 @@ export default function DeviceLibraryExplorer({ devices }: Props) {
         </section>
       ) : (
         <section className="community-empty device-library-empty">
-          <strong>没有找到匹配设备</strong>
-          <p>试试清除筛选，或用更宽泛的品牌、分类和用途关键词重新搜索。</p>
+          <strong>{text.noDevices}</strong>
+          <p>{text.noDevicesHint}</p>
         </section>
       )}
     </div>
