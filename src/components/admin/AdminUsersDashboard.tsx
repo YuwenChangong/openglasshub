@@ -1,3 +1,7 @@
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import { localizeAdminSessionMessage } from "../../lib/i18n/messages/admin";
+import { useLocale } from "../i18n/useLocale";
 import { useEffect, useMemo, useState } from "react";
 import { adminFetch } from "../../lib/admin-api-client";
 import { buildProfileHref } from "../../lib/profile-links";
@@ -40,54 +44,57 @@ type SafetyDetailPayload = {
   events?: SafetyEvent[];
 };
 
-function userLabel(user: UserListItem | null) {
-  if (!user) return "未选择用户";
-  return user.display_name || user.username || user.id;
-}
+export default function AdminUsersDashboard({ localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: { localeContext?: LocaleContext } = {}) {
+  const { context } = useLocale(localeContext);
+  const locale = context.locale;
+  const text = getUiMessages(locale).admin;
+  function userLabel(user: UserListItem | null) {
+    if (!user) return text.copy.noUserSelected;
+    return user.display_name || user.username || user.id;
+  }
 
-function formatDate(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
+  function formatDate(value?: string | null) {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString(locale);
+  }
 
-function buildStatusLabel(status: string) {
-  if (status === "warned") return "已警告";
-  if (status === "suspended") return "已暂停";
-  if (status === "banned") return "已封禁";
-  return "正常";
-}
+  function buildStatusLabel(status: string) {
+    if (status === "warned") return text.copy.warned;
+    if (status === "suspended") return text.copy.suspended;
+    if (status === "banned") return text.copy.banned;
+    return text.copy.active;
+  }
 
-function mapUserSafetyError(message: string) {
-  if (/USER_SAFETY_SELF_ACTION_FORBIDDEN/i.test(message)) return "不能对自己的管理员账号执行该操作。";
-  if (/REASON_REQUIRED/i.test(message)) return "请填写原因。";
-  if (/SUSPEND_UNTIL_REQUIRED/i.test(message)) return "请填写暂停截止时间。";
-  if (/INVALID_SUSPEND_UNTIL/i.test(message)) return "暂停截止时间格式无效。";
-  if (/SUSPEND_UNTIL_MUST_BE_FUTURE/i.test(message)) return "暂停截止时间必须晚于当前时间。";
-  if (/USER_ALREADY_BANNED/i.test(message)) return "该用户已经处于封禁状态。";
-  if (/USER_ALREADY_SUSPENDED/i.test(message)) return "该用户已经处于暂停状态。";
-  if (/USER_NOT_RESTRICTED/i.test(message)) return "该用户当前没有 suspend / ban 限制。";
-  if (/USER_SAFETY_ACTION_CONFLICT/i.test(message)) return "当前状态不适合执行该操作。";
-  return message;
-}
+  function mapUserSafetyError(message: string) {
+    if (/USER_SAFETY_SELF_ACTION_FORBIDDEN/i.test(message)) return text.copy.youCannotApplyThisActionToYourOwnAdministrator;
+    if (/REASON_REQUIRED/i.test(message)) return text.copy.enterAReason;
+    if (/SUSPEND_UNTIL_REQUIRED/i.test(message)) return text.copy.enterTheSuspensionExpiry;
+    if (/INVALID_SUSPEND_UNTIL/i.test(message)) return text.copy.invalidSuspensionExpiry;
+    if (/SUSPEND_UNTIL_MUST_BE_FUTURE/i.test(message)) return text.copy.theSuspensionExpiryMustBeInTheFuture;
+    if (/USER_ALREADY_BANNED/i.test(message)) return text.copy.thisUserIsAlreadyBanned;
+    if (/USER_ALREADY_SUSPENDED/i.test(message)) return text.copy.thisUserIsAlreadySuspended;
+    if (/USER_NOT_RESTRICTED/i.test(message)) return text.copy.thisUserHasNoSuspensionOrBanToRemove;
+    if (/USER_SAFETY_ACTION_CONFLICT/i.test(message)) return text.copy.thisActionIsUnavailableInTheCurrentState;
+    return message;
+  }
 
-function eventTypeLabel(eventType: string) {
-  if (eventType === "warn") return "警告";
-  if (eventType === "warning") return "警告";
-  if (eventType === "suspend") return "暂停";
-  if (eventType === "ban") return "封禁";
-  if (eventType === "unban") return "解除";
-  if (eventType === "strike_added") return "加 strike";
-  if (eventType === "strike_removed") return "减 strike";
-  return "备注";
-}
+  function eventTypeLabel(eventType: string) {
+    if (eventType === "warn") return text.copy.warn;
+    if (eventType === "warning") return text.copy.warn;
+    if (eventType === "suspend") return text.copy.suspend;
+    if (eventType === "ban") return text.copy.ban;
+    if (eventType === "unban") return text.copy.liftRestriction;
+    if (eventType === "strike_added") return text.copy.addStrike;
+    if (eventType === "strike_removed") return text.copy.removeStrike;
+    return text.copy.note;
+  }
 
-function actorLabel(event: SafetyEvent) {
-  return event.actor_profile?.display_name || event.actor_profile?.username || "管理员";
-}
+  function actorLabel(event: SafetyEvent) {
+    return event.actor_profile?.display_name || event.actor_profile?.username || text.copy.administrator;
+  }
 
-export default function AdminUsersDashboard() {
   const adminSession = useAdminSession();
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [query, setQuery] = useState("");
@@ -124,7 +131,7 @@ export default function AdminUsersDashboard() {
         setSelectedUserId(items[0]?.id ?? null);
       }
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "加载用户列表失败");
+      setError(requestError instanceof Error ? requestError.message : text.copy.failedToLoadUsers);
     } finally {
       setLoading(false);
     }
@@ -141,7 +148,7 @@ export default function AdminUsersDashboard() {
       });
       setDetail(payload);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "加载安全详情失败");
+      setError(requestError instanceof Error ? requestError.message : text.copy.failedToLoadSafetyDetails);
     } finally {
       setDetailLoading(false);
     }
@@ -178,14 +185,14 @@ export default function AdminUsersDashboard() {
         body: JSON.stringify(body),
       });
 
-      setSuccess(`已执行${eventTypeLabel(actionModal.type)}。`);
+      setSuccess(formatUiMessage(text.copy.actionApplied, { value0: eventTypeLabel(actionModal.type) }));
       setActionModal(null);
       setActionReason("");
       setActionUntil("");
       await loadUsers(query);
       await loadDetail(actionModal.user.id);
     } catch (requestError) {
-      setError(mapUserSafetyError(requestError instanceof Error ? requestError.message : "操作失败"));
+      setError(mapUserSafetyError(requestError instanceof Error ? requestError.message : text.copy.actionFailed));
     } finally {
       setActionLoading(false);
     }
@@ -197,8 +204,8 @@ export default function AdminUsersDashboard() {
     <section className="community-surface">
       <div className="community-stream-head">
         <div>
-          <h2>用户安全控制台</h2>
-          <p>搜索用户、查看安全状态，并执行 warning / suspend / ban / unban。</p>
+          <h2>{text.copy.userSafetyConsole}</h2>
+          <p>{text.copy.searchUsersInspectSafetyStatusAndManageWarningsSuspensions}</p>
         </div>
       </div>
 
@@ -206,13 +213,12 @@ export default function AdminUsersDashboard() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索用户名或昵称"
+          placeholder={text.copy.searchUsernameOrDisplayName}
           className="community-input"
           style={{ minWidth: "220px", flex: "1 1 280px" }}
         />
         <button type="button" className="community-button" onClick={() => void loadUsers(query)} disabled={loading}>
-          搜索
-        </button>
+          {text.copy.search}</button>
       </div>
 
       {error ? <div className="admin-error" style={{ marginTop: "0.8rem" }}>{error}</div> : null}
@@ -220,10 +226,10 @@ export default function AdminUsersDashboard() {
 
       <div style={{ display: "grid", gap: "1rem", marginTop: "1rem", gridTemplateColumns: "minmax(320px, 1.1fr) minmax(320px, 1fr)" }}>
         <div className="community-list">
-          {loading ? <p className="community-meta">正在加载用户列表...</p> : null}
+          {loading ? <p className="community-meta">{text.copy.loadingUsers}</p> : null}
           {!loading && users.length === 0 ? (
             <div className="community-empty">
-              <strong>没有找到用户</strong>
+              <strong>{text.copy.noUsersFound}</strong>
             </div>
           ) : null}
 
@@ -245,7 +251,7 @@ export default function AdminUsersDashboard() {
                   <strong>{userLabel(user)}</strong>
                   <span className="admin-status-badge">{buildStatusLabel(user.safety.status)}</span>
                 </div>
-                <div className="community-meta">@{user.username || "no-handle"} · 角色 {user.role || "user"}</div>
+                <div className="community-meta">@{user.username || "no-handle"} {text.copy.role}{user.role || "user"}</div>
                 <div className="community-meta">warning {user.safety.warning_count} · strike {user.safety.strike_count}</div>
               </button>
             );
@@ -254,7 +260,7 @@ export default function AdminUsersDashboard() {
 
         <div className="community-card-stack">
           {!selectedUser ? (
-            <div className="community-empty"><strong>请选择一个用户</strong></div>
+            <div className="community-empty"><strong>{text.copy.selectAUser}</strong></div>
           ) : (
             <>
               <article className="community-surface">
@@ -263,8 +269,7 @@ export default function AdminUsersDashboard() {
                     <h3 style={{ margin: 0 }}>{userLabel(selectedUser)}</h3>
                     <div className="community-meta">
                       <a className="community-link" href={buildProfileHref({ id: selectedUser.id, username: selectedUser.username ?? null })}>
-                        查看公开资料
-                      </a>
+                        {text.copy.viewPublicProfile}</a>
                     </div>
                   </div>
                   <span className="admin-status-badge">{buildStatusLabel(state?.status ?? "active")}</span>
@@ -272,26 +277,26 @@ export default function AdminUsersDashboard() {
                 <div className="community-meta" style={{ marginTop: "0.6rem" }}>
                   warning {state?.warning_count ?? 0} · strike {state?.strike_count ?? 0} · reputation {state?.reputation_score ?? 0}
                 </div>
-                {state?.suspended_until ? <div className="community-meta">暂停至：{formatDate(state.suspended_until)}</div> : null}
-                {detail?.state?.ban_reason ? <div className="community-meta">原因：{detail.state.ban_reason}</div> : null}
+                {state?.suspended_until ? <div className="community-meta">{text.copy.suspendedUntil}{formatDate(state.suspended_until)}</div> : null}
+                {detail?.state?.ban_reason ? <div className="community-meta">{text.copy.reason}{detail.state.ban_reason}</div> : null}
                 <div className="admin-action-row" style={{ marginTop: "0.9rem", flexWrap: "wrap" }}>
-                  <button type="button" className="community-button" onClick={() => setActionModal({ type: "warn", user: selectedUser })}>警告</button>
-                  <button type="button" className="community-button" onClick={() => setActionModal({ type: "suspend", user: selectedUser })}>暂停</button>
-                  <button type="button" className="community-button" onClick={() => setActionModal({ type: "ban", user: selectedUser })}>封禁</button>
-                  <button type="button" className="community-button--secondary" onClick={() => setActionModal({ type: "unban", user: selectedUser })}>解除</button>
+                  <button type="button" className="community-button" onClick={() => setActionModal({ type: "warn", user: selectedUser })}>{text.copy.warn}</button>
+                  <button type="button" className="community-button" onClick={() => setActionModal({ type: "suspend", user: selectedUser })}>{text.copy.suspend}</button>
+                  <button type="button" className="community-button" onClick={() => setActionModal({ type: "ban", user: selectedUser })}>{text.copy.ban}</button>
+                  <button type="button" className="community-button--secondary" onClick={() => setActionModal({ type: "unban", user: selectedUser })}>{text.copy.liftRestriction}</button>
                 </div>
               </article>
 
               <article className="community-surface">
                 <div className="community-stream-head">
                   <div>
-                    <h3>事件历史</h3>
-                    <p>按时间倒序显示管理员动作。</p>
+                    <h3>{text.copy.eventHistory}</h3>
+                    <p>{text.copy.administratorActionsNewestFirst}</p>
                   </div>
                 </div>
-                {detailLoading ? <p className="community-meta">正在加载安全详情...</p> : null}
+                {detailLoading ? <p className="community-meta">{text.copy.loadingSafetyDetails}</p> : null}
                 {!detailLoading && (!detail?.events || detail.events.length === 0) ? (
-                  <div className="community-empty"><strong>还没有事件记录</strong></div>
+                  <div className="community-empty"><strong>{text.copy.noEventsYet}</strong></div>
                 ) : null}
                 {!detailLoading && detail?.events?.length ? (
                   <div className="community-list" style={{ marginTop: "0.8rem" }}>
@@ -301,7 +306,7 @@ export default function AdminUsersDashboard() {
                           <strong>{eventTypeLabel(event.event_type)}</strong>
                           <span className="community-meta">{formatDate(event.created_at)}</span>
                         </div>
-                        <div className="community-meta">执行人：{actorLabel(event)}</div>
+                        <div className="community-meta">{text.copy.performedBy}{actorLabel(event)}</div>
                         {event.reason ? <div>{event.reason}</div> : null}
                       </article>
                     ))}
@@ -317,7 +322,7 @@ export default function AdminUsersDashboard() {
         <div className="glass-confirm-backdrop" role="dialog" aria-modal="true">
           <div className="glass-confirm-dialog glass-modal">
             <div className="glass-confirm-header glass-modal__header">
-              <h3>{eventTypeLabel(actionModal.type)}用户</h3>
+              <h3>{eventTypeLabel(actionModal.type)}{text.copy.user}</h3>
               <p>{userLabel(actionModal.user)}</p>
             </div>
             <div className="glass-confirm-body glass-modal__body" style={{ display: "grid", gap: "0.75rem" }}>
@@ -325,7 +330,7 @@ export default function AdminUsersDashboard() {
                 className="community-input"
                 value={actionReason}
                 onChange={(event) => setActionReason(event.target.value)}
-                placeholder="填写原因"
+                placeholder={text.copy.enterAReason2}
                 rows={4}
               />
               {actionModal.type === "suspend" ? (
@@ -339,10 +344,9 @@ export default function AdminUsersDashboard() {
             </div>
             <div className="glass-confirm-actions glass-modal__actions">
               <button type="button" className="community-button--secondary" onClick={() => setActionModal(null)} disabled={actionLoading}>
-                取消
-              </button>
+                {text.copy.cancel}</button>
               <button type="button" className="community-button" onClick={() => void runAction()} disabled={actionLoading}>
-                {actionLoading ? "处理中..." : "确认"}
+                {actionLoading ? text.copy.processing : text.copy.confirm}
               </button>
             </div>
           </div>

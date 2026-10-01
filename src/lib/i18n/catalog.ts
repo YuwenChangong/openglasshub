@@ -4,6 +4,7 @@ import { settingsMessages } from "./messages/settings.ts";
 import { accountMessages } from "./messages/account.ts";
 import { communityMessages } from "./messages/community.ts";
 import { catalogMessages } from "./messages/catalog.ts";
+import { adminMessages } from "./messages/admin.ts";
 
 type MessageTree = { readonly [key: string]: string | MessageTree };
 
@@ -37,8 +38,8 @@ export function defineUiMessages<T extends Record<ResolvedLocale, MessageTree>>(
 }
 
 const messages = defineUiMessages({
-  "zh-CN": { shell: shellMessages["zh-CN"], settings: settingsMessages["zh-CN"], account: accountMessages["zh-CN"], community: communityMessages["zh-CN"], catalog: catalogMessages["zh-CN"] },
-  en: { shell: shellMessages.en, settings: settingsMessages.en, account: accountMessages.en, community: communityMessages.en, catalog: catalogMessages.en },
+  "zh-CN": { shell: shellMessages["zh-CN"], settings: settingsMessages["zh-CN"], account: accountMessages["zh-CN"], community: communityMessages["zh-CN"], catalog: catalogMessages["zh-CN"], admin: adminMessages["zh-CN"] },
+  en: { shell: shellMessages.en, settings: settingsMessages.en, account: accountMessages.en, community: communityMessages.en, catalog: catalogMessages.en, admin: adminMessages.en },
 });
 
 export function getUiMessages(locale: ResolvedLocale) {

@@ -1,3 +1,7 @@
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import { localizeAdminSessionMessage } from "../../lib/i18n/messages/admin";
+import { useLocale } from "../i18n/useLocale";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AdminApiError, adminFetch } from "../../lib/admin-api-client";
 import { createOptimizedImageVariant } from "../../lib/client-image";
@@ -61,147 +65,150 @@ type FormState = {
 
 type SaveAction = "save" | "draft" | "publish" | "archive" | null;
 
-const EMPTY_FORM: FormState = {
-  title: "",
-  slug: "",
-  category: "industry",
-  summary: "",
-  content: "",
-  cover_image_url: "",
-  source_name: "OpenGlass Hub",
-  source_url: "",
-  pinned: false,
-  featured: false,
-  status: "draft",
-  published_at: "",
-};
-
-const CATEGORY_OPTIONS: Array<{ value: NewsCategory; label: string }> = [
-  { value: "industry", label: "推荐 / 行业" },
-  { value: "devices", label: "设备" },
-  { value: "ai_glasses", label: "AI 眼镜" },
-  { value: "ar_glasses", label: "AR 眼镜" },
-  { value: "developer", label: "开发者" },
-  { value: "community", label: "社区" },
-  { value: "openglass", label: "OpenGlass" },
-];
-
-const STATUS_OPTIONS: Array<{ value: "all" | NewsStatus; label: string }> = [
-  { value: "all", label: "全部" },
-  { value: "draft", label: "草稿" },
-  { value: "published", label: "已发布" },
-  { value: "archived", label: "已归档" },
-];
-
-const ADMIN_CATEGORY_OPTIONS: Array<{ value: "all" | NewsCategory; label: string }> = [
-  { value: "all", label: "全部分类" },
-  ...CATEGORY_OPTIONS,
-];
-
-function slugifyDraftTitle(title: string) {
-  const latinBase = title
-    .trim()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80);
-
-  if (latinBase) return latinBase;
-
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `news-${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}`;
-}
-
-function normalizeFileName(fileName: string) {
-  return fileName
-    .toLowerCase()
-    .replace(/[^a-z0-9.\-_]+/g, "-")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function normalizeUrlDraft(value: string) {
-  const text = value.trim();
-  if (!text) return "";
-  if (/^https?:\/\//i.test(text)) return text;
-  if (/^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(text)) {
-    return `https://${text}`;
-  }
-  return text;
-}
-
-function isNewsStoragePath(value: string) {
-  return value.startsWith("news-covers/") || value.startsWith("news-content/");
-}
-
-function toFormState(article?: AdminNewsArticle | null): FormState {
-  if (!article) return { ...EMPTY_FORM };
-  return {
-    id: article.id,
-    title: article.title,
-    slug: article.slug,
-    category: article.category,
-    summary: article.summary ?? "",
-    content: article.content ?? "",
-    cover_image_url: article.cover_image_url ?? "",
-    source_name: article.source_name ?? "OpenGlass Hub",
-    source_url: article.source_url ?? "",
-    pinned: article.pinned,
-    featured: article.featured,
-    status: article.status,
-    published_at: article.published_at ? article.published_at.slice(0, 16) : "",
+export default function AdminNewsDashboard({ localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: { localeContext?: LocaleContext } = {}) {
+  const { context } = useLocale(localeContext);
+  const locale = context.locale;
+  const text = getUiMessages(locale).admin;
+  const EMPTY_FORM: FormState = {
+    title: "",
+    slug: "",
+    category: "industry",
+    summary: "",
+    content: "",
+    cover_image_url: "",
+    source_name: "OpenGlass Hub",
+    source_url: "",
+    pinned: false,
+    featured: false,
+    status: "draft",
+    published_at: "",
   };
-}
 
-function statusLabel(status: NewsStatus) {
-  if (status === "published") return "已发布";
-  if (status === "archived") return "已归档";
-  return "草稿";
-}
+  const CATEGORY_OPTIONS: Array<{ value: NewsCategory; label: string }> = [
+    { value: "industry", label: text.copy.featuredIndustry },
+    { value: "devices", label: text.copy.devices },
+    { value: "ai_glasses", label: text.copy.aIGlasses },
+    { value: "ar_glasses", label: text.copy.aRGlasses },
+    { value: "developer", label: text.copy.developers },
+    { value: "community", label: text.copy.community },
+    { value: "openglass", label: "OpenGlass" },
+  ];
 
-function categoryLabel(category: NewsCategory) {
-  return CATEGORY_OPTIONS.find((item) => item.value === category)?.label ?? category;
-}
+  const STATUS_OPTIONS: Array<{ value: "all" | NewsStatus; label: string }> = [
+    { value: "all", label: text.copy.all },
+    { value: "draft", label: text.copy.draft },
+    { value: "published", label: text.copy.published },
+    { value: "archived", label: text.copy.archived },
+  ];
 
-function successLabel(action: SaveAction, fallbackStatus: NewsStatus) {
-  if (action === "publish") return "已发布";
-  if (action === "archive") return "已归档";
-  if (action === "draft" || fallbackStatus === "draft") return "已保存草稿";
-  return "已保存";
-}
+  const ADMIN_CATEGORY_OPTIONS: Array<{ value: "all" | NewsCategory; label: string }> = [
+    { value: "all", label: text.copy.allCategories },
+    ...CATEGORY_OPTIONS,
+  ];
 
-function pendingLabel(action: SaveAction) {
-  if (action === "draft" || action === "save") return "正在保存...";
-  if (action === "publish") return "正在发布...";
-  if (action === "archive") return "正在归档...";
-  return "";
-}
+  function slugifyDraftTitle(title: string) {
+    const latinBase = title
+      .trim()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80);
 
-function normalizeActionError(error: unknown) {
-  if (error instanceof AdminApiError) {
-    if (error.status === 401) return "登录状态已失效，请重新登录。";
-    if (error.status === 403) return "当前账号没有管理员权限。";
-    return error.message || "操作失败，请稍后重试。";
+    if (latinBase) return latinBase;
+
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `news-${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}`;
   }
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
+
+  function normalizeFileName(fileName: string) {
+    return fileName
+      .toLowerCase()
+      .replace(/[^a-z0-9.\-_]+/g, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-+|-+$/g, "");
   }
-  return "操作失败，请稍后重试。";
-}
 
-function bodyImageMarkdown(alt: string, url: string) {
-  return `![${alt || "图片"}](${url})`;
-}
+  function normalizeUrlDraft(value: string) {
+    const text = value.trim();
+    if (!text) return "";
+    if (/^https?:\/\//i.test(text)) return text;
+    if (/^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(text)) {
+      return `https://${text}`;
+    }
+    return text;
+  }
 
-function defaultImageAltText(fileName: string) {
-  return fileName.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").trim() || "图片";
-}
+  function isNewsStoragePath(value: string) {
+    return value.startsWith("news-covers/") || value.startsWith("news-content/");
+  }
 
-export default function AdminNewsDashboard() {
+  function toFormState(article?: AdminNewsArticle | null): FormState {
+    if (!article) return { ...EMPTY_FORM };
+    return {
+      id: article.id,
+      title: article.title,
+      slug: article.slug,
+      category: article.category,
+      summary: article.summary ?? "",
+      content: article.content ?? "",
+      cover_image_url: article.cover_image_url ?? "",
+      source_name: article.source_name ?? "OpenGlass Hub",
+      source_url: article.source_url ?? "",
+      pinned: article.pinned,
+      featured: article.featured,
+      status: article.status,
+      published_at: article.published_at ? article.published_at.slice(0, 16) : "",
+    };
+  }
+
+  function statusLabel(status: NewsStatus) {
+    if (status === "published") return text.copy.published;
+    if (status === "archived") return text.copy.archived;
+    return text.copy.draft;
+  }
+
+  function categoryLabel(category: NewsCategory) {
+    return CATEGORY_OPTIONS.find((item) => item.value === category)?.label ?? category;
+  }
+
+  function successLabel(action: SaveAction, fallbackStatus: NewsStatus) {
+    if (action === "publish") return text.copy.published;
+    if (action === "archive") return text.copy.archived;
+    if (action === "draft" || fallbackStatus === "draft") return text.copy.draftSaved;
+    return text.copy.saved;
+  }
+
+  function pendingLabel(action: SaveAction) {
+    if (action === "draft" || action === "save") return text.copy.saving;
+    if (action === "publish") return text.copy.publishing;
+    if (action === "archive") return text.copy.archiving;
+    return "";
+  }
+
+  function normalizeActionError(error: unknown) {
+    if (error instanceof AdminApiError) {
+      if (error.status === 401) return text.copy.yourSessionHasExpiredSignInAgain;
+      if (error.status === 403) return text.copy.thisAccountHasNoAdministratorAccess;
+      return error.message || text.copy.actionFailedPleaseTryAgainLater;
+    }
+    if (error instanceof Error && error.message.trim()) {
+      return error.message;
+    }
+    return text.copy.actionFailedPleaseTryAgainLater;
+  }
+
+  function bodyImageMarkdown(alt: string, url: string) {
+    return `![${alt || "图片"}](${url})`;
+  }
+
+  function defaultImageAltText(fileName: string) {
+    return fileName.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").trim() || "图片";
+  }
+
   const adminSession = useAdminSession();
   const [statusFilter, setStatusFilter] = useState<"all" | NewsStatus>("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | NewsCategory>("all");
@@ -262,7 +269,7 @@ export default function AdminNewsDashboard() {
       if (requestError instanceof AdminApiError && requestError.status === 401) {
         adminSession.setState({
           status: "signed_out",
-          message: "登录状态已失效，请重新登录",
+          message: text.copy.yourSessionExpiredSignInAgain,
           details: `api status code: 401 | error message: ${requestError.message}`,
         });
         return;
@@ -270,7 +277,7 @@ export default function AdminNewsDashboard() {
       if (requestError instanceof AdminApiError && requestError.status === 403) {
         adminSession.setState({
           status: "forbidden",
-          message: "当前账号没有管理员权限",
+          message: text.copy.thisAccountDoesNotHaveAdministratorAccess,
           details:
             typeof requestError.details === "string"
               ? requestError.details
@@ -278,7 +285,7 @@ export default function AdminNewsDashboard() {
         });
         return;
       }
-      setError(requestError instanceof Error ? requestError.message : "加载资讯列表失败");
+      setError(requestError instanceof Error ? requestError.message : text.copy.failedToLoadNews);
     } finally {
       setLoading(false);
     }
@@ -404,7 +411,7 @@ export default function AdminNewsDashboard() {
 
   async function uploadNewsAsset(file: File, prefix: "news-covers" | "news-content") {
     if (!adminSession.me?.user_id || !adminSession.accessToken) {
-      throw new Error("登录状态已失效，请重新登录");
+      throw new Error(text.copy.yourSessionExpiredSignInAgain);
     }
 
     const optimizedFile = /^image\/(jpeg|png|webp)$/i.test(file.type)
@@ -431,9 +438,9 @@ export default function AdminNewsDashboard() {
     try {
       const objectPath = await uploadNewsAsset(file, "news-covers");
       patchForm("cover_image_url", objectPath);
-      setSuccess("封面图已上传");
+      setSuccess(text.copy.coverUploaded);
     } catch {
-      setError("封面图上传失败，请稍后重试");
+      setError(text.copy.coverUploadFailedTryAgainLater);
     } finally {
       setCoverUploading(false);
       if (coverInputRef.current) coverInputRef.current.value = "";
@@ -447,9 +454,9 @@ export default function AdminNewsDashboard() {
     try {
       const objectPath = await uploadNewsAsset(file, "news-content");
       insertIntoContent(`${bodyImageMarkdown(defaultImageAltText(file.name), objectPath)}\n`);
-      setSuccess("正文图片已插入");
+      setSuccess(text.copy.bodyImageInserted);
     } catch {
-      setContentImageError("正文图片上传失败，请稍后重试");
+      setContentImageError(text.copy.bodyImageUploadFailedTryAgainLater);
     } finally {
       setContentUploading(false);
       if (contentInputRef.current) contentInputRef.current.value = "";
@@ -471,7 +478,7 @@ export default function AdminNewsDashboard() {
 
   async function saveArticle(nextStatus?: NewsStatus, action?: SaveAction) {
     if (!adminSession.session) {
-      setError("登录状态已失效，请重新登录。");
+      setError(text.copy.yourSessionHasExpiredSignInAgain);
       setSuccess("");
       return;
     }
@@ -539,12 +546,12 @@ export default function AdminNewsDashboard() {
 
   async function deleteArticle() {
     if (!adminSession.session) {
-      setError("登录状态已失效，请重新登录。");
+      setError(text.copy.yourSessionHasExpiredSignInAgain);
       setSuccess("");
       return;
     }
     if (!form.id) {
-      setError("当前没有可删除的资讯。");
+      setError(text.copy.noNewsArticleSelectedForDeletion);
       setSuccess("");
       return;
     }
@@ -566,7 +573,7 @@ export default function AdminNewsDashboard() {
       setSelectedId("");
       setForm({ ...EMPTY_FORM });
       setSlugEditedManually(false);
-      setSuccess(payload.message || "已删除");
+      setSuccess(payload.message || text.copy.deleted);
       setArticles((current) => current.filter((item) => item.id !== form.id));
     } catch (requestError) {
       logAction("delete:error", {
@@ -579,13 +586,13 @@ export default function AdminNewsDashboard() {
   }
 
   if (adminSession.state.status === "checking") {
-    return <div className="community-empty"><strong>{adminSession.state.message}</strong></div>;
+    return <div className="community-empty"><strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong></div>;
   }
 
   if (adminSession.state.status === "signed_out" || adminSession.state.status === "forbidden" || adminSession.state.status === "error" || adminSession.state.status === "timeout") {
     return (
       <div className="community-empty admin-state-message admin-error">
-        <strong>{adminSession.state.message}</strong>
+        <strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>
         {"details" in adminSession.state && adminSession.state.details ? (
           <p className="admin-debug-note">{adminSession.state.details}</p>
         ) : null}
@@ -597,18 +604,17 @@ export default function AdminNewsDashboard() {
     <section className="community-surface admin-news-dashboard">
       <div className="community-stream-head">
         <div>
-          <h2>资讯发布台</h2>
-          <p>让管理员可以直接创建、插图、发布和归档资讯，不需要理解技术字段。</p>
+          <h2>{text.copy.newsPublishing}</h2>
+          <p>{text.copy.createIllustratePublishAndArchiveNewsArticles}</p>
         </div>
         <div className="community-cta-row">
           <button type="button" className="community-button" onClick={startNewArticle}>
-            新建资讯
-          </button>
+            {text.copy.newArticle}</button>
         </div>
       </div>
 
       <div className="admin-user-line">
-        当前管理员：{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || adminSession.me?.user_id} · 角色 {adminSession.me?.role}
+        {text.copy.currentAdministrator}{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || adminSession.me?.user_id} {text.copy.role}{adminSession.me?.role}
       </div>
 
       {error ? <div className="admin-error">{error}</div> : null}
@@ -617,7 +623,7 @@ export default function AdminNewsDashboard() {
       <div className="admin-news-toolbar">
         <div className="admin-news-toolbar__filters">
           <div className="admin-news-toolbar__group">
-            <span className="admin-news-toolbar__label">状态</span>
+            <span className="admin-news-toolbar__label">{text.copy.status}</span>
             <div className="admin-news-toolbar__chips">
               {STATUS_OPTIONS.map((item) => (
                 <button
@@ -633,7 +639,7 @@ export default function AdminNewsDashboard() {
           </div>
 
           <label className="community-form-field admin-news-toolbar__select">
-            <span>分类</span>
+            <span>{text.copy.category}</span>
             <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as "all" | NewsCategory)}>
               {ADMIN_CATEGORY_OPTIONS.map((item) => (
                 <option key={item.value} value={item.value}>
@@ -646,15 +652,15 @@ export default function AdminNewsDashboard() {
 
         <form className="admin-news-toolbar__search" onSubmit={applySearchFilter}>
           <label className="community-form-field">
-            <span>搜索</span>
+            <span>{text.copy.search}</span>
             <input
               value={searchDraft}
               onChange={(event) => setSearchDraft(event.target.value)}
-              placeholder="标题或 slug"
+              placeholder={text.copy.titleOrSlug}
             />
           </label>
           <div className="admin-news-toolbar__search-actions">
-            <button type="submit" className="community-button">筛选</button>
+            <button type="submit" className="community-button">{text.copy.filter}</button>
             <button
               type="button"
               className="community-button--secondary"
@@ -663,8 +669,7 @@ export default function AdminNewsDashboard() {
                 setSearchFilter("");
               }}
             >
-              清空
-            </button>
+              {text.copy.clear2}</button>
           </div>
         </form>
       </div>
@@ -673,17 +678,17 @@ export default function AdminNewsDashboard() {
         <div className="admin-news-dashboard__list">
           <div className="admin-news-dashboard__list-head">
             <div>
-              <strong>文章列表</strong>
-              <p>按最近更新时间排序，可按状态、分类、标题或 slug 筛选。</p>
+              <strong>{text.copy.articles}</strong>
+              <p>{text.copy.newestUpdatesFirstFilterByStatusCategoryTitleOr}</p>
             </div>
-            <span className="community-tag">{articles.length} 篇</span>
+            <span className="community-tag">{articles.length} {text.copy.articles2}</span>
           </div>
 
-          {loading ? <p className="community-meta">正在加载资讯列表...</p> : null}
+          {loading ? <p className="community-meta">{text.copy.loadingArticles}</p> : null}
           {articles.length === 0 && !loading ? (
             <div className="community-empty">
-              <strong>暂无资讯</strong>
-              <p>先创建第一篇内容。</p>
+              <strong>{text.copy.noArticles}</strong>
+              <p>{text.copy.createTheFirstArticle}</p>
             </div>
           ) : null}
 
@@ -701,11 +706,11 @@ export default function AdminNewsDashboard() {
               <strong>{article.title}</strong>
               {article.summary ? <p>{article.summary}</p> : null}
               <div className="community-inline-meta">
-                <span>{article.published_at ? new Date(article.published_at).toLocaleString("zh-CN") : "未发布"}</span>
-                <span>更新于 {new Date(article.updated_at).toLocaleString("zh-CN")}</span>
-                <span>{article.view_count} 阅读</span>
-                {article.featured ? <span>精选</span> : null}
-                {article.pinned ? <span>置顶</span> : null}
+                <span>{article.published_at ? new Date(article.published_at).toLocaleString(locale) : text.copy.unpublished}</span>
+                <span>{text.copy.updated}{new Date(article.updated_at).toLocaleString(locale)}</span>
+                <span>{article.view_count} {text.copy.views}</span>
+                {article.featured ? <span>{text.copy.featured}</span> : null}
+                {article.pinned ? <span>{text.copy.pinned}</span> : null}
               </div>
             </button>
           ))}
@@ -720,21 +725,21 @@ export default function AdminNewsDashboard() {
         >
           <div className="admin-news-form__head">
             <div>
-              <strong>{form.id ? "编辑资讯" : "新建资讯"}</strong>
-              <p>标题、封面、正文、发布设置都集中在右侧，发布后会立即进入公开资讯流。</p>
+              <strong>{form.id ? text.copy.editArticle : text.copy.newArticle}</strong>
+              <p>{text.copy.editTheTitleCoverBodyAndPublicationSettingsPublishing}</p>
             </div>
             <div className="admin-news-form__head-meta">
               <span className={`admin-news-status-pill admin-news-status-pill--${form.status}`}>{statusLabel(form.status)}</span>
-              {selectedArticle?.published_at ? <span className="community-meta">发布于 {new Date(selectedArticle.published_at).toLocaleString("zh-CN")}</span> : null}
-              {selectedArticle ? <span className="community-meta">更新于 {new Date(selectedArticle.updated_at).toLocaleString("zh-CN")}</span> : null}
+              {selectedArticle?.published_at ? <span className="community-meta">{text.copy.published2}{new Date(selectedArticle.published_at).toLocaleString(locale)}</span> : null}
+              {selectedArticle ? <span className="community-meta">{text.copy.updated}{new Date(selectedArticle.updated_at).toLocaleString(locale)}</span> : null}
             </div>
           </div>
 
           <section className="admin-news-form__section">
             <div className="admin-news-form__section-head">
               <div>
-                <strong>基础信息</strong>
-                <p>标题会自动生成文章链接预览，管理员不需要手动理解 slug。</p>
+                <strong>{text.copy.basicInformation}</strong>
+                <p>{text.copy.theTitleGeneratesAnArticleURLPreviewAutomatically}</p>
               </div>
               <button
                 type="button"
@@ -744,32 +749,31 @@ export default function AdminNewsDashboard() {
                   patchForm("slug", slugifyDraftTitle(form.title));
                 }}
               >
-                根据标题生成
-              </button>
+                {text.copy.generatedFromTitle}</button>
             </div>
 
             <label className="community-form-field">
-              <span>标题</span>
-              <input value={form.title} onChange={(event) => handleTitleChange(event.target.value)} placeholder="输入资讯标题" />
+              <span>{text.copy.title}</span>
+              <input value={form.title} onChange={(event) => handleTitleChange(event.target.value)} placeholder={text.copy.enterAnArticleTitle} />
             </label>
 
             <label className="community-form-field">
-              <span>文章链接预览</span>
+              <span>{text.copy.articleURLPreview}</span>
               <div className="admin-news-slug-preview">/news/{form.slug || slugifyDraftTitle(form.title) || "news-..."}/</div>
-              <small className="community-meta">用于文章链接，可自动生成。</small>
+              <small className="community-meta">{text.copy.usedInTheArticleURLCanBeGeneratedAutomatically}</small>
             </label>
 
             <label className="community-form-field">
-              <span>摘要</span>
-              <textarea value={form.summary} onChange={(event) => patchForm("summary", event.target.value)} rows={4} placeholder="用于资讯卡片和详情页摘要" />
+              <span>{text.copy.summary}</span>
+              <textarea value={form.summary} onChange={(event) => patchForm("summary", event.target.value)} rows={4} placeholder={text.copy.summaryForNewsCardsAndTheArticlePage} />
             </label>
           </section>
 
           <section className="admin-news-form__section">
             <div className="admin-news-form__section-head">
               <div>
-                <strong>封面图</strong>
-                <p>支持直接粘贴图片链接，也支持上传到站内存储。</p>
+                <strong>{text.copy.coverImage}</strong>
+                <p>{text.copy.pasteAnImageURLOrUploadAnImage}</p>
               </div>
               <button
                 type="button"
@@ -777,7 +781,7 @@ export default function AdminNewsDashboard() {
                 onClick={() => coverInputRef.current?.click()}
                 disabled={coverUploading}
               >
-                {coverUploading ? "上传中..." : "上传封面图"}
+                {coverUploading ? text.copy.uploading : text.copy.uploadCover}
               </button>
             </div>
 
@@ -790,12 +794,12 @@ export default function AdminNewsDashboard() {
             />
 
             <label className="community-form-field">
-              <span>封面图链接</span>
+              <span>{text.copy.coverURL}</span>
               <input
                 value={form.cover_image_url}
                 onChange={(event) => patchForm("cover_image_url", event.target.value)}
                 onBlur={(event) => patchForm("cover_image_url", normalizeUrlDraft(event.target.value))}
-                placeholder="https://... 或已上传的封面路径"
+                placeholder={text.copy.httpsOrAnUploadedCoverPath}
               />
             </label>
 
@@ -803,21 +807,21 @@ export default function AdminNewsDashboard() {
               <div className="admin-news-cover-preview">
                 <img
                   src={coverPreviewUrl}
-                  alt={form.title || "封面预览"}
+                  alt={form.title || text.copy.coverPreview}
                   onError={() => setCoverPreviewBroken(true)}
                 />
               </div>
             ) : (
-              <div className="community-media-placeholder">封面预览会显示在这里</div>
+              <div className="community-media-placeholder">{text.copy.coverPreviewAppearsHere}</div>
             )}
-            {coverPreviewBroken ? <div className="comment-inline-error">封面图暂时无法预览，请检查链接或重新上传。</div> : null}
+            {coverPreviewBroken ? <div className="comment-inline-error">{text.copy.coverPreviewUnavailableCheckTheURLOrUploadAgain}</div> : null}
           </section>
 
           <section className="admin-news-form__section">
             <div className="admin-news-form__section-head">
               <div>
-                <strong>正文内容</strong>
-                <p>正文按 Markdown 轻量渲染，支持段落、标题、链接和图片。</p>
+                <strong>{text.copy.articleContent}</strong>
+                <p>{text.copy.markdownSupportsParagraphsHeadingsLinksAndImages}</p>
               </div>
               <div className="admin-news-toolbar__search-actions">
                 <button
@@ -825,15 +829,14 @@ export default function AdminNewsDashboard() {
                   className="community-action-button community-action-button--compact community-action-button--muted"
                   onClick={() => setContentImagePanelOpen((current) => !current)}
                 >
-                  插入图片链接
-                </button>
+                  {text.copy.insertImageURL}</button>
                 <button
                   type="button"
                   className="community-action-button community-action-button--compact community-action-button--muted"
                   onClick={() => contentInputRef.current?.click()}
                   disabled={contentUploading}
                 >
-                  {contentUploading ? "上传中..." : "上传图片"}
+                  {contentUploading ? text.copy.uploading : text.copy.uploadImage}
                 </button>
               </div>
             </div>
@@ -849,7 +852,7 @@ export default function AdminNewsDashboard() {
             {contentImagePanelOpen ? (
               <div className="admin-news-inline-panel">
                 <label className="community-form-field">
-                  <span>图片链接</span>
+                  <span>{text.copy.imageURL}</span>
                   <input
                     value={contentImageUrl}
                     onChange={(event) => setContentImageUrl(event.target.value)}
@@ -858,17 +861,16 @@ export default function AdminNewsDashboard() {
                   />
                 </label>
                 <label className="community-form-field">
-                  <span>图片说明</span>
+                  <span>{text.copy.imageDescription}</span>
                   <input
                     value={contentImageAlt}
                     onChange={(event) => setContentImageAlt(event.target.value)}
-                    placeholder="图片说明"
+                    placeholder={text.copy.imageDescription}
                   />
                 </label>
                 <div className="admin-news-inline-panel__actions">
                   <button type="button" className="community-button" onClick={insertImageFromUrl}>
-                    插入到正文
-                  </button>
+                    {text.copy.insertIntoBody}</button>
                   <button
                     type="button"
                     className="community-button--secondary"
@@ -877,21 +879,20 @@ export default function AdminNewsDashboard() {
                       setContentImageError("");
                     }}
                   >
-                    取消
-                  </button>
+                    {text.copy.cancel}</button>
                 </div>
                 {contentImageError ? <div className="comment-inline-error">{contentImageError}</div> : null}
               </div>
             ) : null}
 
             <label className="community-form-field">
-              <span>正文</span>
+              <span>{text.copy.body}</span>
               <textarea
                 ref={textareaRef}
                 value={form.content}
                 onChange={(event) => patchForm("content", event.target.value)}
                 rows={18}
-                placeholder="# 标题&#10;&#10;正文段落...&#10;&#10;![图片](https://...)"
+                placeholder={text.copy.heading1010BodyParagraph1010ImageHttps}
               />
             </label>
           </section>
@@ -899,21 +900,21 @@ export default function AdminNewsDashboard() {
           <section className="admin-news-form__section">
             <div className="admin-news-form__section-head">
               <div>
-                <strong>发布设置</strong>
-                <p>留空发布时间时，点击发布会自动使用当前时间。</p>
+                <strong>{text.copy.publicationSettings}</strong>
+                <p>{text.copy.leaveThePublicationTimeBlankToUseTheCurrent}</p>
               </div>
               <button
                 type="button"
                 className="community-action-button community-action-button--compact community-action-button--muted"
                 onClick={() => setShowAdvanced((current) => !current)}
               >
-                {showAdvanced ? "收起高级设置" : "高级设置"}
+                {showAdvanced ? text.copy.hideAdvancedSettings : text.copy.advancedSettings}
               </button>
             </div>
 
             <div className="admin-news-form__grid">
               <label className="community-form-field">
-                <span>分类</span>
+                <span>{text.copy.category}</span>
                 <select value={form.category} onChange={(event) => patchForm("category", event.target.value as NewsCategory)}>
                   {CATEGORY_OPTIONS.map((item) => (
                     <option key={item.value} value={item.value}>{item.label}</option>
@@ -921,11 +922,11 @@ export default function AdminNewsDashboard() {
                 </select>
               </label>
               <label className="community-form-field">
-                <span>状态</span>
+                <span>{text.copy.status}</span>
                 <select value={form.status} onChange={(event) => patchForm("status", event.target.value as NewsStatus)}>
-                  <option value="draft">草稿</option>
-                  <option value="published">已发布</option>
-                  <option value="archived">已归档</option>
+                  <option value="draft">{text.copy.draft}</option>
+                  <option value="published">{text.copy.published}</option>
+                  <option value="archived">{text.copy.archived}</option>
                 </select>
               </label>
             </div>
@@ -934,15 +935,15 @@ export default function AdminNewsDashboard() {
               <label>
                 <input type="checkbox" checked={form.pinned} onChange={(event) => patchForm("pinned", event.target.checked)} />
                 <span>
-                  <strong>置顶到资讯列表前面</strong>
-                  <small>已发布后会优先出现在资讯列表前部。</small>
+                  <strong>{text.copy.pinToTheTopOfTheNewsList}</strong>
+                  <small>{text.copy.publishedPinnedArticlesAppearFirst}</small>
                 </span>
               </label>
               <label>
                 <input type="checkbox" checked={form.featured} onChange={(event) => patchForm("featured", event.target.checked)} />
                 <span>
-                  <strong>设为顶部精选头条</strong>
-                  <small>最新的精选文章会显示在 `/news/` 顶部大卡位。</small>
+                  <strong>{text.copy.featureAsTheTopHeadline}</strong>
+                  <small>{text.copy.theLatestFeaturedArticleAppearsAtTheTopOf}</small>
                 </span>
               </label>
             </div>
@@ -950,24 +951,24 @@ export default function AdminNewsDashboard() {
             {showAdvanced ? (
               <div className="admin-news-form__advanced">
                 <label className="community-form-field">
-                  <span>文章链接 slug</span>
+                  <span>{text.copy.articleSlug}</span>
                   <input
                     value={form.slug}
                     onChange={(event) => handleSlugChange(event.target.value)}
-                    placeholder="留空则按标题自动生成"
+                    placeholder={text.copy.leaveBlankToGenerateFromTheTitle}
                   />
-                  <small className="community-meta">只允许小写字母、数字和连字符。</small>
+                  <small className="community-meta">{text.copy.useLowercaseLettersNumbersAndHyphensOnly}</small>
                 </label>
 
                 <div className="admin-news-form__advanced-row">
                   <label className="community-form-field">
-                    <span>自定义发布时间</span>
+                    <span>{text.copy.customPublicationTime}</span>
                     <input
                       type="datetime-local"
                       value={form.published_at}
                       onChange={(event) => patchForm("published_at", event.target.value)}
                     />
-                    <small className="community-meta">留空则发布时间为现在。</small>
+                    <small className="community-meta">{text.copy.leaveBlankToPublishNow}</small>
                   </label>
 
                   <div className="admin-news-form__helper">
@@ -976,8 +977,7 @@ export default function AdminNewsDashboard() {
                       className="community-action-button community-action-button--compact community-action-button--muted"
                       onClick={() => patchForm("published_at", "")}
                     >
-                      清空时间
-                    </button>
+                      {text.copy.clearTime}</button>
                     <button
                       type="button"
                       className="community-action-button community-action-button--compact community-action-button--muted"
@@ -986,8 +986,7 @@ export default function AdminNewsDashboard() {
                         patchForm("slug", slugifyDraftTitle(form.title));
                       }}
                     >
-                      重新生成链接
-                    </button>
+                      {text.copy.regenerateURL}</button>
                   </div>
                 </div>
               </div>
@@ -997,18 +996,18 @@ export default function AdminNewsDashboard() {
           <section className="admin-news-form__section">
             <div className="admin-news-form__section-head">
               <div>
-                <strong>来源信息</strong>
-                <p>来源名称和来源链接都可选；OpenGlass 原创内容可直接保留默认来源名。</p>
+                <strong>{text.copy.sourceInformation}</strong>
+                <p>{text.copy.sourceNameAndURLAreOptionalKeepTheDefault}</p>
               </div>
             </div>
 
             <div className="admin-news-form__grid">
               <label className="community-form-field">
-                <span>来源名称</span>
+                <span>{text.copy.sourceName}</span>
                 <input value={form.source_name} onChange={(event) => patchForm("source_name", event.target.value)} placeholder="OpenGlass Hub" />
               </label>
               <label className="community-form-field">
-                <span>来源链接</span>
+                <span>{text.copy.sourceURL}</span>
                 <input
                   value={form.source_url}
                   onChange={(event) => patchForm("source_url", event.target.value)}
@@ -1021,24 +1020,23 @@ export default function AdminNewsDashboard() {
 
           <div className="admin-news-form__actions">
             <button type="submit" className="community-button" disabled={saveAction !== null}>
-              {saveAction === "save" ? "保存中..." : "保存修改"}
+              {saveAction === "save" ? text.copy.savingChanges : text.copy.saveChanges}
             </button>
             <button type="button" className="community-button--secondary" onClick={() => void saveArticle("draft", "draft")} disabled={saveAction !== null}>
-              {saveAction === "draft" ? "保存中..." : "保存草稿"}
+              {saveAction === "draft" ? text.copy.savingChanges : text.copy.saveDraft}
             </button>
             <button type="button" className="community-button--secondary" onClick={() => void saveArticle("published", "publish")} disabled={saveAction !== null}>
-              {saveAction === "publish" ? "发布中..." : "发布"}
+              {saveAction === "publish" ? text.copy.publishingArticle : text.copy.publish}
             </button>
             <button type="button" className="community-button--secondary" onClick={() => void saveArticle("archived", "archive")} disabled={saveAction !== null || !form.id}>
-              {saveAction === "archive" ? "归档中..." : "归档"}
+              {saveAction === "archive" ? text.copy.archivingArticle : text.copy.archive}
             </button>
             <button type="button" className="community-button--secondary" onClick={() => setConfirmDeleteOpen(true)} disabled={!form.id || deleting}>
-              {deleting ? "删除中..." : "删除"}
+              {deleting ? text.copy.deleting : text.copy.delete}
             </button>
             {form.slug ? (
               <a href={`/news/${form.slug}/`} target="_blank" rel="noreferrer" className="community-action-button">
-                预览
-              </a>
+                {text.copy.preview}</a>
             ) : null}
           </div>
 
@@ -1048,11 +1046,11 @@ export default function AdminNewsDashboard() {
 
       <GlassConfirmDialog
         open={confirmDeleteOpen}
-        title="删除资讯"
-        description="删除后这篇资讯会从后台列表和公开页移除。"
-        detail={form.title || "请确认是否删除当前资讯。"}
-        confirmLabel="确认删除"
-        cancelLabel="取消"
+        title={text.copy.deleteArticle}
+        description={text.copy.thisRemovesTheArticleFromTheAdminListAnd}
+        detail={form.title || text.copy.confirmDeletionOfThisArticle}
+        confirmLabel={text.copy.confirmDelete}
+        cancelLabel={text.copy.cancel}
         danger={true}
         loading={deleting}
         error={error}

@@ -2,11 +2,13 @@
 export const prerender = false;
 import CommunityLayout from "../../../layouts/CommunityLayout.astro";
 import AdminDevicesDashboard from "../../../components/admin/AdminDevicesDashboard";
+import { getUiMessages } from "../../../lib/i18n/catalog";
+const text = getUiMessages(Astro.locals.localeContext.locale).admin;
 ---
-<CommunityLayout title="管理员设备库" description="OpenGlass Hub 管理员设备库。" noindex={true} activeSection="forum">
+<CommunityLayout title={text.pages.devices.title} description={text.pages.devices.description} noindex={true} activeSection="forum">
   <section class="community-section" style="padding-top: 1rem;">
     <h1 class="community-page-title">/admin/devices</h1>
-    <p class="community-page-subtitle">管理设备草稿、发布状态、规格与归档记录。</p>
-    <AdminDevicesDashboard client:load />
+    <p class="community-page-subtitle">{text.pages.devices.lead}</p>
+    <AdminDevicesDashboard localeContext={Astro.locals.localeContext} client:load />
   </section>
 </CommunityLayout>

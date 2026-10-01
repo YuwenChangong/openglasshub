@@ -3,17 +3,19 @@ export const prerender = false;
 
 import CommunityLayout from "../../../layouts/CommunityLayout.astro";
 import AdminMediaDashboard from "../../../components/admin/AdminMediaDashboard";
+import { getUiMessages } from "../../../lib/i18n/catalog";
+const text = getUiMessages(Astro.locals.localeContext.locale).admin;
 ---
 
 <CommunityLayout
-  title="管理员媒体审计"
-  description="OpenGlass Hub 管理员媒体审计页。"
+  title={text.pages.media.title}
+  description={text.pages.media.description}
   noindex={true}
   activeSection="forum"
 >
   <section class="community-section" style="padding-top: 1rem;">
     <h1 class="community-page-title">/admin/media</h1>
-    <p class="community-page-subtitle">筛选视频、大文件、未绑定媒体，并执行单条媒体删除。</p>
-    <AdminMediaDashboard client:load />
+    <p class="community-page-subtitle">{text.pages.media.lead}</p>
+    <AdminMediaDashboard localeContext={Astro.locals.localeContext} client:load />
   </section>
 </CommunityLayout>

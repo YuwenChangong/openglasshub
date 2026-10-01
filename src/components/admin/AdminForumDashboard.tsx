@@ -1,3 +1,7 @@
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import { localizeAdminSessionMessage } from "../../lib/i18n/messages/admin";
+import { useLocale } from "../i18n/useLocale";
 import { useEffect, useRef, useState } from "react";
 import { AdminApiError, adminFetch } from "../../lib/admin-api-client";
 import { useAdminSession } from "./useAdminSession";
@@ -61,67 +65,70 @@ type PostActionPayload = {
 type DataState = "idle" | "loading" | "ready" | "error";
 type StatusBadgeConfig = { label: string; className: string };
 
-const DELETE_CONFIRM_MS = 5000;
+export default function AdminForumDashboard({ localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: { localeContext?: LocaleContext } = {}) {
+  const { context } = useLocale(localeContext);
+  const locale = context.locale;
+  const text = getUiMessages(locale).admin;
+  const DELETE_CONFIRM_MS = 5000;
 
-function bytesLabel(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  let value = bytes;
-  let idx = 0;
-  while (value >= 1024 && idx < units.length - 1) {
-    value /= 1024;
-    idx += 1;
+  function bytesLabel(bytes: number): string {
+    if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    let value = bytes;
+    let idx = 0;
+    while (value >= 1024 && idx < units.length - 1) {
+      value /= 1024;
+      idx += 1;
+    }
+    return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[idx]}`;
   }
-  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[idx]}`;
-}
 
-function getStatusBadge(status: string): StatusBadgeConfig {
-  switch (status) {
-    case "published":
-      return { label: "公开", className: "admin-status-badge admin-status-published" };
-    case "hidden":
-      return { label: "已隐藏", className: "admin-status-badge admin-status-hidden" };
-    case "deleted":
-      return { label: "已删除", className: "admin-status-badge admin-status-deleted" };
-    case "pending":
-      return { label: "待审核", className: "admin-status-badge admin-status-pending" };
-    default:
-      return { label: status || "未知", className: "admin-status-badge" };
+  function getStatusBadge(status: string): StatusBadgeConfig {
+    switch (status) {
+      case "published":
+        return { label: text.copy.public, className: "admin-status-badge admin-status-published" };
+      case "hidden":
+        return { label: text.copy.hidden, className: "admin-status-badge admin-status-hidden" };
+      case "deleted":
+        return { label: text.copy.deleted, className: "admin-status-badge admin-status-deleted" };
+      case "pending":
+        return { label: text.copy.pendingReview, className: "admin-status-badge admin-status-pending" };
+      default:
+        return { label: status || text.copy.unknown, className: "admin-status-badge" };
+    }
   }
-}
 
-function shortId(id: string | null | undefined): string {
-  if (!id) return "-";
-  return `${id.slice(0, 8)}...`;
-}
-
-function authorLabel(post: AdminPost): string {
-  return post.author_profile?.display_name || post.author_profile?.username || "未知用户";
-}
-
-function cleanupMessage(cleanup?: CleanupPayload): string {
-  if (cleanup?.ok === false) return "已删除，部分媒体清理需要后续重试";
-  return "已删除并清理媒体";
-}
-
-function cleanupWarning(cleanup?: CleanupPayload): string {
-  const values = [...(cleanup?.warnings ?? []), ...(cleanup?.errors ?? [])]
-    .map((item) => String(item ?? "").trim())
-    .filter(Boolean);
-  return values.join("；");
-}
-
-function getAdminViewConfig(post: AdminPost) {
-  if (post.status === "deleted") {
-    return { label: "帖子已删除", href: null as string | null, disabled: true };
+  function shortId(id: string | null | undefined): string {
+    if (!id) return "-";
+    return `${id.slice(0, 8)}...`;
   }
-  if (post.status === "hidden") {
-    return { label: "去管理页", href: `/admin/forum/?post=${post.id}`, disabled: false };
-  }
-  return { label: "查看帖子", href: `/posts/${post.id}/`, disabled: false };
-}
 
-export default function AdminForumDashboard() {
+  function authorLabel(post: AdminPost): string {
+    return post.author_profile?.display_name || post.author_profile?.username || text.copy.unknownUser;
+  }
+
+  function cleanupMessage(cleanup?: CleanupPayload): string {
+    if (cleanup?.ok === false) return text.copy.deletedSomeMediaCleanupNeedsALaterRetry;
+    return text.copy.deletedAndMediaCleaned;
+  }
+
+  function cleanupWarning(cleanup?: CleanupPayload): string {
+    const values = [...(cleanup?.warnings ?? []), ...(cleanup?.errors ?? [])]
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean);
+    return values.join("；");
+  }
+
+  function getAdminViewConfig(post: AdminPost) {
+    if (post.status === "deleted") {
+      return { label: text.copy.postDeleted, href: null as string | null, disabled: true };
+    }
+    if (post.status === "hidden") {
+      return { label: text.copy.openManagement, href: `/admin/forum/?post=${post.id}`, disabled: false };
+    }
+    return { label: text.copy.viewPost, href: `/posts/${post.id}/`, disabled: false };
+  }
+
   const adminSession = useAdminSession();
   const [dataState, setDataState] = useState<DataState>("idle");
   const [error, setError] = useState("");
@@ -170,7 +177,7 @@ export default function AdminForumDashboard() {
         if (requestError instanceof AdminApiError && requestError.status === 401) {
           adminSession.setState({
             status: "signed_out",
-            message: "登录状态已失效，请重新登录",
+            message: text.copy.yourSessionExpiredSignInAgain,
             details: `api status code: 401 | error message: ${requestError.message}`,
           });
           return;
@@ -178,7 +185,7 @@ export default function AdminForumDashboard() {
         if (requestError instanceof AdminApiError && requestError.status === 403) {
           adminSession.setState({
             status: "forbidden",
-            message: "当前账号没有管理员权限",
+            message: text.copy.thisAccountDoesNotHaveAdministratorAccess,
             details:
               typeof requestError.details === "string"
                 ? requestError.details
@@ -186,7 +193,7 @@ export default function AdminForumDashboard() {
           });
           return;
         }
-        setError(requestError instanceof Error ? requestError.message : "加载帖子列表失败");
+        setError(requestError instanceof Error ? requestError.message : text.copy.failedToLoadPosts);
         setDataState("error");
       }
     };
@@ -270,7 +277,7 @@ export default function AdminForumDashboard() {
         applyPostStatus(postId, nextStatus);
         setRowSuccess((current) => ({
           ...current,
-          [postId]: action === "hide" ? "已隐藏" : "已恢复为公开",
+          [postId]: action === "hide" ? text.copy.hidden : text.copy.restoredToPublic,
         }));
       }
     } catch (requestError) {
@@ -278,17 +285,17 @@ export default function AdminForumDashboard() {
         requestError instanceof AdminApiError && typeof requestError.details === "string"
           ? `：${requestError.details}`
           : "";
-      const message = `${requestError instanceof Error ? requestError.message : "操作失败"}${details}`;
+      const message = `${requestError instanceof Error ? requestError.message : text.copy.actionFailed}${details}`;
       if (requestError instanceof AdminApiError && requestError.status === 401) {
         adminSession.setState({
           status: "signed_out",
-          message: "登录状态已失效，请重新登录",
+          message: text.copy.yourSessionExpiredSignInAgain,
           details: `api status code: 401 | error message: ${message}`,
         });
       } else if (requestError instanceof AdminApiError && requestError.status === 403) {
         adminSession.setState({
           status: "forbidden",
-          message: "当前账号没有管理员权限",
+          message: text.copy.thisAccountDoesNotHaveAdministratorAccess,
           details:
             typeof requestError.details === "string"
               ? requestError.details
@@ -317,7 +324,7 @@ export default function AdminForumDashboard() {
   if (adminSession.state.status === "checking") {
     return (
       <div className="community-empty admin-state-message">
-        <strong>{adminSession.state.message}</strong>
+        <strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>
       </div>
     );
   }
@@ -325,7 +332,7 @@ export default function AdminForumDashboard() {
   if (adminSession.state.status === "timeout") {
     return (
       <div className="community-empty admin-state-message admin-timeout">
-        <strong>{adminSession.state.message}</strong>
+        <strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>
         {adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}
       </div>
     );
@@ -334,7 +341,7 @@ export default function AdminForumDashboard() {
   if (adminSession.state.status === "signed_out") {
     return (
       <div className="community-empty admin-state-message">
-        <strong>{adminSession.state.message}</strong>
+        <strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>
         {adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}
       </div>
     );
@@ -343,7 +350,7 @@ export default function AdminForumDashboard() {
   if (adminSession.state.status === "forbidden") {
     return (
       <div className="community-empty admin-state-message admin-error">
-        <strong>{adminSession.state.message}</strong>
+        <strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>
         {adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}
       </div>
     );
@@ -352,7 +359,7 @@ export default function AdminForumDashboard() {
   if (adminSession.state.status === "error") {
     return (
       <div className="community-empty admin-state-message admin-error">
-        <strong>{adminSession.state.message}</strong>
+        <strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>
         {adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}
       </div>
     );
@@ -362,16 +369,16 @@ export default function AdminForumDashboard() {
     <section className="community-surface">
       <div className="community-stream-head">
         <div>
-          <h2>管理员帖子治理</h2>
-          <p>查看帖子内容、作者资料、媒体体积和举报数量，并执行隐藏、恢复、删除。</p>
+          <h2>{text.copy.forumGovernance}</h2>
+          <p>{text.copy.reviewPostsAuthorsMediaSizeAndReportCountsHide}</p>
         </div>
         <div className="community-cta-row">
           {[
-            { key: "all", label: "全部" },
-            { key: "published", label: "公开" },
-            { key: "hidden", label: "隐藏" },
-            { key: "deleted", label: "删除" },
-            { key: "pending", label: "待审核" },
+            { key: "all", label: text.copy.all },
+            { key: "published", label: text.copy.public },
+            { key: "hidden", label: text.copy.hide },
+            { key: "deleted", label: text.copy.delete },
+            { key: "pending", label: text.copy.pendingReview },
           ].map((item) => (
             <button
               key={item.key}
@@ -386,26 +393,24 @@ export default function AdminForumDashboard() {
       </div>
 
       <div className="admin-user-line">
-        当前管理员：{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || shortId(adminSession.me?.user_id)} ·
-        角色 {adminSession.me?.role}
+        {text.copy.currentAdministrator}{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || shortId(adminSession.me?.user_id)} {text.copy.role2}{adminSession.me?.role}
       </div>
 
       {focusPostId ? (
         <div className="admin-inline-actions" style={{ margin: "0.8rem 1rem 0" }}>
-          <span className="community-meta">当前仅显示帖子 {shortId(focusPostId)}</span>
+          <span className="community-meta">{text.copy.showingOnlyPost}{shortId(focusPostId)}</span>
           <button type="button" className="admin-action-button" onClick={clearFocusFilter}>
-            返回全部帖子
-          </button>
+            {text.copy.backToAllPosts}</button>
         </div>
       ) : null}
 
       {error && dataState !== "loading" ? <div className="admin-error">{error}</div> : null}
-      {dataState === "loading" ? <p className="community-meta admin-state-message">正在加载帖子列表...</p> : null}
+      {dataState === "loading" ? <p className="community-meta admin-state-message">{text.copy.loadingPosts}</p> : null}
 
       {dataState === "ready" && posts.length === 0 ? (
         <div className="community-empty">
-          <strong>暂无帖子</strong>
-          <p>{focusPostId ? "未找到对应帖子。" : "当前筛选条件下没有可治理的帖子。"}</p>
+          <strong>{text.copy.noPosts}</strong>
+          <p>{focusPostId ? text.copy.postNotFound : text.copy.noPostsMatchTheseFilters}</p>
         </div>
       ) : null}
 
@@ -431,14 +436,14 @@ export default function AdminForumDashboard() {
 
                 <div className="admin-meta-grid">
                   <span>
-                    作者：{authorLabel(post)} <code>{shortId(post.author_id)}</code>
+                    {text.copy.author2}{authorLabel(post)} <code>{shortId(post.author_id)}</code>
                   </span>
-                  <span>圈子：{post.circle_name ?? "-"}</span>
-                  <span>媒体：{post.media_count}</span>
-                  <span>视频：{post.video_count}</span>
-                  <span>媒体总大小：{bytesLabel(post.media_total_bytes)}</span>
-                  <span>举报：{post.report_count}</span>
-                  <span>创建时间：{new Date(post.created_at).toLocaleString("zh-CN")}</span>
+                  <span>{text.copy.circle2}{post.circle_name ?? "-"}</span>
+                  <span>{text.copy.media}{post.media_count}</span>
+                  <span>{text.copy.videos}{post.video_count}</span>
+                  <span>{text.copy.totalMediaSize}{bytesLabel(post.media_total_bytes)}</span>
+                  <span>{text.copy.reports2}{post.report_count}</span>
+                  <span>{text.copy.created2}{new Date(post.created_at).toLocaleString(locale)}</span>
                 </div>
 
                 {rowSuccess[post.id] ? <div className="admin-inline-success">{rowSuccess[post.id]}</div> : null}
@@ -461,7 +466,7 @@ export default function AdminForumDashboard() {
                     onClick={() => mutatePost(post.id, "hide")}
                     disabled={hideDisabled}
                   >
-                    {loadingThis && post.status !== "hidden" ? "处理中..." : deleted ? "已删除" : "隐藏帖子"}
+                    {loadingThis && post.status !== "hidden" ? text.copy.processing : deleted ? text.copy.deleted : text.copy.hidePost}
                   </button>
                   <button
                     type="button"
@@ -469,7 +474,7 @@ export default function AdminForumDashboard() {
                     onClick={() => mutatePost(post.id, "restore")}
                     disabled={restoreDisabled}
                   >
-                    {loadingThis && post.status !== "published" ? "处理中..." : deleted ? "已删除" : "恢复公开"}
+                    {loadingThis && post.status !== "published" ? text.copy.processing : deleted ? text.copy.deleted : text.copy.restorePublicVisibility}
                   </button>
                   <button
                     type="button"
@@ -477,7 +482,7 @@ export default function AdminForumDashboard() {
                     onClick={() => mutatePost(post.id, "delete")}
                     disabled={loadingThis || deleted}
                   >
-                    {deleted ? "已删除" : deleteArmed ? "确认删除" : loadingThis ? "处理中..." : "删除帖子"}
+                    {deleted ? text.copy.deleted : deleteArmed ? text.copy.confirmDelete : loadingThis ? text.copy.processing : text.copy.deletePost}
                   </button>
                 </div>
               </article>

@@ -3,18 +3,20 @@ export const prerender = false;
 
 import CommunityLayout from "../../../layouts/CommunityLayout.astro";
 import AdminModerationQueue from "../../../components/admin/AdminModerationQueue";
+import { getUiMessages } from "../../../lib/i18n/catalog";
+const text = getUiMessages(Astro.locals.localeContext.locale).admin;
 ---
 
 <CommunityLayout
-  title="管理员审核队列"
-  description="OpenGlass Hub 管理员社区审核队列。"
+  title={text.pages.moderation.title}
+  description={text.pages.moderation.description}
   noindex={true}
   activeSection="forum"
 >
   <section class="community-section" style="padding-top: 1rem;">
     <h1 class="community-page-title">/admin/moderation</h1>
-    <p class="community-page-subtitle">处理待审核帖子与评论，并查看最近被拒绝或隐藏的内容。</p>
-    <p class="community-page-subtitle"><a href="/admin/forum/" class="community-link">帖子治理</a> · <a href="/admin/reports/" class="community-link">举报列表</a> · <a href="/admin/users/" class="community-link">用户安全</a></p>
-    <AdminModerationQueue client:load />
+    <p class="community-page-subtitle">{text.pages.moderation.lead}</p>
+    <p class="community-page-subtitle"><a href="/admin/forum/" class="community-link">{text.copy.forumGovernance}</a> · <a href="/admin/reports/" class="community-link">{text.copy.reports}</a> · <a href="/admin/users/" class="community-link">{text.copy.userSafetyConsole}</a></p>
+    <AdminModerationQueue localeContext={Astro.locals.localeContext} client:load />
   </section>
 </CommunityLayout>

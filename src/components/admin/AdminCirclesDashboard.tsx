@@ -1,3 +1,7 @@
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import { localizeAdminSessionMessage } from "../../lib/i18n/messages/admin";
+import { useLocale } from "../i18n/useLocale";
 import { useEffect, useState } from "react";
 import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { adminFetch } from "../../lib/admin-api-client";
@@ -55,55 +59,58 @@ type CircleDraft = {
   type: string;
 };
 
-const circleTypes = [
-  { value: "topic", label: "通用话题" },
-  { value: "device", label: "设备圈子" },
-  { value: "project", label: "项目圈子" },
-] as const;
+export default function AdminCirclesDashboard({ localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: { localeContext?: LocaleContext } = {}) {
+  const { context } = useLocale(localeContext);
+  const locale = context.locale;
+  const text = getUiMessages(locale).admin;
+  const circleTypes = [
+    { value: "topic", label: text.copy.generalTopic },
+    { value: "device", label: text.copy.deviceCircle },
+    { value: "project", label: text.copy.projectCircle },
+  ] as const;
 
-function normalizeFileName(fileName: string) {
-  return fileName
-    .toLowerCase()
-    .replace(/[^a-z0-9.\-_]+/g, "-")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+  function normalizeFileName(fileName: string) {
+    return fileName
+      .toLowerCase()
+      .replace(/[^a-z0-9.\-_]+/g, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
 
-function mapCircleError(message: string) {
-  if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在。";
-  if (message.includes("CIRCLE_COVER_UPLOAD_FAILED")) return "圈子封面上传失败。";
-  if (message.includes("INVALID_GENERATED_CIRCLE_SLUG")) return "圈子链接生成失败，请换一个名称后重试。";
-  if (message.includes("CIRCLE_STATUS_SCHEMA_NOT_READY")) return "数据库还没有完成圈子状态 migration，请先执行最新 SQL。";
-  return message;
-}
+  function mapCircleError(message: string) {
+    if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return text.copy.aCircleWithThisNameAlreadyExists;
+    if (message.includes("CIRCLE_COVER_UPLOAD_FAILED")) return text.copy.circleCoverUploadFailed;
+    if (message.includes("INVALID_GENERATED_CIRCLE_SLUG")) return text.copy.circleURLGenerationFailedTryADifferentName;
+    if (message.includes("CIRCLE_STATUS_SCHEMA_NOT_READY")) return text.copy.theCircleStatusMigrationIsNotInstalled;
+    return message;
+  }
 
-function ownerLabel(circle: CircleRecord) {
-  return circle.owner_profile?.display_name || circle.owner_profile?.username || circle.owner_id || "无 owner";
-}
+  function ownerLabel(circle: CircleRecord) {
+    return circle.owner_profile?.display_name || circle.owner_profile?.username || circle.owner_id || text.copy.noOwner;
+  }
 
-function ownerHref(circle: CircleRecord) {
-  return buildProfileHref({
-    id: circle.owner_profile?.id ?? circle.owner_id,
-    username: circle.owner_profile?.username ?? null,
-  });
-}
+  function ownerHref(circle: CircleRecord) {
+    return buildProfileHref({
+      id: circle.owner_profile?.id ?? circle.owner_id,
+      username: circle.owner_profile?.username ?? null,
+    });
+  }
 
-function statusLabel(status: string) {
-  if (status === "active") return "正常使用";
-  if (status === "hidden") return "已隐藏";
-  if (status === "deleted") return "已删除";
-  return status;
-}
+  function statusLabel(status: string) {
+    if (status === "active") return text.copy.activeCircle;
+    if (status === "hidden") return text.copy.hidden;
+    if (status === "deleted") return text.copy.deleted;
+    return status;
+  }
 
-function purgeReasonLabel(reasonCode: string) {
-  if (reasonCode === "CIRCLE_NOT_DELETED") return "只有已删除的圈子可以永久删除。";
-  if (reasonCode === "CIRCLE_HAS_POSTS") return "该圈子仍有帖子，不能永久删除。";
-  if (reasonCode === "CIRCLE_HAS_REPORTS") return "该圈子仍有关联举报记录，不能永久删除。";
-  if (reasonCode === "CIRCLE_NOT_FOUND") return "圈子不存在或已被删除。";
-  return "当前状态不允许永久删除。";
-}
+  function purgeReasonLabel(reasonCode: string) {
+    if (reasonCode === "CIRCLE_NOT_DELETED") return text.copy.onlyDeletedCirclesCanBePermanentlyDeleted;
+    if (reasonCode === "CIRCLE_HAS_POSTS") return text.copy.thisCircleStillHasPostsAndCannotBePermanently;
+    if (reasonCode === "CIRCLE_HAS_REPORTS") return text.copy.thisCircleStillHasReportsAndCannotBePermanently;
+    if (reasonCode === "CIRCLE_NOT_FOUND") return text.copy.theCircleDoesNotExistOrWasDeleted;
+    return text.copy.permanentDeletionIsUnavailableInThisState;
+  }
 
-export default function AdminCirclesDashboard() {
   const adminSession = useAdminSession();
   const [circles, setCircles] = useState<CircleRecord[]>([]);
   const [drafts, setDrafts] = useState<Record<string, CircleDraft>>({});
@@ -151,7 +158,7 @@ export default function AdminCirclesDashboard() {
         );
       } catch (requestError) {
         if (cancelled) return;
-        setError(requestError instanceof Error ? requestError.message : "加载圈子失败");
+        setError(requestError instanceof Error ? requestError.message : text.copy.failedToLoadCircles);
       }
     };
 
@@ -162,7 +169,7 @@ export default function AdminCirclesDashboard() {
   }, [adminSession.session, adminSession.state.status]);
 
   async function uploadCircleImage(file: File, userId: string) {
-    if (!accessToken) throw new Error("登录状态已失效，请重新登录");
+    if (!accessToken) throw new Error(text.copy.yourSessionExpiredSignInAgain);
     const objectPath = `circle-covers/${userId}/${Date.now()}-${normalizeFileName(file.name)}`;
     try {
       await uploadToPostMediaWithTus({ file, objectPath, accessToken });
@@ -213,12 +220,12 @@ export default function AdminCirclesDashboard() {
       setCreateDescription("");
       setCreateType("topic");
       setCreateImage(null);
-      setSuccess("圈子已创建。");
+      setSuccess(text.copy.circleCreated);
     } catch (requestError) {
       if (uploadedPath) {
         await adminSession.supabase?.storage.from("post-media").remove([uploadedPath]).catch(() => undefined);
       }
-      setError(mapCircleError(requestError instanceof Error ? requestError.message : "创建圈子失败"));
+      setError(mapCircleError(requestError instanceof Error ? requestError.message : text.copy.failedToCreateCircle));
     } finally {
       setCreating(false);
     }
@@ -248,9 +255,9 @@ export default function AdminCirclesDashboard() {
       if (payload.circle) {
         setCircles((current) => current.map((circle) => (circle.id === circleId ? { ...circle, ...payload.circle } as CircleRecord : circle)));
       }
-      setSuccess("圈子已更新。");
+      setSuccess(text.copy.circleUpdated);
     } catch (requestError) {
-      setError(mapCircleError(requestError instanceof Error ? requestError.message : "更新圈子失败"));
+      setError(mapCircleError(requestError instanceof Error ? requestError.message : text.copy.failedToUpdateCircle));
     } finally {
       setLoadingId(null);
     }
@@ -282,12 +289,12 @@ export default function AdminCirclesDashboard() {
         setCircles((current) => current.map((item) => (item.id === circle.id ? { ...item, ...payload.circle } as CircleRecord : item)));
       }
 
-      setSuccess(imagePath ? "圈子封面已更新。" : "圈子封面已清除。");
+      setSuccess(imagePath ? text.copy.circleCoverUpdated : text.copy.circleCoverCleared);
     } catch (requestError) {
       if (imagePath) {
         await adminSession.supabase?.storage.from("post-media").remove([imagePath]).catch(() => undefined);
       }
-      setError(mapCircleError(requestError instanceof Error ? requestError.message : "更新封面失败"));
+      setError(mapCircleError(requestError instanceof Error ? requestError.message : text.copy.failedToUpdateCover));
     } finally {
       setLoadingId(null);
     }
@@ -310,9 +317,9 @@ export default function AdminCirclesDashboard() {
       if (payload.circle) {
         setCircles((current) => current.map((circle) => (circle.id === circleId ? { ...circle, ...payload.circle } as CircleRecord : circle)));
       }
-      setSuccess(status === "deleted" ? "圈子已删除。" : status === "hidden" ? "圈子已隐藏。" : "圈子已恢复显示。");
+      setSuccess(status === "deleted" ? text.copy.circleDeleted : status === "hidden" ? text.copy.circleHidden : text.copy.circleVisibilityRestored);
     } catch (requestError) {
-      setError(mapCircleError(requestError instanceof Error ? requestError.message : "更新圈子状态失败"));
+      setError(mapCircleError(requestError instanceof Error ? requestError.message : text.copy.failedToUpdateCircleStatus));
     } finally {
       setLoadingId(null);
     }
@@ -334,7 +341,7 @@ export default function AdminCirclesDashboard() {
       setPurgeConfirmationName("");
       setConfirmCircleAction({ kind: "purge", id: circle.id, name: circle.name, preview: payload.preview });
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "无法读取永久删除预检");
+      setError(requestError instanceof Error ? requestError.message : text.copy.failedToLoadPermanentDeletionChecks);
     } finally {
       setLoadingId(null);
     }
@@ -353,10 +360,10 @@ export default function AdminCirclesDashboard() {
       });
       if (!payload.result?.purged) throw new Error(payload.result?.reasonCode ?? "PURGE_NOT_COMPLETED");
       setCircles((current) => current.filter((circle) => circle.id !== action.id));
-      setSuccess("圈子已永久删除。");
+      setSuccess(text.copy.circlePermanentlyDeleted);
       setConfirmCircleAction(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "永久删除失败");
+      setError(requestError instanceof Error ? requestError.message : text.copy.permanentDeletionFailed);
     } finally {
       setLoadingId(null);
     }
@@ -366,7 +373,7 @@ export default function AdminCirclesDashboard() {
     return (
       <section className="community-surface">
         <div className="community-empty admin-state-message">
-          <strong>{adminSession.state.message}</strong>
+          <strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>
           {"details" in adminSession.state && adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}
         </div>
       </section>
@@ -377,21 +384,21 @@ export default function AdminCirclesDashboard() {
     <section className="community-surface">
       <div className="community-stream-head">
         <div>
-          <h2>管理员圈子管理</h2>
-          <p>查看 owner、帖子/评论数量，并维护圈子信息与封面。</p>
+          <h2>{text.copy.circleManagement}</h2>
+          <p>{text.copy.reviewOwnersPostAndCommentCountsAndMaintainCircle}</p>
         </div>
       </div>
 
       <div className="admin-user-line">
-        当前管理员：{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || adminSession.me?.user_id} · 角色 {adminSession.me?.role}
+        {text.copy.currentAdministrator}{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || adminSession.me?.user_id} {text.copy.role}{adminSession.me?.role}
       </div>
 
-      <div className="admin-inline-actions" role="tablist" aria-label="圈子状态筛选">
+      <div className="admin-inline-actions" role="tablist" aria-label={text.copy.circleStatusFilters}>
         {([
-          ["all", "全部"],
-          ["active", "正常使用"],
-          ["hidden", "已隐藏"],
-          ["deleted", "已删除"],
+          ["all", text.copy.all],
+          ["active", text.copy.activeCircle],
+          ["hidden", text.copy.hidden],
+          ["deleted", text.copy.deleted],
         ] as Array<[CircleFilter, string]>).map(([filter, label]) => (
           <button key={filter} type="button" className={statusFilter === filter ? "community-button" : "community-button--secondary"} onClick={() => setStatusFilter(filter)}>
             {label} {filter === "all" ? circles.length : circles.filter((circle) => circle.status === filter).length}
@@ -401,14 +408,14 @@ export default function AdminCirclesDashboard() {
 
       <div className="community-list" style={{ gap: "0.8rem", marginTop: "0.8rem" }}>
         <article className="community-list-item" style={{ gap: "0.75rem" }}>
-          <strong>创建圈子</strong>
+          <strong>{text.copy.createCircle}</strong>
           <div className="admin-meta-grid">
             <label>
-              <span>圈子名称</span>
+              <span>{text.copy.circleName}</span>
               <input className="community-input" value={createName} onChange={(event) => setCreateName(event.target.value)} maxLength={40} />
             </label>
             <label>
-              <span>圈子类型</span>
+              <span>{text.copy.circleType}</span>
               <select className="community-input" value={createType} onChange={(event) => setCreateType(event.target.value as (typeof circleTypes)[number]["value"])}>
                 {circleTypes.map((item) => (
                   <option key={item.value} value={item.value}>{item.label}</option>
@@ -416,17 +423,17 @@ export default function AdminCirclesDashboard() {
               </select>
             </label>
             <label>
-              <span>封面图片</span>
+              <span>{text.copy.coverImageFile}</span>
               <input className="community-input" type="file" accept="image/*" onChange={(event) => setCreateImage(event.target.files?.[0] ?? null)} />
             </label>
           </div>
           <label>
-            <span className="community-meta">圈子说明</span>
+            <span className="community-meta">{text.copy.circleDescription}</span>
             <textarea className="community-input community-input--textarea" value={createDescription} onChange={(event) => setCreateDescription(event.target.value)} maxLength={200} />
           </label>
           <div className="admin-inline-actions">
             <button type="button" className="admin-action-button" onClick={() => void handleCreate()} disabled={creating}>
-              {creating ? "创建中..." : "创建圈子"}
+              {creating ? text.copy.creating : text.copy.createCircle}
             </button>
           </div>
         </article>
@@ -446,7 +453,7 @@ export default function AdminCirclesDashboard() {
             <article key={circle.id} className="community-list-item" style={{ gap: "0.7rem" }}>
               {circle.cover_url ? (
                 <div className="create-circle-form__preview">
-                  <img src={circle.cover_url} alt={`${circle.name} 圈子封面`} />
+                  <img src={circle.cover_url} alt={formatUiMessage(text.copy.circleCoverAlt, { value0: circle.name })} />
                 </div>
               ) : null}
               <div className="admin-action-row">
@@ -457,14 +464,14 @@ export default function AdminCirclesDashboard() {
               <div className="admin-meta-grid">
                 <span>owner：{ownerHref(circle) ? <a href={ownerHref(circle)!} className="community-post-meta__link">{ownerLabel(circle)}</a> : ownerLabel(circle)}</span>
                 <span>slug：<code>{circle.slug}</code></span>
-                <span>创建时间：{new Date(circle.created_at).toLocaleString("zh-CN")}</span>
-                <span>封面：{circle.image_path ? "已设置" : "未设置"}</span>
-                <span>帖子：{circle.post_count}</span>
-                <span>评论：{circle.comment_count}</span>
+                <span>{text.copy.created2}{new Date(circle.created_at).toLocaleString(locale)}</span>
+                <span>{text.copy.cover}{circle.image_path ? text.copy.set : text.copy.notSet}</span>
+                <span>{text.copy.post2}{circle.post_count}</span>
+                <span>{text.copy.comments}{circle.comment_count}</span>
               </div>
               <div className="admin-meta-grid">
                 <label>
-                  <span>圈子名称</span>
+                  <span>{text.copy.circleName}</span>
                   <input
                     className="community-input"
                     value={draft.name}
@@ -477,7 +484,7 @@ export default function AdminCirclesDashboard() {
                   />
                 </label>
                 <label>
-                  <span>圈子类型</span>
+                  <span>{text.copy.circleType}</span>
                   <select
                     className="community-input"
                     value={draft.type}
@@ -494,12 +501,12 @@ export default function AdminCirclesDashboard() {
                   </select>
                 </label>
                 <label>
-                  <span>更新封面</span>
+                  <span>{text.copy.updateCover}</span>
                   <input className="community-input" type="file" accept="image/*" onChange={(event) => void updateCover(circle, event.target.files?.[0] ?? null)} disabled={rowLoading} />
                 </label>
               </div>
               <label>
-                <span className="community-meta">圈子说明</span>
+                <span className="community-meta">{text.copy.circleDescription}</span>
                 <textarea
                   className="community-input community-input--textarea"
                   value={draft.description}
@@ -514,20 +521,19 @@ export default function AdminCirclesDashboard() {
               </label>
               <div className="admin-inline-actions">
                 <button type="button" className="admin-action-button" onClick={() => void saveCircle(circle.id)} disabled={rowLoading}>
-                  {rowLoading ? "保存中..." : "保存修改"}
+                  {rowLoading ? text.copy.savingChanges : text.copy.saveChanges}
                 </button>
                 <button type="button" className="admin-action-button" onClick={() => void updateCover(circle, null)} disabled={rowLoading}>
-                  清除封面
-                </button>
+                  {text.copy.clearCover}</button>
                 {circle.status === "active" ? (
                   <>
-                    <button type="button" className="admin-action-button" onClick={() => void updateCircleStatus(circle.id, "hidden")} disabled={rowLoading}>隐藏</button>
-                    <button type="button" className="admin-action-button admin-action-danger" onClick={() => setConfirmCircleAction({ kind: "status", id: circle.id, name: circle.name, nextStatus: "deleted" })} disabled={rowLoading}>删除</button>
+                    <button type="button" className="admin-action-button" onClick={() => void updateCircleStatus(circle.id, "hidden")} disabled={rowLoading}>{text.copy.hide}</button>
+                    <button type="button" className="admin-action-button admin-action-danger" onClick={() => setConfirmCircleAction({ kind: "status", id: circle.id, name: circle.name, nextStatus: "deleted" })} disabled={rowLoading}>{text.copy.delete}</button>
                   </>
                 ) : circle.status === "hidden" ? (
                   <>
-                    <button type="button" className="admin-action-button" onClick={() => void updateCircleStatus(circle.id, "active")} disabled={rowLoading}>恢复显示</button>
-                    <button type="button" className="admin-action-button admin-action-danger" onClick={() => setConfirmCircleAction({ kind: "status", id: circle.id, name: circle.name, nextStatus: "deleted" })} disabled={rowLoading}>删除</button>
+                    <button type="button" className="admin-action-button" onClick={() => void updateCircleStatus(circle.id, "active")} disabled={rowLoading}>{text.copy.restoreVisibility}</button>
+                    <button type="button" className="admin-action-button admin-action-danger" onClick={() => setConfirmCircleAction({ kind: "status", id: circle.id, name: circle.name, nextStatus: "deleted" })} disabled={rowLoading}>{text.copy.delete}</button>
                   </>
                 ) : (
                   <>
@@ -537,23 +543,21 @@ export default function AdminCirclesDashboard() {
                     onClick={() => void updateCircleStatus(circle.id, "active")}
                     disabled={rowLoading}
                   >
-                    恢复圈子
-                  </button>
+                    {text.copy.restoreCircle}</button>
                   <button
                     type="button"
                     className="admin-action-button admin-action-danger"
                     onClick={() => void startPurge(circle)}
                     disabled={rowLoading}
                   >
-                    永久删除
-                  </button>
+                    {text.copy.permanentlyDelete}</button>
                   </>
                 )}
-                <a href={`/circles/${circle.slug}/manage/`} className="admin-action-button">管理帖子和评论</a>
+                <a href={`/circles/${circle.slug}/manage/`} className="admin-action-button">{text.copy.managePostsAndComments}</a>
                 {circle.status !== "active" ? (
-                  <span className="admin-action-button" aria-disabled="true">公开页已隐藏</span>
+                  <span className="admin-action-button" aria-disabled="true">{text.copy.publicPageHidden}</span>
                 ) : (
-                  <a href={`/circles/${circle.slug}/`} className="admin-action-button">查看公开页</a>
+                  <a href={`/circles/${circle.slug}/`} className="admin-action-button">{text.copy.viewPublicPage}</a>
                 )}
               </div>
             </article>
@@ -563,15 +567,15 @@ export default function AdminCirclesDashboard() {
 
       <GlassConfirmDialog
         open={!!confirmCircleAction}
-        title={confirmCircleAction?.kind === "purge" ? "永久删除" : "确认删除圈子"}
-        description={confirmCircleAction?.kind === "purge" ? "此操作无法恢复。只有不存在帖子和圈子举报记录时才能继续。" : "删除后圈子会从公开列表、圈子详情和发帖选择器中隐藏，但数据库记录仍会保留。"}
-        detail={confirmCircleAction?.kind === "purge" ? `帖子: ${confirmCircleAction.preview.postCount} · 举报记录: ${confirmCircleAction.preview.circleReportCount} · 封面: ${confirmCircleAction.preview.hasCover ? "有" : "无"}${confirmCircleAction.preview.allowed ? "" : ` · ${purgeReasonLabel(confirmCircleAction.preview.reasonCode)}`}` : confirmCircleAction ? `目标：${confirmCircleAction.name}` : ""}
-        confirmLabel={confirmCircleAction?.kind === "purge" ? "确认永久删除" : "确认删除圈子"}
-        cancelLabel="取消"
+        title={confirmCircleAction?.kind === "purge" ? text.copy.permanentlyDelete : text.copy.confirmCircleDeletion}
+        description={confirmCircleAction?.kind === "purge" ? text.copy.thisCannotBeUndoneContinueOnlyWhenTheCircle : text.copy.deletionHidesTheCircleFromPublicListsItsDetail}
+        detail={confirmCircleAction?.kind === "purge" ? formatUiMessage(text.copy.circlePurgeSummary, { value0: confirmCircleAction.preview.postCount, value1: confirmCircleAction.preview.circleReportCount, value2: confirmCircleAction.preview.hasCover ? "有" : "无", value3: confirmCircleAction.preview.allowed ? "" : ` · ${purgeReasonLabel(confirmCircleAction.preview.reasonCode)}` }) : confirmCircleAction ? formatUiMessage(text.copy.targetNameValue, { value0: confirmCircleAction.name }) : ""}
+        confirmLabel={confirmCircleAction?.kind === "purge" ? text.copy.confirmPermanentDeletion : text.copy.confirmCircleDeletion}
+        cancelLabel={text.copy.cancel}
         danger={true}
         loading={!!confirmCircleAction && loadingId === confirmCircleAction.id}
         error=""
-        confirmationLabel={confirmCircleAction?.kind === "purge" && confirmCircleAction.preview.allowed ? `输入圈子名称以确认：${confirmCircleAction.name}` : undefined}
+        confirmationLabel={confirmCircleAction?.kind === "purge" && confirmCircleAction.preview.allowed ? formatUiMessage(text.copy.enterCircleNameValue, { value0: confirmCircleAction.name }) : undefined}
         confirmationText={confirmCircleAction?.kind === "purge" && confirmCircleAction.preview.allowed ? confirmCircleAction.name : undefined}
         confirmDisabled={confirmCircleAction?.kind === "purge" && !confirmCircleAction.preview.allowed}
         onConfirmationChange={setPurgeConfirmationName}

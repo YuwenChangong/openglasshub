@@ -1,3 +1,7 @@
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import { localizeAdminSessionMessage } from "../../lib/i18n/messages/admin";
+import { useLocale } from "../i18n/useLocale";
 import { useEffect, useState } from "react";
 import { AdminApiError, adminFetch } from "../../lib/admin-api-client";
 import { useAdminSession } from "./useAdminSession";
@@ -35,29 +39,32 @@ type MediaDeletePayload = {
   warnings?: unknown;
 };
 
-function bytesLabel(bytes: number | null): string {
-  const value = Number(bytes ?? 0);
-  if (!Number.isFinite(value) || value <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  let current = value;
-  let idx = 0;
-  while (current >= 1024 && idx < units.length - 1) {
-    current /= 1024;
-    idx += 1;
+export default function AdminMediaDashboard({ localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: { localeContext?: LocaleContext } = {}) {
+  const { context } = useLocale(localeContext);
+  const locale = context.locale;
+  const text = getUiMessages(locale).admin;
+  function bytesLabel(bytes: number | null): string {
+    const value = Number(bytes ?? 0);
+    if (!Number.isFinite(value) || value <= 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    let current = value;
+    let idx = 0;
+    while (current >= 1024 && idx < units.length - 1) {
+      current /= 1024;
+      idx += 1;
+    }
+    return `${current.toFixed(current >= 10 ? 0 : 1)} ${units[idx]}`;
   }
-  return `${current.toFixed(current >= 10 ? 0 : 1)} ${units[idx]}`;
-}
 
-function shortId(id: string | null | undefined): string {
-  if (!id) return "-";
-  return `${id.slice(0, 8)}...`;
-}
+  function shortId(id: string | null | undefined): string {
+    if (!id) return "-";
+    return `${id.slice(0, 8)}...`;
+  }
 
-function uploaderLabel(item: AdminMedia): string {
-  return item.uploader_profile?.display_name || item.uploader_profile?.username || "未知用户";
-}
+  function uploaderLabel(item: AdminMedia): string {
+    return item.uploader_profile?.display_name || item.uploader_profile?.username || text.copy.unknownUser;
+  }
 
-export default function AdminMediaDashboard() {
   const adminSession = useAdminSession();
   const [filter, setFilter] = useState<Filter>("all");
   const [dataState, setDataState] = useState<DataState>("idle");
@@ -92,7 +99,7 @@ export default function AdminMediaDashboard() {
         if (requestError instanceof AdminApiError && requestError.status === 401) {
           adminSession.setState({
             status: "signed_out",
-            message: "登录状态已失效，请重新登录",
+            message: text.copy.yourSessionExpiredSignInAgain,
             details: `api status code: 401 | error message: ${requestError.message}`,
           });
           return;
@@ -100,7 +107,7 @@ export default function AdminMediaDashboard() {
         if (requestError instanceof AdminApiError && requestError.status === 403) {
           adminSession.setState({
             status: "forbidden",
-            message: "当前账号没有管理员权限",
+            message: text.copy.thisAccountDoesNotHaveAdministratorAccess,
             details:
               typeof requestError.details === "string"
                 ? requestError.details
@@ -108,7 +115,7 @@ export default function AdminMediaDashboard() {
           });
           return;
         }
-        setError(requestError instanceof Error ? requestError.message : "加载媒体列表失败");
+        setError(requestError instanceof Error ? requestError.message : text.copy.failedToLoadMedia);
         setDataState("error");
       }
     };
@@ -132,61 +139,61 @@ export default function AdminMediaDashboard() {
       });
       setItems((current) => current.filter((item) => item.id !== id));
       setSuccessMessage(
-        payload.warnings ? `媒体已删除，带警告：${JSON.stringify(payload.warnings)}` : "媒体已删除并完成存储清理",
+        payload.warnings ? formatUiMessage(text.copy.mediaDeletedWarning, { value0: JSON.stringify(payload.warnings) }) : text.copy.mediaDeletedAndStorageCleaned,
       );
     } catch (requestError) {
       if (requestError instanceof AdminApiError && requestError.status === 401) {
         adminSession.setState({
           status: "signed_out",
-          message: "登录状态已失效，请重新登录",
+          message: text.copy.yourSessionExpiredSignInAgain,
           details: `api status code: 401 | error message: ${requestError.message}`,
         });
       } else if (requestError instanceof AdminApiError && requestError.status === 403) {
         adminSession.setState({
           status: "forbidden",
-          message: "当前账号没有管理员权限",
+          message: text.copy.thisAccountDoesNotHaveAdministratorAccess,
           details:
             typeof requestError.details === "string"
               ? requestError.details
               : `api status code: 403 | error message: ${requestError.message}`,
         });
       }
-      setError(requestError instanceof Error ? requestError.message : "删除媒体失败");
+      setError(requestError instanceof Error ? requestError.message : text.copy.failedToDeleteMedia);
     } finally {
       setActionLoadingId(null);
     }
   }
 
   if (adminSession.state.status === "checking") {
-    return <div className="community-empty admin-state-message"><strong>{adminSession.state.message}</strong></div>;
+    return <div className="community-empty admin-state-message"><strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong></div>;
   }
   if (adminSession.state.status === "timeout") {
-    return <div className="community-empty admin-state-message admin-timeout"><strong>{adminSession.state.message}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
+    return <div className="community-empty admin-state-message admin-timeout"><strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
   }
   if (adminSession.state.status === "signed_out") {
-    return <div className="community-empty admin-state-message"><strong>{adminSession.state.message}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
+    return <div className="community-empty admin-state-message"><strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
   }
   if (adminSession.state.status === "forbidden") {
-    return <div className="community-empty admin-state-message admin-error"><strong>{adminSession.state.message}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
+    return <div className="community-empty admin-state-message admin-error"><strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
   }
   if (adminSession.state.status === "error") {
-    return <div className="community-empty admin-state-message admin-error"><strong>{adminSession.state.message}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
+    return <div className="community-empty admin-state-message admin-error"><strong>{localizeAdminSessionMessage(adminSession.state.message, locale)}</strong>{adminSession.state.details ? <p className="admin-debug-note">{adminSession.state.details}</p> : null}</div>;
   }
 
   return (
     <section className="community-surface">
       <div className="community-stream-head">
         <div>
-          <h2>媒体审计</h2>
-          <p>查看最近媒体、绑定帖子、上传者和清理状态。</p>
+          <h2>{text.copy.mediaAudit}</h2>
+          <p>{text.copy.reviewRecentMediaLinkedPostsUploadersAndCleanupStatus}</p>
         </div>
         <div className="community-cta-row">
           {[
-            ["all", "全部"],
-            ["video", "视频"],
-            ["large", "大文件"],
-            ["unbound", "未绑定"],
-            ["recent", "最近 24h"],
+            ["all", text.copy.all],
+            ["video", text.copy.video],
+            ["large", text.copy.largeFiles],
+            ["unbound", text.copy.unbound],
+            ["recent", text.copy.last24Hours],
           ].map(([value, label]) => (
             <button
               key={value}
@@ -201,17 +208,17 @@ export default function AdminMediaDashboard() {
       </div>
 
       <div className="admin-user-line">
-        当前管理员：{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || shortId(adminSession.me?.user_id)} · 角色 {adminSession.me?.role}
+        {text.copy.currentAdministrator}{adminSession.me?.profile?.display_name || adminSession.me?.profile?.username || shortId(adminSession.me?.user_id)} {text.copy.role}{adminSession.me?.role}
       </div>
 
       {error ? <div className="admin-error">{error}</div> : null}
       {successMessage ? <div className="admin-inline-success">{successMessage}</div> : null}
-      {dataState === "loading" ? <p className="community-meta admin-state-message">正在加载媒体列表...</p> : null}
+      {dataState === "loading" ? <p className="community-meta admin-state-message">{text.copy.loadingMedia}</p> : null}
 
       {dataState === "ready" && items.length === 0 ? (
         <div className="community-empty">
-          <strong>暂无媒体</strong>
-          <p>当前筛选条件下没有媒体记录。</p>
+          <strong>{text.copy.noMedia}</strong>
+          <p>{text.copy.noMediaMatchesTheseFilters}</p>
         </div>
       ) : null}
 
@@ -221,25 +228,25 @@ export default function AdminMediaDashboard() {
             <article key={item.id} className="community-list-item" style={{ gap: "0.6rem" }}>
               <div className="admin-action-row">
                 <strong>{item.kind.toUpperCase()} · {bytesLabel(item.size_bytes)}</strong>
-                {!item.is_bound_to_post ? <span className="admin-status-badge admin-status-hidden">未绑定</span> : null}
+                {!item.is_bound_to_post ? <span className="admin-status-badge admin-status-hidden">{text.copy.unbound}</span> : null}
                 {item.post_status ? <span className="admin-status-badge">{item.post_status}</span> : null}
               </div>
               <div className="admin-meta-grid">
-                <span>帖子：{item.post_title ?? "(未绑定)"} {item.post_id ? <code>{shortId(item.post_id)}</code> : null}</span>
-                <span>上传者：{uploaderLabel(item)} <code>{shortId(item.user_id)}</code></span>
+                <span>{text.copy.post2}{item.post_title ?? text.copy.unbound2} {item.post_id ? <code>{shortId(item.post_id)}</code> : null}</span>
+                <span>{text.copy.uploader}{uploaderLabel(item)} <code>{shortId(item.user_id)}</code></span>
                 <span>mime：{item.mime_type ?? "-"}</span>
-                <span>创建时间：{new Date(item.created_at).toLocaleString("zh-CN")}</span>
+                <span>{text.copy.created2}{new Date(item.created_at).toLocaleString(locale)}</span>
               </div>
               <p className="admin-post-excerpt">{item.storage_path ?? item.url ?? "-"}</p>
               <div className="admin-action-row">
-                {item.url ? <a href={item.url} target="_blank" rel="noreferrer" className="admin-action-button">打开媒体</a> : null}
+                {item.url ? <a href={item.url} target="_blank" rel="noreferrer" className="admin-action-button">{text.copy.openMedia}</a> : null}
                 <button
                   type="button"
                   className="admin-action-button admin-action-danger"
                   onClick={() => removeMedia(item.id)}
                   disabled={actionLoadingId === item.id}
                 >
-                  {actionLoadingId === item.id ? "处理中..." : "删除媒体"}
+                  {actionLoadingId === item.id ? text.copy.processing : text.copy.deleteMedia}
                 </button>
               </div>
             </article>
