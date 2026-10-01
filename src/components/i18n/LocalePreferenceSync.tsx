@@ -28,5 +28,5 @@ export default function LocalePreferenceSync({ initial, clientAdapter }: { initi
     if (auth.status === "signed_in") void sync.setActor(auth.user!.id);
     else if (auth.status === "signed_out") void sync.setActor(null);
   }, [sync, auth.status, auth.user?.id]);
-  return null;
+  return <></>;
 }

@@ -1,5 +1,8 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
+
 type SearchPostResult = {
   id: string;
   title: string;
@@ -23,12 +26,15 @@ type Props = {
   className?: string;
   compact?: boolean;
   circleSlug?: string;
+  localeContext?: LocaleContext;
 };
 
 const MIN_QUERY_LENGTH = 2;
 const PREVIEW_LIMIT = 3;
 
-export default function GlobalSearchBox({ className = "", compact = false, circleSlug }: Props) {
+export default function GlobalSearchBox({ className = "", compact = false, circleSlug, localeContext = resolveLocale({}) }: Props) {
+  const { messages } = useLocale(localeContext);
+  const text = messages.shell;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -205,7 +211,7 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
     <div className={wrapperClassName} ref={rootRef}>
       <form className="global-search-box__form" onSubmit={handleSubmit} role="search" action="/search/" method="get">
         <label className="global-search-box__field">
-          <span className="sr-only">搜索</span>
+          <span className="sr-only">{text.search}</span>
           <input
             type="search"
             name="q"
@@ -217,7 +223,7 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
               }
             }}
             className="glass-input global-search-box__input"
-            placeholder="搜索"
+            placeholder={text.search}
             autoComplete="off"
             aria-haspopup="listbox"
             aria-expanded={dropdownVisible}
@@ -232,21 +238,21 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
             void fetchPreview(trimmedQuery);
           }}
         >
-          搜索
+          {text.search}
         </button>
       </form>
 
       {dropdownVisible ? (
-        <div id="global-search-preview" className="global-search-box__dropdown glass-card is-open" role="listbox" aria-label="快速搜索结果">
+        <div id="global-search-preview" className="global-search-box__dropdown glass-card is-open" role="listbox" aria-label={text.quickResults}>
           <div className="global-search-box__dropdown-head">
-            <strong>搜索结果</strong>
+            <strong>{text.searchResults}</strong>
             <a href={detailHref} className="community-link">
-              查看详情
+              {text.viewDetails}
             </a>
           </div>
 
           {loading ? (
-            <div className="global-search-box__empty">搜索中…</div>
+            <div className="global-search-box__empty">{text.searching}</div>
           ) : hasResults ? (
             <div className="global-search-box__list">
               {posts.map((post) => (
@@ -262,7 +268,7 @@ export default function GlobalSearchBox({ className = "", compact = false, circl
               ))}
             </div>
           ) : (
-            <div className="global-search-box__empty">没有找到相关内容</div>
+            <div className="global-search-box__empty">{text.noSearchResults}</div>
           )}
         </div>
       ) : null}

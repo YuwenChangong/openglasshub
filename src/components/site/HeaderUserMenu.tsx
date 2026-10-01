@@ -7,6 +7,8 @@ import type { User } from "@supabase/supabase-js";
 import type { AuthViewState } from "../../lib/legal-consent-adapters";
 import type { UserSummarySuccess } from "../../lib/user-summary";
 import { buildHeaderIdentity } from "../../lib/header-identity";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
 type SummaryState =
   | { actorId: string | null; status: "idle" | "loading" | "error" }
@@ -22,6 +24,7 @@ type PopoverPosition = {
 
 interface HeaderUserMenuProps {
   next?: string;
+  localeContext?: LocaleContext;
   identityAdapter?: {
     state: { viewState: AuthViewState; user: User | null };
     getAccessToken(): Promise<string | null>;
@@ -39,7 +42,9 @@ function supportsHover() {
   return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 }
 
-export default function HeaderUserMenu({ next = "/", identityAdapter }: HeaderUserMenuProps) {
+export default function HeaderUserMenu({ next = "/", identityAdapter, localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: HeaderUserMenuProps) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.shell;
   const supabase = useMemo(() => identityAdapter ? null : createBrowserSupabaseClient(), [identityAdapter]);
   const safeNext = useMemo(() => getSafeNext(next), [next]);
   const browserAuth = useBrowserAuthState(supabase);
@@ -262,10 +267,10 @@ export default function HeaderUserMenu({ next = "/", identityAdapter }: HeaderUs
     return (
       <div className="ogh-auth-inline">
         <a href={buildLoginHref(safeNext)} className="ogh-login-button">
-          登录
+          {text.login}
         </a>
         <a href={buildSignupHref(safeNext)} className="ogh-register-button">
-          注册
+          {text.signup}
         </a>
       </div>
     );
@@ -275,10 +280,10 @@ export default function HeaderUserMenu({ next = "/", identityAdapter }: HeaderUs
     return (
       <div className="ogh-auth-inline">
         <a href={buildLoginHref(safeNext)} className="ogh-login-button">
-          登录
+          {text.login}
         </a>
         <a href={buildSignupHref(safeNext)} className="ogh-register-button">
-          注册
+          {text.signup}
         </a>
       </div>
     );
@@ -286,7 +291,7 @@ export default function HeaderUserMenu({ next = "/", identityAdapter }: HeaderUs
 
   const currentSummaryState = summaryState.actorId === actorId ? summaryState : null;
   const summary = currentSummaryState?.status === "ready" ? currentSummaryState.data : null;
-  const identity = buildHeaderIdentity({ user, profile: summary?.profile ?? null, locale: "zh-CN" });
+  const identity = buildHeaderIdentity({ user, profile: summary?.profile ?? null, locale: context.locale });
   const avatarUrl = failedAvatar?.actorId === actorId && failedAvatar.url === identity.avatarUrl ? null : identity.avatarUrl;
   const profileHref = summary?.profile.profile_href ?? `/users/${encodeURIComponent(user.id)}/`;
   const postCount = summary?.stats.post_count;
@@ -299,7 +304,7 @@ export default function HeaderUserMenu({ next = "/", identityAdapter }: HeaderUs
           ref={popoverRef}
           className={`header-user-menu__popover header-user-menu__popover--fixed${position.ready ? " is-ready" : ""}`}
           role="menu"
-          aria-label="账户菜单"
+          aria-label={text.accountMenu}
           style={{
             position: "fixed",
             top: `${position.top}px`,
@@ -335,26 +340,26 @@ export default function HeaderUserMenu({ next = "/", identityAdapter }: HeaderUs
 
           <div className="header-user-menu__stats">
             <div className="header-user-menu__stat">
-              <span>发帖</span>
-              <strong>{postCount === null || postCount === undefined ? "不可用" : postCount}</strong>
+              <span>{text.postCount}</span>
+              <strong>{postCount === null || postCount === undefined ? text.unavailable : postCount}</strong>
             </div>
             <div className="header-user-menu__stat">
-              <span>获赞</span>
-              <strong>{receivedLikeCount === null || receivedLikeCount === undefined ? "不可用" : receivedLikeCount}</strong>
+              <span>{text.likeCount}</span>
+              <strong>{receivedLikeCount === null || receivedLikeCount === undefined ? text.unavailable : receivedLikeCount}</strong>
             </div>
           </div>
 
           <div className="header-user-menu__actions">
             {currentSummaryState?.status === "error" && retryCount === 0 ? (
               <button type="button" className="header-user-menu__action header-user-menu__action--button" onClick={() => setRetry({ actorId: user.id, count: 1 })}>
-                重试
+                {text.retry}
               </button>
             ) : null}
             <a href={profileHref} className="header-user-menu__action" role="menuitem" onClick={() => setOpen(false)}>
-              个人主页
+              {text.profile}
             </a>
             <a href="/me/edit/" className="header-user-menu__action" role="menuitem" onClick={() => setOpen(false)}>
-              编辑资料
+              {text.editProfile}
             </a>
             <button
               type="button"
@@ -363,7 +368,7 @@ export default function HeaderUserMenu({ next = "/", identityAdapter }: HeaderUs
               onClick={() => void handleSignOut()}
               disabled={signingOut}
             >
-              {signingOut ? "退出中..." : "退出登录"}
+              {signingOut ? text.signingOut : text.logout}
             </button>
           </div>
         </div>,
@@ -393,7 +398,7 @@ export default function HeaderUserMenu({ next = "/", identityAdapter }: HeaderUs
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="header-user-menu"
-        aria-label="打开账户菜单"
+        aria-label={text.openAccount}
       >
         {avatarUrl ? (
           <img src={avatarUrl} alt="" className="header-user-menu__avatar" decoding="async" onError={() => setFailedAvatar({ actorId: user.id, url: avatarUrl })} />

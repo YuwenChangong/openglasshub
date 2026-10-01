@@ -1,5 +1,7 @@
 export type NavKey = "home" | "forum" | "news" | "products" | "launcher";
 import { isGazeLauncherPublicEnabled } from "./gaze-launcher-visibility";
+import type { ResolvedLocale } from "./i18n/locale";
+import { getUiMessages } from "./i18n/catalog";
 
 const navigation = [
   { key: "home", label: "首页", href: "/" },
@@ -10,6 +12,11 @@ const navigation = [
 export const mainNav = isGazeLauncherPublicEnabled()
   ? [...navigation, { key: "launcher", label: "Gaze Launcher", href: "/gaze-launcher/" }]
   : navigation;
+
+export function getMainNav(locale: ResolvedLocale) {
+  const labels = getUiMessages(locale).shell;
+  return mainNav.map(item => ({ ...item, label: labels[item.key] }));
+}
 
 export const productLinks = [
   {

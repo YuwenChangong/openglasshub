@@ -3,8 +3,9 @@ import HeaderUserMenu from "./HeaderUserMenu";
 import HeaderNotifications from "./HeaderNotifications";
 import GlobalSearchBox from "../community/GlobalSearchBox";
 import LocalePreferenceSync from "../i18n/LocalePreferenceSync";
-import { resolveLocale } from "../../lib/i18n/locale";
-import { inferNavKey, mainNav, type NavKey } from "../../lib/site-navigation";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+import { inferNavKey, getMainNav, type NavKey } from "../../lib/site-navigation";
 
 interface Props {
   currentPath?: string;
@@ -12,15 +13,18 @@ interface Props {
   next?: string;
   variant?: "site" | "starlight";
   showSearch?: boolean;
+  localeContext?: LocaleContext;
 }
 
 const { currentPath = Astro.url.pathname, currentSection, next = currentPath, variant = "site", showSearch = true } = Astro.props;
 const activeKey = currentSection ?? inferNavKey(currentPath);
+const localeContext = Astro.props.localeContext ?? Astro.locals.localeContext ?? resolveLocale({});
+const messages = getUiMessages(localeContext.locale);
 ---
 
 <header class:list={["og-header", "ogh-site-header", { "is-starlight": variant === "starlight" }]}>
   <div class="og-header__inner ogh-site-header__inner">
-    <a href="/" class="og-header__brand ogh-brand" aria-label="OpenGlass Hub 首页">
+    <a href="/" class="og-header__brand ogh-brand" aria-label={`OpenGlass Hub ${messages.shell.home}`}>
       <img src="/brand/openglass-nav-logo.png" alt="" width="34" height="34" decoding="async" />
       <span>OpenGlass Hub</span>
     </a>
@@ -30,15 +34,17 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
       type="button"
       aria-expanded="false"
       aria-controls="primary-site-navigation"
-      aria-label="打开站点导航"
+      aria-label={messages.shell.openNavigation}
+      data-open-label={messages.shell.openNavigation}
+      data-close-label={messages.shell.closeNavigation}
     >
       <span aria-hidden="true"></span>
       <span aria-hidden="true"></span>
       <span aria-hidden="true"></span>
     </button>
 
-    <nav id="primary-site-navigation" class="og-header__nav ogh-nav" aria-label="站点导航" data-open="false">
-      {mainNav.map((item) => (
+    <nav id="primary-site-navigation" class="og-header__nav ogh-nav" aria-label={messages.shell.navigation} data-open="false">
+      {getMainNav(localeContext.locale).map((item) => (
         <a
           href={item.href}
           class:list={["og-header__link", { "is-active": activeKey === item.key }]}
@@ -51,30 +57,41 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
 
     {showSearch ? (
       <div class="og-header__search">
-        <GlobalSearchBox compact={true} client:load />
+        <GlobalSearchBox compact={true} localeContext={localeContext} client:load />
       </div>
     ) : null}
 
     <div class="og-header__auth ogh-header-actions">
-      <HeaderNotifications client:only="react" />
-      <HeaderUserMenu next={next} client:load />
+      <span class="og-header__action-slot" data-header-action="notifications"><HeaderNotifications localeContext={localeContext} client:only="react" /></span>
+      <a href="/settings/" class="og-header__settings" data-header-action="settings" aria-label={messages.shell.settings} title={messages.shell.settings} data-confirm-message={messages.settings.confirmNavigation}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" focusable="false">
+          <path d="m9 3 1-1h4l1 1 .6 2 1.8 1 2-.5 2 3.5-1.4 1.5v2l1.4 1.5-2 3.5-2-.5-1.8 1-.6 2-1 1h-4l-1-1-.6-2-1.8-1-2 .5-2-3.5L3 12.5v-2L1.6 9l2-3.5 2 .5 1.8-1Z" /><circle cx="12" cy="11.5" r="3" />
+        </svg>
+      </a>
+      <span class="og-header__action-slot" data-header-action="account"><HeaderUserMenu next={next} localeContext={localeContext} client:load /></span>
     </div>
   </div>
 </header>
-<LocalePreferenceSync initial={Astro.locals.localeContext ?? resolveLocale({})} client:load />
+<LocalePreferenceSync initial={localeContext} client:load />
 
 <script>
+  import { confirmSettingsNavigation } from "../settings/SettingsPage";
   document.querySelectorAll<HTMLElement>(".og-header").forEach((header) => {
     const toggle = header.querySelector<HTMLButtonElement>(".og-header__menu-toggle");
     const navigation = header.querySelector<HTMLElement>(".og-header__nav");
     const setMenuOpen = (open: boolean) => {
       if (!toggle || !navigation) return;
       toggle.setAttribute("aria-expanded", String(open));
-      toggle.setAttribute("aria-label", open ? "关闭站点导航" : "打开站点导航");
+      toggle.setAttribute("aria-label", (open ? toggle.dataset.closeLabel : toggle.dataset.openLabel) ?? "");
       navigation.dataset.open = String(open);
     };
 
     toggle?.addEventListener("click", () => setMenuOpen(toggle.getAttribute("aria-expanded") !== "true"));
+    header.querySelector<HTMLAnchorElement>(".og-header__settings")?.addEventListener("click", event => {
+      const hasUnsavedInput = [...document.querySelectorAll<HTMLInputElement>('form input[type="password"], form input[type="email"]')].some(input => !!input.value);
+      const link = event.currentTarget as HTMLAnchorElement;
+      if (!confirmSettingsNavigation(location.pathname, hasUnsavedInput, message => window.confirm(message), link.dataset.confirmMessage ?? "")) event.preventDefault();
+    });
     navigation?.addEventListener("click", (event) => {
       if (event.target instanceof HTMLAnchorElement) setMenuOpen(false);
     });
@@ -85,6 +102,10 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
 </script>
 
 <style>
+  .og-header__action-slot { display: contents; }
+  .og-header__settings { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: 0 0 44px; color: inherit; border-radius: 6px; }
+  .og-header__settings:hover { background: rgba(255,255,255,0.07); }
+  .og-header__settings:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .og-header,
   .ogh-site-header {
     position: sticky;

@@ -3,6 +3,7 @@ import CommunityHeader from "../components/community/CommunityHeader.astro";
 import { LEGAL_POLICY_LINKS } from "../lib/legal-policy";
 import { resolveSiteOrigin } from "../lib/site-origin";
 import { resolveLocale } from "../lib/i18n/locale";
+import { getUiMessages } from "../lib/i18n/catalog";
 import "../styles/community.css";
 
 export interface Props {
@@ -37,6 +38,7 @@ const canonicalHref = canonical ? new URL(canonical, baseUrl).toString() : undef
 const ogImageHref = new URL(ogImage ?? "/brand/logo.jpg", baseUrl).toString();
 const robotsContent = noindex ? "noindex,nofollow" : "index,follow,max-image-preview:large";
 const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const messages = getUiMessages(localeContext.locale).shell;
 ---
 <!doctype html>
 <html lang={localeContext.locale}>
@@ -70,19 +72,20 @@ const localeContext = Astro.locals.localeContext ?? resolveLocale({});
       currentSection={activeSection}
       next={Astro.url.pathname}
       showSearch={showHeaderSearch}
+      localeContext={localeContext}
     />
     <slot name="belowHeader" />
     <main class:list={["community-shell", pageClass]}>
       <slot />
     </main>
-    <footer class="community-site-footer" aria-label="Legal and trust">
+    <footer class="community-site-footer" aria-label={messages.legalTrust}>
       <div class="community-site-footer__inner">
         <p>{siteName}</p>
-        <nav class="community-site-footer__nav" aria-label="Footer legal links">
+        <nav class="community-site-footer__nav" aria-label={messages.legalLinks}>
           {
             LEGAL_POLICY_LINKS.map((link) => (
               <a href={link.href}>
-                <span>{link.labelZh}</span>
+                <span>{localeContext.locale === "en" ? link.labelEn : link.labelZh}</span>
               </a>
             ))
           }

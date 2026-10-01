@@ -2,6 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
 import {
   getNotificationVisualLabel,
   isSystemNotificationType,
@@ -38,17 +41,18 @@ function clampUnreadCount(value: number): string {
   return String(Math.max(0, value));
 }
 
-function formatRelativeTime(value: string): string {
+function formatRelativeTime(value: string, locale: "en" | "zh-CN"): string {
+  const text = getUiMessages(locale).shell;
   const date = new Date(value);
   const diff = Date.now() - date.getTime();
   if (!Number.isFinite(diff)) return value;
   const minute = 60 * 1000;
   const hour = 60 * minute;
   const day = 24 * hour;
-  if (diff < minute) return "刚刚";
-  if (diff < hour) return `${Math.max(1, Math.floor(diff / minute))} 分钟前`;
-  if (diff < day) return `${Math.max(1, Math.floor(diff / hour))} 小时前`;
-  return `${Math.max(1, Math.floor(diff / day))} 天前`;
+  if (diff < minute) return text.justNow;
+  if (diff < hour) return formatUiMessage(text.minutesAgo, { count: Math.max(1, Math.floor(diff / minute)) });
+  if (diff < day) return formatUiMessage(text.hoursAgo, { count: Math.max(1, Math.floor(diff / hour)) });
+  return formatUiMessage(text.daysAgo, { count: Math.max(1, Math.floor(diff / day)) });
 }
 
 function getInitial(label?: string | null): string {
@@ -91,7 +95,9 @@ function NotificationBellIcon() {
   );
 }
 
-export default function HeaderNotifications() {
+export default function HeaderNotifications({ localeContext = resolveLocale({}) }: { localeContext?: LocaleContext }) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.shell;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const { status, user } = useBrowserAuthState(supabase);
   const [notificationsState, setNotificationsState] = useState<NotificationsState>({ status: "idle" });
@@ -420,7 +426,7 @@ export default function HeaderNotifications() {
           ref={popoverRef}
           className={`header-notifications__popover header-notifications__popover--fixed${position.ready ? " is-ready" : ""}`}
           role="menu"
-          aria-label="通知菜单"
+          aria-label={text.notificationsMenu}
           style={{
             position: "fixed",
             top: `${position.top}px`,
@@ -437,7 +443,7 @@ export default function HeaderNotifications() {
           }}
         >
           <div className="header-notifications__head">
-            <strong>通知</strong>
+            <strong>{text.notifications}</strong>
             {unreadCount > 0 ? (
               <button
                 type="button"
@@ -445,18 +451,18 @@ export default function HeaderNotifications() {
                 onClick={() => void markAllRead()}
                 disabled={markingAll}
               >
-                {markingAll ? "处理中..." : "全部已读"}
+                {markingAll ? text.processing : text.markAllRead}
               </button>
             ) : null}
           </div>
 
           <div className="header-notifications__list">
             {notificationsState.status === "loading" ? (
-              <div className="header-notifications__empty">加载通知中...</div>
+              <div className="header-notifications__empty">{text.loadingNotifications}</div>
             ) : notificationsState.status === "error" ? (
-              <div className="header-notifications__empty">通知加载失败</div>
+              <div className="header-notifications__empty">{text.notificationsFailed}</div>
             ) : unreadItems.length === 0 ? (
-              <div className="header-notifications__empty">暂无未读通知</div>
+              <div className="header-notifications__empty">{text.noUnread}</div>
             ) : (
               unreadItems.map((notification) => {
                 const actorLabel = getNotificationVisualLabel(notification.type, notification.actor);
@@ -472,13 +478,13 @@ export default function HeaderNotifications() {
                       <img src={notification.actor.avatar_resolved_url} alt="" className="header-notifications__avatar" />
                     ) : (
                       <span className="header-notifications__avatar header-notifications__avatar--fallback" aria-hidden="true">
-                        {systemNotification ? "系" : getInitial(actorLabel)}
+                        {systemNotification ? (context.locale === "en" ? "S" : "系") : getInitial(actorLabel)}
                       </span>
                     )}
                     <span className="header-notifications__copy">
                       <strong>{notification.message}</strong>
                       {notification.preview ? <span>{notification.preview}</span> : null}
-                      <small>{formatRelativeTime(notification.last_event_at || notification.created_at)}</small>
+                      <small>{formatRelativeTime(notification.last_event_at || notification.created_at, context.locale)}</small>
                     </span>
                   </button>
                 );
@@ -495,7 +501,7 @@ export default function HeaderNotifications() {
                 window.location.assign("/notifications/");
               }}
             >
-              查看全部通知
+              {text.allNotifications}
             </a>
           </div>
         </div>,
@@ -526,8 +532,8 @@ export default function HeaderNotifications() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="header-notifications-menu"
-        aria-label={unreadCount > 0 ? `通知，${clampUnreadCount(unreadCount)} 条未读` : "通知"}
-        title="通知"
+        aria-label={unreadCount > 0 ? formatUiMessage(text.unreadCount, { count: clampUnreadCount(unreadCount) }) : text.notifications}
+        title={text.notifications}
         onFocus={() => {
           clearCloseTimer();
           setOpen(true);

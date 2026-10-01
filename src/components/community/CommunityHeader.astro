@@ -1,7 +1,7 @@
 ---
 import SiteHeader from "../site/SiteHeader.astro";
 
-const { currentPath = Astro.url.pathname, currentSection, next = currentPath, showSearch = true } = Astro.props;
+const { currentPath = Astro.url.pathname, currentSection, next = currentPath, showSearch = true, localeContext = Astro.locals.localeContext } = Astro.props;
 ---
 
-<SiteHeader currentPath={currentPath} currentSection={currentSection} next={next} showSearch={showSearch} />
+<SiteHeader currentPath={currentPath} currentSection={currentSection} next={next} showSearch={showSearch} localeContext={localeContext} />
