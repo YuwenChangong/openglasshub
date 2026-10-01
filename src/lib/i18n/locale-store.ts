@@ -1,6 +1,6 @@
 import type { BrowserPreferenceRecord, LocaleContext, LocalePreference, PreferenceProvenance } from "./locale.ts";
 import { normalizePreference } from "./locale.ts";
-import { isBrowserPreferenceRecord } from "./preference-cookie.ts";
+import { isBrowserPreferenceRecord, readBrowserPreference, writeBrowserPreference } from "./preference-cookie.ts";
 
 export type LocaleStoreDependencies = {
   writePreference(record: BrowserPreferenceRecord): boolean;
@@ -82,3 +82,32 @@ export function createLocaleStore(initial: LocaleContext, dependencies: LocaleSt
   };
 }
 export type LocaleStore = ReturnType<typeof createLocaleStore>;
+
+let browserStore: LocaleStore | undefined;
+
+export function getBrowserLocaleStore(initial: LocaleContext): LocaleStore {
+  if (typeof window === "undefined") {
+    return createLocaleStore(initial, { writePreference: () => false, navigate() {} });
+  }
+  if (browserStore) return browserStore;
+  let channel: BroadcastChannel | undefined;
+  const eventName = "ogh:locale-preference";
+  browserStore = createLocaleStore(initial, {
+    writePreference: writeBrowserPreference,
+    readPreference: readBrowserPreference,
+    navigate: () => window.location.reload(),
+    canNavigate: () => !/^\/(?:login|register|auth\/callback|auth\/reset-password)(?:\/|$)/.test(window.location.pathname),
+    publish(record) {
+      window.dispatchEvent(new CustomEvent(eventName, { detail: record }));
+      try { channel?.postMessage(record); } catch { /* Cookie remains authoritative. */ }
+    },
+    subscribeExternal(listener) {
+      try {
+        channel = new BroadcastChannel(eventName);
+        channel.onmessage = event => listener(event.data);
+      } catch { /* Cross-tab messaging is optional. */ }
+      return () => { channel?.close(); channel = undefined; };
+    },
+  });
+  return browserStore;
+}
