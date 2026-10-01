@@ -109,6 +109,7 @@ export default function ProfilePostCard({
         </a>
         {interactive ? (
           <PostSocialActions
+            localeContext={context}
             postId={id}
             initialLikeCount={likeCount}
             compact={true}

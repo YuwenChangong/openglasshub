@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
+import { localizeCommunityStatus } from "../../lib/i18n/messages/community";
 
 interface CommentFormProps {
+  localeContext?: LocaleContext;
   postId: string;
   parentId?: string | null;
   placeholder?: string;
@@ -20,16 +24,19 @@ export default function CommentForm({
   loginHref,
   inline,
   onCancel,
+  localeContext = resolveLocale({ acceptLanguage: "zh-CN" }),
 }: CommentFormProps) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.community;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const resolvedLoginHref = loginHref ?? buildLoginHref(`/posts/${postId}/#comments`);
-  const resolvedPlaceholder = placeholder ?? "写下你的想法...";
+  const resolvedPlaceholder = placeholder ?? text.writeComment;
 
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("评论发布成功。");
+  const [successMessage, setSuccessMessage] = useState(text.commentPublished);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -56,12 +63,12 @@ export default function CommentForm({
     setLoading(true);
     setError("");
     setSuccess(false);
-    setSuccessMessage("评论发布成功。");
+    setSuccessMessage(text.commentPublished);
 
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !sessionData.session?.access_token) {
-        throw new Error("请先登录后再评论");
+        throw new Error(text.loginComment);
       }
 
       const reqBody: Record<string, unknown> = {
@@ -85,20 +92,20 @@ export default function CommentForm({
 
       if (!response.ok) {
         throw new Error(
-          payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `请求失败 (${response.status})`,
+          payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `${text.requestFailed} (${response.status})`,
         );
       }
 
       setBody("");
       setSuccess(true);
-      setSuccessMessage(payload?.message || (payload?.pending_review ? "评论已提交审核。" : "评论发布成功。"));
+      setSuccessMessage(localizeCommunityStatus(payload?.message, context.locale) || (payload?.pending_review ? text.commentReview : text.commentPublished));
       onCommentCreated?.(payload?.comment ?? { id: "", post_id: postId, body: body.trim() });
     } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : "提交失败";
+      const message = submitError instanceof Error ? submitError.message : text.submitFailed;
       if (/CONTENT_REJECTED/i.test(message)) {
-        setError("这条评论可能违反社区规则，暂时无法发布。");
+        setError(text.commentRejected);
       } else if (/RATE_LIMITED/i.test(message)) {
-        setError("评论过于频繁，请稍后再试。");
+        setError(text.commentRateLimited);
       } else {
         setError(message);
       }
@@ -111,7 +118,7 @@ export default function CommentForm({
     return (
       <section className="comment-shell">
         <div className="glass-panel comment-panel comment-panel__login">
-          <p className="community-meta">评论功能未配置</p>
+          <p className="community-meta">{text.commentUnconfigured}</p>
         </div>
       </section>
     );
@@ -123,10 +130,10 @@ export default function CommentForm({
       <section className="comment-shell">
         <div className="glass-panel comment-panel comment-panel__login">
           <p className="community-meta" style={{ margin: "0 0 0.75rem" }}>
-            登录后即可发表评论
+            {text.signInComment}
           </p>
           <a href={resolvedLoginHref} className="community-button">
-            前往登录
+            {text.goLogin}
           </a>
         </div>
       </section>
@@ -142,7 +149,7 @@ export default function CommentForm({
   return (
     <Shell className={inline ? "comment-reply-form" : "comment-shell"}>
       <div className={panelClass}>
-        {!inline && <h3 className="comment-panel__title">发表评论</h3>}
+        {!inline && <h3 className="comment-panel__title">{text.publishComment}</h3>}
         <form onSubmit={handleSubmit} className="comment-form">
           <textarea
             className="glass-textarea"
@@ -164,11 +171,11 @@ export default function CommentForm({
                   onClick={onCancel}
                   disabled={loading}
                 >
-                  取消回复
+                  {text.cancelReply}
                 </button>
               ) : null}
               <button type="submit" className="community-button" disabled={loading || !body.trim()}>
-                {loading ? "提交中..." : parentId ? "发布回复" : "发布评论"}
+                {loading ? text.submitting : parentId ? text.publishReply : text.submitComment}
               </button>
             </div>
           </div>

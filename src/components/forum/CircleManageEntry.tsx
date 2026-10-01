@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
 interface CircleManageEntryProps {
+  localeContext?: LocaleContext;
   circleSlug: string;
   ownerId: string | null;
 }
@@ -18,7 +21,9 @@ type ManageViewerPayload = {
   error?: string;
 };
 
-export default function CircleManageEntry({ circleSlug, ownerId }: CircleManageEntryProps) {
+export default function CircleManageEntry({ circleSlug, ownerId, localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: CircleManageEntryProps) {
+  const { messages } = useLocale(localeContext);
+  const text = messages.community;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const authState = useBrowserAuthState(supabase);
   const [canManage, setCanManage] = useState(false);
@@ -89,13 +94,13 @@ export default function CircleManageEntry({ circleSlug, ownerId }: CircleManageE
 
   if (authState.status !== "signed_in" || !authState.user) {
     if (authState.status === "checking") {
-      return <span className="community-action-button community-action-button--muted">检查管理权限...</span>;
+      return <span className="community-action-button community-action-button--muted">{text.checkingPermission}</span>;
     }
     return null;
   }
 
   if (checkingPermission) {
-    return <span className="community-action-button community-action-button--muted">检查管理权限...</span>;
+    return <span className="community-action-button community-action-button--muted">{text.checkingPermission}</span>;
   }
 
   if (!canManage) {
@@ -104,7 +109,7 @@ export default function CircleManageEntry({ circleSlug, ownerId }: CircleManageE
 
   return (
     <a href={`/circles/${circleSlug}/manage/`} className="community-action-button community-action-button--muted">
-      管理圈子
+      {text.manageCircle}
     </a>
   );
 }

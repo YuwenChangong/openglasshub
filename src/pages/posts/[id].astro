@@ -174,17 +174,17 @@ if (post) {
         )}
       </section>
 
-      {postMedia.length > 0 && <PostMediaGallery media={postMedia} postTitle={post.title} client:load />}
+      {postMedia.length > 0 && <PostMediaGallery media={postMedia} postTitle={post.title} localeContext={localeContext} client:load />}
 
       <div class="post-detail__actions">
         <a href="/feed/?sort=latest" class="community-action-button">{text.backFeed}</a>
-        <PostSocialActions postId={post.id} initialLikeCount={initialLikeCount} client:visible />
-        <PostModerationActions postId={post.id} authorId={post.author_id} client:load />
+        <PostSocialActions postId={post.id} initialLikeCount={initialLikeCount} localeContext={localeContext} client:visible />
+        <PostModerationActions postId={post.id} authorId={post.author_id} localeContext={localeContext} client:load />
       </div>
     </article>
 
     <section id="comments">
-      <CommentsSection postId={post.id} postAuthorId={post.author_id} loginHref={commentLoginHref} client:visible />
+      <CommentsSection postId={post.id} postAuthorId={post.author_id} loginHref={commentLoginHref} localeContext={localeContext} client:visible />
     </section>
 
     <script type="application/ld+json" set:html={JSON.stringify({

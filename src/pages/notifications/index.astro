@@ -3,13 +3,17 @@ export const prerender = false;
 
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import NotificationsPage from "../../components/notifications/NotificationsPage";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
 ---
 
-<ForumLayout title="通知" description="查看你的互动通知。" noindex={true} activeTab="feed">
+<ForumLayout title={text.notificationsTitle} description={text.notificationsDescription} noindex={true} activeTab="feed">
   <section class="notifications-shell">
     <header class="notifications-shell__head">
-      <h1>通知</h1>
+      <h1>{text.notificationsTitle}</h1>
     </header>
-    <NotificationsPage client:load />
+    <NotificationsPage localeContext={localeContext} client:load />
   </section>
 </ForumLayout>

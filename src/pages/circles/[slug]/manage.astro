@@ -2,6 +2,10 @@
 export const prerender = false;
 import ForumLayout from "../../../layouts/ForumLayout.astro";
 import CircleOwnerDashboard from "../../../components/forum/CircleOwnerDashboard";
+import { resolveLocale } from "../../../lib/i18n/locale";
+import { getUiMessages } from "../../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
 
 const slug = String(Astro.params.slug ?? "").trim().toLowerCase();
 
@@ -10,18 +14,18 @@ if (!slug) {
 }
 ---
 
-<ForumLayout title="管理圈子" noindex={true} activeTab="circles">
-  <nav class="community-breadcrumb" aria-label="面包屑">
-    <a href="/">首页</a>
+<ForumLayout title={text.manageCircle} noindex={true} activeTab="circles">
+  <nav class="community-breadcrumb" aria-label={text.breadcrumb}>
+    <a href="/">{text.home}</a>
     <span class="community-breadcrumb__sep">/</span>
-    <a href="/feed/">论坛</a>
+    <a href="/feed/">{text.forum}</a>
     <span class="community-breadcrumb__sep">/</span>
-    <a href="/circles/">圈子</a>
+    <a href="/circles/">{text.circles}</a>
     <span class="community-breadcrumb__sep">/</span>
-    <a href={`/circles/${slug}/`}>详情</a>
+    <a href={`/circles/${slug}/`}>{text.details}</a>
     <span class="community-breadcrumb__sep">/</span>
-    <span class="community-breadcrumb__current">管理</span>
+    <span class="community-breadcrumb__current">{text.management}</span>
   </nav>
 
-  <CircleOwnerDashboard circleSlug={slug} client:load />
+  <CircleOwnerDashboard circleSlug={slug} localeContext={localeContext} client:load />
 </ForumLayout>

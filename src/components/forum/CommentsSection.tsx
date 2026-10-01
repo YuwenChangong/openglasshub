@@ -4,6 +4,8 @@ import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/
 import CommentForm from "./CommentForm";
 import { buildProfileHref } from "../../lib/profile-links";
 import ReportTrigger from "../reports/ReportTrigger";
+import { resolveLocale, type LocaleContext, type ResolvedLocale } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
 interface Author {
   username: string | null;
@@ -29,6 +31,7 @@ interface Comment {
 }
 
 interface CommentsSectionProps {
+  localeContext?: LocaleContext;
   postId: string;
   postAuthorId?: string;
   refreshKey?: number;
@@ -37,9 +40,9 @@ interface CommentsSectionProps {
 
 const LIKE_ANIMATION_MS = 240;
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: ResolvedLocale): string {
   try {
-    return new Date(dateStr).toLocaleDateString("zh-CN", {
+    return new Date(dateStr).toLocaleDateString(locale, {
       year: "numeric",
       month: "long",
       day: "numeric",
@@ -51,11 +54,13 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function authorDisplayName(author: Author | null): string {
-  return author?.display_name || author?.username || "社区成员";
+function authorDisplayName(author: Author | null, fallback: string): string {
+  return author?.display_name || author?.username || fallback;
 }
 
-export default function CommentsSection({ postId, postAuthorId, refreshKey, loginHref }: CommentsSectionProps) {
+export default function CommentsSection({ postId, postAuthorId, refreshKey, loginHref, localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: CommentsSectionProps) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.community;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,14 +100,14 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
       const data = (await res.json().catch(() => null)) as { comments?: Comment[]; error?: string } | null;
       if (!res.ok) {
         if (data?.error === "COMMENTS_INTERACTIONS_MIGRATION_REQUIRED") {
-          throw new Error("MIGRATION_REQUIRED::评论互动数据库迁移尚未执行，请先运行 comments interactions migration。");
+          throw new Error(`MIGRATION_REQUIRED::${text.commentsMigration}`);
         }
-        throw new Error(data?.error ?? `请求失败 (${res.status})`);
+        throw new Error(data?.error ?? `${text.requestFailed} (${res.status})`);
       }
       setComments(data?.comments ?? []);
       setHasLoadedOnce(true);
     } catch (fetchError) {
-      const msg = fetchError instanceof Error ? fetchError.message : "加载评论失败";
+      const msg = fetchError instanceof Error ? fetchError.message : text.commentsFailed;
       if (msg.startsWith("MIGRATION_REQUIRED::")) {
         setError(msg.slice("MIGRATION_REQUIRED::".length));
       } else {
@@ -245,7 +250,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
         body: JSON.stringify({ comment_id: commentId }),
       });
       const payload = (await res.json().catch(() => null)) as { liked?: boolean; like_count?: number; error?: string } | null;
-      if (!res.ok) throw new Error(payload?.error ?? "操作失败");
+      if (!res.ok) throw new Error(payload?.error ?? text.actionFailed);
 
       setComments((prev) =>
         prev.map((comment) =>
@@ -270,7 +275,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
       }
       setCommentErrors((current) => ({
         ...current,
-        [commentId]: likeError instanceof Error ? likeError.message : "点赞失败",
+        [commentId]: likeError instanceof Error ? likeError.message : text.likeFailed,
       }));
     } finally {
       setLikePendingById((current) => {
@@ -300,7 +305,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session?.access_token) throw new Error("请先登录");
+      if (!sessionData.session?.access_token) throw new Error(text.loginFirst);
 
       const commentBeforeDelete = comments.find((comment) => comment.id === deleteTargetId) ?? null;
       const hasPublishedReplies = comments.some(
@@ -318,7 +323,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
         const details = typeof payload?.details === "string" && payload.details.trim()
           ? `：${payload.details.trim()}`
           : "";
-        throw new Error(`${payload?.error ?? "删除失败"}${details}`);
+        throw new Error(`${payload?.error ?? text.deleteFailed}${details}`);
       }
 
       setReplyingTo((current) => (current === deleteTargetId ? null : current));
@@ -337,7 +342,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
         setComments((prev) => prev.filter((comment) => comment.id !== deleteTargetId));
       }
     } catch (deleteRequestError) {
-      setDeleteError(deleteRequestError instanceof Error ? deleteRequestError.message : "删除失败");
+      setDeleteError(deleteRequestError instanceof Error ? deleteRequestError.message : text.deleteFailed);
     } finally {
       setDeletingId(null);
     }
@@ -358,7 +363,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
   const renderComment = (comment: Comment, isReply: boolean) => {
     const isDeleted = comment.status === "deleted";
     const replies = repliesByParent.get(comment.id) ?? [];
-    const authorName = isDeleted ? "匿名" : authorDisplayName(comment.author);
+    const authorName = isDeleted ? text.anonymous : authorDisplayName(comment.author, text.member);
     const authorHref = !isDeleted
       ? buildProfileHref({ id: comment.author_id, username: comment.author?.username ?? null })
       : null;
@@ -383,19 +388,19 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
                 </span>
               )}
               {isPostAuthor && !isDeleted ? (
-                <span className="comment-staff-badge">作者</span>
+                <span className="comment-staff-badge">{text.author}</span>
               ) : null}
               {comment.status === "pending" ? (
-                <span className="comment-staff-badge">待审核</span>
+                <span className="comment-staff-badge">{text.pendingReview}</span>
               ) : null}
-              <span className="comment-time">{formatDate(comment.created_at)}</span>
+              <span className="comment-time">{formatDate(comment.created_at, context.locale)}</span>
               {comment.updated_at && comment.updated_at !== comment.created_at && !isDeleted ? (
-                <span className="comment-time">已编辑</span>
+                <span className="comment-time">{text.edited}</span>
               ) : null}
             </div>
 
             {isDeleted ? (
-              <div className="comment-body comment-deleted">该评论已删除</div>
+              <div className="comment-body comment-deleted">{text.commentDeleted}</div>
             ) : (
               <div className="comment-body">{comment.body}</div>
             )}
@@ -409,7 +414,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
                   className={`community-action-button community-action-button--social comment-action-button${comment.liked_by_me ? " is-active is-liked" : ""}`}
                   onClick={() => void handleToggleLike(comment.id)}
                   disabled={!supabase || Boolean(likePendingById[comment.id])}
-                  aria-label={comment.liked_by_me ? "取消点赞" : "点赞"}
+                  aria-label={comment.liked_by_me ? text.unlike : text.like}
                 >
                   <span className={`community-like-heart${likeAnimatingById[comment.id] ? " is-animating" : ""}`} aria-hidden="true">
                     <svg viewBox="0 0 24 24" focusable="false">
@@ -434,14 +439,15 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
                       <path d="M20 18v-2a4 4 0 0 0-4-4H4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </span>
-                  <span>回复</span>
+                  <span>{text.reply}</span>
                   <span>{comment.reply_count}</span>
                 </button>
 
                 <ReportTrigger
                   targetType="comment"
                   targetId={comment.id}
-                  buttonLabel="举报"
+                  buttonLabel={text.report}
+                  localeContext={context}
                   loginHref={loginHref}
                   className="community-action-button comment-action-button"
                   compact
@@ -462,7 +468,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
                       <path d="M14 11v6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </span>
-                    <span>删除</span>
+                    <span>{text.delete}</span>
                   </button>
                 ) : null}
               </div>
@@ -483,7 +489,8 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
             <CommentForm
               postId={postId}
               parentId={comment.id}
-              placeholder="回复这条评论..."
+              placeholder={text.replyPlaceholder}
+              localeContext={context}
               onCommentCreated={(c) => handleCommentCreated(c as Comment)}
               loginHref={loginHref}
               inline
@@ -496,19 +503,20 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
   };
 
   return (
-    <section className="comment-shell" aria-label="评论区">
+    <section className="comment-shell" aria-label={text.commentsArea}>
       <CommentForm
+        localeContext={context}
         postId={postId}
         loginHref={loginHref}
         onCommentCreated={(c) => handleCommentCreated(c as Comment)}
       />
 
       <h2 className="comment-panel__title" style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-        评论
+        {text.comments}
         {!loading ? <span className="comment-count">{totalCount}</span> : null}
       </h2>
 
-      {loading ? <div className="comment-empty">加载评论中...</div> : null}
+      {loading ? <div className="comment-empty">{text.loadingComments}</div> : null}
 
       {error ? (
         <div className="glass-card comment-card auth-alert auth-alert--error" style={{ textAlign: "center" }}>
@@ -517,7 +525,7 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
       ) : null}
 
       {!loading && !error && topLevelComments.length === 0 ? (
-        <div className="comment-empty">暂无评论，来发表第一条吧。</div>
+        <div className="comment-empty">{text.noComments}</div>
       ) : null}
 
       {!loading && !error && topLevelComments.length > 0 ? (
@@ -528,11 +536,12 @@ export default function CommentsSection({ postId, postAuthorId, refreshKey, logi
 
       <GlassConfirmDialog
         open={Boolean(deleteTargetId)}
-        title="删除评论"
-        description="删除后该评论将从公开区移除。若评论下已有回复，将显示为“该评论已删除”。"
-        detail="该操作不可撤销。"
-        confirmLabel="确认删除"
-        cancelLabel="取消"
+        localeContext={context}
+        title={text.deleteComment}
+        description={text.deleteCommentDetail}
+        detail={text.irreversible}
+        confirmLabel={text.confirmDelete}
+        cancelLabel={text.cancel}
         danger
         loading={Boolean(deletingId)}
         error={deleteError}

@@ -3,8 +3,12 @@ import { buildLoginHref } from "../../lib/auth-redirect";
 import GlassConfirmDialog from "../common/GlassConfirmDialog";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import ReportTrigger from "../reports/ReportTrigger";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+import { useLocale } from "../i18n/useLocale";
 
 interface PostModerationActionsProps {
+  localeContext?: LocaleContext;
   postId: string;
   authorId: string;
   showManagementActions?: boolean;
@@ -17,12 +21,12 @@ interface SessionState {
 
 type ModalMode = "delete" | "hide" | null;
 
-function mapModerationError(message: string, fallback: string): string {
+function mapModerationError(message: string, fallback: string, text: ReturnType<typeof getUiMessages>["community"]): string {
   if (message.includes("Cannot delete a post you do not own") || message.includes("FORBIDDEN")) {
-    return "无权执行该操作。";
+    return text.forbidden;
   }
   if (message.includes("forum_notifications only allow read_at updates")) {
-    return "操作失败，请稍后重试。";
+    return text.operationFailed;
   }
   return fallback;
 }
@@ -31,7 +35,10 @@ export default function PostModerationActions({
   postId,
   authorId,
   showManagementActions = true,
+  localeContext = resolveLocale({ acceptLanguage: "zh-CN" }),
 }: PostModerationActionsProps) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.community;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [sessionResolved, setSessionResolved] = useState(false);
   const [session, setSession] = useState<SessionState | null>(null);
@@ -123,7 +130,7 @@ export default function PostModerationActions({
 
   async function handleDelete() {
     if (!session) {
-      setError("请先登录后再删除帖子。");
+      setError(text.loginDeletePost);
       return;
     }
     setLoading(true);
@@ -135,11 +142,11 @@ export default function PostModerationActions({
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
-        throw new Error(mapModerationError(payload?.error ?? "", `删除失败 (${response.status})`));
+        throw new Error(mapModerationError(payload?.error ?? "", `${text.deleteFailed} (${response.status})`, text));
       }
       window.location.assign("/feed/");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "删除失败。");
+      setError(requestError instanceof Error ? requestError.message : text.deleteFailed);
     } finally {
       setLoading(false);
     }
@@ -160,11 +167,11 @@ export default function PostModerationActions({
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
-        throw new Error(mapModerationError(payload?.error ?? "", `隐藏失败 (${response.status})`));
+        throw new Error(mapModerationError(payload?.error ?? "", `${text.hideFailed} (${response.status})`, text));
       }
       window.location.assign("/feed/");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "隐藏失败。");
+      setError(requestError instanceof Error ? requestError.message : text.hideFailed);
     } finally {
       setLoading(false);
     }
@@ -177,11 +184,12 @@ export default function PostModerationActions({
       return (
         <GlassConfirmDialog
           open
-          title="删除帖子"
-          description="删除后该帖子将从公开区移除，并跳回动态页。"
-          detail="该操作不可撤销。"
-          confirmLabel="确认删除"
-          cancelLabel="取消"
+          localeContext={context}
+          title={text.deletePost}
+          description={text.deletePostDetail}
+          detail={text.irreversible}
+          confirmLabel={text.confirmDelete}
+          cancelLabel={text.cancel}
           danger
           loading={loading}
           error={error}
@@ -195,11 +203,11 @@ export default function PostModerationActions({
       <div className="glass-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="moderation-modal-title">
         <div className="glass-modal">
           <div className="glass-modal__header">
-            <h3 id="moderation-modal-title">隐藏帖子</h3>
-            <p>隐藏后该帖子将从公开区移除，并跳回动态页。</p>
+            <h3 id="moderation-modal-title">{text.hidePost}</h3>
+            <p>{text.hidePostDetail}</p>
           </div>
           <div className="glass-modal__body">
-            <p>确认执行隐藏操作？</p>
+            <p>{text.hideConfirmQuestion}</p>
             {error ? <span className="inline-error">{error}</span> : null}
           </div>
           <div className="glass-modal__actions">
@@ -209,7 +217,7 @@ export default function PostModerationActions({
               onClick={closeModal}
               disabled={loading}
             >
-              取消
+              {text.cancel}
             </button>
             <button
               type="button"
@@ -217,7 +225,7 @@ export default function PostModerationActions({
               onClick={handleHide}
               disabled={loading}
             >
-              {loading ? "处理中..." : "确认隐藏"}
+              {loading ? text.processing : text.confirmHide}
             </button>
           </div>
         </div>
@@ -230,7 +238,7 @@ export default function PostModerationActions({
       <>
         <div className="post-moderation-actions">
           <button type="button" className="community-action-button" disabled>
-            举报
+            {text.report}
           </button>
         </div>
         {renderModal()}
@@ -241,7 +249,7 @@ export default function PostModerationActions({
   return (
     <>
       <div className="post-moderation-actions">
-        <ReportTrigger targetType="post" targetId={postId} loginHref={loginHref} />
+        <ReportTrigger targetType="post" targetId={postId} loginHref={loginHref} localeContext={context} />
         {showDeleteButton ? (
           <button
             type="button"
@@ -249,7 +257,7 @@ export default function PostModerationActions({
             onClick={openDeleteModal}
             disabled={loading}
           >
-            删除帖子
+            {text.deletePost}
           </button>
         ) : null}
         {showManagementActions && canModerate ? (
@@ -259,7 +267,7 @@ export default function PostModerationActions({
             onClick={openHideModal}
             disabled={loading}
           >
-            隐藏帖子
+            {text.hidePost}
           </button>
         ) : null}
         {message ? <span className="inline-success">{message}</span> : null}

@@ -4,11 +4,14 @@ import { buildLoginHref } from "../../lib/auth-redirect";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+import { useLocale } from "../i18n/useLocale";
 
 const circleTypes = [
-  { value: "topic", label: "通用话题" },
-  { value: "device", label: "设备圈子" },
-  { value: "project", label: "项目圈子" },
+  { value: "topic" },
+  { value: "device" },
+  { value: "project" },
 ] as const;
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -22,26 +25,30 @@ function normalizeFileName(fileName: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function mapCircleError(message: string) {
-  if (message.includes("RATE_LIMITED")) return "创建过于频繁，请稍后再试。";
-  if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return "当前上传需要额外安全验证，请稍后重试。";
-  if (message.includes("NOT_AUTHENTICATED")) return "登录状态已失效，请重新登录后再创建圈子。";
-  if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return "圈子名称已存在，请换一个名称。";
-  if (message.includes("CIRCLE_COVER_UPLOAD_FAILED")) return "圈子封面上传失败。";
-  if (/CONTENT_REJECTED/i.test(message)) return "该圈子内容可能违反社区规则，暂时无法创建。";
-  if (message.includes("INVALID_GENERATED_CIRCLE_SLUG")) return "圈子链接生成失败，请换一个名称后重试。";
-  if (message.includes("CIRCLE_CREATE_FORBIDDEN")) return "当前账号暂时无法创建圈子，请检查数据库权限配置。";
-  if (message.includes("CIRCLE_OWNER_RLS_NOT_READY")) return "数据库还没有准备好 owner/RLS，请先执行最新 migration。";
-  if (message.includes("PROFILE_NOT_FOUND")) return "当前账号缺少 profile，请先重新登录或补齐资料。";
-  if (message.includes("CIRCLE_CREATE_FAILED")) return "圈子创建失败，请稍后重试。";
+function mapCircleError(message: string, text: ReturnType<typeof getUiMessages>["community"]) {
+  if (message.includes("RATE_LIMITED")) return text.createRateLimited;
+  if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return text.uploadVerification;
+  if (message.includes("NOT_AUTHENTICATED")) return text.circleAuthExpired;
+  if (message.includes("CIRCLE_NAME_ALREADY_EXISTS")) return text.circleNameTaken;
+  if (message.includes("CIRCLE_COVER_UPLOAD_FAILED")) return text.coverUploadFailed;
+  if (/CONTENT_REJECTED/i.test(message)) return text.circleRejected;
+  if (message.includes("INVALID_GENERATED_CIRCLE_SLUG")) return text.circleSlugFailed;
+  if (message.includes("CIRCLE_CREATE_FORBIDDEN")) return text.circleCreateForbidden;
+  if (message.includes("CIRCLE_OWNER_RLS_NOT_READY")) return text.circleRlsMissing;
+  if (message.includes("PROFILE_NOT_FOUND")) return text.circleProfileMissing;
+  if (message.includes("CIRCLE_CREATE_FAILED")) return text.circleCreateFailed;
   return message;
 }
 
 type CreateCircleFormProps = {
+  localeContext?: LocaleContext;
   mode?: "inline" | "page";
 };
 
-export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormProps) {
+export default function CreateCircleForm({ mode = "inline", localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: CreateCircleFormProps) {
+  const { messages } = useLocale(localeContext);
+  const text = messages.community;
+  const localizedTypes = circleTypes.map(item => ({ ...item, label: text.circleTypes[item.value] }));
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const authState = useBrowserAuthState(supabase);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -67,7 +74,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
     openUp: boolean;
   } | null>(null);
 
-  const selectedType = circleTypes.find((item) => item.value === type) ?? circleTypes[0];
+  const selectedType = localizedTypes.find((item) => item.value === type) ?? localizedTypes[0];
 
   useEffect(() => {
     setMounted(true);
@@ -150,7 +157,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
           ref={typeMenuRef}
           className={`community-select__menu community-select-menu--floating circle-type-menu${typeMenuPosition.openUp ? " community-select-menu--open-up" : ""}`}
           role="listbox"
-          aria-label="圈子类型"
+          aria-label={text.circleType}
           style={{
             position: "fixed",
             top: `${typeMenuPosition.top}px`,
@@ -160,7 +167,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
             zIndex: 80,
           }}
         >
-          {circleTypes.map((item, index) => {
+          {localizedTypes.map((item, index) => {
             const active = item.value === type;
             return (
               <button
@@ -173,7 +180,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
                 aria-selected={active}
               >
                 <strong>{item.label}</strong>
-                <span>{item.value === "topic" ? "适合一般讨论、经验分享与问题交流" : item.value === "device" ? "围绕具体设备、眼镜或硬件展开讨论" : "围绕项目、应用或持续协作展开讨论"}</span>
+                <span>{text.circleTypeHints[item.value]}</span>
               </button>
             );
           })}
@@ -185,11 +192,11 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
   function handleSelectImage(file: File | null) {
     if (!file) return;
     if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
-      setError("圈子封面只支持 jpg / png / webp / gif。");
+      setError(text.coverType);
       return;
     }
     if (file.size > MAX_IMAGE_SIZE) {
-      setError("圈子封面不能超过 5MB。");
+      setError(text.coverSize);
       return;
     }
 
@@ -224,10 +231,10 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
       const nextDescription = description.trim();
 
       if (nextName.length < 2 || nextName.length > 40) {
-        throw new Error("圈子名称需要在 2 - 40 个字符之间。");
+        throw new Error(text.circleNameLength);
       }
       if (nextDescription.length > 200) {
-        throw new Error("圈子简介最多 200 个字符。");
+        throw new Error(text.circleDescriptionLength);
       }
 
       if (imageFile) {
@@ -249,7 +256,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
           throw new Error(
             guardPayload?.code
               ? `${guardPayload.code}: ${guardPayload.error ?? ""}`
-              : guardPayload?.error ?? `上传校验失败 (${guardResponse.status})`,
+              : guardPayload?.error ?? `${text.uploadGuardFailed} (${guardResponse.status})`,
           );
         }
 
@@ -291,7 +298,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
         throw new Error("CIRCLE_CREATE_FAILED");
       }
 
-      setMessage("圈子创建成功，正在跳转。");
+      setMessage(text.circleCreated);
       window.location.assign(`/circles/${payload.circle.slug}/`);
     } catch (submitError) {
       if (uploadedPath) {
@@ -303,7 +310,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
         window.location.replace(buildLoginHref("/circles/new/"));
         return;
       }
-      setError(mapCircleError(nextMessage));
+      setError(mapCircleError(nextMessage, text));
     } finally {
       setSubmitting(false);
     }
@@ -313,7 +320,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
     return (
       <div className="circle-create-inline-entry">
         <a href="/circles/new/" className="community-action-button community-action-button--primary">
-          创建圈子
+          {text.createCircle}
         </a>
       </div>
     );
@@ -324,7 +331,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
       <section className="create-circle-form create-circle-form--page-state">
         <div className="community-cta-row circle-create-actions circle-create-actions--start">
           <button type="button" className="community-action-button community-action-button--muted" disabled>
-            检查登录状态...
+            {text.checkingLogin}
           </button>
         </div>
       </section>
@@ -334,10 +341,10 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
   if (authState.status !== "signed_in") {
     return (
       <section className="create-circle-form create-circle-form--page-state">
-        <p className="community-meta">登录后可创建圈子</p>
+        <p className="community-meta">{text.signInCreateCircle}</p>
         <div className="community-cta-row circle-create-actions circle-create-actions--start">
           <a href={buildLoginHref("/circles/new/")} className="community-action-button community-action-button--primary">
-            去登录
+            {text.goLogin}
           </a>
         </div>
       </section>
@@ -348,7 +355,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
     <form className="create-circle-form create-circle-form--page" onSubmit={handleSubmit}>
       <div className="create-circle-form__grid circle-create-grid">
         <label className="create-circle-form__field circle-create-field">
-          <span>圈子名称</span>
+          <span>{text.circleName}</span>
           <input
             className="community-input"
             value={name}
@@ -359,7 +366,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
         </label>
 
         <label className="create-circle-form__field create-circle-form__field--full circle-create-field">
-          <span>圈子简介（可选）</span>
+          <span>{text.circleOptionalDescription}</span>
           <textarea
             className="community-input community-input--textarea"
             value={description}
@@ -370,7 +377,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
         </label>
 
         <div className="create-circle-form__field circle-create-field">
-          <span>圈子类型</span>
+          <span>{text.circleType}</span>
           <div className={`community-select circle-type-select${typeMenuOpen ? " is-open" : ""}${submitting ? " is-disabled" : ""}`} ref={typePickerRef}>
             <input type="hidden" name="type" value={type} />
             <button
@@ -394,7 +401,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
         </div>
 
         <div className="create-circle-form__field circle-create-field">
-          <span>圈子封面</span>
+          <span>{text.circleCoverLabel}</span>
           <div className="create-circle-form__image-row">
             <input
               ref={fileInputRef}
@@ -405,13 +412,13 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
             />
             {imageFile ? (
               <button type="button" className="community-button--secondary" onClick={clearImage} disabled={submitting}>
-                移除封面
+                {text.removeCover}
               </button>
             ) : null}
           </div>
           {imagePreview ? (
             <div className="create-circle-form__preview">
-              <img src={imagePreview} alt="圈子封面预览" />
+              <img src={imagePreview} alt={text.coverPreview} />
             </div>
           ) : null}
         </div>
@@ -422,7 +429,7 @@ export default function CreateCircleForm({ mode = "inline" }: CreateCircleFormPr
 
       <div className="community-cta-row circle-create-actions">
         <button type="submit" className="community-button" disabled={submitting}>
-          {submitting ? "创建中..." : "创建圈子"}
+          {submitting ? text.creating : text.createCircle}
         </button>
       </div>
       {typeMenuPortal}

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
 interface PostSocialActionsProps {
+  localeContext?: LocaleContext;
   postId: string;
   initialLikeCount?: number;
   compact?: boolean;
@@ -20,7 +23,10 @@ export default function PostSocialActions({
   compact = false,
   onLikeChange,
   onBookmarkChange,
+  localeContext = resolveLocale({ acceptLanguage: "zh-CN" }),
 }: PostSocialActionsProps) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.community;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [authState, setAuthState] = useState<AuthState>(null);
   const [liked, setLiked] = useState(false);
@@ -282,7 +288,7 @@ export default function PostSocialActions({
         onClick={handleToggleLike}
         disabled={loadingLike}
         aria-pressed={liked}
-        title={liked ? "取消点赞" : "点赞"}
+        title={liked ? text.unlike : text.like}
       >
         <span className={`community-like-heart${likeAnimating ? " is-animating" : ""}`} aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
@@ -298,14 +304,14 @@ export default function PostSocialActions({
         onClick={handleToggleBookmark}
         disabled={loadingBookmark}
         aria-pressed={bookmarked}
-        title={bookmarked ? "取消收藏" : "收藏"}
+        title={bookmarked ? text.unbookmark : text.bookmark}
       >
         <span className={`community-bookmark-icon${bookmarkAnimating ? " is-animating" : ""}`} aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
             <path d="M6 3.75h12a1 1 0 0 1 1 1v15.83a.75.75 0 0 1-1.24.58L12 16.3l-5.76 4.86A.75.75 0 0 1 5 20.58V4.75a1 1 0 0 1 1-1Z" />
           </svg>
         </span>
-        <span>收藏</span>
+        <span>{text.bookmark}</span>
       </button>
     </div>
   );

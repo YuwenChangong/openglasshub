@@ -116,8 +116,9 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
       ) : null}
       <span class="forum-meta">{formatUiMessage(text.created, { date: new Date(publicCircle.created_at).toLocaleDateString(localeContext.locale) })}</span>
       <div class="community-inline-links" style="margin-top: 0.8rem;">
-        <CircleManageEntry circleSlug={publicCircle.slug} ownerId={publicCircle.owner_id ?? null} client:load />
+        <CircleManageEntry circleSlug={publicCircle.slug} ownerId={publicCircle.owner_id ?? null} localeContext={localeContext} client:load />
         <ReportTrigger
+          localeContext={localeContext}
           targetType="circle"
           targetId={publicCircle.id}
           buttonLabel={text.reportCircle}

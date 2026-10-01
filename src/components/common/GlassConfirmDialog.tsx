@@ -1,7 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
 interface GlassConfirmDialogProps {
+  localeContext?: LocaleContext;
   open: boolean;
   title: string;
   description: string;
@@ -43,11 +46,11 @@ export default function GlassConfirmDialog({
   title,
   description,
   detail,
-  confirmLabel = "确认",
-  cancelLabel = "取消",
+  confirmLabel,
+  cancelLabel,
   danger = false,
   loading = false,
-  loadingLabel = "处理中...",
+  loadingLabel,
   error = "",
   confirmationLabel,
   confirmationText,
@@ -55,7 +58,10 @@ export default function GlassConfirmDialog({
   confirmDisabled = false,
   onConfirm,
   onCancel,
+  localeContext = resolveLocale({ acceptLanguage: "zh-CN" }),
 }: GlassConfirmDialogProps) {
+  const { messages } = useLocale(localeContext);
+  const text = messages.community;
   const titleId = useId();
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -113,7 +119,7 @@ export default function GlassConfirmDialog({
           {detail ? <p>{detail}</p> : null}
           {confirmationText ? (
             <label className="glass-confirm-confirmation">
-              <span>{confirmationLabel ?? "输入确认内容"}</span>
+              <span>{confirmationLabel ?? text.confirmationInput}</span>
               <input
                 className="community-input"
                 value={confirmationValue}
@@ -135,7 +141,7 @@ export default function GlassConfirmDialog({
             disabled={buttonState.cancelDisabled}
             ref={cancelButtonRef}
           >
-            {cancelLabel}
+            {cancelLabel ?? text.cancel}
           </button>
           <button
             type="button"
@@ -143,7 +149,7 @@ export default function GlassConfirmDialog({
             onClick={onConfirm}
             disabled={buttonState.confirmDisabled}
           >
-            {loading ? loadingLabel : confirmLabel}
+            {loading ? loadingLabel ?? text.processing : confirmLabel ?? text.confirm}
           </button>
         </div>
       </div>

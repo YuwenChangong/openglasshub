@@ -1,10 +1,15 @@
 import { useMemo, useState } from "react";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
 interface SharePostButtonProps {
+  localeContext?: LocaleContext;
   postPath: string;
 }
 
-export default function SharePostButton({ postPath }: SharePostButtonProps) {
+export default function SharePostButton({ postPath, localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: SharePostButtonProps) {
+  const { messages } = useLocale(localeContext);
+  const text = messages.community;
   const [copied, setCopied] = useState(false);
 
   const absoluteUrl = useMemo(() => {
@@ -40,7 +45,7 @@ export default function SharePostButton({ postPath }: SharePostButtonProps) {
 
   return (
     <button type="button" className="community-action-button" onClick={handleCopy} title={absoluteUrl}>
-      {copied ? "已复制" : "分享"}
+      {copied ? text.copied : text.share}
     </button>
   );
 }

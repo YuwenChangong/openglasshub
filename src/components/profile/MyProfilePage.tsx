@@ -382,6 +382,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
             ) : (
               <div className="report-trigger-row" style={{ marginTop: "0.85rem" }}>
                 <ReportTrigger
+                  localeContext={context}
                   targetType="user"
                   targetId={pageData.profile.id}
                   loginHref={buildLoginHref(publicHref)}

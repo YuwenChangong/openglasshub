@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildLoginHref } from "../../lib/auth-redirect";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+import { useLocale } from "../i18n/useLocale";
+type CommunityMessages = ReturnType<typeof getUiMessages>["community"];
 
 type ReportTargetType = "post" | "comment" | "circle" | "user";
 
 type ReportTriggerProps = {
+  localeContext?: LocaleContext;
   targetType: ReportTargetType;
   targetId: string;
   buttonLabel?: string;
@@ -19,29 +24,29 @@ type SessionState = {
 };
 
 const REPORT_REASONS = [
-  { code: "spam", label: "垃圾广告" },
-  { code: "harassment", label: "骚扰或攻击" },
-  { code: "hate", label: "仇恨内容" },
-  { code: "sexual", label: "性相关违规" },
-  { code: "violence", label: "暴力或威胁" },
-  { code: "illegal", label: "违法内容" },
-  { code: "off_platform_contact", label: "站外引流" },
-  { code: "misinformation", label: "虚假或误导信息" },
-  { code: "privacy", label: "隐私泄露" },
-  { code: "other", label: "其他" },
+  { code: "spam" },
+  { code: "harassment" },
+  { code: "hate" },
+  { code: "sexual" },
+  { code: "violence" },
+  { code: "illegal" },
+  { code: "off_platform_contact" },
+  { code: "misinformation" },
+  { code: "privacy" },
+  { code: "other" },
 ] as const;
 
-function mapApiError(error: string) {
+function mapApiError(error: string, text: CommunityMessages) {
   switch (error) {
     case "INVALID_REPORT_TARGET_TYPE":
     case "INVALID_REPORT_TARGET_ID":
     case "INVALID_REPORT_REASON_CODE":
     case "INVALID_REPORT_REASON_TEXT":
-      return "举报信息无效，请检查后重试。";
+      return text.reportInvalid;
     case "REPORT_TARGET_NOT_FOUND":
-      return "该内容已不可见，无需重复举报。";
+      return text.reportGone;
     case "RATE_LIMITED":
-      return "提交过于频繁，请稍后再试。";
+      return text.reportRateLimited;
     default:
       return error;
   }
@@ -50,11 +55,14 @@ function mapApiError(error: string) {
 export default function ReportTrigger({
   targetType,
   targetId,
-  buttonLabel = "举报",
+  buttonLabel,
   loginHref,
   className,
   compact = false,
+  localeContext = resolveLocale({ acceptLanguage: "zh-CN" }),
 }: ReportTriggerProps) {
+  const { messages } = useLocale(localeContext);
+  const text = messages.community;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [sessionResolved, setSessionResolved] = useState(false);
   const [session, setSession] = useState<SessionState | null>(null);
@@ -106,13 +114,13 @@ export default function ReportTrigger({
 
   async function handleSubmit() {
     if (!session) {
-      setError("请先登录后再举报。");
+      setError(text.loginReport);
       return;
     }
 
     const trimmed = reasonText.trim();
     if (trimmed && trimmed.length < 5) {
-      setError("补充说明至少需要 5 个字。");
+      setError(text.reportReasonShort);
       return;
     }
 
@@ -137,15 +145,15 @@ export default function ReportTrigger({
         | { error?: string; duplicate?: boolean; already_handled?: boolean }
         | null;
       if (!response.ok) {
-        throw new Error(mapApiError(payload?.error ?? `举报失败 (${response.status})`));
+        throw new Error(mapApiError(payload?.error ?? `${text.reportFailed} (${response.status})`, text));
       }
 
       if (payload?.already_handled) {
-        setSuccess("该内容已在处理或已不可见，无需重复举报。");
+        setSuccess(text.reportHandled);
       } else if (payload?.duplicate) {
-        setSuccess("你最近已经举报过这条内容，管理员会统一处理。");
+        setSuccess(text.reportDuplicate);
       } else {
-        setSuccess("已成功提交举报，管理员会尽快处理。");
+        setSuccess(text.reportSuccess);
       }
 
       window.setTimeout(() => {
@@ -153,7 +161,7 @@ export default function ReportTrigger({
         setSuccess("");
       }, 1400);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "举报失败。");
+      setError(requestError instanceof Error ? requestError.message : text.reportFailed);
     } finally {
       setLoading(false);
     }
@@ -171,16 +179,16 @@ export default function ReportTrigger({
         }}
         disabled={!sessionResolved || loading}
       >
-        {buttonLabel}
+        {buttonLabel ?? text.report}
       </button>
 
       {open ? (
         <div className="glass-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby={`report-title-${targetType}-${targetId}`}>
           <div className="glass-modal">
             <div className="glass-modal__header">
-              <h3 id={`report-title-${targetType}-${targetId}`}>举报内容</h3>
+              <h3 id={`report-title-${targetType}-${targetId}`}>{text.reportContent}</h3>
               <p>
-                选择举报原因并补充说明，提交后管理员会查看。
+                {text.reportIntro}
               </p>
             </div>
             <div className="glass-modal__body">
@@ -195,31 +203,31 @@ export default function ReportTrigger({
                         onClick={() => setSelectedReason(reason.code)}
                         disabled={loading}
                       >
-                        {reason.label}
+                        {text.reportReasons[reason.code]}
                       </button>
                     ))}
                   </div>
                   <label>
                     <span className="community-meta" style={{ display: "inline-block", marginBottom: "0.45rem" }}>
-                      补充说明
+                      {text.reportDetails}
                     </span>
                     <textarea
                       className="glass-textarea"
-                      placeholder="可选，补充更多细节帮助管理员判断"
+                      placeholder={text.reportDetailsPlaceholder}
                       value={reasonText}
                       onChange={(event) => setReasonText(event.target.value)}
                       maxLength={1000}
                       disabled={loading}
                     />
                   </label>
-                  <span className="community-meta">可不填写；如填写，至少 5 个字。</span>
+                  <span className="community-meta">{text.reportDetailsHint}</span>
                   {success ? <span className="report-success-message">{success}</span> : null}
                 </>
               ) : (
                 <div className="report-login-cta">
-                  <p>当前需要登录后才能提交举报。登录后会返回当前页面。</p>
+                  <p>{text.reportLoginHint}</p>
                   <a href={resolvedLoginHref} className="community-button">
-                    去登录
+                    {text.goLogin}
                   </a>
                 </div>
               )}
@@ -232,7 +240,7 @@ export default function ReportTrigger({
                 onClick={closeModal}
                 disabled={loading}
               >
-                取消
+                {text.cancel}
               </button>
               {session ? (
                 <button
@@ -241,7 +249,7 @@ export default function ReportTrigger({
                   onClick={() => void handleSubmit()}
                   disabled={loading}
                 >
-                  {loading ? "提交中..." : "提交举报"}
+                  {loading ? text.submitting : text.submitReport}
                 </button>
               ) : null}
             </div>

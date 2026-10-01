@@ -3,8 +3,12 @@ import { buildLoginHref } from "../../lib/auth-redirect";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+import { useLocale } from "../i18n/useLocale";
 
 interface CircleCoverEditorProps {
+  localeContext?: LocaleContext;
   circleId: string;
   circleSlug: string;
   supportsExtendedSchema: boolean;
@@ -23,9 +27,9 @@ function normalizeFileName(fileName: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function mapCoverError(message: string) {
-  if (/RATE_LIMITED/i.test(message)) return "上传过于频繁，请稍后再试。";
-  if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return "当前上传需要额外安全验证，请稍后再试。";
+function mapCoverError(message: string, text: ReturnType<typeof getUiMessages>["community"]) {
+  if (/RATE_LIMITED/i.test(message)) return text.uploadRateLimited;
+  if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return text.uploadVerification;
   return message;
 }
 
@@ -35,7 +39,10 @@ export default function CircleCoverEditor({
   supportsExtendedSchema,
   ownerId,
   onUpdated,
+  localeContext = resolveLocale({ acceptLanguage: "zh-CN" }),
 }: CircleCoverEditorProps) {
+  const { messages } = useLocale(localeContext);
+  const text = messages.community;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const authState = useBrowserAuthState(supabase);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -66,7 +73,7 @@ export default function CircleCoverEditor({
       | { error?: string; circle?: { cover_url?: string | null } }
       | null;
     if (!response.ok) {
-      throw new Error(payload?.error ?? `更新封面失败 (${response.status})`);
+      throw new Error(payload?.error ?? `${text.coverUpdateFailed} (${response.status})`);
     }
     return payload?.circle?.cover_url ?? null;
   }
@@ -89,7 +96,7 @@ export default function CircleCoverEditor({
       | null;
     if (!response.ok) {
       throw new Error(
-        payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `上传校验失败 (${response.status})`,
+        payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `${text.uploadGuardFailed} (${response.status})`,
       );
     }
   }
@@ -102,17 +109,17 @@ export default function CircleCoverEditor({
     setMessage("");
 
     if (!supportsExtendedSchema) {
-      setError("当前环境未启用圈子图片字段，无法上传封面。");
+      setError(text.coverUnsupported);
       event.target.value = "";
       return;
     }
     if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
-      setError("圈子封面只支持 jpg / png / webp / gif。");
+      setError(text.coverType);
       event.target.value = "";
       return;
     }
     if (file.size > MAX_IMAGE_SIZE) {
-      setError("圈子封面不能超过 5MB。");
+      setError(text.coverSize);
       event.target.value = "";
       return;
     }
@@ -136,17 +143,17 @@ export default function CircleCoverEditor({
           accessToken: token,
         });
       } catch {
-        throw new Error("圈子封面上传失败。");
+        throw new Error(text.coverUploadFailed);
       }
 
       const coverUrl = await updateCircleCover(uploadedPath, token);
-      setMessage("圈子封面已更新。");
+      setMessage(text.coverUpdated);
       onUpdated?.(uploadedPath, coverUrl);
     } catch (requestError) {
       if (uploadedPath) {
         await supabase.storage.from("post-media").remove([uploadedPath]).catch(() => undefined);
       }
-      setError(mapCoverError(requestError instanceof Error ? requestError.message : "更新封面失败。"));
+      setError(mapCoverError(requestError instanceof Error ? requestError.message : text.coverUpdateFailed, text));
     } finally {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -161,7 +168,7 @@ export default function CircleCoverEditor({
 
     try {
       if (!supportsExtendedSchema) {
-        throw new Error("当前环境未启用圈子图片字段，无法清除封面。");
+        throw new Error(text.coverClearUnsupported);
       }
 
       const token = await getSessionToken();
@@ -171,10 +178,10 @@ export default function CircleCoverEditor({
       }
 
       const coverUrl = await updateCircleCover(null, token);
-      setMessage("圈子封面已清除。");
+      setMessage(text.coverCleared);
       onUpdated?.(null, coverUrl);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "清除封面失败。");
+      setError(requestError instanceof Error ? requestError.message : text.coverClearFailed);
     } finally {
       setLoading(false);
     }
@@ -197,13 +204,13 @@ export default function CircleCoverEditor({
           onClick={handleClearCover}
           disabled={loading}
         >
-          清除封面
+          {text.clearCover}
         </button>
       </div>
       {supportsExtendedSchema ? (
-        <p className="community-meta">支持上传 jpg / png / webp / gif，单图不超过 5MB。</p>
+        <p className="community-meta">{text.coverHint}</p>
       ) : (
-        <p className="community-meta">当前环境未完成圈子图片 migration，先只能显示兼容封面。</p>
+        <p className="community-meta">{text.coverMigration}</p>
       )}
       {error ? <span className="inline-error">{error}</span> : null}
       {message ? <span className="inline-success">{message}</span> : null}

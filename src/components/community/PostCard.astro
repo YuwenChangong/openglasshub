@@ -57,8 +57,8 @@ const authorHref = buildProfileHref({ id: authorId, username: authorUsername });
 
   <div class="community-post-actions">
     <a class="community-action-button community-action-button--quiet" href={`${postHref}#comments`}>{text.comments}{commentCount > 0 ? ` ${commentCount.toLocaleString(localeContext.locale)}` : ""}</a>
-    <PostSocialActions postId={id} initialLikeCount={likeCount} compact={true} client:visible />
-    <SharePostButton postPath={postHref} client:visible />
+    <PostSocialActions postId={id} initialLikeCount={likeCount} compact={true} localeContext={localeContext} client:visible />
+    <SharePostButton postPath={postHref} localeContext={localeContext} client:visible />
     <div class="community-post-actions__spacer" />
     <a class="community-post-detail-link" href={postHref}>{text.details}</a>
   </div>

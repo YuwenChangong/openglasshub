@@ -3,22 +3,26 @@ export const prerender = false;
 
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import CreateCircleForm from "../../components/forum/CreateCircleForm";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
 ---
 
 <CommunityLayout
-  title="创建圈子"
-  description="登录后在 OpenGlass Hub 创建圈子。"
+  title={text.createCircle}
+  description={text.createCircleDescription}
   activeSection="forum"
   noindex={true}
 >
   <section class="circle-create-page">
-    <nav class="circle-create-page__nav" aria-label="返回导航">
-      <a href="/circles/" class="community-action-button community-action-button--muted">返回圈子</a>
+    <nav class="circle-create-page__nav" aria-label={text.backNavigation}>
+      <a href="/circles/" class="community-action-button community-action-button--muted">{text.backCircles}</a>
     </nav>
 
     <section class="community-surface community-surface--padded circle-create-page-panel">
-      <h1 class="circle-create-page-panel__title">创建圈子</h1>
-      <CreateCircleForm client:load mode="page" />
+      <h1 class="circle-create-page-panel__title">{text.createCircle}</h1>
+      <CreateCircleForm localeContext={localeContext} client:load mode="page" />
     </section>
   </section>
 </CommunityLayout>

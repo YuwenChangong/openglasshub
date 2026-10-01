@@ -4,6 +4,11 @@ import { createOptimizedImageVariant } from "../../lib/client-image";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import { useLocale } from "../i18n/useLocale";
+import { localizeCommunityStatus } from "../../lib/i18n/messages/community";
+type CommunityMessages = ReturnType<typeof getUiMessages>["community"];
 
 interface CircleOption {
   id: string;
@@ -27,12 +32,12 @@ interface LocalMedia {
 }
 
 const postTypes = [
-  { value: "question", label: "求助", description: "兼容性、选购和使用问题。" },
-  { value: "experience", label: "文字", description: "适合一般讨论、观察记录和补充说明。" },
-  { value: "review", label: "体验/评测", description: "适合完整总结、对比和长期观察。" },
-  { value: "dev", label: "开发", description: "围绕 SDK、权限、输入和系统能力讨论。" },
-  { value: "news", label: "资讯", description: "适合手动整理的动态、公告和观察。" },
-  { value: "feedback", label: "反馈", description: "对产品、社区和 Gaze Launcher 的建议。" },
+  { value: "question" },
+  { value: "experience" },
+  { value: "review" },
+  { value: "dev" },
+  { value: "news" },
+  { value: "feedback" },
 ] as const;
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -82,7 +87,7 @@ function withSingleCover(items: LocalMedia[], preferredId?: string): LocalMedia[
   }));
 }
 
-function readImageMetadata(file: File, previewUrl: string): Promise<{ width: number; height: number }> {
+function readImageMetadata(file: File, previewUrl: string, text: CommunityMessages): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => {
@@ -91,7 +96,7 @@ function readImageMetadata(file: File, previewUrl: string): Promise<{ width: num
         height: image.naturalHeight,
       });
     };
-    image.onerror = () => reject(new Error(`无法读取图片元信息：${file.name}`));
+    image.onerror = () => reject(new Error(formatUiMessage(text.imageMetadata, { name: file.name })));
     image.src = previewUrl;
   });
 }
@@ -99,6 +104,7 @@ function readImageMetadata(file: File, previewUrl: string): Promise<{ width: num
 function readVideoMetadata(
   file: File,
   previewUrl: string,
+  text: CommunityMessages,
 ): Promise<{ width: number; height: number; durationSeconds: number }> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
@@ -112,27 +118,34 @@ function readVideoMetadata(
         durationSeconds: Number.isFinite(video.duration) ? video.duration : 0,
       });
     };
-    video.onerror = () => reject(new Error(`无法读取视频元信息：${file.name}`));
+    video.onerror = () => reject(new Error(formatUiMessage(text.videoMetadata, { name: file.name })));
     video.src = previewUrl;
   });
 }
 
-function mapAuthError(errorMessage: string): string {
-  if (/RATE_LIMITED/i.test(errorMessage)) return "操作过于频繁，请稍后再试。";
+function mapAuthError(errorMessage: string, text: CommunityMessages): string {
+  if (/RATE_LIMITED/i.test(errorMessage)) return text.actionRateLimited;
   if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(errorMessage)) {
-    return "当前上传需要额外安全验证，请稍后重试。";
+    return text.uploadVerification;
   }
   if (/CONTENT_REJECTED/i.test(errorMessage)) {
-    return "这篇帖子可能违反社区规则，暂时无法发布。";
+    return text.postRejected;
   }
-  if (/INVALID_POST_BODY/i.test(errorMessage)) return "正文至少需要 1 个字符，且不能超过 50000 个字符。";
-  if (/Invalid login credentials/i.test(errorMessage)) return "邮箱或密码错误。";
-  if (/Email not confirmed/i.test(errorMessage)) return "请先完成邮箱验证后再登录。";
-  if (/User already registered/i.test(errorMessage)) return "该邮箱已经注册，请直接登录。";
+  if (/INVALID_POST_BODY/i.test(errorMessage)) return text.invalidPostBody;
+  if (/Invalid login credentials/i.test(errorMessage)) return text.invalidCredentials;
+  if (/Email not confirmed/i.test(errorMessage)) return text.emailUnconfirmed;
+  if (/User already registered/i.test(errorMessage)) return text.alreadyRegistered;
   if (/exceeded the maximum allowed size/i.test(errorMessage)) {
-    return "视频上传失败。";
+    return text.videoUploadFailed;
   }
   return errorMessage;
+}
+
+function presentVideoUploadError(message: string, text: CommunityMessages): string {
+  const initialization = /^视频上传初始化失败 \((\d+)\)$/.exec(message);
+  if (initialization) return `${text.videoInitFailed} (${initialization[1]})`;
+  const upload = /^视频上传失败 \((\d+)\)$/.exec(message);
+  return upload ? `${text.videoUploadFailed} (${upload[1]})` : message;
 }
 
 async function uploadVideoToExternal(params: {
@@ -195,6 +208,7 @@ async function uploadVideoToExternal(params: {
 }
 
 type Props = {
+  localeContext?: LocaleContext;
   initialTitle?: string;
   initialBody?: string;
   nextPath?: string;
@@ -206,7 +220,11 @@ export default function CreatePostForm({
   initialBody = "",
   nextPath = "/posts/new/",
   discussionDeviceName,
+  localeContext = resolveLocale({ acceptLanguage: "zh-CN" }),
 }: Props) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.community;
+  const localizedPostTypes = postTypes.map(item => ({ ...item, label: text.composerTypes[item.value], description: text.composerTypeHints[item.value] }));
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const circlePickerRef = useRef<HTMLDivElement | null>(null);
@@ -228,7 +246,7 @@ export default function CreatePostForm({
 
   useEffect(() => {
     if (!supabase) {
-      setError("缺少 PUBLIC_SUPABASE_URL 或 PUBLIC_SUPABASE_ANON_KEY。");
+      setError(text.missingPublicAuthConfig);
     }
   }, [supabase]);
 
@@ -245,7 +263,7 @@ export default function CreatePostForm({
 
         if (cancelled) return;
         if (!response.ok) {
-          throw new Error(payload?.error ?? `请求失败 (${response.status})`);
+          throw new Error(payload?.error ?? `${text.requestFailed} (${response.status})`);
         }
 
         const nextCircles = payload?.circles ?? [];
@@ -256,7 +274,7 @@ export default function CreatePostForm({
         }
       } catch (fetchError) {
         if (!cancelled) {
-          setError(fetchError instanceof Error ? fetchError.message : "加载圈子失败。");
+          setError(fetchError instanceof Error ? fetchError.message : text.circlesFailed);
         }
       } finally {
         if (!cancelled) {
@@ -329,7 +347,7 @@ export default function CreatePostForm({
 
     if (!response.ok) {
       throw new Error(
-        payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `上传校验失败 (${response.status})`,
+        payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `${text.uploadGuardFailed} (${response.status})`,
       );
     }
   }
@@ -341,7 +359,7 @@ export default function CreatePostForm({
     setError("");
 
     if (mediaFiles.length + nextFiles.length > MAX_MEDIA_COUNT) {
-      setError(`单帖最多上传 ${MAX_MEDIA_COUNT} 个媒体文件。`);
+      setError(formatUiMessage(text.maxMedia, { count: MAX_MEDIA_COUNT }));
       return;
     }
 
@@ -354,24 +372,24 @@ export default function CreatePostForm({
       const isImage = ACCEPTED_IMAGE_TYPES.has(file.type);
       const isVideo = ACCEPTED_VIDEO_TYPES.has(file.type);
       if (!isImage && !isVideo) {
-        setError("只支持 jpg / png / webp / gif 图片，以及 mp4 / webm / mov 视频。");
+        setError(text.mediaTypes);
         continue;
       }
       if (isImage && file.size > MAX_IMAGE_SIZE) {
-        setError("单张图片不能超过 50MB。");
+        setError(text.imageMaxSize);
         continue;
       }
       if (isVideo && file.size > MAX_VIDEO_SIZE) {
-        setError("单个视频不能超过 150MB。");
+        setError(text.videoMaxSize);
         continue;
       }
       if (isVideo && videoCount >= 1) {
-        setError("每个帖子最多上传 1 个视频。");
+        setError(text.oneVideo);
         continue;
       }
       nextTotalSize += file.size;
       if (nextTotalSize > MAX_TOTAL_SIZE) {
-        setError("单帖媒体总大小不能超过 150MB。");
+        setError(text.totalMediaSize);
         continue;
       }
 
@@ -381,7 +399,7 @@ export default function CreatePostForm({
       try {
         if (isVideo) {
           videoCount += 1;
-          const metadata = await readVideoMetadata(file, previewUrl);
+          const metadata = await readVideoMetadata(file, previewUrl, text);
           accepted.push({
             id,
             file,
@@ -407,7 +425,7 @@ export default function CreatePostForm({
             fileName: `${file.name.replace(/\.[a-z0-9]+$/i, "")}-thumb`,
           });
           const optimizedPreviewUrl = URL.createObjectURL(optimizedUpload.file);
-          const metadata = await readImageMetadata(optimizedUpload.file, optimizedPreviewUrl);
+          const metadata = await readImageMetadata(optimizedUpload.file, optimizedPreviewUrl, text);
           accepted.push({
             id,
             file: optimizedUpload.file,
@@ -424,7 +442,7 @@ export default function CreatePostForm({
         }
       } catch (metadataError) {
         URL.revokeObjectURL(previewUrl);
-        setError(metadataError instanceof Error ? metadataError.message : "读取媒体元信息失败。");
+        setError(metadataError instanceof Error ? metadataError.message : text.metadataFailed);
       }
     }
 
@@ -506,7 +524,7 @@ export default function CreatePostForm({
 
       if (!createResponse.ok || !createPayload?.post?.id) {
         throw new Error(
-          createPayload?.code ? `${createPayload.code}: ${createPayload?.error ?? ""}` : createPayload?.error ?? `发帖失败 (${createResponse.status})`,
+          createPayload?.code ? `${createPayload.code}: ${createPayload?.error ?? ""}` : createPayload?.error ?? `${text.createPostFailed} (${createResponse.status})`,
         );
       }
 
@@ -548,7 +566,7 @@ export default function CreatePostForm({
                 is_cover: item.isCover,
               });
             } catch (uploadError) {
-              const uploadMessage = uploadError instanceof Error ? uploadError.message : "未知错误";
+              const uploadMessage = uploadError instanceof Error ? uploadError.message : text.unknownError;
               const canFallbackToSupabase =
                 /Missing required env var: R2_/i.test(uploadMessage) ||
                 /视频上传初始化失败 \(500\)/i.test(uploadMessage) ||
@@ -557,7 +575,7 @@ export default function CreatePostForm({
                 /Load failed/i.test(uploadMessage);
 
               if (!canFallbackToSupabase) {
-                throw new Error(`视频上传失败：${uploadMessage}`);
+                throw new Error(`${text.videoUploadFailed} ${presentVideoUploadError(uploadMessage, text)}`);
               }
 
               const fileName = normalizeFileName(item.file.name) || `video-${index + 1}.mp4`;
@@ -575,8 +593,8 @@ export default function CreatePostForm({
                 });
               } catch (fallbackError) {
                 const fallbackMessage =
-                  fallbackError instanceof Error ? fallbackError.message : "未知错误";
-                throw new Error(`视频上传失败：${fallbackMessage}`);
+                  fallbackError instanceof Error ? fallbackError.message : text.unknownError;
+                throw new Error(`${text.videoUploadFailed} ${presentVideoUploadError(fallbackMessage, text)}`);
               }
               uploadedPaths.push(storagePath);
               mediaPayload.push({
@@ -619,8 +637,8 @@ export default function CreatePostForm({
               });
             }
           } catch (uploadError) {
-            const uploadMessage = uploadError instanceof Error ? uploadError.message : "未知错误";
-            throw new Error(`图片上传失败：${uploadMessage}`);
+            const uploadMessage = uploadError instanceof Error ? uploadError.message : text.unknownError;
+            throw new Error(`${text.imageUploadFailed} ${uploadMessage}`);
           }
 
           uploadedPaths.push(storagePath);
@@ -667,7 +685,7 @@ export default function CreatePostForm({
             }
           | null;
         if (!mediaResponse.ok) {
-          throw new Error(mediaResult?.error ?? `媒体写入失败 (${mediaResponse.status})`);
+          throw new Error(mediaResult?.error ?? `${text.mediaWriteFailed} (${mediaResponse.status})`);
         }
 
         if (mediaResult?.post?.status) {
@@ -686,7 +704,7 @@ export default function CreatePostForm({
             mediaResult.reason_code,
           )
         ) {
-          createPayload.message = "视频已提交审核。";
+          createPayload.message = text.videoReview;
         }
       }
 
@@ -697,11 +715,11 @@ export default function CreatePostForm({
 
       const createdStatus = createPayload.post.status ?? "published";
       if (createdStatus === "published") {
-        setMessage(createPayload.message || "发布成功，正在跳转到帖子页面。");
+        setMessage(localizeCommunityStatus(createPayload.message, context.locale) || text.publishedRedirecting);
         window.location.assign(`/posts/${createdPostId}/`);
         return;
       }
-      setMessage(createPayload.message || (createPayload.pending_review ? "帖子已提交审核。" : "发布成功。"));
+      setMessage(localizeCommunityStatus(createPayload.message, context.locale) || (createPayload.pending_review ? text.postReview : text.published));
     } catch (submitError) {
       if (uploadedPaths.length > 0) {
         await supabase.storage.from("post-media").remove(uploadedPaths).catch(() => undefined);
@@ -710,8 +728,8 @@ export default function CreatePostForm({
         await rollbackPendingPost(accessToken, createdPostId);
       }
 
-      const rawMessage = submitError instanceof Error ? submitError.message : "提交失败。";
-      setError(mapAuthError(rawMessage));
+      const rawMessage = submitError instanceof Error ? submitError.message : text.submitFailed;
+      setError(mapAuthError(rawMessage, text));
     } finally {
       setSubmitting(false);
     }
@@ -722,14 +740,14 @@ export default function CreatePostForm({
   }
 
   if (authState.status === "checking") {
-    return <section className="post-composer post-composer--status post-composer--checking"><div className="auth-alert">正在检查登录状态...</div></section>;
+    return <section className="post-composer post-composer--status post-composer--checking"><div className="auth-alert">{text.checkingAuth}</div></section>;
   }
 
   if (authState.status !== "signed_in") {
     return (
       <section className="post-composer post-composer--status post-composer--signed-out">
         <div className="auth-alert auth-alert--action">
-          <a href={buildLoginHref(nextPath)} className="community-link post-composer__auth-link">登录后继续发帖</a>
+          <a href={buildLoginHref(nextPath)} className="community-link post-composer__auth-link">{text.loginPost}</a>
         </div>
       </section>
     );
@@ -743,15 +761,15 @@ export default function CreatePostForm({
   return (
     <section className="post-composer">
       <div className="post-composer__intro">
-        <h2>发布帖子</h2>
-        {discussionDeviceName ? <p>已根据 {discussionDeviceName} 设备页带入一个中性讨论草稿，可继续修改。</p> : null}
+        <h2>{text.publishPost}</h2>
+        {discussionDeviceName ? <p>{formatUiMessage(text.deviceDraft, { name: discussionDeviceName })}</p> : null}
       </div>
 
       <form onSubmit={handleSubmit} className="post-composer__form">
         <div>
-          <label className="post-composer__label">帖子类型</label>
+          <label className="post-composer__label">{text.postType}</label>
           <div className="post-type-grid">
-            {postTypes.map((option) => {
+            {localizedPostTypes.map((option) => {
               const active = type === option.value;
               return (
                 <button
@@ -769,7 +787,7 @@ export default function CreatePostForm({
         </div>
 
         <label>
-          <span className="post-composer__label">圈子</span>
+          <span className="post-composer__label">{text.circles}</span>
           <div className={`community-select${circleMenuOpen ? " is-open" : ""}${loadingCircles ? " is-disabled" : ""}`} ref={circlePickerRef}>
             <input type="hidden" name="circle_slug" value={circleSlug} />
             <button
@@ -785,13 +803,13 @@ export default function CreatePostForm({
               aria-expanded={circleMenuOpen}
             >
               <span className="community-select__content">
-                <strong>{selectedCircle?.name ?? (loadingCircles ? "正在加载圈子..." : "暂无可选圈子")}</strong>
-                <span>{selectedCircle?.description || "选择要发布到的圈子"}</span>
+                <strong>{selectedCircle?.name ?? (loadingCircles ? text.loadingCircles : text.noAvailableCircles)}</strong>
+                <span>{selectedCircle?.description || text.chooseCircle}</span>
               </span>
               <span className="community-select__chevron" aria-hidden="true">⌄</span>
             </button>
             {circleMenuOpen ? (
-              <div className="community-select__menu" role="listbox" aria-label="圈子列表">
+              <div className="community-select__menu" role="listbox" aria-label={text.circleList}>
                 {circles.map((circle, index) => {
                   const active = circle.slug === circleSlug;
                   return (
@@ -815,7 +833,7 @@ export default function CreatePostForm({
         </label>
 
         <label>
-          <span className="post-composer__label">标题</span>
+          <span className="post-composer__label">{text.title}</span>
           <input
             className="community-input"
             value={title}
@@ -827,7 +845,7 @@ export default function CreatePostForm({
         </label>
 
         <label>
-          <span className="post-composer__label">正文</span>
+          <span className="post-composer__label">{text.body}</span>
           <textarea
             className="community-input community-input--textarea"
             value={body}
@@ -838,7 +856,7 @@ export default function CreatePostForm({
 
         <div className="media-upload-block">
           <div className="post-composer__label-row">
-            <span className="post-composer__label">媒体文件</span>
+            <span className="post-composer__label">{text.mediaFiles}</span>
           </div>
           <button
             type="button"
@@ -852,7 +870,7 @@ export default function CreatePostForm({
               }
             }}
           >
-            <strong>拖拽图片或视频到这里，或点击选择文件</strong>
+            <strong>{text.dropMedia}</strong>
           </button>
           <input
             ref={fileInputRef}
@@ -877,8 +895,8 @@ export default function CreatePostForm({
                     ) : (
                       <img src={item.previewUrl} alt={item.file.name} />
                     )}
-                    {item.kind === "video" ? <span className="media-preview-card__badge">视频</span> : null}
-                    {item.isCover ? <span className="media-preview-card__badge media-preview-card__badge--cover">封面</span> : null}
+                    {item.kind === "video" ? <span className="media-preview-card__badge">{text.video}</span> : null}
+                    {item.isCover ? <span className="media-preview-card__badge media-preview-card__badge--cover">{text.cover}</span> : null}
                   </div>
                   <figcaption>
                     <div className="media-preview-card__meta">
@@ -886,16 +904,16 @@ export default function CreatePostForm({
                       <span>{formatBytes(item.sizeBytes)}</span>
                       <span>
                         {item.kind === "video"
-                          ? `${formatDimensions(item.width, item.height) || "视频"}${item.durationSeconds != null ? ` · ${formatDuration(item.durationSeconds)}` : ""}`
-                          : formatDimensions(item.width, item.height) || "图片"}
+                          ? `${formatDimensions(item.width, item.height) || text.video}${item.durationSeconds != null ? ` · ${formatDuration(item.durationSeconds)}` : ""}`
+                          : formatDimensions(item.width, item.height) || text.image}
                       </span>
                     </div>
                     <div className="media-preview-card__actions">
                       <button type="button" onClick={() => markAsCover(item.id)} disabled={item.isCover}>
-                        {item.isCover ? "当前封面" : "设为封面"}
+                        {item.isCover ? text.currentCover : text.setCover}
                       </button>
                       <button type="button" onClick={() => removeMedia(item.id)}>
-                        删除
+                        {text.delete}
                       </button>
                     </div>
                   </figcaption>
@@ -907,7 +925,7 @@ export default function CreatePostForm({
 
         <div className="community-cta-row">
           <button type="submit" className="community-button post-composer__submit" disabled={submitting || loadingCircles}>
-            {submitting ? "提交中..." : "提交帖子"}
+            {submitting ? text.submitting : text.submitPost}
           </button>
         </div>
       </form>

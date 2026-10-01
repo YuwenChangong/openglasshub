@@ -4,29 +4,34 @@ export const prerender = false;
 import ForumLayout from "../../layouts/ForumLayout.astro";
 import CreatePostForm from "../../components/forum/CreatePostForm";
 import { getDeviceDiscussionContext } from "../../lib/device-discussion";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
 
 const discussionContext = getDeviceDiscussionContext(Astro.url.searchParams.get("device"));
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
 const nextPath = discussionContext ? discussionContext.startPostHref : "/posts/new/";
 ---
 
 <ForumLayout
-  title="新建帖子"
-  description="登录后在 OpenGlass Hub 社区创建新帖子。"
+  title={text.newPostTitle}
+  description={text.newPostDescription}
   canonical="/posts/new/"
   noindex={true}
   activeTab="new-post"
 >
-  <h1>新建帖子</h1>
+  <h1>{text.newPostTitle}</h1>
   {discussionContext ? (
     <section class="community-surface community-surface--padded post-prefill-note">
-      <strong>已带入设备讨论草稿</strong>
+      <strong>{text.draftReady}</strong>
       <p>
-        当前草稿来自 <a href={discussionContext.productHref}>{discussionContext.device.name}</a> 产品页。
-        你可以自由修改标题和正文，只有点击提交后才会真正发帖。
+        {text.draftFrom} <a href={discussionContext.productHref}>{discussionContext.device.name}</a> {text.productPage}
+        {text.draftEditable}
       </p>
     </section>
   ) : null}
   <CreatePostForm
+    localeContext={localeContext}
     client:only="react"
     initialTitle={discussionContext?.suggestedTitle}
     initialBody={discussionContext?.suggestedBody}

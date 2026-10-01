@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { createBrowserSupabaseClient, syncBrowserRealtimeAuth } from "../../lib/supabase-browser";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import { useLocale } from "../i18n/useLocale";
 import {
   getNotificationVisualLabel,
   isSystemNotificationType,
@@ -14,24 +17,26 @@ type NotificationsPayload = {
   notifications: NotificationItem[];
 };
 
-function formatRelativeTime(value: string): string {
+function formatRelativeTime(value: string, text: ReturnType<typeof getUiMessages>["shell"]): string {
   const date = new Date(value);
   const diff = Date.now() - date.getTime();
   if (!Number.isFinite(diff)) return value;
   const minute = 60 * 1000;
   const hour = 60 * minute;
   const day = 24 * hour;
-  if (diff < minute) return "刚刚";
-  if (diff < hour) return `${Math.max(1, Math.floor(diff / minute))} 分钟前`;
-  if (diff < day) return `${Math.max(1, Math.floor(diff / hour))} 小时前`;
-  return `${Math.max(1, Math.floor(diff / day))} 天前`;
+  if (diff < minute) return text.justNow;
+  if (diff < hour) return formatUiMessage(text.minutesAgo, { count: Math.max(1, Math.floor(diff / minute)) });
+  if (diff < day) return formatUiMessage(text.hoursAgo, { count: Math.max(1, Math.floor(diff / hour)) });
+  return formatUiMessage(text.daysAgo, { count: Math.max(1, Math.floor(diff / day)) });
 }
 
 function getInitial(label?: string | null): string {
   return (label?.trim().charAt(0) || "U").toUpperCase();
 }
 
-export default function NotificationsPage() {
+export default function NotificationsPage({ localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: { localeContext?: LocaleContext }) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.community;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const { status, user } = useBrowserAuthState(supabase);
   const [loading, setLoading] = useState(true);
@@ -211,34 +216,34 @@ export default function NotificationsPage() {
   }, [loading, markAllRead, notifications.length, status, unreadCount, user, hasMarkedOnEntryRef]);
 
   if (status === "checking" || loading) {
-    return <section className="community-empty"><strong>加载通知中...</strong></section>;
+    return <section className="community-empty"><strong>{text.loadingNotifications}</strong></section>;
   }
 
   if (status !== "signed_in" || !user) {
-    return <section className="community-empty notifications-page__signed-out"><strong>请先登录后查看通知</strong></section>;
+    return <section className="community-empty notifications-page__signed-out"><strong>{text.loginNotifications}</strong></section>;
   }
 
   if (error) {
-    return <section className="community-empty"><strong>通知加载失败</strong></section>;
+    return <section className="community-empty"><strong>{text.notificationsFailed}</strong></section>;
   }
 
   return (
     <section className="notifications-page">
       <div className="community-stream-head notifications-page__head">
-        <span className="community-meta">未读 {unreadCount}</span>
+        <span className="community-meta">{formatUiMessage(text.unread, { count: unreadCount.toLocaleString(context.locale) })}</span>
         <button
           type="button"
           className="community-action-button"
           onClick={() => void markAllRead()}
           disabled={markingAll || unreadCount < 1}
         >
-          {markingAll ? "处理中..." : "全部已读"}
+          {markingAll ? text.processing : text.markAllRead}
         </button>
       </div>
 
       {notifications.length === 0 ? (
         <section className="community-empty">
-          <strong>暂无通知</strong>
+          <strong>{text.noNotifications}</strong>
         </section>
       ) : (
         <div className="notifications-page__list">
@@ -258,13 +263,13 @@ export default function NotificationsPage() {
                   <img src={notification.actor.avatar_resolved_url} alt="" className="notifications-page__avatar" />
                 ) : (
                   <span className="notifications-page__avatar notifications-page__avatar--fallback" aria-hidden="true">
-                    {systemNotification ? "系" : getInitial(actorLabel)}
+                    {systemNotification ? text.systemInitial : getInitial(actorLabel)}
                   </span>
                 )}
                 <span className="notifications-page__copy">
                   <strong>{notification.message}</strong>
                   {notification.preview ? <span>{notification.preview}</span> : null}
-                  <small>{formatRelativeTime(notification.last_event_at || notification.created_at)}</small>
+                  <small>{formatRelativeTime(notification.last_event_at || notification.created_at, messages.shell)}</small>
                 </span>
               </a>
             );

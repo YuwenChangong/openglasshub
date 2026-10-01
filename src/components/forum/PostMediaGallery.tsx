@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ResolvedPostMedia } from "../../lib/forum-media";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
 interface Props {
+  localeContext?: LocaleContext;
   media: ResolvedPostMedia[];
   postTitle: string;
 }
@@ -11,7 +14,9 @@ function getInitialIndex(media: ResolvedPostMedia[]): number {
   return coverIndex >= 0 ? coverIndex : 0;
 }
 
-export default function PostMediaGallery({ media, postTitle }: Props) {
+export default function PostMediaGallery({ media, postTitle, localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: Props) {
+  const { messages } = useLocale(localeContext);
+  const text = messages.community;
   const orderedMedia = useMemo(
     () =>
       [...media].sort((left, right) => {
@@ -81,23 +86,23 @@ export default function PostMediaGallery({ media, postTitle }: Props) {
         ) : active.kind === "video" ? (
           <div className="post-media-main__video-shell">
             <video controls playsInline preload="metadata" src={active.displayUrl}>
-              浏览器不支持该视频。
+              {text.unsupportedVideo}
             </video>
             <button type="button" className="post-media-main__expand" onClick={openLightbox}>
-              放大查看
+              {text.expand}
             </button>
           </div>
         ) : (
           <a href={active.displayUrl} target="_blank" rel="noreferrer" className="post-video-card post-video-card--inline">
-            <span className="forum-tag">视频链接</span>
-            <strong>{active.alt_text || "打开外部视频"}</strong>
-            <span className="forum-meta">在新窗口查看外部视频内容。</span>
+            <span className="forum-tag">{text.videoLink}</span>
+            <strong>{active.alt_text || text.openExternalVideo}</strong>
+            <span className="forum-meta">{text.externalVideoHint}</span>
           </a>
         )}
       </div>
 
       {orderedMedia.length > 1 && (
-        <div className="post-media-thumbs" role="tablist" aria-label="帖子媒体缩略图">
+        <div className="post-media-thumbs" role="tablist" aria-label={text.mediaThumbnails}>
           {orderedMedia.map((item, index) => {
             const isActive = index === safeIndex;
             return (
@@ -121,11 +126,11 @@ export default function PostMediaGallery({ media, postTitle }: Props) {
                 ) : item.kind === "video" ? (
                   <>
                     <video src={item.previewUrl || item.displayUrl} muted playsInline preload="none" />
-                    <span className="post-media-video-badge">视频</span>
+                    <span className="post-media-video-badge">{text.video}</span>
                   </>
                 ) : (
                   <div className="post-media-thumb__external">
-                    <span>链接</span>
+                    <span>{text.link}</span>
                   </div>
                 )}
               </button>
@@ -137,16 +142,16 @@ export default function PostMediaGallery({ media, postTitle }: Props) {
       {lightboxOpen ? (
         <div className="post-lightbox-backdrop" onClick={closeLightbox}>
           <div className="post-lightbox" onClick={(event) => event.stopPropagation()}>
-            <button type="button" className="post-lightbox__close" onClick={closeLightbox} aria-label="关闭媒体查看">
-              关闭
+            <button type="button" className="post-lightbox__close" onClick={closeLightbox} aria-label={text.closeMedia}>
+              {text.close}
             </button>
             {orderedMedia.length > 1 ? (
               <>
-                <button type="button" className="post-lightbox__nav post-lightbox__nav--prev" onClick={showPrev} aria-label="上一张">
-                  上一张
+                <button type="button" className="post-lightbox__nav post-lightbox__nav--prev" onClick={showPrev} aria-label={text.previousImage}>
+                  {text.previousImage}
                 </button>
-                <button type="button" className="post-lightbox__nav post-lightbox__nav--next" onClick={showNext} aria-label="下一张">
-                  下一张
+                <button type="button" className="post-lightbox__nav post-lightbox__nav--next" onClick={showNext} aria-label={text.nextImage}>
+                  {text.nextImage}
                 </button>
               </>
             ) : null}
@@ -155,13 +160,13 @@ export default function PostMediaGallery({ media, postTitle }: Props) {
                 <img src={active.displayUrl} alt={active.alt_text || postTitle} />
               ) : active.kind === "video" ? (
                 <video controls playsInline preload="metadata" src={active.displayUrl}>
-                  浏览器不支持该视频。
+                  {text.unsupportedVideo}
                 </video>
               ) : (
                 <a href={active.displayUrl} target="_blank" rel="noreferrer" className="post-video-card post-video-card--inline">
-                  <span className="forum-tag">视频链接</span>
-                  <strong>{active.alt_text || "打开外部视频"}</strong>
-                  <span className="forum-meta">在新窗口查看外部视频内容。</span>
+                  <span className="forum-tag">{text.videoLink}</span>
+                  <strong>{active.alt_text || text.openExternalVideo}</strong>
+                  <span className="forum-meta">{text.externalVideoHint}</span>
                 </a>
               )}
             </div>
