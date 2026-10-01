@@ -10,6 +10,7 @@ import {
 } from './src/lib/gaze-launcher-visibility.ts';
 import remarkGazeLauncherVisibility from './src/plugins/remark-gaze-launcher-visibility.ts';
 import { resolveSiteOrigin, rewriteRobotsSitemapOrigins } from './src/lib/site-origin.ts';
+import localeSsrRoutes from './src/plugins/locale-ssr-routes.mjs';
 
 const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
 const siteOrigin = resolveSiteOrigin(process.env.SITE_ORIGIN);
@@ -155,6 +156,7 @@ export default defineConfig({
         themes: ['github-dark'],
       },
     }),
+    localeSsrRoutes(),
     siteOriginRobots(),
   ],
 });

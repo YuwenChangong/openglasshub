@@ -2,6 +2,7 @@
 import CommunityHeader from "../components/community/CommunityHeader.astro";
 import { LEGAL_POLICY_LINKS } from "../lib/legal-policy";
 import { resolveSiteOrigin } from "../lib/site-origin";
+import { resolveLocale } from "../lib/i18n/locale";
 import "../styles/community.css";
 
 export interface Props {
@@ -35,9 +36,10 @@ const fullTitle = `${title} | ${siteName}`;
 const canonicalHref = canonical ? new URL(canonical, baseUrl).toString() : undefined;
 const ogImageHref = new URL(ogImage ?? "/brand/logo.jpg", baseUrl).toString();
 const robotsContent = noindex ? "noindex,nofollow" : "index,follow,max-image-preview:large";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
 ---
 <!doctype html>
-<html lang="zh-CN">
+<html lang={localeContext.locale}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -49,7 +51,7 @@ const robotsContent = noindex ? "noindex,nofollow" : "index,follow,max-image-pre
     {description && <meta property="og:description" content={description} />}
     <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content={siteName} />
-    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale" content={localeContext.locale === "zh-CN" ? "zh_CN" : "en_US"} />
     <meta property="og:image" content={ogImageHref} />
     {canonicalHref && <meta property="og:url" content={canonicalHref} />}
     <meta name="twitter:card" content={twitterCard} />
