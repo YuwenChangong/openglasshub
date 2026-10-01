@@ -5,6 +5,10 @@ import { isValidProfileUsername } from "../../lib/profile-links";
 import { resolveProfileAvatarUrl, resolveProfileBannerUrl } from "../../lib/profile-media";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { uploadToPostMediaWithTus } from "../../lib/storage-tus";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+type AccountMessages = ReturnType<typeof getUiMessages>["account"];
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
@@ -40,19 +44,19 @@ function normalizeUsernameForBlur(value: string) {
   return trimmed;
 }
 
-function mapProfileError(message: string) {
-  if (/PROFILE_FORBIDDEN_FIELD_UPDATE/i.test(message)) return "当前请求包含不允许修改的资料字段。";
-  if (/PROFILE_UPDATE_FAILED/i.test(message)) return "保存资料失败，请稍后再试。";
-  if (/23505|duplicate key|profiles_username_unique_ci/i.test(message)) return "主页地址已被占用。";
+function mapProfileError(message: string, text: AccountMessages) {
+  if (/PROFILE_FORBIDDEN_FIELD_UPDATE/i.test(message)) return text.forbidden;
+  if (/PROFILE_UPDATE_FAILED/i.test(message)) return text.saveFailed;
+  if (/23505|duplicate key|profiles_username_unique_ci/i.test(message)) return text.usernameTaken;
   if (/username/i.test(message) && /check|constraint|invalid/i.test(message)) {
-    return "主页地址仅支持小写英文、数字、下划线和短横线。";
+    return text.usernameInvalid;
   }
-  if (/RATE_LIMITED/i.test(message)) return "上传过于频繁，请稍后再试。";
-  if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return "当前上传需要额外安全验证，请稍后再试。";
-  if (/PROFILE_CONTENT_REJECTED/i.test(message)) return "资料内容需要调整后再保存。";
-  if (/PROFILE_IMAGE_NOT_ALLOWED/i.test(message)) return "资料图片需要调整后再保存。";
-  if (/PROFILE_IMAGE_MODERATION_UNAVAILABLE/i.test(message)) return "资料图片审核暂时不可用，请稍后再试。";
-  if (/banner_url/i.test(message)) return "当前环境尚未完成个人横幅 migration。";
+  if (/RATE_LIMITED/i.test(message)) return text.rateLimited;
+  if (/TURNSTILE_REQUIRED|TURNSTILE_INVALID/i.test(message)) return text.uploadVerification;
+  if (/PROFILE_CONTENT_REJECTED/i.test(message)) return text.contentRejected;
+  if (/PROFILE_IMAGE_NOT_ALLOWED/i.test(message)) return text.imageRejected;
+  if (/PROFILE_IMAGE_MODERATION_UNAVAILABLE/i.test(message)) return text.moderationUnavailable;
+  if (/banner_url/i.test(message)) return text.bannerUnavailable;
   return message;
 }
 
@@ -60,21 +64,23 @@ function validateProfileInput(values: {
   displayName: string;
   username: string;
   bio: string;
-}) {
+}, text: AccountMessages) {
   const displayName = values.displayName.trim();
   const username = normalizeUsernameForSave(values.username);
   const bio = values.bio.trim();
 
-  if (!displayName) return "用户名不能为空。";
-  if (displayName.length > 40) return "用户名不能超过 40 个字符。";
+  if (!displayName) return text.nameRequired;
+  if (displayName.length > 40) return text.nameLong;
   if (username && !isValidProfileUsername(username)) {
-    return "主页地址仅支持小写英文、数字、下划线和短横线。";
+    return text.usernameInvalid;
   }
-  if (bio.length > 240) return "个人简介不能超过 240 个字符。";
+  if (bio.length > 240) return text.bioLong;
   return "";
 }
 
-export default function EditProfileForm() {
+export default function EditProfileForm({ localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: { localeContext?: LocaleContext }) {
+  const { messages } = useLocale(localeContext);
+  const text = messages.account;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
@@ -104,7 +110,7 @@ export default function EditProfileForm() {
       if (!supabase) {
         if (!cancelled) {
           setLoading(false);
-          setError("当前环境未启用登录。");
+          setError(text.loginUnavailable);
         }
         return;
       }
@@ -120,7 +126,7 @@ export default function EditProfileForm() {
       if (!profileRow) {
         if (!cancelled) {
           setLoading(false);
-          setError("当前账号还没有可用的个人资料。");
+          setError(text.profileUnavailable);
         }
         return;
       }
@@ -148,7 +154,7 @@ export default function EditProfileForm() {
     void load().catch((requestError) => {
       if (cancelled) return;
       setLoading(false);
-      setError(requestError instanceof Error ? requestError.message : "加载资料失败。");
+      setError(requestError instanceof Error ? requestError.message : text.loadFailed);
     });
 
     return () => {
@@ -189,13 +195,13 @@ export default function EditProfileForm() {
     const payload = (await response.json().catch(() => null)) as { error?: string; code?: string } | null;
     if (!response.ok) {
       throw new Error(
-        payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `上传校验失败 (${response.status})`,
+        payload?.code ? `${payload.code}: ${payload.error ?? ""}` : payload?.error ?? `${text.uploadFailed} (${response.status})`,
       );
     }
   }
 
   async function uploadProfileImage(file: File, kind: "avatar" | "banner") {
-    if (!profile || !supabase) throw new Error("当前资料尚未加载完成。");
+    if (!profile || !supabase) throw new Error(text.profileLoading);
     const token = await getSessionToken();
     if (!token) {
       window.location.replace(buildLoginHref("/me/edit/"));
@@ -203,8 +209,8 @@ export default function EditProfileForm() {
     }
 
     const sizeLimit = kind === "avatar" ? MAX_AVATAR_SIZE : MAX_BANNER_SIZE;
-    if (!ACCEPTED_IMAGE_TYPES.has(file.type)) throw new Error("仅支持 jpg / png / webp / gif。");
-    if (file.size > sizeLimit) throw new Error(kind === "avatar" ? "头像不能超过 5MB。" : "横幅不能超过 8MB。");
+    if (!ACCEPTED_IMAGE_TYPES.has(file.type)) throw new Error(text.imageType);
+    if (file.size > sizeLimit) throw new Error(kind === "avatar" ? text.avatarSize : text.bannerSize);
 
     const objectPath = `${kind === "avatar" ? "profile-avatars" : "profile-banners"}/${profile.id}/${Date.now()}-${normalizeFileName(file.name)}`;
     await guardUpload(token, file.size, kind === "avatar" ? "profile_avatar" : "profile_banner");
@@ -240,12 +246,12 @@ export default function EditProfileForm() {
         await removeStorageObject(previousPendingPath);
       }
 
-      setSuccess(kind === "avatar" ? "头像已上传，记得保存资料。" : "横幅已上传，记得保存资料。");
+      setSuccess(kind === "avatar" ? text.avatarUploaded : text.bannerUploaded);
     } catch (requestError) {
       if (nextPath) {
         await removeStorageObject(nextPath);
       }
-      setError(mapProfileError(requestError instanceof Error ? requestError.message : "上传失败。"));
+      setError(mapProfileError(requestError instanceof Error ? requestError.message : text.uploadFailed, text));
     } finally {
       setUploadingKind(null);
       if (kind === "avatar" && avatarInputRef.current) avatarInputRef.current.value = "";
@@ -267,7 +273,7 @@ export default function EditProfileForm() {
         displayName: nextDisplayName,
         username: nextUsername,
         bio: nextBio,
-      });
+      }, text);
       if (validationError) throw new Error(validationError);
 
       const payload = {
@@ -315,7 +321,7 @@ export default function EditProfileForm() {
             return { path: null, previewUrl: null };
           });
         }
-        throw new Error(responsePayload?.error ?? responsePayload?.message ?? `保存资料失败 (${response.status})`);
+        throw new Error(responsePayload?.error ?? responsePayload?.message ?? `${text.saveFailed} (${response.status})`);
       }
       const data = responsePayload.profile;
 
@@ -355,9 +361,9 @@ export default function EditProfileForm() {
         if (current.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(current.previewUrl);
         return { path: null, previewUrl: null };
       });
-      setSuccess("个人资料已保存。");
+      setSuccess(text.profileSaved);
     } catch (requestError) {
-      setError(mapProfileError(requestError instanceof Error ? requestError.message : "保存资料失败。"));
+      setError(mapProfileError(requestError instanceof Error ? requestError.message : text.saveFailed, text));
     } finally {
       setSaving(false);
     }
@@ -366,8 +372,8 @@ export default function EditProfileForm() {
   if (loading) {
     return (
       <section className="community-surface community-surface--padded profile-shell">
-        <h1>编辑资料</h1>
-        <p className="community-meta">正在加载...</p>
+        <h1>{text.editProfile}</h1>
+        <p className="community-meta">{text.loading}</p>
       </section>
     );
   }
@@ -375,23 +381,23 @@ export default function EditProfileForm() {
   if (error && !profile) {
     return (
       <section className="community-surface community-surface--padded profile-shell">
-        <h1>编辑资料</h1>
+        <h1>{text.editProfile}</h1>
         <p className="community-meta">{error}</p>
       </section>
     );
   }
 
-  const visibleName = displayName.trim() || profile?.display_name?.trim() || username.trim() || profile?.username?.trim() || "我的资料";
+  const visibleName = displayName.trim() || profile?.display_name?.trim() || username.trim() || profile?.username?.trim() || text.myDetails;
 
   return (
     <section className="community-surface community-surface--padded profile-shell profile-editor">
       <div className="community-stream-head profile-editor__head">
         <div>
-          <h2>编辑资料</h2>
+          <h2>{text.editProfile}</h2>
         </div>
         <div className="community-inline-links">
           <a href="/me/" className="community-inline-link">
-            返回我的主页
+            {text.backProfile}
           </a>
         </div>
       </div>
@@ -419,7 +425,7 @@ export default function EditProfileForm() {
           </div>
           <div className="profile-upload-grid">
             <label className="profile-upload-field">
-              <span className="community-meta">头像</span>
+              <span className="community-meta">{text.avatar}</span>
               <input
                 ref={avatarInputRef}
                 className="community-input"
@@ -428,10 +434,10 @@ export default function EditProfileForm() {
                 onChange={(event) => void handleImageUpload("avatar", event.target.files?.[0] ?? null)}
                 disabled={isBusy}
               />
-              <small className="community-meta">支持 jpg / png / webp / gif，最大 5MB</small>
+              <small className="community-meta">{text.avatarHint}</small>
             </label>
             <label className="profile-upload-field">
-              <span className="community-meta">横幅</span>
+              <span className="community-meta">{text.banner}</span>
               <input
                 ref={bannerInputRef}
                 className="community-input"
@@ -440,14 +446,14 @@ export default function EditProfileForm() {
                 onChange={(event) => void handleImageUpload("banner", event.target.files?.[0] ?? null)}
                 disabled={isBusy}
               />
-              <small className="community-meta">支持 jpg / png / webp / gif，最大 8MB</small>
+              <small className="community-meta">{text.bannerHint}</small>
             </label>
           </div>
         </div>
       </div>
 
       <label className="create-circle-form__field">
-        <span>用户名</span>
+        <span>{text.name}</span>
         <input
           className="community-input"
           value={displayName}
@@ -459,7 +465,7 @@ export default function EditProfileForm() {
       </label>
 
       <label className="create-circle-form__field">
-        <span>主页地址</span>
+        <span>{text.username}</span>
         <input
           className="community-input"
           value={username}
@@ -476,11 +482,11 @@ export default function EditProfileForm() {
           autoCorrect="off"
           spellCheck={false}
         />
-        <small className="community-meta">仅支持小写英文、数字、下划线和短横线。留空则使用账号 ID。</small>
+        <small className="community-meta">{text.usernameHint}</small>
       </label>
 
       <label className="create-circle-form__field">
-        <span>个人简介</span>
+        <span>{text.bio}</span>
         <textarea
           className="community-input community-input--textarea"
           value={bio}
@@ -494,7 +500,7 @@ export default function EditProfileForm() {
 
       <div className="community-cta-row">
         <button type="button" className="community-button" onClick={() => void handleSaveProfile()} disabled={isBusy}>
-          {saving ? "保存中..." : "保存资料"}
+          {saving ? text.saving : text.save}
         </button>
       </div>
     </section>

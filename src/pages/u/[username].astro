@@ -11,6 +11,10 @@ import {
   loadProfilePageData,
 } from "../../lib/profile-data";
 import { buildProfileHref } from "../../lib/profile-links";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).account;
 
 const env = runtimeEnv as CloudflareEnv & { R2_PUBLIC_BASE_URL?: string };
 const supabase = createSSRClient(env);
@@ -27,23 +31,23 @@ if (profile?.username) {
 }
 
 const pageData = profile ? await loadProfilePageData(supabase, profile, env.R2_PUBLIC_BASE_URL) : null;
-const displayName = pageData?.profile.display_name || pageData?.profile.username || "社区成员";
+const displayName = pageData?.profile.display_name || pageData?.profile.username || text.member;
 const canonicalProfileHref = pageData ? buildProfileHref(pageData.profile) : null;
 ---
 
 <CommunityLayout
-  title={pageData ? displayName : "用户未找到"}
+  title={pageData ? displayName : text.notFound}
   activeSection="forum"
   canonical={canonicalProfileHref ?? undefined}
   noindex={!pageData}
 >
   {!pageData ? (
     <section class="community-surface community-surface--padded profile-shell">
-      <h1>用户未找到</h1>
-      <p class="community-meta">该用户不存在，或用户名链接无效。</p>
-      <a href="/feed/" class="community-action-button community-action-button--muted">返回论坛</a>
+      <h1>{text.notFound}</h1>
+      <p class="community-meta">{text.notFoundDetail}</p>
+      <a href="/feed/" class="community-action-button community-action-button--muted">{text.backForum}</a>
     </section>
   ) : (
-    <MyProfilePage client:load profileId={pageData.profile.id} initialPageData={pageData} initialTab={tab} />
+    <MyProfilePage localeContext={localeContext} client:load profileId={pageData.profile.id} initialPageData={pageData} initialTab={tab} />
   )}
 </CommunityLayout>

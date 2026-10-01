@@ -4,9 +4,12 @@ import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { getAuthMessages, type AuthLocale, type AuthMessages } from "../../lib/auth-messages";
 import { browserNavigationAdapter, type LegalConsentAdapter, type LegalConsentAuthAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 import { clearAuthCallbackUrl, hasAuthCallbackError } from "../../lib/auth-callback-url";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
 interface AuthCallbackProps {
   locale?: AuthLocale;
+  localeContext?: LocaleContext;
   next?: string;
   authAdapter?: LegalConsentAuthAdapter;
   /** @deprecated Retained for adapter compatibility; callback does not use consent. */
@@ -20,7 +23,9 @@ function mapCallbackError(errorMessage: string, messages: AuthMessages): string 
   return messages.callbackFailed;
 }
 
-export default function AuthCallback({ locale = "zh-CN", next, authAdapter, navigationAdapter, codeExchange }: AuthCallbackProps) {
+export default function AuthCallback({ locale: initialLocale = "zh-CN", localeContext, next, authAdapter, navigationAdapter, codeExchange }: AuthCallbackProps) {
+  const { context } = useLocale(localeContext ?? resolveLocale({ current: initialLocale }));
+  const locale = localeContext ? context.locale : initialLocale;
   const messages = getAuthMessages(locale);
   const supabase = useMemo(() => authAdapter ? null : createBrowserSupabaseClient(), [authAdapter]);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);

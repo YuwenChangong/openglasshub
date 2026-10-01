@@ -8,11 +8,14 @@ import type { AuthCaptchaMode } from "../../lib/auth-captcha-mode";
 import { useBrowserAuthState } from "../auth/useBrowserAuthState";
 import { browserNavigationAdapter, type AuthPanelAdapter, type LegalConsentAdapter, type LegalConsentNavigationAdapter } from "../../lib/legal-consent-adapters";
 import AuthTurnstile, { type AuthCaptchaAdapter } from "./AuthTurnstile";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
 type Mode = "login" | "signup";
 
 interface AuthPanelProps {
   locale?: AuthLocale;
+  localeContext?: LocaleContext;
   next?: string;
   initialMode?: Mode;
   captchaMode?: AuthCaptchaMode;
@@ -54,7 +57,9 @@ function mapAuthError(error: unknown, messages: AuthMessages): string {
   return messages.unavailable;
 }
 
-export default function AuthPanel({ locale = "zh-CN", next, initialMode = "login", captchaMode = "off", authTurnstileSiteKey, captchaAdapter, authAdapter, navigationAdapter }: AuthPanelProps) {
+export default function AuthPanel({ locale: initialLocale = "zh-CN", localeContext, next, initialMode = "login", captchaMode = "off", authTurnstileSiteKey, captchaAdapter, authAdapter, navigationAdapter }: AuthPanelProps) {
+  const { context } = useLocale(localeContext ?? resolveLocale({ current: initialLocale }));
+  const locale = localeContext ? context.locale : initialLocale;
   const messages = getAuthMessages(locale);
   const supabase = useMemo(() => authAdapter ? null : createBrowserSupabaseClient(), [authAdapter]);
   const navigation = useMemo(() => navigationAdapter ?? browserNavigationAdapter(), [navigationAdapter]);

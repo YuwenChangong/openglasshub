@@ -3,16 +3,20 @@ export const prerender = false;
 
 import CommunityLayout from "../../../layouts/CommunityLayout.astro";
 import ResetPasswordForm from "../../../components/auth/ResetPasswordForm";
+import { resolveLocale } from "../../../lib/i18n/locale";
+import { getUiMessages } from "../../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).account;
 ---
 
 <CommunityLayout
-  title="重置密码"
-  description="通过邮箱恢复链接重置 OpenGlass Hub 密码。"
+  title={text.resetTitle}
+  description={text.resetDescription}
   canonical="/auth/reset-password/"
   noindex={true}
 >
   <section class="auth-reset-page">
-    <ResetPasswordForm locale="zh-CN" client:only="react" />
+    <ResetPasswordForm locale={localeContext.locale} localeContext={localeContext} client:only="react" />
   </section>
 </CommunityLayout>
 

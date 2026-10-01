@@ -1,6 +1,7 @@
 import type { ResolvedLocale } from "./locale.ts";
 import { shellMessages } from "./messages/shell.ts";
 import { settingsMessages } from "./messages/settings.ts";
+import { accountMessages } from "./messages/account.ts";
 
 type MessageTree = { readonly [key: string]: string | MessageTree };
 
@@ -34,8 +35,8 @@ export function defineUiMessages<T extends Record<ResolvedLocale, MessageTree>>(
 }
 
 const messages = defineUiMessages({
-  "zh-CN": { shell: shellMessages["zh-CN"], settings: settingsMessages["zh-CN"] },
-  en: { shell: shellMessages.en, settings: settingsMessages.en },
+  "zh-CN": { shell: shellMessages["zh-CN"], settings: settingsMessages["zh-CN"], account: accountMessages["zh-CN"] },
+  en: { shell: shellMessages.en, settings: settingsMessages.en, account: accountMessages.en },
 });
 
 export function getUiMessages(locale: ResolvedLocale) {

@@ -3,18 +3,22 @@ export const prerender = false;
 
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import AuthCallback from "../../components/auth/AuthCallback";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).account;
 
 const next = Astro.url.searchParams.get("next") ?? "/";
 ---
 
 <CommunityLayout
-  title="登录确认"
-  description="处理 OpenGlass Hub 的邮箱确认与登录回调。"
+  title={text.callbackTitle}
+  description={text.callbackDescription}
   canonical="/auth/callback/"
   noindex={true}
 >
   <section class="auth-callback-page">
-    <AuthCallback locale="zh-CN" next={next} client:only="react" />
+    <AuthCallback locale={localeContext.locale} localeContext={localeContext} next={next} client:only="react" />
   </section>
 </CommunityLayout>
 

@@ -3,8 +3,12 @@ import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 import { getAuthMessages, type AuthLocale } from "../../lib/auth-messages";
 import { createPasswordRecoveryAdapter, type PasswordRecoveryAdapter } from "../../lib/password-recovery-adapter";
 import { clearAuthCallbackUrl, hasAuthCallbackError } from "../../lib/auth-callback-url";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
-export default function ResetPasswordForm({ locale = "zh-CN", recoveryAdapter }: { locale?: AuthLocale; recoveryAdapter?: PasswordRecoveryAdapter }) {
+export default function ResetPasswordForm({ locale: initialLocale = "zh-CN", localeContext, recoveryAdapter }: { locale?: AuthLocale; localeContext?: LocaleContext; recoveryAdapter?: PasswordRecoveryAdapter }) {
+  const { context } = useLocale(localeContext ?? resolveLocale({ current: initialLocale }));
+  const locale = localeContext ? context.locale : initialLocale;
   const messages = getAuthMessages(locale);
   const supabase = useMemo(() => recoveryAdapter ? null : createBrowserSupabaseClient(), [recoveryAdapter]);
   const adapter = useMemo(() => recoveryAdapter ?? (supabase ? createPasswordRecoveryAdapter(supabase) : null), [recoveryAdapter, supabase]);

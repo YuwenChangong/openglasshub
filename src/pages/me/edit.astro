@@ -3,10 +3,13 @@ export const prerender = false;
 
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import EditProfileForm from "../../components/profile/EditProfileForm";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
 ---
 
-<CommunityLayout title="编辑资料" activeSection="forum" noindex={true}>
+<CommunityLayout title={getUiMessages(localeContext.locale).account.editProfile} activeSection="forum" noindex={true}>
   <main class="community-main community-main--narrow">
-    <EditProfileForm client:load />
+    <EditProfileForm localeContext={localeContext} client:load />
   </main>
 </CommunityLayout>

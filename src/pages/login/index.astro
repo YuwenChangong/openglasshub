@@ -6,6 +6,10 @@ import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import AuthPanel from "../../components/forum/AuthPanel";
 import { getSafeNext } from "../../lib/auth-redirect";
 import { configureAuthLoginResponse } from "../../lib/server/auth-login-response";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).account;
 
 const captchaMode = configureAuthLoginResponse(Astro.response, runtimeEnv);
 const next = getSafeNext(Astro.url.searchParams.get("next"));
@@ -14,16 +18,16 @@ const initialMode = modeParam === "register" || modeParam === "signup" ? "signup
 ---
 
 <CommunityLayout
-  title="登录"
-  description="登录 OpenGlass Hub。浏览内容无需登录，发帖和评论等互动操作需要认证。"
+  title={text.loginTitle}
+  description={text.loginDescription}
   canonical="/login/"
   noindex={true}
 >
   <section class="auth-page">
     <div class="auth-page__intro">
-      <h1>登录 / 注册</h1>
+      <h1>{text.loginHeading}</h1>
     </div>
-    <AuthPanel locale="zh-CN" next={next} initialMode={initialMode} captchaMode={captchaMode} authTurnstileSiteKey={runtimeEnv.PUBLIC_AUTH_TURNSTILE_SITE_KEY} client:only="react" />
+    <AuthPanel locale={localeContext.locale} localeContext={localeContext} next={next} initialMode={initialMode} captchaMode={captchaMode} authTurnstileSiteKey={runtimeEnv.PUBLIC_AUTH_TURNSTILE_SITE_KEY} client:only="react" />
   </section>
 </CommunityLayout>
 

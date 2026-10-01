@@ -13,10 +13,12 @@ import {
 import { buildProfileHref } from "../../lib/profile-links";
 import ProfilePostCard from "./ProfilePostCard";
 import ReportTrigger from "../reports/ReportTrigger";
+import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
+import { useLocale } from "../i18n/useLocale";
 
-function formatProfileTime(value: string) {
+function formatProfileTime(value: string, locale: "zh-CN" | "en") {
   try {
-    return new Date(value).toLocaleString("zh-CN");
+    return new Date(value).toLocaleString(locale);
   } catch {
     return value;
   }
@@ -39,15 +41,8 @@ type CollectionPost = ProfilePostRecord & {
 
 export type OwnTab = "posts" | "comments" | "circles" | "liked" | "saved";
 
-const TAB_LABELS: Record<OwnTab, string> = {
-  posts: "帖子",
-  comments: "评论",
-  circles: "创建的圈子",
-  liked: "我的喜欢",
-  saved: "我的收藏",
-};
-
 type MyProfilePageProps = {
+  localeContext?: LocaleContext;
   profileId?: string;
   initialPageData?: LoadedProfilePage | null;
   initialTab?: OwnTab;
@@ -109,7 +104,10 @@ async function loadCollectionPosts(
   }));
 }
 
-export default function MyProfilePage({ profileId, initialPageData = null, initialTab = "posts" }: MyProfilePageProps) {
+export default function MyProfilePage({ profileId, initialPageData = null, initialTab = "posts", localeContext = resolveLocale({ acceptLanguage: "zh-CN" }) }: MyProfilePageProps) {
+  const { context, messages } = useLocale(localeContext);
+  const text = messages.account;
+  const tabLabels = { posts: text.posts, comments: text.comments, circles: text.createdCircles, liked: text.myLikes, saved: text.mySaved };
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [loading, setLoading] = useState(initialPageData ? false : true);
   const [error, setError] = useState("");
@@ -127,7 +125,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
       if (!supabase) {
         if (!cancelled) {
           setLoading(false);
-          setError("当前环境未启用登录。");
+          setError(text.loginUnavailable);
         }
         return;
       }
@@ -151,7 +149,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
       if (!profile) {
         if (!cancelled) {
           setLoading(false);
-          setError("当前用户还没有可用的个人资料。");
+          setError(text.profileUnavailable);
         }
         return;
       }
@@ -213,7 +211,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
     void load().catch((requestError) => {
       if (cancelled) return;
       setLoading(false);
-      setError(requestError instanceof Error ? requestError.message : "加载我的主页失败。");
+      setError(requestError instanceof Error ? requestError.message : text.loadFailed);
     });
 
     return () => {
@@ -282,8 +280,8 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
   if (loading) {
     return (
       <section className="community-surface community-surface--padded profile-shell">
-        <h1>我的主页</h1>
-        <p className="community-meta">正在加载...</p>
+        <h1>{text.myProfile}</h1>
+        <p className="community-meta">{text.loading}</p>
       </section>
     );
   }
@@ -291,13 +289,13 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
   if (error || !pageData) {
     return (
       <section className="community-surface community-surface--padded profile-shell">
-        <h1>我的主页</h1>
-        <p className="community-meta">{error || "加载失败"}</p>
+        <h1>{text.myProfile}</h1>
+        <p className="community-meta">{error || text.loadFailed}</p>
       </section>
     );
   }
 
-  const displayName = pageData.profile.display_name || pageData.profile.username || "社区成员";
+  const displayName = pageData.profile.display_name || pageData.profile.username || text.member;
   const publicHref = buildProfileHref(pageData.profile) ?? "/feed/";
   const ownerBaseHref = "/me/";
   const activeBaseHref = viewerIsOwner ? ownerBaseHref : publicHref;
@@ -310,6 +308,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
   const renderPostCard = (post: CollectionPost, extraMeta?: string) => (
     <ProfilePostCard
       key={`${post.id}-${extraMeta ?? "default"}`}
+      localeContext={context}
       id={post.id}
       title={post.title}
       body={post.body}
@@ -352,32 +351,32 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
             {pageData.profile.bio ? <p className="profile-bio">{pageData.profile.bio}</p> : null}
             <div className="profile-stats">
               <span>
-                <strong>{pageData.stats.postCount}</strong> 帖子
+                <strong>{pageData.stats.postCount}</strong> {text.posts}
               </span>
               <span>
-                <strong>{pageData.stats.commentCount}</strong> 评论
+                <strong>{pageData.stats.commentCount}</strong> {text.comments}
               </span>
               <span>
-                <strong>{pageData.stats.circleCount}</strong> 圈子
+                <strong>{pageData.stats.circleCount}</strong> {text.circles}
               </span>
               {viewerIsOwner ? (
                 <span>
-                  <strong>{likedPosts.length}</strong> 喜欢
+                  <strong>{likedPosts.length}</strong> {text.liked}
                 </span>
               ) : null}
               {viewerIsOwner && savedPostsAvailable ? (
                 <span>
-                  <strong>{savedPosts.length}</strong> 收藏
+                  <strong>{savedPosts.length}</strong> {text.saved}
                 </span>
               ) : null}
             </div>
             {viewerIsOwner ? (
               <div className="community-inline-links profile-owner-actions">
                 <a href="/me/edit/" className="community-inline-link community-inline-link--active">
-                  编辑资料
+                  {text.editProfile}
                 </a>
                 <a href={publicHref} className="community-inline-link">
-                  公开主页
+                  {text.publicProfile}
                 </a>
               </div>
             ) : (
@@ -386,7 +385,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
                   targetType="user"
                   targetId={pageData.profile.id}
                   loginHref={buildLoginHref(publicHref)}
-                  buttonLabel="举报用户"
+                  buttonLabel={text.reportUser}
                   className="community-action-button community-action-button--compact"
                   compact
                 />
@@ -397,7 +396,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
       </section>
 
       <section className="community-surface community-surface--padded profile-tabs">
-        <div className="community-inline-links profile-tabs__links" role="tablist" aria-label="我的动态">
+        <div className="community-inline-links profile-tabs__links" role="tablist" aria-label={text.activity}>
           {visibleTabs.map((item) => (
             <a
               key={item}
@@ -413,7 +412,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
                 }
               }}
             >
-              {TAB_LABELS[item]}
+              {tabLabels[item]}
             </a>
           ))}
         </div>
@@ -425,7 +424,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
             pageData.posts.map((post) => renderPostCard(post as CollectionPost))
           ) : (
             <section className="community-empty">
-              <strong>还没有公开帖子</strong>
+              <strong>{text.noPosts}</strong>
             </section>
           )}
         </section>
@@ -440,19 +439,19 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
                   <a href={comment.postHref} className="community-post-meta__link">
                     {comment.postTitle}
                   </a>
-                  <span>{formatProfileTime(comment.created_at)}</span>
+                  <span>{formatProfileTime(comment.created_at, context.locale)}</span>
                 </div>
                 <p>{comment.body}</p>
                 <div className="community-post-actions">
                   <a href={comment.postHref} className="community-action-button community-action-button--muted">
-                    查看帖子
+                    {text.viewPost}
                   </a>
                 </div>
               </article>
             ))
           ) : (
             <section className="community-empty">
-              <strong>还没有公开评论</strong>
+              <strong>{text.noComments}</strong>
             </section>
           )}
         </section>
@@ -467,19 +466,19 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
                   <a href={`/circles/${circle.slug}/`} className="community-post-meta__link">
                     {circle.name}
                   </a>
-                  {circle.created_at ? <span>{new Date(circle.created_at).toLocaleDateString("zh-CN")}</span> : null}
+                  {circle.created_at ? <span>{new Date(circle.created_at).toLocaleDateString(context.locale)}</span> : null}
                 </div>
                 {circle.description ? <p>{circle.description}</p> : null}
                 <div className="community-post-actions">
                   <a href={`/circles/${circle.slug}/`} className="community-action-button community-action-button--muted">
-                    进入圈子
+                    {text.enterCircle}
                   </a>
                 </div>
               </article>
             ))
           ) : (
             <section className="community-empty">
-              <strong>还没有创建公开圈子</strong>
+              <strong>{text.noCircles}</strong>
             </section>
           )}
         </section>
@@ -491,7 +490,7 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
             likedPosts.map((post) => renderPostCard(post))
           ) : (
             <section className="community-empty">
-              <strong>还没有喜欢的帖子</strong>
+              <strong>{text.noLikes}</strong>
             </section>
           )}
         </section>
@@ -500,10 +499,10 @@ export default function MyProfilePage({ profileId, initialPageData = null, initi
       {tab === "saved" ? (
         <section className="community-feed-list profile-tab-content">
           {savedPosts.length > 0 ? (
-            savedPosts.map((post) => renderPostCard(post, "已收藏"))
+            savedPosts.map((post) => renderPostCard(post, text.bookmarked))
           ) : (
             <section className="community-empty">
-              <strong>还没有收藏帖子</strong>
+              <strong>{text.noSaved}</strong>
             </section>
           )}
         </section>

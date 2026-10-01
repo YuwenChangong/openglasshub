@@ -4,12 +4,15 @@ export const prerender = false;
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import MyProfilePage from "../../components/profile/MyProfilePage";
 import { getRequestedProfileTab } from "../../lib/profile-data";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
 
 const tab = getRequestedProfileTab(Astro.url);
 ---
 
-<CommunityLayout title="我的主页" activeSection="forum" noindex={true}>
+<CommunityLayout title={getUiMessages(localeContext.locale).account.myProfile} activeSection="forum" noindex={true}>
   <main class="community-main community-main--narrow">
-    <MyProfilePage client:load initialTab={tab} />
+    <MyProfilePage client:load localeContext={localeContext} initialTab={tab} />
   </main>
 </CommunityLayout>
