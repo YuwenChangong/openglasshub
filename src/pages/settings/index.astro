@@ -1,0 +1,11 @@
+---
+export const prerender = false;
+import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import SettingsPage from "../../components/settings/SettingsPage";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+---
+<CommunityLayout title={getUiMessages(localeContext.locale).settings.title} noindex={true}>
+  <SettingsPage localeContext={localeContext} client:load />
+</CommunityLayout>
