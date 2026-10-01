@@ -38,3 +38,4 @@ assert.throws(() => withWorkerRuntimeVars(generated, { ...source, AUTH_CAPTCHA_M
 assert.throws(() => withWorkerRuntimeVars(generated, { ...source, SUPABASE_URL: "" }), /WORKERS_RUNTIME_SUPABASE_URL_MISSING/);
 
 console.log("build workers runtime vars: PASS");
+await import("./test-build-workers-environment.mjs");
