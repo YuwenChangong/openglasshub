@@ -6,6 +6,7 @@ import path from "node:path";
 import { unstable_readConfig } from "wrangler";
 
 import { resolveSiteOrigin } from "../src/lib/site-origin.ts";
+import { getUiMessages } from "../src/lib/i18n/catalog.ts";
 
 const root = process.cwd();
 const node = process.execPath;
@@ -187,7 +188,14 @@ async function main() {
   assert(/ForumSearchUserResult/.test(typeSource) && /ForumSearchDeviceResult/.test(typeSource), "search result types must include users/devices");
   assert(/counts: ForumSearchCounts/.test(typeSource), "search results must include counts");
   assert(/limit_users/.test(apiSource) && /limit_devices/.test(apiSource), "API must accept users/devices limits");
-  assert(/People/.test(pageSource) && /Devices/.test(pageSource), "search page must render people/devices sections");
+  assert.match(pageSource, /getUiMessages\(localeContext\.locale\)\.catalog/, "search page must select the localized catalog");
+  for (const key of ["people", "devices"]) {
+    assert.ok(pageSource.includes(`<h2>{text.${key}}</h2>`), `search page must render localized ${key} section heading`);
+    for (const locale of ["zh-CN", "en"]) {
+      const label = getUiMessages(locale).catalog[key];
+      assert.ok(typeof label === "string" && label.trim(), `${locale} must resolve the ${key} section label`);
+    }
+  }
   assert(!/email/i.test(typeSource), "search types must not expose email");
 
   await assertRenderedSearchSeo();

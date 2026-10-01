@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
+import { getUiMessages, formatUiMessage } from "../src/lib/i18n/catalog.ts";
+import { getMainNav } from "../src/lib/site-navigation.ts";
 
 const root = process.cwd();
 
@@ -24,6 +26,17 @@ function runNodeWithStripTypes(code) {
 
 async function readJson(relativePath) {
   return JSON.parse(await read(relativePath));
+}
+
+function assertLocalizedMessage(source, key, parameters = []) {
+  assert(source.includes(`text.${key}`), `Product UI must reference localized ${key}.`);
+  for (const locale of ["zh-CN", "en"]) {
+    const message = getUiMessages(locale).catalog[key];
+    assert(typeof message === "string" && message.trim(), `${locale} must resolve ${key}.`);
+    const args = Object.fromEntries(parameters.map(name => [name, `fixture-${name}`]));
+    const rendered = formatUiMessage(message, args);
+    for (const value of Object.values(args)) assert(rendered.includes(value), `${locale}/${key} must retain interpolation.`);
+  }
 }
 
 async function main() {
@@ -70,14 +83,18 @@ async function main() {
   assert(productsIndex.includes('<span class="products-search-result__compare-state" aria-hidden="true">✓</span>'), "Products index selected dropdown rows should use a compact check state.");
   assert(productsIndex.includes("button.disabled = active;"), "Products index selected dropdown rows should disable duplicate add actions.");
   assert(productsIndex.includes("selected.length >= maxCompareCount"), "Products index should enforce a max compare count.");
-  assert(productsIndex.includes("最多同时比较 3 款产品。"), "Products index should show inline max-3 compare feedback.");
-  assert(productsIndex.includes("已选 1 款，再添加 1 款开始对比。"), "Products index should show a compact one-product compare hint.");
-  assert(productsIndex.includes("选择产品进行对比，最多 3 款。"), "Products index should show a compact zero-product compare hint.");
+  assert(productsIndex.includes("maxCompareCount = 3"), "Products index should cap comparison at 3.");
+  for (const source of [productsIndex, brandPage]) {
+    assert(source.includes("getUiMessages(localeContext.locale).catalog"), "Products must select the request locale catalog.");
+    for (const key of ["compareLimit", "compareOne", "compareEmpty", "noComparable"]) assertLocalizedMessage(source, key);
+    for (const key of ["removeProduct", "compareProduct", "addedProduct", "addProduct"]) assertLocalizedMessage(source, key, ["name"]);
+    assertLocalizedMessage(source, "compareSelected", ["count"]);
+  }
   assert(productsIndex.includes("selected.length < 2"), "Products index compare table should require at least two selected products.");
   assert(productsIndex.includes("products-compare__column-heading"), "Products index compare table should separate product and brand labels.");
   assert(productsIndex.includes("products-compare__pill-label"), "Products index compare pills should separate product labels.");
   assert(productsIndex.includes("products-compare__pill-remove"), "Products index compare pills should render remove buttons.");
-  assert(productsIndex.includes("没有找到可加入对比的产品。"), "Products index should show the compact dropdown empty state for unknown queries.");
+  assert(productsIndex.includes("{text.noComparable}"), "Products index should render localized dropdown empty state.");
   assert(productsIndex.includes("brandName.includes(query)"), "Products index search should match brand names.");
   assert(productsIndex.includes("previewMatchCount > 0"), "Products index search should keep only modules with matching preview products.");
   assert(productsIndex.includes("pill.hidden = Boolean(query) && !brandMatches && !previewMatches"), "Products index should hide unrelated preview pills inside matched modules.");
@@ -119,20 +136,19 @@ async function main() {
   assert(brandPage.includes("if (!searchDropdownOpen && normalize(searchInput.value))"), "Brand page should let clicking back into a non-empty search reopen the dropdown.");
   assert(brandPage.includes("document.addEventListener(\"pointerdown\""), "Brand page should dismiss the dropdown on outside pointer interaction.");
   assert(brandPage.includes("searchField?.contains(event.target)"), "Brand page outside-click logic should ignore interactions inside the search field.");
-  assert(brandPage.includes("没有找到可加入对比的产品。"), "Brand page should show a compact dropdown empty state for unknown queries.");
+  assert(brandPage.includes("{text.noComparable}"), "Brand page should render localized dropdown empty state.");
   assert(brandPage.includes("brand-compare__pill-label"), "Selected compare pills should separate the product label.");
   assert(brandPage.includes("brand-compare__pill-remove"), "Selected compare pills should render a dedicated remove button.");
-  assert(brandPage.includes('aria-label", `移除 ${product.name}`'), "Selected compare pills should expose an accessible remove label.");
-  assert(brandPage.includes('button.setAttribute("aria-label", `加入对比 ${product.name}`)'), "Dropdown add buttons should expose accessible add labels.");
+  assert(brandPage.includes('removeButton.setAttribute("aria-label", formatUiMessage(text.removeProduct, { name: product.name }))'), "Selected compare pills should expose a localized accessible remove label.");
+  assert(brandPage.includes('button.setAttribute("aria-label", formatUiMessage(text.compareProduct, { name: product.name }))'), "Dropdown add buttons should expose localized accessible add labels.");
   assert(brandPage.includes("button.disabled = active;"), "Dropdown should expose a stable selected state instead of a duplicate add action.");
-  assert(brandPage.includes('button.setAttribute("aria-label", active ? `已添加 ${product?.name || "产品"}` : `添加 ${product?.name || "产品"} 到对比`)'), "Dropdown selected state should expose an accessible added label.");
+  assert(brandPage.includes('button.setAttribute("aria-label", active ? formatUiMessage(text.addedProduct, { name: product?.name || text.products }) : formatUiMessage(text.addProduct, { name: product?.name || text.products }))'), "Dropdown selected state should expose a localized accessible added label.");
   assert(brandPage.includes('button.setAttribute("aria-disabled", active ? "true" : "false")'), "Dropdown selected state should expose a disabled affordance.");
   assert(brandPage.includes('button.closest(".brand-search-result")?.classList.toggle("is-selected", active);'), "Dropdown selected rows should get a subtle selected-row state.");
   assert(brandPage.includes("brand-search-result__compare-state"), "Dropdown selected rows should render a compact added state.");
   assert(brandPage.includes('<span class="brand-search-result__compare-state" aria-hidden="true">✓</span>'), "Dropdown selected state should use a compact check icon.");
   assert(!brandPage.includes(">已添加</span>"), "Dropdown selected state should not render wrapped 已添加 text inside the compact control.");
-  assert(brandPage.includes("已选 1 款，再添加 1 款开始对比。"), "Brand page should show a compact one-product compare hint.");
-  assert(brandPage.includes("选择产品进行对比，最多 3 款。"), "Brand page should keep a compact empty compare state.");
+  assert(brandPage.includes("? text.compareEmpty") && brandPage.includes("? text.compareOne"), "Brand page should select localized zero/one-product compare hints.");
   assert(brandPage.includes("selected.length < 2"), "Compare table should require at least two selected products.");
   assert(brandPage.includes("brand-compare__column-heading"), "Compare table headers should separate name and brand visually.");
   assert(brandPage.includes("renderCompareButtons();"), "Brand page should keep cross-brand search result buttons in sync with selected compare state.");
@@ -142,11 +158,15 @@ async function main() {
   assert(visual.includes("product-visual__title"), "Product visual should keep the title dominant.");
   assert(!visual.includes("product-visual__pill"), "Product visual should not render top-right pills.");
 
-  assert(navigation.includes('label: "产品"'), "Main navigation should keep the products entry.");
+  for (const locale of ["zh-CN", "en"]) {
+    const entry = getMainNav(locale).find(item => item.key === "products");
+    assert(entry?.href === "/products/" && entry.label === getUiMessages(locale).shell.products && entry.label.trim(), "Main navigation should keep the localized products entry.");
+  }
   assert(!navigation.includes('label: "设备库"'), "Main navigation should not include the device library entry.");
   assert(!navigation.includes('label: "选购指南"'), "Product sub-navigation should not include guides.");
 
-  assert(homepage.includes("AR / AI 眼镜社区"), "Homepage copy should stay focused on AR / AI glasses.");
+  assertLocalizedMessage(homepage, "homeLead");
+  for (const locale of ["zh-CN", "en"]) assert(/AR\s*\/\s*AI/.test(getUiMessages(locale).catalog.homeLead), "Homepage copy should stay focused on AR / AI glasses.");
   assert(!homepage.includes("空间计算。"), "Homepage intro should not frame the site around spatial computing.");
 
   assert(docs.includes("brand-module") || docs.includes("品牌模块"), "Docs should describe the brand-module products surface.");
