@@ -1,7 +1,7 @@
 export type NavKey = "home" | "forum" | "news" | "products" | "launcher";
-import { isGazeLauncherPublicEnabled } from "./gaze-launcher-visibility";
-import type { ResolvedLocale } from "./i18n/locale";
-import { getUiMessages } from "./i18n/catalog";
+import { isGazeLauncherPublicEnabled } from "./gaze-launcher-visibility.ts";
+import type { ResolvedLocale } from "./i18n/locale.ts";
+import { getUiMessages } from "./i18n/catalog.ts";
 
 const navigation = [
   { key: "home", label: "首页", href: "/" },
