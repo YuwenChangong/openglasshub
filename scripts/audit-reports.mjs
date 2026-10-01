@@ -73,8 +73,30 @@ if (exists(adminListPath)) {
 
 if (exists(adminPanelPath)) {
   const panel = read(adminPanelPath);
-  check("admin reports panel has filters", /全部状态/.test(panel) && /全部对象/.test(panel));
-  check("admin reports panel supports dismiss/hide/ban", /驳回举报/.test(panel) && /隐藏内容/.test(panel) && /封禁用户/.test(panel));
+  const { getUiMessages } = await import("../src/lib/i18n/catalog.ts");
+  const catalogs = [getUiMessages("zh-CN").admin, getUiMessages("en").admin];
+  const hasMessage = (path) => catalogs.every((catalog) => {
+    const value = path.reduce((current, key) => current?.[key], catalog);
+    return typeof value === "string" && value.trim().length > 0;
+  });
+  const consumesAdminMessages = /getUiMessages\(locale\)\.admin/.test(panel)
+    && /useLocale\(localeContext\)/.test(panel);
+  const localizedStatusOption = /value:\s*"all",\s*label:\s*text\.reports\.filters\.status\.all/.test(panel);
+  const localizedTargetOption = /value:\s*"all",\s*label:\s*text\.reports\.filters\.target\.all/.test(panel);
+  const hasStatusControl = /<select\s+value=\{filters\.status\}[\s\S]*?onChange=\{[^\n]*status:\s*event\.target\.value[^\n]*\}\}>\s*\{STATUS_OPTIONS\.map\(/.test(panel);
+  const hasTargetControl = /<select\s+value=\{filters\.target_type\}[\s\S]*?onChange=\{[^\n]*target_type:\s*event\.target\.value[^\n]*\}\}>\s*\{TARGET_OPTIONS\.map\(/.test(panel);
+  check("admin reports filter i18n contract", consumesAdminMessages
+    && localizedStatusOption && localizedTargetOption && hasStatusControl && hasTargetControl
+    && hasMessage(["reports", "filters", "status", "all"])
+    && hasMessage(["reports", "filters", "target", "all"]), "status/target controls and both locale message keys required");
+  const hasActionLabels = ["dismiss", "hide_target", "ban_user"].every((action) =>
+    new RegExp(`${action}:\\s*\\{\\s*label:\\s*text\\.reports\\.actions\\.${action}\\.label`).test(panel)
+    && hasMessage(["reports", "actions", action, "label"]));
+  const hasDismissControl = /\["reviewing",\s*"dismiss"\][\s\S]*?onClick=\{\(\) => requestAction\(action\)\}[\s\S]*?ACTION_CONFIG\[action\]\.label/.test(panel);
+  const hasHideControl = /onClick=\{\(\) => requestAction\("hide_target"\)\}[\s\S]*?ACTION_CONFIG\.hide_target\.label/.test(panel);
+  const hasBanControl = /\["warn_user",\s*"suspend_user",\s*"ban_user"\][\s\S]*?onClick=\{\(\) => requestAction\(action\)\}[\s\S]*?ACTION_CONFIG\[action\]\.label/.test(panel);
+  check("admin reports action i18n contract", consumesAdminMessages && hasActionLabels
+    && hasDismissControl && hasHideControl && hasBanControl, "dismiss/hide/ban controls and both locale message keys required");
 }
 
 if (exists(helperPath)) {
@@ -85,7 +107,14 @@ if (exists(helperPath)) {
 
 if (exists(notificationHelperPath)) {
   const helper = read(notificationHelperPath);
-  check("moderation notifications use actorless system delivery", /p_actor_id:\s*null/i.test(helper));
+  const commandType = helper.match(/type\s+ModerationNotificationCommand\s*=([\s\S]*?);/);
+  const rpcCalls = [...helper.matchAll(/\bclient\s*\.\s*rpc\s*\(/g)];
+  check("moderation notifications bind verified moderator actor",
+    /function\s+createModerationNotificationWriter\s*\(\s*env\s*:\s*RuntimeEnv\s*,\s*verifiedActorId\s*:\s*string\s*,/.test(helper)
+    && rpcCalls.length === 1
+    && /client\s*\.\s*rpc\s*\(\s*["']insert_forum_notification["']\s*,\s*\{[^}]*\bp_actor_id\s*:\s*verifiedActorId\s*,/.test(helper)
+    && !!commandType && !/\b(?:actor|actorId|actor_id|verifiedActorId|p_actor_id)\s*[?:]/i.test(commandType[1])
+    && /!isUuid\(verifiedActorId\)/.test(helper));
   check("moderation notifications avoid reporter identity", !/reporter/i.test(helper));
   check("moderation notifications avoid admin notes payload", !/note:|reason:|metadata:/i.test(helper));
 }
