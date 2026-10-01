@@ -1,3 +1,6 @@
+import { isKnownCountry } from "./country-codes.ts";
+import { resolveAcceptLanguage } from "./accept-language.ts";
+
 export type LocalePreference = "auto" | "zh-CN" | "en";
 export type ResolvedLocale = "zh-CN" | "en";
 export type PreferenceProvenance = "device_explicit" | "account_adopted";
@@ -29,12 +32,14 @@ export function normalizePreference(value: unknown): LocalePreference {
 export function resolveLocale(inputs: LocaleInputs): LocaleContext {
   const current = inputs.current !== undefined;
   const preference = normalizePreference(current ? inputs.current : inputs.saved?.preference);
-  const autoLocale = inputs.trustedCountry === "CN" ? "zh-CN" : "en";
+  const country = isKnownCountry(inputs.trustedCountry) ? inputs.trustedCountry : undefined;
+  const language = country ? undefined : resolveAcceptLanguage(inputs.acceptLanguage);
+  const autoLocale = country === "CN" ? "zh-CN" : country ? "en" : language ?? "en";
   const manual = preference !== "auto";
   return {
     locale: manual ? preference : autoLocale,
     preference,
-    source: manual ? (current ? "current" : "saved") : inputs.trustedCountry ? "country" : "fallback",
+    source: manual ? (current ? "current" : "saved") : country ? "country" : language ? "accept_language" : "fallback",
     autoLocale,
     generation: inputs.saved?.generation ?? 0,
     provenance: current ? "device_explicit" : inputs.saved?.provenance ?? null,
