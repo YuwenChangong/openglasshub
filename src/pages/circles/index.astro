@@ -8,8 +8,12 @@ import CircleCard from "../../components/community/CircleCard.astro";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
 import { buildCircleImageMap } from "../../lib/circle-images";
 import { fetchCirclesWithFallback } from "../../lib/circle-data";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
 
 const env = runtimeEnv as CloudflareEnv;
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
 const supabase = createSSRClient(env);
 
 const { circles, error } = await fetchCirclesWithFallback(supabase);
@@ -20,27 +24,27 @@ const circleImageMap = await buildCircleImageMap(supabase, visibleCircles, 60 * 
 ---
 
 <ForumLayout
-  title="圈子"
-  description="OpenGlass Hub 论坛圈子。按话题分类的 AR/AI 眼镜社区讨论。"
+  title={text.circles}
+  description={text.circlesDescription}
   canonical="/circles/"
   activeTab="circles"
 >
-  <h1>圈子</h1>
-  <p class="section-lead circle-page-lead">按品牌、设备与使用场景进入公开讨论，先看内容，再决定去哪里继续聊。</p>
+  <h1>{text.circles}</h1>
+  <p class="section-lead circle-page-lead">{text.circlesLead}</p>
 
   <div class="community-cta-row circle-page-actions">
-    <a href="/feed/" class="community-action-button">返回动态</a>
-    <a href="/circles/new/" class="community-action-button community-action-button--primary">创建圈子</a>
+    <a href="/feed/" class="community-action-button">{text.backFeed}</a>
+    <a href="/circles/new/" class="community-action-button community-action-button--primary">{text.createCircle}</a>
   </div>
 
   {error ? (
     <div class="forum-empty">
-      <strong>加载圈子失败</strong>
+      <strong>{text.circlesFailed}</strong>
       <p>{error.message}</p>
     </div>
   ) : visibleCircles.length === 0 ? (
     <div class="forum-empty">
-      <strong>暂时还没有公开圈子</strong>
+      <strong>{text.noCircles}</strong>
     </div>
   ) : (
     <section class="circle-grid">
@@ -50,7 +54,7 @@ const circleImageMap = await buildCircleImageMap(supabase, visibleCircles, 60 * 
           name={circle.name}
           slug={circle.slug}
           description={circle.description || undefined}
-          latestNote={`创建于 ${new Date(circle.created_at).toLocaleDateString("zh-CN")}`}
+          latestNote={formatUiMessage(text.created, { date: new Date(circle.created_at).toLocaleDateString(localeContext.locale) })}
           imageUrl={circleImageMap.get(circle.id)}
         />
       ))}

@@ -1,6 +1,8 @@
 ﻿---
 import CommunityLayout from "./CommunityLayout.astro";
 import { forumTabs } from "../lib/site-navigation";
+import { resolveLocale } from "../lib/i18n/locale";
+import { getUiMessages } from "../lib/i18n/catalog";
 
 export interface Props {
   title: string;
@@ -13,6 +15,9 @@ export interface Props {
 }
 
 const { title, description, noindex, canonical, ogImage, ogType, activeTab } = Astro.props;
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
+const tabLabels = { feed: text.tabFeed, circles: text.circles, "new-post": text.newPost };
 ---
 
 <CommunityLayout
@@ -26,10 +31,10 @@ const { title, description, noindex, canonical, ogImage, ogType, activeTab } = A
   pageClass="forum-main"
 >
   <div class="forum-tabs-row">
-    <nav class="forum-tabs-row__tabs" aria-label="论坛频道">
+    <nav class="forum-tabs-row__tabs" aria-label={text.channels}>
       {forumTabs.map((tab) => (
         <a href={tab.href} class:list={[{ "is-active": activeTab === tab.key }]}>
-          {tab.label}
+          {tabLabels[tab.key] ?? tab.label}
         </a>
       ))}
     </nav>

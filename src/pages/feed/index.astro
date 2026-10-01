@@ -7,7 +7,9 @@ import FeedSidebarAuthHint from "../../components/auth/FeedSidebarAuthHint";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import PostCard from "../../components/community/PostCard.astro";
 import EmptyFeedState from "../../components/community/EmptyFeedState.astro";
-import { formatPostTime } from "../../lib/format-time";
+import { formatCommunityPostTime } from "../../lib/i18n/messages/community";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "../../lib/forum-media";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
@@ -15,6 +17,8 @@ import { getDeviceDiscussionContext } from "../../lib/device-discussion";
 import { listForumFeed, parseFeedSort } from "../../lib/forum-feed";
 
 const env = runtimeEnv as CloudflareEnv;
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
 const supabase = createSSRClient(env);
 const r2PublicBaseUrl = env.R2_PUBLIC_BASE_URL || "";
 const sort = parseFeedSort(Astro.url.searchParams.get("sort"));
@@ -57,27 +61,20 @@ const postMediaMap = posts.length > 0
 
 const visibleCircles = (circles ?? []).filter((circle) => isPublicVisibleCircle(circle)).slice(0, 5);
 
-const postTypeLabels: Record<string, string> = {
-  experience: "体验",
-  question: "提问",
-  review: "评测",
-  dev: "开发",
-  news: "资讯",
-  feedback: "反馈",
-};
+const postTypeLabels: Record<string, string> = text.types;
 
 const sortMeta = {
   recommended: {
-    title: "推荐",
-    description: "按新鲜度、讨论度和收藏表现综合排序。",
+    title: text.recommended,
+    description: text.recommendedDescription,
   },
   latest: {
-    title: "最新",
-    description: "按发布时间倒序查看最新公开帖子。",
+    title: text.latest,
+    description: text.latestDescription,
   },
   hot: {
-    title: "热门",
-    description: "聚焦近两周互动更高的公开帖子。",
+    title: text.hot,
+    description: text.hotDescription,
   },
 } as const;
 
@@ -87,8 +84,8 @@ const buildFeedHref = (nextSort: string, nextPage = 1) =>
 ---
 
 <ForumLayout
-  title="帖子动态"
-  description="OpenGlass Hub 论坛公开帖子动态，支持推荐、最新与热门排序。"
+  title={text.feed}
+  description={text.feedDescription}
   canonical="/feed/"
   activeTab="feed"
 >
@@ -96,39 +93,39 @@ const buildFeedHref = (nextSort: string, nextPage = 1) =>
     <div class="community-feed-column">
       <div class="community-stream-head">
         <div>
-          <h2>帖子动态</h2>
+          <h2>{text.feed}</h2>
           <p>{currentMeta.description}</p>
         </div>
         <div class="feed-head-actions community-inline-links">
-          <a href={buildFeedHref("recommended")} class={`community-inline-link${sort === "recommended" ? " community-inline-link--active" : ""}`}>推荐</a>
-          <a href={buildFeedHref("latest")} class={`community-inline-link${sort === "latest" ? " community-inline-link--active" : ""}`}>最新</a>
-          <a href={buildFeedHref("hot")} class={`community-inline-link${sort === "hot" ? " community-inline-link--active" : ""}`}>热门</a>
-          <a href="/posts/new/" class="community-inline-link">发帖</a>
+          <a href={buildFeedHref("recommended")} class={`community-inline-link${sort === "recommended" ? " community-inline-link--active" : ""}`}>{text.recommended}</a>
+          <a href={buildFeedHref("latest")} class={`community-inline-link${sort === "latest" ? " community-inline-link--active" : ""}`}>{text.latest}</a>
+          <a href={buildFeedHref("hot")} class={`community-inline-link${sort === "hot" ? " community-inline-link--active" : ""}`}>{text.hot}</a>
+          <a href="/posts/new/" class="community-inline-link">{text.newPost}</a>
         </div>
       </div>
 
       <div class="community-feed-meta">
         <span class="community-meta">{currentMeta.title}</span>
-        <span class="community-meta">第 {feed.page} 页</span>
+        <span class="community-meta">{formatUiMessage(text.page, { page: feed.page.toLocaleString(localeContext.locale) })}</span>
       </div>
 
       {composeRequested && deviceDiscussion ? (
         <section class="community-surface community-surface--padded device-discussion-entry">
           <div>
-            <strong>讨论 {deviceDiscussion.device.name}</strong>
+            <strong>{formatUiMessage(text.discuss, { name: deviceDiscussion.device.name })}</strong>
             <p>
-              这里不会自动发帖。你可以先浏览动态，也可以带着设备上下文去发一个新帖子。
+              {text.discussHint}
             </p>
           </div>
           <div class="device-discussion-entry__actions">
-            <a href={deviceDiscussion.startPostHref} class="community-button">开始发帖</a>
+            <a href={deviceDiscussion.startPostHref} class="community-button">{text.startPost}</a>
             <a
               href={`/search/?${new URLSearchParams({ q: deviceDiscussion.searchQuery, type: "posts" }).toString()}`}
               class="community-button--secondary"
             >
-              查相关帖子
+              {text.relatedPosts}
             </a>
-            <a href={deviceDiscussion.circlesHref} class="community-button--secondary">看看圈子</a>
+            <a href={deviceDiscussion.circlesHref} class="community-button--secondary">{text.browseCircles}</a>
           </div>
         </section>
       ) : null}
@@ -148,7 +145,7 @@ const buildFeedHref = (nextSort: string, nextPage = 1) =>
               authorName={post.profiles?.display_name || post.profiles?.username || undefined}
               authorId={post.author_id}
               authorUsername={post.profiles?.username || undefined}
-              timestamp={formatPostTime(post.created_at)}
+              timestamp={formatCommunityPostTime(post.created_at, localeContext.locale)}
               media={postMediaMap.get(post.id) ?? []}
               likeCount={post.like_count ?? 0}
               commentCount={post.comment_count ?? 0}
@@ -160,32 +157,32 @@ const buildFeedHref = (nextSort: string, nextPage = 1) =>
       {posts.length > 0 ? (
         <div class="community-feed-pagination">
           {page > 1 ? (
-            <a href={buildFeedHref(sort, page - 1)} class="community-action-button community-action-button--muted">上一页</a>
+            <a href={buildFeedHref(sort, page - 1)} class="community-action-button community-action-button--muted">{text.previous}</a>
           ) : (
-            <span class="community-action-button community-action-button--muted is-disabled" aria-disabled="true">上一页</span>
+            <span class="community-action-button community-action-button--muted is-disabled" aria-disabled="true">{text.previous}</span>
           )}
           {feed.has_more ? (
-            <a href={buildFeedHref(sort, page + 1)} class="community-action-button community-action-button--muted">下一页</a>
+            <a href={buildFeedHref(sort, page + 1)} class="community-action-button community-action-button--muted">{text.next}</a>
           ) : (
-            <span class="community-action-button community-action-button--muted is-disabled" aria-disabled="true">下一页</span>
+            <span class="community-action-button community-action-button--muted is-disabled" aria-disabled="true">{text.next}</span>
           )}
         </div>
       ) : null}
     </div>
 
     <aside class="community-sidebar">
-      <FeedSidebarAuthHint client:only="react" />
+      <FeedSidebarAuthHint localeContext={localeContext} client:only="react" />
 
       <section class="community-sidebar-block">
         <div class="community-sidebar-head">
-          <h2>圈子推荐</h2>
-          <a href="/circles/" class="community-link">全部</a>
+          <h2>{text.recommendedCircles}</h2>
+          <a href="/circles/" class="community-link">{text.all}</a>
         </div>
         <div class="community-list">
           {visibleCircles.map((circle) => (
             <a href={`/circles/${circle.slug}/`} class="community-list-item">
               <strong>{circle.name}</strong>
-              <span>{circle.description || "进入圈子查看当前公开讨论。"}</span>
+              <span>{circle.description || text.circleDiscussion}</span>
             </a>
           ))}
         </div>

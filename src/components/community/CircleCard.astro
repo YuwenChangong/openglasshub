@@ -1,4 +1,6 @@
 ---
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
 interface Props {
   id: string;
   name: string;
@@ -9,29 +11,31 @@ interface Props {
 }
 
 const { name, slug, description, latestNote, imageUrl } = Astro.props;
-const fallbackLetter = name.trim().charAt(0).toUpperCase() || "圈";
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
+const fallbackLetter = name.trim().charAt(0).toUpperCase() || text.circleInitial;
 ---
 
 <a href={`/circles/${slug}/`} class="community-circle-card">
   <div class="community-circle-card__content">
     <div class="community-circle-card__top">
       <div class="community-tags">
-        <span class="community-tag community-tag--muted">圈子</span>
+        <span class="community-tag community-tag--muted">{text.circles}</span>
       </div>
-      <span class="community-circle-card__cta">进入圈子</span>
+      <span class="community-circle-card__cta">{text.enterCircle}</span>
     </div>
     <div class="community-circle-card__body">
       <h3>{name}</h3>
-      <p>{description || "查看这个圈子的公开讨论与后续动态。"}</p>
+      <p>{description || text.circleFallback}</p>
     </div>
     <div class="community-circle-card__meta-row">
       {latestNote && <span class="community-meta">{latestNote}</span>}
-      <span class="community-circle-card__meta-pill">公开讨论</span>
+      <span class="community-circle-card__meta-pill">{text.publicDiscussion}</span>
     </div>
   </div>
   <div class="community-circle-card__cover community-circle-card__cover--side">
     {imageUrl ? (
-      <img src={imageUrl} alt={`${name} 圈子封面`} loading="lazy" decoding="async" />
+      <img src={imageUrl} alt={formatUiMessage(text.circleCover, { name })} loading="lazy" decoding="async" />
     ) : (
       <div class="community-circle-card__fallback" aria-hidden="true">
         <span>{fallbackLetter}</span>

@@ -5,6 +5,8 @@ import PostSocialActions from "../forum/PostSocialActions";
 import SharePostButton from "../forum/SharePostButton";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
 import { buildProfileHref } from "../../lib/profile-links";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages } from "../../lib/i18n/catalog";
 
 interface Props {
   id: string;
@@ -24,8 +26,10 @@ interface Props {
 }
 
 const { id, title, excerpt, circleName, circleSlug, typeLabel, authorName, authorId, authorUsername, timestamp, mediaLabel, media = [], likeCount = 0, commentCount = 0 } = Astro.props;
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
 const fallbackAuthorId = authorId?.trim();
-const displayName = authorName?.trim() || (fallbackAuthorId ? `${fallbackAuthorId.slice(0, 6)}…${fallbackAuthorId.slice(-4)}` : "社区成员");
+const displayName = authorName?.trim() || (fallbackAuthorId ? `${fallbackAuthorId.slice(0, 6)}…${fallbackAuthorId.slice(-4)}` : text.member);
 const postHref = `/posts/${id}/`;
 const displayExcerpt = sanitizeBodyForDisplay(excerpt ?? "");
 const authorHref = buildProfileHref({ id: authorId, username: authorUsername });
@@ -52,11 +56,11 @@ const authorHref = buildProfileHref({ id: authorId, username: authorUsername });
   {media.length > 0 ? <PostMediaPreview media={media} href={postHref} mode="feed" maxItems={4} /> : mediaLabel ? <div class="community-media-placeholder">{mediaLabel}</div> : null}
 
   <div class="community-post-actions">
-    <a class="community-action-button community-action-button--quiet" href={`${postHref}#comments`}>评论{commentCount > 0 ? ` ${commentCount}` : ""}</a>
+    <a class="community-action-button community-action-button--quiet" href={`${postHref}#comments`}>{text.comments}{commentCount > 0 ? ` ${commentCount.toLocaleString(localeContext.locale)}` : ""}</a>
     <PostSocialActions postId={id} initialLikeCount={likeCount} compact={true} client:visible />
     <SharePostButton postPath={postHref} client:visible />
     <div class="community-post-actions__spacer" />
-    <a class="community-post-detail-link" href={postHref}>查看详情</a>
+    <a class="community-post-detail-link" href={postHref}>{text.details}</a>
   </div>
   <div class="community-post-divider" aria-hidden="true"></div>
 </article>

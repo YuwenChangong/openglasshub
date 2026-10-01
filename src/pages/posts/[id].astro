@@ -9,7 +9,9 @@ import PostModerationActions from "../../components/forum/PostModerationActions"
 import PostMediaGallery from "../../components/forum/PostMediaGallery";
 import PostSocialActions from "../../components/forum/PostSocialActions";
 import { buildLoginHref } from "../../lib/auth-redirect";
-import { formatPostTime } from "../../lib/format-time";
+import { formatCommunityPostTime } from "../../lib/i18n/messages/community";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
 import { resolveSignedPostMedia, type PostMediaRow } from "../../lib/forum-media";
 import { buildPostLikeCountMap, safeIncrementPostViewCount } from "../../lib/post-engagement";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
@@ -17,6 +19,8 @@ import { buildProfileHref } from "../../lib/profile-links";
 import { resolveProfileAvatarUrl } from "../../lib/profile-media";
 
 const { id } = Astro.params;
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
 
 if (!id) {
   return Astro.redirect("/feed/?sort=latest");
@@ -62,14 +66,7 @@ if (error || !post) {
   Astro.response.statusText = "Not Found";
 }
 
-const postTypeLabels: Record<string, string> = {
-  experience: "体验",
-  question: "提问",
-  review: "评测",
-  dev: "开发",
-  news: "资讯",
-  feedback: "反馈",
-};
+const postTypeLabels: Record<string, string> = text.types;
 
 const circle = post?.circles ?? null;
 const canonicalUrl = post ? `/posts/${post.id}/` : undefined;
@@ -94,7 +91,7 @@ const authorName = post
   ? post.profiles?.display_name?.trim()
     || post.profiles?.username?.trim()
     || `${post.author_id.slice(0, 6)}…${post.author_id.slice(-4)}`
-  : "匿名";
+  : text.anonymous;
 const authorInitial = authorName.trim().charAt(0).toUpperCase() || "U";
 if (post) {
   await safeIncrementPostViewCount(supabase, post.id);
@@ -102,11 +99,11 @@ if (post) {
 ---
 
 {!post ? (
-  <ForumLayout title="帖子未找到" noindex={true}>
+  <ForumLayout title={text.postNotFound} noindex={true}>
     <div class="forum-empty">
-      <strong>帖子未找到</strong>
-      <p>该帖子可能已被删除、尚未公开，或者当前链接无效。</p>
-      <a href="/feed/?sort=latest" class="forum-btn">返回动态</a>
+      <strong>{text.postNotFound}</strong>
+      <p>{text.postNotFoundDetail}</p>
+      <a href="/feed/?sort=latest" class="forum-btn">{text.backFeed}</a>
     </div>
   </ForumLayout>
 ) : (
@@ -117,10 +114,10 @@ if (post) {
     ogType="article"
     activeTab="feed"
   >
-    <nav class="community-breadcrumb" aria-label="面包屑">
-      <a href="/">首页</a>
+    <nav class="community-breadcrumb" aria-label={text.breadcrumb}>
+      <a href="/">{text.home}</a>
       <span class="community-breadcrumb__sep">/</span>
-      <a href="/feed/?sort=latest">论坛</a>
+      <a href="/feed/?sort=latest">{text.forum}</a>
       <span class="community-breadcrumb__sep">/</span>
       {circle && (
         <>
@@ -146,7 +143,7 @@ if (post) {
         <h1 class="post-detail__title">{post.title}</h1>
         <div class="post-detail__author-block">
           {authorHref ? (
-            <a href={authorHref} class="post-detail__author-avatar" aria-label={`查看 ${authorName} 的资料`}>
+            <a href={authorHref} class="post-detail__author-avatar" aria-label={formatUiMessage(text.viewProfile, { name: authorName })}>
               {authorAvatarUrl ? <img src={authorAvatarUrl} alt="" loading="lazy" /> : <span>{authorInitial}</span>}
             </a>
           ) : (
@@ -163,7 +160,7 @@ if (post) {
               )}
             </div>
             <div class="forum-meta post-detail__meta">
-              <span>{formatPostTime(post.created_at)}</span>
+              <span>{formatCommunityPostTime(post.created_at, localeContext.locale)}</span>
             </div>
           </div>
         </div>
@@ -173,14 +170,14 @@ if (post) {
         {displayBody ? (
           <div class="post-body-card__content">{displayBody}</div>
         ) : (
-          <p class="post-body-card__empty">此帖子没有正文内容。</p>
+          <p class="post-body-card__empty">{text.noBody}</p>
         )}
       </section>
 
       {postMedia.length > 0 && <PostMediaGallery media={postMedia} postTitle={post.title} client:load />}
 
       <div class="post-detail__actions">
-        <a href="/feed/?sort=latest" class="community-action-button">返回动态</a>
+        <a href="/feed/?sort=latest" class="community-action-button">{text.backFeed}</a>
         <PostSocialActions postId={post.id} initialLikeCount={initialLikeCount} client:visible />
         <PostModerationActions postId={post.id} authorId={post.author_id} client:load />
       </div>
@@ -195,7 +192,7 @@ if (post) {
       "@type": "Article",
       "headline": post.title,
       "description": displayBody ? displayBody.substring(0, 160).replace(/[#*\n]/g, ' ').trim() : "",
-      "author": { "@type": "Person", "name": post.profiles?.display_name || "匿名" },
+      "author": { "@type": "Person", "name": post.profiles?.display_name || text.anonymous },
       "datePublished": post.created_at,
       "dateModified": post.updated_at || post.created_at,
       "url": canonicalUrl,

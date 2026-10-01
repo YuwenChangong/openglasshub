@@ -12,11 +12,15 @@ import { buildCircleImageMap } from "../../lib/circle-images";
 import { fetchCircleBySlugWithFallback } from "../../lib/circle-data";
 import CircleManageEntry from "../../components/forum/CircleManageEntry";
 import ReportTrigger from "../../components/reports/ReportTrigger";
-import { formatPostTime } from "../../lib/format-time";
+import { formatCommunityPostTime } from "../../lib/i18n/messages/community";
+import { resolveLocale } from "../../lib/i18n/locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
 import { sanitizeBodyForDisplay } from "../../lib/post-body";
 import { isPublicVisibleCircle } from "../../lib/site-navigation";
 
 const { slug } = Astro.params;
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).community;
 
 if (!slug) {
   return Astro.redirect("/circles/");
@@ -64,14 +68,7 @@ const postMediaMap = publicCircle
   : new Map();
 const likeCountMap = publicCircle ? await buildPostLikeCountMap(supabase, posts.map((post) => post.id)) : new Map();
 
-const postTypeLabels: Record<string, string> = {
-  experience: "体验",
-  question: "提问",
-  review: "评测",
-  dev: "开发",
-  news: "资讯",
-  feedback: "反馈",
-};
+const postTypeLabels: Record<string, string> = text.types;
 
 const canonicalUrl = publicCircle ? `/circles/${publicCircle.slug}/` : undefined;
 const circleImageMap = publicCircle
@@ -83,26 +80,26 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
 ---
 
 {!publicCircle ? (
-  <ForumLayout title="圈子未找到" noindex={true}>
+  <ForumLayout title={text.circleNotFound} noindex={true}>
     <div class="forum-empty">
-      <strong>圈子未找到</strong>
-      <p>该圈子可能不存在，或者当前还没有公开显示。</p>
-      <a href="/circles/" class="community-action-button">返回圈子列表</a>
+      <strong>{text.circleNotFound}</strong>
+      <p>{text.circleNotFoundDetail}</p>
+      <a href="/circles/" class="community-action-button">{text.backCircles}</a>
     </div>
   </ForumLayout>
 ) : (
   <ForumLayout
     title={publicCircle.name}
-    description={publicCircle.description || `${publicCircle.name} · OpenGlass Hub 论坛圈子`}
+    description={publicCircle.description || formatUiMessage(text.circleDescription, { name: publicCircle.name })}
     canonical={canonicalUrl}
     activeTab="circles"
   >
-    <nav class="community-breadcrumb" aria-label="面包屑">
-      <a href="/">首页</a>
+    <nav class="community-breadcrumb" aria-label={text.breadcrumb}>
+      <a href="/">{text.home}</a>
       <span class="community-breadcrumb__sep">/</span>
-      <a href="/feed/">论坛</a>
+      <a href="/feed/">{text.forum}</a>
       <span class="community-breadcrumb__sep">/</span>
-      <a href="/circles/">圈子</a>
+      <a href="/circles/">{text.circles}</a>
       <span class="community-breadcrumb__sep">/</span>
       <span class="community-breadcrumb__current">{publicCircle.name}</span>
     </nav>
@@ -110,20 +107,20 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
     <header style="margin-bottom: 1.4rem;">
       {circleImageUrl ? (
         <div class="circle-detail-cover">
-          <img src={circleImageUrl} alt={`${publicCircle.name} 圈子封面`} />
+          <img src={circleImageUrl} alt={formatUiMessage(text.circleCover, { name: publicCircle.name })} />
         </div>
       ) : null}
       <h1 style="margin: 0 0 0.5rem 0; font-size: 1.75rem;">{publicCircle.name}</h1>
       {publicCircle.description ? (
         <p style="color: var(--text-muted); margin: 0 0 0.5rem 0; font-size: 1rem;">{publicCircle.description}</p>
       ) : null}
-      <span class="forum-meta">创建于 {new Date(publicCircle.created_at).toLocaleDateString("zh-CN")}</span>
+      <span class="forum-meta">{formatUiMessage(text.created, { date: new Date(publicCircle.created_at).toLocaleDateString(localeContext.locale) })}</span>
       <div class="community-inline-links" style="margin-top: 0.8rem;">
         <CircleManageEntry circleSlug={publicCircle.slug} ownerId={publicCircle.owner_id ?? null} client:load />
         <ReportTrigger
           targetType="circle"
           targetId={publicCircle.id}
-          buttonLabel="举报圈子"
+          buttonLabel={text.reportCircle}
           className="community-action-button community-action-button--compact"
           compact={true}
           client:load
@@ -133,26 +130,26 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
 
     <div class="circle-stream-head">
       <div>
-        <h2>圈子帖子</h2>
+        <h2>{text.circlePosts}</h2>
       </div>
       <div class="community-inline-links">
-        <a href="/posts/new/" class="community-action-button community-action-button--primary">发帖</a>
-        <a href="/feed/" class="community-action-button community-action-button--muted">全部动态</a>
+        <a href="/posts/new/" class="community-action-button community-action-button--primary">{text.newPost}</a>
+        <a href="/feed/" class="community-action-button community-action-button--muted">{text.allFeed}</a>
       </div>
     </div>
 
     <div class="circle-search-box-wrap">
-      <GlobalSearchBox circleSlug={publicCircle.slug} compact={true} client:load />
+      <GlobalSearchBox circleSlug={publicCircle.slug} compact={true} localeContext={localeContext} client:load />
     </div>
 
     {postsError ? (
       <div class="forum-empty">
-        <strong>加载帖子失败</strong>
+        <strong>{text.postsFailed}</strong>
         <p>{postsError.message}</p>
       </div>
     ) : posts.length === 0 ? (
       <div class="forum-empty">
-        <strong>该圈子还没有公开帖子</strong>
+        <strong>{text.noCirclePosts}</strong>
       </div>
     ) : (
       <div class="circle-post-stream">
@@ -167,7 +164,7 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
             authorName={post.profiles?.display_name || post.profiles?.username || undefined}
             authorId={post.author_id}
             authorUsername={post.profiles?.username || undefined}
-            timestamp={formatPostTime(post.created_at)}
+            timestamp={formatCommunityPostTime(post.created_at, localeContext.locale)}
             media={postMediaMap.get(post.id) ?? []}
             likeCount={likeCountMap.get(post.id) ?? 0}
           />
@@ -176,8 +173,8 @@ const circleImageUrl = publicCircle ? circleImageMap.get(publicCircle.id) : "";
     )}
 
     <div class="community-cta-row footer-actions" style="margin-top: 2rem;">
-      <a href="/circles/" class="community-action-button community-action-button--muted">返回圈子列表</a>
-      <a href="/feed/" class="community-action-button community-action-button--muted">查看全部动态</a>
+      <a href="/circles/" class="community-action-button community-action-button--muted">{text.backCircles}</a>
+      <a href="/feed/" class="community-action-button community-action-button--muted">{text.viewAllFeed}</a>
     </div>
   </ForumLayout>
 )}
