@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -11,7 +11,7 @@ import {
   assertSafeLocalReplayEnvironment,
   buildLocalDisposableReplayPlan,
   cleanupOwnedDisposableReplay,
-  runLocalDisposableReplay,
+  runLocalDisposableReplay as runReplay,
   runCommand,
   sanitizeSupabaseStartDiagnosticText,
   sanitizedChildEnvironment,
@@ -19,8 +19,79 @@ import {
 } from "./local-disposable-supabase-replay.mjs";
 import { assertExplicitOwnedDisposableContainer } from "../generate-local-production-schema-fingerprint.mjs";
 import { reviewFingerprintCandidate, writeReviewedFingerprintFixture } from "../production-schema-fingerprint-review.mjs";
+import * as replayHarness from "./local-disposable-supabase-replay.mjs";
+import { ORDERED_MIGRATION_FILENAMES } from "../build-local-supabase-replay-mirror.mjs";
 
 const root = process.cwd();
+
+// Lifecycle fixtures use the frozen baseline even when an additive worktree file exists.
+async function runLocalDisposableReplay(options) {
+  if (options.startupOnly || options.dryRun) return runReplay(options);
+  assert.equal(typeof replayHarness.withCanonicalBaselineDirectory, "function", "Owned canonical baseline support required");
+  return replayHarness.withCanonicalBaselineDirectory({ root, environment: { PATH: process.env.PATH } },
+    canonicalBaselineDirectory => runReplay({ ...options, canonicalBaselineDirectory }));
+}
+
+test("default repository source still rejects an unexpected additive migration before start", async () => {
+  assert.equal(typeof replayHarness.withCanonicalBaselineDirectory, "function", "Owned canonical baseline support required");
+  const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "openglass-default-baseline-test-"));
+  try {
+    await replayHarness.withCanonicalBaselineDirectory({ root, environment: { PATH: process.env.PATH } }, async baseline => {
+      await cp(baseline, path.join(fixtureRoot, "supabase/migrations"), { recursive: true });
+      await cp(path.join(root, "node_modules/supabase"), path.join(fixtureRoot, "node_modules/supabase"), { recursive: true });
+      await writeFile(path.join(fixtureRoot, "supabase/migrations/20990101000000_unexpected.sql"), "SELECT 1;");
+      const fixture = createStartupOnlyExecute();
+      await assert.rejects(() => runReplay({ root: fixtureRoot, environment: { PATH: process.env.PATH }, execute: fixture.execute }), /inventory differs/);
+      assert.equal(fixture.calls.some(({ args }) => args.includes("start")), false);
+    });
+  } finally { await rm(fixtureRoot, { recursive: true, force: true }); }
+});
+
+test("current worktree additive file remains present and default source fails closed", async () => {
+  const files = await readdir(path.join(root, "supabase/migrations"));
+  if (!files.some(file => file.endsWith(".sql") && !ORDERED_MIGRATION_FILENAMES.includes(file))) return;
+  const fixture = createStartupOnlyExecute();
+  await assert.rejects(() => runReplay({ root, environment: { PATH: process.env.PATH }, execute: fixture.execute }), /inventory differs/);
+  assert.equal(fixture.calls.some(({ args }) => args.includes("start")), false);
+});
+
+for (const alteration of ["none", "missing", "extra", "non-sql", "mutated"]) {
+  test(`owned temporary baseline validates exact frozen bytes: ${alteration}`, async () => {
+    assert.equal(typeof replayHarness.withCanonicalBaselineDirectory, "function", "Owned canonical baseline support required");
+    let source;
+    await replayHarness.withCanonicalBaselineDirectory({ root, environment: { PATH: process.env.PATH } }, async canonicalBaselineDirectory => {
+      source = canonicalBaselineDirectory;
+      assert.equal((await readdir(source)).length, 50);
+      if (alteration === "missing") await rm(path.join(source, ORDERED_MIGRATION_FILENAMES[0]));
+      if (alteration === "extra") await writeFile(path.join(source, "20990101000000_extra.sql"), "SELECT 1;");
+      if (alteration === "non-sql") await writeFile(path.join(source, "extra.txt"), "extra");
+      if (alteration === "mutated") await writeFile(path.join(source, ORDERED_MIGRATION_FILENAMES[0]), "SELECT 1;");
+      const fixture = createStartupOnlyExecute();
+      let reachedStart = false;
+      const execute = async (...args) => {
+        if (args[1].includes("start")) { reachedStart = true; throw new Error("TEST_VALIDATED_BASELINE_BEFORE_START"); }
+        return fixture.execute(...args);
+      };
+      const operation = () => runReplay({ root, canonicalBaselineDirectory, execute, environment: { PATH: process.env.PATH } });
+      if (alteration === "none") await expectRetainedLifecycleFailure(operation);
+      else await assert.rejects(operation, /inventory|SHA-256|exactly 50/);
+      assert.equal(reachedStart, alteration === "none");
+      assert.equal(fixture.calls.some(({ args }) => args.includes("start")), false);
+    });
+    assert.equal(await exists(source), false, "owned source cleaned after callback");
+  });
+}
+
+test("baseline override rejects relative, repository and arbitrary unowned paths before execution", async () => {
+  const arbitrary = await mkdtemp(path.join(os.tmpdir(), "unowned-baseline-"));
+  try {
+    for (const canonicalBaselineDirectory of ["supabase/migrations", "../baseline", path.join(root, "supabase/migrations"), arbitrary]) {
+      let calls = 0;
+      await assert.rejects(() => runReplay({ root, canonicalBaselineDirectory, environment: { PATH: process.env.PATH }, execute: async () => { calls++; } }), /baseline.*owned|baseline.*absolute/i);
+      assert.equal(calls, 0);
+    }
+  } finally { await rm(arbitrary, { recursive: true, force: true }); }
+});
 
 test("repository CLI binding survives an outside child cwd without npm or global resolution", async () => {
   const installed = JSON.parse(await readFile(path.join(root, "node_modules/supabase/package.json"), "utf8"));

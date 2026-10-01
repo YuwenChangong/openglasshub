@@ -1,17 +1,50 @@
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { readFileSync, realpathSync, statSync } from "node:fs";
-import { appendFile, lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, lstat, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { buildLocalSupabaseReplayMirror } from "../build-local-supabase-replay-mirror.mjs";
+import { buildLocalSupabaseReplayMirror, ORDERED_MIGRATION_FILENAMES } from "../build-local-supabase-replay-mirror.mjs";
 import { reviewFingerprintCandidate } from "../production-schema-fingerprint-review.mjs";
 import { runDeviceSchemaV1EnforcementAgainstSql } from "../test-device-schema-v1-enforcement.mjs";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+const ownedCanonicalBaselines = new Map();
+
+export async function withCanonicalBaselineDirectory({ root = REPOSITORY_ROOT, environment = process.env } = {}, operation) {
+  const repositoryRoot = realpathSync(root);
+  const env = sanitizedChildEnvironment(environment);
+  const directory = await mkdtemp(path.join(os.tmpdir(), "openglass-canonical-baseline-"));
+  try {
+    assertOwnedDisposableRoot({ disposableRoot: realpathSync(directory), repositoryRoot });
+    ownedCanonicalBaselines.set(realpathSync(directory), statSync(directory));
+    const head = execFileSync("git", ["-C", repositoryRoot, "rev-parse", "HEAD"], { env, encoding: "utf8" }).trim();
+    if (!/^[a-f0-9]{40}$/.test(head)) throw new Error("Canonical baseline Git identity invalid");
+    for (const filename of ORDERED_MIGRATION_FILENAMES) {
+      const bytes = execFileSync("git", ["-C", repositoryRoot, "cat-file", "blob", `${head}:supabase/migrations/${filename}`], { env });
+      await writeFile(path.join(directory, filename), bytes);
+    }
+    return await operation(directory);
+  } finally {
+    ownedCanonicalBaselines.delete(path.resolve(directory));
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+async function assertOwnedCanonicalBaseline(directory, repositoryRoot) {
+  if (typeof directory !== "string" || !path.isAbsolute(directory) || path.normalize(directory) !== directory) throw new Error("Canonical baseline must be an absolute owned path without traversal");
+  const canonicalRoot = realpathSync(directory);
+  const owned = ownedCanonicalBaselines.get(canonicalRoot);
+  const stats = await lstat(directory);
+  if (!owned || stats.isSymbolicLink() || !stats.isDirectory() || stats.dev !== owned.dev || stats.ino !== owned.ino) throw new Error("Canonical baseline must be owned by this harness");
+  assertOwnedDisposableRoot({ disposableRoot: canonicalRoot, repositoryRoot: realpathSync(repositoryRoot) });
+  const entries = await readdir(directory, { withFileTypes: true });
+  if (entries.length !== 50 || entries.some(entry => !entry.isFile() || !entry.name.endsWith(".sql"))) throw new Error("Canonical baseline must contain exactly 50 SQL files and no other file");
+  return canonicalRoot;
+}
 const INHERITED_DATABASE_CONNECTION_VARIABLES = ["POSTGRES_URL", "DATABASE_URL", "PGHOST", "PGPORT", "PGSERVICE"];
 const REMOTE_CONNECTION_VARIABLES = ["SUPABASE_DB_URL", "SUPABASE_URL", "PUBLIC_SUPABASE_URL"];
 const LINKED_PROJECT_VARIABLES = ["SUPABASE_PROJECT_REF", "SUPABASE_ACCESS_TOKEN", "SUPABASE_DB_PASSWORD"];
@@ -775,8 +808,12 @@ export async function cleanupOwnedDisposableReplay({ runtimeRoot, repositoryRoot
   return true;
 }
 
-export async function runLocalDisposableReplay({ root = REPOSITORY_ROOT, runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false, diagnosticStartFailure = false, startupOnly = false, migrationLimit, enforcementRunner = runDeviceSchemaV1EnforcementAgainstSql, afterMigrationLedgerValidated } = {}) {
+export async function runLocalDisposableReplay({ root = REPOSITORY_ROOT, runId = randomUUID().replace(/-/g, "").slice(0, 8), environment = process.env, execute = runCommand, createFingerprintEvidence: createEvidence = createFingerprintEvidence, dryRun = false, diagnosticStartFailure = false, startupOnly = false, migrationLimit, canonicalBaselineDirectory, enforcementRunner = runDeviceSchemaV1EnforcementAgainstSql, afterMigrationLedgerValidated } = {}) {
   if (startupOnly && diagnosticStartFailure) throw new Error("Startup-only mode forbids diagnostic start capture");
+  if (startupOnly && canonicalBaselineDirectory !== undefined) throw new Error("Startup-only mode forbids canonical baseline override");
+  const canonicalDirectory = canonicalBaselineDirectory === undefined
+    ? path.join(path.resolve(root), "supabase", "migrations")
+    : await assertOwnedCanonicalBaseline(canonicalBaselineDirectory, root);
   const plan = buildLocalDisposableReplayPlan({ root, runId, startupOnly, migrationLimit });
   if (dryRun) return plan;
   const repositoryRoot = path.resolve(root);
@@ -798,8 +835,15 @@ export async function runLocalDisposableReplay({ root = REPOSITORY_ROOT, runId =
     if (fingerprintEvidence.candidatePath !== path.join(fingerprintEvidence.root, "fingerprint-candidate.json") || fingerprintEvidence.reviewPath !== path.join(fingerprintEvidence.root, "fingerprint-review.json") || fingerprintEvidence.failureReceiptPath !== path.join(fingerprintEvidence.root, FAILURE_RECEIPT_FILENAME) || fingerprintEvidence.startDiagnosticPath !== path.join(fingerprintEvidence.root, START_DIAGNOSTIC_FILENAME)) throw new Error("Fingerprint evidence paths must remain inside their owned root");
     const before = await listContainers(execute, safeEnvironment);
     await initializeOwnedConfig({ cli, runtimeRoot, projectId, runId, execute, environment: safeEnvironment });
+    // Validate all anchors for an override even when replaying a shorter reviewed prefix.
+    if (canonicalBaselineDirectory !== undefined && migrationLimit !== undefined && migrationLimit !== 50) await buildLocalSupabaseReplayMirror({
+      canonicalDirectory,
+      outputDirectory: path.join(runtimeRoot, "baseline-validation"),
+      mappingPath: path.join(runtimeRoot, "baseline-validation.json"),
+      repositoryRoot,
+    });
     const mirror = startupOnly ? undefined : await buildLocalSupabaseReplayMirror({
-      canonicalDirectory: path.join(repositoryRoot, "supabase", "migrations"),
+      canonicalDirectory,
       outputDirectory: path.join(runtimeRoot, "supabase", "migrations"),
       mappingPath: path.join(runtimeRoot, "mapping.json"),
       repositoryRoot,
