@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { useLocale } from "../../../src/components/i18n/useLocale";
+import LocalePreferenceSync from "../../../src/components/i18n/LocalePreferenceSync";
 import * as localeStores from "../../../src/lib/i18n/locale-store";
 import type { LocaleContext, LocalePreference } from "../../../src/lib/i18n/locale";
 
@@ -13,6 +14,7 @@ export function LocaleFixture({ initial }: { initial: LocaleContext }) {
     setPersistent(localeStores.getBrowserLocaleStore(initial).select(preference));
   };
   return <div data-hydrated={hydrated} data-persistent={persistent === null ? "unknown" : String(persistent)}>
+    <LocalePreferenceSync initial={initial} clientAdapter={null} />
     <output data-locale={context.locale}>{messages.shell.home}</output>
     <button onClick={() => choose("zh-CN")}>ZH</button><button onClick={() => choose("en")}>EN</button>
   </div>;

@@ -2,6 +2,8 @@
 import HeaderUserMenu from "./HeaderUserMenu";
 import HeaderNotifications from "./HeaderNotifications";
 import GlobalSearchBox from "../community/GlobalSearchBox";
+import LocalePreferenceSync from "../i18n/LocalePreferenceSync";
+import { resolveLocale } from "../../lib/i18n/locale";
 import { inferNavKey, mainNav, type NavKey } from "../../lib/site-navigation";
 
 interface Props {
@@ -59,6 +61,7 @@ const activeKey = currentSection ?? inferNavKey(currentPath);
     </div>
   </div>
 </header>
+<LocalePreferenceSync initial={Astro.locals.localeContext ?? resolveLocale({})} client:load />
 
 <script>
   document.querySelectorAll<HTMLElement>(".og-header").forEach((header) => {

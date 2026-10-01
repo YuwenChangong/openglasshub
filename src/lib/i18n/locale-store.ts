@@ -33,14 +33,14 @@ export function createLocaleStore(initial: LocaleContext, dependencies: LocaleSt
     const previous = Math.max(snapshot.generation, cookie?.generation ?? 0);
     return previous === Number.MAX_SAFE_INTEGER ? 0 : previous + 1;
   };
-  const commit = (preference: LocalePreference, provenance: PreferenceProvenance): boolean => {
+  const commit = (preference: LocalePreference, provenance: PreferenceProvenance, navigate = true): boolean => {
     const record: BrowserPreferenceRecord = { version: 1, preference, generation: nextGeneration(), provenance };
     let persisted = false;
     try { persisted = dependencies.writePreference(record); } catch { /* Retain the in-memory choice. */ }
     apply(record);
     if (persisted) {
       dependencies.publish?.(record);
-      if (canNavigate()) dependencies.navigate();
+      if (navigate && canNavigate()) dependencies.navigate();
     }
     return persisted;
   };
@@ -65,8 +65,8 @@ export function createLocaleStore(initial: LocaleContext, dependencies: LocaleSt
         if (listeners.size === 0) { unsubscribeExternal?.(); unsubscribeExternal = undefined; }
       };
     },
-    select(preference: LocalePreference): boolean {
-      return commit(normalizePreference(preference), "device_explicit");
+    select(preference: LocalePreference, options?: { navigate?: boolean }): boolean {
+      return commit(normalizePreference(preference), "device_explicit", options?.navigate ?? true);
     },
     adoptAccount(account: { locale_preference: LocalePreference; revision: number; updated_at: string | null }, expectedGeneration: number): boolean {
       if (!canNavigate() || snapshot.generation !== expectedGeneration || snapshot.provenance === "device_explicit") return false;
