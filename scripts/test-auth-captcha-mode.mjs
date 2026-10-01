@@ -40,7 +40,7 @@ function assertPreviewContract(vars) {
   assert.equal(vars.PUBLIC_AUTH_TURNSTILE_SITE_KEY, undefined, "preview must not configure an Auth site key");
 }
 
-function assertProductionContract(vars) {
+function assertProductionStateShape(vars) {
   const mode = parseAuthCaptchaMode(vars.AUTH_CAPTCHA_MODE);
   assert.equal(vars.AUTH_CAPTCHA_MODE, mode, "production mode must be explicit");
   assert.ok(mode === "off" || mode === "prepare", "required is not authorized by the State-B release contract");
@@ -62,34 +62,49 @@ const prepareFixture = {
   PUBLIC_TURNSTILE_SITE_KEY: "fixture-upload-public-key",
 };
 
+function assertStateBProductionTarget(vars) {
+  assertProductionStateShape(vars);
+  assert.equal(vars.AUTH_CAPTCHA_MODE, "prepare", "checked-in State-B production must remain prepare");
+}
+
 assert.doesNotThrow(() => assertPreviewContract(offFixture));
 for (const fixture of [prepareFixture, { ...offFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: prepareFixture.PUBLIC_AUTH_TURNSTILE_SITE_KEY }, { AUTH_CAPTCHA_MODE: "required" }]) {
   assert.throws(() => assertPreviewContract(fixture), { code: "ERR_ASSERTION" });
 }
 console.log("PREVIEW_OFF_NO_AUTH_SITEKEY: PASS");
 
-assert.doesNotThrow(() => assertProductionContract(offFixture));
-assert.throws(() => assertProductionContract({ ...offFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: prepareFixture.PUBLIC_AUTH_TURNSTILE_SITE_KEY }), { code: "ERR_ASSERTION" });
+assert.doesNotThrow(() => assertProductionStateShape(offFixture));
+assert.throws(() => assertProductionStateShape({ ...offFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: prepareFixture.PUBLIC_AUTH_TURNSTILE_SITE_KEY }), { code: "ERR_ASSERTION" });
 console.log("PRODUCTION_OFF_NO_AUTH_SITEKEY_ALLOWED: PASS");
 
-assert.doesNotThrow(() => assertProductionContract(prepareFixture));
+assert.throws(() => assertStateBProductionTarget(offFixture), { code: "ERR_ASSERTION" }, "State-B Production target must reject off without an Auth site key");
+console.log("PRODUCTION_STATE_B_TARGET_REJECTS_OFF: PASS");
+
+assert.doesNotThrow(() => assertProductionStateShape(prepareFixture));
+assert.doesNotThrow(() => assertStateBProductionTarget(prepareFixture));
 for (const key of [undefined, null, "", "   ", 1]) {
-  assert.throws(() => assertProductionContract({ ...prepareFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: key }), { code: "ERR_ASSERTION" });
+  for (const contract of [assertProductionStateShape, assertStateBProductionTarget]) {
+    assert.throws(() => contract({ ...prepareFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: key }), { code: "ERR_ASSERTION" });
+  }
 }
 console.log("PRODUCTION_PREPARE_DEDICATED_AUTH_SITEKEY_REQUIRED: PASS");
 
 for (const key of [prepareFixture.PUBLIC_TURNSTILE_SITE_KEY, ` ${prepareFixture.PUBLIC_TURNSTILE_SITE_KEY} `]) {
-  assert.throws(() => assertProductionContract({ ...prepareFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: key }), { code: "ERR_ASSERTION" });
+  for (const contract of [assertProductionStateShape, assertStateBProductionTarget]) {
+    assert.throws(() => contract({ ...prepareFixture, PUBLIC_AUTH_TURNSTILE_SITE_KEY: key }), { code: "ERR_ASSERTION" });
+  }
 }
 console.log("PRODUCTION_PREPARE_AUTH_KEY_MUST_DIFFER_FROM_UPLOAD_KEY: PASS");
 
 for (const fixture of [{ AUTH_CAPTCHA_MODE: "required" }, { ...prepareFixture, AUTH_CAPTCHA_MODE: "required" }]) {
-  assert.throws(() => assertProductionContract(fixture), { code: "ERR_ASSERTION" });
+  for (const contract of [assertProductionStateShape, assertStateBProductionTarget]) {
+    assert.throws(() => contract(fixture), { code: "ERR_ASSERTION" });
+  }
 }
 console.log("PRODUCTION_REQUIRED_NOT_YET_AUTHORIZED: PASS");
 
 for (const mode of ["", "OFF", "prepare ", "required ", "disabled", null, 1]) {
-  for (const contract of [assertPreviewContract, assertProductionContract]) {
+  for (const contract of [assertPreviewContract, assertProductionStateShape, assertStateBProductionTarget]) {
     assert.throws(() => contract({ ...prepareFixture, AUTH_CAPTCHA_MODE: mode }), (error) => error.message === "AUTH_CAPTCHA_MODE_INVALID");
   }
 }
@@ -101,6 +116,6 @@ for (const environment of ["preview", "production"]) {
     { hideWarnings: true },
   );
   if (environment === "preview") assertPreviewContract(config.vars);
-  else assertProductionContract(config.vars);
+  else assertStateBProductionTarget(config.vars);
 }
 console.log("preview and production State-B release contracts: PASS");
