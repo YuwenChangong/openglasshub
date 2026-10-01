@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
+import { unstable_readConfig } from "wrangler";
 
 const root = resolve(import.meta.dirname, "..");
 const fixture = await mkdtemp(resolve(tmpdir(), "workers-build-context-"));
@@ -30,6 +31,8 @@ await mkdir("dist/server", { recursive: true });
 await writeFile("dist/server/wrangler.json", JSON.stringify({ vars: {
   BUILD_SOURCE_ENV: process.env.SITE_ORIGIN,
   BUILD_AUTH_SITEKEY_PRESENT: Boolean(process.env.PUBLIC_AUTH_TURNSTILE_SITE_KEY),
+  BUILD_SITE_ORIGIN: process.env.SITE_ORIGIN,
+  BUILD_PUBLIC_R2_BASE: process.env.PUBLIC_R2_PUBLIC_BASE_URL,
   PUBLIC_AUTH_TURNSTILE_SITE_KEY: "stale-generated-fixture"
 } }));
 `);
@@ -67,6 +70,38 @@ await writeFile("dist/server/wrangler.json", JSON.stringify({ vars: {
     assert.match(result.stderr, /WORKERS_BUILD_CONTEXT_INVALID/);
   }
   console.log("MALFORMED_CONTEXT_FAIL_CLOSED: PASS");
+
+  const configs = Object.fromEntries(["preview", "production"].map((env) => {
+    const { vars } = unstable_readConfig({ config: resolve(root, "wrangler.toml"), env }, { hideWarnings: true });
+    const names = ["SUPABASE_URL", "SITE_ORIGIN", "PUBLIC_R2_PUBLIC_BASE_URL", "AUTH_CAPTCHA_MODE", "PUBLIC_AUTH_TURNSTILE_SITE_KEY", "PUBLIC_TURNSTILE_SITE_KEY"];
+    return [env, { vars: Object.fromEntries(names.filter((name) => Object.hasOwn(vars, name)).map((name) => [name, vars[name]])) }];
+  }));
+  const productionVars = configs.production.vars;
+  assert.equal(productionVars.SITE_ORIGIN, "https://openglasshub.ogh.workers.dev");
+  assert.ok(typeof productionVars.PUBLIC_R2_PUBLIC_BASE_URL === "string" && productionVars.PUBLIC_R2_PUBLIC_BASE_URL.trim());
+  await writeFile(resolve(fixture, "node_modules/wrangler/config-fixture.json"), JSON.stringify(configs));
+  await writeFile(resolve(fixture, "node_modules/wrangler/index.mjs"), `
+import { readFileSync } from "node:fs";
+const configs = JSON.parse(readFileSync(new URL("./config-fixture.json", import.meta.url), "utf8"));
+export function unstable_readConfig({ env }) { return configs[env]; }
+`);
+  delete cleanEnv.SITE_ORIGIN;
+  delete cleanEnv.PUBLIC_R2_PUBLIC_BASE_URL;
+  for (const [name, context, expected] of [
+    ["REAL_LOCAL_DEFAULT", {}, "production"],
+    ["REAL_WORKERS_MAIN", { WORKERS_CI: "true", WORKERS_CI_BRANCH: "main" }, "production"],
+    ["REAL_WORKERS_PREVIEW", { WORKERS_CI: "1", WORKERS_CI_BRANCH: "codex/feature", PUBLIC_AUTH_TURNSTILE_SITE_KEY: "stale-inherited-fixture" }, "preview"],
+  ]) {
+    const result = spawnSync(process.execPath, ["scripts/build-workers.mjs"], { cwd: fixture, env: { ...cleanEnv, ...context }, encoding: "utf8" });
+    assert.equal(result.status, 0, `${name}: wrapper executes with reviewed source config`);
+    const { vars } = JSON.parse(await readFile(resolve(fixture, "dist/server/wrangler.json"), "utf8"));
+    assert.equal(vars.BUILD_SITE_ORIGIN, productionVars.SITE_ORIGIN, `${name}: canonical origin reaches Astro`);
+    assert.equal(vars.BUILD_PUBLIC_R2_BASE, productionVars.PUBLIC_R2_PUBLIC_BASE_URL, `${name}: shared public R2 base reaches Astro`);
+    assert.equal(vars.AUTH_CAPTCHA_MODE, expected === "preview" ? "off" : "prepare");
+    assert.equal(vars.BUILD_AUTH_SITEKEY_PRESENT, expected === "production");
+    assert.equal(Object.hasOwn(vars, "PUBLIC_AUTH_TURNSTILE_SITE_KEY"), expected === "production");
+    console.log(`${name}_SHARED_PUBLIC_VARS_AND_AUTH_ISOLATION: PASS`);
+  }
 } finally {
   await rm(fixture, { recursive: true, force: true });
 }
