@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 
 const root = process.cwd();
 const strict = process.argv.includes("--strict");
@@ -21,6 +22,69 @@ function check(label, ok, detail = "") {
   }
   failures.push(detail ? `${label}: ${detail}` : label);
   console.log(`FAIL ${label}${detail ? ` — ${detail}` : ""}`);
+}
+
+function hasFilterControl(source, field, optionsName) {
+  const tree = ts.createSourceFile("admin.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const unwrap = (node) => {
+    while (node && ts.isParenthesizedExpression(node)) node = node.expression;
+    return node;
+  };
+  const isPath = (node, parts) => {
+    node = unwrap(node);
+    if (!node) return false;
+    if (parts.length === 1) return ts.isIdentifier(node) && node.text === parts[0];
+    return ts.isPropertyAccessExpression(node) && node.name.text === parts.at(-1)
+      && isPath(node.expression, parts.slice(0, -1));
+  };
+  const expression = (element, name) => {
+    const attribute = element.openingElement.attributes.properties.find((item) =>
+      ts.isJsxAttribute(item) && item.name.getText(tree) === name);
+    return attribute?.initializer && ts.isJsxExpression(attribute.initializer)
+      ? unwrap(attribute.initializer.expression) : undefined;
+  };
+  const returned = (body) => {
+    body = unwrap(body);
+    if (!body || !ts.isBlock(body)) return body;
+    return body.statements.length === 1 && ts.isReturnStatement(body.statements[0])
+      ? unwrap(body.statements[0].expression) : undefined;
+  };
+  let found = false;
+  const visit = (node) => {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(tree) === "select"
+      && isPath(expression(node, "value"), ["filters", field])) {
+      const handler = expression(node, "onChange");
+      if (handler && ts.isArrowFunction(handler) && handler.parameters.length === 1
+        && ts.isIdentifier(handler.parameters[0].name)) {
+        let call = unwrap(handler.body);
+        if (ts.isBlock(call) && call.statements.length === 1 && ts.isExpressionStatement(call.statements[0])) {
+          call = unwrap(call.statements[0].expression);
+        }
+        if (ts.isCallExpression(call) && isPath(call.expression, ["setFilters"]) && call.arguments.length === 1) {
+          const updater = unwrap(call.arguments[0]);
+          if (ts.isArrowFunction(updater) && updater.parameters.length === 1 && ts.isIdentifier(updater.parameters[0].name)) {
+            const object = returned(updater.body);
+            if (object && ts.isObjectLiteralExpression(object)) {
+              const assignments = object.properties.filter((item) => ts.isPropertyAssignment(item)
+                && (ts.isIdentifier(item.name) || ts.isStringLiteral(item.name)) && item.name.text === field);
+              const preservesState = object.properties.some((item) => ts.isSpreadAssignment(item)
+                && isPath(item.expression, [updater.parameters[0].name.text]));
+              const rendersOptions = node.children.some((child) => {
+                const value = ts.isJsxExpression(child) ? unwrap(child.expression) : undefined;
+                return value && ts.isCallExpression(value) && isPath(value.expression, [optionsName, "map"]);
+              });
+              found ||= preservesState && assignments.length === 1
+                && isPath(assignments[0].initializer, [handler.parameters[0].name.text, "target", "value"])
+                && rendersOptions;
+            }
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return found;
 }
 
 const migrationPath = "supabase/migrations/20260627_reports_optimization_mvp.sql";
@@ -83,8 +147,8 @@ if (exists(adminPanelPath)) {
     && /useLocale\(localeContext\)/.test(panel);
   const localizedStatusOption = /value:\s*"all",\s*label:\s*text\.reports\.filters\.status\.all/.test(panel);
   const localizedTargetOption = /value:\s*"all",\s*label:\s*text\.reports\.filters\.target\.all/.test(panel);
-  const hasStatusControl = /<select\s+value=\{filters\.status\}[\s\S]*?onChange=\{[^\n]*status:\s*event\.target\.value[^\n]*\}\}>\s*\{STATUS_OPTIONS\.map\(/.test(panel);
-  const hasTargetControl = /<select\s+value=\{filters\.target_type\}[\s\S]*?onChange=\{[^\n]*target_type:\s*event\.target\.value[^\n]*\}\}>\s*\{TARGET_OPTIONS\.map\(/.test(panel);
+  const hasStatusControl = hasFilterControl(panel, "status", "STATUS_OPTIONS");
+  const hasTargetControl = hasFilterControl(panel, "target_type", "TARGET_OPTIONS");
   check("admin reports filter i18n contract", consumesAdminMessages
     && localizedStatusOption && localizedTargetOption && hasStatusControl && hasTargetControl
     && hasMessage(["reports", "filters", "status", "all"])
