@@ -49,9 +49,22 @@ try {
       history.replaceState(null, "", "/login/");
       const input = document.createElement("input"); input.type = "password"; input.value = "local-unsent-fixture";
       const form = document.createElement("form"); form.append(input); document.body.append(form);
-      window.__navigationConfirmations = 0; window.confirm = () => { window.__navigationConfirmations++; return false; };
     });
-    await setting.click(); assert.equal(await page.evaluate(() => window.__navigationConfirmations), 1);
+    await setting.click();
+    const confirmation = page.locator("dialog.og-settings-confirm");
+    await confirmation.waitFor({ state: "visible" });
+    assert.ok((await confirmation.innerText()).includes(locale === "en" ? "discard unsent changes" : "丢失未提交"));
+    for (const width of [390, 430, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      const bounds = await confirmation.boundingBox();
+      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width);
+    }
+    await page.screenshot({ path: path.join(process.cwd(), "artifacts/qa/locale-shell", `${locale}-navigation-confirm.png`) });
+    await confirmation.getByRole("button", { name: locale === "en" ? "Cancel" : "取消", exact: true }).click();
+    await confirmation.waitFor({ state: "hidden" });
+    assert.equal(new URL(page.url()).pathname, "/login/");
+    await setting.click(); await confirmation.waitFor({ state: "visible" });
+    await page.keyboard.press("Escape"); await confirmation.waitFor({ state: "hidden" });
     assert.equal(new URL(page.url()).pathname, "/login/");
     await mkdir(path.join(process.cwd(), "artifacts/qa/locale-shell"), { recursive: true });
     await page.screenshot({ path: path.join(process.cwd(), "artifacts/qa/locale-shell", `${locale}-desktop.png`), fullPage: true });

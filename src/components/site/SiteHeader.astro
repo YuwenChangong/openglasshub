@@ -72,6 +72,18 @@ const messages = getUiMessages(localeContext.locale);
     </div>
   </div>
 </header>
+<dialog class="og-settings-confirm glass-confirm-dialog glass-modal" aria-labelledby="settings-navigation-title">
+  <form method="dialog">
+    <div class="glass-confirm-header glass-modal__header">
+      <h3 id="settings-navigation-title">{messages.settings.title}</h3>
+      <p>{messages.settings.confirmNavigation}</p>
+    </div>
+    <div class="glass-confirm-actions glass-modal__actions">
+      <button type="submit" value="cancel" class="community-button--secondary" autofocus>{messages.settings.cancel}</button>
+      <button type="submit" value="continue" class="community-button">{messages.settings.continueNavigation}</button>
+    </div>
+  </form>
+</dialog>
 <LocalePreferenceSync initial={localeContext} client:load />
 
 <script>
@@ -87,10 +99,16 @@ const messages = getUiMessages(localeContext.locale);
     };
 
     toggle?.addEventListener("click", () => setMenuOpen(toggle.getAttribute("aria-expanded") !== "true"));
+    const confirmation = header.nextElementSibling instanceof HTMLDialogElement ? header.nextElementSibling : null;
+    confirmation?.addEventListener("close", () => {
+      if (confirmation.returnValue === "continue") location.assign("/settings/");
+    });
     header.querySelector<HTMLAnchorElement>(".og-header__settings")?.addEventListener("click", event => {
       const hasUnsavedInput = [...document.querySelectorAll<HTMLInputElement>('form input[type="password"], form input[type="email"]')].some(input => !!input.value);
-      const link = event.currentTarget as HTMLAnchorElement;
-      if (!confirmSettingsNavigation(location.pathname, hasUnsavedInput, message => window.confirm(message), link.dataset.confirmMessage ?? "")) event.preventDefault();
+      if (!confirmSettingsNavigation(location.pathname, hasUnsavedInput, () => false, "")) {
+        event.preventDefault();
+        if (confirmation && !confirmation.open) { confirmation.returnValue = "cancel"; confirmation.showModal(); }
+      }
     });
     navigation?.addEventListener("click", (event) => {
       if (event.target instanceof HTMLAnchorElement) setMenuOpen(false);
@@ -102,6 +120,9 @@ const messages = getUiMessages(localeContext.locale);
 </script>
 
 <style>
+  .og-settings-confirm { max-width: min(440px, calc(100vw - 32px)); margin: auto; color: var(--text); background: #15181d; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 20px; }
+  .og-settings-confirm::backdrop { background: rgba(0,0,0,0.6); }
+  .og-settings-confirm p { overflow-wrap: anywhere; }
   .og-header__action-slot { display: contents; }
   .og-header__settings { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: 0 0 44px; color: inherit; border-radius: 6px; }
   .og-header__settings:hover { background: rgba(255,255,255,0.07); }
