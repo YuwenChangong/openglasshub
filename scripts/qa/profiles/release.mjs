@@ -90,7 +90,7 @@ function registerReleaseCommand(id, argv) {
   registerCheck({
     id: `release:${id}`,
     allowedProfiles: [QA_PROFILES.RELEASE],
-    timeoutMs: id === 'frontend-astro-build' ? 240_000 : id === 'project-test' ? 180_000 : 90_000,
+    timeoutMs: id === 'frontend-astro-build' ? 240_000 : ['project-test', 'product-recovery-slice-a'].includes(id) ? 180_000 : 90_000,
     retryPolicy: { classification: 'LOCAL', maxRetries: 0 },
     artifactPolicy: { onFailure: true, onSuccess: false },
     classification: 'DETERMINISTIC',

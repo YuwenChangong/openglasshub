@@ -54,7 +54,7 @@ id = "1aececb7c13140909c240bfafbd9d29d"
 [env.production]
 
 [env.production.vars]
-AUTH_CAPTCHA_MODE = "prepare"
+AUTH_CAPTCHA_MODE = "required"
 PUBLIC_AUTH_TURNSTILE_SITE_KEY = "0x4AAAAAAFKnj0so9OWjyiCv"
 PUBLIC_LEGAL_OPERATOR_NAME = "YuwenChangong"
 PUBLIC_SUPPORT_EMAIL = "openglasshub@gmail.com"

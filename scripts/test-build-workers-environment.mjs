@@ -19,7 +19,7 @@ try {
 export function unstable_readConfig({ env }) {
   if (!["production", "preview"].includes(env)) throw new Error("UNEXPECTED_ENV");
   return { vars: { SUPABASE_URL: "https://example.invalid", SITE_ORIGIN: env,
-    AUTH_CAPTCHA_MODE: env === "production" ? "prepare" : "off",
+    AUTH_CAPTCHA_MODE: env === "production" ? "required" : "off",
     PUBLIC_TURNSTILE_SITE_KEY: "fixture-upload-key",
     ...(env === "production" ? { PUBLIC_AUTH_TURNSTILE_SITE_KEY: "fixture-auth-key" } : {}) } };
 }
@@ -52,7 +52,7 @@ await writeFile("dist/server/wrangler.json", JSON.stringify({ vars: {
     assert.equal(result.status, 0, `${name}: wrapper must execute successfully`);
     const { vars } = JSON.parse(await readFile(resolve(fixture, "dist/server/wrangler.json"), "utf8"));
     assert.equal(vars.BUILD_SOURCE_ENV, expected, `${name}: actual wrapper selected environment`);
-    assert.equal(vars.AUTH_CAPTCHA_MODE, expected === "production" ? "prepare" : "off", `${name}: runtime mode`);
+    assert.equal(vars.AUTH_CAPTCHA_MODE, expected === "production" ? "required" : "off", `${name}: runtime mode`);
     assert.equal(vars.BUILD_AUTH_SITEKEY_PRESENT, expected === "production", `${name}: build-time Auth key isolation`);
     assert.equal(Object.hasOwn(vars, "PUBLIC_AUTH_TURNSTILE_SITE_KEY"), expected === "production", `${name}: runtime Auth key isolation`);
     console.log(`${name}: PASS`);
@@ -97,7 +97,7 @@ export function unstable_readConfig({ env }) { return configs[env]; }
     const { vars } = JSON.parse(await readFile(resolve(fixture, "dist/server/wrangler.json"), "utf8"));
     assert.equal(vars.BUILD_SITE_ORIGIN, productionVars.SITE_ORIGIN, `${name}: canonical origin reaches Astro`);
     assert.equal(vars.BUILD_PUBLIC_R2_BASE, productionVars.PUBLIC_R2_PUBLIC_BASE_URL, `${name}: shared public R2 base reaches Astro`);
-    assert.equal(vars.AUTH_CAPTCHA_MODE, expected === "preview" ? "off" : "prepare");
+    assert.equal(vars.AUTH_CAPTCHA_MODE, expected === "preview" ? "off" : "required");
     assert.equal(vars.BUILD_AUTH_SITEKEY_PRESENT, expected === "production");
     assert.equal(Object.hasOwn(vars, "PUBLIC_AUTH_TURNSTILE_SITE_KEY"), expected === "production");
     console.log(`${name}_SHARED_PUBLIC_VARS_AND_AUTH_ISOLATION: PASS`);

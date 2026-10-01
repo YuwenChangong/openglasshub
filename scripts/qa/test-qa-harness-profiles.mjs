@@ -754,7 +754,12 @@ test('releaseIncludesSliceALocalChecks', async () => {
   const registered = getCheck('release:product-recovery-slice-a');
   assert.deepEqual(registered.allowedProfiles, ['RELEASE']);
   assert.deepEqual(registered.retryPolicy, { classification: 'LOCAL', maxRetries: 0 });
-  assert.equal(registered.timeoutMs, 90_000);
+  assert.equal(registered.timeoutMs, 180_000);
+  for (const { id, kind } of selection.selectedChecks) {
+    if (kind !== 'command' || id === 'product-recovery-slice-a') continue;
+    const expectedTimeout = id === 'frontend-astro-build' ? 240_000 : id === 'project-test' ? 180_000 : id === 'targeted-browser-journey' ? 120_000 : 90_000;
+    assert.equal(getCheck(`release:${id}`).timeoutMs, expectedTimeout, `${id}: existing release timeout remains unchanged`);
+  }
   const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   assert.deepEqual(packageJson.scripts['test:product-recovery-slice-a'].split(' && '), [
     'node scripts/test-auth-legal-acknowledgement.mjs',
