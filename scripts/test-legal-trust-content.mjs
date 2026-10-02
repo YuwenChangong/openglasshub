@@ -2,6 +2,9 @@ import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { getUiMessages } from "../src/lib/i18n/catalog.ts";
+import { getAuthMessages } from "../src/lib/auth-messages.ts";
+import ts from "typescript";
 
 const root = process.cwd();
 const legalPages = [
@@ -22,6 +25,23 @@ function assert(condition, message) {
 
 async function read(relativePath) {
   return readFile(path.join(root, relativePath), "utf8");
+}
+
+function unwrapParentheses(node) {
+  while (ts.isParenthesizedExpression(node)) node = node.expression;
+  return node;
+}
+
+function isSignupNoticeBranch(notice) {
+  let owner = notice.parent;
+  while (owner && ts.isParenthesizedExpression(owner)) owner = owner.parent;
+  if (!owner || !ts.isConditionalExpression(owner) || unwrapParentheses(owner.whenTrue) !== notice
+    || unwrapParentheses(owner.whenFalse).kind !== ts.SyntaxKind.NullKeyword) return false;
+  const condition = unwrapParentheses(owner.condition);
+  if (!ts.isBinaryExpression(condition) || condition.operatorToken.kind !== ts.SyntaxKind.EqualsEqualsEqualsToken) return false;
+  const left = unwrapParentheses(condition.left);
+  const right = unwrapParentheses(condition.right);
+  return ts.isIdentifier(left) && left.text === "mode" && ts.isStringLiteral(right) && right.text === "signup";
 }
 
 function runStripTypes(code) {
@@ -46,6 +66,7 @@ async function main() {
   const legalPageComponent = await read("src/components/legal/LegalPage.astro");
   const communityLayout = await read("src/layouts/CommunityLayout.astro");
   const loginPage = await read("src/pages/login/index.astro");
+  const authPanel = await read("src/components/forum/AuthPanel.tsx");
   const registerPage = await read("src/pages/register/index.astro");
   const sitemap = await read("src/pages/sitemap.xml.ts");
   const docs = await read("docs/ops/legal-trust-policy-management.md");
@@ -90,9 +111,74 @@ async function main() {
   assert(!legalPolicySource.includes("@example.com"), "Legal policy config must not hardcode fake email fallbacks.");
 
   assert((legalPageComponent.match(/<h1\b/g) ?? []).length === 1, "Legal page layout must render exactly one H1.");
-  assert(legalPageComponent.includes('aria-label="Language navigation"'), "Legal page layout must expose language navigation.");
-  assert(communityLayout.includes('aria-label="Footer legal links"'), "Shared footer should expose restrained legal links.");
-  assert(loginPage.includes("auth-page__legal-copy"), "Login page should include informational legal links.");
+  const languageNav = legalPageComponent.match(/<nav\b[^>]*class="legal-page__language-nav"[^>]*>([\s\S]*?)<\/nav>/)?.[0];
+  assert(Boolean(languageNav), "Legal page layout must expose real language navigation.");
+  if (languageNav.includes("aria-label={text.languageNavigation}")) {
+    assert(legalPageComponent.includes("getUiMessages(uiLocale).documents"), "Document controls must consume the approved UI catalog.");
+    for (const locale of ["zh-CN", "en"]) {
+      assert(Boolean(getUiMessages(locale).documents.languageNavigation?.trim()), `Missing ${locale} document language navigation label.`);
+    }
+  } else {
+    assert(languageNav.includes('aria-label="Language navigation"'), "Current pre-selection language navigation must retain its accessible label.");
+    assert(languageNav.includes('href="#legal-zh"') && languageNav.includes('href="#legal-en"'), "Current language controls must target both authored sections.");
+  }
+  const footer = communityLayout.match(/<footer\b[^>]*class="community-site-footer"[^>]*>([\s\S]*?)<\/footer>/)?.[0];
+  assert(Boolean(footer), "Shared legal footer must exist.");
+  const footerNav = footer.match(/<nav\b[^>]*aria-label=\{messages\.legalLinks\}[^>]*>([\s\S]*?)<\/nav>/)?.[0];
+  assert(Boolean(footerNav), "Shared footer must retain labeled legal navigation.");
+  assert(footerNav.includes("LEGAL_POLICY_LINKS.map") && footerNav.includes("href={link.href}"), "Footer links must come from central legal routes.");
+  assert(communityLayout.includes("getUiMessages(localeContext.locale).shell"), "Footer must consume the approved shell catalog.");
+  for (const locale of ["zh-CN", "en"]) {
+    assert(Boolean(getUiMessages(locale).shell.legalLinks?.trim()), `Missing ${locale} legal footer navigation label.`);
+  }
+  const authAst = ts.createSourceFile("AuthPanel.tsx", authPanel, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const noticeNodes = [];
+  function findNotice(node) {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(authAst) === "p"
+      && node.openingElement.attributes.properties.some((attribute) => ts.isJsxAttribute(attribute)
+        && attribute.name.text === "className" && attribute.initializer
+        && ts.isStringLiteral(attribute.initializer) && attribute.initializer.text === "auth-signup-notice")) noticeNodes.push(node);
+    ts.forEachChild(node, findNotice);
+  }
+  findNotice(authAst);
+  assert(noticeNodes.length === 1, "AuthPanel must own one compact signup legal notice.");
+  const notice = noticeNodes[0];
+  assert(isSignupNoticeBranch(notice), "Legal notice must be gated only by signup mode.");
+  const fixtureNotice = '<p className="auth-signup-notice" />';
+  for (const [expression, expected] of [
+    [`mode === "signup" ? ${fixtureNotice} : null`, true],
+    [`mode === "signup" ? (${fixtureNotice}) : null`, true],
+    [`((mode) === ("signup")) ? (((${fixtureNotice}))) : (null)`, true],
+    [`mode === "login" ? (${fixtureNotice}) : null`, false],
+    [fixtureNotice, false],
+    [`mode === "signup" ? (${fixtureNotice}) : <p />`, false],
+    [`mode === "signup" ? render(${fixtureNotice}) : null`, false],
+    [`mode === "signup" ? (ready && ${fixtureNotice}) : null`, false],
+    [`mode === "signup" ? <div>${fixtureNotice}</div> : null`, false],
+    [`mode === "signup" ? (() => ${fixtureNotice}) : null`, false],
+  ]) {
+    const fixtureAst = ts.createSourceFile("notice-fixture.tsx", `const view = ${expression};`, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    let fixtureNode;
+    function findFixture(node) {
+      if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(fixtureAst) === "p"
+        && node.attributes.properties.some((attribute) => ts.isJsxAttribute(attribute)
+          && attribute.name.text === "className")) fixtureNode = node;
+      ts.forEachChild(node, findFixture);
+    }
+    findFixture(fixtureAst);
+    assert(Boolean(fixtureNode) && isSignupNoticeBranch(fixtureNode) === expected, "Signup notice ownership matcher must preserve negative boundaries.");
+  }
+  const noticeSource = notice.getText(authAst);
+  for (const route of ["terms", "privacy", "guidelines"]) {
+    assert(noticeSource.includes(`href={LEGAL_POLICY.routes.${route}}`), `Signup legal notice must use the central ${route} route.`);
+  }
+  for (const key of ["signupNoticeLead", "signupNoticeTerms", "signupNoticePrivacyLead", "signupNoticePrivacy", "signupNoticeGuidelinesLead", "signupNoticeGuidelines"]) {
+    assert(noticeSource.includes(`{messages.${key}}`), `Signup legal notice must bind its typed ${key} message.`);
+    for (const locale of ["zh-CN", "en"]) assert(Boolean(getAuthMessages(locale)[key]?.trim()), `Missing ${locale} signup notice message ${key}.`);
+  }
+  assert(!/legalAcknowledged|ageEligible|recordLegalConsent|type\s*=\s*["']checkbox/i.test(authPanel), "AuthPanel must not add legal/age checkbox state or consent writes.");
+  assert(authPanel.includes('if (mode === "login")') && authPanel.includes("signInWithPassword"), "Password login must retain its independent login branch.");
+  assert(loginPage.includes("initialMode={initialMode}") && loginPage.includes('getSafeNext(Astro.url.searchParams.get("next"))'), "Login route must retain initial mode and safe next wiring.");
   assert(
     loginPage.includes('modeParam === "register" || modeParam === "signup" ? "signup" : "login"'),
     "Login page should map register mode to signup.",
@@ -130,13 +216,28 @@ async function main() {
   assert(!safetyPage.includes("24/7"), "Safety page must not claim 24/7 monitoring.");
   assert(safetyPage.includes("not an emergency service"), "Safety page must retain the emergency-service limitation.");
 
-  for (const contactLabel of ["支持", "滥用与安全", "隐私请求", "知识产权投诉", "Support", "Abuse and safety", "Privacy requests", "Intellectual property complaints"]) {
-    assert(legalPageComponent.includes(contactLabel), `Shared legal contact surface must include ${contactLabel}.`);
+  const contactsSurface = legalPageComponent.match(/<aside\b[^>]*class="legal-page__contacts"[^>]*>([\s\S]*?)<\/aside>/)?.[0];
+  assert(Boolean(contactsSurface) && legalPageComponent.includes("showPublicContacts &&"), "Shared public contact surface must remain controlled by its existing prop.");
+  for (const [key, valueKey, labels] of [
+    ["operator", "operator", ["运营方", "Operator"]],
+    ["support", "support", ["支持", "Support"]],
+    ["abuse", "abuse", ["滥用与安全", "Abuse and safety"]],
+    ["privacyRequests", "privacy", ["隐私请求", "Privacy requests"]],
+    ["intellectualProperty", "intellectualProperty", ["知识产权投诉", "Intellectual property complaints"]],
+  ]) {
+    assert(contactsSurface.includes(`PUBLIC_LEGAL_CONTACTS.${valueKey}`), `Contact ${key} must retain its central value.`);
+    if (valueKey !== "operator") assert(contactsSurface.includes(`mailto:\${PUBLIC_LEGAL_CONTACTS.${valueKey}}`), `Contact ${key} must retain its central mailto route.`);
+    if (contactsSurface.includes(`{text.${key}}`)) {
+      assert(legalPageComponent.includes("getUiMessages(uiLocale).documents"), "Public contact labels must consume the approved document catalog.");
+      for (const locale of ["zh-CN", "en"]) assert(Boolean(getUiMessages(locale).documents[key]?.trim()), `Missing ${locale} public contact label ${key}.`);
+    } else {
+      for (const label of labels) assert(contactsSurface.includes(label), `Current public contact label ${key} must exist in both languages.`);
+    }
   }
 
-  assert(legalConsentPage.includes("LegalConsentPage"), "Legal consent page must mount the authenticated consent surface.");
-  assert(legalConsentPage.includes('title="政策确认"'), "Legal consent page must keep a Chinese page title.");
-  assert(legalConsentPage.includes("noindex={true}"), "Legal consent page should be noindex in Phase 1.");
+  assert(/export const prerender\s*=\s*false/.test(legalConsentPage), "Legacy consent redirect must remain request-rendered.");
+  assert(/Astro\.redirect\(getSafeConsentNext\(Astro\.url\.searchParams\.get\("next"\)\),\s*302\)/.test(legalConsentPage), "Legacy consent route must sanitize next and use a 302 compatibility redirect.");
+  assert(!/LegalConsentPage|recordLegalConsent|requireLegalConsent|supabase|\.from\(|\.rpc\(/i.test(legalConsentPage), "Legacy redirect must not introduce a runtime consent component, write or database prerequisite.");
 
   for (const route of [
     'absoluteUrl(LEGAL_POLICY.routes.terms)',
