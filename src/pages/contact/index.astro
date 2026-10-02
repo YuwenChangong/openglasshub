@@ -4,10 +4,12 @@ import { getLegalPolicyVersion } from "../../lib/legal-policy";
 
 const zh = `<h3>公开联系渠道</h3><p>支持、滥用与安全、隐私请求、账户删除和知识产权投诉请使用下方公开联系渠道。</p><p>账户删除请求可通过公开支持或隐私请求渠道提交。</p>`;
 const en = `<h3>Public contact channels</h3><p>Use the public contacts below for support, abuse and safety, privacy requests, account deletion, and intellectual-property complaints.</p><p>Account-deletion requests may be submitted through the public support or privacy-request channel.</p>`;
+import { getUiMessages } from "../../lib/i18n/catalog";
+const text = getUiMessages(Astro.locals.localeContext.locale).documents;
 ---
 <LegalPage
-  pageTitle="联系"
-  description="OpenGlass Hub 联系方式配置状态。"
+  pageTitle={text.contactTitle}
+  description={text.contactDescription}
   routeKey="contact"
   version={getLegalPolicyVersion("contact")}
   headingZh="联系"

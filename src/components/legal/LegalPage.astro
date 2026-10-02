@@ -2,6 +2,8 @@
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import { LEGAL_POLICY, LEGAL_POLICY_LINKS } from "../../lib/legal-policy";
 import { PUBLIC_LEGAL_CONTACTS } from "../../lib/public-legal-contacts";
+import { resolveDocumentLocale } from "../../lib/i18n/document-locale";
+import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
 
 interface Props {
   pageTitle: string;
@@ -28,6 +30,14 @@ const {
   noindex = false,
   showPublicContacts = false,
 } = Astro.props;
+const uiLocale = Astro.locals.localeContext.locale;
+const documentLocale = resolveDocumentLocale(Astro.url.searchParams.get("lang"), uiLocale);
+const text = getUiMessages(uiLocale).documents;
+function languageHref(locale: "zh-CN" | "en") {
+  const url = new URL(Astro.url);
+  url.searchParams.set("lang", locale);
+  return url.pathname + url.search;
+}
 ---
 <CommunityLayout
   title={pageTitle}
@@ -37,53 +47,39 @@ const {
   noindex={noindex}
 >
   <article class="legal-page">
-    <nav class="legal-page__policy-nav" aria-label="Legal policy navigation">
+    <nav class="legal-page__policy-nav" aria-label={text.policyNavigation}>
       {
         LEGAL_POLICY_LINKS.map((link) => (
           <a href={link.href} aria-current={routeKey === link.key ? "page" : undefined}>
-            <span>{link.labelZh}</span>
-            <span lang="en">{link.labelEn}</span>
+            <span>{uiLocale === "en" ? link.labelEn : link.labelZh}</span>
           </a>
         ))
       }
     </nav>
     <div class="legal-page__meta-row">
-      <p class="legal-page__meta">版本 {version} · 生效日期 {LEGAL_POLICY.effectiveDate}</p>
-      <p class="legal-page__meta" lang="en">Version {version} · Effective {LEGAL_POLICY.effectiveDate}</p>
+      <p class="legal-page__meta">{formatUiMessage(text.version, { version, date: LEGAL_POLICY.effectiveDate })}</p>
     </div>
-    <nav class="legal-page__language-nav" aria-label="Language navigation">
-      <a href="#legal-zh">中文</a>
-      <a href="#legal-en" lang="en">English</a>
+    <nav class="legal-page__language-nav" aria-label={text.languageNavigation}>
+      <a href={languageHref("zh-CN")} lang="zh-CN" aria-current={documentLocale === "zh-CN" ? "true" : undefined}>中文</a>
+      <a href={languageHref("en")} lang="en" aria-current={documentLocale === "en" ? "true" : undefined}>English</a>
     </nav>
     {
       showPublicContacts && (
-        <aside class="legal-page__contacts" aria-label="Public legal contacts">
-          <h2>公开联系渠道</h2>
-          <ul lang="zh-CN">
-            <li><strong>运营方：</strong>{PUBLIC_LEGAL_CONTACTS.operator}</li>
-            <li><strong>支持：</strong><a href={`mailto:${PUBLIC_LEGAL_CONTACTS.support}`}>{PUBLIC_LEGAL_CONTACTS.support}</a></li>
-            <li><strong>滥用与安全：</strong><a href={`mailto:${PUBLIC_LEGAL_CONTACTS.abuse}`}>{PUBLIC_LEGAL_CONTACTS.abuse}</a></li>
-            <li><strong>隐私请求：</strong><a href={`mailto:${PUBLIC_LEGAL_CONTACTS.privacy}`}>{PUBLIC_LEGAL_CONTACTS.privacy}</a></li>
-            <li><strong>知识产权投诉：</strong><a href={`mailto:${PUBLIC_LEGAL_CONTACTS.intellectualProperty}`}>{PUBLIC_LEGAL_CONTACTS.intellectualProperty}</a></li>
-          </ul>
-          <h2 lang="en">Public contacts</h2>
-          <ul lang="en">
-            <li><strong>Operator:</strong> {PUBLIC_LEGAL_CONTACTS.operator}</li>
-            <li><strong>Support:</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.support}`}>{PUBLIC_LEGAL_CONTACTS.support}</a></li>
-            <li><strong>Abuse and safety:</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.abuse}`}>{PUBLIC_LEGAL_CONTACTS.abuse}</a></li>
-            <li><strong>Privacy requests:</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.privacy}`}>{PUBLIC_LEGAL_CONTACTS.privacy}</a></li>
-            <li><strong>Intellectual property complaints:</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.intellectualProperty}`}>{PUBLIC_LEGAL_CONTACTS.intellectualProperty}</a></li>
+        <aside class="legal-page__contacts" aria-label={text.publicContacts}>
+          <h2>{text.publicContacts}</h2>
+          <ul>
+            <li><strong>{text.operator}</strong> {PUBLIC_LEGAL_CONTACTS.operator}</li>
+            <li><strong>{text.support}</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.support}`}>{PUBLIC_LEGAL_CONTACTS.support}</a></li>
+            <li><strong>{text.abuse}</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.abuse}`}>{PUBLIC_LEGAL_CONTACTS.abuse}</a></li>
+            <li><strong>{text.privacyRequests}</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.privacy}`}>{PUBLIC_LEGAL_CONTACTS.privacy}</a></li>
+            <li><strong>{text.intellectualProperty}</strong> <a href={`mailto:${PUBLIC_LEGAL_CONTACTS.intellectualProperty}`}>{PUBLIC_LEGAL_CONTACTS.intellectualProperty}</a></li>
           </ul>
         </aside>
       )
     }
-    <section id="legal-zh" class="legal-page__section" lang="zh-CN" aria-labelledby="legal-heading-zh">
-      <h1 id="legal-heading-zh">{headingZh}</h1>
-      <Fragment set:html={zh} />
-    </section>
-    <section id="legal-en" class="legal-page__section" lang="en" aria-labelledby="legal-heading-en">
-      <h2 id="legal-heading-en">{headingEn}</h2>
-      <Fragment set:html={en} />
+    <section id={documentLocale === "en" ? "legal-en" : "legal-zh"} class="legal-page__section" lang={documentLocale} aria-labelledby="legal-heading">
+      <h1 id="legal-heading">{documentLocale === "en" ? headingEn : headingZh}</h1>
+      <Fragment set:html={documentLocale === "en" ? en : zh} />
     </section>
   </article>
 </CommunityLayout>
