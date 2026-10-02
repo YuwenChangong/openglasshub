@@ -78,6 +78,8 @@ const pairs = {
   accountDeletionDescription: ["OpenGlass Hub 账户删除说明。", "OpenGlass Hub account deletion information."],
   contactTitle: ["联系", "Contact"],
   contactDescription: ["OpenGlass Hub 联系方式配置状态。", "OpenGlass Hub public contact information."],
+  deviceLibrary: ["设备库", "Device library"],
+  about: ["关于", "About"],
 } as const;
 
 type Messages = { [K in keyof typeof pairs]: string };

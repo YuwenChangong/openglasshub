@@ -2,6 +2,8 @@
 export const prerender = false;
 
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
+import { resolveDocumentLocale } from "../../lib/i18n/document-locale";
+import { selectEditorialVariant } from "../../lib/i18n/editorial-variants";
 
 const slug = Astro.params.slug ?? "";
 const modules = import.meta.glob("../../content/docs/guides/*.mdx");
@@ -11,7 +13,14 @@ if (!loadEntry) {
   return Astro.redirect("/guides/");
 }
 
-const entry = (await loadEntry()) as {
+const documentLocale = resolveDocumentLocale(Astro.url.searchParams.get("lang"), Astro.locals.localeContext.locale);
+const selection = selectEditorialVariant(`guides/${slug}`, documentLocale);
+const reviewedModules = {
+  "/src/content/editorial-translations/en/guides/index.mdx": () => import("../../content/editorial-translations/en/guides/index.mdx"),
+};
+const reviewedLoader = Object.hasOwn(reviewedModules, selection.moduleKey)
+  ? reviewedModules[selection.moduleKey as keyof typeof reviewedModules] : undefined;
+const entry = (await (reviewedLoader ? reviewedLoader() : loadEntry())) as {
   default: unknown;
   frontmatter: {
     title: string;
@@ -38,8 +47,8 @@ const text = getUiMessages(Astro.locals.localeContext.locale).documents;
   </section>
 
   <section class="community-grid">
-    <article class="community-surface community-surface--padded detail-main" lang="zh-CN">
-      {Astro.locals.localeContext.locale === "en" && <p class="community-meta" role="note">{text.originalChinese}</p>}
+    <article class="community-surface community-surface--padded detail-main" lang={selection.locale}>
+      {selection.locale !== documentLocale && <p class="community-meta" role="note">{text.originalChinese}</p>}
       <Content />
     </article>
     <aside class="community-sidebar">

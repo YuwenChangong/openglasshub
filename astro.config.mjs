@@ -63,11 +63,16 @@ export default defineConfig({
     }),
     react(),
     starlight({
+      prerender: false,
+      pagefind: false,
+      routeMiddleware: './src/starlightRouteData.ts',
       disable404Route: true,
       title: 'OpenGlass Hub',
       description: 'AR/AI 眼镜知识库、选购指南与开发者资源',
       components: {
         Header: './src/components/starlight/Header.astro',
+        ThemeProvider: './src/components/starlight/ThemeProvider.astro',
+        ThemeSelect: './src/components/starlight/ThemeSelect.astro',
       },
       defaultLocale: 'root',
       locales: {

@@ -1,0 +1,10 @@
+---
+---
+<script is:inline>
+  (() => {
+    const enforceDark = () => { document.documentElement.dataset.theme = "dark"; };
+    enforceDark();
+    document.addEventListener("astro:after-swap", enforceDark);
+    window.StarlightThemeProvider = { updatePickers: enforceDark };
+  })();
+</script>
