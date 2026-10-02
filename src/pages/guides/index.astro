@@ -66,18 +66,21 @@ const guideSections = [
     description: "先看开发限制，再谈“最适合”或“最开放”，不要直接套消费逻辑。",
   },
 ] as const;
+import { getUiMessages } from "../../lib/i18n/catalog";
+const text = getUiMessages(Astro.locals.localeContext.locale).documents;
 ---
 
 <CommunityLayout
-  title="选购指南"
-  description="先判断用途，再看设备参数。"
+  title={text.guides}
+  description={text.guidesDescription}
   canonical="/guides/"
   activeSection="products"
 >
+  {Astro.locals.localeContext.locale === "en" && <p class="community-meta" role="note">{text.originalChinese}</p>}
   <section class="community-page-head">
     <div>
-      <h1>选购指南</h1>
-      <p class="community-page-lead">先判断用途，再看设备参数。这里不做假榜单，只帮助你更快缩小方向。</p>
+      <h1>{text.guides}</h1>
+      <p class="community-page-lead">{text.guidesLead}</p>
     </div>
   </section>
 
@@ -93,18 +96,18 @@ const guideSections = [
     </div>
     <div class="community-section-head">
       <div>
-        <h2>先做用途判断</h2>
-        <p>不要先问“哪台最好”，先问你到底想拿它做什么。</p>
+        <h2>{text.useCase}</h2>
+        <p>{text.useCaseHint}</p>
       </div>
     </div>
     <div class="guides-grid">
       {decisionPaths.map((item) => (
-        <ProductCard label="决策路径" title={item.title} description={item.description} href={item.href} />
+        <ProductCard label={text.decisionPath} title={item.title} description={item.description} href={item.href} />
       ))}
     </div>
     <div class="guides-decision-panel" id="decision-panel">
       <div>
-        <span class="community-meta">当前路径</span>
+        <span class="community-meta">{text.currentPath}</span>
         <h2>{selectedPath.title}</h2>
         <p>{selectedPath.description}</p>
       </div>
@@ -112,8 +115,8 @@ const guideSections = [
         {selectedPath.notes.map((note) => <li>{note}</li>)}
       </ul>
       <div class="community-cta-row">
-        <a href={selectedPath.detailHref} class="community-action-button community-action-button--primary">查看详细指南</a>
-        <a href={selectedPath.sourceUrl} target="_blank" rel="noreferrer" class="community-action-button community-action-button--muted">官方参考：{selectedPath.sourceLabel}</a>
+        <a href={selectedPath.detailHref} class="community-action-button community-action-button--primary">{text.detailedGuide}</a>
+        <a href={selectedPath.sourceUrl} target="_blank" rel="noreferrer" class="community-action-button community-action-button--muted">{text.officialReference}{selectedPath.sourceLabel}</a>
       </div>
     </div>
   </section>
@@ -122,8 +125,8 @@ const guideSections = [
     <section class="community-surface community-surface--primary">
       <div class="community-section-head">
         <div>
-          <h2>路线判断</h2>
-          <p>四类常见路线，帮助你先做方向上的过滤。</p>
+          <h2>{text.routes}</h2>
+          <p>{text.routesHint}</p>
         </div>
       </div>
       <div class="community-list">
@@ -138,15 +141,15 @@ const guideSections = [
 
     <aside class="community-sidebar">
       <section class="community-surface community-surface--padded community-surface--primary">
-        <div class="community-page-lead" style="margin-bottom: 0.35rem;">继续往下看</div>
+        <div class="community-page-lead" style="margin-bottom: 0.35rem;">{text.continueReading}</div>
         <div class="community-list" style="padding: 0;">
           <a class="community-list-item community-link-row" href="/products/">
-            <strong>去产品页</strong>
-            <span>按品牌直接看产品与路线</span>
+            <strong>{text.productsEntry}</strong>
+            <span>{text.productsEntryHint}</span>
           </a>
           <a class="community-list-item community-link-row" href="/developers/">
-            <strong>去开发者入口</strong>
-            <span>先确认 SDK、权限和部署限制</span>
+            <strong>{text.developersEntry}</strong>
+            <span>{text.developersEntryHint}</span>
           </a>
         </div>
       </section>

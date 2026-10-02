@@ -23,19 +23,22 @@ const limits = [
   },
 ] as const;
 const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
+import { getUiMessages } from "../../lib/i18n/catalog";
+const text = getUiMessages(Astro.locals.localeContext.locale).documents;
 ---
 
 <CommunityLayout
-  title="开发者"
-  description="先确认 SDK、权限、输入能力和部署路径。"
+  title={text.developers}
+  description={text.developersDescription}
   canonical="/developers/"
   activeSection="products"
 >
+  {Astro.locals.localeContext.locale === "en" && <p class="community-meta" role="note">{text.originalChinese}</p>}
   <section class="community-page-head">
     <div>
-      <span class="developers-kicker">开发准备度</span>
-      <h1>开发者</h1>
-      <p class="community-page-lead">先确认 SDK、权限、输入能力和部署路径。</p>
+      <span class="developers-kicker">{text.readiness}</span>
+      <h1>{text.developers}</h1>
+      <p class="community-page-lead">{text.developersDescription}</p>
     </div>
   </section>
 
@@ -43,14 +46,14 @@ const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
     <section class="community-surface community-surface--primary">
       <div class="developers-checkline community-inline-meta">
         <span>SDK</span>
-        <span>权限</span>
-        <span>输入能力</span>
-        <span>部署路径</span>
+        <span>{text.permissions}</span>
+        <span>{text.input}</span>
+        <span>{text.deployment}</span>
       </div>
       <div class="community-section-head">
         <div>
-          <h2>开发前确认</h2>
-          <p>先确认边界，再决定是否值得投入设备、时间和路线验证。</p>
+          <h2>{text.beforeDevelopment}</h2>
+          <p>{text.beforeDevelopmentHint}</p>
         </div>
       </div>
       <div class="community-list">
@@ -63,8 +66,8 @@ const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
 
       <div class="community-section-head" style="border-top: 1px solid var(--border);">
         <div>
-          <h2>常见限制</h2>
-          <p>这些限制比“支持不支持 AR”更重要。</p>
+          <h2>{text.commonLimits}</h2>
+          <p>{text.limitsHint}</p>
         </div>
       </div>
       <div class="community-list">
@@ -79,16 +82,16 @@ const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
 
     <aside class="community-sidebar">
       <section class="community-surface community-surface--padded community-surface--primary">
-        <div class="community-page-lead" style="margin-bottom: 0.35rem;">相关入口</div>
+        <div class="community-page-lead" style="margin-bottom: 0.35rem;">{text.related}</div>
         <div class="community-list" style="padding: 0;">
           <a class="community-list-item community-link-row" href="/guides/developer-limit-checklist-before-choosing-ar-ai-glasses/">
-            <strong>开发限制清单</strong>
-            <span>先看必须确认的现实约束</span>
+            <strong>{text.checklist}</strong>
+            <span>{text.checklistHint}</span>
           </a>
-          {gazeLauncherPublicEnabled ? <a class="community-list-item community-link-row" href="/gaze-launcher/"><strong>Gaze Launcher</strong><span>看系统方向和当前验证边界</span></a> : null}
+          {gazeLauncherPublicEnabled ? <a class="community-list-item community-link-row" href="/gaze-launcher/"><strong>Gaze Launcher</strong><span>{text.launcherHint}</span></a> : null}
           <a class="community-list-item community-link-row" href="/feed/">
-            <strong>论坛讨论</strong>
-            <span>补真实设备反馈和运行时观察</span>
+            <strong>{text.discussion}</strong>
+            <span>{text.discussionHint}</span>
           </a>
         </div>
       </section>

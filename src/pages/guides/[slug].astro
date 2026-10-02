@@ -20,6 +20,8 @@ const entry = (await loadEntry()) as {
 };
 
 const Content = entry.default;
+import { getUiMessages } from "../../lib/i18n/catalog";
+const text = getUiMessages(Astro.locals.localeContext.locale).documents;
 ---
 
 <CommunityLayout
@@ -36,24 +38,25 @@ const Content = entry.default;
   </section>
 
   <section class="community-grid">
-    <article class="community-surface community-surface--padded detail-main">
+    <article class="community-surface community-surface--padded detail-main" lang="zh-CN">
+      {Astro.locals.localeContext.locale === "en" && <p class="community-meta" role="note">{text.originalChinese}</p>}
       <Content />
     </article>
     <aside class="community-sidebar">
       <section class="community-surface community-surface--padded">
-        <div class="community-page-lead" style="margin-bottom: 0.4rem;">继续浏览</div>
+        <div class="community-page-lead" style="margin-bottom: 0.4rem;">{text.continueBrowsing}</div>
         <div class="community-list" style="padding: 0;">
           <a class="community-list-item community-link-row" href="/guides/">
-            <strong>返回选购指南</strong>
-            <span>回到用途与路径入口。</span>
+            <strong>{text.backToGuides}</strong>
+            <span>{text.backHint}</span>
           </a>
           <a class="community-list-item community-link-row" href="/products/">
-            <strong>查看产品</strong>
-            <span>按品牌对照机型和路线。</span>
+            <strong>{text.viewProducts}</strong>
+            <span>{text.productsHint}</span>
           </a>
           <a class="community-list-item community-link-row" href="/feed/">
-            <strong>进入论坛讨论</strong>
-            <span>查看社区用户的真实反馈。</span>
+            <strong>{text.forum}</strong>
+            <span>{text.forumHint}</span>
           </a>
         </div>
       </section>
