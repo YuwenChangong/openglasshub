@@ -33,6 +33,9 @@ await writeFile("dist/server/wrangler.json", JSON.stringify({ vars: {
   BUILD_AUTH_SITEKEY_PRESENT: Boolean(process.env.PUBLIC_AUTH_TURNSTILE_SITE_KEY),
   BUILD_SITE_ORIGIN: process.env.SITE_ORIGIN,
   BUILD_PUBLIC_R2_BASE: process.env.PUBLIC_R2_PUBLIC_BASE_URL,
+  BUILD_PUBLIC_SUPABASE_URL: process.env.PUBLIC_SUPABASE_URL,
+  BUILD_PUBLIC_ANON_PRESENT: Boolean(process.env.PUBLIC_SUPABASE_ANON_KEY),
+  BUILD_UNSAFE_ENV_PRESENT: ["P9_PRODUCTION_DATABASE_URL", "POSTGRES_URL", "DATABASE_URL", "PGHOST", "PGPORT", "PGSERVICE", "SUPABASE_DB_URL", "SUPABASE_ACCESS_TOKEN", "SUPABASE_DB_PASSWORD", "SUPABASE_SERVICE_ROLE_KEY", "CLOUDFLARE_API_TOKEN", "BREVO_API_KEY"].some(name => Boolean(process.env[name])),
   PUBLIC_AUTH_TURNSTILE_SITE_KEY: "stale-generated-fixture"
 } }));
 `);
@@ -102,6 +105,73 @@ export function unstable_readConfig({ env }) { return configs[env]; }
     assert.equal(Object.hasOwn(vars, "PUBLIC_AUTH_TURNSTILE_SITE_KEY"), expected === "production");
     console.log(`${name}_SHARED_PUBLIC_VARS_AND_AUTH_ISOLATION: PASS`);
   }
+
+  await writeFile(resolve(fixture, "node_modules/wrangler/index.mjs"), `
+import { readFileSync } from "node:fs";
+const configs = JSON.parse(readFileSync(new URL("./config-fixture.json", import.meta.url), "utf8"));
+export function unstable_readConfig({ config, env }) {
+  if (config.endsWith("wrangler.toml")) return configs[env];
+  return JSON.parse(readFileSync(config, "utf8"));
+}
+`);
+  const localVars = {
+    SUPABASE_URL: "http://127.0.0.1:54321",
+    PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+    PUBLIC_SUPABASE_ANON_KEY: "owned-dummy-local-anon",
+    SITE_ORIGIN: "https://127.0.0.1:8443",
+    AUTH_CAPTCHA_MODE: "off",
+  };
+  const localConfig = resolve(fixture, "owned-local-config.json");
+  const poisoned = { ...cleanEnv,
+    PUBLIC_SUPABASE_URL: "https://inherited.invalid", PUBLIC_SUPABASE_ANON_KEY: "inherited-dummy",
+    PUBLIC_R2_PUBLIC_BASE_URL: "https://inherited-assets.invalid", PUBLIC_TURNSTILE_SITE_KEY: "inherited-widget",
+    PUBLIC_AUTH_TURNSTILE_SITE_KEY: "inherited-auth-widget", SUPABASE_URL: "https://inherited.invalid",
+    P9_PRODUCTION_DATABASE_URL: "unsafe-test-marker", SUPABASE_SERVICE_ROLE_KEY: "unsafe-test-marker",
+    CLOUDFLARE_API_TOKEN: "unsafe-test-marker", BREVO_API_KEY: "unsafe-test-marker",
+  };
+  await writeFile(localConfig, JSON.stringify({ vars: localVars }));
+  const local = spawnSync(process.execPath, ["scripts/build-workers.mjs", "--local-config", localConfig], { cwd: fixture, env: poisoned, encoding: "utf8" });
+  assert.equal(local.status, 0, "LOCAL_CONFIG_BUILD_SUCCESS");
+  const { vars: localOutput } = JSON.parse(await readFile(resolve(fixture, "dist/server/wrangler.json"), "utf8"));
+  assert.equal(localOutput.BUILD_PUBLIC_SUPABASE_URL, localVars.PUBLIC_SUPABASE_URL, "LOCAL_CONFIG_PUBLIC_ORIGIN_REACHES_ASTRO");
+  assert.equal(localOutput.BUILD_SITE_ORIGIN, localVars.SITE_ORIGIN);
+  assert.equal(localOutput.SUPABASE_URL, localVars.SUPABASE_URL);
+  assert.equal(localOutput.BUILD_PUBLIC_ANON_PRESENT, true);
+  assert.equal(localOutput.BUILD_PUBLIC_R2_BASE, undefined);
+  assert.equal(localOutput.BUILD_UNSAFE_ENV_PRESENT, false);
+  assert.equal(localOutput.BUILD_AUTH_SITEKEY_PRESENT, false);
+  assert.equal(localOutput.AUTH_CAPTCHA_MODE, "off");
+  assert.equal(Object.hasOwn(localOutput, "PUBLIC_AUTH_TURNSTILE_SITE_KEY"), false);
+  console.log("LOCAL_CONFIG_CHILD_AND_RUNTIME_ISOLATION: PASS");
+  for (const [name, patch, code] of [
+    ["PUBLIC_REMOTE", { PUBLIC_SUPABASE_URL: "https://example.invalid" }, "LOCAL_BUILD_PUBLIC_REMOTE_TARGET"],
+    ["SERVER_REMOTE", { SUPABASE_URL: "https://example.invalid" }, "LOCAL_BUILD_TARGET_INVALID"],
+    ["SITE_REMOTE", { SITE_ORIGIN: "https://example.invalid" }, "LOCAL_BUILD_TARGET_INVALID"],
+    ["R2_REMOTE", { PUBLIC_R2_PUBLIC_BASE_URL: "https://example.invalid" }, "LOCAL_BUILD_PUBLIC_REMOTE_TARGET"],
+    ["WS_REMOTE", { PUBLIC_WEBSOCKET_URL: "wss://example.invalid" }, "LOCAL_BUILD_PUBLIC_REMOTE_TARGET"],
+    ["ROLE_PRESENT", { SUPABASE_SERVICE_ROLE_KEY: "" }, "LOCAL_BUILD_PRIVILEGED_VAR"],
+    ["DATABASE_PRESENT", { DATABASE_URL: "dummy-test-marker" }, "LOCAL_BUILD_PRIVILEGED_VAR"],
+    ["LOCALHOST", { SUPABASE_URL: "http://localhost:54321" }, "LOCAL_BUILD_TARGET_INVALID"],
+    ["OTHER_LOOPBACK", { SUPABASE_URL: "http://127.0.0.2:54321" }, "LOCAL_BUILD_TARGET_INVALID"],
+    ["SITE_HTTP", { SITE_ORIGIN: "http://127.0.0.1:8443" }, "LOCAL_BUILD_TARGET_INVALID"],
+    ["TARGET_MISMATCH", { SUPABASE_URL: "http://127.0.0.1:54322" }, "LOCAL_BUILD_ORIGIN_MISMATCH"],
+    ["ANON_EMPTY", { PUBLIC_SUPABASE_ANON_KEY: "" }, "LOCAL_BUILD_REQUIRED_VAR"],
+    ["AUTH_REQUIRED", { AUTH_CAPTCHA_MODE: "required" }, "LOCAL_BUILD_AUTH_MODE"],
+    ["AUTH_SITEKEY_PRESENT", { PUBLIC_AUTH_TURNSTILE_SITE_KEY: "" }, "LOCAL_BUILD_AUTH_SITEKEY"],
+  ]) {
+    await writeFile(localConfig, JSON.stringify({ vars: { ...localVars, ...patch } }));
+    const denied = spawnSync(process.execPath, ["scripts/build-workers.mjs", "--local-config", localConfig], { cwd: fixture, env: cleanEnv, encoding: "utf8" });
+    assert.notEqual(denied.status, 0, name);
+    assert.ok(denied.stderr.includes(code), `${name}: safe failure code required`);
+    assert.equal(denied.stderr.includes("dummy-test-marker"), false);
+    console.log(`${name}_FAIL_CLOSED: PASS`);
+  }
+  for (const args of [["--local-config", "relative.json"], ["--local-config"], ["--config", localConfig], ["--local-config", localConfig, "--extra"]]) {
+    const denied = spawnSync(process.execPath, ["scripts/build-workers.mjs", ...args], { cwd: fixture, env: cleanEnv, encoding: "utf8" });
+    assert.notEqual(denied.status, 0);
+    assert.ok(denied.stderr.includes("LOCAL_BUILD_CONFIG_PATH") || denied.stderr.includes("WORKERS_BUILD_ARGUMENTS_INVALID"));
+  }
+  console.log("LOCAL_CONFIG_ARGUMENTS_FAIL_CLOSED: PASS");
 } finally {
   await rm(fixture, { recursive: true, force: true });
 }
