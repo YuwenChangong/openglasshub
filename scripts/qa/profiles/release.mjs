@@ -11,6 +11,7 @@ import { executeCommand } from '../process-executor.mjs';
 import { closeBrowserLifecycle } from '../p6b-local-e2e-runner.mjs';
 import { redactValue } from '../receipt.mjs';
 import { unstable_readConfig } from 'wrangler';
+import { loadLocaleAcceptance } from '../../test-global-locale-settings-contract.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const NODE = process.execPath;
@@ -43,6 +44,7 @@ const COMMANDS = Object.freeze({
   'forum-search': Object.freeze([NODE, '--experimental-strip-types', 'scripts/test-search.mjs']),
   'frontend-astro-build': Object.freeze([NODE, 'scripts/build-workers.mjs']),
   'git-diff-check': Object.freeze(['git', 'diff', '--check']),
+  'global-locale-settings-contract': Object.freeze([NODE, 'scripts/test-global-locale-settings-contract.mjs']),
   'media-url-privacy': Object.freeze([NODE, 'scripts/audit-media-url-privacy.mjs', '--strict', '--verbose']),
   'news-api-safety': Object.freeze([NODE, 'scripts/test-public-news-api-safety.mjs']),
   'products-page': Object.freeze([NODE, 'scripts/test-product-page.mjs']),
@@ -95,6 +97,14 @@ function registerReleaseCommand(id, argv) {
     artifactPolicy: { onFailure: true, onSuccess: false },
     classification: 'DETERMINISTIC',
     async run(context, check) {
+      let localeAcceptance;
+      if (id === 'global-locale-settings-contract') {
+        localeAcceptance = await loadLocaleAcceptance({ cwd: context.cwd ?? ROOT, commitSha: context.commitSha });
+        if (localeAcceptance.status !== 'PASS') return normalizeCheckResult({
+          id, status: 'FAIL', attempts: 1, classification: 'VALIDATION',
+          diagnostics: { code: localeAcceptance.code, commitSha: context.commitSha ?? null, deterministic: 'NOT_RUN' },
+        });
+      }
       const commandEnvironment = id === 'seo' && productionSiteOrigin
         ? { ...(context.env ?? {}), SITE_ORIGIN: productionSiteOrigin }
         : context.env ?? {};
@@ -111,7 +121,10 @@ function registerReleaseCommand(id, argv) {
         attempts: result.attempts,
         durationMs: result.durationMs,
         classification: 'DETERMINISTIC',
-        diagnostics: result.diagnostics,
+        diagnostics: localeAcceptance ? { ...result.diagnostics,
+          localeAcceptance: { ...localeAcceptance, commitSha: context.commitSha,
+            deterministic: result.exitCode === 0 && !result.timedOut && result.signal === null ? 'PASS' : 'FAIL' },
+        } : result.diagnostics,
       });
     },
   });

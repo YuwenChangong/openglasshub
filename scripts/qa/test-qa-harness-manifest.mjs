@@ -4,6 +4,7 @@ import test from 'node:test';
 import { expandDependencies, getArea, manifest, matchPath, validateManifest } from './manifest.mjs';
 
 const REQUIRED_AREAS = [
+  'locale-settings',
   'frontend', 'devices', 'products', 'forum', 'news', 'search', 'auth',
   'media', 'admin', 'seo', 'cloudflare', 'supabase-config', 'database', 'security',
 ];
@@ -99,4 +100,45 @@ test('rejects unknown dependencies, dependency cycles, invalid risks, and duplic
 
 test('rejects unknown areas during dependency expansion', () => {
   assert.throws(() => expandDependencies(['missing']), /unknown area/i);
+});
+
+test('Slice B maps locale ownership before broad frontend and server matchers', () => {
+  for (const path of [
+    'src/middleware.ts', 'src/env.d.ts', 'src/lib/i18n/locale.ts',
+    'src/components/i18n/LocalePreferenceSync.tsx', 'src/components/settings/SettingsPage.tsx',
+    'src/pages/settings/index.astro', 'src/pages/api/users/me/preferences.ts',
+    'src/lib/server/user-preferences.server.ts', 'src/components/starlight/Header.astro',
+    'src/plugins/locale-ssr-routes.mjs',
+  ]) assert.equal(matchPath(path), 'locale-settings', path);
+  const area = getArea('locale-settings');
+  assert.equal(area.risk, 'HIGH');
+  assert.deepEqual(expandDependencies(['locale-settings']), ['locale-settings', 'security']);
+  assert.deepEqual(area.checks.map(({ id, command }) => ({ id, command })), [
+    { id: 'global-locale-settings-contract', command: 'npm run test:global-locale-contract' },
+  ]);
+});
+
+test('Slice B prerequisites keep browser coverage persistence and regressions separate', () => {
+  const gates = getArea('locale-settings')?.checks[0].prerequisites;
+  assert.ok(gates, 'Missing Slice B prerequisite contract');
+  assert.deepEqual(gates.browser, { completed: 102, required: 102 });
+  assert.deepEqual(gates.coverage, { manifest: 'tests/fixtures/locale-ui-coverage.json' });
+  assert.deepEqual(gates.persistence, { genuineLocalAuth: true, realLocalRls: true, ownedLocalTarget: true, remoteConnections: 0 });
+  assert.deepEqual(gates.regressions, { nodeCases: 146, scriptRuns: 10 });
+});
+
+test('Slice B malformed or missing prerequisite declarations fail closed', () => {
+  assert.ok(getArea('locale-settings'), 'Missing Slice B manifest registration');
+  for (const mutate of [
+    check => { delete check.prerequisites; },
+    check => { check.prerequisites.browser.required = 101; },
+    check => { delete check.prerequisites.coverage; },
+    check => { check.prerequisites.persistence.realLocalRls = false; },
+    check => { delete check.prerequisites.regressions; },
+    check => { check.allowedToFail = true; },
+  ]) {
+    const copy = structuredClone(manifest);
+    mutate(copy.areas['locale-settings'].checks[0]);
+    assert.throws(() => validateManifest(copy), /INVALID_MANIFEST/);
+  }
 });

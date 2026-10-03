@@ -41,6 +41,136 @@ const FORBIDDEN_EXPENSIVE = [
 const RUNNER = fileURLToPath(new URL('./runner.mjs', import.meta.url));
 
 const PROD_ORIGIN = 'https://openglasshub.ogh.workers.dev';
+
+async function localeContractModule() {
+  const module = await import('../test-global-locale-settings-contract.mjs').catch(() => null);
+  assert.ok(module?.validateLocaleAcceptance && module?.runGlobalLocaleContract, 'Missing Task20 contract implementation');
+  return module;
+}
+
+function acceptedLocaleInputs(commitSha = 'a'.repeat(40)) {
+  return {
+    schemaVersion: 1, commitSha,
+    browser: { status: 'PASS', completed: 102, required: 102 },
+    coverage: { status: 'PASS', manifest: 'tests/fixtures/locale-ui-coverage.json' },
+    persistence: { status: 'PASS', genuineLocalAuth: true, realLocalRls: true, ownedLocalTarget: true, remoteConnections: 0 },
+    regressions: { status: 'PASS', nodeCases: 146, scriptRuns: 10 },
+  };
+}
+
+test('Task20 RELEASE registers exact deterministic argv with unchanged budget and zero retries', () => {
+  const selection = resolveReleaseChecks({ profile: 'RELEASE', risk: 'HIGH', expandedAreas: ['locale-settings'] });
+  assert.equal(selection.selectedChecks.filter(({ id }) => id === 'global-locale-settings-contract').length, 1);
+  const check = getCheck('release:global-locale-settings-contract');
+  assert.equal(check.timeoutMs, 90_000);
+  assert.deepEqual(check.retryPolicy, { classification: 'LOCAL', maxRetries: 0 });
+  const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  assert.equal(packageJson.scripts['test:global-locale-contract'], 'node scripts/test-global-locale-settings-contract.mjs');
+  assert.equal(packageJson.scripts['test:global-locale-browser'], 'node scripts/test-global-locale-browser.mjs');
+  assert.equal(packageJson.scripts['test:global-locale-persistence-local'], 'node scripts/test-global-locale-persistence-local.mjs');
+});
+
+test('Task20 missing accepted prerequisites fail before deterministic child execution', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'openglass-locale-missing-'));
+  try {
+    const result = await runReleaseCheck('global-locale-settings-contract', {
+      profile: 'RELEASE', cwd: directory, commitSha: 'a'.repeat(40), env: {},
+    });
+    assert.equal(result.status, 'FAIL');
+    assert.equal(result.attempts, 1);
+    assert.equal(result.classification, 'VALIDATION');
+    assert.equal(result.diagnostics.code, 'LOCALE_ACCEPTANCE_MISSING');
+    assert.equal(result.diagnostics.deterministic, 'NOT_RUN');
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('Task20 accepted inputs reject each missing failed partial or malformed gate without disclosure', async () => {
+  const { validateLocaleAcceptance } = await localeContractModule();
+  assert.equal(validateLocaleAcceptance(acceptedLocaleInputs()).status, 'PASS');
+  for (const gate of ['browser', 'coverage', 'persistence', 'regressions']) {
+    const missing = acceptedLocaleInputs(); delete missing[gate];
+    assert.equal(validateLocaleAcceptance(missing).status, 'FAIL');
+    const failed = acceptedLocaleInputs(); failed[gate].status = 'FAIL';
+    assert.equal(validateLocaleAcceptance(failed).status, 'FAIL');
+  }
+  for (const mutate of [
+    value => { value.browser.completed = 101; },
+    value => { value.browser.required = 103; },
+    value => { value.coverage.manifest = '../outside.json'; },
+    value => { value.persistence.realLocalRls = false; },
+    value => { value.persistence.remoteConnections = 1; },
+    value => { value.regressions.scriptRuns = 9; },
+    value => { value.schemaVersion = 2; },
+    value => { value.commitSha = 'invalid'; },
+    value => { value.unexpected = 'opaque_input_never_echo'; },
+  ]) {
+    const input = acceptedLocaleInputs(); mutate(input);
+    const result = validateLocaleAcceptance(input);
+    assert.equal(result.status, 'FAIL');
+    assert.ok(!JSON.stringify(result).includes('opaque_input_never_echo'));
+  }
+});
+
+test('Task20 validation-only contract never claims browser or local RLS and never invokes their runners', async () => {
+  const { runGlobalLocaleContract } = await localeContractModule();
+  const commands = [];
+  const result = await runGlobalLocaleContract({ execute: async options => {
+    commands.push(options);
+    return { exitCode: 0, timedOut: false, signal: null, attempts: 1 };
+  } });
+  assert.equal(result.status, 'PASS');
+  assert.equal(result.diagnostics.browser, 'SEPARATE_ACCEPTED_INPUT_REQUIRED');
+  assert.equal(result.diagnostics.persistence, 'SEPARATE_ACCEPTED_INPUT_REQUIRED');
+  assert.ok(commands.length > 0);
+  for (const command of commands) {
+    assert.equal(command.argv[0], process.execPath);
+    assert.equal(command.timeoutMs, 90_000);
+    assert.deepEqual(command.retryPolicy, { classification: 'LOCAL', maxRetries: 0 });
+    assert.ok(!command.argv.some(arg => /build-workers|global-locale-browser|persistence-local|rls-local|wrangler|runner\.mjs|smoke-production/.test(arg)));
+    assert.equal(Object.hasOwn(command.env, 'SUPABASE_URL'), false);
+  }
+});
+
+test('Task20 deterministic failed child is terminal with no retry and a safe result', async () => {
+  const { runGlobalLocaleContract } = await localeContractModule();
+  let calls = 0;
+  const result = await runGlobalLocaleContract({ execute: async () => {
+    calls++; return { exitCode: 1, timedOut: false, signal: null, attempts: 1, stdout: 'opaque_child_never_echo' };
+  } });
+  assert.equal(result.status, 'FAIL');
+  assert.equal(result.attempts, 1);
+  assert.equal(calls, 1);
+  assert.ok(!JSON.stringify(result).includes('opaque_child_never_echo'));
+});
+
+test('Task20 malformed manifest fails validation without child execution', async () => {
+  const { runGlobalLocaleContract } = await localeContractModule();
+  const copy = structuredClone(manifest); delete copy.areas['locale-settings'];
+  let calls = 0;
+  const result = await runGlobalLocaleContract({ qaManifest: copy, execute: async () => { calls++; } });
+  assert.equal(result.status, 'FAIL');
+  assert.equal(result.classification, 'VALIDATION');
+  assert.equal(calls, 0);
+});
+
+test('Task20 RELEASE cannot ignore a failed prerequisite in its actual receipt path', async () => {
+  const repository = createFeatureRepository();
+  try {
+    commitFile(repository.cwd, 'wrangler.toml', 'name = "locale-contract"\n');
+    const result = await executeReleaseRun({ argv: ['release'], cwd: repository.cwd, mainRef: 'main',
+      artifactRoot: join(repository.cwd, 'artifacts', 'qa'), write: () => {},
+      runCheckFn: async (id, context) => id === 'global-locale-settings-contract'
+        ? runReleaseCheck(id, context) : passingCheck(id),
+    });
+    assert.equal(result.result, 'FAIL');
+    assert.equal(result.retryCount, 0);
+    const gate = result.extensions.checkResults.find(item => item.id === 'global-locale-settings-contract');
+    assert.equal(gate.status, 'FAIL');
+    assert.equal(gate.diagnostics.code, 'LOCALE_ACCEPTANCE_MISSING');
+    assert.equal(gate.diagnostics.commitSha, result.commitSha);
+  } finally { rmSync(repository.cwd, { recursive: true, force: true }); }
+});
+
 async function productionModule() {
   const module = await import('./profiles/prod.mjs').catch(() => null);
   assert.ok(module?.resolveProductionChecks && module?.runProductionCheck, 'PROD implementation must exist');
@@ -843,7 +973,7 @@ test('RELEASE runner retains deterministic selection evidence and zero mutation 
     assert.equal(executed.includes('database-migration-versions'), false);
     assert.equal(receipt.skippedChecks.some(({ id }) => id === 'deployment'), true);
     const persisted = JSON.parse(readFileSync(join(repository.cwd, 'artifacts', 'qa', receipt.runId, 'receipt.json'), 'utf8'));
-    assert.equal(persisted.selectedChecks.length, 33);
+    assert.equal(persisted.selectedChecks.length, 34);
     assert.deepEqual(persisted.selectedChecks, receipt.selectedChecks);
     assert.deepEqual(persisted.skippedChecks, receipt.skippedChecks);
     assert.deepEqual(persisted.areas, receipt.areas);

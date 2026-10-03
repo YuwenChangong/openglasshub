@@ -1,5 +1,8 @@
+import { isDeepStrictEqual } from 'node:util';
+
 const RISKS = new Set(['LOW', 'MEDIUM', 'HIGH']);
 const AREA_NAMES = [
+  'locale-settings',
   'devices', 'products', 'forum', 'news', 'search', 'auth', 'media', 'admin',
   'seo', 'cloudflare', 'supabase-config', 'database', 'security', 'frontend',
 ];
@@ -25,7 +28,23 @@ function area(name, pathMatchers, risk, relatedAreas, checks, e2eProjectsOrTags,
 
 const check = (id, command) => ({ id, command });
 
+export const GLOBAL_LOCALE_PREREQUISITES = deepFreeze({
+  browser: { completed: 102, required: 102 },
+  coverage: { manifest: 'tests/fixtures/locale-ui-coverage.json' },
+  persistence: { genuineLocalAuth: true, realLocalRls: true, ownedLocalTarget: true, remoteConnections: 0 },
+  regressions: { nodeCases: 146, scriptRuns: 10 },
+});
+
 const areas = {
+  'locale-settings': area('locale-settings', [
+    'src/middleware.ts', 'src/env.d.ts', 'src/lib/i18n/**', 'src/components/i18n/**',
+    'src/components/settings/**', 'src/pages/settings/**', 'src/pages/api/users/me/preferences.ts',
+    'src/lib/server/user-preferences.server.ts', 'src/components/starlight/**',
+    'src/plugins/locale-ssr-routes.mjs',
+  ], 'HIGH', ['security'], [{
+    ...check('global-locale-settings-contract', 'npm run test:global-locale-contract'),
+    prerequisites: GLOBAL_LOCALE_PREREQUISITES,
+  }], [], { requiredProfile: 'qa:release', rule: 'deterministic contract plus independently accepted browser and genuine-local persistence gates' }),
   frontend: area('frontend', ['src/components/**', 'src/layouts/**', 'src/styles/**', 'src/plugins/**', 'src/pages/**'], 'LOW', [], [
     check('frontend-astro-build', 'npm run build'),
   ], [], { requiredProfile: 'qa:feature', rule: 'build must pass' }),
@@ -122,10 +141,15 @@ export function validateManifest(input) {
       }
       if (checkIds.has(item.id)) fail(`duplicate check ID: ${item.id}`);
       checkIds.add(item.id);
+      if (item.id === 'global-locale-settings-contract' && (
+        name !== 'locale-settings' || item.command !== 'npm run test:global-locale-contract' ||
+        item.allowedToFail === true || !isDeepStrictEqual(item.prerequisites, GLOBAL_LOCALE_PREREQUISITES)
+      )) fail('invalid Global Locale release prerequisites');
       const production = item.environment === 'production' || item.target === 'production' || item.profile === 'PRODUCTION_SMOKE';
       if (production && item.destructive === true) fail(`destructive production check: ${item.id}`);
     }
   }
+  if (!checkIds.has('global-locale-settings-contract')) fail('Global Locale release contract is required');
 
   const visiting = new Set();
   const visited = new Set();
