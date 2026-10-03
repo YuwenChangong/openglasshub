@@ -1,0 +1,1756 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "src/components/CommunityCTA.astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/components/LatestUpdates.astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/components/admin/AdminCirclesDashboard.tsx",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/components/admin/AdminDevicesDashboard.tsx",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/components/admin/AdminForumDashboard.tsx",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/components/admin/AdminMediaDashboard.tsx",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/components/admin/AdminModerationQueue.tsx",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/components/admin/AdminNewsDashboard.tsx",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/components/admin/AdminReportsPanel.tsx",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/components/admin/AdminUsersDashboard.tsx",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/components/auth/AuthCTA.tsx",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/auth/AuthCallback.tsx",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/auth/FeedSidebarAuthHint.tsx",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/auth/ResetPasswordForm.tsx",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/common/GlassConfirmDialog.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/community/CircleCard.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/community/CommunityHeader.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/community/EmptyFeedState.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/community/GlobalSearchBox.tsx",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/components/community/NewsCard.astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/components/community/PostCard.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/community/PostMediaPreview.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/community/ProductCard.astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/components/devices/DeviceLibraryExplorer.tsx",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/components/forum/AuthPanel.tsx",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved",
+        "required-captcha",
+        "enumeration-resistant",
+        "forgot-password-tabs-hidden",
+        "initial-cooldown"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/CircleCoverEditor.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/CircleManageEntry.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/CircleOwnerDashboard.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/CommentForm.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/CommentsSection.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/CreateCircleForm.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/CreatePostForm.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/PostMediaGallery.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/PostModerationActions.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/PostSocialActions.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/forum/SharePostButton.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/legal/LegalPage.astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "reviewed-body-preserved",
+        "document-language",
+        "no-preference-write"
+      ],
+      "evidence": [
+        "scripts/test-locale-legal-documents.mjs"
+      ],
+      "exceptions": [
+        "editorial"
+      ]
+    },
+    {
+      "path": "src/components/news/NewsPagination.tsx",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/components/notifications/NotificationsPage.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/profile/EditProfileForm.tsx",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/profile/MyProfilePage.tsx",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/profile/ProfilePostCard.tsx",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/reports/ReportTrigger.tsx",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/site/HeaderNotifications.tsx",
+      "namespace": "shell",
+      "cases": [
+        "bilingual-chrome",
+        "settings-navigation",
+        "responsive",
+        "unsent-navigation-confirmation"
+      ],
+      "evidence": [
+        "scripts/test-locale-shell.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/site/HeaderUserMenu.tsx",
+      "namespace": "shell",
+      "cases": [
+        "bilingual-chrome",
+        "settings-navigation",
+        "responsive",
+        "unsent-navigation-confirmation"
+      ],
+      "evidence": [
+        "scripts/test-locale-shell.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/site/SiteHeader.astro",
+      "namespace": "shell",
+      "cases": [
+        "bilingual-chrome",
+        "settings-navigation",
+        "responsive",
+        "unsent-navigation-confirmation"
+      ],
+      "evidence": [
+        "scripts/test-locale-shell.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/components/starlight/Header.astro",
+      "namespace": "starlight",
+      "cases": [
+        "bilingual-chrome",
+        "document-language",
+        "reviewed-edition",
+        "dark-only"
+      ],
+      "evidence": [
+        "scripts/test-locale-starlight-editorial.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/components/starlight/ThemeProvider.astro",
+      "namespace": "starlight",
+      "cases": [
+        "bilingual-chrome",
+        "document-language",
+        "reviewed-edition",
+        "dark-only"
+      ],
+      "evidence": [
+        "scripts/test-locale-starlight-editorial.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/components/starlight/ThemeSelect.astro",
+      "namespace": "starlight",
+      "cases": [
+        "bilingual-chrome",
+        "document-language",
+        "reviewed-edition",
+        "dark-only"
+      ],
+      "evidence": [
+        "scripts/test-locale-starlight-editorial.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/content/editorial-translations/en/about/index.mdx",
+      "namespace": "starlight",
+      "cases": [
+        "bilingual-chrome",
+        "document-language",
+        "reviewed-edition",
+        "dark-only"
+      ],
+      "evidence": [
+        "scripts/test-locale-starlight-editorial.mjs"
+      ],
+      "exceptions": [
+        "editorial"
+      ]
+    },
+    {
+      "path": "src/content/editorial-translations/en/developers/index.mdx",
+      "namespace": "starlight",
+      "cases": [
+        "bilingual-chrome",
+        "document-language",
+        "reviewed-edition",
+        "dark-only"
+      ],
+      "evidence": [
+        "scripts/test-locale-starlight-editorial.mjs"
+      ],
+      "exceptions": [
+        "editorial"
+      ]
+    },
+    {
+      "path": "src/content/editorial-translations/en/guides/index.mdx",
+      "namespace": "starlight",
+      "cases": [
+        "bilingual-chrome",
+        "document-language",
+        "reviewed-edition",
+        "dark-only"
+      ],
+      "evidence": [
+        "scripts/test-locale-starlight-editorial.mjs"
+      ],
+      "exceptions": [
+        "editorial"
+      ]
+    },
+    {
+      "path": "src/layouts/CommunityLayout.astro",
+      "namespace": "shell",
+      "cases": [
+        "bilingual-chrome",
+        "settings-navigation",
+        "responsive",
+        "unsent-navigation-confirmation"
+      ],
+      "evidence": [
+        "scripts/test-locale-shell.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/layouts/ForumLayout.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/lib/i18n/catalog.ts",
+      "namespace": "shell",
+      "cases": [
+        "message-key-parity",
+        "nonempty-messages",
+        "argument-parity"
+      ],
+      "evidence": [
+        "scripts/test-locale-contract.mjs"
+      ],
+      "exceptions": [
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/lib/i18n/document-locale.ts",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "original-language-label",
+        "missing-or-unavailable",
+        "document-language"
+      ],
+      "evidence": [
+        "scripts/test-locale-document-wrappers.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/lib/i18n/editorial-variants.ts",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "original-language-label",
+        "missing-or-unavailable",
+        "document-language"
+      ],
+      "evidence": [
+        "scripts/test-locale-document-wrappers.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/lib/i18n/messages/account.ts",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/lib/i18n/messages/admin.ts",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/lib/i18n/messages/catalog.ts",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/lib/i18n/messages/community.ts",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/lib/i18n/messages/documents.ts",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "original-language-label",
+        "missing-or-unavailable",
+        "document-language"
+      ],
+      "evidence": [
+        "scripts/test-locale-document-wrappers.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/lib/i18n/messages/shell.ts",
+      "namespace": "shell",
+      "cases": [
+        "bilingual-chrome",
+        "settings-navigation",
+        "responsive",
+        "unsent-navigation-confirmation"
+      ],
+      "evidence": [
+        "scripts/test-locale-shell.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/lib/i18n/starlight-ui.ts",
+      "namespace": "starlight",
+      "cases": [
+        "bilingual-chrome",
+        "document-language",
+        "reviewed-edition",
+        "dark-only"
+      ],
+      "evidence": [
+        "scripts/test-locale-starlight-editorial.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/lib/site-navigation.ts",
+      "namespace": "shell",
+      "cases": [
+        "bilingual-chrome",
+        "settings-navigation",
+        "responsive",
+        "unsent-navigation-confirmation"
+      ],
+      "evidence": [
+        "scripts/test-locale-shell.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/account-deletion/index.astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "reviewed-body-preserved",
+        "document-language",
+        "no-preference-write"
+      ],
+      "evidence": [
+        "scripts/test-locale-legal-documents.mjs"
+      ],
+      "exceptions": [
+        "editorial"
+      ]
+    },
+    {
+      "path": "src/pages/admin/circles/index.astro",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/pages/admin/devices/index.astro",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/pages/admin/forum/index.astro",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/pages/admin/media/index.astro",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/pages/admin/moderation/index.astro",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/pages/admin/news/index.astro",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/pages/admin/reports/index.astro",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/pages/admin/users/index.astro",
+      "namespace": "admin",
+      "cases": [
+        "bilingual-ui",
+        "checking",
+        "signed-out",
+        "forbidden",
+        "error",
+        "ready",
+        "security-contract-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-admin.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "locale-neutral-contract"
+      ]
+    },
+    {
+      "path": "src/pages/auth/callback.astro",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/auth/reset-password/index.astro",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/circles/[slug].astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/circles/[slug]/manage.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/circles/index.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/circles/new.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/community-guidelines/index.astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "reviewed-body-preserved",
+        "document-language",
+        "no-preference-write"
+      ],
+      "evidence": [
+        "scripts/test-locale-legal-documents.mjs"
+      ],
+      "exceptions": [
+        "editorial"
+      ]
+    },
+    {
+      "path": "src/pages/contact/index.astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "reviewed-body-preserved",
+        "document-language",
+        "no-preference-write"
+      ],
+      "evidence": [
+        "scripts/test-locale-legal-documents.mjs"
+      ],
+      "exceptions": [
+        "editorial"
+      ]
+    },
+    {
+      "path": "src/pages/developers/index.astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "original-language-label",
+        "missing-or-unavailable",
+        "document-language"
+      ],
+      "evidence": [
+        "scripts/test-locale-document-wrappers.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/devices/[slug].astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/devices/index.astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/feed/index.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/forum/index.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/gaze-launcher/index.astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "original-language-label",
+        "missing-or-unavailable",
+        "document-language"
+      ],
+      "evidence": [
+        "scripts/test-locale-document-wrappers.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/guides/[slug].astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "original-language-label",
+        "missing-or-unavailable",
+        "document-language"
+      ],
+      "evidence": [
+        "scripts/test-locale-document-wrappers.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/guides/index.astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "original-language-label",
+        "missing-or-unavailable",
+        "document-language"
+      ],
+      "evidence": [
+        "scripts/test-locale-document-wrappers.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/index.astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/login/index.astro",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/me/edit.astro",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/me/index.astro",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/news/[slug].astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/news/index.astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/notifications/index.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/posts/[id].astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/posts/new.astro",
+      "namespace": "community",
+      "cases": [
+        "bilingual-ui",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-community.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/privacy/index.astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "reviewed-body-preserved",
+        "document-language",
+        "no-preference-write"
+      ],
+      "evidence": [
+        "scripts/test-locale-legal-documents.mjs"
+      ],
+      "exceptions": [
+        "editorial"
+      ]
+    },
+    {
+      "path": "src/pages/products/[brand].astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/products/index.astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/safety/index.astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "reviewed-body-preserved",
+        "document-language",
+        "no-preference-write"
+      ],
+      "evidence": [
+        "scripts/test-locale-legal-documents.mjs"
+      ],
+      "exceptions": [
+        "editorial"
+      ]
+    },
+    {
+      "path": "src/pages/search/index.astro",
+      "namespace": "catalog",
+      "cases": [
+        "bilingual-ui",
+        "empty-or-missing",
+        "data-and-query-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-catalog-search-news.mjs"
+      ],
+      "exceptions": [
+        "UGC",
+        "source-title"
+      ]
+    },
+    {
+      "path": "src/pages/terms/index.astro",
+      "namespace": "documents",
+      "cases": [
+        "bilingual-wrapper",
+        "reviewed-body-preserved",
+        "document-language",
+        "no-preference-write"
+      ],
+      "evidence": [
+        "scripts/test-locale-legal-documents.mjs"
+      ],
+      "exceptions": [
+        "editorial"
+      ]
+    },
+    {
+      "path": "src/pages/u/[username].astro",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/pages/users/[id].astro",
+      "namespace": "account",
+      "cases": [
+        "bilingual-ui",
+        "loading",
+        "auth-safety",
+        "ugc-preserved"
+      ],
+      "evidence": [
+        "scripts/test-locale-auth-profile.mjs"
+      ],
+      "exceptions": [
+        "UGC"
+      ]
+    },
+    {
+      "path": "src/starlightRouteData.ts",
+      "namespace": "starlight",
+      "cases": [
+        "bilingual-chrome",
+        "document-language",
+        "reviewed-edition",
+        "dark-only"
+      ],
+      "evidence": [
+        "scripts/test-locale-starlight-editorial.mjs"
+      ],
+      "exceptions": [
+        "editorial",
+        "source-title"
+      ]
+    }
+  ]
+}

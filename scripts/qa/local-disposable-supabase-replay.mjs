@@ -133,24 +133,20 @@ export function assertSafeLocalReplayEnvironment(environment = process.env) {
 
 export function sanitizedChildEnvironment(environment = process.env) {
   assertSafeLocalReplayEnvironment(environment);
-  return {
+  const childEnvironment = {
     ...Object.fromEntries(Object.entries(environment).filter(([key]) => !/^(SUPABASE_CLI_BINARY_OVERRIDE|NODE_OPTIONS|NODE_PATH)$/i.test(key))),
     SUPABASE_CLI_BINARY_OVERRIDE: "",
     NODE_OPTIONS: "",
     NODE_PATH: "",
-    POSTGRES_URL: "",
-    DATABASE_URL: "",
-    PGHOST: "",
-    PGPORT: "",
-    PGSERVICE: "",
-    SUPABASE_DB_URL: "",
-    SUPABASE_URL: "",
-    PUBLIC_SUPABASE_URL: "",
-    SUPABASE_PROJECT_REF: "",
-    SUPABASE_ACCESS_TOKEN: "",
-    SUPABASE_DB_PASSWORD: "",
-    SUPABASE_WORKDIR: "",
   };
+  for (const key of [
+    "P9_PRODUCTION_DATABASE_URL",
+    ...INHERITED_DATABASE_CONNECTION_VARIABLES,
+    ...REMOTE_CONNECTION_VARIABLES,
+    ...LINKED_PROJECT_VARIABLES,
+    "SUPABASE_WORKDIR",
+  ]) delete childEnvironment[key];
+  return childEnvironment;
 }
 
 function projectIdFor(runId) {

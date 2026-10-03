@@ -327,17 +327,24 @@ test("local replay rejects inherited database transport variables without exposi
   assert.throws(() => assertSafeLocalReplayEnvironment({ SUPABASE_PROJECT_REF: "production-ref" }), /linked-project variable/);
 });
 
-test("child environment clears every inherited database transport variable", () => {
-  const child = sanitizedChildEnvironment({
-    PATH: process.env.PATH,
+test("child environment removes inherited database and provider properties", () => {
+  const inherited = {
+    P9_PRODUCTION_DATABASE_URL: "",
     POSTGRES_URL: "",
     DATABASE_URL: "",
     PGHOST: "",
     PGPORT: "",
     PGSERVICE: "",
     SUPABASE_DB_URL: "",
-  });
-  for (const name of ["POSTGRES_URL", "DATABASE_URL", "PGHOST", "PGPORT", "PGSERVICE", "SUPABASE_DB_URL"]) assert.equal(child[name], "");
+    SUPABASE_URL: "",
+    PUBLIC_SUPABASE_URL: "",
+    SUPABASE_PROJECT_REF: "",
+    SUPABASE_ACCESS_TOKEN: "",
+    SUPABASE_DB_PASSWORD: "",
+    SUPABASE_WORKDIR: "",
+  };
+  const child = sanitizedChildEnvironment({ PATH: process.env.PATH, ...inherited });
+  for (const name of Object.keys(inherited)) assert.equal(Object.hasOwn(child, name), false, `${name} must be absent`);
 });
 
 test("fingerprint evidence root is limited to the designated temporary scope", async () => {
