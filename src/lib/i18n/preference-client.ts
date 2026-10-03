@@ -27,9 +27,13 @@ async function request(client: PreferenceClient, signal: AbortSignal, payload?: 
       headers: { Authorization: `Bearer ${data.session.access_token}`, ...(payload ? { "Content-Type": "application/json" } : {}) },
       ...(payload ? { body: JSON.stringify(payload) } : {}),
     });
-    if (response.status === 409) throw new PreferenceClientError("CONFLICT");
-    if (response.status === 401) throw new PreferenceClientError("SIGNED_OUT");
-    if (!response.ok) throw new PreferenceClientError("UNAVAILABLE");
+    if (!response.ok) {
+      // Settle the body without exposing provider details or changing HTTP error semantics.
+      await response.json().catch(() => {});
+      if (response.status === 409) throw new PreferenceClientError("CONFLICT");
+      if (response.status === 401) throw new PreferenceClientError("SIGNED_OUT");
+      throw new PreferenceClientError("UNAVAILABLE");
+    }
     const body = await response.json();
     if (body?.ok !== true) throw new PreferenceClientError("UNAVAILABLE");
     return validateSnapshot(body.preference);

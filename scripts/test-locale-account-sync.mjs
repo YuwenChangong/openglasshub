@@ -83,6 +83,77 @@ test("client maps provider payload to safe allowlisted codes", async () => {
   const client = { auth: { getSession: async () => ({ data: { session: { access_token: "local-test-only", user: { id: "A" } } } }) }, fetch: async () => Response.json({ error: "private payload" }, { status: 409 }) };
   await assert.rejects(saveOwnPreference(client, "en", 0, new AbortController().signal), error => error.code === "CONFLICT" && !error.message.includes("private"));
 });
+for (const [status, code] of [[503, "UNAVAILABLE"], [409, "CONFLICT"], [401, "SIGNED_OUT"], [400, "UNAVAILABLE"]]) {
+  test(`client consumes ${status} response once before publishing ${code}`, async () => {
+    const response = Response.json({ ok: false, code: "private provider detail" }, { status });
+    let jsonCalls = 0;
+    const nativeJson = response.json.bind(response);
+    response.json = () => { jsonCalls++; return nativeJson(); };
+    const client = { auth: { getSession: async () => ({ data: { session: { access_token: "local-test-only", user: { id: "A" } } } }) },
+      fetch: async () => response };
+    await assert.rejects(saveOwnPreference(client, "en", 1, new AbortController().signal), error => error.code === code && !error.message.includes("private"));
+    assert.equal(response.bodyUsed, true, "NON_2XX_BODY_CONSUMED_BEFORE_SEMANTIC_FAILURE");
+    assert.equal(jsonCalls, 1, "NON_2XX_BODY_CONSUMED_EXACTLY_ONCE");
+  });
+}
+test("client waits for complete error body before returning unavailable", async () => {
+  let closeBody, consumed = false, semanticSettled = false;
+  const response = new Response(new ReadableStream({ start(controller) {
+    controller.enqueue(new TextEncoder().encode('{"ok":false}'));
+    closeBody = () => { consumed = true; controller.close(); };
+  } }), { status: 503, headers: { "content-type": "application/json" } });
+  const client = { auth: { getSession: async () => ({ data: { session: { access_token: "local-test-only", user: { id: "A" } } } }) },
+    fetch: async () => response };
+  const pending = saveOwnPreference(client, "zh-CN", 1, new AbortController().signal)
+    .then(() => { semanticSettled = true; return "SUCCESS"; }, error => { semanticSettled = true; return error.code; });
+  try {
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(semanticSettled, false, "SEMANTIC_FAILURE_MUST_WAIT_FOR_BODY_EOF");
+    assert.equal(response.bodyUsed, true);
+  } finally { closeBody(); }
+  assert.equal(await pending, "UNAVAILABLE"); assert.equal(consumed, true);
+  const f = fixture(undefined, { save: () => Promise.reject(new PreferenceClientError("UNAVAILABLE")) });
+  await f.sync.setActor("A"); await f.sync.save("zh-CN");
+  assert.equal(f.sync.getSnapshot().status, "unavailable"); assert.equal(f.store.getSnapshot().preference, "zh-CN");
+});
+test("client preserves HTTP error classification when JSON is malformed or empty", async () => {
+  for (const [status, code] of [[503, "UNAVAILABLE"], [409, "CONFLICT"], [401, "SIGNED_OUT"]]) {
+    for (const text of ["", "not json"]) {
+      const response = new Response(text, { status });
+      const client = { auth: { getSession: async () => ({ data: { session: { access_token: "local-test-only", user: { id: "A" } } } }) }, fetch: async () => response };
+      await assert.rejects(saveOwnPreference(client, "en", 1, new AbortController().signal), error => error.code === code);
+      assert.equal(response.bodyUsed, true);
+    }
+  }
+});
+test("client successful PATCH still consumes native JSON exactly once", async () => {
+  const response = Response.json({ ok: true, preference: row("en", 2) });
+  const nativeJson = response.json.bind(response); let calls = 0;
+  response.json = () => { calls++; return nativeJson(); };
+  const client = { auth: { getSession: async () => ({ data: { session: { access_token: "local-test-only", user: { id: "A" } } } }) }, fetch: async () => response };
+  assert.deepEqual(await saveOwnPreference(client, "en", 1, new AbortController().signal), row("en", 2));
+  assert.equal(response.bodyUsed, true); assert.equal(calls, 1);
+});
+test("client keeps AbortError safe and forwards the operation signal", async () => {
+  const controller = new AbortController(); let observedSignal;
+  const client = { auth: { getSession: async () => ({ data: { session: { access_token: "local-test-only", user: { id: "A" } } } }) },
+    fetch: async (_url, init) => { observedSignal = init.signal; throw new DOMException("private transport detail", "AbortError"); } };
+  await assert.rejects(saveOwnPreference(client, "en", 1, controller.signal), error => error.code === "UNAVAILABLE" && !error.message.includes("private"));
+  assert.equal(observedSignal, controller.signal);
+  controller.abort(); observedSignal = undefined;
+  await assert.rejects(saveOwnPreference(client, "en", 1, controller.signal), error => error.code === "UNAVAILABLE");
+  assert.equal(observedSignal, undefined);
+});
+test("client body-read AbortError does not replace safe HTTP error semantics", async () => {
+  for (const [status, code] of [[503, "UNAVAILABLE"], [409, "CONFLICT"], [401, "SIGNED_OUT"]]) {
+    const response = new Response(new ReadableStream({ start(controller) {
+      controller.error(new DOMException("private transport detail", "AbortError"));
+    } }), { status });
+    const client = { auth: { getSession: async () => ({ data: { session: { access_token: "local-test-only", user: { id: "A" } } } }) }, fetch: async () => response };
+    await assert.rejects(saveOwnPreference(client, "en", 1, new AbortController().signal), error => error.code === code && !error.message.includes("private"));
+    assert.equal(response.bodyUsed, true);
+  }
+});
 test("manual account write stays on page while pending and discards actor-switched completion", async () => {
   const d = deferred(); const f = fixture(undefined, { save: () => d.promise });
   await f.sync.setActor("A"); const navigations = f.calls.navigation;
