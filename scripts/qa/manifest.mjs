@@ -35,6 +35,16 @@ export const GLOBAL_LOCALE_PREREQUISITES = deepFreeze({
   regressions: { nodeCases: 146, scriptRuns: 10 },
 });
 
+// Human-frozen Task19 acceptance, not inferred from requirements or a fresh run.
+const acceptedTask19Evidence = deepFreeze({
+  schemaVersion: 1,
+  commitSha: 'bb6170461f9afd3dbfb9da3db023909de257df43',
+  browser: { status: 'PASS', completed: 102, required: 102 },
+  coverage: { status: 'PASS', manifest: 'tests/fixtures/locale-ui-coverage.json' },
+  persistence: { status: 'PASS', genuineLocalAuth: true, realLocalRls: true, ownedLocalTarget: true, remoteConnections: 0 },
+  regressions: { status: 'PASS', nodeCases: 146, scriptRuns: 10 },
+});
+
 const areas = {
   'locale-settings': area('locale-settings', [
     'src/middleware.ts', 'src/env.d.ts', 'src/lib/i18n/**', 'src/components/i18n/**',
@@ -44,6 +54,7 @@ const areas = {
   ], 'HIGH', ['security'], [{
     ...check('global-locale-settings-contract', 'npm run test:global-locale-contract'),
     prerequisites: GLOBAL_LOCALE_PREREQUISITES,
+    acceptedEvidence: acceptedTask19Evidence,
   }], [], { requiredProfile: 'qa:release', rule: 'deterministic contract plus independently accepted browser and genuine-local persistence gates' }),
   frontend: area('frontend', ['src/components/**', 'src/layouts/**', 'src/styles/**', 'src/plugins/**', 'src/pages/**'], 'LOW', [], [
     check('frontend-astro-build', 'npm run build'),

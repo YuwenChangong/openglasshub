@@ -70,11 +70,43 @@ test('Task20 RELEASE registers exact deterministic argv with unchanged budget an
   assert.equal(packageJson.scripts['test:global-locale-persistence-local'], 'node scripts/test-global-locale-persistence-local.mjs');
 });
 
+test('targeted auth local Worker removes enforced provider dependencies without weakening traffic guards', async () => {
+  const { TARGETED_AUTH_LOCAL_VARS } = await import('./profiles/release.mjs');
+  assert.deepEqual(TARGETED_AUTH_LOCAL_VARS, ['--var', 'AUTH_CAPTCHA_MODE:off', '--var', 'PUBLIC_AUTH_TURNSTILE_SITE_KEY:']);
+});
+
+test('Task20 release declaration supplies human-accepted Task19 evidence separately from requirements', () => {
+  const input = getArea('locale-settings').checks[0].acceptedEvidence;
+  assert.ok(input, 'Release declaration must supply accepted evidence, not only requirements');
+  assert.equal(input.commitSha, 'bb6170461f9afd3dbfb9da3db023909de257df43');
+  assert.equal(input.browser.status, 'PASS');
+  assert.equal(input.persistence.realLocalRls, true);
+  assert.equal(input.browser.completed, 102);
+});
+
+test('Task20 accepted evidence is supplied without runtime discovery and rejects changed source', async () => {
+  const { loadLocaleAcceptance } = await localeContractModule();
+  const repository = createFeatureRepository();
+  try {
+    const input = acceptedLocaleInputs(repository.baseSha);
+    const context = { cwd: repository.cwd, commitSha: repository.baseSha, input };
+    const accepted = await loadLocaleAcceptance(context);
+    assert.equal(accepted.status, 'PASS');
+    assert.equal(accepted.evidenceCommitSha, repository.baseSha);
+    assert.equal((await loadLocaleAcceptance({ ...context, input: null })).code, 'LOCALE_ACCEPTANCE_MISSING');
+    assert.equal((await loadLocaleAcceptance({ ...context, commitSha: 'a'.repeat(40) })).code, 'LOCALE_ACCEPTANCE_SHA_MISMATCH');
+    commitFile(repository.cwd, 'src/lib/i18n/locale.ts', 'changed product\n');
+    const head = git(repository.cwd, ['rev-parse', 'HEAD']);
+    assert.equal((await loadLocaleAcceptance({ ...context, commitSha: head })).code, 'LOCALE_ACCEPTANCE_SOURCE_CHANGED');
+  } finally { rmSync(repository.cwd, { recursive: true, force: true }); }
+});
+
 test('Task20 missing accepted prerequisites fail before deterministic child execution', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'openglass-locale-missing-'));
   try {
     const result = await runReleaseCheck('global-locale-settings-contract', {
       profile: 'RELEASE', cwd: directory, commitSha: 'a'.repeat(40), env: {},
+      localeAcceptance: null,
     });
     assert.equal(result.status, 'FAIL');
     assert.equal(result.attempts, 1);
@@ -119,8 +151,11 @@ test('Task20 validation-only contract never claims browser or local RLS and neve
     return { exitCode: 0, timedOut: false, signal: null, attempts: 1 };
   } });
   assert.equal(result.status, 'PASS');
-  assert.equal(result.diagnostics.browser, 'SEPARATE_ACCEPTED_INPUT_REQUIRED');
-  assert.equal(result.diagnostics.persistence, 'SEPARATE_ACCEPTED_INPUT_REQUIRED');
+  assert.equal(result.diagnostics.browser, 'PASS_102_OF_102');
+  assert.equal(result.diagnostics.persistence, 'PASS_GENUINE_LOCAL_ACCEPTED');
+  assert.equal(result.diagnostics.evidenceOrigin, 'ACCEPTED_TASK19');
+  assert.equal(result.diagnostics.freshBrowserEvidence, false);
+  assert.equal(result.diagnostics.freshLocalRlsEvidence, false);
   assert.ok(commands.length > 0);
   for (const command of commands) {
     assert.equal(command.argv[0], process.execPath);
@@ -153,6 +188,17 @@ test('Task20 malformed manifest fails validation without child execution', async
   assert.equal(calls, 0);
 });
 
+test('Task20 validation-only rejects missing accepted evidence instead of converting requirements into PASS', async () => {
+  const { runGlobalLocaleContract } = await localeContractModule();
+  const copy = structuredClone(manifest);
+  delete copy.areas['locale-settings'].checks[0].acceptedEvidence;
+  let calls = 0;
+  const result = await runGlobalLocaleContract({ qaManifest: copy, execute: async () => { calls++; } });
+  assert.equal(result.status, 'FAIL');
+  assert.equal(result.diagnostics.code, 'LOCALE_ACCEPTANCE_MISSING');
+  assert.equal(calls, 0);
+});
+
 test('Task20 RELEASE cannot ignore a failed prerequisite in its actual receipt path', async () => {
   const repository = createFeatureRepository();
   try {
@@ -166,7 +212,7 @@ test('Task20 RELEASE cannot ignore a failed prerequisite in its actual receipt p
     assert.equal(result.retryCount, 0);
     const gate = result.extensions.checkResults.find(item => item.id === 'global-locale-settings-contract');
     assert.equal(gate.status, 'FAIL');
-    assert.equal(gate.diagnostics.code, 'LOCALE_ACCEPTANCE_MISSING');
+    assert.equal(gate.diagnostics.code, 'LOCALE_ACCEPTANCE_SHA_MISMATCH');
     assert.equal(gate.diagnostics.commitSha, result.commitSha);
   } finally { rmSync(repository.cwd, { recursive: true, force: true }); }
 });
@@ -1324,6 +1370,8 @@ function fakeChromiumBrowser(outcomes) {
     trafficBlocked: [],
     webSocketsSent: [],
     webSocketsBlocked: [],
+    cookiesBeforeNavigation: [],
+    cookieCountsAtNavigation: [],
   };
   let attempt = 0;
   return {
@@ -1338,6 +1386,7 @@ function fakeChromiumBrowser(outcomes) {
       let webSocketHandler;
       let currentUrl = 'about:blank';
       return {
+        async addCookies(cookies) { state.cookiesBeforeNavigation.push(...cookies); },
         async route(_pattern, handler) { contextRouteHandler = handler; },
         async routeWebSocket(_pattern, handler) { webSocketHandler = handler; },
         tracing: {
@@ -1356,6 +1405,7 @@ function fakeChromiumBrowser(outcomes) {
             off(event, listener) { if (event === 'console' && listener === consoleListener) consoleListener = () => {}; },
             async route(_pattern, handler) { pageRouteHandler = handler; },
             async goto(target) {
+              state.cookieCountsAtNavigation.push(state.cookiesBeforeNavigation.length);
               const targetUrl = new URL(target);
               const requests = [
                 { url: targetUrl.toString(), method: 'GET', navigation: true },
@@ -1427,6 +1477,20 @@ function fakeChromiumBrowser(outcomes) {
     },
   };
 }
+
+test('targeted auth establishes an explicit zh-CN preference before navigation', async () => {
+  const browser = fakeChromiumBrowser([{ status: 200 }]);
+  const result = await runTargetedBrowserCheck({ group: 'auth', baseUrl: 'https://127.0.0.1:4321', browser });
+  assert.equal(result.status, 'PASS');
+  assert.equal(browser.state.cookiesBeforeNavigation.length, 1);
+  assert.deepEqual(browser.state.cookieCountsAtNavigation, [1]);
+  const cookie = browser.state.cookiesBeforeNavigation[0];
+  assert.equal(cookie.name, 'ogh_preferences_v1');
+  assert.equal(cookie.url, 'https://127.0.0.1:4321');
+  const record = JSON.parse(decodeURIComponent(cookie.value));
+  assert.deepEqual(record, { version: 1, preference: 'zh-CN', generation: 1, provenance: 'device_explicit' });
+  assert.equal(result.details.locale, 'zh-CN');
+});
 
 test('targeted Chromium success returns compact evidence without heavy artifact requests', async () => {
   const browser = fakeChromiumBrowser([{ status: 200 }]);

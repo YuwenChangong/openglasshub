@@ -12,6 +12,7 @@ import { closeBrowserLifecycle } from '../p6b-local-e2e-runner.mjs';
 import { redactValue } from '../receipt.mjs';
 import { unstable_readConfig } from 'wrangler';
 import { loadLocaleAcceptance } from '../../test-global-locale-settings-contract.mjs';
+import { manifest } from '../manifest.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const NODE = process.execPath;
@@ -76,6 +77,9 @@ const COMMANDS = Object.freeze({
 });
 
 const REAL_BROWSER_CHECK_ID = 'targeted-browser-journey';
+export const TARGETED_AUTH_LOCAL_VARS = Object.freeze([
+  '--var', 'AUTH_CAPTCHA_MODE:off', '--var', 'PUBLIC_AUTH_TURNSTILE_SITE_KEY:',
+]);
 const SELECTED_IDS = Object.freeze([...Object.keys(COMMANDS), REAL_BROWSER_CHECK_ID].sort());
 const DATABASE_AREA_CHECK_IDS = Object.freeze([
   'database-migration-versions',
@@ -99,7 +103,9 @@ function registerReleaseCommand(id, argv) {
     async run(context, check) {
       let localeAcceptance;
       if (id === 'global-locale-settings-contract') {
-        localeAcceptance = await loadLocaleAcceptance({ cwd: context.cwd ?? ROOT, commitSha: context.commitSha });
+        const declared = manifest.areas['locale-settings'].checks.find(item => item.id === id)?.acceptedEvidence;
+        const input = Object.hasOwn(context, 'localeAcceptance') ? context.localeAcceptance : declared;
+        localeAcceptance = await loadLocaleAcceptance({ cwd: context.cwd ?? ROOT, commitSha: context.commitSha, input });
         if (localeAcceptance.status !== 'PASS') return normalizeCheckResult({
           id, status: 'FAIL', attempts: 1, classification: 'VALIDATION',
           diagnostics: { code: localeAcceptance.code, commitSha: context.commitSha ?? null, deterministic: 'NOT_RUN' },
@@ -258,6 +264,7 @@ async function startLocalWorker({ cwd = ROOT, env = {} } = {}) {
   const baseUrl = `http://127.0.0.1:${port}`;
   const child = spawn(NODE, [
     WRANGLER, 'dev', '--config', LOCAL_WORKER_CONFIG, '--local', '--ip', '127.0.0.1', '--port', String(port),
+    ...TARGETED_AUTH_LOCAL_VARS,
   ], {
     cwd,
     env: { ...env, CI: 'true', WRANGLER_SEND_METRICS: 'false' },

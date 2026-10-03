@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { lstat, readFile, access } from 'node:fs/promises';
+import { readFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
@@ -10,12 +10,12 @@ import { normalizeCheckResult } from './qa/contracts.mjs';
 import { executeCommand } from './qa/process-executor.mjs';
 import { createReceipt, finalizeReceipt } from './qa/receipt.mjs';
 
-export const LOCALE_ACCEPTANCE_PATH = 'artifacts/qa/global-locale-settings-v1/accepted-inputs.json';
 const ID = 'global-locale-settings-contract';
 const TASK20_FILES = new Set([
   'package.json', 'scripts/qa/manifest.mjs', 'scripts/qa/profiles/release.mjs',
   'scripts/qa/test-qa-harness-manifest.mjs', 'scripts/qa/test-qa-harness-profiles.mjs',
   'scripts/test-global-locale-settings-contract.mjs', 'docs/ops/global-locale-settings-v1-acceptance.md',
+  'scripts/test-auth-legal-acknowledgement.mjs', 'scripts/qa/checks/playwright.mjs',
 ]);
 const SHA = /^[a-f0-9]{40}$/;
 const commands = Object.freeze([
@@ -44,16 +44,8 @@ export function validateLocaleAcceptance(input) {
     regressions: 'PASS_ACCEPTED_146_NODE_10_SCRIPTS' };
 }
 
-export async function loadLocaleAcceptance({ cwd, commitSha }) {
-  let input;
-  try {
-    const file = resolve(cwd, LOCALE_ACCEPTANCE_PATH);
-    const stats = await lstat(file);
-    if (!stats.isFile() || stats.isSymbolicLink() || stats.size > 65_536) return { status: 'FAIL', code: 'LOCALE_ACCEPTANCE_INVALID' };
-    input = JSON.parse(await readFile(file, 'utf8'));
-  } catch (error) {
-    return { status: 'FAIL', code: error?.code === 'ENOENT' ? 'LOCALE_ACCEPTANCE_MISSING' : 'LOCALE_ACCEPTANCE_INVALID' };
-  }
+export async function loadLocaleAcceptance({ cwd, commitSha, input, validationOnly = false }) {
+  if (input === undefined || input === null) return { status: 'FAIL', code: 'LOCALE_ACCEPTANCE_MISSING' };
   const result = validateLocaleAcceptance(input);
   if (result.status !== 'PASS') return result;
   try {
@@ -61,7 +53,12 @@ export async function loadLocaleAcceptance({ cwd, commitSha }) {
     if (git(['rev-parse', 'HEAD']) !== commitSha) return { status: 'FAIL', code: 'LOCALE_ACCEPTANCE_SHA_MISMATCH' };
     git(['merge-base', '--is-ancestor', input.commitSha, commitSha]);
     const changed = git(['diff', '--name-only', input.commitSha, commitSha]).split(/\r?\n/).filter(Boolean);
-    if (changed.some(file => !TASK20_FILES.has(file)) || git(['status', '--porcelain', '--untracked-files=normal'])) {
+    const pending = [
+      ...git(['diff', 'HEAD', '--name-only']).split(/\r?\n/),
+      ...git(['ls-files', '--others', '--exclude-standard']).split(/\r?\n/),
+    ].filter(Boolean);
+    if ([...changed, ...pending].some(file => !TASK20_FILES.has(file)) ||
+        (!validationOnly && git(['status', '--porcelain', '--untracked-files=normal']))) {
       return { status: 'FAIL', code: 'LOCALE_ACCEPTANCE_SOURCE_CHANGED' };
     }
   } catch { return { status: 'FAIL', code: 'LOCALE_ACCEPTANCE_SHA_MISMATCH' }; }
@@ -118,6 +115,11 @@ export async function runGlobalLocaleContract({ cwd = process.cwd(), qaManifest 
       'test:global-locale-persistence-local': 'node scripts/test-global-locale-persistence-local.mjs',
     })) assert.equal(pkg.scripts[name], command);
     diagnostics.coverageInventoryFiles = await validateCoverageInventory(cwd);
+    const commitSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const accepted = await loadLocaleAcceptance({ cwd, commitSha, input: item.acceptedEvidence, validationOnly: true });
+    if (accepted.status !== 'PASS') return finish('FAIL', accepted.code, 'VALIDATION');
+    const { status, code, ...historical } = accepted;
+    Object.assign(diagnostics, historical, { evidenceOrigin: 'ACCEPTED_TASK19', freshBrowserEvidence: false, freshLocalRlsEvidence: false });
   } catch { return finish('FAIL', 'LOCALE_CONTRACT_INVALID', 'VALIDATION'); }
   for (const argv of commands) {
     let result;

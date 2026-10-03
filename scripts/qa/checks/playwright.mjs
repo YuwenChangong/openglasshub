@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 
 import { closeBrowserLifecycle, runUiCaseWithLiveness } from '../p6b-local-e2e-runner.mjs';
 import { redactValue } from '../receipt.mjs';
+import { PREFERENCE_COOKIE_NAME, serializePreferenceCookie } from '../../../src/lib/i18n/preference-cookie.ts';
 
 const MAX_CONSOLE_ERRORS = 12;
 const MAX_CONSOLE_LENGTH = 512;
@@ -19,6 +20,7 @@ const browserGroups = Object.freeze({
     ]),
   }),
   auth: Object.freeze({
+    locale: 'zh-CN',
     steps: Object.freeze([
       Object.freeze({ route: '/login/', statuses: Object.freeze([200]), text: Object.freeze({ selector: 'h1', value: '登录 / 注册' }), visible: '.auth-page' }),
     ]),
@@ -284,6 +286,10 @@ async function runAttempt({ group, definition, baseUrl, browser, attempt, artifa
   try {
     context = await browser.newContext({ serviceWorkers: 'block' });
     await installTrafficGuard({ context, violations });
+    if (definition.locale) {
+      const cookie = serializePreferenceCookie({ version: 1, preference: definition.locale, generation: 1, provenance: 'device_explicit' });
+      await context.addCookies([{ name: PREFERENCE_COOKIE_NAME, value: cookie.split(';')[0].slice(PREFERENCE_COOKIE_NAME.length + 1), url: baseUrl }]);
+    }
     page = await context.newPage();
     onConsole = consoleListener(consoleErrors);
     page.on?.('console', onConsole);
@@ -339,6 +345,7 @@ function resultBase({ group, definition, started }) {
       browser: 'chromium',
       group,
       routes: definition.steps.map(({ route }) => route),
+      ...(definition.locale ? { locale: definition.locale } : {}),
     },
   };
 }

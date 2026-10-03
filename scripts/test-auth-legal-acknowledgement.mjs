@@ -1,6 +1,15 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import ts from "typescript";
+import { createServer } from "vite";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { JSDOM } from "jsdom";
+import { cloudflareWorkersTestPlugin } from "./lib/cloudflare-workers-test-plugin.mjs";
+import { getAuthMessages } from "../src/lib/auth-messages.ts";
+import { resolveLocale } from "../src/lib/i18n/locale.ts";
+import { LEGAL_POLICY_LINKS } from "../src/lib/legal-policy.ts";
 
 const root = process.cwd();
 
@@ -25,8 +34,16 @@ async function main() {
   assert(legalPolicy.includes('bundleVersion: "2026-07"'), "The accepted policy bundle must remain 2026-07.");
   function neutralFooter() {
     assert(!/siteName\s*}\s*·\s*{LEGAL_POLICY\.minimumAge/.test(layoutSource), "Ordinary footer must not present a 16+ brand badge.");
-    assert(layoutSource.includes("{link.labelZh}"), "Chinese shell must use Chinese legal labels.");
-    assert(!layoutSource.includes("{link.labelEn}"), "Chinese shell must not duplicate English legal labels.");
+    const footer = layoutSource.slice(layoutSource.indexOf("<footer"), layoutSource.indexOf("</footer>"));
+    const expression = footer.match(/<span>\s*\{([^{}]+)\}\s*<\/span>/)?.[1];
+    assert(expression, "Footer must select a single legal label.");
+    const ast = ts.createSourceFile("footer.ts", `const label = ${expression};`, ts.ScriptTarget.Latest, true);
+    const label = ast.statements[0]?.declarationList?.declarations[0]?.initializer;
+    assert(label && ts.isConditionalExpression(label), "Footer labels must follow request locale.");
+    assert(label.condition.getText(ast) === 'localeContext.locale === "en"', "Footer condition must use request locale.");
+    assert(label.whenTrue.getText(ast) === "link.labelEn" && label.whenFalse.getText(ast) === "link.labelZh", "Each shell must render only its selected-language legal labels.");
+    assert(layoutSource.includes("Astro.locals.localeContext") && layoutSource.includes("getUiMessages(localeContext.locale)"), "Footer must consume request-wide locale.");
+    assert(LEGAL_POLICY_LINKS.every(link => link.labelZh && link.labelEn), "Canonical legal labels must exist in both languages.");
   }
   neutralFooter();
   assert(messages.includes('export type AuthLocale = "zh-CN" | "en"'), "Auth messages must have a typed locale.");
@@ -54,7 +71,40 @@ async function main() {
   assert(docs.includes("frontend/auth-entry enforcement only"), "Operations documentation must describe Phase 2 limits.");
   assert(docs.includes("localStorage proof, or cookie proof"), "Operations documentation must reject browser persistence as consent proof.");
 
-  console.log("AUTH_LEGAL_ACKNOWLEDGEMENT_OK files=5");
+  const originalFetch = globalThis.fetch;
+  let externalRequests = 0;
+  let vite;
+  globalThis.fetch = async () => { externalRequests++; throw new Error("EXTERNAL_FORBIDDEN"); };
+  try {
+    vite = await createServer({ root, configFile: false, logLevel: "error", plugins: [cloudflareWorkersTestPlugin()],
+      esbuild: { jsx: "automatic" }, ssr: { external: ["react", "react-dom", "react/jsx-runtime"] },
+      server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+    const AuthPanel = (await vite.ssrLoadModule("/src/components/forum/AuthPanel.tsx")).default;
+    for (const locale of ["zh-CN", "en"]) {
+      const text = getAuthMessages(locale);
+      for (const initialMode of ["login", "signup"]) {
+        const dom = new JSDOM(renderToStaticMarkup(createElement(AuthPanel, {
+          localeContext: resolveLocale({ current: locale }), initialMode, captchaMode: "off", next: "/feed/",
+          authAdapter: { viewState: "signed_out", userPresent: false },
+        })));
+        try {
+          const document = dom.window.document;
+          const tabs = [...document.querySelectorAll('[role="tablist"] [role="tab"]')].map(button => button.textContent);
+          assert(tabs.length === 2 && tabs.includes(text.login) && tabs.includes(text.signup), "Actual Auth tabs must use the selected locale.");
+          const links = [...document.querySelectorAll(".auth-signup-notice a")];
+          assert(links.length === (initialMode === "signup" ? 3 : 0), "Compact notice must be signup-only.");
+          if (initialMode === "signup") {
+            const expected = [text.signupNoticeTerms, text.signupNoticePrivacy, text.signupNoticeGuidelines];
+            assert(links.every((link, index) => link.textContent === expected[index]), "Actual signup legal labels must use the selected locale.");
+            assert(links.every(link => link.target === "_blank" && link.rel === "noopener noreferrer"), "Rendered policy links must open safely.");
+          }
+          assert(!document.querySelector('input[type="checkbox"]'), "Rendered Auth must not introduce legal/age blockers.");
+        } finally { dom.window.close(); }
+      }
+    }
+    assert(externalRequests === 0, "Auth render contract must not make external requests.");
+  } finally { await vite?.close(); globalThis.fetch = originalFetch; }
+  console.log("AUTH_LEGAL_ACKNOWLEDGEMENT_OK SSR_BOTH_LOCALES=PASS FOOTER_LOCALE_AST=PASS EXTERNAL_REQUESTS=0");
 }
 
 main().catch((error) => {
