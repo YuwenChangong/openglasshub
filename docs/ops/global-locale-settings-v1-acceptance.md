@@ -4,8 +4,8 @@
 
 Task19 is accepted at source commit `bb6170461f9afd3dbfb9da3db023909de257df43`.
 Task20 repository implementation does not close Slice B. Task20 remains
-`AWAITING_BOUNDED_QA_RELEASE` until separately authorized release verification
-and independent whole-branch review pass. Nothing here authorizes a merge,
+`BLOCKED_AWAITING_NEW_BOUNDED_RELEASE_AUTHORIZATION` until separately authorized
+release verification and independent whole-branch review pass. Nothing here authorizes a merge,
 deployment, Production SQL, provider change, or Production Auth, email,
 content or preference mutation. P9 is excluded.
 
@@ -47,8 +47,9 @@ git diff --check
 ```
 
 The aggregate validates the canonical inventory's structure and referenced
-files, package interfaces and QA prerequisites, then executes only deterministic
-locale contract, detection, cookie/store, preference API and schema tests.
+files, package interfaces, QA prerequisites and the manifest's accepted evidence
+with its source binding, then executes only deterministic locale contract,
+detection, cookie/store, preference API and schema tests.
 It performs no build, browser matrix, database replay or local persistence/RLS
 execution. Child environments contain only OS execution variables and disabled
 telemetry/update flags, not inherited provider credentials or database targets.
@@ -56,19 +57,30 @@ Each child has LOCAL retries0 and a 90000ms budget; failure is terminal.
 
 The aggregate emits a safe receipt to stdout with actual Git HEAD, separate
 gate diagnostics, `mode=VALIDATION_ONLY` and `sliceBReleaseAccepted=false`.
-Its browser/persistence fields remain `SEPARATE_ACCEPTED_INPUT_REQUIRED`.
-It does not persist the artifact path described by the receipt schema. Any
-operator-captured validation output belongs under ignored repository-relative
-`artifacts/qa/`, not in source. Validation PASS is not release PASS.
+After acceptance validation, its independent gate diagnostics identify historical
+inputs: `browser=PASS_102_OF_102`, `coverage=PASS_ACCEPTED`,
+`persistence=PASS_GENUINE_LOCAL_ACCEPTED` and
+`regressions=PASS_ACCEPTED_146_NODE_10_SCRIPTS`. They carry
+`evidenceOrigin=ACCEPTED_TASK19`, the evidence-source SHA,
+`freshBrowserEvidence=false` and `freshLocalRlsEvidence=false`.
+Missing or invalid accepted inputs fail validation before deterministic children;
+requirements alone cannot supply PASS. The aggregate does not persist its stdout
+receipt. Operator-captured output remains ignored runtime evidence, not source.
+Validation PASS is not release PASS.
 
 ## Accepted-Input Handoff and Source Identity
 
-The RELEASE adapter reads only
-`artifacts/qa/global-locale-settings-v1/accepted-inputs.json`. This ignored
-sidecar must be prepared under a separate reviewed handoff, after comparing
-the original Task19 evidence and its accepted source identity. Do not fabricate
-it, infer missing gates, copy credentials, or produce it to bypass a failure.
-This Task20 repository-only authorization does not create the sidecar.
+The canonical channel is `locale-settings.checks[].acceptedEvidence` in
+`scripts/qa/manifest.mjs`, on the `global-locale-settings-contract` check.
+The immutable record transcribes explicit human-reviewed Task19 acceptance bound
+to `bb6170461f9afd3dbfb9da3db023909de257df43`. It is separate from the manifest's
+prerequisite requirements; those requirements are not evidence of execution.
+Both validation-only and RELEASE consume this record through
+`loadLocaleAcceptance`. RELEASE defaults to the manifest record; an explicit
+test-context `localeAcceptance` override goes through the same strict validator
+and source gates, not a bypass. No external evidence file or machine-local
+receipt discovery is required. Do not fabricate accepted inputs, infer missing
+gates, copy credentials or change the record to bypass a failure.
 
 Its strict schema contains exactly:
 
@@ -76,21 +88,37 @@ Its strict schema contains exactly:
 | --- | --- |
 | `schemaVersion` | 1 |
 | `commitSha` | Full 40-character lowercase evidence-source Git SHA |
-| `browser` | Accepted status plus `completed=102`, `required=102` |
-| `coverage` | Accepted status plus `manifest=tests/fixtures/locale-ui-coverage.json` |
-| `persistence` | Accepted status plus `genuineLocalAuth=true`, `realLocalRls=true`, `ownedLocalTarget=true`, `remoteConnections=0` |
-| `regressions` | Accepted status plus `nodeCases=146`, `scriptRuns=10` |
+| `browser` | `status=PASS`, `completed=102`, `required=102` |
+| `coverage` | `status=PASS`, `manifest=tests/fixtures/locale-ui-coverage.json` |
+| `persistence` | `status=PASS`, `genuineLocalAuth=true`, `realLocalRls=true`, `ownedLocalTarget=true`, `remoteConnections=0` |
+| `regressions` | `status=PASS`, `nodeCases=146`, `scriptRuns=10` |
 
 All four independent statuses must be PASS supported by the reviewed evidence.
-Extra fields, missing/failed/partial gates, malformed data, symlinks and oversized
-inputs are rejected. This summary is a human-reviewed evidence attestation,
+Exact root and gate keys and matching prerequisite values are required.
+Extra fields, missing/failed/partial gates and malformed data are rejected.
+This summary is a human-reviewed evidence attestation,
 not cryptographic proof or a fresh browser/RLS run.
 
-The adapter requires context SHA equal to current HEAD, evidence SHA an
-ancestor of that HEAD, a clean worktree and only the seven planned Task20
-files changed since the evidence SHA. Product, inventory or harness changes
-invalidate reuse. Do not relabel evidence SHA to evade this check. Stop and
-seek separately authorized owning-gate review if source changed.
+The loader requires context SHA equal to current HEAD and evidence SHA an
+ancestor of that HEAD. Committed changes since the evidence SHA and pending
+tracked/untracked source paths must stay within this exact Task20 QA allowlist:
+
+- `package.json`
+- `scripts/qa/manifest.mjs`
+- `scripts/qa/profiles/release.mjs`
+- `scripts/qa/test-qa-harness-manifest.mjs`
+- `scripts/qa/test-qa-harness-profiles.mjs`
+- `scripts/test-global-locale-settings-contract.mjs`
+- `docs/ops/global-locale-settings-v1-acceptance.md`
+- `scripts/test-auth-legal-acknowledgement.mjs`
+- `scripts/qa/checks/playwright.mjs`
+
+RELEASE additionally requires a clean worktree. Validation-only permits pending
+edits limited to the same allowlist; it does not relax evidence or ancestry
+requirements. Product, inventory, schema or Task19 harness changes outside this
+allowlist invalidate reuse. Missing, malformed, failed, stale or source-mismatched
+inputs fail closed; no evidence-SHA relabeling or gate bypass is permitted.
+Stop and seek separately authorized owning-gate review if source changed.
 
 ## Bounded Release Gate
 
@@ -100,8 +128,16 @@ Only a separate authorization permits the established command:
 npm run qa:release
 ```
 
-Maximum release attempts: 1. Automatic retry: none. Preserve the first receipt;
-failure requires a separately reviewed fix and new bounded authorization.
+One invocation per bounded release authorization:
+`TASK20_RELEASE_MAX_ATTEMPTS=1`, `TASK20_AUTO_RETRY=false`.
+The per-run maximum is not the total historical release-run count. There is no
+automatic retry of the release invocation; deterministic failure is terminal
+for that invocation and blocks acceptance. Preserve the original failed receipt
+and all historical evidence unchanged; never reinterpret a failed run as PASS.
+After failure the sequence is repository repair -> review -> NEW explicit
+bounded authorization -> new release invocation on the corrected reviewed SHA.
+A separately authorized new run is not an automatic retry of the old process,
+and does not erase or overwrite it. This document authorizes no new run.
 No inherited forum-search waiver, allowed-to-fail flag, gate bypass or silent
 browser/RLS rerun is permitted. This document does not execute that command.
 
@@ -115,14 +151,23 @@ Missing prerequisites or any failed check block release acceptance.
 Preserve existing budgets: new deterministic/default/search 90000ms,
 Slice A and project tests 180000ms, build 240000ms and the existing targeted
 browser journey 120000ms. The existing release journey is not Task19's
-102-case matrix or genuine-local RLS. Database replay, Production smoke,
-deployment and provider operations remain excluded from RELEASE.
-Safe receipts use `artifacts/qa/<runId>/receipt.json`; never commit runtime
+102-case matrix or genuine-local RLS. Its auth fixture establishes a zh-CN
+device preference before navigation and uses local-only Worker overrides with
+Auth CAPTCHA off and no Auth sitekey. This does not change Production's required
+mode or prove bot-protection acceptance. Existing targeted-browser adapter retry
+classification is unchanged; it does not authorize a second release invocation.
+Database replay, Production smoke, deployment and provider operations remain
+excluded from RELEASE.
+Expected Production mutations are zero: no SQL, provider mutation, deployment,
+Auth request, email or content/preference mutation. Release verification is not
+deployment. Safe runtime receipts remain ignored evidence; never commit runtime
 artifacts, emails, session data, tokens, secrets or machine-specific paths.
 
 Before any PR/release handoff, independently review the exact whole-branch SHA,
-the seven Task20 paths, unchanged dependencies/lockfile, accepted prerequisites
-and release receipt. No unresolved blocking issue may be hidden by the aggregate.
+the Task20 QA allowlist, unchanged dependencies/lockfile, accepted prerequisites
+and release receipt. Confirm the human-accepted Task19 binding and keep each
+accepted gate status separate from the fresh deterministic outcome and current
+source identity. No unresolved blocking issue may be hidden by the aggregate.
 Task20 cannot be marked COMPLETE before the separately authorized gate passes.
 
 ## Staging, Rollout and Rollback Gates
