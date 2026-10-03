@@ -1,8 +1,8 @@
 # Slice C: Product Detail + UX / Security Closure v1
 
-Date: 2026-10-03. Status: proposed scope and implementation plan; pending human review. Inventory is source-derived, not a fresh runtime or Production acceptance result.
+Date: 2026-10-03. Status: direction accepted, priority correction proposed; implementation and revised plan pending human review. Inventory is source-derived, not a fresh runtime or Production acceptance result. Revises local plan commit `9e2afcd12aae74599ef581304c25b5d2aa35eb46` under SLICE_C_PLAN_PRIORITY_CORRECTION authorization.
 
-**Goal:** Ship truthful published-product detail pages, consistent product destinations and global search, reachable mobile navigation, and the catalog-rendering/header security closure expressly required by the recovery design.
+**Goal (primary release blocker):** Restore REAL product/device canonical detail routing, prove the existing user-supplied parameter dataset survives source -> parser -> public reader/view -> SSR -> browser, and render those parameters truthfully. This is missing-detail restoration, not merely detail-page polish. UX/search/mobile/security closure stays in Slice C as secondary work after PRODUCT_DETAIL_CORE_ACCEPTANCE, without weakening minimum public-data/escaped-rendering safety needed by the core.
 
 **Architecture:** Retain one Astro route tree, anonymous public SSR reads, existing Supabase Auth/RLS, values-only comparison, the shared community shell, and Slice B locale context. Add a narrow public Schema v1 invoker read boundary, not a privileged application reader. Preserve legacy routes and brand anchors.
 
@@ -17,6 +17,7 @@ Date: 2026-10-03. Status: proposed scope and implementation plan; pending human 
 - Planning convention inspected: `docs/superpowers/plans/2026-09-28-product-recovery-slice-a-auth-identity-email-consent-v1.md`. Its original consent-gate architecture is not permission to restore the subsequently removed runtime gate.
 - Slice A is preserved. Slice B is `CLOSED_AND_PRODUCTION_RELEASED` according to the frozen human release receipt; no reacceptance or reopening here. Production state was not queried in this planning task.
 - This authorization permits this planning document and a local document-only commit. It does not authorize implementation, push, merge, deployment, Production SQL, provider access/configuration, Auth/email/content mutations or remote database reads.
+- Current correction changes this document only: no product implementation, schema mutation, SQL, fixture generation/run, browser acceptance, provider query or Production action. Existing parameters may be present but disconnected; actual loss versus parser/reader/route/component omission remains UNPROVEN until Task 1 evidence. Do not manufacture a root cause or retroactively relabel historical results.
 - Before implementation, human review must approve scope, gaps, task order, browser size, security assertions and expected files. `SLICE_C_SCOPE_FROZEN=PROPOSED_PENDING_HUMAN_REVIEW`; `SLICE_C_IMPLEMENTATION_STARTED=false`.
 
 ## 2. Proposed Frozen Scope
@@ -25,13 +26,17 @@ Date: 2026-10-03. Status: proposed scope and implementation plan; pending human 
 
 **Out of scope:** General redesign, forum feature overhaul, Auth/session/CAPTCHA redesign or provider toggles, new locale/preferences architecture, light/theme controls, new product research or database project, catalog bulk import/P9/Release B replay, new admin system, recommendation/ranking/social features, custom-domain/deployment migration, load certification and full restrictive script-src CSP. The final whole-product multi-agent acceptance in design section 24 is a later independently authorized task, not this slice's implementation/browser matrix.
 
-**Required user flows:** Anonymous list -> brand -> actual detail -> official/source entry -> compare -> detail; old device URL -> canonical detail in one redirect; wrong brand -> database-resolved brand; unknown/unpublished -> indistinguishable 404/noindex; read failure -> 503/retry; metadata-only published item -> useful honest page; missing image -> no-image state; public quick search -> grouped results/full search -> matching entity destinations; mobile menu/search/source/compare reachable by touch and keyboard.
+**Explicit exclusions:** `PRODUCT_DETAIL_V2_REDESIGN=false`; `NEW_DEVICE_DATA_RESEARCH=false`. Use existing repository data only: no Internet specification collection, new device expansion, invented specs, Compare v2 scoring, Auth/locale redesign or deployment architecture change. This slice restores and hardens the truthful canonical detail experience, not the later Product Detail v2 program.
+
+**Required user flows:** Anonymous list -> brand -> actual detail -> official/source entry -> compare -> detail; old device URL -> canonical detail in one redirect; wrong recognized brand -> database-resolved brand; unknown brand/device and unpublished -> truthful 404/noindex without private identity exposure; read failure -> 503/retry; metadata-only published item -> useful honest page; missing image -> no-image state; public quick search -> grouped results/full search -> matching entity destinations; mobile menu/search/source/compare reachable by touch and keyboard.
 
 **Security properties:** Public readers use anonymous/actor-scoped unprivileged clients and database publication/state authorization; allowlisted columns only; internal notes/raw values/updater/auth IDs/audit data excluded; catalog values are text, not HTML; script JSON and JSON-LD are safely serialized; HTTPS external links without credentials; validated same-origin identity paths; no fetching source URLs during SSR; safe errors; preserved framing/referrer/permissions protections and locale no-store behavior.
 
 **Responsive surfaces:** Shared header on community and Starlight shells; product index/brand/detail; compare table and quick-search popup; overview/media/specs/evidence/actions; empty/not-found/error/partial states. Desktop 1280, mobile 430 and 390, both existing locales, Dark-only.
 
 **Required acceptance gates (verbatim identifiers):** `PRODUCT_DETAIL`, `PRODUCT_ROUTE_CANONICAL`, `PRODUCT_SCHEMA_RENDERING`, `PRODUCT_SOURCE_EVIDENCE`, `COMPARE_ENTRY`, `SEARCH_CONSISTENCY`, `MOBILE_NAV_390`, `MOBILE_NAV_430`, `XSS_CATALOG_PATH`, `SECURITY_HEADERS`. Each requires fresh evidence, not this inventory. Source evidence means correct attribution when present and honest absence when absent. Release requires zero confirmed unresolved P0/P1; P2 needs explicit disposition, owner and human acceptance. No large-scale readiness declaration from this slice alone.
+
+**Primary task barrier:** Tasks 1-6 establish `PRODUCT_DETAIL_CORE_ACCEPTANCE=PASS` before Tasks 7-13 begin. That gate is necessary but not sufficient for whole Slice C/release PASS; every retained secondary gate still blocks release when unmet. Minimum unprivileged data authorization, native escaped text, no raw-error disclosure and truthful absence are part of the core, not deferred until security closure.
 
 **Dependencies on A:** Preserve browser-session transport, actor-bound mutation guards, password/CAPTCHA token paths, required Production CAPTCHA mode, resend 5/24h server limit and 60-second initial/resend UX cooldown, enumeration resistance and all PR #7 runtime-consent removal. No new Auth requests/emails are necessary for detail acceptance.
 
@@ -102,7 +107,7 @@ No screenshots or runtime layout PASS claimed. Source CSS has existing resilient
 | --- | --- | --- |
 | Nullable fields | `public-device-data.ts:9-10,76-89` filters text/list values, but descriptions/identity assume typed row; non-string specs vanish | Validate public row/identity; metadata-only page; nullable fields absent or honest unavailable, never invented defaults |
 | Unknown specs / unsupported values | `specGroups` accepts nonempty strings only; booleans/numbers/json dropped; comparison uses TBD | Typed KNOWN including false/0; NOT_DISCLOSED, NOT_APPLICABLE, explicit CONFLICT; synthetic unknown for absent public claim; do not return internal UNKNOWN_UNVERIFIED rows |
-| Definition order/context | Legacy object iteration/raw group labels and fixed UI path mapping | Active applicable definitions, dictionary labels, stable ordering, correct units/measurement context/region/variant; unknown definition safely omitted with safe availability state |
+| Definition order/context | Legacy object iteration/raw group labels and fixed UI path mapping | Active applicable definitions, dictionary labels, stable ordering, correct units/measurement context/region/variant; unsupported eligible known source field remains labeled legacy or blocks mapping, never silently omitted |
 | Source attribution | Mapper exposes links but no publisher/type/date/field evidence; private source ledger is not runtime | Allowlisted linked public sources/evidence; preserve null title/date; distinguish secondary from official using source_type, never hostname inference |
 | External/invalid URLs | Nonempty strings copied to official/buy/image properties | Link scheme/credentials validation; omit invalid target with localized unavailable state; never display a forged official fallback |
 | Media absence | Mapper knows image URL/confirmation flag; current visual cannot render image | Approved safe actual image, bounded dimensions/alt; no-image and broken-image fallback; no arbitrary SVG/data/remote unapproved fetch |
@@ -110,6 +115,55 @@ No screenshots or runtime layout PASS claimed. Source CSS has existing resilient
 | Long/unsupported values | Unbounded strings retained; key_specs coerces via String; legacy object values skipped | Contract bounds and safe text/structured presentation, no [object Object] or serialized research blob; do not truncate facts silently |
 | Stale/unknown dates | Legacy select excludes last_verified_at; no source freshness display | Present known accessed/verified dates, unavailable when absent; no invented expiry threshold, confidence, verified date or freshness badge |
 | Empty structured tables vs failure | No structured query today | Successful zero rows gives useful metadata plus labeled legacy/unverified/unknown; unavailable projection/query is 503, not false zero rows/404 |
+
+### 6.1. Required Data Survival Forensic and Parameter Matrix
+
+Task 1 must inventory the COMPLETE existing expected published cohort and all eligible visible source parameters, not a sample. The canonical runtime data source remains `public.devices` and the existing Schema v1 public-safe architecture; no remote query is authorized here. Existing repository parameter authority is the approved YAML and its reviewed identity/definition/source/conflict maps; legacy manifests/fullSpecs/keySpecs/static catalog/MDX are inventory and traceability layers, not automatically equally authoritative facts. Respect `BOOTSTRAP_SPEC_VALUES_AUTHORITATIVE=false` and `LEGACY_COMPAT_SPEC_SOURCE=YAML_DERIVED`; do not resurrect old bootstrap parameters over approved input.
+
+At execution, record:
+
+```text
+CANONICAL_DEVICE_DATA_SOURCE=<runtime reader/table and repository authority paths/hashes>
+LEGACY_PARAMETER_DATA_SOURCES=<exact found paths and their authority/compatibility role>
+PUBLISHED_DEVICE_COUNT=<derived count with LOCAL_REPOSITORY_COHORT evidence scope>
+DEVICE_IDENTITIES=<generated sorted brand/slug/canonical identity list>
+EXISTING_DEVICE_DATA_PRESENT=true|false
+EXISTING_PARAMETER_DATA_PRESENT=true|false
+```
+
+Do not hardcode N or substitute today's local manifest count for the authoritative published cohort. `product-public-data.json` has no publication-status field; the bootstrap script's initial `publication_status=published` default is not proof of current runtime publication and preserves existing statuses when updating. Derive local fixtures from an explicitly reviewed repository publication snapshot/contract and record its provenance. If repository evidence cannot establish membership, emit UNKNOWN and STOP the affected core gate for human review, without querying Production, executing an importer or labeling all source/document records published. Production published count/state remains UNKNOWN until a separately authorized later release read-only check.
+
+For every included identity enumerate brand, slug, immutable canonical identity, structured fields, legacy/full_specs/key-spec fields and existing source/evidence fields. Preserve exact source pointers, types, units, contexts, region/variant and existing state metadata. The expected-value oracle reads authoritative source leaves independently of the new reader/model/renderer; the same lossy parser/compatibility output cannot generate both expected and actual. Capture normalizer/compatibility omissions explicitly, including non-KNOWN state omissions. No hand-duplicated parameter values in tracked test fixtures. Generated fixture determinism uses pinned SHA, input hashes and stable ordering; known data cannot disappear through a shortened test list.
+
+The generated parameter-survival ledger has these columns:
+
+| SOURCE_FIELD | PARSER/VIEW_FIELD | UI_GROUP | RENDER_STATE | Additional proof |
+| --- | --- | --- | --- | --- |
+| Exact source file/hash/identity/pointer | Existing parser destination -> allowlisted detail field | Definition-derived group or explicitly labeled legacy group | KNOWN / UNKNOWN / ABSENT / LEGACY_UNVERIFIED / STRUCTURED_VERIFIED | Source value/type/unit/context, evidence pointer if present, SSR/DOM field identity, equivalence rule and exclusion rationale where legally private |
+
+State semantics: KNOWN is a concrete source claim, including false/0; UNKNOWN is explicit lack of verified public knowledge; ABSENT means no eligible public source field/row exists. LEGACY_UNVERIFIED is an existing public legacy value without a matching verified structured claim; STRUCTURED_VERIFIED is an existing allowed structured claim supported by the approved data contract, not a new research/verification event. Source availability and output provenance are separate columns: a KNOWN source may render LEGACY_UNVERIFIED, never silently become UNKNOWN/ABSENT. Preserve Schema v1 NOT_DISCLOSED/NOT_APPLICABLE/CONFLICT semantics as separate state metadata; these five survival labels do not replace the underlying enum. Internal UNKNOWN_UNVERIFIED research rows/notes stay inaccessible.
+
+Require `KNOWN_SOURCE_VALUE_DROPPED_COUNT=0`. Missing structured rows do not remove known published legacy values: show them with explicit legacy/unverified attribution, no fabricated confidence/source. Structured precedence is per field plus measurement context/region/variant, not whole-product suppression of legacy data. Retain otherwise distinct source/context values and public conflicts visibly, with no invented winner. Any normalization of units/format needs an explicit lossless equivalence rule; do not test with forgiving substring matches, coerce objects to strings, truncate factual values or hide unmatched known fields.
+
+Only explicit private/internal fields may be excluded from public rendering, with reviewed classification and deny tests. A newly unsupported eligible field is a mapping blocker, not permission to retroactively shrink the oracle. If supplied dataset/identity/source layer cannot be found, STOP at Task 1 and report exact missing repository layer; no recollection, dataset fabrication or catalog expansion. If data exists but a parser/reader/UI drops it, preserve that RED and fix that layer, not the source values.
+
+### 6.2. All-Device Primary Acceptance
+
+Generate every expected identity and field from Task 1 current pinned repository authority, load only owned disposable local fixtures, and check actual canonical SSR plus rendered browser DOM for EVERY expected device. No sampled routes stand in for this pass.
+
+```text
+EXPECTED_PUBLISHED_DEVICE_COUNT=N
+DETAIL_ROUTE_200_COUNT=N
+DETAIL_ROUTE_404_FOR_EXPECTED_COUNT=0
+DETAIL_ROUTE_5XX_COUNT=0
+DEVICE_IDENTITY_MISMATCH_COUNT=0
+KNOWN_PARAMETER_VALUE_DROPPED_COUNT=0
+FABRICATED_PARAMETER_VALUE_COUNT=0
+```
+
+`PRODUCT_DETAIL_CORE_ACCEPTANCE=PASS` only if N is evidence-derived and nonzero, every expected published identity has a real canonical route/200, requested and source brand/slug match, every eligible known parameter survives source/parser/view/SSR/DOM, absent data is honest, and no private/internal data is reachable. Validate direct Data API/privacy evidence separately; UI omission alone is not authorization proof. All cohort/field/source hashes and actual observed counters must agree. Missing data/proof, unexplained filtered identity or failed route -> FAIL/BLOCKED, never vacuous PASS, count-only success or manually deleted expectation.
+
+Task 6 uses one sequential desktop Chromium context for the full N-device sweep. Secondary 390/430/1280 locale/UX/security checks are a separate small matrix, not N multiplied by every viewport/engine. Any later reader/route/mapper/source change invalidates affected core evidence and requires focused all-device reproof before final release; source stability is not permission to copy historical PASS as fresh execution. Whole Slice C cannot close on core PASS alone.
 
 ## 7. Security Findings and Gap Ledger
 
@@ -121,7 +175,7 @@ Severity refers to source-demonstrated exposure or missing required behavior, no
 | C02 | PRODUCT_BUG / P2 | Product index:52, brand:112, `forum-search.ts:486`, `devices/[slug].astro:15`, sitemap:99 emit anchors/brand destinations | Legacy test explicitly requires old anchor | One validated identity helper; update exact legacy assertions with RED preserved; direct 301 and metadata/sitemap agreement |
 | C03 | UX_GAP / P2 | Brand:140 and legacy:10 have uncaught read errors; brand's empty element starts hidden | Mapper tests only generic exception/filter emptiness | Localized route-owned empty/unavailable/not-found states; no raw errors |
 | C04 | UX_GAP / P2 | `ProductVisual.astro:2-38` has no actual-image prop/render | Asset audit checks historic manifests, not detail DOM | Detail media with approved safe image or honest absence/breakage |
-| C05 | DATA_CONTRACT_GAP / P2 | `public-device-data.ts:12-20,71-89` legacy strings only; states/context not modeled | Legacy mapping/unit tests | Typed allowlisted detail model, legacy clearly unverified, conflict preserved |
+| C05 | DATA_CONTRACT_GAP / P2 | `public-device-data.ts:12-20,71-89` legacy strings only; states/context and complete source-to-render survival not modeled | Legacy mapping/unit tests, no complete independent oracle | Task 1 survival forensic and Task 4 zero-drop mapping; typed allowlisted model, legacy clearly unverified, conflicts preserved |
 | C06 | DATA_CONTRACT_GAP / P2 | Same mapper lacks normalized sources/evidence/dates | Schema sources/provenance scripts cover importer, not public detail | Public attribution and honest absence, no source fabrication |
 | C07 | SECURITY_GAP / P1 (conditional) | Product index:197 and brand:282 JSON.stringify -> set:html; closing-script catalog text exits data script | Locale test injects search query only, not catalog JSON | Shared script-safe serializer and hostile-catalog SSR/browser tests |
 | C08 | SECURITY_GAP / P1 (conditional) | Product index:296-312 and brand:446-462 interpolate names/brands/specs into innerHTML | Compare positive tests only | DOM creation/textContent for dynamic content; literal markup stays literal |
@@ -137,6 +191,8 @@ Severity refers to source-demonstrated exposure or missing required behavior, no
 | C18 | DOC_GAP / P3 | Older schema design permits definer; docs/README and legacy tests describe anchor-only surface | Planning/spec history | Record current authority and reviewed new route/read/rollback contracts; do not rewrite history |
 
 Counts (one primary class per ID): PRODUCT_BUG=3, UX_GAP=2, RESPONSIVE_GAP=2, ACCESSIBILITY_GAP=1, DATA_CONTRACT_GAP=3, SECURITY_GAP=4, TEST_GAP=2, DOC_GAP=1; total=18. Receipt UI_UX_GAPS_COUNT=5 combines PRODUCT_BUG and UX_GAP, not additional findings.
+
+Priority correction: C01/C02/C05 plus C15/C17 public-read proof and C16 all-device completeness belong to the primary core gate. Existing data being truly lost is not yet proven; Task 1 distinguishes absence from parser/reader/component/routing disconnection. This priority change does not waive the later C07/C08 P1 release blockers or other required secondary gates.
 
 **SECURITY_FINDINGS_BLOCKING:** C07/C08 source-confirmed conditional XSS sinks; C09/C10 also required security gate closure. C17/C15 form a blocking implementation feasibility/authorization-proof gate, not a claim of existing private-data leakage. All remaining required product gates must close before release; severity alone does not waive them.
 
@@ -168,141 +224,145 @@ No tests/build/browser/DB replay ran during this planning task. Only source/meta
 - New execution authorization must pin HEAD/base/worktree and approved plan commit. Fetch main and stop on identity drift; no automatic rebase/merge. Discover installed tool commands from their current help; no global installs or inherited provider authorization.
 - Before SQL/browser data work, verify reachable Linux Docker and repository-pinned local Supabase tooling, owned disposable root, genuine local Auth A/B and anon. Reuse `scripts/qa/local-disposable-supabase-replay.mjs`, its canonical baseline plus additive migrations mechanism and `sanitizedChildEnvironment`; inspect current exports before use.
 - Construct child environments by positive allowlist, omit Production/provider variables rather than forward or blank them. Deny non-loopback execution targets and all unapproved outbound requests at browser, Worker and fixture-service boundaries. Local test bootstrap keys/passwords stay local and value-blind. Never load root .env as a shortcut or borrow Production bindings.
-- Target public read mechanism: narrowly projected `security_invoker=true` views (Postgres version permitting) or fixed-contract SECURITY INVOKER RPC, never definer/service-role. Exact object names/signatures and migration filename are generated/confirmed during Task 2 after CLI help/version discovery; no deployable SQL is authored by this plan.
+- Target public read mechanism: narrowly projected `security_invoker=true` views (Postgres version permitting) or fixed-contract SECURITY INVOKER RPC, never definer/service-role. Exact object names/signatures and migration filename are generated/confirmed during Task 3 after CLI help/version discovery; no deployable SQL is authored by this plan.
 - Important feasibility constraint: foundation grants table-level SELECT to `authenticated` for catalog-admin policies. Adding public SELECT RLS without first replacing broad client-role table grants with reviewed column grants would expose internal columns to ordinary authenticated actors. A projection alone is insufficient. Preserve catalog-admin mutation/authorization policies; test intended existing admin operations as well as public deny paths. Do not preserve a broad table SELECT merely for convenience, or silently break admin reads to make public tests pass.
 - Filtering/join columns also require narrowly justified grants and RLS. Device/source/evidence linkage may be public only for published devices and allowed public states; inactive definitions, drafts, unrelated sources, internal UNKNOWN_UNVERIFIED and audit rows remain inaccessible. Test direct base-table columns and wildcard SELECT as well as the projection. No public writes.
-- If invoker policies/grants cannot express that boundary while preserving existing admin contracts, STOP for a design amendment. Do not use a definer, mirror database, blanket SELECT grant, or privileged server proxy. C17 must be GREEN before runtime detail work proceeds.
+- If invoker policies/grants cannot express that boundary while preserving existing admin contracts, STOP for a design amendment. Do not use a definer, mirror database, blanket SELECT grant, or privileged server proxy. C17 must be GREEN before Task 2's runtime detail integration can be accepted; route RED/contract comes first, not an unsafe success placeholder.
 - Successful empty structured results are allowed. A missing projection/grant/database connection is not empty data and must fail with a safe unavailable/503 state. A Production prerequisite discrepancy blocks later release until separately approved forward migration/read-only verification; no Production fallback here.
 
 ## 10. Ordered Implementation Tasks
 
-For future authorized execution only. Every task uses RED -> minimum implementation -> focused GREEN -> relevant regression -> explicit commit. Save real assertion/exit receipts. Do not label a missing import/module as a behavioral RED. New feature absence can be demonstrated through current real route/data behavior; scaffold-only failures are separately classified. No automatic retries, timeout inflation or rewritten historic failures. Stop at the first distinct blocker; resume only with scoped authorization. No repeated full release suite after each edit.
+For future authorized execution only. PRIMARY BLOCKING SEQUENCE: data survival RED -> canonical route RED -> public reader -> parameter mapping -> link migration -> all-device detail acceptance. Only then begin secondary UX/mobile/search/security closure and final release. Every task records RED -> minimum implementation -> focused GREEN -> relevant regression -> explicit commit. Save actual assertion/exit receipts, not missing-import failures labeled behavioral RED. No automatic retries, timeout inflation, repeated broad gates after tiny changes or rewritten historical results.
 
-### Task 1: Contract Fixtures and Identity / URL / Serialization Foundations
+Task 2 opens canonical-route RED before its reader exists. Its integration GREEN and product-route commit are deferred until Tasks 3/4 provide the real reader and full parameter mapping. This is a dependency barrier, not permission for a fake known-product 200, client-only modal or broken product commit. Task 3 may commit independently passing read-boundary changes; Task 4 closes Tasks 2/4 together before Task 5. No secondary task starts while Tasks 1-6 or PRODUCT_DETAIL_CORE_ACCEPTANCE are incomplete.
 
-- [ ] Goal: lock C01/C02/C05-C09 contracts before wiring UI, with pure narrow helpers.
-- [ ] Files: new `src/lib/product-route.ts`, `src/lib/product-public-safety.ts`, `scripts/test-product-detail-contract.mjs`, `tests/fixtures/product-detail-v1.json`; existing `scripts/test-public-device-data.mjs` for safe mapper fixtures.
-- [ ] RED: against current mapper/serialized route payload demonstrate anchor instead of detail, unsafe scheme retained, false/0 lost and closing-script bytes unescaped. Route identity cases include malformed/overlong slug, encoded slash/dot/path delimiter and wrong-brand inputs. Preserve exact observed RED; new helper absence is scaffolding, not defect proof.
-- [ ] Minimum implementation: validated immutable identity -> encoded trailing-slash local path; HTTPS non-credentialed URL validation; script JSON escaping `<`, `>`, `&`, U+2028/U+2029. Use structured URL APIs. Local approved image paths may be separate from external HTTPS rules; reject traversal/protocol-relative/data/script/blob/credentialed targets, signed/private media parameters and unreviewed media origins. Finite media allowlist derived from approved existing asset metadata, not arbitrary HTTPS permission.
-- [ ] GREEN: unit fixtures for source URLs, route invariants and serializer round trip; mapper baseline defects remain owned by later tasks, not marked fixed by helper tests.
-- [ ] Regression: existing mapper/model/source validation pure tests; no runtime admin/importer changes. Commit boundary: contract fixtures and tested pure helpers only.
+### Task 1: Existing Data Survival Forensic and Generated Inventory (First Hard Gate)
 
-### Task 2: Genuine Local Public Schema Read Authorization (Hard Gate)
+- [ ] Goal: establish whether the user's supplied device identities and parameters exist and where they are disconnected, before treating the problem as detail-page polish.
+- [ ] Files: new scripts/lib/product-detail-repository-inventory.mjs and scripts/test-product-detail-data-survival.mjs; existing mapper/model tests only as necessary. Generated deterministic inventory/fixture goes under an ignored owned artifact directory, with a tracked schema/assertion contract, not hand-copied values. Inspect existing YAML, identity/definition/source/conflict maps, bootstrap manifest, static catalogs and migrations without changing them.
+- [ ] RED: independently enumerate expected source fields and observe current mapper/route omissions. Detect missing dataset/identity layer, unresolved generation, parser omission, compatibilityGaps and lost known fields. Missing repository layer blocks, not permission to invent replacements.
+- [ ] Minimum implementation: use approved repository parsers and reviewed identity mapping; independently enumerate source leaves BEFORE lossy normalization/compatibility. Record each device brand/slug/canonical identity, structured/legacy/full_specs/key-spec fields, existing source/evidence, publication evidence and file/hash/pointer. Derive local published fixture membership only from a reviewed repository publication contract/snapshot, not names/counts or all static documentation. Do not execute the bootstrap importer or infer current Production publication from its initial published default.
+- [ ] GREEN: deterministic regeneration agrees for pinned source hashes. Emit CANONICAL_DEVICE_DATA_SOURCE, LEGACY_PARAMETER_DATA_SOURCES, PUBLISHED_DEVICE_COUNT with evidence scope, DEVICE_IDENTITIES, EXISTING_DEVICE_DATA_PRESENT and EXISTING_PARAMETER_DATA_PRESENT. Both presence fields must be true. Local repository cohort count is not a Production count; unavailable publication evidence remains UNKNOWN and blocks the affected gate.
+- [ ] Regression: approved source-authority/identity/model/provenance plus omission/tamper negatives; no remote reads or fixture DML yet. Commit boundary: generator/schema/tests only. Missing previously supplied parameters -> STOP, report exact source/identity/parser/compatibility/repository-publication layer and safe file/pointer/count evidence; do not recollect specs or continue route implementation.
 
-- [ ] Goal: prove C17/C15 safely with real local Data API and column/RLS boundaries before building a reader.
-- [ ] Files: CLI-generated `supabase/migrations/<generated>_public_device_detail_v1.sql`; new `scripts/test-public-device-detail-local.mjs`; minimal new local runner `scripts/lib/public-device-detail-local.mjs` reusing owned replay helpers; `scripts/test-product-detail-contract.mjs` SQL contract assertions.
-- [ ] RED: current closed normalized schema denies expected anon/A/B published typed read; separately prove baseline internal/draft reads and writes denied. Create actual disposable local Auth users A/B, not fake JWTs; seed via owned local setup only. No service-role HTTP actor for public assertions.
-- [ ] Minimum implementation: exact allowlisted invoker surface plus active-definition, publication/state/reachable-source SELECT policies and column grants; remove conflicting broad client-role SELECT grants only with preserved admin-operation proof. No import, DML repair, role-policy weakening or audit exposure.
-- [ ] GREEN: published states/spec/source/evidence visible to anon/A/B; draft/unknown/inactive/orphan/internal fields/writes denied through projection AND direct Data API. Catalog-admin mutation and approved read contracts still pass. Verify nullable title/date, conflict evidence, two device identities and variant/context separation.
-- [ ] Regression: foundation enforcement/RLS/conflict/provenance suites; sanitized environment and non-loopback sentinel tests; owned cleanup confirmed. Commit boundary: additive migration plus local proof only. If feasibility fails, stop here for design review; do not proceed with partial permission proof.
+### Task 2: Real Canonical SSR Route Contract (Next Blocking RED)
 
-### Task 3: Public Typed Detail Reader and View Model
+- [ ] Goal: C01 is a missing route, not polish: /products/{brand}/{slug}/ must become actual canonical SSR detail.
+- [ ] Files: new src/lib/product-route.ts, src/pages/products/[brand]/[slug].astro, src/components/products/ProductDetail.astro and scripts/test-product-detail-contract.mjs. Tests use Task 1 generated identities/expectations, not one manually curated representative.
+- [ ] RED: current known repository-published nested route is 404; brand anchor is not acceptable. Require known published -> 200, unknown brand/device -> truthful 404/noindex, private/unpublished never exposed, unavailable read -> safe 503. Wrong recognized brand for a published slug retains design's resolved-brand 301; unknown brand is 404, not list fallback.
+- [ ] Minimum implementation: immutable identity validation/encoded trailing-slash local path and anonymous request SSR route; integrate Task 3 real reader then Task 4 parameter renderer. No fake success placeholder/modal or unapproved static runtime database fallback. Native escaped text/basic private-public checks apply immediately; any new embedded JSON/JSON-LD needs script-safe serialization from introduction. Broad existing catalog-sink closure remains Task 10, not permission for new unsafe detail markup.
+- [ ] GREEN: integration checkpoint deferred to after Tasks 3/4: actual owned local Worker statuses, correct brand/slug, complete visible parameters and honest absence/outage. No route completion claim before this.
+- [ ] Regression: malformed/overlong/encoded delimiter identity controls, public/locale/consent boundaries. Commit boundary: test scaffolding only if it leaves no knowingly broken product tree; route implementation commits atomically with Task 4 after GREEN. Task 2 is incomplete until real integration passes.
 
-- [ ] Goal: C05/C06 complete without inventing data or exposing admin fields.
-- [ ] Files: new `src/lib/public-product-detail.ts`; existing `src/lib/public-device-data.ts` only for shared validated metadata; `scripts/test-product-detail-contract.mjs`, `test-public-device-data.mjs`; fixture updates.
-- [ ] RED: current string mapper loses false/0/context/source metadata, presents legacy without state, and cannot distinguish structured failure from absence.
-- [ ] Minimum implementation: read Task 2 unprivileged projection; discriminated result (published/not-found/unavailable); explicit field allowlist, typed states and definition order/applicability; preserve contexts/variants, conflict claims and dates; legacy values explicitly unverified, structured takes precedence. Do not invent a verified claim when structured data is absent.
-- [ ] GREEN: KNOWN number/boolean/text/json, missing definitions/values, empty structured tables, legacy-only product, malformed returned shape, nullable metadata and safe errors. Unknown JSON keys are not spread into public objects. Strings are text; no raw HTML/Markdown renderer.
-- [ ] Regression: Task 2 public allow/deny and existing legacy mapper/unit/source suites. Commit boundary: reader/model and focused tests, no route yet.
+### Task 3: Public-Safe Reader and Genuine Local Authorization
 
-### Task 4: Canonical SSR Detail and Legacy Alias Correctness
+- [ ] Goal: C17/C15/C05 public ProductDetailView reads only published detail data without private/privileged shortcuts.
+- [ ] Files: new src/lib/public-product-detail.ts, scripts/test-public-device-detail-local.mjs and scripts/lib/public-device-detail-local.mjs; narrow src/lib/public-device-data.ts metadata validation; CLI-generated supabase/migrations/<generated>_public_device_detail_v1.sql if additive invoker read authorization is needed. This plan executes no SQL.
+- [ ] RED: closed normalized schema rejects expected typed public read; legacy reader lacks public typed fields. Independently prove unpublished/internal/writes denied, not hidden merely by UI.
+- [ ] Minimum implementation: owned disposable local Supabase, genuine local Auth A/B and anon, positive-allowlisted child env and Task 1 source-derived fixtures. Allowlisted SECURITY INVOKER projection, publication/active-definition/public-state/reachable-source RLS and justified column grants; no definer/service-role reader. Broad authenticated table SELECT must not expose internals when public policies are added; preserve admin authorization/read/mutation contracts or STOP for design amendment.
+- [ ] GREEN: public projection AND direct Data API allow published metadata/spec/source/evidence; deny drafts, internal UNKNOWN_UNVERIFIED/raw_value/notes/updater/auth IDs/audit/credentials/unrelated sources and public writes. Reader discriminates published/not-found/unavailable; zero structured rows are not failure and unavailable projection is not empty. No privileged HTTP actor substitutes for public proof.
+- [ ] Regression: foundation RLS/enforcement/conflicts/sources, target/env isolation, false/0/context representability and owned cleanup. Commit boundary: independently GREEN reader/read-boundary/local proof. Docker loss, non-loopback target, missing dataset or infeasible grants -> STOP; no Production fallback/import.
 
-- [ ] Goal: C01/C03/C04, canonical identity, overview/spec/evidence/community flow.
-- [ ] Files: new `src/pages/products/[brand]/[slug].astro`, `src/components/products/ProductDetail.astro`, `ProductDetailMedia.astro`; existing `src/pages/devices/[slug].astro`; `src/lib/i18n/messages/catalog.ts` plus catalog types only as needed; `scripts/test-device-library.mjs`, detail tests.
-- [ ] RED: local current canonical path 404; legacy resolves to brand fragment; reader failure lacks controlled 503/body. Historical anchor expectation is recorded, not silently rewritten as previous PASS for new semantics.
-- [ ] Minimum implementation: safe published SSR reader; wrong-brand 301 using resolved row; unknown/unpublished same 404/noindex and useful return links; unavailable 503/retry without raw provider errors. First viewport shows real brand/model/category/status/summary and approved image or no-image. Group specs/evidence below; native source/compare actions; known device-circle link only when supported, otherwise full-search link. No fabricated community/thread/recommendation data.
-- [ ] GREEN: actual local HTTP 200/301/404/503, one-hop device alias, metadata-only useful page, source absence/presence, unsafe media rejected, broken-image fallback, anonymous rendering and both locales/no-store. Same-origin identity validation and no query-reflected redirects.
-- [ ] Regression: device-library/public mapper/locale catalog tests, existing auth callback and runtime-consent regression subset without Production Auth. Commit boundary: one canonical surface and legacy alias, no competing device UI.
+### Task 4: Parameter Survival Matrix and Truthful Rendering
 
-### Task 5: Close Catalog JSON and DOM Injection Paths
+- [ ] Goal: SOURCE_FIELD -> PARSER/VIEW_FIELD -> UI_GROUP -> RENDER_STATE covers every eligible existing visible value; lack of a structured row must not discard known legacy parameters.
+- [ ] Files: inventory generator/tests; src/lib/public-product-detail.ts, src/components/products/ProductDetail.astro, src/pages/products/[brand]/[slug].astro; src/lib/i18n/messages/catalog.ts only necessary detail labels; scripts/test-public-device-data.mjs. Mapping matrix is generated, not a manually copied catalog.
+- [ ] RED: compare independent source leaves against current parser/model/UI; detect lost non-string/legacy values/structured absence without deleting them from expected inventory. Normalizer output alone cannot be the oracle because it can itself omit values.
+- [ ] Minimum implementation: explicit ledger with pointer/type/unit/context/identity and rendered destination; KNOWN, UNKNOWN, ABSENT, LEGACY_UNVERIFIED, STRUCTURED_VERIFIED per section 6.1. Structured public verified data takes precedence but legacy source values remain visible and labeled when not structurally represented. Preserve conflicts/variants, no fabricated source/confidence/winner/default or private JSON spread. Unmapped eligible known field fails rather than quietly becoming excluded.
+- [ ] GREEN: KNOWN_SOURCE_VALUE_DROPPED_COUNT=0 across generated cohort; values/false/0/units/contexts survive actual model/SSR/browser. Use exact field/value sets and source-defined equivalence, not loose substring checks. No fabricated value or silent truncation. Close Task 2 route GREEN here.
+- [ ] Regression: Task 3 direct API/public/privacy and legacy unit/context/source/identity tests. Commit boundary: real route + parameter renderer + mapping proof atomically GREEN before links or broad UX/mobile.
 
-- [ ] Goal: C07/C08 against the actual catalog SSR and comparison code.
-- [ ] Files: `src/pages/products/index.astro`, `[brand].astro`, detail JSON/JSON-LD sink if present; Task 1 helper; `scripts/test-product-page.mjs`; new `scripts/test-product-detail-security.mjs` (pure and actual local DOM cases).
-- [ ] RED: local hostile published fixture containing `</script>`, quotes, markup/event handlers and separators causes current unsafe node creation/script breakout. Observe safe sentinel side effect only in disposable local fixture; never persist attack strings to Production.
-- [ ] Minimum implementation: use shared safe serialization; construct compare cells/headings via createElement/textContent, no dynamic data interpolation into innerHTML. Static icon markup/clearing are not confused with hostile dynamic sinks. No sanitizer/rich-text dependency.
-- [ ] GREEN: literal text visible, JSON round trips, no injected DOM/scripts/event side effect; malicious query/catalog/source title remains text through detail/search/compare/metadata. No private fixture markers in HTML/data scripts.
-- [ ] Regression: max-three/add/remove/clear/search positives on index and brand, both locales. Commit boundary: injection closure with security fixtures.
+### Task 5: Repair Product Identity Links After Real Detail Exists
 
-### Task 6: Canonical Links, Compare Entry and Metadata / Sitemap Agreement
+- [ ] Goal: C02 canonical card/brand/search/compare/legacy identity actions only after Tasks 2-4 pass.
+- [ ] Files: src/pages/products/index.astro, [brand].astro, src/lib/forum-search.ts, src/pages/devices/[slug].astro, src/pages/sitemap.xml.ts; existing product/device/data/SEO tests. ProductCard.astro only if an active caller needs repair.
+- [ ] RED: existing consumers and legacy assertion still require brand anchors; preserve historical evidence then assert canonical /products/{brand}/{slug}/ for every published identity action.
+- [ ] Minimum implementation: Task 2 helper everywhere, direct legacy 301, existing compare<=3 selection handoff/backlinks, canonical/OG/JSON-LD/sitemap agreement. Keep old brand hash IDs/bookmarks but no identity action self-targets its brand anchor. No server fragment-redirect promise, selection persistence redesign or Compare v2 ranking.
+- [ ] GREEN: generated published identities have correct card/search/compare/alias destinations, no remaining anchor identity action, no drafts/static-only catalog aliases; actual detail-to-compare and back works.
+- [ ] Regression: current compare add/remove/clear/limit, search filters/SEO and editorial-doc preservation; transparent old destination assertion revision. Commit boundary: canonical links only, no quick-search scope overhaul yet.
 
-- [ ] Goal: C02 while preserving brand hashes and existing selection semantics.
-- [ ] Files: product index/brand, `src/lib/forum-search.ts`, `src/pages/sitemap.xml.ts`, detail route; `src/layouts/CommunityLayout.astro` only if optional safe JSON-LD support cannot stay page-owned; `scripts/test-product-page.mjs`, `test-public-device-data.mjs`, `verify-seo.cjs`.
-- [ ] RED: current card/search/compare destinations disagree with canonical detail; sitemap emits repeated brand entries for document devices and lacks all published detail entries.
-- [ ] Minimum implementation: all published identity consumers use Task 1 helper; compare has links back to detail and detail enters current <=3 selection. Preserve existing selection lifecycle; first inspect page-local selection before choosing a URL handoff, do not invent cross-page persistence. Keep `#product-{slug}` card IDs; fragment bookmarks remain card navigation, never claim a server fragment redirect. Sitemap iterates published identities, excludes drafts and deduplicates entries; canonical/OG/JSON-LD URLs agree and factual metadata stays minimal/known.
-- [ ] GREEN: local DOM/API/sitemap identity URL sets agree for published fixtures; correct brand repair, no draft/static-document-only catalog entry; brand hashes still locate cards; detail-to-compare navigation actually selects correct product and return link works.
-- [ ] Regression: existing values-only compare, route/search/SEO and source-safe serialization. Preserve archival reference articles as editorial docs; no forced redirect of unpublished documentation to a public device identity. Commit boundary: canonical consumer integration and reviewed old-test changes.
+### Task 6: All-Device Core Detail Acceptance (Secondary Work Barrier)
 
-### Task 7: Explicit Mobile Navigation and Accessible Header Order
+- [ ] Goal: every expected repository-published device passes PRODUCT_DETAIL_CORE_ACCEPTANCE, not only a representative sample.
+- [ ] Files: new scripts/test-product-detail-all-devices.mjs and minimal scripts/lib/product-detail-browser-harness.mjs reused later; generated inventory/mapping schema; narrow scripts/lib/slice-c-acceptance.mjs and scripts/test-slice-c-acceptance.mjs if existing receipt machinery cannot express core gates.
+- [ ] RED: current missing nested routes and synthetic omitted-field/swapped-identity/fabricated-value controls are detected. Missing publication/dataset layer remains Task 1 blocker, not an empty PASS. Synthetic detector controls never hand-copy actual parameter values.
+- [ ] Minimum implementation: Task 1 independently derived cohort/field oracle with pinned hashes; source-derived owned local seed, no remote import. Sequentially visit EVERY canonical detail through actual built local Worker and one anonymous Chromium desktop context; inspect actual SSR and DOM fields, including legacy-only/empty structured. N is derived at execution from reviewed repository publication evidence, never hardcoded/sample-count inferred. Core minimum escaping/public privacy/error truth applies now; broad security/mobile closure comes later.
+- [ ] GREEN: EXPECTED_PUBLISHED_DEVICE_COUNT=N, DETAIL_ROUTE_200_COUNT=N, DETAIL_ROUTE_404_FOR_EXPECTED_COUNT=0, DETAIL_ROUTE_5XX_COUNT=0, DEVICE_IDENTITY_MISMATCH_COUNT=0, KNOWN_PARAMETER_VALUE_DROPPED_COUNT=0, FABRICATED_PARAMETER_VALUE_COUNT=0. Honest missing data/internal-field absence and Task 3 genuine privacy proof match the same fixture/source contract. N=0 fails. PRODUCT_DETAIL_CORE_ACCEPTANCE=PASS only with all evidence complete.
+- [ ] Regression: omitted-device/source/mapping tamper negatives, aliases/canonical link sets, private/unpublished controls, no-store/locale baseline and owned process/port/container cleanup. Commit boundary: all-device tests/core evidence gate. STOP on first distinct failed device/layer, no broad secondary work or copied PASS. Later route/reader/mapping/source changes invalidate affected core evidence and require focused core reproof.
 
-- [ ] Goal: C11/C13, mobile destinations discoverable without hidden horizontal navigation.
-- [ ] Files: `src/components/site/SiteHeader.astro`, `src/lib/site-navigation.ts`, `src/lib/i18n/messages/shell.ts`; relevant existing shell/source tests and new focused browser test file.
-- [ ] RED: actual 390/430 Menu inaccessible/hidden, all required destinations not revealed; Escape/focus restoration and 44px target checks fail current contract.
-- [ ] Minimum implementation: existing header menu control becomes visible on narrow widths and controls bounded vertical navigation below header; native links to Home/feed/Circles/News/Products and supported public resources; Gaze remains flag-gated. Preserve desktop navigation, brand signal, Notifications -> Settings -> Account order, anonymous Auth access and B Settings confirmation. Search separate stable row/surface, no overlapping icon controls; Escape closes/restores focus, hidden links not focusable.
-- [ ] GREEN: both mobile widths and locales, open/tab/select/Escape/focus restore/outside dismiss as designed; accessible expanded/control relationships and >=44px hit boxes. No new Auth/session/notification logic.
-- [ ] Regression: desktop and Starlight shared header/locale/Gaze visibility/runtime-consent checks. Commit boundary: menu/header presentation and focused tests only.
+### Task 7: Source / Evidence and Detail-State UX Closure (After Core PASS)
 
-### Task 8: Global Quick / Full Search Consistency
+- [ ] Goal: C03/C04/C06 presentation after data survival, not a substitute for restored detail.
+- [ ] Files: detail/reader components, new src/components/products/ProductDetailMedia.astro, catalog messages and focused source/media/state tests. Task 1 existing sources remain authoritative, no Internet spec research.
+- [ ] RED: present source metadata lacks correct attribution/dates/field relationship; no-source/media/fault presentation deficient even though core statuses and values are truthful.
+- [ ] Minimum implementation: existing public evidence/source_type/dates/claims with honest absence; useful retry/back states; approved real media or no-image/breakage, bounded dimensions/alt; known circle link or full search, no invented thread. Native escaped text and no unvalidated active link/media from day one; adversarial closure is Task 10.
+- [ ] GREEN: null title/date, secondary/official source distinction, conflicts, metadata-only/empty/unavailable/no-image/broken-image and both locales; no fabricated confidence/freshness/citations or translated factual data.
+- [ ] Regression: affected all-device survival/mapping/privacy; no core regression. Commit boundary: source/state/media presentation only.
 
-- [ ] Goal: C14, not a new search engine.
-- [ ] Files: `src/components/community/GlobalSearchBox.tsx`, `src/lib/search-types.ts` only if response typing needs reuse; `src/lib/i18n/messages/shell.ts`; existing `scripts/test-search.mjs`, `test-locale-catalog-search-news.mjs`; new focused preview state tests in security/browser harness.
-- [ ] RED: device/circle/user-only query shows empty quick preview despite full search hits; failed response says no results; slower older request can settle after latest intent via the second fetch path.
-- [ ] Minimum implementation: global `type=all`, bounded per-group preview limits within existing max20; grouped labels/native links; single owned fetch lifecycle/debounce/abort/stale generation; loading distinct from success-empty and unavailable with user retry/full-results. Circle-scoped quick search remains posts-only, matching its full-search destination. No news index, QA suggestions or search corpus rewrite.
-- [ ] GREEN: XREAL, RayNeo, Meta, air, glasses, actual fixture circle name, nonsense, special characters and Chinese queries; scope/existence agreement not equal counts; zero-results only after success/all groups empty; failure/abort/stale cases; canonical device links.
-- [ ] Regression: current filters/query normalization/2-80 limit/public entity visibility/no raw error or query HTML; update superseded posts-only source assertions transparently. Commit boundary: preview behavior and focused proofs, no search timeout/retry waiver change.
+### Task 8: Mobile Navigation, Responsive Layout and Accessibility (After Core PASS)
 
-### Task 9: Dynamic Security Headers Without Locale / Auth Regression
+- [ ] Goal: C11/C12/C13, no general redesign or Auth/locale changes.
+- [ ] Files: SiteHeader.astro, src/lib/site-navigation.ts, shell messages; detail/media and product index/brand CSS; ProductVisual.astro only demonstrated clipping; audit-mobile-layout and focused browser tests.
+- [ ] RED: 390/430 hidden Menu/unreachable destinations, small hit areas/focus loss, long-title/spec clipping/overflow. No broad mobile work before core PASS.
+- [ ] Minimum implementation: bounded vertical native menu/Home/feed/Circles/News/Products/resources/Gaze flag; stable search row; Notifications -> Settings -> Account and anonymous Auth access; preserve B confirmation. >=44px changed targets, focus/Escape/restoration, stacked/wrapping detail/full facts, bounded keyboard-reachable compare-only scrolling; no global overflow masking.
+- [ ] GREEN: 1280/430/390 both locales, screenshots and element/hitbox measurements, no menu/search/dialog overlap, known fields accessible, native popup semantics/headings/alt/reduced-motion.
+- [ ] Regression: affected all-device visibility, desktop/Starlight header/locale/Gaze/Settings/Auth-consent subset. Commit boundary: measured presentation/accessibility only.
 
-- [ ] Goal: C10; preserve static assets and response-specific policy.
-- [ ] Files: `src/middleware.ts`, optional narrow `src/lib/security-headers.ts`; `public/_headers`; existing security-header artifact tests; new `scripts/test-product-security-headers.mjs` local middleware/Worker response tests.
-- [ ] RED: current local dynamic 200/404/503/redirect responses lack required framing/referrer/permissions baseline despite _headers file PASS.
-- [ ] Minimum implementation: response-owned nosniff, frame-ancestors 'none', legacy DENY, strict-origin-when-cross-origin, unused camera/microphone/geolocation denied; no-referrer for callback/recovery routes. Preserve unrelated existing CSP directives without creating duplicate/weaker framing directives. Maintain cache/no-store/body/status/location and B locale context; static headers retain relevant baseline. No HSTS/account-wide TLS or full script-src policy.
-- [ ] GREEN: exact local response headers for dynamic detail/list/error/alias and static asset fixture; callback/recovery redaction rule through synthetic local route request only; preserve stronger existing directives and API no-store/errors where applicable. Deny-framing browser assertion if local harness can express it safely.
-- [ ] Regression: locale middleware/HTML route policy, security artifact tests, callback-safe-next and required-CAPTCHA source/test contracts. Commit boundary: narrowly owned response policy and tests.
+### Task 9: Global Quick / Full Search Consistency (After Core PASS)
 
-### Task 10: Detail / Compare Responsive and Accessibility Closure
+- [ ] Goal: C14 using existing search API/corpus.
+- [ ] Files: GlobalSearchBox.tsx, src/lib/search-types.ts only response type reuse, shell messages; existing search/locale tests and focused preview assertions.
+- [ ] RED: quick preview omits device/circle/user matches, failure looks empty and stale fetch settles after latest intent.
+- [ ] Minimum implementation: global type=all, bounded per-group limits/grouped native links; one owned debounce/abort/stale lifecycle, distinct loading/error/success-empty/full-results/retry. Preserve circle-scoped posts-only, Task 5 canonical hrefs; no new corpus/news index/QA strings.
+- [ ] GREEN: XREAL/RayNeo/Meta/air/glasses, actual source-derived circle name, nonsense/special/Chinese; scope/existence not count equality, canonical details, stale/failure cases.
+- [ ] Regression: normalized 2-80 query/result<=20/public visibility/generic errors, all-device identity hrefs. Commit boundary: preview only, no timeout/retry waiver or harness workaround.
 
-- [ ] Goal: C12/C13 and unresolved presentation from Tasks 4/7, no redesign.
-- [ ] Files: new detail/media components, existing product index/brand CSS, `src/components/products/ProductVisual.astro` only for a demonstrated inherited clipping issue; popup component/header only for proven interaction defect; `scripts/audit-mobile-layout.mjs`, focused browser test.
-- [ ] RED: oversized unbroken model/source titles, long specs, contexts and three-item compare fixture clip/overflow or have unreachable keyboard actions. Measure owning element, not just document width.
-- [ ] Minimum implementation: min-width:0/stacked grid and wrapping; stable media aspect ratio/fallback; bounded keyboard-focusable labeled table scroll only; readable complete facts/source labels; >=44px changed actions; native navigation popup semantics rather than unsupported listbox-option claim. Visible focus, logical headings, image alt and source link names; reduced-motion behavior preserved.
-- [ ] GREEN: 1280/430/390 measurements plus screenshots, full-title/value visibility, no viewport-wide horizontal overflow, menu/popup/Settings dialog layering and touch/keyboard control interactions. Both locales, honest error/empty/partial states; no invented data to fill layout.
-- [ ] Regression: index/brand compare and shared header/locale positives. Commit boundary: measured layout/accessibility fixes only; unexplained engine issue stops for diagnosis.
+### Task 10: External URL, Catalog XSS / JSON-LD and Rendering Security (After Core PASS)
 
-### Task 11: Focused Browser Acceptance and Locale Integration
+- [ ] Goal: C07/C08/C09 comprehensive adversarial closure; core unprivileged/escaped rendering is not delayed.
+- [ ] Files: new src/lib/product-public-safety.ts and scripts/test-product-detail-security.mjs; index/brand dynamic DOM/JSON, detail/media/optional page-owned JSON-LD and product tests. Importer source authority unchanged.
+- [ ] RED: local hostile catalog closing-script/quotes/markup/events/separators breaks JSON/innerHTML; invalid script/data/credentialed/media URLs retained. Never persist attack fixture to Production.
+- [ ] Minimum implementation: serializer escaping <,>,&,U+2028/U+2029; DOM createElement/textContent for dynamic compare, structured URL checks/HTTPS without credentials; approved existing media origins/local paths, no unreviewed/private/signed/SVG-data URL or remote SSR source fetch. JSON-LD known facts only, no rich HTML/sanitizer dependency.
+- [ ] GREEN: literal text/no injected nodes or side effects/JSON roundtrip, unsafe active href/src rejected, private sentinel absence/privileged-client denial; genuine direct API proof stays Task 3, not UI filtering.
+- [ ] Regression: all-device core exact identity/field equivalence, positive compare/search/source both locales; don't truncate/reclassify public text to dodge negative test. Commit boundary: security closure after restoration.
 
-- [ ] Goal: C16, actual small local SSR/hydration acceptance, not another broad locale program.
-- [ ] Files: new `scripts/test-product-detail-browser.mjs`, minimal `scripts/lib/product-detail-browser-harness.mjs`, Task 1 fixture; extend existing catalog locale/SEO scripts where reuse avoids duplicate suites; locale catalog keys only if required messages missing.
-- [ ] RED: negative controls prove missing detail/canonical/menu/header/unsafe-payload/overflow detection; harness boot failure is not a product RED. Require actual built Worker route execution and terminal network accounting, not a component mock labeled SSR.
-- [ ] Minimum implementation: owned same-origin loopback front door and Worker + local data fixture, reusable repository transport/cleanup utilities, explicit fixture routes/methods, no wildcard outbound provider permission. No TLS trust-store changes/global certificate bypasses. Public product browser contexts anonymous; actual Auth A/B RLS is Task 2, not this fake fixture.
-- [ ] GREEN: execute section 11 matrix once, record distinct checkpoints, actual URLs/status/screenshot ownership and all external request counters zero. Locale SSR/hydration and selected UI messages consistent; original facts not translated or manufactured.
-- [ ] Regression: existing B focused locale catalog/shell/hydration tests only; no 102-case rerun or copied B receipt. Commit boundary: focused browser acceptance harness/tests and only evidenced catalog message additions.
+### Task 11: Dynamic Worker Security Headers (After Core PASS)
 
-### Task 12: Security Negatives and Release Check Integration
+- [ ] Goal: C10 without locale/Auth/static regressions.
+- [ ] Files: src/middleware.ts, public/_headers, optional src/lib/security-headers.ts; existing artifact tests/new scripts/test-product-security-headers.mjs.
+- [ ] RED: actual local dynamic 200/301/404/503 missing baseline despite generated static _headers PASS.
+- [ ] Minimum implementation: nosniff/frame-ancestors none/DENY/referrer/unused-capability policy, callback/recovery no-referrer; preserve unrelated CSP/status/body/location/no-store/locale. No HSTS/account TLS/script-src/CAPTCHA change.
+- [ ] GREEN: actual local dynamic/static header proof and synthetic callback/recovery request only; no token-bearing Auth flow, preserve stronger policy.
+- [ ] Regression: core statuses/no-store, locale/HTML route policy, artifact/callback/runtime-consent/required-CAPTCHA subset. Commit boundary: response policy/tests.
 
-- [ ] Goal: C15 plus all section 12 assertions, release cannot mask missing negative proof.
-- [ ] Files: detail security/local tests; `package.json` minimal test aliases; `scripts/qa/manifest.mjs`, `profiles/release.mjs`, `scripts/qa/test-qa-harness-profiles.mjs`; new strict `scripts/lib/slice-c-acceptance.mjs` and `scripts/test-slice-c-acceptance.mjs` only if existing receipt infrastructure cannot express gates without complexity.
-- [ ] RED: unsafe URLs/injection/private-marker/privileged-client/raw-error fixtures fail; receipt validator rejects missing/unreached/stale/wrong-origin/wrong-SHA gates and cleanup failures. No script merely printing PASS.
-- [ ] Minimum implementation: register small C deterministic contract/response/security checks and explicit browser/local-RLS prerequisite evidence with immutable SHA-bound receipts. Distinguish source/static, mocked/local, genuine Data API and separately deployed evidence. No relaxation of B acceptedEvidence schema/ancestry or prior release failure history; no retries/budget inflation bundled with features.
-- [ ] GREEN: all negative assertions detect seeded unsafe behavior and pass fixed current code; own cleanup and zero unauthorized network; release profile focused integration tests and required gate completeness.
-- [ ] Regression: source-derived relevant product/device/search/SEO/headers/A/B boundary checks; inspect every command before running. One `npm test`, full `npm run build` and `npm run qa:release` at integrated candidate only after separate bounded execution approval if aggregate external/budget behavior requires it. Stop first distinct failure, preserve FAIL, no automatic rerun. Commit boundary: release integration + security proof, no deployment config.
+### Task 12: Focused Secondary Browser / Security Acceptance and Release Integration
 
-### Task 13: Review and Deployment-Aware Handoff (No Implicit Release)
+- [ ] Goal: C15/C16 and release gates; sampled responsive tests never substitute for Task 6 all-device proof.
+- [ ] Files: new scripts/test-product-detail-browser.mjs, reuse Task 6 harness/generated inventory; locale catalog/SEO/security/core tests; minimal package.json/scripts/qa/manifest.mjs/profiles/release.mjs/test-qa-harness-profiles.mjs wiring.
+- [ ] RED: seeded missing-device/value/unsafe URL/HTML/private/privileged/raw-error/overflow controls detected; validator rejects missing/stale/wrong-SHA/origin/cleanup/core evidence. Boot failure is not product RED or printed PASS.
+- [ ] Minimum implementation: section 11 seven-context SECONDARY matrix reuses actual local Worker/loopback transport; scoped fixture methods/paths, deny outbound, no TLS trust changes. Distinguish source/mock/genuine RLS/deployed evidence; C checks preserve B history/schema/ancestry/budgets/retries.
+- [ ] GREEN: core valid, all secondary checkpoints/negatives complete; actual route/status/observer/screenshots, terminal network and owned cleanup counters; no unauthorized external requests/provider Auth or broad B matrix.
+- [ ] Regression: inspected product/device/search/SEO/header/A/B subset, then one npm test/build/qa:release at integrated candidate with bounded authorization where needed. First failure STOP, preserve FAIL, no automatic rerun. Commit boundary: final focused proof + release wiring, no deployment config.
 
-- [ ] Goal: document C18, engineering and operational gates without conflating completion/Production release.
-- [ ] Files: `docs/README.md`, new `docs/ops/product-detail-ux-security-closure-v1-acceptance.md`, this plan task ledger; no provider/config secrets.
-- [ ] RED: handoff validation refuses source-only Product/Schema/headers PASS, unresolved P0/P1, absent local direct-API evidence, unapproved migration/merge/push or missing previous Worker artifact.
-- [ ] Minimum implementation: ordered engineering receipts, exact reviewed SHA/files, independent source review, genuine local RLS/browser evidence, required operator SQL/config/version prerequisites and rollback contract. Human review of every security/data migration before execution. No provider configuration edits anticipated.
-- [ ] GREEN: documented gate IDs and safe counters agree with actual immutable receipts; tests complete, diff hygiene clean, only reviewed files committed; human may then authorize push/PR separately. READY_FOR_PR_REVIEW is not shipped.
-- [ ] Regression: final clean-tree/commit ancestry/files and scope review, not another acceptance matrix. Commit boundary: docs/handoff only; stop before push/merge/Production until explicit release authorization.
+### Task 13: Review and Deployment-Aware Release Handoff
+
+- [ ] Goal: C18, core/rest-of-C/release statuses separate; restored routes alone are not whole-Slice-C PASS.
+- [ ] Files: docs/README.md, new docs/ops/product-detail-ux-security-closure-v1-acceptance.md and plan ledger; no credential/provider edits.
+- [ ] RED: refuse missing inventory/mapping/all-device core PASS, source-only/stale core proof, unresolved P0/P1, absent genuine RLS or unapproved migration/merge/main push.
+- [ ] Minimum implementation: source/file/fixture/mapping hashes, exact N/counters, core and secondary immutable receipts, independent review/remaining P2 owners/human disposition; separate operator migration/version/rollback gates. PRODUCT_DETAIL_V2_REDESIGN=false; NEW_DEVICE_DATA_RESEARCH=false.
+- [ ] GREEN: actual receipts/docs agree, full required gates/hygiene/ancestry/scope reviewed; READY_FOR_PR_REVIEW only. Main push -> Cloudflare build -> automatic Production deployment remains explicit, never neutral handoff.
+- [ ] Regression: final clean-tree/document/commit proof, no whole-A/B acceptance rerun. Commit boundary: handoff docs only; STOP for explicit push/PR/merge/deploy authorization.
 
 ## 11. Proposed Small Browser Acceptance
 
-Minimum matrix: Chromium 1280x900, 430x900, 390x900, each zh-CN/en = **six contexts**, plus **one Firefox desktop 1280x900/en context** = **seven contexts total**, sequential, not 102 cases. Cases share an owned published representative plus metadata-only/hostile/local fault fixtures; they are checkpoints, not seven copies of the whole repository acceptance.
+This SECONDARY matrix starts only after Task 6 PRODUCT_DETAIL_CORE_ACCEPTANCE=PASS. The primary all-N-device SSR/browser sweep is mandatory and separate; these sampled presentation contexts cannot establish all-device coverage.
+
+Secondary matrix: Chromium 1280x900, 430x900, 390x900, each zh-CN/en = **six contexts**, plus **one Firefox desktop 1280x900/en context** = **seven contexts total**, sequential, not 102 cases. Representatives are deterministically selected from Task 1 generated source-derived inventory; metadata-only/hostile/fault detector controls are local synthetic scenarios, not manually copied real parameter facts. This is not N devices multiplied by seven contexts.
 
 1. In every context: list/brand -> detail first viewport, canonical metadata, real safe local image plus fallback, long title/value/source wrapping, public/no Auth requirement, correct single selected UI language and no runtime-consent gate; screenshot and element-level overflow/hit-box measurements.
 2. In every context: menu where mobile, source/compare action reachability, add/remove/limit-three and links back to detail; keyboard focus/tab/Escape and visible focus; table-only horizontal scrolling. Desktop keeps normal navigation. Source navigation is intercepted with expected safe URL rather than contacting manufacturers.
 3. Each locale at desktop: actual 301 wrong-brand/legacy alias and 404/noindex unpublished/unknown vs 503 unavailable; metadata-only/empty structured groups/source absence, false/zero/CONFLICT evidence; sitemap URL-set consistency; malicious catalog/closing-script/no side effects.
-4. Each locale at desktop plus a mobile popup geometry check per width: grouped quick/full search existence and canonical destinations, loading/error/empty/stale responses, circle-scoped behavior; query corpus from Task 8. Request cancellation is recorded, not ignored as success.
+4. Each locale at desktop plus a mobile popup geometry check per width: grouped quick/full search existence and canonical destinations, loading/error/empty/stale responses, circle-scoped behavior; query corpus from Task 9. Request cancellation is recorded, not ignored as success.
 5. Shared-header Starlight smoke in one context per locale plus both mobile widths across those contexts: menu destinations and Settings confirmation compatibility; no full documentation translation matrix.
 
 Firefox desktop preserves the recovery design section 23 minimum without duplicating the locale matrix. Its bounded distinct-risk scope is new dynamic DOM/text construction and hostile catalog script parsing, keyboard focus/popup dismissal, and comparison scroll-region containment in Gecko. These are browser-engine-owned behaviors, not an assertion of a confirmed Firefox defect. Reuse the desktop English detail/compare/security checkpoints only, with zero external requests. No Firefox mobile or other engine is scheduled unless an actual distinct risk justifies a separately reviewed expansion.
@@ -324,11 +384,11 @@ Tests deny unapproved network, capture no secret-bearing URLs/screens, and clean
 
 This section describes future gates, not authority to execute them.
 
-1. Human reviews this plan, then separately authorizes implementation. Engineering closes Tasks 1-12 and the invoker feasibility gate; independent review and human acceptance of remaining P2/P3 required. Docker/RLS failure, non-loopback execution target, secrets/Production configuration entering local execution, A/B/CAPTCHA/consent regression or architecture infeasibility -> STOP.
+1. Human reviews this revised plan, then separately authorizes implementation. Tasks 1-6 must establish PRODUCT_DETAIL_CORE_ACCEPTANCE before Tasks 7-12 secondary closure; full slice needs both plus independent review and human disposition of remaining P2/P3. Missing supplied dataset/publication authority, dropped/fabricated known fields, Docker/RLS failure, non-loopback target, Production secrets/config entering local execution, A/B/CAPTCHA/consent regression or architecture infeasibility -> STOP.
 2. Proposed migration is reviewed with additive replay, real public/admin permission tests and exact previous grants/policies. A separate operator authorization supplies target identity, forward migration and rollback scope. This task performs no Production SQL. Verify deployed prerequisites read-only under that future authorization before application release; do not deploy a detail reader against nonexistent projection and pretend empty data.
 3. After explicit branch push/PR authorization, verify exact source/review/checks, main identity and known-good Worker version/config rollback reference. Feature push can trigger preview Builds too; no push in this planning task. No main change or automatic rebase when drift occurs.
 4. **Main push -> Cloudflare build -> automatic Production deployment.** Treat a main fast-forward/merge push as a Production deployment action requiring explicit authorization; it is not a source-only neutral handoff. Use established source-controlled release path, no manual unreviewed Worker/config shortcut. Record exact merge/new-main/build/deployment version and traffic from authorized read-only metadata/human evidence.
-5. Separately authorized bounded public smoke verifies required C routes/schema/source/compare/search/menu/XSS/header gates and representative real published products. Controlled local typed fixtures are also required; source-not-available is a valid honest result, not license to invent claims. No Production injection payloads, signup/recovery/resend/Auth mutations or content writes implied. Record tested scope/origin/SHA/version/observer/PASS/FAIL/PARTIAL/NOT_APPLICABLE with reasons.
+5. Separately authorized bounded public smoke verifies required C routes/schema/source/compare/search/menu/XSS/header gates and representative real published products. It does not replace the all-device local source-to-SSR/DOM core pass. Future read-only deployed publication/schema evidence must reconcile with the repository cohort; a mismatch blocks release/acceptance for review, never triggers an automatic import or Production repair. Controlled local typed fixtures remain required; absent source is honest, not license to fabricate. No Production injection, Auth/email or content mutation implied. Record scope/origin/SHA/version/observer/results with reasons.
 6. Failure -> stop; no CAPTCHA toggle, service-role read or Production import workaround. Restore preceding reviewed safe Worker artifact through separately authorized established deployment mechanism, preserving required CAPTCHA state/sitekey and A/B bindings. Do not restore an artifact with known exploited XSS; request narrow reviewed hotfix authorization instead. Newly indexed canonical links need a reviewed compatibility/redirect rollback if reverting route support; do not silently break them.
 7. Additive schema is not dropped automatically. If public grants/policies leak data, stop exposure and request exact narrowly scoped operator-approved permission rollback; do not drop data or undo admin privileges blindly. Preserve existing legacy public devices/read and brand/device URL compatibility. Worker rollback does not revoke database grants: both channels need separate recorded outcomes.
 
@@ -338,6 +398,6 @@ Slice C PASS does not establish LARGE_SCALE_READY, all-provider mail delivery, M
 
 Current evidence is read-only source and Git/package metadata. No provider account, Production page, SQL, Auth, email or content request was made. Public official documentation only was consulted: [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security) and [API security](https://supabase.com/docs/guides/api/securing-your-api), checked 2026-10-03; grants and RLS must both be tested. Changelog markdown fetch was unsupported by the web tool, so no current changelog compatibility PASS is claimed. Recheck version-specific invoker/Data API/CLI behavior before implementation.
 
-Remaining unknowns: deployed normalized table contents/schema/grants, current public image-origin set, exact source/evidence availability, invoker admin-read preservation feasibility, actual detail/menu runtime layout (new route absent), and final release migration/version metadata. None is filled from historical static manifests or guessed provider state. Task 2 resolves database feasibility locally; later operator gates resolve deployed facts. Narrow media allowlist is frozen from approved source evidence during Task 1, not by permissive all-HTTPS fallback.
+Remaining unknowns: complete existing parameter survival and repository published-cohort provenance (Task 1), deployed normalized contents/schema/grants, approved image-origin set, source/evidence availability, invoker/admin preservation feasibility, actual detail/menu layout (new route absent) and release version metadata. No data-loss/published-count claim is made from a static manifest or provider guess. Task 3 resolves local database feasibility; later separately authorized operator gates resolve deployed facts. Task 10 freezes media allowlist from existing approved evidence only; earlier core/media rendering must not activate an unvalidated URL. No permissive all-HTTPS fallback or new research.
 
 Planning completion checks: new document only; `git diff --check`; task/receipt/route/gap-count consistency; document-only commit; clean worktree; no push. Human review remains pending. Stop here; implementation task checkboxes remain unchecked.
