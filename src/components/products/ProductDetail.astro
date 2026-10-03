@@ -1,0 +1,104 @@
+---
+import ProductVisual from "./ProductVisual.astro";
+import { getUiMessages } from "../../lib/i18n/catalog";
+import { resolveLocale } from "../../lib/i18n/locale";
+import type { getPublishedDeviceBySlug } from "../../lib/public-device-data";
+
+interface Props {
+  product: NonNullable<Awaited<ReturnType<typeof getPublishedDeviceBySlug>>>;
+}
+const { product } = Astro.props;
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).catalog;
+const safeHttps = (value: string | null) => {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password ? url.href : null;
+  } catch { return null; }
+};
+const imageUrl = safeHttps(product.productImageUrl);
+const links = product.externalLinks.map((link) => ({ ...link, href: safeHttps(link.url) })).filter((link) => link.href);
+---
+
+<article class="product-detail" data-product-detail data-product-slug={product.slug} data-product-brand={product.brandKey}>
+  <nav class="product-detail__breadcrumb" aria-label={text.products}>
+    <a href="/products/">{text.products}</a>
+    <span aria-hidden="true">/</span>
+    <a href={`/products/${product.brandKey}/`}>{product.brandName}</a>
+  </nav>
+  <header class="product-detail__overview">
+    <div>
+      <p class="product-detail__brand">{product.brandName}</p>
+      <h1>{product.name}</h1>
+      {product.shortDescription && <p>{product.shortDescription}</p>}
+      {product.longDescription && <p>{product.longDescription}</p>}
+      {links.length > 0 && (
+        <nav class="product-detail__links" aria-label={text.viewSource}>
+          {links.map((link) => <a href={link.href} target="_blank" rel="noopener noreferrer">{link.label}</a>)}
+        </nav>
+      )}
+    </div>
+    <div class="product-detail__visual">
+      {imageUrl ? <img src={imageUrl} alt={product.media.imageAlt} width="640" height="400" /> : (
+        <ProductVisual brandMark={product.brandMarkText} title={product.name} categoryLabel={product.typeLabel} placeholderType={product.media.placeholderType} />
+      )}
+    </div>
+  </header>
+  {product.previewSpecs.length > 0 && (
+    <section class="product-detail__group" data-spec-preview>
+      <h2>{text.productKeyParameters}</h2>
+      <dl>
+        {product.previewSpecs.map((item) => (
+          <div data-preview-field={item.field}>
+            <dt>{item.label}</dt>
+            <dd>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )}
+  <section class="product-detail__parameters">
+    <h2>{text.productParameters}</h2>
+    {product.specGroups.length ? product.specGroups.map((group) => (
+      <section class="product-detail__group" data-spec-group={group.key}>
+        <h3>{group.label}</h3>
+        <dl>
+          {group.items.map((item) => (
+            <div data-spec-field={item.field}>
+              <dt>{item.label}</dt>
+              <dd>{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    )) : <p class="product-detail__empty">{text.productParametersEmpty}</p>}
+  </section>
+</article>
+
+<style>
+  .product-detail { min-width: 0; padding: 1.5rem 0 2.5rem; overflow-wrap: anywhere; }
+  .product-detail__breadcrumb, .product-detail__links { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  .product-detail__breadcrumb { color: var(--text-muted); margin-bottom: 1.5rem; }
+  .product-detail__overview { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 2rem; align-items: start; }
+  .product-detail__overview > div { min-width: 0; }
+  .product-detail__brand { color: var(--text-muted); margin: 0; }
+  .product-detail h1 { font-size: 2rem; line-height: 1.25; margin: 0.5rem 0 1rem; }
+  .product-detail__overview p { max-width: 70ch; }
+  .product-detail__links { margin-top: 1.5rem; }
+  .product-detail__visual { aspect-ratio: 8 / 5; }
+  .product-detail__visual img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .product-detail__parameters { margin-top: 2rem; }
+  .product-detail h2 { font-size: 1.35rem; margin: 0 0 1rem; }
+  .product-detail h3 { font-size: 1.1rem; margin: 0 0 0.75rem; }
+  .product-detail__group { border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1)); padding: 1.25rem 0; }
+  .product-detail__overview + .product-detail__group { margin-top: 2rem; }
+  .product-detail dl { margin: 0; }
+  .product-detail dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1rem; padding: 0.6rem 0; }
+  .product-detail dt, .product-detail__empty { color: var(--text-muted); }
+  .product-detail dd { margin: 0; white-space: pre-wrap; }
+  @media (max-width: 640px) {
+    .product-detail__overview { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+    .product-detail dl > div { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
+  }
+</style>

@@ -1,0 +1,64 @@
+{
+  "brand_key": "xreal",
+  "brand_name": "XREAL",
+  "name": "XREAL One",
+  "slug": "xreal-one",
+  "publication_status": "published",
+  "category": "display_glasses",
+  "type_label": "\u663e\u793a\u773c\u955c",
+  "release_year": "2024",
+  "availability": "\u5728\u552e",
+  "buy_url": "https://us.shop.xreal.com/products/xreal-one",
+  "image_alt": "XREAL One \u4ea7\u54c1\u89c6\u89c9",
+  "product_image_url": null,
+  "short_description": "XREAL One \u662f\u4e00\u6b3e\u901a\u8fc7 USB-C \u89c6\u9891\u8f93\u51fa\u8fde\u63a5\u624b\u673a\u3001\u638c\u673a\u548c\u7535\u8111\u4f7f\u7528\u7684\u663e\u793a\u578b AR \u773c\u955c\uff0c\u4e3b\u8981\u7528\u4e8e\u4fbf\u643a\u5927\u5c4f\u3001\u89c2\u5f71\u3001\u6e38\u620f\u548c\u7b2c\u4e8c\u5c4f\u3002\u773c\u955c\u5185\u7f6e XREAL X1 \u82af\u7247\uff0c\u4f46\u5185\u5bb9\u4e0e\u7b97\u529b\u4ecd\u4e3b\u8981\u4f9d\u8d56\u5916\u90e8\u8bbe\u5907\u3002",
+  "long_description": "\u5b83\u5c5e\u4e8e\u663e\u793a\u578b\u8def\u7ebf\uff0c\u4e0d\u63d0\u4f9b\u72ec\u7acb\u5e94\u7528\u751f\u6001\u3002\u76f8\u6bd4\u66f4\u65e9\u7684\u89c2\u5f71\u773c\u955c\uff0cXREAL One \u66f4\u5f3a\u8c03\u663e\u793a\u7a33\u5b9a\u6027\u3001\u7a7a\u95f4\u951a\u5b9a\u548c\u4e3b\u673a\u517c\u5bb9\u8303\u56f4\u3002",
+  "key_specs": [
+    { "field": "audio.microphones", "label": "Microphones", "value": "4-microphone array" },
+    { "field": "audio.speakers", "label": "Speakers", "value": "Bose-tuned open-ear speakers" },
+    { "field": "basic.prescription_support", "label": "Prescription Support", "value": "Supported via prescription lens/frame" },
+    { "field": "basic.weight_g", "label": "Weight G", "value": "82" },
+    { "field": "compute.os", "label": "Os", "value": "XREAL spatial computing firmware" }
+  ],
+  "full_specs": {
+    "audio": { "microphones": "4-microphone array", "speakers": "Bose-tuned open-ear speakers" },
+    "basic": { "prescription_support": "Supported via prescription lens/frame", "weight_g": "82" },
+    "compute": { "os": "XREAL spatial computing firmware", "soc": "XREAL X1" },
+    "connectivity": {
+      "android": "Supported when source supports compatible video output",
+      "hdmi": "Supported via adapter/accessory",
+      "ios": "Supported; model/adapter requirements vary",
+      "macos": "Supported",
+      "nintendo_switch": "Supported via compatible accessory",
+      "playstation": "Supported via HDMI accessory",
+      "usb_c_dp": "Supported",
+      "windows": "Supported",
+      "xbox": "Supported via HDMI accessory"
+    },
+    "developer": { "spatial_api": "Native 3DoF; optional 6DoF with XREAL Eye" },
+    "display": {
+      "binocular_resolution": "3840\u00d71080",
+      "color_accuracy": "\u0394E<3; gamma 2.2",
+      "color_gamut": "108% sRGB",
+      "contrast_ratio": "100,000:1",
+      "display_technology": "Sony 0.68-inch Micro-OLED",
+      "electrochromic_dimming": "3 levels",
+      "eye_brightness": "600",
+      "fov_deg": "50",
+      "ipd_mm": "Software IPD adjustment",
+      "ocular_mode": "Binocular",
+      "optical_system": "Birdbath optics",
+      "refresh_rate_hz": "Up to 120",
+      "resolution_per_eye": "1920\u00d71080"
+    },
+    "tracking": {
+      "accessory_6dof": "Supported with XREAL Eye",
+      "environment_sensors": "IMU/head-tracking sensors",
+      "eye_tracking": "No",
+      "hand_tracking": "No",
+      "native_3dof": "Yes",
+      "native_6dof": "No",
+      "slam": "No"
+    }
+  }
+}

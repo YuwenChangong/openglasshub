@@ -1,5 +1,13 @@
 export const catalogMessages = {
   "zh-CN": {
+    "productMissing": "产品未找到",
+    "productMissingHint": "该产品不存在或尚未公开发布。",
+    "productUnavailable": "产品暂时无法加载",
+    "productUnavailableHint": "暂时无法读取产品信息，请稍后重试。",
+    "productRetry": "重试",
+    "productParameters": "产品参数",
+    "productKeyParameters": "主要参数",
+    "productParametersEmpty": "暂无可显示的参数。",
     "products": "产品",
     "productsLead": "按品牌查看 AR / AI 眼镜。",
     "search": "搜索",
@@ -192,6 +200,14 @@ export const catalogMessages = {
     }
   },
   "en": {
+    "productMissing": "Product not found",
+    "productMissingHint": "This product does not exist or is not publicly available.",
+    "productUnavailable": "Product temporarily unavailable",
+    "productUnavailableHint": "Product information could not be loaded. Please try again later.",
+    "productRetry": "Retry",
+    "productParameters": "Product specifications",
+    "productKeyParameters": "Key specifications",
+    "productParametersEmpty": "No specifications are available to display.",
     "products": "Products",
     "productsLead": "Browse AR / AI glasses by brand.",
     "search": "Search",

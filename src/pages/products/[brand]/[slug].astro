@@ -1,0 +1,68 @@
+---
+export const prerender = false;
+
+import { env as runtimeEnv } from "cloudflare:workers";
+import CommunityLayout from "../../../layouts/CommunityLayout.astro";
+import ProductDetail from "../../../components/products/ProductDetail.astro";
+import { getBrandByKey } from "../../../lib/device-catalog";
+import { getPublishedDeviceBySlug } from "../../../lib/public-device-data";
+import { createSSRClient, type CloudflareEnv } from "../../../lib/supabase-server";
+import { getUiMessages } from "../../../lib/i18n/catalog";
+import { resolveLocale } from "../../../lib/i18n/locale";
+
+const localeContext = Astro.locals.localeContext ?? resolveLocale({});
+const text = getUiMessages(localeContext.locale).catalog;
+const brandKey = Astro.params.brand ?? "";
+const slug = Astro.params.slug ?? "";
+const validSegment = (value: string) => value.length <= 128 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+let product: Awaited<ReturnType<typeof getPublishedDeviceBySlug>> = null;
+let unavailable = false;
+
+if (validSegment(brandKey) && validSegment(slug) && getBrandByKey(brandKey)) {
+  try {
+    product = await getPublishedDeviceBySlug(createSSRClient(runtimeEnv as CloudflareEnv), slug);
+    if (product && (product.slug !== slug || !validSegment(product.brandKey) || !getBrandByKey(product.brandKey))) {
+      product = null;
+      unavailable = true;
+    }
+  } catch {
+    unavailable = true;
+  }
+}
+
+if (product && product.brandKey !== brandKey) {
+  return Astro.redirect(`/products/${product.brandKey}/${product.slug}/`, 301);
+}
+if (!product) {
+  Astro.response.status = unavailable ? 503 : 404;
+  Astro.response.headers.set("x-robots-tag", "noindex");
+}
+const title = product?.name ?? (unavailable ? text.productUnavailable : text.productMissing);
+---
+
+<CommunityLayout
+  title={title}
+  description={product?.shortDescription}
+  canonical={product ? `/products/${product.brandKey}/${product.slug}/` : undefined}
+  noindex={!product}
+  activeSection="products"
+  showHeaderSearch={false}
+>
+  {product ? <ProductDetail product={product} /> : (
+    <section class="product-detail-state">
+      <h1>{title}</h1>
+      <p>{unavailable ? text.productUnavailableHint : text.productMissingHint}</p>
+      <nav aria-label={text.products}>
+        <a href="/products/" class="community-link">{text.allBrands}</a>
+        {unavailable && <a href={Astro.url.pathname} class="community-link">{text.productRetry}</a>}
+      </nav>
+    </section>
+  )}
+</CommunityLayout>
+
+<style>
+  .product-detail-state { padding: 2rem 0; overflow-wrap: anywhere; }
+  .product-detail-state h1 { font-size: 1.75rem; margin: 0 0 1rem; }
+  .product-detail-state p { color: var(--text-muted); }
+  .product-detail-state nav { display: flex; flex-wrap: wrap; gap: 1rem; }
+</style>
