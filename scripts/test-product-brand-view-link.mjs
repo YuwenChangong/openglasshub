@@ -1,0 +1,152 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
+import { build } from "esbuild";
+import { chromium } from "playwright";
+import { preparePreferenceRunEnvironment } from "./test-user-preferences-rls-local.mjs";
+
+const root = path.resolve(import.meta.dirname, "..");
+const allowed = ["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOME", "COMSPEC"];
+const environment = preparePreferenceRunEnvironment(Object.fromEntries(allowed.filter(key => process.env[key]).map(key => [key, process.env[key]])));
+Object.assign(environment, { ASTRO_TELEMETRY_DISABLED: "1", ASTRO_DISABLE_UPDATE_CHECK: "true", CLOUDFLARE_CF_FETCH_ENABLED: "false", WRANGLER_SEND_METRICS: "false" });
+for (const key of Object.keys(process.env)) delete process.env[key];
+Object.assign(process.env, environment);
+const artifact = path.join(root, "artifacts/qa/product-brand-view-link", randomUUID());
+await mkdir(artifact, { recursive: true });
+// Match the existing SSR tests' application loader rather than raw Node JSON imports.
+const catalogPath = path.join(artifact, "catalog-fixture.mjs");
+await build({ entryPoints: [path.join(root, "src/lib/device-catalog.ts")], outfile: catalogPath,
+  bundle: true, platform: "node", format: "esm", logLevel: "silent" });
+const { getDeviceBySlug } = await import(pathToFileURL(catalogPath).href);
+const configPath = path.join(artifact, "local-build.json");
+const fixtureOrigin = "http://127.0.0.1:54321";
+const anonKey = "local-product-link-fixture-anon";
+const product = getDeviceBySlug("xreal-air");
+assert.ok(product && product.name === "XREAL Air" && product.brandKey === "xreal", "EXISTING_XREAL_AIR_FIXTURE_REQUIRED");
+const row = {
+  slug: product.slug, brand_key: product.brandKey, brand_name: product.brandName, name: product.name,
+  publication_status: "published", short_description: product.shortDescription, long_description: product.longDescription,
+  type_label: product.typeLabel, product_image_url: null, official_product_url: product.officialProductUrl,
+  buy_url: product.buyUrl, key_specs: product.previewSpecs,
+  full_specs: Object.fromEntries(product.specGroups.map(group => [group.key, Object.fromEntries(group.items.map(item => [item.field, item.value]))])),
+};
+const canonical = `/products/${product.brandKey}/${product.slug}/`;
+const oldHref = `/products/${product.brandKey}/#product-${product.slug}`;
+const receipt = { PRODUCT_BRAND_VIEW_PRODUCT_LINK_TEST: "FAIL", evidenceClass: "ACTUAL_LOCAL_WORKER_BROWSER_WITH_OFFLINE_DATA_API_FIXTURE_NOT_DB_OR_PRODUCTION",
+  observedViewProductHref: null, expectedViewProductHref: canonical, destinationStatus: null, destinationIdentity: null,
+  destinationParameterSectionPresent: false,
+  anchorPreserved: false, compareTogglePassed: false, compareDestinationPreserved: false, officialLinkPreserved: false,
+  deniedWorkerOutbound: 0, deniedBrowserExternal: 0, fixtureReads: 0 };
+let worker, browser, stage = "LOCAL_BUILD", readinessTimer;
+const originalFetch = globalThis.fetch;
+globalThis.fetch = (input, init) => {
+  const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+  assert.ok(url.protocol === "http:" && url.hostname === "127.0.0.1", "NON_LOOPBACK_FETCH_FORBIDDEN");
+  return originalFetch(input, init);
+};
+try {
+  const vars = { SITE_ORIGIN: "https://127.0.0.1", SUPABASE_URL: fixtureOrigin, SUPABASE_ANON_KEY: anonKey,
+    PUBLIC_SUPABASE_URL: fixtureOrigin, PUBLIC_SUPABASE_ANON_KEY: anonKey, AUTH_CAPTCHA_MODE: "off" };
+  await writeFile(configPath, JSON.stringify({ name: "openglasshub", compatibility_date: "2026-05-17", compatibility_flags: ["nodejs_compat"], vars }));
+  const built = spawnSync(process.execPath, [path.join(root, "scripts/build-workers.mjs"), "--local-config", configPath],
+    { cwd: root, env: environment, encoding: "utf8", windowsHide: true, maxBuffer: 16777216, timeout: 120000 });
+  assert.equal(built.status, 0, "FOCUSED_LOCAL_BUILD_FAILED");
+  const { unstable_startWorker } = await import("wrangler");
+  stage = "LOCAL_WORKER_READY";
+  worker = await unstable_startWorker({ config: path.join(root, "dist/server/wrangler.json"), envFiles: [], build: { bundle: false },
+    bindings: { SUPABASE_URL: { type: "plain_text", value: fixtureOrigin }, SUPABASE_ANON_KEY: { type: "plain_text", value: anonKey },
+      AUTH_CAPTCHA_MODE: { type: "plain_text", value: "off" } },
+    dev: { logLevel: "none", remote: false, watch: false, liveReload: false, registry: undefined, persist: false, inspector: false,
+      server: { hostname: "127.0.0.1", port: 0, secure: false },
+      outboundService(request) {
+        const url = new URL(request.url);
+        const slug = url.searchParams.get("slug");
+        if (url.origin !== fixtureOrigin || url.pathname !== "/rest/v1/devices" || request.method !== "GET"
+          || url.searchParams.get("publication_status") !== "eq.published" || (slug !== null && slug !== `eq.${row.slug}`)) {
+          receipt.deniedWorkerOutbound++;
+          return new Response("LOCAL_PRODUCT_LINK_OUTBOUND_FORBIDDEN", { status: 599 });
+        }
+        assert.equal(request.headers.get("apikey"), anonKey, "FIXTURE_ANON_ONLY");
+        receipt.fixtureReads++;
+        return new Response(JSON.stringify([row]), { headers: { "content-type": "application/json" } });
+      } } });
+  await Promise.race([Promise.all([worker.ready, new Promise((resolve, reject) => {
+    worker.raw.once("reloadComplete", resolve);
+    worker.raw.once("error", () => reject(new Error("LOCAL_WORKER_STARTUP_ERROR")));
+    worker.raw.once("runtimeError", () => reject(new Error("LOCAL_WORKER_RUNTIME_ERROR")));
+  })]), new Promise((_, reject) => { readinessTimer = setTimeout(() => reject(new Error("LOCAL_WORKER_READINESS_TIMEOUT")), 30000); })]);
+  clearTimeout(readinessTimer);
+  const origin = (await worker.url).origin;
+  assert.equal(new URL(origin).hostname, "127.0.0.1");
+  stage = "LOCAL_BRAND_PAGE";
+  browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: "block" });
+  await context.route("**/*", route => {
+    if (new URL(route.request().url()).origin === origin) return route.continue();
+    receipt.deniedBrowserExternal++;
+    return route.abort("blockedbyclient");
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  const brandResponse = await page.goto(`${origin}/products/xreal/`, { waitUntil: "load", timeout: 20000 });
+  assert.equal(brandResponse.status(), 200);
+  const card = page.locator('[data-product-card][data-product-slug="xreal-air"]');
+  assert.equal(await card.locator("h2").textContent(), product.name);
+  const view = card.locator(".brand-product-card__links a").first();
+  receipt.observedViewProductHref = await view.getAttribute("href");
+  stage = "VIEW_PRODUCT_CANONICAL_HREF";
+  assert.equal(receipt.observedViewProductHref, canonical, "VIEW_PRODUCT_MUST_ENTER_CANONICAL_DETAIL_NOT_BRAND_ANCHOR");
+  assert.notEqual(receipt.observedViewProductHref, `#product-${product.slug}`);
+  assert.notEqual(receipt.observedViewProductHref, oldHref);
+  stage = "UNCHANGED_CARD_CONTROLS";
+  assert.equal(await card.getAttribute("id"), `product-${product.slug}`);
+  receipt.anchorPreserved = true;
+  const official = card.locator(".brand-product-card__links a").nth(1);
+  assert.equal(await official.getAttribute("href"), product.officialProductUrl ?? product.buyUrl ?? product.brandWebsiteUrl ?? "/products/");
+  assert.equal(await official.getAttribute("target"), "_blank");
+  assert.equal(await official.getAttribute("rel"), "noopener noreferrer");
+  receipt.officialLinkPreserved = true;
+  const data = JSON.parse(await page.locator("#brand-products-data").textContent());
+  assert.equal(data.compareProducts.find(item => item.slug === product.slug).detailHref, oldHref);
+  receipt.compareDestinationPreserved = true;
+  const compare = card.locator("[data-compare-button]");
+  assert.equal((await compare.textContent()).trim(), "+");
+  await compare.click();
+  assert.ok((await compare.getAttribute("class")).split(/\s+/).includes("is-selected"));
+  await compare.click();
+  assert.ok(!(await compare.getAttribute("class")).split(/\s+/).includes("is-selected"));
+  receipt.compareTogglePassed = true;
+  stage = "FOLLOW_VIEW_PRODUCT";
+  const navigation = page.waitForNavigation({ waitUntil: "load", timeout: 20000 });
+  await view.click();
+  const destination = await navigation;
+  receipt.destinationStatus = destination.status();
+  assert.equal(receipt.destinationStatus, 200);
+  assert.equal(new URL(page.url()).pathname, canonical);
+  const detail = page.locator("[data-product-detail]");
+  assert.equal(await detail.getAttribute("data-product-slug"), product.slug);
+  assert.equal(await detail.getAttribute("data-product-brand"), product.brandKey);
+  receipt.destinationIdentity = await detail.locator("h1").textContent();
+  assert.equal(receipt.destinationIdentity, "XREAL Air");
+  assert.equal(await detail.locator(".product-detail__parameters").count(), 1);
+  receipt.destinationParameterSectionPresent = true;
+  assert.equal(receipt.deniedWorkerOutbound, 0);
+  assert.equal(receipt.deniedBrowserExternal, 0);
+  assert.ok(receipt.fixtureReads >= 2);
+  receipt.PRODUCT_BRAND_VIEW_PRODUCT_LINK_TEST = "PASS";
+} catch (error) {
+  receipt.firstFail = error.code ?? error.name;
+  receipt.failedBoundary = stage;
+  throw error;
+} finally {
+  clearTimeout(readinessTimer);
+  await browser?.close();
+  await worker?.dispose();
+  globalThis.fetch = originalFetch;
+  await unlink(configPath).catch(error => { if (error.code !== "ENOENT") throw error; });
+  await writeFile(path.join(artifact, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n");
+  console.log(JSON.stringify({ ...receipt, receiptPath: path.relative(root, path.join(artifact, "receipt.json")) }));
+}

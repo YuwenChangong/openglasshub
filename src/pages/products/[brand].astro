@@ -253,7 +253,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
 
           <div class="brand-product-card__footer">
             <div class="brand-product-card__links">
-              <a href={product.detailHref} class="brand-product-card__link">{text.viewProduct}</a>
+              <a href={`/products/${product.brandKey}/${product.slug}/`} class="brand-product-card__link">{text.viewProduct}</a>
               <a href={product.officialHref} target="_blank" rel="noopener noreferrer" class="brand-product-card__link">{text.official}</a>
             </div>
             <button
