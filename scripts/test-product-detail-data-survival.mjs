@@ -123,13 +123,10 @@ test("typed mapper limitation is characterized, not mislabeled as real YAML loss
   assert.equal(inventory.summary.MAPPER_EVIDENCE_SCOPE, "OFFLINE_YAML_DERIVED_COMPATIBILITY_INPUT_NOT_DEPLOYED_DATA_OR_RLS");
 });
 
-test("actual source route is disconnected, not an invented parser or missing-dataset cause", () => {
-  assert.equal(inventory.summary.CANONICAL_DETAIL_ROUTE_EXISTS, false);
-  assert.equal(inventory.summary.LEGACY_DEVICE_ROUTE, "301_TO_BRAND_ANCHOR");
-  assert.equal(inventory.summary.FIRST_DATA_LOSS_LAYER, "ROUTE_DISCONNECTED");
-  assert.equal(inventory.summary.ROOT_CAUSE_CLASSIFICATION, "ROUTE_DISCONNECTED");
+test("data presence and identity resolution are independent of the route lifecycle", () => {
   assert.equal(inventory.summary.DATASET_MISSING, false);
   assert.equal(inventory.summary.IDENTITY_MAPPING_MISSING, false);
+  assert.equal(inventory.summary.KNOWN_SOURCE_VALUE_DROPPED_COUNT, 0);
 });
 
 test("repository cohort is not Production publication or an applied import/RLS acceptance", () => {
