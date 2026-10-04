@@ -69,9 +69,7 @@ export function buildDetailParameterGroups(product: LegacyParameters, specs: Pub
 
 // Always pass the anonymous public SSR client, never a browser session or an
 // administrative key. A missing projection is an outage, not absent facts.
-export async function getPublicProductDetail(client: SupabaseClient, slug: string) {
-  const product = await getPublishedDeviceBySlug(client, slug);
-  if (!product) return null;
+export async function getPublicProductFields(client: SupabaseClient, slug: string) {
   async function rows<T>(table: string, columns: string): Promise<T[]> {
     const collected: T[] = [];
     const pageSize = 1000;
@@ -93,5 +91,11 @@ export async function getPublicProductDetail(client: SupabaseClient, slug: strin
   const specs = await rows<PublicDetailSpec>("public_device_detail_specs", detailSpecColumns);
   const sources = await rows<PublicDetailSource>("public_device_detail_sources", detailSourceColumns);
   const evidence = await rows<PublicDetailEvidence>("public_device_detail_evidence", detailEvidenceColumns);
-  return { product, specs, sources, evidence };
+  return { specs, sources, evidence };
+}
+
+export async function getPublicProductDetail(client: SupabaseClient, slug: string) {
+  const product = await getPublishedDeviceBySlug(client, slug);
+  if (!product) return null;
+  return { product, ...await getPublicProductFields(client, slug) };
 }

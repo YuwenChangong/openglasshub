@@ -6,7 +6,7 @@ import CommunityLayout from "../../../layouts/CommunityLayout.astro";
 import ProductDetail from "../../../components/products/ProductDetail.astro";
 import { getBrandByKey } from "../../../lib/device-catalog";
 import { getPublishedDeviceBySlug } from "../../../lib/public-device-data";
-import { getPublicProductDetail, buildDetailParameterGroups } from "../../../lib/public-product-detail";
+import { getPublicProductFields, buildDetailParameterGroups } from "../../../lib/public-product-detail";
 import { getProductDetailHref, isValidProductSegment } from "../../../lib/product-route";
 import { createSSRClient, type CloudflareEnv } from "../../../lib/supabase-server";
 import { getUiMessages } from "../../../lib/i18n/catalog";
@@ -22,12 +22,16 @@ let unavailable = false;
 
 if (isValidProductSegment(brandKey) && isValidProductSegment(slug) && getBrandByKey(brandKey)) {
   try {
-    const detail = await getPublicProductDetail(createSSRClient(runtimeEnv as CloudflareEnv), slug);
-    product = detail?.product ?? null;
-    parameterGroups = detail ? buildDetailParameterGroups(detail.product, detail.specs) : [];
+    const client = createSSRClient(runtimeEnv as CloudflareEnv);
+    product = await getPublishedDeviceBySlug(client, slug);
     if (product && (product.slug !== slug || !isValidProductSegment(product.brandKey) || !getBrandByKey(product.brandKey))) {
       product = null;
       unavailable = true;
+    }
+    if (product) {
+      if (product.brandKey !== brandKey) return Astro.redirect(getProductDetailHref(product), 301);
+      const fields = await getPublicProductFields(client, slug);
+      parameterGroups = buildDetailParameterGroups(product, fields.specs);
     }
   } catch {
     product = null;
@@ -36,9 +40,6 @@ if (isValidProductSegment(brandKey) && isValidProductSegment(slug) && getBrandBy
   }
 }
 
-if (product && product.brandKey !== brandKey) {
-  return Astro.redirect(getProductDetailHref(product), 301);
-}
 if (!product) {
   Astro.response.status = unavailable ? 503 : 404;
   Astro.response.headers.set("x-robots-tag", "noindex");

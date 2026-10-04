@@ -19,7 +19,9 @@ const source = await readFile(routePath, "utf8").catch((error) => {
 });
 assert.ok(source, "KNOWN_DEVICE_CANONICAL_DETAIL_ROUTE_MISSING: brand anchor cannot serve as detail");
 assert.match(source, /export const prerender = false/);
-assert.match(source, /getPublicProductDetail\(createSSRClient/);
+assert.match(source, /createSSRClient\(runtimeEnv as CloudflareEnv\)/);
+assert.match(source, /getPublishedDeviceBySlug\(client, slug\)/);
+assert.match(source, /getPublicProductFields\(client, slug\)/);
 assert.doesNotMatch(source, /listPublishedDevices|#product-|service.role|device_specs|\.rpc\(/i);
 const root = path.resolve(import.meta.dirname, "..");
 const artifactPath = path.join(root, "artifacts/qa/product-detail-task-2", randomUUID());
@@ -153,6 +155,9 @@ try {
   failRead = false;
   cases.push("READ_ERROR_SAFE_503");
   failProjection = true;
+  const redirectDuringProjectionOutage = await request(recognizedWrongBrand, fixture.slug);
+  assert.equal(redirectDuringProjectionOutage.response.status, 301, "Resolved canonical redirect must not depend on structured projection availability");
+  assert.equal(redirectDuringProjectionOutage.response.headers.get("location"), `/products/${fixture.brand_key}/${fixture.slug}/`);
   const projectionError = await request(fixture.brand_key, fixture.slug);
   assert.equal(projectionError.response.status, 503);
   assert.doesNotMatch(projectionError.html, /TASK4_PRIVATE_PROJECTION_ERROR|data-product-detail/);
