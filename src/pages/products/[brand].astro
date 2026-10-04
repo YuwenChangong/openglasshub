@@ -1,5 +1,6 @@
 ---
 import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import {serializeCatalogJson,safeCatalogExternalUrl,safeCatalogMediaUrl} from "../../lib/product-public-safety";
 const localeContext = Astro.locals.localeContext;
 const text = getUiMessages(localeContext.locale).catalog;
 export const prerender = false;
@@ -111,7 +112,7 @@ function serializeCompareProduct(product: DeviceRecord) {
     cardFacts: buildCardFacts(product),
     placeholderType: product.cardMedia.placeholderType,
     detailHref: getProductDetailHref(product),
-    officialHref: product.officialProductUrl ?? product.buyUrl ?? product.brandWebsiteUrl ?? "/products/",
+    officialHref: safeCatalogExternalUrl(product.officialProductUrl) ?? safeCatalogExternalUrl(product.buyUrl) ?? safeCatalogExternalUrl(product.brandWebsiteUrl),
     modelSearchText,
     detailSearchText,
     searchText: [
@@ -206,7 +207,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
     <div class="brand-compare__selected" id="brand-compare-selected"></div>
     <p class="brand-compare__feedback" id="brand-compare-feedback" aria-live="polite"></p>
 
-    <div class="brand-compare__table-wrap" id="brand-compare-table-wrap" hidden>
+    <div class="brand-compare__table-wrap" id="brand-compare-table-wrap" tabindex="0" role="region" aria-label={text.compare} hidden>
       <table class="brand-compare__table">
         <thead id="brand-compare-table-head"></thead>
         <tbody id="brand-compare-table-body"></tbody>
@@ -255,7 +256,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
           <div class="brand-product-card__footer">
             <div class="brand-product-card__links">
               <a href={`/products/${product.brandKey}/${product.slug}/`} class="brand-product-card__link">{text.viewProduct}</a>
-              <a href={product.officialHref} target="_blank" rel="noopener noreferrer" class="brand-product-card__link">{text.official}</a>
+              {product.officialHref&&<a href={product.officialHref} target="_blank" rel="noopener noreferrer" class="brand-product-card__link">{text.official}</a>}
             </div>
             <button
               type="button"
@@ -280,7 +281,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
   <script
     id="brand-products-data"
     type="application/json"
-    set:html={JSON.stringify({
+    set:html={serializeCatalogJson({
       brandKey: brand.key,
       ui: text,
       compareFields: compareFieldOrder.map(([key, label]) => ({ key, label: text.specLabels[label] ?? label })),
@@ -303,7 +304,8 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
     })}
   />
 
-  <script type="module">
+  <script>
+    import {renderCatalogCompareTable} from "../../lib/catalog-compare-dom";
     const dataElement = document.getElementById("brand-products-data");
     const parsed = dataElement?.textContent
       ? JSON.parse(dataElement.textContent)
@@ -445,30 +447,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
         }),
       );
 
-      const headerCells = selectedProducts
-        .map(
-          (product) =>
-            `<th scope="col"><div class="brand-compare__column-heading"><strong>${product.name}</strong><span>${product.brandLabel}</span></div></th>`,
-        )
-        .join("");
-
-      compareTableHead.innerHTML = `<tr><th scope="col">${text.item}</th>${headerCells}</tr>`;
-      compareTableHead.querySelectorAll(".brand-compare__column-heading strong").forEach((heading, index) => {
-        const product = selectedProducts[index];
-        const link = document.createElement("a");
-        link.className = "community-link";
-        link.href = product.detailHref;
-        link.textContent = product.name;
-        heading.replaceChildren(link);
-      });
-      compareTableBody.innerHTML = visibleFields
-        .map((field) => {
-          const cells = selectedProducts
-            .map((product) => `<td>${product.compareValues?.[field.key] || "TBD"}</td>`)
-            .join("");
-          return `<tr><th scope="row">${field.label}</th>${cells}</tr>`;
-        })
-        .join("");
+      renderCatalogCompareTable({head:compareTableHead,body:compareTableBody,products:selectedProducts,fields:visibleFields,itemLabel:text.item,prefix:"brand"});
     }
 
     function renderCompareSurface() {

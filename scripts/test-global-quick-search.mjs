@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import {readFile} from "node:fs/promises";
+const source=await readFile("src/components/community/GlobalSearchBox.tsx","utf8");
+assert.match(source,/circleSlug\s*\?\s*"posts"\s*:\s*"all"/,"GLOBAL_QUICK_SEARCH_MUST_REQUEST_ALL_GROUPS");
+assert.match(source,/controller\.signal\.aborted/,"STALE_ABORTED_RESPONSE_MUST_NOT_COMMIT");
+assert.match(source,/searchFailed/,"FAILURE_MUST_NOT_BE_EMPTY_SUCCESS");
+const {quickSearchGroups}=await import("../src/lib/quick-search.ts");
+const payload={posts:[{id:"p1",title:"Post",excerpt:"Body"}],circles:[{slug:"xreal",name:"Circle"}],users:[{href:"/u/local-user/",display_name:"User"}],devices:[{href:"/products/xreal/xreal-air/",name:"XREAL Air",brand_name:"XREAL"}]};
+const groups=quickSearchGroups(payload,false);
+assert.deepEqual(groups.map(g=>g.key),["posts","circles","users","devices"]);
+assert.equal(groups[3].items[0].href,"/products/xreal/xreal-air/");
+assert.deepEqual(quickSearchGroups(payload,true).map(g=>g.key),["posts"]);
+assert.equal(quickSearchGroups({...payload,users:[{href:'/users/00000000-0000-4000-8000-000000000001/',display_name:'Owned user without username'}]},false).find(g=>g.key==='users')?.items[0].href,'/users/00000000-0000-4000-8000-000000000001/','Supported ID-only profile destinations must remain reachable');
+assert.equal(quickSearchGroups({...payload,devices:[{href:"javascript:alert(1)",name:"Unsafe"}]},false).find(g=>g.key==="devices"),undefined);
+assert.throws(()=>quickSearchGroups({},false),/INVALID_QUICK_SEARCH_RESPONSE/);
+console.log("GLOBAL_QUICK_SEARCH=PASS");

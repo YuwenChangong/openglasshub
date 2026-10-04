@@ -3,6 +3,7 @@ import { getTrustedCountry } from "./lib/i18n/country.server";
 import { resolveLocale } from "./lib/i18n/locale";
 import { parsePreferenceCookie, PREFERENCE_COOKIE_NAME } from "./lib/i18n/preference-cookie";
 import { isLocaleHtmlRoute } from "./lib/i18n/html-route-policy";
+import {responseSecurityHeaders} from "./lib/response-security-headers";
 
 export const onRequest: MiddlewareHandler = async ({ request, locals, url, cookies }, next) => {
   const saved = parsePreferenceCookie(cookies.get(PREFERENCE_COOKIE_NAME)?.value);
@@ -10,7 +11,7 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, url, cooki
   const response = await next();
   if (/^\/api(?:\/|$)/.test(url.pathname)) return response;
   if (!isLocaleHtmlRoute(url.pathname) && response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "text/html") return response;
-  const headers = new Headers(response.headers);
+  const headers = responseSecurityHeaders(response.headers,url.pathname);
   const directives = (headers.get("cache-control") ?? "").split(",").map(value => value.trim()).filter(value => value && value.toLowerCase() !== "public");
   if (!directives.some(value => value.toLowerCase() === "private")) directives.push("private");
   if (!directives.some(value => value.toLowerCase() === "no-store")) directives.push("no-store");

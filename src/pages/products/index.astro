@@ -1,5 +1,6 @@
 ---
 import { getUiMessages, formatUiMessage } from "../../lib/i18n/catalog";
+import {serializeCatalogJson} from "../../lib/product-public-safety";
 const localeContext = Astro.locals.localeContext;
 const text = getUiMessages(localeContext.locale).catalog;
 import { env as runtimeEnv } from "cloudflare:workers";
@@ -155,7 +156,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
     <div class="products-compare__selected" id="products-compare-selected"></div>
     <p class="products-compare__feedback" id="products-compare-feedback" aria-live="polite"></p>
 
-    <div class="products-compare__table-wrap" id="products-compare-table-wrap" hidden>
+    <div class="products-compare__table-wrap" id="products-compare-table-wrap" tabindex="0" role="region" aria-label={text.compare} hidden>
       <table class="products-compare__table">
         <thead id="products-compare-table-head"></thead>
         <tbody id="products-compare-table-body"></tbody>
@@ -195,7 +196,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
   <script
     id="products-brand-data"
     type="application/json"
-    set:html={JSON.stringify({
+    set:html={serializeCatalogJson({
       brands,
       ui: text,
       compareFields: compareFieldOrder.map(([key, label]) => ({ key, label: text.specLabels[label] ?? label })),
@@ -203,7 +204,8 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
     })}
   />
 
-  <script type="module">
+  <script>
+    import {renderCatalogCompareTable} from "../../lib/catalog-compare-dom";
     const searchInput = document.getElementById("products-search");
     const searchField = document.querySelector(".products-toolbar__search-field");
     const resultCount = document.getElementById("products-result-count");
@@ -295,30 +297,7 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
         }),
       );
 
-      const headerCells = selectedProducts
-        .map(
-          (product) =>
-            `<th scope="col"><div class="products-compare__column-heading"><strong>${product.name}</strong><span>${product.brandLabel}</span></div></th>`,
-        )
-        .join("");
-
-      compareTableHead.innerHTML = `<tr><th scope="col">${text.item}</th>${headerCells}</tr>`;
-      compareTableHead.querySelectorAll(".products-compare__column-heading strong").forEach((heading, index) => {
-        const product = selectedProducts[index];
-        const link = document.createElement("a");
-        link.className = "community-link";
-        link.href = product.detailHref;
-        link.textContent = product.name;
-        heading.replaceChildren(link);
-      });
-      compareTableBody.innerHTML = visibleFields
-        .map((field) => {
-          const cells = selectedProducts
-            .map((product) => `<td>${product.compareValues?.[field.key] || "TBD"}</td>`)
-            .join("");
-          return `<tr><th scope="row">${field.label}</th>${cells}</tr>`;
-        })
-        .join("");
+      renderCatalogCompareTable({head:compareTableHead,body:compareTableBody,products:selectedProducts,fields:visibleFields,itemLabel:text.item,prefix:"products"});
     }
 
     function renderCompareButtons() {

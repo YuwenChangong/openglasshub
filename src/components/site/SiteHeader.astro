@@ -114,7 +114,7 @@ const messages = getUiMessages(localeContext.locale);
       if (event.target instanceof HTMLAnchorElement) setMenuOpen(false);
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key === "Escape"&&toggle?.getAttribute("aria-expanded")==="true") {setMenuOpen(false);toggle.focus();}
     });
   });
 </script>
@@ -329,6 +329,7 @@ const messages = getUiMessages(localeContext.locale);
     }
   }
   @media (max-width: 860px) {
+    .og-header__menu-toggle {display:inline-flex;width:44px;height:44px;flex:0 0 44px;align-items:center;justify-content:center;}
     .og-header__inner {
       min-height: auto;
       padding: 0.68rem 0.82rem 0.76rem;
@@ -345,10 +346,12 @@ const messages = getUiMessages(localeContext.locale);
       flex-basis: 100%;
     }
     .og-header__nav {
+      display:none;
       order: 3;
       width: 100%;
       padding-bottom: 0;
     }
+    .og-header__nav[data-open="true"] {display:flex;flex-wrap:wrap;flex-basis:100%;}
     .og-header__auth {
       margin-left: auto;
     }
@@ -444,5 +447,9 @@ const messages = getUiMessages(localeContext.locale);
       min-width: 3.9rem;
       padding-inline: 0.78rem;
     }
+  }
+  .og-header__link {min-height:44px;}
+  @media(max-width:860px){
+    .og-header__link,.ogh-nav a,:global(.ogh-login-button),:global(.ogh-register-button),:global(.ogh-auth-secondary),.og-header__search :global(.global-search-box__input),.og-header__search :global(.global-search-box__button){min-height:44px;}
   }
 </style>

@@ -1,277 +1,52 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {useCallback,useEffect,useId,useRef,useState,type FormEvent} from "react";
+import {resolveLocale,type LocaleContext} from "../../lib/i18n/locale";
+import {useLocale} from "../i18n/useLocale";
+import {quickSearchGroups,type QuickSearchGroup} from "../../lib/quick-search";
+import {safeCatalogMediaUrl} from "../../lib/product-public-safety";
 
-import { resolveLocale, type LocaleContext } from "../../lib/i18n/locale";
-import { useLocale } from "../i18n/useLocale";
-
-type SearchPostResult = {
-  id: string;
-  title: string;
-  excerpt: string;
-  preview_image_url: string | null;
-};
-
-type SearchApiResponse =
-  | {
-      ok: true;
-      results: {
-        query: string;
-        posts: SearchPostResult[];
-      };
-    }
-  | {
-      error: "INVALID_QUERY" | "SEARCH_FAILED";
-    };
-
-type Props = {
-  className?: string;
-  compact?: boolean;
-  circleSlug?: string;
-  localeContext?: LocaleContext;
-};
-
-const MIN_QUERY_LENGTH = 2;
-const PREVIEW_LIMIT = 3;
-
-export default function GlobalSearchBox({ className = "", compact = false, circleSlug, localeContext = resolveLocale({}) }: Props) {
-  const { messages } = useLocale(localeContext);
-  const text = messages.shell;
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [posts, setPosts] = useState<SearchPostResult[]>([]);
-  const [mounted, setMounted] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const lastRequestedQueryRef = useRef("");
-
-  const trimmedQuery = query.trim();
-  const detailHref = trimmedQuery
-    ? circleSlug
-      ? `/search/?q=${encodeURIComponent(trimmedQuery)}&circle=${encodeURIComponent(circleSlug)}&type=posts`
-      : `/search/?q=${encodeURIComponent(trimmedQuery)}`
-    : "/search/";
-  const hasPreviewQuery = trimmedQuery.length >= MIN_QUERY_LENGTH;
-  const hasResults = posts.length > 0;
-
-  const fetchPreview = useCallback(async (nextQuery: string) => {
-    const normalizedQuery = nextQuery.trim();
-    if (normalizedQuery.length < MIN_QUERY_LENGTH) {
-      setPosts([]);
-      setLoading(false);
-      setOpen(false);
-      return;
-    }
-
-    lastRequestedQueryRef.current = normalizedQuery;
-    setLoading(true);
-    setOpen(true);
-
-    try {
-      const params = new URLSearchParams({
-        q: normalizedQuery,
-        type: "posts",
-        limit_posts: String(PREVIEW_LIMIT),
-      });
-      if (circleSlug) {
-        params.set("circle", circleSlug);
-      }
-
-      const response = await fetch(`/api/forum/search?${params.toString()}`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
-      const payload = (await response.json()) as SearchApiResponse;
-
-      if (lastRequestedQueryRef.current !== normalizedQuery) return;
-
-      if (!response.ok || !("ok" in payload) || !payload.ok) {
-        setPosts([]);
-        return;
-      }
-
-      setPosts(payload.results.posts.slice(0, PREVIEW_LIMIT));
-    } catch {
-      if (lastRequestedQueryRef.current !== normalizedQuery) return;
-      setPosts([]);
-    } finally {
-      if (lastRequestedQueryRef.current === normalizedQuery) {
-        setLoading(false);
-      }
-    }
-  }, [circleSlug]);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [mounted]);
-
-  useEffect(() => {
-    if (!hasPreviewQuery) {
-      setPosts([]);
-      setLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(async () => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams({
-          q: trimmedQuery,
-          type: "posts",
-          limit_posts: String(PREVIEW_LIMIT),
-        });
-        if (circleSlug) {
-          params.set("circle", circleSlug);
-        }
-
-        const response = await fetch(`/api/forum/search?${params.toString()}`, {
-          method: "GET",
-          signal: controller.signal,
-          headers: {
-            Accept: "application/json",
-          },
-        });
-
-        const payload = (await response.json()) as SearchApiResponse;
-
-        if (!response.ok || !("ok" in payload) || !payload.ok) {
-          setPosts([]);
-          setOpen(true);
-          return;
-        }
-
-        setPosts(payload.results.posts.slice(0, PREVIEW_LIMIT));
-        setOpen(true);
-      } catch (error) {
-        if ((error as Error).name !== "AbortError") {
-          setPosts([]);
-          setOpen(true);
-        }
-      } finally {
-        setLoading(false);
-      }
-    }, 180);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timeoutId);
-    };
-  }, [circleSlug, hasPreviewQuery, trimmedQuery]);
-
-  const handleSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (!trimmedQuery) return;
-      window.location.assign(detailHref);
-    },
-    [detailHref, trimmedQuery],
-  );
-
-  const dropdownVisible = open && hasPreviewQuery && (loading || hasResults || trimmedQuery.length >= MIN_QUERY_LENGTH);
-
-  const wrapperClassName = useMemo(
-    () =>
-      [
-        "global-search-box",
-        compact ? "global-search-box--compact" : "global-search-box--hero",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    [className, compact],
-  );
-
-  return (
-    <div className={wrapperClassName} ref={rootRef}>
-      <form className="global-search-box__form" onSubmit={handleSubmit} role="search" action="/search/" method="get">
-        <label className="global-search-box__field">
-          <span className="sr-only">{text.search}</span>
-          <input
-            type="search"
-            name="q"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onFocus={() => {
-              if (trimmedQuery.length >= MIN_QUERY_LENGTH) {
-                setOpen(true);
-              }
-            }}
-            className="glass-input global-search-box__input"
-            placeholder={text.search}
-            autoComplete="off"
-            aria-haspopup="listbox"
-            aria-expanded={dropdownVisible}
-            aria-controls="global-search-preview"
-            maxLength={80}
-          />
-        </label>
-        <button
-          type="button"
-          className="community-button global-search-box__button"
-          onClick={() => {
-            void fetchPreview(trimmedQuery);
-          }}
-        >
-          {text.search}
-        </button>
-      </form>
-
-      {dropdownVisible ? (
-        <div id="global-search-preview" className="global-search-box__dropdown glass-card is-open" role="listbox" aria-label={text.quickResults}>
-          <div className="global-search-box__dropdown-head">
-            <strong>{text.searchResults}</strong>
-            <a href={detailHref} className="community-link">
-              {text.viewDetails}
-            </a>
-          </div>
-
-          {loading ? (
-            <div className="global-search-box__empty">{text.searching}</div>
-          ) : hasResults ? (
-            <div className="global-search-box__list">
-              {posts.map((post) => (
-                <a key={post.id} href={`/posts/${post.id}/`} className="global-search-box__item">
-                  {post.preview_image_url ? (
-                    <img src={post.preview_image_url} alt="" className="global-search-box__thumb" loading="lazy" decoding="async" />
-                  ) : null}
-                  <div className="global-search-box__item-copy">
-                    <strong>{post.title}</strong>
-                    {post.excerpt ? <span>{post.excerpt}</span> : null}
-                  </div>
-                </a>
-              ))}
-            </div>
-          ) : (
-            <div className="global-search-box__empty">{text.noSearchResults}</div>
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
+type Props={className?:string;compact?:boolean;circleSlug?:string;localeContext?:LocaleContext};
+export default function GlobalSearchBox({className="",compact=false,circleSlug,localeContext=resolveLocale({})}:Props){
+  const {messages,context}=useLocale(localeContext),text=messages.shell,zh=context.locale==="zh-CN";
+  const [query,setQuery]=useState(""),[open,setOpen]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(false),[groups,setGroups]=useState<QuickSearchGroup[]>([]);
+  const root=useRef<HTMLDivElement>(null),input=useRef<HTMLInputElement>(null),active=useRef<AbortController|null>(null),generation=useRef(0),timer=useRef<ReturnType<typeof setTimeout>|null>(null),id=useId();
+  const trimmed=query.trim(),eligible=trimmed.length>=2;
+  const detailHref=trimmed?`/search/?q=${encodeURIComponent(trimmed)}${circleSlug?`&circle=${encodeURIComponent(circleSlug)}&type=posts`:""}`:"/search/";
+  const cancel=useCallback(()=>{generation.current++;active.current?.abort();if(timer.current!==null)clearTimeout(timer.current);},[]);
+  const dismiss=useCallback(()=>{cancel();setLoading(false);setOpen(false);},[cancel]);
+  const fetchPreview=useCallback(async(value:string)=>{
+    cancel();if(value.trim().length<2){setGroups([]);setOpen(false);setLoading(false);return;}
+    const current=generation.current,controller=new AbortController();active.current=controller;
+    setGroups([]);setError(false);setLoading(true);setOpen(true);
+    const params=new URLSearchParams({q:value.trim(),type:circleSlug?"posts":"all",limit_posts:"3",limit_circles:"3",limit_users:"3",limit_devices:"3"});if(circleSlug)params.set("circle",circleSlug);
+    try{const response=await fetch(`/api/forum/search?${params}`,{headers:{Accept:"application/json"},signal:controller.signal});const payload=await response.json();
+      if(controller.signal.aborted||generation.current!==current)return;
+      if(!response.ok||payload?.ok!==true)throw new Error("SEARCH_FAILED");
+      setGroups(quickSearchGroups(payload.results,Boolean(circleSlug)));
+    }catch{if(!controller.signal.aborted&&generation.current===current){setGroups([]);setError(true);}}
+    finally{if(!controller.signal.aborted&&generation.current===current)setLoading(false);}
+  },[cancel,circleSlug]);
+  useEffect(()=>{
+    cancel();setGroups([]);setError(false);setLoading(false);setOpen(false);
+    if(eligible)timer.current=setTimeout(()=>void fetchPreview(trimmed),180);
+    return cancel;
+  },[eligible,trimmed,fetchPreview,cancel]);
+  useEffect(()=>{
+    const pointer=(event:PointerEvent)=>{if(root.current&&!root.current.contains(event.target as Node))dismiss();};
+    const keyboard=(event:KeyboardEvent)=>{if(event.key==="Escape"&&root.current?.contains(document.activeElement)){input.current?.focus();dismiss();}};
+    document.addEventListener("pointerdown",pointer);document.addEventListener("keydown",keyboard);
+    return()=>{document.removeEventListener("pointerdown",pointer);document.removeEventListener("keydown",keyboard);cancel();};
+  },[cancel,dismiss]);
+  const submit=(event:FormEvent)=>{event.preventDefault();if(trimmed)window.location.assign(detailHref);};
+  const visible=open&&eligible;
+  const titles={posts:zh?"帖子":"Posts",circles:zh?"圈子":"Circles",users:zh?"用户":"Users",devices:zh?"设备":"Devices"};
+  return <div className={["global-search-box",compact?"global-search-box--compact":"global-search-box--hero",className].filter(Boolean).join(" ")} ref={root}>
+    <form className="global-search-box__form" role="search" action="/search/" onSubmit={submit}>
+      <label className="global-search-box__field"><span className="sr-only">{text.search}</span><input ref={input} type="search" name="q" value={query} onChange={event=>setQuery(event.target.value)} onFocus={()=>{if(eligible)setOpen(true);}} className="glass-input global-search-box__input" placeholder={text.search} autoComplete="off" aria-expanded={visible} aria-controls={id} maxLength={80}/></label>
+      <button type="button" className="community-button global-search-box__button" onClick={()=>void fetchPreview(trimmed)}>{text.search}</button>
+    </form>
+    {visible&&<div id={id} className="global-search-box__dropdown glass-card is-open" aria-label={text.quickResults}>
+      <div className="global-search-box__dropdown-head"><strong>{text.searchResults}</strong><a href={detailHref} className="community-link">{text.viewDetails}</a></div>
+      {loading?<div className="global-search-box__empty" role="status">{text.searching}</div>:error?<div className="global-search-box__empty" role="alert">{messages.catalog.searchFailed}</div>:groups.length?<div className="global-search-box__list">{groups.map(group=><section key={group.key} data-quick-group={group.key}><h3 className="global-search-box__group-title">{titles[group.key]}</h3>{group.items.map(item=><a key={item.href} href={item.href} className="global-search-box__item">{safeCatalogMediaUrl(item.image,import.meta.env.PUBLIC_R2_PUBLIC_BASE_URL)&&<img src={safeCatalogMediaUrl(item.image,import.meta.env.PUBLIC_R2_PUBLIC_BASE_URL)!} alt="" className="global-search-box__thumb" loading="lazy"/>}<div className="global-search-box__item-copy"><strong>{item.title}</strong>{item.description&&<span>{item.description}</span>}</div></a>)}</section>)}</div>:<div className="global-search-box__empty">{text.noSearchResults}</div>}
+    </div>}
+  </div>;
 }
