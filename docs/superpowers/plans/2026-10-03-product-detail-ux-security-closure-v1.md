@@ -394,6 +394,46 @@ This section describes future gates, not authority to execute them.
 
 Slice C PASS does not establish LARGE_SCALE_READY, all-provider mail delivery, Mainland-China VPN compatibility, load capacity or the final whole-community two-user acceptance. A/B historical evidence stays intact and scoped.
 
+## V3 Execution Addendum (2026-10-04)
+
+The SLICE_C_COMPLETION_ADMIN_EDITABLE_CATALOG_V3 authorization extends the
+remaining implementation, not the historical planning authorization above.
+Tasks 1-5 and their immutable receipts remain accepted at `eca79172`.
+
+- Publication authority is the 24 bounded anonymous canonical GET observations
+  in `artifacts/qa/product-publication-cohort-v1/publication-contract.json`.
+  All 24 returned 200 with matching brand/slug and a nonempty product name;
+  this result is observed, not inferred from repository membership. No retries
+  or authenticated requests occurred. The exact PUBLISHED set is this run's
+  local cohort; it is not permission to publish additional products.
+- Reuse `devices`, Schema v1 definitions/specs/sources/evidence and existing
+  `/admin/devices` session/API/RLS boundaries. Database data is the runtime
+  canonical source; repository inputs are import/reference/test authority only.
+  First prove all 829 known source values survive an owned local normalized
+  import. Do not replace richer existing rows with legacy bootstrap values.
+- Extend existing catalog records with public-safe bilingual presentation
+  metadata, per-device row order/group/visibility/Key Spec controls, controlled
+  formats and explicit missing-translation QA state. Machine identities and
+  factual typed values remain separate from editable labels. Unknown keys use
+  an honest localized fallback, never automatic title casing or runtime
+  translation. Referenced definition semantics and measurement contexts retain
+  their existing immutable constraints; presentation cannot change facts.
+- Extend the existing admin editor, not a second application. Every mutation
+  verifies server-side admin authority and retains database RLS. Dependent
+  saves are atomic, audit actors remain private, ordinary A/B and anon writes
+  are denied. Canonical public readers consume those exact saved records.
+- Images reuse existing device media/R2 handling; bounded galleries support
+  selection/replacement/removal/order/hero and bilingual alt text. Active URLs
+  require the reviewed origin/scheme policy; admin authority never bypasses it.
+- Complete Task 6 before secondary Tasks 7-13. Preserve the exact seven-context
+  public matrix and add only desktop/390 Chromium admin acceptance. Broad
+  regression/build runs once near final integration; focused checks run while
+  implementing. No copied historical PASS or shortened 829-value oracle.
+- Only disposable local migrations/imports are authorized. The eventual exact
+  Production migration/import/rollback packet is a handoff, not execution.
+  No Production SQL, admin login, Auth/email/content/provider mutation, main
+  push or deployment is authorized. Feature push requires all local acceptance.
+
 ## 14. Planning Verification and Remaining Unknowns
 
 Current evidence is read-only source and Git/package metadata. No provider account, Production page, SQL, Auth, email or content request was made. Public official documentation only was consulted: [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security) and [API security](https://supabase.com/docs/guides/api/securing-your-api), checked 2026-10-03; grants and RLS must both be tested. Changelog markdown fetch was unsupported by the web tool, so no current changelog compatibility PASS is claimed. Recheck version-specific invoker/Data API/CLI behavior before implementation.

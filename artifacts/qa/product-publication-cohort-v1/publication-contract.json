@@ -1,0 +1,327 @@
+{
+  "format": "product-publication-cohort-v1",
+  "authority": "SLICE_C_COMPLETION_ADMIN_EDITABLE_CATALOG_V3",
+  "observed_at_utc": "2026-10-04T01:34:06.949Z",
+  "source_sha": "eca791727be36b3cd341da6f6f272f344f52009e",
+  "candidate_artifact_sha256": "a8926200b52e3349148c43b36265a22125621c026469667e93147a80397ce259",
+  "candidate_count": 24,
+  "published_count": 24,
+  "not_published_count": 0,
+  "blocked_count": 0,
+  "production_public_read_only_requests": 24,
+  "automatic_retries": 0,
+  "candidates": [
+    {
+      "brand": "brilliant-labs",
+      "slug": "brilliant-labs-frame",
+      "canonical_path": "/products/brilliant-labs/brilliant-labs-frame/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "brilliant-labs",
+        "slug": "brilliant-labs-frame",
+        "name": "Brilliant Labs Frame"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "even-realities",
+      "slug": "even-realities-g1",
+      "canonical_path": "/products/even-realities/even-realities-g1/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "even-realities",
+        "slug": "even-realities-g1",
+        "name": "Even Realities G1"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "inmo",
+      "slug": "inmo-air-2",
+      "canonical_path": "/products/inmo/inmo-air-2/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "inmo",
+        "slug": "inmo-air-2",
+        "name": "INMO Air 2"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "inmo",
+      "slug": "inmo-go3",
+      "canonical_path": "/products/inmo/inmo-go3/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "inmo",
+        "slug": "inmo-go3",
+        "name": "INMO GO3"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "meta",
+      "slug": "ray-ban-meta",
+      "canonical_path": "/products/meta/ray-ban-meta/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "meta",
+        "slug": "ray-ban-meta",
+        "name": "Ray-Ban Meta"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "rayneo",
+      "slug": "rayneo-air-2",
+      "canonical_path": "/products/rayneo/rayneo-air-2/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "rayneo",
+        "slug": "rayneo-air-2",
+        "name": "RayNeo Air 2"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "rayneo",
+      "slug": "rayneo-air-2s",
+      "canonical_path": "/products/rayneo/rayneo-air-2s/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "rayneo",
+        "slug": "rayneo-air-2s",
+        "name": "RayNeo Air 2s"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "rayneo",
+      "slug": "rayneo-air-3s",
+      "canonical_path": "/products/rayneo/rayneo-air-3s/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "rayneo",
+        "slug": "rayneo-air-3s",
+        "name": "RayNeo Air 3s"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "rayneo",
+      "slug": "rayneo-air-4-pro",
+      "canonical_path": "/products/rayneo/rayneo-air-4-pro/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "rayneo",
+        "slug": "rayneo-air-4-pro",
+        "name": "RayNeo Air 4 Pro"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "rayneo",
+      "slug": "rayneo-x2",
+      "canonical_path": "/products/rayneo/rayneo-x2/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "rayneo",
+        "slug": "rayneo-x2",
+        "name": "RayNeo X2"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "rayneo",
+      "slug": "rayneo-x3-pro",
+      "canonical_path": "/products/rayneo/rayneo-x3-pro/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "rayneo",
+        "slug": "rayneo-x3-pro",
+        "name": "RayNeo X3 Pro"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "rokid",
+      "slug": "rokid-air",
+      "canonical_path": "/products/rokid/rokid-air/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "rokid",
+        "slug": "rokid-air",
+        "name": "Rokid Air"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "rokid",
+      "slug": "rokid-ar-lite",
+      "canonical_path": "/products/rokid/rokid-ar-lite/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "rokid",
+        "slug": "rokid-ar-lite",
+        "name": "Rokid AR Lite"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "rokid",
+      "slug": "rokid-glasses",
+      "canonical_path": "/products/rokid/rokid-glasses/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "rokid",
+        "slug": "rokid-glasses",
+        "name": "Rokid Glasses"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "rokid",
+      "slug": "rokid-max",
+      "canonical_path": "/products/rokid/rokid-max/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "rokid",
+        "slug": "rokid-max",
+        "name": "Rokid Max"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "viture",
+      "slug": "viture-one",
+      "canonical_path": "/products/viture/viture-one/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "viture",
+        "slug": "viture-one",
+        "name": "VITURE One"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "viture",
+      "slug": "viture-one-lite",
+      "canonical_path": "/products/viture/viture-one-lite/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "viture",
+        "slug": "viture-one-lite",
+        "name": "VITURE One Lite"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "viture",
+      "slug": "viture-pro",
+      "canonical_path": "/products/viture/viture-pro/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "viture",
+        "slug": "viture-pro",
+        "name": "VITURE Pro"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "xreal",
+      "slug": "xreal-air",
+      "canonical_path": "/products/xreal/xreal-air/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "xreal",
+        "slug": "xreal-air",
+        "name": "XREAL Air"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "xreal",
+      "slug": "xreal-air-2",
+      "canonical_path": "/products/xreal/xreal-air-2/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "xreal",
+        "slug": "xreal-air-2",
+        "name": "XREAL Air 2"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "xreal",
+      "slug": "xreal-air-2-pro",
+      "canonical_path": "/products/xreal/xreal-air-2-pro/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "xreal",
+        "slug": "xreal-air-2-pro",
+        "name": "XREAL Air 2 Pro"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "xreal",
+      "slug": "xreal-air-2-ultra",
+      "canonical_path": "/products/xreal/xreal-air-2-ultra/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "xreal",
+        "slug": "xreal-air-2-ultra",
+        "name": "XREAL Air 2 Ultra"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "xreal",
+      "slug": "xreal-one",
+      "canonical_path": "/products/xreal/xreal-one/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "xreal",
+        "slug": "xreal-one",
+        "name": "XREAL One"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    },
+    {
+      "brand": "xreal",
+      "slug": "xreal-one-pro",
+      "canonical_path": "/products/xreal/xreal-one-pro/",
+      "production_http_status": 200,
+      "observed_identity": {
+        "brand": "xreal",
+        "slug": "xreal-one-pro",
+        "name": "XREAL One Pro"
+      },
+      "decision": "PUBLISHED",
+      "reason": null
+    }
+  ]
+}
