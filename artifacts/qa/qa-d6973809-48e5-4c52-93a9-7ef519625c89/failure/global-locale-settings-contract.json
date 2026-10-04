@@ -1,0 +1,1 @@
+{"attempts":1,"classification":"VALIDATION","diagnostics":{"code":"LOCALE_ACCEPTANCE_SOURCE_CHANGED","commitSha":"e322a326b79992904cd303d341ebd851984b7641","deterministic":"NOT_RUN"},"durationMs":0,"id":"global-locale-settings-contract","status":"FAIL"}

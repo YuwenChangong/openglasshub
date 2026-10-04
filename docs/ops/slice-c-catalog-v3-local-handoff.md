@@ -106,3 +106,31 @@ The earlier local browser environment created an untracked literal
 paths after secret-variable sanitization. Tool policy rejected its cleanup;
 no alternate deletion method was used and the cache must not enter a commit.
 Worktree cleanliness must report the actual remaining untracked directory.
+
+## Final Bounded Gate Result
+
+Final genuine-local receipt:
+`artifacts/qa/catalog-editor-v1/68b59217-1dc6-4fcc-9ac8-4281a06b4f38.json`.
+Status PASS, 162 local assertions, 24/24 cohort routes, 829/829 known facts,
+zero dropped/fabricated values or raw labels, seven public and two admin contexts
+PASS, zero external requests/page errors, owned disposable cleanup PASS. Recorded
+core source hashes match the verified implementation. The 296 explicit prose
+translation fallbacks are retained and flagged, not silently machine-translated.
+
+Final broad run at `e322a326b79992904cd303d341ebd851984b7641`:
+`artifacts/qa/qa-d6973809-48e5-4c52-93a9-7ef519625c89/receipt.json`.
+Result FAIL: 34/36 checks passed, two failed, zero retries. Final Astro build PASS.
+`global-locale-settings-contract` failed `LOCALE_ACCEPTANCE_SOURCE_CHANGED`,
+before deterministic execution. `qa-harness-profiles` failed its Task20
+validation-only and failed-child assertions. Its stored stdout is truncated;
+do not invent missing assertion detail or relabel the failure as a product bug.
+Source inspection shows those tests use the existing accepted-evidence gate.
+
+The old Locale source contract is not relaxed, its historical accepted evidence
+is not rebound to this catalog commit, and the 104 historical coverage-owner
+mismatches are not repaired. No waiver, retry, timeout change or broad rerun is
+authorized by this handoff. Tasks 12-13 remain BLOCKED at the final release gate;
+implementation-complete, migration-ready and release-ready remain false.
+Feature branch has NOT been pushed. No Production SQL/provider/deployment/Auth/
+email/content mutation occurred. A separate review of the Locale QA ownership
+contract is required before another authorized final release gate.
