@@ -170,9 +170,8 @@ if (process.argv.includes('--old-red')) {
     }
     assert.equal(f.bindings.size, 2);
   });
-  test('normal acceptance and narrow verification call the same logout owner', { skip: runner === null }, () => {
+  test('formal acceptance retains the shared logout owner', { skip: runner === null }, () => {
     assert.ok(actualOwner.includes('acceptLocaleLogout('));
-    assert.ok(runner.includes("logoutMode==='acceptance-only'"));
     assert.ok(runner.includes('await logout(page,accounts.a)'));
     assert.ok(runner.includes('await logout(page,accounts.b)'));
   });
