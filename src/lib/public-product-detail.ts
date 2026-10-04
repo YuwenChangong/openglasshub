@@ -24,6 +24,49 @@ export type PublicDetailEvidence = {
   source_id: string; claimed_value: string; is_primary: boolean; is_conflicting: boolean;
 };
 
+export type DetailParameterItem = {
+  key: string; field: string; label: string; value: string | null;
+  state: "KNOWN" | "NOT_DISCLOSED" | "NOT_APPLICABLE" | "CONFLICT";
+  provenance: "LEGACY_UNVERIFIED" | "STRUCTURED_VERIFIED" | "UNKNOWN";
+  region: string | null; variant: string | null; measurementContext: string | null;
+  unit: string | null; verifiedAt: string | null;
+};
+type LegacyParameters = { specGroups: { key: string; label: string; items: { field: string; label: string; value: string }[] }[] };
+
+export function buildDetailParameterGroups(product: LegacyParameters, specs: PublicDetailSpec[]) {
+  const groups = new Map<string, { key: string; label: string; items: DetailParameterItem[] }>();
+  const group = (key: string, label: string) => {
+    if (!groups.has(key)) groups.set(key, { key, label, items: [] });
+    return groups.get(key)!;
+  };
+  for (const legacy of product.specGroups) group(legacy.key, legacy.label);
+  const ordered = [...specs].sort((a, b) => a.admin_order - b.admin_order || a.key.localeCompare(b.key)
+    || (a.region ?? "").localeCompare(b.region ?? "") || (a.variant ?? "").localeCompare(b.variant ?? ""));
+  for (const spec of ordered) {
+    if (!["KNOWN", "NOT_DISCLOSED", "NOT_APPLICABLE", "CONFLICT"].includes(spec.state)) throw new Error("Public product detail read failed.");
+    const typed = spec.value_type === "number" ? spec.value_number : spec.value_type === "boolean" ? spec.value_boolean
+      : spec.value_type === "text" ? spec.value_text : spec.value_json;
+    if (spec.state === "KNOWN" && (typed === null || typed === undefined)) throw new Error("Public product detail read failed.");
+    const value = typed === null || typed === undefined ? null : typeof typed === "boolean" ? (typed ? "Yes" : "No")
+      : typeof typed === "object" ? JSON.stringify(typed) : String(typed);
+    group(spec.group_key, spec.group_key).items.push({
+      key: spec.key, field: spec.key.split(".").slice(1).join("."), label: spec.label, value,
+      state: spec.state, provenance: value === null ? "UNKNOWN" : "STRUCTURED_VERIFIED",
+      region: spec.region, variant: spec.variant, measurementContext: spec.measurement_context,
+      unit: spec.canonical_unit, verifiedAt: spec.verified_at,
+    });
+  }
+  // Legacy rows do not carry a verifiable region/measurement context. Keep
+  // them explicitly attributed, even when a structured key/value matches.
+  for (const legacy of product.specGroups) for (const item of legacy.items) {
+    const state = item.value === "Not disclosed" ? "NOT_DISCLOSED" : item.value === "Not applicable" ? "NOT_APPLICABLE" : "KNOWN";
+    group(legacy.key, legacy.label).items.push({ key: `${legacy.key}.${item.field}`, field: item.field, label: item.label,
+      value: item.value, state, provenance: state === "KNOWN" ? "LEGACY_UNVERIFIED" : "UNKNOWN",
+      region: null, variant: null, measurementContext: null, unit: null, verifiedAt: null });
+  }
+  return [...groups.values()].filter(item => item.items.length);
+}
+
 // Always pass the anonymous public SSR client, never a browser session or an
 // administrative key. A missing projection is an outage, not absent facts.
 export async function getPublicProductDetail(client: SupabaseClient, slug: string) {
@@ -36,7 +79,7 @@ export async function getPublicProductDetail(client: SupabaseClient, slug: strin
     for (let start = 0; ; ) {
       let query = client.from(table).select(columns, { count: "exact" })
         .eq("device_slug", slug).order(table === "public_device_detail_evidence" ? "spec_id" : "id");
-      if (table === "public_device_detail_evidence") query = query.order("source_id");
+      if (table === "public_device_detail_evidence") query = query.order("source_id").order("claimed_value");
       const { data, error, count } = await query.range(start, start + pageSize - 1);
       if (error || !Array.isArray(data) || count === null || count === undefined || count < 0
         || (expected !== undefined && count !== expected)) throw new Error("Public product detail read failed.");

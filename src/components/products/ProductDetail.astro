@@ -3,11 +3,13 @@ import ProductVisual from "./ProductVisual.astro";
 import { getUiMessages } from "../../lib/i18n/catalog";
 import { resolveLocale } from "../../lib/i18n/locale";
 import type { getPublishedDeviceBySlug } from "../../lib/public-device-data";
+import type { buildDetailParameterGroups } from "../../lib/public-product-detail";
 
 interface Props {
   product: NonNullable<Awaited<ReturnType<typeof getPublishedDeviceBySlug>>>;
+  parameterGroups: ReturnType<typeof buildDetailParameterGroups>;
 }
-const { product } = Astro.props;
+const { product, parameterGroups } = Astro.props;
 const localeContext = Astro.locals.localeContext ?? resolveLocale({});
 const text = getUiMessages(localeContext.locale).catalog;
 const safeHttps = (value: string | null) => {
@@ -48,6 +50,7 @@ const links = product.externalLinks.map((link) => ({ ...link, href: safeHttps(li
   {product.previewSpecs.length > 0 && (
     <section class="product-detail__group" data-spec-preview>
       <h2>{text.productKeyParameters}</h2>
+      <p class="product-detail__provenance">{text.productLegacyParameters}</p>
       <dl>
         {product.previewSpecs.map((item) => (
           <div data-preview-field={item.field}>
@@ -60,19 +63,27 @@ const links = product.externalLinks.map((link) => ({ ...link, href: safeHttps(li
   )}
   <section class="product-detail__parameters">
     <h2>{text.productParameters}</h2>
-    {product.specGroups.length ? product.specGroups.map((group) => (
+    {parameterGroups.length ? parameterGroups.map((group) => (
       <section class="product-detail__group" data-spec-group={group.key}>
         <h3>{group.label}</h3>
         <dl>
           {group.items.map((item) => (
-            <div data-spec-field={item.field}>
+            <div data-spec-field={item.field} data-parameter-key={item.key} data-parameter-provenance={item.provenance} data-parameter-state={item.state}>
               <dt>{item.label}</dt>
-              <dd>{item.value}</dd>
+              <dd>{item.value ?? text.productParameterUnknown}</dd>
+              <p class="product-detail__provenance" data-parameter-metadata>
+                {item.provenance === "LEGACY_UNVERIFIED" ? text.productLegacyParameters : item.provenance === "STRUCTURED_VERIFIED" ? text.productStructuredParameters : text.productParameterUnknown}
+                {item.state === "CONFLICT" && ` | ${text.productParameterConflict}`}
+                {item.unit && ` | ${item.unit}`}
+                {item.measurementContext && ` | ${item.measurementContext}`}
+                {item.region && ` | ${item.region}`}
+                {item.variant && ` | ${item.variant}`}
+              </p>
             </div>
           ))}
         </dl>
       </section>
-    )) : <p class="product-detail__empty">{text.productParametersEmpty}</p>}
+    )) : <p class="product-detail__empty" data-parameter-provenance="ABSENT">{text.productParametersEmpty}</p>}
   </section>
 </article>
 
@@ -97,8 +108,11 @@ const links = product.externalLinks.map((link) => ({ ...link, href: safeHttps(li
   .product-detail dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1rem; padding: 0.6rem 0; }
   .product-detail dt, .product-detail__empty { color: var(--text-muted); }
   .product-detail dd { margin: 0; white-space: pre-wrap; }
+  .product-detail__provenance { font-size: 0.8rem; color: var(--text-muted); margin: 0.25rem 0; }
+  .product-detail dl .product-detail__provenance { grid-column: 2; }
   @media (max-width: 640px) {
     .product-detail__overview { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
     .product-detail dl > div { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
+    .product-detail dl .product-detail__provenance { grid-column: 1; }
   }
 </style>

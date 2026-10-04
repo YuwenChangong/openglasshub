@@ -8,11 +8,14 @@ type PublicRow = JsonRecord & { slug: string; brand_key: string; brand_name: str
 const record = (value: unknown): JsonRecord => value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
 const strings = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 const text = (value: unknown): string | null => typeof value === "string" && value.trim() ? value : null;
+const specText = (value: unknown): string | null => typeof value === "string" ? text(value)
+  : typeof value === "number" && Number.isFinite(value) ? String(value)
+  : typeof value === "boolean" ? String(value) : null;
 
 function specGroups(value: unknown) {
   return Object.entries(record(value)).flatMap(([key, group]) => {
     const items = Object.entries(record(group)).flatMap(([field, candidate]) => {
-      const value = text(candidate);
+      const value = specText(candidate);
       return value ? [{ field, label: field, value }] : [];
     });
     return items.length ? [{ key, label: key, items }] : [];
@@ -63,7 +66,10 @@ function mapPublicDevice(row: PublicRow) {
   const placeholderType = ["glasses", "headset", "frame", "wordmark"].includes(String(media.placeholderType)) ? String(media.placeholderType) : "wordmark";
   const detailMedia = { imageUrl: text(row.product_image_url) ?? text(row.official_image_url), imageAlt, imageBackground, imageFit, hasConfirmedImage: media.hasConfirmedImage === true, placeholderType };
   const groups = specGroups(row.full_specs);
-  const previewSpecs = Array.isArray(row.key_specs) ? row.key_specs.filter((item) => record(item).field && record(item).label && record(item).value).map((item) => ({ field: String(record(item).field), label: String(record(item).label), value: String(record(item).value) })) : groups.flatMap((group) => group.items).slice(0, 5);
+  const previewSpecs = Array.isArray(row.key_specs) ? row.key_specs.flatMap((candidate) => {
+    const item = record(candidate), field = text(item.field), label = text(item.label), value = specText(item.value);
+    return field && label && value !== null ? [{ field, label, value }] : [];
+  }) : groups.flatMap((group) => group.items).slice(0, 5);
   return {
     slug: row.slug, brandKey: row.brand_key, brandName: row.brand_name, brandLabel: row.brand_name, brandMarkText: row.brand_name, brandTone: "xreal",
     name: row.name, title: row.name, shortDescription: row.short_description, longDescription: row.long_description, positioning: text(row.positioning) ?? text(row.route_description) ?? "",

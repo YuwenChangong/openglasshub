@@ -6,6 +6,7 @@ import CommunityLayout from "../../../layouts/CommunityLayout.astro";
 import ProductDetail from "../../../components/products/ProductDetail.astro";
 import { getBrandByKey } from "../../../lib/device-catalog";
 import { getPublishedDeviceBySlug } from "../../../lib/public-device-data";
+import { getPublicProductDetail, buildDetailParameterGroups } from "../../../lib/public-product-detail";
 import { createSSRClient, type CloudflareEnv } from "../../../lib/supabase-server";
 import { getUiMessages } from "../../../lib/i18n/catalog";
 import { resolveLocale } from "../../../lib/i18n/locale";
@@ -16,16 +17,21 @@ const brandKey = Astro.params.brand ?? "";
 const slug = Astro.params.slug ?? "";
 const validSegment = (value: string) => value.length <= 128 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
 let product: Awaited<ReturnType<typeof getPublishedDeviceBySlug>> = null;
+let parameterGroups: ReturnType<typeof buildDetailParameterGroups> = [];
 let unavailable = false;
 
 if (validSegment(brandKey) && validSegment(slug) && getBrandByKey(brandKey)) {
   try {
-    product = await getPublishedDeviceBySlug(createSSRClient(runtimeEnv as CloudflareEnv), slug);
+    const detail = await getPublicProductDetail(createSSRClient(runtimeEnv as CloudflareEnv), slug);
+    product = detail?.product ?? null;
+    parameterGroups = detail ? buildDetailParameterGroups(detail.product, detail.specs) : [];
     if (product && (product.slug !== slug || !validSegment(product.brandKey) || !getBrandByKey(product.brandKey))) {
       product = null;
       unavailable = true;
     }
   } catch {
+    product = null;
+    parameterGroups = [];
     unavailable = true;
   }
 }
@@ -48,7 +54,7 @@ const title = product?.name ?? (unavailable ? text.productUnavailable : text.pro
   activeSection="products"
   showHeaderSearch={false}
 >
-  {product ? <ProductDetail product={product} /> : (
+  {product ? <ProductDetail product={product} parameterGroups={parameterGroups} /> : (
     <section class="product-detail-state">
       <h1>{title}</h1>
       <p>{unavailable ? text.productUnavailableHint : text.productMissingHint}</p>

@@ -9,6 +9,7 @@ import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import { getPublishedDeviceBySlug } from "../src/lib/public-device-data.ts";
 import { resolveLocale } from "../src/lib/i18n/locale.ts";
 import { getUiMessages } from "../src/lib/i18n/catalog.ts";
+import { buildRepositoryInventory } from "./lib/product-detail-repository-inventory.mjs";
 
 const routePath = "src/pages/products/[brand]/[slug].astro";
 const source = await readFile(routePath, "utf8").catch((error) => {
@@ -17,7 +18,7 @@ const source = await readFile(routePath, "utf8").catch((error) => {
 });
 assert.ok(source, "KNOWN_DEVICE_CANONICAL_DETAIL_ROUTE_MISSING: brand anchor cannot serve as detail");
 assert.match(source, /export const prerender = false/);
-assert.match(source, /getPublishedDeviceBySlug\(createSSRClient/);
+assert.match(source, /getPublicProductDetail\(createSSRClient/);
 assert.doesNotMatch(source, /listPublishedDevices|#product-|service.role|device_specs|\.rpc\(/i);
 const root = path.resolve(import.meta.dirname, "..");
 const artifactPath = path.join(root, "artifacts/qa/product-detail-task-2");
@@ -26,7 +27,7 @@ await mkdir(artifactPath, { recursive: true });
 const fixture = JSON.parse(await readFile(path.join(root, "scripts/fixtures/product-detail-public-row.json"), "utf8"));
 assert.ok(fixture?.slug && fixture.brand_key);
 const privateRow = { ...fixture, slug: "task2-private", name: "TASK2_PRIVATE_IDENTITY_SENTINEL", publication_status: "draft" };
-let activeRows = [fixture, privateRow], failRead = false;
+let activeRows = [fixture, privateRow], failRead = false, failProjection = false, structuredSpecs = [];
 const queries = [];
 function client() {
   return { from(table) {
@@ -38,6 +39,13 @@ function client() {
       maybeSingle() {
         const rows = activeRows.filter((row) => call.filters.every(([key, value]) => row[key] === value));
         return Promise.resolve(failRead ? { data: null, error: { message: "TASK2_RAW_BACKEND_ERROR_SENTINEL" } } : { data: rows[0] ?? null, error: null });
+      },
+      order() { return query; },
+      range(start, end) {
+        assert.ok(table.startsWith("public_device_detail_"));
+        const rows = table === "public_device_detail_specs" ? structuredSpecs : [];
+        return Promise.resolve(failProjection ? { data: null, count: null, error: { message: "TASK4_PRIVATE_PROJECTION_ERROR" } }
+          : { data: rows.slice(start, end + 1), count: rows.length, error: null });
       },
     };
     return query;
@@ -91,7 +99,7 @@ try {
     return { response, html: await response.text() };
   }
   function markupEntries(html, marker) {
-    return [...html.matchAll(new RegExp(`<div[^>]*${marker}="([^"]*)"[^>]*>\\s*<dt[^>]*>([\\s\\S]*?)<\\/dt>\\s*<dd[^>]*>([\\s\\S]*?)<\\/dd>\\s*<\\/div>`, "g"))]
+    return [...html.matchAll(new RegExp(`<div[^>]*${marker}="([^"]*)"[^>]*>\\s*<dt[^>]*>([\\s\\S]*?)<\\/dt>\\s*<dd[^>]*>([\\s\\S]*?)<\\/dd>\\s*(?:<p[^>]*data-parameter-metadata[^>]*>[\\s\\S]*?<\\/p>\\s*)?<\\/div>`, "g"))]
       .map(([, field, label, value]) => ({ field, label, value }));
   }
   function escape(value) {
@@ -143,6 +151,25 @@ try {
   assert.doesNotMatch(failed.html, /TASK2_RAW_BACKEND_ERROR_SENTINEL|data-product-detail/);
   failRead = false;
   cases.push("READ_ERROR_SAFE_503");
+  failProjection = true;
+  const projectionError = await request(fixture.brand_key, fixture.slug);
+  assert.equal(projectionError.response.status, 503);
+  assert.doesNotMatch(projectionError.html, /TASK4_PRIVATE_PROJECTION_ERROR|data-product-detail/);
+  failProjection = false;
+  cases.push("MISSING_STRUCTURED_PROJECTION_IS_503_NOT_EMPTY");
+  structuredSpecs = [{ id: "typed", key: "basic.zero", group_key: "basic", label: "Zero", value_type: "number",
+    admin_order: 0, state: "KNOWN", value_number: 0, value_boolean: null, value_text: null, value_json: null,
+    canonical_unit: null, measurement_context: null, region: "Global", variant: "", confidence: "HIGH", verified_at: null }];
+  const typed = await request(fixture.brand_key, fixture.slug);
+  assert.equal(typed.response.status, 200);
+  assert.ok(markupEntries(typed.html, "data-spec-field").some(item => item.field === "zero" && item.value === "0"));
+  assert.match(typed.html, /data-parameter-provenance="STRUCTURED_VERIFIED"/);
+  structuredSpecs = [{ ...structuredSpecs[0], state: "UNKNOWN_UNVERIFIED" }];
+  const invalidProjection = await request(fixture.brand_key, fixture.slug);
+  assert.equal(invalidProjection.response.status, 503);
+  assert.doesNotMatch(invalidProjection.html, /data-product-detail/);
+  structuredSpecs = [];
+  cases.push("TYPED_ZERO_RENDER_AND_UNEXPECTED_PRIVATE_STATE_FAIL_CLOSED");
   activeRows = [{ ...fixture, full_specs: {}, key_specs: [] }];
   const empty = await request(fixture.brand_key, fixture.slug);
   assert.equal(empty.response.status, 200);
@@ -160,16 +187,38 @@ try {
   assert.doesNotMatch(unsafeIdentity.html, /data-product-detail/);
   cases.push("UNTRUSTED_RETURNED_IDENTITY_SAFE_503");
   for (const query of queries) {
-    assert.equal(query.table, "devices");
-    assert.deepEqual(query.filters[0], ["publication_status", "published"]);
-    assert.equal(query.filters[1][0], "slug");
+    if (query.table === "devices") {
+      assert.deepEqual(query.filters[0], ["publication_status", "published"]);
+      assert.equal(query.filters[1][0], "slug");
+    } else {
+      assert.ok(query.table.startsWith("public_device_detail_"));
+      assert.equal(query.filters[0][0], "device_slug");
+      assert.doesNotMatch(query.columns, /raw_value|note|updated_by|actor_id|\*/);
+    }
+  }
+  let sourceSsrRetained = 0;
+  if (process.argv.includes("--parameter-source-sweep")) {
+    const inventory = await buildRepositoryInventory({ root });
+    for (const row of inventory.pipeline.readerCompatibleRows) {
+      activeRows = [row];
+      const result = await request(row.brand_key, row.slug);
+      assert.equal(result.response.status, 200);
+      const observed = markupEntries(result.html, "data-spec-field");
+      for (const entry of inventory.parameterLedger.filter(item => item.slug === row.slug && item.state === "KNOWN")) {
+        const field = entry.canonicalPath.split(".").slice(1).join(".");
+        assert.ok(observed.some(item => item.field === field && item.value === escape(entry.value)), `SOURCE_SSR_VALUE_DROPPED:${entry.pointer}`);
+        sourceSsrRetained++;
+      }
+    }
+    assert.equal(sourceSsrRetained, 829);
+    cases.push("TASK4_ALL_829_SOURCE_FIELDS_SSR_NOT_PUBLICATION_COHORT_ACCEPTANCE");
   }
   const receipt = {
     format: "slice-c-task-2-focused-route-v1", evidenceClass: "ACTUAL_ASTRO_CONTAINER_SSR_WITH_OFFLINE_QUERY_DOUBLE_NOT_DB_RLS_OR_PRODUCTION",
     fixtureSlug: fixture.slug, knownStatus: 200, unknownStatus: 404, wrongBrandStatus: 301, readFailureStatus: 503,
     expectedFullParameterCount: expected.length, renderedFullParameterCount,
     expectedPreviewParameterCount: expectedPreview.length, renderedPreviewParameterCount,
-    knownMappedParameterDroppedCount: 0, cases, externalRequests: 0,
+    knownMappedParameterDroppedCount: 0, sourceSsrRetained, cases, externalRequests: 0,
   };
   await writeFile(path.join(artifactPath, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n");
   await writeFile(path.join(artifactPath, "focused-styles.css"), [...styles].join("\n"));

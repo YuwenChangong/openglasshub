@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { chromium } from "playwright";
 import { preparePreferenceRunEnvironment } from "./test-user-preferences-rls-local.mjs";
+import { buildRepositoryInventory } from "./lib/product-detail-repository-inventory.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const allowed = ["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOME", "COMSPEC"];
@@ -33,6 +34,11 @@ const row = {
   buy_url: product.buyUrl, key_specs: product.previewSpecs,
   full_specs: Object.fromEntries(product.specGroups.map(group => [group.key, Object.fromEntries(group.items.map(item => [item.field, item.value]))])),
 };
+const sourceSweep = process.argv.includes("--parameter-source-sweep");
+const inventory = sourceSweep ? await buildRepositoryInventory({ root }) : null;
+// These are owned parameter transport fixtures, not publication authority.
+const fixtureRows = inventory ? inventory.pipeline.readerCompatibleRows.map(item => ({ ...item,
+  product_image_url: null, official_image_url: null })) : [row];
 const canonical = `/products/${product.brandKey}/${product.slug}/`;
 const oldHref = `/products/${product.brandKey}/#product-${product.slug}`;
 const receipt = { PRODUCT_BRAND_VIEW_PRODUCT_LINK_TEST: "FAIL", evidenceClass: "ACTUAL_LOCAL_WORKER_BROWSER_WITH_OFFLINE_DATA_API_FIXTURE_NOT_DB_OR_PRODUCTION",
@@ -40,6 +46,8 @@ const receipt = { PRODUCT_BRAND_VIEW_PRODUCT_LINK_TEST: "FAIL", evidenceClass: "
   destinationParameterSectionPresent: false,
   anchorPreserved: false, compareTogglePassed: false, compareDestinationPreserved: false, officialLinkPreserved: false,
   deniedWorkerOutbound: 0, deniedBrowserExternal: 0, fixtureReads: 0 };
+receipt.parameterSourceDomRetained = 0;
+receipt.publicationCohortAcceptance = "NOT_RUN";
 let worker, browser, stage = "LOCAL_BUILD", readinessTimer;
 const originalFetch = globalThis.fetch;
 globalThis.fetch = (input, init) => {
@@ -64,14 +72,19 @@ try {
       outboundService(request) {
         const url = new URL(request.url);
         const slug = url.searchParams.get("slug");
+        if (url.origin === fixtureOrigin && request.method === "GET" && /^\/rest\/v1\/public_device_detail_(specs|sources|evidence)$/.test(url.pathname)) {
+          assert.equal(request.headers.get("apikey"), anonKey, "FIXTURE_ANON_ONLY");
+          receipt.fixtureReads++;
+          return new Response("[]", { headers: { "content-type": "application/json", "content-range": "*/0" } });
+        }
         if (url.origin !== fixtureOrigin || url.pathname !== "/rest/v1/devices" || request.method !== "GET"
-          || url.searchParams.get("publication_status") !== "eq.published" || (slug !== null && slug !== `eq.${row.slug}`)) {
+          || url.searchParams.get("publication_status") !== "eq.published") {
           receipt.deniedWorkerOutbound++;
           return new Response("LOCAL_PRODUCT_LINK_OUTBOUND_FORBIDDEN", { status: 599 });
         }
         assert.equal(request.headers.get("apikey"), anonKey, "FIXTURE_ANON_ONLY");
         receipt.fixtureReads++;
-        return new Response(JSON.stringify([row]), { headers: { "content-type": "application/json" } });
+        return new Response(JSON.stringify(fixtureRows.filter(item => slug === null || slug === `eq.${item.slug}`)), { headers: { "content-type": "application/json" } });
       } } });
   await Promise.race([Promise.all([worker.ready, new Promise((resolve, reject) => {
     worker.raw.once("reloadComplete", resolve);
@@ -133,6 +146,23 @@ try {
   assert.equal(receipt.destinationIdentity, "XREAL Air");
   assert.equal(await detail.locator(".product-detail__parameters").count(), 1);
   receipt.destinationParameterSectionPresent = true;
+  await page.screenshot({ path: path.join(artifact, "detail-desktop.png"), fullPage: true });
+  if (inventory) {
+    stage = "TASK4_SOURCE_PARAMETER_DOM_TRANSPORT_NOT_PUBLICATION_ACCEPTANCE";
+    for (const fixture of fixtureRows) {
+      const response = await page.goto(`${origin}/products/${fixture.brand_key}/${fixture.slug}/`, { waitUntil: "load", timeout: 20000 });
+      assert.equal(response.status(), 200);
+      const observed = await page.locator("[data-parameter-key]").evaluateAll(elements => elements.map(element => ({
+        key: element.getAttribute("data-parameter-key"), value: element.querySelector("dd").textContent,
+        provenance: element.getAttribute("data-parameter-provenance"),
+      })));
+      for (const source of inventory.parameterLedger.filter(item => item.slug === fixture.slug && item.state === "KNOWN")) {
+        assert.ok(observed.some(item => item.key === source.canonicalPath && item.value === String(source.value) && item.provenance === "LEGACY_UNVERIFIED"), `SOURCE_DOM_FIELD_DROPPED:${source.pointer}`);
+        receipt.parameterSourceDomRetained++;
+      }
+    }
+    assert.equal(receipt.parameterSourceDomRetained, 829);
+  }
   assert.equal(receipt.deniedWorkerOutbound, 0);
   assert.equal(receipt.deniedBrowserExternal, 0);
   assert.ok(receipt.fixtureReads >= 2);

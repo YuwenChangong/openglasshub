@@ -115,9 +115,9 @@ test("legacy manifest mismatches expose their exact source pointers without beco
   assert.equal(inventory.summary.KNOWN_SOURCE_VALUE_DROPPED_COUNT, 0);
 });
 
-test("typed mapper limitation is characterized, not mislabeled as real YAML loss", () => {
+test("current typed mapper capability is characterized, not mislabeled as historical YAML loss", () => {
   assert.deepEqual(inventory.summary.TYPED_MAPPER_PROBE, {
-    evidenceClass: "SYNTHETIC_CAPABILITY_ONLY_NOT_OBSERVED_YAML_LOSS", zeroRetained: false, falseRetained: false, numberRetained: false, textRetained: true,
+    evidenceClass: "SYNTHETIC_CAPABILITY_ONLY_NOT_OBSERVED_YAML_LOSS", zeroRetained: true, falseRetained: true, numberRetained: true, textRetained: true,
   });
   assert.equal(inventory.summary.PUBLIC_MAPPER_DROPS_VALUES, false);
   assert.equal(inventory.summary.MAPPER_EVIDENCE_SCOPE, "OFFLINE_YAML_DERIVED_COMPATIBILITY_INPUT_NOT_DEPLOYED_DATA_OR_RLS");
