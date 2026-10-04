@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import ts from 'typescript';
@@ -108,8 +109,8 @@ export async function observeLogout({ page, context, factory, expectedActor, aut
   return record;
 }
 
-// Observation only: the acceptance runner's existing logout contract is unchanged.
-export async function observeFinalLogout({ page, context, factory, expectedActor, authKey, record }) {
+// Track final-document evidence; the acceptance owner validates application semantics.
+export async function observeFinalLogout({ page, context, factory, expectedActor, authKey, record, diagnostic = true }) {
   const events = record.events = [], documents = record.documents = [];
   const requests = new Map(), loaders = new Map();
   const session = await context.newCDPSession(page);
@@ -123,7 +124,7 @@ export async function observeFinalLogout({ page, context, factory, expectedActor
   const reschedule = () => {
     clearTimeout(quietTimer);
     const latest = documents.at(-1);
-    if (!latest?.committed || !latest.load || !latest.domContentLoaded || latest.requestFailed) return;
+    if (!latest?.committed || !latest.load || !latest.domContentLoaded || !latest.httpFinished || latest.responseStatus !== 200 || latest.requestFailed) return;
     quietTimer = setTimeout(containDiagnosticObserver('FINAL_DOCUMENT_QUIET_PERIOD', () => {
       if (documents.at(-1) === latest && committed === latest.generation) {
         latest.quietPeriodCompleted = new Date().toISOString();
@@ -164,7 +165,7 @@ export async function observeFinalLogout({ page, context, factory, expectedActor
   listen(session, 'Network.loadingFinished', event => {
     if (!active) return;
     const request = requests.get(event.requestId);
-    if (request?.kind === 'DOCUMENT') { documents[request.generation - 1].httpFinished = new Date().toISOString(); append('DOCUMENT_HTTP_FINISHED', { generation: request.generation }); }
+    if (request?.kind === 'DOCUMENT') { documents[request.generation - 1].httpFinished = new Date().toISOString(); append('DOCUMENT_HTTP_FINISHED', { generation: request.generation }); reschedule(); }
     if (request?.kind === 'LOGOUT') append('LOGOUT_HTTP_FINISHED');
   });
   listen(session, 'Network.loadingFailed', event => {
@@ -193,14 +194,15 @@ export async function observeFinalLogout({ page, context, factory, expectedActor
   for (const event of ['load', 'domcontentloaded']) listen(page, event, () => { if (active) append('PLAYWRIGHT_' + event.toUpperCase(), { generation: committed }); });
   listen(page, 'framenavigated', frame => { if (active && frame === page.mainFrame()) append('PLAYWRIGHT_FRAME_NAVIGATED', { path: new URL(frame.url()).pathname }); });
   for (const event of ['close', 'crash']) listen(page, event, () => { if (active) { append('PAGE_' + event.toUpperCase()); fail(new Error('BROWSER_' + event.toUpperCase())); } });
-  await context.exposeBinding('__oghFinalLogoutObservation', containDiagnosticObserver('AUTH_STATE_BINDING', (_source, payload) => {
+  const bindingName = '__oghFinalLogoutObservation_' + randomUUID().replaceAll('-', '');
+  await context.exposeBinding(bindingName, containDiagnosticObserver('AUTH_STATE_BINDING', (_source, payload) => {
     assert.ok(['SIGNOUT_CALLED', 'SIGNOUT_PROMISE_SETTLED', 'AUTH_STATE_NULL', 'SIGNOUT_REJECTED', 'LOCALE_ACCOUNT_CLEAR', 'OLD_DOCUMENT_BEFOREUNLOAD', 'OLD_DOCUMENT_PAGEHIDE'].includes(payload.event));
     append(payload.event, { browserTimestamp: payload.timestamp, ...(payload.result ? { result: payload.result } : {}) });
   }, { record, append, fail: failObserver }));
-  record.before = await page.evaluate(async ({ factory, expectedActor }) => {
+  record.before = await page.evaluate(async ({ factory, expectedActor, bindingName }) => {
     const module = await import(factory.chunk), client = module[factory.exported]();
     const current = await client.auth.getSession(), user = await client.auth.getUser();
-    const emit = payload => { void window.__oghFinalLogoutObservation({ ...payload, timestamp: new Date().toISOString() }).catch(() => {}); };
+    const emit = payload => { void window[bindingName]({ ...payload, timestamp: new Date().toISOString() }).catch(() => {}); };
     const original = client.auth.signOut.bind(client.auth);
     client.auth.signOut = (...args) => {
       emit({ event: 'SIGNOUT_CALLED' });
@@ -212,7 +214,7 @@ export async function observeFinalLogout({ page, context, factory, expectedActor
     window.addEventListener('ogh:locale-preference', event => { if (event.detail?.preference === 'auto' && event.detail?.provenance === 'account_adopted') emit({ event: 'LOCALE_ACCOUNT_CLEAR' }); });
     for (const event of ['beforeunload', 'pagehide']) window.addEventListener(event, () => emit({ event: 'OLD_DOCUMENT_' + event.toUpperCase() }));
     return { sessionPresent: !!current.data.session, sessionActorMatches: current.data.session?.user.id === expectedActor, verifiedActorMatches: !user.error && user.data.user?.id === expectedActor, path: location.pathname };
-  }, { factory, expectedActor });
+  }, { factory, expectedActor, bindingName });
   assert.ok(record.before.sessionPresent && record.before.sessionActorMatches && record.before.verifiedActorMatches && record.before.path === '/settings/', 'GENUINE_EXPECTED_ACTOR_ON_SETTINGS');
   assert.ok(!record.instrumentationFailed, 'OBSERVER_SETUP_MUST_NOT_FAIL');
   record.observersArmedBeforeClick = true;
@@ -222,7 +224,7 @@ export async function observeFinalLogout({ page, context, factory, expectedActor
   active = true;
   const deadline = Date.now() + 12000;
   deadlineTimer = setTimeout(() => fail(new Error('FINAL_DOCUMENT_SETTLEMENT_DEADLINE')), 12000);
-  const oldWaiter = page.waitForNavigation({ waitUntil: 'load', timeout: 12000 }).then(() => ({ result: 'PASS' }), error => ({ result: 'FAIL', category: error.message.includes('ERR_ABORTED') ? 'SUPERSEDED_NAVIGATION_ABORT' : error.name }));
+  const oldWaiter = diagnostic ? page.waitForNavigation({ waitUntil: 'load', timeout: 12000 }).then(() => ({ result: 'PASS' }), error => ({ result: 'FAIL', category: error.message.includes('ERR_ABORTED') ? 'SUPERSEDED_NAVIGATION_ABORT' : error.name })) : null;
   try {
     record.clickCount = 1; append('LOGOUT_CLICK');
     await page.locator('.locale-settings li button').click({ noWaitAfter: true });
@@ -256,7 +258,7 @@ export async function observeFinalLogout({ page, context, factory, expectedActor
     record.observationFailure = { category: /^(FINAL_|BROWSER_|INSTRUMENTATION_)/.test(error.message) ? error.message : error.name };
   } finally {
     clearTimeout(quietTimer); clearTimeout(deadlineTimer);
-    record.oldWaiter = await oldWaiter;
+    if (oldWaiter) record.oldWaiter = await oldWaiter;
     record.pageErrors = events.filter(event => event.event === 'PAGE_ERROR');
     record.requestFailures = events.filter(event => event.event === 'NETWORK_LOADING_FAILED');
     if (record.instrumentationFailed) { record.finalDocumentIdentified = false; record.observationFailure = { category: 'INSTRUMENTATION_OBSERVER_ERROR' }; }
