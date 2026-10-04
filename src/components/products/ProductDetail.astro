@@ -4,23 +4,37 @@ import { getUiMessages } from "../../lib/i18n/catalog";
 import { resolveLocale } from "../../lib/i18n/locale";
 import type { getPublishedDeviceBySlug } from "../../lib/public-device-data";
 import type { buildDetailParameterGroups } from "../../lib/public-product-detail";
+import type { PublicDetailSource,PublicDetailEvidence } from "../../lib/public-product-detail";
+import { env } from "cloudflare:workers";
+import { safeCatalogExternalUrl, safeCatalogMediaUrl } from "../../lib/product-public-safety";
+import { catalogLabel, catalogDisplayValue } from "../../lib/catalog-presentation";
 
 interface Props {
   product: NonNullable<Awaited<ReturnType<typeof getPublishedDeviceBySlug>>>;
   parameterGroups: ReturnType<typeof buildDetailParameterGroups>;
+  sources?:PublicDetailSource[];
+  evidence?:PublicDetailEvidence[];
 }
-const { product, parameterGroups } = Astro.props;
+const { product, parameterGroups,sources=[],evidence=[] } = Astro.props;
 const localeContext = Astro.locals.localeContext ?? resolveLocale({});
 const text = getUiMessages(localeContext.locale).catalog;
-const safeHttps = (value: string | null) => {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" && !url.username && !url.password ? url.href : null;
-  } catch { return null; }
-};
-const imageUrl = safeHttps(product.productImageUrl);
-const links = product.externalLinks.map((link) => ({ ...link, href: safeHttps(link.url) })).filter((link) => link.href);
+const r2Base = env?.PUBLIC_R2_PUBLIC_BASE_URL;
+const gallery = product.media.images.map(image=>({...image,url:safeCatalogMediaUrl(image.url,r2Base)})).filter(image=>image.url);
+const primary = gallery.find(image=>image.hero) ?? gallery[0];
+const imageUrl = primary?.url ?? safeCatalogMediaUrl(product.productImageUrl,r2Base);
+const imageAlt = primary ? (localeContext.locale === "zh-CN" ? primary.altZh : primary.altEn) : product.media.imageAlt;
+const links = product.externalLinks.map((link) => ({ ...link, href: safeCatalogExternalUrl(link.url) })).filter((link) => link.href);
+const publicSources=sources.map(source=>({...source,href:safeCatalogExternalUrl(source.url)})).filter(source=>source.href);
+const sourceTypeLabel=(type:string)=>type==="reputable_secondary"?text.productSourceSecondary:type==="regulatory_document"?text.productSourceRegulatory:type==="archived_official"?text.productSourceArchived:text.productSourceOfficial;
+const date=(value:string|null)=>value&&/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value)&&Number.isFinite(Date.parse(value))?value.slice(0,10):null;
+const contexts:Record<string,readonly[string,string]>={eye_brightness:["入眼亮度测量","Eye brightness measurement"],panel_or_projector_brightness:["面板或投影亮度测量","Panel or projector brightness measurement"]};
+const items = parameterGroups.flatMap(group=>group.items);
+const selected = items.filter(item=>item.keySpec).sort((a,b)=>a.keySpecOrder-b.keySpecOrder);
+const summary = product.normalizedCatalog ? selected
+  .map(item=>({field:item.field,label:item.label,value:item.displayValue,factualValue:item.value})) : product.previewSpecs.map(item=>({
+    ...item,label:catalogLabel(item.field,localeContext.locale,item.label!==item.field?{labelZh:item.label,labelEn:item.label}:{}).label,
+    value:catalogDisplayValue(item.field,item.value,"KNOWN",localeContext.locale),factualValue:item.value,
+  }));
 ---
 
 <article class="product-detail" data-product-detail data-product-slug={product.slug} data-product-brand={product.brandKey}>
@@ -43,20 +57,21 @@ const links = product.externalLinks.map((link) => ({ ...link, href: safeHttps(li
       )}
     </div>
     <div class="product-detail__visual">
-      {imageUrl ? <img src={imageUrl} alt={product.media.imageAlt} width="640" height="400" /> : (
+      {imageUrl ? <><img data-catalog-image src={imageUrl} alt={imageAlt} width="640" height="400" /><p data-image-fallback hidden>{localeContext.locale==="zh-CN"?"图片暂不可用":"Image unavailable"}</p></> : (
         <ProductVisual brandMark={product.brandMarkText} title={product.name} categoryLabel={product.typeLabel} placeholderType={product.media.placeholderType} />
       )}
     </div>
   </header>
-  {product.previewSpecs.length > 0 && (
+  {gallery.length>1&&<div class="product-detail__gallery" aria-label={localeContext.locale==="zh-CN"?"产品图片":"Product images"}>{gallery.filter(image=>image!==primary&&image.url!==primary?.url).map(image=><img data-catalog-image src={image.url} alt={localeContext.locale==="zh-CN"?image.altZh:image.altEn} width="240" height="150" loading="lazy"/>)}</div>}
+  {summary.length > 0 && (
     <section class="product-detail__group" data-spec-preview>
       <h2>{text.productKeyParameters}</h2>
-      <p class="product-detail__provenance">{text.productLegacyParameters}</p>
+      {!product.normalizedCatalog && <p class="product-detail__provenance">{text.productLegacyParameters}</p>}
       <dl>
-        {product.previewSpecs.map((item) => (
+        {summary.map((item) => (
           <div data-preview-field={item.field}>
             <dt>{item.label}</dt>
-            <dd>{item.value}</dd>
+            <dd data-factual-value={item.factualValue}>{item.value}</dd>
           </div>
         ))}
       </dl>
@@ -69,24 +84,33 @@ const links = product.externalLinks.map((link) => ({ ...link, href: safeHttps(li
         <h3>{group.label}</h3>
         <dl>
           {group.items.map((item) => (
-            <div data-spec-field={item.field} data-parameter-key={item.key} data-parameter-provenance={item.provenance} data-parameter-state={item.state}>
+            <div data-spec-field={item.field} data-parameter-key={item.key} data-parameter-provenance={item.provenance} data-parameter-state={item.state} data-translation-missing={item.translationMissing?"true":undefined}>
               <dt>{item.label}</dt>
-              <dd>{item.value ?? text.productParameterUnknown}</dd>
+              <dd data-factual-value={item.value}>{item.displayValue}</dd>
               <p class="product-detail__provenance" data-parameter-metadata>
-                {item.provenance === "LEGACY_UNVERIFIED" ? text.productLegacyParameters : item.provenance === "STRUCTURED_VERIFIED" ? text.productStructuredParameters : text.productParameterUnknown}
-                {item.state === "CONFLICT" && ` | ${text.productParameterConflict}`}
-                {item.unit && ` | ${item.unit}`}
-                {item.measurementContext && ` | ${item.measurementContext}`}
-                {item.region && ` | ${item.region}`}
-                {item.variant && ` | ${item.variant}`}
+                {item.state === "CONFLICT" && text.productParameterConflict}
+                {item.region&&item.region!=="Global"&&` · ${text.productRegion}: ${item.region}`}
+                {item.measurementContext&&contexts[item.measurementContext]&&` · ${contexts[item.measurementContext][localeContext.locale==="zh-CN"?0:1]}`}
+                {item.variant && ` · ${item.variant}`}
+                {date(item.verifiedAt)&&` · ${text.productVerified}: ${date(item.verifiedAt)}`}
               </p>
+              {item.state==="CONFLICT"&&<ul class="product-detail__claims">{evidence.filter(claim=>claim.key===item.key&&claim.region===item.region&&claim.variant===item.variant).map(claim=><li>{claim.claimed_value}{publicSources.find(source=>source.id===claim.source_id)&&<a href={`#catalog-source-${claim.source_id}`}>{text.viewSource}</a>}</li>)}</ul>}
             </div>
           ))}
         </dl>
       </section>
     )) : <p class="product-detail__empty" data-parameter-provenance="ABSENT">{text.productParametersEmpty}</p>}
   </section>
+  <section class="product-detail__group" data-product-sources><h2>{text.productSources}</h2>{publicSources.length?<ul class="product-detail__sources">{publicSources.map(source=><li id={`catalog-source-${source.id}`}><a href={source.href} target="_blank" rel="noopener noreferrer">{source.title||source.publisher}</a><p class="product-detail__provenance">{sourceTypeLabel(source.source_type)}{date(source.published_at)&&` · ${text.productSourcePublished}: ${date(source.published_at)}`}{date(source.accessed_at)&&` · ${text.productSourceAccessed}: ${date(source.accessed_at)}`}{source.region&&` · ${text.productRegion}: ${source.region}`}</p></li>)}</ul>:<p>{text.productSourcesAbsent}</p>}</section>
 </article>
+
+<script>
+  for (const image of document.querySelectorAll<HTMLImageElement>("[data-catalog-image]")) {
+    const unavailable=()=>{image.hidden=true;const fallback=image.parentElement?.querySelector<HTMLElement>("[data-image-fallback]");if(fallback)fallback.hidden=false;};
+    image.addEventListener("error",unavailable);
+    if(image.complete&&image.naturalWidth===0)unavailable();
+  }
+</script>
 
 <style>
   .product-detail { min-width: 0; padding: 1.5rem 0 2.5rem; overflow-wrap: anywhere; }
@@ -100,13 +124,21 @@ const links = product.externalLinks.map((link) => ({ ...link, href: safeHttps(li
   .product-detail__links { margin-top: 1.5rem; }
   .product-detail__visual { aspect-ratio: 8 / 5; }
   .product-detail__visual img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .product-detail img[hidden] { display: none; }
   .product-detail__parameters { margin-top: 2rem; }
+  .product-detail__gallery {display:flex;gap:1rem;overflow-x:auto;max-width:100%;margin-top:1rem;}
+  .product-detail__gallery img {flex:0 0 240px;object-fit:contain;max-width:100%;}
+  .product-detail__claims {grid-column:2;margin:0;padding-left:1.2rem;font-size:0.85rem;overflow-wrap:anywhere;}
+  .product-detail__claims a {margin-left:0.5rem;}
+  .product-detail__sources {padding-left:1.2rem;overflow-wrap:anywhere;}
+  .product-detail__sources li {margin-bottom:0.8rem;}
+  .product-detail a {display:inline-flex;align-items:center;min-height:44px;}
   .product-detail h2 { font-size: 1.35rem; margin: 0 0 1rem; }
   .product-detail h3 { font-size: 1.1rem; margin: 0 0 0.75rem; }
   .product-detail__group { border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1)); padding: 1.25rem 0; }
   .product-detail__overview + .product-detail__group { margin-top: 2rem; }
   .product-detail dl { margin: 0; }
-  .product-detail dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1rem; padding: 0.6rem 0; }
+  .product-detail dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); column-gap: 1rem; row-gap: 0.25rem; padding: 0.85rem 0; border-bottom: 1px solid var(--border-subtle,rgba(255,255,255,0.08)); }
   .product-detail dt, .product-detail__empty { color: var(--text-muted); }
   .product-detail dd { margin: 0; white-space: pre-wrap; }
   .product-detail__provenance { font-size: 0.8rem; color: var(--text-muted); margin: 0.25rem 0; }
@@ -115,5 +147,6 @@ const links = product.externalLinks.map((link) => ({ ...link, href: safeHttps(li
     .product-detail__overview { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
     .product-detail dl > div { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
     .product-detail dl .product-detail__provenance { grid-column: 1; }
+    .product-detail__claims {grid-column:1;}
   }
 </style>

@@ -41,6 +41,10 @@ assert.equal(published[0].publicationStatus, undefined);
 assert.equal(published[0].id, undefined);
 assert.equal(published[0].slug, "public-device");
 assert.equal(published[0].specGroups[0].items[0].value, "20g");
+const removedImages=await listPublishedDevices(clientWith([row({product_image_url:"/assets/owned-old.png",official_image_url:"/assets/owned-official.png",media:{images:[]}})]).client);
+assert.equal(removedImages[0].productImageUrl,null,"An explicitly emptied gallery must not resurrect a legacy image");
+const selectedImages=await listPublishedDevices(clientWith([row({product_image_url:"/assets/owned-old.png",media:{images:[{url:"/assets/owned-new.png",altZh:"新图片",altEn:"New image",hero:true}]}})]).client);
+assert.equal(selectedImages[0].productImageUrl,"/assets/owned-new.png","Selected hero must be the shared public image");
 
 assert.equal(typeof publicDeviceData.getPublicDeviceSpecValue, "function", "canonical UI spec reader must exist");
 const catalog = await loadApprovedDeviceYaml(new URL("../src/data/devices/openglasshub_device_data_v1.yaml", import.meta.url));

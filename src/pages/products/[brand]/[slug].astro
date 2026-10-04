@@ -6,7 +6,7 @@ import CommunityLayout from "../../../layouts/CommunityLayout.astro";
 import ProductDetail from "../../../components/products/ProductDetail.astro";
 import { getBrandByKey } from "../../../lib/device-catalog";
 import { getPublishedDeviceBySlug } from "../../../lib/public-device-data";
-import { getPublicProductFields, buildDetailParameterGroups } from "../../../lib/public-product-detail";
+import { getPublicProductFields, buildDetailParameterGroups, type PublicDetailSource, type PublicDetailEvidence } from "../../../lib/public-product-detail";
 import { getProductDetailHref, isValidProductSegment } from "../../../lib/product-route";
 import { createSSRClient, type CloudflareEnv } from "../../../lib/supabase-server";
 import { getUiMessages } from "../../../lib/i18n/catalog";
@@ -19,6 +19,7 @@ const slug = Astro.params.slug ?? "";
 let product: Awaited<ReturnType<typeof getPublishedDeviceBySlug>> = null;
 let parameterGroups: ReturnType<typeof buildDetailParameterGroups> = [];
 let unavailable = false;
+let sources:PublicDetailSource[]=[],evidence:PublicDetailEvidence[]=[];
 
 if (isValidProductSegment(brandKey) && isValidProductSegment(slug) && getBrandByKey(brandKey)) {
   try {
@@ -31,7 +32,8 @@ if (isValidProductSegment(brandKey) && isValidProductSegment(slug) && getBrandBy
     if (product) {
       if (product.brandKey !== brandKey) return Astro.redirect(getProductDetailHref(product), 301);
       const fields = await getPublicProductFields(client, slug);
-      parameterGroups = buildDetailParameterGroups(product, fields.specs);
+      sources=fields.sources;evidence=fields.evidence;
+      parameterGroups = buildDetailParameterGroups(product, fields.specs, localeContext.locale);
     }
   } catch {
     product = null;
@@ -55,7 +57,7 @@ const title = product?.name ?? (unavailable ? text.productUnavailable : text.pro
   activeSection="products"
   showHeaderSearch={false}
 >
-  {product ? <ProductDetail product={product} parameterGroups={parameterGroups} /> : (
+  {product ? <ProductDetail product={product} parameterGroups={parameterGroups} sources={sources} evidence={evidence}/> : (
     <section class="product-detail-state">
       <h1>{title}</h1>
       <p>{unavailable ? text.productUnavailableHint : text.productMissingHint}</p>

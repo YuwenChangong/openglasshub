@@ -10,6 +10,7 @@ function handlers(request: Request, locals: unknown) {
   const env = runtimeEnv;
   if (!env) return null;
   return createDeviceAdminHandlers({
+    mediaPublicBaseUrl: env.PUBLIC_R2_PUBLIC_BASE_URL,
     authorize: async (nextRequest) => {
       try { return await requireAdmin(nextRequest, env); }
       catch (error) { return error instanceof Response ? error : jsonResponse({ ok: false, code: "SERVER_ERROR", message: "操作失败，请稍后重试。" }, 500); }

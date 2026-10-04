@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPublishedDeviceBySlug } from "./public-device-data";
+import { catalogLabel, catalogGroup, catalogDisplayValue, catalogTranslationMissing, type CatalogPresentation, type CatalogLocale } from "./catalog-presentation";
 
-export const detailSpecColumns = "id,key,group_key,label,value_type,admin_order,state,value_number,value_boolean,value_text,value_json,canonical_unit,measurement_context,region,variant,confidence,verified_at";
+export const detailSpecColumns = "id,key,group_key,label,value_type,admin_order,state,value_number,value_boolean,value_text,value_json,canonical_unit,measurement_context,region,variant,confidence,verified_at,presentation";
 export const detailSourceColumns = "id,publisher,title,url,source_type,published_at,accessed_at,region";
 export const detailEvidenceColumns = "spec_id,key,region,variant,source_id,claimed_value,is_primary,is_conflicting";
 
@@ -14,6 +15,7 @@ export type PublicDetailSpec = {
   canonical_unit: string | null; measurement_context: string | null;
   region: string | null; variant: string | null;
   confidence: string; verified_at: string | null;
+  presentation?: CatalogPresentation;
 };
 export type PublicDetailSource = {
   id: string; publisher: string; title: string | null; url: string;
@@ -30,41 +32,49 @@ export type DetailParameterItem = {
   provenance: "LEGACY_UNVERIFIED" | "STRUCTURED_VERIFIED" | "UNKNOWN";
   region: string | null; variant: string | null; measurementContext: string | null;
   unit: string | null; verifiedAt: string | null;
+  displayValue: string; translationMissing: boolean; keySpec: boolean; keySpecOrder: number;
 };
-type LegacyParameters = { specGroups: { key: string; label: string; items: { field: string; label: string; value: string }[] }[] };
+type LegacyParameters = { normalizedCatalog?: boolean; specGroups: { key: string; label: string; items: { field: string; label: string; value: string }[] }[] };
 
-export function buildDetailParameterGroups(product: LegacyParameters, specs: PublicDetailSpec[]) {
-  const groups = new Map<string, { key: string; label: string; items: DetailParameterItem[] }>();
-  const group = (key: string, label: string) => {
-    if (!groups.has(key)) groups.set(key, { key, label, items: [] });
+export function buildDetailParameterGroups(product: LegacyParameters, specs: PublicDetailSpec[], locale: CatalogLocale = "en") {
+  const groups = new Map<string, { key: string; label: string; order: number; items: DetailParameterItem[] }>();
+  const group = (key: string, presentation: CatalogPresentation = {}) => {
+    if (!groups.has(key)) groups.set(key, { key, label: catalogGroup(key, locale, presentation), order: presentation.groupOrder ?? 0, items: [] });
     return groups.get(key)!;
   };
-  for (const legacy of product.specGroups) group(legacy.key, legacy.label);
-  const ordered = [...specs].sort((a, b) => a.admin_order - b.admin_order || a.key.localeCompare(b.key)
+  const ordered = [...specs].sort((a, b) => (a.presentation?.order ?? a.admin_order) - (b.presentation?.order ?? b.admin_order) || a.key.localeCompare(b.key)
     || (a.region ?? "").localeCompare(b.region ?? "") || (a.variant ?? "").localeCompare(b.variant ?? ""));
   for (const spec of ordered) {
+    if (spec.presentation?.publicDisplay === false) continue;
     if (!["KNOWN", "NOT_DISCLOSED", "NOT_APPLICABLE", "CONFLICT"].includes(spec.state)) throw new Error("Public product detail read failed.");
     const typed = spec.value_type === "number" ? spec.value_number : spec.value_type === "boolean" ? spec.value_boolean
       : spec.value_type === "text" ? spec.value_text : spec.value_json;
     if (spec.state === "KNOWN" && (typed === null || typed === undefined)) throw new Error("Public product detail read failed.");
     const value = typed === null || typed === undefined ? null : typeof typed === "boolean" ? (typed ? "Yes" : "No")
       : typeof typed === "object" ? JSON.stringify(typed) : String(typed);
-    group(spec.group_key, spec.group_key).items.push({
-      key: spec.key, field: spec.key.split(".").slice(1).join("."), label: spec.label, value,
+    const presentation = spec.presentation ?? {};
+    const label = catalogLabel(spec.key, locale, presentation);
+    group(presentation.groupKey ?? spec.group_key, presentation).items.push({
+      key: spec.key, field: spec.key.split(".").slice(1).join("."), label: label.label, value,
       state: spec.state, provenance: value === null ? "UNKNOWN" : "STRUCTURED_VERIFIED",
       region: spec.region, variant: spec.variant, measurementContext: spec.measurement_context,
       unit: spec.canonical_unit, verifiedAt: spec.verified_at,
+      displayValue: catalogDisplayValue(spec.key, typed, spec.state, locale, presentation, spec.canonical_unit),
+      translationMissing: catalogTranslationMissing(spec.key,presentation.groupKey??spec.group_key,typed,locale,presentation), keySpec: presentation.keySpec === true, keySpecOrder: presentation.keySpecOrder ?? 0,
     });
   }
   // Legacy rows do not carry a verifiable region/measurement context. Keep
   // them explicitly attributed, even when a structured key/value matches.
-  for (const legacy of product.specGroups) for (const item of legacy.items) {
+  for (const legacy of product.normalizedCatalog ? [] : product.specGroups) for (const item of legacy.items) {
     const state = item.value === "Not disclosed" ? "NOT_DISCLOSED" : item.value === "Not applicable" ? "NOT_APPLICABLE" : "KNOWN";
-    group(legacy.key, legacy.label).items.push({ key: `${legacy.key}.${item.field}`, field: item.field, label: item.label,
+    const key = `${legacy.key}.${item.field}`;
+    const label = catalogLabel(key, locale);
+    group(legacy.key).items.push({ key, field: item.field, label: label.label,
       value: item.value, state, provenance: state === "KNOWN" ? "LEGACY_UNVERIFIED" : "UNKNOWN",
-      region: null, variant: null, measurementContext: null, unit: null, verifiedAt: null });
+      region: null, variant: null, measurementContext: null, unit: null, verifiedAt: null,
+      displayValue: catalogDisplayValue(key, item.value, state, locale), translationMissing: label.missing, keySpec: false, keySpecOrder: 0 });
   }
-  return [...groups.values()].filter(item => item.items.length);
+  return [...groups.values()].filter(item => item.items.length).sort((a, b) => a.order - b.order);
 }
 
 // Always pass the anonymous public SSR client, never a browser session or an

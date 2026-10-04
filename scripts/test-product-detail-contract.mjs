@@ -11,6 +11,8 @@ import { resolveLocale } from "../src/lib/i18n/locale.ts";
 import { getUiMessages } from "../src/lib/i18n/catalog.ts";
 import { buildRepositoryInventory } from "./lib/product-detail-repository-inventory.mjs";
 import { randomUUID } from "node:crypto";
+import { catalogLabel,catalogGroup,catalogDisplayValue } from "../src/lib/catalog-presentation.ts";
+import { parse } from "parse5";
 
 const routePath = "src/pages/products/[brand]/[slug].astro";
 const source = await readFile(routePath, "utf8").catch((error) => {
@@ -30,7 +32,7 @@ await mkdir(artifactPath, { recursive: true });
 const fixture = JSON.parse(await readFile(path.join(root, "scripts/fixtures/product-detail-public-row.json"), "utf8"));
 assert.ok(fixture?.slug && fixture.brand_key);
 const privateRow = { ...fixture, slug: "task2-private", name: "TASK2_PRIVATE_IDENTITY_SENTINEL", publication_status: "draft" };
-let activeRows = [fixture, privateRow], failRead = false, failProjection = false, structuredSpecs = [];
+let activeRows = [fixture, privateRow], failRead = false, failProjection = false, structuredSpecs = [], structuredSources=[];
 const queries = [];
 function client() {
   return { from(table) {
@@ -46,7 +48,7 @@ function client() {
       order() { return query; },
       range(start, end) {
         assert.ok(table.startsWith("public_device_detail_"));
-        const rows = table === "public_device_detail_specs" ? structuredSpecs : [];
+        const rows = table === "public_device_detail_specs" ? structuredSpecs : table === "public_device_detail_sources" ? structuredSources : [];
         return Promise.resolve(failProjection ? { data: null, count: null, error: { message: "TASK4_PRIVATE_PROJECTION_ERROR" } }
           : { data: rows.slice(start, end + 1), count: rows.length, error: null });
       },
@@ -101,9 +103,20 @@ try {
       locals: { localeContext: resolveLocale({ saved: { version: 1, preference: locale, generation: 1, provenance: "device_explicit" } }) } });
     return { response, html: await response.text() };
   }
-  function markupEntries(html, marker) {
-    return [...html.matchAll(new RegExp(`<div[^>]*${marker}="([^"]*)"[^>]*>\\s*<dt[^>]*>([\\s\\S]*?)<\\/dt>\\s*<dd[^>]*>([\\s\\S]*?)<\\/dd>\\s*(?:<p[^>]*data-parameter-metadata[^>]*>[\\s\\S]*?<\\/p>\\s*)?<\\/div>`, "g"))]
-      .map(([, field, label, value]) => ({ field, label, value }));
+  function markupEntries(html, marker, factual = false) {
+    {
+      const entries=[];
+      const content=node=>node.nodeName==="#text"?node.value:(node.childNodes??[]).map(content).join("");
+      function visit(node){
+        const field=node.attrs?.find(attr=>attr.name===marker)?.value;
+        if(node.tagName==="div"&&field!==undefined){
+          const label=node.childNodes?.find(child=>child.tagName==="dt"),value=node.childNodes?.find(child=>child.tagName==="dd");
+          if(label&&value)entries.push({field:escape(field),label:escape(content(label)),value:escape(factual?(value.attrs?.find(attr=>attr.name==="data-factual-value")?.value??content(value)):content(value))});
+        }
+        for(const child of node.childNodes??[])visit(child);
+      }
+      visit(parse(html));return entries;
+    }
   }
   function escape(value) {
     return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&#34;").replaceAll("'", "&#39;");
@@ -120,14 +133,16 @@ try {
     assert.ok(known.html.includes(`data-product-brand="${fixture.brand_key}"`));
     assert.ok(known.html.includes(getUiMessages(locale).catalog.productParameters));
     assert.ok(known.html.includes(`https://127.0.0.1/products/${fixture.brand_key}/${fixture.slug}/`));
-    assert.deepEqual(markupEntries(known.html, "data-spec-field"), expected, "All mapped full-spec labels/values, not a capped preview, must render unchanged");
-    assert.deepEqual(markupEntries(known.html, "data-preview-field"), expectedPreview, "Every existing preview value must also remain visible");
+    const visibleExpected=mapped.specGroups.flatMap(group=>group.items.map(item=>({field:escape(item.field),label:escape(catalogLabel(`${group.key}.${item.field}`,locale).label),value:escape(catalogDisplayValue(`${group.key}.${item.field}`,item.value,"KNOWN",locale))})));
+    assert.deepEqual(markupEntries(known.html, "data-spec-field"), visibleExpected, "Every fact renders with the authorized human-readable presentation");
+    assert.deepEqual(markupEntries(known.html,"data-spec-field",true).map(item=>({field:item.field,value:item.value})),expected.map(item=>({field:item.field,value:item.value})),"All original factual values survive formatting");
+    assert.deepEqual(markupEntries(known.html, "data-preview-field",true), expectedPreview, "Every existing preview factual value must remain visible");
     renderedFullParameterCount = markupEntries(known.html, "data-spec-field").length;
     renderedPreviewParameterCount = markupEntries(known.html, "data-preview-field").length;
     assert.equal((known.html.match(/data-spec-group=/g) ?? []).length, mapped.specGroups.length);
     for (const group of mapped.specGroups) {
       assert.ok(known.html.includes(`data-spec-group="${escape(group.key)}"`));
-      assert.ok(known.html.includes(escape(group.label)));
+      assert.ok(known.html.includes(escape(catalogGroup(group.key,locale))));
     }
     for (const link of mapped.externalLinks) assert.ok(known.html.includes(escape(link.url)));
     assert.doesNotMatch(known.html, /\/legal-consent\//);
@@ -170,6 +185,12 @@ try {
   assert.equal(typed.response.status, 200);
   assert.ok(markupEntries(typed.html, "data-spec-field").some(item => item.field === "zero" && item.value === "0"));
   assert.match(typed.html, /data-parameter-provenance="STRUCTURED_VERIFIED"/);
+  activeRows=[{...fixture,catalog_normalized:true,full_specs:{},key_specs:[]}];
+  structuredSpecs=[{...structuredSpecs[0],presentation:{keySpec:false}}];
+  const demoted=await request(fixture.brand_key,fixture.slug);
+  assert.doesNotMatch(demoted.html,/data-spec-preview/,"Demoting the final Key Spec must not restore automatic selections");
+  activeRows=[fixture,privateRow];
+  cases.push('FINAL_KEY_SPEC_DEMOTION_RESPECTED');
   structuredSpecs = [{ ...structuredSpecs[0], state: "UNKNOWN_UNVERIFIED" }];
   const invalidProjection = await request(fixture.brand_key, fixture.slug);
   assert.equal(invalidProjection.response.status, 503);
@@ -182,6 +203,11 @@ try {
   assert.ok(empty.html.includes(getUiMessages("en").catalog.productParametersEmpty));
   assert.equal(markupEntries(empty.html, "data-spec-field").length, 0);
   cases.push("METADATA_ONLY_HONEST_EMPTY_200");
+  structuredSources=[{id:"owned-archive",publisher:"Owned archive",title:"Archived official source",url:"https://example.invalid/archive",source_type:"archived_official",published_at:null,accessed_at:"2026-10-04",region:null}];
+  const archived=await request(fixture.brand_key,fixture.slug,"en");
+  assert.ok(archived.html.includes("Archived official material"),"Archived sources must not be presented as current official material");
+  structuredSources=[];
+  cases.push("ARCHIVED_OFFICIAL_SOURCE_HONEST_CLASSIFICATION");
   activeRows = [{ ...fixture, full_specs: {}, key_specs: [{ field: "preview_only", label: "Preview <label>", value: "A & B <value>" }] }];
   const previewOnly = await request(fixture.brand_key, fixture.slug);
   assert.deepEqual(markupEntries(previewOnly.html, "data-preview-field"), [{ field: "preview_only", label: "Preview &lt;label&gt;", value: "A &amp; B &lt;value&gt;" }]);
@@ -209,7 +235,7 @@ try {
       activeRows = [row];
       const result = await request(row.brand_key, row.slug);
       assert.equal(result.response.status, 200);
-      const observed = markupEntries(result.html, "data-spec-field");
+      const observed = markupEntries(result.html, "data-spec-field",true);
       for (const entry of inventory.parameterLedger.filter(item => item.slug === row.slug && item.state === "KNOWN")) {
         const field = entry.canonicalPath.split(".").slice(1).join(".");
         assert.ok(observed.some(item => item.field === field && item.value === escape(entry.value)), `SOURCE_SSR_VALUE_DROPPED:${entry.pointer}`);

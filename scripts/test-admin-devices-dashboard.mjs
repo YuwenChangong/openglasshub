@@ -18,7 +18,7 @@ const wait=()=>new Promise((resolve)=>setTimeout(resolve,0));
 function assertTrue(value,message){assert.equal(Boolean(value),true,message);}
 async function setup({failMutation=false,pending=false}={}) {
   const calls=[],mutationSessions=[]; const admin={session:staffSession,marker:"hook-wrapper"}; let release; const gate=pending?new Promise((resolve)=>{release=resolve}):null;
-  const fetchAdmin=async (path, options) => { const method=options.method??"GET"; calls.push({path,method,body:options.body?JSON.parse(options.body):null}); if(method==="GET") return {ok:true,devices:fixtures}; mutationSessions.push(options.session); if(gate) await gate; if(failMutation) throw new Error("设备操作失败，请稍后重试。"); const body=JSON.parse(options.body); if(method==="DELETE") return {ok:true}; return {ok:true,device:{...(fixtures.find((x)=>x.id===body.id)??device(9,"draft",false)),...body,slugLocked:body.publicationStatus==="published"||fixtures.find((x)=>x.id===body.id)?.slugLocked}}; };
+  const fetchAdmin=async (path, options) => { const method=options.method??"GET"; calls.push({path,method,body:options.body?JSON.parse(options.body):null}); if(method==="GET") return path.startsWith("/api/admin/device-specs?")?{specs:[]}:{ok:true,devices:fixtures}; mutationSessions.push(options.session); if(gate) await gate; if(failMutation) throw new Error("设备操作失败，请稍后重试。"); const body=JSON.parse(options.body); if(method==="DELETE") return {ok:true}; return {ok:true,device:{...(fixtures.find((x)=>x.id===body.id)??device(9,"draft",false)),...body,slugLocked:body.publicationStatus==="published"||fixtures.find((x)=>x.id===body.id)?.slugLocked}}; };
   const Dashboard=module.createAdminDevicesDashboard({useSession:()=>admin,fetchAdmin}); const root=createRoot(document.getElementById("root")); await act(async()=>{root.render(createElement(Dashboard));}); await act(async()=>{await wait();await wait();});
   return {calls,mutationSessions,admin,root,release:()=>release?.(),html:()=>document.body.textContent??"",click:(text)=>{const buttons=[...document.querySelectorAll("button")];const button=buttons.find((node)=>node.textContent?.trim()===text)??buttons.find((node)=>node.textContent?.includes(text));assertTrue(button,`button ${text}`);button.click();}, input:(label,value)=>{const node=[...document.querySelectorAll("label")].find((item)=>item.textContent?.includes(label))?.querySelector("input,textarea");assertTrue(node,`field ${label}`);const descriptor=Object.getOwnPropertyDescriptor(node instanceof dom.window.HTMLTextAreaElement?dom.window.HTMLTextAreaElement.prototype:dom.window.HTMLInputElement.prototype,"value");descriptor.set.call(node,value);node.dispatchEvent(new Event("input",{bubbles:true}));node.dispatchEvent(new Event("change",{bubbles:true}));}, flush:async()=>act(async()=>{await wait();await wait();})};
 }
@@ -26,6 +26,25 @@ const required=Array.from({length:20},(_,i)=>`UI-${String(i+1).padStart(2,"0")}`
 async function run(id, fn){console.log(`RUN ${id}`);await fn();outcomes.push(id);}
 async function runFocused(id, fn){console.log(`RUN ${id}`);await fn();}
 try {
+ await runFocused('CATALOG-schema-choice',async()=>{
+   const h=await setup();
+   try{h.click('Device 1');await h.flush();const field=[...document.querySelectorAll('label')].find(node=>node.textContent.includes('参数模型类型')).querySelector('select');
+     await act(async()=>{field.value='ai_hud';field.dispatchEvent(new Event('change',{bubbles:true}));});h.click('保存修改');await h.flush();
+     assert.equal(h.calls.find(call=>call.method==='PATCH').body.schemaType,'ai_hud','Schema selection must persist through the existing protected admin save');
+   }finally{await act(async()=>h.root.unmount());}
+ });
+ await runFocused("CATALOG-legacy-image-removal",async()=>{
+   fixtures[0].productImageUrl="/assets/owned-existing.png";
+   const h=await setup();
+   try{
+     h.click("Device 1");await h.flush();
+     assert.equal(document.querySelector('[data-catalog-media-editor] input')?.value,"/assets/owned-existing.png","Existing legacy image must be visible in the catalog image editor");
+     h.click("移除图片");await h.flush();h.click("保存修改");await h.flush();
+     assert.deepEqual(h.calls.find(call=>call.method==="PATCH").body.media.images,[]);
+     h.input("产品图片 URL","");await h.flush();h.click("保存修改");await h.flush();
+     assert.equal(h.calls.filter(call=>call.method==="PATCH").at(-1).body.productImageUrl,null,"Cleared image URL must reach the server");
+   }finally{await act(async()=>h.root.unmount());delete fixtures[0].productImageUrl;}
+ });
  await run("UI-01",async()=>{const h=await setup();assert.equal(h.calls.filter((x)=>x.method==="GET").length,1);for(const item of fixtures)assertTrue(h.html().includes(item.name),`list record missing; calls=${JSON.stringify(h.calls)} html=${h.html()}`);h.root.unmount();});
  await run("UI-02",async()=>{const h=await setup();for(const [label,name] of [["已发布","Device 2"],["草稿","Device 1"],["已隐藏","Device 3"],["已归档","Device 4"]]){h.click(label);await h.flush();assertTrue(h.html().includes(name),`filter ${label}`);}h.root.unmount();});
  await run("UI-03",async()=>{const h=await setup();for(const [label,value] of [["品牌代码","new"],["品牌名称","New Brand"],["设备名称","New Device"],["简短描述","Short"],["详细描述","Long"],["图片替代文字","Alt"],["分类","smart_glasses"],["路由标签","Route"],["路由说明","Desc"]])h.input(label,value);h.click("创建草稿");await h.flush();const call=h.calls.find((x)=>x.method==="POST");assert.equal(call.path,"/api/admin/devices");assert.equal(call.body.name,"New Device");h.root.unmount();});
@@ -38,7 +57,7 @@ try {
  await run("UI-09",async()=>{const h=await setup();h.click("Device 2");await h.flush();h.click("隐藏");await h.flush();assert.equal(h.calls.find((x)=>x.method==="PATCH").body.publicationStatus,"hidden");h.root.unmount();});
  await run("UI-10",async()=>{const h=await setup();h.click("Device 2");await h.flush();h.click("归档");await h.flush();assert.equal(h.calls.find((x)=>x.method==="PATCH").body.publicationStatus,"archived");h.root.unmount();});
  await run("UI-11",async()=>{const h=await setup();h.click("已归档");await h.flush();assertTrue(h.html().includes("Device 4"),"archived absent");h.click("Device 4");await h.flush();assertTrue(h.html().includes("恢复")&&h.html().includes("永久删除"),"archived not manageable");h.root.unmount();});
- await run("UI-12",async()=>{const h=await setup();h.click("Device 4");await h.flush();const select=document.querySelector("select");select.value="hidden";select.dispatchEvent(new Event("change",{bubbles:true}));h.click("恢复");await h.flush();assert.equal(h.calls.find((x)=>x.method==="PATCH").body.publicationStatus,"hidden");h.root.unmount();});
+ await run("UI-12",async()=>{const h=await setup();h.click("Device 4");await h.flush();const select=[...document.querySelectorAll("select")].find(node=>[...node.options].some(option=>option.value==="hidden"));select.value="hidden";select.dispatchEvent(new Event("change",{bubbles:true}));h.click("恢复");await h.flush();assert.equal(h.calls.find((x)=>x.method==="PATCH").body.publicationStatus,"hidden");h.root.unmount();});
  await run("UI-13",async()=>{const h=await setup();for(const name of ["Device 1","Device 2","Device 3"]){h.click(name);await h.flush();assert.equal(h.html().includes("永久删除"),false);}h.root.unmount();});
  await run("UI-14",async()=>{const h=await setup();h.click("Device 4");await h.flush();assertTrue(h.html().includes("永久删除"),"archived delete missing");h.root.unmount();});
  await run("UI-15",async()=>{const h=await setup();h.click("Device 4");await h.flush();h.click("永久删除");await h.flush();assert.equal(h.calls.filter((x)=>x.method==="DELETE").length,0);h.root.unmount();});
@@ -46,7 +65,7 @@ try {
  await run("UI-17",async()=>{const h=await setup({failMutation:true});h.click("Device 2");await h.flush();h.click("隐藏");await h.flush();assertTrue(h.html().includes("操作失败"),"mutation error absent");h.root.unmount();});
  await run("UI-18",async()=>{const h=await setup({failMutation:true});h.click("Device 2");await h.flush();h.click("归档");await h.flush();assertTrue(!h.html().match(/23505|stack|postgres/i),"unsafe error exposed");h.root.unmount();});
  await run("UI-19",async()=>{const h=await setup({pending:true});h.click("Device 2");await h.flush();h.click("隐藏");h.click("隐藏");await wait();assert.equal(h.calls.filter((x)=>x.method==="PATCH").length,1);h.release();h.root.unmount();});
- await run("UI-20",async()=>{const h=await setup();h.click("Device 2");await h.flush();h.click("隐藏");await h.flush();assertTrue(h.calls.every((x)=>x.path==="/api/admin/devices"),"non API device call");h.root.unmount();});
+ await run("UI-20",async()=>{const h=await setup();h.click("Device 2");await h.flush();h.click("隐藏");await h.flush();assertTrue(h.calls.every((x)=>x.path==="/api/admin/devices"||(x.method==="GET"&&x.path===`/api/admin/device-specs?deviceId=${id(2)}`)),"non protected catalog API call");h.root.unmount();});
  await runFocused("P5C-same-device",async()=>{const h=await setup({pending:true});h.click("Device 2");await h.flush();h.click("发布");await h.flush();h.click("确认发布");h.click("隐藏");await wait();assert.equal(h.calls.filter((x)=>x.method==="PATCH").length,1);h.release();h.root.unmount();});
  await runFocused("P5C-different-device",async()=>{const h=await setup({pending:true});h.click("Device 2");await h.flush();h.click("隐藏");h.click("Device 3");await h.flush();h.click("归档");await wait();assert.equal(h.calls.filter((x)=>x.method==="PATCH").length,2);h.release();h.root.unmount();});
  await runFocused("P5C-success-retry",async()=>{const h=await setup();h.click("Device 2");await h.flush();h.click("隐藏");await h.flush();h.click("归档");await h.flush();assert.equal(h.calls.filter((x)=>x.method==="PATCH").length,2);h.root.unmount();});

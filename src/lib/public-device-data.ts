@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const publicDeviceColumns = "slug,brand_key,brand_name,name,short_description,long_description,positioning,release_year,availability,type_label,status_label,media,product_image_url,official_image_url,image_alt,product_url,official_product_url,buy_url,category,route_label,route_description,best_for,not_ideal_for,key_limitations,key_specs,full_specs";
+export const publicDeviceColumns = "slug,brand_key,brand_name,name,short_description,long_description,positioning,release_year,availability,type_label,status_label,media,product_image_url,official_image_url,image_alt,product_url,official_product_url,buy_url,category,route_label,route_description,best_for,not_ideal_for,key_limitations,catalog_normalized";
 
 type JsonRecord = Record<string, unknown>;
 type PublicRow = JsonRecord & { slug: string; brand_key: string; brand_name: string; name: string; short_description: string; long_description: string };
@@ -64,14 +64,19 @@ function mapPublicDevice(row: PublicRow) {
   const imageBackground = media.imageBackground === "light" || media.imageBackground === "transparent" ? media.imageBackground : "dark";
   const imageFit = media.imageFit === "cover" ? "cover" : "contain";
   const placeholderType = ["glasses", "headset", "frame", "wordmark"].includes(String(media.placeholderType)) ? String(media.placeholderType) : "wordmark";
-  const detailMedia = { imageUrl: text(row.product_image_url) ?? text(row.official_image_url), imageAlt, imageBackground, imageFit, hasConfirmedImage: media.hasConfirmedImage === true, placeholderType };
-  const groups = specGroups(row.full_specs);
-  const previewSpecs = Array.isArray(row.key_specs) ? row.key_specs.flatMap((candidate) => {
+  const galleryPrimary=Array.isArray(media.images)?media.images.find(item=>record(item).hero===true)??media.images[0]:undefined;
+  const detailMedia = { imageUrl: Array.isArray(media.images)?text(record(galleryPrimary).url):text(row.product_image_url) ?? text(row.official_image_url), imageAlt, imageBackground, imageFit, hasConfirmedImage: media.hasConfirmedImage === true, placeholderType,
+    images: Array.isArray(media.images) ? media.images.flatMap(item=>{
+      const image=record(item);return typeof image.url==="string"?[{url:image.url,altZh:text(image.altZh)??imageAlt,altEn:text(image.altEn)??imageAlt,hero:image.hero===true}]:[];
+    }):[] };
+  const groups = specGroups(row.catalog_normalized===true?{}:row.full_specs);
+  const previewSpecs = row.catalog_normalized===true?[]:Array.isArray(row.key_specs) ? row.key_specs.flatMap((candidate) => {
     const item = record(candidate), field = text(item.field), label = text(item.label), value = specText(item.value);
     return field && label && value !== null ? [{ field, label, value }] : [];
   }) : groups.flatMap((group) => group.items).slice(0, 5);
   return {
     slug: row.slug, brandKey: row.brand_key, brandName: row.brand_name, brandLabel: row.brand_name, brandMarkText: row.brand_name, brandTone: "xreal",
+    normalizedCatalog: row.catalog_normalized === true,
     name: row.name, title: row.name, shortDescription: row.short_description, longDescription: row.long_description, positioning: text(row.positioning) ?? text(row.route_description) ?? "",
     releaseYear: text(row.release_year), availability: text(row.availability), typeLabel: text(row.type_label) ?? text(row.route_label) ?? "", statusLabel: text(row.status_label), infoStatusLabel: null,
     category: text(row.category) ?? "", routeLabel: text(row.route_label) ?? "", routeDescription: text(row.route_description) ?? "", bestFor: strings(row.best_for), notIdealFor: strings(row.not_ideal_for), keyLimitations: strings(row.key_limitations),
@@ -86,7 +91,28 @@ function failure() { return new Error("Public device read failed."); }
 export async function listPublishedDevices(client: SupabaseClient) {
   const { data, error } = await client.from("devices").select(publicDeviceColumns).eq("publication_status", "published").order("brand_key", { ascending: true });
   if (error) throw failure();
-  return (data ?? []).map((row) => mapPublicDevice(row as PublicRow));
+  const devices=(data ?? []).map((row) => mapPublicDevice(row as PublicRow));
+  const canonical=devices.filter(device=>device.normalizedCatalog);
+  if(!canonical.length)return devices;
+  const specs:Record<string,unknown>[]=[];let expected:number|undefined;
+  for(let start=0;;){
+    const result=await client.from("public_device_detail_specs").select("device_slug,key,group_key,label,state,value_number,value_boolean,value_text,value_json,presentation",{count:"exact"}).in("device_slug",canonical.map(device=>device.slug)).order("id").range(start,start+999);
+    if(result.error||!Array.isArray(result.data)||result.count==null||expected!==undefined&&expected!==result.count)throw failure();
+    expected=result.count;specs.push(...result.data);
+    if(specs.length===expected)break;if(!result.data.length||specs.length>expected)throw failure();start+=result.data.length;
+  }
+  for(const device of canonical){
+    const grouped=new Map<string,{key:string;label:string;items:{field:string;label:string;value:string}[]}>();
+    for(const spec of specs.filter(spec=>spec.device_slug===device.slug)){
+      const key=String(spec.key),groupKey=key.split(".")[0],value=spec.value_number??spec.value_boolean??spec.value_text??spec.value_json;
+      if(spec.state==="KNOWN"&&value==null)throw failure();
+      const rendered=spec.state==="NOT_DISCLOSED"?"Not disclosed":spec.state==="NOT_APPLICABLE"?"Not applicable":value===true?"Yes":value===false?"No":value==null?"Unknown":typeof value==="object"?JSON.stringify(value):String(value);
+      if(!grouped.has(groupKey))grouped.set(groupKey,{key:groupKey,label:groupKey,items:[]});
+      grouped.get(groupKey)!.items.push({field:key.split(".").slice(1).join("."),label:String(spec.label),value:rendered});
+    }
+    device.specGroups=[...grouped.values()];device.knownSpecCount=device.specGroups.flatMap(group=>group.items).length;device.quickSpecs=device.specGroups.flatMap(group=>group.items).slice(0,6);
+  }
+  return devices;
 }
 
 export async function getPublishedDeviceBySlug(client: SupabaseClient, slug: string) {

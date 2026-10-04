@@ -59,6 +59,9 @@ async function main() {
   const created = await handlers.POST(new Request("https://example.test/api/admin/devices", { method: "POST", headers: { authorization: "Bearer staff" }, body: JSON.stringify(base) }));
   assert(created.status === 201, "Staff can create a draft.");
   const createdBody = await created.json();
+  const typedDraft=await handlers.POST(new Request('https://example.test/api/admin/devices',{method:'POST',headers:{authorization:'Bearer staff'},body:JSON.stringify({...base,schemaType:'display_ar'})}));
+  assert(typedDraft.status===201,'An administrator must be able to explicitly choose a supported schema type for a new draft');
+  assert(toDeviceRow((await typedDraft.json()).device).schema_type==='display_ar','Supported schema type must reach the canonical database row');
   assert(createdBody.device.publicationStatus === "draft" && createdBody.device.slug === "test-device", "Create must default to draft and generate slug.");
   const unknown = await handlers.POST(new Request("https://example.test/api/admin/devices", { method: "POST", headers: { authorization: "Bearer staff" }, body: JSON.stringify({ ...base, role: "admin" }) }));
   assert(unknown.status === 400, "Server-managed and unknown fields must be rejected.");
@@ -66,6 +69,12 @@ async function main() {
   assert(published.status === 200 && (await published.clone().json()).device.slugLocked === true, "First publish must lock slug.");
   const lockedSlug = await handlers.PATCH(new Request("https://example.test/api/admin/devices", { method: "PATCH", headers: { authorization: "Bearer staff" }, body: JSON.stringify({ id: createdBody.device.id, slug: "changed" }) }));
   assert(lockedSlug.status === 400, "Locked slug changes must be rejected.");
+  const lockedBrand = await handlers.PATCH(new Request("https://example.test/api/admin/devices", { method: "PATCH", headers: { authorization: "Bearer staff" }, body: JSON.stringify({ id: createdBody.device.id, brandKey: "changed" }) }));
+  assert(lockedBrand.status === 400, "Published brand changes must not invalidate canonical route identity.");
+  for(const url of ["javascript:alert(1)","data:image/svg+xml,x","blob:https://example.test/x","file:///tmp/x","vbscript:x","//example.test/a.png","https://user:pass@example.test/a.png","https://unapproved.test/a.png"]){
+    const invalidMedia=await handlers.PATCH(new Request("https://example.test/api/admin/devices",{method:"PATCH",headers:{authorization:"Bearer staff"},body:JSON.stringify({id:createdBody.device.id,media:{images:[{url,altZh:"字面文本",altEn:"Literal text",hero:true}]}})}));
+    assert(invalidMedia.status===400,"Admin privileges must not bypass the approved media origin policy.");
+  }
   const deletePublished = await handlers.DELETE(new Request("https://example.test/api/admin/devices", { method: "DELETE", headers: { authorization: "Bearer staff" }, body: JSON.stringify({ id: createdBody.device.id, confirmPermanentDelete: true }) }));
   assert(deletePublished.status === 400, "Non-archived hard delete must be rejected.");
   assert(mapDatabaseError({ code: "23505" }).code === "DEVICE_SLUG_CONFLICT", "Duplicate errors must be sanitized.");
