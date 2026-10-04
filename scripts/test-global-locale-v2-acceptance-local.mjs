@@ -13,6 +13,7 @@ import { proveQuickSearchBrowser } from './lib/catalog-quick-search-browser.mjs'
 import { findBrowserClientFactory } from './lib/locale-v2-logout-observer.mjs';
 import { acceptLocaleLogout } from './lib/locale-v2-logout-settlement.mjs';
 import { withOwnedLocaleContext, checkLocalAuthHeaders, disposeLocaleResources } from './lib/locale-v2-request-lifecycle.mjs';
+import { captureLocalLocaleCountry, initialSsrExpectation } from './lib/locale-v2-initial-ssr-expectation.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const localeContexts = Object.freeze([{engine:'chromium',width:1280,locale:'zh-CN'},{engine:'chromium',width:1280,locale:'en'},{engine:'chromium',width:390,locale:'zh-CN'},{engine:'chromium',width:390,locale:'en'},{engine:'firefox',width:1280,locale:'en'}]);
@@ -82,6 +83,9 @@ async function runtime({ target, anonKey, accounts, request }) {
         } } });
     await Promise.race([Promise.all([worker.ready,new Promise((resolve,reject) => { worker.raw.once('reloadComplete',resolve);worker.raw.once('error',() => reject(new Error('LOCAL_WORKER_STARTUP')));worker.raw.once('runtimeError',() => reject(new Error('LOCAL_WORKER_RUNTIME'))); })]),new Promise((_,reject) => { timer=setTimeout(() => reject(new Error('LOCAL_WORKER_READY_TIMEOUT')),30000); })]);
     clearTimeout(timer); upstream = (await worker.url).origin;
+    boundary = receipt.stage = 'LOCAL_LOCALE_COUNTRY_CAPTURE';
+    const localLocaleCountry = await captureLocalLocaleCountry(worker);
+    receipt.localLocaleCountry = localLocaleCountry;
     gateway = createHttpsServer({ key: await readFile(key), cert: certificate }, (incoming,outgoing) => {
       const url = new URL(incoming.url, origin), provider = /^\/(auth|rest)\/v1\//.test(url.pathname);
       const destination = new URL(url.pathname + url.search, provider ? target : upstream);
@@ -113,9 +117,15 @@ async function runtime({ target, anonKey, accounts, request }) {
     const preference = async context => { const cookie=(await context.cookies()).find(c=>c.name===cookieName);return cookie ? JSON.parse(decodeURIComponent(cookie.value)) : null; };
     const setCookie = async(context,locale) => context.addCookies([{name:cookieName,value:encodeURIComponent(JSON.stringify({version:1,preference:locale,generation:1,provenance:'device_explicit'})),url:origin,secure:true,sameSite:'Lax'}]);
     const settled = async page => { await page.waitForFunction(() => [...document.querySelectorAll('astro-island')].every(i=>!i.hasAttribute('ssr'))); };
-    const navigate = async(page,route,locale) => {
+    const navigate = async(page,route,targetExplicitUiLocale,{initialAnonymous=false}={}) => {
+      let locale = targetExplicitUiLocale;
       boundary = receipt.stage = `SSR_${route}`;
       const response=await page.goto(origin+route,{waitUntil:'load'});await settled(page);
+      if(initialAnonymous) {
+        const expectation = await initialSsrExpectation(response.request(),localLocaleCountry);
+        receipt.initialAnonymousSsr = expectation;
+        locale = expectation.locale;
+      }
       const html=await response.text();
       check(await page.evaluate(markup=>new DOMParser().parseFromString(markup,'text/html').documentElement.lang,html)===locale,`SSR_HTML_LOCALE_${route}_${locale}`);
       check(await page.locator('html').getAttribute('lang')===locale,`HTML_LOCALE_${route}_${locale}`);
@@ -163,7 +173,7 @@ async function runtime({ target, anonKey, accounts, request }) {
         (receipt.preferenceFailures??=[]).push({stage:receipt.stage,method:req.method(),category:'REQUEST_FAILED'});
       }});
       if(index===0) {
-        await navigate(page,'/settings/',fixture.locale);await select(page,'en');
+        await navigate(page,'/settings/',fixture.locale,{initialAnonymous:true});await select(page,'en');
         await select(page,'zh-CN');await navigate(page,'/products/','zh-CN');await page.reload();await settled(page);
         check((await preference(context)).preference==='zh-CN','ANON_ZH_COOKIE_RELOAD');
         await navigate(page,'/settings/','zh-CN');await select(page,'en');await page.reload();await settled(page);
