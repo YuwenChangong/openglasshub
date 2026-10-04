@@ -4,6 +4,7 @@ import { getCollection } from "astro:content";
 import { brandCatalog } from "../lib/device-catalog";
 import { LEGAL_POLICY } from "../lib/legal-policy";
 import { listPublishedDevices } from "../lib/public-device-data";
+import { getProductDetailHref } from "../lib/product-route";
 import { createSSRClient, type CloudflareEnv } from "../lib/supabase-server";
 import { isPublicVisibleCircle } from "../lib/site-navigation";
 import { isGazeLauncherPublicEnabled } from "../lib/gaze-launcher-visibility";
@@ -58,7 +59,6 @@ export const GET: APIRoute = async ({ locals, site }) => {
   const env = runtimeEnv;
   const supabase = env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY ? createSSRClient(env) : null;
   const publishedDevices = supabase ? await listPublishedDevices(supabase) : [];
-  const publishedDeviceBySlug = new Map(publishedDevices.map((device) => [device.slug, device]));
 
   const entries: SitemapEntry[] = [
     { loc: absoluteUrl("/"), changefreq: "daily", priority: "1.0" },
@@ -85,20 +85,16 @@ export const GET: APIRoute = async ({ locals, site }) => {
     });
   }
 
+  for (const product of publishedDevices) {
+    entries.push({ loc: absoluteUrl(getProductDetailHref(product)), changefreq: "monthly", priority: "0.7" });
+  }
+
   for (const entry of docs) {
     const docSlug = String((entry as { slug?: string | null }).slug ?? "");
     if (!docSlug) continue;
 
     if (docSlug.startsWith("reference/devices/")) {
-      const slug = docSlug.replace("reference/devices/", "");
-      const product = publishedDeviceBySlug.get(slug);
-      if (!product) continue;
-      entries.push({
-        loc: absoluteUrl(`/products/${product.brandKey}/`),
-        lastmod: normalizeDate(entry.data.lastUpdated instanceof Date ? entry.data.lastUpdated.toISOString() : undefined),
-        changefreq: "monthly",
-        priority: "0.7",
-      });
+      // Editorial article presence/date is not device publication authority.
       continue;
     }
     if (docSlug.startsWith("reference/guides/")) {

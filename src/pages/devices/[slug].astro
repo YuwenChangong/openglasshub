@@ -4,14 +4,24 @@ export const prerender = false;
 import { env as runtimeEnv } from "cloudflare:workers";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import { getPublishedDeviceBySlug } from "../../lib/public-device-data";
+import { getProductDetailHref, isValidProductSegment } from "../../lib/product-route";
 
 const slug = Astro.params.slug ?? "";
 const env = runtimeEnv as CloudflareEnv;
-const product = await getPublishedDeviceBySlug(createSSRClient(env), slug);
-if (!product) {
-  Astro.response.status = 404;
+let product: Awaited<ReturnType<typeof getPublishedDeviceBySlug>> = null;
+let destination: string | null = null;
+let unavailable = false;
+try {
+  product = isValidProductSegment(slug) ? await getPublishedDeviceBySlug(createSSRClient(env), slug) : null;
+  if (product) {
+    if (product.slug !== slug) throw new Error("Invalid public product identity.");
+    destination = getProductDetailHref(product);
+  }
+} catch { unavailable = true; }
+if (!destination) {
+  Astro.response.status = unavailable ? 503 : 404;
   Astro.response.headers.set("x-robots-tag", "noindex");
 } else {
-  return Astro.redirect(`/products/${product.brandKey}/#product-${product.slug}`, 301);
+  return Astro.redirect(destination, 301);
 }
 ---

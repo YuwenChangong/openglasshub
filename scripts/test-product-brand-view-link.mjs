@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { chromium } from "playwright";
@@ -35,7 +35,8 @@ const row = {
   full_specs: Object.fromEntries(product.specGroups.map(group => [group.key, Object.fromEntries(group.items.map(item => [item.field, item.value]))])),
 };
 const sourceSweep = process.argv.includes("--parameter-source-sweep");
-const inventory = sourceSweep ? await buildRepositoryInventory({ root }) : null;
+const canonicalProof = process.argv.includes("--canonical-proof");
+const inventory = sourceSweep || canonicalProof ? await buildRepositoryInventory({ root }) : null;
 // These are owned parameter transport fixtures, not publication authority.
 const fixtureRows = inventory ? inventory.pipeline.readerCompatibleRows.map(item => ({ ...item,
   product_image_url: null, official_image_url: null })) : [row];
@@ -48,6 +49,12 @@ const receipt = { PRODUCT_BRAND_VIEW_PRODUCT_LINK_TEST: "FAIL", evidenceClass: "
   deniedWorkerOutbound: 0, deniedBrowserExternal: 0, fixtureReads: 0 };
 receipt.parameterSourceDomRetained = 0;
 receipt.publicationCohortAcceptance = "NOT_RUN";
+const ownedSourcePaths = ["src/lib/public-product-detail.ts", "src/lib/public-device-data.ts", "src/lib/product-route.ts", "src/pages/products/[brand]/[slug].astro",
+  "src/pages/products/index.astro", "src/pages/products/[brand].astro", "src/pages/devices/[slug].astro", "src/pages/sitemap.xml.ts",
+  "src/lib/forum-search.ts", "src/components/products/ProductDetail.astro", "src/lib/i18n/messages/catalog.ts", "scripts/test-product-brand-view-link.mjs"];
+const sourceHashes = async () => Object.fromEntries(await Promise.all(ownedSourcePaths.map(async name => [name,
+  createHash("sha256").update(await readFile(path.join(root, name))).digest("hex")])));
+receipt.sourceHashes = await sourceHashes();
 let worker, browser, stage = "LOCAL_BUILD", readinessTimer;
 const originalFetch = globalThis.fetch;
 globalThis.fetch = (input, init) => {
@@ -72,6 +79,11 @@ try {
       outboundService(request) {
         const url = new URL(request.url);
         const slug = url.searchParams.get("slug");
+        if (canonicalProof && url.origin === fixtureOrigin && request.method === "GET" && ["/rest/v1/circles", "/rest/v1/news_articles"].includes(url.pathname)) {
+          assert.equal(request.headers.get("apikey"), anonKey, "FIXTURE_ANON_ONLY");
+          receipt.fixtureReads++;
+          return new Response("[]", { headers: { "content-type": "application/json" } });
+        }
         if (url.origin === fixtureOrigin && request.method === "GET" && /^\/rest\/v1\/public_device_detail_(specs|sources|evidence)$/.test(url.pathname)) {
           assert.equal(request.headers.get("apikey"), anonKey, "FIXTURE_ANON_ONLY");
           receipt.fixtureReads++;
@@ -84,7 +96,9 @@ try {
         }
         assert.equal(request.headers.get("apikey"), anonKey, "FIXTURE_ANON_ONLY");
         receipt.fixtureReads++;
-        return new Response(JSON.stringify(fixtureRows.filter(item => slug === null || slug === `eq.${item.slug}`)), { headers: { "content-type": "application/json" } });
+        const rows = canonicalProof && slug === "eq.local-mismatched-identity" ? [row]
+          : fixtureRows.filter(item => slug === null || slug === `eq.${item.slug}`);
+        return new Response(JSON.stringify(rows), { headers: { "content-type": "application/json" } });
       } } });
   await Promise.race([Promise.all([worker.ready, new Promise((resolve, reject) => {
     worker.raw.once("reloadComplete", resolve);
@@ -123,7 +137,7 @@ try {
   assert.equal(await official.getAttribute("rel"), "noopener noreferrer");
   receipt.officialLinkPreserved = true;
   const data = JSON.parse(await page.locator("#brand-products-data").textContent());
-  assert.equal(data.compareProducts.find(item => item.slug === product.slug).detailHref, oldHref);
+  assert.equal(data.compareProducts.find(item => item.slug === product.slug).detailHref, canonical);
   receipt.compareDestinationPreserved = true;
   const compare = card.locator("[data-compare-button]");
   assert.equal((await compare.textContent()).trim(), "+");
@@ -147,7 +161,7 @@ try {
   assert.equal(await detail.locator(".product-detail__parameters").count(), 1);
   receipt.destinationParameterSectionPresent = true;
   await page.screenshot({ path: path.join(artifact, "detail-desktop.png"), fullPage: true });
-  if (inventory) {
+  if (sourceSweep) {
     stage = "TASK4_SOURCE_PARAMETER_DOM_TRANSPORT_NOT_PUBLICATION_ACCEPTANCE";
     for (const fixture of fixtureRows) {
       const response = await page.goto(`${origin}/products/${fixture.brand_key}/${fixture.slug}/`, { waitUntil: "load", timeout: 20000 });
@@ -163,9 +177,66 @@ try {
     }
     assert.equal(receipt.parameterSourceDomRetained, 829);
   }
+  if (canonicalProof) {
+    stage = "TASK5_CANONICAL_ENTRY_PROOF";
+    const api = await context.request.get(`${origin}/api/forum/search?q=xreal&type=devices`);
+    assert.equal(api.status(), 200);
+    const payload = await api.json();
+    assert.equal(payload.ok, true);
+    const search = payload.results;
+    assert.ok(search.devices.length > 0, "Published device-scoped search must have matches");
+    for (const device of search.devices) {
+      const identity = fixtureRows.find(item => item.slug === device.slug);
+      assert.equal(device.href, `/products/${identity.brand_key}/${identity.slug}/`);
+    }
+    receipt.searchDeviceCanonicalLink = "PASS";
+    const sitemap = await context.request.get(`${origin}/sitemap.xml`);
+    assert.equal(sitemap.status(), 200);
+    const xml = await sitemap.text();
+    for (const item of fixtureRows) assert.ok(xml.includes(`/products/${item.brand_key}/${item.slug}/</loc>`));
+    assert.ok(!xml.includes("#product-") && !xml.includes("/devices/"));
+    receipt.sitemapCanonicalLinks = "PASS";
+    const alias = await context.request.get(`${origin}/devices/${product.slug}/`, { maxRedirects: 0 });
+    assert.equal(alias.status(), 301);
+    assert.equal(alias.headers().location, canonical);
+    const unknown = await context.request.get(`${origin}/devices/local-missing-slug/`, { maxRedirects: 0 });
+    assert.equal(unknown.status(), 404);
+    const mismatched = await context.request.get(`${origin}/devices/local-mismatched-identity/`, { maxRedirects: 0 });
+    assert.equal(mismatched.status(), 503);
+    receipt.legacyCanonicalRedirect = "PASS";
+    await page.goto(`${origin}/products/`, { waitUntil: "load" });
+    await page.locator("#products-search").fill("XREAL Air");
+    const dropdownLink = page.locator(".products-search-result__title").filter({ hasText: /^XREAL Air$/ });
+    assert.equal(await dropdownLink.getAttribute("href"), canonical);
+    const indexNavigation = page.waitForNavigation({ waitUntil: "load" });
+    await dropdownLink.click();
+    assert.equal((await indexNavigation).status(), 200);
+    assert.equal(new URL(page.url()).pathname, canonical);
+    receipt.productIndexCanonicalLink = "PASS";
+    const handoff = page.locator("[data-detail-compare]");
+    const handoffNavigation = page.waitForNavigation({ waitUntil: "load" });
+    await handoff.click();
+    assert.equal((await handoffNavigation).status(), 200);
+    assert.equal(new URL(page.url()).searchParams.get("compare"), product.slug);
+    assert.ok((await page.locator('[data-product-card][data-product-slug="xreal-air"] [data-compare-button]').getAttribute("class")).split(/\s+/).includes("is-selected"));
+    const selectedFixtures = fixtureRows.slice(0, 3);
+    const selection = new URLSearchParams(selectedFixtures.map(item => ["compare", item.slug]));
+    selection.append("compare", selectedFixtures[0].slug);
+    selection.append("compare", "private-missing-slug");
+    await page.goto(`${origin}/products/xreal/?${selection}`, { waitUntil: "load" });
+    const backLinks = page.locator("#brand-compare-table-head a");
+    assert.equal(await backLinks.count(), 3);
+    for (let index = 0; index < selectedFixtures.length; index++) {
+      const item = selectedFixtures[index];
+      assert.equal(await backLinks.nth(index).getAttribute("href"), `/products/${item.brand_key}/${item.slug}/`);
+    }
+    receipt.compareCanonicalLink = "PASS";
+    receipt.compareHandoffMax3 = "PASS";
+  }
   assert.equal(receipt.deniedWorkerOutbound, 0);
   assert.equal(receipt.deniedBrowserExternal, 0);
   assert.ok(receipt.fixtureReads >= 2);
+  assert.deepEqual(await sourceHashes(), receipt.sourceHashes, "Focused proof source must not drift during build/browser execution");
   receipt.PRODUCT_BRAND_VIEW_PRODUCT_LINK_TEST = "PASS";
 } catch (error) {
   receipt.firstFail = error.code ?? error.name;

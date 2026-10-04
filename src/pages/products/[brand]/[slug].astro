@@ -7,6 +7,7 @@ import ProductDetail from "../../../components/products/ProductDetail.astro";
 import { getBrandByKey } from "../../../lib/device-catalog";
 import { getPublishedDeviceBySlug } from "../../../lib/public-device-data";
 import { getPublicProductDetail, buildDetailParameterGroups } from "../../../lib/public-product-detail";
+import { getProductDetailHref, isValidProductSegment } from "../../../lib/product-route";
 import { createSSRClient, type CloudflareEnv } from "../../../lib/supabase-server";
 import { getUiMessages } from "../../../lib/i18n/catalog";
 import { resolveLocale } from "../../../lib/i18n/locale";
@@ -15,17 +16,16 @@ const localeContext = Astro.locals.localeContext ?? resolveLocale({});
 const text = getUiMessages(localeContext.locale).catalog;
 const brandKey = Astro.params.brand ?? "";
 const slug = Astro.params.slug ?? "";
-const validSegment = (value: string) => value.length <= 128 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
 let product: Awaited<ReturnType<typeof getPublishedDeviceBySlug>> = null;
 let parameterGroups: ReturnType<typeof buildDetailParameterGroups> = [];
 let unavailable = false;
 
-if (validSegment(brandKey) && validSegment(slug) && getBrandByKey(brandKey)) {
+if (isValidProductSegment(brandKey) && isValidProductSegment(slug) && getBrandByKey(brandKey)) {
   try {
     const detail = await getPublicProductDetail(createSSRClient(runtimeEnv as CloudflareEnv), slug);
     product = detail?.product ?? null;
     parameterGroups = detail ? buildDetailParameterGroups(detail.product, detail.specs) : [];
-    if (product && (product.slug !== slug || !validSegment(product.brandKey) || !getBrandByKey(product.brandKey))) {
+    if (product && (product.slug !== slug || !isValidProductSegment(product.brandKey) || !getBrandByKey(product.brandKey))) {
       product = null;
       unavailable = true;
     }
@@ -37,7 +37,7 @@ if (validSegment(brandKey) && validSegment(slug) && getBrandByKey(brandKey)) {
 }
 
 if (product && product.brandKey !== brandKey) {
-  return Astro.redirect(`/products/${product.brandKey}/${product.slug}/`, 301);
+  return Astro.redirect(getProductDetailHref(product), 301);
 }
 if (!product) {
   Astro.response.status = unavailable ? 503 : 404;
@@ -49,7 +49,7 @@ const title = product?.name ?? (unavailable ? text.productUnavailable : text.pro
 <CommunityLayout
   title={title}
   description={product?.shortDescription}
-  canonical={product ? `/products/${product.brandKey}/${product.slug}/` : undefined}
+  canonical={product ? getProductDetailHref(product) : undefined}
   noindex={!product}
   activeSection="products"
   showHeaderSearch={false}

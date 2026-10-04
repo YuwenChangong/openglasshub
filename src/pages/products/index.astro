@@ -8,6 +8,7 @@ import BrandMark from "../../components/products/BrandMark.astro";
 import { brandCatalog } from "../../lib/device-catalog";
 import { createSSRClient, type CloudflareEnv } from "../../lib/supabase-server";
 import { listPublishedDevices, getPublicDeviceSpecValue } from "../../lib/public-device-data";
+import { getProductDetailHref } from "../../lib/product-route";
 
 const compareFieldOrder = [
   ["name", "产品"],
@@ -49,7 +50,7 @@ function serializeCompareProduct(product: DeviceRecord) {
     brandLabel: product.brandLabel,
     typeLabel: product.typeLabel,
     availability: product.availability ?? product.infoStatusLabel ?? product.statusLabel ?? "",
-    detailHref: `/products/${product.brandKey}/#product-${product.slug}`,
+    detailHref: getProductDetailHref(product),
     searchText: [
       product.name,
       product.slug,
@@ -217,8 +218,9 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
     const compareProducts = Array.isArray(brandsPayload.compareProducts) ? brandsPayload.compareProducts : [];
     const compareFields = Array.isArray(brandsPayload.compareFields) ? brandsPayload.compareFields : [];
     const productMap = new Map(compareProducts.map((product) => [product.slug, product]));
-    const selected = [];
     const maxCompareCount = 3;
+    const selected = [...new Set(new URLSearchParams(window.location.search).getAll("compare"))]
+      .filter((slug) => productMap.has(slug)).slice(0, maxCompareCount);
     const emptyState = document.getElementById("products-empty-state");
     const searchDropdown = document.getElementById("products-search-dropdown");
     const searchResultsList = document.getElementById("products-search-results-list");
@@ -301,6 +303,14 @@ const compareProducts = publishedDevices.map((product) => serializeCompareProduc
         .join("");
 
       compareTableHead.innerHTML = `<tr><th scope="col">${text.item}</th>${headerCells}</tr>`;
+      compareTableHead.querySelectorAll(".products-compare__column-heading strong").forEach((heading, index) => {
+        const product = selectedProducts[index];
+        const link = document.createElement("a");
+        link.className = "community-link";
+        link.href = product.detailHref;
+        link.textContent = product.name;
+        heading.replaceChildren(link);
+      });
       compareTableBody.innerHTML = visibleFields
         .map((field) => {
           const cells = selectedProducts

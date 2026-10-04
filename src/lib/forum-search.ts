@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listPublishedDevices } from "./public-device-data";
+import { getProductDetailHref } from "./product-route";
 import { buildResolvedPostMediaMap, type PostMediaRow } from "./forum-media";
 import { buildPostCommentCountMap, buildPostLikeCountMap, isMissingViewCountError } from "./post-engagement";
 import { buildProfileHref } from "./profile-links";
@@ -483,7 +484,7 @@ async function buildDeviceSearchResults(supabase: SupabaseClient, query: string,
 
       return {
         slug: device.slug,
-        href: `/products/${encodeURIComponent(device.brandKey)}/#product-${encodeURIComponent(device.slug)}`,
+        href: getProductDetailHref(device),
         name: device.name,
         brand_name: device.brandLabel ?? device.brandName,
         type_label: device.typeLabel ?? null,

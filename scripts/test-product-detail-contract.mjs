@@ -10,6 +10,7 @@ import { getPublishedDeviceBySlug } from "../src/lib/public-device-data.ts";
 import { resolveLocale } from "../src/lib/i18n/locale.ts";
 import { getUiMessages } from "../src/lib/i18n/catalog.ts";
 import { buildRepositoryInventory } from "./lib/product-detail-repository-inventory.mjs";
+import { randomUUID } from "node:crypto";
 
 const routePath = "src/pages/products/[brand]/[slug].astro";
 const source = await readFile(routePath, "utf8").catch((error) => {
@@ -21,7 +22,7 @@ assert.match(source, /export const prerender = false/);
 assert.match(source, /getPublicProductDetail\(createSSRClient/);
 assert.doesNotMatch(source, /listPublishedDevices|#product-|service.role|device_specs|\.rpc\(/i);
 const root = path.resolve(import.meta.dirname, "..");
-const artifactPath = path.join(root, "artifacts/qa/product-detail-task-2");
+const artifactPath = path.join(root, "artifacts/qa/product-detail-task-2", randomUUID());
 await mkdir(artifactPath, { recursive: true });
 // One existing Task 1 reader-compatible row, not a new projection or a database/RLS oracle.
 const fixture = JSON.parse(await readFile(path.join(root, "scripts/fixtures/product-detail-public-row.json"), "utf8"));

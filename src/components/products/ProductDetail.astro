@@ -29,6 +29,7 @@ const links = product.externalLinks.map((link) => ({ ...link, href: safeHttps(li
     <span aria-hidden="true">/</span>
     <a href={`/products/${product.brandKey}/`}>{product.brandName}</a>
   </nav>
+  <a class="community-link" data-detail-compare href={`/products/${product.brandKey}/?compare=${encodeURIComponent(product.slug)}#brand-compare`}>{text.addCompare}</a>
   <header class="product-detail__overview">
     <div>
       <p class="product-detail__brand">{product.brandName}</p>
