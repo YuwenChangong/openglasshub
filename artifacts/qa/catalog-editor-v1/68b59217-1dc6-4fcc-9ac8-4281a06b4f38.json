@@ -1,0 +1,2128 @@
+{
+  "format": "catalog-editor-local-v1",
+  "runId": "68b59217-1dc6-4fcc-9ac8-4281a06b4f38",
+  "status": "PASS",
+  "assertions": [
+    "EDITOR_INVOKER_ONLY",
+    "A_LOCAL_SIGNUP",
+    "A_LOCAL_LOGIN",
+    "A_GENUINE_LOCAL_ACTOR",
+    "B_LOCAL_SIGNUP",
+    "B_LOCAL_LOGIN",
+    "B_GENUINE_LOCAL_ACTOR",
+    "ADMIN_LOCAL_SIGNUP",
+    "ADMIN_LOCAL_LOGIN",
+    "ADMIN_GENUINE_LOCAL_ACTOR",
+    "BASELINE_ADMIN_EDITOR_RPC_MISSING_RED",
+    "LEGACY_NULL_SCHEMA_INITIALIZED_WITHOUT_OVERWRITING_RICHER_COPY",
+    "LOCAL_DATA_API_READ",
+    "MULTIPLE_CANONICAL_DEVICES",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "LOCAL_DATA_API_READ",
+    "MIGRATIONS_BEFORE_IMPORT_ALL_COHORT_INITIAL_KEY_SPECS",
+    "NONADMIN_LEGACY_SPEC_JSON_READ_DENIED",
+    "NONADMIN_LEGACY_SPEC_JSON_READ_DENIED",
+    "NONADMIN_LEGACY_SPEC_JSON_READ_DENIED",
+    "ORDINARY_NORMALIZED_PRIVATE_READ_DENIED",
+    "ORDINARY_NORMALIZED_PRIVATE_READ_DENIED",
+    "ANONYMOUS_PRIVATE_PROJECTION_COLUMN_DENIED",
+    "ANONYMOUS_PRIVATE_PROJECTION_COLUMN_DENIED",
+    "ANONYMOUS_PRIVATE_PROJECTION_COLUMN_DENIED",
+    "LOCAL_DATA_API_READ",
+    "EXISTING_PARAMETER_VISIBLE",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "ADMIN_PARAMETER_VALUE_EDIT",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "ADMIN_BILINGUAL_LABEL_FORMAT_GROUP_ORDER_KEY_SPEC_EDIT",
+    "LOCAL_DATA_API_READ",
+    "PUBLIC_READER_SAME_CANONICAL_EDITED_ROW",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "ADMIN_PARAMETER_ADD",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "SAME_STABLE_CUSTOM_DEFINITION_MULTIPLE_DEVICES",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "LOCAL_DATA_API_READ",
+    "UNIT_EDIT_PRESERVES_CANONICAL_FACT_UNIT",
+    "INCOMPATIBLE_UNIT_SAVE_REJECTED_ATOMICALLY",
+    "LOCAL_DATA_API_READ",
+    "INCOMPATIBLE_UNIT_NO_PARTIAL_FACT_WRITE",
+    "ADMIN_GROUP_LABEL_ORDER_ATOMIC_SAVE",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "LOCAL_DATA_API_READ",
+    "ADMIN_PARAMETER_DEACTIVATE_PUBLIC_DENIED",
+    "ORDINARY_USER_RPC_WRITE_DENIED",
+    "ORDINARY_USER_DIRECT_WRITE_DENIED",
+    "ORDINARY_USER_RPC_WRITE_DENIED",
+    "ORDINARY_USER_DIRECT_WRITE_DENIED",
+    "ANONYMOUS_RPC_WRITE_DENIED",
+    "UNSAFE_FORMAT_REJECTED",
+    "LOCAL_DATA_API_READ",
+    "INVALID_LOGICAL_SAVE_NO_PARTIAL_WRITE",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "REVERSIBLE_PARAMETER_FIXTURE_CLEANUP",
+    "LOCAL_DATA_API_READ",
+    "EXISTING_PARAMETER_VISIBLE",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "ADMIN_PARAMETER_VALUE_EDIT",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "ADMIN_BILINGUAL_LABEL_FORMAT_GROUP_ORDER_KEY_SPEC_EDIT",
+    "LOCAL_DATA_API_READ",
+    "PUBLIC_READER_SAME_CANONICAL_EDITED_ROW",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "ADMIN_PARAMETER_ADD",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "SAME_STABLE_CUSTOM_DEFINITION_MULTIPLE_DEVICES",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "LOCAL_DATA_API_READ",
+    "UNIT_EDIT_PRESERVES_CANONICAL_FACT_UNIT",
+    "INCOMPATIBLE_UNIT_SAVE_REJECTED_ATOMICALLY",
+    "LOCAL_DATA_API_READ",
+    "INCOMPATIBLE_UNIT_NO_PARTIAL_FACT_WRITE",
+    "ADMIN_GROUP_LABEL_ORDER_ATOMIC_SAVE",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "LOCAL_DATA_API_READ",
+    "ADMIN_PARAMETER_DEACTIVATE_PUBLIC_DENIED",
+    "ORDINARY_USER_RPC_WRITE_DENIED",
+    "ORDINARY_USER_DIRECT_WRITE_DENIED",
+    "ORDINARY_USER_RPC_WRITE_DENIED",
+    "ORDINARY_USER_DIRECT_WRITE_DENIED",
+    "ANONYMOUS_RPC_WRITE_DENIED",
+    "UNSAFE_FORMAT_REJECTED",
+    "LOCAL_DATA_API_READ",
+    "INVALID_LOGICAL_SAVE_NO_PARTIAL_WRITE",
+    "ADMIN_ATOMIC_SPEC_SAVE",
+    "REVERSIBLE_PARAMETER_FIXTURE_CLEANUP",
+    "PUBLISHED_BRAND_IDENTITY_LOCKED",
+    "ADMIN_DISPOSABLE_DEVICE_CREATE",
+    "ADMIN_IMAGE_ADD_SELECT_CANONICAL_SAVE",
+    "ADMIN_IMAGE_ADD_SELECT_CANONICAL_READBACK",
+    "ADMIN_IMAGE_REORDER_HERO_CANONICAL_SAVE",
+    "ADMIN_IMAGE_REORDER_HERO_CANONICAL_READBACK",
+    "ADMIN_IMAGE_REPLACE_ALT_CANONICAL_SAVE",
+    "ADMIN_IMAGE_REPLACE_ALT_CANONICAL_READBACK",
+    "ADMIN_IMAGE_REMOVE_CANONICAL_SAVE",
+    "ADMIN_IMAGE_REMOVE_CANONICAL_READBACK",
+    "ADMIN_DISPOSABLE_PUBLICATION_CONTROL",
+    "LOCAL_DATA_API_READ",
+    "PUBLIC_READER_IMAGE_SAME_CANONICAL_ROW",
+    "ORDINARY_DEVICE_MEDIA_PUBLICATION_WRITE_DENIED",
+    "LOCAL_DATA_API_READ",
+    "ORDINARY_PRIVATE_AUDIT_READ_DENIED",
+    "ORDINARY_DEVICE_MEDIA_PUBLICATION_WRITE_DENIED",
+    "LOCAL_DATA_API_READ",
+    "ORDINARY_PRIVATE_AUDIT_READ_DENIED",
+    "LOCAL_DATA_API_READ",
+    "ADMIN_PRIVATE_WHAT_WHEN_DEVICE_AUDIT",
+    "ADMIN_DISPOSABLE_HIDE",
+    "LOCAL_DATA_API_READ",
+    "ANONYMOUS_UNPUBLISHED_DEVICE_DENIED",
+    "DISPOSABLE_DEVICE_CLEANUP",
+    "TASK6_CANONICAL_DATABASE_PUBLIC_MODEL_SSR_829_ZERO_DROPS"
+  ],
+  "productionRequests": 0,
+  "stage": "EXISTING_LEGACY_NULL_SCHEMA_IMPORT",
+  "core": {
+    "publishedExpected": 24,
+    "route200": 24,
+    "route404ForExpected": 0,
+    "route5xx": 0,
+    "identityMismatch": 0,
+    "sourceKnown": 829,
+    "sourceRetained": 829,
+    "dropped": 0,
+    "fabricated": 0,
+    "localeFactParity": true,
+    "rawParameterLabels": 0,
+    "rawGroupLabels": 0,
+    "anonymousLocalReads": 290,
+    "evidenceClass": "GENUINE_LOCAL_DATABASE_ANONYMOUS_PUBLIC_READER_ACTUAL_ASTRO_SSR",
+    "translationFallbacks": [
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "ai_features.navigation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "ai_features.notifications",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "ai_features.other_features",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "ai_features.teleprompter",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "ai_features.transcription",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "ai_features.translation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "ai_features.vision_ai",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "audio.audio_notes",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "battery.charging_case",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "battery.charging_time",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "camera.video_resolution_fps",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "compute.os",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "compute.soc",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "compute.storage",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "connectivity.pc_compatibility",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "connectivity.usb",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "developer.sdk",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "developer.sideload",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "developer.spatial_api",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "display.color",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "display.ocular_mode",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "brilliant-labs-frame",
+        "key": "tracking.sensors",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "even-realities-g1",
+        "key": "audio.audio_notes",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "even-realities-g1",
+        "key": "basic.dimensions_mm",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "even-realities-g1",
+        "key": "battery.charging_case",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "even-realities-g1",
+        "key": "compute.os",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "even-realities-g1",
+        "key": "connectivity.gps",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "even-realities-g1",
+        "key": "developer.firmware_openness",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "even-realities-g1",
+        "key": "display.color",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "even-realities-g1",
+        "key": "privacy.privacy_notes",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "even-realities-g1",
+        "key": "tracking.sensors",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "ai_features.ai_assistant",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "ai_features.transcription",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "basic.material",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "camera.camera_mp",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "camera.secondary_spatial_camera",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "camera.video_resolution_fps",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "compute.os",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "compute.soc",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "connectivity.usb",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "developer.spatial_api",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "display.color",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "display.optical_system",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-air-2",
+        "key": "tracking.sensors",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-go3",
+        "key": "ai_features.navigation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-go3",
+        "key": "ai_features.other_features",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-go3",
+        "key": "ai_features.transcription",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-go3",
+        "key": "ai_features.translation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-go3",
+        "key": "basic.material",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-go3",
+        "key": "compute.cpu",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-go3",
+        "key": "connectivity.gps",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-go3",
+        "key": "display.color",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-go3",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "inmo-go3",
+        "key": "display.optical_system",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "ai_features.navigation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "ai_features.notifications",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "ai_features.other_features",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "ai_features.translation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "audio.microphones",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "battery.mode_specific_runtime",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "camera.video_resolution_fps",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "compute.os",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "compute.soc",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "connectivity.usb",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "connectivity.wifi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "developer.firmware_openness",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "privacy.camera_indicator",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "ray-ban-meta",
+        "key": "privacy.privacy_notes",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2s",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2s",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2s",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2s",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2s",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2s",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2s",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2s",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-2s",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-3s",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-3s",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-3s",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-3s",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-3s",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-3s",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-3s",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-3s",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-3s",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-4-pro",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-4-pro",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-4-pro",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-4-pro",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-4-pro",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-4-pro",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-4-pro",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-4-pro",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-air-4-pro",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "ai_features.ai_assistant",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "ai_features.navigation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "ai_features.other_features",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "compute.soc",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "developer.sideload",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "display.color",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "display.optical_system",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "privacy.camera_indicator",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "tracking.hand_tracking",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x2",
+        "key": "tracking.sensors",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "ai_features.ai_assistant",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "ai_features.other_features",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "ai_features.transcription",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "ai_features.translation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "camera.camera_sensor",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "camera.secondary_spatial_camera",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "camera.video_resolution_fps",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "compute.os",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "compute.soc",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "developer.sdk",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "developer.spatial_api",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "display.optical_system",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "tracking.native_6dof",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rayneo-x3-pro",
+        "key": "tracking.sensors",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-air",
+        "key": "audio.microphones",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-air",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-air",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-air",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-air",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-air",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-air",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-air",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-air",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-air",
+        "key": "tracking.environment_sensors",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "basic.weight_g",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "connectivity.macos",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "connectivity.windows",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "developer.spatial_api",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "power.built_in_battery",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "tracking.accessory_3dof",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "tracking.environment_sensors",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-ar-lite",
+        "key": "tracking.native_3dof",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "ai_features.ai_assistant",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "ai_features.transcription",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "battery.charging_case",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "camera.camera_sensor",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "compute.soc",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "connectivity.usb",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "developer.sdk",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "display.color",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "display.optical_system",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "privacy.camera_indicator",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "privacy.camera_indicator_occlusion_detection",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-glasses",
+        "key": "privacy.privacy_notes",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "audio.microphones",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "rokid-max",
+        "key": "tracking.accessory_3dof",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "connectivity.usb_c_dp",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "developer.sdk",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one",
+        "key": "developer.spatial_api",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "connectivity.usb_c_dp",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "developer.sdk",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "developer.spatial_api",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-one-lite",
+        "key": "display.electrochromic_dimming",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "basic.material",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "connectivity.usb_c_dp",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "developer.sdk",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "viture-pro",
+        "key": "developer.spatial_api",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air",
+        "key": "tracking.accessory_3dof",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "display.optical_system",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2",
+        "key": "tracking.accessory_3dof",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-pro",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-pro",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-pro",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-pro",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-pro",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-pro",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-pro",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-pro",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-pro",
+        "key": "display.optical_system",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-pro",
+        "key": "tracking.accessory_3dof",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-ultra",
+        "key": "basic.material",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-ultra",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-ultra",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-ultra",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-ultra",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-ultra",
+        "key": "developer.sdk",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-ultra",
+        "key": "developer.spatial_api",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-air-2-ultra",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "audio.microphones",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "compute.os",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "developer.spatial_api",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "display.ipd_mm",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "display.optical_system",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "tracking.accessory_6dof",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one",
+        "key": "tracking.environment_sensors",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "audio.microphones",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "audio.speakers",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "basic.prescription_support",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "compute.os",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "connectivity.android",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "connectivity.hdmi",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "connectivity.ios",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "connectivity.nintendo_switch",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "connectivity.playstation",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "connectivity.xbox",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "developer.spatial_api",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "display.display_technology",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "display.optical_system",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "tracking.accessory_6dof",
+        "locale": "zh-CN"
+      },
+      {
+        "slug": "xreal-one-pro",
+        "key": "tracking.environment_sensors",
+        "locale": "zh-CN"
+      }
+    ],
+    "sourceHashes": {
+      "src/lib/public-product-detail.ts": "73254a383ff705f9e6d2fe3205a1c1cc943410027f80f71702b3c795cf58c079",
+      "src/lib/public-device-data.ts": "5e380e3a2e13d676cb08f54caccdc773b3c7d99888571a9042e4c2d74de5da25",
+      "src/lib/catalog-presentation.ts": "9019a9ab9c517edd3b466bb5266e3d4e5131af07cac433948728690b14c7fd71",
+      "src/components/products/ProductDetail.astro": "2fd4dcb499b41e29327f2e7c5ede14050faeb4f3e7f0eb8567a243235ea4f718",
+      "src/pages/products/[brand]/[slug].astro": "12f135017285369eb7f618a33c212c78e100d77d24d009a144250d264a34ef14",
+      "supabase/migrations/20261004014637_catalog_editor_presentation_v1.sql": "943b7a01d3cab3471fbfc36d6ca011bd13eeeee5acc2264ec996f60a4d278dd6"
+    }
+  },
+  "browser": {
+    "status": "PASS",
+    "stage": "ADMIN_NEW_TYPED_DEVICE",
+    "evidenceClass": "ACTUAL_LOCAL_WORKER_BROWSER_REAL_LOCAL_CATALOG_ADMIN_AUTH_SEEDED_FROM_GENUINE_LOCAL_SESSION",
+    "publicContexts": [
+      {
+        "engine": "chromium",
+        "width": 1280,
+        "locale": "zh-CN",
+        "status": "PASS"
+      },
+      {
+        "engine": "chromium",
+        "width": 1280,
+        "locale": "en",
+        "status": "PASS"
+      },
+      {
+        "engine": "chromium",
+        "width": 430,
+        "locale": "zh-CN",
+        "status": "PASS"
+      },
+      {
+        "engine": "chromium",
+        "width": 430,
+        "locale": "en",
+        "status": "PASS"
+      },
+      {
+        "engine": "chromium",
+        "width": 390,
+        "locale": "zh-CN",
+        "status": "PASS"
+      },
+      {
+        "engine": "chromium",
+        "width": 390,
+        "locale": "en",
+        "status": "PASS"
+      },
+      {
+        "engine": "firefox",
+        "width": 1280,
+        "locale": "en",
+        "status": "PASS"
+      }
+    ],
+    "adminContexts": [
+      {
+        "width": 1280,
+        "status": "PASS"
+      },
+      {
+        "width": 390,
+        "status": "PASS"
+      }
+    ],
+    "assertions": [
+      "LOCAL_CONFIG_ACTUAL_WORKER_BUILD",
+      "OWNED_LOOPBACK_WORKER",
+      "PRODUCT_INDEX_200",
+      "RESPONSE_OWNED_HEADERS_200",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "BRAND_ANCHOR_PRESERVED",
+      "CANONICAL_IDENTITY",
+      "LOCALIZED_SPEC_LABEL",
+      "NO_RAW_PARAMETER_LABELS",
+      "AUTHORITATIVE_UNIT_FORMAT",
+      "KEY_SPEC_SUMMARY",
+      "EXISTING_SOURCE_ACTIONS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "COMPARE_MAX3_CANONICAL_LINKS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "COMPARE_SCROLL_REGION_KEYBOARD",
+      "COMPARE_REMOVE",
+      "COMPARE_ADD",
+      "WRONG_BRAND_301",
+      "RESPONSE_OWNED_HEADERS_301",
+      "UNKNOWN_404",
+      "RESPONSE_OWNED_HEADERS_404",
+      "OUTAGE_503",
+      "RESPONSE_OWNED_HEADERS_503",
+      "RAW_ERROR_DENIED",
+      "REAL_API_DEVICE_CANONICAL_LINK",
+      "PRODUCT_INDEX_200",
+      "RESPONSE_OWNED_HEADERS_200",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "BRAND_ANCHOR_PRESERVED",
+      "CANONICAL_IDENTITY",
+      "LOCALIZED_SPEC_LABEL",
+      "NO_RAW_PARAMETER_LABELS",
+      "AUTHORITATIVE_UNIT_FORMAT",
+      "KEY_SPEC_SUMMARY",
+      "EXISTING_SOURCE_ACTIONS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "COMPARE_MAX3_CANONICAL_LINKS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "COMPARE_SCROLL_REGION_KEYBOARD",
+      "COMPARE_REMOVE",
+      "COMPARE_ADD",
+      "WRONG_BRAND_301",
+      "RESPONSE_OWNED_HEADERS_301",
+      "UNKNOWN_404",
+      "RESPONSE_OWNED_HEADERS_404",
+      "OUTAGE_503",
+      "RESPONSE_OWNED_HEADERS_503",
+      "RAW_ERROR_DENIED",
+      "REAL_API_DEVICE_CANONICAL_LINK",
+      "QUICK_SEARCH_OWNER_PAGE_200",
+      "GLOBAL_QUICK_SEARCH_ALL_GROUPS_REQUEST",
+      "GLOBAL_QUICK_SEARCH_ALL_GROUPS_UI",
+      "QUICK_DEVICE_CANONICAL_HREF",
+      "QUICK_SEARCH_ESCAPE_FOCUS_RESTORATION",
+      "GLOBAL_QUICK_SEARCH_ALL_GROUPS_REQUEST",
+      "QUICK_SEARCH_HONEST_EMPTY",
+      "GLOBAL_QUICK_SEARCH_ALL_GROUPS_REQUEST",
+      "QUICK_SEARCH_ERROR_NOT_EMPTY",
+      "GLOBAL_QUICK_SEARCH_ALL_GROUPS_REQUEST",
+      "QUICK_SEARCH_LOADING",
+      "QUICK_SEARCH_STALE_RESPONSE_ABORTED",
+      "HOSTILE_CATALOG_LITERAL_SSR_TEXT",
+      "HOSTILE_CATALOG_NO_DOM_OR_SCRIPT_EXECUTION",
+      "UNSAFE_OFFICIAL_URL_NOT_ACTIVE",
+      "OWNED_BROKEN_IMAGE_FALLBACK",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "METADATA_ONLY_EMPTY_GROUP_HONEST_STATE",
+      "COMPARE_HOSTILE_LITERAL_TEXT",
+      "COMPARE_JSON_NO_SCRIPT_BREAKOUT",
+      "PRODUCT_INDEX_200",
+      "RESPONSE_OWNED_HEADERS_200",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "BRAND_ANCHOR_PRESERVED",
+      "CANONICAL_IDENTITY",
+      "LOCALIZED_SPEC_LABEL",
+      "NO_RAW_PARAMETER_LABELS",
+      "AUTHORITATIVE_UNIT_FORMAT",
+      "KEY_SPEC_SUMMARY",
+      "EXISTING_SOURCE_ACTIONS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "MOBILE_MENU_REACHABLE",
+      "MOBILE_TOUCH_TARGET",
+      "MENU_OPEN",
+      "ESCAPE_MENU_FOCUS_RESTORE",
+      "COMPARE_MAX3_CANONICAL_LINKS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "COMPARE_SCROLL_REGION_KEYBOARD",
+      "COMPARE_REMOVE",
+      "COMPARE_ADD",
+      "WRONG_BRAND_301",
+      "RESPONSE_OWNED_HEADERS_301",
+      "UNKNOWN_404",
+      "RESPONSE_OWNED_HEADERS_404",
+      "OUTAGE_503",
+      "RESPONSE_OWNED_HEADERS_503",
+      "RAW_ERROR_DENIED",
+      "REAL_API_DEVICE_CANONICAL_LINK",
+      "PRODUCT_INDEX_200",
+      "RESPONSE_OWNED_HEADERS_200",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "BRAND_ANCHOR_PRESERVED",
+      "CANONICAL_IDENTITY",
+      "LOCALIZED_SPEC_LABEL",
+      "NO_RAW_PARAMETER_LABELS",
+      "AUTHORITATIVE_UNIT_FORMAT",
+      "KEY_SPEC_SUMMARY",
+      "EXISTING_SOURCE_ACTIONS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "MOBILE_MENU_REACHABLE",
+      "MOBILE_TOUCH_TARGET",
+      "MENU_OPEN",
+      "ESCAPE_MENU_FOCUS_RESTORE",
+      "COMPARE_MAX3_CANONICAL_LINKS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "COMPARE_SCROLL_REGION_KEYBOARD",
+      "COMPARE_REMOVE",
+      "COMPARE_ADD",
+      "WRONG_BRAND_301",
+      "RESPONSE_OWNED_HEADERS_301",
+      "UNKNOWN_404",
+      "RESPONSE_OWNED_HEADERS_404",
+      "OUTAGE_503",
+      "RESPONSE_OWNED_HEADERS_503",
+      "RAW_ERROR_DENIED",
+      "REAL_API_DEVICE_CANONICAL_LINK",
+      "PRODUCT_INDEX_200",
+      "RESPONSE_OWNED_HEADERS_200",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "BRAND_ANCHOR_PRESERVED",
+      "CANONICAL_IDENTITY",
+      "LOCALIZED_SPEC_LABEL",
+      "NO_RAW_PARAMETER_LABELS",
+      "AUTHORITATIVE_UNIT_FORMAT",
+      "KEY_SPEC_SUMMARY",
+      "EXISTING_SOURCE_ACTIONS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "MOBILE_MENU_REACHABLE",
+      "MOBILE_TOUCH_TARGET",
+      "MENU_OPEN",
+      "ESCAPE_MENU_FOCUS_RESTORE",
+      "COMPARE_MAX3_CANONICAL_LINKS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "COMPARE_SCROLL_REGION_KEYBOARD",
+      "COMPARE_REMOVE",
+      "COMPARE_ADD",
+      "WRONG_BRAND_301",
+      "RESPONSE_OWNED_HEADERS_301",
+      "UNKNOWN_404",
+      "RESPONSE_OWNED_HEADERS_404",
+      "OUTAGE_503",
+      "RESPONSE_OWNED_HEADERS_503",
+      "RAW_ERROR_DENIED",
+      "REAL_API_DEVICE_CANONICAL_LINK",
+      "PRODUCT_INDEX_200",
+      "RESPONSE_OWNED_HEADERS_200",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "BRAND_ANCHOR_PRESERVED",
+      "CANONICAL_IDENTITY",
+      "LOCALIZED_SPEC_LABEL",
+      "NO_RAW_PARAMETER_LABELS",
+      "AUTHORITATIVE_UNIT_FORMAT",
+      "KEY_SPEC_SUMMARY",
+      "EXISTING_SOURCE_ACTIONS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "MOBILE_MENU_REACHABLE",
+      "MOBILE_TOUCH_TARGET",
+      "MENU_OPEN",
+      "ESCAPE_MENU_FOCUS_RESTORE",
+      "COMPARE_MAX3_CANONICAL_LINKS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "COMPARE_SCROLL_REGION_KEYBOARD",
+      "COMPARE_REMOVE",
+      "COMPARE_ADD",
+      "WRONG_BRAND_301",
+      "RESPONSE_OWNED_HEADERS_301",
+      "UNKNOWN_404",
+      "RESPONSE_OWNED_HEADERS_404",
+      "OUTAGE_503",
+      "RESPONSE_OWNED_HEADERS_503",
+      "RAW_ERROR_DENIED",
+      "REAL_API_DEVICE_CANONICAL_LINK",
+      "PRODUCT_INDEX_200",
+      "RESPONSE_OWNED_HEADERS_200",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "BRAND_ANCHOR_PRESERVED",
+      "CANONICAL_IDENTITY",
+      "LOCALIZED_SPEC_LABEL",
+      "NO_RAW_PARAMETER_LABELS",
+      "AUTHORITATIVE_UNIT_FORMAT",
+      "KEY_SPEC_SUMMARY",
+      "EXISTING_SOURCE_ACTIONS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "COMPARE_MAX3_CANONICAL_LINKS",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "COMPARE_SCROLL_REGION_KEYBOARD",
+      "COMPARE_REMOVE",
+      "COMPARE_ADD",
+      "WRONG_BRAND_301",
+      "RESPONSE_OWNED_HEADERS_301",
+      "UNKNOWN_404",
+      "RESPONSE_OWNED_HEADERS_404",
+      "OUTAGE_503",
+      "RESPONSE_OWNED_HEADERS_503",
+      "RAW_ERROR_DENIED",
+      "REAL_API_DEVICE_CANONICAL_LINK",
+      "REAL_ADMIN_DEVICE_EDITOR_REACHABLE",
+      "ADMIN_PARAMETER_ADD_REAL_HTTP",
+      "ADMIN_EDIT_PUBLIC_SAME_CANONICAL_ROW",
+      "SAVED_PARAMETER_SELECTED_IDENTITY_READONLY",
+      "ADMIN_CONTROLLED_UNIT_EDIT_REAL_HTTP",
+      "UNIT_EDIT_ACTUAL_PUBLIC_READBACK",
+      "ADMIN_BILINGUAL_LABEL_REORDER_KEY_SPEC_SAVE",
+      "ADMIN_GROUP_EDITOR_REAL_HTTP",
+      "ADMIN_PARAMETER_DEACTIVATE_REAL_HTTP",
+      "ADMIN_VALIDATION_MESSAGE_VISIBLE",
+      "ADMIN_IMAGE_ADD_ORDER_ALT_HERO_REAL_HTTP",
+      "ADMIN_IMAGE_REPLACE_REMOVE_REAL_HTTP",
+      "ADMIN_IMAGE_PUBLIC_SAME_CANONICAL_STATE",
+      "ADMIN_SELECTED_LOCAL_BITMAP_ACTUALLY_RENDERED",
+      "ADMIN_BILINGUAL_ALT_PUBLIC_READBACK",
+      "ADMIN_BINARY_CONTROL_NOT_TEXT_INPUT_SIZED",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "REAL_ADMIN_DEVICE_EDITOR_REACHABLE",
+      "ADMIN_PARAMETER_ADD_REAL_HTTP",
+      "ADMIN_EDIT_PUBLIC_SAME_CANONICAL_ROW",
+      "SAVED_PARAMETER_SELECTED_IDENTITY_READONLY",
+      "ADMIN_CONTROLLED_UNIT_EDIT_REAL_HTTP",
+      "UNIT_EDIT_ACTUAL_PUBLIC_READBACK",
+      "ADMIN_BILINGUAL_LABEL_REORDER_KEY_SPEC_SAVE",
+      "ADMIN_GROUP_EDITOR_REAL_HTTP",
+      "ADMIN_PARAMETER_DEACTIVATE_REAL_HTTP",
+      "ADMIN_VALIDATION_MESSAGE_VISIBLE",
+      "ADMIN_IMAGE_ADD_ORDER_ALT_HERO_REAL_HTTP",
+      "ADMIN_IMAGE_REPLACE_REMOVE_REAL_HTTP",
+      "ADMIN_IMAGE_PUBLIC_SAME_CANONICAL_STATE",
+      "ADMIN_SELECTED_LOCAL_BITMAP_ACTUALLY_RENDERED",
+      "ADMIN_BILINGUAL_ALT_PUBLIC_READBACK",
+      "ADMIN_BINARY_CONTROL_NOT_TEXT_INPUT_SIZED",
+      "NO_HORIZONTAL_PAGE_OVERFLOW",
+      "ADMIN_NEW_TYPED_DEVICE_REAL_HTTP",
+      "ADMIN_NEW_DEVICE_SPEC_REAL_HTTP",
+      "ADMIN_NEW_TYPED_DEVICE_REAL_HTTP",
+      "ADMIN_NEW_DEVICE_SPEC_REAL_HTTP",
+      "ACTUAL_API_ORDINARY_ACTOR_DENIED",
+      "ACTUAL_API_ANONYMOUS_DENIED",
+      "ZERO_EXTERNAL_ACTIVITY",
+      "NO_BROWSER_PAGE_ERRORS"
+    ],
+    "deniedWorkerExternal": 0,
+    "deniedBrowserExternal": 0,
+    "productionRequests": 0,
+    "pageErrors": 0,
+    "build": "PASS",
+    "imageFixture": "EXISTING_REPOSITORY_BITMAP_COPIED_ONLY_TO_OWNED_LOCAL_BUILD_ASSETS_NOT_PRODUCT_FACT",
+    "publicMatrixSkippedForFocusedAdminDiagnosis": false,
+    "quickSearchOnlyDiagnosis": false,
+    "indexHttpStatus": 200,
+    "quickSearchDiagnostic": {
+      "stage": "STALE"
+    },
+    "adminSpecResponses": [
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "status": 201
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "status": 201
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "status": 200
+      }
+    ],
+    "adminEditorLanguage": "Product specifications",
+    "addButtonState": {
+      "disabled": false,
+      "rect": {
+        "x": 37.796875,
+        "y": 4935.453125,
+        "width": 167.5,
+        "height": 45.9375,
+        "top": 4935.453125,
+        "right": 205.296875,
+        "bottom": 4981.390625,
+        "left": 37.796875
+      },
+      "visibility": "visible"
+    }
+  },
+  "cleanup": "PASS"
+}

@@ -167,7 +167,7 @@ try {
       const response = await page.goto(`${origin}/products/${fixture.brand_key}/${fixture.slug}/`, { waitUntil: "load", timeout: 20000 });
       assert.equal(response.status(), 200);
       const observed = await page.locator("[data-parameter-key]").evaluateAll(elements => elements.map(element => ({
-        key: element.getAttribute("data-parameter-key"), value: element.querySelector("dd").textContent,
+        key: element.getAttribute("data-parameter-key"), value: element.querySelector("dd").getAttribute("data-factual-value"),
         provenance: element.getAttribute("data-parameter-provenance"),
       })));
       for (const source of inventory.parameterLedger.filter(item => item.slug === fixture.slug && item.state === "KNOWN")) {

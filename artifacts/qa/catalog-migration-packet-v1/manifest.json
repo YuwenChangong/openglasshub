@@ -1,0 +1,41 @@
+{
+  "format": "catalog-migration-packet-v1",
+  "executionAuthorized": false,
+  "productionSqlExecutions": 0,
+  "productionRequests": 0,
+  "migrations": [
+    "supabase/migrations/20261004003349_public_device_detail_v1.sql",
+    "supabase/migrations/20261004014637_catalog_editor_presentation_v1.sql"
+  ],
+  "migrationHashes": {
+    "supabase/migrations/20261004003349_public_device_detail_v1.sql": "e74fd7031ceefab8de5ecfe1318a0709d754c603b9a1c60882020f95734499e6",
+    "supabase/migrations/20261004014637_catalog_editor_presentation_v1.sql": "943b7a01d3cab3471fbfc36d6ca011bd13eeeee5acc2264ec996f60a4d278dd6"
+  },
+  "sourceKnown": 829,
+  "knownValueDrops": "NOT_MEASURED_BY_GENERATION",
+  "importMaximums": {
+    "devices": 24,
+    "definitions": 92,
+    "sources": 39,
+    "sourceLinks": 46,
+    "specs": 1488,
+    "evidence": 15
+  },
+  "metadataUpdateMaximums": {
+    "nullSchemaType": 24,
+    "initialKeySpecPresentation": 829,
+    "canonicalActivation": 24
+  },
+  "existingRows": "INSERT_ONLY_FACTS_NULL_SCHEMA_TYPE_INITIALIZATION_ONLY",
+  "publicationAuthority": "artifacts/qa/product-publication-cohort-v1/publication-contract.json",
+  "publicationExistingRows": "PRESERVE_EXISTING_STATE",
+  "keySpecInitialization": "FIRST_ACTIVATION_ONLY_KNOWN_TOP_6_IF_NO_EXISTING_EXPLICIT_SELECTION",
+  "publicGrantHardening": "SEPARATE_FINAL_TRANSACTION_AFTER_COMPATIBLE_APP_READER_DEPLOYMENT_PRESERVE_ADMIN_LEGACY_DATA",
+  "canonicalActivation": "SEPARATE_TRANSACTION_ALL_EXPECTED_IDENTITIES_REQUIRED",
+  "hashes": {
+    "canonical-import.sql": "ff8eeb45ce5a96a1c4a261edddd8f8e03048d4bbe8cc82178c26a5b4203b88c7",
+    "canonical-activate.sql": "7461ffa1526344f7edfaabb3106d51f098414bd687ebc5daad5d2bfe61b25617",
+    "canonical-public-read-hardening.sql": "61ac820a2d5eccfce55adcd86aace5f0bf3b080e5d548db591a5b260040bcc85"
+  },
+  "proof": "Consult exact-hash genuine-local receipt; generated files alone are not acceptance evidence."
+}
