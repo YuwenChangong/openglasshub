@@ -22,6 +22,7 @@ import { observeOriginalAppResponse } from './lib/locale-v2-redirect-observer.mj
 import { createContextObservations } from './lib/locale-v2-context-observations.mjs';
 import { verifyEditorialDocumentFamily } from './lib/locale-v2-reviewed-documents.mjs';
 import { observeNotFound, verifyNotFound } from './lib/locale-v2-404-copy.mjs';
+import { privateNoStoreCases } from './lib/locale-v2-private-no-store-family.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const localeContexts = Object.freeze([{engine:'chromium',width:1280,locale:'zh-CN'},{engine:'chromium',width:1280,locale:'en'},{engine:'chromium',width:390,locale:'zh-CN'},{engine:'chromium',width:390,locale:'en'},{engine:'firefox',width:1280,locale:'en'}]);
@@ -35,10 +36,11 @@ export async function readFrozenLocaleSource() {
   return identity;
 }
 
-export async function runLocaleV2Acceptance({ targetOnly = false, context1Only = false } = {}) {
+export async function runLocaleV2Acceptance({ targetOnly = false, context1Only = false, privateNoStoreOnly = false } = {}) {
 assert.equal(typeof targetOnly, 'boolean', 'INVALID_TARGET_MODE');
 assert.equal(typeof context1Only, 'boolean', 'INVALID_CONTEXT1_MODE');
-assert.ok(!(targetOnly && context1Only), 'EXCLUSIVE_PARTIAL_MODES_REQUIRED');
+assert.equal(typeof privateNoStoreOnly, 'boolean', 'INVALID_PRIVATE_NO_STORE_MODE');
+assert.ok(Number(targetOnly) + Number(context1Only) + Number(privateNoStoreOnly) <= 1, 'EXCLUSIVE_PARTIAL_MODES_REQUIRED');
 const { preparePreferenceRunEnvironment } = await import('./test-user-preferences-rls-local.mjs');
 const { prepareCanonicalCatalogImport } = await import('./lib/catalog-canonical-import.mjs');
 const { assertLocalReplayTarget, runCommand, runLocalDisposableReplay, withCanonicalBaselineDirectory } = await import('./qa/local-disposable-supabase-replay.mjs');
@@ -48,7 +50,7 @@ const receipt = { schemaVersion: 2, runId, timestamp: new Date().toISOString(), 
   assertions: [], assertionProvenance: [], behaviors: {}, behaviorProvenance: {}, browserContexts: [], productionRequests: 0, externalRequests: 0,
   maxRetries: 0, reusedEvidence: [], reuseDecision: 'B_EXISTING_V1_MODEL_CANNOT_COMPOSE_PARTIAL_EVIDENCE',
   localAccounts: { genuineAuth: false, genuineRls: false }, cleanup: 'NOT_RUN', stage: 'SOURCE_FREEZE' };
-receipt.executionKind = targetOnly ? 'TARGET_CONTEXT_ONLY_NOT_FULL_ACCEPTANCE' : context1Only ? 'CONTEXT1_PREFLIGHT_NOT_FULL_ACCEPTANCE' : 'FULL_FIVE_CONTEXT_ACCEPTANCE';
+receipt.executionKind = privateNoStoreOnly ? 'PRIVATE_NO_STORE_FAMILY_PREFLIGHT_NOT_FULL_ACCEPTANCE' : targetOnly ? 'TARGET_CONTEXT_ONLY_NOT_FULL_ACCEPTANCE' : context1Only ? 'CONTEXT1_PREFLIGHT_NOT_FULL_ACCEPTANCE' : 'FULL_FIVE_CONTEXT_ACCEPTANCE';
 receipt.bootstrap = {};
 const bootstrap = createAcceptanceBootstrap(receipt.bootstrap);
 receipt.browserStarted = false; receipt.context1Entered = false;
@@ -163,7 +165,7 @@ async function runtime({ target, anonKey, accounts, request }) {
     const engines = {};
     bootstrap.complete('DIRECT_APP_DISPATCH_READY');
     bootstrap.releaseBrowser();
-    for (const [name, engine] of Object.entries(targetOnly || context1Only ? { chromium } : { chromium, firefox })) { engines[name] = await engine.launch({headless:true}); browsers.push(engines[name]); receipt.browserStarted = true; }
+    for (const [name, engine] of Object.entries(targetOnly || context1Only || privateNoStoreOnly ? { chromium } : { chromium, firefox })) { engines[name] = await engine.launch({headless:true}); browsers.push(engines[name]); receipt.browserStarted = true; }
     const preference = async context => { const cookie=(await context.cookies()).find(c=>c.name===cookieName);return cookie ? JSON.parse(decodeURIComponent(cookie.value)) : null; };
     const setCookie = async(context,locale) => context.addCookies([{name:cookieName,value:encodeURIComponent(JSON.stringify({version:1,preference:locale,generation:1,provenance:'device_explicit'})),url:origin,secure:true,sameSite:'Lax'}]);
     const settled = async page => { await page.waitForFunction(() => [...document.querySelectorAll('astro-island')].every(i=>!i.hasAttribute('ssr'))); };
@@ -236,6 +238,26 @@ async function runtime({ target, anonKey, accounts, request }) {
       page.on('requestfailed',req=>{if(new URL(req.url()).pathname==='/api/users/me/preferences'){
         (receipt.preferenceFailures??=[]).push({stage:receipt.stage,method:req.method(),category:'REQUEST_FAILED'});
       }});
+      if(privateNoStoreOnly) {
+        receipt.privateNoStoreFamily = [];
+        for(const locale of ['zh-CN','en']) {
+          await setCookie(context,locale);
+          for(const contract of privateNoStoreCases) {
+            const response = await navigate(page,contract.path,locale);
+            check(response.status()===contract.status,'CACHE_FAMILY_STATUS_PRESERVED');
+            check(new URL(page.url()).pathname===new URL(contract.path,origin).pathname,'CACHE_FAMILY_NO_REDIRECT');
+            check((await response.text()).includes('<html'),'CACHE_FAMILY_BODY_PRESERVED');
+            if(contract.kind==='not-found') {
+              boundary=receipt.stage='404_COPY_OBSERVATION';
+              const actual=await page.evaluate(observeNotFound);
+              check(actual.locale===locale&&!!actual.heading,'CACHE_FAMILY_BROWSER_OBSERVER');
+            }
+            receipt.privateNoStoreFamily.push({path:contract.path,locale,status:response.status(),cacheControl:response.headers()['cache-control'],pragma:response.headers().pragma??null});
+          }
+        }
+        ledger.status='PASS';ledger.finishedAt=new Date().toISOString();
+        return;
+      }
       if(index===0) {
         await navigate(page,'/settings/',fixture.locale,{initialAnonymous:true});await select(page,'en');
         await select(page,'zh-CN');await navigate(page,'/products/','zh-CN');await page.reload();await settled(page);
@@ -384,14 +406,17 @@ async function runtime({ target, anonKey, accounts, request }) {
         pass('DOCUMENT_LANG_SCOPE');pass('EDITORIAL_VARIANT_SELECTION');pass('GLOBAL_PREFERENCE_UNCHANGED_BY_DOCUMENT_LANG');
       }
       const missing=await navigate(page,'/__owned-locale-v2-missing-page__/',fixture.locale);
+      boundary=receipt.stage='404_COPY_OBSERVATION';
       const missingCopy=await page.evaluate(observeNotFound);
       verifyNotFound({status:missing.status(),location:missing.headers().location,...missingCopy},fixture.locale,observe);
       boundary = ledger.failures[0] ?? boundary;
       observations.finish();
       ledger.status='PASS';ledger.finishedAt=new Date().toISOString();
       } });
+      if(privateNoStoreOnly)break;
     }
-    if (targetOnly) { documentEvidence.assertNo5xx(); return; }
+    if (privateNoStoreOnly) check(receipt.externalRequests===0,'ZERO_EXTERNAL_REQUESTS');
+    if (targetOnly || privateNoStoreOnly) { documentEvidence.assertNo5xx(); return; }
     boundary=receipt.stage='AUTH_REFERRER_POLICY_UNCHANGED';
     receipt.authHeaderChecks=await checkLocalAuthHeaders({ origin, createRequestContext: options => apiRequest.newContext(options) });
     for (const result of receipt.authHeaderChecks) check(result.referrerPolicy==='no-referrer','AUTH_REFERRER_POLICY_UNCHANGED');
@@ -441,7 +466,11 @@ try {
   receipt.cleanup='PASS';
   const finalSource=await readFrozenLocaleSource();check(finalSource.fingerprint===receipt.source.fingerprint,'SOURCE_UNCHANGED_DURING_ACCEPTANCE');
   // Partial coverage must never become an accepted artifact.
-  if (targetOnly) {
+  if (privateNoStoreOnly) {
+    check(receipt.browserContexts.length===1&&receipt.browserContexts[0].status==='PASS','CACHE_FAMILY_SINGLE_CONTEXT_REQUIRED');
+    check(receipt.privateNoStoreFamily?.length===24,'CACHE_FAMILY_BOTH_LOCALES_REQUIRED');
+    receipt.status='PASS_PRIVATE_NO_STORE_ONLY';
+  } else if (targetOnly) {
     check(receipt.browserContexts.length===1&&receipt.browserContexts[0].status==='PASS'&&receipt.targetContext?.logout3==='PASS','TARGET_CONTEXT_ONLY_REQUIRED');
     check(receipt.localAccounts.genuineAuth&&receipt.localAccounts.genuineRls,'TARGET_GENUINE_AUTH_AND_RLS_REQUIRED');
     receipt.status='PASS_TARGET_ONLY';

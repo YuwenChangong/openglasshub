@@ -13,7 +13,7 @@ export const notFoundContracts = Object.freeze({
   },
 });
 
-export function observeNotFound(document) {
+export function observeNotFound(document = globalThis.document) {
   return {
     locale: document.documentElement.lang,
     title: document.title,
