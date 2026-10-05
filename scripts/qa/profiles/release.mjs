@@ -2,6 +2,8 @@ import { execFile, spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
+import { isDeepStrictEqual } from 'node:util';
 
 import { chromium } from 'playwright';
 import { registerCheck, runCheck } from '../check-registry.mjs';
@@ -11,7 +13,7 @@ import { executeCommand } from '../process-executor.mjs';
 import { closeBrowserLifecycle } from '../p6b-local-e2e-runner.mjs';
 import { redactValue } from '../receipt.mjs';
 import { unstable_readConfig } from 'wrangler';
-import { loadLocaleAcceptance } from '../../test-global-locale-settings-contract.mjs';
+import { loadLocaleAcceptance, localeReleaseEvidenceVersion } from '../../test-global-locale-settings-contract.mjs';
 import { manifest } from '../manifest.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -102,20 +104,31 @@ function registerReleaseCommand(id, argv) {
     classification: 'DETERMINISTIC',
     async run(context, check) {
       let localeAcceptance;
+      let commandArgv = argv;
       if (id === 'global-locale-settings-contract') {
         const declared = manifest.areas['locale-settings'].checks.find(item => item.id === id)?.acceptedEvidence;
         const input = Object.hasOwn(context, 'localeAcceptance') ? context.localeAcceptance : declared;
-        localeAcceptance = await loadLocaleAcceptance({ cwd: context.cwd ?? ROOT, commitSha: context.commitSha, input });
+        localeAcceptance = await loadLocaleAcceptance({ cwd: context.cwd ?? ROOT, commitSha: context.commitSha, input,
+          requiredVersion: localeReleaseEvidenceVersion(context.cwd ?? ROOT) });
         if (localeAcceptance.status !== 'PASS') return normalizeCheckResult({
           id, status: 'FAIL', attempts: 1, classification: 'VALIDATION',
           diagnostics: { code: localeAcceptance.code, commitSha: context.commitSha ?? null, deterministic: 'NOT_RUN' },
         });
+        if (localeAcceptance.evidenceVersion === 2) {
+          let explicit;
+          try { explicit = JSON.parse(await readFile(resolve(context.cwd ?? ROOT, context.localeEvidencePath), 'utf8')); }
+          catch { return normalizeCheckResult({ id, status: 'FAIL', classification: 'VALIDATION',
+            diagnostics: { code: 'LOCALE_V2_EXPLICIT_RECEIPT_REQUIRED', deterministic: 'NOT_RUN' } }); }
+          if (!isDeepStrictEqual(explicit, input)) return normalizeCheckResult({ id, status: 'FAIL', classification: 'VALIDATION',
+            diagnostics: { code: 'LOCALE_V2_EXPLICIT_RECEIPT_MISMATCH', deterministic: 'NOT_RUN' } });
+          commandArgv = [...argv, '--locale-evidence', resolve(context.cwd ?? ROOT, context.localeEvidencePath)];
+        }
       }
       const commandEnvironment = id === 'seo' && productionSiteOrigin
         ? { ...(context.env ?? {}), SITE_ORIGIN: productionSiteOrigin }
         : context.env ?? {};
       const result = await executeCommand({
-        argv,
+        argv: commandArgv,
         cwd: context.cwd ?? ROOT,
         env: commandEnvironment,
         timeoutMs: check.timeoutMs,

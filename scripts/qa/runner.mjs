@@ -279,6 +279,8 @@ export async function executeReleaseRun({
   artifactRoot = 'artifacts/qa',
   runCheckFn = runReleaseCheck,
   write = (value) => process.stdout.write(value),
+  localeAcceptance,
+  localeEvidencePath,
 } = {}) {
   const invocation = parseRun(argv);
   if (invocation.profile !== QA_PROFILES.RELEASE) {
@@ -313,6 +315,8 @@ export async function executeReleaseRun({
     cwd,
     env: safeChildEnvironment(),
     artifactRoot: resolve(cwd, artifactRoot, runId),
+    ...(localeAcceptance !== undefined ? { localeAcceptance } : {}),
+    ...(localeEvidencePath !== undefined ? { localeEvidencePath } : {}),
   };
   for (const { id } of selection.selectedChecks) {
     try {

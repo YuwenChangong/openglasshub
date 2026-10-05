@@ -20,6 +20,7 @@ import {
 } from './profiles/release.mjs';
 import { executeFastRun, executeFeatureRun, executeReleaseRun, renderProfileOutput } from './runner.mjs';
 import { validateSliceAAcceptance } from '../lib/slice-a-acceptance.mjs';
+import { createLegacyLocaleContractFixture } from './lib/locale-release-test-fixtures.mjs';
 
 const FOUNDATION = [
   'git-diff-check',
@@ -146,10 +147,12 @@ test('Task20 accepted inputs reject each missing failed partial or malformed gat
 test('Task20 validation-only contract never claims browser or local RLS and never invokes their runners', async () => {
   const { runGlobalLocaleContract } = await localeContractModule();
   const commands = [];
-  const result = await runGlobalLocaleContract({ execute: async options => {
+  const owned = createLegacyLocaleContractFixture();
+  let result;
+  try { result = await runGlobalLocaleContract({ ...owned, execute: async options => {
     commands.push(options);
     return { exitCode: 0, timedOut: false, signal: null, attempts: 1 };
-  } });
+  } }); } finally { rmSync(owned.cwd, { recursive: true, force: true }); }
   assert.equal(result.status, 'PASS');
   assert.equal(result.diagnostics.browser, 'PASS_102_OF_102');
   assert.equal(result.diagnostics.persistence, 'PASS_GENUINE_LOCAL_ACCEPTED');
@@ -169,9 +172,11 @@ test('Task20 validation-only contract never claims browser or local RLS and neve
 test('Task20 deterministic failed child is terminal with no retry and a safe result', async () => {
   const { runGlobalLocaleContract } = await localeContractModule();
   let calls = 0;
-  const result = await runGlobalLocaleContract({ execute: async () => {
+  const owned = createLegacyLocaleContractFixture();
+  let result;
+  try { result = await runGlobalLocaleContract({ ...owned, execute: async () => {
     calls++; return { exitCode: 1, timedOut: false, signal: null, attempts: 1, stdout: 'opaque_child_never_echo' };
-  } });
+  } }); } finally { rmSync(owned.cwd, { recursive: true, force: true }); }
   assert.equal(result.status, 'FAIL');
   assert.equal(result.attempts, 1);
   assert.equal(calls, 1);

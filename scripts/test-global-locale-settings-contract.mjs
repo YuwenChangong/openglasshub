@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFile, access } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
@@ -9,6 +10,8 @@ import { manifest, validateManifest, GLOBAL_LOCALE_PREREQUISITES } from './qa/ma
 import { normalizeCheckResult } from './qa/contracts.mjs';
 import { executeCommand } from './qa/process-executor.mjs';
 import { createReceipt, finalizeReceipt } from './qa/receipt.mjs';
+import { validateLocaleV2Evidence } from './lib/locale-v2-release-evidence.mjs';
+import { ownershipManifestPath, loadLocaleOwnership, fingerprintLocaleSource } from './qa/lib/global-locale-owned-source-v2.mjs';
 
 const ID = 'global-locale-settings-contract';
 const TASK20_FILES = new Set([
@@ -30,7 +33,15 @@ function exactKeys(value, keys) {
     isDeepStrictEqual(Object.keys(value).sort(), [...keys].sort());
 }
 
-export function validateLocaleAcceptance(input) {
+export function localeReleaseEvidenceVersion(cwd) {
+  return existsSync(resolve(cwd, ownershipManifestPath)) ? 2 : 1;
+}
+
+export function validateLocaleAcceptance(input, { requiredVersion, commitSha } = {}) {
+  if (requiredVersion !== undefined && input?.schemaVersion !== requiredVersion) {
+    return { status: 'FAIL', code: 'LOCALE_EVIDENCE_VERSION_REQUIRED' };
+  }
+  if (input?.schemaVersion === 2) return validateLocaleV2Evidence(input, commitSha);
   const failure = { status: 'FAIL', code: 'LOCALE_ACCEPTANCE_INVALID' };
   if (!exactKeys(input, ['schemaVersion', 'commitSha', ...Object.keys(GLOBAL_LOCALE_PREREQUISITES)]) ||
       input.schemaVersion !== 1 || typeof input.commitSha !== 'string' || !SHA.test(input.commitSha)) return failure;
@@ -44,13 +55,21 @@ export function validateLocaleAcceptance(input) {
     regressions: 'PASS_ACCEPTED_146_NODE_10_SCRIPTS' };
 }
 
-export async function loadLocaleAcceptance({ cwd, commitSha, input, validationOnly = false }) {
+export async function loadLocaleAcceptance({ cwd, commitSha, input, validationOnly = false, requiredVersion }) {
   if (input === undefined || input === null) return { status: 'FAIL', code: 'LOCALE_ACCEPTANCE_MISSING' };
-  const result = validateLocaleAcceptance(input);
+  requiredVersion = localeReleaseEvidenceVersion(cwd) === 2 ? 2 : requiredVersion;
+  const result = validateLocaleAcceptance(input, { requiredVersion, commitSha });
   if (result.status !== 'PASS') return result;
   try {
     const git = args => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     if (git(['rev-parse', 'HEAD']) !== commitSha) return { status: 'FAIL', code: 'LOCALE_ACCEPTANCE_SHA_MISMATCH' };
+    if (input.schemaVersion === 2) {
+      // V2 never uses V1's ancestor allowance or validation-only dirty-worktree exception.
+      if (git(['status', '--porcelain', '--untracked-files=normal'])) return { status: 'FAIL', code: 'LOCALE_ACCEPTANCE_SOURCE_CHANGED' };
+      const source = await fingerprintLocaleSource(loadLocaleOwnership(cwd), { root: cwd });
+      if (!isDeepStrictEqual(source, input.source)) return { status: 'FAIL', code: 'LOCALE_V2_SOURCE_MISMATCH' };
+      return result;
+    }
     git(['merge-base', '--is-ancestor', input.commitSha, commitSha]);
     const changed = git(['diff', '--name-only', input.commitSha, commitSha]).split(/\r?\n/).filter(Boolean);
     const pending = [
@@ -94,7 +113,8 @@ async function validateCoverageInventory(cwd) {
   return coverage.files.length;
 }
 
-export async function runGlobalLocaleContract({ cwd = process.cwd(), qaManifest = manifest, execute = executeCommand } = {}) {
+export async function runGlobalLocaleContract({ cwd = process.cwd(), qaManifest = manifest, execute = executeCommand,
+  localeAcceptance, requiredVersion = localeReleaseEvidenceVersion(cwd) } = {}) {
   const started = Date.now();
   const diagnostics = { mode: 'VALIDATION_ONLY', deterministic: 'NOT_RUN',
     browser: 'SEPARATE_ACCEPTED_INPUT_REQUIRED', coverage: 'SEPARATE_ACCEPTED_INPUT_REQUIRED',
@@ -114,12 +134,14 @@ export async function runGlobalLocaleContract({ cwd = process.cwd(), qaManifest 
       'test:global-locale-browser': 'node scripts/test-global-locale-browser.mjs',
       'test:global-locale-persistence-local': 'node scripts/test-global-locale-persistence-local.mjs',
     })) assert.equal(pkg.scripts[name], command);
-    diagnostics.coverageInventoryFiles = await validateCoverageInventory(cwd);
+    if (requiredVersion === 1) diagnostics.coverageInventoryFiles = await validateCoverageInventory(cwd);
     const commitSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    const accepted = await loadLocaleAcceptance({ cwd, commitSha, input: item.acceptedEvidence, validationOnly: true });
+    const accepted = await loadLocaleAcceptance({ cwd, commitSha, input: localeAcceptance ?? item.acceptedEvidence,
+      validationOnly: true, requiredVersion });
     if (accepted.status !== 'PASS') return finish('FAIL', accepted.code, 'VALIDATION');
     const { status, code, ...historical } = accepted;
-    Object.assign(diagnostics, historical, { evidenceOrigin: 'ACCEPTED_TASK19', freshBrowserEvidence: false, freshLocalRlsEvidence: false });
+    Object.assign(diagnostics, historical, { evidenceOrigin: requiredVersion === 2 ? 'EXPLICIT_EXACT_HEAD_V2_RECEIPT' : 'ACCEPTED_TASK19',
+      freshBrowserEvidence: false, freshLocalRlsEvidence: false });
   } catch { return finish('FAIL', 'LOCALE_CONTRACT_INVALID', 'VALIDATION'); }
   for (const argv of commands) {
     let result;
@@ -141,7 +163,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try { commitSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
   catch { process.stderr.write('LOCALE_CONTRACT=FAIL CODE=SOURCE_IDENTITY_UNAVAILABLE\n'); process.exitCode = 1; }
   if (commitSha) {
-    const result = process.argv.length === 2 ? await runGlobalLocaleContract() : normalizeCheckResult({
+    let input, inputFailure = false;
+    if (process.argv.length === 4 && process.argv[2] === '--locale-evidence') {
+      try { input = JSON.parse(await readFile(resolve(process.argv[3]), 'utf8')); }
+      catch { inputFailure = true; }
+    }
+    const result = !inputFailure && (process.argv.length === 2 || (process.argv.length === 4 && process.argv[2] === '--locale-evidence'))
+      ? await runGlobalLocaleContract({ localeAcceptance: input }) : normalizeCheckResult({
       id: ID, status: 'FAIL', attempts: 1, classification: 'VALIDATION', diagnostics: { code: 'INVALID_INVOCATION' },
     });
     const receipt = finalizeReceipt(createReceipt({ runId: `qa-${randomUUID()}`, profile: 'RELEASE',
