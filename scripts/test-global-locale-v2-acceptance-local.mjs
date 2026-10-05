@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { createServer as createHttpsServer, request as httpsRequest } from 'node:https';
+import { createServer as createHttpsServer } from 'node:https';
 import { createServer, request as httpRequest } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadLocaleV2AppLogic } from './lib/locale-v2-app-logic.mjs';
@@ -15,6 +15,7 @@ import { acceptLocaleLogout } from './lib/locale-v2-logout-settlement.mjs';
 import { withOwnedLocaleContext, checkLocalAuthHeaders, disposeLocaleResources } from './lib/locale-v2-request-lifecycle.mjs';
 import { captureLocalLocaleCountry, initialSsrExpectation } from './lib/locale-v2-initial-ssr-expectation.mjs';
 import { createDocumentEvidence, forwardObservedLocalRequest } from './lib/locale-v2-document-evidence.mjs';
+import { createDirectAppDispatch, forwardDirectAppRequest } from './lib/locale-v2-direct-app-transport.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const localeContexts = Object.freeze([{engine:'chromium',width:1280,locale:'zh-CN'},{engine:'chromium',width:1280,locale:'en'},{engine:'chromium',width:390,locale:'zh-CN'},{engine:'chromium',width:390,locale:'en'},{engine:'firefox',width:1280,locale:'en'}]);
@@ -28,7 +29,8 @@ export async function readFrozenLocaleSource() {
   return identity;
 }
 
-export async function runLocaleV2Acceptance() {
+export async function runLocaleV2Acceptance({ targetOnly = false } = {}) {
+assert.equal(typeof targetOnly, 'boolean', 'INVALID_TARGET_MODE');
 const { preparePreferenceRunEnvironment } = await import('./test-user-preferences-rls-local.mjs');
 const { prepareCanonicalCatalogImport } = await import('./lib/catalog-canonical-import.mjs');
 const { assertLocalReplayTarget, runCommand, runLocalDisposableReplay, withCanonicalBaselineDirectory } = await import('./qa/local-disposable-supabase-replay.mjs');
@@ -38,6 +40,7 @@ const receipt = { schemaVersion: 2, runId, timestamp: new Date().toISOString(), 
   assertions: [], assertionProvenance: [], behaviors: {}, behaviorProvenance: {}, browserContexts: [], productionRequests: 0, externalRequests: 0,
   maxRetries: 0, reusedEvidence: [], reuseDecision: 'B_EXISTING_V1_MODEL_CANNOT_COMPOSE_PARTIAL_EVIDENCE',
   localAccounts: { genuineAuth: false, genuineRls: false }, cleanup: 'NOT_RUN', stage: 'SOURCE_FREEZE' };
+receipt.executionKind = targetOnly ? 'TARGET_CONTEXT_ONLY_NOT_FULL_ACCEPTANCE' : 'FULL_FIVE_CONTEXT_ACCEPTANCE';
 let boundary = 'SOURCE_FREEZE';
 let appLogic;
 const check = (condition, name) => { boundary = name; assert.ok(condition, name); receipt.assertions.push(name); receipt.assertionProvenance.push({name, origin: 'FRESH_THIS_RUN', runId, contextId:receipt.browserContexts.at(-1)?.contextId ?? null}); };
@@ -59,7 +62,7 @@ async function runtime({ target, anonKey, accounts, request }) {
   const { buildDetailParameterGroups, detailSpecColumns, catalogLabel } = appLogic;
   const { chromium, firefox, request: apiRequest } = await import('playwright');
   const { unstable_startWorker } = await import('wrangler');
-  let worker, gateway, reserved, ownedRoot, timer, upstream, documentEvidence, primaryError, fault = null;
+  let worker, gateway, reserved, ownedRoot, timer, direct, documentEvidence, primaryError, fault = null;
   const browsers = [], contexts = new Set();
   const cookieName = 'ogh_preferences_v1';
   try {
@@ -93,20 +96,26 @@ async function runtime({ target, anonKey, accounts, request }) {
         } } });
     documentEvidence.attachWorker(worker);
     await Promise.race([Promise.all([worker.ready,new Promise((resolve,reject) => { worker.raw.once('reloadComplete',resolve);worker.raw.once('error',() => reject(new Error('LOCAL_WORKER_STARTUP')));worker.raw.once('runtimeError',() => reject(new Error('LOCAL_WORKER_RUNTIME'))); })]),new Promise((_,reject) => { timer=setTimeout(() => reject(new Error('LOCAL_WORKER_READY_TIMEOUT')),30000); })]);
-    clearTimeout(timer); upstream = (await worker.url).origin;
+    clearTimeout(timer); direct = await createDirectAppDispatch(worker);
+    receipt.directTransport = direct.metadata;
     boundary = receipt.stage = 'LOCAL_LOCALE_COUNTRY_CAPTURE';
     const localLocaleCountry = await captureLocalLocaleCountry(worker);
     receipt.localLocaleCountry = localLocaleCountry;
     gateway = createHttpsServer({ key: await readFile(key), cert: certificate }, (incoming,outgoing) => {
       const url = new URL(incoming.url, origin), provider = /^\/(auth|rest)\/v1\//.test(url.pathname);
-      const destination = new URL(url.pathname + url.search, provider ? target : upstream);
+      const destination = new URL(url.pathname + url.search, provider ? target : origin);
       assertLocalReplayTarget(destination.href);
       const headers = { ...incoming.headers, host: provider ? destination.host : new URL(origin).host };
       const transportEvent = (event, detail = {}) => { if(url.pathname==='/auth/v1/logout') (receipt.logoutTransport??=[]).push({event,timestamp:new Date().toISOString(),...detail}); };
       transportEvent('FRONT_DOOR_LOGOUT_STARTED');
       outgoing.once('finish',()=>transportEvent('FRONT_DOOR_RESPONSE_FINISHED',{status:outgoing.statusCode}));
+      if (!provider) {
+        forwardDirectAppRequest({ incoming, outgoing, origin, headers, direct, evidence: documentEvidence,
+          pathname: url.pathname, onResult: record => (receipt.directAppResponses ??= []).push(record) });
+        return;
+      }
       forwardObservedLocalRequest({ incoming, outgoing, destination, headers, evidence: documentEvidence,
-        pathname: url.pathname, transport: provider ? httpRequest : httpsRequest, ca: provider ? undefined : certificate,
+        pathname: url.pathname, transport: httpRequest,
         observe: !provider, onTransport: transportEvent });
     });
     await new Promise(resolve => reserved.close(resolve)); reserved = null;
@@ -120,7 +129,7 @@ async function runtime({ target, anonKey, accounts, request }) {
       await acceptLocaleLogout({page,context:page.context(),factory:await findBrowserClientFactory(root),expectedActor:actor.id,authKey:'sb-127-auth-token',record,transport:()=>receipt.logoutTransport?.slice(transportStart) ?? []});
     };
     const engines = {};
-    for (const [name, engine] of Object.entries({ chromium, firefox })) { engines[name] = await engine.launch({headless:true}); browsers.push(engines[name]); }
+    for (const [name, engine] of Object.entries(targetOnly ? { chromium } : { chromium, firefox })) { engines[name] = await engine.launch({headless:true}); browsers.push(engines[name]); }
     const preference = async context => { const cookie=(await context.cookies()).find(c=>c.name===cookieName);return cookie ? JSON.parse(decodeURIComponent(cookie.value)) : null; };
     const setCookie = async(context,locale) => context.addCookies([{name:cookieName,value:encodeURIComponent(JSON.stringify({version:1,preference:locale,generation:1,provenance:'device_explicit'})),url:origin,secure:true,sameSite:'Lax'}]);
     const settled = async page => { await page.waitForFunction(() => [...document.querySelectorAll('astro-island')].every(i=>!i.hasAttribute('ssr'))); };
@@ -172,7 +181,8 @@ async function runtime({ target, anonKey, accounts, request }) {
       await page.waitForFunction(want=>document.documentElement.lang===want,locale);await settled(page);
     };
     const factual = new Map();
-    for(const [index,fixture] of localeContexts.entries()) {
+    const acceptanceContexts = targetOnly ? localeContexts.slice(0,1) : localeContexts;
+    for(const [index,fixture] of acceptanceContexts.entries()) {
       receipt.stage=boundary=`CONTEXT_${index+1}`;console.log(`LOCALE_V2_CONTEXT=${index+1}_OF_5`);
       const ledger = {number:index+1,contextId: randomUUID(),...fixture,status:'RUNNING',startedAt:new Date().toISOString()};receipt.browserContexts.push(ledger);
       const context=await engines[fixture.engine].newContext({viewport:{width:fixture.width,height:900},locale:fixture.locale,serviceWorkers:'block',ignoreHTTPSErrors:true});
@@ -211,6 +221,16 @@ async function runtime({ target, anonKey, accounts, request }) {
         const denied=await request(`/rest/v1/user_preferences?user_id=eq.${accounts.b.id}`,accounts.a.token,'PATCH',{locale_preference:'zh-CN'});check(denied.status===200&&(await denied.json()).length===0,'REAL_A_TO_B_RLS_DENIED');
         const bRow=await request(`/rest/v1/user_preferences?select=locale_preference&user_id=eq.${accounts.b.id}`,accounts.b.token);check((await bRow.json())[0].locale_preference==='en','B_ROW_UNCORRUPTED');receipt.localAccounts.genuineRls=true;pass('CROSS_ACCOUNT_WRITE_DENY');
         await logout(page,accounts.a);
+        if (targetOnly) {
+          const lastLogout = receipt.logouts.at(-1);
+          const finalDocument = receipt.documentRequests.filter(record => record.contextId === ledger.contextId && record.pathname === '/settings/' && record.browserCommitTimestamp !== 'UNKNOWN').at(-1);
+          check(lastLogout.finalDocumentIdentified === true, 'TARGET_FINAL_DOCUMENT_IDENTIFIED');
+          check(finalDocument?.responseStatus === 200, 'TARGET_FINAL_SETTINGS_200');
+          documentEvidence.assertNo5xx();
+          receipt.targetContext = { logout3: 'PASS', finalSettingsStatus: finalDocument.responseStatus, finalDocumentIdentified: true, finalAnonymousState: 'PASS', correlationId: finalDocument.requestCorrelationId };
+          ledger.status = 'PASS'; ledger.finishedAt = new Date().toISOString();
+          return;
+        }
       }
       await setCookie(context,fixture.locale);
       for(const route of ['/','/products/','/products/xreal/','/search/','/settings/']) await navigate(page,route,fixture.locale);
@@ -288,6 +308,7 @@ async function runtime({ target, anonKey, accounts, request }) {
       ledger.status='PASS';ledger.finishedAt=new Date().toISOString();
       } });
     }
+    if (targetOnly) { documentEvidence.assertNo5xx(); return; }
     boundary=receipt.stage='AUTH_REFERRER_POLICY_UNCHANGED';
     receipt.authHeaderChecks=await checkLocalAuthHeaders({ origin, createRequestContext: options => apiRequest.newContext(options) });
     for (const result of receipt.authHeaderChecks) check(result.referrerPolicy==='no-referrer','AUTH_REFERRER_POLICY_UNCHANGED');
@@ -336,11 +357,17 @@ try {
   receipt.cleanup='PASS';
   const finalSource=await readFrozenLocaleSource();check(finalSource.fingerprint===receipt.source.fingerprint,'SOURCE_UNCHANGED_DURING_ACCEPTANCE');
   // Partial coverage must never become an accepted artifact.
+  if (targetOnly) {
+    check(receipt.browserContexts.length===1&&receipt.browserContexts[0].status==='PASS'&&receipt.targetContext?.logout3==='PASS','TARGET_CONTEXT_ONLY_REQUIRED');
+    check(receipt.localAccounts.genuineAuth&&receipt.localAccounts.genuineRls,'TARGET_GENUINE_AUTH_AND_RLS_REQUIRED');
+    receipt.status='PASS_TARGET_ONLY';
+  } else {
   const required=['ADMIN_CATALOG_ZH_CN','ADMIN_CATALOG_EN','DOCUMENT_LANG_SCOPE','EDITORIAL_VARIANT_SELECTION','GLOBAL_PREFERENCE_UNCHANGED_BY_DOCUMENT_LANG'];
   check(required.every(name=>receipt.behaviors[name]==='PASS'),'REMAINING_BEHAVIOR_COVERAGE_REQUIRED');
   check(receipt.browserContexts.length===5&&receipt.browserContexts.every(context=>context.status==='PASS'),'FIVE_DISTINCT_CONTEXTS_REQUIRED');
   check(receipt.localAccounts.genuineAuth&&receipt.localAccounts.genuineRls,'GENUINE_AUTH_AND_RLS_REQUIRED');
   receipt.status='PASS';
+  }
 } catch(error) {
   receipt.firstFailure??=boundary;receipt.errorClass=error?.constructor?.name??'Error';process.exitCode=1;
   receipt.primaryError=projectFailure(error);
