@@ -18,6 +18,8 @@ import { createDocumentEvidence, forwardObservedLocalRequest } from './lib/local
 import { createDirectAppDispatch, forwardDirectAppRequest } from './lib/locale-v2-direct-app-transport.mjs';
 import { createAcceptanceBootstrap } from './lib/locale-v2-bootstrap.mjs';
 import { buildOutboundFetchInit } from './lib/locale-v2-outbound-bridge.mjs';
+import { observeOriginalAppResponse } from './lib/locale-v2-redirect-observer.mjs';
+import { createContextObservations } from './lib/locale-v2-context-observations.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const localeContexts = Object.freeze([{engine:'chromium',width:1280,locale:'zh-CN'},{engine:'chromium',width:1280,locale:'en'},{engine:'chromium',width:390,locale:'zh-CN'},{engine:'chromium',width:390,locale:'en'},{engine:'firefox',width:1280,locale:'en'}]);
@@ -31,8 +33,10 @@ export async function readFrozenLocaleSource() {
   return identity;
 }
 
-export async function runLocaleV2Acceptance({ targetOnly = false } = {}) {
+export async function runLocaleV2Acceptance({ targetOnly = false, context1Only = false } = {}) {
 assert.equal(typeof targetOnly, 'boolean', 'INVALID_TARGET_MODE');
+assert.equal(typeof context1Only, 'boolean', 'INVALID_CONTEXT1_MODE');
+assert.ok(!(targetOnly && context1Only), 'EXCLUSIVE_PARTIAL_MODES_REQUIRED');
 const { preparePreferenceRunEnvironment } = await import('./test-user-preferences-rls-local.mjs');
 const { prepareCanonicalCatalogImport } = await import('./lib/catalog-canonical-import.mjs');
 const { assertLocalReplayTarget, runCommand, runLocalDisposableReplay, withCanonicalBaselineDirectory } = await import('./qa/local-disposable-supabase-replay.mjs');
@@ -42,14 +46,26 @@ const receipt = { schemaVersion: 2, runId, timestamp: new Date().toISOString(), 
   assertions: [], assertionProvenance: [], behaviors: {}, behaviorProvenance: {}, browserContexts: [], productionRequests: 0, externalRequests: 0,
   maxRetries: 0, reusedEvidence: [], reuseDecision: 'B_EXISTING_V1_MODEL_CANNOT_COMPOSE_PARTIAL_EVIDENCE',
   localAccounts: { genuineAuth: false, genuineRls: false }, cleanup: 'NOT_RUN', stage: 'SOURCE_FREEZE' };
-receipt.executionKind = targetOnly ? 'TARGET_CONTEXT_ONLY_NOT_FULL_ACCEPTANCE' : 'FULL_FIVE_CONTEXT_ACCEPTANCE';
+receipt.executionKind = targetOnly ? 'TARGET_CONTEXT_ONLY_NOT_FULL_ACCEPTANCE' : context1Only ? 'CONTEXT1_PREFLIGHT_NOT_FULL_ACCEPTANCE' : 'FULL_FIVE_CONTEXT_ACCEPTANCE';
 receipt.bootstrap = {};
 const bootstrap = createAcceptanceBootstrap(receipt.bootstrap);
 receipt.browserStarted = false; receipt.context1Entered = false;
 let boundary = 'SOURCE_FREEZE';
 let appLogic;
-const check = (condition, name) => { boundary = name; assert.ok(condition, name); receipt.assertions.push(name); receipt.assertionProvenance.push({name, origin: 'FRESH_THIS_RUN', runId, contextId:receipt.browserContexts.at(-1)?.contextId ?? null}); };
-const pass = name => { receipt.behaviors[name] = 'PASS'; receipt.behaviorProvenance[name] = {origin: 'FRESH_THIS_RUN',runId}; };
+const recordPass = name => { receipt.assertions.push(name); receipt.assertionProvenance.push({name, origin: 'FRESH_THIS_RUN', runId, contextId:receipt.browserContexts.at(-1)?.contextId ?? null}); };
+const check = (condition, name) => {
+  if (observations && /^(SSR_HTML_LOCALE_|HTML_LOCALE_|PRIVATE_NO_STORE_)/.test(name)) return observe(condition, name);
+  boundary = name; const ledger = receipt.browserContexts.at(-1);
+  if (ledger) ledger.assertionsTotal++;
+  if (!condition && ledger) ledger.failures.push(name);
+  assert.ok(condition, name);
+  if (ledger) ledger.assertionsPassed++;
+  recordPass(name);
+};
+let observations;
+const observe = (condition, name) => { boundary = name; observations.check(condition, name); };
+const observeEqual = (actual, expected, name) => { boundary = name; observations.equal(actual, expected, name); };
+const pass = name => { if(context1Only && receipt.browserContexts.at(-1)?.failures.length) return; receipt.behaviors[name] = 'PASS'; receipt.behaviorProvenance[name] = {origin: 'FRESH_THIS_RUN',runId}; };
 const q = value => `'${String(value).replaceAll("'", "''")}'`;
 const projectFailure = (error, depth = 0) => ({
   errorClass: ['Error','TimeoutError','AssertionError','AggregateError','TypeError','AbortError'].includes(error?.name) ? error.name : 'UNKNOWN',
@@ -145,7 +161,7 @@ async function runtime({ target, anonKey, accounts, request }) {
     const engines = {};
     bootstrap.complete('DIRECT_APP_DISPATCH_READY');
     bootstrap.releaseBrowser();
-    for (const [name, engine] of Object.entries(targetOnly ? { chromium } : { chromium, firefox })) { engines[name] = await engine.launch({headless:true}); browsers.push(engines[name]); receipt.browserStarted = true; }
+    for (const [name, engine] of Object.entries(targetOnly || context1Only ? { chromium } : { chromium, firefox })) { engines[name] = await engine.launch({headless:true}); browsers.push(engines[name]); receipt.browserStarted = true; }
     const preference = async context => { const cookie=(await context.cookies()).find(c=>c.name===cookieName);return cookie ? JSON.parse(decodeURIComponent(cookie.value)) : null; };
     const setCookie = async(context,locale) => context.addCookies([{name:cookieName,value:encodeURIComponent(JSON.stringify({version:1,preference:locale,generation:1,provenance:'device_explicit'})),url:origin,secure:true,sameSite:'Lax'}]);
     const settled = async page => { await page.waitForFunction(() => [...document.querySelectorAll('astro-island')].every(i=>!i.hasAttribute('ssr'))); };
@@ -153,6 +169,7 @@ async function runtime({ target, anonKey, accounts, request }) {
       let locale = targetExplicitUiLocale;
       boundary = receipt.stage = `SSR_${route}`;
       const response=await page.goto(origin+route,{waitUntil:'load'});await settled(page);
+      check(response.status()<500,'DOCUMENT_NON_5XX');
       if(initialAnonymous) {
         const expectation = await initialSsrExpectation(response.request(),localLocaleCountry);
         receipt.initialAnonymousSsr = expectation;
@@ -197,10 +214,11 @@ async function runtime({ target, anonKey, accounts, request }) {
       await page.waitForFunction(want=>document.documentElement.lang===want,locale);await settled(page);
     };
     const factual = new Map();
-    const acceptanceContexts = targetOnly ? localeContexts.slice(0,1) : localeContexts;
+    const acceptanceContexts = context1Only ? localeContexts.slice(0,1) : targetOnly ? localeContexts.slice(0,1) : localeContexts;
     for(const [index,fixture] of acceptanceContexts.entries()) {
       receipt.stage=boundary=`CONTEXT_${index+1}`;console.log(`LOCALE_V2_CONTEXT=${index+1}_OF_5`);
-      const ledger = {number:index+1,contextId: randomUUID(),...fixture,status:'RUNNING',startedAt:new Date().toISOString()};receipt.browserContexts.push(ledger);
+      const ledger = {number:index+1,contextId: randomUUID(),...fixture,status:'RUNNING',startedAt:new Date().toISOString(),assertionsTotal:0,assertionsPassed:0,failures:[]};receipt.browserContexts.push(ledger);
+      observations = undefined;
       const context=await engines[fixture.engine].newContext({viewport:{width:fixture.width,height:900},locale:fixture.locale,serviceWorkers:'block',ignoreHTTPSErrors:true});
       if (index === 0) receipt.context1Entered = true;
       await withOwnedLocaleContext({ context, activeContexts: contexts, acceptance: async () => {
@@ -251,6 +269,8 @@ async function runtime({ target, anonKey, accounts, request }) {
         }
       }
       await setCookie(context,fixture.locale);
+      // Only independent read-only observations collect failures. State transitions remain fail-fast.
+      observations = createContextObservations({ collect: context1Only, ledger, onPass: recordPass });
       for(const route of ['/','/products/','/products/xreal/','/search/','/settings/']) await navigate(page,route,fixture.locale);
       await navigate(page,'/products/xreal/',fixture.locale);
       await page.locator('[data-product-slug="xreal-air"] a[href="/products/xreal/xreal-air/"]').first().click();await page.waitForURL('**/products/xreal/xreal-air/');await settled(page);
@@ -258,44 +278,47 @@ async function runtime({ target, anonKey, accounts, request }) {
         await navigate(page,device.route,fixture.locale);
         check((await page.locator('[data-product-detail] h1').textContent()).includes(device.name),'CATALOG_IDENTITY');
         const labels=await page.locator('[data-parameter-key] dt').allTextContents(),groups=await page.locator('[data-spec-group] h3').allTextContents();
-        check(labels.length>0&&labels.every(x=>!/_|^[a-z]+\./.test(x)),'NO_RAW_PARAMETER_LABELS');check(groups.length>0&&groups.every(x=>!/_|^[a-z]+\./.test(x)),'NO_RAW_GROUP_LABELS');
+        observe(labels.length>0&&labels.every(x=>!/_|^[a-z]+\./.test(x)),'NO_RAW_PARAMETER_LABELS');observe(groups.length>0&&groups.every(x=>!/_|^[a-z]+\./.test(x)),'NO_RAW_GROUP_LABELS');
         const slug=new URL(device.route,origin).pathname.split('/').filter(Boolean).at(-1);
         const projection=await request(`/rest/v1/public_device_detail_specs?select=${detailSpecColumns}&device_slug=eq.${slug}`);
         check(projection.status===200,'REAL_CATALOG_PRESENTATION_PROJECTION');const specs=await projection.json();
         const expectedGroups=buildDetailParameterGroups({normalizedCatalog:true,specGroups:[]},specs,fixture.locale);
         const expectedRows=expectedGroups.flatMap(group=>group.items);
-        assert.deepEqual(labels,expectedRows.map(row=>row.label),'ALL_PARAMETER_LABELS_LOCALIZED');
-        assert.deepEqual(groups,expectedGroups.map(group=>group.label),'ALL_GROUP_TITLES_LOCALIZED');
-        check(specs.filter(row=>row.presentation?.publicDisplay!==false).every(row=>!catalogLabel(row.key,fixture.locale,row.presentation).missing),'NO_UNREVIEWED_UI_LABEL_FALLBACK');
-        assert.deepEqual(await page.locator('[data-parameter-key] dd').allTextContents(),expectedRows.map(row=>row.displayValue),'LOCALIZED_VALUES_AND_UNITS');
+        observeEqual(labels,expectedRows.map(row=>row.label),'ALL_PARAMETER_LABELS_LOCALIZED');
+        observeEqual(groups,expectedGroups.map(group=>group.label),'ALL_GROUP_TITLES_LOCALIZED');
+        observe(specs.filter(row=>row.presentation?.publicDisplay!==false).every(row=>!catalogLabel(row.key,fixture.locale,row.presentation).missing),'NO_UNREVIEWED_UI_LABEL_FALLBACK');
+        observeEqual(await page.locator('[data-parameter-key] dd').allTextContents(),expectedRows.map(row=>row.displayValue),'LOCALIZED_VALUES_AND_UNITS');
         const fallbackCount=await page.locator('[data-translation-missing="true"]').count();
-        check(fallbackCount===expectedRows.filter(row=>row.translationMissing).length,'DECLARED_ORIGINAL_PROSE_FALLBACK');
+        observe(fallbackCount===expectedRows.filter(row=>row.translationMissing).length,'DECLARED_ORIGINAL_PROSE_FALLBACK');
         receipt.translationFallbackCount=(receipt.translationFallbackCount??0)+fallbackCount;
-        receipt.rawParameterKeyVisibleCount=0;receipt.rawGroupKeyVisibleCount=0;
-        check(await page.locator('[data-spec-preview]').count()===1,'KEY_SPECS_PRESENT');
+        receipt.rawParameterKeyVisibleCount=(receipt.rawParameterKeyVisibleCount??0)+labels.filter(x=>/_|^[a-z]+\./.test(x)).length;
+        receipt.rawGroupKeyVisibleCount=(receipt.rawGroupKeyVisibleCount??0)+groups.filter(x=>/_|^[a-z]+\./.test(x)).length;
+        observe(await page.locator('[data-spec-preview]').count()===1,'KEY_SPECS_PRESENT');
         const values=await page.locator('dd[data-factual-value]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('data-factual-value')));
-        if(factual.has(device.route))assert.deepEqual(values,factual.get(device.route));else factual.set(device.route,values);
-        check(values.length>0,'FACTS_UNCHANGED_BETWEEN_LOCALES');
-        if(device.name==='XREAL Air')check(await page.locator('[data-parameter-key="basic.weight_g"] dd').textContent()==='79 g','WEIGHT_UNIT_AND_VALUE');
+        if(factual.has(device.route))observeEqual(values,factual.get(device.route),'FACT_VALUE_PARITY');else factual.set(device.route,values);
+        observe(values.length>0,'FACTS_UNCHANGED_BETWEEN_LOCALES');
+        if(device.name==='XREAL Air')observe(await page.locator('[data-parameter-key="basic.weight_g"] dd').textContent()==='79 g','WEIGHT_UNIT_AND_VALUE');
         await page.screenshot({path:path.join(directory,`${fixture.engine}-${fixture.width}-${fixture.locale}-${device.name==='XREAL Air'?'xreal':'meta'}.png`)});
       }
-      // The ordinary front door follows redirects upstream; inspect this assertion's original application response.
-      const wrong=await direct.fetch(origin+'/products/meta/xreal-air/',{redirect:'manual'});check(wrong.status===301&&wrong.headers.get('location')==='/products/xreal/xreal-air/','CANONICAL_301');
-      await wrong.arrayBuffer();
       const beforeLegacy=await preference(context);
-      const legacy=await navigate(page,'/devices/xreal-air',fixture.locale);check(legacy.status()===200&&new URL(page.url()).pathname==='/products/xreal/xreal-air/','LEGACY_LOCALE_REDIRECT');
-      assert.deepEqual(await preference(context),beforeLegacy,'LEGACY_REDIRECT_COOKIE_CONTINUITY');
-      await navigate(page,'/settings/',fixture.locale);check(await page.locator('.locale-settings select').inputValue()===fixture.locale,'SETTINGS_CANONICAL_STATE');
+      const wrong=await observeOriginalAppResponse({direct,origin,pathname:'/products/meta/xreal-air/',context});observe(wrong.status===301&&wrong.location==='/products/xreal/xreal-air/','CANONICAL_301');
+      assert.deepEqual(await preference(context),beforeLegacy,'CANONICAL_REDIRECT_COOKIE_CONTINUITY');check(true,'CANONICAL_REDIRECT_COOKIE_CONTINUITY');
+      const legacy=await observeOriginalAppResponse({direct,origin,pathname:'/devices/xreal-air',context});observe(legacy.status===301&&legacy.location==='/products/xreal/xreal-air/','LEGACY_LOCALE_REDIRECT');
+      assert.deepEqual(await preference(context),beforeLegacy,'LEGACY_RAW_REDIRECT_COOKIE_CONTINUITY');check(true,'LEGACY_RAW_REDIRECT_COOKIE_CONTINUITY');
+      const canonical=await observeOriginalAppResponse({direct,origin,pathname:'/products/xreal/xreal-air/',context});check(canonical.status===200,'LEGACY_CANONICAL_RAW_DESTINATION_200');
+      const legacyDestination=await navigate(page,'/products/xreal/xreal-air/',fixture.locale);observe(legacyDestination.status()===200&&new URL(page.url()).pathname==='/products/xreal/xreal-air/','LEGACY_CANONICAL_DESTINATION_200');
+      observeEqual(await preference(context),beforeLegacy,'LEGACY_REDIRECT_COOKIE_CONTINUITY');
+      await navigate(page,'/settings/',fixture.locale);observe(await page.locator('.locale-settings select').inputValue()===fixture.locale,'SETTINGS_CANONICAL_STATE');
       await navigate(page,'/search/',fixture.locale);
       const search=page.locator('.og-header__search .global-search-box');await search.locator('input[type="search"]').fill('xreal');
       await search.locator('[data-quick-group="devices"] a[href="/products/xreal/xreal-air/"]').first().waitFor();
-      check(await search.locator('input[type="search"]').inputValue()==='xreal','SEARCH_QUERY_IDENTITY');
-      check((await search.locator('[data-quick-group="devices"]').textContent()).includes(fixture.locale==='en'?'Devices':'设备'),'SEARCH_LOCALIZED_DEVICE_GROUP');
+      observe(await search.locator('input[type="search"]').inputValue()==='xreal','SEARCH_QUERY_IDENTITY');
+      observe((await search.locator('[data-quick-group="devices"]').textContent()).includes(fixture.locale==='en'?'Devices':'设备'),'SEARCH_LOCALIZED_DEVICE_GROUP');
       if(index===1)receipt.assertions.push(...await proveQuickSearchBrowser(page,{}));
       const settingsEntry=page.locator('.og-header a[href="/settings/"]');
-      check(await settingsEntry.count()===1&&await settingsEntry.getAttribute('aria-label')===(fixture.locale==='en'?'Settings':'设置'),'HEADER_SETTINGS_ENTRY');
-      if(fixture.width===390){const toggle=page.locator('.og-header__menu-toggle');await toggle.click();check(await toggle.getAttribute('aria-expanded')==='true','MOBILE_HEADER_OPEN');await page.keyboard.press('Escape');check(await toggle.getAttribute('aria-expanded')==='false','MOBILE_HEADER_ESCAPE');}
-      check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'LOCALE_NO_OVERFLOW');
+      observe(await settingsEntry.count()===1&&await settingsEntry.getAttribute('aria-label')===(fixture.locale==='en'?'Settings':'设置'),'HEADER_SETTINGS_ENTRY');
+      if(fixture.width===390){const toggle=page.locator('.og-header__menu-toggle');await toggle.click();observe(await toggle.getAttribute('aria-expanded')==='true','MOBILE_HEADER_OPEN');await page.keyboard.press('Escape');observe(await toggle.getAttribute('aria-expanded')==='false','MOBILE_HEADER_ESCAPE');}
+      observe(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'LOCALE_NO_OVERFLOW');
       if(index<2) {
         const zh=fixture.locale==='zh-CN';
         const original=await request('/rest/v1/device_specs?select=id,value_number,value_boolean,value_text,value_json,presentation&order=id',accounts.admin.token);const facts=await original.json();
@@ -303,28 +326,30 @@ async function runtime({ target, anonKey, accounts, request }) {
         await navigate(page,'/admin/devices/',fixture.locale);
         await page.locator('.admin-news-card').filter({hasText:'XREAL Air'}).filter({hasNotText:'Air 2'}).first().click();
         const editor=page.locator('[data-catalog-spec-editor]');await editor.locator('[data-catalog-spec-id]').first().waitFor();
-        check(await editor.locator('h3').textContent()===(zh?'产品参数':'Product specifications'),'ADMIN_SPEC_LOCALE');
-        for(const label of zh?['中文名称','英文名称','中文分组名称','英文分组名称']:['Chinese label','English label','Chinese group title','English group title'])check(await editor.getByLabel(label,{exact:true}).count()===1,'ADMIN_BILINGUAL_LABEL_CONTROL');
+        observe(await editor.locator('h3').textContent()===(zh?'产品参数':'Product specifications'),'ADMIN_SPEC_LOCALE');
+        for(const label of zh?['中文名称','英文名称','中文分组名称','英文分组名称']:['Chinese label','English label','Chinese group title','English group title'])observe(await editor.getByLabel(label,{exact:true}).count()===1,'ADMIN_BILINGUAL_LABEL_CONTROL');
         await editor.locator('[data-catalog-spec-id]').first().click();
-        check((await editor.getByLabel(zh?'中文名称':'Chinese label',{exact:true}).inputValue()).length>0,'ADMIN_EXISTING_CHINESE_LABEL');
-        check((await editor.getByLabel(zh?'英文名称':'English label',{exact:true}).inputValue()).length>0,'ADMIN_EXISTING_ENGLISH_LABEL');
-        const media=page.locator('[data-catalog-media-editor]');check(await media.locator('h3').textContent()===(zh?'产品图片':'Product images'),'ADMIN_MEDIA_LOCALE');
+        observe((await editor.getByLabel(zh?'中文名称':'Chinese label',{exact:true}).inputValue()).length>0,'ADMIN_EXISTING_CHINESE_LABEL');
+        observe((await editor.getByLabel(zh?'英文名称':'English label',{exact:true}).inputValue()).length>0,'ADMIN_EXISTING_ENGLISH_LABEL');
+        const media=page.locator('[data-catalog-media-editor]');observe(await media.locator('h3').textContent()===(zh?'产品图片':'Product images'),'ADMIN_MEDIA_LOCALE');
         if(await media.locator('fieldset').count()===0)await media.getByRole('button',{name:zh?'选择图片':'Select image',exact:true}).click();
-        check(await media.getByLabel(zh?'中文替代文本':'Chinese alt text',{exact:true}).count()>0&&await media.getByLabel(zh?'英文替代文本':'English alt text',{exact:true}).count()>0,'ADMIN_BILINGUAL_ALT_CONTROLS');
+        observe(await media.getByLabel(zh?'中文替代文本':'Chinese alt text',{exact:true}).count()>0&&await media.getByLabel(zh?'英文替代文本':'English alt text',{exact:true}).count()>0,'ADMIN_BILINGUAL_ALT_CONTROLS');
         const after=await request('/rest/v1/device_specs?select=id,value_number,value_boolean,value_text,value_json,presentation&order=id',accounts.admin.token);assert.deepEqual(await after.json(),facts);check(true,'ADMIN_LOCALE_NO_FACT_WRITES');
         pass(zh?'ADMIN_CATALOG_ZH_CN':'ADMIN_CATALOG_EN');pass('ADMIN_CATALOG_FACT_PARITY');
         receipt.adminIndependentLocaleState=false;
         await page.evaluate(()=>localStorage.clear());
         const beforeCookie=await preference(context);
-        await navigate(page,'/guides/?lang=en',fixture.locale);check((await page.locator('h1').first().textContent()).includes('Guide'),'REVIEWED_ENGLISH_DOCUMENT');
+        await navigate(page,'/guides/?lang=en',fixture.locale);observe((await page.locator('h1').first().textContent()).includes('Guide'),'REVIEWED_ENGLISH_DOCUMENT');
         await navigate(page,'/guides/?lang=zh-CN',fixture.locale);assert.deepEqual(await preference(context),beforeCookie);check(true,'DOCUMENT_LANG_DOES_NOT_MUTATE_GLOBAL_COOKIE');
         await navigate(page,'/guides/ar-ai-xr-glasses-difference/?lang=en',fixture.locale);
-        check(/\p{Script=Han}/u.test(await page.locator('h1').first().textContent()),'ORIGINAL_DOCUMENT_FALLBACK_ALLOWED');
+        observe(/\p{Script=Han}/u.test(await page.locator('h1').first().textContent()),'ORIGINAL_DOCUMENT_FALLBACK_ALLOWED');
         assert.deepEqual(await preference(context),beforeCookie,'ORIGINAL_FALLBACK_NO_GLOBAL_COOKIE_MUTATION');
         pass('DOCUMENT_LANG_SCOPE');pass('EDITORIAL_VARIANT_SELECTION');pass('GLOBAL_PREFERENCE_UNCHANGED_BY_DOCUMENT_LANG');
       }
-      const missing=await navigate(page,'/404/',fixture.locale);check(missing.status()===404||missing.status()===200,'404_ROUTE_AVAILABLE');
-      check(await page.locator('.not-found-page h1').textContent()===(fixture.locale==='en'?'Page not found':'页面未找到'),'404_BILINGUAL_COPY');
+      const missing=await navigate(page,'/404/',fixture.locale);observe(missing.status()===404||missing.status()===200,'404_ROUTE_AVAILABLE');
+      observe(await page.locator('.not-found-page h1').textContent()===(fixture.locale==='en'?'Page not found':'页面未找到'),'404_BILINGUAL_COPY');
+      boundary = ledger.failures[0] ?? boundary;
+      observations.finish();
       ledger.status='PASS';ledger.finishedAt=new Date().toISOString();
       } });
     }
@@ -334,7 +359,7 @@ async function runtime({ target, anonKey, accounts, request }) {
     for (const result of receipt.authHeaderChecks) check(result.referrerPolicy==='no-referrer','AUTH_REFERRER_POLICY_UNCHANGED');
     check(receipt.externalRequests===0,'ZERO_EXTERNAL_REQUESTS');
     documentEvidence.assertNo5xx();
-    for(const name of ['SSR_LOCALE_PROPAGATION','LEGACY_DEVICE_LOCALE_CONTINUITY','REDIRECT_LOCALE_CONTINUITY','LOCALE_404_BEHAVIOR','LOCALE_CACHE_POLICY','LOCALE_PRIVATE_RESPONSE_POLICY','CATALOG_ZH_CN','CATALOG_EN','CATALOG_FACT_PARITY','TRANSLATION_FALLBACK_POLICY','SEARCH_LOCALE','SEARCH_CANONICAL_DEVICE_LINKS','HEADER_LOCALE','SETTINGS_LOCALE','SEARCH_STALE_RESPONSE_GUARD'])pass(name);
+    if(!context1Only)for(const name of ['SSR_LOCALE_PROPAGATION','LEGACY_DEVICE_LOCALE_CONTINUITY','REDIRECT_LOCALE_CONTINUITY','LOCALE_404_BEHAVIOR','LOCALE_CACHE_POLICY','LOCALE_PRIVATE_RESPONSE_POLICY','CATALOG_ZH_CN','CATALOG_EN','CATALOG_FACT_PARITY','TRANSLATION_FALLBACK_POLICY','SEARCH_LOCALE','SEARCH_CANONICAL_DEVICE_LINKS','HEADER_LOCALE','SETTINGS_LOCALE','SEARCH_STALE_RESPONSE_GUARD'])pass(name);
   } catch(error) { primaryError=error;receipt.firstFailure=boundary;const current=receipt.browserContexts.at(-1);if(current?.status==='RUNNING'){current.status='FAIL';current.firstFailure=boundary;}throw error; } finally {
     clearTimeout(timer);
     await disposeLocaleResources([
@@ -382,6 +407,9 @@ try {
     check(receipt.browserContexts.length===1&&receipt.browserContexts[0].status==='PASS'&&receipt.targetContext?.logout3==='PASS','TARGET_CONTEXT_ONLY_REQUIRED');
     check(receipt.localAccounts.genuineAuth&&receipt.localAccounts.genuineRls,'TARGET_GENUINE_AUTH_AND_RLS_REQUIRED');
     receipt.status='PASS_TARGET_ONLY';
+  } else if (context1Only) {
+    check(receipt.browserContexts.length===1&&receipt.browserContexts[0].status==='PASS','CONTEXT1_PREFLIGHT_REQUIRED');
+    receipt.status='PASS_CONTEXT1_ONLY';
   } else {
   const required=['ADMIN_CATALOG_ZH_CN','ADMIN_CATALOG_EN','DOCUMENT_LANG_SCOPE','EDITORIAL_VARIANT_SELECTION','GLOBAL_PREFERENCE_UNCHANGED_BY_DOCUMENT_LANG'];
   check(required.every(name=>receipt.behaviors[name]==='PASS'),'REMAINING_BEHAVIOR_COVERAGE_REQUIRED');
