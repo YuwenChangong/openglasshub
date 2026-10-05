@@ -16,6 +16,8 @@ import { withOwnedLocaleContext, checkLocalAuthHeaders, disposeLocaleResources }
 import { captureLocalLocaleCountry, initialSsrExpectation } from './lib/locale-v2-initial-ssr-expectation.mjs';
 import { createDocumentEvidence, forwardObservedLocalRequest } from './lib/locale-v2-document-evidence.mjs';
 import { createDirectAppDispatch, forwardDirectAppRequest } from './lib/locale-v2-direct-app-transport.mjs';
+import { createAcceptanceBootstrap } from './lib/locale-v2-bootstrap.mjs';
+import { buildOutboundFetchInit } from './lib/locale-v2-outbound-bridge.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const localeContexts = Object.freeze([{engine:'chromium',width:1280,locale:'zh-CN'},{engine:'chromium',width:1280,locale:'en'},{engine:'chromium',width:390,locale:'zh-CN'},{engine:'chromium',width:390,locale:'en'},{engine:'firefox',width:1280,locale:'en'}]);
@@ -41,6 +43,9 @@ const receipt = { schemaVersion: 2, runId, timestamp: new Date().toISOString(), 
   maxRetries: 0, reusedEvidence: [], reuseDecision: 'B_EXISTING_V1_MODEL_CANNOT_COMPOSE_PARTIAL_EVIDENCE',
   localAccounts: { genuineAuth: false, genuineRls: false }, cleanup: 'NOT_RUN', stage: 'SOURCE_FREEZE' };
 receipt.executionKind = targetOnly ? 'TARGET_CONTEXT_ONLY_NOT_FULL_ACCEPTANCE' : 'FULL_FIVE_CONTEXT_ACCEPTANCE';
+receipt.bootstrap = {};
+const bootstrap = createAcceptanceBootstrap(receipt.bootstrap);
+receipt.browserStarted = false; receipt.context1Entered = false;
 let boundary = 'SOURCE_FREEZE';
 let appLogic;
 const check = (condition, name) => { boundary = name; assert.ok(condition, name); receipt.assertions.push(name); receipt.assertionProvenance.push({name, origin: 'FRESH_THIS_RUN', runId, contextId:receipt.browserContexts.at(-1)?.contextId ?? null}); };
@@ -83,7 +88,7 @@ async function runtime({ target, anonKey, accounts, request }) {
     receipt.stage = boundary = 'LOCAL_WORKER_BUILD';
     const built = spawnSync(process.execPath, ['scripts/build-workers.mjs','--local-config',config], { cwd: root, env: environment, encoding: 'utf8', windowsHide: true, maxBuffer: 16777216, timeout: 120000 });
     check(built.status === 0, 'LOCAL_WORKER_BUILD');
-    worker = await unstable_startWorker({ config: path.join(root,'dist/server/wrangler.json'), envFiles: [], build: { bundle: false },
+    worker = await bootstrap.attempt('WORKER_HANDLE_RETURNED', () => unstable_startWorker({ config: path.join(root,'dist/server/wrangler.json'), envFiles: [], build: { bundle: false },
       bindings: Object.fromEntries(Object.entries(vars).map(([name,value]) => [name,{type:'plain_text',value}])),
       dev: { remote: false, watch: false, liveReload: false, registry: undefined, persist: false, inspector: false, logLevel: 'none',
         server: { hostname: '127.0.0.1', port: 0, secure: true, httpsKeyPath: key, httpsCertPath: cert },
@@ -92,11 +97,20 @@ async function runtime({ target, anonKey, accounts, request }) {
           if (url.origin !== origin || !/^\/(auth|rest)\/v1\//.test(url.pathname)) { receipt.externalRequests++; return new Response('LOCAL_OUTBOUND_DENIED',{status:599}); }
           if (fault && url.pathname === '/rest/v1/user_preferences' && (fault === 'read' && req.method === 'GET' || fault === 'write' && req.method !== 'GET')) return new Response('{"message":"Owned outage"}', { status: 503, headers: { 'content-type': 'application/json' } });
           const local = new URL(url.pathname + url.search, target); assertLocalReplayTarget(local.href);
-          return fetch(local, { method: req.method, headers: req.headers, redirect: 'error', signal: AbortSignal.timeout(10000), ...(['GET','HEAD'].includes(req.method) ? {} : { body: await req.arrayBuffer() }) });
-        } } });
+          const firstSave = req.method === 'PATCH' && url.pathname === '/rest/v1/user_preferences' && !fault && !receipt.firstNormalPreferenceOutbound;
+          if (firstSave) receipt.firstNormalPreferenceOutbound = { result: 'PENDING' };
+          try {
+            const response = await fetch(local, await buildOutboundFetchInit(req, { signal: AbortSignal.timeout(10000) }));
+            if (firstSave) receipt.firstNormalPreferenceOutbound = { result: `HTTP_RESPONSE_${response.status}`, status: response.status };
+            return response;
+          } catch (error) {
+            if (firstSave) receipt.firstNormalPreferenceOutbound = { result: 'THROW', invalidArgument: error.cause?.code === 'UND_ERR_INVALID_ARG' };
+            throw error;
+          }
+        } } }));
     documentEvidence.attachWorker(worker);
     await Promise.race([Promise.all([worker.ready,new Promise((resolve,reject) => { worker.raw.once('reloadComplete',resolve);worker.raw.once('error',() => reject(new Error('LOCAL_WORKER_STARTUP')));worker.raw.once('runtimeError',() => reject(new Error('LOCAL_WORKER_RUNTIME'))); })]),new Promise((_,reject) => { timer=setTimeout(() => reject(new Error('LOCAL_WORKER_READY_TIMEOUT')),30000); })]);
-    clearTimeout(timer); direct = await createDirectAppDispatch(worker);
+    clearTimeout(timer); direct = await createDirectAppDispatch(worker, { bootstrap });
     receipt.directTransport = direct.metadata;
     boundary = receipt.stage = 'LOCAL_LOCALE_COUNTRY_CAPTURE';
     const localLocaleCountry = await captureLocalLocaleCountry(worker);
@@ -129,7 +143,9 @@ async function runtime({ target, anonKey, accounts, request }) {
       await acceptLocaleLogout({page,context:page.context(),factory:await findBrowserClientFactory(root),expectedActor:actor.id,authKey:'sb-127-auth-token',record,transport:()=>receipt.logoutTransport?.slice(transportStart) ?? []});
     };
     const engines = {};
-    for (const [name, engine] of Object.entries(targetOnly ? { chromium } : { chromium, firefox })) { engines[name] = await engine.launch({headless:true}); browsers.push(engines[name]); }
+    bootstrap.complete('DIRECT_APP_DISPATCH_READY');
+    bootstrap.releaseBrowser();
+    for (const [name, engine] of Object.entries(targetOnly ? { chromium } : { chromium, firefox })) { engines[name] = await engine.launch({headless:true}); browsers.push(engines[name]); receipt.browserStarted = true; }
     const preference = async context => { const cookie=(await context.cookies()).find(c=>c.name===cookieName);return cookie ? JSON.parse(decodeURIComponent(cookie.value)) : null; };
     const setCookie = async(context,locale) => context.addCookies([{name:cookieName,value:encodeURIComponent(JSON.stringify({version:1,preference:locale,generation:1,provenance:'device_explicit'})),url:origin,secure:true,sameSite:'Lax'}]);
     const settled = async page => { await page.waitForFunction(() => [...document.querySelectorAll('astro-island')].every(i=>!i.hasAttribute('ssr'))); };
@@ -186,6 +202,7 @@ async function runtime({ target, anonKey, accounts, request }) {
       receipt.stage=boundary=`CONTEXT_${index+1}`;console.log(`LOCALE_V2_CONTEXT=${index+1}_OF_5`);
       const ledger = {number:index+1,contextId: randomUUID(),...fixture,status:'RUNNING',startedAt:new Date().toISOString()};receipt.browserContexts.push(ledger);
       const context=await engines[fixture.engine].newContext({viewport:{width:fixture.width,height:900},locale:fixture.locale,serviceWorkers:'block',ignoreHTTPSErrors:true});
+      if (index === 0) receipt.context1Entered = true;
       await withOwnedLocaleContext({ context, activeContexts: contexts, acceptance: async () => {
       await context.route('**/*',route=>{if(new URL(route.request().url()).origin===origin)return route.continue({headers:documentEvidence.headersFor(route.request())});receipt.externalRequests++;return route.abort();});
       await context.routeWebSocket('**/*',socket=>{const url=new URL(socket.url());if(url.hostname==='127.0.0.1'&&url.port===new URL(origin).port)receipt.blockedOwnedRealtime=(receipt.blockedOwnedRealtime??0)+1;else receipt.externalRequests++;socket.close();});
@@ -193,6 +210,7 @@ async function runtime({ target, anonKey, accounts, request }) {
       documentEvidence.observePage(page, ledger.contextId);
       if(fixture.engine==='chromium')await documentEvidence.observeCdp(page, await context.newCDPSession(page));
       page.on('response',response=>{if(new URL(response.url()).pathname==='/api/users/me/preferences'){
+        if (response.request().method() === 'PATCH' && receipt.firstNormalPreferencePatchStatus === undefined) receipt.firstNormalPreferencePatchStatus = response.status();
         (receipt.preferenceResponses??=[]).push({stage:receipt.stage,method:response.request().method(),status:response.status()});
       }});
       page.on('requestfailed',req=>{if(new URL(req.url()).pathname==='/api/users/me/preferences'){
@@ -352,6 +370,7 @@ try {
       const actor=async(label)=>{const email=`local-locale-${label}-${randomBytes(6).toString('hex')}@example.invalid`,password=randomBytes(24).toString('base64url');const signup=await request('/auth/v1/signup',null,'POST',{email,password});check(signup.status===200,'LOCAL_SIGNUP');const row=await signup.json(),id=row.user?.id??row.id;assert.match(id,/^[a-f0-9-]{36}$/);await executeSql(`UPDATE auth.users SET email_confirmed_at=now() WHERE id=${q(id)}::uuid;`);const login=await request('/auth/v1/token?grant_type=password',null,'POST',{email,password});check(login.status===200,'LOCAL_PASSWORD_LOGIN');const session=await login.json();const user=await request('/auth/v1/user',session.access_token);check(user.status===200&&(await user.json()).id===id,'GENUINE_LOCAL_AUTH');return{id,token:session.access_token,session,email,password};};
       const accounts={a:await actor('a'),b:await actor('b'),admin:await actor('admin')};receipt.localAccounts.genuineAuth=true;
       await executeSql(`UPDATE public.profiles SET role='admin' WHERE id=${q(accounts.admin.id)}::uuid;INSERT INTO public.user_preferences(user_id,locale_preference) VALUES (${q(accounts.a.id)}::uuid,'en'),(${q(accounts.b.id)}::uuid,'en');`);
+      bootstrap.complete('LOCAL_SUPABASE_READY');
       await runtime({target,anonKey,accounts,request});return{status:'PASS'};
     }}));
   receipt.cleanup='PASS';
@@ -369,6 +388,7 @@ try {
   receipt.status='PASS';
   }
 } catch(error) {
+  if (!receipt.browserStarted) bootstrap.block();
   receipt.firstFailure??=boundary;receipt.errorClass=error?.constructor?.name??'Error';process.exitCode=1;
   receipt.primaryError=projectFailure(error);
   receipt.secondaryCleanupErrors=(error.cleanupErrors??[]).map(child=>projectFailure(child));

@@ -91,7 +91,7 @@ if (process.argv.includes('--old-red')) {
   });
   test('formal runner preserves owned HTTPS and routes only application requests via direct binding', async () => {
     const source = await readFile(new URL('./test-global-locale-v2-acceptance-local.mjs', import.meta.url), 'utf8');
-    assert.ok(source.includes('createDirectAppDispatch(worker)'));
+    assert.ok(source.includes('createDirectAppDispatch(worker, { bootstrap })'));
     assert.ok(source.includes('forwardDirectAppRequest('));
     assert.ok(source.includes('gateway = createHttpsServer('));
     assert.ok(!source.includes('upstream = (await worker.url).origin'));

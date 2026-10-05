@@ -117,7 +117,7 @@ test('actual bindings retain V2 ownership and the shared logout owner', () => {
 });
 test('local transports and credentials remain isolated and bounded', () => {
   for (const invariant of ['preparePreferenceRunEnvironment(', 'assertLocalReplayTarget(',
-    'remote: false', 'envFiles: []', 'redirect:\'error\'', 'AbortSignal.timeout(10000)',
+    'remote: false', 'envFiles: []', 'buildOutboundFetchInit(req,', 'AbortSignal.timeout(10000)',
     "url.origin !== origin", "route.abort()", 'serviceWorkers:\'block\'', 'maxRetries']) {
     assert.ok(source.includes(invariant), invariant);
   }
@@ -125,6 +125,16 @@ test('local transports and credentials remain isolated and bounded', () => {
   assert.ok(!ast.statements.filter(ts.isImportDeclaration).some(node => node.moduleSpecifier.text.startsWith('../src/')));
   assert.ok(source.includes('const { buildDetailParameterGroups, detailSpecColumns, catalogLabel } = appLogic;'));
   assert.ok(source.includes('const { resolveLocale, selectEditorialVariant } = appLogic;'));
+});
+
+test('browser launch is behind terminal bootstrap and formal outbound dispatch uses normalized headers', async () => {
+  assert.ok(source.indexOf('bootstrap.releaseBrowser();') < source.indexOf('await engine.launch('));
+  assert.ok(source.includes("bootstrap.complete('LOCAL_SUPABASE_READY');"));
+  assert.ok(source.includes("bootstrap.attempt('WORKER_HANDLE_RETURNED'"));
+  assert.ok(source.includes("bootstrap.complete('DIRECT_APP_DISPATCH_READY');"));
+  assert.ok(!source.includes('headers: req.headers'));
+  const bridge = await readFile(new URL('./lib/locale-v2-outbound-bridge.mjs', import.meta.url), 'utf8');
+  assert.ok(bridge.includes("redirect: 'error'"));
 });
 test('bound local safety helpers reject remote targets and inherited privileged credentials without dispatch', async () => {
   const { preparePreferenceRunEnvironment } = await import('./test-user-preferences-rls-local.mjs');

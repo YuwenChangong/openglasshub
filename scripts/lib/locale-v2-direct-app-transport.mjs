@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import { LOCAL_DOCUMENT_HEADER } from './locale-v2-document-evidence.mjs';
 
-export async function createDirectAppDispatch(worker) {
+export async function createDirectAppDispatch(worker, { bootstrap } = {}) {
   assert.equal(worker.config.dev.remote, false, 'DIRECT_APP_LOCAL_RUNTIME_REQUIRED');
   const locals = worker.raw.runtimes.filter(runtime => runtime.mf);
   assert.equal(locals.length, 1, 'DIRECT_APP_SINGLE_RUNTIME_REQUIRED');
   const local = locals[0].mf;
   const proxy = (await worker.raw.proxy.ready.promise).proxyWorker;
   assert.notEqual(local, proxy, 'DIRECT_APP_NOT_WRANGLER_PROXY_REQUIRED');
-  const cf = await local.getCf();
+  const cf = bootstrap ? await bootstrap.attempt('APPLICATION_GETCF_RETURNED', () => local.getCf()) : await local.getCf();
   assert.equal(cf.country, 'US', 'DIRECT_APP_COUNTRY_REQUIRED');
-  const application = await local.getWorker(worker.config.name);
+  const application = bootstrap ? await bootstrap.attempt('APPLICATION_GETWORKER_RETURNED', () => local.getWorker(worker.config.name)) : await local.getWorker(worker.config.name);
   assert.equal(typeof application.fetch, 'function', 'DIRECT_APP_FETCH_REQUIRED');
   return {
     metadata: { proxyBypassed: true, country: cf.country, owner: 'APPLICATION_RUNTIME_MINIFLARE_SERVICE_BINDING' },
