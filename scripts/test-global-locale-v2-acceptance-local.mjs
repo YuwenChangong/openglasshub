@@ -20,6 +20,7 @@ import { createAcceptanceBootstrap } from './lib/locale-v2-bootstrap.mjs';
 import { buildOutboundFetchInit } from './lib/locale-v2-outbound-bridge.mjs';
 import { observeOriginalAppResponse } from './lib/locale-v2-redirect-observer.mjs';
 import { createContextObservations } from './lib/locale-v2-context-observations.mjs';
+import { verifyEditorialDocumentFamily } from './lib/locale-v2-reviewed-documents.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const localeContexts = Object.freeze([{engine:'chromium',width:1280,locale:'zh-CN'},{engine:'chromium',width:1280,locale:'en'},{engine:'chromium',width:390,locale:'zh-CN'},{engine:'chromium',width:390,locale:'en'},{engine:'firefox',width:1280,locale:'en'}]);
@@ -337,13 +338,25 @@ async function runtime({ target, anonKey, accounts, request }) {
         const after=await request('/rest/v1/device_specs?select=id,value_number,value_boolean,value_text,value_json,presentation&order=id',accounts.admin.token);assert.deepEqual(await after.json(),facts);check(true,'ADMIN_LOCALE_NO_FACT_WRITES');
         pass(zh?'ADMIN_CATALOG_ZH_CN':'ADMIN_CATALOG_EN');pass('ADMIN_CATALOG_FACT_PARITY');
         receipt.adminIndependentLocaleState=false;
-        await page.evaluate(()=>localStorage.clear());
-        const beforeCookie=await preference(context);
-        await navigate(page,'/guides/?lang=en',fixture.locale);observe((await page.locator('h1').first().textContent()).includes('Guide'),'REVIEWED_ENGLISH_DOCUMENT');
-        await navigate(page,'/guides/?lang=zh-CN',fixture.locale);assert.deepEqual(await preference(context),beforeCookie);check(true,'DOCUMENT_LANG_DOES_NOT_MUTATE_GLOBAL_COOKIE');
-        await navigate(page,'/guides/ar-ai-xr-glasses-difference/?lang=en',fixture.locale);
-        observe(/\p{Script=Han}/u.test(await page.locator('h1').first().textContent()),'ORIGINAL_DOCUMENT_FALLBACK_ALLOWED');
-        assert.deepEqual(await preference(context),beforeCookie,'ORIGINAL_FALLBACK_NO_GLOBAL_COOKIE_MUTATION');
+        await page.evaluate(({key,session})=>{localStorage.clear();localStorage.setItem(key,JSON.stringify(session));},
+          {key:authKey,session:accounts.b.session});
+        await navigate(page,'/settings/',fixture.locale);
+        await page.locator('.locale-settings a[href="/me/"]').waitFor();
+        const factory=await findBrowserClientFactory(root);
+        await verifyEditorialDocumentFamily({ page, navigate, locale: fixture.locale,
+          readPreference: () => preference(context),
+          readAccountIdentity: () => page.evaluate(async({factory,expectedActor})=>{
+            const module=await import(factory.chunk),client=module[factory.exported]();
+            const {data,error}=await client.auth.getUser();return !error&&data.user?.id===expectedActor;
+          },{factory,expectedActor:accounts.b.id}),
+          readAccountPreference: async () => {
+            const response=await request(`/rest/v1/user_preferences?select=locale_preference,revision&user_id=eq.${accounts.b.id}`,accounts.b.token);
+            check(response.status===200,'DOCUMENT_ACCOUNT_PREFERENCE_READ');
+            const rows=await response.json();check(rows.length===1,'DOCUMENT_ACCOUNT_PREFERENCE_OWN_ROW');
+            return rows[0];
+          }, observe,
+          assertUnchanged: (actual,expected,name) => { assert.deepEqual(actual,expected,name);check(true,name); },
+          record: record => (receipt.editorialDocuments??=[]).push({contextId:ledger.contextId,...record}) });
         pass('DOCUMENT_LANG_SCOPE');pass('EDITORIAL_VARIANT_SELECTION');pass('GLOBAL_PREFERENCE_UNCHANGED_BY_DOCUMENT_LANG');
       }
       const missing=await navigate(page,'/404/',fixture.locale);observe(missing.status()===404||missing.status()===200,'404_ROUTE_AVAILABLE');
