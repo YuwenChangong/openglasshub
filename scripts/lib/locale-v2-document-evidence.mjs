@@ -155,19 +155,44 @@ export function forwardObservedLocalRequest({incoming,outgoing,destination,heade
   const forwarded = { ...headers };
   for (const name of Object.keys(forwarded)) if (name.toLowerCase() === LOCAL_DOCUMENT_HEADER) delete forwarded[name];
   const handle = observe ? evidence.upstreamStart({ method: incoming.method, pathname, headers: incoming.headers }) : null;
-  let aborted = false, resolve, settled = false, proxy;
+  let aborted = false, resolve, settled = false, proxy, upstreamResponse, socket;
   const completed = new Promise(done => { resolve = done; });
   evidence.track(completed);
   const finish = () => {
     if (settled) return;
     settled = true;
+    proxy?.off('socket', watchSocket);
+    socket?.off('close', socketClosed);
     if (handle) evidence.upstreamFinished(handle);
     resolve();
   };
-  outgoing.once('finish', () => evidence.frontDoorFinished(handle));
-  outgoing.once('close', () => { if (!outgoing.writableFinished) aborted = true; });
-  const fail = error => {
+  const cancel = () => {
     if (settled) return;
+    aborted = true;
+    if (handle) evidence.upstreamAborted(handle);
+    finish();
+    proxy?.destroy();
+  };
+  const closed = () => {
+    if (upstreamResponse?.complete || upstreamResponse?.readableEnded) finish();
+    else cancel();
+  };
+  const socketClosed = () => closed();
+  const watchSocket = value => { socket = value; socket.once('close', socketClosed); };
+  outgoing.once('finish', () => {
+    evidence.frontDoorFinished(handle);
+    if (upstreamResponse?.complete || upstreamResponse?.readableEnded) finish();
+  });
+  outgoing.once('close', () => {
+    if (!outgoing.writableFinished) cancel();
+    else closed();
+  });
+  const fail = error => {
+    if (settled) {
+      // Cancellation may precede its correlated transport error event.
+      if (handle && aborted) evidence.upstreamThrow(handle, error, true);
+      return;
+    }
     aborted ||= !!incoming.aborted || !!outgoing.destroyed;
     if (handle) {
       evidence.upstreamThrow(handle, error, aborted);
@@ -180,12 +205,13 @@ export function forwardObservedLocalRequest({incoming,outgoing,destination,heade
   };
   try {
     proxy = transport(destination, { method: incoming.method, headers: forwarded, ...(ca ? { ca, rejectUnauthorized: true } : {}) }, response => {
+      upstreamResponse = response;
       onTransport('AUTH_UPSTREAM_RESPONSE', { status: response.statusCode });
       if (handle) evidence.upstreamResponse(handle, response.statusCode, response.headers['content-type']);
       response.on('data', chunk => { if (handle) evidence.upstreamBody(handle, chunk); });
       response.once('end', () => { onTransport('AUTH_UPSTREAM_RESPONSE_FINISHED', { status: response.statusCode }); finish(); });
-      response.once('aborted', () => { aborted = true; evidence.upstreamAborted(handle); outgoing.end(); });
-      response.once('close', () => { if (aborted) finish(); });
+      response.once('aborted', () => { cancel(); outgoing.end(); });
+      response.once('close', closed);
       response.once('error', fail);
       let allowed = true;
       try {
@@ -204,8 +230,10 @@ export function forwardObservedLocalRequest({incoming,outgoing,destination,heade
       response.pipe(outgoing);
     });
     proxy.on('error', fail);
+    proxy.once('socket', watchSocket);
+    proxy.once('close', closed);
     proxy.setTimeout(15000, () => proxy.destroy());
-    incoming.once('aborted', () => { aborted = true; proxy.destroy(); });
+    incoming.once('aborted', cancel);
     incoming.pipe(proxy);
   } catch (error) { fail(error); }
   return completed;

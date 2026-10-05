@@ -142,6 +142,46 @@ test('actual runner routes context ownership and independent headers through the
   assert.ok(source.includes('await withOwnedLocaleContext('), 'RUNNER_CONTEXT_LIFECYCLE_BINDING_REQUIRED');
   assert.ok(source.includes('await checkLocalAuthHeaders('), 'RUNNER_HEADER_LIFECYCLE_BINDING_REQUIRED');
   assert.ok(source.includes('await disposeLocaleResources('), 'RUNNER_CLEANUP_LIFECYCLE_BINDING_REQUIRED');
+  assert.ok(source.includes('], { primaryError });'), 'RUNNER_PRIMARY_ERROR_FORWARDING_REQUIRED');
+  assert.ok(source.includes('receipt.secondaryCleanupErrors='), 'RUNNER_SECONDARY_ERROR_EVIDENCE_REQUIRED');
   assert.ok(!source.includes('contexts[0].request'));
   assert.ok(!source.includes('contexts.push(context)'));
+});
+
+test('convergence: context cleanup cannot mask the primary TimeoutError', async () => {
+  const primary = Object.assign(new Error('PRIMARY'), { name: 'TimeoutError' });
+  const cleanup = new assert.AssertionError({ message: 'CLEANUP' });
+  const activeContexts = new Set();
+  await assert.rejects(lifecycle.withOwnedLocaleContext({
+    context: { async close() { throw cleanup; } }, activeContexts,
+    acceptance: async () => { throw primary; },
+  }), error => error === primary && error.cleanupErrors?.[0] === cleanup);
+  assert.equal(activeContexts.size, 0);
+});
+
+test('convergence: resource finalization preserves PRIMARY with CLEANUP as secondary', async () => {
+  const primary = Object.assign(new Error('PRIMARY'), { name: 'TimeoutError' });
+  const cleanup = new assert.AssertionError({ message: 'CLEANUP' });
+  const events = [];
+  await assert.rejects(lifecycle.disposeLocaleResources([
+    async () => { throw cleanup; }, async () => { events.push('later-cleanup'); },
+  ], { primaryError: primary }), error => error === primary && error.cleanupErrors?.[0] === cleanup);
+  assert.deepEqual(events, ['later-cleanup']);
+});
+
+test('convergence: cleanup-only fails closed and error-free cleanup succeeds', async () => {
+  const cleanup = new assert.AssertionError({ message: 'CLEANUP' });
+  await assert.rejects(lifecycle.disposeLocaleResources([async () => { throw cleanup; }]),
+    error => error instanceof AggregateError && error.errors[0] === cleanup);
+  assert.equal(await lifecycle.disposeLocaleResources([async () => {}]), undefined);
+});
+
+test('convergence: nested cleanup failures accumulate without exposing raw errors through JSON', async () => {
+  const primary = Object.assign(new Error('PRIMARY'), { name: 'TimeoutError' });
+  const first = new Error('CLEANUP_ONE'), second = new Error('CLEANUP_TWO');
+  for (const cleanup of [first, second]) {
+    await assert.rejects(lifecycle.disposeLocaleResources([async () => { throw cleanup; }], { primaryError: primary }), error => error === primary);
+  }
+  assert.deepEqual(primary.cleanupErrors, [first, second]);
+  assert.ok(!JSON.stringify(primary).includes('CLEANUP'));
 });

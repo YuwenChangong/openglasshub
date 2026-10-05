@@ -311,4 +311,65 @@ if (process.argv.includes('--old-red')) {
     const source=await readFile(new URL('./test-global-locale-v2-acceptance-local.mjs',import.meta.url),'utf8');
     for(const required of ['createDocumentEvidence(', 'forwardObservedLocalRequest(', 'documentEvidence.headersFor(', 'documentEvidence.observePage(', 'documentEvidence.attachWorker(', 'documentEvidence.assertNo5xx()', "WRANGLER_WRITE_LOGS: 'false'"]) assert.ok(source.includes(required),required);
   });
+
+  function forwardFixture(status = 200) {
+    const f = setup(), req = f.request();
+    f.page.emit('request', req);
+    const headers = f.evidence.headersFor(req);
+    const incoming = new PassThrough(), outgoing = new PassThrough(), proxy = new PassThrough(), socket = new EventEmitter();
+    incoming.method = 'GET'; incoming.headers = headers;
+    outgoing.resume(); outgoing.writeHead = code => { outgoing.statusCode = code; outgoing.headersSent = true; };
+    proxy.setTimeout = () => {}; proxy.destroy = () => { proxy.destroyed = true; return proxy; };
+    const response = new PassThrough(); response.statusCode = status; response.headers = { 'content-type': 'text/plain' };
+    let callback, finishes = 0;
+    const original = f.evidence.upstreamFinished;
+    f.evidence.upstreamFinished = handle => { finishes++; return original(handle); };
+    const pending = forwardObservedLocalRequest({ incoming, outgoing, headers, evidence: f.evidence,
+      destination: new URL(origin + '/settings/'), pathname: '/settings/',
+      transport: (url, options, onResponse) => { callback = onResponse; return proxy; } });
+    return { ...f, incoming, outgoing, proxy, socket, response, pending,
+      respond: () => callback(response), finishes: () => finishes };
+  }
+
+  test('convergence: completed upstream plus downstream close settles once and retains HTTP 503', async () => {
+    const f = forwardFixture(503); f.respond();
+    f.response.write('Internal Server Error'); f.response.complete = true;
+    Object.defineProperty(f.outgoing, 'writableFinished', { value: true });
+    f.outgoing.emit('close'); f.response.emit('close');
+    await f.evidence.finalize({ timeoutMs: 5 });
+    assert.equal(f.receipt.documentEvidenceFinalization, 'COMPLETE');
+    await f.pending; assert.equal(f.finishes(), 1);
+    assert.equal(f.receipt.document5xxFailures[0].DOCUMENT_5XX_STATUS, 503);
+    assert.throws(() => f.evidence.assertNo5xx(), /DOCUMENT_HTTP_5XX/);
+  });
+
+  test('convergence: client abort or supersede settles once without a synthetic success', async () => {
+    const f = forwardFixture(); f.incoming.aborted = true; f.incoming.emit('aborted');
+    f.outgoing.emit('close'); f.proxy.emit('close');
+    await f.evidence.finalize({ timeoutMs: 5 });
+    assert.equal(f.receipt.documentEvidenceFinalization, 'COMPLETE');
+    await f.pending; assert.equal(f.finishes(), 1);
+    assert.equal(f.receipt.documentRequests[0].upstreamResult, 'ABORT');
+    assert.equal(f.receipt.documentRequests[0].responseStatus, 'UNKNOWN');
+  });
+
+  test('convergence: socket close without transport error is terminal exactly once', async () => {
+    const f = forwardFixture(); f.respond();
+    f.proxy.emit('socket', f.socket); f.socket.emit('close', false); f.proxy.emit('close');
+    await f.evidence.finalize({ timeoutMs: 5 });
+    assert.equal(f.receipt.documentEvidenceFinalization, 'COMPLETE');
+    await f.pending; assert.equal(f.finishes(), 1);
+    assert.equal(f.receipt.documentRequests[0].upstreamResult, 'ABORT');
+    assert.equal(f.receipt.documentRequests[0].upstreamError, undefined);
+  });
+
+  test('convergence: genuinely active unresolved forward still fails the unchanged capture deadline', async () => {
+    const f = forwardFixture();
+    await f.evidence.finalize({ timeoutMs: 5 });
+    assert.equal(f.receipt.documentEvidenceFinalization, 'UNKNOWN_CAPTURE_DEADLINE');
+    assert.equal(f.finishes(), 0);
+    assert.throws(() => f.evidence.assertNo5xx(), /DOCUMENT_EVIDENCE_CAPTURE_DEADLINE/);
+    f.proxy.emit('error', new TypeError('fetch failed')); await f.pending;
+    assert.equal(f.finishes(), 1);
+  });
 }

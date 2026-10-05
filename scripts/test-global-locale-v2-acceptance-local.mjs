@@ -43,6 +43,11 @@ let appLogic;
 const check = (condition, name) => { boundary = name; assert.ok(condition, name); receipt.assertions.push(name); receipt.assertionProvenance.push({name, origin: 'FRESH_THIS_RUN', runId, contextId:receipt.browserContexts.at(-1)?.contextId ?? null}); };
 const pass = name => { receipt.behaviors[name] = 'PASS'; receipt.behaviorProvenance[name] = {origin: 'FRESH_THIS_RUN',runId}; };
 const q = value => `'${String(value).replaceAll("'", "''")}'`;
+const projectFailure = (error, depth = 0) => ({
+  errorClass: ['Error','TimeoutError','AssertionError','AggregateError','TypeError','AbortError'].includes(error?.name) ? error.name : 'UNKNOWN',
+  safeMessage: error?.name === 'TimeoutError' ? 'OWNED_OPERATION_TIMEOUT' : error?.message?.match(/^[A-Z][A-Z0-9_]{1,80}(?=\s|$)/)?.[0] ?? 'UNCLASSIFIED_ERROR_WITHHELD',
+  ...(depth < 4 && Array.isArray(error?.errors) ? { errors: error.errors.map(child => projectFailure(child, depth + 1)) } : {}),
+});
 const allowed = ['PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA','HOME','COMSPEC'];
 const environment = preparePreferenceRunEnvironment(Object.fromEntries(allowed.filter(k => process.env[k]).map(k => [k, process.env[k]])));
 for (const key of ['SystemDrive', 'ProgramData']) if (process.env[key]) environment[key] = process.env[key];
@@ -54,7 +59,7 @@ async function runtime({ target, anonKey, accounts, request }) {
   const { buildDetailParameterGroups, detailSpecColumns, catalogLabel } = appLogic;
   const { chromium, firefox, request: apiRequest } = await import('playwright');
   const { unstable_startWorker } = await import('wrangler');
-  let worker, gateway, reserved, ownedRoot, timer, upstream, documentEvidence, fault = null;
+  let worker, gateway, reserved, ownedRoot, timer, upstream, documentEvidence, primaryError, fault = null;
   const browsers = [], contexts = new Set();
   const cookieName = 'ogh_preferences_v1';
   try {
@@ -154,7 +159,14 @@ async function runtime({ target, anonKey, accounts, request }) {
       check((await preference(context))?.provenance==='account_adopted','ACCOUNT_ADOPTION_COOKIE_SETTLED');
     };
     const select = async(page,locale,signedIn=false) => {
-      const saved = signedIn ? page.waitForResponse(r=>new URL(r.url()).pathname==='/api/users/me/preferences'&&r.request().method()==='PATCH') : null;
+      const saved = signedIn ? page.waitForResponse(r=>new URL(r.url()).pathname==='/api/users/me/preferences'&&r.request().method()==='PATCH').then(async response => {
+        if (response.status() >= 500) {
+          let code = 'UNKNOWN';
+          try { const body = await response.json(); if (body.code === 'PREFERENCES_UNAVAILABLE') code = body.code; } catch { /* Never persist an unrecognized body. */ }
+          receipt.preferenceSaveFailure = { method: 'PATCH', pathname: '/api/users/me/preferences', status: response.status(), safeCode: code };
+        }
+        return response;
+      }) : null;
       await Promise.all([page.waitForNavigation({waitUntil:'load'}),page.locator('.locale-settings select').selectOption(locale)]);
       if(saved)check((await saved).status()===200,`ACTUAL_ACCOUNT_SAVE_${locale}`);
       await page.waitForFunction(want=>document.documentElement.lang===want,locale);await settled(page);
@@ -282,7 +294,7 @@ async function runtime({ target, anonKey, accounts, request }) {
     check(receipt.externalRequests===0,'ZERO_EXTERNAL_REQUESTS');
     documentEvidence.assertNo5xx();
     for(const name of ['SSR_LOCALE_PROPAGATION','LEGACY_DEVICE_LOCALE_CONTINUITY','REDIRECT_LOCALE_CONTINUITY','LOCALE_404_BEHAVIOR','LOCALE_CACHE_POLICY','LOCALE_PRIVATE_RESPONSE_POLICY','CATALOG_ZH_CN','CATALOG_EN','CATALOG_FACT_PARITY','TRANSLATION_FALLBACK_POLICY','SEARCH_LOCALE','SEARCH_CANONICAL_DEVICE_LINKS','HEADER_LOCALE','SETTINGS_LOCALE','SEARCH_STALE_RESPONSE_GUARD'])pass(name);
-  } catch(error) { receipt.firstFailure=boundary;const current=receipt.browserContexts.at(-1);if(current?.status==='RUNNING'){current.status='FAIL';current.firstFailure=boundary;}throw error; } finally {
+  } catch(error) { primaryError=error;receipt.firstFailure=boundary;const current=receipt.browserContexts.at(-1);if(current?.status==='RUNNING'){current.status='FAIL';current.firstFailure=boundary;}throw error; } finally {
     clearTimeout(timer);
     await disposeLocaleResources([
       ...[...contexts].map(context => async () => { contexts.delete(context); await context.close(); }),
@@ -292,7 +304,7 @@ async function runtime({ target, anonKey, accounts, request }) {
       async () => { if(worker)await worker.dispose(); },
       async () => { if(ownedRoot){assert.ok(path.dirname(ownedRoot)===tmpdir()&&path.basename(ownedRoot).startsWith('ogh-locale-v2-'),'OWNED_TLS_ROOT_CLEANUP');await rm(ownedRoot,{recursive:true,force:true});} },
       async () => { if(documentEvidence){try{await documentEvidence.finalize();documentEvidence.assertNo5xx();}finally{await documentEvidence.dispose();}} },
-    ]);
+    ], { primaryError });
   }
 }
 
@@ -331,6 +343,8 @@ try {
   receipt.status='PASS';
 } catch(error) {
   receipt.firstFailure??=boundary;receipt.errorClass=error?.constructor?.name??'Error';process.exitCode=1;
+  receipt.primaryError=projectFailure(error);
+  receipt.secondaryCleanupErrors=(error.cleanupErrors??[]).map(child=>projectFailure(child));
 } finally {
   receipt.finishedAt=new Date().toISOString();
   await mkdir(directory,{recursive:true});await writeFile(path.join(directory,'attempt.json'),JSON.stringify(receipt,null,2)+'\n',{flag:'wx'});
