@@ -1,0 +1,14 @@
+{
+  "format": "catalog-stage-b-schema-proof-v1",
+  "postgresMajor": 17,
+  "ledgerOwner": "postgres",
+  "migrationHashes": [
+    "e74fd7031ceefab8de5ecfe1318a0709d754c603b9a1c60882020f95734499e6",
+    "943b7a01d3cab3471fbfc36d6ca011bd13eeeee5acc2264ec996f60a4d278dd6"
+  ],
+  "states": [
+    "c7f79074c1ef28bddc9b78482d64e1ae10a93fbf34f84c2a923c1c6a19136412",
+    "7c7cf2fcbcdbd274d448d8de0ba7fd0b029e47d3fb31f2f10ac871c0010a4ebc",
+    "af50f7687be973b796c104a8b2938d2fb0d4a63ecaffd66eabc83120fd9570dc"
+  ]
+}
