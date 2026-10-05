@@ -14,6 +14,7 @@ import { findBrowserClientFactory } from './lib/locale-v2-logout-observer.mjs';
 import { acceptLocaleLogout } from './lib/locale-v2-logout-settlement.mjs';
 import { withOwnedLocaleContext, checkLocalAuthHeaders, disposeLocaleResources } from './lib/locale-v2-request-lifecycle.mjs';
 import { captureLocalLocaleCountry, initialSsrExpectation } from './lib/locale-v2-initial-ssr-expectation.mjs';
+import { createDocumentEvidence, forwardObservedLocalRequest } from './lib/locale-v2-document-evidence.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const localeContexts = Object.freeze([{engine:'chromium',width:1280,locale:'zh-CN'},{engine:'chromium',width:1280,locale:'en'},{engine:'chromium',width:390,locale:'zh-CN'},{engine:'chromium',width:390,locale:'en'},{engine:'firefox',width:1280,locale:'en'}]);
@@ -45,7 +46,7 @@ const q = value => `'${String(value).replaceAll("'", "''")}'`;
 const allowed = ['PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA','HOME','COMSPEC'];
 const environment = preparePreferenceRunEnvironment(Object.fromEntries(allowed.filter(k => process.env[k]).map(k => [k, process.env[k]])));
 for (const key of ['SystemDrive', 'ProgramData']) if (process.env[key]) environment[key] = process.env[key];
-Object.assign(environment, { WRANGLER_SEND_METRICS: 'false', CLOUDFLARE_CF_FETCH_ENABLED: 'false', ASTRO_TELEMETRY_DISABLED: '1', ASTRO_DISABLE_UPDATE_CHECK: 'true' });
+Object.assign(environment, { WRANGLER_SEND_METRICS: 'false', WRANGLER_WRITE_LOGS: 'false', CLOUDFLARE_CF_FETCH_ENABLED: 'false', ASTRO_TELEMETRY_DISABLED: '1', ASTRO_DISABLE_UPDATE_CHECK: 'true' });
 for (const key of Object.keys(process.env)) delete process.env[key];
 Object.assign(process.env, environment);
 
@@ -53,7 +54,7 @@ async function runtime({ target, anonKey, accounts, request }) {
   const { buildDetailParameterGroups, detailSpecColumns, catalogLabel } = appLogic;
   const { chromium, firefox, request: apiRequest } = await import('playwright');
   const { unstable_startWorker } = await import('wrangler');
-  let worker, gateway, reserved, ownedRoot, timer, upstream, fault = null;
+  let worker, gateway, reserved, ownedRoot, timer, upstream, documentEvidence, fault = null;
   const browsers = [], contexts = new Set();
   const cookieName = 'ogh_preferences_v1';
   try {
@@ -61,6 +62,10 @@ async function runtime({ target, anonKey, accounts, request }) {
     reserved = createServer();
     await new Promise(resolve => reserved.listen(0, '127.0.0.1', resolve));
     const origin = `https://127.0.0.1:${reserved.address().port}`;
+    documentEvidence = createDocumentEvidence({ origin, receipt, projectRoot: root,
+      country: () => receipt.localLocaleCountry?.value,
+      faultState: () => ({ readOutageActive: fault === 'read', writeOutageActive: fault === 'write', databaseFaultActive: false, networkSafetyBoundaryActive: true, otherTemporaryFaultActive: false }) });
+    documentEvidence.captureOutput({ stdout: process.stdout, stderr: process.stderr });
     const key = path.join(ownedRoot, 'key.pem'), cert = path.join(ownedRoot, 'cert.pem');
     execFileSync('openssl', ['req','-x509','-newkey','rsa:2048','-nodes','-sha256','-days','1','-keyout',key,'-out',cert,'-subj','/CN=Owned Locale V2 Test','-addext','subjectAltName=IP:127.0.0.1'], { env: environment, stdio: 'pipe', windowsHide: true });
     const certificate = await readFile(cert); check(new X509Certificate(certificate).checkIP('127.0.0.1') === '127.0.0.1', 'OWNED_TLS_CERTIFICATE');
@@ -81,6 +86,7 @@ async function runtime({ target, anonKey, accounts, request }) {
           const local = new URL(url.pathname + url.search, target); assertLocalReplayTarget(local.href);
           return fetch(local, { method: req.method, headers: req.headers, redirect: 'error', signal: AbortSignal.timeout(10000), ...(['GET','HEAD'].includes(req.method) ? {} : { body: await req.arrayBuffer() }) });
         } } });
+    documentEvidence.attachWorker(worker);
     await Promise.race([Promise.all([worker.ready,new Promise((resolve,reject) => { worker.raw.once('reloadComplete',resolve);worker.raw.once('error',() => reject(new Error('LOCAL_WORKER_STARTUP')));worker.raw.once('runtimeError',() => reject(new Error('LOCAL_WORKER_RUNTIME'))); })]),new Promise((_,reject) => { timer=setTimeout(() => reject(new Error('LOCAL_WORKER_READY_TIMEOUT')),30000); })]);
     clearTimeout(timer); upstream = (await worker.url).origin;
     boundary = receipt.stage = 'LOCAL_LOCALE_COUNTRY_CAPTURE';
@@ -94,19 +100,15 @@ async function runtime({ target, anonKey, accounts, request }) {
       const transportEvent = (event, detail = {}) => { if(url.pathname==='/auth/v1/logout') (receipt.logoutTransport??=[]).push({event,timestamp:new Date().toISOString(),...detail}); };
       transportEvent('FRONT_DOOR_LOGOUT_STARTED');
       outgoing.once('finish',()=>transportEvent('FRONT_DOOR_RESPONSE_FINISHED',{status:outgoing.statusCode}));
-      const proxy = (provider ? httpRequest : httpsRequest)(destination, { method: incoming.method, headers, ...(provider ? {} : {ca:certificate,rejectUnauthorized:true}) }, response => {
-        transportEvent('AUTH_UPSTREAM_RESPONSE',{status:response.statusCode});
-        response.once('end',()=>transportEvent('AUTH_UPSTREAM_RESPONSE_FINISHED',{status:response.statusCode}));
-        const responseHeaders = Object.fromEntries(Object.entries(response.headers).filter(([name]) => !['connection','transfer-encoding','keep-alive'].includes(name)));
-        outgoing.writeHead(response.statusCode, responseHeaders); response.pipe(outgoing);
-      });
-      proxy.on('error', () => { if(!outgoing.headersSent)outgoing.writeHead(599);outgoing.end(); });
-      proxy.setTimeout(15000, () => proxy.destroy()); incoming.once('aborted',() => proxy.destroy());incoming.pipe(proxy);
+      forwardObservedLocalRequest({ incoming, outgoing, destination, headers, evidence: documentEvidence,
+        pathname: url.pathname, transport: provider ? httpRequest : httpsRequest, ca: provider ? undefined : certificate,
+        observe: !provider, onTransport: transportEvent });
     });
     await new Promise(resolve => reserved.close(resolve)); reserved = null;
     await new Promise(resolve => gateway.listen(Number(new URL(origin).port),'127.0.0.1',resolve));
     const logout = async (page, actor) => {
       boundary=receipt.stage='LOGOUT_FINAL_DOCUMENT_SETTLEMENT';
+      documentEvidence.beginScope(page);
       const record = {};
       const transportStart = receipt.logoutTransport?.length ?? 0;
       (receipt.logouts??=[]).push(record);
@@ -163,9 +165,11 @@ async function runtime({ target, anonKey, accounts, request }) {
       const ledger = {number:index+1,contextId: randomUUID(),...fixture,status:'RUNNING',startedAt:new Date().toISOString()};receipt.browserContexts.push(ledger);
       const context=await engines[fixture.engine].newContext({viewport:{width:fixture.width,height:900},locale:fixture.locale,serviceWorkers:'block',ignoreHTTPSErrors:true});
       await withOwnedLocaleContext({ context, activeContexts: contexts, acceptance: async () => {
-      await context.route('**/*',route=>{if(new URL(route.request().url()).origin===origin)return route.continue();receipt.externalRequests++;return route.abort();});
+      await context.route('**/*',route=>{if(new URL(route.request().url()).origin===origin)return route.continue({headers:documentEvidence.headersFor(route.request())});receipt.externalRequests++;return route.abort();});
       await context.routeWebSocket('**/*',socket=>{const url=new URL(socket.url());if(url.hostname==='127.0.0.1'&&url.port===new URL(origin).port)receipt.blockedOwnedRealtime=(receipt.blockedOwnedRealtime??0)+1;else receipt.externalRequests++;socket.close();});
       const page=await context.newPage();page.setDefaultTimeout(12000);
+      documentEvidence.observePage(page, ledger.contextId);
+      if(fixture.engine==='chromium')await documentEvidence.observeCdp(page, await context.newCDPSession(page));
       page.on('response',response=>{if(new URL(response.url()).pathname==='/api/users/me/preferences'){
         (receipt.preferenceResponses??=[]).push({stage:receipt.stage,method:response.request().method(),status:response.status()});
       }});
@@ -276,6 +280,7 @@ async function runtime({ target, anonKey, accounts, request }) {
     receipt.authHeaderChecks=await checkLocalAuthHeaders({ origin, createRequestContext: options => apiRequest.newContext(options) });
     for (const result of receipt.authHeaderChecks) check(result.referrerPolicy==='no-referrer','AUTH_REFERRER_POLICY_UNCHANGED');
     check(receipt.externalRequests===0,'ZERO_EXTERNAL_REQUESTS');
+    documentEvidence.assertNo5xx();
     for(const name of ['SSR_LOCALE_PROPAGATION','LEGACY_DEVICE_LOCALE_CONTINUITY','REDIRECT_LOCALE_CONTINUITY','LOCALE_404_BEHAVIOR','LOCALE_CACHE_POLICY','LOCALE_PRIVATE_RESPONSE_POLICY','CATALOG_ZH_CN','CATALOG_EN','CATALOG_FACT_PARITY','TRANSLATION_FALLBACK_POLICY','SEARCH_LOCALE','SEARCH_CANONICAL_DEVICE_LINKS','HEADER_LOCALE','SETTINGS_LOCALE','SEARCH_STALE_RESPONSE_GUARD'])pass(name);
   } catch(error) { receipt.firstFailure=boundary;const current=receipt.browserContexts.at(-1);if(current?.status==='RUNNING'){current.status='FAIL';current.firstFailure=boundary;}throw error; } finally {
     clearTimeout(timer);
@@ -286,6 +291,7 @@ async function runtime({ target, anonKey, accounts, request }) {
       async () => { if(reserved)await new Promise(resolve=>reserved.close(resolve)); },
       async () => { if(worker)await worker.dispose(); },
       async () => { if(ownedRoot){assert.ok(path.dirname(ownedRoot)===tmpdir()&&path.basename(ownedRoot).startsWith('ogh-locale-v2-'),'OWNED_TLS_ROOT_CLEANUP');await rm(ownedRoot,{recursive:true,force:true});} },
+      async () => { if(documentEvidence){try{await documentEvidence.finalize();documentEvidence.assertNo5xx();}finally{await documentEvidence.dispose();}} },
     ]);
   }
 }
