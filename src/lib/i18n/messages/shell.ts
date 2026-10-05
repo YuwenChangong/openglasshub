@@ -1,5 +1,9 @@
 export const shellMessages = {
   "zh-CN": {
+    notFoundTitle: "页面未找到",
+    notFoundDescription: "你访问的页面不存在，或当前预览环境还没有这条内容。",
+    notFoundLead: "链接可能已失效、内容尚未发布，或者你访问的是预览环境里不存在的地址。",
+    notFoundHome: "返回首页", notFoundForum: "查看论坛", notFoundNews: "查看热点", notFoundSearch: "进入搜索",
     home: "首页",
     settings: "设置",
     notifications: "通知",
@@ -14,6 +18,10 @@ export const shellMessages = {
     quickResults: "快速搜索结果", searchResults: "搜索结果", viewDetails: "查看详情", searching: "搜索中…", noSearchResults: "没有找到相关内容",
   },
   en: {
+    notFoundTitle: "Page not found",
+    notFoundDescription: "This page does not exist, or this content is not yet available in the current preview environment.",
+    notFoundLead: "The link may have expired, the content may not be published yet, or this address may not exist in the preview environment.",
+    notFoundHome: "Return home", notFoundForum: "View forum", notFoundNews: "View news", notFoundSearch: "Search",
     home: "Home",
     settings: "Settings",
     notifications: "Notifications",

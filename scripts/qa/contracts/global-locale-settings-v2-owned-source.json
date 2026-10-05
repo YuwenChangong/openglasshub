@@ -6269,6 +6269,12 @@
           "target": "src/layouts/CommunityLayout.astro",
           "classification": "OWNED_ROUTE",
           "reason": "Sets shared HTML language, locale context, metadata, shell labels and component props from middleware locals."
+        },
+        {
+          "specifier": "../lib/i18n/catalog",
+          "target": "src/lib/i18n/catalog.ts",
+          "classification": "OWNED_CORE",
+          "reason": "Selects the existing shared bilingual shell messages for 404 copy using middleware locale context."
         }
       ]
     },

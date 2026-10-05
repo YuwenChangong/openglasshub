@@ -161,6 +161,6 @@ test('frozen source count, contract, algorithm and fingerprint match exactly', a
   assert.equal(sourceIdentity.fileHashes.length, 218);
   assert.equal(sourceIdentity.ownershipVersion, 2);
   assert.equal(sourceIdentity.algorithmVersion, 'locale-owned-content-sha256-v1');
-  assert.equal(sourceIdentity.contractSha256, 'b1197a474d948815ae34a3f66bfaba175b68d786e3f7b249d1ea4e4928442be5');
-  assert.equal(sourceIdentity.fingerprint, 'fe20282f90c1e2615fbe9878b5e4e22f78897332fdb2e9047926619b061cf2d8');
+  assert.equal(sourceIdentity.contractSha256, 'a14c9cc458f6d898d4de07130faf92cd884475927841a89d6cb0c0cd0d15b4a1');
+  assert.equal(sourceIdentity.fingerprint, 'eaf5dc60f0fdfbc8097077d5a6222262eb7727e299e23286a450b2c273a06b38');
 });

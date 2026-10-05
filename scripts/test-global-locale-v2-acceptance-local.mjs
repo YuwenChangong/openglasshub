@@ -21,6 +21,7 @@ import { buildOutboundFetchInit } from './lib/locale-v2-outbound-bridge.mjs';
 import { observeOriginalAppResponse } from './lib/locale-v2-redirect-observer.mjs';
 import { createContextObservations } from './lib/locale-v2-context-observations.mjs';
 import { verifyEditorialDocumentFamily } from './lib/locale-v2-reviewed-documents.mjs';
+import { observeNotFound, verifyNotFound } from './lib/locale-v2-404-copy.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const localeContexts = Object.freeze([{engine:'chromium',width:1280,locale:'zh-CN'},{engine:'chromium',width:1280,locale:'en'},{engine:'chromium',width:390,locale:'zh-CN'},{engine:'chromium',width:390,locale:'en'},{engine:'firefox',width:1280,locale:'en'}]);
@@ -29,8 +30,8 @@ export async function readFrozenLocaleSource() {
   assert.equal(identity.fileHashes.length, 218, 'FROZEN_218_OWNERS');
   assert.equal(identity.ownershipVersion, 2, 'FROZEN_OWNERSHIP_VERSION');
   assert.equal(identity.algorithmVersion, 'locale-owned-content-sha256-v1', 'FROZEN_ALGORITHM');
-  assert.equal(identity.contractSha256, 'b1197a474d948815ae34a3f66bfaba175b68d786e3f7b249d1ea4e4928442be5', 'FROZEN_CONTRACT');
-  assert.equal(identity.fingerprint, 'fe20282f90c1e2615fbe9878b5e4e22f78897332fdb2e9047926619b061cf2d8', 'FROZEN_SOURCE');
+  assert.equal(identity.contractSha256, 'a14c9cc458f6d898d4de07130faf92cd884475927841a89d6cb0c0cd0d15b4a1', 'FROZEN_CONTRACT');
+  assert.equal(identity.fingerprint, 'eaf5dc60f0fdfbc8097077d5a6222262eb7727e299e23286a450b2c273a06b38', 'FROZEN_SOURCE');
   return identity;
 }
 
@@ -382,8 +383,9 @@ async function runtime({ target, anonKey, accounts, request }) {
           record: record => (receipt.editorialDocuments??=[]).push({contextId:ledger.contextId,...record}) });
         pass('DOCUMENT_LANG_SCOPE');pass('EDITORIAL_VARIANT_SELECTION');pass('GLOBAL_PREFERENCE_UNCHANGED_BY_DOCUMENT_LANG');
       }
-      const missing=await navigate(page,'/404/',fixture.locale);observe(missing.status()===404||missing.status()===200,'404_ROUTE_AVAILABLE');
-      observe(await page.locator('.not-found-page h1').textContent()===(fixture.locale==='en'?'Page not found':'页面未找到'),'404_BILINGUAL_COPY');
+      const missing=await navigate(page,'/__owned-locale-v2-missing-page__/',fixture.locale);
+      const missingCopy=await page.evaluate(observeNotFound);
+      verifyNotFound({status:missing.status(),location:missing.headers().location,...missingCopy},fixture.locale,observe);
       boundary = ledger.failures[0] ?? boundary;
       observations.finish();
       ledger.status='PASS';ledger.finishedAt=new Date().toISOString();
