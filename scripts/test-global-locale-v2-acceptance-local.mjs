@@ -279,7 +279,9 @@ async function runtime({ target, anonKey, accounts, request }) {
         if(device.name==='XREAL Air')check(await page.locator('[data-parameter-key="basic.weight_g"] dd').textContent()==='79 g','WEIGHT_UNIT_AND_VALUE');
         await page.screenshot({path:path.join(directory,`${fixture.engine}-${fixture.width}-${fixture.locale}-${device.name==='XREAL Air'?'xreal':'meta'}.png`)});
       }
-      const wrong=await context.request.get(origin+'/products/meta/xreal-air/',{maxRedirects:0});check(wrong.status()===301&&wrong.headers().location==='/products/xreal/xreal-air/','CANONICAL_301');
+      // The ordinary front door follows redirects upstream; inspect this assertion's original application response.
+      const wrong=await direct.fetch(origin+'/products/meta/xreal-air/',{redirect:'manual'});check(wrong.status===301&&wrong.headers.get('location')==='/products/xreal/xreal-air/','CANONICAL_301');
+      await wrong.arrayBuffer();
       const beforeLegacy=await preference(context);
       const legacy=await navigate(page,'/devices/xreal-air',fixture.locale);check(legacy.status()===200&&new URL(page.url()).pathname==='/products/xreal/xreal-air/','LEGACY_LOCALE_REDIRECT');
       assert.deepEqual(await preference(context),beforeLegacy,'LEGACY_REDIRECT_COOKIE_CONTINUITY');
