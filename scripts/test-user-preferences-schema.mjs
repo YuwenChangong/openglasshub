@@ -11,7 +11,7 @@ export async function preferenceMigration(root = process.cwd()) {
   return { path: path.join(directory, names[0]), version: names[0].slice(0,14), sql: await readFile(path.join(directory,names[0]), "utf8") };
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const migration = await preferenceMigration();
   assert.ok(migration, "Missing additive user_preferences schema");
   for (const pattern of [
