@@ -136,4 +136,16 @@ if (process.argv.includes('--old-red')) {
       assert.equal(paths.length, 0);
     });
   });
+  test('fatal document identity goes through the formal assertion ledger before navigation', { skip: !documents }, async () => {
+    await fixture(async ({ page, navigate, paths }) => {
+      const ledger={total:0,passed:0,failures:[]};
+      await assert.rejects(documents.verifyEditorialDocumentFamily({page,navigate,locale:'zh-CN',
+        readAccountIdentity:async()=>false,readPreference:async()=>({preference:'zh-CN'}),
+        readAccountPreference:async()=>({locale_preference:'en',revision:1}),observe:assert.ok,assertUnchanged:assert.deepEqual,
+        assertIdentity:(value,name)=>{ledger.total++;if(!value)ledger.failures.push(name);assert.ok(value,name);ledger.passed++;}
+      }),/DOCUMENT_ACCOUNT_IDENTITY/);
+      assert.deepEqual(ledger,{total:1,passed:0,failures:['DOCUMENT_ACCOUNT_IDENTITY']});
+      assert.equal(paths.length,0);
+    });
+  });
 }

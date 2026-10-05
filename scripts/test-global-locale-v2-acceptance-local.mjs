@@ -338,23 +338,46 @@ async function runtime({ target, anonKey, accounts, request }) {
         const after=await request('/rest/v1/device_specs?select=id,value_number,value_boolean,value_text,value_json,presentation&order=id',accounts.admin.token);assert.deepEqual(await after.json(),facts);check(true,'ADMIN_LOCALE_NO_FACT_WRITES');
         pass(zh?'ADMIN_CATALOG_ZH_CN':'ADMIN_CATALOG_EN');pass('ADMIN_CATALOG_FACT_PARITY');
         receipt.adminIndependentLocaleState=false;
-        await page.evaluate(({key,session})=>{localStorage.clear();localStorage.setItem(key,JSON.stringify(session));},
-          {key:authKey,session:accounts.b.session});
+        await adopt(page,context,accounts.b);
+        await setCookie(context,fixture.locale);
         await navigate(page,'/settings/',fixture.locale);
         await page.locator('.locale-settings a[href="/me/"]').waitFor();
         const factory=await findBrowserClientFactory(root);
         await verifyEditorialDocumentFamily({ page, navigate, locale: fixture.locale,
           readPreference: () => preference(context),
-          readAccountIdentity: () => page.evaluate(async({factory,expectedActor})=>{
-            const module=await import(factory.chunk),client=module[factory.exported]();
-            const {data,error}=await client.auth.getUser();return !error&&data.user?.id===expectedActor;
-          },{factory,expectedActor:accounts.b.id}),
+          readAccountIdentity: async () => {
+            const retained=await request('/auth/v1/user',accounts.b.session?.access_token);
+            const retainedUser=retained.status===200?await retained.json():null;
+            const rowResponse=await request(`/rest/v1/user_preferences?select=locale_preference,revision&user_id=eq.${accounts.b.id}`,accounts.b.token);
+            const rows=rowResponse.status===200?await rowResponse.json():[];
+            const cookiePresent=(await context.cookies()).some(cookie=>/^sb-.+-auth-token(?:\.\d+)?$/.test(cookie.name));
+            const browser=await page.evaluate(async({factory,a,b})=>{
+              const alias=id=>!id?'ANON':id===a?'ACTOR_A':id===b?'ACTOR_B':'OTHER';
+              const module=await import(factory.chunk),client=module[factory.exported]();
+              const session=await client.auth.getSession();
+              const {data,error}=await client.auth.getUser();
+              return {sessionPresent:!!session.data.session,sessionAlias:alias(session.data.session?.user?.id),
+                actorAlias:error?'UNKNOWN':alias(data.user?.id),identityMatches:!error&&data.user?.id===b};
+            },{factory,a:accounts.a.id,b:accounts.b.id});
+            (receipt.documentIdentityObservations??=[]).push({contextId:ledger.contextId,
+              DOCUMENT_BROWSER_SESSION_PRESENT:browser.sessionPresent,DOCUMENT_BROWSER_ACTOR_ALIAS:browser.actorAlias,
+              DOCUMENT_BROWSER_SESSION_ACTOR_ALIAS:browser.sessionAlias,
+              RETAINED_B_SESSION_PRESENT:!!accounts.b.session,RETAINED_B_ACCESS_TOKEN_PRESENT:!!accounts.b.session?.access_token,
+              RETAINED_B_SESSION_AUTH_VALID:retained.status===200&&retainedUser?.id===accounts.b.id,
+              RETAINED_B_GETUSER_RESULT:`HTTP_${retained.status}`,
+              RETAINED_B_ACTOR_ALIAS:retained.status!==200?'UNKNOWN':retainedUser?.id===accounts.b.id?'ACTOR_B':retainedUser?.id===accounts.a.id?'ACTOR_A':'OTHER',
+              B_ROW_PRESENT:rowResponse.status===200&&rows.length===1,
+              B_ROW_LOCALE_PRESENT:['en','zh-CN'].includes(rows[0]?.locale_preference),
+              B_ROW_REVISION_PRESENT:Number.isInteger(rows[0]?.revision)&&rows[0].revision>=0,
+              DOCUMENT_COOKIE_SESSION_PRESENT:cookiePresent,DOCUMENT_COOKIE_ACTOR_ALIAS:cookiePresent?'UNKNOWN':'ANON'});
+            return browser.identityMatches;
+          },
           readAccountPreference: async () => {
             const response=await request(`/rest/v1/user_preferences?select=locale_preference,revision&user_id=eq.${accounts.b.id}`,accounts.b.token);
             check(response.status===200,'DOCUMENT_ACCOUNT_PREFERENCE_READ');
             const rows=await response.json();check(rows.length===1,'DOCUMENT_ACCOUNT_PREFERENCE_OWN_ROW');
             return rows[0];
-          }, observe,
+          }, observe, assertIdentity: check,
           assertUnchanged: (actual,expected,name) => { assert.deepEqual(actual,expected,name);check(true,name); },
           record: record => (receipt.editorialDocuments??=[]).push({contextId:ledger.contextId,...record}) });
         pass('DOCUMENT_LANG_SCOPE');pass('EDITORIAL_VARIANT_SELECTION');pass('GLOBAL_PREFERENCE_UNCHANGED_BY_DOCUMENT_LANG');

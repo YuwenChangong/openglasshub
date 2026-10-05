@@ -18,9 +18,9 @@ const projectDocument = ({ markup, markers }) => {
 };
 
 export async function verifyEditorialDocumentFamily({ page, navigate, locale, readPreference, readAccountPreference, readAccountIdentity,
-  observe, assertUnchanged, record = () => {} }) {
+  observe, assertUnchanged, assertIdentity = assert.ok, record = () => {} }) {
   for (const contract of editorialDocumentCases) {
-    assert.equal(await readAccountIdentity(), true, 'DOCUMENT_ACCOUNT_IDENTITY');
+    assertIdentity(await readAccountIdentity() === true, 'DOCUMENT_ACCOUNT_IDENTITY');
     const beforeCookie = await readPreference(), beforeAccount = await readAccountPreference();
     assert.ok(['en', 'zh-CN'].includes(beforeAccount?.locale_preference) && Number.isInteger(beforeAccount?.revision)
       && beforeAccount.revision >= 0, 'DOCUMENT_ACCOUNT_BASELINE');
@@ -35,7 +35,7 @@ export async function verifyEditorialDocumentFamily({ page, navigate, locale, re
       && requested.searchParams.get('lang') === contract.requestedLanguage && shown.searchParams.get('lang') === contract.requestedLanguage
       && matches(raw) && matches(rendered), contract.assertion);
     const afterCookie = await readPreference(), afterAccount = await readAccountPreference();
-    assert.equal(await readAccountIdentity(), true, 'DOCUMENT_ACCOUNT_IDENTITY');
+    assertIdentity(await readAccountIdentity() === true, 'DOCUMENT_ACCOUNT_IDENTITY');
     const cookieAssertion = contract.assertion === 'ORIGINAL_DOCUMENT_FALLBACK_ALLOWED'
       ? 'ORIGINAL_FALLBACK_NO_GLOBAL_COOKIE_MUTATION' : 'DOCUMENT_LANG_DOES_NOT_MUTATE_GLOBAL_COOKIE';
     // Preference mutations invalidate subsequent state; unlike content observations these stay fail-fast.
