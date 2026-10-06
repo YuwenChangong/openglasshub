@@ -84,6 +84,63 @@ test("adapter has a single connection attempt and no hidden reconnect",async()=>
   const open=createCatalogPostgresAdapter({config:{},Client:SyntheticClient});
   await assert.rejects(open(),/STAGE_B_CONNECTION_FAILED/);await assert.rejects(open(),/STAGE_B_RECONNECT_FORBIDDEN/);assert.equal(connects,1);assert.equal(ends,1);
 });
+test("connection failures retain only allowlisted TLS, network and PostgreSQL diagnostics",async()=>{
+  const cases=[
+    ["SELF_SIGNED_CERT_IN_CHAIN","TLS_CA_REJECTION"],
+    ["ERR_TLS_CERT_ALTNAME_INVALID","TLS_HOSTNAME_REJECTION"],
+    ["ERR_SSL_WRONG_VERSION_NUMBER","TLS_HANDSHAKE_FAILURE_OTHER"],
+    ["ENOTFOUND","DNS_RESOLUTION_FAILURE"],
+    ["ECONNREFUSED","TCP_CONNECTION_REFUSED"],
+    ["ETIMEDOUT","TCP_CONNECTION_TIMEOUT"],
+    ["ECONNRESET","TCP_CONNECTION_RESET"],
+    ["ENETUNREACH","NETWORK_UNREACHABLE"],
+    ["28P01","POSTGRES_AUTH_REJECTED"],
+    ["28000","POSTGRES_ROLE_OR_DATABASE_REJECTED","role SECRET_CANARY_ROLE does not exist"],
+    ["3D000","POSTGRES_ROLE_OR_DATABASE_REJECTED"],
+    ["XX000","SESSION_POOLER_TARGET_REJECTED","Tenant or user not found: SECRET_CANARY_ROLE"],
+    ["ERR_INVALID_ARG_TYPE","DRIVER_CONFIGURATION_ERROR"],
+    ["SECRET_CANARY_CODE","UNKNOWN_AFTER_SAFE_DIAGNOSTICS"],
+  ];
+  for(const [code,expected,message] of cases){
+    let connects=0,ends=0;
+    class SyntheticClient{on(){}async connect(){connects++;const e=new Error(message??"postgresql://SECRET_CANARY_HOST SECRET_CANARY_PASSWORD");Object.assign(e,{code,host:"SECRET_CANARY_HOST",detail:"SECRET_CANARY_DETAIL",path:"SECRET_CANARY_CA",syscall:"SECRET_CANARY_SYSCALL"});throw e;}async end(){ends++;}}
+    const open=createCatalogPostgresAdapter({config:{},Client:SyntheticClient});
+    await assert.rejects(open(),e=>{
+      assert.equal(e.code,"STAGE_B_CONNECTION_FAILED");
+      assert.equal(e.connectionDiagnostic?.failureClass,expected);
+      assert.equal(e.connectionDiagnostic.syscall,"UNKNOWN");
+      assert.ok(!JSON.stringify(e.connectionDiagnostic).includes("SECRET_CANARY"));
+      assert.ok(Object.isFrozen(e.connectionDiagnostic));return true;
+    });
+    assert.equal(connects,1);assert.equal(ends,1);
+  }
+});
+test("aggregate diagnostics stay conservative and close failure cannot erase the open error",async()=>{
+  for(const [raw,expected,timeout] of [
+    [new AggregateError([Object.assign(new Error("SECRET_CANARY"),{code:"ENETUNREACH"})],"SECRET_CANARY"),"NETWORK_UNREACHABLE","UNKNOWN"],
+    [new AggregateError([Object.assign(new Error("SECRET_CANARY"),{code:"ENETUNREACH"}),Object.assign(new Error("SECRET_CANARY"),{code:"ECONNREFUSED"})],"SECRET_CANARY"),"UNKNOWN_AFTER_SAFE_DIAGNOSTICS","UNKNOWN"],
+    [new Error("timeout expired"),"UNKNOWN_AFTER_SAFE_DIAGNOSTICS","CONNECTION_OPEN_TIMEOUT"],
+  ]){
+    class SyntheticClient{on(){}async connect(){throw raw;}async end(){throw new Error("SECRET_CANARY_CLOSE");}}
+    await assert.rejects(createCatalogPostgresAdapter({config:{},Client:SyntheticClient})(),e=>{
+      assert.equal(e.connectionDiagnostic.failureClass,expected);
+      assert.equal(e.connectionDiagnostic.timeoutClass,timeout);
+      assert.ok(!JSON.stringify(e.connectionDiagnostic).includes("SECRET_CANARY"));return true;
+    });
+  }
+});
+test("native execution receipt preserves safe open failure without SQL or a second attempt",async()=>{
+  const bundle=await loadCatalogBundle({root,receipt:await syntheticReceipt(),now,inspectSource:source});
+  let connects=0,ends=0,queries=0;
+  class SyntheticClient{on(){}async connect(){connects++;throw Object.assign(new Error("SECRET_CANARY_PASSWORD"),{code:"28P01"});}async end(){ends++;}query(){queries++;throw new Error("NO_SQL");}}
+  const result=await executeCatalogMigrations({bundle,claim:async()=>{},now:()=>now,open:createCatalogPostgresAdapter({config:{},Client:SyntheticClient})});
+  assert.equal(result.status,"BLOCKED");assert.equal(result.firstFailure,"STAGE_B_CONNECTION_FAILED");
+  assert.equal(result.connectionDiagnostic?.failureClass,"POSTGRES_AUTH_REJECTED");
+  assert.equal(result.connectionDiagnostic.sqlstate,"28P01");
+  assert.equal(result.readOnlyStatements,0);assert.equal(result.writeTransactions,0);
+  assert.equal(connects,1);assert.equal(ends,1);assert.equal(queries,0);
+  assert.ok(!JSON.stringify(result).includes("SECRET_CANARY"));
+});
 test("validated migration bytes are read once, never replaced after hashing",async()=>{
   const reads=new Map();
   const bundle=await loadCatalogBundle({root,receipt:await syntheticReceipt(),now,inspectSource:source,readArtifact:async file=>{

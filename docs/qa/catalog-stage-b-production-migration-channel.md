@@ -94,6 +94,17 @@ stops before any migration. Only safe categories/digests are recorded; database
 identity rows, DSNs, hostnames, usernames, passwords, and raw driver errors are
 never printed.
 
+Connection-open failures additionally retain `connectionDiagnostic`: only a
+closed failure classification and allowlisted standard name/code, SQLSTATE,
+errno, syscall, TLS/network/timeout categories. Raw messages, stacks, nested
+errors, target fields and certificate data are not retained. Conflicting nested
+failure classes remain unknown; the driver's overall connection timeout is not
+asserted to prove a TCP failure. The adapter still makes one connection attempt
+with the same TLS configuration and cleanup, and no automatic retry.
+Changing this QA diagnostic surface changes the tooling hashes. Previously
+reviewed receipt templates/fingerprints must not authorize the changed executor;
+fresh exact-HEAD/hash review is required before future migration execution.
+
 ## Ledger and transaction ownership
 
 Canonical ledger: `supabase_migrations.schema_migrations`, owner `postgres`.

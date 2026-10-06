@@ -21,6 +21,53 @@ export const TOOLING_FILES = Object.freeze([
 ]);
 export const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
 export function fail(code) { const error=new Error(code);error.code=code;throw error; }
+const connectionDiagnostics = new WeakMap();
+const CONNECTION_CODES = Object.freeze({
+  ENOTFOUND:"DNS_RESOLUTION_FAILURE",EAI_AGAIN:"DNS_RESOLUTION_FAILURE",
+  ECONNREFUSED:"TCP_CONNECTION_REFUSED",ETIMEDOUT:"TCP_CONNECTION_TIMEOUT",
+  ECONNRESET:"TCP_CONNECTION_RESET",EPIPE:"TCP_CONNECTION_RESET",
+  ENETUNREACH:"NETWORK_UNREACHABLE",EHOSTUNREACH:"NETWORK_UNREACHABLE",
+  SELF_SIGNED_CERT_IN_CHAIN:"TLS_CA_REJECTION",DEPTH_ZERO_SELF_SIGNED_CERT:"TLS_CA_REJECTION",
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE:"TLS_CA_REJECTION",UNABLE_TO_GET_ISSUER_CERT_LOCALLY:"TLS_CA_REJECTION",
+  UNABLE_TO_GET_ISSUER_CERT:"TLS_CA_REJECTION",CERT_HAS_EXPIRED:"TLS_CA_REJECTION",
+  CERT_NOT_YET_VALID:"TLS_CA_REJECTION",CERT_SIGNATURE_FAILURE:"TLS_CA_REJECTION",
+  ERR_TLS_CERT_ALTNAME_INVALID:"TLS_HOSTNAME_REJECTION",
+  ERR_SSL_WRONG_VERSION_NUMBER:"TLS_HANDSHAKE_FAILURE_OTHER",
+  ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE:"TLS_HANDSHAKE_FAILURE_OTHER",
+  ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION:"TLS_HANDSHAKE_FAILURE_OTHER",
+  ERR_TLS_HANDSHAKE_TIMEOUT:"TLS_HANDSHAKE_FAILURE_OTHER",
+  "28P01":"POSTGRES_AUTH_REJECTED","28000":"POSTGRES_AUTH_REJECTED",
+  "3D000":"POSTGRES_ROLE_OR_DATABASE_REJECTED",
+  ERR_INVALID_ARG_TYPE:"DRIVER_CONFIGURATION_ERROR",ERR_INVALID_ARG_VALUE:"DRIVER_CONFIGURATION_ERROR",
+});
+export function catalogConnectionFailure(raw) {
+  const candidates=[raw];
+  if(raw?.cause)candidates.push(raw.cause);
+  if(Array.isArray(raw?.errors))candidates.push(...raw.errors.slice(0,8));
+  const known=candidates.filter(e=>Object.hasOwn(CONNECTION_CODES,e?.code??""));
+  const selected=known[0]??raw;
+  let failureClass=new Set(known.map(e=>CONNECTION_CODES[e.code])).size===1?CONNECTION_CODES[selected.code]:"UNKNOWN_AFTER_SAFE_DIAGNOSTICS";
+  // Pooler rejection text is inspected in memory only; never retain messages.
+  if(raw?.code==="XX000"&&/tenant or user not found/i.test(raw?.message??""))failureClass="SESSION_POOLER_TARGET_REJECTED";
+  if(raw?.code==="28000"&&/role .* does not exist/i.test(raw?.message??""))failureClass="POSTGRES_ROLE_OR_DATABASE_REJECTED";
+  const code=Object.hasOwn(CONNECTION_CODES,selected?.code??"")||selected?.code==="XX000"?selected.code:"UNKNOWN";
+  const tls=failureClass.startsWith("TLS_");
+  const stage=failureClass==="DNS_RESOLUTION_FAILURE"?"DNS_RESOLUTION":failureClass.startsWith("TCP_")||failureClass==="NETWORK_UNREACHABLE"?"TCP_CONNECT":tls?"TLS_HANDSHAKE":failureClass.startsWith("POSTGRES_")||failureClass==="SESSION_POOLER_TARGET_REJECTED"?"POSTGRES_STARTUP_AUTH":failureClass==="DRIVER_CONFIGURATION_ERROR"?"DRIVER_CONFIGURATION":"CONNECTION_OPEN";
+  const diagnostic=Object.freeze({
+    failureClass,stage,
+    errorName:["Error","TypeError","AggregateError","DatabaseError","error"].includes(selected?.name)?selected.name:"UNKNOWN",
+    errorCode:code,sqlstate:["28P01","28000","3D000","XX000"].includes(code)?code:"UNKNOWN",
+    errno:Number.isInteger(selected?.errno)&&selected.errno>=-4095&&selected.errno<0?selected.errno:"UNKNOWN",
+    syscall:["connect","getaddrinfo","read","write"].includes(selected?.syscall)?selected.syscall:"UNKNOWN",
+    tlsErrorCode:tls?code:"UNKNOWN",
+    tlsVerifyReasonClass:failureClass==="TLS_CA_REJECTION"?"CERTIFICATE_CHAIN_REJECTED":failureClass==="TLS_HOSTNAME_REJECTION"?"HOSTNAME_MISMATCH":"UNKNOWN",
+    networkFailureClass:stage==="DNS_RESOLUTION"||stage==="TCP_CONNECT"?failureClass:"UNKNOWN",
+    timeoutClass:code==="ETIMEDOUT"?"TCP_CONNECT_TIMEOUT":code==="ERR_TLS_HANDSHAKE_TIMEOUT"?"TLS_HANDSHAKE_TIMEOUT":["timeout expired","Connection terminated due to connection timeout"].includes(raw?.message)?"CONNECTION_OPEN_TIMEOUT":"UNKNOWN",
+  });
+  const error=new Error("STAGE_B_CONNECTION_FAILED");error.code="STAGE_B_CONNECTION_FAILED";
+  Object.defineProperty(error,"connectionDiagnostic",{value:diagnostic,enumerable:true});
+  connectionDiagnostics.set(error,diagnostic);return error;
+}
 const approvedBundles = new WeakSet();
 function keys(value,expected) {
   if(!value||Object.getPrototypeOf(value)!==Object.prototype||Reflect.ownKeys(value).some(k=>typeof k!=="string")||Object.keys(value).sort().join("|")!==[...expected].sort().join("|")||Object.values(Object.getOwnPropertyDescriptors(value)).some(d=>!Object.hasOwn(d,"value")))fail("STAGE_B_RECEIPT_INVALID");
@@ -133,6 +180,6 @@ export async function executeCatalogMigrations({bundle,open,claim,now=Date.now})
     return outcome={status:"PASS",committed,migrations,readOnlyStatements:readStatements,writeTransactions,automaticRetry:false};
   }catch(error){
     if(transaction&&!commitDispatched&&session)try{await session.query("ROLLBACK;",[],5000);}catch{}
-    return outcome={status:commitDispatched?"AMBIGUOUS":committed?"BLOCKED_AFTER_COMMIT":"BLOCKED",firstFailure:/^STAGE_B_[A-Z_]+$/.test(error?.code??"")?error.code:"STAGE_B_SQL_OR_CONNECTION_FAILED",committed,migrations,readOnlyStatements:readStatements,writeTransactions,automaticRetry:false};
+    return outcome={status:commitDispatched?"AMBIGUOUS":committed?"BLOCKED_AFTER_COMMIT":"BLOCKED",firstFailure:/^STAGE_B_[A-Z_]+$/.test(error?.code??"")?error.code:"STAGE_B_SQL_OR_CONNECTION_FAILED",...(connectionDiagnostics.has(error)?{connectionDiagnostic:connectionDiagnostics.get(error)}:{}),committed,migrations,readOnlyStatements:readStatements,writeTransactions,automaticRetry:false};
   }finally{if(session)try{await session.close();}catch{outcome.connectionClose="FAILED";if(outcome.status==="PASS"){outcome.status=committed?"BLOCKED_AFTER_COMMIT":"BLOCKED";outcome.firstFailure="STAGE_B_CONNECTION_CLOSE_FAILED";}}}
 }

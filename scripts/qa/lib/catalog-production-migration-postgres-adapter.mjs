@@ -2,7 +2,7 @@ import pg from "pg";
 import { readFile } from "node:fs/promises";
 import { X509Certificate } from "node:crypto";
 import { parseP9Connection } from "../p9-readonly-postgres-transport.mjs";
-import { fail } from "./catalog-production-migration-transport.mjs";
+import { fail,catalogConnectionFailure } from "./catalog-production-migration-transport.mjs";
 
 export async function prepareCatalogConnection({environment=process.env}={}) {
   let parsed;
@@ -19,7 +19,7 @@ export function createCatalogPostgresAdapter({config,Client=pg.Client}) {
     if(opened)fail("STAGE_B_RECONNECT_FORBIDDEN");opened=true;
     const client=new Client(config);let broken=false;
     client.on?.("error",()=>{broken=true;});
-    try{await client.connect();}catch{try{await client.end();}catch{}fail("STAGE_B_CONNECTION_FAILED");}
+    try{await client.connect();}catch(error){try{await client.end();}catch{}throw catalogConnectionFailure(error);}
     return {
       async query(text,values=[],timeout=30000){if(broken)fail("STAGE_B_CONNECTION_LOST");return client.query({text,values,query_timeout:timeout});},
       async close(){try{await client.end();}catch{fail("STAGE_B_CONNECTION_CLOSE_FAILED");}},
