@@ -139,7 +139,25 @@ SELECT jsonb_build_object(
 'counts',jsonb_build_object('devices',(SELECT count(*) FROM public.devices),'published',(SELECT count(*) FROM public.devices WHERE publication_status='published'),'specs',(SELECT count(*) FROM public.device_specs),'definitions',(SELECT count(*) FROM public.device_spec_definitions),'audit',(SELECT count(*) FROM public.catalog_audit_events))) AS state;`;
 export const LEDGER_SQL="INSERT INTO supabase_migrations.schema_migrations(version,name,statements) VALUES ($1,$2,$3::text[]);";
 export const LOCK_SQL=`LOCK TABLE supabase_migrations.schema_migrations, ${TABLES.split(",").map(t=>`public.${t.replaceAll("'","")}`).join(", ")} IN SHARE ROW EXCLUSIVE MODE;`;
-export function schemaDigest(state) {return sha256(JSON.stringify({schema:state.schema,ledgerShape:state.ledgerShape}));}
+// Canonical-50 PostgreSQL metadata, ordered by the executor's explicit INSERT contract.
+const CORE_LEDGER_COLUMNS=freeze([
+  {name:"version",type:"text",notNull:true},
+  {name:"name",type:"text",notNull:false},
+  {name:"statements",type:"text[]",notNull:false},
+]);
+export function canonicalizeLedgerShape(shape) {
+  if(!shape||typeof shape!=="object"||Array.isArray(shape)||shape.owner!=="postgres"||shape.primaryKey!=="PRIMARY KEY (version)"||!Array.isArray(shape.columns))fail("STAGE_B_LEDGER_SCHEMA_DIVERGENCE");
+  const columns=new Map();
+  for(const column of shape.columns){
+    if(!column||typeof column!=="object"||Array.isArray(column)||typeof column.name!=="string"||!column.name.trim()||typeof column.type!=="string"||!column.type.trim()||typeof column.notNull!=="boolean"||columns.has(column.name))fail("STAGE_B_LEDGER_SCHEMA_DIVERGENCE");
+    const core=CORE_LEDGER_COLUMNS.find(c=>c.name===column.name);
+    if(core?(column.type!==core.type||column.notNull!==core.notNull):column.notNull!==false)fail("STAGE_B_LEDGER_SCHEMA_DIVERGENCE");
+    columns.set(column.name,column);
+  }
+  if(CORE_LEDGER_COLUMNS.some(c=>!columns.has(c.name)))fail("STAGE_B_LEDGER_SCHEMA_DIVERGENCE");
+  return {owner:shape.owner,columns:CORE_LEDGER_COLUMNS.map(c=>({...c})),primaryKey:shape.primaryKey};
+}
+export function schemaDigest(state) {return sha256(JSON.stringify({schema:state.schema,ledgerShape:canonicalizeLedgerShape(state.ledgerShape)}));}
 export function classifyState(state,bundle) {
   if(!state||!Array.isArray(state.ledger)||state.ledgerShape?.owner!=="postgres")fail("STAGE_B_LEDGER_SCHEMA_DIVERGENCE");
   const versions=bundle.migrations.map(m=>m.version);

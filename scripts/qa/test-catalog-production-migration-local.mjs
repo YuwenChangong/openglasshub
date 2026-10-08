@@ -5,7 +5,7 @@ import path from "node:path";
 import {randomUUID} from "node:crypto";
 import pg from "pg";
 import {withCanonicalBaselineDirectory,runLocalDisposableReplay,assertLocalReplayTarget} from "./local-disposable-supabase-replay.mjs";
-import {APPROVED_ARTIFACTS,STATE_SQL,IDENTITY_SQL,LEDGER_SQL,TOOLING_FILES,schemaDigest,sha256,loadCatalogBundle,executeCatalogMigrations} from "./lib/catalog-production-migration-transport.mjs";
+import {APPROVED_ARTIFACTS,STATE_SQL,IDENTITY_SQL,LEDGER_SQL,TOOLING_FILES,schemaDigest,classifyState,sha256,loadCatalogBundle,executeCatalogMigrations} from "./lib/catalog-production-migration-transport.mjs";
 import {createCatalogPostgresAdapter} from "./lib/catalog-production-migration-postgres-adapter.mjs";
 
 const root=path.resolve(fileURLToPath(new URL("../..",import.meta.url)));
@@ -22,9 +22,10 @@ try{
     const localConfig={host:"127.0.0.1",port:Number(url.port)+1,user:"postgres",password:"postgres",database:"postgres",ssl:false,connectionTimeoutMillis:5000,statement_timeout:10000};
     const admin=new pg.Client(localConfig);await admin.connect();
     try{
-      const initial=(await admin.query(STATE_SQL)).rows[0].state;
+      let initial=(await admin.query(STATE_SQL)).rows[0].state;
       check(initial.ledgerShape.owner==="postgres"&&initial.ledgerShape.primaryKey==="PRIMARY KEY (version)","CANONICAL_SUPABASE_LEDGER_OWNER_AND_KEY");
       check(initial.ledgerShape.columns.map(c=>c.name+":"+c.type).join()==="version:text,statements:text[],name:text","CANONICAL_LEDGER_INSERT_COLUMNS");
+      check(JSON.stringify(initial.ledgerShape.columns)==='[{"name":"version","type":"text","notNull":true},{"name":"statements","type":"text[]","notNull":false},{"name":"name","type":"text","notNull":false}]',"CORE_TYPES_AND_NULLABILITY_FROM_ACTUAL_CANONICAL_BASELINE");
       if(capture){
         const states=[schemaDigest(initial)];
         for(const m of migrations){await admin.query("BEGIN;");await admin.query(m.sql);await admin.query(LEDGER_SQL,[m.version,m.name,[m.sql]]);states.push(schemaDigest((await admin.query(STATE_SQL)).rows[0].state));await admin.query("ROLLBACK;");
@@ -40,6 +41,13 @@ try{
       const now=Date.parse("2026-10-06T00:00:00Z");
       const auth={format:"catalog-stage-b-authorization-v1",authorizationId:"stage-b-local-test",candidateHead:head,executionCheckoutSha256:"a".repeat(64),artifacts:APPROVED_ARTIFACTS,toolingHashes:Object.fromEntries(await Promise.all(TOOLING_FILES.map(async f=>[f,sha256(await readFile(path.join(root,f)))]))),targetClass:"SUPAVISOR_SESSION",serverIdentitySha256:sha256(JSON.stringify(identity)),windowStartUTC:"2026-10-06T00:00:00Z",windowEndUTC:"2026-10-06T00:45:00Z",maxAttempts:1,automaticRetry:false,readOnlyStatementBudget:30,writeTransactionBudget:2,humanGates:{productionDeploymentConfirmed:true,backupRecoveryReady:true,catalogWritesPaused:true,currentReaderCompatible:true}};
       const bundle=await loadCatalogBundle({root,receipt:auth,now,inspectSource:()=>({head,clean:true,checkoutIdentitySha256:auth.executionCheckoutSha256})});
+      check(classifyState(initial,bundle)===0,"ORIGINAL_REPOSITORY_STAGE0_CLASSIFIES_AS_0");
+      const coreDigest=schemaDigest(initial);
+      // Recreate only recorded pre-Stage-B ledger metadata in this owned loopback DB.
+      await admin.query("ALTER TABLE supabase_migrations.schema_migrations ADD COLUMN created_by text, ADD COLUMN idempotency_key text, ADD COLUMN rollback text[];");
+      initial=(await admin.query(STATE_SQL)).rows[0].state;
+      check(sha256(JSON.stringify(initial.ledgerShape))==="c3e6c73b7fac966679a2331fdc400c693588bc0ba7fd85274716fbdaafb5862a","RAW_LEDGER_SHAPE_MATCHES_OFFLINE_PRODUCTION_CAPTURE");
+      check(schemaDigest(initial)===coreDigest&&classifyState(initial,bundle)===0,"PRODUCTION_EQUIVALENT_STAGE0_CLASSIFIES_AS_0");
       const observedStates=new Map([[0,initial]]);
       const run=async fault=>{
         const trace={connects:0,queries:[],claims:0};
@@ -63,6 +71,19 @@ try{
       check(schemaDigest((await admin.query(STATE_SQL)).rows[0].state)===baseline&&(await admin.query(STATE_SQL)).rows[0].state.ledger.length===0,"LEDGER_FAILURE_ROLLS_BACK_REAL_DDL");
       const positive=await run();
       check(positive.result.status==="PASS"&&positive.result.committed===2,"EXACT_MIGRATION_1_THEN_2_ATOMIC_ORDER_AND_POST_VERIFY");
+      check(positive.result.readOnlyStatements<=30&&positive.result.writeTransactions===2,"READ_30_WRITE_2_BUDGETS_PRESERVED");
+      for(const stage of [0,1,2]){
+        const observed=observedStates.get(stage);
+        check(observed.ledgerShape.columns.length===6&&classifyState(observed,bundle)===stage,`CAPTURED_NULLABLE_LEDGER_EXTRAS_CLASSIFY_STAGE_${stage}`);
+        const coreOnly=structuredClone(observed);coreOnly.ledgerShape.columns=coreOnly.ledgerShape.columns.slice(0,3);
+        check(classifyState(coreOnly,bundle)===stage,`ORIGINAL_CORE_LEDGER_CLASSIFIES_STAGE_${stage}`);
+      }
+      for(const m of migrations){
+        const ddl=positive.trace.queries.indexOf(m.sql),insert=positive.trace.queries.indexOf(LEDGER_SQL,ddl);
+        check(ddl>0&&insert>ddl&&!positive.trace.queries.slice(ddl,insert).includes("COMMIT;"),"DDL_AND_LEDGER_INSERT_SHARE_TRANSACTION");
+        const commit=positive.trace.queries.indexOf("COMMIT;",insert);
+        check(commit>insert&&positive.trace.queries[commit+1]==="BEGIN READ ONLY;"&&positive.trace.queries[commit+2]===STATE_SQL,"POST_COMMIT_READ_ONLY_VERIFICATION_PRESERVED");
+      }
       const final=(await admin.query(STATE_SQL)).rows[0].state;
       check(final.ledger.length===2&&final.ledger.every((row,i)=>row.statements.length===1&&sha256(row.statements[0])===migrations[i].sha256),"ATOMIC_LEDGER_RECORDS_EXACT_EXECUTED_BYTES");
       const skipped=await run();check(skipped.result.status==="PASS"&&skipped.result.writeTransactions===0&&skipped.result.migrations.every(m=>!m.executed),"ALREADY_APPLIED_CONSISTENT_SKIPS");
