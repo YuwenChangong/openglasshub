@@ -10,6 +10,7 @@ import { prepareImport, reconcileImport, verifyImport, canonical, sha256, SNAPSH
 import { createImportPacket, loadImportBundle, executeImport, claimImportAuthorization, readImportReconciliation } from "./lib/catalog-production-import-executor.mjs";
 import { createImportPostgresAdapter } from "./lib/catalog-production-import-postgres.mjs";
 import { runLocalTimeoutChecks } from "./test-catalog-production-import-timeouts.mjs";
+import { runLocalSchemaDiagnosticChecks } from "./test-catalog-production-schema-diagnostics.mjs";
 import { prepareCanonicalCatalogImport } from "../lib/catalog-canonical-import.mjs";
 import { renderReleaseBAuthorizedOperation } from "../devices/schema-v1/disposable-postgres-transaction-client.mjs";
 
@@ -39,6 +40,7 @@ try {
         const identity = (await admin.query(IDENTITY_SQL)).rows[0];
         await runLocalTimeoutChecks({ config, admin, check });
         const identitySha256 = sha256(JSON.stringify({ database: identity.database, role: identity.role, port: identity.port, system_identifier: identity.system_identifier }));
+        receipt.schemaComponentTimings = await runLocalSchemaDiagnosticChecks({ config, admin, check, packet, prepared, identitySha256 });
         const adminId = randomUUID();
         await admin.query("INSERT INTO auth.users(id,email) VALUES ($1,$2);", [adminId, "stage-c-owned-local@example.invalid"]);
         await admin.query("UPDATE public.profiles SET role='admin' WHERE id=$1;", [adminId]);

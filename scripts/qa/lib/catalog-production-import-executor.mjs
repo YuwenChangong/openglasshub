@@ -17,6 +17,8 @@ const TOOL_PATHS = [
   "scripts/qa/test-catalog-production-import.mjs", "scripts/qa/test-catalog-production-import-local.mjs",
   "scripts/qa/test-catalog-production-import-audit.mjs", "supabase/migrations/20260909195640_device_schema_v1_foundation.sql",
   "scripts/qa/test-catalog-production-import-timeouts.mjs",
+  "scripts/qa/lib/catalog-production-schema-diagnostics.mjs", "scripts/qa/test-catalog-production-schema-diagnostics.mjs",
+  "docs/ops/catalog-stage-c-schema-component-diagnostics.md",
   "docs/ops/catalog-stage-c-import-execution.md", "docs/superpowers/plans/2026-10-04-catalog-production-migration-packet.md",
   "supabase/migrations/20261004003349_public_device_detail_v1.sql", "supabase/migrations/20261004014637_catalog_editor_presentation_v1.sql",
 ];
