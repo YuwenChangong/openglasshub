@@ -6,7 +6,7 @@ import path from "node:path";
 import pg from "pg";
 import { withCanonicalBaselineDirectory, runLocalDisposableReplay, assertLocalReplayTarget } from "./local-disposable-supabase-replay.mjs";
 import { IDENTITY_SQL, STATE_SQL } from "./lib/catalog-production-migration-transport.mjs";
-import { prepareImport, reconcileImport, canonical, sha256, SNAPSHOT_SQL, buildImportBody, safeImportFailure } from "./lib/catalog-production-import.mjs";
+import { prepareImport, reconcileImport, verifyImport, canonical, sha256, SNAPSHOT_SQL, buildImportBody, safeImportFailure } from "./lib/catalog-production-import.mjs";
 import { createImportPacket, loadImportBundle, executeImport, claimImportAuthorization, readImportReconciliation } from "./lib/catalog-production-import-executor.mjs";
 import { createImportPostgresAdapter } from "./lib/catalog-production-import-postgres.mjs";
 import { prepareCanonicalCatalogImport } from "../lib/catalog-canonical-import.mjs";
@@ -37,13 +37,17 @@ try {
         }
         const identity = (await admin.query(IDENTITY_SQL)).rows[0];
         const identitySha256 = sha256(JSON.stringify({ database: identity.database, role: identity.role, port: identity.port, system_identifier: identity.system_identifier }));
+        const adminId = randomUUID();
+        await admin.query("INSERT INTO auth.users(id,email) VALUES ($1,$2);", [adminId, "stage-c-owned-local@example.invalid"]);
+        await admin.query("UPDATE public.profiles SET role='admin' WHERE id=$1;", [adminId]);
         const snapshot = async () => (await admin.query(SNAPSHOT_SQL)).rows[0].snapshot;
         const initial = await snapshot();
         const fixedTime = Date.parse("2020-01-01T00:01:00Z");
         const read = await readImportReconciliation({ packet, prepared, session: admin, expectedServerIdentitySha256: identitySha256 });
         check(read.inserts.device === 24 && read.inserts.spec === 1488 && read.blockers.length === 0, "GENUINE_STATE2_INITIAL_RECONCILIATION");
-        const run = async ({ fault, identityDigest = identitySha256, reconciliationDigest, expire } = {}) => {
+        const run = async ({ fault, identityDigest = identitySha256, reconciliationDigest, expire, actor = null } = {}) => {
           const baseline = await snapshot();
+          baseline.auditActor = actor;
           const plan = reconcileImport(prepared, baseline);
           const importBody = plan.blockers.length ? null : buildImportBody(prepared, plan);
           const authorizationId = "stage-c-local-" + randomUUID();
@@ -57,7 +61,10 @@ try {
           class OwnedClient {
             constructor() { this.client = new pg.Client(config); }
             on(...args) { return this.client.on(...args); }
-            async connect() { trace.connects++; await this.client.connect(); }
+            async connect() {
+              trace.connects++; await this.client.connect();
+              if (actor) await this.client.query("SELECT set_config('request.jwt.claims',$1,false);", [JSON.stringify({ sub: actor, role: "authenticated" })]);
+            }
             async query(q) {
               trace.queries.push(q.text); if (q.text === SNAPSHOT_SQL) trace.snapshots++;
               if (q.text === importBody) trace.imports++;
@@ -92,14 +99,27 @@ try {
         check(!canonical(failure.result).includes("credential"), "SAFE_DIAGNOSTIC_SURVIVES_RESULT_WRAPPER");
         const expired = await run({ expire: true });
         check(expired.result.status === "BLOCKED" && !expired.result.commitDispatched && expired.result.rollback === "PASS" && canonical(await snapshot()) === canonical(initial), "WINDOW_EXPIRES_BEFORE_COMMIT_ROLLBACK_NOT_AMBIGUITY");
+        const actorInitial = { ...initial, auditActor: adminId };
+        const generatedInserts = await run({ actor: adminId, fault: async ({ q, result, trace }) => {
+          if (q.text === SNAPSHOT_SQL && trace.snapshots === 3) {
+            const value = result.rows[0].snapshot;
+            check(value.auditEvents.length === 24 && value.auditEvents.every(event => event.action === "insert" && event.actor_id === adminId), "GENUINE_EXPECTED_DEVICE_INSERT_AUDIT_EVENTS");
+            check(verifyImport(prepared, actorInitial, value, reconcileImport(prepared, actorInitial)), "EXPECTED_INSERT_EVENT_CONTENT_AND_TARGETS_VERIFIED");
+            throw new Error("OWNED_LOCAL_INSERT_AUDIT_ROLLBACK");
+          }
+        } });
+        check(generatedInserts.result.status === "BLOCKED" && generatedInserts.result.rollback === "PASS" && canonical(await snapshot()) === canonical(initial), "GENUINE_INSERT_EVENTS_AND_FACTS_ROLL_BACK_TOGETHER");
         const canonicalPrepared = await prepareCanonicalCatalogImport({ root, publication: JSON.parse(await readFile(path.join(root, "artifacts/qa/product-publication-cohort-v1/publication-contract.json"), "utf8")) });
         for (const row of canonicalPrepared.devices) await admin.query(renderReleaseBAuthorizedOperation({ entity: "device", row: { ...row, schema_type: null } }));
         const legacyBaseline = await snapshot();
         check(legacyBaseline.devices.length === 24 && legacyBaseline.devices.every(d => d.schema_type === null), "EXISTING_24_LEGACY_DEVICES_WITH_NULL_SCHEMA_METADATA");
-        const good = await run();
+        check(legacyBaseline.auditEvents.length === 0, "LEGITIMATE_PRE_AUDIT_ROWS_HAVE_NO_FABRICATED_EVENTS");
+        const good = await run({ actor: adminId });
         check(good.result.status === "PASS" && good.result.postCommitVerification === "PASS" && good.result.writeTransactions === 1 && good.result.readStatements === 9, "INITIAL_ATOMIC_IMPORT_POSTCOMMIT_BUDGETS");
         check(good.result.inserts.device === 0 && good.result.nullSchemaTypeUpdates === 24, "NULL_SCHEMA_ONLY_NO_EXISTING_DEVICE_REPLACEMENT");
         const stored = await snapshot();
+        check(stored.auditEvents.length === 24 && stored.auditEvents.every(event => event.entity_type === "device" && event.action === "update"
+          && event.actor_id === adminId && canonical(event.changed_fields) === canonical({ fields: ["schema_type"] })), "EXACT_REAL_TRIGGER_EVENTS_FOR_NULL_SCHEMA_INITIALIZATION");
         check(stored.devices.length === 24 && stored.specs.length === 1488, "EXACT_24_DEVICES_1488_SPEC_IDENTITIES");
         check(stored.devices.every(d => !d.catalog_normalized), "IMPORT_WITHOUT_ACTIVATION");
         check(stored.specs.filter(s => ["KNOWN", "CONFLICT"].includes(s.state)).length === 829, "829_KNOWN_SOURCE_VALUES_RECONCILED_ZERO_DROPS");
@@ -112,16 +132,47 @@ try {
         await admin.query("ROLLBACK;");
         check(legacy.rows.length === 1 && legacy.rows[0].full_specs && legacy.rows[0].key_specs, "CURRENT_ANON_LEGACY_READER_GRANTS_AND_JSON_PRESERVED");
         const known = stored.specs.filter(s => s.state === "KNOWN" && s.value_text !== null);
-        const adminId = randomUUID();
-        await admin.query("INSERT INTO auth.users(id,email) VALUES ($1,$2);", [adminId, "stage-c-owned-local@example.invalid"]);
-        await admin.query("UPDATE public.profiles SET role='admin' WHERE id=$1;", [adminId]);
-        await admin.query("UPDATE public.device_specs SET value_text='LOCAL_ADMIN_VALUE',updated_by=$1,presentation=$2 WHERE id=$3;", [adminId, { labelEn: "Admin label", labelZh: "Local label", keySpec: true }, known[0].id]);
+        await admin.query("BEGIN; SET LOCAL ROLE authenticated;");
+        await admin.query("SELECT set_config('request.jwt.claims',$1,true);", [JSON.stringify({ sub: adminId, role: "authenticated" })]);
+        await admin.query("SELECT public.save_catalog_spec($1,$2,$3);", [known[0].device_id, known[0].id,
+          { valueText: "LOCAL_ADMIN_VALUE", presentation: { labelEn: "Admin label", labelZh: "Local label", keySpec: true, groupKey: "owned_local_group" } }]);
+        await admin.query("SELECT public.save_catalog_group($1,$2,$3);", [known[0].device_id, "owned_local_group", { groupEn: "Owned local group" }]);
+        await admin.query("COMMIT;");
         await admin.query("UPDATE public.device_specs SET value_text='LOCAL_RICHER_VALUE' WHERE id=$1;", [known[1].id]);
         await admin.query("UPDATE public.devices SET publication_status='hidden',short_description='LOCAL_RICHER_COPY' WHERE slug='xreal-air';");
         const adminBaseline = await snapshot(); const adminPlan = reconcileImport(prepared, adminBaseline);
+        const adminProvenance = adminPlan.audit.provenance.find(row => row.entity === "spec" && row.identity === canonical([known[0].deviceSlug, known[0].definitionKey, known[0].region, known[0].variant]));
+        check(adminProvenance?.classification === "RECORDED_ADMIN_WRITE" && adminProvenance.eventCount === 2, "GENUINE_ADMIN_SPEC_AND_GROUP_RPC_PROVENANCE");
+        check(!canonical(adminPlan).includes(adminId) && !canonical(adminPlan).includes("LOCAL_ADMIN_VALUE"), "NO_RAW_ACTOR_OR_VALUE_IN_RECONCILIATION_REPORT");
         check(adminPlan.actions.some(a => a.classification === "PRESERVE_ADMIN_VALUE") && adminPlan.actions.some(a => a.classification === "PRESERVE_EXISTING_RICHER_VALUE"), "DETERMINISTIC_ADMIN_RICHER_CLASSIFICATIONS");
         const preserve = await run();
         check(preserve.result.status === "PASS" && canonical(await snapshot()) === canonical(adminBaseline), "ADMIN_FACTS_PRESENTATION_COPY_AND_HIDDEN_STATUS_PRESERVED");
+        const auditFault = async (stage, alter) => run({ fault: async ({ q, result, trace }) => {
+          if (q.text === SNAPSHOT_SQL && trace.snapshots === stage) alter(result.rows[0].snapshot);
+        } });
+        const alterPayload = value => { value.auditEvents[0].changed_fields = { fields: ["name"] }; };
+        const auditApprovalDrift = await auditFault(1, alterPayload);
+        check(auditApprovalDrift.result.status === "BLOCKED" && auditApprovalDrift.result.writeTransactions === 0, "SAME_COUNT_AUDIT_TAMPER_INVALIDATES_APPROVED_RECONCILIATION");
+        const auditLockedDrift = await auditFault(2, alterPayload);
+        check(auditLockedDrift.result.status === "BLOCKED" && auditLockedDrift.result.importAttempts === 0, "LOCKED_AUDIT_CONTENT_DRIFT_BLOCKS_IMPORT");
+        for (const [label, alter] of [
+          ["SAME_COUNT_AUDIT_CONTENT_TAMPER_PRECOMMIT", alterPayload],
+          ["AUDIT_DELETION_PRECOMMIT", value => { value.auditEvents.shift(); }],
+          ["AUDIT_SUBSTITUTION_PRECOMMIT", value => { value.auditEvents[0].id = randomUUID(); }],
+          ["UNEXPECTED_NEW_AUDIT_EVENT_PRECOMMIT", value => { value.auditEvents.push({ ...value.auditEvents[0], id: randomUUID() }); }],
+        ]) {
+          const failure = await auditFault(3, alter);
+          check(failure.result.status === "BLOCKED" && failure.result.rollback === "PASS" && !failure.result.commitDispatched
+            && failure.result.diagnostic.failureClass.startsWith("IMPORT_AUDIT_"), label);
+          check(canonical(await snapshot()) === canonical(adminBaseline), label + "_NO_REAL_CHANGES");
+        }
+        const auditPostFailure = await auditFault(4, alterPayload);
+        check(auditPostFailure.result.status === "COMMITTED_VERIFICATION_FAILED" && auditPostFailure.result.committed
+          && auditPostFailure.result.diagnostic.failureClass === "IMPORT_AUDIT_EXISTING_EVENT_CHANGED_OR_REMOVED", "POSTCOMMIT_AUDIT_CONTENT_RECHECK_NOT_FALSE_PASS");
+        const contradictoryActor = await auditFault(1, value => {
+          value.auditEvents.find(event => event.entity_type === "device_spec" && event.entity_id === known[0].id).actor_id = randomUUID();
+        });
+        check(contradictoryActor.result.status === "BLOCKED" && contradictoryActor.result.writeTransactions === 0, "CONTRADICTORY_GENUINE_RPC_ACTOR_EVIDENCE_REJECTED");
         await admin.query("UPDATE public.device_specs SET state='NOT_DISCLOSED',value_text=null,raw_value='Not disclosed' WHERE id=$1;", [known[2].id]);
         const unknownBaseline = await snapshot();
         const emptyFail = await run();

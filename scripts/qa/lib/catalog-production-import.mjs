@@ -56,7 +56,9 @@ export const SNAPSHOT_SQL = `SELECT jsonb_build_object(
   'sources', (SELECT coalesce(jsonb_agg(x ORDER BY x.url),'[]') FROM (SELECT * FROM public.device_sources ORDER BY url LIMIT 50001) x),
   'sourceLinks', (SELECT coalesce(jsonb_agg(x ORDER BY x."deviceSlug",x."sourceUrl"),'[]') FROM (SELECT l.*,d.slug AS "deviceSlug",s.url AS "sourceUrl" FROM public.device_source_links l JOIN public.devices d ON d.id=l.device_id JOIN public.device_sources s ON s.id=l.source_id ORDER BY d.slug,s.url LIMIT 50001) x),
   'specs', (SELECT coalesce(jsonb_agg(x ORDER BY x."deviceSlug",x."definitionKey",x.region_key,x.variant_key),'[]') FROM (SELECT s.*,d.slug AS "deviceSlug",f.key AS "definitionKey" FROM public.device_specs s JOIN public.devices d ON d.id=s.device_id JOIN public.device_spec_definitions f ON f.id=s.spec_definition_id ORDER BY d.slug,f.key,s.region_key,s.variant_key LIMIT 50001) x),
-  'evidence', (SELECT coalesce(jsonb_agg(x ORDER BY x."deviceSlug",x."definitionKey",x.region,x.variant,x."sourceUrl",x.claimed_value),'[]') FROM (SELECT e.*,d.slug AS "deviceSlug",f.key AS "definitionKey",s.region_key AS region,s.variant_key AS variant,src.url AS "sourceUrl" FROM public.device_spec_evidence e JOIN public.device_specs s ON s.id=e.device_spec_id JOIN public.devices d ON d.id=s.device_id JOIN public.device_spec_definitions f ON f.id=s.spec_definition_id JOIN public.device_sources src ON src.id=e.source_id ORDER BY d.slug,f.key,s.region_key,s.variant_key,src.url,e.claimed_value LIMIT 50001) x)
+  'evidence', (SELECT coalesce(jsonb_agg(x ORDER BY x."deviceSlug",x."definitionKey",x.region,x.variant,x."sourceUrl",x.claimed_value),'[]') FROM (SELECT e.*,d.slug AS "deviceSlug",f.key AS "definitionKey",s.region_key AS region,s.variant_key AS variant,src.url AS "sourceUrl" FROM public.device_spec_evidence e JOIN public.device_specs s ON s.id=e.device_spec_id JOIN public.devices d ON d.id=s.device_id JOIN public.device_spec_definitions f ON f.id=s.spec_definition_id JOIN public.device_sources src ON src.id=e.source_id ORDER BY d.slug,f.key,s.region_key,s.variant_key,src.url,e.claimed_value LIMIT 50001) x),
+  'auditEvents', (SELECT coalesce(jsonb_agg(x ORDER BY x.created_at,x.id),'[]') FROM (SELECT * FROM public.catalog_audit_events ORDER BY created_at,id LIMIT 50001) x),
+  'auditActor', auth.uid()
 ) AS snapshot;`;
 
 const rawText = row => { const value = row.raw_value ?? row.rawValue; return value === null || value === undefined ? null : String(value); };
@@ -72,6 +74,114 @@ function indexSnapshot(snapshot) {
     if (index[entity].size !== rows.length) fail("IMPORT_SNAPSHOT_DUPLICATE_IDENTITY");
   }
   return index;
+}
+
+// PostgreSQL timestamps retain microseconds. A UUID only breaks display ties;
+// it does not establish which of two same-time administrator writes came last.
+function auditTime(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/.test(value) || !Number.isFinite(Date.parse(value))) return null;
+  const micros = (value.match(/\.(\d+)/)?.[1] ?? "").padEnd(6, "0");
+  return BigInt(Date.parse(value)) * 1000n + BigInt(micros.slice(3));
+}
+function auditIndex(snapshot) {
+  if (!Array.isArray(snapshot.auditEvents) || snapshot.auditEvents.length > 50000 || !(snapshot.auditActor === null || typeof snapshot.auditActor === "string")) fail("IMPORT_AUDIT_SNAPSHOT_INVALID_OR_LIMIT");
+  const index = new Map();
+  for (const event of snapshot.auditEvents) {
+    if (!event || typeof event.id !== "string" || index.has(event.id) || !(event.actor_id === null || typeof event.actor_id === "string")
+      || typeof event.entity_id !== "string" || typeof event.entity_type !== "string" || typeof event.action !== "string"
+      || !event.changed_fields || typeof event.changed_fields !== "object" || Array.isArray(event.changed_fields) || auditTime(event.created_at) === null) fail("IMPORT_AUDIT_SNAPSHOT_INVALID_OR_LIMIT");
+    index.set(event.id, event);
+  }
+  return index;
+}
+function reconcileAudit(prepared, snapshot, actions) {
+  const events = [...auditIndex(snapshot).values()];
+  const deviceIds = new Map(snapshot.devices.map(row => [row.id, row]));
+  const specIds = new Map(snapshot.specs.map(row => [row.id, row]));
+  const groups = new Map(snapshot.definitions.map(row => [row.key, row.group_key]));
+  const associated = new Map(), issues = [], blockers = [];
+  const targets = new Map(actions.filter(a => ["device", "spec"].includes(a.entity)).map(a => [a.entity + a.identity, a]));
+  const attach = (entity, row, event) => {
+    const identity = key(entity, row), id = entity + identity;
+    if (!targets.has(id)) return;
+    if (!associated.has(id)) associated.set(id, []);
+    associated.get(id).push(event);
+  };
+  const issue = (entity, row, classification, alwaysBlock = false) => {
+    const identity = key(entity, row), action = targets.get(entity + identity);
+    if (!action) return;
+    const affectsProposedWrite = action.classification === "INITIALIZE_NULL_SCHEMA_ONLY" || action.classification.startsWith("INSERT_");
+    issues.push({ entity, identity, classification, affectsProposedWrite });
+    if (alwaysBlock || affectsProposedWrite) blockers.push({ entity, identity, classification: "BLOCK_" + classification });
+  };
+  let unlinkedEventCount = 0;
+  for (const event of events) {
+    const entity = event.entity_type === "device" ? "device" : event.entity_type === "device_spec" ? "spec" : null;
+    const row = entity === "device" ? deviceIds.get(event.entity_id) : entity === "spec" ? specIds.get(event.entity_id) : null;
+    if (!row) { unlinkedEventCount++; continue; }
+    const fields = event.changed_fields.fields;
+    const fieldList = Object.keys(event.changed_fields).length === 1 && Object.hasOwn(event.changed_fields, "fields")
+      && (fields === null || Array.isArray(fields) && fields.every(field => typeof field === "string") && new Set(fields).size === fields.length);
+    if (entity === "spec" && event.action === "admin_save" && fieldList && event.actor_id !== null) attach(entity, row, event);
+    else if (entity === "device" && ["insert", "update", "delete"].includes(event.action) && fieldList && Array.isArray(fields) && fields.length && event.actor_id !== null) attach(entity, row, event);
+    else if (entity === "device" && event.action === "admin_group_save" && Object.keys(event.changed_fields).sort().join(",") === "count,group"
+      && typeof event.changed_fields.group === "string" && Number.isSafeInteger(event.changed_fields.count) && event.changed_fields.count >= 0 && event.actor_id !== null) {
+      attach(entity, row, event);
+      // The RPC stores a device/group/count, not historical spec membership.
+      // Attribute it only when the exact write time and full group count agree.
+      const members = snapshot.specs.filter(spec => spec.device_id === row.id
+        && (spec.presentation?.groupKey ?? groups.get(spec.definitionKey)) === event.changed_fields.group
+        && auditTime(spec.updated_at) === auditTime(event.created_at));
+      if (members.length === event.changed_fields.count) for (const spec of members) attach("spec", spec, event);
+      else issue(entity, row, "AUDIT_GROUP_MEMBERSHIP_UNVERIFIABLE");
+    } else issue(entity, row, "AUDIT_ACTION_UNVERIFIABLE");
+  }
+  const provenance = [];
+  for (const entity of ["device", "spec"]) for (const row of snapshot[collections[entity]]) {
+    const identity = key(entity, row), id = entity + identity;
+    if (!targets.has(id)) continue;
+    const history = associated.get(id) ?? [];
+    let classification = entity === "spec" && row.updated_by ? "ADMIN_MARKER_UNAUDITED" : "UNAUDITED_NO_PROOF";
+    if (history.length) {
+      classification = entity === "device" ? "RECORDED_DEVICE_HISTORY" : "AUDIT_HISTORY_ONLY";
+      if (entity === "spec") {
+        const latestTime = history.reduce((latest, event) => auditTime(event.created_at) > latest ? auditTime(event.created_at) : latest, auditTime(history[0].created_at));
+        const latest = history.filter(event => auditTime(event.created_at) === latestTime);
+        if (auditTime(row.updated_at) === latestTime) {
+          if (new Set(latest.map(event => event.actor_id)).size !== 1) { classification = "AUDIT_OWNERSHIP_AMBIGUOUS"; issue(entity, row, classification, true); }
+          else if (latest[0].actor_id !== row.updated_by) { classification = "AUDIT_ACTOR_CONTRADICTION"; issue(entity, row, classification, true); }
+          else classification = "RECORDED_ADMIN_WRITE";
+        }
+      }
+    }
+    provenance.push({ entity, identity, classification, eventCount: history.length });
+  }
+  return { summary: { eventCount: events.length, eventsSha256: sha256(canonical(snapshot.auditEvents)), unlinkedEventCount, provenance, issues }, blockers };
+}
+
+export function verifyAudit(before, after, plan) {
+  const old = auditIndex(before), next = auditIndex(after);
+  if (before.auditActor !== after.auditActor) fail("IMPORT_AUDIT_SESSION_ACTOR_CHANGED");
+  for (const [id, event] of old) if (canonical(next.get(id)) !== canonical(event)) fail("IMPORT_AUDIT_EXISTING_EVENT_CHANGED_OR_REMOVED");
+  const added = [...next.values()].filter(event => !old.has(event.id));
+  const expected = [];
+  if (after.auditActor !== null) for (const row of after.devices) {
+    const action = plan.actions.find(a => a.entity === "device" && a.identity === key("device", row));
+    if (!action || !["INSERT_MISSING", "INITIALIZE_NULL_SCHEMA_ONLY"].includes(action.classification)) continue;
+    const previous = before.devices.find(device => device.id === row.id);
+    const fields = Object.keys(row).filter(field => !["created_at", "updated_at"].includes(field)
+      && (!previous || canonical(previous[field]) !== canonical(row[field]))).sort();
+    if (fields.length) expected.push({ actor_id: after.auditActor, entity_type: "device", entity_id: row.id,
+      action: previous ? "update" : "insert", changed_fields: { fields }, time: auditTime(row.updated_at) });
+  }
+  if (added.length !== expected.length) fail("IMPORT_AUDIT_UNEXPECTED_EVENT");
+  for (const event of added) {
+    const match = expected.findIndex(item => item.time === auditTime(event.created_at) && canonical({ actor_id: event.actor_id, entity_type: event.entity_type,
+      entity_id: event.entity_id, action: event.action, changed_fields: event.changed_fields }) === canonical({ actor_id: item.actor_id, entity_type: item.entity_type,
+      entity_id: item.entity_id, action: item.action, changed_fields: item.changed_fields }));
+    if (match === -1) fail("IMPORT_AUDIT_UNEXPECTED_EVENT");
+    expected.splice(match, 1);
+  }
 }
 
 export function reconcileImport(prepared, snapshot) {
@@ -101,12 +211,14 @@ export function reconcileImport(prepared, snapshot) {
     if (classification.startsWith("BLOCK_")) blockers.push({ entity, identity, classification });
     actions.push({ entity, identity, classification });
   }
+  const audit = reconcileAudit(prepared, snapshot, actions); blockers.push(...audit.blockers);
   const writeSetSha256 = blockers.length ? null : sha256(buildImportBody(prepared, { actions, blockers }));
-  const report = { sourceSha256: prepared.sourceSha256, knownValues: prepared.knownValues, snapshotSha256: sha256(canonical(snapshot)), writeSetSha256, actions, blockers, inserts, nullSchemaType };
+  const report = { sourceSha256: prepared.sourceSha256, knownValues: prepared.knownValues, snapshotSha256: sha256(canonical(snapshot)), writeSetSha256, actions, blockers, inserts, nullSchemaType, audit: audit.summary };
   return { ...report, reconciliationSha256: sha256(canonical(report)) };
 }
 
 export function verifyImport(prepared, before, after, plan) {
+  verifyAudit(before, after, plan);
   const oldIndex = indexSnapshot(before), newIndex = indexSnapshot(after);
   for (const entity of Object.keys(TABLES)) {
     if (newIndex[entity].size - oldIndex[entity].size !== plan.inserts[entity]) fail("IMPORT_POSTCHECK_INSERT_COUNT");
@@ -146,6 +258,7 @@ const FAILURE_CODES = new Set([
   "IMPORT_VALIDATED_BUNDLE_REQUIRED", "IMPORT_WINDOW_EXPIRED", "IMPORT_READ_BUDGET_EXHAUSTED", "IMPORT_SCHEMA_RESPONSE_INVALID", "IMPORT_SNAPSHOT_RESPONSE_INVALID",
   "IMPORT_SERVER_IDENTITY_MISMATCH", "IMPORT_PREWRITE_CONFLICT", "IMPORT_RECONCILIATION_NOT_APPROVED", "IMPORT_PREWRITE_CONCURRENT_CHANGE", "IMPORT_AUDIT_WRITE_SCOPE_EXCEEDED",
   "IMPORT_CA_TRUST_INVALID", "IMPORT_SESSION_POOLER_SOURCE_INVALID", "IMPORT_RECONNECT_FORBIDDEN", "IMPORT_CLI_SCOPE_INVALID",
+  "IMPORT_AUDIT_SNAPSHOT_INVALID_OR_LIMIT", "IMPORT_AUDIT_SESSION_ACTOR_CHANGED", "IMPORT_AUDIT_EXISTING_EVENT_CHANGED_OR_REMOVED", "IMPORT_AUDIT_UNEXPECTED_EVENT",
 ]);
 export function safeImportFailure(error, operation, durationMs, connected) {
   const sqlstate = /^[0-9A-Z]{5}$/.test(error?.code ?? "") ? error.code : "UNKNOWN";

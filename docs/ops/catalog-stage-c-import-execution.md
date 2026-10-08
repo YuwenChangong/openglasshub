@@ -101,6 +101,62 @@ human review. Stop if any blocker exists. A report from local fixtures cannot
 approve Production. Preserve the write freeze through execution: any changed
 snapshot invalidates the approved digest and stops before import.
 
+### Audit Content And Evidence Limits
+
+The foundation defines UUID `id`, nullable `actor_id` (profile FK), text
+`entity_type`, UUID `entity_id`, text `action`, JSONB `changed_fields`, and
+`created_at`. Entity references are not foreign keys. Events are ordered by
+`created_at,id`; UUID ordering is only a deterministic tie-breaker, not proof
+of the last actor. Timestamp comparisons retain PostgreSQL microseconds.
+RLS restricts authenticated reads/inserts to catalog admins; anon has no access.
+An append-only trigger forbids event UPDATE/DELETE. These unchanged schema
+contracts are checked by the existing state-2 digest, not new migrations.
+
+The same snapshot SELECT now includes all audit event rows (at most 50,000)
+and `auth.uid()` in private memory. Keeping even unrelated/unlinked events
+prevents historical substitution or deletion from escaping the approval hash.
+No profile/user query, raw actor ID or event payload enters the safe report.
+The report adds `audit.eventCount`, `audit.eventsSha256`,
+`audit.unlinkedEventCount`, target `audit.provenance`, and safe `audit.issues`.
+The entire private snapshot, including audit bytes and session actor, is bound
+to `reconciliationSha256` and rechecked under the existing lock. No extra SELECT
+is needed: reconciliation remains three, execution remains at most nine.
+
+Actual writers store changed-field names, not old/new values:
+
+- `save_catalog_spec`: `device_spec` + exact spec UUID, `admin_save`, input
+  field names; actor and `updated_by` are set to the same authenticated actor.
+- `save_catalog_group`: `device` + exact device UUID, `admin_group_save`,
+  group/count. It does not store historical spec membership. Attribute to a
+  spec only when device, current group, exact write time and complete count agree.
+- Device trigger: `device` + exact UUID, `insert/update/delete`, changed fields
+  excluding timestamps. It emits nothing when `auth.uid()` is NULL.
+
+An exact-time latest spec event with a different `updated_by` is
+`BLOCK_AUDIT_ACTOR_CONTRADICTION`; different same-time actors are
+`BLOCK_AUDIT_OWNERSHIP_AMBIGUOUS`. Wrong-object events never prove target
+ownership. Unverifiable actions/group membership block proposed NULL metadata
+initialization; untouched historical rows remain preserved with safe issues.
+Unlinked events may describe deleted or historical objects: do not fabricate a
+mapping or classify them as corruption merely because linkage is absent.
+
+`UNAUDITED_NO_PROOF`, `ADMIN_MARKER_UNAUDITED`, and `AUDIT_HISTORY_ONLY` are
+explicit evidence limitations, not proof that an administrator never edited.
+`RECORDED_ADMIN_WRITE` means matching recorded actor/link/time only. The schema
+cannot prove historical old/new factual values, immutable past admin roles, or
+the membership of an older group after subsequent changes. Preserve such rows;
+never synthesize audit evidence or use absence to authorize YAML overwrite.
+
+Before COMMIT, every existing event must be byte-equivalent at the JSON-value
+level. New events must exactly match the accepted device trigger's action,
+target UUID, session actor, changed-field set and write timestamp for actual
+missing-device INSERTs or NULL schema initializations. Direct fact imports do
+not call either admin RPC. A NULL session actor therefore permits zero new
+events; no explicit audit insert is issued. Unexpected events fail closed.
+After COMMIT, recheck both the permitted effects and the exact precommit event
+identities/content, including newly generated events. Count ceilings remain an
+additional bound, not the provenance proof. Raw audit content is never persisted.
+
 ## Human Authorization And Budgets
 
 Confirm backup/recovery readiness for this candidate, recovery operator ready,
@@ -214,6 +270,24 @@ rows, identity conflicts, approval drift, durable consumption, rollback after
 real inserts, window expiry, postcommit failure, commit-ACK ambiguity, and legacy
 anon JSON access. Test authorizations use a fixed 2020 clock and local identity;
 they are not live Production authorization receipts.
+
+Run `node scripts/qa/test-catalog-production-import-audit.mjs` as well. Its
+initial nine regressions were RED (0/9) on the pre-audit implementation, including
+same-count tampering, deletion/substitution, wrong linkage and actor contradiction.
+The extended suite covers ambiguous ordering, precise timestamps, group evidence
+limits, safe reports, event limits and permitted trigger effects. The genuine
+local rehearsal now uses owned authenticated admin RPCs and real device audit
+triggers, with prewrite/locked/precommit/postcommit audit fault injection.
+No Stage B executor behavior or frozen YAML is changed.
+
+After the tooling/test/docs commit, preserve the earlier preparation packet as
+historical metadata and generate a new `execution-packet.json` from the final
+clean HEAD using the command above. Audit contract
+`catalog-stage-c-audit-content-v1` and `maximumAuditEvents=50000` are explicit
+packet fields; foundation audit schema and the audit regression suite are also
+hashed inputs. Packet generation follows the commit, so the ignored metadata
+does not create a circular candidate/packet identity. An old packet must fail
+drift validation and cannot authorize this corrected executor.
 
 Production counters for preparation remain zero. Release readiness here means
 tooling is ready for separate reconciliation/authorization, not that current

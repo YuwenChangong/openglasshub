@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFile, open as openFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { IDENTITY_SQL, STATE_SQL, schemaDigest } from "./catalog-production-migration-transport.mjs";
-import { prepareImport, reconcileImport, verifyImport, canonical, sha256, fail, TABLES, SNAPSHOT_SQL, safeImportFailure, buildImportBody } from "./catalog-production-import.mjs";
+import { prepareImport, reconcileImport, verifyImport, verifyAudit, canonical, sha256, fail, TABLES, SNAPSHOT_SQL, safeImportFailure, buildImportBody } from "./catalog-production-import.mjs";
 
 const validated = new WeakSet();
 const TOOL_PATHS = [
@@ -15,6 +15,7 @@ const TOOL_PATHS = [
   "artifacts/qa/product-publication-cohort-v1/publication-contract.json", "artifacts/qa/catalog-migration-packet-v1/manifest.json",
   "artifacts/qa/catalog-migration-packet-v1/canonical-import.sql",
   "scripts/qa/test-catalog-production-import.mjs", "scripts/qa/test-catalog-production-import-local.mjs",
+  "scripts/qa/test-catalog-production-import-audit.mjs", "supabase/migrations/20260909195640_device_schema_v1_foundation.sql",
   "docs/ops/catalog-stage-c-import-execution.md", "docs/superpowers/plans/2026-10-04-catalog-production-migration-packet.md",
   "supabase/migrations/20261004003349_public_device_detail_v1.sql", "supabase/migrations/20261004014637_catalog_editor_presentation_v1.sql",
 ];
@@ -39,6 +40,7 @@ export async function createImportPacket(root) {
     targets: { devices: 24, specs: 1488, knownValues: prepared.knownValues, reviewedConflictSpecs: 7 },
     maximumInserts: Object.fromEntries(Object.keys(TABLES).map(entity => [entity, prepared.operations.filter(op => op.entity === entity).length])),
     maximumNullSchemaTypeUpdates: 24, connectionsMax: 1, readStatementsMax: 9, writeTransactionsMax: 1,
+    auditContract: "catalog-stage-c-audit-content-v1", maximumAuditEvents: 50000,
     automaticRetry: false, activationAllowed: false, productionConflictCount: "UNKNOWN" };
 }
 
@@ -127,6 +129,7 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
     await session.query("COMMIT;", [], Math.min(35000, commitRemaining)); transaction = false; committed = true; result.committed = true;
     await query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;", "BEGIN"); transaction = true;
     await state(); const postCommit = await snapshot("POSTCOMMIT"); mark("VERIFY"); verifyImport(bundle.prepared, before, postCommit, plan);
+    verifyAudit(after, postCommit, { actions: [] });
     await query("COMMIT;", "COMMIT"); transaction = false;
     result.status = "PASS"; result.postCommitVerification = "PASS";
     result.reconciliationSha256 = plan.reconciliationSha256;

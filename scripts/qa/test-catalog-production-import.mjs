@@ -13,7 +13,7 @@ const prepared = await prepareImport(root);
 assert.equal(prepared.sourceSha256, "3aa86ad35fc021f24056774ec4afda676035b1624ed58321c370ee6ab082368a");
 assert.equal(prepared.knownValues, 829);
 assert.equal(prepared.operations.filter(op => op.entity === "spec").length, 1488);
-const empty = { devices: [], definitions: [], sources: [], sourceLinks: [], specs: [], evidence: [] };
+const empty = { devices: [], definitions: [], sources: [], sourceLinks: [], specs: [], evidence: [], auditEvents: [], auditActor: null };
 const initial = reconcileImport(prepared, empty);
 assert.equal(initial.blockers.length, 0);
 assert.equal(initial.inserts.spec, 1488);
