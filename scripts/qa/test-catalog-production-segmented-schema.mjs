@@ -78,7 +78,7 @@ export async function runLocalSegmentedSchemaChecks({ config, admin, check, pack
     ["RLS", "ALTER TABLE public.device_specs DISABLE ROW LEVEL SECURITY;"],
     ["POLICY", "CREATE POLICY owned_segmented_probe ON public.device_specs FOR SELECT TO anon USING(false);"],
     ["TRIGGER", "ALTER TABLE public.devices DISABLE TRIGGER USER;"],
-    ["FUNCTION", "ALTER FUNCTION public.is_catalog_admin() OWNER TO anon;"],
+    ["FUNCTION", "ALTER FUNCTION public.is_catalog_admin() COST 101;"],
     ["LEDGER_MISMATCH", "UPDATE supabase_migrations.schema_migrations SET name='owned_wrong_name' WHERE version='20261004003349';"],
     ["UNEXPECTED_MIGRATION_STATEMENT", "UPDATE supabase_migrations.schema_migrations SET statements=statements||ARRAY['OWNED_UNEXPECTED_SQL'] WHERE version='20261004003349';"],
   ];
