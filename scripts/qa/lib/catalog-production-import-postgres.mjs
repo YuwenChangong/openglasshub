@@ -3,7 +3,9 @@ import { prepareCatalogConnection } from "./catalog-production-migration-postgre
 import { fail } from "./catalog-production-import.mjs";
 
 export async function prepareImportConnection(environment) {
-  const config = await prepareCatalogConnection({ environment });
+  let config;
+  try { config = await prepareCatalogConnection({ environment }); }
+  catch (error) { fail(error?.code === "STAGE_B_CA_TRUST_INVALID" ? "IMPORT_CA_TRUST_INVALID" : "IMPORT_SESSION_POOLER_SOURCE_INVALID"); }
   return { ...config, statement_timeout: 120000, query_timeout: 125000, application_name: "catalog-stage-c-import" };
 }
 export function createImportPostgresAdapter({ config, Client = pg.Client }) {

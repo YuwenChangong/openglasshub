@@ -14,7 +14,7 @@ export const canonical = value => JSON.stringify(value, (_, item) => item && typ
   ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
 export const key = (entity, row) => canonical(entity === "device" ? [row.slug] : entity === "definition" ? [row.key] : entity === "source" ? [row.url]
   : entity === "sourceLink" ? [row.deviceSlug, row.sourceUrl] : entity === "spec" ? [row.deviceSlug, row.definitionKey, row.region ?? "Global", row.variant ?? ""]
-  : [row.deviceSlug, row.definitionKey, row.region ?? "Global", row.variant ?? "", row.sourceUrl, row.claimedValue ?? row.claimed_value]);
+  : [row.deviceSlug, row.definitionKey, row.region ?? "Global", row.variant ?? "", row.sourceUrl, String(row.claimedValue ?? row.claimed_value)]);
 
 export async function prepareImport(root) {
   const sourceSha256 = sha256(await readFile(path.join(root, SOURCE_PATH)));
@@ -48,9 +48,10 @@ export const SNAPSHOT_SQL = `SELECT jsonb_build_object(
   'evidence', (SELECT coalesce(jsonb_agg(x ORDER BY x."deviceSlug",x."definitionKey",x.region,x.variant,x."sourceUrl",x.claimed_value),'[]') FROM (SELECT e.*,d.slug AS "deviceSlug",f.key AS "definitionKey",s.region_key AS region,s.variant_key AS variant,src.url AS "sourceUrl" FROM public.device_spec_evidence e JOIN public.device_specs s ON s.id=e.device_spec_id JOIN public.devices d ON d.id=s.device_id JOIN public.device_spec_definitions f ON f.id=s.spec_definition_id JOIN public.device_sources src ON src.id=e.source_id ORDER BY d.slug,f.key,s.region_key,s.variant_key,src.url,e.claimed_value LIMIT 50001) x)
 ) AS snapshot;`;
 
+const rawText = row => { const value = row.raw_value ?? row.rawValue; return value === null || value === undefined ? null : String(value); };
 const specValue = row => canonical([row.state, row.value_number ?? row.valueNumber ?? null, row.value_boolean ?? row.valueBoolean ?? null,
   row.value_text ?? row.valueText ?? null, row.value_json ?? row.valueJson ?? null, row.canonical_unit ?? row.canonicalUnit ?? null,
-  row.measurement_context ?? row.measurementContext ?? null, row.raw_value ?? row.rawValue ?? null]);
+  row.measurement_context ?? row.measurementContext ?? null, rawText(row)]);
 function indexSnapshot(snapshot) {
   const index = {};
   for (const [entity, collection] of Object.entries(collections)) {
@@ -122,7 +123,9 @@ export function verifyImport(prepared, before, after, plan) {
 const OPERATIONS = new Set(["APPROVAL", "CLAIM", "CONNECT", "IDENTITY", "SCHEMA", "SNAPSHOT", "BEGIN", "LOCK", "IMPORT", "VERIFY", "COMMIT", "POSTCOMMIT", "ROLLBACK", "CLOSE"]);
 export function safeImportFailure(error, operation, durationMs, connected) {
   const sqlstate = /^[0-9A-Z]{5}$/.test(error?.code ?? "") ? error.code : "UNKNOWN";
+  const connectionClasses = { ENOTFOUND: "DNS_RESOLUTION_FAILURE", EAI_AGAIN: "DNS_RESOLUTION_FAILURE", ECONNREFUSED: "TCP_CONNECTION_REFUSED", ETIMEDOUT: "TCP_CONNECTION_TIMEOUT", ECONNRESET: "TCP_CONNECTION_RESET",
+    ERR_TLS_CERT_ALTNAME_INVALID: "TLS_HOSTNAME_REJECTED", CERT_HAS_EXPIRED: "TLS_CERTIFICATE_REJECTED", UNABLE_TO_VERIFY_LEAF_SIGNATURE: "TLS_CERTIFICATE_REJECTED" };
   return { operation: OPERATIONS.has(operation) ? operation : "UNKNOWN", sqlstate,
-    failureClass: /^IMPORT_[A-Z0-9_]{1,80}$/.test(error?.importCode ?? "") ? error.importCode : sqlstate === "28P01" ? "POSTGRES_AUTH_REJECTED" : sqlstate === "57014" ? "STATEMENT_TIMEOUT" : "DATABASE_OR_TRANSPORT_FAILURE",
+    failureClass: /^IMPORT_[A-Z0-9_]{1,80}$/.test(error?.importCode ?? "") ? error.importCode : sqlstate === "28P01" ? "POSTGRES_AUTH_REJECTED" : sqlstate === "57014" ? "STATEMENT_TIMEOUT" : Object.hasOwn(connectionClasses, error?.code ?? "") ? connectionClasses[error.code] : "DATABASE_OR_TRANSPORT_FAILURE",
     durationMs: Number.isFinite(durationMs) ? Math.max(0, Math.floor(durationMs)) : 0, sessionConnected: connected === true };
 }

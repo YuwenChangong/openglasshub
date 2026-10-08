@@ -116,7 +116,7 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
     const locked = await snapshot();
     if (canonical(locked) !== canonical(before)) fail("IMPORT_PREWRITE_CONCURRENT_CHANGE");
     result.importAttempts++; await query(bundle.prepared.body, "IMPORT");
-    mark("VERIFY"); verifyImport(bundle.prepared, before, await snapshot(), plan);
+    const after = await snapshot(); mark("VERIFY"); verifyImport(bundle.prepared, before, after, plan);
     const postSchema = await state();
     const auditDelta = postSchema.counts.audit - schema.counts.audit;
     if (!Number.isSafeInteger(auditDelta) || auditDelta < 0 || auditDelta > Object.values(plan.inserts).reduce((a, b) => a + b, 0) + plan.nullSchemaType) fail("IMPORT_AUDIT_WRITE_SCOPE_EXCEEDED");
@@ -126,7 +126,7 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
     mark("COMMIT"); commitDispatched = true; result.commitDispatched = true;
     await session.query("COMMIT;", [], Math.min(35000, commitRemaining)); transaction = false; committed = true; result.committed = true;
     await query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;", "BEGIN"); transaction = true;
-    await state(); mark("VERIFY"); verifyImport(bundle.prepared, before, await snapshot("POSTCOMMIT"), plan);
+    await state(); const postCommit = await snapshot("POSTCOMMIT"); mark("VERIFY"); verifyImport(bundle.prepared, before, postCommit, plan);
     await query("COMMIT;", "COMMIT"); transaction = false;
     result.status = "PASS"; result.postCommitVerification = "PASS";
     result.reconciliationSha256 = plan.reconciliationSha256;
