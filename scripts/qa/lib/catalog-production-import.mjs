@@ -258,6 +258,7 @@ const FAILURE_CODES = new Set([
   "IMPORT_VALIDATED_BUNDLE_REQUIRED", "IMPORT_WINDOW_EXPIRED", "IMPORT_READ_BUDGET_EXHAUSTED", "IMPORT_SCHEMA_RESPONSE_INVALID", "IMPORT_SNAPSHOT_RESPONSE_INVALID",
   "IMPORT_SERVER_IDENTITY_MISMATCH", "IMPORT_PREWRITE_CONFLICT", "IMPORT_RECONCILIATION_NOT_APPROVED", "IMPORT_PREWRITE_CONCURRENT_CHANGE", "IMPORT_AUDIT_WRITE_SCOPE_EXCEEDED",
   "IMPORT_CA_TRUST_INVALID", "IMPORT_SESSION_POOLER_SOURCE_INVALID", "IMPORT_RECONNECT_FORBIDDEN", "IMPORT_CLI_SCOPE_INVALID",
+  "IMPORT_SCHEMA_COMPONENT_RESPONSE_INVALID", "IMPORT_STATEMENT_BUDGET_EXHAUSTED", "IMPORT_READ_ONLY_EXECUTION_CONTRACT",
   "IMPORT_AUDIT_SNAPSHOT_INVALID_OR_LIMIT", "IMPORT_AUDIT_SESSION_ACTOR_CHANGED", "IMPORT_AUDIT_EXISTING_EVENT_CHANGED_OR_REMOVED", "IMPORT_AUDIT_UNEXPECTED_EVENT",
 ]);
 export function safeImportFailure(error, operation, durationMs, connected) {
@@ -282,5 +283,6 @@ export function safeImportFailure(error, operation, durationMs, connected) {
   } else if (sqlstate !== "UNKNOWN") failureClass = "POSTGRES_SQL_ERROR";
   else if (error?.message === "Query read timeout") failureClass = timeoutClass = "CLIENT_QUERY_TIMEOUT";
   return { operation: OPERATIONS.has(operation) ? operation : "UNKNOWN", sqlstate, failureClass, timeoutClass,
+    ...(new Set(["RELATIONS_ACL", "COLUMNS", "CONSTRAINTS", "INDEXES", "POLICIES", "VIEWS", "TRIGGERS", "FUNCTIONS", "LEDGER_SHAPE", "LEDGER_RECORDS", "CATALOG_COUNTS"]).has(error?.schemaComponentId) ? { componentId: error.schemaComponentId } : {}),
     durationMs: Number.isFinite(durationMs) ? Math.max(0, Math.floor(durationMs)) : 0, sessionConnected: connected === true };
 }

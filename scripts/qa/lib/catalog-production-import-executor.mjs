@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { readFile, open as openFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
-import { IDENTITY_SQL, STATE_SQL, schemaDigest } from "./catalog-production-migration-transport.mjs";
+import { IDENTITY_SQL } from "./catalog-production-migration-transport.mjs";
+import { readSegmentedStage2, SEGMENTED_CONTRACT, segmentedExecutionContract, assertSegmentedExecutionContract } from "./catalog-production-segmented-schema.mjs";
 import { prepareImport, reconcileImport, verifyImport, verifyAudit, canonical, sha256, fail, TABLES, SNAPSHOT_SQL, safeImportFailure, buildImportBody } from "./catalog-production-import.mjs";
 
 const validated = new WeakSet();
@@ -18,6 +19,9 @@ const TOOL_PATHS = [
   "scripts/qa/test-catalog-production-import-audit.mjs", "supabase/migrations/20260909195640_device_schema_v1_foundation.sql",
   "scripts/qa/test-catalog-production-import-timeouts.mjs",
   "scripts/qa/lib/catalog-production-schema-diagnostics.mjs", "scripts/qa/test-catalog-production-schema-diagnostics.mjs",
+  "scripts/qa/lib/catalog-production-segmented-schema.mjs", "scripts/qa/test-catalog-production-segmented-schema.mjs",
+  "scripts/qa/lib/catalog-production-segmented-readonly.mjs", "scripts/qa/test-catalog-production-segmented-readonly.mjs",
+  "docs/superpowers/plans/2026-10-08-stage-c-segmented-schema-proof.md",
   "docs/ops/catalog-stage-c-schema-component-diagnostics.md",
   "docs/ops/catalog-stage-c-import-execution.md", "docs/superpowers/plans/2026-10-04-catalog-production-migration-packet.md",
   "supabase/migrations/20261004003349_public_device_detail_v1.sql", "supabase/migrations/20261004014637_catalog_editor_presentation_v1.sql",
@@ -35,26 +39,30 @@ export async function createImportPacket(root) {
   const paths = [...new Set([...TOOL_PATHS, ...prepared.inputPaths])].sort();
   const fileHashes = Object.fromEntries(await Promise.all(paths.map(async file => [file, sha256(await readFile(path.join(root, file)))])));
   const proof = JSON.parse(await readFile(path.join(root, "scripts/qa/fixtures/catalog-stage-b-schema-proof.json"), "utf8"));
-  return { format: "catalog-stage-c-preparation-v1", executionAuthorized: false, candidateHead: checkout.head,
+  return { format: "catalog-stage-c-preparation-v2", executionAuthorized: false, candidateHead: checkout.head,
     checkoutSha256: sha256(await realpath(root)), sourceSha256: prepared.sourceSha256, sqlSha256: sha256(prepared.sql), fileHashes,
     stage2SchemaSha256: proof.states[2], migrationHashes: proof.migrationHashes,
     targetRequirements: { endpointClass: "SUPAVISOR_SESSION", project: "xcbnxzjlsvtgzixurcof", database: "postgres", role: "postgres", port: 5432,
       serverIdentityAuthority: "EXACT_HUMAN_APPROVED_RECEIPT_RECONFIRMED_BEFORE_WRITE" },
     targets: { devices: 24, specs: 1488, knownValues: prepared.knownValues, reviewedConflictSpecs: 7 },
     maximumInserts: Object.fromEntries(Object.keys(TABLES).map(entity => [entity, prepared.operations.filter(op => op.entity === entity).length])),
-    maximumNullSchemaTypeUpdates: 24, connectionsMax: 1, readStatementsMax: 9, writeTransactionsMax: 1,
+    maximumNullSchemaTypeUpdates: 24, connectionsMax: 1, readStatementsMax: SEGMENTED_CONTRACT.importSelectsMax, writeTransactionsMax: 1,
+    executionContract: segmentedExecutionContract(prepared),
     auditContract: "catalog-stage-c-audit-content-v1", maximumAuditEvents: 50000,
     automaticRetry: false, activationAllowed: false, productionConflictCount: "UNKNOWN" };
 }
 
 export function validateAuthorization(receipt, packet, now = Date.now()) {
-  const keys = ["format", "authorizationId", "packetSha256", "candidateHead", "checkoutSha256", "serverIdentitySha256", "targetClass", "reconciliationSha256", "windowStartUTC", "windowEndUTC", "humanGates"];
+  const keys = ["format", "authorizationId", "packetSha256", "candidateHead", "checkoutSha256", "serverIdentitySha256", "targetClass", "reconciliationSha256", "windowStartUTC", "windowEndUTC", "humanGates", "executionContractSha256"];
   if (!receipt || canonical(Object.keys(receipt).sort()) !== canonical(keys.sort())) fail("IMPORT_AUTHORIZATION_SHAPE_INVALID");
-  if (receipt.format !== "catalog-stage-c-authorization-v1" || !/^stage-c-[a-z0-9-]{3,80}$/.test(receipt.authorizationId) || receipt.targetClass !== "SUPAVISOR_SESSION"
+  if (receipt.format !== "catalog-stage-c-authorization-v2" || packet.format !== "catalog-stage-c-preparation-v2" || !packet.executionContract
+    || receipt.executionContractSha256 !== sha256(canonical(packet.executionContract))
+    || !/^stage-c-[a-z0-9-]{3,80}$/.test(receipt.authorizationId) || receipt.targetClass !== "SUPAVISOR_SESSION"
     || receipt.packetSha256 !== sha256(canonical(packet)) || receipt.candidateHead !== packet.candidateHead || receipt.checkoutSha256 !== packet.checkoutSha256
     || !HEX64.test(receipt.serverIdentitySha256) || !HEX64.test(receipt.reconciliationSha256)) fail("IMPORT_AUTHORIZATION_BINDING_INVALID");
   for (const timestamp of [receipt.windowStartUTC, receipt.windowEndUTC]) if (typeof timestamp !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{3})?Z$/.test(timestamp) || !Number.isFinite(Date.parse(timestamp))) fail("IMPORT_WINDOW_INVALID");
-  if (!(Date.parse(receipt.windowStartUTC) <= now && now < Date.parse(receipt.windowEndUTC))) fail("IMPORT_WINDOW_NOT_ACTIVE");
+  if (!(Date.parse(receipt.windowStartUTC) <= now && now < Date.parse(receipt.windowEndUTC))
+    || Date.parse(receipt.windowEndUTC) - Date.parse(receipt.windowStartUTC) > SEGMENTED_CONTRACT.importWallClockMaxMs) fail("IMPORT_WINDOW_NOT_ACTIVE");
   const gates = ["backupRecoveryReady", "catalogWritesPaused", "currentReaderCompatible", "stageBCompleted", "productionReconciliationReviewed", "rollbackOperatorReady"];
   if (!receipt.humanGates || canonical(Object.keys(receipt.humanGates).sort()) !== canonical(gates.sort()) || gates.some(g => receipt.humanGates[g] !== true)) fail("IMPORT_HUMAN_GATE_REQUIRED");
 }
@@ -63,6 +71,7 @@ export async function loadImportBundle({ root, packet, receipt, now = Date.now()
   if (canonical(packet) !== canonical(await createImportPacket(root))) fail("IMPORT_PACKET_DRIFT");
   validateAuthorization(receipt, packet, now);
   const bundle = { packet: structuredClone(packet), receipt: structuredClone(receipt), prepared: await prepareImport(root) };
+  assertSegmentedExecutionContract(packet, bundle.prepared);
   // No caller can change approved operations or approval facts after validation.
   const freeze = v => { if (v && typeof v === "object") { for (const child of Object.values(v)) freeze(child); Object.freeze(v); } return v; };
   freeze(bundle); validated.add(bundle); return bundle;
@@ -80,10 +89,6 @@ export async function claimImportAuthorization(root, id, receiptSha256) {
   finally { await handle.close(); }
 }
 
-function assertStage2(state, packet) {
-  if (schemaDigest(state) !== packet.stage2SchemaSha256 || state.ledger?.length !== 2 || state.ledger.some((row, i) => row.version !== ["20261004003349", "20261004014637"][i]
-    || row.name !== ["public_device_detail_v1", "catalog_editor_presentation_v1"][i] || row.statements?.length !== 1 || sha256(row.statements[0]) !== packet.migrationHashes[i])) fail("IMPORT_STAGE2_OR_READER_GRANTS_DRIFT");
-}
 const LOCK_SQL = `LOCK TABLE supabase_migrations.schema_migrations, ${Object.values(TABLES).map(t => "public." + t).join(", ")}, public.catalog_audit_events IN SHARE ROW EXCLUSIVE MODE;`;
 
 export async function executeImport({ bundle, open, claim, now = Date.now }) {
@@ -92,19 +97,23 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
   const result = { format: "catalog-stage-c-result-v1", candidateHead: bundle.packet.candidateHead, status: "BLOCKED", authorizationConsumed: false,
     connections: 0, writeTransactions: 0, importAttempts: 0, automaticRetries: 0, activationAttempts: 0, commitDispatched: false, committed: false };
   const mark = name => { operation = name; started = performance.now(); };
-  const query = async (sql, op, read = false) => {
+  let dispatches = 0, sqlStatements = 0;
+  const wallDeadline = performance.now() + SEGMENTED_CONTRACT.importWallClockMaxMs;
+  const remainingTime = () => Math.min(Date.parse(bundle.receipt.windowEndUTC) - now(), wallDeadline - performance.now());
+  const query = async (sql, op, read = false, statementWeight = 1) => {
     mark(op);
-    const remaining = Date.parse(bundle.receipt.windowEndUTC) - now();
+    const remaining = remainingTime();
     if (remaining <= 0) fail("IMPORT_WINDOW_EXPIRED");
-    if (read && ++readStatements > 9) fail("IMPORT_READ_BUDGET_EXHAUSTED");
+    if (++dispatches > SEGMENTED_CONTRACT.importDispatchesMax || (sqlStatements += statementWeight) > bundle.packet.executionContract.importSqlStatementsMax) fail("IMPORT_STATEMENT_BUDGET_EXHAUSTED");
+    if (read && ++readStatements > SEGMENTED_CONTRACT.importSelectsMax) fail("IMPORT_READ_BUDGET_EXHAUSTED");
     return session.query(sql, [], Math.min(op === "IMPORT" ? 125000 : 35000, remaining));
   };
-  const state = async () => { const response = await query(STATE_SQL, "SCHEMA", true); const value = response.rows?.[0]?.state; if (response.rows?.length !== 1) fail("IMPORT_SCHEMA_RESPONSE_INVALID"); assertStage2(value, bundle.packet); return value; };
+  const state = () => readSegmentedStage2({ packet: bundle.packet, query: sql => query(sql, "SCHEMA", true), onComponent: id => { result.schemaComponentId = id; } });
   const snapshot = async (op = "SNAPSHOT") => { const response = await query(SNAPSHOT_SQL, op, true); if (response.rows?.length !== 1) fail("IMPORT_SNAPSHOT_RESPONSE_INVALID"); return response.rows[0].snapshot; };
   try {
     validateAuthorization(bundle.receipt, bundle.packet, now());
     mark("CLAIM"); await claim(bundle.receipt.authorizationId, sha256(canonical(bundle.receipt))); result.authorizationConsumed = true;
-    const connectRemaining = Date.parse(bundle.receipt.windowEndUTC) - now();
+    const connectRemaining = remainingTime();
     if (connectRemaining <= 0) fail("IMPORT_WINDOW_EXPIRED");
     mark("CONNECT"); result.connections++; session = await open(Math.min(10000, connectRemaining));
     await query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;", "BEGIN"); transaction = true;
@@ -116,20 +125,20 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
     if (plan.reconciliationSha256 !== bundle.receipt.reconciliationSha256) fail("IMPORT_RECONCILIATION_NOT_APPROVED");
     await query("COMMIT;", "COMMIT"); transaction = false;
     await query("BEGIN;", "BEGIN"); transaction = true; result.writeTransactions++;
-    await query("SET LOCAL statement_timeout='120s'; SET LOCAL lock_timeout='5s'; SET LOCAL idle_in_transaction_session_timeout='60s';", "LOCK");
+    for (const sql of ["SET LOCAL statement_timeout='120s';", "SET LOCAL lock_timeout='5s';", "SET LOCAL idle_in_transaction_session_timeout='60s';"]) await query(sql, "LOCK");
     await query(LOCK_SQL, "LOCK"); await state();
     const locked = await snapshot();
     if (canonical(locked) !== canonical(before)) fail("IMPORT_PREWRITE_CONCURRENT_CHANGE");
-    result.importAttempts++; await query(buildImportBody(bundle.prepared, plan), "IMPORT");
+    result.importAttempts++; await query(buildImportBody(bundle.prepared, plan), "IMPORT", false, 2 + Object.values(plan.inserts).reduce((n, count) => n + count, 0));
     const after = await snapshot(); mark("VERIFY"); verifyImport(bundle.prepared, before, after, plan);
     const postSchema = await state();
     const auditDelta = postSchema.counts.audit - schema.counts.audit;
     if (!Number.isSafeInteger(auditDelta) || auditDelta < 0 || auditDelta > Object.values(plan.inserts).reduce((a, b) => a + b, 0) + plan.nullSchemaType) fail("IMPORT_AUDIT_WRITE_SCOPE_EXCEEDED");
     // The timeout/window gate must pass BEFORE marking COMMIT dispatched.
-    const commitRemaining = Date.parse(bundle.receipt.windowEndUTC) - now();
+    const commitRemaining = remainingTime();
     if (commitRemaining <= 0) fail("IMPORT_WINDOW_EXPIRED");
     mark("COMMIT"); commitDispatched = true; result.commitDispatched = true;
-    await session.query("COMMIT;", [], Math.min(35000, commitRemaining)); transaction = false; committed = true; result.committed = true;
+    await query("COMMIT;", "COMMIT"); transaction = false; committed = true; result.committed = true;
     await query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;", "BEGIN"); transaction = true;
     await state(); const postCommit = await snapshot("POSTCOMMIT"); mark("VERIFY"); verifyImport(bundle.prepared, before, postCommit, plan);
     verifyAudit(after, postCommit, { actions: [] });
@@ -142,10 +151,14 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
     result.status = commitDispatched && !committed ? "AMBIGUOUS" : committed ? "COMMITTED_VERIFICATION_FAILED" : "BLOCKED";
     result.diagnostic = safeImportFailure(error, operation, performance.now() - started, session?.connected);
     if (transaction && (!commitDispatched || committed)) {
-      try { await session.query("ROLLBACK;", [], 5000); result.rollback = "PASS"; } catch { result.rollback = "FAILED_CLOSE_REQUIRED"; }
+      try {
+        if (++dispatches > SEGMENTED_CONTRACT.importDispatchesMax || ++sqlStatements > bundle.packet.executionContract.importSqlStatementsMax) fail("IMPORT_STATEMENT_BUDGET_EXHAUSTED");
+        await session.query("ROLLBACK;", [], 5000); result.rollback = "PASS";
+      } catch { result.rollback = "FAILED_CLOSE_REQUIRED"; }
     }
   } finally {
     result.readStatements = readStatements;
+    result.dispatches = dispatches; result.sqlStatements = sqlStatements;
     if (session) try { await session.close(); result.connectionClose = "PASS"; } catch (error) {
       result.connectionClose = "FAILED"; result.closeDiagnostic = safeImportFailure(error, "CLOSE", 0, false);
       if (result.status === "PASS") result.status = "COMMITTED_CLOSE_FAILED";
@@ -158,13 +171,24 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
 // with ONE already-open session. It does not claim write authorization or write.
 export async function readImportReconciliation({ packet, prepared, session, expectedServerIdentitySha256 }) {
   let transaction = false;
+  assertSegmentedExecutionContract(packet, prepared);
+  const deadline = performance.now() + SEGMENTED_CONTRACT.reconciliationWallClockMaxMs;
+  let dispatches = 0, selects = 0;
+  const query = (sql, read = false) => {
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) fail("IMPORT_WINDOW_EXPIRED");
+    if (++dispatches > SEGMENTED_CONTRACT.reconciliationDispatchesMax || read && ++selects > SEGMENTED_CONTRACT.reconciliationSelectsMax) fail("IMPORT_READ_BUDGET_EXHAUSTED");
+    return session.query(sql, [], Math.min(35000, remaining));
+  };
   try {
-    await session.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;"); transaction = true;
-    const response = await session.query(IDENTITY_SQL); const row = response.rows?.[0];
+    await query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;"); transaction = true;
+    const response = await query(IDENTITY_SQL, true); const row = response.rows?.[0];
     if (response.rows?.length !== 1 || sha256(JSON.stringify({ database: row.database, role: row.role, port: row.port, system_identifier: row.system_identifier })) !== expectedServerIdentitySha256) fail("IMPORT_SERVER_IDENTITY_MISMATCH");
-    assertStage2((await session.query(STATE_SQL)).rows?.[0]?.state, packet);
-    const report = reconcileImport(prepared, (await session.query(SNAPSHOT_SQL)).rows?.[0]?.snapshot);
-    await session.query("COMMIT;"); transaction = false;
+    await readSegmentedStage2({ packet, query: sql => query(sql, true) });
+    const snapshot = await query(SNAPSHOT_SQL, true);
+    if (snapshot.rows?.length !== 1) fail("IMPORT_SNAPSHOT_RESPONSE_INVALID");
+    const report = reconcileImport(prepared, snapshot.rows[0].snapshot);
+    await query("COMMIT;"); transaction = false;
     return report;
   } catch (error) {
     if (transaction) try { await session.query("ROLLBACK;", [], 5000); } catch { /* Caller must close the same session. */ }

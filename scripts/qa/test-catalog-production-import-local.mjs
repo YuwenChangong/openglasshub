@@ -11,6 +11,8 @@ import { createImportPacket, loadImportBundle, executeImport, claimImportAuthori
 import { createImportPostgresAdapter } from "./lib/catalog-production-import-postgres.mjs";
 import { runLocalTimeoutChecks } from "./test-catalog-production-import-timeouts.mjs";
 import { runLocalSchemaDiagnosticChecks } from "./test-catalog-production-schema-diagnostics.mjs";
+import { runLocalSegmentedSchemaChecks } from "./test-catalog-production-segmented-schema.mjs";
+import { deriveSchemaComponents } from "./lib/catalog-production-schema-diagnostics.mjs";
 import { prepareCanonicalCatalogImport } from "../lib/catalog-canonical-import.mjs";
 import { renderReleaseBAuthorizedOperation } from "../devices/schema-v1/disposable-postgres-transaction-client.mjs";
 
@@ -41,6 +43,7 @@ try {
         await runLocalTimeoutChecks({ config, admin, check });
         const identitySha256 = sha256(JSON.stringify({ database: identity.database, role: identity.role, port: identity.port, system_identifier: identity.system_identifier }));
         receipt.schemaComponentTimings = await runLocalSchemaDiagnosticChecks({ config, admin, check, packet, prepared, identitySha256 });
+        await runLocalSegmentedSchemaChecks({ config, admin, check, packet, prepared });
         const adminId = randomUUID();
         await admin.query("INSERT INTO auth.users(id,email) VALUES ($1,$2);", [adminId, "stage-c-owned-local@example.invalid"]);
         await admin.query("UPDATE public.profiles SET role='admin' WHERE id=$1;", [adminId]);
@@ -55,7 +58,7 @@ try {
           const plan = reconcileImport(prepared, baseline);
           const importBody = plan.blockers.length ? null : buildImportBody(prepared, plan);
           const authorizationId = "stage-c-local-" + randomUUID();
-          const auth = { format: "catalog-stage-c-authorization-v1", authorizationId, packetSha256: sha256(canonical(packet)), candidateHead: packet.candidateHead,
+          const auth = { format: "catalog-stage-c-authorization-v2", executionContractSha256: sha256(canonical(packet.executionContract)), authorizationId, packetSha256: sha256(canonical(packet)), candidateHead: packet.candidateHead,
             checkoutSha256: packet.checkoutSha256, targetClass: "SUPAVISOR_SESSION", serverIdentitySha256: identityDigest, reconciliationSha256: reconciliationDigest ?? plan.reconciliationSha256,
             windowStartUTC: "2020-01-01T00:00:00Z", windowEndUTC: "2020-01-01T00:10:00Z", humanGates: { backupRecoveryReady: true, catalogWritesPaused: true, currentReaderCompatible: true,
               stageBCompleted: true, productionReconciliationReviewed: true, rollbackOperatorReady: true } };
@@ -73,7 +76,7 @@ try {
               trace.queries.push(q.text); if (q.text === SNAPSHOT_SQL) trace.snapshots++;
               if (q.text === importBody) trace.imports++;
               const result = await this.client.query(q);
-              if (expire && q.text === STATE_SQL && trace.imports > 0) clock = Date.parse(auth.windowEndUTC);
+              if (expire && q.text === deriveSchemaComponents()[0].sql && trace.imports > 0) clock = Date.parse(auth.windowEndUTC);
               await fault?.({ q: { ...q, isImport: q.text === importBody }, client: this.client, trace, result }); return result;
             }
             async end() { await this.client.end(); }
@@ -119,7 +122,9 @@ try {
         check(legacyBaseline.devices.length === 24 && legacyBaseline.devices.every(d => d.schema_type === null), "EXISTING_24_LEGACY_DEVICES_WITH_NULL_SCHEMA_METADATA");
         check(legacyBaseline.auditEvents.length === 0, "LEGITIMATE_PRE_AUDIT_ROWS_HAVE_NO_FABRICATED_EVENTS");
         const good = await run({ actor: adminId });
-        check(good.result.status === "PASS" && good.result.postCommitVerification === "PASS" && good.result.writeTransactions === 1 && good.result.readStatements === 9, "INITIAL_ATOMIC_IMPORT_POSTCOMMIT_BUDGETS");
+        check(good.result.status === "PASS" && good.result.postCommitVerification === "PASS" && good.result.writeTransactions === 1 && good.result.readStatements === 49
+          && good.result.dispatches === 60 && good.result.sqlStatements <= packet.executionContract.importSqlStatementsMax
+          && !good.trace.queries.includes(STATE_SQL), "INITIAL_SEGMENTED_IMPORT_ALL_FOUR_BOUNDARIES_AND_EXACT_BUDGETS");
         check(good.result.inserts.device === 0 && good.result.nullSchemaTypeUpdates === 24, "NULL_SCHEMA_ONLY_NO_EXISTING_DEVICE_REPLACEMENT");
         const stored = await snapshot();
         check(stored.auditEvents.length === 24 && stored.auditEvents.every(event => event.entity_type === "device" && event.action === "update"
@@ -189,6 +194,12 @@ try {
         await admin.query("UPDATE public.device_spec_evidence SET claimed_value=$1 WHERE id=$2;", [claim.claimed_value, claim.id]);
         const concurrent = await run({ fault: async ({ q, result, trace }) => { if (q.text === SNAPSHOT_SQL && trace.snapshots === 2) result.rows[0].snapshot.devices[0].name = "SIMULATED_CONCURRENT_DRIFT"; } });
         check(concurrent.result.status === "BLOCKED" && concurrent.result.importAttempts === 0 && concurrent.result.rollback === "PASS", "LOCKED_SNAPSHOT_RECHECK_ABORTS_CONCURRENT_DRIFT");
+        const realBefore = await snapshot();
+        const realConcurrent = await run({ fault: async ({ q, trace }) => {
+          if (q.text === "COMMIT;" && trace.snapshots === 1 && trace.imports === 0) await admin.query("UPDATE public.devices SET short_description='OWNED_CONCURRENT_CHANGE' WHERE slug=$1;", [realBefore.devices[0].slug]);
+        } });
+        check(realConcurrent.result.status === "BLOCKED" && realConcurrent.result.importAttempts === 0 && realConcurrent.result.rollback === "PASS", "GENUINE_DB_CHANGE_BETWEEN_TRANSACTIONS_BLOCKS_LOCKED_REVALIDATION");
+        await admin.query("UPDATE public.devices SET short_description=$1 WHERE slug=$2;", [realBefore.devices[0].short_description, realBefore.devices[0].slug]);
         const postFail = await run({ fault: async ({ q, trace }) => { if (q.text === SNAPSHOT_SQL && trace.snapshots === 4) throw new Error("INJECTED_POSTCOMMIT_FAILURE"); } });
         check(postFail.result.status === "COMMITTED_VERIFICATION_FAILED" && postFail.result.committed, "POSTCOMMIT_FAILURE_NOT_FALSE_PASS_OR_RETRY");
         const ambiguous = await run({ fault: async ({ q, trace }) => { if (q.text === "COMMIT;" && trace.imports && trace.snapshots === 3) throw new Error("INJECTED_LOST_COMMIT_ACK"); } });

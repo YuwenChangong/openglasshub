@@ -6,6 +6,8 @@ import { createImportPostgresAdapter } from "./lib/catalog-production-import-pos
 import { readImportReconciliation } from "./lib/catalog-production-import-executor.mjs";
 import { IDENTITY_SQL, STATE_SQL } from "./lib/catalog-production-migration-transport.mjs";
 import { sha256 } from "./lib/catalog-production-import.mjs";
+import { segmentedExecutionContract } from "./lib/catalog-production-segmented-schema.mjs";
+import { deriveSchemaComponents } from "./lib/catalog-production-schema-diagnostics.mjs";
 
 export async function runInjectedTimeoutChecks() {
   const cases = [
@@ -50,7 +52,9 @@ export async function runInjectedTimeoutChecks() {
 
   const first = new Error("Query read timeout");
   const queries = [];
-  await assert.rejects(readImportReconciliation({ packet: {}, prepared: {}, expectedServerIdentitySha256: "unused", session: {
+  const prepared = { operations: [] };
+  const packet = { format: "catalog-stage-c-preparation-v2", executionContract: segmentedExecutionContract(prepared) };
+  await assert.rejects(readImportReconciliation({ packet, prepared, expectedServerIdentitySha256: "unused", session: {
     async query(sql, values, timeout) {
       queries.push({ sql, timeout });
       if (sql === IDENTITY_SQL) throw first;
@@ -63,22 +67,23 @@ export async function runInjectedTimeoutChecks() {
   assert.equal(queries.length, 3);
   const row = { database: "owned", role: "owned", port: 5432, system_identifier: "owned" };
   const driftQueries = [];
-  await assert.rejects(readImportReconciliation({ packet: { stage2SchemaSha256: "0".repeat(64) }, prepared: {},
+  await assert.rejects(readImportReconciliation({ packet: { ...packet, stage2SchemaSha256: "0".repeat(64), migrationHashes: [] }, prepared,
     expectedServerIdentitySha256: sha256(JSON.stringify(row)), session: {
       async query(sql) {
         driftQueries.push(sql);
-        return sql === IDENTITY_SQL ? { rows: [row] } : sql === STATE_SQL ? { rows: [{ state: { schema: {}, ledgerShape: {
+        return sql === IDENTITY_SQL ? { rows: [row] } : sql === deriveSchemaComponents()[8].sql ? { rows: [{ component: {
           owner: "postgres", primaryKey: "PRIMARY KEY (version)", columns: [
             { name: "version", type: "text", notNull: true },
             { name: "name", type: "text", notNull: false },
             { name: "statements", type: "text[]", notNull: false },
           ],
-        } } }] } : { rows: [] };
+        } }] } : sql === deriveSchemaComponents()[9].sql ? { rows: [{ component: [] }] }
+          : sql === deriveSchemaComponents()[10].sql ? { rows: [{ component: { devices: 0, specs: 0, audit: 0 } }] } : { rows: [{ component: [] }] };
       },
     },
   }), /IMPORT_STAGE2_OR_READER_GRANTS_DRIFT/);
   assert.equal(driftQueries.at(-1), "ROLLBACK;");
-  assert.equal(driftQueries.length, 4, "SCHEMA_MISMATCH_NEVER_REACHES_AUDIT_SNAPSHOT");
+  assert.equal(driftQueries.length, 14, "SCHEMA_MISMATCH_NEVER_REACHES_AUDIT_SNAPSHOT");
   let fastClient;
   class FastClient extends EventEmitter {
     constructor() { super(); fastClient = this; this.calls = 0; }

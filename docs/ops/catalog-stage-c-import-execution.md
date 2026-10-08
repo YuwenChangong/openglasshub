@@ -82,7 +82,7 @@ Production conflict count is UNKNOWN in this preparation task. Before write
 approval, obtain separate authorization for ONE bounded read-only comparison.
 Use the reviewed `readImportReconciliation` entrypoint with one approved
 Session Pooler/strict-CA session and close it after completion. It makes exactly
-three SELECTs (identity, schema/ledger, catalog snapshot) in one repeatable-read
+13 SELECTs (identity, 11 schema/ledger/count projections, catalog snapshot) in one repeatable-read
 read-only transaction. There is no reconnect, claim, import or activation.
 An outer private wrapper must catch failures through `safeImportFailure`, never
 print driver errors, query results, credentials or full snapshot rows.
@@ -120,7 +120,7 @@ The report adds `audit.eventCount`, `audit.eventsSha256`,
 `audit.unlinkedEventCount`, target `audit.provenance`, and safe `audit.issues`.
 The entire private snapshot, including audit bytes and session actor, is bound
 to `reconciliationSha256` and rechecked under the existing lock. No extra SELECT
-is needed: reconciliation remains three, execution remains at most nine.
+is needed for audit: reconciliation is 13, execution is at most 49 SELECTs.
 
 Actual writers store changed-field names, not old/new values:
 
@@ -166,20 +166,84 @@ must still cover the affected catalog state; do not infer readiness merely from
 an older receipt. No active receipt is generated in this preparation task.
 
 A subsequent human-reviewed authorization has exactly these fields:
-`format=catalog-stage-c-authorization-v1`, unique `authorizationId=stage-c-*`,
+`format=catalog-stage-c-authorization-v2`, unique `authorizationId=stage-c-*`,
 `packetSha256=SHA256(canonical(packet))`, exact `candidateHead`,
 `checkoutSha256`, `serverIdentitySha256`, `targetClass=SUPAVISOR_SESSION`,
 approved `reconciliationSha256`, `windowStartUTC`, `windowEndUTC`, and
-`humanGates`. Every human gate named above must be explicitly true.
+`humanGates`, and `executionContractSha256=SHA256(canonical(packet.executionContract))`.
+Every human gate named above must be explicitly true. The packet format is
+`catalog-stage-c-preparation-v2`; neither old packets nor v1 approvals can
+authorize the segmented executor. The exact code and finite budgets are bound
+to the packet and its hash, not inferred from older Production results.
 Timestamps must be UTC Z strings. The later authorization supplies the bounded
 start/end window. Receipt canonicalization is the exported sorted-key
 `canonical` function, not an arbitrary serializer. Unknown fields are rejected.
 
 Limits: one connection, zero reconnects/retries, one import attempt, one atomic
-write transaction, at most nine SELECTs during execution. The snapshot is
+write transaction, at most 49 SELECTs during execution. The snapshot is
 limited to 50,000 rows per catalog table; exceeding the cap blocks, never
 silently truncates. Statement timeout is 120s; lock timeout 5s; idle transaction
-timeout 60s. Query deadlines are also capped by the approved window.
+timeout 60s. Read/component deadlines remain 35s, import-body deadline 125s,
+connect 10s and rollback 5s. Query deadlines are also capped by the approved
+window, whose maximum duration is 40 minutes; no live receipt is created here.
+
+## Segmented State-2 Proof And Exact Budgets
+
+The original Stage B `STATE_SQL` remains byte-identical, SHA256
+`d824566d382f19e2b720566af834b5c1b2fe613881a2807e5ca2d71c1863b917`.
+Its delimiter-aware, hash-pinned diagnostic generator derives 11 projections.
+Stage C executes these sequentially within each existing transaction and
+reconstructs all schema, ledgerShape, ledger and counts values. Only the two
+synthetic object containers use PostgreSQL JSONB key order (UTF-8 byte length,
+then bytes); nested returned values and NULLs retain their original encoding.
+The existing `schemaDigest()` and two exact migration SQL hashes are mandatory.
+Frozen state-2 digest remains
+`1ce7b3380e450df60c4b90c4666bf609d78456a21b7ebdf5ee527129911ac94a`.
+No replacement digest, reduced metadata proof or full-query fallback exists.
+
+Every required boundary uses this proof: read-only reconciliation, import
+preflight, locked revalidation, precommit, and postcommit. Read-only boundaries
+retain repeatable-read; the write transaction retains the ledger/catalog locks.
+Projection response, shape, missing component, drift or timeout fails closed.
+The first component ID is retained in safe diagnostics, never row/error content.
+
+- Reconciliation: 1 identity + 11 projections + 1 snapshot = 13 SELECTs;
+  BEGIN + SELECTs + COMMIT = 15 dispatches/statements normally, ceiling 16
+  including failure cleanup. One connection, no write transaction or retry.
+- Import: 1 identity + 4 x 11 projections + 4 snapshots = 49 SELECTs;
+  60 normal dispatches, ceiling 61 including failure cleanup. Three SET LOCAL
+  statements are separately dispatched and counted. Cleanup consumes budget.
+- The import body is NOT one SQL statement: SET CONSTRAINTS + the approved
+  initialization DO + each actually missing INSERT = 2 + N statements.
+  59 normal non-body statements plus 1 reserved cleanup = 60; with at most
+  1,704 missing INSERTs the exact SQL ceiling is 1,766. The packet recomputes
+  that ceiling from reviewed operations, never arbitrary runtime input.
+- V4 reconciliation has a 600s total wrapper deadline (595s child work,
+  termination confirmed by 599s, final cleanup reserve). The import contract
+  has a 2,400s maximum window; a later write wrapper must independently bind
+  that hard watchdog before any import approval. No unbounded wait is allowed.
+
+The V4 session accepts only the exact ordered BEGIN/identity/11 projections/
+snapshot/COMMIT sequence, or one cleanup ROLLBACK. It independently verifies
+the full reconstructed proof before snapshot. Parameters, arbitrary SELECTs,
+write SQL, additional calls, parallel queries and reconnects are rejected.
+The external private consumer pins candidate, packet, reviewed SQL and script
+hashes; it claims a durable one-use marker before touching DPAPI input, strips
+inherited credentials from the child, discards stdout/stderr, applies strict CA
+TLS and finite deadlines, closes or kills only its owned child, then removes
+the approved private handoff file. Unknown hard-kill connection outcome is
+reported UNKNOWN, never a fabricated close PASS.
+
+The historical combined-query timeout remains NOT_PROVEN. Successful component
+timings alone were not schema proof. Real local PostgreSQL must prove exact
+JSON values, JSON.stringify ordering, frozen digest and stage-2 classification,
+as well as genuine schema/security/ledger drift, timeout cleanup, and an actual
+database change between preflight and locked validation. Audit/admin/richer
+values and import/activation separation retain their existing full rehearsal.
+
+V4 requires the new exact human gate:
+`AUTHORIZE_STAGE_C_SEGMENTED_READ_ONLY_RECONCILIATION_V4`.
+Preparation cannot authorize Production or generate an active import receipt.
 
 Maximum missing-identity inserts: 24 devices, 92 definitions, 39 sources,
 46 device-source links, 1,488 specifications, 15 evidence claims. At most 24
@@ -331,8 +395,8 @@ timeout, a genuine blocked table read with 50ms lock timeout, bounded rollback
 and the unchanged exact schema query. Small deadlines are local fixtures only;
 Production deadlines remain unchanged. Existing audit rehearsal remains intact.
 
-A new explicit `AUTHORIZE_STAGE_C_READ_ONLY_RECONCILIATION_V2` is mandatory
-before any further Production connection. Its private wrapper must bind the
+The historical explicit `AUTHORIZE_STAGE_C_READ_ONLY_RECONCILIATION_V2` applied
+to the older combined-query contract only. Its private wrapper had to bind the
 final clean candidate and new preparation packet, honor the rollback timeout,
 preserve timeoutClass and the first failing operation, and close the sole
 session. Budget: one connection, three SELECTs (identity, exact schema/ledger,
@@ -348,6 +412,9 @@ packet fields; foundation audit schema and the audit regression suite are also
 hashed inputs. Packet generation follows the commit, so the ignored metadata
 does not create a circular candidate/packet identity. An old packet must fail
 drift validation and cannot authorize this corrected executor.
+
+That historical V2/V3 approval cannot authorize V4 or segmented import. Use
+only the current new packet and exact V4 gate described above.
 
 Production counters for preparation remain zero. Release readiness here means
 tooling is ready for separate reconciliation/authorization, not that current

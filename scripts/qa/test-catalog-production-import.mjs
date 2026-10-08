@@ -7,6 +7,7 @@ import { prepareImport, reconcileImport, verifyImport, safeImportFailure, canoni
 import { validateAuthorization, claimImportAuthorization, executeImport } from "./lib/catalog-production-import-executor.mjs";
 import { createImportPostgresAdapter } from "./lib/catalog-production-import-postgres.mjs";
 import { runImportMain } from "./catalog-production-import-runner.mjs";
+import { segmentedExecutionContract } from "./lib/catalog-production-segmented-schema.mjs";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const prepared = await prepareImport(root);
@@ -63,12 +64,14 @@ assert.throws(() => verifyImport(prepared, empty, empty, initial), /IMPORT_POSTC
 assert.deepEqual(await runImportMain({ args: [] }), { status: "NOT_AUTHORIZED", connections: 0, importAttempts: 0, activationAttempts: 0 });
 await assert.rejects(runImportMain({ args: ["--execute-production"], environment: {} }), /IMPORT_CLI_SCOPE/);
 await assert.rejects(executeImport({ bundle: {}, open: () => assert.fail("UNAUTHORIZED_OPEN"), claim: () => assert.fail("UNAUTHORIZED_CLAIM") }), /VALIDATED_BUNDLE/);
-const packet = { candidateHead: "a".repeat(40), checkoutSha256: "b".repeat(64) };
-const auth = { format: "catalog-stage-c-authorization-v1", authorizationId: "stage-c-unit-test", packetSha256: sha256(canonical(packet)), candidateHead: packet.candidateHead,
+const packet = { format: "catalog-stage-c-preparation-v2", executionContract: segmentedExecutionContract(prepared), candidateHead: "a".repeat(40), checkoutSha256: "b".repeat(64) };
+const auth = { format: "catalog-stage-c-authorization-v2", executionContractSha256: sha256(canonical(packet.executionContract)), authorizationId: "stage-c-unit-test", packetSha256: sha256(canonical(packet)), candidateHead: packet.candidateHead,
   checkoutSha256: packet.checkoutSha256, targetClass: "SUPAVISOR_SESSION", serverIdentitySha256: "c".repeat(64), reconciliationSha256: "d".repeat(64),
   windowStartUTC: "2020-01-01T00:00:00Z", windowEndUTC: "2020-01-01T00:10:00Z", humanGates: { backupRecoveryReady: true, catalogWritesPaused: true, currentReaderCompatible: true,
     stageBCompleted: true, productionReconciliationReviewed: true, rollbackOperatorReady: true } };
 validateAuthorization(auth, packet, Date.parse("2020-01-01T00:01:00Z"));
+assert.throws(() => validateAuthorization({ ...auth, format: "catalog-stage-c-authorization-v1" }, packet, Date.parse("2020-01-01T00:01:00Z")), /BINDING_INVALID/);
+assert.throws(() => validateAuthorization({ ...auth, executionContractSha256: "0".repeat(64) }, packet, Date.parse("2020-01-01T00:01:00Z")), /BINDING_INVALID/);
 for (const [name, value] of [["candidateHead", "f".repeat(40)], ["packetSha256", "f".repeat(64)], ["checkoutSha256", "f".repeat(64)], ["targetClass", "DIRECT"], ["windowEndUTC", "2020-01-01T00:00:00Z"], ["windowStartUTC", "2020-01-01T00:00:00+12:00"]]) {
   assert.throws(() => validateAuthorization({ ...auth, [name]: value }, packet, Date.parse("2020-01-01T00:01:00Z")), /IMPORT_/);
 }

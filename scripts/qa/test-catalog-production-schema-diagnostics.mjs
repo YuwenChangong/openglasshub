@@ -119,11 +119,11 @@ export async function runLocalSchemaDiagnosticChecks({ config, admin, check, pac
     async query(sql, values = [], deadline = 35000) {
       rollback.push(sql);
       const response = await admin.query({ text: sql, values, query_timeout: deadline });
-      if (sql === STATE_SQL) response.rows[0].state = drift;
+      if (sql === plan.components[0].sql) response.rows[0].component = drift.schema.relations;
       return response;
     },
   } }), /IMPORT_STAGE2_OR_READER_GRANTS_DRIFT/);
-  check(rollback.at(-1) === "ROLLBACK;" && rollback.length === 4, "SCHEMA_COMPONENT_TOOLING_DOES_NOT_BYPASS_STAGE2_MISMATCH");
+  check(rollback.at(-1) === "ROLLBACK;" && rollback.length === 14, "SCHEMA_COMPONENT_TOOLING_DOES_NOT_BYPASS_STAGE2_MISMATCH");
   return timings;
 }
 
