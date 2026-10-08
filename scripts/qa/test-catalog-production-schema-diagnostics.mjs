@@ -17,6 +17,14 @@ export async function runSchemaDiagnosticUnitChecks() {
   assert.ok(Object.isFrozen(plan.components) && plan.components.every(Object.isFrozen));
   assert.throws(() => deriveSchemaComponents(STATE_SQL.replace("'columns',", "'unreviewed',")), /DIAGNOSTIC_SQL_CONTRACT/);
   assert.throws(() => deriveSchemaComponents(STATE_SQL.replace("AS state;", "AS changed;")), /DIAGNOSTIC_SQL_CONTRACT/);
+  const ledgerShape = { owner: "postgres", primaryKey: "PRIMARY KEY (version)", columns: [
+    { name: "version", type: "text", notNull: true }, { name: "name", type: "text", notNull: false }, { name: "statements", type: "text[]", notNull: false },
+  ] };
+  const serverOrder = { schema: { columns: [], relations: [] }, ledgerShape };
+  const projectionOrder = { schema: { relations: [], columns: [] }, ledgerShape };
+  assert.equal(canonical(serverOrder), canonical(projectionOrder));
+  assert.notEqual(schemaDigest(serverOrder), schemaDigest(projectionOrder));
+  assert.equal(schemaDigest({ ...projectionOrder, schema: Object.fromEntries(Object.keys(serverOrder.schema).map(k => [k, projectionOrder.schema[k]])) }), schemaDigest(serverOrder));
   const row = { database: "owned", role: "owned", port: 5432, system_identifier: "owned" };
   const digest = sha256(JSON.stringify(row));
   const run = async ({ error, identity = digest, invalidResponse = false, expire = false, cleanupFailure = false } = {}) => {
@@ -92,7 +100,9 @@ export async function runLocalSchemaDiagnosticChecks({ config, admin, check, pac
   } });
   check(result.status === "PASS" && result.components.length === 11 && result.selects === 12 && result.connectionClose === "PASS", "SCHEMA_COMPONENTS_LOCAL_BOUNDED_SESSION_PASS");
   check(canonical(assembled) === canonical(complete), "SCHEMA_COMPONENT_REASSEMBLY_EXACT_FULL_STATE_EQUALITY");
-  check(schemaDigest(assembled) === packet.stage2SchemaSha256, "SCHEMA_COMPONENTS_PRESERVE_FROZEN_STAGE2_DIGEST");
+  // The frozen proof hashes server JSONB key order, not JS projection insertion order.
+  const serverOrdered = { ...assembled, schema: Object.fromEntries(Object.keys(complete.schema).map(k => [k, assembled.schema[k]])) };
+  check(schemaDigest(serverOrdered) === packet.stage2SchemaSha256 && schemaDigest(complete) === packet.stage2SchemaSha256, "SCHEMA_COMPONENTS_PRESERVE_FROZEN_STAGE2_DIGEST");
   timings.push(...result.components);
   const slow = await createImportPostgresAdapter({ config })();
   try {

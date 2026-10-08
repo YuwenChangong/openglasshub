@@ -131,6 +131,14 @@ It also retains genuine lock wait, client timeout, server cancellation and
 transaction cleanup tests and adds a slow-but-successful bounded response.
 All existing audit and administrator-preservation tests remain unchanged.
 
+The first local component run at `5b7d4390` passed exact private-value equality
+but stopped at the new reconstructed-digest assertion. The reconstruction used
+JS projection insertion order, while frozen schemaDigest deliberately hashes
+PostgreSQL's JSONB response order. The test restores the original server key
+order and checks both original and reconstructed digests; schemaDigest itself
+is unchanged. Preserve that BLOCKED receipt. This test-only correction is not
+a diagnosis or correction of Production query latency.
+
 There is no Production root-cause conclusion from local timing alone. If local
 checks pass without proving the cause, stop for the targeted diagnostic gate.
 After any proven correction, separately request
