@@ -6,7 +6,7 @@ import path from "node:path";
 import pg from "pg";
 import { withCanonicalBaselineDirectory, runLocalDisposableReplay, assertLocalReplayTarget } from "./local-disposable-supabase-replay.mjs";
 import { IDENTITY_SQL, STATE_SQL } from "./lib/catalog-production-migration-transport.mjs";
-import { prepareImport, reconcileImport, canonical, sha256, SNAPSHOT_SQL, buildImportBody } from "./lib/catalog-production-import.mjs";
+import { prepareImport, reconcileImport, canonical, sha256, SNAPSHOT_SQL, buildImportBody, safeImportFailure } from "./lib/catalog-production-import.mjs";
 import { createImportPacket, loadImportBundle, executeImport, claimImportAuthorization, readImportReconciliation } from "./lib/catalog-production-import-executor.mjs";
 import { createImportPostgresAdapter } from "./lib/catalog-production-import-postgres.mjs";
 import { prepareCanonicalCatalogImport } from "../lib/catalog-canonical-import.mjs";
@@ -80,6 +80,12 @@ try {
         check(identityFail.result.status === "BLOCKED" && identityFail.result.writeTransactions === 0, "WRONG_PRODUCTION_IDENTITY_BLOCKS_BEFORE_WRITES");
         const approvalFail = await run({ reconciliationDigest: "a".repeat(64) });
         check(approvalFail.result.status === "BLOCKED" && approvalFail.result.writeTransactions === 0, "UNAPPROVED_RECONCILIATION_BLOCKS_BEFORE_WRITES");
+        const fixtureSource = await prepareCanonicalCatalogImport({ root, publication: JSON.parse(await readFile(path.join(root, "artifacts/qa/product-publication-cohort-v1/publication-contract.json"), "utf8")) });
+        const incompatibleDevice = { ...fixtureSource.devices[0], brand_key: "local-incompatible", publication_status: "draft" };
+        await admin.query(renderReleaseBAuthorizedOperation({ entity: "device", row: incompatibleDevice }));
+        const conflict = await run();
+        check(conflict.result.status === "BLOCKED" && conflict.result.writeTransactions === 0, "INCOMPATIBLE_IDENTITY_PREWRITE_CONFLICT_ABORT");
+        await admin.query("DELETE FROM public.devices WHERE slug=$1;", [incompatibleDevice.slug]);
         const failure = await run({ fault: async ({ q }) => { if (q.isImport) throw Object.assign(new Error("private credential payload"), { code: "XX000" }); } });
         check(failure.result.status === "BLOCKED" && failure.result.rollback === "PASS" && failure.trace.imports === 1, "FAILURE_AFTER_REAL_IMPORT_ROLLS_BACK_ATOMICALLY");
         check(canonical(await snapshot()) === canonical(initial), "ROLLBACK_NO_PARTIAL_FACT_OR_METADATA_CHANGES");
@@ -121,10 +127,6 @@ try {
         const emptyFail = await run();
         check(emptyFail.result.status === "BLOCKED" && emptyFail.result.writeTransactions === 0 && canonical(await snapshot()) === canonical(unknownBaseline), "EXISTING_EMPTY_NOT_SILENTLY_OVERWRITTEN_ADJUDICATION_REQUIRED");
         await admin.query("UPDATE public.device_specs SET state='KNOWN',value_text=$1,raw_value=$2 WHERE id=$3;", [known[2].value_text, known[2].raw_value, known[2].id]);
-        await admin.query("UPDATE public.devices SET brand_key='local-incompatible' WHERE slug='xreal-air';");
-        const conflict = await run();
-        check(conflict.result.status === "BLOCKED" && conflict.result.writeTransactions === 0, "INCOMPATIBLE_IDENTITY_PREWRITE_CONFLICT_ABORT");
-        await admin.query("UPDATE public.devices SET brand_key='xreal' WHERE slug='xreal-air';");
         const claim = stored.evidence.find(e => e.is_conflicting);
         await admin.query("UPDATE public.device_spec_evidence SET claimed_value='LOCAL_NEW_AUTHORITATIVE_CONFLICT' WHERE id=$1;", [claim.id]);
         const evidenceConflict = await run();
@@ -142,7 +144,7 @@ try {
       } finally { await admin.end(); }
     } }));
   receipt.status = "PASS"; receipt.cleanup = "PASS";
-} catch (error) { receipt.firstFailure = error instanceof assert.AssertionError ? error.message : /^IMPORT_[A-Z0-9_]+$/.test(error?.importCode ?? "") ? error.importCode : "OWNED_LOCAL_REHEARSAL_FAILED"; process.exitCode = 1; }
+} catch (error) { receipt.firstFailure = error instanceof assert.AssertionError ? error.message : "OWNED_LOCAL_REHEARSAL_FAILED"; receipt.fixtureDiagnostic = safeImportFailure(error, "VERIFY", 0, false); process.exitCode = 1; }
 const directory = path.join(root, "artifacts/qa/catalog-stage-c-import"); await mkdir(directory, { recursive: true });
 const file = path.join(directory, runId + ".json"); await writeFile(file, JSON.stringify(receipt, null, 2) + "\n", { flag: "wx" });
 console.log(JSON.stringify(receipt)); console.log("RECEIPT=" + file);
