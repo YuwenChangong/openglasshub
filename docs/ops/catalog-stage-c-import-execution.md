@@ -280,6 +280,66 @@ local rehearsal now uses owned authenticated admin RPCs and real device audit
 triggers, with prewrite/locked/precommit/postcommit audit fault injection.
 No Stage B executor behavior or frozen YAML is changed.
 
+### SCHEMA Timeout Diagnostics And Cleanup
+
+The single historical Production comparison at candidate `44cc730c` failed at
+SCHEMA after 35,014 ms, with SQLSTATE UNKNOWN and generic transport/database
+classification. Identity passed; schema and audit snapshot were not obtained.
+The same session closed successfully. Raw driver errors were not retained.
+This is not evidence of schema drift, and its exact cause/enforcing layer
+remains NOT_PROVEN/UNKNOWN. Do not retrospectively relabel this receipt.
+
+Offline inspection proves the following configured layers:
+
+- Connection opening: at most 10s, strict Session Pooler TLS/approved CA.
+- Stage C server statement timeout: 120s; server lock timeout: 5s.
+- Connection-level client query timeout: 125s, overridden by each query's
+  explicit deadline. Read-only BEGIN/identity/SCHEMA/snapshot/COMMIT: 35s.
+- Read-only failure rollback: 5s. The previous external wrapper ignored a
+  third timeout argument and forwarded 35s for rollback too; do not reuse it.
+- Successful Stage B capture used the identical STATE_SQL with a 30s client
+  deadline and 30s server statement timeout. Stage C adds no work to STATE_SQL;
+  audit content is read only in the later snapshot. There is no proven SQL
+  complexity regression or basis to increase the reviewed 35s read deadline.
+
+Installed pg's `Query read timeout` timer rejects the query promise but does
+not cancel a dispatched non-pipelined server query. A queued rollback can then
+wait behind that query. The adapter now marks such a session unusable and ends
+it immediately; pg end force-disconnects an active non-pipelined query. Session
+termination rolls back its read-only transaction. No second query, cancellation
+connection or reconnect is dispatched after a client timeout. Close is
+idempotent, and any close failure remains available to the outer finally path.
+Ordinary server cancellation/lock timeout still uses bounded ROLLBACK before
+the caller closes the same session. Rollback failure never replaces the first
+query failure. All callers must close in finally; success requires close PASS.
+The original query promise settled at failure; whether the old server query
+remained active until closure cannot be proven from its historical safe receipt.
+
+Future safe diagnostics retain operation/duration/connected state, SQLSTATE,
+failureClass and timeoutClass. Fixed internal driver/server messages distinguish
+CLIENT_QUERY_TIMEOUT, POSTGRES_STATEMENT_TIMEOUT, POSTGRES_LOCK_TIMEOUT,
+generic POSTGRES_QUERY_CANCELLED, POSTGRES_LOCK_NOT_AVAILABLE, network timeout
+and other database errors. Unknown cancellation reason stays unknown. No raw
+message, stack, detail, rows or private connection metadata is emitted.
+
+`node scripts/qa/test-catalog-production-import-timeouts.mjs` covers injected
+classification, secret-safe reporting, original-error preservation, unchanged
+35s deadline, stage-2 mismatch, fast response, broken socket and no reconnect.
+The initial old-source run was RED. The existing disposable rehearsal also
+tests real connected pg_sleep with a 50ms client deadline, 50ms server statement
+timeout, a genuine blocked table read with 50ms lock timeout, bounded rollback
+and the unchanged exact schema query. Small deadlines are local fixtures only;
+Production deadlines remain unchanged. Existing audit rehearsal remains intact.
+
+A new explicit `AUTHORIZE_STAGE_C_READ_ONLY_RECONCILIATION_V2` is mandatory
+before any further Production connection. Its private wrapper must bind the
+final clean candidate and new preparation packet, honor the rollback timeout,
+preserve timeoutClass and the first failing operation, and close the sole
+session. Budget: one connection, three SELECTs (identity, exact schema/ledger,
+catalog plus audit), BEGIN and COMMIT on success or at most one ROLLBACK on
+failure; no diagnostic SELECT, retry, active import receipt or write. No change
+to Stage B, SQL verification, audit protection or importer write policy.
+
 After the tooling/test/docs commit, preserve the earlier preparation packet as
 historical metadata and generate a new `execution-packet.json` from the final
 clean HEAD using the command above. Audit contract

@@ -9,6 +9,7 @@ import { IDENTITY_SQL, STATE_SQL } from "./lib/catalog-production-migration-tran
 import { prepareImport, reconcileImport, verifyImport, canonical, sha256, SNAPSHOT_SQL, buildImportBody, safeImportFailure } from "./lib/catalog-production-import.mjs";
 import { createImportPacket, loadImportBundle, executeImport, claimImportAuthorization, readImportReconciliation } from "./lib/catalog-production-import-executor.mjs";
 import { createImportPostgresAdapter } from "./lib/catalog-production-import-postgres.mjs";
+import { runLocalTimeoutChecks } from "./test-catalog-production-import-timeouts.mjs";
 import { prepareCanonicalCatalogImport } from "../lib/catalog-canonical-import.mjs";
 import { renderReleaseBAuthorizedOperation } from "../devices/schema-v1/disposable-postgres-transaction-client.mjs";
 
@@ -36,6 +37,7 @@ try {
           await admin.query("INSERT INTO supabase_migrations.schema_migrations(version,name,statements) VALUES ($1,$2,$3);", [version, name, [sql]]); await admin.query("COMMIT;");
         }
         const identity = (await admin.query(IDENTITY_SQL)).rows[0];
+        await runLocalTimeoutChecks({ config, admin, check });
         const identitySha256 = sha256(JSON.stringify({ database: identity.database, role: identity.role, port: identity.port, system_identifier: identity.system_identifier }));
         const adminId = randomUUID();
         await admin.query("INSERT INTO auth.users(id,email) VALUES ($1,$2);", [adminId, "stage-c-owned-local@example.invalid"]);

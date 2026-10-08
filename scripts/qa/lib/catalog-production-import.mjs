@@ -264,7 +264,23 @@ export function safeImportFailure(error, operation, durationMs, connected) {
   const sqlstate = /^[0-9A-Z]{5}$/.test(error?.code ?? "") ? error.code : "UNKNOWN";
   const connectionClasses = { ENOTFOUND: "DNS_RESOLUTION_FAILURE", EAI_AGAIN: "DNS_RESOLUTION_FAILURE", ECONNREFUSED: "TCP_CONNECTION_REFUSED", ETIMEDOUT: "TCP_CONNECTION_TIMEOUT", ECONNRESET: "TCP_CONNECTION_RESET",
     ERR_TLS_CERT_ALTNAME_INVALID: "TLS_HOSTNAME_REJECTED", CERT_HAS_EXPIRED: "TLS_CERTIFICATE_REJECTED", UNABLE_TO_VERIFY_LEAF_SIGNATURE: "TLS_CERTIFICATE_REJECTED" };
-  return { operation: OPERATIONS.has(operation) ? operation : "UNKNOWN", sqlstate,
-    failureClass: FAILURE_CODES.has(error?.importCode) ? error.importCode : sqlstate === "28P01" ? "POSTGRES_AUTH_REJECTED" : sqlstate === "57014" ? "STATEMENT_TIMEOUT" : Object.hasOwn(connectionClasses, error?.code ?? "") ? connectionClasses[error.code] : "DATABASE_OR_TRANSPORT_FAILURE",
+  let failureClass = "DATABASE_OR_TRANSPORT_FAILURE", timeoutClass = "UNKNOWN";
+  // Match only fixed driver/server messages internally; never return arbitrary text.
+  if (FAILURE_CODES.has(error?.importCode)) failureClass = error.importCode;
+  else if (sqlstate === "28P01") failureClass = "POSTGRES_AUTH_REJECTED";
+  else if (sqlstate === "57014") {
+    const statement = error?.message === "canceling statement due to statement timeout";
+    failureClass = statement ? "POSTGRES_STATEMENT_TIMEOUT" : "POSTGRES_QUERY_CANCELLED";
+    timeoutClass = statement ? "SERVER_STATEMENT_TIMEOUT" : "CANCELLATION_REASON_UNKNOWN";
+  } else if (sqlstate === "55P03") {
+    const lock = error?.message === "canceling statement due to lock timeout";
+    failureClass = lock ? "POSTGRES_LOCK_TIMEOUT" : "POSTGRES_LOCK_NOT_AVAILABLE";
+    if (lock) timeoutClass = "SERVER_LOCK_TIMEOUT";
+  } else if (Object.hasOwn(connectionClasses, error?.code ?? "")) {
+    failureClass = connectionClasses[error.code];
+    if (error.code === "ETIMEDOUT") timeoutClass = "NETWORK_TIMEOUT";
+  } else if (sqlstate !== "UNKNOWN") failureClass = "POSTGRES_SQL_ERROR";
+  else if (error?.message === "Query read timeout") failureClass = timeoutClass = "CLIENT_QUERY_TIMEOUT";
+  return { operation: OPERATIONS.has(operation) ? operation : "UNKNOWN", sqlstate, failureClass, timeoutClass,
     durationMs: Number.isFinite(durationMs) ? Math.max(0, Math.floor(durationMs)) : 0, sessionConnected: connected === true };
 }

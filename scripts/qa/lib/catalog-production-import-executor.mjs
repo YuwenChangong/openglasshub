@@ -16,6 +16,7 @@ const TOOL_PATHS = [
   "artifacts/qa/catalog-migration-packet-v1/canonical-import.sql",
   "scripts/qa/test-catalog-production-import.mjs", "scripts/qa/test-catalog-production-import-local.mjs",
   "scripts/qa/test-catalog-production-import-audit.mjs", "supabase/migrations/20260909195640_device_schema_v1_foundation.sql",
+  "scripts/qa/test-catalog-production-import-timeouts.mjs",
   "docs/ops/catalog-stage-c-import-execution.md", "docs/superpowers/plans/2026-10-04-catalog-production-migration-packet.md",
   "supabase/migrations/20261004003349_public_device_detail_v1.sql", "supabase/migrations/20261004014637_catalog_editor_presentation_v1.sql",
 ];
@@ -163,5 +164,8 @@ export async function readImportReconciliation({ packet, prepared, session, expe
     const report = reconcileImport(prepared, (await session.query(SNAPSHOT_SQL)).rows?.[0]?.snapshot);
     await session.query("COMMIT;"); transaction = false;
     return report;
-  } finally { if (transaction) await session.query("ROLLBACK;"); }
+  } catch (error) {
+    if (transaction) try { await session.query("ROLLBACK;", [], 5000); } catch { /* Caller must close the same session. */ }
+    throw error;
+  }
 }
