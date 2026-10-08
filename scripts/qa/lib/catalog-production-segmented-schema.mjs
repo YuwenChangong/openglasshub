@@ -37,7 +37,7 @@ export function reconstructSchemaState(entries) {
     const value = values.get(component.id);
     if (component.path[0] === "schema" && value !== null && !Array.isArray(value)) fail("IMPORT_SCHEMA_COMPONENT_RESPONSE_INVALID");
     if (component.id === "LEDGER_SHAPE" && !isObject(value) || component.id === "LEDGER_RECORDS" && !Array.isArray(value)) fail("IMPORT_SCHEMA_COMPONENT_RESPONSE_INVALID");
-    if (component.id === "CATALOG_COUNTS" && (!isObject(value) || Object.keys(value).sort().join("|") !== "audit|devices|specs"
+    if (component.id === "CATALOG_COUNTS" && (!isObject(value) || Object.keys(value).sort().join("|") !== "audit|definitions|devices|published|specs"
       || Object.values(value).some(n => !Number.isSafeInteger(n) || n < 0))) fail("IMPORT_SCHEMA_COMPONENT_RESPONSE_INVALID");
     if (component.path.length === 2) state.schema[component.path[1]] = value;
     else state[component.path[0]] = value;

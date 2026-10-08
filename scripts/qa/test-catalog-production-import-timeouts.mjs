@@ -78,7 +78,7 @@ export async function runInjectedTimeoutChecks() {
             { name: "statements", type: "text[]", notNull: false },
           ],
         } }] } : sql === deriveSchemaComponents()[9].sql ? { rows: [{ component: [] }] }
-          : sql === deriveSchemaComponents()[10].sql ? { rows: [{ component: { devices: 0, specs: 0, audit: 0 } }] } : { rows: [{ component: [] }] };
+          : sql === deriveSchemaComponents()[10].sql ? { rows: [{ component: { devices: 0, specs: 0, audit: 0, published: 0, definitions: 0 } }] } : { rows: [{ component: [] }] };
       },
     },
   }), /IMPORT_STAGE2_OR_READER_GRANTS_DRIFT/);

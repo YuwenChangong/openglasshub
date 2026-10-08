@@ -50,7 +50,7 @@ export function createSegmentedReadOnlySession({ session, packet, expectedIdenti
           if (!evidence.schemaVerified || response.rows?.length !== 1) reject();
           evidence.snapshotCompleted = true;
         }
-        if (rollback || operation === "COMMIT") transaction = false;
+        if (rollback || operation === "COMMIT") { transaction = false; failed = true; }
         if (!rollback) index++;
         return response;
       } catch (error) {

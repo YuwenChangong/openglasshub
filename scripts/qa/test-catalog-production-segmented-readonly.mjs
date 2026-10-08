@@ -9,7 +9,7 @@ const components = deriveSchemaComponents();
 const ledger = ["public_device_detail_v1", "catalog_editor_presentation_v1"].map((name, i) => ({ name, version: ["20261004003349", "20261004014637"][i], statements: [`owned-${i}`] }));
 const values = [...Array.from({ length: 8 }, () => []), { owner: "postgres", primaryKey: "PRIMARY KEY (version)", columns: [
   { name: "version", type: "text", notNull: true }, { name: "name", type: "text", notNull: false }, { name: "statements", type: "text[]", notNull: false },
-] }, ledger, { devices: 0, specs: 0, audit: 0 }];
+] }, ledger, { devices: 0, specs: 0, audit: 0, published: 0, definitions: 0 }];
 const packet = { stage2SchemaSha256: schemaDigest(reconstructSchemaState(components.map((c, i) => [c.id, values[i]]))), migrationHashes: ledger.map(l => sha256(l.statements[0])) };
 const row = { database: "owned", role: "owned", port: 5432, system_identifier: "owned" };
 const identity = sha256(JSON.stringify(row));
@@ -54,6 +54,10 @@ try {
   const expired = make({ deadline: 1, now: () => 2 }); await assert.rejects(expired.session.query(sequence[0])); assert.equal(expired.trace.length, 0); checks++;
   const cap = make({ deadline: 7 }); await cap.session.query(sequence[0], [], 999999); assert.equal(cap.trace[0].timeout, 7); checks++;
   const closed = make(); await closed.session.close(); await assert.rejects(closed.session.query(sequence[0])); checks++;
+  const terminated = make();
+  for (const sql of sequence.slice(0, 13)) await terminated.session.query(sql);
+  await terminated.session.query("ROLLBACK;");
+  await assert.rejects(terminated.session.query(SNAPSHOT_SQL), /IMPORT_READ_ONLY_EXECUTION_CONTRACT/, "ROLLBACK_TERMINATES_PROOF_SEQUENCE"); checks++;
   const drift = make(); await drift.session.query(sequence[0]); await drift.session.query(IDENTITY_SQL);
   const old = ledger[0].name; ledger[0].name = "UNREVIEWED";
   try {

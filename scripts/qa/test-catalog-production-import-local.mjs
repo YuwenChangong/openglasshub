@@ -52,7 +52,7 @@ try {
         const fixedTime = Date.parse("2020-01-01T00:01:00Z");
         const read = await readImportReconciliation({ packet, prepared, session: admin, expectedServerIdentitySha256: identitySha256 });
         check(read.inserts.device === 24 && read.inserts.spec === 1488 && read.blockers.length === 0, "GENUINE_STATE2_INITIAL_RECONCILIATION");
-        const run = async ({ fault, identityDigest = identitySha256, reconciliationDigest, expire, actor = null } = {}) => {
+        const run = async ({ fault, identityDigest = identitySha256, reconciliationDigest, expire, commitRace, actor = null } = {}) => {
           const baseline = await snapshot();
           baseline.auditActor = actor;
           const plan = reconcileImport(prepared, baseline);
@@ -63,7 +63,7 @@ try {
             windowStartUTC: "2020-01-01T00:00:00Z", windowEndUTC: "2020-01-01T00:10:00Z", humanGates: { backupRecoveryReady: true, catalogWritesPaused: true, currentReaderCompatible: true,
               stageBCompleted: true, productionReconciliationReviewed: true, rollbackOperatorReady: true } };
           const bundle = await loadImportBundle({ root, packet, receipt: auth, now: fixedTime });
-          let clock = fixedTime;
+          let clock = fixedTime, commitClockChecks = 0, finalSchemaCompleted = false;
           const trace = { connects: 0, queries: [], snapshots: 0, imports: 0 };
           class OwnedClient {
             constructor() { this.client = new pg.Client(config); }
@@ -76,6 +76,7 @@ try {
               trace.queries.push(q.text); if (q.text === SNAPSHOT_SQL) trace.snapshots++;
               if (q.text === importBody) trace.imports++;
               const result = await this.client.query(q);
+              if (q.text === deriveSchemaComponents().at(-1).sql && trace.imports > 0 && trace.snapshots === 3) finalSchemaCompleted = true;
               if (expire && q.text === deriveSchemaComponents()[0].sql && trace.imports > 0) clock = Date.parse(auth.windowEndUTC);
               await fault?.({ q: { ...q, isImport: q.text === importBody }, client: this.client, trace, result }); return result;
             }
@@ -83,7 +84,10 @@ try {
           }
           const open = createImportPostgresAdapter({ config, Client: OwnedClient });
           const claim = (id, digest) => claimImportAuthorization(root, id, digest);
-          const result = await executeImport({ bundle, open, claim, now: () => clock });
+          const result = await executeImport({ bundle, open, claim, now: () => {
+            if (commitRace && finalSchemaCompleted && ++commitClockChecks === 2) clock = Date.parse(auth.windowEndUTC);
+            return clock;
+          } });
           receipt.lastOutcome = result;
           check(trace.connects === 1 && result.authorizationConsumed && result.automaticRetries === 0, "ONE_CONNECTION_DURABLE_CLAIM_NO_RETRY");
           const consumed = await executeImport({ bundle, open, claim, now: () => fixedTime });
@@ -106,6 +110,9 @@ try {
         check(!canonical(failure.result).includes("credential"), "SAFE_DIAGNOSTIC_SURVIVES_RESULT_WRAPPER");
         const expired = await run({ expire: true });
         check(expired.result.status === "BLOCKED" && !expired.result.commitDispatched && expired.result.rollback === "PASS" && canonical(await snapshot()) === canonical(initial), "WINDOW_EXPIRES_BEFORE_COMMIT_ROLLBACK_NOT_AMBIGUITY");
+        const commitRace = await run({ commitRace: true });
+        check(commitRace.result.status === "BLOCKED" && !commitRace.result.commitDispatched && commitRace.result.rollback === "PASS"
+          && canonical(await snapshot()) === canonical(initial), "FINAL_DISPATCH_GATE_EXPIRY_NEVER_FALSE_COMMIT_AMBIGUITY");
         const actorInitial = { ...initial, auditActor: adminId };
         const generatedInserts = await run({ actor: adminId, fault: async ({ q, result, trace }) => {
           if (q.text === SNAPSHOT_SQL && trace.snapshots === 3) {

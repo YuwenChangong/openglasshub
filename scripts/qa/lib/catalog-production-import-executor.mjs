@@ -100,12 +100,13 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
   let dispatches = 0, sqlStatements = 0;
   const wallDeadline = performance.now() + SEGMENTED_CONTRACT.importWallClockMaxMs;
   const remainingTime = () => Math.min(Date.parse(bundle.receipt.windowEndUTC) - now(), wallDeadline - performance.now());
-  const query = async (sql, op, read = false, statementWeight = 1) => {
+  const query = async (sql, op, read = false, statementWeight = 1, writeCommit = false) => {
     mark(op);
     const remaining = remainingTime();
     if (remaining <= 0) fail("IMPORT_WINDOW_EXPIRED");
     if (++dispatches > SEGMENTED_CONTRACT.importDispatchesMax || (sqlStatements += statementWeight) > bundle.packet.executionContract.importSqlStatementsMax) fail("IMPORT_STATEMENT_BUDGET_EXHAUSTED");
     if (read && ++readStatements > SEGMENTED_CONTRACT.importSelectsMax) fail("IMPORT_READ_BUDGET_EXHAUSTED");
+    if (writeCommit) { commitDispatched = true; result.commitDispatched = true; }
     return session.query(sql, [], Math.min(op === "IMPORT" ? 125000 : 35000, remaining));
   };
   const state = () => readSegmentedStage2({ packet: bundle.packet, query: sql => query(sql, "SCHEMA", true), onComponent: id => { result.schemaComponentId = id; } });
@@ -137,8 +138,7 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
     // The timeout/window gate must pass BEFORE marking COMMIT dispatched.
     const commitRemaining = remainingTime();
     if (commitRemaining <= 0) fail("IMPORT_WINDOW_EXPIRED");
-    mark("COMMIT"); commitDispatched = true; result.commitDispatched = true;
-    await query("COMMIT;", "COMMIT"); transaction = false; committed = true; result.committed = true;
+    await query("COMMIT;", "COMMIT", false, 1, true); transaction = false; committed = true; result.committed = true;
     await query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;", "BEGIN"); transaction = true;
     await state(); const postCommit = await snapshot("POSTCOMMIT"); mark("VERIFY"); verifyImport(bundle.prepared, before, postCommit, plan);
     verifyAudit(after, postCommit, { actions: [] });

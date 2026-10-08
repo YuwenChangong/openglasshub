@@ -18,7 +18,7 @@ export async function runSegmentedSchemaUnitChecks() {
   }));
   const values = [[], [], [], [], [], [], [], [], { owner: "postgres", primaryKey: "PRIMARY KEY (version)", columns: [
     { name: "version", type: "text", notNull: true }, { name: "name", type: "text", notNull: false }, { name: "statements", type: "text[]", notNull: false },
-  ] }, ledger, { audit: 0, specs: 0, devices: 0 }];
+  ] }, ledger, { audit: 0, specs: 0, devices: 0, published: 0, definitions: 0 }];
   const entries = components.map((c, i) => [c.id, values[i]]);
   const state = reconstructSchemaState(entries);
   const packet = { stage2SchemaSha256: schemaDigest(state), migrationHashes: ledger.map(l => sha256(l.statements[0])) };
@@ -31,7 +31,7 @@ export async function runSegmentedSchemaUnitChecks() {
     } });
     assert.equal(calls.length, 11); assert(!calls.includes(STATE_SQL)); return result;
   };
-  assert.deepEqual(await run(), state); checks++;
+  assert.deepEqual(await run(), state); assert.equal(Object.keys(state.counts).length, 5); checks++;
   assert.deepEqual(Object.keys(state.schema), ["views", "columns", "indexes", "policies", "triggers", "functions", "relations", "constraints"]); checks++;
   const payload = { longer: null, z: "preserved", number: 1.5 };
   assert.equal(reconstructSchemaState(entries.map(([id, value]) => [id, id === "RELATIONS_ACL" ? [payload] : value])).schema.relations[0], payload); checks++;
