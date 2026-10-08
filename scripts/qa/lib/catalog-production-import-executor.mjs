@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFile, open as openFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { IDENTITY_SQL, STATE_SQL, schemaDigest } from "./catalog-production-migration-transport.mjs";
-import { prepareImport, reconcileImport, verifyImport, canonical, sha256, fail, TABLES, SNAPSHOT_SQL, safeImportFailure } from "./catalog-production-import.mjs";
+import { prepareImport, reconcileImport, verifyImport, canonical, sha256, fail, TABLES, SNAPSHOT_SQL, safeImportFailure, buildImportBody } from "./catalog-production-import.mjs";
 
 const validated = new WeakSet();
 const TOOL_PATHS = [
@@ -115,7 +115,7 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
     await query(LOCK_SQL, "LOCK"); await state();
     const locked = await snapshot();
     if (canonical(locked) !== canonical(before)) fail("IMPORT_PREWRITE_CONCURRENT_CHANGE");
-    result.importAttempts++; await query(bundle.prepared.body, "IMPORT");
+    result.importAttempts++; await query(buildImportBody(bundle.prepared, plan), "IMPORT");
     const after = await snapshot(); mark("VERIFY"); verifyImport(bundle.prepared, before, after, plan);
     const postSchema = await state();
     const auditDelta = postSchema.counts.audit - schema.counts.audit;
@@ -130,6 +130,7 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
     await query("COMMIT;", "COMMIT"); transaction = false;
     result.status = "PASS"; result.postCommitVerification = "PASS";
     result.reconciliationSha256 = plan.reconciliationSha256;
+    result.writeSetSha256 = plan.writeSetSha256;
     result.inserts = plan.inserts; result.nullSchemaTypeUpdates = plan.nullSchemaType;
   } catch (error) {
     result.status = commitDispatched && !committed ? "AMBIGUOUS" : committed ? "COMMITTED_VERIFICATION_FAILED" : "BLOCKED";

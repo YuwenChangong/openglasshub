@@ -77,5 +77,5 @@ GRANT SELECT(id,slug,brand_key,brand_name,name,short_description,long_descriptio
 DROP POLICY devices_select_published_public ON public.devices;
 CREATE POLICY devices_select_published_public ON public.devices FOR SELECT TO anon USING(publication_status='published');
 COMMIT;`;
-  return { inventory, model, devices, activationSql,hardeningSql, sql: ["BEGIN;", "SET CONSTRAINTS ALL DEFERRED;",initializeLegacy, ...statements, "COMMIT;"].join("\n") };
+  return { inventory, model, devices, operations, statements, initializationSql: initializeLegacy, activationSql,hardeningSql, sql: ["BEGIN;", "SET CONSTRAINTS ALL DEFERRED;",initializeLegacy, ...statements, "COMMIT;"].join("\n") };
 }

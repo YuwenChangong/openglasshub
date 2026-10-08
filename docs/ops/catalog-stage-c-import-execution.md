@@ -95,7 +95,7 @@ completed ledger entries, without executing migrations. The metadata reader is
 reused from Stage B only as a read-only structural primitive, not its executor.
 
 The deterministic report includes stable identities, classifications, insert
-ceilings, NULL metadata count, blockers, private snapshot digest, and
+ceilings, NULL metadata count, blockers, exact minimal write-set digest, private snapshot digest, and
 `reconciliationSha256`; no stored row values. Retain the safe report for exact
 human review. Stop if any blocker exists. A report from local fixtures cannot
 approve Production. Preserve the write freeze through execution: any changed
@@ -157,11 +157,17 @@ different linked worktree cannot reuse its authorization ID.
    state-2 schema/ledger/legacy grants, and approved reconciliation digest.
 2. Begin the only write transaction. Lock the ledger/catalog tables, recheck
    structural state and exact private snapshot before any import dispatch.
-3. Apply only the frozen import body. The executor owns BEGIN/COMMIT; it does
-   not submit the source SQL's outer transaction delimiters.
+3. Apply only the missing-identity INSERT statements from the accepted frozen
+   renderer, plus its NULL schema initialization. Existing identities are NOT
+   redispatched: BEFORE INSERT triggers can run before ON CONFLICT DO NOTHING.
+   The executor owns BEGIN/COMMIT; the approved reconciliation binds the exact
+   selected write-set SHA256. Frozen canonical SQL generation remains unchanged.
 4. Before commit, verify every target identity, insert delta, existing full row,
    source/evidence relationship, NULL-only metadata update, absence of activation,
-   unchanged schema/grants and bounded audit delta.
+   unchanged schema/grants and bounded audit delta. Only device updated_at
+   housekeeping from genuinely inserted missing specs or NULL initialization
+   may advance; existing facts, copy, presentation, identity, publication and
+   all other metadata are preserved. A zero-missing-row reimport changes no row.
 5. Only then dispatch COMMIT. On acknowledged commit, run one read-only
    repeatable-read postcheck of structural state and the same preservation
    invariants. Close the same connection; no fresh verification connection.

@@ -34,7 +34,18 @@ export async function prepareImport(root) {
   ];
   const knownValues = prepared.inventory.parameterLedger.filter(row => row.state === "KNOWN").length;
   if (prepared.devices.length !== 24 || prepared.model.specs.length !== 1488 || knownValues !== 829 || prepared.model.blockers.length) fail("IMPORT_SOURCE_COUNTS_MISMATCH");
-  return { sourceSha256, knownValues, operations, sql, inputPaths: prepared.inventory.sourceHashes.map(item => item.path), body: sql.slice("BEGIN;\n".length, -"COMMIT;\n".length) };
+  return { sourceSha256, knownValues, operations, sql, statements: prepared.statements, initializationSql: prepared.initializationSql,
+    inputPaths: prepared.inventory.sourceHashes.map(item => item.path), body: sql.slice("BEGIN;\n".length, -"COMMIT;\n".length) };
+}
+
+export function buildImportBody(prepared, plan) {
+  if (plan.blockers.length || plan.actions.length !== prepared.operations.length) fail("IMPORT_WRITE_SET_INVALID");
+  const statements = plan.actions.flatMap((action, i) => {
+    const operation = prepared.operations[i];
+    if (action.entity !== operation.entity || action.identity !== key(operation.entity, operation.row)) fail("IMPORT_WRITE_SET_INVALID");
+    return ["INSERT_MISSING", "INSERT_UNKNOWN"].includes(action.classification) ? [prepared.statements[i]] : [];
+  });
+  return ["SET CONSTRAINTS ALL DEFERRED;", prepared.initializationSql, ...statements, ""].join("\n");
 }
 
 // Full private rows stay in memory only. Limits fail closed instead of silently
@@ -90,7 +101,8 @@ export function reconcileImport(prepared, snapshot) {
     if (classification.startsWith("BLOCK_")) blockers.push({ entity, identity, classification });
     actions.push({ entity, identity, classification });
   }
-  const report = { sourceSha256: prepared.sourceSha256, knownValues: prepared.knownValues, snapshotSha256: sha256(canonical(snapshot)), actions, blockers, inserts, nullSchemaType };
+  const writeSetSha256 = blockers.length ? null : sha256(buildImportBody(prepared, { actions, blockers }));
+  const report = { sourceSha256: prepared.sourceSha256, knownValues: prepared.knownValues, snapshotSha256: sha256(canonical(snapshot)), writeSetSha256, actions, blockers, inserts, nullSchemaType };
   return { ...report, reconciliationSha256: sha256(canonical(report)) };
 }
 
@@ -106,6 +118,9 @@ export function verifyImport(prepared, before, after, plan) {
         const target = prepared.operations.find(op => op.entity === "device" && key(entity, op.row) === identity);
         if (target) { allowed.schema_type = target.row.schema_type; allowed.updated_at = next.updated_at; }
       }
+      // A genuinely missing spec can invoke the accepted parent-serialization
+      // trigger; only that target device's housekeeping timestamp may advance.
+      if (entity === "device" && plan.actions.some(a => a.entity === "spec" && a.classification.startsWith("INSERT_") && JSON.parse(a.identity)[0] === oldRow.slug)) allowed.updated_at = next.updated_at;
       if (canonical(next) !== canonical(allowed)) fail("IMPORT_POSTCHECK_EXISTING_ROW_CHANGED");
     }
   }
@@ -121,11 +136,22 @@ export function verifyImport(prepared, before, after, plan) {
 }
 
 const OPERATIONS = new Set(["APPROVAL", "CLAIM", "CONNECT", "IDENTITY", "SCHEMA", "SNAPSHOT", "BEGIN", "LOCK", "IMPORT", "VERIFY", "COMMIT", "POSTCOMMIT", "ROLLBACK", "CLOSE"]);
+const FAILURE_CODES = new Set([
+  "IMPORT_SOURCE_HASH_MISMATCH", "IMPORT_FROZEN_SQL_MISMATCH", "IMPORT_SOURCE_COUNTS_MISMATCH", "IMPORT_WRITE_SET_INVALID",
+  "IMPORT_SNAPSHOT_INVALID_OR_LIMIT", "IMPORT_SNAPSHOT_DUPLICATE_IDENTITY", "IMPORT_POSTCHECK_INSERT_COUNT", "IMPORT_POSTCHECK_EXISTING_ROW_REMOVED",
+  "IMPORT_POSTCHECK_EXISTING_ROW_CHANGED", "IMPORT_POSTCHECK_IDENTITY_MISSING", "IMPORT_POSTCHECK_SOURCE_VALUE_DROPPED", "IMPORT_POSTCHECK_EVIDENCE_CHANGED",
+  "IMPORT_POSTCHECK_ACTIVATION", "IMPORT_POSTCHECK_RECONCILIATION_BLOCKED", "IMPORT_EXECUTION_CHECKOUT_MISMATCH", "IMPORT_CHECKOUT_DIRTY",
+  "IMPORT_AUTHORIZATION_SHAPE_INVALID", "IMPORT_AUTHORIZATION_BINDING_INVALID", "IMPORT_WINDOW_INVALID", "IMPORT_WINDOW_NOT_ACTIVE", "IMPORT_HUMAN_GATE_REQUIRED",
+  "IMPORT_PACKET_DRIFT", "IMPORT_CLAIM_INVALID", "IMPORT_AUTHORIZATION_ALREADY_CLAIMED_OR_UNAVAILABLE", "IMPORT_STAGE2_OR_READER_GRANTS_DRIFT",
+  "IMPORT_VALIDATED_BUNDLE_REQUIRED", "IMPORT_WINDOW_EXPIRED", "IMPORT_READ_BUDGET_EXHAUSTED", "IMPORT_SCHEMA_RESPONSE_INVALID", "IMPORT_SNAPSHOT_RESPONSE_INVALID",
+  "IMPORT_SERVER_IDENTITY_MISMATCH", "IMPORT_PREWRITE_CONFLICT", "IMPORT_RECONCILIATION_NOT_APPROVED", "IMPORT_PREWRITE_CONCURRENT_CHANGE", "IMPORT_AUDIT_WRITE_SCOPE_EXCEEDED",
+  "IMPORT_CA_TRUST_INVALID", "IMPORT_SESSION_POOLER_SOURCE_INVALID", "IMPORT_RECONNECT_FORBIDDEN", "IMPORT_CLI_SCOPE_INVALID",
+]);
 export function safeImportFailure(error, operation, durationMs, connected) {
   const sqlstate = /^[0-9A-Z]{5}$/.test(error?.code ?? "") ? error.code : "UNKNOWN";
   const connectionClasses = { ENOTFOUND: "DNS_RESOLUTION_FAILURE", EAI_AGAIN: "DNS_RESOLUTION_FAILURE", ECONNREFUSED: "TCP_CONNECTION_REFUSED", ETIMEDOUT: "TCP_CONNECTION_TIMEOUT", ECONNRESET: "TCP_CONNECTION_RESET",
     ERR_TLS_CERT_ALTNAME_INVALID: "TLS_HOSTNAME_REJECTED", CERT_HAS_EXPIRED: "TLS_CERTIFICATE_REJECTED", UNABLE_TO_VERIFY_LEAF_SIGNATURE: "TLS_CERTIFICATE_REJECTED" };
   return { operation: OPERATIONS.has(operation) ? operation : "UNKNOWN", sqlstate,
-    failureClass: /^IMPORT_[A-Z0-9_]{1,80}$/.test(error?.importCode ?? "") ? error.importCode : sqlstate === "28P01" ? "POSTGRES_AUTH_REJECTED" : sqlstate === "57014" ? "STATEMENT_TIMEOUT" : Object.hasOwn(connectionClasses, error?.code ?? "") ? connectionClasses[error.code] : "DATABASE_OR_TRANSPORT_FAILURE",
+    failureClass: FAILURE_CODES.has(error?.importCode) ? error.importCode : sqlstate === "28P01" ? "POSTGRES_AUTH_REJECTED" : sqlstate === "57014" ? "STATEMENT_TIMEOUT" : Object.hasOwn(connectionClasses, error?.code ?? "") ? connectionClasses[error.code] : "DATABASE_OR_TRANSPORT_FAILURE",
     durationMs: Number.isFinite(durationMs) ? Math.max(0, Math.floor(durationMs)) : 0, sessionConnected: connected === true };
 }

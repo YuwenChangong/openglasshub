@@ -6,7 +6,7 @@ import path from "node:path";
 import pg from "pg";
 import { withCanonicalBaselineDirectory, runLocalDisposableReplay, assertLocalReplayTarget } from "./local-disposable-supabase-replay.mjs";
 import { IDENTITY_SQL, STATE_SQL } from "./lib/catalog-production-migration-transport.mjs";
-import { prepareImport, reconcileImport, canonical, sha256, SNAPSHOT_SQL } from "./lib/catalog-production-import.mjs";
+import { prepareImport, reconcileImport, canonical, sha256, SNAPSHOT_SQL, buildImportBody } from "./lib/catalog-production-import.mjs";
 import { createImportPacket, loadImportBundle, executeImport, claimImportAuthorization, readImportReconciliation } from "./lib/catalog-production-import-executor.mjs";
 import { createImportPostgresAdapter } from "./lib/catalog-production-import-postgres.mjs";
 import { prepareCanonicalCatalogImport } from "../lib/catalog-canonical-import.mjs";
@@ -45,6 +45,7 @@ try {
         const run = async ({ fault, identityDigest = identitySha256, reconciliationDigest, expire } = {}) => {
           const baseline = await snapshot();
           const plan = reconcileImport(prepared, baseline);
+          const importBody = plan.blockers.length ? null : buildImportBody(prepared, plan);
           const authorizationId = "stage-c-local-" + randomUUID();
           const auth = { format: "catalog-stage-c-authorization-v1", authorizationId, packetSha256: sha256(canonical(packet)), candidateHead: packet.candidateHead,
             checkoutSha256: packet.checkoutSha256, targetClass: "SUPAVISOR_SESSION", serverIdentitySha256: identityDigest, reconciliationSha256: reconciliationDigest ?? plan.reconciliationSha256,
@@ -59,10 +60,10 @@ try {
             async connect() { trace.connects++; await this.client.connect(); }
             async query(q) {
               trace.queries.push(q.text); if (q.text === SNAPSHOT_SQL) trace.snapshots++;
-              if (q.text === prepared.body) trace.imports++;
+              if (q.text === importBody) trace.imports++;
               const result = await this.client.query(q);
               if (expire && q.text === STATE_SQL && trace.imports > 0) clock = Date.parse(auth.windowEndUTC);
-              await fault?.({ q, client: this.client, trace, result }); return result;
+              await fault?.({ q: { ...q, isImport: q.text === importBody }, client: this.client, trace, result }); return result;
             }
             async end() { await this.client.end(); }
           }
@@ -79,7 +80,7 @@ try {
         check(identityFail.result.status === "BLOCKED" && identityFail.result.writeTransactions === 0, "WRONG_PRODUCTION_IDENTITY_BLOCKS_BEFORE_WRITES");
         const approvalFail = await run({ reconciliationDigest: "a".repeat(64) });
         check(approvalFail.result.status === "BLOCKED" && approvalFail.result.writeTransactions === 0, "UNAPPROVED_RECONCILIATION_BLOCKS_BEFORE_WRITES");
-        const failure = await run({ fault: async ({ q }) => { if (q.text === prepared.body) throw Object.assign(new Error("private credential payload"), { code: "XX000" }); } });
+        const failure = await run({ fault: async ({ q }) => { if (q.isImport) throw Object.assign(new Error("private credential payload"), { code: "XX000" }); } });
         check(failure.result.status === "BLOCKED" && failure.result.rollback === "PASS" && failure.trace.imports === 1, "FAILURE_AFTER_REAL_IMPORT_ROLLS_BACK_ATOMICALLY");
         check(canonical(await snapshot()) === canonical(initial), "ROLLBACK_NO_PARTIAL_FACT_OR_METADATA_CHANGES");
         check(!canonical(failure.result).includes("credential"), "SAFE_DIAGNOSTIC_SURVIVES_RESULT_WRAPPER");
@@ -107,6 +108,7 @@ try {
         const known = stored.specs.filter(s => s.state === "KNOWN" && s.value_text !== null);
         const adminId = randomUUID();
         await admin.query("INSERT INTO auth.users(id,email) VALUES ($1,$2);", [adminId, "stage-c-owned-local@example.invalid"]);
+        await admin.query("UPDATE public.profiles SET role='admin' WHERE id=$1;", [adminId]);
         await admin.query("UPDATE public.device_specs SET value_text='LOCAL_ADMIN_VALUE',updated_by=$1,presentation=$2 WHERE id=$3;", [adminId, { labelEn: "Admin label", labelZh: "Local label", keySpec: true }, known[0].id]);
         await admin.query("UPDATE public.device_specs SET value_text='LOCAL_RICHER_VALUE' WHERE id=$1;", [known[1].id]);
         await admin.query("UPDATE public.devices SET publication_status='hidden',short_description='LOCAL_RICHER_COPY' WHERE slug='xreal-air';");
