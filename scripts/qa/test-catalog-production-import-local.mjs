@@ -50,7 +50,9 @@ try {
         const snapshot = async () => (await admin.query(SNAPSHOT_SQL)).rows[0].snapshot;
         const initial = await snapshot();
         const fixedTime = Date.parse("2020-01-01T00:01:00Z");
-        const read = await readImportReconciliation({ packet, prepared, session: admin, expectedServerIdentitySha256: identitySha256 });
+        const read = await readImportReconciliation({ packet, prepared, session: {
+          query: (text, values, deadline) => admin.query({ text, values, query_timeout: deadline }),
+        }, expectedServerIdentitySha256: identitySha256 });
         check(read.inserts.device === 24 && read.inserts.spec === 1488 && read.blockers.length === 0, "GENUINE_STATE2_INITIAL_RECONCILIATION");
         const run = async ({ fault, identityDigest = identitySha256, reconciliationDigest, expire, commitRace, actor = null } = {}) => {
           const baseline = await snapshot();
