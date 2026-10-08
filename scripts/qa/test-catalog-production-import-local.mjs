@@ -69,6 +69,7 @@ try {
           const open = createImportPostgresAdapter({ config, Client: OwnedClient });
           const claim = (id, digest) => claimImportAuthorization(root, id, digest);
           const result = await executeImport({ bundle, open, claim, now: () => clock });
+          receipt.lastOutcome = result;
           check(trace.connects === 1 && result.authorizationConsumed && result.automaticRetries === 0, "ONE_CONNECTION_DURABLE_CLAIM_NO_RETRY");
           const consumed = await executeImport({ bundle, open, claim, now: () => fixedTime });
           check(consumed.status === "BLOCKED" && consumed.connections === 0 && trace.connects === 1, "CONSUMED_AUTHORIZATION_REUSE_DENIED_BEFORE_CONNECTION");

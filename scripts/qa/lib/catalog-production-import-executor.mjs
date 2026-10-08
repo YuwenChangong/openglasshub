@@ -89,16 +89,19 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
   const mark = name => { operation = name; started = performance.now(); };
   const query = async (sql, op, read = false) => {
     mark(op);
-    if (now() >= Date.parse(bundle.receipt.windowEndUTC)) fail("IMPORT_WINDOW_EXPIRED");
+    const remaining = Date.parse(bundle.receipt.windowEndUTC) - now();
+    if (remaining <= 0) fail("IMPORT_WINDOW_EXPIRED");
     if (read && ++readStatements > 9) fail("IMPORT_READ_BUDGET_EXHAUSTED");
-    return session.query(sql, [], Math.min(op === "IMPORT" ? 125000 : 35000, Date.parse(bundle.receipt.windowEndUTC) - now()));
+    return session.query(sql, [], Math.min(op === "IMPORT" ? 125000 : 35000, remaining));
   };
   const state = async () => { const response = await query(STATE_SQL, "SCHEMA", true); const value = response.rows?.[0]?.state; if (response.rows?.length !== 1) fail("IMPORT_SCHEMA_RESPONSE_INVALID"); assertStage2(value, bundle.packet); return value; };
   const snapshot = async (op = "SNAPSHOT") => { const response = await query(SNAPSHOT_SQL, op, true); if (response.rows?.length !== 1) fail("IMPORT_SNAPSHOT_RESPONSE_INVALID"); return response.rows[0].snapshot; };
   try {
     validateAuthorization(bundle.receipt, bundle.packet, now());
     mark("CLAIM"); await claim(bundle.receipt.authorizationId, sha256(canonical(bundle.receipt))); result.authorizationConsumed = true;
-    mark("CONNECT"); result.connections++; session = await open();
+    const connectRemaining = Date.parse(bundle.receipt.windowEndUTC) - now();
+    if (connectRemaining <= 0) fail("IMPORT_WINDOW_EXPIRED");
+    mark("CONNECT"); result.connections++; session = await open(Math.min(10000, connectRemaining));
     await query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;", "BEGIN"); transaction = true;
     const identityResult = await query(IDENTITY_SQL, "IDENTITY", true);
     const row = identityResult.rows?.[0];
@@ -118,9 +121,10 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
     const auditDelta = postSchema.counts.audit - schema.counts.audit;
     if (!Number.isSafeInteger(auditDelta) || auditDelta < 0 || auditDelta > Object.values(plan.inserts).reduce((a, b) => a + b, 0) + plan.nullSchemaType) fail("IMPORT_AUDIT_WRITE_SCOPE_EXCEEDED");
     // The timeout/window gate must pass BEFORE marking COMMIT dispatched.
-    if (now() >= Date.parse(bundle.receipt.windowEndUTC)) fail("IMPORT_WINDOW_EXPIRED");
+    const commitRemaining = Date.parse(bundle.receipt.windowEndUTC) - now();
+    if (commitRemaining <= 0) fail("IMPORT_WINDOW_EXPIRED");
     mark("COMMIT"); commitDispatched = true; result.commitDispatched = true;
-    await session.query("COMMIT;", [], Math.min(35000, Date.parse(bundle.receipt.windowEndUTC) - now())); transaction = false; committed = true; result.committed = true;
+    await session.query("COMMIT;", [], Math.min(35000, commitRemaining)); transaction = false; committed = true; result.committed = true;
     await query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;", "BEGIN"); transaction = true;
     await state(); mark("VERIFY"); verifyImport(bundle.prepared, before, await snapshot("POSTCOMMIT"), plan);
     await query("COMMIT;", "COMMIT"); transaction = false;

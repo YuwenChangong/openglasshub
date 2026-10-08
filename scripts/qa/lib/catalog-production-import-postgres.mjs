@@ -8,9 +8,9 @@ export async function prepareImportConnection(environment) {
 }
 export function createImportPostgresAdapter({ config, Client = pg.Client }) {
   let used = false;
-  return async () => {
+  return async (timeout = 10000) => {
     if (used) fail("IMPORT_RECONNECT_FORBIDDEN"); used = true;
-    const client = new Client(config); let connected = false, broken = false, failure;
+    const client = new Client({ ...config, connectionTimeoutMillis: Math.max(1, Math.min(config.connectionTimeoutMillis ?? 10000, timeout)) }); let connected = false, broken = false, failure;
     client.on("error", error => { broken = true; failure = { code: /^[0-9A-Z]{5}$/.test(error?.code ?? "") ? error.code : undefined }; });
     try { await client.connect(); connected = true; } catch (error) { try { await client.end(); } catch {} throw error; }
     return {
