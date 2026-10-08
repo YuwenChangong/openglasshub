@@ -22,6 +22,7 @@ export const TOOLING_FILES = Object.freeze([
 export const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
 export function fail(code) { const error=new Error(code);error.code=code;throw error; }
 const connectionDiagnostics = new WeakMap();
+const operationProvenance = new WeakMap();
 const CONNECTION_CODES = Object.freeze({
   ENOTFOUND:"DNS_RESOLUTION_FAILURE",EAI_AGAIN:"DNS_RESOLUTION_FAILURE",
   ECONNREFUSED:"TCP_CONNECTION_REFUSED",ETIMEDOUT:"TCP_CONNECTION_TIMEOUT",
@@ -41,20 +42,23 @@ const CONNECTION_CODES = Object.freeze({
   ERR_INVALID_ARG_TYPE:"DRIVER_CONFIGURATION_ERROR",ERR_INVALID_ARG_VALUE:"DRIVER_CONFIGURATION_ERROR",
 });
 export function catalogConnectionFailure(raw) {
+  const provenance=catalogFailureDiagnostic(raw);
   const candidates=[raw];
   if(raw?.cause)candidates.push(raw.cause);
   if(Array.isArray(raw?.errors))candidates.push(...raw.errors.slice(0,8));
+  const evidenceComplete=!(raw?.errors?.length>8||candidates.some(e=>e!==raw&&(e?.cause||Array.isArray(e?.errors)&&e.errors.length)));
   const known=candidates.filter(e=>Object.hasOwn(CONNECTION_CODES,e?.code??""));
   const selected=known[0]??raw;
   let failureClass=new Set(known.map(e=>CONNECTION_CODES[e.code])).size===1?CONNECTION_CODES[selected.code]:"UNKNOWN_AFTER_SAFE_DIAGNOSTICS";
   // Pooler rejection text is inspected in memory only; never retain messages.
   if(raw?.code==="XX000"&&/tenant or user not found/i.test(raw?.message??""))failureClass="SESSION_POOLER_TARGET_REJECTED";
   if(raw?.code==="28000"&&/role .* does not exist/i.test(raw?.message??""))failureClass="POSTGRES_ROLE_OR_DATABASE_REJECTED";
-  const code=Object.hasOwn(CONNECTION_CODES,selected?.code??"")||selected?.code==="XX000"?selected.code:"UNKNOWN";
+  if(!evidenceComplete)failureClass="UNKNOWN_AFTER_SAFE_DIAGNOSTICS";
+  const code=evidenceComplete&&(Object.hasOwn(CONNECTION_CODES,selected?.code??"")||selected?.code==="XX000")?selected.code:"UNKNOWN";
   const tls=failureClass.startsWith("TLS_");
   const stage=failureClass==="DNS_RESOLUTION_FAILURE"?"DNS_RESOLUTION":failureClass.startsWith("TCP_")||failureClass==="NETWORK_UNREACHABLE"?"TCP_CONNECT":tls?"TLS_HANDSHAKE":failureClass.startsWith("POSTGRES_")||failureClass==="SESSION_POOLER_TARGET_REJECTED"?"POSTGRES_STARTUP_AUTH":failureClass==="DRIVER_CONFIGURATION_ERROR"?"DRIVER_CONFIGURATION":"CONNECTION_OPEN";
   const diagnostic=Object.freeze({
-    failureClass,stage,
+    failureClass,stage,evidenceComplete,
     errorName:["Error","TypeError","AggregateError","DatabaseError","error"].includes(selected?.name)?selected.name:"UNKNOWN",
     errorCode:code,sqlstate:["28P01","28000","3D000","XX000"].includes(code)?code:"UNKNOWN",
     errno:Number.isInteger(selected?.errno)&&selected.errno>=-4095&&selected.errno<0?selected.errno:"UNKNOWN",
@@ -66,7 +70,43 @@ export function catalogConnectionFailure(raw) {
   });
   const error=new Error("STAGE_B_CONNECTION_FAILED");error.code="STAGE_B_CONNECTION_FAILED";
   Object.defineProperty(error,"connectionDiagnostic",{value:diagnostic,enumerable:true});
-  connectionDiagnostics.set(error,diagnostic);return error;
+  connectionDiagnostics.set(error,diagnostic);operationProvenance.set(error,provenance);return error;
+}
+const OPERATIONS=new Set(["AUTHORIZATION_CLAIM","CONNECTION_OPEN","IDENTITY_BEGIN","IDENTITY_QUERY","IDENTITY_VERIFY","IDENTITY_COMMIT","STATE_BEGIN","STATE_QUERY","STATE_RESPONSE","STATE_COMMIT","STATE_CLASSIFY","BASELINE_COUNTS","MIGRATION_BEGIN","MIGRATION_LOCK","MIGRATION_PREFLIGHT_CLASSIFY","MIGRATION_SQL","LEDGER_INSERT","MIGRATION_PENDING_CLASSIFY","MIGRATION_COMMIT","POST_COMMIT_BEGIN","POST_COMMIT_COMMIT","POST_COMMIT_CLASSIFY","CONNECTION_CLOSE"]);
+const SQLSTATE_CLASSES=new Set("00 01 02 03 08 09 0A 0B 0F 0L 0P 0Z 20 21 22 23 24 25 26 27 28 2B 2D 2F 34 38 39 3B 3D 3F 40 42 44 53 54 55 57 58 F0 HV P0 XX".split(" "));
+export function catalogFailureDiagnostic(raw,{operation,durationMs,sessionConnected}={}) {
+  const unknown={origin:"unknown",failureClass:"UNKNOWN_AFTER_SAFE_DIAGNOSTICS",sqlstate:"UNKNOWN",timeoutClass:"UNKNOWN"};
+  const pending=[raw],seen=new Set(),evidence=[];
+  let truncated=false;
+  while(pending.length&&seen.size<32){
+    const candidate=pending.shift();if(!candidate||seen.has(candidate))continue;seen.add(candidate);
+    const provenance=operationProvenance.get(candidate);
+    // Preserve the safe classification before the connection wrapper discards raw causes.
+    if(provenance){evidence.push({origin:provenance.origin,failureClass:provenance.failureClass,sqlstate:provenance.sqlstate,timeoutClass:provenance.timeoutClass});continue;}
+    const connection=connectionDiagnostics.get(candidate);
+    if(connection?.evidenceComplete===false)truncated=true;
+    const code=candidate.code;
+    const sqlstate=typeof code==="string"&&/^[0-9A-Z]{5}$/.test(code)&&SQLSTATE_CLASSES.has(code.slice(0,2))?code:connection&&connection.failureClass!==unknown.failureClass?connection.sqlstate:"UNKNOWN";
+    let diagnostic;
+    if(sqlstate!=="UNKNOWN")diagnostic={origin:"database",failureClass:sqlstate==="57014"?"POSTGRES_QUERY_CANCELLED":"POSTGRES_SQL_ERROR",sqlstate,timeoutClass:sqlstate==="57014"?(candidate.message==="canceling statement due to statement timeout"?"SERVER_STATEMENT_TIMEOUT":"QUERY_CANCELLED_REASON_UNKNOWN"):"UNKNOWN"};
+    else if((connection?.networkFailureClass!==undefined&&connection.networkFailureClass!=="UNKNOWN")||connection?.failureClass.startsWith("TLS_"))diagnostic={origin:"network",failureClass:connection.failureClass,sqlstate:"UNKNOWN",timeoutClass:connection.timeoutClass};
+    else if(connection?.failureClass==="DRIVER_CONFIGURATION_ERROR"||connection?.timeoutClass==="CONNECTION_OPEN_TIMEOUT")diagnostic={origin:"driver",failureClass:connection.timeoutClass==="CONNECTION_OPEN_TIMEOUT"?"CONNECTION_OPEN_TIMEOUT":connection.failureClass,sqlstate:"UNKNOWN",timeoutClass:connection.timeoutClass};
+    else if(Object.hasOwn(CONNECTION_CODES,code??"")){
+      const failureClass=CONNECTION_CODES[code];
+      diagnostic={origin:failureClass==="DRIVER_CONFIGURATION_ERROR"?"driver":"network",failureClass,sqlstate:"UNKNOWN",timeoutClass:code==="ETIMEDOUT"?"TCP_CONNECT_TIMEOUT":code==="ERR_TLS_HANDSHAKE_TIMEOUT"?"TLS_HANDSHAKE_TIMEOUT":"UNKNOWN"};
+    }else if(candidate.message==="Query read timeout")diagnostic={origin:"driver",failureClass:"DRIVER_QUERY_TIMEOUT",sqlstate:"UNKNOWN",timeoutClass:"DRIVER_QUERY_TIMEOUT"};
+    else if(["timeout expired","Connection terminated due to connection timeout"].includes(candidate.message))diagnostic={origin:"driver",failureClass:"CONNECTION_OPEN_TIMEOUT",sqlstate:"UNKNOWN",timeoutClass:"CONNECTION_OPEN_TIMEOUT"};
+    if(diagnostic)evidence.push(diagnostic);
+    if(candidate.cause)pending.push(candidate.cause);
+    if(Array.isArray(candidate.errors)){if(candidate.errors.length>8)truncated=true;pending.push(...candidate.errors.slice(0,8));}
+  }
+  let diagnostic=unknown;
+  if(!truncated&&!pending.length&&evidence.length&&new Set(evidence.map(value=>JSON.stringify(value))).size===1)diagnostic=evidence[0];
+  else if(!truncated&&!pending.length&&!evidence.length&&!connectionDiagnostics.has(raw)&&(/^STAGE_B_[A-Z_]+$/.test(raw?.code??"")||raw instanceof TypeError||raw instanceof ReferenceError||raw instanceof RangeError))diagnostic={...unknown,origin:"application",failureClass:"UNEXPECTED_APPLICATION_ERROR"};
+  return Object.freeze({operation:OPERATIONS.has(operation)?operation:"UNKNOWN",...diagnostic,
+    errorName:["Error","TypeError","ReferenceError","RangeError","AggregateError","DatabaseError","error"].includes(raw?.name)?raw.name:"UNKNOWN",
+    sessionConnected:typeof sessionConnected==="boolean"?sessionConnected:"UNKNOWN",
+    durationMs:Number.isFinite(durationMs)&&durationMs>=0?Math.round(durationMs):"UNKNOWN"});
 }
 const approvedBundles = new WeakSet();
 function keys(value,expected) {
@@ -171,33 +211,36 @@ export function classifyState(state,bundle) {
 }
 export async function executeCatalogMigrations({bundle,open,claim,now=Date.now}) {
   if(!approvedBundles.has(bundle))fail("STAGE_B_VALIDATED_BUNDLE_REQUIRED");
-  let session,outcome,transaction=false,commitDispatched=false,readStatements=0,writeTransactions=0,committed=0;
+  let session,outcome,transaction=false,commitDispatched=false,readStatements=0,writeTransactions=0,committed=0,operation="AUTHORIZATION_CLAIM",operationStarted=performance.now();
   const migrations=[];
+  const mark=id=>{operation=id;operationStarted=performance.now();};
   const checkWindow=()=>{if(now()>=bundle.deadline)fail("STAGE_B_WINDOW_EXPIRED");};
-  const query=async(sql,params=[])=>{checkWindow();return session.query(sql,params,Math.min(30000,bundle.deadline-now()));};
-  const state=async()=>{if(++readStatements>30)fail("STAGE_B_READ_BUDGET_EXHAUSTED");const result=await query(STATE_SQL);if(result.rows?.length!==1)fail("STAGE_B_SCHEMA_RESPONSE_INVALID");return result.rows[0].state;};
-  const readOnly=async(work)=>{await query("BEGIN READ ONLY;");transaction=true;const value=await work();await query("COMMIT;");transaction=false;return value;};
+  const query=async(sql,params=[],id)=>{mark(id);checkWindow();return session.query(sql,params,Math.min(30000,bundle.deadline-now()));};
+  const state=async()=>{if(++readStatements>30)fail("STAGE_B_READ_BUDGET_EXHAUSTED");const result=await query(STATE_SQL,[],"STATE_QUERY");mark("STATE_RESPONSE");if(result.rows?.length!==1)fail("STAGE_B_SCHEMA_RESPONSE_INVALID");return result.rows[0].state;};
+  const readOnly=async(work,prefix)=>{await query("BEGIN READ ONLY;",[],prefix+"_BEGIN");transaction=true;const value=await work();await query("COMMIT;",[],prefix+"_COMMIT");transaction=false;return value;};
   try {
-    checkWindow();await claim(bundle.authorizationId);checkWindow();session=await open();
-    await readOnly(async()=>{readStatements++;const result=await query(IDENTITY_SQL);if(result.rows?.length!==1||sha256(JSON.stringify(result.rows[0]))!==bundle.serverIdentitySha256)fail("STAGE_B_DATABASE_IDENTITY_MISMATCH");});
-    let before=await readOnly(state),stage=classifyState(before,bundle);
+    checkWindow();await claim(bundle.authorizationId);checkWindow();mark("CONNECTION_OPEN");session=await open();
+    await readOnly(async()=>{readStatements++;const result=await query(IDENTITY_SQL,[],"IDENTITY_QUERY");mark("IDENTITY_VERIFY");if(result.rows?.length!==1||sha256(JSON.stringify(result.rows[0]))!==bundle.serverIdentitySha256)fail("STAGE_B_DATABASE_IDENTITY_MISMATCH");},"IDENTITY");
+    let before=await readOnly(state,"STATE");mark("STATE_CLASSIFY");let stage=classifyState(before,bundle);
+    mark("BASELINE_COUNTS");
     const baselineCounts=JSON.stringify(before.counts);
     for(let index=0;index<2;index++){
       const migration=bundle.migrations[index];
       if(index<stage){migrations.push({version:migration.version,state:"ALREADY_APPLIED_CONSISTENT",executed:false});continue;}
       if(++writeTransactions>2)fail("STAGE_B_WRITE_BUDGET_EXHAUSTED");
-      await query("BEGIN;");transaction=true;await query(LOCK_SQL);
-      before=await state();if(classifyState(before,bundle)!==index||JSON.stringify(before.counts)!==baselineCounts)fail("STAGE_B_PREFLIGHT_DRIFT");
-      await query(migration.sql);
-      await query(LEDGER_SQL,[migration.version,migration.name,[migration.sql]]);
-      const pending=await state();if(classifyState(pending,bundle)!==index+1||JSON.stringify(pending.counts)!==baselineCounts)fail("STAGE_B_IN_TRANSACTION_VERIFY_FAILED");
-      checkWindow();commitDispatched=true;await query("COMMIT;");transaction=false;commitDispatched=false;committed++;
-      const after=await readOnly(state);if(classifyState(after,bundle)!==index+1||JSON.stringify(after.counts)!==baselineCounts)fail("STAGE_B_POST_COMMIT_VERIFY_FAILED");
+      await query("BEGIN;",[],"MIGRATION_BEGIN");transaction=true;await query(LOCK_SQL,[],"MIGRATION_LOCK");
+      before=await state();mark("MIGRATION_PREFLIGHT_CLASSIFY");if(classifyState(before,bundle)!==index||JSON.stringify(before.counts)!==baselineCounts)fail("STAGE_B_PREFLIGHT_DRIFT");
+      await query(migration.sql,[],"MIGRATION_SQL");
+      await query(LEDGER_SQL,[migration.version,migration.name,[migration.sql]],"LEDGER_INSERT");
+      const pending=await state();mark("MIGRATION_PENDING_CLASSIFY");if(classifyState(pending,bundle)!==index+1||JSON.stringify(pending.counts)!==baselineCounts)fail("STAGE_B_IN_TRANSACTION_VERIFY_FAILED");
+      checkWindow();commitDispatched=true;await query("COMMIT;",[],"MIGRATION_COMMIT");transaction=false;commitDispatched=false;committed++;
+      const after=await readOnly(state,"POST_COMMIT");mark("POST_COMMIT_CLASSIFY");if(classifyState(after,bundle)!==index+1||JSON.stringify(after.counts)!==baselineCounts)fail("STAGE_B_POST_COMMIT_VERIFY_FAILED");
       stage=index+1;migrations.push({version:migration.version,state:"APPLIED_VERIFIED",executed:true});
     }
     return outcome={status:"PASS",committed,migrations,readOnlyStatements:readStatements,writeTransactions,automaticRetry:false};
   }catch(error){
+    const failureDiagnostic=catalogFailureDiagnostic(error,{operation,durationMs:performance.now()-operationStarted,sessionConnected:session?.connected??(session?"UNKNOWN":false)});
     if(transaction&&!commitDispatched&&session)try{await session.query("ROLLBACK;",[],5000);}catch{}
-    return outcome={status:commitDispatched?"AMBIGUOUS":committed?"BLOCKED_AFTER_COMMIT":"BLOCKED",firstFailure:/^STAGE_B_[A-Z_]+$/.test(error?.code??"")?error.code:"STAGE_B_SQL_OR_CONNECTION_FAILED",...(connectionDiagnostics.has(error)?{connectionDiagnostic:connectionDiagnostics.get(error)}:{}),committed,migrations,readOnlyStatements:readStatements,writeTransactions,automaticRetry:false};
+    return outcome={status:commitDispatched?"AMBIGUOUS":committed?"BLOCKED_AFTER_COMMIT":"BLOCKED",firstFailure:/^STAGE_B_[A-Z_]+$/.test(error?.code??"")?error.code:"STAGE_B_SQL_OR_CONNECTION_FAILED",failureDiagnostic,...(connectionDiagnostics.has(error)?{connectionDiagnostic:connectionDiagnostics.get(error)}:{}),committed,migrations,readOnlyStatements:readStatements,writeTransactions,automaticRetry:false};
   }finally{if(session)try{await session.close();}catch{outcome.connectionClose="FAILED";if(outcome.status==="PASS"){outcome.status=committed?"BLOCKED_AFTER_COMMIT":"BLOCKED";outcome.firstFailure="STAGE_B_CONNECTION_CLOSE_FAILED";}}}
 }

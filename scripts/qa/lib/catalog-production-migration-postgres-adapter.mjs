@@ -17,12 +17,13 @@ export function createCatalogPostgresAdapter({config,Client=pg.Client}) {
   let opened=false;
   return async()=>{
     if(opened)fail("STAGE_B_RECONNECT_FORBIDDEN");opened=true;
-    const client=new Client(config);let broken=false;
-    client.on?.("error",()=>{broken=true;});
+    const client=new Client(config);let broken=false,closed=false,connectionLoss;
+    client.on?.("error",error=>{broken=true;connectionLoss=catalogConnectionFailure(error);connectionLoss.code="STAGE_B_CONNECTION_LOST";});
     try{await client.connect();}catch(error){try{await client.end();}catch{}throw catalogConnectionFailure(error);}
     return {
-      async query(text,values=[],timeout=30000){if(broken)fail("STAGE_B_CONNECTION_LOST");return client.query({text,values,query_timeout:timeout});},
-      async close(){try{await client.end();}catch{fail("STAGE_B_CONNECTION_CLOSE_FAILED");}},
+      get connected(){return !broken&&!closed;},
+      async query(text,values=[],timeout=30000){if(broken)throw connectionLoss;return client.query({text,values,query_timeout:timeout});},
+      async close(){try{await client.end();closed=true;}catch{fail("STAGE_B_CONNECTION_CLOSE_FAILED");}},
     };
   };
 }
