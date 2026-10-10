@@ -17,9 +17,19 @@ const ordered = object => Object.fromEntries(Object.keys(object).sort(jsonbOrder
 const isObject = value => value !== null && typeof value === "object" && !Array.isArray(value);
 
 export function segmentedExecutionContract(prepared) {
-  // Body: SET CONSTRAINTS + one initialization DO + each approved missing INSERT.
-  return { ...SEGMENTED_CONTRACT, importBodyStatementsMax: 2 + prepared.operations.length,
-    importSqlStatementsMax: SEGMENTED_CONTRACT.importNonBodyStatementsMax + 2 + prepared.operations.length };
+  // SET CONSTRAINTS, initialization DO, and its separate NULL-only UPDATE.
+  const importInitializationStatements = 3, importSqlStatementsMax = 1766;
+  return { ...SEGMENTED_CONTRACT, importInitializationStatements,
+    importBodyStatementsMax: Math.min(importInitializationStatements + prepared.operations.length,
+      importSqlStatementsMax - SEGMENTED_CONTRACT.importNonBodyStatementsMax), importSqlStatementsMax };
+}
+export function importBodyStatementWeight(plan, contract) {
+  const inserts = Object.values(plan.inserts);
+  const weight = contract.importInitializationStatements + inserts.reduce((sum, count) => sum + count, 0);
+  if (inserts.some(count => !Number.isSafeInteger(count) || count < 0) || !Number.isSafeInteger(weight)
+    || weight > contract.importBodyStatementsMax
+    || weight + contract.importNonBodyStatementsMax > contract.importSqlStatementsMax) fail("IMPORT_STATEMENT_BUDGET_EXHAUSTED");
+  return weight;
 }
 export function assertSegmentedExecutionContract(packet, prepared) {
   if (packet.format !== "catalog-stage-c-preparation-v2" || canonical(packet.executionContract) !== canonical(segmentedExecutionContract(prepared))) fail("IMPORT_AUTHORIZATION_BINDING_INVALID");

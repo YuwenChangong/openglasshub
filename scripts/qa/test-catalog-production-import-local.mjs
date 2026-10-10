@@ -48,7 +48,7 @@ try {
         await admin.query("INSERT INTO auth.users(id,email) VALUES ($1,$2);", [adminId, "stage-c-owned-local@example.invalid"]);
         await admin.query("UPDATE public.profiles SET role='admin' WHERE id=$1;", [adminId]);
         const snapshot = async () => (await admin.query(SNAPSHOT_SQL)).rows[0].snapshot;
-        const initial = await snapshot();
+        let initial = await snapshot();
         const fixedTime = Date.parse("2020-01-01T00:01:00Z");
         const read = await readImportReconciliation({ packet, prepared, session: {
           query: (text, values, deadline) => admin.query({ text, values, query_timeout: deadline }),
@@ -78,6 +78,12 @@ try {
               trace.queries.push(q.text); if (q.text === SNAPSHOT_SQL) trace.snapshots++;
               if (q.text === importBody) trace.imports++;
               const result = await this.client.query(q);
+              if (q.text === importBody) {
+                trace.bodyStatements = result.length;
+                trace.bodyCommands = result.map(item => item.command);
+                trace.updatedRows = result.filter(item => item.command === "UPDATE").reduce((sum, item) => sum + item.rowCount, 0);
+                check(result.length === 3 + Object.values(plan.inserts).reduce((sum, count) => sum + count, 0), "POSTGRES_ACTUAL_BODY_STATEMENTS_MATCH_ACCOUNTING");
+              }
               if (q.text === deriveSchemaComponents().at(-1).sql && trace.imports > 0 && trace.snapshots === 3) finalSchemaCompleted = true;
               if (expire && q.text === deriveSchemaComponents()[0].sql && trace.imports > 0) clock = Date.parse(auth.windowEndUTC);
               await fault?.({ q: { ...q, isImport: q.text === importBody }, client: this.client, trace, result }); return result;
@@ -91,11 +97,19 @@ try {
             return clock;
           } });
           receipt.lastOutcome = result;
-          check(trace.connects === 1 && result.authorizationConsumed && result.automaticRetries === 0, "ONE_CONNECTION_DURABLE_CLAIM_NO_RETRY");
+          check(trace.connects === 1 && result.authorizationConsumed && result.automaticRetries === 0 && result.connectionClose === "PASS", "ONE_CONNECTION_DURABLE_CLAIM_NO_RETRY_CONFIRMED_CLOSE");
+          if (result.status === "PASS") check(result.sqlStatements === 59 + trace.bodyStatements, "EXACT_ACTUAL_STATEMENTS_INCLUDE_SEPARATE_UPDATE");
           const consumed = await executeImport({ bundle, open, claim, now: () => fixedTime });
           check(consumed.status === "BLOCKED" && consumed.connections === 0 && trace.connects === 1, "CONSUMED_AUTHORIZATION_REUSE_DENIED_BEFORE_CONNECTION");
           return { result, trace, baseline };
         };
+        const overBudget = await run();
+        check(overBudget.result.status === "BLOCKED" && overBudget.result.importAttempts === 0 && overBudget.trace.imports === 0
+          && overBudget.result.rollback === "PASS" && overBudget.result.diagnostic.failureClass === "IMPORT_STATEMENT_BUDGET_EXHAUSTED"
+          && canonical(await snapshot()) === canonical(initial), "1704_INSERT_PLAN_BLOCKED_BEFORE_BODY_NO_PARTIAL_EFFECTS");
+        // Keep one genuine existing definition so the boundary fixture admits 1703 INSERTs.
+        await admin.query(renderReleaseBAuthorizedOperation(prepared.operations.find(op => op.entity === "definition")));
+        initial = await snapshot();
         const identityFail = await run({ identityDigest: "a".repeat(64) });
         check(identityFail.result.status === "BLOCKED" && identityFail.result.writeTransactions === 0, "WRONG_PRODUCTION_IDENTITY_BLOCKS_BEFORE_WRITES");
         const approvalFail = await run({ reconciliationDigest: "a".repeat(64) });
@@ -108,6 +122,7 @@ try {
         await admin.query("DELETE FROM public.devices WHERE slug=$1;", [incompatibleDevice.slug]);
         const failure = await run({ fault: async ({ q }) => { if (q.isImport) throw Object.assign(new Error("private credential payload"), { code: "XX000" }); } });
         check(failure.result.status === "BLOCKED" && failure.result.rollback === "PASS" && failure.trace.imports === 1, "FAILURE_AFTER_REAL_IMPORT_ROLLS_BACK_ATOMICALLY");
+        check(failure.trace.bodyStatements === 1706, "1703_INSERT_BOUNDARY_EXECUTES_EXACT_1706_BODY_STATEMENTS");
         check(canonical(await snapshot()) === canonical(initial), "ROLLBACK_NO_PARTIAL_FACT_OR_METADATA_CHANGES");
         check(!canonical(failure.result).includes("credential"), "SAFE_DIAGNOSTIC_SURVIVES_RESULT_WRAPPER");
         const expired = await run({ expire: true });
@@ -135,6 +150,13 @@ try {
           && good.result.dispatches === 60 && good.result.sqlStatements <= packet.executionContract.importSqlStatementsMax
           && !good.trace.queries.includes(STATE_SQL), "INITIAL_SEGMENTED_IMPORT_ALL_FOUR_BOUNDARIES_AND_EXACT_BUDGETS");
         check(good.result.inserts.device === 0 && good.result.nullSchemaTypeUpdates === 24, "NULL_SCHEMA_ONLY_NO_EXISTING_DEVICE_REPLACEMENT");
+        for (const n of [1, 3]) {
+          const rows = (await snapshot()).specs.filter(row => !["KNOWN", "CONFLICT"].includes(row.state)).slice(0, n);
+          await admin.query("DELETE FROM public.device_specs WHERE id=ANY($1::uuid[]);", [rows.map(row => row.id)]);
+          const inserted = await run();
+          check(inserted.result.status === "PASS" && inserted.result.inserts.spec === n && inserted.trace.bodyStatements === 3 + n
+            && inserted.result.sqlStatements === 62 + n, `GENUINE_${n}_INSERT_EXACT_BODY_AND_TOTAL_STATEMENTS`);
+        }
         const stored = await snapshot();
         check(stored.auditEvents.length === 24 && stored.auditEvents.every(event => event.entity_type === "device" && event.action === "update"
           && event.actor_id === adminId && canonical(event.changed_fields) === canonical({ fields: ["schema_type"] })), "EXACT_REAL_TRIGGER_EVENTS_FOR_NULL_SCHEMA_INITIALIZATION");
@@ -145,6 +167,14 @@ try {
         check(stored.evidence.length === 15 && stored.sourceLinks.length === 46 && stored.sources.length === 39, "SOURCE_LINKS_AND_APPROVED_CONFLICT_EVIDENCE_INTACT");
         const repeat = await run();
         check(repeat.result.status === "PASS" && Object.values(repeat.result.inserts).every(n => n === 0) && repeat.result.nullSchemaTypeUpdates === 0 && canonical(await snapshot()) === canonical(stored), "EXISTING_24_1488_REPEAT_IS_IDEMPOTENT");
+        check(canonical(repeat.trace.bodyCommands) === canonical(["SET", "DO", "UPDATE"]) && repeat.trace.updatedRows === 0
+          && repeat.trace.bodyStatements === 3 && repeat.result.sqlStatements === 62, "ZERO_INSERT_EXECUTES_THREE_STATEMENTS_ZERO_UPDATE_OR_AUDIT_EFFECT");
+        await admin.query("BEGIN; LOCK TABLE public.devices IN ROW EXCLUSIVE MODE;");
+        try {
+          const blockedLock = await run();
+          check(blockedLock.result.status === "BLOCKED" && blockedLock.result.importAttempts === 0 && blockedLock.result.rollback === "PASS"
+            && blockedLock.result.diagnostic.failureClass === "POSTGRES_LOCK_TIMEOUT", "GENUINE_CATALOG_WRITER_LOCK_BLOCKS_BEFORE_IMPORT_BODY");
+        } finally { await admin.query("ROLLBACK;"); }
         await admin.query("BEGIN; SET LOCAL ROLE anon;");
         const legacy = await admin.query("SELECT slug,full_specs,key_specs FROM public.devices WHERE slug='xreal-air';");
         await admin.query("ROLLBACK;");

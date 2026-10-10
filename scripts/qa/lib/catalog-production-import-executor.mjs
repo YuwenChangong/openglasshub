@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFile, open as openFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { IDENTITY_SQL } from "./catalog-production-migration-transport.mjs";
-import { readSegmentedStage2, SEGMENTED_CONTRACT, segmentedExecutionContract, assertSegmentedExecutionContract } from "./catalog-production-segmented-schema.mjs";
+import { readSegmentedStage2, SEGMENTED_CONTRACT, segmentedExecutionContract, assertSegmentedExecutionContract, importBodyStatementWeight } from "./catalog-production-segmented-schema.mjs";
 import { prepareImport, reconcileImport, verifyImport, verifyAudit, canonical, sha256, fail, TABLES, SNAPSHOT_SQL, safeImportFailure, buildImportBody } from "./catalog-production-import.mjs";
 
 const validated = new WeakSet();
@@ -21,6 +21,7 @@ const TOOL_PATHS = [
   "scripts/qa/lib/catalog-production-schema-diagnostics.mjs", "scripts/qa/test-catalog-production-schema-diagnostics.mjs",
   "scripts/qa/lib/catalog-production-segmented-schema.mjs", "scripts/qa/test-catalog-production-segmented-schema.mjs",
   "scripts/qa/lib/catalog-production-segmented-readonly.mjs", "scripts/qa/test-catalog-production-segmented-readonly.mjs",
+  "scripts/qa/test-catalog-production-import-accounting.mjs",
   "docs/superpowers/plans/2026-10-08-stage-c-segmented-schema-proof.md",
   "docs/ops/catalog-stage-c-schema-component-diagnostics.md",
   "docs/ops/catalog-stage-c-import-execution.md", "docs/superpowers/plans/2026-10-04-catalog-production-migration-packet.md",
@@ -130,7 +131,9 @@ export async function executeImport({ bundle, open, claim, now = Date.now }) {
     await query(LOCK_SQL, "LOCK"); await state();
     const locked = await snapshot();
     if (canonical(locked) !== canonical(before)) fail("IMPORT_PREWRITE_CONCURRENT_CHANGE");
-    result.importAttempts++; await query(buildImportBody(bundle.prepared, plan), "IMPORT", false, 2 + Object.values(plan.inserts).reduce((n, count) => n + count, 0));
+    mark("IMPORT");
+    const bodyStatements = importBodyStatementWeight(plan, bundle.packet.executionContract);
+    result.importAttempts++; await query(buildImportBody(bundle.prepared, plan), "IMPORT", false, bodyStatements);
     const after = await snapshot(); mark("VERIFY"); verifyImport(bundle.prepared, before, after, plan);
     const postSchema = await state();
     const auditDelta = postSchema.counts.audit - schema.counts.audit;

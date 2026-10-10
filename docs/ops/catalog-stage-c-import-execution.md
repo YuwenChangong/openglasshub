@@ -214,10 +214,17 @@ The first component ID is retained in safe diagnostics, never row/error content.
   60 normal dispatches, ceiling 61 including failure cleanup. Three SET LOCAL
   statements are separately dispatched and counted. Cleanup consumes budget.
 - The import body is NOT one SQL statement: SET CONSTRAINTS + the approved
-  initialization DO + each actually missing INSERT = 2 + N statements.
-  59 normal non-body statements plus 1 reserved cleanup = 60; with at most
-  1,704 missing INSERTs the exact SQL ceiling is 1,766. The packet recomputes
-  that ceiling from reviewed operations, never arbitrary runtime input.
+  initialization DO + separate NULL-only UPDATE + each actually missing INSERT
+  = 3 + N statements. Zero INSERTs still dispatch those three statements; this
+  is not a read-only shortcut or exemption from independent Import approval.
+  59 normal non-body statements plus 1 reserved cleanup = 60. The fixed total
+  SQL ceiling remains 1,766; the body ceiling is min(3 + source operations,
+  1,766 - 60), at most 1,706. Before body dispatch, reserve every remaining
+  normal statement and cleanup: 60 + 3 + N must fit. Thus at most 1,703 missing
+  INSERTs fit this budget. A 1,704-insert plan remains a valid reconciliation
+  result but blocks before any Import Body dispatch; never silently expand the
+  budget, omit an identity, or split the Import transaction. Zero INSERTs uses
+  62 normal SQL statements (60 dispatches, 49 SELECTs), with cleanup reserved.
 - V4 reconciliation has a 600s total wrapper deadline (595s child work,
   termination confirmed by 599s, final cleanup reserve). The import contract
   has a 2,400s maximum window; a later write wrapper must independently bind
