@@ -7,8 +7,6 @@ const text = getUiMessages(Astro.locals.localeContext.locale).admin;
 ---
 <CommunityLayout title={text.pages.devices.title} description={text.pages.devices.description} noindex={true} activeSection="forum">
   <section class="community-section" style="padding-top: 1rem;">
-    <h1 class="community-page-title">/admin/devices</h1>
-    <p class="community-page-subtitle">{text.pages.devices.lead}</p>
     <AdminDevicesDashboard localeContext={Astro.locals.localeContext} client:load />
   </section>
 </CommunityLayout>
