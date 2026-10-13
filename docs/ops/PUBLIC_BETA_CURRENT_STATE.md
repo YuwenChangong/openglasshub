@@ -46,7 +46,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Zero-cost gate | VERIFIED 9/9 reused; Free-only proof admission PASS offline | Owner plans RECORDED, official policies checked; new binding uses exact proof before OAuth/Claim and child transport |
 | GROUP_1 live authorization | CONSUMED / PRODUCTION_ACCEPTANCE_BLOCKED | Fresh GO launched one supervised attempt; LOGIN_A stopped at UNAPPROVED_REQUEST; Claim retained, cleanup PASS; never replay this ID |
 | LOGIN_A and post-login static evidence | VERIFIED29 finite Production resources;9 v9 captures reviewed;25/25 new targeted tests PASS | Prior23 preserved, new6 reviewed, ProductDetail285-byte inline matched; no duplicate Production reads or runtime PASS implied |
-| Remaining GROUP_1 / full-flow budget | BLOCKED: saved500 admissions stop the real Chrome local flow | Latest frozen complete counterfactual mock uses511 admissions/499 physical dispatches;11 is this scenario gap, NOT a Production minimum; no budget change or new authorization Packet |
+| Remaining GROUP_1 / full-flow budget | Candidate650 VERIFIED offline, explicit owner budget approval PENDING; saved500 unchanged | New8/8 budget tests and complete Chrome mock507 admissions/499 dispatches PASS; original500 trace preserved; no effective budget/full authorization Packet change |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -830,3 +830,54 @@ asset reads, billing audit, intake or passed release/anonymous suites. An approv
 changed cap remains a hard stop, never a promise of Production completion.
 This offline task Production requests/writes0. Catalog held, GROUP_2/3/Public Beta
 unapproved; Version151 remains PRE-HARDENING-only recovery evidence.
+
+### Global Admission Candidate650 Evaluated (offline, 2026-10-14)
+
+Branch `codex/group1-budget650-candidate-20261014` preserves607ae175, original v9
+evidence and local product commits. `tools/e-verify-group1-budget650/` adds only
+candidate budget tests and a pending single-field amendment. Existing executors,
+private500 input, source/Production and frozen receipts are unchanged.
+
+New8/8 tests PASS, without repeating25/123/43 or asset reads. The actual isolated
+Chrome/SDK full-flow fixture at candidate650 completed3 synthetic identities,
+16 exact RLS mocks,3 negative Auth cases and2 synthetic Deployments; cleanup and
+native Job drain PASS, alternate proxy forwarding0. It used507 global admissions
+and499 physical dispatches (387 static+18 pages+15 Auth+19 REST+46 own/admin reads
++12 challenge fixture+2 Deployment). Eight charged own browser reads were served
+through the existing same-Session/navigation coalescing. Admission vs wire counts
+are not interchangeable. Owner500 stays unchanged; candidate is not Production
+compatible until separately approved/versioned/refrozen.
+
+Candidate650 covers known507/511/up-to523 complete mock runs, but is not a proved
+Production worst-case bound. Class caps remain Auth40, REST80, Mutation50,
+cleanup20, Turnstile40, refresh6 and USD0. In the new mock, Auth15, REST19,
+Mutation12, Turnstile12, refresh3; other conflicts NONE_OBSERVED. Unknown Managed
+challenge/background/refresh scheduling may still hit a class/global/time cap.
+No automatic retries, quota increase or paid risk waiver.
+
+1000 simultaneous budget attempts admit exactly650 before stopping; challenge41
+is refused before transport/global increment under original40. The old500 atomic
+stop remains. Even after capped event history, an observed same-stem public script
+keeps safe pathname/source/rule/stage/type/rejection/dispatch-false diagnostics;
+query secrets are omitted. Truly unknown/private path identity remains blocked,
+not guaranteed decipherable. Original25 identity/replay/hard-deadline evidence
+is unchanged and reused.
+
+Pending amendment changes ONLY `budget.allBrowserHttpDispatchesMax:500->650`.
+The additional150 admit no extra operations, mutations, mail/media or other groups.
+`HUMAN_BUDGET_AMENDMENT_NOT_AUTHORIZED.md` provides the single exact owner reply.
+No scope reduction or new duplicate optimization was implemented; separate actor
+contexts and required page/challenge behavior must not be merged to lower counts.
+
+Candidate engineering binding (NOT execution authorization):
+`9199ef067bfd30b37efca2bd5e715dfe592bd309e050af03180b58d676ae2e37`.
+Budget proposal SHA (NOT full GROUP_1 authorization Packet):
+`12c15aaf8229d8cd55e6a4c23e64336a9f347167ed2425171660945c25f89a1b`.
+
+Next single action: owner explicitly approves this500->650 amendment and unchanged
+other limits/zero-cost/scope, accepting a hard cap is not a completion guarantee.
+Only after approval may a new protected traceable budget version be created,
+preserving the old private input, then the actual full14/16 entry/Packet is frozen
+and fresh five-gate/UTC/GO approval requested. No valid authorization/Claim/GO now;
+no OAuth/Production request/write, Provider billing change, push or deployment.
+Catalog held; GROUP_2/3 and Public Beta remain NOT_AUTHORIZED.
