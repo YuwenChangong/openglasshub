@@ -20,8 +20,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Current authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped repair branch: `codex/group1-login-denial-diagnostics-20261013`,
-  preserving the prior local product/continuity commits and later authorization history.
+- Current scoped engineering branch: `codex/group1-asset-reader-freeze-20261013`,
+  preserving prior local product/continuity commits and later authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -45,7 +45,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | authenticated Catalog RLS | Prepared 16 exact reads [G] | Actual A/B identity, policies/access results UNKNOWN; do not infer from anonymous PASS |
 | Zero-cost gate | VERIFIED 9/9 reused; Free-only proof admission PASS offline | Owner plans RECORDED, official policies checked; new binding uses exact proof before OAuth/Claim and child transport |
 | GROUP_1 live authorization | CONSUMED / PRODUCTION_ACCEPTANCE_BLOCKED | Fresh GO launched one supervised attempt; LOGIN_A stopped at UNAPPROVED_REQUEST; Claim retained, cleanup PASS; never replay this ID |
-| LOGIN_A denial diagnostics | VERIFIED LOCAL 35/35; diagnostic-only packet READY_NOT_AUTHORIZED | Historical rejected URL remains UNKNOWN; no whitelist fix or new Production attempt |
+| LOGIN_A asset evidence closure | VERIFIED v5 public script identity; new reader 31/31 offline PASS, pending approval | CtUXEG6g bytes/provenance and real dependency graph remain UNKNOWN; no blind whitelist repair or new Production attempt |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -465,3 +465,56 @@ payloads plus their current page/import graph, not the already identified filena
 Next single action: owner review/approve the bounded content-proof scope (or provide
 trusted same-Build offline assets); bind exact reader before a separately approved GO.
 Production requests/writes0, USD0, Catalog held, GROUP_2/3 and Public Beta not approved.
+
+### Runnable Production Asset Evidence Reader (offline, 2026-10-13)
+
+`tools/e-verify-group1-asset-reader/` is now executable and frozen, but NOT AUTHORIZED.
+Only the final `artifacts/HUMAN_PRODUCTION_ASSET_READ_AUTHORIZATION_NOT_AUTHORIZED.md`
+is the pending current contract. Its new ID is
+`e-verify-group1-openglasshub-20261013-production-asset-reader-v7`.
+The v6 offline proposal and in-turn superseded review candidate have no execution
+authority. Historical v3/v5 consumed Claims and receipts were verified unchanged.
+
+31/31 new affected tests PASS: real bounded loopback HTTP, required changed-hash
+script first, literal dependency/CSS imports, forbidden or ambiguous references,
+size/header/request/category/concurrent byte admission, failed reads/timeouts,
+failure cancellation, exact runtime/fixed target, synthetic OAuth expiry/scopes,
+authorization expiry/schema/GO/Claim replay, genuine Windows DPAPI private capture
+and hash-checked recovery, and Job Object contained child success/missing receipt/
+hard stop/cleanup. Original 11/15/17/35/123/9/43 evidence was NOT rerun.
+
+Pre/post exact Deployment and retained Build/source link guard the expected b2b62ec9
+version at100%, Recovery1510%. Deployment JSON does not expose a source SHA; no fake
+field or current Provider observation was added. Current login HTML must reference
+the exact CtUXEG6g script before its GET. Subsequent reads require actually parsed
+HTML/parent literal references and original finite stem/type/multiplicity rules,
+never blind67 resources or /_astro/* admission. JS/CSS are not executed.
+Max70 GETs, static concurrency4, hard300/work240/cleanup60, request15 seconds,
+headers8192, body2MiB, aggregate anonymous accepted/reserved body16MiB; API bodies
+separately max128KiB each. Physical wire tail and billing are NOT falsely guaranteed
+by body limits. Existing USD0 Workers Free evidence is reused, no billing/OAuth read.
+
+Necessary raw HTML/script evidence uses owner-only Windows DPAPI storage outside Git.
+Safe receipts retain byte/SHA256, parent graph, exact public path, timestamps and
+first safe error only. Preflight occurs before the new Claim. First failure stops
+new requests and cancels/drains in-flight operations; no extra postcheck on failure,
+retry or automatic full GROUP_1 continuation. Missing child evidence stays UNKNOWN.
+
+Execution binding SHA256:
+`e1b9adcb80afee170b3d2aa4850bd7019c9d95e05c56393a63aec16c295d693d`.
+Packet SHA256:
+`24b1cb56bff0d76c8fe97fd7a45dde3fb20eb54887bf01d23e8dd1436866d990`.
+Pending template SHA256:
+`a4433acc52cd311b295c7ec061065d097e19a28ceb9ac7dd908d175f7009254c`.
+1444 exact bound files verified, original SQL/business/source/historical files unchanged.
+All five human gates and both UTC fields are null; no effective authorization,
+Production Claim, GO, default OAuth read, Production request or write this task.
+
+Current single action: owner approve the complete evidence-only contract, finite
+conditional scope, five gates and actual UTC validity (<=60 minutes), then stop at
+the separate `GO_E_VERIFY_GROUP1_PRODUCTION_ASSET_PROOF_V1` boundary. Do not execute
+on approval alone. Real content/provenance, full GROUP_1 budget sufficiency, Auth and
+16 RLS results remain BLOCKED/UNKNOWN until their separately authorized evidence.
+Collection success is not GROUP_1/E_VERIFY PASS. Catalog held; GROUP_2/3 and Public
+Beta not authorized. Local product commit9161ca71 and continuity1e027888 preserved,
+not merged into or claimed as deployed Production code.
