@@ -46,6 +46,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Zero-cost gate | VERIFIED 9/9 reused; Free-only proof admission PASS offline | Owner plans RECORDED, official policies checked; new binding uses exact proof before OAuth/Claim and child transport |
 | GROUP_1 live authorization | CONSUMED / PRODUCTION_ACCEPTANCE_BLOCKED | Fresh GO launched one supervised attempt; LOGIN_A stopped at UNAPPROVED_REQUEST; Claim retained, cleanup PASS; never replay this ID |
 | LOGIN_A asset evidence closure | VERIFIED24 protected payloads;23 exact Production paths reviewed and bound;34/34 new offline tests PASS | CtUXEG6g source/purpose verified;16 exact local bytes +7 scoped AST reviews; full GROUP_1 BLOCKED on uncaptured post-login products/admin assets |
+| Remaining GROUP_1 assets / full-flow budget | Consolidated evidence-only v9 packet READY_FOR_OWNER_APPROVAL;33/33 new tests PASS | Reuse23;3 exact public HTML+at most7 conditional slots+2 Deployment,12 GET max; full Auth/RLS remains NOT_AUTHORIZED and full-flow budget UNKNOWN |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -694,3 +695,70 @@ If no such archive exists, any uncovered-resource reads require separate exact
 authorization; none is generated or executed here. Full GROUP_1 approval waits
 for this specific evidence, not another broad audit. Keep Catalog held, USD0,
 GROUP_2/3 and Public Beta unapproved, and no Version151 default recovery after D.
+
+### Consolidated Remaining Graph And Budget Preparation (offline, 2026-10-13)
+
+Branch `codex/group1-consolidated-dependencies-20261013` preserves local commit
+06ab7797, product9161ca71, previous baselines, all protected inputs and old receipts.
+No Production request, OAuth read, private identity output or data/config change.
+
+Searched the task/release evidence directories and two relevant source-identical
+worktrees, plus the bound private capture inventory. No verified exact Production
+client archive covers the missing roots. The available dist artifacts are local
+builds, not proof of Production bytes. Existing24 protected captures remain login
+HTML+23 reviewed resources; no duplicate asset reads or builds were performed.
+
+Frozen source graph identifies six missing candidates: products index script,
+catalog-compare-dom, products index CSS, AdminDevicesDashboard, useAdminSession
+and GlassConfirmDialog. The latter is an existing dependency, not a reimplementation
+of the local shared-confirmation fix. A seventh conditional slot comes from the
+compiled285-byte ProductDetail inline script: only if actual detail HTML references
+an external resource of that exact finite stem. No guessed URLs or whole-site grant.
+
+`tools/e-verify-group1-remaining-assets/` implements the single consolidated reader.
+Three fixed HTML GETs: /products/, /products/xreal/xreal-air/, /admin/devices/.
+Reuse23 verified protected resources without GET; only explicit page/module parent
+edges may admit up to7 missing JS/CSS. Two exact Deployment GETs guard same b2b
+Version/Deployment100% and Recovery1510%. Max12 requests, below the previous70;
+HTML category changes1->3 and requires explicit new owner approval. Asset category
+67->7, max4 concurrent; original2MiB/object,16MiB aggregate,8192 header,15s read,
+300/240/60 hard/work/cleanup remain. No Auth/direct RLS/browser execution/writes.
+
+Public products HTML invokes existing anonymous SSR Catalog reads/pagination;
+this is not zero internal database reads or authenticated RLS acceptance. Images,
+fonts and third-party references are never downloaded. Normal access/security
+records may persist. Free-plan evidence and strictUSD0 are reused, not re-audited.
+
+New33/33 tests PASS: actual loopback HTTP, reuse23 graph, unknown edges and hosts,
+redirects, request/stream/byte limits, timeouts/deadlines, protected-capture failure,
+HTML source markers, full JS parse/fallback refusal, HTML base rejection and
+case-insensitive HTML/CSS references, exact Provider schema/traffic, atomic global/
+refresh budgets, local-fixture replay and actual entry refusal before GO. Existing
+34/123/43/31/9 suites were not rerun. Old1972-file evidence binding remains valid.
+
+Owner budget read value-blind from the protected work copy matches the frozen
+USD0 packet: global500, Auth40, REST80, Turnstile40, refresh6; no caps changed.
+Original14 mappings and16 RLS reads are preserved in the explicit case matrix.
+There are51 fixed non-static success-plan dispatches, up to21 navigation epochs
+including optional logout reload, dynamic CAPTCHA and bounded background reads.
+The non-tight conservative full-flow bound921 exceeds500; it is NOT a proven
+minimum or an automatic421-request increase. Whole-flow sufficiency UNKNOWN.
+Managed challenge requests and six manual waits likewise do not imply completion
+within40 CAPTCHA requests/work1740 seconds. Pre-dispatch caps still stop safely.
+Full Chrome GROUP_1 success/production Auth/RLS remain BLOCKED/NOT_EXECUTED;
+evidence-reader tests do not substitute for full-flow simulation or live acceptance.
+
+New pending ID: `e-verify-group1-openglasshub-20261013-remaining-assets-v9`.
+Binding: `29bb114ac2fc74d8509d2178658c5ad8afe50a420ff15d9a13c133c7b4e104bd`.
+Packet: `59b84fcafd3eba9250d2239a2cff9a9b777e79931df971eba532b865a2191eeb`.
+Template: `31f43d50267eefd23911ae832e7df4fbbfb02d6040b4e9d4ed8a23fe8802c6e8`.
+Contract: `tools/e-verify-group1-remaining-assets/artifacts/HUMAN_CONSOLIDATED_ASSET_READ_NOT_AUTHORIZED.md`.
+All five human gates/times null; no effective authorization, Claim or GO. OAuth
+scopes/lifetime will be checked only after separately approved GO; not read now.
+
+Next single action: owner approves this one evidence-only contract's five gates
+and actual UTC validity, then separately issues its exact independent GO. After
+collection, review all remaining bytes/source/inline references together, repair
+the finite full GROUP_1 binding and close its real Chrome Mock/budget trace in one
+step. Do not repeat login23/name probes, reuse consumed approvals or auto-increase
+budgets. Catalog held; GROUP_2/3/Public Beta unapproved; no post-D Version151 default.
