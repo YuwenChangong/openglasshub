@@ -337,3 +337,53 @@ Next single action: owner decides on this precise fingerprint-only diagnostic;
 do not retry full GROUP_1 or invent a chunk name. Production requests/writes0.
 Catalog hold ACTIVE; old consumed authorizations/Claims and historical receipts
 remain unchanged. No business code, RLS, database, runtime or deployment change.
+
+### Unknown cloud-build script identity closure (offline, 2026-10-13)
+
+Supersedes the v4 fingerprint-only diagnostic recommendation above. That pending
+v4 packet was never approved or executed; the original v3 Claim remains consumed.
+Stable hashes alone cannot identify a script outside the local manifest dictionary.
+New independent `tools/e-verify-group1-script-identity/` resolves this within the
+reviewed public-build-path boundary, without widening any network allowlist.
+
+New journal outcomes: MANIFEST_MATCH; PUBLIC_REFERENCE_UNMATCHED; PRIVACY_BLOCKED.
+Exact same-origin public pathname may be retained only for A LOGIN_A GET/script,
+a finite reviewed local filename stem plus eight-character build hash, and an
+explicit reference in validated anonymous login HTML or a byte-verified bound
+script import. Script src/modulepreload/Astro island attributes/literal imports
+are parsed locally before browser delivery; references bounded256. Query/fragment
+values, URL credentials, headers/body/cookies/sessions and private identifiers
+are excluded. Stable pathname fingerprint remains for finite local correlation.
+
+Changed cloud hash absent from all67 local resources can therefore be identified
+without requesting that unknown script. Unfamiliar/private/encoded/unreferenced
+paths remain explicitly PRIVACY_BLOCKED with no raw pathname; no general identity
+guarantee, legitimacy assertion or content verification is made for those paths.
+The gate still rejects every unbound request before transport dispatch. Public
+reference evidence alone cannot authorize any new request.
+
+15/15 new affected tests PASS, five real Chrome loopback scenarios. They exercise
+unknown build names, dynamic import, modulepreload, sensitive-path suppression,
+failed static-byte proof, Runner final JSON propagation, new GO and consumed/expired
+authorization refusal. Original17/35/123/9/43 tests were not rerun. Existing67/207
+local build evidence reused; deployed chunk-byte equality and historical rejected
+script remain UNKNOWN. Private binding and every historical receipt/hash preserved.
+
+Only new minimal diagnostic is ready for separate owner approval:
+ID e-verify-group1-openglasshub-20261013-safe-script-identity-diagnostic-v5;
+binding86277764550654fd96d4102e7b4bf17d752e8bd04e267bd5a2397df2850d410f;
+packet0e562e8bc9bf16036db9c028f8c11e0c096c1fb726468fe31a9300e99d50cc11;
+template51c83030e8c59e57d901ca9d6c49b317d778d1d457a1967a140cd596ba75768c.
+Contract: conditional exact public pathname disclosure only, unchanged8/2/10 GETs,
+hard300/work240/cleanup60, USD0, no Auth/RLS/writes. All five gates and UTC null;
+no valid production authorization, new Claim or GO. Required independent GO after
+complete new approval: GO_E_VERIFY_GROUP1_SAFE_SCRIPT_IDENTITY_DIAGNOSTIC_V1.
+
+Next single action is owner approval of this exact revised evidence disclosure
+and real UTC validity. After independently authorized execution: A) safe script
+identity -> offline source/purpose review, exact binding fix and affected tests,
+then new full GROUP_1 approval only if proven legitimate; B) unauthorized script
+-> remain blocked and report source; C) privacy-blocked identity -> remain blocked,
+request exact missing trusted manifest/protected owner review, no identical probe.
+Full GROUP_1 and E_VERIFY remain incomplete. Catalog held, Public Beta not approved.
+Production requests/writes0; no deploy, push, business code, RLS or billing change.
