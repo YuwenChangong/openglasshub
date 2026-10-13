@@ -18,10 +18,11 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Continuity branch: `codex/public-beta-release-continuity-20261013`, checkout
   `C:/Temp/ogh-product-beta-development-20261013`. No fetch, push or merge here.
   Local `origin/main` still names the released source; this is not a fresh remote check.
-- Current authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
+- Earlier authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped engineering branch: `codex/group1-asset-reader-fresh-v8-20261013`,
-  preserving prior local product/continuity commits and later authorization history.
+- Current scoped preparation branch: `codex/group1-full650-authorization-20261014`,
+  based on candidate650 commit `94a1e1b4bcdfe50e044186d6fedb1e63f7b1f0e7`;
+  preserves prior local product/continuity commits and authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -46,7 +47,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Zero-cost gate | VERIFIED 9/9 reused; Free-only proof admission PASS offline | Owner plans RECORDED, official policies checked; new binding uses exact proof before OAuth/Claim and child transport |
 | GROUP_1 live authorization | CONSUMED / PRODUCTION_ACCEPTANCE_BLOCKED | Fresh GO launched one supervised attempt; LOGIN_A stopped at UNAPPROVED_REQUEST; Claim retained, cleanup PASS; never replay this ID |
 | LOGIN_A and post-login static evidence | VERIFIED29 finite Production resources;9 v9 captures reviewed;25/25 new targeted tests PASS | Prior23 preserved, new6 reviewed, ProductDetail285-byte inline matched; no duplicate Production reads or runtime PASS implied |
-| Remaining GROUP_1 / full-flow budget | Candidate650 VERIFIED offline, explicit owner budget approval PENDING; saved500 unchanged | New8/8 budget tests and complete Chrome mock507 admissions/499 dispatches PASS; original500 trace preserved; no effective budget/full authorization Packet change |
+| Remaining GROUP_1 / full-flow budget | Owner-approved global650 APPLIED in protected version; full Packet READY_FOR_OWNER_APPROVAL | Original500 preserved; other159 fields and all class caps unchanged; new12/12 consistency checks and2051 frozen-file checks PASS; five gates/UTC/GO pending, not Production authorization |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -881,3 +882,55 @@ preserving the old private input, then the actual full14/16 entry/Packet is froz
 and fresh five-gate/UTC/GO approval requested. No valid authorization/Claim/GO now;
 no OAuth/Production request/write, Provider billing change, push or deployment.
 Catalog held; GROUP_2/3 and Public Beta remain NOT_AUTHORIZED.
+
+### Owner Budget650 Applied and Full Packet Frozen (offline, 2026-10-14)
+
+The owner explicitly approved ONLY `budget.allBrowserHttpDispatchesMax:500->650`.
+The previous candidate section records the earlier pending state, not the current
+approval state. This approval is NOT acceptance of the full subset contract or GO.
+
+The original protected500 work copy and original input template are unchanged.
+A new protected `STATEFUL_PRIVATE_BINDING_GROUP1_650_V1.json` version retains
+all159 other fields, including accounts/media/QA/cleanup and3 deferred formal
+fields/4 optional circle fields null. Only the single global cap differs. ACL
+inheritance is disabled; owner is the current Windows user; only that user and
+SYSTEM have access. Private values were not printed or added to Git.
+
+`tools/e-verify-group1-full650/` freezes an actual full entry/native-supervisor/
+child/full14-case runner/current reviewed browser-adapter chain, not a diagnostic
+entry. It preserves the16 exact RLS mappings,29 reviewed Production resources,
+all class budgets,1800/1740/60 deadlines, strict OAuth>1860 seconds with
+account:read/workers_scripts:write, zero-cost Free-only proof and recovery hold.
+The previously tested QA corrections are fully disclosed in the pending contract
+addendum; no production business code, resource request or side-effect scope was
+added. Global650 is enforced but is not a guarantee of Production completion.
+
+New authorization ID: `e-verify-group1-openglasshub-20261014-full650-v10`.
+Full execution binding SHA256:
+`52ddb07a40dcfaafdd5570cd6708d372fd5e1aa04efe54233bfc52942c3e616c`.
+Full Packet SHA256:
+`644255e484c4f79e4e967a562bc3c0b3b2173994a39f10ad5176a37cfe39cdd6`.
+Thirteen-condition template:
+`tools/e-verify-group1-full650/artifacts/HUMAN_FULL_GROUP1_650_AUTHORIZATION_NOT_AUTHORIZED.md`.
+Template SHA256:
+`aff750c20661e3dc63508a571ecfa0fd4525e69d4f3c959cef5df9c0cde61302`.
+
+New12/12 mechanical consistency checks PASS,2051 bound files zero differences.
+Checks cover exact single-field private diff, all prior scopes/budgets, pending
+hashes, null gates/times, synthetic-only authorization/OAuth rejection fixtures,
+oldID/GO/consumed Claim refusal, noGO actual parent stop, child syntax/full-runner
+wiring and13 conditions. The first check receipt records a test-only misspelled
+old-version-path key (11/12); corrected test12/12 and that original failure remain
+preserved. No production or authorization state was created by either check.
+Candidate8/8, affected25/25, original123/43/9 evidence were reused, not rerun.
+
+Current single action: owner reviews the complete new pending contract/addendum
+and freshly confirms its five exact humanGates. Before approving real UTC times,
+check current default OAuth locally for scopes and remaining strictly>1860s;
+then confirm <=60-minute validity covering full1800-second execution/cleanup.
+Formal times and all five gates are NULL, no effective authorization/Claim/GO.
+Only after valid full approval may the independent new command
+`GO_E_VERIFY_GROUP1_FULL650_V10` be sent; do not send it now. All old Claims/GOs
+stay unusable. No live OAuth read, Production request/write, push or deployment
+in this preparation. Catalog held; GROUP_2/3/E_VERIFY/Public Beta not authorized;
+Version151 is not a default post-Hardening recovery target.
