@@ -45,7 +45,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | authenticated Catalog RLS | Prepared 16 exact reads [G] | Actual A/B identity, policies/access results UNKNOWN; do not infer from anonymous PASS |
 | Zero-cost gate | VERIFIED 9/9 reused; Free-only proof admission PASS offline | Owner plans RECORDED, official policies checked; new binding uses exact proof before OAuth/Claim and child transport |
 | GROUP_1 live authorization | CONSUMED / PRODUCTION_ACCEPTANCE_BLOCKED | Fresh GO launched one supervised attempt; LOGIN_A stopped at UNAPPROVED_REQUEST; Claim retained, cleanup PASS; never replay this ID |
-| LOGIN_A asset evidence closure | VERIFIED v5 public script identity; new reader 31/31 offline PASS, pending approval | CtUXEG6g bytes/provenance and real dependency graph remain UNKNOWN; no blind whitelist repair or new Production attempt |
+| LOGIN_A asset evidence closure | VERIFIED24 protected payloads;23 exact Production paths reviewed and bound;34/34 new offline tests PASS | CtUXEG6g source/purpose verified;16 exact local bytes +7 scoped AST reviews; full GROUP_1 BLOCKED on uncaptured post-login products/admin assets |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -584,12 +584,113 @@ Pending full template SHA256:
 Current contract: new instance's
 `artifacts/HUMAN_PRODUCTION_ASSET_READ_AUTHORIZATION_NOT_AUTHORIZED.md`.
 
-Current single action: owner collectively confirm the same five gates and complete
-fresh contract/bindings, including current continuous supervision readiness. Only
-after that confirmation read trusted UTC and propose a fresh exact validity for
-separate owner approval. Both UTC fields and five gates currently null. No effective
-approval, Claim or GO. The later separate command is
-`GO_E_VERIFY_GROUP1_PRODUCTION_ASSET_PROOF_FRESH_V8`; do not issue it now or reuse old GO.
+Owner explicitly confirmed all five fresh-v8 gates, full contract/bindings and
+continuous supervision, then approved exact validity2026-10-13T07:59:51Z through
+2026-10-13T08:29:51Z. Separate `artifacts/AUTHORIZED_ASSET_READ.json` recorded and
+validated at2026-10-13T08:04:34.469Z, SHA256
+`b418e8a09273a570f225d223c9f2051e4218e67dea6d0bf66c84052334d8403b`.
+`AUTHORIZATION_RECORD_SAFE.json` records explicit owner approval and no GO received.
+Original pending template retains five null gates and null UTC fields unchanged.
+1469 bound files verified without rerunning tests; binding/Packet/template unchanged.
+Authorization unconsumed, no Claim, execution, OAuth read or Production request/write
+at authorization recording. V7 and its old approval/GO remain permanently non-reusable.
+
+At authorization recording, next action was to wait for the owner's separate exact
+`GO_E_VERIFY_GROUP1_PRODUCTION_ASSET_PROOF_FRESH_V8` within full time coverage.
+Do not execute on approval alone. No independent GO has been issued.
 OAuth must still be strictly>360 seconds at execution check and all dynamic gates
-must pass. Catalog held; GROUP_2/3 and Public Beta not authorized. Ct bytes/full
-GROUP_1/Auth/RLS outcomes remain UNKNOWN/BLOCKED. Production requests/writes0.
+must pass. At that pre-execution snapshot, Ct bytes/full GROUP_1/Auth/RLS outcomes
+were UNKNOWN/BLOCKED and requests/writes0. See the actual execution outcome below.
+
+### Fresh v8 Real Asset Evidence Collection Completed (2026-10-13)
+
+Owner issued exact `GO_E_VERIFY_GROUP1_PRODUCTION_ASSET_PROOF_FRESH_V8`. At trusted
+UTC2026-10-13T08:10:11Z the approved binding/Packet/template/authorization hashes
+matched; the bound frozen entry was invoked exactly once. Dynamic prechecks passed,
+fresh Claim was created and this authorization is now CONSUMED, never reusable.
+No automatic refresh, repair, second attempt or additional Production query ran.
+
+Child CONTENT_EVIDENCE_COLLECTED, no first failure. Actual completed GETs26:
+Deployment2, anonymous current login HTML1, referenced JS/CSS23. Literal dependency
+graph closes over those23 observed paths; this is not all67 local files or complete
+runtime/browser/third-party coverage. Anonymous accepted body bytes726384, inFlight0;
+24 raw evidence files are DPAPI encrypted in the bound owner-only private directory.
+Their ciphertext hashes and receipt count/byte totals were verified locally.
+No raw HTML/code, OAuth, Cookie, Token or Session was printed or copied into Git.
+
+Required actual script
+`/_astro/SiteHeader.astro_astro_type_script_index_0_lang.CtUXEG6g.js`:
+1168 bytes, SHA256
+`d38ccb187c70064b9bec7e27993090ade0408ca524cccef2aec7312521240902`.
+Its bytes do not match the old local frozen header. Byte observation alone is not
+source/provenance or safe-purpose PASS. Source review/build-byte equality remains
+PENDING_OFFLINE_REVIEW/UNKNOWN; the current GROUP_1 allowlist was NOT modified.
+
+Both Deployment checks return e8481d68-d2d5-473b-8b0c-b82b8fa33fc3, Production
+b2b62ec9-bb8d-4159-ac99-08fca5740134 at100%, Recovery1510%. Provider Set-Cookie
+presence recorded after strict JSON validation; never saved or forwarded.
+Read interval2026-10-13T08:10:49.490Z to08:10:55.978Z, work6489ms. Supervisor7456ms,
+EXIT_ZERO, exit0/signalnull, timeoutfalse, receipt present, child reaped and native
+Job containment drained/closed with no error. Cleanup PASS on normal exit.
+
+Independent `artifacts/ASSET_READ_GO_CLOSURE_SAFE.json` records this outcome and
+hashes the immutable child, supervisor and parent receipts. Auth submissions0,
+RLS0/16, retries0, redirects0, Provider/Production writes0. No full GROUP_1 attempt,
+GROUP_2/3 operation or Public Beta GO. All1469 frozen files still match after reads.
+
+Current single action: private OFFLINE comparison of the23 acquired payloads and
+literal reference graph to approved source/build evidence. Only proven safe
+Production paths/bytes may enter a new exact GROUP_1 binding; any missing source
+proof remains BLOCKED. Do not repeat script-name diagnostics or these consumed
+asset reads. Full GROUP_1 still needs independent fresh approval for actual A/B/
+ADMIN/CAPTCHA and16 RLS checks. Catalog held; GROUP_2/3 and Public Beta not authorized.
+
+### Production Login Assets Reviewed And Precisely Bound (offline, 2026-10-13)
+
+`tools/e-verify-group1-production-binding/` is the isolated QA repair. All24 DPAPI
+payloads verify ciphertext/plaintext SHA and bytes; the child/supervisor/parent
+receipt chain and all1469 frozen reader inputs verify. No old evidence was changed.
+The prior release receipt supplies the Build/source/Version link; the Deployment
+response itself does not supply a source SHA. Both captured deployments match.
+
+Of23 captured JS/CSS,16 match frozen local artifact bytes. Seven match scoped AST
+source review, retaining code operations/literals/calls/exports and known imports.
+Only exact hash-pinned pairs permit the two reviewed import-order differences and
+one lazy React initializer placement difference. This is not general equivalence.
+CtUXEG6g is source-consistent with SiteHeader.astro's settings/menu/keyboard script;
+its direct import is the reviewed Production SettingsPage chunk. Historical Cloud
+build environment parity and the exact build-pipeline cause of hash differences
+remain UNKNOWN. Do not call the different hashes a Production build failure.
+
+The new finite23-resource policy binds Host/GET/path/type/version/stage/actor and
+checks actual bytes/SHA before Chrome receives a script. OldDaQNT1ww and arbitrary
+URLs stay blocked. Every HTML response additionally requires a reviewed body hash,
+preventing unreviewed inline scripts. Owner budgets remain unchanged. The candidate
+adapter is not a Production entry or effective authorization.
+
+New targeted tests34/34 PASS, including real Chrome hydration of all23 acquired
+resources on a synthetic local shell, unknown/old paths, query redaction, concurrent
+pre-dispatch budget exhaustion, modified inline-code refusal and consumed-Claim
+replay refusal. The raw Production HTML was NOT executed. All physical test traffic
+used127.0.0.1 and the deny proxy forwarded zero requests. Existing123/43/31/9 suites
+were not rerun. This turn Production requests/writes0; no OAuth or private QA account
+input was read. Auth and16 RLS outcomes remain unexecuted.
+
+Engineering-only binding SHA256:
+`5f5a838041c71ba00c8f0f5debf85726666e42ce2294b0f6aad012e395e24477`.
+Artifact: `artifacts/EXECUTION_BINDING_PRODUCTION_ASSETS_OFFLINE_BLOCKED.json`.
+No new authorization ID/Packet, approved human gates, UTC, Claim or GO was created.
+
+Current single blocker: the acquired graph covers login only. The products index
+script/catalog-compare-dom and AdminDevicesDashboard/useAdminSession lie outside
+it. Approved source explicitly requires these post-login roots; their actual
+Production hashes/content are UNKNOWN. Local hashes cannot substitute. Full
+GROUP_1 readiness remains BLOCKED and total-flow budget sufficiency UNKNOWN.
+
+Next minimum evidence: reuse the same Build's existing complete client artifact
+manifest/bytes, if retained, to cover only those unproven page roots and their
+finite dependencies. Do not repeat the23 acquired resources or script-name probes.
+If no such archive exists, any uncovered-resource reads require separate exact
+authorization; none is generated or executed here. Full GROUP_1 approval waits
+for this specific evidence, not another broad audit. Keep Catalog held, USD0,
+GROUP_2/3 and Public Beta unapproved, and no Version151 default recovery after D.
