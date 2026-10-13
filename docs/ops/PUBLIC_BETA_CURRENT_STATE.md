@@ -1,6 +1,6 @@
 # Public Beta Current State
 
-Authoritative release/progress baseline. Updated 2026-10-13 by offline inspection
+Authoritative release/progress baseline. Updated 2026-10-14 by offline inspection
 of actual Git/source and existing safe receipts, not by replaying Production tests.
 Read this first for every task. This document is not an authorization or GO.
 `VERIFIED` is scoped historical evidence, not proof of unchanged live state now.
@@ -45,8 +45,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | authenticated Catalog RLS | Prepared 16 exact reads [G] | Actual A/B identity, policies/access results UNKNOWN; do not infer from anonymous PASS |
 | Zero-cost gate | VERIFIED 9/9 reused; Free-only proof admission PASS offline | Owner plans RECORDED, official policies checked; new binding uses exact proof before OAuth/Claim and child transport |
 | GROUP_1 live authorization | CONSUMED / PRODUCTION_ACCEPTANCE_BLOCKED | Fresh GO launched one supervised attempt; LOGIN_A stopped at UNAPPROVED_REQUEST; Claim retained, cleanup PASS; never replay this ID |
-| LOGIN_A asset evidence closure | VERIFIED24 protected payloads;23 exact Production paths reviewed and bound;34/34 new offline tests PASS | CtUXEG6g source/purpose verified;16 exact local bytes +7 scoped AST reviews; full GROUP_1 BLOCKED on uncaptured post-login products/admin assets |
-| Remaining GROUP_1 assets / full-flow budget | Consolidated evidence-only v9 packet READY_FOR_OWNER_APPROVAL;33/33 new tests PASS | Reuse23;3 exact public HTML+at most7 conditional slots+2 Deployment,12 GET max; full Auth/RLS remains NOT_AUTHORIZED and full-flow budget UNKNOWN |
+| LOGIN_A and post-login static evidence | VERIFIED29 finite Production resources;9 v9 captures reviewed;25/25 new targeted tests PASS | Prior23 preserved, new6 reviewed, ProductDetail285-byte inline matched; no duplicate Production reads or runtime PASS implied |
+| Remaining GROUP_1 / full-flow budget | BLOCKED: saved500 admissions stop the real Chrome local flow | Latest frozen complete counterfactual mock uses511 admissions/499 physical dispatches;11 is this scenario gap, NOT a Production minimum; no budget change or new authorization Packet |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -762,3 +762,71 @@ collection, review all remaining bytes/source/inline references together, repair
 the finite full GROUP_1 binding and close its real Chrome Mock/budget trace in one
 step. Do not repeat login23/name probes, reuse consumed approvals or auto-increase
 budgets. Catalog held; GROUP_2/3/Public Beta unapproved; no post-D Version151 default.
+
+### v9 Production Evidence And Full-flow Offline Closure (2026-10-14)
+
+Local branch `codex/group1-v9-offline-closure-20261013` preserves d81fe228,
+06ab7797, product9161ca71 and the earlier continuity commits. Production business
+code, private input and all historical authorizations/Claims/receipts are unchanged.
+
+Consumed v9 collected11 GETs:3 HTML,6 new JS/CSS,2 matching Deployment checks,
+reusing23 protected assets without GET. Source/link identity remains88680a6e/b2b
+at100%, Deployment e8481d68; Build/source comes from the prior frozen release
+receipt, not a Deployment API SHA. Cleanup was confirmed. Never replay v9.
+
+`tools/e-verify-group1-v9-closure/` verifies all9 new DPAPI ciphertext/plaintext
+captures, frozen2005-file inputs and previous23 review. Four new assets exactly
+match source-frozen bytes; AdminDevicesDashboard matches the scoped AST; the
+GlassConfirmDialog difference is an exact hash-pinned sibling import order review,
+not a general equivalence exception. The ProductDetail285-byte inline script is
+exact; no external seventh resource was referenced. All29 literal dependencies
+close; runtime branches/Production Auth/RLS outcomes remain NOT_VERIFIED.
+
+New independent QA adapter/gate copies fix source-backed own GET duplication,
+refresh generations, and preference adoption timing without changing frozen
+originals. Only the three exact approved own GETs are merged within a navigation
+and same private Session; every browser attempt still consumes global admission.
+Navigation/accepted Session change clears cached responses; Cookie/header/actor
+checks remain. Same-generation GETs and all Mutation replays remain refused.
+Refresh invalidates identity verification. HTML permits only validated serialized
+locale generation/provenance/source changes; code/resources/other props remain
+structurally pinned. Unknown paths/actors/stages/resources still fail before wire.
+
+25/25 targeted tests PASS. Actual scoped Chrome/Astro/React/SDK uses only synthetic
+accounts and loopback HTTP, with deny proxy forwarded0 and Node egress locked.
+Native Job hard deadline genuinely launches/drains Chrome. Wrong UUID/role,
+Session leakage, concurrent caps, replay/expiry, redirect/Cookie, changed script
+and modified inline code are tested. Old123/43/33/9 suites were not rerun. Mock
+success is never live Auth/CAPTCHA/RLS acceptance.
+
+Under the unchanged owner500 cap, latest frozen mock admitted500 and dispatched
+491 (including1 synthetic Deployment). It verified3 identities/16 RLS mocks and
+2 negative Auth mocks, then blocked the last NEGATIVE_PASSWORD resource before
+wire; no post-Deployment, cleanup PASS. Therefore500 is insufficient for this
+measured scenario, not merely because the old921 conservative bound exceeds it.
+
+An explicit loopback-only counterfactual fixture cap800 (not an owner or Production
+budget) completed3 identities,16 RLS,3 negative Auth and2 synthetic Deployments:
+511 global admissions versus499 actual dispatches,3 refreshes and12 challenge
+fixture requests. Its exact scenario difference is11 admissions. Earlier
+development runs varied (up to523 observed); scheduling/manual Managed Turnstile/
+refresh/background/logout behavior remain UNKNOWN in Production. Neither511 nor
+523 is a proven minimum, recommended universal cap or completion guarantee.
+Saved private budget remains500, USD0, Auth40, REST80, Turnstile40, refresh6.
+
+Engineering-only binding:
+`904dead9b3043e23e382a83feb2411bca1fa3cc32511639ed19ee40076f489f7`.
+`artifacts/BUDGET_CLOSURE_SAFE.json` and both exact Chrome traces record the gap.
+No new Production authorization ID/Packet/window/Claim/GO was minted. OAuth was
+not read again because the owner budget gate is still blocked; the future full
+contract requires account:read/workers_scripts:write and remaining strictly>1860s
+before a new1800-second execution/window approval.
+
+Current single blocker/action: obtain the owner's explicit global-admission budget
+decision (or explicitly scoped flow amendment) using these measured scenarios,
+then mechanically freeze the actual full GROUP_1 entry/contract with14 mappings,
+16 RLS reads, Boundary2 residuals and fresh human/UTC/GO approval. Do not repeat
+asset reads, billing audit, intake or passed release/anonymous suites. An approved
+changed cap remains a hard stop, never a promise of Production completion.
+This offline task Production requests/writes0. Catalog held, GROUP_2/3/Public Beta
+unapproved; Version151 remains PRE-HARDENING-only recovery evidence.
