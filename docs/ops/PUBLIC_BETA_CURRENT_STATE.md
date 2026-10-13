@@ -20,6 +20,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Current authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
+- Current scoped repair branch: `codex/group1-login-denial-diagnostics-20261013`,
+  preserving the prior local product/continuity commits and later authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -42,7 +44,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | GROUP_1 engineering | VERIFIED 123/123, 14 scoped mappings [G] | Production outcomes UNKNOWN; not all 50 mandatory cases completed |
 | authenticated Catalog RLS | Prepared 16 exact reads [G] | Actual A/B identity, policies/access results UNKNOWN; do not infer from anonymous PASS |
 | Zero-cost gate | VERIFIED 9/9 reused; Free-only proof admission PASS offline | Owner plans RECORDED, official policies checked; new binding uses exact proof before OAuth/Claim and child transport |
-| GROUP_1 live authorization | READY_FOR_OWNER_APPROVAL / NOT_AUTHORIZED | 14/14 billing-eligible; only subset approval, five gates and real UTC validity pending; separate GO mandatory |
+| GROUP_1 live authorization | CONSUMED / PRODUCTION_ACCEPTANCE_BLOCKED | Fresh GO launched one supervised attempt; LOGIN_A stopped at UNAPPROVED_REQUEST; Claim retained, cleanup PASS; never replay this ID |
+| LOGIN_A denial diagnostics | VERIFIED LOCAL 35/35; diagnostic-only packet READY_NOT_AUTHORIZED | Historical rejected URL remains UNKNOWN; no whitelist fix or new Production attempt |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -115,14 +118,16 @@ SHA256 `8aeb1672812981483ad80cde473dfce8a8f300725258de7cda88514460eabcf6`.
 change is exact proof admission in independent entry/child copies. Network,
 identity, CAPTCHA, budgets, deadlines, Claims, transport and supervisor are unchanged.
 123/123 and 9/9 tests were reused, NOT rerun. No credentials or private metadata
-were copied into ordinary artifacts. No approved file, Claim or GO has been created.
+were copied into ordinary artifacts. Preparation created no Claim or GO; the
+subsequent independently approved authorization is recorded below.
 
 ## Exact Subset Approval Boundary After Proof
 
 Original E_VERIFY has two authorization boundaries. Independent GROUP_1 requires
 explicit Boundary 2 subset approval; it is not already granted by engineering PASS.
 Retain all 50 cases and partial AUTH-08/ADMIN-04/UI obligations. Five exact gates,
-currently UNCONFIRMED, from `Q/group1/artifacts/HUMAN_GROUP1_SUBSET_AUTHORIZATION_NOT_AUTHORIZED.md`:
+now OWNER_CONFIRMED in the independent approval (original templates remain null),
+from `Q/group1/artifacts/HUMAN_GROUP1_SUBSET_AUTHORIZATION_NOT_AUTHORIZED.md`:
 
 1. `subsetBoundary2AndResidualCasesAccepted`: limited subset, precise preference
    cookie exception, anonymous denial mapping and duplicate-read reuse; residuals stay open.
@@ -135,7 +140,17 @@ currently UNCONFIRMED, from `Q/group1/artifacts/HUMAN_GROUP1_SUBSET_AUTHORIZATIO
 5. `operatorAvailableForEntireValidity`: actual uninterrupted owner availability
    throughout the approved UTC validity and bounded stop handling.
 
-No times or gates are filled here. Retain <=60-minute approval validity, 1800-second
+Owner approval recorded 2026-10-13T03:48:51.752Z after explicit confirmation of
+all five gates, thirteen conditions, subset addendum, frozen hashes and exact
+2026-10-13T03:50:00Z to 2026-10-13T04:50:00Z UTC validity. Independent
+`AUTHORIZED_GROUP1.json` in the new preparation artifacts has SHA256
+`99e3b3a96568fe223ea18fbd22f34e25575d1d23f6ec19b120d8dabea74cfe7c`.
+`GROUP1_OWNER_AUTHORIZATION_RECORD_SAFE.json` records schema/binding/window
+consistency only, not a received GO or live OAuth validation. No Claim, OAuth read,
+Production request or authorization consumption occurred. Original null templates
+and protected input are unchanged. Approval is scheduled from its start; do not
+execute before then, after expiry, or with insufficient remaining execution time.
+Retain <=60-minute approval validity, 1800-second
 execution / 1740-second work / 60-second cleanup reserve, OAuth >1860 seconds;
 500 global admissions including two Deployment GETs, Auth 40, REST reads 80,
 Turnstile 40, refresh 6, exact 16 Catalog reads, zero retry/reconnect/redirect.
@@ -164,11 +179,78 @@ The older Pages `docs/production-readiness-gate.md` GO applies to its old source
 origin, not this Workers release. Preserve it as history; this baseline controls
 the current NOT_AUTHORIZED Public Beta decision. Do not erase historical PASS/FAIL.
 
-Current single release gate: owner approval of the exact new Boundary 2 subset
-addendum, the five pending humanGates and actual UTC validity (no repeated billing
-confirmation). Next owner action: approve the linked complete template with real
-times and five confirmations in one message, then issue GO separately after approval
-is recorded. Billing eligibility is closed; live execution and RLS are still unverified.
+Independent `GO_E_VERIFY_GROUP1_V1` received. At current UTC 2026-10-13T03:52:08Z
+the original window was open; the frozen entry was invoked exactly once and
+returned exit 1 / OAUTH_COVERAGE_OR_SCOPE before Claim creation. Its preceding
+authorization, bound files, Free proof and source HEAD checks passed. This combined
+guard does not identify expiry versus scope mismatch; neither cause is invented.
+`GROUP1_GO_OAUTH_PREFLIGHT_STOP_SAFE.json` beside the approved authorization
+preserves the stop: no child/supervisor, no Claim, authorization unconsumed,
+zero Production requests/writes, zero retries or automatic OAuth refreshes.
+Owner manually restored default OAuth. Local-only precheck at
+2026-10-13T03:56:53.430Z verified updated file, nonempty token, exact required
+workers_scripts:write/account:read scopes, expiry 2026-10-13T04:56:00.304Z and
+3546 seconds remaining (>1860). Authorization, bound files, source HEAD and
+Free-only proof also passed; authorization had 3186 seconds left. Safe receipt:
+`GROUP1_LOCAL_OAUTH_RECOVERY_PRECHECK_2026-10-13T03-56-53-431Z.json` in new artifacts.
+This is local credential metadata, NOT remote authenticated principal validation;
+actual remote identity remains UNKNOWN until a permitted Provider response.
+The old replaced credentials' expiration/scopes were not recorded, so the prior
+combined failure's specific cause remains UNKNOWN. No identity/whoami request was
+added. The approved exact account/Worker target matches; future pre-Deployment
+must validate access and production identity using only its original budget.
+That local precheck did not invoke the entry or consume approval. A subsequent
+fresh GO was received with UTC checked at 2026-10-13T03:59:39Z. The frozen entry
+then passed prechecks, created the sole Claim and launched one supervised attempt.
+Pre-Deployment verified the exact Production Version at 100%, Version151 at 0%,
+Deployment e8481d68-d2d5-473b-8b0c-b82b8fa33fc3. At LOGIN_A, an unapproved
+browser request was blocked; child result is BLOCKED / UNAPPROVED_REQUEST.
+Global admissions=5 (includes one confirmed Deployment GET); exact completed
+HTTP count and rejected URL/method are UNKNOWN because frozen receipts omit
+per-request completion/denial identity. Do not invent the path or treat admissions
+as successful requests. Auth dispatches=0, identities=0, Catalog RLS=0/16;
+post-Deployment NOT_RUN. No mutation dispatch or Provider write was recorded.
+Child exit=1, signal=null, timeout=false, elapsed=5125ms; browser cleanup PASS,
+process reaped and Windows containment closed. Both frozen execution receipts
+exist; `GROUP1_FINAL_ATTEMPT_CLOSURE_SAFE.json` adds a safe summary without
+modifying them. Authorization is NOW CONSUMED; sole Claim remains permanently.
+Current blocker: historical denied request identity was not recorded and cannot
+be recovered from the retained child/supervisor safe receipts. Actual cause/path
+remains UNKNOWN, not a guessed favicon/Turnstile/static URL. Source inspection
+confirmed diagnostic context was lost from gate -> browser -> runner receipt.
+
+Scoped local repair in `tools/e-verify-group1-login-diagnostics/`: bounded safe
+predispatch classification and response-completion journal, propagated through
+browser cleanup into final receipts. The original Gate, wire, Node guard,
+supervisor and Windows Job broker remain byte-identical. No allowlist expansion,
+business source change or alteration of old receipts/Claims/private input.
+35/35 affected checks PASS, including six real Chrome local Mock cases using the
+original AuthPanel/SDK, atomic admission limits, replay/redirect/cookie/hash
+guards, diagnostic Auth/refresh denial and Windows deadline/process cleanup.
+Old123/123, zero-cost9/9 and all prior production evidence were reused, not rerun.
+
+New independently frozen diagnostic subset (NOT a full GROUP_1 retry):
+`tools/e-verify-group1-login-diagnostics/execution/group1/artifacts/`.
+Authorization ID: `e-verify-group1-openglasshub-20261013-login-diagnostic-v3`.
+Execution binding SHA256: `f9936ffecafd99c89e8be9cbb4d4741e27f1b3f66ea55f2031d2843c4fa123f6`.
+Packet SHA256: `ab3e3346eebb93e0a7043f46aa5e90c1b17f59fa37c3fdf19116818b447b4ba7`.
+Template SHA256: `b2cc1efc673811f9ed1062176e7269c37e96cb4453ef848bfa2546903ce7bd05`.
+1208 files bound; all1175 prior frozen files and consumed Claim verified unchanged.
+New UTC times/five humanGates are null; no approved file, GO or Production Claim.
+
+Only a new independently approved diagnostic may load the exact login URL and
+original manifest-bound assets/Turnstile GETs: browser max8, Deployment max2,
+global max10; no credentials, manual CAPTCHA, Auth, REST, refresh or mutation.
+Hard300/work240/cleanup60 seconds; max10-second post-DOM observation; OAuth>360.
+First failure stops without post-Deployment; clean completion alone permits it.
+Unknown path/host/query details are safely redacted; no raw private identifiers,
+headers, bodies or challenge values. Transport attempts are not socket-write proof.
+It is a smaller new Boundary2 diagnostic addendum; owner must explicitly approve
+its differences and exact UTC validity, then separately issue
+`GO_E_VERIFY_GROUP1_LOGIN_A_DIAGNOSTIC_V1`. A clean diagnostic is NOT login/RLS PASS.
+Next single action: approve that exact minimum diagnostic scope and a real UTC
+validity; never reuse the consumed free-plan-v2 authorization or original window.
+Billing eligibility is closed; live execution and RLS are still unverified.
 GROUP_2/3 remain open and require separate scope/control/zero-cost resolution.
 This update made zero Production requests/writes and reran zero release/QA tests.
 Future updates must record only new completed work, genuine issues, the current
