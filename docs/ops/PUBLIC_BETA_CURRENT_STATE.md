@@ -387,3 +387,81 @@ then new full GROUP_1 approval only if proven legitimate; B) unauthorized script
 request exact missing trusted manifest/protected owner review, no identical probe.
 Full GROUP_1 and E_VERIFY remain incomplete. Catalog held, Public Beta not approved.
 Production requests/writes0; no deploy, push, business code, RLS or billing change.
+
+### v5 safe script identity production diagnostic (2026-10-13)
+
+Supersedes pending v5 approval above. Owner confirmed all five gates and approved
+UTC05:48:12Z-06:03:12Z, then separately issued the exact v5 GO. Frozen entry
+invoked once after UTC05:54:18Z; prechecks passed and permanent Claim created.
+Authorization v5 is now CONSUMED, never reusable. No second attempt or repair ran.
+
+Diagnostic BLOCKED at LOGIN_A / DIAGNOSTIC_ROUTE_FORBIDDEN. Precise safe identity
+captured from VALIDATED_LOGIN_HTML, PUBLIC_REFERENCE_UNMATCHED:
+`/_astro/SiteHeader.astro_astro_type_script_index_0_lang.CtUXEG6g.js`.
+It is application-origin GET/script, NO_BOUND_RULE / UNAPPROVED_ROUTE, no query,
+no observed redirect/retry, denied before controlled transport dispatch. Frozen
+local corresponding stem is `SiteHeader.astro_astro_type_script_index_0_lang.DaQNT1ww.js`
+(1168 bytes, SHA2564550699f9e06afc37000e20f4dbd2c9223f0786afd03769713785325d047c0ca).
+The exact path mismatch is proven; new script contents/bytes, full build equality,
+legitimacy and historical v2/v3 failure identity are NOT proven by this reference.
+
+Pre-Deployment PASS: e8481d68-d2d5-473b-8b0c-b82b8fa33fc3, expectedProduction
+b2b62ec9-bb8d-4159-ac99-08fca5740134 at100%, Version1510%. Post-Deployment NOT_RUN.
+Global admissions5 includes confirmed ProviderGET1; browser transport attempts4,
+completed browser responses1 (login HTTP200); three in-flight responses failed
+or were aborted. Exact socket-dispatch count is UNKNOWN, not admissions-as-GETs.
+Auth0, RLS0/16, mutations/Provider writes0, retries0. Child exit1/signalnull,
+timeoutfalse, supervisor elapsed2148ms, browser cleanup PASS, process reaped and
+Windows containment closed. No credential input, CAPTCHA solve or live patch.
+
+New v5 artifacts `GROUP1_EXECUTION_SAFE.json` SHA256
+cffacd0b0708b8d4b5b1c24cc506fb284eb31157dd664683cdd94b2d0eefcdff;
+`GROUP1_SUPERVISOR_SAFE.json` SHA256
+0fdabb4b587d445b119c518ef5a47536750b4401cf655777546dceace4bd3c1e.
+Current single action: offline correlate this exact public script with trusted
+released Build artifacts/source and purpose, then exact QA manifest/byte binding
+repair plus affected tests and fresh full GROUP_1 approval only if proven safe.
+No further initialization-only probe is needed merely to learn this filename.
+Catalog held; E_VERIFY incomplete; GROUP_2/3 and Public Beta not authorized.
+
+### Production asset binding repair evidence gap (offline, 2026-10-13)
+
+Production source commit88680a6eaab8de4123199f16b325ec0a430b0b86 is supported by
+the retained exact Build/source/version receipts. Source configs and lockfile are
+unchanged at that commit. Cloud Build environment/install-result equality remains
+UNKNOWN, not inferred from source equality. Candidate offline build has DaQNT1ww;
+newer unpushed product checkout has B7dE5HsA and cannot replace Production evidence.
+No CtUXEG6g bytes or full Production login HTML were saved in the v5 receipts.
+CtUXEG6g's actual content, asset-manifest equality, graph and safe compiled purpose
+remain BLOCKED. Underlying hash/build-input cause UNKNOWN. No QA alias or allowlist
+change is justified. Header source imports SettingsPage for settings-navigation
+confirmation and registers UI listeners, not proof of unknown compiled bytes.
+
+`tools/e-verify-group1-asset-provenance/` provides a scoped offline analysis and
+explicit evidence-read proposal, not a ready executable Production entry. Proposed
+read: pre-Deployment, exact anonymous login HTML, at most67 unique JS/CSS references
+including the already identified exact CtUXEG6g path, post-Deployment: max70 GETs.
+Dependency paths are resolved only from current HTML/parent literal imports into
+the original finite stems/types/multiplicity. No /_astro/* wildcard, blind67 old
+paths, query/private route, third-party fetch, JS execution, Auth/RLS/write, retry
+or redirects. New70-request scope needs independent owner approval; original
+owner500 ceiling unchanged and old10-request Claims never reused. Hard300/work240/
+cleanup60 and exact reader/private capture must be frozen before any later GO.
+
+11/11 new offline read-plan tests PASS: exact path selection, old-alias exclusion,
+finite imports, multiplicity, privacy/origin/query/method controls, replay, bad
+responses and actual-hash-vs-provenance distinction. These are not full GROUP_1 or
+Production executor tests. Original15/17/35/123/9/43 evidence reused, not rerun.
+
+Read-scope proposal ID e-verify-group1-openglasshub-20261013-production-assets-proof-v6;
+offline-only plan binding2eab397cc8ca17591d6cf0aa52ef839a585b5ad452421582bfb5e9c24462bb17;
+packet95fddd76f69291362eab8e6b9d1401ed4ece14dae87d89c317731eca6f7060db;
+template3833264610706c01cca84076d6be5e8ef43bd7f22cd74df62c9665f00897a8ef.
+These hashes do not bind an executable reader or grant Production permission.
+No effective authorization/UTC/true human gates/Claim/GO created. Full GROUP_1
+reauthorization BLOCKED; its500-request sufficiency remains UNKNOWN until the
+actual dependency graph is verified/countable. Missing evidence is actual compiled
+payloads plus their current page/import graph, not the already identified filename.
+Next single action: owner review/approve the bounded content-proof scope (or provide
+trusted same-Build offline assets); bind exact reader before a separately approved GO.
+Production requests/writes0, USD0, Catalog held, GROUP_2/3 and Public Beta not approved.
