@@ -20,7 +20,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Current authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped engineering branch: `codex/group1-asset-reader-freeze-20261013`,
+- Current scoped engineering branch: `codex/group1-asset-reader-fresh-v8-20261013`,
   preserving prior local product/continuity commits and later authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
@@ -507,14 +507,89 @@ Packet SHA256:
 Pending template SHA256:
 `a4433acc52cd311b295c7ec061065d097e19a28ceb9ac7dd908d175f7009254c`.
 1444 exact bound files verified, original SQL/business/source/historical files unchanged.
-All five human gates and both UTC fields are null; no effective authorization,
-Production Claim, GO, default OAuth read, Production request or write this task.
+Original pending template retains five null gates and null UTC fields unchanged.
+Owner explicitly confirmed all five gates and approved the exact UTC validity
+2026-10-13T07:06:26Z through 2026-10-13T08:06:26Z. Separate
+`artifacts/AUTHORIZED_ASSET_READ.json` recorded and validated at
+2026-10-13T07:15:19.955Z, SHA256
+`0659a1df64a4a22f3df5ef7ca2973275bba84577e83a1154e6c28b660d6e4864`.
+`AUTHORIZATION_RECORD_SAFE.json` records explicit owner approval, not an execution GO.
+Binding/Packet/template unchanged;1444 bound files verified without rerunning tests.
+At authorization recording: unconsumed, no Claim, GO, OAuth read or Production request/write.
 
-Current single action: owner approve the complete evidence-only contract, finite
-conditional scope, five gates and actual UTC validity (<=60 minutes), then stop at
-the separate `GO_E_VERIFY_GROUP1_PRODUCTION_ASSET_PROOF_V1` boundary. Do not execute
-on approval alone. Real content/provenance, full GROUP_1 budget sufficiency, Auth and
+The owner subsequently issued exact `GO_E_VERIFY_GROUP1_PRODUCTION_ASSET_PROOF_V1`.
+At trusted UTC2026-10-13T07:26:11Z the approved four hashes matched and no Claim existed.
+The frozen bound Node entry was invoked exactly once and stopped locally at
+`OAUTH_COVERAGE` (exit1) before Claim or supervisor startup. Default OAuth was read
+privately; it was not printed, refreshed or retried. Its expiration check did not
+meet the parseable and strictly>360-second coverage requirement; precise expiration
+subtype/value was not retained and is not guessed. Deployment/HTML/assets GETs0,
+total Production requests0, writes0, retries0, Claimfalse, authorization unconsumed.
+Original failure receipt `artifacts/ASSET_READ_LOCAL_FAILURE_SAFE.json` retained;
+independent `ASSET_READ_GO_CLOSURE_SAFE.json` records the final zero-request stop.
+
+Owner requested local-only OAuth recovery diagnosis. At2026-10-13T07:35:20.574Z,
+the exact frozen-entry default file exists, token present, scopes
+workers_scripts:write/account:read PASS, expiration parseable but expired at
+2026-10-13T06:53:54.543Z (-2487 seconds at observation). Its mtime is
+2026-10-13T05:53:55.547Z. Historical check order proves scope absence was not the
+v7 blocker; no historical credential snapshot was retained, so unchanged secret
+identity/previous exact metadata is not invented. No remote identity was queried.
+Installed Wrangler4.106.0 source confirms login --scopes accepts these exact names,
+updates default global auth, and its local default path matches the entry here
+(no legacy ~/.wrangler directory, XDG or staging override). Command shown to owner;
+no login/logout/refresh executed by Codex. Safe local diagnosis retained separately
+as `artifacts/OAUTH_LOCAL_DIAGNOSIS_SAFE_20261013T073520Z.json`.
+
+At the pre-recovery stop: wait for owner `OAUTH_LOGIN_COMPLETED`, then recheck exact
+remaining lifetime/scopes locally and prepare the fresh independent instance only
+if coverage passes. No new ID/Packet/window/Claim/GO has been generated. The failed
+v7 instance cannot be reinvoked: its frozen contract and existing failure receipt
+prohibit replay even though no Claim was created. No automatic retry/new approval.
+Real content/provenance, full GROUP_1 budget sufficiency, Auth and
 16 RLS results remain BLOCKED/UNKNOWN until their separately authorized evidence.
 Collection success is not GROUP_1/E_VERIFY PASS. Catalog held; GROUP_2/3 and Public
 Beta not authorized. Local product commit9161ca71 and continuity1e027888 preserved,
 not merged into or claimed as deployed Production code.
+
+### Fresh v8 After Owner Manual OAuth Recovery (offline, 2026-10-13)
+
+Owner replied `OAUTH_LOGIN_COMPLETED`. The exact frozen local checker PASS at
+2026-10-13T07:42:50.556Z: required scopes account:read/workers_scripts:write present,
+expiration2026-10-13T08:41:40.553Z, remaining3529 seconds; default file updated at
+2026-10-13T07:41:41.556Z. Remote account identity NOT_VERIFIED; no Provider request.
+Later preparation check PASS at2026-10-13T07:49:57.920Z, remaining3102 seconds.
+OAuth observations are point-in-time, not a future validity guarantee. No automatic
+login/logout/refresh, no secret/fingerprint output or private identity changes.
+
+`tools/e-verify-group1-asset-reader-fresh-v8/` contains the new independent instance.
+Runtime copies differ only by the unique authorization ID and exact new GO constant;
+file/receipt/private-capture paths derive from the separate instance and ID. Same
+source/Version/Deployment,70 GET cap, finite conditional references,2MiB/16MiB body
+bounds, max4 concurrency,300 hard/240 work/60 cleanup, zero retry/redirect/Auth/RLS/
+writes and USD0. All thirteen contract conditions byte-identical to v7's conditions.
+Original31/31 runtime evidence reused, not rerun. Only7/7 mechanical identity/GO/
+budget/scope/null-gate/path/replay/frozen-history consistency checks executed.
+No Production operation or current Free-plan re-audit. V7 stop receipts retained;
+its unconsumed authorization does not make that failed instance reusable.
+
+New pending authorization ID:
+`e-verify-group1-openglasshub-20261013-production-asset-reader-fresh-v8`.
+Execution binding SHA256:
+`036172b39d01ad036a5b3c2ec060f1c1d7752bc18d73d669a8049b2030554497`.
+Packet SHA256:
+`41ae34c6e074e8deb6425b2bf1cfe40bd0f715ab8e5b8547cd81f592a7d84cb5`.
+Pending full template SHA256:
+`0fb49b853ba1fcea6d767ad7de6e513d7a80bc4935354daa0650c96c85746eab`.
+Current contract: new instance's
+`artifacts/HUMAN_PRODUCTION_ASSET_READ_AUTHORIZATION_NOT_AUTHORIZED.md`.
+
+Current single action: owner collectively confirm the same five gates and complete
+fresh contract/bindings, including current continuous supervision readiness. Only
+after that confirmation read trusted UTC and propose a fresh exact validity for
+separate owner approval. Both UTC fields and five gates currently null. No effective
+approval, Claim or GO. The later separate command is
+`GO_E_VERIFY_GROUP1_PRODUCTION_ASSET_PROOF_FRESH_V8`; do not issue it now or reuse old GO.
+OAuth must still be strictly>360 seconds at execution check and all dynamic gates
+must pass. Catalog held; GROUP_2/3 and Public Beta not authorized. Ct bytes/full
+GROUP_1/Auth/RLS outcomes remain UNKNOWN/BLOCKED. Production requests/writes0.
