@@ -18,6 +18,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Continuity branch: `codex/public-beta-release-continuity-20261013`, checkout
   `C:/Temp/ogh-product-beta-development-20261013`. No fetch, push or merge here.
   Local `origin/main` still names the released source; this is not a fresh remote check.
+- Current authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
+  based on continuity commit `1e027888`; no unrelated branch was merged.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -39,8 +41,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Private intake | VERIFIED READY [I, Z] | 160 fields: 153 completed, required 0, optional circle 4 null, formal approval 3 deferred; no new wizard |
 | GROUP_1 engineering | VERIFIED 123/123, 14 scoped mappings [G] | Production outcomes UNKNOWN; not all 50 mandatory cases completed |
 | authenticated Catalog RLS | Prepared 16 exact reads [G] | Actual A/B identity, policies/access results UNKNOWN; do not infer from anonymous PASS |
-| Zero-cost gate | VERIFIED 9/9 offline; cost rebound to 0 [Z, T] | Account billing evidence missing; gate currently denies all live dispatch |
-| GROUP_1 live authorization | BLOCKED | Only present critical-path blocker: three account-level billing confirmations below |
+| Zero-cost gate | VERIFIED 9/9 reused; Free-only proof admission PASS offline | Owner plans RECORDED, official policies checked; new binding uses exact proof before OAuth/Claim and child transport |
+| GROUP_1 live authorization | READY_FOR_OWNER_APPROVAL / NOT_AUTHORIZED | 14/14 billing-eligible; only subset approval, five gates and real UTC validity pending; separate GO mandatory |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -68,13 +70,13 @@ passed stage. Never expose private input or copy frozen implementation into repo
 | Z | `Q/zero-cost/artifacts/ZERO_COST_REBIND_SAFE.json` | `284fc28210762353d6c7c3a472b3f6ed5df7ca44fe33a0fc2a74c63051862055` |
 | T | `Q/zero-cost/artifacts/ZERO_COST_POLICY_TEST_SAFE.json` | `a0549c54d998830c58a3a34dd61d56f670e64494d9e35e459f887463b640704c` |
 
-Latest zero-cost binding `fae557d85f3b1c51e7e340705749d6e58aba030caaafc2e1676b397b4998b31c`
+Prior zero-cost binding `fae557d85f3b1c51e7e340705749d6e58aba030caaafc2e1676b397b4998b31c`
 and packet `fd6d0460f8c461e7c8a69757b0b45b144281a9a2bb23813fef158556f71960a3`
 are BLOCKED, with no allowed Production actions. The older GROUP_1 engineering
 binding `e28193fe4a40f301550b92871598a5bcf69bc074e9d27d1d410aaaec96beb268`
 and USD 2 packet/template are retained evidence, NOT valid execution authority.
 
-## GROUP_1: One Owner Billing Check
+## GROUP_1: Billing Evidence Closed, Approval Pending
 
 Only three dependencies apply to the frozen GROUP_1 chain: Workers/Static Assets,
 Supabase Auth/PostgREST and Turnstile. `group1/gate.mjs` restricts origins and
@@ -86,26 +88,34 @@ subset, not claimed free for the whole website or future mutation/media groups.
 
 Official terms checked 2026-10-13 are provider policy evidence, NOT account evidence:
 
-| Owner checks only these pages/fields, without changing settings | Relevant official boundary |
+| Current account state: OWNER_ATTESTED, not an agent Dashboard read | Relevant official boundary |
 | --- | --- |
-| Cloudflare account `dcb374166b39234a499985145c075f50`: Billing/Subscriptions and Workers & Pages > openglasshub > Settings/Usage. Confirm actual Workers Free (a zone's Free plan is insufficient), no paid/custom usage contract or request/logging/cache add-on in this chain; note Logs/Logpush and caching status. | Workers Free includes 100,000 daily requests and quota exhaustion returns 1027; direct static assets are free, but Worker-first execution and Workers Caching follow Worker charging. Paid Workers request/CPU/log overages and CPU limits are not a zero-dollar invoice cap. [Pricing](https://developers.cloudflare.com/workers/platform/pricing/), [Limits](https://developers.cloudflare.com/workers/platform/limits/), [Assets](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/). |
-| Supabase project `xcbnxzjlsvtgzixurcof`: owning Organization > Billing/Subscription and project add-ons. Confirm actual organization Free and no paid/custom Auth/Data API/compute/logging feature in the chain or configured upgrade. | Supabase says Free usage is not charged; excess use can lead to service restrictions after notice/grace, not necessarily immediate hard rejection. Pro Spend Cap is not universal: compute and opt-in add-ons are excluded. Do not substitute credits, remaining quota or an alert for Free/no-charge proof. [Cost control](https://supabase.com/docs/guides/platform/cost-control), [Billing FAQ](https://supabase.com/docs/guides/platform/billing-faq). |
-| Cloudflare > Turnstile: confirm the actual production widget belongs to this account's Free offering with no Enterprise/custom-priced terms. Do not send widget keys. | Free includes all widget types and unlimited challenge/verification requests; Enterprise is separately contracted. [Plans](https://developers.cloudflare.com/turnstile/plans/). |
+| Cloudflare account `dcb374166b39234a499985145c075f50`, openglasshub: owner confirms Workers Free, applicable paid add-ons None. | Workers Free includes 100,000 daily requests; quota exhaustion rejects requests (1027, or 429 for Worker-first assets). Direct assets have no request/storage charge; Worker-first and caching remain subject to the actual Workers plan. This is NOT unlimited capacity or a Paid-plan invoice cap. [Pricing](https://developers.cloudflare.com/workers/platform/pricing/), [Assets](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/). |
+| Supabase project `xcbnxzjlsvtgzixurcof`: owner confirms owning Organization Free, applicable paid add-ons None. | Supabase says Free usage is not charged; excess use can lead to service restrictions after notice/grace, not necessarily immediate hard rejection. This proof uses Free, NOT Pro Spend Cap, credits or a quota estimate. [Cost control](https://supabase.com/docs/guides/platform/cost-control), [Billing FAQ](https://supabase.com/docs/guides/platform/billing-faq). |
+| Actual production Turnstile widget: owner confirms Free Widget. | Free includes all widget types and unlimited challenge/verification requests; Enterprise is separately contracted. [Plans](https://developers.cloudflare.com/turnstile/plans/). |
 
-Provide one dated, value-blind owner confirmation covering the exact account/project,
-the three actual plans, applicable paid features/contract exceptions (none or exact
-safe names), and no automatic upgrade/paid fallback. A redacted plan-page excerpt
-is useful only if identity/plan remains ambiguous; no full invoice, payment details,
-credentials, screenshot of keys or new Provider enumeration is needed.
-Usage/availability warnings may block testing, but remaining quota alone neither
-proves nor disproves zero cost on a confirmed no-charge Free offering.
+The project owner's current message closes ACCOUNT_PLAN_UNKNOWN. Do not ask for
+the same plan checks, screenshots or Provider enumeration again. Account state is
+OWNER_ATTESTED; public policy is PROVIDER_DOCUMENTED; unchanged 14-case request
+scope is EXECUTION_PATH_VERIFIED_OFFLINE. Actual Production outcomes are UNKNOWN/
+NOT_EXECUTED. Billing eligibility is 14/14, not a live PASS. New paid paths or known
+plan/add-on changes must stop; quota exhaustion never permits upgrade or payment.
 
-Decision rule: matching account-level Free/no-paid-path proof plus these official
-terms can close billing for the unchanged subset; do not demand repeated engineering
-tests or impossible assurance about every unrelated service. Paid/custom/unknown
-paths remain BLOCKED under USD 0; offline fixtures are not live acceptance substitutes.
-No owner plan proof has been provided/verified in this baseline: 0/14 new Production
-mappings admitted, 14/14 live outcomes unresolved. No GO or valid live packet exists.
+New independent preparation root:
+`C:/Temp/ogh-e-verify-group1-free-plan-authorization-20261013/execution/group1/artifacts`.
+Authorization ID: `e-verify-group1-openglasshub-20261013-free-plan-v2`.
+Packet: `8bb232165198cd74a79f59758d2b318186bb6aefc63cf8d4360d0faedb31ccac`.
+Execution binding: `bb9976a44d58f71a2f3a2f156a3394bb3b68a5032a4da7b893ddcac05e0489a3`.
+Complete thirteen-condition template: `HUMAN_GROUP1_FREE_PLAN_AUTHORIZATION_NOT_AUTHORIZED.md`,
+SHA256 `8aeb1672812981483ad80cde473dfce8a8f300725258de7cda88514460eabcf6`.
+`OWNER_FREE_PLAN_EVIDENCE.json` binds the three evidence levels and exact scope.
+`FREE_PLAN_REBIND_SAFE.json` records the new packet and preservation; the local
+`FREE_PLAN_LOCAL_CHECK_SAFE.json` records 10/10 affected consistency checks.
+1155 prior files have zero differences; 1175 files are now bound. The only runtime
+change is exact proof admission in independent entry/child copies. Network,
+identity, CAPTCHA, budgets, deadlines, Claims, transport and supervisor are unchanged.
+123/123 and 9/9 tests were reused, NOT rerun. No credentials or private metadata
+were copied into ordinary artifacts. No approved file, Claim or GO has been created.
 
 ## Exact Subset Approval Boundary After Proof
 
@@ -132,14 +142,14 @@ Turnstile 40, refresh 6, exact 16 Catalog reads, zero retry/reconnect/redirect.
 This Auth subset has side effects; do not describe it as anonymous zero-write GET QA.
 Billing proof cannot by itself authorize those side effects or an execution.
 
-Once billing is proven: mechanically replace the obsolete USD 2/risk-acceptance
-clause with the exact USD 0 proof boundary in a NEW independent subset packet,
-approval template and binding. Preserve old files/Claims. Reuse source-applicable
-123/123 and 9/9 evidence; test only any changed proof-admission logic. Current
-`zero-cost/policy.mjs` always denies live dispatch, even if evidence is later supplied:
-wire exact verified proof into that gate in the new bound copy, never bypass it or
-run the old entry. No executor redesign or unrelated test suite is needed.
-After complete owner approval, wait for separate `GO_E_VERIFY_GROUP1_V1`.
+The obsolete USD 2/risk-acceptance clause is replaced ONLY in the new template's
+condition 12. The old deny-all packet/module and all historical files stay intact;
+never run the old entry under the new approval. New bound entry and child validate
+the Free-only evidence before live capabilities can start. No blanket billing-risk
+waiver or authorization is implied. Request scope and all noncost caps are unchanged.
+The 16 Catalog Data API steps are six anon, five A and five B, not sixteen all-
+authenticated reads; all required cross-role obligations remain. After complete
+owner approval with actual UTC times, wait for separate `GO_E_VERIFY_GROUP1_V1`.
 
 ## Product Continuity and Next Action
 
@@ -154,9 +164,11 @@ The older Pages `docs/production-readiness-gate.md` GO applies to its old source
 origin, not this Workers release. Preserve it as history; this baseline controls
 the current NOT_AUTHORIZED Public Beta decision. Do not erase historical PASS/FAIL.
 
-Current single release blocker: exact three-service account billing proof.
-Next single owner action: return the three dated, value-blind plan confirmations
-above in one response. Then prepare only the zero-cost subset rebinding/approval.
+Current single release gate: owner approval of the exact new Boundary 2 subset
+addendum, the five pending humanGates and actual UTC validity (no repeated billing
+confirmation). Next owner action: approve the linked complete template with real
+times and five confirmations in one message, then issue GO separately after approval
+is recorded. Billing eligibility is closed; live execution and RLS are still unverified.
 GROUP_2/3 remain open and require separate scope/control/zero-cost resolution.
 This update made zero Production requests/writes and reran zero release/QA tests.
 Future updates must record only new completed work, genuine issues, the current
