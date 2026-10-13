@@ -255,3 +255,85 @@ GROUP_2/3 remain open and require separate scope/control/zero-cost resolution.
 This update made zero Production requests/writes and reran zero release/QA tests.
 Future updates must record only new completed work, genuine issues, the current
 blocker, minimal next action and owner actions here; never create a competing baseline.
+
+### LOGIN_A diagnostic v3 production result (2026-10-13)
+
+Supersedes the pending-approval status above for diagnostic v3 only. Owner approved
+all five gates and UTC 04:32:01Z-04:47:01Z, then separately issued
+`GO_E_VERIFY_GROUP1_LOGIN_A_DIAGNOSTIC_V1`. The exact frozen entry ran once;
+authorization is CONSUMED and `GROUP1_ONCE.claim` remains permanently retained.
+No reuse or automatic retry is permitted.
+
+Result BLOCKED / DIAGNOSTIC_ROUTE_FORBIDDEN at LOGIN_A. First rejection:
+actor A, BROWSER_RESOURCE, application host openglasshub.ogh.workers.dev,
+GET, script, UNAPPROVED_ROUTE, NO_BOUND_RULE, no query or observed redirect/retry.
+Its path was redacted as `/:unbound`; the precise file name and the original
+free-plan-v2 failure URL remain UNKNOWN. The rejected request did not reach the
+controlled transport. Do not invent its identity or expand the allowlist.
+
+Pre-Deployment PASS: e8481d68-d2d5-473b-8b0c-b82b8fa33fc3, released Version
+b2b62ec9-bb8d-4159-ac99-08fca5740134 at100%, Version151 at0%.
+Provider GETs=1; browser controlled transport attempts=4, completed responses=1
+(login document HTTP200); three in-flight responses did not complete successfully.
+Global admissions=5, not a completed-HTTP count. Exact socket dispatch count is
+not proven by these counters. Post-Deployment NOT_RUN under first-failure stop.
+Auth dispatches=0, authenticated RLS=0/16, writes=0, retries=0.
+Child exit1, signal null, timeout false, supervisor elapsed1930ms; browser cleanup
+PASS, process reaped and Windows containment closed. Catalog remains held.
+
+New immutable safe receipts in the diagnostic artifacts directory:
+`GROUP1_EXECUTION_SAFE.json` SHA256
+4a3e0a03923fba0b79cd72a8a4b8e02b76f75151394d062783b0fc5ee37b9774;
+`GROUP1_SUPERVISOR_SAFE.json` SHA256
+ed492b3e44c1c56ba6b6fbaac10f043dfcf2e85326f2c96c70bd8a90f7822041.
+No engineering tests were rerun and no in-flight repair was attempted.
+
+Current single blocker: login initialization requested application scripts absent
+from the exact diagnostic route bindings; precise denied names were not retained.
+Next minimum action is an offline comparison of released login script references
+against frozen script bindings. Any additional exact dependency or diagnostic
+capture rule requires a separately frozen change and fresh approval before any
+new production attempt. This diagnostic is not login, RLS or full E_VERIFY PASS;
+GROUP_2/3 and Public Beta GO remain NOT_AUTHORIZED.
+
+### LOGIN_A exact script binding closure (offline, 2026-10-13)
+
+The retained diagnostic's normalizedRoute is `/:unbound`, not `/`. It is an
+explicit privacy marker. Code has no root-path rewrite: a real `/` would be
+FROZEN_PAGE_GET, not NO_BOUND_RULE. Historical rejected filename is still UNKNOWN;
+the old receipt has no pathname or comparable fingerprint to recover it.
+
+Existing A_DEPLOY Build d98da799-d41d-41dc-acaf-8c6675fd799a receipt links source
+88680a6eaab8de4123199f16b325ec0a430b0b86 and Production Version
+b2b62ec9-bb8d-4159-ac99-08fca5740134. The same-source local candidate build and
+frozen manifest verify all67 JS/CSS assets and207 literal dependency edges,
+zero missing local bindings/imports and no nonliteral module imports. These
+source/build links do NOT prove cloud-build chunk byte equality; that is UNKNOWN.
+No exact additional resource can safely be whitelisted from current evidence.
+
+New independent QA copy `tools/e-verify-group1-script-binding/` adds only safe
+stable application LOGIN_A GET/script pathname fingerprints and evidence labels,
+plus an exact offline finite manifest correlation tool. Hash excludes host/query/
+credentials/headers/body; unknown raw paths remain redacted. Gate, browser,
+transport, supervisor, static manifest/bytes and owner budgets unchanged.
+17/17 new affected tests PASS, including three real Chrome loopback scenarios:
+existing compiled AuthPanel/renderer/SDK Astro island hydration and dependencies
+without Auth dispatch; denied script fingerprint without wire dispatch; max8
+diagnostic admission stop. Constructed island HTML is not Production HTML evidence.
+Old123/35/9/43 tests, completed release stages and private intake were not rerun.
+
+Full GROUP_1 retry remains BLOCKED. Minimal missing evidence is the rejected
+script's exact pathname fingerprint or a trusted deployed script manifest.
+Only a new minimal diagnostic packet is ready for independent owner approval:
+ID e-verify-group1-openglasshub-20261013-script-fingerprint-diagnostic-v4;
+binding98604720441aa0665e1c6b06e9d80c22c4f8ac6e8099e685bd6359f18bd60c39;
+packet c11214d9c398826d46b3891ff49b02a6280e9f58c876fe9e73ed51c1f7f5e7a2;
+template1e8fdb3b215feff8570d45847e5eaaced3f3baae76d03f91825e957d8011d3e8.
+Same8 browser/2 Deployment/10 global, hard300/work240/cleanup60, USD0, no Auth/
+RLS/Supabase wire or mutations. UTC and all five human gates remain null;
+no valid authorization, GO or new Claim. Separate required GO is
+`GO_E_VERIFY_GROUP1_SCRIPT_FINGERPRINT_DIAGNOSTIC_V1` only after new approval.
+Next single action: owner decides on this precise fingerprint-only diagnostic;
+do not retry full GROUP_1 or invent a chunk name. Production requests/writes0.
+Catalog hold ACTIVE; old consumed authorizations/Claims and historical receipts
+remain unchanged. No business code, RLS, database, runtime or deployment change.
