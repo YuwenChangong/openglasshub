@@ -1,0 +1,29 @@
+# OpenGlass Hub Task Continuity
+
+Before every task, read `docs/ops/PUBLIC_BETA_CURRENT_STATE.md`. It is the only
+current release/progress baseline; other plans and reports are scoped evidence.
+Verify the actual checkout, branch and source before editing. Do not reset or
+overwrite another checkout's changes. If this baseline is absent in an older
+checkout, use the independent checkout identified in the latest handoff; do not
+fall back to an old GO report or invent another current-state document.
+
+Reuse completed, source-applicable evidence. Do not reimplement, rerun tests or
+reauthorize completed stages unless changed code/targets invalidate that evidence.
+An evidence hash is not execution permission. Never replay expired/consumed
+authorizations or Claims, or reuse a binding after its inputs change.
+
+Work only on the current incomplete scope. Preserve the existing dark glass
+design, components, navigation and interactions; no wholesale UI replacement.
+Keep local product development independent of pending Production acceptance.
+
+MAX_ADDITIONAL_COST_USD=0. No paid API, unverified billing risk, Production request,
+database change, email, upload, deployment, Git push/merge or Catalog thaw without
+the exact independent authorization and applicable cost proof. Keep private input,
+credentials, frozen files and historical receipts out of edits and ordinary logs.
+GROUP_1 requires its own subset approval and independent GO; it is not full E_VERIFY.
+
+Use an independent `codex/` branch and exact `git add` paths. Inspect the diff and
+worktree before a local commit. Do not push/merge if it could trigger Production or
+paid CI without separate approval. End each task by updating only new completed
+work/evidence, genuine issues, the current blocker, minimal next action and owner
+actions in the same baseline. Do not introduce a second status/hand-off system.

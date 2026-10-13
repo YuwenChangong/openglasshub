@@ -1,5 +1,10 @@
 # Public Beta Product Development Status
 
+Historical product/source snapshot, not current release authority. Read
+[PUBLIC_BETA_CURRENT_STATE](ops/PUBLIC_BETA_CURRENT_STATE.md) first for current
+progress, authorization boundaries and the next action. Evidence below retains
+its original local/historical scope; no Production permission is granted here.
+
 ## Source and Boundaries
 
 Baseline: `88680a6eaab8de4123199f16b325ec0a430b0b86`, the current local
