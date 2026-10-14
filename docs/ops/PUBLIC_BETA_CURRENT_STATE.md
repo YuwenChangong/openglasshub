@@ -1819,3 +1819,169 @@ gates/readiness; then propose/approve exact UTC, record authorization and STOP
 for independent GO_E_VERIFY_STANDARD_CHROME_TURNSTILE_ISOLATED_V1.
 Production requests/writes0, third-party live0; no paid/config/deploy/push action.
 USD0/Catalog ACTIVE/full GROUP_1 BLOCKED/GROUP_2/3/Public Beta NOT_AUTHORIZED.
+
+### Standard Chrome v1 owner gates recorded; exact UTC approval pending
+
+Owner explicitly confirmed all six Standard Chrome gates, full frozen contract/
+binding/Packet acceptance and readiness. Current connection has no incremental
+traffic/overage/roaming or additional paid proxy/VPN/cloud-exit cost, OWNER_ATTESTED
+not Provider/network inspection. With existing Free Turnstile evidence, USD0 gate
+PASS; MONITOR_ONLY and soft40/650 accepted, no hard-cap claim.
+At trusted UTC 2026-10-14T09:02:50Z local verification matched227 frozen files,
+contract/template/Packet/binding and execution entry identity. No approved auth,
+preflight or Claim. Separate current owner confirmation recorded in
+tools/e-verify-standard-chrome/artifacts/OWNER_HUMAN_CONFIRMATION_PENDING_WINDOW_SAFE.json.
+Proposed UTC 2026-10-14T09:02:50Z to 2026-10-14T09:32:50Z is NOT yet approved;
+effective auth times remain null. Sole next action: owner approves exact window,
+then record formal authorization and STOP for independent GO. Actual start must
+retain >610s validity; no extension/retry. Frozen templates/old consumed instances
+unchanged; no tests rerun or live requests. Production requests/writes0, third-party
+live0, Catalog ACTIVE, full GROUP_1 BLOCKED, GROUP_2/3/Public Beta unapproved.
+
+### Standard Chrome v1 formal authorization recorded; independent GO pending
+
+Owner explicitly approved exact UTC 2026-10-14T09:02:50Z to
+2026-10-14T09:32:50Z, full unchanged frozen contract/hashes and all six gates,
+including full-window attendance. At local UTC 2026-10-14T09:05:18Z,227 bound
+files/Packet/template/contract matched; original validator passed schema, gates
+and >610s remaining validity. Expected GO constant used for consistency ONLY,
+not evidence that actual execution GO was received/issued.
+Independent tools/e-verify-standard-chrome/artifacts/AUTHORIZATION_APPROVED.json
+SHA256: `07dcf59832c627b0d3656b1904fd0f0a207a5659688534b49ce7d4eb2b6334e3`.
+Separate AUTHORIZATION_RECORD_SAFE.json preserves current verification/owner
+source. Frozen files/pending records/old consumed instances unchanged.
+Sole next action: owner independently sends
+GO_E_VERIFY_STANDARD_CHROME_TURNSTILE_ISOLATED_V1, subject to fresh execution
+gates. No preflight/Claim/browser/SDK execution now; no automatic extension/retry.
+No tests rerun, Production requests/writes0, third-party live0. MONITOR_ONLY,
+soft40/650, USD0 and Catalog ACTIVE; full GROUP_1 BLOCKED, GROUP_2/3/Public Beta
+NOT_AUTHORIZED. SDK/Challenge success remains NOT_EXECUTED for this instance.
+
+### Standard Chrome v1 consumed GO: real callback, missing owner visibility event
+
+Owner sent exact GO_E_VERIFY_STANDARD_CHROME_TURNSTILE_ISOLATED_V1. Frozen227
+files/approved authorization hashes and actual window PASS before unique frozen
+entry. Execution finished normally before chat interruption. Authorization,
+preflight and Claim CONSUMED; no replay/retry. STANDARD_FINAL_SAFE.json and
+STANDARD_SAFE.json outcome INCOMPLETE, stopReason null. Start recorded true,
+sdkLoaded/renderStarted/renderReturned/callback true, observedFrames1,
+ownerFinished true, humanInteraction NOT_REQUIRED_BY_TEST_WIDGET. Sole missing
+completion gate: widgetVisibleOwnerAttested=null; never auto-fill or rewrite
+original receipts as PASS. Actual SDK/Frame/callback are LIVE isolated official
+TEST-key evidence, not Production CAPTCHA, identity/Auth/RLS or GROUP_1 PASS.
+No proof Worker deletion was the earlier vendor rejection's specific root cause.
+
+Observed target events5/vendor events4/native redirect1, status302/200/200;
+not total network dispatch counts. No page error observed, credentials used false,
+no raw token/URL persisted. Cleanup PASS, native Job closed/child reaped, owned
+Profile removed and path absence checked. Supervisor elapsed133107ms EXIT_ZERO;
+not a standalone completeness proof. Browser/OS unobserved traffic UNKNOWN.
+Receipts: tools/e-verify-standard-chrome/artifacts/STANDARD_FINAL_SAFE.json,
+STANDARD_SAFE.json, STANDARD_SUPERVISOR_SAFE.json preserved unchanged.
+Sole next action: owner reports whether Widget was actually visible during THIS
+completed attempt and whether visibility button was omitted. Separate owner
+attestation only; no retroactive event injection or new execution automatic.
+Production requests/writes0, USD0/Catalog ACTIVE, full GROUP_1 BLOCKED,
+GROUP_2/3/Public Beta NOT_AUTHORIZED. No additional live request after completion.
+
+### Standard Chrome v1 post-execution visibility supplement
+
+Owner explicitly confirms Widget personally visible, green check/vendor success
+text and QA CALLBACK observed during THIS attempt; Widget visible button NOT
+clicked, No interaction required and Finish clicked. Independent append-only
+OWNER_POST_EXECUTION_VISIBILITY_SUPPLEMENT_SAFE.json in standard-chrome artifacts
+records OWNER_OBSERVED facts and hashes the three original receipts. No event
+injected, no raw token/URL/private data, no original receipt or freeze edited.
+Together with actual SDK/render/frame/callback/Finish/cleanup receipts, the
+visual observation fact is closed as owner-attested. Original execution remains
+INCOMPLETE with widgetVisibleOwnerAttested=null. Frozen contract clause6 requires
+runtime Widget visible click and completion predicate requires recorded true;
+no post-hoc substitution rule. Therefore this supplement alone is not full
+contract PASS. Sole remaining gap is runtime visibility button evidence, not
+a missing SDK/callback or demonstrated technical failure.
+No automatic rerun/authorization. Minimal owner decision, if desired: independently
+approve a LIMITED evidence-substitution supplement for this specific attempt,
+without rewriting receipts/contract or pretending the button event happened.
+That exception is NOT yet approved; no additional engineering/live work required
+to make the decision. Full GROUP_1 remains BLOCKED, Production test not passed;
+USD0/Catalog ACTIVE/GROUP_2/3/Public Beta unapproved. This task live/Production
+requests/writes0; consumed instance/Claim preserved.
+
+### Standard Chrome isolated acceptance: owner-approved one-instance exception
+
+Owner independently approves substitution of post-execution visibility attestation
+for the missing Widget visible button evidence in this completed instance ONLY.
+Separate decision: tools/e-verify-standard-chrome/artifacts/
+OWNER_SINGLE_EXECUTION_EVIDENCE_EXCEPTION_ACCEPTANCE_SAFE.json.
+ISOLATED_TURNSTILE_ACCEPTANCE=ACCEPTED_WITH_DOCUMENTED_EXCEPTION. Original machine
+execution remains INCOMPLETE, widgetVisibleOwnerAttested=null, buttonClicked=false.
+No invented event, amended historical receipt/contract/Claim, future gate waiver
+or new execution authority. Existing governance forbids automatic exceptions/
+history mutation, not this expressly limited independent owner acceptance; the
+original runtime completion predicate is NOT changed or treated as passed.
+
+227-file freeze verified, three receipt hashes and visibility supplement match.
+Actual SDK/render/Frame/callback/Finish/cleanup/drain/profile removal evidence
+retained; visual green-check/success visibility is OWNER_ATTESTED. Test-key result
+not Production Sitekey, server Siteverify/Auth/RLS or full GROUP_1 acceptance.
+Worker-specific root cause remains UNKNOWN; MONITOR_ONLY/soft40/650 risks remain.
+Do NOT rerun accepted isolated SDK validation without a genuinely changed target.
+
+Minimal next action is prepare a fresh independent GROUP_1 standard-browser manual
+subset contract using preserved14 mappings, private A/B/ADMIN identities and exact
+16 RLS steps (anon6/A5/B5). Specify Production Sitekey/CAPTCHA/identity/logout,
+expected direct-read denials vs SSR product browsing and private session-to-RLS
+handoff (old future plan explicitly DEFERRED, not magically implemented). Independent
+new network-boundary/side-effect/budget/cost approval, exact UTC and GO required;
+no old v11/isolated binding or consumed Claim grants Production permission.
+No renewed billing/resource/Chrome/Worker/SDK/history testing in this closure.
+Production requests/writes0, third-party live0, USD0/Catalog ACTIVE; GROUP_1
+BLOCKED_UNTIL_REAL_ACCEPTANCE, GROUP_2/3/Public Beta NOT_AUTHORIZED.
+
+### GROUP_1 standard-browser hybrid preparation: private read helper verified offline
+
+Independent branch codex/group1-standard-hybrid-preparation-20261014 adds only QA
+helpers under tools/e-verify-group1-standard-hybrid. Preserved original14 scoped
+case mappings, Boundary2, exact16 RLS requests (anon6/A5/B5), private650 binding
+and every other numeric budget. Isolated Turnstile acceptance remains
+ACCEPTED_WITH_DOCUMENTED_EXCEPTION; original INCOMPLETE receipts unchanged.
+Production CAPTCHA, account identities/roles and RLS remain NOT_EXECUTED here.
+
+New targeted tests8/8 PASS, not a rerun of historical suites. Actual offline
+Chrome test uses three separate A/B/ADMIN Profiles and exact mocked token-response
+handoff; six identity/profile GETs use existing real loopback HTTP transport.
+No real Supabase SDK/Auth/Production TLS or live third-party initialization.
+Separate deterministic tests preserve all16 RLS steps and expected denials.
+Owned token buffers stay in process memory; no refresh token retained, no token
+file/CLI/IPC export. Exact context/actor/issuer/audience/expiry checks plus fresh
+controlled /auth/v1/user and profile role checks precede authenticated reads.
+JWT decoding alone is NOT authoritative. Dispose aborts, zeroes owned buffers and
+drops references; no guarantee of JS/OS memory erasure. Job drained, readers and
+Profiles cleaned. This is an offline helper result, NOT a full production runner.
+
+Sole remaining execution boundary: observing native browser Auth responses occurs
+AFTER dispatch. It does not enforce original Auth40, refresh6, applicationMutation50
+or finite login/logout stage permissions before network dispatch. Native browser,
+Worker and vendor traffic remain MONITOR_ONLY with soft thresholds; never claim
+whole-browser650/40 hard enforcement. Fixed Node GET helper has hard pre-dispatch
+global/class admission, exact paths, no retry and bounded response handling.
+
+Minimum proposed contract decision: owner approve/reject exact first-party Auth
+password/refresh/logout mediation through existing reviewed gate/bounded transport,
+while Turnstile SDK/Challenge remain standard Chrome native. This is NOT Node SDK
+delivery, new Worker containment, blanket Host permission or a change to650/other
+caps. The mediated Auth adapter/stage integration is NOT implemented or verified;
+only its affected integration may follow explicit boundary approval. Until then
+full production authorization Packet remains BLOCKED_NOT_EXECUTABLE, entry/GO null,
+all new human gates and UTC fields null, no Claim or effective authorization.
+
+Draft ID e-verify-group1-standard-hybrid-openglasshub-20261014-v12.
+240/240 file binding consistency PASS. Offline blocked binding SHA256:
+85b5dad5f548bfad29a26de1f61b26d9d167297c1555cd3c5e47383e71396e88.
+Blocked Packet SHA256:
+8b61e1eb2fd62c5f460291e064ff20b2081dd7b2e06096b797851e1a629c1d12.
+Draft: tools/e-verify-group1-standard-hybrid/CONTRACT_PENDING_BOUNDARY_DECISION.md.
+No history/old Claim reuse, resource reread, SDK/Worker/budget/Chrome retest or
+Production modification. This task Production requests/writes0, third-party live0,
+USD0/Catalog ACTIVE; GROUP_2/3/Public Beta NOT_AUTHORIZED. Next single owner action
+is decide that narrow first-party Auth transport boundary, not send UTC approval/GO.
