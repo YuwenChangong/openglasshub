@@ -20,8 +20,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Earlier authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped preparation branch: `codex/group1-turnstile-exact-boundary-20261014`,
-  based on real-initialization observation commit `6933e966`;
+- Current scoped preparation branch: `codex/group1-turnstile-policy-decision-20261014`,
+  based on exact-boundary decision commit `b9ba2394`;
   preserves prior local product/continuity commits and authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
@@ -51,6 +51,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current GROUP_1 browser identity | Signed installed Chrome156.0.8078.12 VERIFIED locally; v11 CONSUMED | v10 old hash not reusable; old2083-file v11 closure still unchanged; no new browser download/update or Production authorization |
 | LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests excluded without transport. Unknown other denied; next full authorization BLOCKED.3GET draft fails diagnostic-effectiveness review; no new executable Packet |
 | LOGIN_A real initialization | PARTIAL;1 new real-Chrome boundary case PASS with NO inert Turnstile Mock or injected unknown |5 islands hydrate,24 retained application responses,3 icons cancelled; genuine Turnstile bootstrap observed/aborted. API/render/challenge/post-token requests UNOBSERVED; full authorization BLOCKED |
+| Bounded Turnstile policy decision | FEASIBLE DESIGN, OWNER_APPROVAL_PENDING | Official dynamic-resource/test-key guidance reviewed; proposed per-widget supplier capability40/650 is NOT a URL whitelist or executed control. Isolated official-test-sitekey engineering next, with separate online authorization afterward |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -1201,3 +1202,42 @@ or new Production binding was fabricated. Existing1/1 and15/15 evidence reused;
 no tests rerun and no original executor, frozen receipt, private input or budgets
 changed. Actual external request allowance remains0, Production requests/writes0,
 USD0/Catalog hold preserved, GROUP_2/3/Public Beta NOT_AUTHORIZED.
+
+### Official Turnstile protocol policy decision (2026-10-14)
+
+Owner explicitly allowed reading four official public documents; all four were
+read, not live SDK or Provider/Production endpoints. The CSP document describes
+nonce-propagated dynamic resources and official-origin scripts/frames. Rendering
+requires the live official api.js, not a cached/self-hosted replacement. Testing
+docs support official dummy keys/localhost/automated tools and require separation
+from Production. These documents do NOT publish an exhaustive stable internal
+URL list or a maximum request-count guarantee. Do not continue blind path searches.
+
+Decision A: a fixed exact bootstrap URL remains usable; full stable real-challenge
+automation is not presently feasible with only exhaustive concrete URLs.
+Decision B: FEASIBLE DESIGN ONLY, pending explicit new owner scope approval:
+per-widget runtime capability, exact HTTPS challenges.cloudflare.com:443, GET/POST
+type restrictions, SDK-rooted initiator/registered frame lineage, atomic class40
+and global650 limits, redirects/other-host/unknown-source denial, closed unobserved
+channels and ephemeral token-status-only receipts. No host-only fallbacks; no
+relabeling a supplier capability as an exhaustive URL whitelist. Vendor updates
+and same-host behavior carry additional supplier-trust risk. Existing route/proxy
+code is not automatically compliant with official live SDK loading or capable of
+attributing every channel; implementation must fail closed if that is not proven.
+
+Current single action: owner approves or rejects the scoped B policy proposal in
+`tools/e-verify-group1-real-initialization/BOUNDED_TURNSTILE_POLICY_DECISION_NOT_AUTHORIZED.md`,
+initially for local engineering of an isolated official-test-sitekey harness.
+Approval permits implementation/local safety checks, NOT immediate external SDK
+testing. Such online isolated testing needs separate explicit execution scope,
+time/budgets and GO. No real credentials, Supabase Auth, Siteverify or RLS are in
+that harness. No test keys in Production. Official TEST sitekey/live SDK is online
+integration, not offline Mock; it does not pass a real Production widget/account
+or16 RLS cases. Real Production challenges may require an owner and may fail in
+automation. Full GROUP_1 still needs fresh complete authorization/GO and real
+identities; v11 stays consumed and its raw request UNKNOWN.
+
+No executor/gate/old frozen contract/private budget was changed, no tests rerun,
+no SDK/Production call, no effective authorization/Packet/Claim/GO. Only approved
+public documentation reads and local design/progress changes. Production requests/
+writes0, original650/other caps/USD0/Catalog hold and GROUP_2/3/Public Beta bans retained.
