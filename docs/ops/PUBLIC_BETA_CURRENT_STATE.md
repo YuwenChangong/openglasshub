@@ -11,7 +11,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Released source: `88680a6eaab8de4123199f16b325ec0a430b0b86`.
 - Build ID: `d98da799-d41d-41dc-acaf-8c6675fd799a` (not the Worker Version ID).
 - Last verified Production Version: `b2b62ec9-bb8d-4159-ac99-08fca5740134`,
-  traffic 100%, recovery traffic 0%, from the anonymous E_VERIFY postcheck [E].
+  traffic 100%, recovery traffic 0%, from the consumed v11 pre-Deployment receipt.
   Current live state is UNKNOWN until an independently authorized dynamic check.
 - Local product head: `9161ca71e6fcceef984c8129f156667d536c7a44`, parent is
   the released source. Its native destructive-confirmation fix is NOT deployed.
@@ -20,8 +20,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Earlier authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped preparation branch: `codex/group1-chrome-identity-rebind-20261014`,
-  based on full650 commit `e531678a4da7fef5897103541f7ac1dd6825d279`;
+- Current scoped preparation branch: `codex/group1-other-request-root-cause-20261014`,
+  based on v11 commit `55ebcf3957188eecba69b07737d59d5e91d65d45`;
   preserves prior local product/continuity commits and authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
@@ -47,8 +47,9 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Zero-cost gate | VERIFIED 9/9 reused; Free-only proof admission PASS offline | Owner plans RECORDED, official policies checked; new binding uses exact proof before OAuth/Claim and child transport |
 | GROUP_1 live authorization | CONSUMED / PRODUCTION_ACCEPTANCE_BLOCKED | Fresh GO launched one supervised attempt; LOGIN_A stopped at UNAPPROVED_REQUEST; Claim retained, cleanup PASS; never replay this ID |
 | LOGIN_A and post-login static evidence | VERIFIED29 finite Production resources;9 v9 captures reviewed;25/25 new targeted tests PASS | Prior23 preserved, new6 reviewed, ProductDetail285-byte inline matched; no duplicate Production reads or runtime PASS implied |
-| Remaining GROUP_1 / full-flow budget | Owner-approved global650 APPLIED in protected version; full Packet READY_FOR_OWNER_APPROVAL | Original500 preserved; other159 fields and all class caps unchanged; new12/12 consistency checks and2051 frozen-file checks PASS; five gates/UTC/GO pending, not Production authorization |
-| Current GROUP_1 browser identity | Signed installed Chrome156.0.8078.12 VERIFIED locally; independent v11 READY_FOR_OWNER_APPROVAL | v10 Chrome hash now differs; other2050 original files unchanged;6 browser tests and9 consistency checks PASS; no full production authorization |
+| Remaining GROUP_1 / full-flow budget | Owner-approved global650 APPLIED in protected version; next full authorization BLOCKED | Original500 preserved, all class caps unchanged; v11 attempt CONSUMED; historical LOGIN_A rejected pathname UNKNOWN, no implicit retry |
+| Current GROUP_1 browser identity | Signed installed Chrome156.0.8078.12 VERIFIED locally; v11 CONSUMED | v10 old hash not reusable; old2083-file v11 closure still unchanged; no new browser download/update or Production authorization |
+| LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests now excluded without transport. Unknown other still denied; next full authorization BLOCKED; narrow diagnostic scope draft only |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -984,10 +985,93 @@ Independent command: `GO_E_VERIFY_GROUP1_FULL650_CHROME_V11`, NOT issued.
 Latest local OAuth checkpoint passed required scopes and>1860s (2283s at check;
 expires2026-10-14T03:18:59.698Z), not a Provider/account observation. Recheck before
 actual UTC approval and at GO, never automatically refresh or reuse stale timing.
-Current single action: owner reads the complete new13-condition contract and
-Chrome addendum, explicitly confirms all five pending human gates and readiness;
-only then propose real <=60-minute UTC validity with full1800s coverage and obtain
-exact time approval. Budget approval alone is not production authorization.
+The owner subsequently confirmed all five exact v11 humanGates in a direct
+message; `HUMAN_GATES_OWNER_CONFIRMED_SAFE.json` records this gates-only approval,
+not formal authorization or GO. Latest local checkpoint2026-10-14T03:04:40.350Z:
+OAuth scopes PASS, remaining3008s, expiry2026-10-14T03:54:48.964Z;2083 bindings PASS.
+The owner explicitly approved v11 validity2026-10-14T03:06:00Z to03:46:00Z,
+not GO. The independent `AUTHORIZED_GROUP1.json` was recorded and validated at
+2026-10-14T03:09:32.202Z; SHA256
+`3e3ed030dc164a430d1aec75d98418aad3f326ae2606a70aeefc139702d2e2e5`.
+`AUTHORIZATION_OWNER_RECORD_SAFE.json` records all5 gates,2083 binding checks,
+OAuth scopes PASS/2716s remaining at that checkpoint and actual recording time
+separately from the owner-approved validity start. Original null templates remain
+unchanged. Authorization is unconsumed; Claim/entry/GO/Production requests0.
+The owner subsequently sent exact `GO_E_VERIFY_GROUP1_FULL650_CHROME_V11`.
+The frozen entry ran once: Claim created, authorization CONSUMED. Native Job
+closed/reaped and child cleanup PASS; elapsed13291ms, real exit1. It stopped at
+LOGIN_A/UNAPPROVED_REQUEST. The first rejection is same-origin GET, resourceType
+`other`, rule NO_BOUND_RULE, category UNAPPROVED_ROUTE, normalized route
+`/:unbound`, unknown pathname privacy-redacted. Its transport was NOT_INVOKED.
+Do not infer favicon, script or a specific URL from this record.
+
+Pre-Deployment PASS: exactb2b62ec9 version100%, recovery0%, Deployment
+e8481d68-d2d5-473b-8b0c-b82b8fa33fc3. Post-Deployment NOT_RUN. Confirmed25 GETs:
+one Provider Deployment plus one login HTML and23 script/style resources;
+all25 global admissions,24 browser transport responses completed. Auth/Turnstile
+dispatches0, identities0, Catalog/RLS0/16, mutations0, Provider/Production writes0,
+retries0. Production login/hydration and full GROUP_1 are NOT passed.
+`GROUP1_EXECUTION_SAFE.json` SHA256:
+`f9ab908543f4463113e4a0dc4c1d8dbc31f7ac52dea5c87053c741461277e70d`.
+Independent `GROUP1_V11_GO_CLOSURE_SAFE.json` preserves bounded diagnostic/counts
+and binds child/parent/supervisor hashes. All original frozen/authorization
+files and prior receipts remain unchanged; v11 must never be replayed.
+
+Current single action: only offline comparison of already retained login HTML
+public-resource references against resourceType=other policy/diagnostic handling;
+do not add a guessed path, issue Production probes or auto-repeat. Any new attempt
+requires independent fresh binding/authorization/GO. Exact rejected pathname is
+not retained in the ordinary receipt and cannot be recovered from it. No automatic
+repair, budget expansion, configuration change or recovery is authorized by GO.
+GROUP_2/3 remain unapproved; E_VERIFY incomplete and Public Beta NOT_AUTHORIZED.
+Budget approval alone is not production authorization.
 Production/Provider requests0, Production writes0, no push/deployment/config
 change. Catalog held; GROUP_2/3/Public Beta not authorized; no Version151 default
 post-Hardening recovery. Prior product/release/intake/resource evidence is retained.
+
+### v11 other-request offline closure (2026-10-14)
+
+The actual v11 safe receipt preserves `/:unbound`, not the original pathname `/`.
+That value is the privacy fallback when the route is absent from reviewed sets.
+The historical rejected request identity and exact root cause remain UNKNOWN;
+it cannot be recovered by reverse-inference from resourceType, count or fallback.
+
+Original Chrome with retained, hash-verified Production login HTML and scripts/
+styles over loopback reproduced24 application GETs then a document-icon `other`
+rejection. Local first icon `/gaze-icon-v6.svg` is explicitly referenced by HTML;
+ICO/PNG fallbacks also appear. This is a proved local resource-category defect,
+consistent with v11 but NOT proof of its historical exact request identity.
+Hydration passed locally; no public script errors; real Auth/RLS not executed.
+
+Only `tools/e-verify-group1-other-request/` contains the independent QA copy:
+after strict HTML validation, exact same-origin document-icon GET/other requests
+with the correct main frame, actor/stage and no credentials/query/redirect are
+excluded WITHOUT dispatch. No icon download/content verification or broad other/
+same-origin/static wildcard allowance.29 resource bindings,14 mappings,16 RLS
+steps and all budgets remain unchanged. Unknown requests still fail closed.
+Safe predispatch metadata now includes protocol/source/frame/match evidence and
+per-run keyed path association. Optional first unknown pathname correlation is
+encrypted in an owner+SYSTEM private directory with a DPAPI-protected private
+key; no query/header/body/Session/frame URL in logs or persisted path records.
+Sensitive paths stay PRIVACY_BLOCKED. Never claim unavailable initiator details.
+
+12 targeted policy/privacy/budget/consumed-Claim checks and3 unique actual Chrome
+loopback cases PASS. Native Job/browser cleanup PASS; selective repeats preserve
+earlier receipts. No old123/43/production-resource suites were replayed.
+All2083 v11 frozen hashes, old approval/Claim/child/closure receipts and both
+private budget versions remain unchanged. No full GROUP_1 Packet or effective
+production authorization was created. The engineering-only binding SHA256 is
+`a85f6f25008d71bfd3b36b7b5a5d8abe94545fb22b13bc707d29f381e9ae1c79`.
+It is NOT a Production execution binding.
+
+Current single action: owner reviews
+`tools/e-verify-group1-other-request/MINIMUM_OTHER_REQUEST_DIAGNOSTIC_SCOPE_NOT_AUTHORIZED.md`.
+Proposed max3 real GETs (pre-Deployment, exact login HTML, conditional post-
+Deployment), cached23 verified resources only, no asset redownload or third-party
+network. First other captured before dispatch, with public-reference or protected
+privacy-safe identity; unknown or privacy-blocked paths are not sent. This is a
+scope draft only; an independently frozen entry/new approval/window/GO is needed
+before any Production observation. Do not issue GO against the old v11 entry.
+GROUP_1 remains BLOCKED; historical Auth0/RLS0/16 unchanged. Production requests/
+writes this offline task0. USD0, Catalog hold and GROUP_2/3/Public Beta prohibitions
+continue; Version151 is never the default post-Hardening recovery target.
