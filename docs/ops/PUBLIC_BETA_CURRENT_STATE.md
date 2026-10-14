@@ -1,6 +1,6 @@
 # Public Beta Current State
 
-Authoritative release/progress baseline. Updated 2026-10-14 by offline inspection
+Authoritative release/progress baseline. Updated 2026-10-15 by offline inspection
 of actual Git/source and existing safe receipts, not by replaying Production tests.
 Read this first for every task. This document is not an authorization or GO.
 `VERIFIED` is scoped historical evidence, not proof of unchanged live state now.
@@ -20,8 +20,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Earlier authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped preparation branch: `codex/group1-auth-integration-20261014`,
-  based on private-handoff preparation commit `f004d1cb`;
+- Current scoped preparation branch: `codex/group1-manual-auth-policy-20261014`,
+  based on Auth-bypass counterexample commit `8f1ac56f`;
   preserves prior local product/continuity commits and authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
@@ -52,7 +52,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests excluded without transport. Unknown other denied; next full authorization BLOCKED.3GET draft fails diagnostic-effectiveness review; no new executable Packet |
 | LOGIN_A real initialization | PARTIAL;1 new real-Chrome boundary case PASS with NO inert Turnstile Mock or injected unknown |5 islands hydrate,24 retained application responses,3 icons cancelled; genuine Turnstile bootstrap observed/aborted. API/render/challenge/post-token requests UNOBSERVED; full authorization BLOCKED |
 | Isolated standard Chrome Turnstile | ACCEPTED_WITH_DOCUMENTED_EXCEPTION | Live SDK/render/Frame/callback/cleanup retained; owner-approved visibility substitution applies to that instance ONLY; original INCOMPLETE receipt unchanged, no Production CAPTCHA PASS |
-| Current hybrid Auth boundary | BLOCKED by actual offline browser bypass | Fixed Auth helper9 targeted checks PASS, real-Chrome counterexample1 measured; SharedWorker POST bypassed deny-all HTTP route, Worker sockets bypassed socket route; no complete safe runner/production Packet |
+| Current hybrid Auth boundary | MONITOR_ONLY_PROPOSED, v14 Packet READY_FOR_OWNER_APPROVAL | Browser/Auth soft observation explicitly replaces old hard claims; fixed Node reads HARD. New6 targeted tests PASS with fixture3 identities/3 negatives/16 RLS;9 fresh gates/UTC/GO PENDING; Production not executed |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2036,3 +2036,70 @@ BLOCKED under current constraints, not another diagnostic/false-ready loop.
 See tools/e-verify-group1-auth-integration/OFFLINE_BOUNDARY_DECISION.md.
 Task Production requests/writes0, third-party live0, USD0/Catalog ACTIVE;
 GROUP_1 BLOCKED_UNTIL_PRODUCTION_ACCEPTANCE, GROUP_2/3/Public Beta NOT_AUTHORIZED.
+
+### Native manual Auth v14: candidate contract and executable scoped preparation
+
+Owner principle approval applies ONLY to offline MONITOR_ONLY revision/preparation.
+No full contract/UTC/GO or live authority inherited. New tools/e-verify-group1-manual-auth
+reuses original runGroup1 sequence/14 scoped mappings and16 reads (anon6/A5/B5),
+private650 version, original expected negative/admin/RLS assertions and Job supervisor.
+Every numeric cap unchanged; native observed Auth40/refresh6/Mutation50/vendor40/
+global650 are SOFT, fixed Node identity/RLS/admin GET budgets HARD. Browser/OS/
+Worker/preflight/retry/redirect coverage and actual wire count remain UNKNOWN.
+No new Worker/socket/proxy/SDK relay system or Production code/configuration change.
+
+New6/6 targeted tests PASS: real offline Chrome six separate Profiles/contexts,
+mocked native Auth/HTML,3 identities/3 refreshes/3 negatives/3 logouts,16 fixed RLS,
+6 fixed admin reads,28 real loopback Node GETs plus2 fixture Deployment checks.
+Actual Supabase SDK/Turnstile/Production TLS/Source hydration NOT used by this fixture.
+Earlier real five-island replay, isolated TEST-key callback with one-attempt exception,
+29 assets, old123/43/Worker/Chrome/budget proofs reused, not rerun as new live evidence.
+Cleanup/reader disposal/Profile removal/Job close/reap PASS. New replay/window/gate
+and no-secret-export tests PASS; no effective authorization/production Claim created.
+
+Necessary changed Session handoff: immediate login/refresh/navigation can lose
+response-body capture. Native adapter snapshots only the exact SDK storage key from
+its registered same-origin isolated page over trusted local Playwright memory.
+Returns access-token/type/user identity ONLY, not refresh token/password/cookie;
+no ordinary logs/files/CLI/HAR/trace/raw-console exports. Existing private reader
+checks context/issuer/aud/sub/email/expiry and fresh Node user/profile role before
+reads. Observed refresh invalidates generation; races stop. Trusted-host/driver
+assumption and no JS/OS secure erase are explicit NEW approval conditions.
+Native Cookie/CORS/Supabase transport stays native; no Node authentication POST.
+Original two CAPTCHA negatives alone substitute invalid/empty proof on one exact
+main-frame native request, never synthesize valid Production proof.
+
+Runtime must first confirm deployed login props required CAPTCHA and non-test0x
+Sitekey. Server CAPTCHA enforcement, rate limits/TTL/rotation/revocation remain
+UNKNOWN until actual production tests. Source client controls VERIFIED_OFFLINE,
+not backend settings PASS. Production appearance=interaction-only may legitimately
+need no visible Widget; owner attests actual interaction/no-interaction flow, not
+an invented green check. DevTools/automation markers and vendor rejection remain
+possible; TEST-key success is not Production CAPTCHA proof. Native global logout
+can affect other sessions of that same QA/ADMIN account; no immediate JWT-revoke
+claim. Soft stop cannot undo unobserved/accidental mutations or email effects.
+
+New ID e-verify-group1-native-manual-auth-openglasshub-20261014-v14.
+Execution Binding SHA256:
+0f6d87fa9d6872988ddcefeceed642a7320e5f36d2da2d60b3cfad2987480f8b.
+Packet SHA256:
+f8ff67e51ad73cd84a5abb4d3841036b51101fbbfceb86885b7ac007e1c428fc.
+Contract SHA256:
+c9bfa49ee26b9e8d395fe9930fbea0aca7721dad902e5a88e3518383284da8f6.
+266/266 frozen files match; original budgets/14 IDs/16 requests identical. Frozen
+artifacts/HUMAN_GROUP1_NATIVE_MANUAL_AUTH_NOT_AUTHORIZED.md lists13 conditions and
+9 exact pending gates: original5 plus native unseen-dispatch risks, private SDK
+snapshot/driver privacy, unknown backend controls with stop rules and currentUSD0
+network/Free-only conditions. Gates/UTC null, full acceptance false, no approved
+authorization/Claim/GO. Entry supports new exact GO only after separate approvals.
+Old frozen files/Claims/receipts/private input intact, no historical replay.
+
+Next single owner action: review full v14 Boundary2 amendment and9 consolidated
+decisions. Local OAuth scopes/strict>1860s must be checked BEFORE proposing a future
+UTC window and again at GO; no old time/authorization or automatic login refresh.
+Operator active control: Start once -> actual account/CAPTCHA -> machine reads ->
+truthful CAPTCHA observed -> native site logout -> Finish; Stop on any anomaly.
+Waiting windows Start disabled; Finish stays disabled until machine/owner conditions.
+Scope execution readiness14/14 does NOT mean Production PASS. GROUP_1 remains
+BLOCKED_UNTIL_PRODUCTION_ACCEPTANCE; GROUP_2/3/Public Beta NOT_AUTHORIZED.
+Task Production requests/writes0, third-party live0, USD0/Catalog ACTIVE; local only.
