@@ -20,8 +20,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Earlier authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped preparation branch: `codex/group1-full650-authorization-20261014`,
-  based on candidate650 commit `94a1e1b4bcdfe50e044186d6fedb1e63f7b1f0e7`;
+- Current scoped preparation branch: `codex/group1-chrome-identity-rebind-20261014`,
+  based on full650 commit `e531678a4da7fef5897103541f7ac1dd6825d279`;
   preserves prior local product/continuity commits and authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
@@ -48,6 +48,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | GROUP_1 live authorization | CONSUMED / PRODUCTION_ACCEPTANCE_BLOCKED | Fresh GO launched one supervised attempt; LOGIN_A stopped at UNAPPROVED_REQUEST; Claim retained, cleanup PASS; never replay this ID |
 | LOGIN_A and post-login static evidence | VERIFIED29 finite Production resources;9 v9 captures reviewed;25/25 new targeted tests PASS | Prior23 preserved, new6 reviewed, ProductDetail285-byte inline matched; no duplicate Production reads or runtime PASS implied |
 | Remaining GROUP_1 / full-flow budget | Owner-approved global650 APPLIED in protected version; full Packet READY_FOR_OWNER_APPROVAL | Original500 preserved; other159 fields and all class caps unchanged; new12/12 consistency checks and2051 frozen-file checks PASS; five gates/UTC/GO pending, not Production authorization |
+| Current GROUP_1 browser identity | Signed installed Chrome156.0.8078.12 VERIFIED locally; independent v11 READY_FOR_OWNER_APPROVAL | v10 Chrome hash now differs; other2050 original files unchanged;6 browser tests and9 consistency checks PASS; no full production authorization |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -934,3 +935,59 @@ Only after valid full approval may the independent new command
 stay unusable. No live OAuth read, Production request/write, push or deployment
 in this preparation. Catalog held; GROUP_2/3/E_VERIFY/Public Beta not authorized;
 Version151 is not a default post-Hardening recovery target.
+
+### Chrome Identity Repair and Independent v11 (offline, 2026-10-14)
+
+Only `C:/Program Files/Google/Chrome/Application/chrome.exe` differs from v10:
+old SHA `d3784ffbf1f6109348416064b3e4cd739b06fa61d89a81b262c780df9f32270c`,
+current SHA `5db678875eb6895c802240aab8e9003aaee63124f719697d88077c46a7ed9f2a`.
+Windows Authenticode reports Valid/Google LLC; registry and actual launched version
+both156.0.8078.12. Local GoogleUpdater logs mention that version. The old version
+was not recorded; the exact update event is NOT proven. No trusted old binary was
+found in the reviewed install directory, and none was downloaded. This is a
+trusted installed binary change, not a claim about the precise installation event.
+
+The actual reviewed Playwright adapter still launches the same path with unchanged
+deny proxy, DNS restriction, ephemeral separate profiles, blocked Service Workers/
+WebSocket/Worker/RTC paths, background/component-update-disabled launch flags.
+CDP process PID and Windows executable image path were correlated in each test;
+raw command lines/profile paths were used only in local memory, never receipts.
+Existing OS updater settings were not changed or claimed disabled. Any subsequent
+binary drift fails preflight/child validation; do not treat a past PASS as current.
+
+Six narrow browser checks PASS: one synthetic login/refresh/logout and source-backed
+hydration with clean B/admin contexts; wrong identity rejection; unknown-origin
+predispatch rejection and query redaction; actual650 stop with only one loopback
+dispatch; concurrent650 reservation; native deadline/Chrome process-tree drain.
+No full14-case/16-RLS suite or Production test was replayed. Earlier local test
+failures remain in owned Temp receipts: obsolete transitive Chrome guard, probe
+method availability and a test-only wrong diagnostic field were resolved without
+weakening the network gate. Final9/9 consistency checks PASS; the first8/9 JSON
+in-memory-versus-serialized comparison receipt is also preserved.
+
+Independent `tools/e-verify-group1-full650-chrome-v11/` keeps original v10 intact.
+All2050 other inherited hashes, private inputs, global650/class caps,14 mappings,
+16 RLS steps,29 reviewed resources and source/Production identities are unchanged.
+The Packet differs ONLY in the fresh authorization ID. A separate historical
+resource-review copy replaces only the obsolete exact Chrome checksum validation:
+exact original path/hash -> verified new path/hash. Every content/source/reference
+and other-file check remains strict. No arbitrary browser/hash/path exception.
+New2083-file closure is fully verified; no effective approval/UTC/Claim/GO exists.
+
+Authorization ID: `e-verify-group1-openglasshub-20261014-full650-chrome-v11`.
+Binding SHA256: `c5578e592aa950764fcae09ebca458bd48aa3f16d5a07a27bb63afdda6ce8b5a`.
+Packet SHA256: `a6a356005f43b92dc16625ec3109324a08c6d8dd8fa2b88eca23333ef3a54ed8`.
+Template: `tools/e-verify-group1-full650-chrome-v11/artifacts/HUMAN_FULL_GROUP1_CHROME_AUTHORIZATION_NOT_AUTHORIZED.md`.
+Template SHA256: `65da468fc1d739c5b4e6be400d31e04c50939f7374bbc68c6b20b556fcb6cf0d`.
+Independent command: `GO_E_VERIFY_GROUP1_FULL650_CHROME_V11`, NOT issued.
+
+Latest local OAuth checkpoint passed required scopes and>1860s (2283s at check;
+expires2026-10-14T03:18:59.698Z), not a Provider/account observation. Recheck before
+actual UTC approval and at GO, never automatically refresh or reuse stale timing.
+Current single action: owner reads the complete new13-condition contract and
+Chrome addendum, explicitly confirms all five pending human gates and readiness;
+only then propose real <=60-minute UTC validity with full1800s coverage and obtain
+exact time approval. Budget approval alone is not production authorization.
+Production/Provider requests0, Production writes0, no push/deployment/config
+change. Catalog held; GROUP_2/3/Public Beta not authorized; no Version151 default
+post-Hardening recovery. Prior product/release/intake/resource evidence is retained.
