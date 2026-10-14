@@ -20,8 +20,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Earlier authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped preparation branch: `codex/group1-three-get-feasibility-20261014`,
-  based on local repair commit `f67c1077566d68863ced076d81a2a6e849786889`;
+- Current scoped preparation branch: `codex/group1-real-initialization-20261014`,
+  based on feasibility review commit `26f6099f`;
   preserves prior local product/continuity commits and authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
@@ -50,6 +50,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Remaining GROUP_1 / full-flow budget | Owner-approved global650 APPLIED in protected version; next full authorization BLOCKED | Original500 preserved, all class caps unchanged; v11 attempt CONSUMED; historical LOGIN_A rejected pathname UNKNOWN, no implicit retry |
 | Current GROUP_1 browser identity | Signed installed Chrome156.0.8078.12 VERIFIED locally; v11 CONSUMED | v10 old hash not reusable; old2083-file v11 closure still unchanged; no new browser download/update or Production authorization |
 | LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests excluded without transport. Unknown other denied; next full authorization BLOCKED.3GET draft fails diagnostic-effectiveness review; no new executable Packet |
+| LOGIN_A real initialization | PARTIAL;1 new real-Chrome boundary case PASS with NO inert Turnstile Mock or injected unknown |5 islands hydrate,24 retained application responses,3 icons cancelled; genuine Turnstile bootstrap observed/aborted. API/render/challenge/post-token requests UNOBSERVED; full authorization BLOCKED |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -1128,3 +1129,46 @@ requests or identify v11. No additional Production GET budget is recommended
 now. No full GROUP_1 Packet, authorization, Claim or GO. Original500/approved650
 and class budgets remain unchanged. USD0, Catalog hold, GROUP_2/3 and Public Beta
 NOT_AUTHORIZED continue. Production requests/writes this review0.
+
+### Real LOGIN_A initialization observation (offline, 2026-10-14)
+
+`tools/e-verify-group1-real-initialization/artifacts/INITIALIZATION_CLOSURE_SAFE.json`
+binds the final real Chrome observation and native Job cleanup receipts.
+Existing Production HTML and29 reviewed assets reused, with byte authentication
+on local read; no repeated source audit, Chrome identity tests, old15/123/43
+suites, billing/OAuth checks or private intake. No new main build substituted.
+New single boundary case1/1 PASS; early local metadata-pin/receipt-copy failures
+remain preserved. No fake third-party script or injected target in this case.
+
+Observed29 routed page attempts:24 approved local HTML/script/style responses,
+one preexisting nonessential-image exclusion,3 exact HTML icon other exclusions,
+one genuine Turnstile script request cancelled before network.5 Astro/React
+islands hydrate; login fields remain empty; no Auth Session entry, Auth/RLS
+transport or CAPTCHA frame. No natural unbound application request in the
+covered interval. CDP shows the bootstrap script initiated from the verified
+AuthPanel.DgqtsVwn.js/client.C9ykwJRQ.js modules. The real unavailable/error UI
+appears after cancellation, with no window.turnstile API substitute.
+14 browser proxy attempts are denied without forwarding; no page/initiator
+attribution is available, so do not guess they are internal Chrome or page
+requests. They also consume the same global admission budget; final39/650.
+Request/parse order is recorded, not a claim of total JS evaluation order.
+Browser/native Job cleanup PASS; no credential, URL query, Cookie, Session or
+header values in safe evidence. Original frozen files and Claims remain intact.
+
+The exact uncovered boundary is the external API implementation and real
+render()/challenge-frame/resource/token-callback execution; these bytes and
+dynamic responses are absent from the29 application assets. Overall real
+initialization remains PARTIAL, original v11 identity UNKNOWN, future unknown
+request reachability UNPROVEN. Zero unknowns before the aborted API does not
+prove zero unknowns after a real widget. Stop constructing offline Mock evidence.
+
+Current single owner decision: whether to permit preparation of a separately
+bounded, genuine third-party initialization observation with no login/RLS/write,
+known icons excluded and safe predispatch context retained. Known bootstrap
+reachability is PROVEN; the historical missing request is not. See scoped
+`tools/e-verify-group1-real-initialization/INITIALIZATION_BOUNDARY.md` for exact
+source/coverage and network lower bound, NOT a new contract or permission.
+Do not claim4 GETs suffice for dynamic challenges or automatically widen the
+3GET draft. No Production Packet, authorization, Claim or GO created here.
+Production GET max0 until independent approval. USD0/global650 unchanged;
+Catalog held, GROUP_2/3/Public Beta unapproved, no push/deploy/Production writes.
