@@ -20,8 +20,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Earlier authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped preparation branch: `codex/group1-real-initialization-20261014`,
-  based on feasibility review commit `26f6099f`;
+- Current scoped preparation branch: `codex/group1-turnstile-exact-boundary-20261014`,
+  based on real-initialization observation commit `6933e966`;
   preserves prior local product/continuity commits and authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
@@ -1162,13 +1162,42 @@ initialization remains PARTIAL, original v11 identity UNKNOWN, future unknown
 request reachability UNPROVEN. Zero unknowns before the aborted API does not
 prove zero unknowns after a real widget. Stop constructing offline Mock evidence.
 
-Current single owner decision: whether to permit preparation of a separately
-bounded, genuine third-party initialization observation with no login/RLS/write,
-known icons excluded and safe predispatch context retained. Known bootstrap
-reachability is PROVEN; the historical missing request is not. See scoped
+The owner subsequently permitted OFFLINE preparation of a separately bounded
+real Turnstile diagnostic, not network activity or production authorization.
+Known bootstrap reachability is PROVEN; the historical missing request is not. See scoped
 `tools/e-verify-group1-real-initialization/INITIALIZATION_BOUNDARY.md` for exact
 source/coverage and network lower bound, NOT a new contract or permission.
 Do not claim4 GETs suffice for dynamic challenges or automatically widen the
 3GET draft. No Production Packet, authorization, Claim or GO created here.
 Production GET max0 until independent approval. USD0/global650 unchanged;
 Catalog held, GROUP_2/3/Public Beta unapproved, no push/deploy/Production writes.
+
+### Exact Turnstile diagnostic boundary decision (offline, 2026-10-14)
+
+Preparation remains BLOCKED on one precise prerequisite: no trusted real SDK/
+dynamic-endpoint evidence supports a finite exact third-party request policy.
+The current owner's scope forbids wildcard paths. The unchanged original
+`tools/e-verify-group1-v9-closure/gate.mjs` lines80-81 accepts GET/POST under a
+challenge-platform path regex, not only individually bound concrete targets;
+the frozen Packet explicitly describes that subtree capability. It must NOT
+be silently inherited as an exact allowlist for this new diagnostic.
+
+Only the GET to the fixed public bootstrap URL is source-backed.29 retained
+resources are all application-host resources; the real-init receipt confirms no
+third-party response supplied and API/render/challenge coverage unavailable.
+The old third-party class40/global650 ceilings bound quantity, not authority,
+target identity or enough capacity to finish a real challenge. Do not replace
+the missing protocol evidence with another Mock, fabricated endpoint, arbitrary
+3/4GET budget or broad regex. Render/challenge reachability stays UNPROVEN.
+
+Single minimum resolution direction: obtain trustworthy actual SDK and endpoint
+protocol evidence sufficient to bind each allowed dynamic request's exact origin,
+method, target derivation and payload/privacy boundary. If a finite exact policy
+cannot be justified, the owner would need an explicit separately approved change
+to the strict concrete-target requirement; this task does not authorize that change.
+An exact bootstrap-only read is not full real-initialization completion or proof
+of the historical missing request. No complete diagnostic entry/Packet/GO/Claim
+or new Production binding was fabricated. Existing1/1 and15/15 evidence reused;
+no tests rerun and no original executor, frozen receipt, private input or budgets
+changed. Actual external request allowance remains0, Production requests/writes0,
+USD0/Catalog hold preserved, GROUP_2/3/Public Beta NOT_AUTHORIZED.
