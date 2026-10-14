@@ -1241,3 +1241,48 @@ No executor/gate/old frozen contract/private budget was changed, no tests rerun,
 no SDK/Production call, no effective authorization/Packet/Claim/GO. Only approved
 public documentation reads and local design/progress changes. Production requests/
 writes0, original650/other caps/USD0/Catalog hold and GROUP_2/3/Public Beta bans retained.
+
+### B isolated executor implementation (2026-10-14, LOCAL ONLY)
+
+Owner explicitly approved B only for isolated QA engineering, offline checks and
+a pending independent online Packet. Implemented in
+`tools/e-verify-turnstile-isolated/`; original GROUP_1/v11 executors, private input,
+historical authorizations/Claims/assets and Production business code unchanged.
+
+46/46 new targeted checks PASS:33 gate/authorization,11 real Chrome loopback plus
+native Job Object containment,2 frozen runtime/no-GO checks.193 bound files/runtime
+identities match. Test SDKs are synthetic local fixtures, NOT real Turnstile.
+No historical123/43/asset/budget/Chrome suites rerun. Real SDK init unexecuted;
+original v11 unknown request remains UNKNOWN, full GROUP_1 remains BLOCKED.
+
+Closed reviewed egress: exact official HTTPS origin/SDK, per-instance widget and
+registered frame/CDP initiator capability; unique frame-parent join and paused
+OOPIF observation before subresource execution. Unknown/ambiguous proof denies.
+GET/POST/frame share third40/global650 pre-dispatch atomic reservations. Native
+proxy never forwards HTTP/CONNECT; worker/SW/WS/RTC and general Node exit closed.
+Normal cleanup and real Chrome descendant forced deadline/drain both tested.
+This bounds reviewed pinned runtime, NOT arbitrary compromised native code.
+
+Pending contract explicitly discloses fresh Node-TLS/browser fulfillment delivery,
+NOT native Chrome TLS or vendor-certified loading; official guidance discourages
+SDK proxying. Actual mediation compatibility remains NOT_VERIFIED. No opaque
+CONNECT fallback permitted. Vendor updates, cookies, workers, automation and
+missing initiators may safely prevent completion. Body caps are not total socket-
+byte or billing hard limits. Supplier trust is not an exhaustive URL whitelist.
+
+Pending independent ID:
+`e-verify-turnstile-isolated-openglasshub-20261014-b1`
+Execution Binding SHA256:
+`cf89bfda28134b8a2a28ea82949e04023c1820d7ceb5b8bf6af158d8ce528431`
+Packet SHA256:
+`80418264782a7cbc6f2fd6d5c2e80d894ea37281426d1c0c231aa97d761974d8`
+Contract:
+`tools/e-verify-turnstile-isolated/artifacts/HUMAN_ISOLATED_TURNSTILE_AUTHORIZATION_NOT_AUTHORIZED.md`
+
+Five new owner gates null; UTC null; no approved auth/Claim/GO. Next single action:
+owner reviews this isolated pending contract, especially mediation compatibility
+and supplier-trust scope, then explicitly confirms gates before UTC proposal.
+Separate online approval/GO mandatory; applying B to Production GROUP_1 requires
+isolated live evidence and another separately approved contract change.
+Production requests/writes0, third-party live requests0, USD0, Catalog ACTIVE;
+GROUP_2/3 and Public Beta NOT_AUTHORIZED. No push/deploy/new recovery action.
