@@ -20,8 +20,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Earlier authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped preparation branch: `codex/group1-turnstile-policy-decision-20261014`,
-  based on exact-boundary decision commit `b9ba2394`;
+- Current scoped preparation branch: `codex/group1-auth-integration-20261014`,
+  based on private-handoff preparation commit `f004d1cb`;
   preserves prior local product/continuity commits and authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
@@ -51,7 +51,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current GROUP_1 browser identity | Signed installed Chrome156.0.8078.12 VERIFIED locally; v11 CONSUMED | v10 old hash not reusable; old2083-file v11 closure still unchanged; no new browser download/update or Production authorization |
 | LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests excluded without transport. Unknown other denied; next full authorization BLOCKED.3GET draft fails diagnostic-effectiveness review; no new executable Packet |
 | LOGIN_A real initialization | PARTIAL;1 new real-Chrome boundary case PASS with NO inert Turnstile Mock or injected unknown |5 islands hydrate,24 retained application responses,3 icons cancelled; genuine Turnstile bootstrap observed/aborted. API/render/challenge/post-token requests UNOBSERVED; full authorization BLOCKED |
-| Bounded Turnstile policy decision | FEASIBLE DESIGN, OWNER_APPROVAL_PENDING | Official dynamic-resource/test-key guidance reviewed; proposed per-widget supplier capability40/650 is NOT a URL whitelist or executed control. Isolated official-test-sitekey engineering next, with separate online authorization afterward |
+| Isolated standard Chrome Turnstile | ACCEPTED_WITH_DOCUMENTED_EXCEPTION | Live SDK/render/Frame/callback/cleanup retained; owner-approved visibility substitution applies to that instance ONLY; original INCOMPLETE receipt unchanged, no Production CAPTCHA PASS |
+| Current hybrid Auth boundary | BLOCKED by actual offline browser bypass | Fixed Auth helper9 targeted checks PASS, real-Chrome counterexample1 measured; SharedWorker POST bypassed deny-all HTTP route, Worker sockets bypassed socket route; no complete safe runner/production Packet |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -1985,3 +1986,53 @@ No history/old Claim reuse, resource reread, SDK/Worker/budget/Chrome retest or
 Production modification. This task Production requests/writes0, third-party live0,
 USD0/Catalog ACTIVE; GROUP_2/3/Public Beta NOT_AUTHORIZED. Next single owner action
 is decide that narrow first-party Auth transport boundary, not send UTC approval/GO.
+
+### v12 Auth integration: bounded outlet implemented, native bypass proven offline
+
+Owner conditionally approved ONLY offline exact Auth mediation implementation.
+No Production/third-party request, account operation, UTC approval, Claim or GO.
+Old240 binding files still match, protected650/all class caps and14/16 mappings
+unchanged. Deployed source88680a6e confirms SDK password+CAPTCHA/signOut and
+persistSession/autoRefreshToken. Browser client source matches local after line
+ending normalization, not a new deployed byte verification or SDK/live assertion.
+
+tools/e-verify-group1-auth-integration/controlled-auth.mjs reuses Group1Gate,
+SharedBudget and response checks for exact Supabase password/refresh/globallogout
+POST. Fixed actor/context/main-frame/stage/Origin/public-key admission precedes
+transport. Auth/Mutation/global/refresh caps stay unchanged; no retries; wrong
+origin/cookie/CORS/redirect/session/ambiguous failure aborts and destroys reader.
+Nine NEW deterministic helper tests PASS, including negatives, concurrent admission,
+budget exhaustion, refresh binding, cancellation/deadline and safe receipts.
+They are not native SDK/CORS/SameSite or full14-case Production semantics proof.
+Previous private read helper and16 RLS mappings are reused, not rerun.
+
+One NEW affected-boundary test used real Chrome with native Dedicated/SharedWorker,
+blocked Service Workers and clean Profile, owned loopback fixtures only. Deny-all
+Auth HTTP routing intercepted main and Dedicated Worker POST (2); SharedWorker
+POST still reached the exact fixture password endpoint (1). Worker WebSocket
+upgrade reached the fixture (2), while main socket was denied (1). The fixture
+returned403 and used no credentials. This disproves HARD bypass prevention for
+this native interception architecture; it is NOT evidence Production or vendor
+actually attempted these flows, or recovery of a historical unknown request.
+Evidence: tools/e-verify-group1-auth-integration/artifacts/
+auth-outlet-1791972013493/BYPASS_PROBE_SAFE.json and SUPERVISOR_SAFE.json.
+Job/browser/child/Profile cleanup verified. Tests10/10 PASS means counterexample
+and helper assertions measured correctly, NOT the safety boundary passed.
+
+Stop further Worker/SDK/proxy engineering. Full safe execution entries0/14;
+Auth bypass/full native Session semantics BLOCKED, browser MONITOR_ONLY,
+fixed Node identity/RLS GET HARD and previous memory handoff VERIFIED_OFFLINE.
+No ready production authorization Packet/ID/GO generated. New OFFLINE-only blocked
+engineering binding250 files SHA256:
+02801f0f62a0434d44d435a3315a935f092bd266c2b3923f5a1c81bc14701158.
+Oldv12/v11/isolated freezes and consumed Claims unchanged.
+
+Single minimal alternative requiring independent OWNER decision: native Chrome
+manual Auth/refresh/logout with honestly MONITOR_ONLY Auth40/refresh6/Mutation50
+and browser650 thresholds, while fixed private Node identity/RLS stays HARD.
+No numeric increase or scope expansion; this drops required whole-browser Auth
+predispatch guarantee and is NOT approved/applied here. If unacceptable, remain
+BLOCKED under current constraints, not another diagnostic/false-ready loop.
+See tools/e-verify-group1-auth-integration/OFFLINE_BOUNDARY_DECISION.md.
+Task Production requests/writes0, third-party live0, USD0/Catalog ACTIVE;
+GROUP_1 BLOCKED_UNTIL_PRODUCTION_ACCEPTANCE, GROUP_2/3/Public Beta NOT_AUTHORIZED.
