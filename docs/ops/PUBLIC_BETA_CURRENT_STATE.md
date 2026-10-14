@@ -1286,3 +1286,89 @@ Separate online approval/GO mandatory; applying B to Production GROUP_1 requires
 isolated live evidence and another separately approved contract change.
 Production requests/writes0, third-party live requests0, USD0, Catalog ACTIVE;
 GROUP_2/3 and Public Beta NOT_AUTHORIZED. No push/deploy/new recovery action.
+
+### B1 isolated online attempt (2026-10-14, STOPPED)
+
+Owner separately confirmed all five B1 gates and the exact UTC window
+2026-10-14T05:37:15Z..06:07:15Z, then sent the independent B1 GO.
+Fresh preflight: approved authorization hash, contract/Packet/Binding and193 files
+matched; instance unused and remaining validity1448 seconds. No OAuth needed.
+Only the frozen run-online entry was invoked once. B1 authorization CONSUMED,
+ONLINE_ONCE.claim CREATED; never reuse this instance, authorization or GO.
+
+Actual result BLOCKED at SDK_LOAD: firstFailure REDIRECT_OR_LOCATION. One exact
+official SDK GET dispatched; no redirect followed or retry. Existing response
+guard rejects HTTP3xx OR any Location header. HTTP status and safe Location
+classification were not retained, so neither a specific301/302 nor legitimate
+redirect target is proven. No SDK bytes validated, render/frame/callback all
+unobserved. Original v11 request identity remains UNKNOWN.
+
+Global admissions13: one local harness, one supplier GET,11 denied native proxy
+attempts. Supplier POST0, proxy forwarding0, real credentials/Auth/RLS/Siteverify0.
+Browser cleanup PASS, supervisor EXIT_ZERO, Windows Job drained/closed; total
+supervisor duration1546ms. Exit zero is process cleanup, NOT diagnostic PASS.
+
+Read-only source review found live-child's final object spreads result.status over
+its aggregate status string. This receipt field-collision is a separate QA defect;
+the actual response denial and absent stages independently prove BLOCKED here.
+No frozen code/receipt altered and no second request or auto-repair performed.
+
+Immutable raw receipts ONLINE_SAFE.json, ONLINE_FINAL_SAFE.json and
+ONLINE_SUPERVISOR_SAFE.json retained; independent hash-linked closure at
+`tools/e-verify-turnstile-isolated/artifacts/B1_GO_CLOSURE_SAFE.json`.
+Next single action: offline QA repair of privacy-safe response rejection evidence
+and aggregate/phase status collision, without weakening redirect policy. Do not
+invent missing response fields or request another full GROUP_1 attempt on these
+results. Any further online attempt requires a fresh independent instance and
+explicit authorization/GO, not the remaining B1 window.
+Production requests/writes0; third-party live GET1 (not0). Strict USD0 policy and
+Catalog ACTIVE maintained; GROUP_2/3/Public Beta NOT_AUTHORIZED. No Production
+code/config/database/deployment change; no historical test rerun or push.
+
+### B1 safe response and receipt repair; B2 pending (2026-10-14)
+
+Offline only, in independent `tools/e-verify-turnstile-response-b2/` copy.193 B1
+bound files verified unchanged; old receipts/authorization/Claim untouched.
+All B1 retained online receipts contain no response status/headers; historical
+HTTP status and Location presence remain UNKNOWN, redirect root cause UNKNOWN.
+Do not infer301/302/307/308 or future response equivalence.
+
+Response journal now captures bounded safe metadata immediately at headers,
+before encoding/Content-Length/body failure. Records status code/class, observed
+headers, Location presence/finite origin class/same-allowed-origin boolean,
+independent redirect-vs-header trigger flags and bounded rejection code. No raw
+Location/URL/query/body/credentials/Token/Cookie retained. Failure before headers
+stays UNKNOWN, not falsely200 or no-Location. Existing3xx OR any Location rejection
+unchanged, even same-origin or200+Location; no following, retry or CONNECT bypass.
+
+Receipt v2 separates executionStatus/failureStage/failureCode/stageResults/
+cleanupStatus. New parent and child use a shared validator/compatibility parser.
+Cleanup and native containment are independently required; historical B1 phase
+object is correctly read as BLOCKED, never a success string. No missing response
+metadata invented. New schema rejects unexpected sensitive response fields.
+
+44/44 targeted OFFLINE PASS:32 response/receipt/policy checks,6 actual loopback
+HTTP/stream tests,4 real Chrome/loopback response-only cases,2 frozen/no-GO checks.
+Historical46/123/43/15 and unrelated stages NOT rerun. Request-admission logic
+identical except response-journal registration; response policy equivalence tested.
+
+Minimum B2 has proven local observation value: one fresh browser-generated GET
+to the exact same SDK URL; supplier GET max1, POST/frame0, global650 ceiling,
+300s total with original request/body/work/cleanup bounds. It aborts before SDK
+delivery/execution, widget/render/frame/callback, Auth/RLS/Siteverify/Production.
+Thus another response at the same stop point yields precise safe diagnostics;
+network/preheaders failure is still possible and will remain explicitly UNKNOWN.
+No evidence justifies any redirect exception; such a change needs separate target
+evidence and explicit contract approval, not the pending B2 diagnostic.
+
+Pending ID: `e-verify-turnstile-sdk-response-openglasshub-20261014-b2`
+Binding SHA256: `536da169c1ec472181fb33cf7f7e1baaaae620d7913dd3dd9f2c24201a2d3592`
+Packet SHA256: `526b4ead89966a3cbe2c0766d5c9161d25ce30645d869d79b349c3d748984f17`
+214 bound files match. Contract:
+`tools/e-verify-turnstile-response-b2/artifacts/HUMAN_B2_SDK_RESPONSE_AUTHORIZATION_NOT_AUTHORIZED.md`.
+Fresh five owner gates and UTC remain null; effective authorization/Claim/GO absent.
+Next single action: owner reviews this exact one-response B2 contract for fresh
+human approval and later exact UTC/independent GO. Never reuse consumed B1.
+This task Production requests/writes0, third-party live requests0; strictUSD0 and
+Catalog ACTIVE preserved, GROUP_2/3/Public Beta NOT_AUTHORIZED. No deployment/push,
+production business change, billing change, real account operation or recovery.
