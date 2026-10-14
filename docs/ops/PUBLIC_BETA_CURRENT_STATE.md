@@ -1781,3 +1781,41 @@ boundary before further implementation or any independently authorized live run.
 If hard Worker unknown-origin denial remains mandatory, alternative stays BLOCKED.
 USD0/Catalog ACTIVE/full GROUP_1 BLOCKED/GROUP_2/3/Public Beta NOT_AUTHORIZED;
 Production requests/writes0, third-party live0, no deployment/push.
+
+### Standard-capability Chrome isolated substitute: offline READY, live pending
+
+Owner approved local implementation/tests/new pending contract ONLY; no live
+permission. Worker-supervision route stopped, vendor root cause remains UNKNOWN.
+New tools/e-verify-standard-chrome/ reuses existing Profile, native Job supervisor,
+typed evidence and official TEST key; SDK delivered by Chrome, not Node/proxy.
+No capability-global deletion or Worker pausing/Fetch patches. Native Worker,
+SharedWorker/EventSource/RTC/WebTransport constructors preserved; old transport-
+suppression flags removed and disclosed. Service Worker block, clean profile/
+context, extension/sync disable, permissions/download limits retained.
+Overall NETWORK_BOUNDARY=MONITOR_ONLY; page observations/soft Stop/close are NOT
+global dispatch prevention. Worker/background/OS channels may be unobservable;
+40/650 are observation soft triggers, never hard request/byte/invoice caps.
+
+New targeted11/11 OFFLINE PASS only: native local Worker, Start recorded/one SDK
+initialization, callback-required completeness, manual abort, idle deadline,
+unknown/CSP stop, SDK failure, soft counters, privacy and authorization gates.
+Each real Chrome fixture confirms owned-profile removal and native Job drain.
+Earlier Mock-only callback target-origin error corrected; no vendor code/security
+change. Final evidence artifacts/offline-1791967895832 is bound. Prior27/8/5/43/
+123 and consumed production evidence reused, not rerun. Real vendor success is
+NOT_EXECUTED, no unsupported-browser cure claim.
+
+New ID: `e-verify-standard-chrome-turnstile-openglasshub-20261014-v1`.
+227-file Binding: `57dd3c30017d7ee6d4f3f2ea2d253462ace2363114169ad9a3bb14c3e0e42587`.
+Packet: `25aee8aeb35de07285c25ddde644479c62eb29af4a073aeab6163bd3fb79b1a0`.
+Template: `8fec8b4cb4328cb56006373683042b854512cc241b8dfe53f4e88b7afe82af78`.
+Contract: tools/e-verify-standard-chrome/artifacts/
+HUMAN_STANDARD_CHROME_AUTHORIZATION_NOT_AUTHORIZED.md. Six NEW gates and UTC
+null, no formal authorization/preflight/Claim/GO. No OAuth required. Prior owner
+Free/no-incremental-network-cost facts reused, require current confirmation in
+new contract; not auto-filled approval. Same600s total/>610s at actual start.
+Only next action: owner accepts complete changed monitor-only contract, six
+gates/readiness; then propose/approve exact UTC, record authorization and STOP
+for independent GO_E_VERIFY_STANDARD_CHROME_TURNSTILE_ISOLATED_V1.
+Production requests/writes0, third-party live0; no paid/config/deploy/push action.
+USD0/Catalog ACTIVE/full GROUP_1 BLOCKED/GROUP_2/3/Public Beta NOT_AUTHORIZED.
