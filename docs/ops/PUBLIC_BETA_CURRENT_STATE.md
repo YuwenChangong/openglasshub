@@ -1555,3 +1555,229 @@ BLOCKED on that unconfirmed connection fact; no risk waiver or increased USD0 ca
 After actual confirmations, propose UTC, obtain approval, then STOP for separate GO.
 Production requests/writes0, third-party live0; Catalog ACTIVE, GROUP_2/3/Public
 Beta NOT_AUTHORIZED. No deployment/push/production/config/database/billing change.
+
+### Native manual v1 owner confirmation, pending exact UTC approval
+
+At local verification UTC 2026-10-14T07:33:26Z, all202 frozen files and the
+existing binding/Packet hashes matched. No native preflight, Claim or approved
+authorization file exists. Owner explicitly confirmed all six native gates,
+full contract/bindings, readiness, unlimited home broadband with no incremental
+traffic/service fees and no paid proxy/VPN/cloud exit. These are OWNER_ATTESTED
+facts, not direct Provider/network inspection. Together with existing Free
+Turnstile evidence, zero-additional-cost gate PASS; USD0 remains unchanged.
+Separate safe confirmation record:
+`tools/e-verify-native-manual/artifacts/OWNER_HUMAN_CONFIRMATION_PENDING_WINDOW_SAFE.json`.
+Proposed UTC 2026-10-14T07:33:26Z to 2026-10-14T08:03:26Z is NOT approved.
+Effective authorization times remain null. Sole blocker/next action: owner
+explicit approval of this exact window; then record authorization and STOP for
+independent GO. Require >610s remaining at actual start; never auto-extend.
+Network PARTIAL/soft40/650 unchanged. No tests rerun or live requests issued;
+Production requests/writes0, third-party live0, Catalog ACTIVE, GROUP_2/3 and
+Public Beta NOT_AUTHORIZED. Frozen templates/Packet/binding remain unchanged.
+
+### Native manual v1 exact UTC owner approval recorded
+
+Owner explicitly approved UTC 2026-10-14T07:33:26Z to 2026-10-14T08:03:26Z,
+with the six gates, full contract and both frozen hashes unchanged. Independent
+`tools/e-verify-native-manual/artifacts/AUTHORIZATION_APPROVED.json` records the
+approved window, not the receipt creation time. Local pre-record verification at
+2026-10-14T07:35:22Z matched202 files and confirmed >610s window coverage and no
+native preflight/Claim. Previous pending confirmation record remains historical.
+No live execution is permitted without separate owner GO. Sole next action:
+`GO_E_VERIFY_NATIVE_CHROME_ISOLATED_MANUAL_V1`, subject to fresh execution gates.
+No automatic window extension, no OAuth gate, no tests rerun. Network PARTIAL,
+soft40/650, USD0 and isolation limits unchanged. Production requests/writes0,
+third-party live0; Catalog ACTIVE, GROUP_2/3/Public Beta NOT_AUTHORIZED.
+
+### Native manual v1 consumed GO: work deadline before SDK observation
+
+Owner sent exact `GO_E_VERIFY_NATIVE_CHROME_ISOLATED_MANUAL_V1`. Frozen
+202-file binding, approved-file SHA and >610s window checks passed before the
+single frozen entry invocation. Native preflight and Claim now exist and the
+authorization is CONSUMED; never replay this instance or GO.
+`tools/e-verify-native-manual/artifacts/NATIVE_FINAL_SAFE.json`: BLOCKED,
+cleanup PASS, native containment closed, owned profile removed. Child
+`NATIVE_SAFE.json`: stopReason WORK_DEADLINE; sdkLoaded/renderStarted/
+renderReturned/callback false, observedFrames0, observedVendorRequests0,
+observedTargetRequests1, ownerFinished false, owner visibility/interaction null.
+Supervisor elapsed520803ms, reaped=true, native Job closed, receipt written.
+EXIT_ZERO means receipt delivery/child exit, NOT diagnostic success.
+Only observed target/vendor events are counts; unobserved native browser/OS
+traffic remains UNKNOWN, not a zero-global-egress claim. No Production/business
+access or writes; no credentials used. Real SDK compatibility remains UNVERIFIED.
+Evidence does not establish whether the owner saw/clicked the QA window or why
+SDK dispatch was not reached. Sole next action: owner describes whether the QA
+window appeared and Start was clicked, without tokens/screenshots/private data;
+resolve that exact handoff issue offline before proposing any fresh instance.
+No automatic retry/new authorization. USD0, Catalog ACTIVE, GROUP_2/3/Public Beta
+NOT_AUTHORIZED and full GROUP_1 BLOCKED remain unchanged.
+
+### Native v1 timeout explained; fresh-v2 pending approval
+
+Owner subsequently attested QA_WINDOW_VISIBLE=true, START_CLICKED=false,
+OWNER_FINISHED=false and no other actions. Harness appends the SDK script ONLY
+in Start.onclick; native-browser waits for Finish/stop with a520s work timer.
+Together with vendor observed0, pageError0 and successful cleanup, this proves
+the v1 WORK_DEADLINE was waiting for manual Start, not an observed SDK/redirect
+failure. No new pre-SDK technical blocker is evidenced. Post-Start real vendor
+behavior remains UNVERIFIED and is the purpose of the next isolated live test.
+
+Fresh independent pending instance: `tools/e-verify-native-manual-fresh-v2/`.
+ID `e-verify-native-turnstile-manual-openglasshub-20261014-fresh-v2`.
+Binding `a42e0fadf2cb291c83680ab4417ba5a2022b1489a5cc09ca907b9367feb9ff31`.
+Packet `02d111eda15bcef2c4068eb6d40ef219ccc5667032b23fac2be2393d170ac43a`.
+Necessary consistency only:202/202 frozen files match;17 root files identical to
+v1 except new ID/GO constants; Packet differs only in ID/GO. Reused27/27 offline
+evidence, no tests rerun. Old202-file freeze/authorization/Claim/receipts intact.
+All six fresh gates and UTC remain null, no approved authorization/preflight/Claim
+or GO. Contract remains PARTIAL/soft40/650, USD0,600s total, >610s at actual start.
+
+Owner next accepts fresh identity/unchanged contract and confirms gates current;
+then propose/approve exact UTC and STOP for a NEW independent GO. When launched:
+click Start once promptly; observe real widget, click Widget visible, then the
+truthful Interaction observed OR No interaction required; Finish only when real
+observations/callback agree. Stop on error/uncertainty; never reload/retry/reset.
+No live requests in this preparation, no Production changes, Catalog ACTIVE,
+GROUP_2/3/Public Beta NOT_AUTHORIZED, full GROUP_1 BLOCKED.
+
+### Fresh-v2 owner gates recorded, exact UTC approval pending
+
+Owner explicitly accepted fresh-v2 unchanged contract and all six gates, current
+zero-additional-charge trusted connection, readiness/full-window attendance and
+manual Start-once operation. At trusted UTC 2026-10-14T08:01:28Z local verification
+matched202/202 frozen files, binding/Packet/template SHA. Exact contract comparison
+to v1 differs only in ID/GO/corresponding hashes; Packet only ID/GO. No additional
+substantive permission, cost, risk, control or scope change. These are local
+comparisons plus OWNER_ATTESTED facts, not live SDK/Provider verification.
+Independent confirmation is in fresh-v2 artifacts/
+`OWNER_HUMAN_CONFIRMATION_PENDING_WINDOW_SAFE.json`; frozen files unchanged.
+Proposed UTC 2026-10-14T08:01:28Z to 2026-10-14T08:31:28Z is PENDING explicit
+owner approval; effective authorization fields remain null. Sole next action:
+approve that exact window, then record formal authorization and STOP for fresh
+independent GO. No effective authorization/preflight/Claim/GO or live requests;
+no tests rerun. USD0, soft40/650/PARTIAL, Catalog ACTIVE, full GROUP_1 BLOCKED,
+GROUP_2/3/Public Beta NOT_AUTHORIZED unchanged. Old v1 remains consumed.
+
+### Fresh-v2 formal authorization recorded; waiting independent GO
+
+Owner explicitly approved UTC 2026-10-14T08:01:28Z to 2026-10-14T08:31:28Z,
+unchanged frozen contract/hashes and all six gates, with full-window attendance.
+At local UTC 2026-10-14T08:03:18Z,202 frozen files/Packet/template matched and
+the original authorization validator passed exact schema, gates and >610s
+remaining coverage. Expected GO constant was used only for validator consistency;
+no actual GO was received/issued. No execution entry/preflight/Claim invoked.
+Independent fresh-v2 artifacts/AUTHORIZATION_APPROVED.json SHA256:
+`b03d0146e3b18ea24e8096888bc66e6bcbb88f925dec028112138bc0f5430d6e`.
+Separate AUTHORIZATION_RECORD_SAFE.json preserves verification and owner source.
+Frozen files, pending confirmation record and consumed v1 remain unchanged.
+Sole next action: owner sends `GO_E_VERIFY_NATIVE_CHROME_ISOLATED_MANUAL_FRESH_V2`;
+fresh execution checks still required, no automatic window extension or retry.
+After launch owner must promptly click Start once and truthfully complete widget
+observations/Finish, or Stop on uncertainty. SDK live behavior still UNVERIFIED.
+No tests rerun; Production requests/writes0, third-party live0. USD0, PARTIAL
+soft40/650, Catalog ACTIVE, full GROUP_1 BLOCKED, GROUP_2/3/Public Beta unapproved.
+
+### Fresh-v2 GO consumed: native SDK/render/frame reached, manual abort
+
+Owner sent exact `GO_E_VERIFY_NATIVE_CHROME_ISOLATED_MANUAL_FRESH_V2`.
+Local202-file/binding/template/approved-file SHA and >610s window checks PASS,
+then exactly one frozen run-manual entry. Fresh-v2 authorization/preflight/Claim
+are CONSUMED; no replay or retry. NATIVE_FINAL_SAFE.json outcome BLOCKED,
+cleanup PASS, native containment closed and owned temp profile removed.
+NATIVE_SAFE.json stopReason HUMAN_ABORT, sdkLoaded/renderStarted/renderReturned
+true, observedFrames1, callback false; owner visibility/interaction null and
+ownerFinished false. Native SDK loading and render/frame were observed LIVE
+with official TEST Sitekey; callback/completion and Production CAPTCHA remain
+UNVERIFIED. Observed supplier response codes302,200,200; one native redirect.
+Observed target requests4, vendor requests3 (NOT all-browser wire dispatch counts).
+pageErrorCount0, credentialsUsed=false, rawTokensOrUrlsPersisted=false.
+Supervisor elapsed14707ms, EXIT_ZERO/reaped/native Job closed/receipt written;
+EXIT_ZERO is receipt delivery, NOT diagnostic PASS. Profile absence separately
+verified after completion. Unobserved native browser/OS traffic remains UNKNOWN.
+Receipts: tools/e-verify-native-manual-fresh-v2/artifacts/NATIVE_FINAL_SAFE.json,
+NATIVE_SAFE.json, NATIVE_SUPERVISOR_SAFE.json. Old v1 remains unchanged.
+Sole next action: owner describes non-sensitive widget/page status before Stop
+and reason for stopping; do not invent a callback failure cause or start another
+instance. No automatic new authorization/GO. Production requests/writes0, USD0,
+Catalog ACTIVE, full GROUP_1 BLOCKED, GROUP_2/3/Public Beta NOT_AUTHORIZED.
+
+### Fresh-v2 owner observation: browser unsupported during challenge
+
+Owner reported Cloudflare anti-bot UI showed browser unsupported. This is
+OWNER_OBSERVED, not a preserved SDK error-code event. Combined with reached SDK/
+render/frame and HUMAN_ABORT receipt, the current blocker is challenge browser
+compatibility, not missing Start, SDK transport or absent static resources.
+Exact vendor error code and underlying reason remain UNKNOWN. Frozen QA context
+blocks Service Workers and removes Worker/SharedWorker/EventSource/RTC/WebTransport
+APIs; these are possible compatibility constraints, NOT a proven vendor cause.
+No safety settings changed, no rerun/new live authorization or request issued.
+Next minimal evidence: any already-observed non-sensitive vendor error code or
+exact wording, if owner remembers; do not reopen test merely to collect it.
+Then assess only relevant local QA compatibility constraints before considering
+any separately approved control change. Fresh-v2 remains consumed, cleanup PASS,
+USD0/Catalog ACTIVE/full GROUP_1 BLOCKED/GROUP_2/3/Public Beta unapproved.
+
+### Fresh-v2 precise owner observation and offline capability review
+
+OWNER_OBSERVED: CLOUDFLARE_CHALLENGE_FRAME_VISIBLE=true; unsupported message
+location=CLOUDFLARE_CHALLENGE_FRAME; message="browser unsupported"; exact error
+code UNKNOWN; SUCCESS_CALLBACK_OBSERVED=false. Owner did not record/remember
+any code or additional wording; never infer it. This is not a QA/product message.
+
+New scoped offline Chrome capability checks8/8 PASS;27/123/43/history not rerun.
+Proof: frozen initScript removes/locks six APIs including Worker/SharedWorker in
+main AND cross-origin iframe. Native baseline has Workers; Worker-only LOCAL
+experiment executes child Worker while other five removals remain. Main harness
+worker-src:none independently blocks main Worker, not a separately served frame.
+Local Worker fetch WAS intercepted (XHR, registered frame) and NativeScope
+classified VENDOR_WIDGET_FLOW. Initial assumed bypass assertion was falsified;
+its original safe receipts retained, not hidden. Current worker-target exclusion
+is a supervision limitation, NOT proof every Worker request bypasses parent Fetch.
+Service Worker remains blocked; no evidence it is required by this vendor.
+
+Vendor ROOT_CAUSE=UNKNOWN; WORKER_COMPATIBILITY=POSSIBLE, not a proven vendor
+defect or fix. Actual vendor content not replayed/executed. Tests headless and
+loopback only; rejecting proxy/no non-loopback DNS/no forwarding/Node guard,
+native Job drained and owned-profile removal confirmed. Source includes current
+launch flags and isolation; no fingerprint spoofing or automation evasion applied.
+
+Candidate NOT applied: restore only Dedicated Worker in verified vendor frame,
+but FIRST prove owner/target chain, paused-before-run worker supervision and
+worker/nested-channel request/credential/cleanup controls. Existing frame gate
+alone is not comprehensive proof. Other controls/soft40/650/USD0 unchanged.
+Security boundary change needs independent approval. Review and offline evidence:
+`tools/e-verify-native-compatibility-review/COMPATIBILITY_DECISION_PENDING_APPROVAL.md`;
+`artifacts/offline-1791965741491/CAPABILITIES_SAFE.json` and SUPERVISOR_SAFE.json.
+Only next decision: approve/reject this bounded OFFLINE candidate engineering,
+not live access. No new authorization/Claim/GO, no Production/third-party live
+requests; old v1/fresh-v2 files intact/consumed. Catalog ACTIVE, full GROUP_1
+BLOCKED, GROUP_2/3/Public Beta NOT_AUTHORIZED.
+
+### Dedicated Worker minimal offline route: explicit feasibility exit
+
+Owner conditionally approved OFFLINE Worker compatibility engineering only.
+Reused existing8/8 capability results; new focused supervision checks5/5 PASS
+as measurement tests, with safety feasibility outcome BLOCKED, not a live fix.
+Evidence: tools/e-verify-native-compatibility-review/artifacts/
+worker-feasibility-1791966406351/WORKER_FEASIBILITY_SAFE.json and SUPERVISOR_SAFE.json.
+Actual Chrome Worker target waitingForDebugger=true and body execution0, never
+resumed. Owner Frame proof false; initial local Worker script GET1 without
+registered-frame admission proof. Worker-target Fetch.enable returned
+CDP_METHOD_NOT_AVAILABLE. Therefore current minimal CDP route cannot establish
+required worker identity/pre-dispatch containment. No claim all possible browser
+architectures are impossible; STOP rather than add proxy/Worker-engine complexity.
+Profile removed, native Job closed/child reaped; no vendor SDK or live request.
+
+Worker ROOT_CAUSE remains UNKNOWN; local constructor capability is demonstrated,
+but vendor browser-unsupported cause/compatibility still UNVERIFIED. No removal
+of live protections, no new live Packet/authorization/Claim/UTC/GO, consumed
+v1/fresh-v2 and frozen files remain intact.
+Decision: tools/e-verify-native-compatibility-review/WORKER_FEASIBILITY_DECISION.md.
+Sole proposed alternative is STANDARD_NATIVE_MANUAL_ALTERNATIVE_NOT_AUTHORIZED.md:
+standard-capability clean Chrome manual Layer1, explicit MONITOR_ONLY Worker/
+third-party coverage, no claimed hard unknown-origin or40/650 enforcement.
+Material change NOT covered by existing approval; owner must accept/reject that
+boundary before further implementation or any independently authorized live run.
+If hard Worker unknown-origin denial remains mandatory, alternative stays BLOCKED.
+USD0/Catalog ACTIVE/full GROUP_1 BLOCKED/GROUP_2/3/Public Beta NOT_AUTHORIZED;
+Production requests/writes0, third-party live0, no deployment/push.
