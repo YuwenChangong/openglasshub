@@ -1494,3 +1494,64 @@ Full GROUP_1 BLOCKED; no new code, SDK/Provider/Production/documentation request
 test suite, authorization, Claim, GO or budget change. Original contracts/receipts
 and product commits preserved. This task third-party live0, Production requests/
 writes0, USD0/Catalog ACTIVE. Only this sole progress baseline updated locally.
+
+### Native Chrome two-layer manual plan (LOCAL ONLY, 2026-10-14)
+
+Owner approved isolated native-manual design/QA preparation only, NOT online
+execution/Production/login/GO. Implemented scoped tools and frozen manual contract
+in `tools/e-verify-native-manual/`. B1/B2/v11 and original budgets/claims/receipts,
+product code and private160-field input untouched. No B3/B4 mediator diagnosis.
+
+Layer1: loopback nonce/CSP harness, exact official SDK script tag and fixed TEST
+Sitekey, genuine Chrome Fetch.continueRequest/native HTTP/TLS (no Node SDK fetch,
+proxy or fulfillment). New owned temporary empty profile plus incognito target,
+no extensions/sync/existing cookies/accounts. Start/render manual once; test
+widget may require no human interaction, recorded honestly, never Production PASS.
+No Auth/RLS/Siteverify/pre-clearance/Production/business operations. No token,
+headers/query/body/Session/storage/HAR/trace/fingerprint export. Only typed safe
+stages/counts/status codes and explicit owner visibility/interaction attestations.
+
+Network PARTIAL, not global HARD or old650/40 inheritance. Target request-stage
+Fetch/CSP origin/method/type/frame controls and Node/SW/WS/worker/RTC restrictions
+are actual scoped measures; native same-origin supplier redirects/dynamic GET/POST
+and transient vendor state are expressly NEW pending permissions. Browser/OS and
+racing unobserved channel traffic remains UNKNOWN;40 vendor/650 target observed
+events are SOFT stop triggers, not all-browser dispatch/invoice/byte caps. No
+opaque CONNECT bypass, TLS-intercept CA or production security change introduced.
+
+New isolated deadline600s includes startup/drain; child520s, supervisor work540s,
+cleanup reserve60s inside total, >610s validity remaining, UTC<=60min. Close/drain
+and exact owned-profile removal required. Parent can remove that recorded profile
+after abnormal child exit only when Job drain proven. No secure-erasure/provider/
+OS-log removal claim; real user profile cannot pass cleanup-path validation.
+
+27/27 targeted OFFLINE PASS:14 scope/evidence,5 actual Chrome native loopback
+(normal/redirect/unknown-origin/deadline/proxy-close fixture),5 authorization/profile,
+3 frozen/scope/no-GO consistency.202 files bound. Browser window ordering ensures
+the new target exists before closing the default blank window. Real official SDK,
+widget/challenge/CAPTCHA and Production remain NOT_EXECUTED. Existing43/46/44/123/
+15-stage evidence reused, not rerun. Superseded unapproved LOCAL draft retained
+in artifacts/unapproved-local-draft-before-window-order-fix; no approved contract
+was rewritten or reused. Source-freeze Packet scope unchanged by window fix.
+
+Layer2 is a future NOT_AUTHORIZED evidence plan: exact14 scoped IDs, loginActions,
+3 identity labels and16 exact RLS targets/assertions preserved from source Packet
+and50-case matrix. RLS is anon6+A5+B5, not16 authenticated positive reads. Expected
+A/B projection denial and signed-in anonymous SSR product-page behavior remain
+distinct. Private session-to-RLS adapter/Production contract deferred until actual
+Layer1 live success plus independent approval; no QA identity values read/output.
+Registration/mail/media/forum/admin writes and GROUP_2/3 remain excluded.
+
+Pending ID: `e-verify-native-turnstile-manual-openglasshub-20261014-v1`
+Binding SHA256: `3de16445b5ca449c847a81fbf080b132a55d7d0edaf523290275266096d0d386`
+Packet SHA256: `3b09b0d2fe08647c7112ae701aea6aa655e5023519df6c93d65b646a6b8dee39`
+Contract:
+`tools/e-verify-native-manual/artifacts/HUMAN_NATIVE_ISOLATED_MANUAL_AUTHORIZATION_NOT_AUTHORIZED.md`.
+Six NEW owner gates and UTC null; no effective authorization, live Claim or GO.
+One current next action: owner accepts/rejects this changed manual/network/state
+contract and confirms trusted unmetered/no-additional-charge connection. Existing
+Turnstile Free evidence reused, no repeat billing audit. Cost EXECUTION gate remains
+BLOCKED on that unconfirmed connection fact; no risk waiver or increased USD0 cap.
+After actual confirmations, propose UTC, obtain approval, then STOP for separate GO.
+Production requests/writes0, third-party live0; Catalog ACTIVE, GROUP_2/3/Public
+Beta NOT_AUTHORIZED. No deployment/push/production/config/database/billing change.
