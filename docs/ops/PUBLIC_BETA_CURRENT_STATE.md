@@ -20,8 +20,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Earlier authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped preparation branch: `codex/group1-other-request-root-cause-20261014`,
-  based on v11 commit `55ebcf3957188eecba69b07737d59d5e91d65d45`;
+- Current scoped preparation branch: `codex/group1-three-get-feasibility-20261014`,
+  based on local repair commit `f67c1077566d68863ced076d81a2a6e849786889`;
   preserves prior local product/continuity commits and authorization history.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
@@ -49,7 +49,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | LOGIN_A and post-login static evidence | VERIFIED29 finite Production resources;9 v9 captures reviewed;25/25 new targeted tests PASS | Prior23 preserved, new6 reviewed, ProductDetail285-byte inline matched; no duplicate Production reads or runtime PASS implied |
 | Remaining GROUP_1 / full-flow budget | Owner-approved global650 APPLIED in protected version; next full authorization BLOCKED | Original500 preserved, all class caps unchanged; v11 attempt CONSUMED; historical LOGIN_A rejected pathname UNKNOWN, no implicit retry |
 | Current GROUP_1 browser identity | Signed installed Chrome156.0.8078.12 VERIFIED locally; v11 CONSUMED | v10 old hash not reusable; old2083-file v11 closure still unchanged; no new browser download/update or Production authorization |
-| LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests now excluded without transport. Unknown other still denied; next full authorization BLOCKED; narrow diagnostic scope draft only |
+| LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests excluded without transport. Unknown other denied; next full authorization BLOCKED.3GET draft fails diagnostic-effectiveness review; no new executable Packet |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -1075,3 +1075,56 @@ before any Production observation. Do not issue GO against the old v11 entry.
 GROUP_1 remains BLOCKED; historical Auth0/RLS0/16 unchanged. Production requests/
 writes this offline task0. USD0, Catalog hold and GROUP_2/3/Public Beta prohibitions
 continue; Version151 is never the default post-Hardening recovery target.
+
+### 3GET diagnostic effectiveness review (offline, 2026-10-14)
+
+The earlier max3GET scope draft remains unchanged historical material; it is
+NOT ready for authorization. No Production diagnostic entry or Packet was
+generated. Existing15/15 tests and receipts were reused, not rerun. The30-file
+engineering closure still verifies without changes. No new resource review,
+OAuth/billing check, private intake or Production operation was performed.
+
+Numerically,3 real GETs can carry pre-Deployment + login HTML + conditional
+post-Deployment while23 verified scripts/styles are served locally. Chrome
+still emits real request events for locally fulfilled resources, so the24
+application requests do not intrinsically require24 new Production GETs.
+The exact retained HTML bytes are the same across the original and corrected
+local runs: SHA256
+`3d47e816eb1605fa98c203b62372528170d9dc356866ff1a6e61d670ab49468c`.
+This is browser observation, not merely inspecting static references. It is
+not proof of equivalent live timing, headers, external widget behavior or
+the historical rejected request's identity.
+
+The draft stops at the first other BEFORE the known-icon exclusion. Existing
+original-local evidence first observes declared icons and24 wire responses
+(HTML1 + scripts/styles23). This can repeat the already known icon evidence,
+not prove which request v11 rejected. The historical raw pathname was not
+retained and is not recoverable from a new event, even if its class/count match.
+
+After exact icon exclusions, `observed-4-local.safe.json` shows3 excluded icons,
+zero unknown other events, and25 loopback responses: HTML1 + static23 + one
+Turnstile initialization request. That response is an inert local widget Mock,
+not captured real Turnstile initialization. Its evidence SHA256 is
+`4d0a6ba7ec5eecc4e440a19a55e1957d78e8be6dc52e85599ce946379be7e4ab`.
+`unknown-3-local.safe.json` tests an explicitly injected unreviewed icon; it
+proves safe blocking/capture, NOT natural Production target reachability.
+The3GET draft forbids all third-party requests and must stop if this unbound
+initialization appears. It has no validated target-absent preflight and no
+frozen runner. Its optional post-Deployment request also cannot be promised
+after the first gate anomaly: the draft expressly stops rather than sending it.
+
+Current single technical gap: a naturally reachable, non-reviewed other request
+on the unmodified initialization chain is not demonstrated after the known
+icon exclusion; the inert Turnstile fixture cannot establish that equivalence.
+Only a narrowly scoped offline validation of that initialization boundary,
+using trustworthy existing inputs rather than an injected target or fabricated
+live widget, can justify a revised observation design. If such inputs/target
+cannot be established, stay BLOCKED and do not consume Production authorization.
+An absence of an unknown event is INCONCLUSIVE, never historical identity PASS.
+
+Do not freeze or approve the present3GET draft, or propose4/higher as a sufficient
+upper bound: the observed one mock widget request does not bound real challenge
+requests or identify v11. No additional Production GET budget is recommended
+now. No full GROUP_1 Packet, authorization, Claim or GO. Original500/approved650
+and class budgets remain unchanged. USD0, Catalog hold, GROUP_2/3 and Public Beta
+NOT_AUTHORIZED continue. Production requests/writes this review0.
