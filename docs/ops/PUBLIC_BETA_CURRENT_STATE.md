@@ -20,9 +20,11 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Local `origin/main` still names the released source; this is not a fresh remote check.
 - Earlier authorization-preparation branch: `codex/group1-free-plan-approval-20261013`,
   based on continuity commit `1e027888`; no unrelated branch was merged.
-- Current scoped preparation branch: `codex/group1-manual-auth-policy-20261014`,
+- Previous scoped preparation branch: `codex/group1-manual-auth-policy-20261014`,
   based on Auth-bypass counterexample commit `8f1ac56f`;
   preserves prior local product/continuity commits and authorization history.
+- Current scoped recovery branch: `codex/group1-chrome-identity-v15-20261015`;
+  Chrome-only independent identity recovery, no push/deploy or old binding edits.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -52,7 +54,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests excluded without transport. Unknown other denied; next full authorization BLOCKED.3GET draft fails diagnostic-effectiveness review; no new executable Packet |
 | LOGIN_A real initialization | PARTIAL;1 new real-Chrome boundary case PASS with NO inert Turnstile Mock or injected unknown |5 islands hydrate,24 retained application responses,3 icons cancelled; genuine Turnstile bootstrap observed/aborted. API/render/challenge/post-token requests UNOBSERVED; full authorization BLOCKED |
 | Isolated standard Chrome Turnstile | ACCEPTED_WITH_DOCUMENTED_EXCEPTION | Live SDK/render/Frame/callback/cleanup retained; owner-approved visibility substitution applies to that instance ONLY; original INCOMPLETE receipt unchanged, no Production CAPTCHA PASS |
-| Current hybrid Auth boundary | MONITOR_ONLY_PROPOSED, v14 Packet READY_FOR_OWNER_APPROVAL | Browser/Auth soft observation explicitly replaces old hard claims; fixed Node reads HARD. New6 targeted tests PASS with fixture3 identities/3 negatives/16 RLS;9 fresh gates/UTC/GO PENDING; Production not executed |
+| Current hybrid Auth boundary | MONITOR_ONLY; Chrome v15 Packet READY_FOR_OWNER_APPROVAL | v14 owner9 gates recorded but not effective authorization: Chrome drift and expired OAuth blocked startup. v15 changes signed Chrome identity only, retains original scope and fixed Node HARD reads; new owner reconfirmation/UTC/GO required, Production not executed |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2103,3 +2105,43 @@ Waiting windows Start disabled; Finish stays disabled until machine/owner condit
 Scope execution readiness14/14 does NOT mean Production PASS. GROUP_1 remains
 BLOCKED_UNTIL_PRODUCTION_ACCEPTANCE; GROUP_2/3/Public Beta NOT_AUTHORIZED.
 Task Production requests/writes0, third-party live0, USD0/Catalog ACTIVE; local only.
+
+## Chrome Identity Recovery v15 (Offline, 2026-10-15)
+
+Owner's9 v14 decisions are recorded separately, not applied to a new identity.
+v14 frozen contract/Packet remain unchanged;265/266 matched with chrome.exe drift.
+Installed path remains C:/Program Files/Google/Chrome/Application/chrome.exe.
+Old signed version156.0.8078.12 hash5db678875eb6895c802240aab8e9003aaee63124f719697d88077c46a7ed9f2a;
+new signed version156.0.8078.36 hashfdd156b74dd997d3b15f0cdbb59ce0051f1e8b19d10822f31743abac09ec4c89.
+Authenticode Valid / Google LLC. Specific updater transaction UNKNOWN; signed
+same-path version replacement is consistent with a normal update, not proof of
+its updater mechanism. No updater disabled, old binary restored or new download.
+Actual Playwright browser executable verified by local process path/CDP version.
+New3 real-Chrome offline checks PASS; new2 launch-identity drift checks PASS.
+Workers/SharedWorker constructors available; original MONITOR_ONLY behavior and
+dedicated Profile isolation retained. Browser cleanup/Profile removal PASS.
+These tests are not real Auth/SDK/Production CAPTCHA or full UI evidence.
+
+New independent ID: e-verify-group1-native-manual-auth-openglasshub-20261015-chrome-v15.
+Binding SHA256:241476de1ad5594501c537a660891222f044e4a1b8192804997343436aa7d699.
+Packet SHA256:ced74f08a28ba5f14d97b21c177d9f0ca2a2d71887b65cf095cd6fd8824325c2.
+Contract SHA256:5d750371331325fce4e6a09e4229ff062c05b13cf554cf054f2f94e363fae585.
+278/278 new files match, other265 historical hashes unchanged. Parent budgets,
+14 case IDs,16 RLS reads,private650,Session/privacy and13 conditions unchanged.
+New entry/child/ID/hash metadata and before/after each browser-launch hash checks
+are technical differences only; drift stops/closes newly opened browser. Local
+observed hash stability does not promise future updates impossible or OS locking.
+All9 new gates null, UTC null, no valid authorization/Claim/GO. Owner must explicitly
+reconfirm v15 and unchanged conditions; v14 decisions never silently migrated.
+Read tools/e-verify-group1-chrome-v15/artifacts/HUMAN_GROUP1_CHROME_V15_AUTHORIZATION_NOT_AUTHORIZED.md
+and V14_TO_V15_DIFFERENCE_SAFE.json before new approval. OAuth is checked only
+after engineering/freeze: require account:read/workers_scripts:write and strictly
+more than1860s before any UTC proposal and again at GO. No automatic refresh.
+No Production/third-party live requests or writes; Catalog ACTIVE, USD0,
+GROUP_2/3 and Public Beta NOT_AUTHORIZED. No historic test/Claim/resource replay.
+Last local OAuth check2026-10-15T02:36:17.724Z: Scopes PASS, token EXPIRED at
+2026-10-14T03:54:48.964Z (remaining -81689s), failure OAUTH_COVERAGE.
+Next single action: owner manually logs into the default local Wrangler profile;
+do not refresh until needed. Installed CLI inspected offline is4.125.0, not an
+assumed historical4.106.0. Recheck local default credential/Scopes/strict>1860s
+after owner completion, then new identity/9 unchanged gates and exact UTC approval.
