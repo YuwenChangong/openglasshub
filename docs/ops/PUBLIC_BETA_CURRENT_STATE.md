@@ -1,7 +1,8 @@
 # Public Beta Current State
 
-Authoritative release/progress baseline. Updated 2026-10-15 by offline inspection
-of actual Git/source and existing safe receipts, not by replaying Production tests.
+Authoritative release/progress baseline. Updated 2026-10-15 by local inspection
+and headless Playwright against the real loopback application, not by replaying
+Production tests.
 Read this first for every task. This document is not an authorization or GO.
 `VERIFIED` is scoped historical evidence, not proof of unchanged live state now.
 Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
@@ -33,8 +34,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   independent QA copy and protected local Origin evidence, no network authorization.
 - Previous scoped preparation branch: `codex/group1-protected-origin-authorization-20261015`;
   private-Origin contract review and pending v17 Packet only, no real collection.
-- Current scoped branch: `codex/group1-fast-track-manual-20261015`;
+- Previous scoped branch: `codex/group1-fast-track-manual-20261015`;
   pending Browser MONITOR_ONLY GET-tolerance contract;Node scope unchanged,no live run.
+- Current scoped branch: `codex/playwright-local-e2e-20261015`, based on
+  `ab8c154d`; ordinary headless local E2E, no further Native Chrome QA versions.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -68,11 +71,29 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
 | Fast-track native Auth + controlled Node RLS | v19 CONSUMED / BLOCKED before Start at LOGIN_A | MANUAL_WAIT_DEADLINE;owner saw no QA window and clicked nothing,Start events0. Programmatic focus PASS is not owner-visible proof. Deployment GET1,application observations0,Auth0,RLS0/16,cleanup PASS |
+| Simplified Playwright local E2E | 14 PASS / 8 BLOCKED, real headless Chrome | Direct login/form/mode and anonymous page/API checks; no control window. Preview config is Production-backed; no running isolated Supabase or isolated actors found. Auth/RLS/business writes BLOCKED, full GROUP_1 0/14 and authenticated RLS 0/16. No Production/third-party requests or old authorization reuse |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
 Receipt reuse does not authorize execution. Historical time conflicts, 20-second
 timeout FAIL, unknown upload side effects and retained consumed Claims stay unchanged.
+
+## Simplified Playwright Local Evidence (2026-10-15)
+
+- Artifacts: `output/playwright/local-e2e-20261015/RESULTS_SAFE.json`,
+  `REVIEW_SAFE.md`, blank-form screenshots, and ordinary `smoke.mjs`.
+- Three login viewports, empty-password validation, mode switching, seven
+  anonymous page shells and two API denial checks PASS. No Auth POST submitted.
+- Seven database-dependent routes remain BLOCKED without a local backend.
+  Privacy-link navigation is BLOCKED by development reloads whose immediate
+  initiator is `/@vite/client`; the underlying reload trigger remains UNKNOWN.
+  No application bug or Production result is inferred from either blocker.
+- Existing disposable Supabase helpers and cached images are available but were
+  not executed. Minimum next step: owned loopback backend, local-only A/B/ADMIN
+  actors and disposable fixtures with cleanup, then continue the same Playwright
+  path. Production-bound Preview and actor configurations must not be reused.
+- Owned browser contexts closed; owned Astro daemon stopped and local test ports
+  verified released. No new Native QA authorization, Claim, GO or deployment.
 
 ## Evidence Locator
 
