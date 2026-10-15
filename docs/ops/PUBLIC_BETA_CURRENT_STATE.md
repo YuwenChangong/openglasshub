@@ -31,8 +31,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   offline source correlation and detached privacy-safe diagnostic component only.
 - Previous scoped integration branch: `codex/group1-origin-diagnostic-integration-20261015`;
   independent QA copy and protected local Origin evidence, no network authorization.
-- Current scoped preparation branch: `codex/group1-protected-origin-authorization-20261015`;
+- Previous scoped preparation branch: `codex/group1-protected-origin-authorization-20261015`;
   private-Origin contract review and pending v17 Packet only, no real collection.
+- Current scoped branch: `codex/group1-fast-track-manual-20261015`;
+  pending Browser MONITOR_ONLY GET-tolerance contract;Node scope unchanged,no live run.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -65,6 +67,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
+| Fast-track native Auth + controlled Node RLS | v18 READY_FOR_OWNER_APPROVAL only |8 new offline checks PASS,362 frozen files match. Additional external GET observation tolerance is an explicit pending risk amendment,NOT trust or full-browser HARD. No exact Origin capture. Ten fresh gates/UTC/GO pending;Production acceptance BLOCKED |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2458,3 +2461,49 @@ approval. Do not assume a DNS-family match authorizes a request or replay v17.
 Production writes0,Provider writes0,Node/manual retries0;hidden native traffic and
 retries UNKNOWN. Local review/deletion made0 network requests. USD0,Catalog ACTIVE,
 GROUP_1 BLOCKED,GROUP_2/3/Beta NOT_AUTHORIZED. No deployment,push or thaw.
+
+## Fast-Track v18 Pending Browser Contract
+
+Owner authorized OFFLINE simplification only: native Chrome manual authentication
+plus original controlled Node identity/Catalog reads. No more dynamic-Origin
+enumeration/SDK/Worker/CDP architecture work. New browser stop policy tolerates
+an observed additional HTTPS GET only in active actor LOGIN/LANDING/LOGOUT/A-negative
+phases with measurable page Frame and fetch/xhr/script/stylesheet/child-document
+type;not arbitrary main navigation,unknown external POST/other or first-party/DB
+operations. This is a substantive observation-policy relaxation,NOT proof of
+legitimacy,Cloudflare ownership,exact initiator or zero side effects. Original
+vendor40/global650 soft thresholds include these requests,no added budget.
+
+Observable credential headers/recognizable query envelopes,identity mixing,
+business changes,unknown external non-GET,owner Stop,threshold/deadline and known
+paid/unsafe paths still stop. Checks can be post-dispatch and incomplete;native
+Worker/background coverage stays UNKNOWN. Unseen/encoded credentials,third-party
+dynamic content and account-wide traffic/billing cannot be hard-guaranteed.
+StrictUSD0 is NOT waived: existing Free/unmetered conditions need fresh owner
+confirmation;no paid/overage/unverified billing-risk consent is introduced.
+If these residual limits cannot be accepted consistently withUSD0,do not execute.
+
+Exact private-Origin capture/CDP pipeline is not used in v18:only safe coarse
+observations,never raw URL/query/header/credentials. No new encrypted evidence
+review/retention task. v17's completed deletion and consumed Claims remain intact.
+Original Session memory bridge,account isolation,Node signed fixed GET gate,
+14 cases/16 reads (anon6/A5/B5),all class budgets,650,1800/1740/60 and recovery/
+Catalog rules unchanged. Node16 reads still HARD;browser remains MONITOR_ONLY.
+
+8/8 NEW minimal tests PASS (5 policy,3 actual offline Chrome fixtures): additional
+GET continues to interactive fixture,owner Stop works,external POST stops,soft
+budget excess stops,Auth exact rules unchanged,sensitive envelopes/invalid stages
+stop. Not a real SDK/CAPTCHA/login/RLS result. Historical suites were NOT replayed.
+Binding/scope/source syntax consistency PASS,362/362 match,previous340 unchanged;
+private data compared value-blind. No OAuth refresh/check during engineering.
+
+Pending ID e-verify-group1-native-manual-auth-openglasshub-20261015-fast-track-v18.
+Binding c0c416e1aa4750319c760c852a75db0560794a691ed7bb7b691ed11f28d741e8.
+Packet 106ba518ece42834a1e435cbb34976914772954a4771bbfcc0b11d60a48a4c76.
+Contract 9ff7ebbcd9925edf5a59ec776113e6d46ebfc2285816a763424f175c93b19584.
+Original9 gates plus nativeUnenumeratedThirdPartyGetRiskAndStopRulesAccepted are
+ALL null. No inherited owner approval,UTC,Claim or GO. Next sole action: owner
+reviews complete v18 contract/MATERIAL_DIFFERENCE.md and explicitly decides those
+ten gates and full contract;only afterward OAuth/frozen checks,UTC and independent
+GO. No promise that Production will complete or billing hard-cap proof exists.
+Task Production0,third-party live0,writes0;USD0,Catalog ACTIVE,GROUP_2/3/Beta not authorized.
