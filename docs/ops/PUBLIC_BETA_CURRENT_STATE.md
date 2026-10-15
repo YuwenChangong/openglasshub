@@ -67,7 +67,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
-| Fast-track native Auth + controlled Node RLS | v18 CONSUMED / BLOCKED; abort classification C | QA failure callback preceded QA close; cancellation cause/identity UNKNOWN. Offline8/8 targeted checks; no safe exemption or new Packet. Auth0,RLS0/16,cleanup PASS |
+| Fast-track native Auth + controlled Node RLS | v19 READY_FOR_OWNER_APPROVAL, NOT_AUTHORIZED | Accepted positive-login GET/fetch/OTHER ERR_ABORTED remains UNRESOLVED; other safety stops and Node HARD unchanged. New16/16 offline checks,385/385 freeze. v18 consumed,Production Auth/RLS still unverified |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2601,4 +2601,40 @@ This would explicitly accept delayed network-failure detection,not declare any
 unknown abort benign;all real identity/credential/Mutation/cost/deadline stops and
 positive case evidence stay required. New owner contract approval is needed;
 no executable Packet,new authorization,UTC,Claim or GO prepared in this review.
+Task Production0,third-party live0,writes0;USD0,Catalog ACTIVE,groups2/3/Beta not authorized.
+
+## v19 Manual Authentication Recovery - Pending Approval
+
+Owner approved OFFLINE implementation of a narrower cancellation policy. New
+independent adapter only continues accepted positive LOGIN_<actor> GET/fetch/OTHER
+net::ERR_ABORTED. Original envelope/method/Frame/stage/budget checks must finish
+successfully first. Records remain bounded/redacted UNRESOLVED,not benign or
+authenticated. No automatic/manual retries,new destination/Node permissions,
+budget/time extension or private Origin capture. Negative/landing/logout stages,
+other types/methods/errors,sensitive requests,identity/Mutation/cost risks,owner
+Stop/deadline and cleanup still stop. v18 history/identity remain consumed/UNKNOWN.
+
+New16/16 targeted offline checks PASS:7 actual Chrome control/cancellation/security
+fixtures,4 private-memory/identity/hard-gate tests,4 authorization checks and1
+post-abort native Auth fixture -> Node identity -> one exact RLS expected403.
+The last fixture initially used public200 incorrectly;only its local response
+was corrected to the original authenticated denial assertion. No product or RLS
+rule changed. This is NOT real SDK/CAPTCHA/Auth/RLS PASS. Historical suites and
+full16-read mapping were not rerun. Original memory Session bridge,Node transport,
+14 cases,16 reads (anon6/A5/B5),all budgets and1800/1740/60 remain unchanged.
+
+ID e-verify-group1-native-manual-auth-openglasshub-20261015-manual-recovery-v19.
+Binding ec07f877d41a4d4a7ce00dd7fcad94402c1cdde7f29de8b65a5c50234c088108.
+Packet c1097bc18827a3f1b04094df3aefe393f03e32ae2b5ac01eb4481687e26ce655.
+Contract a8695f246364d76ccb64c90d987154d2bcbf8180fe874c194533209dcd3c459b.
+385/385 new frozen files match;old362 and7 original receipts unchanged. Full
+pending contract/template and MATERIAL_DIFFERENCE.md are in the v19 directory.
+All11 gates remain null,UTC pending,no approved authorization/Claim/GO. New gate
+unresolvedExternalFetchAbortContinuationAccepted discloses delayed detection of
+real third-party failures;not permission to call unknown cancellations safe.
+
+Next sole action: owner reviews/approves full v19 contract and11 gates. Only then
+check current local OAuth/Scopes (>1860s) immediately before a fresh exactUTC
+proposal;do not refresh during engineering. Existing Start/CAPTCHA/identity/
+logout/Finish sequence unchanged. Production execution still needs separate GO.
 Task Production0,third-party live0,writes0;USD0,Catalog ACTIVE,groups2/3/Beta not authorized.
