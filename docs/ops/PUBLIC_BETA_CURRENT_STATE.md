@@ -67,7 +67,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
-| Fast-track native Auth + controlled Node RLS | v18 READY_FOR_OWNER_APPROVAL only |8 new offline checks PASS,362 frozen files match. Additional external GET observation tolerance is an explicit pending risk amendment,NOT trust or full-browser HARD. No exact Origin capture. Ten fresh gates/UTC/GO pending;Production acceptance BLOCKED |
+| Fast-track native Auth + controlled Node RLS | v18 owner10/10 gates recorded, exact UTC pending |362 files/three hashes match,8-test evidence reused;OAuth/scopes PASS at04:58:30Z with2189s. Proposed04:58:30Z..05:33:30Z,not approved;start strictly before05:03:30Z after rechecks. No Claim/GO/real collection |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2394,6 +2394,25 @@ then propose exact UTC for separate approval; do NOT repeat the ten confirmation
 unless actual conditions/contract change. No UTC proposed/approved,AUTHORIZATION
 BLOCKED,no Claim/GO,real private-Origin collection0;no historical tests rerun.
 Task Production0,third-party live0,writes0;USD0,Catalog ACTIVE,GROUP_2/3/Beta not authorized.
+
+## v18 Owner Confirmation and Proposed UTC (Not Authorized)
+
+Direct owner accepted exact v18 complete contract and all10 gates,including the
+limited unenumerated GET observation risk,not paid use or Node scope expansion.
+At trusted2026-10-15T04:58:30Z,local checks match all362 files/Binding/Packet/contract,
+unchanged private binding and source/Node identity,no override/replay state.
+Existing8-test evidence reviewed,not rerun. No undisclosed material difference.
+
+Default local OAuth PASS,account:read/workers_scripts:write present,remaining2189s,
+expires2026-10-15T05:34:59.748Z. Proposed validity04:58:30Z..05:33:30Z (35min),
+pending owner's exact UTC approval. Actual start strictly before05:03:30Z and
+OAuth>1860s/full1800s remain mandatory at approval and separate GO;otherwise stop,
+never auto-extend. OWNER_GATES_PENDING_UTC_20261015T045830Z_SAFE.json is a separate
+owner-confirmation/proposal record,not valid execution authorization. Frozen
+Packet/templates/binding unchanged;authorized times null,Claim/GO absent.
+Next sole action: owner explicitly approves this exact UTC window. Production0,
+third-party live0,writes0;no private Origin capture,USD0,Catalog ACTIVE,groups2/3
+and Beta NOT_AUTHORIZED. No automated credential refresh,tests or deployment.
 
 ## v17 UTC Proposal Pending Owner Approval
 
