@@ -23,8 +23,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped preparation branch: `codex/group1-manual-auth-policy-20261014`,
   based on Auth-bypass counterexample commit `8f1ac56f`;
   preserves prior local product/continuity commits and authorization history.
-- Current scoped recovery branch: `codex/group1-chrome-identity-v15-20261015`;
+- Previous scoped recovery branch: `codex/group1-chrome-identity-v15-20261015`;
   Chrome-only independent identity recovery, no push/deploy or old binding edits.
+- Current scoped repair branch: `codex/group1-control-readiness-v16-20261015`;
+  control-page foreground/readiness only; old v15 consumed evidence unchanged.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -54,7 +56,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests excluded without transport. Unknown other denied; next full authorization BLOCKED.3GET draft fails diagnostic-effectiveness review; no new executable Packet |
 | LOGIN_A real initialization | PARTIAL;1 new real-Chrome boundary case PASS with NO inert Turnstile Mock or injected unknown |5 islands hydrate,24 retained application responses,3 icons cancelled; genuine Turnstile bootstrap observed/aborted. API/render/challenge/post-token requests UNOBSERVED; full authorization BLOCKED |
 | Isolated standard Chrome Turnstile | ACCEPTED_WITH_DOCUMENTED_EXCEPTION | Live SDK/render/Frame/callback/cleanup retained; owner-approved visibility substitution applies to that instance ONLY; original INCOMPLETE receipt unchanged, no Production CAPTCHA PASS |
-| Current hybrid Auth boundary | MONITOR_ONLY; Chrome v15 CONSUMED / BLOCKED at LOGIN_A | Authorized v15 GO performed1 pre-Deployment GET, version PASS; no Start event or Production login navigation, Auth0/RLS0. Owner reported unusable white window. MANUAL_WAIT_DEADLINE, cleanup/Job drain PASS; no v15 replay |
+| Current hybrid Auth boundary | MONITOR_ONLY; v16 control repair READY_FOR_OWNER_APPROVAL | v15 remains CONSUMED/BLOCKED. Original-path Windows focus defect reproduced offline;9/9 headed Chrome checks PASS,305/305 new files match; Auth/RLS/Session/budgets unchanged, no new Production execution |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2174,3 +2176,40 @@ Next minimum action is an OFFLINE control-page visibility/window-focus review,
 not another SDK/Turnstile/resource/OAuth/Production diagnostic or automatic retry.
 Any future execution requires a fresh independent identity/approval/window/GO.
 Catalog ACTIVE, USD0, GROUP_1 not verified; GROUP_2/3/Public Beta NOT_AUTHORIZED.
+
+## v16 Control Visibility Repair (Offline)
+
+Original six-profile path reproduced with actual headed Chrome: all control DOMs
+and handlers rendered,original Start delivered in local test, but last-created
+blank page's Chrome owned Windows foreground; Page.bringToFront on A did NOT
+foreground A. document.hasFocus/visibility returned true even in background
+profiles and were insufficient evidence. WINDOW_FOCUS_FAILURE is PROVEN for
+the reproduced path; v15's exact historical HWND/tab identity remains UNKNOWN.
+
+New independent copy: tools/e-verify-group1-control-v16. Nonblank waiting page,
+readable UTF8 controls,button/binding ready handshake and exact owned-QA-title
+Win32 foreground helper replace the blind wait. Helper uses existing pipes and
+local window APIs only,spawned before existing Node guard,contained/drained by
+the same Job. No live automatic Start,SDK/Chrome/Worker/network policy changes,
+credential processing or added requests; initial failures stop before Deployment
+GET. Step failures stop before application navigation. Original time bound not
+extended; inability to focus is a clear failure,not a five-minute blind wait.
+
+9/9 directly affected headed tests PASS: six-context active A/unique Start,
+Stop,no-Start deadline,wrong-title focus denial,local Finish,Node-guard/Job drain,
+missing button,script exception,missing handler. Original reproduction and safe
+screenshots retained. Fixture CAPTCHA/Auth values are NOT real Production tests.
+Old278 frozen files and original13 conditions/14 cases/16 reads/private budgets/
+Auth and Session privacy code unchanged. New305/305 frozen files match.
+
+ID:e-verify-group1-native-manual-auth-openglasshub-20261015-control-v16.
+Binding:f85815750899bd5fce1891d2d42c4d653c089c23733bcbabcb60f270ff97f3a8.
+Packet:9f2f31e471a72dd15df252b458004dcd878f3a8480fa0d3d875b65fa067b453e.
+Contract:d26152fe7d66ee9e4923438d17ee986c24995fab1e5b8307fdb2ab21aaf1c3ad.
+HUMAN_GROUP1_CONTROL_V16_AUTHORIZATION_NOT_AUTHORIZED.md and independent repair
+diff describe local control/focus changes only. Nine gates null,UTC null,no Claim
+or valid authorization/GO. Old v15 approvals never silently carried over.
+Next single action: owner reviews v16 changes and reconfirms9 unchanged gates.
+Only then,immediately before new UTC proposal,check/restore OAuth as necessary;
+no OAuth refresh during engineering. New window and independent GO still required.
+Task Production requests/writes0,third-party live0; no push/deploy/test replay.
