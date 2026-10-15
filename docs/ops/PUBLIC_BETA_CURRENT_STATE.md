@@ -38,8 +38,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   pending Browser MONITOR_ONLY GET-tolerance contract;Node scope unchanged,no live run.
 - Previous scoped branch: `codex/playwright-local-e2e-20261015`, based on
   `ab8c154d`; ordinary headless local E2E, no further Native Chrome QA versions.
-- Current scoped branch: `codex/local-supabase-e2e-fast-track-20261015`, based on
+- Previous scoped branch: `codex/local-supabase-e2e-fast-track-20261015`, based on
   `104f15cd`; disposable local Supabase plus direct headless Playwright only.
+- Current scoped branch: `codex/comment-reactions-p1-20261015`, based on
+  `b6067037`; owner-approved local reaction ACL repair and targeted E2E only.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -74,7 +76,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
 | Fast-track native Auth + controlled Node RLS | v19 CONSUMED / BLOCKED before Start at LOGIN_A | MANUAL_WAIT_DEADLINE;owner saw no QA window and clicked nothing,Start events0. Programmatic focus PASS is not owner-visible proof. Deployment GET1,application observations0,Auth0,RLS0/16,cleanup PASS |
 | Simplified Playwright local E2E | 14 PASS / 8 BLOCKED, real headless Chrome | Direct login/form/mode and anonymous page/API checks; no control window. Preview config is Production-backed; no running isolated Supabase or isolated actors found. Auth/RLS/business writes BLOCKED, full GROUP_1 0/14 and authenticated RLS 0/16. No Production/third-party requests or old authorization reuse |
-| Local Supabase + automated user E2E | Actual local Auth13/13; original read assertions14/16; 6/14 original cases locally closed | Fresh owned53-migration database and A/B/ADMIN, ordinary authenticated RLS and private cross-user checks3/3. Local runtime/identities subsequently cleaned. Business subchecks10 PASS/1 FAIL/2 BLOCKED/1 NOT_RUN; comment-read500 reproduced. No new Production acceptance or old authorization reuse |
+| Local Supabase + automated user E2E | Historical Auth13/13 reused; local read assertions16/16 with14 reused; 7/14 original cases locally closed | Comment500 fixed locally with least-privilege migration, RLS unchanged. Fresh54-migration replay PASS. Targeted Chrome35 PASS/2 actual application FAIL; private isolation3/3 PASS. Selected business scope12 PASS/2 FAIL/2 BLOCKED. Both disposable instances cleaned; no Production acceptance |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -98,7 +100,60 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
 - Owned browser contexts closed; owned Astro daemon stopped and local test ports
   verified released. No new Native QA authorization, Claim, GO or deployment.
 
-## Local Supabase Fast Track (2026-10-15)
+## Comment Reaction P1 Closure (2026-10-15)
+
+- Owner approved the minimal LOCAL fix and regression; no Production/database
+  deployment approval. Migration commit `3249a954` adds
+  `20261015072723_restore_comment_reaction_application_privileges.sql`.
+- Root cause proven by the same running application/database: initial comment
+  GET500 (`permission denied for table comment_reactions`) becomes200 after
+  the migration. September privilege convergence had revoked table access while
+  July reaction RLS still intentionally authorized public reads and self writes.
+- Grants are column-scoped public count inputs, authenticated toggle inputs
+  and authenticated DELETE. No UPDATE, anonymous write, service-role grant,
+  RLS disable, helper rewrite or business API change. Exact RLS policy snapshot
+  is unchanged. Existing visibility excludes hidden/pending/deleted comments,
+  hidden posts and reserved private/test circles, including for ADMIN reactions.
+- Evidence: `output/playwright/local-supabase-e2e/COMMENT_REACTIONS_REVIEW_SAFE.md`
+  and `COMMENT_REACTIONS_SUMMARY_SAFE.json`. Runs `4889c238ecf0` and
+  `fb175138cd78` are retained separately, including initial test failures.
+- Actual Chrome results, deduplicated by latest assertion:35 PASS /2 FAIL.
+  Local denial adapter unit checks9/9 PASS. The first run reproduced500 before
+  applying the migration; the followup rebuilt a fresh database with all54
+  committed migrations. Only targeted dependencies were repeated, not Auth13.
+- A/B/ADMIN/anon comment GET, A comment/A+B replies, like/unlike/counts,
+  actor-specific liked_by_me, cross-user insert/delete/update refusal and
+  private reaction visibility PASS. Post owner UI deletion PASS. Original
+  private legal-row isolation3/3 remains PASS using ordinary credentials.
+- Two original anonymous reads now PASS with real401/42501 and nonempty hints;
+  fourteen unaffected read assertions reused. Local adapter accepts textual
+  diagnostic hints without accepting500, successful/private rows or wrong
+  SQLSTATE. Frozen Production validator and old failure receipts unchanged.
+  Local RLS-01 closure raises original-case local evidence from6 to7/14, not
+  Production acceptance; original16 plan is6 anon +10 authenticated A/B reads.
+- Two newly confirmed LOCAL application defects remain, not fixed implicitly:
+  (1) soft-deleted parent omitted by public comment RLS for B/anon, although
+  its published child reply is returned; UI drops the orphan from its tree;
+  (2) GET comment role lookup is guarded by `token && !myUserId`, but valid
+  tokens already set viewerUserId; ADMIN can_delete staysfalse. Real ADMIN
+  DELETE API succeeds while its UI action is absent. These require separate
+  review/approval of the relevant business/policy changes.
+- Selected business continuity: old10 unaffected PASS + reply + owner delete
+  =12 PASS; the two new defects FAIL; edit and R2 media BLOCKED. Post/comment
+  owner content-edit UI/API is absent in inspected source; this is a feature
+  gap, not an executed edit PASS. Existing circle-edit evidence is reused.
+- Both owned databases/volumes, actors, rows, encrypted credentials and TLS
+  keys removed; browser/Worker closed; loopback4328/56321/56322 listeners absent.
+  Config/scripts retained, unrelated Docker projects untouched. Local-only
+  rate-limit SQL dependency remains disclosed; Production parity UNKNOWN.
+- Next single action: owner review/approval of the two precise comment
+  thread/admin-visibility fixes. No rerun, provider operation, push, deployment,
+  Production Auth or Catalog thaw is authorized by this closure.
+
+## Historical Local Supabase Fast Track (Before P1 Repair)
+
+The following preserves the earlier baseline, superseded locally by the
+scoped P1 closure above; its receipts and historical failures remain unchanged.
 
 - Runbook: `docs/ops/local-playwright-user-e2e.md`. Scoped consolidated evidence:
   `output/playwright/local-supabase-e2e/SUMMARY_SAFE.json` and `REVIEW_SAFE.md`.

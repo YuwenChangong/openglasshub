@@ -12,7 +12,7 @@ node scripts/qa/run-local-user-e2e.mjs --run
 Preparation creates a fresh owned project outside the repository, using ports
 56320-56329 and a unique project ID. Supabase refuses port conflicts; it must
 not reset or reuse another project. The 50-file historical mirror is unchanged;
-three newer committed migrations are copied separately, giving 53 migrations.
+four newer committed migrations are copied separately, giving 54 migrations.
 All SQL executes through the exact fresh database container's Unix socket.
 Reported API/database/Storage targets are required to be local. API clients use
 only that newly-created target; inherited provider/database credentials are not
@@ -49,7 +49,10 @@ CAPTCHA is off only in this disposable configuration; no Production CAPTCHA
 claim is possible. Moderation uses the application's existing `local_only_safe`
 fallback, with no paid provider. External AI moderation is not accepted by this
 test. RLS assertions use real anon/authenticated credentials, never service-role
-HTTP queries. The frozen original 16-read validator is imported unchanged.
+HTTP queries. The frozen original 16-read validator is imported unchanged;
+the current local adapter normalizes textual PostgREST hints only on401/403
+SQLSTATE42501 denials. Status, exact relation/message and payload-shape checks
+remain enforced. This is not a change to a frozen Production contract.
 
 `--run` writes scoped safe results under `output/playwright/local-supabase-e2e`.
 Tests can PASS, FAIL, BLOCKED or NOT_RUN. A missing local dependency does not
@@ -72,5 +75,30 @@ support bounded followups. Every reused result retains its actual evidence run;
 reuse is appropriate only when application source, relevant schema and fixture
 semantics are unchanged. Never use those switches to imply a fresh full run.
 No old Native QA authorization, Claim, control window or GO is used.
+
+## Targeted Comment Regression
+
+Reuse the same local lifecycle, application build and browser setup:
+
+```powershell
+node scripts/qa/run-local-user-e2e.mjs --prepare
+$env:OGH_E2E_COMMENT_REGRESSION='1'
+node scripts/qa/run-local-user-e2e.mjs --run
+Remove-Item Env:OGH_E2E_COMMENT_REGRESSION
+node --test scripts/qa/local-rls-assertions.test.mjs
+```
+
+This mode runs only necessary UI logins, comment/reply/reaction/delete checks,
+three private-row checks and the two affected anonymous read assertions.
+It does not rerun the full positive Auth13 or historical page matrix. The
+reaction migration must already be committed for fresh `--prepare` replay.
+During the initial P1 proof only, the owned pre-fix database received the exact
+new migration after reproducing500; later fresh databases replay it normally.
+
+`OGH_E2E_COMMENT_FOLLOWUP=1` narrows that mode to the documented delete followup
+and its necessary fixture creation. This is not a full regression or automatic
+evidence reuse. Original runner results remain immutable. See the scoped
+comment review for two real application defects still expected to FAIL; do
+not suppress them or interpret successful cleanup as a passing business suite.
 
 CLI lifecycle reference: [Supabase local development](https://supabase.com/docs/guides/local-development/cli/getting-started).

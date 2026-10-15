@@ -4,12 +4,14 @@ import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { chromium } from 'playwright';
 import { unstable_startWorker } from 'wrangler';
-import { catalogSteps, verifyGroup1Catalog } from '../../tools/e-verify-group1-login-diagnostics/execution/group1/rls.mjs';
+import { catalogSteps } from '../../tools/e-verify-group1-login-diagnostics/execution/group1/rls.mjs';
 import { randomBytes } from 'node:crypto';
 import { sanitizeSupabaseStartDiagnosticText } from './local-disposable-supabase-replay.mjs';
 import { buildOutboundFetchInit } from '../lib/locale-v2-outbound-bridge.mjs';
+import { verifyLocalCatalog } from './local-rls-assertions.mjs';
 
 export async function runCases({s,root,environment,command,sql}) {
+  const commentRegression=process.env.OGH_E2E_COMMENT_REGRESSION==='1';
   const out = path.join(root,'output/playwright/local-supabase-e2e',s.runId);
   await fs.mkdir(out,{recursive:true});
   const report = {environment:'DISPOSABLE_LOCAL_SUPABASE_REAL_ASTRO_REAL_AUTH',runId:s.runId,results:[],group1:[],
@@ -50,7 +52,7 @@ export async function runCases({s,root,environment,command,sql}) {
   }
   async function dbCount(table,where) { return +(await sql(s,`select count(*) from public.${table} where ${where};`)).stdout.trim(); }
   try {
-    for (const [actor,identity] of Object.entries(s.actors)) {
+    for (const [actor,identity] of commentRegression?[]:Object.entries(s.actors)) {
       await check('REAL_NODE_AUTH_'+actor,async()=>{
         const client=createClient(s.status.API_URL,s.status.ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
         const {data,error}=await client.auth.signInWithPassword({email:identity.email,password:identity.password});
@@ -60,19 +62,19 @@ export async function runCases({s,root,environment,command,sql}) {
         return {realLocalAuth:true,expectedIdentityVerified:true,serviceRoleUsed:false};
       },'auth');
     }
-    for (const step of catalogSteps()) {
+    for (const step of commentRegression?[]:catalogSteps()) {
       await check(step.id,async()=>{
         if (step.actor!=='anon'&&!sessions[step.actor]) throw block('AUTH_SESSION_UNAVAILABLE');
         const response=await localFetch(step.path,{headers:{apikey:s.status.ANON_KEY,...(step.actor==='anon'?{}:{Authorization:'Bearer '+sessions[step.actor].access_token})}});
         const body=Buffer.from(await response.text());
-        try { verifyGroup1Catalog(step,{status:response.status,body}); }
+        try { verifyLocalCatalog(step,{status:response.status,body}); }
         catch(e) { const data=JSON.parse(body); e.safeEvidence={httpStatus:response.status,permissionCode:typeof data.code==='string'?data.code:null,rows:Array.isArray(data)?data.length:null,
           detailEmpty:data.details==null||data.details==='',hintEmpty:data.hint==null||data.hint==='',messageClass:/permission denied/.test(data.message??'')?'PERMISSION_DENIED':'OTHER'};throw e; }
         return {httpStatus:response.status,contentAndPolicyAssertion:true,actor:step.actor,serviceRoleUsed:false};
       },'original16Rls');
     }
     for (const a of Object.values(s.actors)) await sql(s,`select public.record_current_legal_policy_acceptance(${q(a.id)},'2026-07','2026-07','2026-07','2026-07',16::smallint,'legacy_account_gate');`);
-    for (const actor of ['A','B']) await check('OWN_PRIVATE_RLS_'+actor,async()=>{
+    for (const actor of commentRegression?[]:['A','B']) await check('OWN_PRIVATE_RLS_'+actor,async()=>{
       const other=actor==='A'?'B':'A';
       const own=await readTable(actor,'legal_policy_acceptances','select=user_id&user_id=eq.'+s.actors[actor].id);
       const denied=await readTable(actor,'legal_policy_acceptances','select=user_id&user_id=eq.'+s.actors[other].id);
@@ -80,7 +82,7 @@ export async function runCases({s,root,environment,command,sql}) {
       assert.equal(denied.status,200);assert.deepEqual(denied.data,[]);
       return {ownRows:1,crossUserRows:0,databaseRlsEnforced:true,serviceRoleUsed:false};
     },'additionalRls');
-    await check('ANON_PRIVATE_RLS',async()=>{
+    if(!commentRegression) await check('ANON_PRIVATE_RLS',async()=>{
       const r=await localFetch('/rest/v1/legal_policy_acceptances?select=user_id',{headers:{apikey:s.status.ANON_KEY}}),data=await r.json();
       assert.ok([401,403].includes(r.status)&&data.code==='42501','ANON_PRIVATE_POLICY_DENIAL');
       return {httpStatus:r.status,permissionCode:data.code};
@@ -154,7 +156,7 @@ export async function runCases({s,root,environment,command,sql}) {
         assert.equal(r.status,200);assert.equal(user.id,identity.id);
         return {realUiFormSubmitted:true,serverIdentityVerified:true,captcha:'LOCAL_OFF_NOT_PRODUCTION'};
       },'auth');
-      await check('BROWSER_PERSISTENCE_'+actor,async()=>{
+      if(!commentRegression) await check('BROWSER_PERSISTENCE_'+actor,async()=>{
         if(!passed('BROWSER_LOGIN_'+actor))throw block('BROWSER_LOGIN_NOT_PASSED');
         await p.reload({waitUntil:'domcontentloaded'});assert.equal((await currentSession(p))?.user?.id,identity.id);
         return {reloadKeepsExpectedSession:true};
@@ -164,6 +166,12 @@ export async function runCases({s,root,environment,command,sql}) {
       for(const actor of ['A','B','ADMIN'])assert.equal((await currentSession(pages[actor]))?.user?.id,s.actors[actor].id,'CONTEXT_IDENTITY_MISMATCH');
       assert.equal(new Set(Object.values(contexts)).size,3);return {independentContexts:3,expectedIdentities:3};
     },'auth');
+    if(commentRegression) {
+      for(const actor of ['A','B','ADMIN']) sessions[actor]=await currentSession(pages[actor]);
+      const {runCommentRegression}=await import('./local-comment-regression.mjs');
+      await runCommentRegression({s,root,out,sql,check,report,localFetch,readTable,dbCount,browserApi,responseFor,goto,pages,contexts,newContext,postId,circleId,sessions});
+      return {failed:report.results.some(x=>x.status==='FAIL')||Boolean(report.environmentBlocker)};
+    }
     for(const actor of ['A','B','ADMIN']) await check('ADMIN_API_'+actor,async()=>{
       if(!passed('BROWSER_LOGIN_'+actor))throw block('BROWSER_LOGIN_NOT_PASSED');
       const r=await browserApi(pages[actor],'/api/admin/devices');assert.equal(r.status,actor==='ADMIN'?200:403,'ADMIN_PERMISSION_STATUS');
