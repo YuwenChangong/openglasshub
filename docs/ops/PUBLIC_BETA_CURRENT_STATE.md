@@ -67,7 +67,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
-| Fast-track native Auth + controlled Node RLS | v19 AUTHORIZED exact UTC; independent GO NOT_ISSUED | Owner approved05:41:36Z..06:26:36Z;at05:44:30Z385 freeze/private budget/runtime/source PASS,OAuth3361s. Actual start strictly before05:56:36Z with fresh gates;no Claim or live execution |
+| Fast-track native Auth + controlled Node RLS | v19 CONSUMED / BLOCKED before Start at LOGIN_A | MANUAL_WAIT_DEADLINE;owner saw no QA window and clicked nothing,Start events0. Programmatic focus PASS is not owner-visible proof. Deployment GET1,application observations0,Auth0,RLS0/16,cleanup PASS |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2685,3 +2685,37 @@ never automatic extension. Exact separate command:
 GO_E_VERIFY_GROUP1_NATIVE_MANUAL_AUTH_RECOVERY_V19. Stop after recording approval;
 no Production identity claim before the authorized precheck. Production/third-party
 requests0,writes0,USD0,Catalog ACTIVE,groups2/3 and Beta NOT_AUTHORIZED.
+
+## v19 Actual GO Closure - Start Event Not Received
+
+Owner issued the separate v19 GO within its approved window. One attempt only;
+parent/child Claims exist and authorization is CONSUMED,never reusable despite
+remaining approved time. Pre-Deployment PASS:b2b62ec9-bb8d-4159-ac99-08fca5740134,
+traffic100%,recovery0%,one confirmed Deployment GET. No post-check/new live probe.
+Account A remained in LOGIN_A waiting for Start;300s manual deadline expired.
+Supervisor elapsed310199ms,EXIT_NONZERO,NOT global timeout,child reaped/Job closed.
+
+All6 control DOMs/handlers/programmatic focus checks PASS,but A Start events0;
+this does not prove no human click or usable visible window. Owner subsequently
+reported window/login-page abnormal,without a precise symptom yet. Independent
+OWNER_WINDOW_ANOMALY_SUPPLEMENT_SAFE.json records that observation,not a changed
+execution event. Root cause UNKNOWN;do not call this a CAPTCHA/ERR_ABORTED failure
+or assume the owner failed to click. No application page navigation occurred
+through this adapter;all6 page observations0,Auth0,identities0,RLS0/16,vendor0,
+unresolved aborts0. Admissions7 comprise6 local controls plus1 provider precheck;
+native unobserved/background traffic remains UNKNOWN,not a hard wire count.
+
+Cleanup PASS,all6 contexts closed/Session channels destroyed,supervised child and
+broker absent at closure check. Profile cleanup is executor-receipt evidence,
+not independent path-by-path deletion proof. Original execution/final/supervisor/
+Claims remain unchanged;additive GO_CLOSURE_SAFE.json preserves hashes. No retries,
+policy/source change,new authorization,tests,deploy,push or extra live request.
+Owner then explicitly clarified: saw nothing and clicked nothing. Separate
+OWNER_NO_WINDOW_OBSERVATION_SAFE.json preserves that precise observation;the
+earlier broad window-anomaly supplement is untouched. Do not label it white-screen,
+button-handler failure or browser-launch failure without evidence. Actual owner
+visibility differs from the software focus/readiness checks;root cause UNKNOWN.
+Next sole action: OFFLINE verify QA-window visibility in the owner's interactive
+Windows session/desktop before considering any fresh authorization. No repeated
+Production attempt or new QA architecture is assumed or authorized by this GO.
+Production/Provider writes0,USD0,Catalog ACTIVE,groups2/3 and Beta NOT_AUTHORIZED.
