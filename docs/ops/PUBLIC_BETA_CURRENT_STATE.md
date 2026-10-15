@@ -64,7 +64,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Isolated standard Chrome Turnstile | ACCEPTED_WITH_DOCUMENTED_EXCEPTION | Live SDK/render/Frame/callback/cleanup retained; owner-approved visibility substitution applies to that instance ONLY; original INCOMPLETE receipt unchanged, no Production CAPTCHA PASS |
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
-| Protected-Origin successor contract | v17 owner10/10 gates RECORDED, NOT_AUTHORIZED | Contract/Binding/Packet and340 files match; OAuth expired, required scopes present. UTC still pending; no Claim/GO or real Origin collection. Historical checks reused |
+| Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2391,3 +2391,70 @@ then propose exact UTC for separate approval; do NOT repeat the ten confirmation
 unless actual conditions/contract change. No UTC proposed/approved,AUTHORIZATION
 BLOCKED,no Claim/GO,real private-Origin collection0;no historical tests rerun.
 Task Production0,third-party live0,writes0;USD0,Catalog ACTIVE,GROUP_2/3/Beta not authorized.
+
+## v17 UTC Proposal Pending Owner Approval
+
+Owner reported manual OAuth login completed. At trusted UTC2026-10-15T04:35:22Z,
+local checks PASS: default OAuth/required scopes,remaining3576s,expires05:34:59.748Z;
+340/340 frozen files,exact three hashes,private binding,source HEAD,Node runtime,
+no override/replay/Claim. Ten owner gates remain recorded;no tests rerun or network.
+Proposed window04:35:22Z..05:20:22Z (45min),NOT approved. Actual start must be
+strictly before04:50:22Z and again pass OAuth>1860s;otherwise stop/reapprove window,
+never auto-extend. Separate UTC_WINDOW_PROPOSED_NOT_AUTHORIZED_20261015T043522Z_SAFE.json
+records the proposal,not authorization. Actual authorized times remain null.
+Next sole action: owner explicitly accepts that exact UTC window. No valid
+authorization/Claim/GO or private-Origin collection,Production/third-party/writes0.
+
+## v17 Exact UTC Authorization Recorded, Await Separate GO
+
+Direct owner approved2026-10-15T04:35:22Z..05:20:22Z without GO. At04:37:56.566Z,
+all340 frozen files,three hashes,ten gates,private binding,Node/source and fresh
+state passed locally;OAuth remaining3423s,required scopes PASS,expires05:34:59.748Z.
+AUTHORIZATION_APPROVED.json records the owner's exact approval without modifying
+the frozen pending template/Packet/contract/binding. Authorization not consumed,
+Claim absent,no execution or real private-Origin collection;Production/third-party/
+writes0. No historical tests rerun. Independent command after this task only:
+GO_E_VERIFY_GROUP1_NATIVE_MANUAL_AUTH_PROTECTED_ORIGIN_V17.
+Actual start must be strictly before04:50:22Z and pass OAuth>1860s/all gates again;
+otherwise stop and obtain a new exact window,never extend implicitly. Catalog
+ACTIVE,USD0,GROUP_1 acceptance still BLOCKED,GROUP_2/3/Beta NOT_AUTHORIZED.
+
+## v17 Actual GO Closure and Private Evidence Cleanup
+
+Owner issued the exact separate v17 GO within its approved window. Parent/child
+Claims created once; authorization CONSUMED,not reusable despite remaining time.
+One supervised attempt ended after23257ms,NOT timeout. Pre-Deployment PASS:
+b2b62ec9-bb8d-4159-ac99-08fca5740134,traffic100%,recovery0%;confirmed Deployment GET1.
+Post-Deployment unreached. Current live state after stop is not freshly checked.
+
+A Start was received exactly once;control DOM/handler/OS focus PASS. Owner confirms
+clicking Start,seeing the actual login page,then automatic window closure. This
+matches the executor's OBSERVED_UNAPPROVED_REQUEST stop,not a new white-screen
+failure. Observed Auth0,identities0,negatives0,RLS0/16,Mutation0. No real Auth/CAPTCHA/
+RLS result may be marked PASS. Global observed admissions39,page observations33,
+vendor admissions4;these are incomplete MONITOR_ONLY counts,NOT exact wire totals.
+
+New diagnostic evidence identifies the v17 rejected event as HTTPS GET/fetch from
+a real TURNSTILE_FRAME with APPLICATION_MAIN_FRAME parent,to a different eligible
+HTTPS DNS Origin. Private-memory review confirms Cloudflare DNS namespace,default
+HTTPS port,NOT any of the three contracted Hosts;no literal match in pinned source.
+This is NOT permission or proof of vendor legitimacy. Main-page CDP did not cover
+this event;initiating script UNKNOWN,redirectedFrom absent,dispatch may already
+have occurred. No raw private Origin/path/query/header/token was exported. Exact
+lost v16 request identity and equality with this new event remain UNKNOWN.
+
+One private Origin record was captured/reviewed;the frozen local review/destroy
+entry processed all6 stores. Independent filesystem checks find all6 directories
+absent,not merely logically expired. Private cleanup PASS. Exact Origin/ciphertext
+is no longer retained or recoverable from the safe receipt;no forensic erase
+guarantee. Browser cleanup PASS,all6 contexts closed,supervised Job drained/child
+reaped,no deadline kill. Original execution/final/supervisor/review receipts and
+Claims preserved;GO_CLOSURE_SAFE.json adds hashes and safe review classifications.
+
+No retry,whitelist/contract/code change,additional Production probe,or new
+authorization. Next single action: OFFLINE review of this demonstrated Turnstile
+Frame/additional-Origin policy gap,with any new scope requiring independent owner
+approval. Do not assume a DNS-family match authorizes a request or replay v17.
+Production writes0,Provider writes0,Node/manual retries0;hidden native traffic and
+retries UNKNOWN. Local review/deletion made0 network requests. USD0,Catalog ACTIVE,
+GROUP_1 BLOCKED,GROUP_2/3/Beta NOT_AUTHORIZED. No deployment,push or thaw.
