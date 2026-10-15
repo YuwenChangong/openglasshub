@@ -67,7 +67,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
-| Fast-track native Auth + controlled Node RLS | v19 owner11/11 confirmed; OAuth PASS; exact UTC proposed only | At05:41:36Z,385 freeze/private budget/runtime/source PASS;OAuth3536s,expires06:40:32.189Z. Proposed05:41:36Z..06:26:36Z awaiting owner;no effective authorization,Claim or GO |
+| Fast-track native Auth + controlled Node RLS | v19 AUTHORIZED exact UTC; independent GO NOT_ISSUED | Owner approved05:41:36Z..06:26:36Z;at05:44:30Z385 freeze/private budget/runtime/source PASS,OAuth3361s. Actual start strictly before05:56:36Z with fresh gates;no Claim or live execution |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2670,3 +2670,18 @@ original owner record and all frozen files untouched. No effective authorization
 Claim,GO,Production/third-party request or writes. Next sole action: owner approves
 this exact window for v19;only afterward record authorization and stop for separate
 GO. USD0,Catalog ACTIVE,groups2/3/Beta not authorized. No old approval/GO reused.
+
+## v19 Exact UTC Authorized - Independent GO Pending
+
+Owner explicitly approved2026-10-15T05:41:36Z..06:26:36Z,full frozen contract,
+three hashes and11 current gates,NOT GO. At05:44:30.508Z exact authorization
+validator,385 files,private budget/runtime/source,fresh-instance and OAuth checks
+PASS. Required scopes PASS,remaining3361s,expires06:40:32.189Z. Separate
+AUTHORIZATION_APPROVED.json saved;frozen inputs/templates and owner history
+unchanged. Authorization unconsumed;no Claim/GO/live request or test rerun.
+Actual start strictly before05:56:36Z with fresh frozen/OAuth>1860s checks and
+full1800s work/cleanup coverage. Later start requires new owner-approved time,
+never automatic extension. Exact separate command:
+GO_E_VERIFY_GROUP1_NATIVE_MANUAL_AUTH_RECOVERY_V19. Stop after recording approval;
+no Production identity claim before the authorized precheck. Production/third-party
+requests0,writes0,USD0,Catalog ACTIVE,groups2/3 and Beta NOT_AUTHORIZED.
