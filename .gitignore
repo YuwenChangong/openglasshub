@@ -11,3 +11,4 @@ Thumbs.db
 .tmp-*.log
 artifacts/qa/
 artifacts/device-schema-v1/
+.local-e2e/

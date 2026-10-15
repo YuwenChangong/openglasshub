@@ -36,8 +36,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   private-Origin contract review and pending v17 Packet only, no real collection.
 - Previous scoped branch: `codex/group1-fast-track-manual-20261015`;
   pending Browser MONITOR_ONLY GET-tolerance contract;Node scope unchanged,no live run.
-- Current scoped branch: `codex/playwright-local-e2e-20261015`, based on
+- Previous scoped branch: `codex/playwright-local-e2e-20261015`, based on
   `ab8c154d`; ordinary headless local E2E, no further Native Chrome QA versions.
+- Current scoped branch: `codex/local-supabase-e2e-fast-track-20261015`, based on
+  `104f15cd`; disposable local Supabase plus direct headless Playwright only.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -72,6 +74,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
 | Fast-track native Auth + controlled Node RLS | v19 CONSUMED / BLOCKED before Start at LOGIN_A | MANUAL_WAIT_DEADLINE;owner saw no QA window and clicked nothing,Start events0. Programmatic focus PASS is not owner-visible proof. Deployment GET1,application observations0,Auth0,RLS0/16,cleanup PASS |
 | Simplified Playwright local E2E | 14 PASS / 8 BLOCKED, real headless Chrome | Direct login/form/mode and anonymous page/API checks; no control window. Preview config is Production-backed; no running isolated Supabase or isolated actors found. Auth/RLS/business writes BLOCKED, full GROUP_1 0/14 and authenticated RLS 0/16. No Production/third-party requests or old authorization reuse |
+| Local Supabase + automated user E2E | Actual local Auth13/13; original read assertions14/16; 6/14 original cases locally closed | Fresh owned53-migration database and A/B/ADMIN, ordinary authenticated RLS and private cross-user checks3/3. Local runtime/identities subsequently cleaned. Business subchecks10 PASS/1 FAIL/2 BLOCKED/1 NOT_RUN; comment-read500 reproduced. No new Production acceptance or old authorization reuse |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -94,6 +97,41 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
   path. Production-bound Preview and actor configurations must not be reused.
 - Owned browser contexts closed; owned Astro daemon stopped and local test ports
   verified released. No new Native QA authorization, Claim, GO or deployment.
+
+## Local Supabase Fast Track (2026-10-15)
+
+- Runbook: `docs/ops/local-playwright-user-e2e.md`. Scoped consolidated evidence:
+  `output/playwright/local-supabase-e2e/SUMMARY_SAFE.json` and `REVIEW_SAFE.md`.
+- Docker Desktop named-pipe target verified. Fresh project/container only;
+  50 unchanged historical migrations plus3 committed later migrations. No
+  Production secrets/data/config or shared database reset. Private random actors
+  protected with existing CurrentUser DPAPI and owner/SYSTEM DACL.
+- Canonical migrations omit the required atomic rate-limit RPC. Its existing
+  fixed-hash R3 local-test SQL was installed only as a disclosed disposable
+  dependency, not a new canonical migration or Production-parity claim.
+- Real UI login/Node identity/reload/Context separation/logout13/13 PASS.
+  Original16-read plan includes6 anonymous and10 A/B reads:14 pass unchanged
+  assertions;2 actual401/42501 denials fail the frozen empty-hint payload rule.
+  Additional own/private/cross-user tests3/3 PASS with ordinary Auth credentials.
+- Post/comment submission, post likes, circle create/edit, reporting, moderator
+  hide, notification reads and mobile Feed layout have scoped successful evidence.
+  A test-waiter interruption is preserved separately; retrospective completed
+  assertions are labeled as analyst transcription, not a runtime receipt.
+- Confirmed LOCAL source/schema defect: comment API selects `comment_reactions`
+  at `src/pages/api/forum/comments.ts:450`, while canonical security migration
+  `20260904054013_forward_reconcile_security_privileges.sql:43` revokes that
+  access. Actual response500 prevents comment-list/reply use. Production ACL
+  remains unobserved; do not grant permissions or patch business code implicitly.
+- Owner-delete test's alertdialog locator corrected but NOT revalidated. Post
+  editing, R2 image/video workflow, notification delivery and complete sort/UI/
+  negative-auth/CAPTCHA scope remain incomplete. Only6 original cases are locally
+  closed; shell-only analogues must not inflate complete GROUP_1 acceptance.
+- Browser/Worker stopped, owned containers AND volumes absent, random accounts/
+  rows and DPAPI data deleted; temporary TLS keys removed. Existing unrelated
+  stopped Docker projects/volumes untouched. Config/scripts retained for reuse.
+- Next single action: review/approve the minimal comment-read privilege-contract
+  fix. No app/security/Production fix was applied. Catalog and Public Beta holds,
+  GROUP_2/3 Production restrictions and all consumed authorization history remain.
 
 ## Evidence Locator
 
