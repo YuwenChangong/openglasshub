@@ -67,7 +67,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
-| Fast-track native Auth + controlled Node RLS | v18 CONSUMED / BLOCKED at LOGIN_A | Start PASS; NATIVE_REQUEST_FAILED, GET/fetch OTHER net::ERR_ABORTED; precise identity UNKNOWN. Auth0, RLS0/16, cleanup PASS; no retry or reuse |
+| Fast-track native Auth + controlled Node RLS | v18 CONSUMED / BLOCKED; abort classification C | QA failure callback preceded QA close; cancellation cause/identity UNKNOWN. Offline8/8 targeted checks; no safe exemption or new Packet. Auth0,RLS0/16,cleanup PASS |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2572,3 +2572,33 @@ Production/Provider writes0;hidden native retries/dispatch totals UNKNOWN. Next
 single action: narrowly review requestfailed/net::ERR_ABORTED stop semantics
 OFFLINE before any new authorization;do not assume all aborted GETs are safe.
 USD0,Catalog ACTIVE,GROUP_2/3 and Public Beta NOT_AUTHORIZED,GROUP_1 BLOCKED.
+
+## v18 ERR_ABORTED Offline Causality Decision
+
+Classification C: historical cancellation cause/request identity UNKNOWN. The
+frozen listener proves the recorded failure callback ran while closing=false,
+then stop(NATIVE_REQUEST_FAILED) synchronously set first failure and entered
+close(),which sets closing=true before context/browser close. This establishes
+QA first-stop/close order only;no timestamped frame/navigation/abort trace exists
+to prove a benign lifecycle abort or exclude another earlier browser cancellation.
+responseStatus=null for OTHER is not proof of missing HTTP response:that map only
+tracks selected Auth responses. The tolerated GET cannot be linked to the failed
+GET. Consumed v18 remains BLOCKED;no whitelist/contract or execution-source edit.
+
+New scoped regression final8/8 PASS (4 frozen-code deterministic checks,4 offline
+Chrome fixtures). Explicit fetch cancel reproduces ERR_ABORTED/fatal close;ordinary
+navigation does not prove automatic unload cancellation. Network-failure fixture,
+illegal POST,cleanup guard and first-failure preservation checked. Three earlier
+local failed attempts retained/disclosed in tools/e-verify-group1-abort-review/
+DECISION.md;do not count them as passes. Existing historical suites not rerun.
+Frozen362/362 and original v18 receipts remain unchanged. Local-only deny proxy
+may receive background CONNECT attempts but never forwards them;no SDK/live probe.
+
+Next sole action: owner decides the scoped alternative in DECISION.md: standard
+Chrome manual authentication without the inherited generic requestfailed-immediate-
+close policy,plus unchanged HARD Node identity/16 reads and private Session bridge.
+This would explicitly accept delayed network-failure detection,not declare any
+unknown abort benign;all real identity/credential/Mutation/cost/deadline stops and
+positive case evidence stay required. New owner contract approval is needed;
+no executable Packet,new authorization,UTC,Claim or GO prepared in this review.
+Task Production0,third-party live0,writes0;USD0,Catalog ACTIVE,groups2/3/Beta not authorized.
