@@ -166,7 +166,7 @@ export async function runCommentRegression(h) {
   },'permissions');
   const deleteComment=async(actor,id)=>{
     const p=pages[actor];await goto(p,'/posts/'+postId+'/');
-    await p.locator('#comment-'+id).getByRole('button',{name:'Delete',exact:true}).click();
+    await p.locator('#comment-'+id).getByRole('button',{name:actor==='ADMIN'?'Remove as moderator':'Delete',exact:true}).click();
     const waiting=responseFor(p,r=>new URL(r.url()).pathname==='/api/forum/comments'&&r.request().method()==='DELETE');
     await p.getByRole('alertdialog').getByRole('button',{name:/Confirm delet(?:e|ion)|确认删除/}).click();
     assert.equal((await waiting).status(),200);assert.equal(await dbCount('comments',`id=${q(id)} and status='deleted'`),1);

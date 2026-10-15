@@ -34,7 +34,7 @@ export const prerender = false;
 interface CommentRow {
   id: string;
   post_id: string;
-  author_id: string;
+  author_id: string | null;
   parent_id: string | null;
   body: string;
   status: string;
@@ -59,7 +59,7 @@ interface ReactionRow {
 interface EnrichedComment {
   id: string;
   post_id: string;
-  author_id: string;
+  author_id: string | null;
   parent_id: string | null;
   body: string;
   status: string;
@@ -75,6 +75,7 @@ interface EnrichedComment {
   liked_by_me: boolean;
   reply_count: number;
   can_delete: boolean;
+  delete_as_staff: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -395,7 +396,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .select("id, post_id, author_id, parent_id, body, status, moderation_status, created_at, updated_at")
       .eq("post_id", readTarget.postId)
       .in("status", ["published", "deleted", "pending"])
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(1000);
 
     if (commentsError) {
       if (isMigrationMissingError(commentsError)) return migrationRequiredResponse();
@@ -413,23 +415,30 @@ export const GET: APIRoute = async ({ request, locals }) => {
         (c.moderation_status ?? null) === "pending_review" &&
         viewerUserId === c.author_id,
     );
-    const deletedComments = rows.filter((c) => c.status === "deleted");
-
-    // A deleted comment is only kept if it has child replies among published comments
-    const deletedWithReplies = deletedComments.filter((dc) =>
-      publishedComments.some((pc) => pc.parent_id === dc.id),
-    );
-    const deletedIds = new Set(deletedWithReplies.map((c) => c.id));
+    // RLS deliberately hides deleted bodies. A bounded projection supplies only
+    // public reply ancestry, never deleted content, authors, media or reactions.
+    let deletedWithReplies: CommentRow[] = [];
+    if (publishedComments.some((c) => c.parent_id)) {
+      const { data: placeholders, error: placeholderError } = await client.rpc("deleted_comment_placeholders", {
+        target_post_id: readTarget.postId,
+        visible_comment_ids: publishedComments.map((c) => c.id),
+      });
+      if (placeholderError) return json({ error: "COMMENT_PLACEHOLDER_READ_FAILED" }, 500);
+      deletedWithReplies = (placeholders ?? []).map((c: Pick<CommentRow, "id" | "post_id" | "parent_id" | "created_at" | "updated_at">) => ({
+        ...c, author_id: null, body: "", status: "deleted", moderation_status: "published",
+      }));
+    }
 
     // Final comment set: all published + deleted placeholders with replies
-    const visibleComments = [...publishedComments, ...pendingComments, ...deletedWithReplies];
+    const visibleComments = [...publishedComments, ...pendingComments, ...deletedWithReplies]
+      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
 
     if (visibleComments.length === 0) {
       return json({ comments: [], total: 0 });
     }
 
     // Fetch profiles for all visible comment authors
-    const authorIds = [...new Set(visibleComments.map((c) => c.author_id))];
+    const authorIds = [...new Set(visibleComments.map((c) => c.author_id).filter((id): id is string => id !== null))];
     const { data: profiles, error: profilesError } = await client
       .from("profiles")
       .select("id, username, display_name, avatar_url, role")
@@ -473,30 +482,13 @@ export const GET: APIRoute = async ({ request, locals }) => {
     }
 
     // Determine liked_by_me if authenticated
-    let myUserId: string | null = viewerUserId;
+    const myUserId = viewerUserId;
     let myRole: string | null = null;
-
-    if (token && !myUserId) {
-      try {
-        const userClient = createUserClient(env, token);
-        const { data: authData } = await userClient.auth.getUser(token);
-        if (authData?.user) {
-          myUserId = authData.user.id;
-          const profile = profileMap.get(myUserId);
-          if (!profile) {
-            const { data: myProfile } = await userClient
-              .from("profiles")
-              .select("id, role")
-              .eq("id", myUserId)
-              .maybeSingle();
-            if (myProfile) myRole = (myProfile as { role: string }).role;
-          } else {
-            myRole = profile.role;
-          }
-        }
-      } catch {
-        // Token invalid, proceed as anonymous
-      }
+    if (myUserId) {
+      const { data: myProfile, error: myProfileError } = await client.from("profiles")
+        .select("role").eq("id", myUserId).maybeSingle();
+      if (myProfileError) return json({ error: "COMMENT_VIEWER_ROLE_READ_FAILED" }, 500);
+      myRole = myProfile?.role ?? null;
     }
 
     const likedSet = new Set<string>();
@@ -510,8 +502,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     // Enrich comments
     const enriched: EnrichedComment[] = visibleComments.map((c) => {
-      const profile = profileMap.get(c.author_id);
-      const isDeleted = c.status === "deleted" || deletedIds.has(c.id);
+      const profile = c.author_id ? profileMap.get(c.author_id) : null;
+      const isDeleted = c.status === "deleted";
       return {
         id: c.id,
         post_id: c.post_id,
@@ -532,7 +524,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
         like_count: likeCountMap.get(c.id) ?? 0,
         liked_by_me: likedSet.has(c.id),
         reply_count: replyCountMap.get(c.id) ?? 0,
-        can_delete: myUserId === c.author_id || isStaff,
+        can_delete: !isDeleted && Boolean(myUserId && (myUserId === c.author_id || isStaff)),
+        delete_as_staff: !isDeleted && isStaff && myUserId !== c.author_id,
       };
     });
 

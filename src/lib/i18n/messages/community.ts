@@ -3,6 +3,8 @@ import { formatPostTime } from "../../format-time.ts";
 
 export const communityMessages = {
   "zh-CN": {
+    moderateDeleteComment: "审核删除",
+    moderateDeleteCommentDetail: "以管理员或版主身份删除此评论。正文将隐藏，有权查看的回复仍会保留。",
     tabFeed: "动态", feed: "帖子动态", feedDescription: "OpenGlass Hub 论坛公开帖子动态，支持推荐、最新与热门排序。",
     share: "分享", copied: "已复制", like: "点赞", unlike: "取消点赞", bookmark: "收藏", unbookmark: "取消收藏",
     composerTypes: { question: "求助", experience: "文字", review: "体验/评测", dev: "开发", news: "资讯", feedback: "反馈" }, composerTypeHints: { question: "兼容性、选购和使用问题。", experience: "适合一般讨论、观察记录和补充说明。", review: "适合完整总结、对比和长期观察。", dev: "围绕 SDK、权限、输入和系统能力讨论。", news: "适合手动整理的动态、公告和观察。", feedback: "对产品、社区和 Gaze Launcher 的建议。" },
@@ -44,6 +46,8 @@ export const communityMessages = {
     types: { experience: "体验", question: "提问", review: "评测", dev: "开发", news: "资讯", feedback: "反馈" },
   },
   en: {
+    moderateDeleteComment: "Remove as moderator",
+    moderateDeleteCommentDetail: "Remove this comment as an administrator or moderator. Its body will be hidden; permitted replies will remain.",
     tabFeed: "Feed", feed: "Post Feed", feedDescription: "Public OpenGlass Hub forum posts, sorted by recommended, latest or popular.",
     share: "Share", copied: "Copied", like: "Like", unlike: "Unlike", bookmark: "Bookmark", unbookmark: "Remove bookmark",
     composerTypes: { question: "Help", experience: "Text", review: "Experience / review", dev: "Development", news: "News", feedback: "Feedback" }, composerTypeHints: { question: "Compatibility, buying and usage questions.", experience: "General discussion, observations and additional details.", review: "Summaries, comparisons and long-term observations.", dev: "SDKs, permissions, input and system capabilities.", news: "Manually curated updates, announcements and observations.", feedback: "Suggestions for products, the community and Gaze Launcher." },

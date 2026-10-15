@@ -12,7 +12,7 @@ node scripts/qa/run-local-user-e2e.mjs --run
 Preparation creates a fresh owned project outside the repository, using ports
 56320-56329 and a unique project ID. Supabase refuses port conflicts; it must
 not reset or reuse another project. The 50-file historical mirror is unchanged;
-four newer committed migrations are copied separately, giving 54 migrations.
+five newer committed migrations are copied separately, giving 55 migrations.
 All SQL executes through the exact fresh database container's Unix socket.
 Reported API/database/Storage targets are required to be local. API clients use
 only that newly-created target; inherited provider/database credentials are not
@@ -76,6 +76,29 @@ reuse is appropriate only when application source, relevant schema and fixture
 semantics are unchanged. Never use those switches to imply a fresh full run.
 No old Native QA authorization, Claim, control window or GO is used.
 
+## Targeted Comment Deletion and Continuation
+
+```powershell
+node scripts/qa/run-local-user-e2e.mjs --prepare
+$env:OGH_E2E_COMMENT_DELETE='1'
+node scripts/qa/run-local-user-e2e.mjs --run
+Remove-Item Env:OGH_E2E_COMMENT_DELETE
+```
+
+Uses the same isolated bootstrap and real built application. Tests parent
+deletion, nested placeholders, raw-body RLS/privacy, administrator UI deletion,
+forged-role denial, failure feedback, mobile390/430 and reaction regression.
+Only necessary real logins acquire sessions; Auth13 and Catalog16 are not rerun.
+The sanitized ancestry migration must be included in the local migration replay;
+the initial54-migration test applied it only to its exact owned container.
+
+`OGH_E2E_DELETE_FOLLOWUP=1` runs tree dependencies plus notification delivery,
+Feed sort order and signed-in public product data continuation. `2` narrows that
+followup to tree/notification; `normal` verifies only normal multi-level DOM
+tree visibility. Results are independent scoped receipts, not a full suite
+rerun. Fresh runs use55 committed migrations. See `COMMENT_DELETE_REVIEW_SAFE.md`
+for historical assertion failures and their bounded followup evidence.
+
 ## Targeted Comment Regression
 
 Reuse the same local lifecycle, application build and browser setup:
@@ -98,7 +121,9 @@ new migration after reproducing500; later fresh databases replay it normally.
 `OGH_E2E_COMMENT_FOLLOWUP=1` narrows that mode to the documented delete followup
 and its necessary fixture creation. This is not a full regression or automatic
 evidence reuse. Original runner results remain immutable. See the scoped
-comment review for two real application defects still expected to FAIL; do
-not suppress them or interpret successful cleanup as a passing business suite.
+comment review for the two historical application failures; the later deletion
+repair review records their closure. The retained reaction runner's staff button
+locator follows the new distinct moderator label. Do not suppress failures or
+interpret successful cleanup as a passing business suite.
 
 CLI lifecycle reference: [Supabase local development](https://supabase.com/docs/guides/local-development/cli/getting-started).

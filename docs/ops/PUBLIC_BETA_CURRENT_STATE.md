@@ -40,8 +40,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   `ab8c154d`; ordinary headless local E2E, no further Native Chrome QA versions.
 - Previous scoped branch: `codex/local-supabase-e2e-fast-track-20261015`, based on
   `104f15cd`; disposable local Supabase plus direct headless Playwright only.
-- Current scoped branch: `codex/comment-reactions-p1-20261015`, based on
+- Previous scoped branch: `codex/comment-reactions-p1-20261015`, based on
   `b6067037`; owner-approved local reaction ACL repair and targeted E2E only.
+- Current scoped branch: `codex/comment-delete-fixes-20261015`, based on
+  `7e3e3686`; owner-approved local comment ancestry/admin UI repair only.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -76,7 +78,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
 | Fast-track native Auth + controlled Node RLS | v19 CONSUMED / BLOCKED before Start at LOGIN_A | MANUAL_WAIT_DEADLINE;owner saw no QA window and clicked nothing,Start events0. Programmatic focus PASS is not owner-visible proof. Deployment GET1,application observations0,Auth0,RLS0/16,cleanup PASS |
 | Simplified Playwright local E2E | 14 PASS / 8 BLOCKED, real headless Chrome | Direct login/form/mode and anonymous page/API checks; no control window. Preview config is Production-backed; no running isolated Supabase or isolated actors found. Auth/RLS/business writes BLOCKED, full GROUP_1 0/14 and authenticated RLS 0/16. No Production/third-party requests or old authorization reuse |
-| Local Supabase + automated user E2E | Historical Auth13/13 reused; local read assertions16/16 with14 reused; 7/14 original cases locally closed | Comment500 fixed locally with least-privilege migration, RLS unchanged. Fresh54-migration replay PASS. Targeted Chrome35 PASS/2 actual application FAIL; private isolation3/3 PASS. Selected business scope12 PASS/2 FAIL/2 BLOCKED. Both disposable instances cleaned; no Production acceptance |
+| Local Supabase + automated user E2E | Historical Auth13/13 and16/16 local reads reused; 8/14 original cases locally closed | Reaction ACL repair retained. Deleted-parent reply visibility and ADMIN delete UI now PASS. Fresh55-migration replay; latest scoped Chrome19/19 and3 affected comment-boundary scripts PASS. Selected business scope16 PASS/0 FAIL/2 BLOCKED. Owned local instances cleaned; no Production acceptance |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -100,7 +102,73 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
 - Owned browser contexts closed; owned Astro daemon stopped and local test ports
   verified released. No new Native QA authorization, Claim, GO or deployment.
 
-## Comment Reaction P1 Closure (2026-10-15)
+## Comment Delete Repair and Continuation (2026-10-15)
+
+- Both owner-approved local defects fixed, with existing author/staff deletion
+  endpoint and RLS mutation permissions unchanged. No Production application,
+  database, role, Cloudflare or billing changes; no push/deployment.
+- Migration `20261015074931_safe_deleted_comment_placeholders.sql`, commit
+  `466a559b`, adds a sanitized public-ancestry projection, not a deleted-row
+  SELECT grant. Its privileged lookup exposes only id/post_id/parent_id/times
+  for deleted ancestors of independently verified public published replies.
+  Bodies/authors/media are absent. Private/test circles, hidden posts,
+  cross-post IDs, empty and >1000 seed inputs return no rows. Walk is cycle-
+  checked,32 levels,1000 output maximum, fixed namespace; PUBLIC/service-role
+  execution revoked. Existing comment/reaction policies and table grants intact.
+- Comments GET performs one projection call for the bounded visible reply set,
+  emits empty-body/anonymous placeholders, retains parent links and deterministic
+  order, and loads role for the already authenticated viewer. UI keeps deleted
+  intermediate nodes nested, uses bounded returned data/cycle protection, clears
+  deleted local body/author state, and differentiates author Delete from staff
+  Remove as moderator. Existing glass confirmation/error UI reused; success status
+  added. Normal comments,3/4-level replies and original reactions preserved.
+- Runtime evidence: `91bb82f2e6bf`, `8fabb7f99a1e`, `80445973a09e`,
+  `e3413471ee47`. Latest unique scoped assertions19/19 PASS, including required
+  actual UI logins/context prerequisites (not a repeat of Auth13). Raw earlier
+  test failures preserved: initial non-atomic DOM checks raced the component's
+  initial re-render; one descendant locator and a notification payload-field
+  assumption corrected in bounded followups. No fabricated runtime PASS.
+- Three affected source/authorization regression scripts PASS. Guarded local
+  production-mode build PASS; existing Markdown/:global CSS warnings retained,
+  not misreported as new application failures. Fresh55-migration replay PASS.
+  390/430px confirmation screenshots inspected; real mobile deletion succeeded.
+- Ordinary users' forged admin deletion returns403 with unchanged row; real
+  ADMIN UI/delete succeeds. Raw deleted body remains RLS-hidden to B/anon;
+  sanitized projection/data and UI do not expose body/author. Local error fixture
+  verifies failure feedback without false success. Existing reaction toggle and
+  deleted-target refusal PASS. Historical16 Catalog reads not rerun.
+- Additional actual continuation: B reply notification delivered to A's API/UI
+  and matched recipient/actor/comment in the database; latest/hot Feed order
+  verified against distinct fixture expectations in API and actual DOM.
+  Signed-in public product detail's DB name matches rendered h1/content through
+  anonymous SSR; this closes local RLS-04, raising7 to8/14 local cases only.
+- Selected business ledger: previous12 PASS + two repaired scenarios + distinct
+  notification-delivery and Feed-order assertions =16 PASS/0 FAIL/2 BLOCKED.
+  No confirmed comment defect remains in this scope. Full forum acceptance,
+  Production parity and Public Beta readiness are NOT inferred.
+- Editing contract UNKNOWN: repository has no separately identifiable Forum MVP
+  PRD. Early `PRD-OpenGlass-Hub-MVP.md` excludes the entire forum/auth/database,
+  superseded for current forum scope by implemented features, owner's current
+  requirements, later comments/admin MVP documents and permission matrix. Those
+  documents do not require owner content editing. No editing system added;
+  owner clarification needed. R2 media remains BLOCKED, no paid resource created.
+- Remaining original cases: AUTH-01 blocked locally by Production CAPTCHA
+  requirements; AUTH-08 nonmail negative paths locally possible but incomplete;
+  ADMIN-04 broader read APIs/denials incomplete; UI-01 locale/country trust only
+  partially reproducible locally; UI-02 media/accessibility incomplete; UI-03
+  comprehensive console/CSP/error/empty/loading evidence incomplete. No case
+  mapping or historical Production acceptance rerun.
+- Four owned test databases/volumes/actors, DPAPI identities/pointers, TLS keys
+  and browser/Worker processes cleaned. Config/scripts retained. Catalog held,
+  GROUP_2/3 Production and Public Beta remain NOT_AUTHORIZED; zero new Production
+  requests/writes/deployments. Existing local rate-limit fixture is still not
+  proof of Production parity. Review: `COMMENT_DELETE_REVIEW_SAFE.md` and
+  `COMMENT_DELETE_SUMMARY_SAFE.json` in the existing local E2E evidence directory.
+- Next single action: confirm the authoritative Forum MVP owner-edit requirement
+  while retaining R2 media BLOCKED; do not infer an editing authorization from
+  the comment repair or automatically deploy these migrations.
+
+## Historical Comment Reaction P1 Closure (2026-10-15)
 
 - Owner approved the minimal LOCAL fix and regression; no Production/database
   deployment approval. Migration commit `3249a954` adds
