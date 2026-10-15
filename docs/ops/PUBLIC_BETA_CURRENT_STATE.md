@@ -29,8 +29,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   control-page foreground/readiness only; old v15 consumed evidence unchanged.
 - Previous scoped review branch: `codex/group1-origin-evidence-review-20261015`;
   offline source correlation and detached privacy-safe diagnostic component only.
-- Current scoped integration branch: `codex/group1-origin-diagnostic-integration-20261015`;
+- Previous scoped integration branch: `codex/group1-origin-diagnostic-integration-20261015`;
   independent QA copy and protected local Origin evidence, no network authorization.
+- Current scoped preparation branch: `codex/group1-protected-origin-authorization-20261015`;
+  private-Origin contract review and pending v17 Packet only, no real collection.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -62,6 +64,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Isolated standard Chrome Turnstile | ACCEPTED_WITH_DOCUMENTED_EXCEPTION | Live SDK/render/Frame/callback/cleanup retained; owner-approved visibility substitution applies to that instance ONLY; original INCOMPLETE receipt unchanged, no Production CAPTCHA PASS |
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
+| Protected-Origin successor contract | v17 READY_FOR_OWNER_APPROVAL, NOT_AUTHORIZED | Privacy amendment reviewed;340 frozen files match;13 new binding/contract consistency checks, original diagnostic13 reused. Original9+1 new gates all pending, no UTC/Claim/GO or real Origin collection |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2323,3 +2326,48 @@ narrow private-Origin evidence disclosure for a future independently authorized
 instance. No additional engineering/Production probe is automatically scheduled.
 GROUP_1 remains BLOCKED until real acceptance; GROUP_2/3/Beta NOT_AUTHORIZED.
 Task Production requests0,third-party live0,writes0; USD0,Catalog ACTIVE,no push.
+
+## Protected-Origin v17: Pending Contract Preparation
+
+Owner permitted offline privacy/contract preparation only. Eligible OTHER_ORIGIN
+scheme/host/port is private, even a syntactically normal DNS service name. No
+private pathname/Query/header/body/Cookie/JWT/Session/account/CAPTCHA proof is
+persisted by diagnostics. Raw driver protocol events may transiently carry such
+fields; public evidence selects safe classifications,HMAC IDs,known public paths
+and encrypted references only. Frame/redirect/CDP correlation stays PARTIAL;
+native dispatch remains MONITOR_ONLY/UNKNOWN_OR_ALREADY_SENT. No new network,
+Origin/route or business permission; unknown observed traffic still stops.
+
+Original CurrentUser DPAPI/owner+SYSTEM DACL helper remains unchanged. The new
+instance fixes logical retention1h (not library24h),16 Origins/Profile,max6
+Profiles; exact owned encrypted stores require offline private review and verified
+destroy. Expiry is NOT physical deletion. Only owner/trusted driver may read in
+private memory; review tool exports classifications only and removes the store.
+Cleanup failures prevent aggregate acceptance. Host owner/SYSTEM stay trusted;
+secure erasure and full native network coverage are not claimed.
+
+Original thirteen conditions are byte-identical,14 cases/16 reads (anon6/A5/B5),
+identities,650/class caps,1800/1740/60 deadlines,USD0,Catalog/recovery unchanged.
+Existing Free-plan attestation bytes and v16 network scope reused; legacy free-plan
+scope-digest references do not certify the later native Packet shape and are
+explicitly historical,not new execution authority. Fresh owner zero-cost gate
+still pending; no Provider/billing recheck or cost-risk waiver was introduced.
+
+New13 binding/contract consistency checks PASS; prior diagnostic13/13 not rerun.
+340/340 new file hashes match; old305 and original v16 receipts/Claims preserved.
+Authorization ID e-verify-group1-native-manual-auth-openglasshub-20261015-protected-origin-v17.
+Binding SHA256 5af796fc6f5749b660ed11b214733384e58b20ce521fbf98eac17e151ada3c60.
+Packet SHA256 f776ea658e0d4556f18f8f4d193f6275271298769addb83c746a719b27ef668a.
+Contract SHA256 adf4511ea2edce08c055d8ba86737d5ed30b3bc0a7dca2e62af2747854ba2781.
+Current contract is tools/e-verify-group1-protected-origin-v17/artifacts/
+HUMAN_GROUP1_PROTECTED_ORIGIN_V17_AUTHORIZATION_NOT_AUTHORIZED.md.
+Initial consistency-rejected drafts remain local history,not current authority.
+
+All10 gates are null: original9 plus
+protectedOriginCollectionLocalReviewAndCleanupAccepted. Full acceptance false,
+UTC null,NOT_AUTHORIZED,no Claim/GO. Next single owner action: review this complete
+contract and MATERIAL_DIFFERENCE.md,then explicitly accept or reject ten gates.
+Only afterward check OAuth/scopes/remaining>1860s and frozen prerequisites before
+proposing a separate exact UTC window; no current OAuth freshness is claimed.
+Historical v16 identity UNKNOWN; GROUP_1 still BLOCKED,not a Production PASS.
+Task Production requests0,third-party live0,writes0;Catalog ACTIVE,USD0,no push.
