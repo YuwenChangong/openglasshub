@@ -67,7 +67,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
-| Fast-track native Auth + controlled Node RLS | v18 owner10/10 gates recorded, exact UTC pending |362 files/three hashes match,8-test evidence reused;OAuth/scopes PASS at04:58:30Z with2189s. Proposed04:58:30Z..05:33:30Z,not approved;start strictly before05:03:30Z after rechecks. No Claim/GO/real collection |
+| Fast-track native Auth + controlled Node RLS | v18 CONSUMED / BLOCKED at LOGIN_A | Start PASS; NATIVE_REQUEST_FAILED, GET/fetch OTHER net::ERR_ABORTED; precise identity UNKNOWN. Auth0, RLS0/16, cleanup PASS; no retry or reuse |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2526,3 +2526,49 @@ reviews complete v18 contract/MATERIAL_DIFFERENCE.md and explicitly decides thos
 ten gates and full contract;only afterward OAuth/frozen checks,UTC and independent
 GO. No promise that Production will complete or billing hard-cap proof exists.
 Task Production0,third-party live0,writes0;USD0,Catalog ACTIVE,GROUP_2/3/Beta not authorized.
+
+## v18 Exact UTC Recorded, Independent GO Pending
+
+Owner explicitly approved2026-10-15T04:58:30Z..05:33:30Z without GO. At05:01:37.942Z,
+362/362 files,three hashes,ten gates,private binding,Node/source and fresh state
+passed locally. OAuth scopes PASS,remaining2001s,expires05:34:59.748Z. Exact
+authorization saved separately in AUTHORIZATION_APPROVED.json;frozen contract/
+Packet/binding and pending templates untouched. Not consumed,no Claim or GO.
+Actual start strictly before05:03:30Z plus OAuth>1860s/full1800s recheck;otherwise
+stop and obtain a new valid exact window,never auto-extend. Independent command:
+GO_E_VERIFY_GROUP1_NATIVE_MANUAL_AUTH_FAST_TRACK_V18. No Production/third-party
+requests,writes,private Origin capture or test reruns;Catalog ACTIVE,USD0,groups2/3
+and Beta NOT_AUTHORIZED. GROUP_1 actual acceptance still BLOCKED until execution.
+
+## v18 Actual GO Closure
+
+The separate exact v18 GO executed once within the approved window. Both Claims
+exist and authorization is CONSUMED, never reusable even within remaining time.
+Pre-Deployment PASS: b2b62ec9-bb8d-4159-ac99-08fca5740134 at100%,recovery0%;one
+confirmed Deployment GET. Post-check unreached; no new live state check after stop.
+Execution stopped at LOGIN_A after20156ms, not timeout. Control render/handler/focus
+PASS and exactly one Start received. Owner independently confirms clicking Start,
+seeing the login page,then automatic window closure; recorded separately,not a
+fabricated execution-time event. This is not a repeated control-page failure.
+
+First failure NATIVE_REQUEST_FAILED: GET/fetch,OTHER Origin,REDACTED route,
+net::ERR_ABORTED,response status null. No rejected-rule event. One unenumerated
+external GET was tolerated by v18;the receipt does not establish that it equals
+the failed request. Initiator,exact Host/path,vendor ownership and abort root cause
+remain UNKNOWN. Do not interpret this as proven CAPTCHA/product failure or relax
+requestfailed handling without a scoped offline review. Exact private Origin
+capture was disabled;there is no retained private Origin to recover or delete.
+
+Observed admissions41,vendor6,page requests34 are incomplete MONITOR_ONLY counts,
+not whole-browser wire totals. Observed Auth0,identities0,negative cases0,RLS0/16,
+Mutation0. No real login,CAPTCHA or GROUP_1 PASS. All6 contexts closed and in-memory
+Session channels destroyed;cleanup PASS,supervised Job closed/child reaped. Child
+and broker absent at local closure check. Profile cleanup is supported by executor
+receipt,not an independent path-by-path deletion claim. Original receipts/Claims
+unchanged and hashed in additive GO_CLOSURE_SAFE.json. Frozen362/362 still match.
+
+No retries,new authorization,source/policy change,extra live request,deploy or push.
+Production/Provider writes0;hidden native retries/dispatch totals UNKNOWN. Next
+single action: narrowly review requestfailed/net::ERR_ABORTED stop semantics
+OFFLINE before any new authorization;do not assume all aborted GETs are safe.
+USD0,Catalog ACTIVE,GROUP_2/3 and Public Beta NOT_AUTHORIZED,GROUP_1 BLOCKED.
