@@ -41,13 +41,28 @@ Production配置与行为仍为UNKNOWN。唯一项目进度基线为PUBLIC_BETA_
 
 ## 3) 最简人工隔离配置（当前未执行）
 
-1. 在现有Cloudflare账户的R2控制台，优先选一个已存在、明确获准测试且不接生产的专用桶。
-   没有则由负责人自行决定是否创建专用Standard测试桶；Codex不自动创建、升级或开通付费服务。
-2. Manage R2 API Tokens中创建Object Read & Write凭据，只选择该测试桶，不选择All buckets或Admin权限。
-   保留不含密钥的权限范围证据，证明不覆盖任何Production桶。仅有可用密钥不证明最小权限。
-3. 当前应用的视频读取需要独立媒体URL。如使用测试桶的Public Development URL，负责人必须明确接受
-   桶内合成测试对象短暂公开；不要启用生产桶，不复制真实媒体。r2.dev有开发用途限流，不能据此宣称生产性能PASS。
-4. 仅在测试桶配置本地来源CORS，按真实测试请求最小化。例如当前本地应用来源为https://127.0.0.1:4328：
+实际访问方式为S3_API，不是Worker原生Binding：`src/lib/r2-server.ts`使用S3Client生成预签名PUT，
+使用aws4fetch签名DELETE。无需增加Worker绑定或部署，但这条实现确实需要测试桶专用S3凭据。
+当前代码固定普通账户S3端点，不支持独立的R2_ENDPOINT配置或jurisdiction专属端点。
+
+1. Dashboard进入现有账户的 **Storage & databases > R2 Object Storage > Overview**，
+   点击 **Create bucket**，例如命名`ogh-e2e-video-20261015`；使用默认普通jurisdiction/Automatic位置，
+   存储类别选 **Standard**，点击 **Create bucket**。不要选择Infrequent Access，不关联任何生产Worker。
+   若出现开通新付费订阅/结算要求，停止。此操作由负责人手动完成，Codex不自动创建资源。
+2. 回到R2 Overview，在 **Account Details > API Tokens > Manage** 中点击 **Create User API token**
+   （若账户界面使用Create Account API token也必须采用同样的桶级权限，不是Admin权限）。
+   权限只选 **Object Read & Write**，桶范围选择 **Apply to specific buckets only**，只勾选新测试桶，
+   不选All buckets、Admin Read/Write或Production桶，创建后本地保存 **Access Key ID / Secret Access Key**。
+   不要把一般Cloudflare API Token值当作R2_SECRET_ACCESS_KEY。保留只含桶名/权限的脱敏截图或说明。
+3. 新测试桶 **Settings > Public Development URL > Enable**，按提示输入`allow`并确认。
+   将Public Bucket URL用于下述R2_PUBLIC_BASE_URL，不带对象路径、Query或末尾签名。
+   当前视频GET由网站`/api/media/post/<id>`检查公开帖子/圈子后代理该URL；不存在已接入的S3签名GET，
+   Supabase签名GET只适用于Storage对象。没有可用公开测试URL时，当前R2读取路径BLOCKED。
+   这会临时公开桶内合成视频：必须单独接受该风险；仅放一次性合成数据，不复制真实媒体。
+   不改生产桶、不加付费域名/Worker；r2.dev限流，不证明生产性能或直接对象URL的私密访问控制。
+4. 仍在新桶 **Settings > CORS Policy > Add CORS policy > JSON**，填入下方配置并 **Save**。
+   精确来源为当前本地应用`https://127.0.0.1:4328`，不是Production域名；当前浏览器直传代码仅发送Content-Type。
+   GET/HEAD/Range用于后续有界读取验证，不允许通配来源或浏览器DELETE：
 
 ```json
 [
@@ -60,24 +75,52 @@ Production配置与行为仍为UNKNOWN。唯一项目进度基线为PUBLIC_BETA_
 ]
 ```
 
-5. 使用既有受保护本地凭据机制保存R2_ACCOUNT_ID、R2_ACCESS_KEY_ID、R2_SECRET_ACCESS_KEY、
-   R2_BUCKET_NAME、R2_PUBLIC_BASE_URL；只向Codex提供配置路径和不含密钥的隔离/权限证明。
-   .local-e2e/r2-test/config.dpapi受Git忽略，可沿用CurrentUser DPAPI及owner/SYSTEM访问控制。
-   .env.r2-test.local也受Git忽略，但Git忽略不等于加密或访问控制，不能只凭忽略就认定安全。
-   不把Secret、签名URL、Cookie或Token发送到聊天，不改生产.env或Wrangler环境配置。
-6. 确认当前Standard免费额度余量、无新增网络/服务费和负责人对测试桶的明确使用授权。
-   新建桶不产生独立免费额度；预算警报不等于硬性防扣费。未能证明USD0则继续BLOCKED。
+5. 在本机填写已创建的空白文件：
+   `C:\Temp\ogh-product-beta-development-20261013\.env.r2-test.local`。
+   已验证Git忽略，并禁用文件ACL继承，仅当前Windows用户/SYSTEM访问。它是受ACL保护的明文环境文件，
+   不是DPAPI加密文件；不要上传、粘贴、截图或提交。不要通过命令行带入密钥。
+   仅填写以下现有代码实际支持的5个服务端字段（无需PUBLIC_前缀，不填写生产Supabase密钥）：
+
+```dotenv
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET_NAME=
+R2_PUBLIC_BASE_URL=
+```
+
+   Account ID来自当前R2账户；Access Key ID/Secret来自刚创建的测试桶S3凭据；Bucket Name为新测试桶；
+   Public Base URL为该桶独立的Public Bucket URL。账户可与Production相同，但桶、凭据权限和媒体URL必须分离。
+   文件不会被当前QA入口自动加载，不要直接运行生产/Preview配置或用PowerShell点执行此文件。
+   原DPAPI机制仍可用于后续运行时内存装载；不给浏览器传服务器Secret，不修改生产.env/Wrangler配置。
+6. 在R2 Overview及账户 **Manage Account > Billing > Billable Usage** 核对当前计费期：
+   Standard存储GB-month、Class A和Class B累计使用量，覆盖账户全部桶，而非只看新空桶的Metrics。
+   Standard免费额度目前为每月10GB-month、100万次Class A、1000万次Class B；新桶没有独立额度。
+   核对账期/更新时间并保留脱敏用量信息；有其他账户活动时需预留余量，不能把延迟统计当实时硬保证。
+   页面无法给出足够用量证明，或任何服务/网络会新增费用，则保持UNKNOWN/BLOCKED。
+   不启用付费附加服务。预算警报不是硬性防扣费；R2免费出站也不等于操作/存储没有收费风险。
+   在Billable Usage按R2筛选，分别读取Total usage、Included allowance、Billable usage；不能仅凭费用为0
+   推断还有多少额度。该页不是实时计量，须为其他活动和本次有界测试保留足够余量。
+7. 配置完后只回复文件路径、脱敏桶权限/隔离/免费余量证据，以及对该新桶本次小规模测试的独立使用批准。
+   不发送密钥。检查桶名与Production不同、凭据仅该桶、媒体URL不同、不含任何生产数据；无须拿凭据尝试删除
+   Production对象来验证隔离。批准前不读取或写入真实桶，也不建立有效授权/GO。
 
 当前本地测试入口只允许loopback，尚未接入任何测试桶。配置/权限证据完备之后，才可在同一现有
 本地测试路径中做最小、明确受限的目标适配；不能直接继承Preview或Production配置。
 最多2个小型合成对象及明确请求上限需在执行前核对是否足以覆盖真实播放器与清理，不能承诺任意固定次数必定完成。
 命名须包含本次独立运行标识，并保存精确创建Key到受保护内存清单；只删除此清单，禁止批量清空桶。
 完成后逐Key删除并验证不存在；失败时保留明确清理义务，不能把生命周期等待当作已清理。
+图片/缩略图继续按实际Supabase路径验证；真实R2仅验证现有视频路径，不冒充R2图片测试。
+现有网站媒体代理未透传Range；未来必须区分桶自身Range响应和网站代理响应，不能预先承诺206或完整视频验收。
+Public Bucket URL本身公开读取不是越权拒绝测试：网站路径访问规则、作者/其他用户删除权限应分别断言。
 
-官方参考：[桶级R2权限](https://developers.cloudflare.com/r2/api/tokens/)、
+官方参考：[R2入口](https://developers.cloudflare.com/r2/get-started/)、
+[新建桶](https://developers.cloudflare.com/r2/buckets/create-buckets/)、
+[桶级R2权限](https://developers.cloudflare.com/r2/api/tokens/)、
 [CORS](https://developers.cloudflare.com/r2/buckets/cors/)、
 [开发媒体URL](https://developers.cloudflare.com/r2/buckets/public-buckets/)、
-[Standard免费额度及计费](https://developers.cloudflare.com/r2/pricing/)。
+[Standard免费额度及计费](https://developers.cloudflare.com/r2/pricing/)、
+[账户用量界面](https://developers.cloudflare.com/billing/manage/billable-usage/)。
 
 ## 4) 清理失败核对
 

@@ -5,9 +5,10 @@ import path from 'node:path';
 
 export async function runFinalScope(h) {
   const {s,out,sql,goto,pages,newContext,browserApi,responseFor,circleSlug,dbCount,origin}=h;
+  const uiOnly=process.env.OGH_E2E_FINAL_FOLLOWUP==='ui';
   const followup=process.env.OGH_E2E_FINAL_FOLLOWUP==='1';
   const selected=new Set(['LOCAL_SYNTHETIC_VIDEO_FIXTURE','LOCAL_VIDEO_UPLOAD_PLAYBACK_AND_RANGE','LOCAL_VIDEO_DELETE_AND_FRESH_DENIAL','UI03_AUTHENTICATED_CORE_ASSET_CSP_CONSOLE_MATRIX']);
-  const check=(id,fn,family)=>!followup||selected.has(id)?h.check(id,fn,family):undefined;
+  const check=(id,fn,family)=>uiOnly?(id.startsWith('UI03_ROUTE_')||id==='UI03_NOTIFICATION_STATES'||id==='UI02_CORE_CONTENT_VIEWPORTS'?h.check(id,fn,family):undefined):!followup||selected.has(id)?h.check(id,fn,family):undefined;
   const q=v=>"'"+String(v).replaceAll("'","''")+"'";
   const scalar=async query=>(await sql(s,query)).stdout.trim().split(/\r?\n/)[0];
   const blocked=code=>Object.assign(Error(code),{blocked:true});
@@ -118,6 +119,76 @@ export async function runFinalScope(h) {
     if(Object.entries(authenticated).some(([key,value])=>!['documents','assets'].includes(key)&&value>0))throw Object.assign(blocked('AUTHENTICATED_CORE_RESOURCE_OR_CONSOLE_NOT_CLEAN'),{safeEvidence:authenticated});
     return {...authenticated,scope:'NINE_LOCAL_AUTHENTICATED_CORE_ROUTES_NOT_PRODUCTION'};
   },'group1Continuation');
+  if(uiOnly) {
+    const routes=[['A','SETTINGS','/settings/',null],['A','POST','/posts/'+h.postId+'/',null],
+      ['ADMIN','DEVICES','/admin/devices/','/api/admin/devices'],['ADMIN','FORUM','/admin/forum/','/api/admin/forum/posts'],
+      ['ADMIN','REPORTS','/admin/reports/','/api/admin/reports'],['ADMIN','MEDIA','/admin/media/','/api/admin/forum/media'],
+      ['ADMIN','NEWS','/admin/news/','/api/admin/news'],['ADMIN','USERS','/admin/users/','/api/admin/users'],
+      ['ADMIN','CIRCLES','/admin/circles/','/api/admin/forum/circles']];
+    for(const [actor,label,route,api] of routes) await check('UI03_ROUTE_'+label,async()=>{
+      const p=pages[actor],evidence={actor,routeClass:label,stage:'NAVIGATION',assets:0,assetErrors:0,pageErrors:0,consoleErrors:0,apiRequests:0,apiStatus:null,localReadCap:12,capTriggered:false};
+      const types=new Set(['script','stylesheet','font','image']);
+      const onResponse=r=>{if(types.has(r.request().resourceType())){evidence.assets++;if(r.status()>=400)evidence.assetErrors++;}};
+      const onError=()=>evidence.pageErrors++;
+      const onConsole=m=>{if(m.type()==='error')evidence.consoleErrors++;};
+      const matcher=u=>u.origin===origin&&u.pathname===api;
+      const guard=async r=>{if(r.request().method()==='GET'&&++evidence.apiRequests>evidence.localReadCap){evidence.capTriggered=true;return r.abort();}return r.continue();};
+      p.on('response',onResponse);p.on('pageerror',onError);p.on('console',onConsole);
+      if(api)await p.route(matcher,guard);
+      try {
+        const first=api?responseFor(p,r=>new URL(r.url()).origin===origin&&new URL(r.url()).pathname===api&&r.request().method()==='GET',{timeout:8000}):null;
+        assert.equal((await goto(p,route)).status(),200);await p.locator('main').first().waitFor();
+        evidence.stage='HYDRATION';
+        if(route.startsWith('/posts/'))await p.locator('#comments').scrollIntoViewIfNeeded();
+        await p.waitForFunction(()=>!document.querySelector('astro-island[client="load"][ssr]'),{},{timeout:8000});
+        if(first){evidence.apiStatus=(await first).status();assert.equal(evidence.apiStatus,200);}
+        evidence.stage='BOUNDED_OBSERVATION';await p.waitForTimeout(1200);
+        if(evidence.capTriggered)throw Error('REPEATED_LOCAL_READS_EXCEEDED_BOUND');
+        assert.equal(evidence.assetErrors+evidence.pageErrors+evidence.consoleErrors,0,'CORE_BROWSER_ERRORS');
+        evidence.stage='COMPLETE';return {...evidence,localOnly:true,networkIdleNotUsed:true,completeBusinessWorkflowNotClaimed:true};
+      } catch(e){e.safeEvidence={...evidence};throw e;}
+      finally {
+        await p.goto('about:blank').catch(()=>{});
+        if(api)await p.unroute(matcher,guard);
+        p.off('response',onResponse);p.off('pageerror',onError);p.off('console',onConsole);
+      }
+    },'group1Continuation');
+    await check('UI03_NOTIFICATION_STATES',async()=>{
+      const p=pages.A,matcher=u=>u.origin===origin&&u.pathname==='/api/users/me/notifications';
+      let release,entered;const gate=new Promise(r=>release=r),observed=new Promise(r=>entered=r);
+      const hold=async r=>{entered();await gate;return r.continue();};
+      await p.route(matcher,hold);
+      try {
+        await goto(p,'/notifications/');await Promise.race([observed,p.waitForTimeout(8000).then(()=>{throw blocked('NOTIFICATION_REQUEST_NOT_OBSERVED');})]);
+        await p.locator('main .community-empty').first().waitFor();
+        assert.match(await p.locator('main .community-empty').first().innerText(),/loading/i);
+        release();await p.locator('.notifications-page .community-empty').waitFor();
+        assert.equal(await dbCount('forum_notifications',`recipient_id=${q(s.actors.A.id)}`),0);
+        assert.match(await p.locator('.notifications-page .community-empty').innerText(),/no notifications/i);
+      } finally {release();await p.unroute(matcher,hold);}
+      const failure=r=>r.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'LOCAL_TEST_UNAVAILABLE'})});
+      await p.route(matcher,failure);
+      try {await goto(p,'/notifications/');await p.getByText(/could not load notifications|failed to load notifications|unable to load notifications/i).waitFor();}
+      finally {await p.goto('about:blank');await p.unroute(matcher,failure);}
+      return {loadingHeldRealLocalRequest:true,emptyVerifiedInOwnedDatabase:true,errorFixtureHttpStatus:503,errorIsDeliberateFixtureNotBackendFailure:true};
+    },'group1Continuation');
+    await check('UI02_CORE_CONTENT_VIEWPORTS',async()=>{
+      const c=await newContext(),p=await c.newPage(),measurements=[];
+      try {for(const width of [1440,390,430]) {
+        await p.setViewportSize({width,height:932});
+        for(const [label,route] of [['FEED','/feed/'],['PRODUCT','/products/xreal/xreal-air/'],['CIRCLE','/circles/'+circleSlug+'/']]) {
+          assert.equal((await goto(p,route)).status(),200);await p.locator('main').waitFor();
+          await p.waitForFunction(()=>!document.querySelector('astro-island[client="load"][ssr]'));
+          const m=await p.evaluate(()=>({horizontalOverflow:document.documentElement.scrollWidth>innerWidth,mainLandmarks:document.querySelectorAll('main').length,
+            missingImageAlt:document.querySelectorAll('main img:not([alt])').length,unlabeledButtons:Array.from(document.querySelectorAll('main button')).filter(b=>b.getClientRects().length&&!b.textContent.trim()&&!b.getAttribute('aria-label')&&!b.getAttribute('title')).length}));
+          assert.equal(m.horizontalOverflow,false);assert.equal(m.mainLandmarks,1);assert.equal(m.missingImageAlt,0);assert.equal(m.unlabeledButtons,0);
+          measurements.push({width,routeClass:label,...m});
+          if(label==='PRODUCT')await p.screenshot({path:path.join(out,'product-content-'+width+'.png'),fullPage:true});
+        }
+      }return {measurements,videoCoverage:false,fullAccessibilityAuditNotClaimed:true};}
+      finally {await c.close();}
+    },'group1Continuation');
+  }
   await fs.writeFile(path.join(out,'CORE_BROWSER_SIGNALS_SAFE.json'),JSON.stringify({anonymous:observations,authenticated,rawUrlsOrMessagesSaved:false,productionRequests:0},null,2)+'\n');
   await check('UI02_LOCAL_KEYBOARD_FORMS_AND_LANDMARKS',async()=>{
     const c=await newContext(),p=await c.newPage();try {for(const width of [1440,390,430]) {

@@ -92,6 +92,19 @@ a small synthetic VP8 video in memory, tries the actual composer, and independen
 checks anonymous/authenticated core resources and keyboard/form behavior.
 `OGH_E2E_FINAL_FOLLOWUP=1` selects the video dependency and authenticated matrix
 only; it is a separate bounded receipt, not a full rerun or automatic retry.
+`OGH_E2E_FINAL_FOLLOWUP=ui` skips video and earlier passing anonymous/form checks.
+It tests9 authenticated routes separately, notification loading/real empty state/
+explicit local503 UI handling, and Feed/product/circle content at1440/390/430.
+No Auth13, business23 or RLS16 rerun;4 session/context prerequisites are required.
+
+Authenticated resource checks wait for actual client-load hydration and the
+expected local API response, then observe a bounded1200ms rather than requiring
+networkidle for stateful dashboards. Each exact local list endpoint permits at
+most12 GETs in that route observation; subsequent attempts are locally aborted
+and fail the check. This is a local test safety bound, not a production policy.
+Attempt counters include blocked attempts; they are not server-dispatch counts.
+Deliberately injected notification503 is labeled a fixture, not a backend defect.
+No raw URLs/console messages/session snapshots are saved.
 
 Current runner has NO authorized real R2 target mode: process/provider credentials
 are not inherited into the local app, and external requests are denied. A video

@@ -48,9 +48,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   `482e7f86`; owner scope decision and local business continuation only.
 - Previous scoped branch: `codex/thumbnail-cleanup-p1-20261015`, based on
   `13f30322`; owner-approved local media cleanup fix and targeted E2E only.
-- Current scoped branch: `codex/isolated-r2-readiness-e2e-20261015`, based on
+- Previous scoped branch: `codex/isolated-r2-readiness-e2e-20261015`, based on
   `75275c64`; local configuration review and bounded existing-runner continuation.
   No cloud inventory request, R2 operation, product change or new authorization.
+- Current scoped branch: `codex/minimal-r2-setup-ui-completion-20261015`, based on
+  `03a63e6b`; exact manual S3 setup guide and remaining local UI evidence only.
+  No R2/cloud operation or product code/config change.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -87,6 +90,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Simplified Playwright local E2E | 14 PASS / 8 BLOCKED, real headless Chrome | Direct login/form/mode and anonymous page/API checks; no control window. Preview config is Production-backed; no running isolated Supabase or isolated actors found. Auth/RLS/business writes BLOCKED, full GROUP_1 0/14 and authenticated RLS 0/16. No Production/third-party requests or old authorization reuse |
 | Local Supabase + automated user E2E | Historical Auth13/13, comment19/19 and Catalog16/16 reused; 10/14 scoped original cases locally closed | Thumbnail cleanup fixed locally;22/22 unit checks,17/17 latest unique real-Chrome checks and affected post authorization PASS. Selected business23 PASS/0 FAIL/1 BLOCKED/1 DEFERRED. All owned instances cleaned; real R2 and Production parity UNKNOWN/BLOCKED |
 | Isolated R2 readiness and remaining UI evidence | Real R2 BLOCKED; 7 distinct continuation checks PASS / 3 BLOCKED | Preview shares Production R2 config; no verified test-bucket config/credentials/owner use approval or current cost proof. Six anonymous pages/135 assets clean; authenticated matrix partial/timeout. GROUP_1 stays10/14; no inferred video/Range/real R2 success |
+| Minimal R2 setup and remaining UI continuation | Real R2 BLOCKED; new14 PASS/1 FAIL in existing local runner | Eight authenticated routes/resources and local notification/content checks PASS. ADMIN reports repeats reads without user action; confirmed local P1, not repaired. Group1 stays10/14; UI-03 FAIL. Protected blank ignored R2 file prepared; no real key loaded |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -109,6 +113,57 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
   path. Production-bound Preview and actor configurations must not be reused.
 - Owned browser contexts closed; owned Astro daemon stopped and local test ports
   verified released. No new Native QA authorization, Claim, GO or deployment.
+
+## Minimal R2 Setup and UI Completion Attempt (2026-10-15)
+
+- Exact current access method is S3_API: AWS SDK signs video PUT, aws4fetch signs
+  DELETE. Native MODERATION_ASSETS is not that media path. Existing server fields:
+  R2_ACCOUNT_ID/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET_NAME/R2_PUBLIC_BASE_URL.
+  Images and thumbnails remain Supabase Storage; no R2 image migration or new
+  product configuration added. Video reads need the trusted HTTPS public base;
+  no wired R2 signed-GET mechanism. Site proxy Range remains unverified at runtime.
+- Manual guide now contains Dashboard clicks for a new isolated Standard bucket,
+  Object Read & Write only that bucket, default endpoint-compatible jurisdiction,
+  public development URL exposure and exact local CORS. No remote setup done.
+  Current account monthly/free allowance UNKNOWN; a new bucket adds no new free
+  quota. Owner must supply redacted scope/usage evidence and independent use approval.
+- Created blank `.env.r2-test.local`, Git-ignored and ACL-verified current-user/
+  SYSTEM only with inheritance disabled. It is protected plaintext, not encrypted;
+  no real keys saved, read or inherited into the current loopback-only runner.
+  Supabase/Production .env/Wrangler config remain untouched. Do not run Preview
+  or use Production credentials to fill it; tests await explicit isolated proof.
+- New owned run `4baaad4841be`:14 PASS/1 FAIL, including4 necessary UI login/
+  identity-isolation prerequisites. No old business23/Auth13/RLS16 rerun, no video
+  signing retry. Actual built Astro/real local Supabase/Chrome,55 migrations.
+-8 of9 authenticated route resource checks PASS, no recorded asset/page/console
+  errors on those routes. Admin reports FAIL:953 observed GET attempts while no
+  user action; test guard permits only first12 and rejects subsequent941 locally.
+  First response200; do not call953 server dispatches or all console errors
+  independent product defects. Loop starts before the fault guard: effect depends
+  on newly-returned adminSession object and sets loading/data state every run,
+  changing that dependency again. Source correlation plus repeated actual local
+  requests confirms an application P1. No product fix authorized/made this turn.
+- Previous combined resource timeout stays historical UNKNOWN as an exact event;
+  new reproduction does not recover its raw cause. No further retry loop.
+- Notification UI loading/real database-empty state and explicit503 failure
+  fixture PASS. Three content routes at1440/390/430 PASS for DOM overflow,
+  landmark/image-alt/button-name checks; product screenshots retained/inspected.
+  This is not a complete accessibility/media audit or Production evidence.
+- Original local GROUP1 stays10/14: AUTH-01 Production CAPTCHA and UI-01 trusted
+  country proof remain PRODUCTION_ONLY; UI-02 local partial/video gap BLOCKED;
+  UI-03 now FAIL due real reports loop. Historical selected business23 PASS,
+ 1 BLOCKED,1 DEFERRED retained, plus1 new confirmed admin-resource failure.
+  Existing RLS16/16_LOCAL and image/thumbnail cleanup evidence reused.
+- Owned database/containers/volumes/actors/media/DPAPI credentials removed,
+  active pointer/private directory absent and app listener stopped. Empty R2
+  setup file deliberately retained for manual configuration, not a test secret.
+  No Production/R2/third-party test request, writes, deployment or push.
+  USD0, Catalog ACTIVE, groups2/3 and Public Beta unauthorized; parity UNKNOWN.
+- Scoped evidence: `MINIMAL_R2_SETUP_REVIEW_SAFE.md` and
+  `MINIMAL_R2_SETUP_SUMMARY_SAFE.json` with run4baaad4841be under existing output.
+  Next owner action: complete isolated S3 setup and provide only protected path,
+  scope/isolation/use/cost proof. Reports P1 additionally requires owner-approved
+  minimal product repair before full UI-03 can close; no new QA architecture.
 
 ## Isolated R2 Readiness and Final Local Scope (2026-10-15)
 
