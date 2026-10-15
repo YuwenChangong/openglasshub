@@ -67,7 +67,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
-| Fast-track native Auth + controlled Node RLS | v19 READY_FOR_OWNER_APPROVAL, NOT_AUTHORIZED | Accepted positive-login GET/fetch/OTHER ERR_ABORTED remains UNRESOLVED; other safety stops and Node HARD unchanged. New16/16 offline checks,385/385 freeze. v18 consumed,Production Auth/RLS still unverified |
+| Fast-track native Auth + controlled Node RLS | v19 owner11/11 confirmed; OAuth EXPIRED; UTC pending | Contract/three hashes/385 freeze/private budget/runtime/source verified locally at05:37:52Z. Scopes PASS,OAuth expired05:34:59.748Z. No effective execution authorization,Claim or GO |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2638,3 +2638,19 @@ check current local OAuth/Scopes (>1860s) immediately before a fresh exactUTC
 proposal;do not refresh during engineering. Existing Start/CAPTCHA/identity/
 logout/Finish sequence unchanged. Production execution still needs separate GO.
 Task Production0,third-party live0,writes0;USD0,Catalog ACTIVE,groups2/3/Beta not authorized.
+
+## v19 Owner Confirmation - OAuth Recovery Pending
+
+Owner explicitly accepted current v19 full contract,three hashes and all11 gates.
+At2026-10-15T05:37:52.246Z,contract/hash/385 files/private budget/runtime/source and
+fresh-instance checks PASS;no undisclosed material change. Separate owner record
+OWNER_GATES_CONFIRMED_PENDING_OAUTH_20261015T053752Z_SAFE.json preserves those fresh
+confirmations;pending templates/frozen files are untouched,not automatically
+converted into effective execution approval. Default local OAuth scopes
+account:read/workers_scripts:write PASS,but expired05:34:59.748Z (-173s at check).
+No Provider identity request,refresh/login/logout,tests,Production or third-party
+access was performed. No UTC proposal/approved authorization/Claim/GO exists.
+Next sole action: owner manually logs in using the installed Wrangler with the
+two required scopes,then replies OAUTH_LOGIN_COMPLETED. Recheck local coverage
+strictly>1860s and freezes before proposing an exact new window;do not re-ask
+unchanged11 gates. USD0,Catalog ACTIVE,groups2/3/Beta not authorized,writes0.
