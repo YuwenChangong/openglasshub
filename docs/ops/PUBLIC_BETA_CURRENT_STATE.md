@@ -46,8 +46,11 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   `7e3e3686`; owner-approved local comment ancestry/admin UI repair only.
 - Previous scoped branch: `codex/forum-mvp-e2e-continuation-20261015`, based on
   `482e7f86`; owner scope decision and local business continuation only.
-- Current scoped branch: `codex/thumbnail-cleanup-p1-20261015`, based on
+- Previous scoped branch: `codex/thumbnail-cleanup-p1-20261015`, based on
   `13f30322`; owner-approved local media cleanup fix and targeted E2E only.
+- Current scoped branch: `codex/isolated-r2-readiness-e2e-20261015`, based on
+  `75275c64`; local configuration review and bounded existing-runner continuation.
+  No cloud inventory request, R2 operation, product change or new authorization.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -83,6 +86,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Fast-track native Auth + controlled Node RLS | v19 CONSUMED / BLOCKED before Start at LOGIN_A | MANUAL_WAIT_DEADLINE;owner saw no QA window and clicked nothing,Start events0. Programmatic focus PASS is not owner-visible proof. Deployment GET1,application observations0,Auth0,RLS0/16,cleanup PASS |
 | Simplified Playwright local E2E | 14 PASS / 8 BLOCKED, real headless Chrome | Direct login/form/mode and anonymous page/API checks; no control window. Preview config is Production-backed; no running isolated Supabase or isolated actors found. Auth/RLS/business writes BLOCKED, full GROUP_1 0/14 and authenticated RLS 0/16. No Production/third-party requests or old authorization reuse |
 | Local Supabase + automated user E2E | Historical Auth13/13, comment19/19 and Catalog16/16 reused; 10/14 scoped original cases locally closed | Thumbnail cleanup fixed locally;22/22 unit checks,17/17 latest unique real-Chrome checks and affected post authorization PASS. Selected business23 PASS/0 FAIL/1 BLOCKED/1 DEFERRED. All owned instances cleaned; real R2 and Production parity UNKNOWN/BLOCKED |
+| Isolated R2 readiness and remaining UI evidence | Real R2 BLOCKED; 7 distinct continuation checks PASS / 3 BLOCKED | Preview shares Production R2 config; no verified test-bucket config/credentials/owner use approval or current cost proof. Six anonymous pages/135 assets clean; authenticated matrix partial/timeout. GROUP_1 stays10/14; no inferred video/Range/real R2 success |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -105,6 +109,62 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
   path. Production-bound Preview and actor configurations must not be reused.
 - Owned browser contexts closed; owned Astro daemon stopped and local test ports
   verified released. No new Native QA authorization, Claim, GO or deployment.
+
+## Isolated R2 Readiness and Final Local Scope (2026-10-15)
+
+- Local configuration review only: root and Preview R2 binding match Production;
+  Preview media account/bucket/public endpoint also match Production. Neither is
+  an isolated test target. No dedicated test configuration or bucket-only credential
+  scope proof found; relevant process variables absent. Cloud bucket existence is
+  UNKNOWN, not a proven absence: no Provider API, OAuth or storage request made.
+- `.env.r2-test.local` and `.local-e2e/r2-test/config.dpapi` are Git-ignored;
+  ignore status alone does not establish encryption/ACLs. No real R2 secret was
+  loaded or copied. Future isolated target needs explicit owner use approval,
+  bucket-only Object Read & Write proof and current zero-added-cost evidence.
+  Existing Free-plan history is not proof of remaining shared R2 allowance.
+- Current native images/thumbnails upload to Supabase Storage; videos request
+  R2 signing. Do not call a manually inserted R2 image a real UI upload. No
+  product/storage/config change was authorized or made in this task.
+- Two fresh owned local runs: `7e7f8fbc53a2` (7 PASS/2 BLOCKED) and
+  `3ae6b0253180` (5 PASS/3 BLOCKED). Latest distinct assertions total7 PASS/3
+  BLOCKED, not12 new passes:4 necessary UI login/context prerequisites, synthetic
+  VP8 fixture, six-page anonymous asset matrix and keyboard/form checks PASS.
+  Old Auth13/comment19/Catalog16/business23 not rerun; built local Astro used.
+- Anonymous matrix: login, Feed, products, one product detail, privacy and owned
+  circle;6 documents/135 actual asset responses, zero observed resource/CSP/page
+  or console errors. Named forms, required validation, Tab focus/main landmark
+  and no horizontal overflow at1440/390/430 PASS. This is not a full accessibility
+  audit or Production acceptance.
+- Video fixture is1423 bytes generated in local Chrome memory, not copied media.
+  Real composer reaches upload-link request; local endpoint500 with safe enum
+  EXTERNAL_VIDEO_UPLOAD_FAILED, no media link created. Current generic server
+  error does not match the client's narrow missing-R2 fallback conditions; no
+  fake success or fallback widening. Upload/playback/Range and dependent video
+  deletion remain BLOCKED. Missing local R2 dependency is proved; a Production
+  video defect is not. Real R2 security/cleanup also remain unverified.
+- Authenticated resource matrix completed4 documents and observed119 assets
+  without recorded resource/CSP/console errors before local operation timeout.
+  Exact timeout operation UNKNOWN; partial counters do not prove9-page completion.
+  No further retry loop or new browser diagnostic system.
+- Remaining original cases: AUTH-01 real Production CAPTCHA and UI-01 trusted
+  country precedence are PRODUCTION_ONLY; UI-02 complete media/accessibility is
+  BLOCKED and UI-03 full authenticated/error-state resource coverage is BLOCKED.
+  No simplified replacement PASS: cumulative local count stays10/14. Original
+ 16/16 local RLS and selected business23 PASS/0 FAIL/1 BLOCKED/1 DEFERRED reused.
+- R2 cleanup guide corrected to current API/storage semantics. Current video
+  keys may remain under tmp after binding: do not blindly apply whole-prefix
+  expiration. Actual Production lifecycle UNKNOWN; no lifecycle change/read made.
+  Media proxy Range behavior remains untested, not a confirmed runtime bug.
+- Both owned databases/volumes/actors/media and encrypted credentials removed;
+  cleanup receipts retained, active pointer/private directories absent, Docker
+  inventory empty and local app listener stopped. No Production or third-party
+  test traffic, writes, auth, deploy or push. Catalog ACTIVE, USD0, groups2/3 and
+  Beta unauthorized. Production parity UNKNOWN; local fixes remain undeployed.
+- Evidence: `ISOLATED_R2_REVIEW_SAFE.md`, `ISOLATED_R2_SUMMARY_SAFE.json` and
+  both immutable run directories under `output/playwright/local-supabase-e2e/`.
+  Next single action: owner supplies a protected dedicated test configuration
+  path plus redacted bucket-scope/use and zero-cost proof, following
+  `docs/r2-media-cleanup.md`; no Production key, secret in chat or automatic setup.
 
 ## Thumbnail Cleanup P1 Closure (2026-10-15)
 

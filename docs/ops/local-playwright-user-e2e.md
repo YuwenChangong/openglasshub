@@ -76,6 +76,35 @@ reuse is appropriate only when application source, relevant schema and fixture
 semantics are unchanged. Never use those switches to imply a fresh full run.
 No old Native QA authorization, Claim, control window or GO is used.
 
+## Remaining Local UI and Media Scope
+
+```powershell
+node scripts/qa/run-local-user-e2e.mjs --prepare
+$env:OGH_E2E_FINAL_SCOPE='1'
+node scripts/qa/run-local-user-e2e.mjs --run
+Remove-Item Env:OGH_E2E_FINAL_SCOPE
+```
+
+Uses the existing disposable loopback lifecycle and real built Astro application,
+not a new platform. Necessary three UI logins/context isolation are prerequisites;
+Auth13, Catalog16 and previous business/comment matrices are not rerun. Generates
+a small synthetic VP8 video in memory, tries the actual composer, and independently
+checks anonymous/authenticated core resources and keyboard/form behavior.
+`OGH_E2E_FINAL_FOLLOWUP=1` selects the video dependency and authenticated matrix
+only; it is a separate bounded receipt, not a full rerun or automatic retry.
+
+Current runner has NO authorized real R2 target mode: process/provider credentials
+are not inherited into the local app, and external requests are denied. A video
+ticket500 or missing local dependency is BLOCKED, not real R2 failure/PASS.
+Playback/Range/deletion require an actual upload; no fake signing or success
+responses are supplied. Images/thumbnails still use real local Supabase Storage.
+
+Scoped per-run GROUP1 arrays are not the cumulative ledger. Preserve prior
+applicable10/14 and16/16 local RLS evidence; partial UI checks do not close the
+remaining Production CAPTCHA/country/media/accessibility/resource requirements.
+See `ISOLATED_R2_REVIEW_SAFE.md` and `docs/r2-media-cleanup.md` for current blocked
+prerequisites, honest result scopes and minimal manual isolated-bucket setup.
+
 ## Targeted Thumbnail Cleanup
 
 ```powershell
