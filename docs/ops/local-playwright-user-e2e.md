@@ -76,6 +76,36 @@ reuse is appropriate only when application source, relevant schema and fixture
 semantics are unchanged. Never use those switches to imply a fresh full run.
 No old Native QA authorization, Claim, control window or GO is used.
 
+## Targeted Thumbnail Cleanup
+
+```powershell
+node scripts/test-media-cleanup.mjs
+node scripts/test-forum-posts-authorization.mjs
+node scripts/qa/run-local-user-e2e.mjs --prepare
+$env:OGH_E2E_THUMBNAIL='1'
+node scripts/qa/run-local-user-e2e.mjs --run
+Remove-Item Env:OGH_E2E_THUMBNAIL
+```
+
+Same disposable local lifecycle; only necessary real UI logins, image uploads,
+original/thumbnail decode, owner/admin deletion, shared-reference preservation,
+actual Storage/database assertions, partial failure/retry and affected RLS checks.
+`OGH_E2E_THUMBNAIL_FOLLOWUP=1` narrows to owner deletion/comments; `delete`
+narrows to the real upload, owner UI delete and idempotent repeat only. These
+are scoped independent receipts, not implicit retries or a full historical rerun.
+
+Only this mode's local outbound fixture can deliberately return503 for a
+thumbnail DELETE to its exact owned loopback Storage API. It never fakes a
+successful deletion, never contacts R2 and always restores the fault switch.
+The normal owner UI test captures its actual local DELETE response with standard
+Playwright route.fetch/fulfill before the UI immediately navigates; original
+response is preserved, redirects/retries disabled, credentials stay in memory.
+Comments are client:visible: the loading test actually scrolls them into view,
+holds a real local request, then releases its real backend response.
+
+No Auth13/Catalog16/comment19 rerun. See `THUMBNAIL_CLEANUP_REVIEW_SAFE.md` and
+the associated summary for scoped outcomes and still-blocked real R2 integration.
+
 ## Forum Business Continuation
 
 ```powershell

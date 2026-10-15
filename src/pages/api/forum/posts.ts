@@ -126,6 +126,7 @@ async function resolveWritableCircleBySlug(client: SupabaseClient, circleSlug: s
 export async function resolveAccessibleForumPostTarget(
   client: SupabaseClient,
   postId: string,
+  allowDeleted = false,
 ): Promise<{ ok: true; target: AccessibleForumPostTarget } | { ok: false; status: 404 | 500; error: string }> {
   const { data: post, error: postError } = await client
     .from("posts")
@@ -135,7 +136,8 @@ export async function resolveAccessibleForumPostTarget(
   if (postError) return { ok: false, status: 500, error: "POST_TARGET_LOOKUP_FAILED" };
 
   const postRow = post as { id: string; author_id: string; circle_id: string | null; status: string; moderation_status?: string | null } | null;
-  if (!postRow || postRow.id !== postId || !postRow.circle_id || !UUID_REGEX.test(postRow.circle_id) || postRow.status !== "published" || postRow.moderation_status !== "published") {
+  if (!postRow || postRow.id !== postId || !postRow.circle_id || !UUID_REGEX.test(postRow.circle_id) ||
+    (postRow.status !== "published" && !(allowDeleted && postRow.status === "deleted")) || postRow.moderation_status !== "published") {
     return { ok: false, status: 404, error: "POST_NOT_ACCESSIBLE" };
   }
 
@@ -459,7 +461,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       return json({ error: "Invalid post_id format" }, 400);
     }
 
-    const target = await resolveAccessibleForumPostTarget(userClient, postId);
+    const target = await resolveAccessibleForumPostTarget(userClient, postId, true);
     if (!target.ok) {
       if (target.status === 500) return json({ error: "Post lookup failed" }, 500);
       return json({ error: "Post not found" }, 404);
@@ -470,7 +472,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     let mediaQuery = userClient
       .from("post_media")
-      .select("id,kind,storage_path,url")
+      .select("id,kind,storage_path,url,thumbnail_url,user_id,post_id")
       .eq("post_id", postId);
     if (!isStaff) {
       mediaQuery = mediaQuery.eq("user_id", authData.user.id);

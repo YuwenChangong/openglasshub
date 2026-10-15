@@ -191,7 +191,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     const { data: mediaRows, error: mediaError } = await client
       .from("post_media")
-      .select("id,kind,storage_path,url")
+      .select("id,kind,storage_path,url,thumbnail_url,user_id,post_id")
       .eq("post_id", postId);
     if (mediaError) return jsonResponse({ error: mediaError.message }, 500);
 

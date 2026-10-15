@@ -44,8 +44,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   `b6067037`; owner-approved local reaction ACL repair and targeted E2E only.
 - Previous scoped branch: `codex/comment-delete-fixes-20261015`, based on
   `7e3e3686`; owner-approved local comment ancestry/admin UI repair only.
-- Current scoped branch: `codex/forum-mvp-e2e-continuation-20261015`, based on
+- Previous scoped branch: `codex/forum-mvp-e2e-continuation-20261015`, based on
   `482e7f86`; owner scope decision and local business continuation only.
+- Current scoped branch: `codex/thumbnail-cleanup-p1-20261015`, based on
+  `13f30322`; owner-approved local media cleanup fix and targeted E2E only.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -80,7 +82,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
 | Fast-track native Auth + controlled Node RLS | v19 CONSUMED / BLOCKED before Start at LOGIN_A | MANUAL_WAIT_DEADLINE;owner saw no QA window and clicked nothing,Start events0. Programmatic focus PASS is not owner-visible proof. Deployment GET1,application observations0,Auth0,RLS0/16,cleanup PASS |
 | Simplified Playwright local E2E | 14 PASS / 8 BLOCKED, real headless Chrome | Direct login/form/mode and anonymous page/API checks; no control window. Preview config is Production-backed; no running isolated Supabase or isolated actors found. Auth/RLS/business writes BLOCKED, full GROUP_1 0/14 and authenticated RLS 0/16. No Production/third-party requests or old authorization reuse |
-| Local Supabase + automated user E2E | Historical Auth13/13, comment19/19 and Catalog16/16 reused; 10/14 scoped original cases locally closed | New continuation41 PASS/1 FAIL/2 BLOCKED unique assertions. Selected business22 PASS/1 FAIL/1 BLOCKED, editor DEFERRED_PUBLIC_BETA. Confirmed thumbnail orphan after post deletion; all owned instances cleaned, no Production acceptance |
+| Local Supabase + automated user E2E | Historical Auth13/13, comment19/19 and Catalog16/16 reused; 10/14 scoped original cases locally closed | Thumbnail cleanup fixed locally;22/22 unit checks,17/17 latest unique real-Chrome checks and affected post authorization PASS. Selected business23 PASS/0 FAIL/1 BLOCKED/1 DEFERRED. All owned instances cleaned; real R2 and Production parity UNKNOWN/BLOCKED |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -104,7 +106,77 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
 - Owned browser contexts closed; owned Astro daemon stopped and local test ports
   verified released. No new Native QA authorization, Claim, GO or deployment.
 
-## Forum MVP Scope and Local Continuation (2026-10-15)
+## Thumbnail Cleanup P1 Closure (2026-10-15)
+
+- Owner-approved local product fix only. Prior failure `4b4666800249` proved an
+  actual thumbnail object remained, not a cached image or lingering media row.
+  Author post, admin post and admin media DELETE all omitted thumbnail_url in
+  their SELECT; shared cleanup understood only one path and deleted metadata.
+- All3 callers now pass thumbnail_url plus owner/post binding. Cleanup deduplicates
+  original/thumbnail targets, enforces canonical owner/post keys, preserves exact
+  references outside the deletion batch and reports retained_shared explicitly.
+  Current canonical R2 tmp keys retain the existing adapter/404 semantics; legacy
+  or unbound keys fail closed rather than guessed deletion. No R2 adapter,
+  migration, role, grant, RLS, Production config or browser architecture change.
+- Failed/unconfirmed managed objects yield cleanup.ok=false and keep their media
+  row for explicit retry. An empty Storage DELETE is verified with object info,
+  not counted as success. DB row removal must be acknowledged. Author DELETE can
+  explicitly revisit an already-deleted own post; same actor/staff, consent,
+  safety and active/public-circle checks remain. Default reads/moderation still
+  reject deleted targets. No automatic retry, restored publication or queue.
+- API compatibility retained: top-level ok/status mean post soft deletion;
+  nested cleanup.ok covers required managed-object/reference cleanup. Partial
+  failure remains HTTP200 with ok=true, cleanup.ok=false and errors. Shared
+  objects deliberately retained have warnings/status; external unmanaged links
+  remain skipped under the old contract, not a deletion claim. Unknown managed
+  state fails closed. No CDN/browser cache purge or filesystem erasure claim.
+- New unit fixtures22/22 PASS; affected post target/authorization script PASS.
+  First attempt of that old test lacked the existing cloudflare:workers harness;
+  added the same shared test plugin, not a product workaround. Historical tests,
+  migrations and policies remain unchanged; no full Auth13/RLS16/comment19 rerun.
+- Actual Chrome receipts: `c0e21a8b53a6`15 PASS/2 FAIL,
+  `abc372c406e3`9 PASS/1 FAIL, `4be87124e2d9`7 PASS. Latest distinct assertions
+ 17/17 PASS, including4 necessary login/context prerequisites. Original failures
+  preserved. Lazy comments required real scroll to trigger client:visible;
+  owner-delete response evidence is now captured before immediate Feed navigation,
+  forwarding the actual local response without invented success or network retry.
+  Early generic UI failures do not recover an exact original protocol error.
+- Real composer generates2 objects; both display/thumb decode. Owner actual UI
+  DELETE200 cleanup.ok=true,2 object results,1 deleted row; independent DB reads
+  find original0/thumbnail0/media rows0. Repeat returns200 with no additional
+  effects; fresh anonymous post/media/thumb/comments access404. Local injected
+  thumbnail503 yields false cleanup, original0/thumbnail1/row1; explicit owner
+  retry confirms old original missing and removes thumbnail+row. ADMIN single
+  media deletion removes both objects, shared objects remain for the other row;
+  admin post deletion after media removal also succeeds. Real R2 NOT contacted.
+- A/B API, direct ordinary-auth Storage and row deletion cannot remove the other
+  actor's media. New private-row reads prove own1/cross-user0 without service role.
+  Actual comment loading/read and other-author delete403 PASS; historical comment
+  and Catalog safety evidence reused. Existing prior P1 failure is now closed:
+  selected business23 PASS/0 FAIL/1 BLOCKED/1 DEFERRED, not full forum acceptance.
+- Four remaining original local cases assessed, not silently dropped: AUTH-01
+  needs real Production CAPTCHA; UI-01 trusted Provider country precedence cannot
+  be established with a forged local header; UI-02 full media/accessibility still
+  incomplete despite inspected390/430 real image screenshots and overflow PASS;
+  UI-03 loading evidence added, but complete console/CSP/error classification
+  remains incomplete. Original local count remains10/14; editors still DEFERRED.
+- Real R2/video remains BLOCKED. Minimal future integration: existing Free account,
+  dedicated isolated QA bucket/media endpoint and bucket-scoped test credentials,
+  two small synthetic objects, at most12 explicitly approved object requests,
+  upload/HEAD/range-playback/delete/absence checks and verified cleanup. No
+  Production bucket/key/traffic, paid resource or automatic setup; absent isolated
+  target or zero-cost scope remains BLOCKED. Details in scoped review.
+- Three owned databases/volumes/users/media, DPAPI state/pointers, TLS keys and
+  browser/worker processes cleaned; receipts PASS, final Docker inventory empty,
+  active pointer absent. No Production/third-party test requests, writes, deploy,
+  push or old authorization reuse; Catalog ACTIVE, USD0, groups2/3/Beta unauthorized.
+  Production parity UNKNOWN (undeployed fixes and local-only rate-limit fixture).
+- Evidence: `THUMBNAIL_CLEANUP_REVIEW_SAFE.md`, `THUMBNAIL_CLEANUP_SUMMARY_SAFE.json`
+  in the existing local E2E directory. Next single action: identify/approve an
+  isolated zero-cost R2 QA target/configuration for the remaining video integration,
+  not another browser diagnostic or implicit Production authorization.
+
+## Historical Forum MVP Scope and Local Continuation (2026-10-15)
 
 - Owner's current product decision: post/comment content editing is
   `DEFERRED_PUBLIC_BETA`, not PASS and not a first-Beta release gate. The root
