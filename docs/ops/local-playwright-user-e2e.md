@@ -76,6 +76,33 @@ reuse is appropriate only when application source, relevant schema and fixture
 semantics are unchanged. Never use those switches to imply a fresh full run.
 No old Native QA authorization, Claim, control window or GO is used.
 
+## Forum Business Continuation
+
+```powershell
+node scripts/qa/run-local-user-e2e.mjs --prepare
+$env:OGH_E2E_CONTINUATION='1'
+node scripts/qa/run-local-user-e2e.mjs --run
+Remove-Item Env:OGH_E2E_CONTINUATION
+```
+
+Reuses the same local-only lifecycle and real built application. Executes
+nonmail negative Auth inputs, admin read/denial, reports/moderation, circle
+delete/restore, notification read isolation, locale/navigation and actual local
+Supabase image upload/display/deletion. Necessary UI logins are prerequisites,
+not a rerun of Auth13, Catalog16 or comment19. No Production CAPTCHA, actual
+expired recovery token, real R2/video or external moderation PASS is implied.
+
+`OGH_E2E_CONTINUATION_FOLLOWUP=1` narrows to failed-password/circle/media
+investigation; `media` runs the media lifecycle and A/B forbidden admin UI only.
+These are bounded separate receipts, not automatic retries or a passing full
+suite. Media cleanup records only aggregate counts/booleans, never object paths,
+tokens or raw response errors. The outer runner always destroys its exact owned
+database and credentials even when a test fails. See the scoped continuation
+review for the latest actual thumbnail-cleanup failure and cumulative evidence.
+Per-run legacy GROUP1 summaries are not a cumulative evidence ledger: tests
+omitted by a scoped mode cannot invalidate prior applicable evidence. The review
+explicitly maps reused and new outcomes without rewriting old receipts.
+
 ## Targeted Comment Deletion and Continuation
 
 ```powershell

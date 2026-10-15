@@ -42,8 +42,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   `104f15cd`; disposable local Supabase plus direct headless Playwright only.
 - Previous scoped branch: `codex/comment-reactions-p1-20261015`, based on
   `b6067037`; owner-approved local reaction ACL repair and targeted E2E only.
-- Current scoped branch: `codex/comment-delete-fixes-20261015`, based on
+- Previous scoped branch: `codex/comment-delete-fixes-20261015`, based on
   `7e3e3686`; owner-approved local comment ancestry/admin UI repair only.
+- Current scoped branch: `codex/forum-mvp-e2e-continuation-20261015`, based on
+  `482e7f86`; owner scope decision and local business continuation only.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -78,7 +80,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Protected-Origin successor execution | v17 CONSUMED / BLOCKED at LOGIN_A | Start1,pre-Deployment PASS; unknown HTTPS GET/fetch actually associated with Turnstile Frame and additional Cloudflare DNS Origin. Auth0 observed/RLS0;private Origin read locally,all6 stores physically deleted and absence checked. No retry or permission change |
 | Fast-track native Auth + controlled Node RLS | v19 CONSUMED / BLOCKED before Start at LOGIN_A | MANUAL_WAIT_DEADLINE;owner saw no QA window and clicked nothing,Start events0. Programmatic focus PASS is not owner-visible proof. Deployment GET1,application observations0,Auth0,RLS0/16,cleanup PASS |
 | Simplified Playwright local E2E | 14 PASS / 8 BLOCKED, real headless Chrome | Direct login/form/mode and anonymous page/API checks; no control window. Preview config is Production-backed; no running isolated Supabase or isolated actors found. Auth/RLS/business writes BLOCKED, full GROUP_1 0/14 and authenticated RLS 0/16. No Production/third-party requests or old authorization reuse |
-| Local Supabase + automated user E2E | Historical Auth13/13 and16/16 local reads reused; 8/14 original cases locally closed | Reaction ACL repair retained. Deleted-parent reply visibility and ADMIN delete UI now PASS. Fresh55-migration replay; latest scoped Chrome19/19 and3 affected comment-boundary scripts PASS. Selected business scope16 PASS/0 FAIL/2 BLOCKED. Owned local instances cleaned; no Production acceptance |
+| Local Supabase + automated user E2E | Historical Auth13/13, comment19/19 and Catalog16/16 reused; 10/14 scoped original cases locally closed | New continuation41 PASS/1 FAIL/2 BLOCKED unique assertions. Selected business22 PASS/1 FAIL/1 BLOCKED, editor DEFERRED_PUBLIC_BETA. Confirmed thumbnail orphan after post deletion; all owned instances cleaned, no Production acceptance |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -102,7 +104,71 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
 - Owned browser contexts closed; owned Astro daemon stopped and local test ports
   verified released. No new Native QA authorization, Claim, GO or deployment.
 
-## Comment Delete Repair and Continuation (2026-10-15)
+## Forum MVP Scope and Local Continuation (2026-10-15)
+
+- Owner's current product decision: post/comment content editing is
+  `DEFERRED_PUBLIC_BETA`, not PASS and not a first-Beta release gate. The root
+  `PRD-OpenGlass-Hub-MVP.md` v1.1 is an early Draft excluding the entire forum,
+  Auth and database. No separate current authoritative Forum MVP PRD was found.
+  Later `docs/forum-admin-mvp.md`, comments validation and Phase2 RLS matrix do
+  not mandate author content-editor UI. UPDATE permission is not that product
+  requirement. Preserve old documents/permissions; no editor code added.
+- Direct headless Playwright ran the real built Astro application and three
+  isolated local Auth contexts against three fresh owned55-migration Supabase
+  instances. No Native QA executor, new platform, remote database or third-party
+  access. Necessary logins acquire sessions; old Auth13/comment19/Catalog16 not
+  rerun. Artifacts: runs `d4a4ea23aa5a`, `97b0f4713f7c`, `4b4666800249` under
+  `output/playwright/local-supabase-e2e/`; immutable earlier failures retained.
+- Latest unique continuation assertions41 PASS/1 FAIL/2 BLOCKED, including4
+  login/isolation prerequisites. Wrong-password assertion corrected to actual
+  GoTrue `code`; circle test now awaits the app's existing post-delete navigation
+  before navigating again. Both bounded followups PASS; neither is an app bug.
+- Newly closed LOCAL cases: AUTH-08 bounded nonmail input/error scope and
+  ADMIN-04 read-only scope, raising8 to10/14. Wrong password really returns400,
+  invalid credentials and no Session; invalid recovery input and provider-expired
+  error-input UI are rejected/sanitized, external next is ignored on real login.
+  This does NOT test a real expired recovery token or email delivery. ADMIN's7
+  page/API reads succeed; fixture rows confirmed in forum/users/circles; A/B's
+  six new APIs403 plus old devices denial reused, and actual devices forbidden
+  UI hides management forms for both actors. No Catalog mutation performed.
+- Additional business: duplicate report is idempotent in DB; actual ADMIN
+  dismissal records resolver, nonadmin moderation403 leaves post unchanged;
+  actual hide/restore changes DB and anonymous visibility; nonowner circle
+  read/write403, owner delete/restore succeeds; notification read UI updates
+  only recipient and forged cross-user mark-read has no effect. Six distinct
+  new business scenarios PASS; hide/restore extends the prior hide scenario,
+  not counted as an extra duplicate. Selected cumulative business22 PASS/1 FAIL/
+  1 BLOCKED/1 DEFERRED; not complete forum or Production acceptance.
+- Explicit zh-CN/en preference persists in DB and actual navigation. Real
+  keyboard focus, Privacy link and no horizontal overflow at1440/390/430 PASS;
+  mobile screenshots inspected. Real invalid400/missing404/empty200 states
+  PASS. UI-01 remains BLOCKED for trusted-country behavior; UI-02 for full media/
+  accessibility coverage; UI-03 for full loading/console classification. Raw
+  safe signal receipts retain22/2/4 unclassified console errors across runs and
+  one pageerror in the first followup; no false all-console-clean claim.
+- MEDIA BUG CONFIRMED LOCALLY: real image UI upload -> post-media201 -> decoded
+  image succeeds. DELETE200 reports cleanup.ok=true and deletes original object
+  and media row, but leaves1 thumbnail object. Final run records exact counts,
+  not object names. CreatePostForm uploads independent thumbnail_url; post DELETE
+  selects only id/kind/storage_path/url; cleanup handles only storage_path and
+  cannot delete the omitted thumbnail. No unrelated product fix authorized or
+  applied. Request owner approval for a minimal thumbnail cleanup regression/fix.
+- Existing two local media authorization/delivery scripts PASS, limited to their
+  fixture/route scope. No safe isolated R2 endpoint/credentials found; cloud R2
+  endpoint is hardcoded and was NOT accessed. Real R2/video integration BLOCKED;
+  local Supabase image evidence is not R2 evidence or complete media PASS.
+- Three exact owned projects/containers/volumes, synthetic accounts/data,
+  DPAPI files/pointers, TLS private keys and browser/worker processes cleaned;
+  cleanup receipts PASS, no active local-run pointer or Docker container remains.
+  Scripts/config retained. Local rate-limit proposal fixture still prevents a
+  Production parity claim. Production requests/writes/deployments0, external
+  live requests0, USD0; Catalog ACTIVE, groups2/3/Beta NOT_AUTHORIZED.
+- Review and evidence ledger: `FORUM_MVP_CONTINUATION_REVIEW_SAFE.md` and
+  `FORUM_MVP_CONTINUATION_SUMMARY_SAFE.json` in the existing local E2E directory.
+- Next single action: owner approval for the proven local thumbnail cleanup
+  defect; no new auth framework, Production test, R2 purchase or deployment.
+
+## Historical Comment Delete Repair and Continuation (2026-10-15)
 
 - Both owner-approved local defects fixed, with existing author/staff deletion
   endpoint and RLS mutation permissions unchanged. No Production application,
