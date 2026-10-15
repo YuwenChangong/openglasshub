@@ -64,7 +64,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Isolated standard Chrome Turnstile | ACCEPTED_WITH_DOCUMENTED_EXCEPTION | Live SDK/render/Frame/callback/cleanup retained; owner-approved visibility substitution applies to that instance ONLY; original INCOMPLETE receipt unchanged, no Production CAPTCHA PASS |
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
-| Protected-Origin successor contract | v17 READY_FOR_OWNER_APPROVAL, NOT_AUTHORIZED | Privacy amendment reviewed;340 frozen files match;13 new binding/contract consistency checks, original diagnostic13 reused. Original9+1 new gates all pending, no UTC/Claim/GO or real Origin collection |
+| Protected-Origin successor contract | v17 owner10/10 gates RECORDED, NOT_AUTHORIZED | Contract/Binding/Packet and340 files match; OAuth expired, required scopes present. UTC still pending; no Claim/GO or real Origin collection. Historical checks reused |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2371,3 +2371,23 @@ Only afterward check OAuth/scopes/remaining>1860s and frozen prerequisites befor
 proposing a separate exact UTC window; no current OAuth freshness is claimed.
 Historical v16 identity UNKNOWN; GROUP_1 still BLOCKED,not a Production PASS.
 Task Production requests0,third-party live0,writes0;Catalog ACTIVE,USD0,no push.
+
+## v17 Owner Gates Recorded; OAuth Recovery Pending
+
+Direct owner accepted the exact v17 contract/Binding/Packet and all ten gates.
+At2026-10-15T04:32:25.123Z,local checks matched340/340 files,contract SHA256
+adf4511ea2edce08c055d8ba86737d5ed30b3bc0a7dca2e62af2747854ba2781,
+unchanged private binding,Node runtime and local released-source HEAD. No extra
+material difference,override,previous execution state or Claim found. Production
+target checked from local frozen evidence only; live Deployment NOT checked.
+Separate OWNER_GATES_CONFIRMED_PENDING_UTC_20261015T043225Z_SAFE.json records the
+owner's approval; frozen pending templates/Packet/contract/binding stay unchanged.
+
+Default local OAuth EXPIRED at2026-10-15T04:08:18.574Z; remaining-1447s at check,
+required account:read/workers_scripts:write present. No refresh or Provider call.
+Current sole action: owner manually logs in with those exact scopes,then replies
+OAUTH_LOGIN_COMPLETED. Recheck local validity strict>1860s and frozen prerequisites,
+then propose exact UTC for separate approval; do NOT repeat the ten confirmations
+unless actual conditions/contract change. No UTC proposed/approved,AUTHORIZATION
+BLOCKED,no Claim/GO,real private-Origin collection0;no historical tests rerun.
+Task Production0,third-party live0,writes0;USD0,Catalog ACTIVE,GROUP_2/3/Beta not authorized.
