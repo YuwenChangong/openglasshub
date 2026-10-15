@@ -54,7 +54,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests excluded without transport. Unknown other denied; next full authorization BLOCKED.3GET draft fails diagnostic-effectiveness review; no new executable Packet |
 | LOGIN_A real initialization | PARTIAL;1 new real-Chrome boundary case PASS with NO inert Turnstile Mock or injected unknown |5 islands hydrate,24 retained application responses,3 icons cancelled; genuine Turnstile bootstrap observed/aborted. API/render/challenge/post-token requests UNOBSERVED; full authorization BLOCKED |
 | Isolated standard Chrome Turnstile | ACCEPTED_WITH_DOCUMENTED_EXCEPTION | Live SDK/render/Frame/callback/cleanup retained; owner-approved visibility substitution applies to that instance ONLY; original INCOMPLETE receipt unchanged, no Production CAPTCHA PASS |
-| Current hybrid Auth boundary | MONITOR_ONLY; Chrome v15 Packet READY_FOR_OWNER_APPROVAL | v14 owner9 gates recorded but not effective authorization: Chrome drift and expired OAuth blocked startup. v15 changes signed Chrome identity only, retains original scope and fixed Node HARD reads; new owner reconfirmation/UTC/GO required, Production not executed |
+| Current hybrid Auth boundary | MONITOR_ONLY; Chrome v15 CONSUMED / BLOCKED at LOGIN_A | Authorized v15 GO performed1 pre-Deployment GET, version PASS; no Start event or Production login navigation, Auth0/RLS0. Owner reported unusable white window. MANUAL_WAIT_DEADLINE, cleanup/Job drain PASS; no v15 replay |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2145,3 +2145,32 @@ Next single action: owner manually logs into the default local Wrangler profile;
 do not refresh until needed. Installed CLI inspected offline is4.125.0, not an
 assumed historical4.106.0. Recheck local default credential/Scopes/strict>1860s
 after owner completion, then new identity/9 unchanged gates and exact UTC approval.
+
+## v15 Actual GO Closure (2026-10-15)
+
+Owner separately confirmed9 gates, exact UTC02:41:50Z..03:26:50Z and issued
+GO_E_VERIFY_GROUP1_NATIVE_MANUAL_AUTH_CHROME_V15. OAuth and all278 files passed
+before the single supervised attempt. Authorization and parent/child Claims are
+CONSUMED and must never be reused, even though login did not begin.
+
+Execution ended BLOCKED / MANUAL_WAIT_DEADLINE at LOGIN_A after306494ms.
+Owner reported an unusable white window; exact window/rendering root cause UNKNOWN.
+All6 driver receipts report started=false, observed application requests0; this is
+absence of a received Start event, not proof the owner never attempted a click.
+No Production login navigation or CAPTCHA initialization observed. Confirmed
+Production GET1: pre-Deployment PASS, versionb2b62ec9-bb8d-4159-ac99-08fca5740134,
+traffic100%, recovery0%. Post-Deployment NOT_EXECUTED. Shared admissions7 include
+six local control-page GETs; not7 Production GETs. Auth0, identity0/3, RLS0/16,
+negative cases0/3, no authorized business mutations. Native hidden traffic remains
+UNKNOWN under MONITOR_ONLY, not a new whole-browser zero-egress guarantee.
+Cleanup PASS, all readers disposed/Profiles closed, child reaped, Job active-zero
+drain confirmed. Supervisor EXIT_NONZERO with a complete child receipt. No manual
+process kill or retry was needed: process already exited on the wait deadline.
+Original EXECUTION_SAFE/FINAL_SAFE/SUPERVISOR_SAFE and frozen files unchanged.
+Independent owner-observation/closure record:
+tools/e-verify-group1-chrome-v15/artifacts/GO_CLOSURE_SAFE.json.
+
+Next minimum action is an OFFLINE control-page visibility/window-focus review,
+not another SDK/Turnstile/resource/OAuth/Production diagnostic or automatic retry.
+Any future execution requires a fresh independent identity/approval/window/GO.
+Catalog ACTIVE, USD0, GROUP_1 not verified; GROUP_2/3/Public Beta NOT_AUTHORIZED.
