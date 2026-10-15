@@ -25,8 +25,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   preserves prior local product/continuity commits and authorization history.
 - Previous scoped recovery branch: `codex/group1-chrome-identity-v15-20261015`;
   Chrome-only independent identity recovery, no push/deploy or old binding edits.
-- Current scoped repair branch: `codex/group1-control-readiness-v16-20261015`;
+- Previous scoped repair branch: `codex/group1-control-readiness-v16-20261015`;
   control-page foreground/readiness only; old v15 consumed evidence unchanged.
+- Current scoped review branch: `codex/group1-origin-evidence-review-20261015`;
+  offline source correlation and detached privacy-safe diagnostic component only.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -2249,3 +2251,35 @@ Next single action: OFFLINE review of existing source/29-resource request origin
 and safe diagnostic identifiability gap. No guessed Host,automatic new Production
 probe,or another full execution while this request remains unexplained.
 Catalog ACTIVE,USD0,GROUP_1 not verified;GROUP_2/3/Public Beta NOT_AUTHORIZED.
+
+## v16 Unknown Origin: Offline Result C
+
+No historical Host/path recovery and no proof of the exact initiating script.
+Released source88680a6 and retained production bodies were inspected OFFLINE.
+Supabase compiled config matches its contracted Origin; menu/notifications/locale
+reads are relative and identity-gated; search is relative/query-gated. R2 images,
+legacy redirect literals and React documentation/namespace strings do not prove
+the rejected fetch. Retained Astro page fetch has a same-Origin guard. Official
+Turnstile mount/SDK/render mechanism is source-PROVEN, but its Production dynamic
+request/redirect/Frame contents remain UNKNOWN; no attribution from vendor count4.
+Historical29 assets are not a v16 live-byte/timeline capture. No new resource read.
+
+Confirmed diagnosis gap: unknown Hosts collapsed to OTHER_OR_INVALID; Host absent
+from salted pathname HMAC; key discarded. Caller hardcodes Frame unavailable,
+never reads redirectedFrom, and collects no CDP initiator. No reversible retained
+evidence can resolve the actual v16 Origin. Do not guess or change its allowlist.
+
+Detached tools/e-verify-group1-origin-review/diagnostic.mjs improves future evidence
+only: actual Frame/redirect relation, source-only Host IDs, per-run origin-sensitive
+IDs, bounded CDP initiator candidates and a minimal private-Origin callback.
+No raw URL/query/headers/body output; unsafe envelopes PRIVACY_BLOCKED. Real private
+DPAPI sink integration NOT_IMPLEMENTED; unit/Chrome test sink is memory-only.
+No v16/frozen-runner integration or v17/authorization/Packet created. New9 targeted
+checks PASS (8 unit +1 real Chrome/CDP mocked fetch), not another Auth/CAPTCHA run.
+SOURCE_CORRELATION.md documents exact sources, proof limits and the one missing
+evidence requirement. Full GROUP_1 remains BLOCKED. Additional real observation
+would identify a future event,not recover v16; none is requested/authorized.
+Next single decision: owner reviews that narrow private observation difference;
+no new Production attempt, whole-site audit or inferred Host permission.
+Task Production/third-party requests/writes0,USD0,Catalog ACTIVE; old claims/receipts
+and305 frozen files preserved; GROUP_2/3/Public Beta NOT_AUTHORIZED.
