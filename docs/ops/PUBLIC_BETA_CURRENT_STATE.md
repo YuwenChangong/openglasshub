@@ -56,7 +56,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | LOGIN_A other-request repair | VERIFIED local defect and15/15 targeted checks, not historical identity proof | Retained HTML icons reported other; exact declared icon requests excluded without transport. Unknown other denied; next full authorization BLOCKED.3GET draft fails diagnostic-effectiveness review; no new executable Packet |
 | LOGIN_A real initialization | PARTIAL;1 new real-Chrome boundary case PASS with NO inert Turnstile Mock or injected unknown |5 islands hydrate,24 retained application responses,3 icons cancelled; genuine Turnstile bootstrap observed/aborted. API/render/challenge/post-token requests UNOBSERVED; full authorization BLOCKED |
 | Isolated standard Chrome Turnstile | ACCEPTED_WITH_DOCUMENTED_EXCEPTION | Live SDK/render/Frame/callback/cleanup retained; owner-approved visibility substitution applies to that instance ONLY; original INCOMPLETE receipt unchanged, no Production CAPTCHA PASS |
-| Current hybrid Auth boundary | MONITOR_ONLY; v16 control repair READY_FOR_OWNER_APPROVAL | v15 remains CONSUMED/BLOCKED. Original-path Windows focus defect reproduced offline;9/9 headed Chrome checks PASS,305/305 new files match; Auth/RLS/Session/budgets unchanged, no new Production execution |
+| Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2213,3 +2213,39 @@ Next single action: owner reviews v16 changes and reconfirms9 unchanged gates.
 Only then,immediately before new UTC proposal,check/restore OAuth as necessary;
 no OAuth refresh during engineering. New window and independent GO still required.
 Task Production requests/writes0,third-party live0; no push/deploy/test replay.
+
+## v16 Actual GO Closure (2026-10-15)
+
+Owner separately accepted v16's9 gates and exact UTC03:09:31Z..03:54:31Z,then
+issued GO_E_VERIFY_GROUP1_NATIVE_MANUAL_AUTH_CONTROL_V16. Local OAuth and305
+files passed before the one supervised attempt. Authorization/Claims CONSUMED.
+Owner Start was received exactly once for A. Control rendered/handler ready/real
+foreground checks PASS; live evidence confirms the v15 blank-window repair,not
+Auth/Production CAPTCHA/RLS acceptance. Login required/non-test Sitekey props
+check passed; actual CAPTCHA behavior/callback NOT_VERIFIED.
+
+Attempt stopped after54674ms at LOGIN_A / OBSERVED_UNAPPROVED_REQUEST. Safe
+observation: HTTPS GET,resourceType fetch,BROWSER_FETCH,OTHER_OR_INVALID origin,
+UNBOUND_REDACTED pathname,no query/fragment. This origin is not the three known
+application/Supabase/challenges origins according to the retained classifier.
+Exact Host/path were NOT retained. Per-run keyed pathname evidence cannot be
+reversed after memory destruction. Frame was hardcoded unavailable by caller,
+not a measured Frame result; initiator not exposed by Playwright Request.
+Do not identify this as a particular vendor/API/asset without new local evidence.
+Native boundary is OBSERVATION_ONLY: dispatch UNKNOWN_OR_ALREADY_SENT,NOT
+pre-dispatch blocked. No whitelist change or automatic retry was performed.
+
+Pre-Deployment PASS,same versionb2b62ec9-bb8d-4159-ac99-08fca5740134,traffic100%,
+recovery0%;confirmed Deployment GET1,post check NOT_EXECUTED. Shared observed
+admissions39 include six loopback controls and Node precheck;page observations33,
+vendor observations4. These are not hard or complete Production wire counts;
+hidden native dispatch/retry remains UNKNOWN. Observed Auth0,Mutation0,identity0,
+RLS0/16,negative0. Cleanup PASS,all6 contexts/readers disposed,child reaped and
+supervised Job active-zero/drain confirmed. Original execution/final/supervisor
+receipts unchanged; independent artifacts/GO_CLOSURE_SAFE.json records their hashes.
+No new valid authorization/Claim/GO may reuse this consumed instance.
+
+Next single action: OFFLINE review of existing source/29-resource request origins
+and safe diagnostic identifiability gap. No guessed Host,automatic new Production
+probe,or another full execution while this request remains unexplained.
+Catalog ACTIVE,USD0,GROUP_1 not verified;GROUP_2/3/Public Beta NOT_AUTHORIZED.
