@@ -4,6 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 export async function runFinalScope(h) {
+  if(process.env.OGH_E2E_FINAL_FOLLOWUP==='reports') {
+    const {runReportsRegression}=await import('./local-reports-regression.mjs');
+    return runReportsRegression(h);
+  }
   const {s,out,sql,goto,pages,newContext,browserApi,responseFor,circleSlug,dbCount,origin}=h;
   const uiOnly=process.env.OGH_E2E_FINAL_FOLLOWUP==='ui';
   const followup=process.env.OGH_E2E_FINAL_FOLLOWUP==='1';

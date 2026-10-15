@@ -78,6 +78,37 @@ No old Native QA authorization, Claim, control window or GO is used.
 
 ## Remaining Local UI and Media Scope
 
+Reports P1-only mode uses the same runner and local lifecycle:
+
+```powershell
+node scripts/qa/run-local-user-e2e.mjs --prepare
+$env:OGH_E2E_FINAL_SCOPE='1'
+$env:OGH_E2E_FINAL_FOLLOWUP='reports'
+node scripts/qa/run-local-user-e2e.mjs --run
+Remove-Item Env:OGH_E2E_FINAL_SCOPE
+Remove-Item Env:OGH_E2E_FINAL_FOLLOWUP
+```
+
+Only4 real session/context prerequisites and11 affected reports checks, not
+Auth13/business23/RLS16. Real reporter API creates one disposable record;
+admin review/dismiss actions and resolver/status are checked against owned SQL.
+Idle measurement retains the earlier1200ms contract and records elapsed time
+and actual list-request deltas. Initial Auth callbacks may start up to2 loads;
+that does not permit ongoing idle requests. There is no new poller or retry.
+The independent request listener counts even intercepted/aborted local fixtures;
+the12-read phase guard is not the basis of idle PASS (all latest denials0).
+Real reload, filter supersession, explicit503 UI/recovery, unmount, three widths
+and genuine cross-tab signout/login/role recheck remain distinct evidence.
+
+`OGH_E2E_ONLY` can select named affected checks for a bounded followup; retain
+`REPORTS_REAL_LOCAL_FIXTURE` when a report is needed. NOT_RUN checks do not
+invalidate applicable previous results. Role recheck intentionally logs B into
+the ADMIN test Profile only after signing ADMIN out; other A/B contexts must
+remain unchanged. No raw Session/token export, HAR, cookies or R2 config read.
+Historical failures remain in their original run directories. Latest reports
+loop closure is not a claim that the separately observed ordinary-page500 is
+resolved; see `REPORTS_P1_REVIEW_SAFE.md`.
+
 ```powershell
 node scripts/qa/run-local-user-e2e.mjs --prepare
 $env:OGH_E2E_FINAL_SCOPE='1'

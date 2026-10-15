@@ -51,9 +51,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/isolated-r2-readiness-e2e-20261015`, based on
   `75275c64`; local configuration review and bounded existing-runner continuation.
   No cloud inventory request, R2 operation, product change or new authorization.
-- Current scoped branch: `codex/minimal-r2-setup-ui-completion-20261015`, based on
+- Previous scoped branch: `codex/minimal-r2-setup-ui-completion-20261015`, based on
   `03a63e6b`; exact manual S3 setup guide and remaining local UI evidence only.
   No R2/cloud operation or product code/config change.
+- Current scoped branch: `codex/reports-admin-p1-e2e-20261015`, based on
+  `63f3b33e`; owner-approved stable reports dependencies/cancellation and targeted
+  local regression. No API/Auth/RLS/schema/style/network policy change.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -91,6 +94,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Local Supabase + automated user E2E | Historical Auth13/13, comment19/19 and Catalog16/16 reused; 10/14 scoped original cases locally closed | Thumbnail cleanup fixed locally;22/22 unit checks,17/17 latest unique real-Chrome checks and affected post authorization PASS. Selected business23 PASS/0 FAIL/1 BLOCKED/1 DEFERRED. All owned instances cleaned; real R2 and Production parity UNKNOWN/BLOCKED |
 | Isolated R2 readiness and remaining UI evidence | Real R2 BLOCKED; 7 distinct continuation checks PASS / 3 BLOCKED | Preview shares Production R2 config; no verified test-bucket config/credentials/owner use approval or current cost proof. Six anonymous pages/135 assets clean; authenticated matrix partial/timeout. GROUP_1 stays10/14; no inferred video/Range/real R2 success |
 | Minimal R2 setup and remaining UI continuation | Real R2 BLOCKED; new14 PASS/1 FAIL in existing local runner | Eight authenticated routes/resources and local notification/content checks PASS. ADMIN reports repeats reads without user action; confirmed local P1, not repaired. Group1 stays10/14; UI-03 FAIL. Protected blank ignored R2 file prepared; no real key loaded |
+| Reports admin P1 repair | Idle-read loop CLOSED locally; latest distinct14 PASS/1 FAIL | Stable auth dependencies and cancellation preserve refresh/review/Auth behavior. Idle0 extra reads over1200ms; real mobile/role-change checks PASS. Ordinary report page locally returns500 in denial/navigation path, cause UNKNOWN; UI-03 not closed. Original10/14 and16/16 local RLS retained |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -113,6 +117,59 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
   path. Production-bound Preview and actor configurations must not be reused.
 - Owned browser contexts closed; owned Astro daemon stopped and local test ports
   verified released. No new Native QA authorization, Claim, GO or deployment.
+
+## Reports Admin P1 Repair and Targeted Continuation (2026-10-15)
+
+- Root cause PROVEN: useAdminSession returns a new wrapper on render; the reports
+  list effect depended on it and updated loading/report state itself. No designed
+  list poller or retry exists. Prior953 attempts/first12 allowed is retained.
+  Reproduction used the built application, not a dev StrictMode/HMR-only result.
+- Minimal product edit only in AdminReportsPanel: stable session/status/setter
+  dependencies plus existing query/refreshNonce; AbortController cancels obsolete/
+  unmounted reads. Existing cancellation guards and401/403 handling retained.
+  No global hook rewrite, hidden errors, disabled refresh, role/RLS/API/style change.
+- Added source guard to existing reports tests: RED before fix, PASS after.
+  Existing reports unit/audit PASS; actual guarded Astro build PASS in all runs.
+  No full Auth13/business23/RLS16, image/thumbnail/Turnstile or Production rerun.
+- Owned real-Chrome runs `3a968555ac8c`9 PASS/3 FAIL/3 BLOCKED,
+  `2496a20a1047`13 PASS/1 FAIL/1 BLOCKED, `2edf5ad9d763`6 PASS/1 FAIL/8 NOT_RUN.
+  Latest distinct14 PASS/1 FAIL includes4 necessary login/isolation prerequisites;
+  latest reports-specific10/11 PASS, not an all-green suite or summed run totals.
+- Initial load/reload2 bounded attempts/1 response as Auth initializes; obsolete
+  load cancelled. Subsequent list requests0 during actual1204-1215ms idle checks.
+  Search/note rerenders, focus, manual reload, superseded filter,503 state plus
+  manual recovery, review/dismiss/queue update, unmount/remount all PASS. Latest
+  local guard rejects0: no false PASS by preventing a repeating request loop.
+- First fixture expected exactly1 failure request, but2 initial Auth loads are
+  valid; corrected to bounded initial count followed by actual zero idle deltas.
+  Independent request observation now includes fixture/aborted attempts. First
+  raw receipt preserved, including resulting dependent timeouts. No product
+  workaround for the test assertion. Fixed test's Logout locator to actual UI.
+- Reviewer and dismissed DB state/resolved_by checked with actual local action
+  responses. A direct read/action403 and real A forbidden UI are evidenced;
+  existing unchanged B API denial evidence reused. New genuine cross-tab ADMIN
+  logout/login recovery and B role recheck PASS; no report list on B login and
+  other A/B contexts keep their identities. No private data read or permission gain.
+- Ordinary-page composite still FAIL: local500/Network connection lost during
+  denial/navigation sequence, reproduced in bounded runs. Latest A page200 plus
+  read/action403 completed before B page navigation failed; old shared evidence
+  fields still contain previous A values, not proof that B returned200. Exact
+ 500 cause UNKNOWN; do not declare it a benign cancellation, a Production bug,
+  or an auth bypass. No further retries or transport-system redesign this turn.
+- UI02 adds real reports layout/dialog/Tab focus/Escape at1440/390/430; Escape
+  leaves DB status unchanged and screenshots inspected. Full media/accessibility
+  still partial/R2 blocked. UI03 remains FAIL due the unresolved local page500,
+  though the reports repeating-read P1 is repaired. GROUP1 stays10/14; selected
+ 23 prior business PASS reused, one current local page failure/one R2 blocker/
+  one deferred editor retained. Catalog RLS16/16_LOCAL unchanged/reused.
+- All3 exact owned local databases/volumes/actors/media/DPAPI credentials and
+  app/browser processes cleaned; pointer/private dirs absent. No R2 key/config
+  read, test-bucket connection or cloud resource creation. Production/third-party
+  requests/writes/deploy/push0, USD0 and Catalog ACTIVE; Beta/groups2/3 unauthorized.
+- Evidence: `REPORTS_P1_REVIEW_SAFE.md`, `REPORTS_P1_SUMMARY_SAFE.json` and three
+  original run directories in existing output. Next single local repair scope:
+  identify the ordinary-page500 with an exact local failing navigation, preserving
+ 403/no-leak evidence. R2 configuration and later approved integration stay independent.
 
 ## Minimal R2 Setup and UI Completion Attempt (2026-10-15)
 
