@@ -27,8 +27,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Chrome-only independent identity recovery, no push/deploy or old binding edits.
 - Previous scoped repair branch: `codex/group1-control-readiness-v16-20261015`;
   control-page foreground/readiness only; old v15 consumed evidence unchanged.
-- Current scoped review branch: `codex/group1-origin-evidence-review-20261015`;
+- Previous scoped review branch: `codex/group1-origin-evidence-review-20261015`;
   offline source correlation and detached privacy-safe diagnostic component only.
+- Current scoped integration branch: `codex/group1-origin-diagnostic-integration-20261015`;
+  independent QA copy and protected local Origin evidence, no network authorization.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -59,6 +61,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | LOGIN_A real initialization | PARTIAL;1 new real-Chrome boundary case PASS with NO inert Turnstile Mock or injected unknown |5 islands hydrate,24 retained application responses,3 icons cancelled; genuine Turnstile bootstrap observed/aborted. API/render/challenge/post-token requests UNOBSERVED; full authorization BLOCKED |
 | Isolated standard Chrome Turnstile | ACCEPTED_WITH_DOCUMENTED_EXCEPTION | Live SDK/render/Frame/callback/cleanup retained; owner-approved visibility substitution applies to that instance ONLY; original INCOMPLETE receipt unchanged, no Production CAPTCHA PASS |
 | Current hybrid Auth boundary | MONITOR_ONLY; v16 CONSUMED / BLOCKED at LOGIN_A | Control render/foreground/unique Start VERIFIED in live attempt; login initialization stopped on observed unapproved HTTPS GET/fetch from unrecognized origin. Auth0/RLS0, cleanup/Job drain PASS. No v16 retry or implicit authorization |
+| Future unknown-Origin diagnostics | Integrated independently;13 new targeted checks PASS | Real Chrome/CDP candidate correlation, private CurrentUser DPAPI Origin read, unchanged rejection and cleanup; v16 identity remains UNKNOWN. Ready for owner-directed authorization preparation ONLY, no new Packet or execution authorization |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -2283,3 +2286,40 @@ Next single decision: owner reviews that narrow private observation difference;
 no new Production attempt, whole-site audit or inferred Host permission.
 Task Production/third-party requests/writes0,USD0,Catalog ACTIVE; old claims/receipts
 and305 frozen files preserved; GROUP_2/3/Public Beta NOT_AUTHORIZED.
+
+## Unknown-Origin Integration: Offline Completion
+
+Owner authorized only the minimal integration, private evidence adapter, affected
+tests and local commit. New `tools/e-verify-group1-origin-integration/browser.mjs`
+is an independent QA work copy, NOT a modification to consumed v16. No v17,
+contract, authorization Packet, UTC window, Claim or GO is created.
+
+Actual Playwright requests and main-page CDP events now feed the safe diagnostic
+component. Evidence contains phase/actor, method/type, ordinal and correlation ID,
+actual Frame/parent identifiers, redirect parent, safe invalid-Origin reason,
+known-Origin/rule match and bounded initiator candidates. CDP-to-Playwright links
+remain candidate-only; duplicate keys are ambiguous. OOPIF/Worker/SharedWorker/
+WebSocket coverage is incomplete/UNKNOWN. Native dispatch stays MONITOR_ONLY and
+UNKNOWN_OR_ALREADY_SENT. This is not full-browser pre-dispatch control.
+
+Unknown eligible HTTPS DNS Origins are captured as scheme/host/port ONLY, never
+path/query/credentials. Existing CurrentUser DPAPI and owner+SYSTEM DACL are reused;
+reparse/ACL/hash/expiry failures reject safely. The supervised stdio helper starts
+before Node guard and uses existing pipes afterwards, without a new network exit.
+Opaque store IDs/namespace/reference/hash permit later private-memory readback,
+not raw shared export. Default logical expiry1h, maximum24h; no claim of scheduled
+physical deletion. Explicit bounded destroy is required after private review.
+
+New13/13 targeted tests PASS, including real Chrome child Frame/redirect/unknown
+fetch, private query, privacy, ACL widening/reparse/tamper/expiry, exact unchanged
+Auth/session/gate code, Stop/deadline, Node guard and supervised process drain.
+No original43/123/Turnstile/resource/budget suites were rerun. All305 original v16
+file hashes match; original receipts/Claims/frozen history remain unchanged.
+
+Historical v16 request identity/root cause remains UNKNOWN; no new Host is allowed.
+NEXT_GROUP1_AUTHORIZATION_PREPARATION=READY means owner-directed preparation only,
+not full-run READY or a Production result. Next single action: owner reviews the
+narrow private-Origin evidence disclosure for a future independently authorized
+instance. No additional engineering/Production probe is automatically scheduled.
+GROUP_1 remains BLOCKED until real acceptance; GROUP_2/3/Beta NOT_AUTHORIZED.
+Task Production requests0,third-party live0,writes0; USD0,Catalog ACTIVE,no push.
