@@ -72,9 +72,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/isolated-r2-minimal-e2e-20261016`, based on
   `b2d4fe31`; owner-approved single isolated R2 attempt in the existing local
   runner. Stopped before any R2 dispatch; local Storage fallback is NOT R2 PASS.
-- Current scoped branch: `codex/r2-ticket-offline-fix-20261016`, based on
+- Previous scoped branch: `codex/r2-ticket-offline-fix-20261016`, based on
   `83a70395`; bounded offline signing diagnosis, exact S3 build-resolution fix
   and local/Mock regression only. No real R2 test authorization reused.
+- Current scoped branch: `codex/real-r2-video-once-20261016`, based on
+  `cecb5af0`; new owner-approved single real R2 attempt. HEAD200,OPTIONS204;
+  QA precheck incorrectly required200 and stopped before PUT. No business retry.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -118,11 +121,68 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Final bounded workerd investigation | UI03_LOCAL_RUNTIME_UNRESOLVED / BLOCKED; original target FAIL retained | One additional owner-approved local run:4 prerequisites PASS/1 target FAIL. Native stdout/cause/lifecycle captured. Both processes alive at500, exit only during cleanup. SETUP TLS alerts do not prove the target disconnect cause. No safe fix or application/runtime classification proven; stop further diagnosis and continue independent Beta work |
 | Isolated real R2 minimal E2E | BLOCKED before cloud dispatch; local run5 PASS/1 FAIL | Valid2028-byte synthetic H.264 MP4 generated. Composer linked local Supabase fallback, rejected by the real-R2-only assertion. R2 calls0/30, no object uploaded/deleted; temporary local state cleaned. Precise local ticket/interception failure UNKNOWN; no automatic business retry or inferred R2 failure |
 | R2 ticket offline repair | PROVEN local SDK build defect repaired; next real attempt READY_FOR_OWNER_APPROVAL only | Node S3 runtime called browser core Symbol as function. Local Workerd reproduced TypeError; consistent browser runtime resolution fixes signing. Same browser/direct Worker ticket endpoints500 ->200. Seven targeted checks PASS plus actual fixed ticket flow PASS; R2 calls0. Image source unchanged; no real upload/playback/delete PASS |
+| New one-time real R2 attempt | BLOCKED before PUT by QA CORS status assertion | New run eaf565c6a919: signing ticket200,HEAD Bucket200,OPTIONS204. Only2/30 R2 requests,PUT0/DELETE0. Full CORS headers were not retained; do not infer a CORS permission failure. QA-only200/204 correction verified offline afterward,not retried online. Local cleanup PASS,real video/playback/Range/delete still NOT_RUN |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
 Receipt reuse does not authorize execution. Historical time conflicts, 20-second
 timeout FAIL, unknown upload side effects and retained consumed Claims stay unchanged.
+
+## New Single Real R2 Attempt and Precheck Stop (2026-10-16)
+
+- Independent owner approval applies only to bucket ogh-e2e-video-20261016 and
+  one <=64KiB H.264 synthetic MP4,existing local Supabase/Playwright,controlled
+  R2 total30/work22/cleanup reserve8. No old authorization/request balance reused.
+  Owner accepted independently unproven Key identity/bucket-exclusivity and
+  delayed billable-usage risks,not additional paid resources or Production use.
+- Fresh value-blind local checks:all five config fields present,approved bucket
+  and reviewed public URL unchanged,different from repository Production bucket;
+  cecb5af0 exact signing fix present. Actual prepared env file remains checkout
+  root .env.r2-test.local,not the concatenated path in the request. No new key,
+  bucket,CORS setting,Provider configuration or application feature was created.
+- Existing runner extended only for current prechecks:one signed HEAD Bucket
+  and one exact-key presigned PUT OPTIONS,both count against this run's work
+  budget. Existing caps,no redirect following,no business retry,single object
+  scope and cleanup8 reserve retained. No bucket list or other-bucket request.
+  Browser background/unobservable traffic is not claimed under a global hard cap.
+- Run eaf565c6a919:owned disposable local Supabase55 migrations,A/B/ADMIN browser
+  setup/context isolation4 PASS;HEAD precheck PASS;synthetic MP4 fixture PASS,
+  2028 bytes,H.264 avc1.42001E,sha256
+  828a2e396d65f29d0343828094294c66f4c10cb5b32a0b7922e3b1e9fd3b33f0.
+- Real signing ticket HTTP200 was observed and exact target registered in memory.
+  Request1 signed HEAD Bucket200;request2 exact object OPTIONS204,neither had
+  Location. Before PUT,the new QA precheck asserted status===200 and rejected
+  the204 response. This is a proved QA assertion defect,NOT proof of Cloudflare
+  CORS rejection. Headers were not retained because the assertion ran first;
+  exact actual CORS header values therefore remain UNVERIFIED for this run.
+- QA aborted the ticket release;the application followed its existing local
+  Supabase Storage fallback. R2_FALLBACK_NOT_ACCEPTED correctly FAILS the upload
+  checkpoint. Real R2 PUT/upload/playback/Range/application-delete/remote absence
+  NOT_RUN. Do not turn valid MP4 generation or successful HEAD into R2 E2E PASS.
+- Budget:work2/22,cleanup0/8,total2/30,HEAD1,OPTIONS1,PUT0,GET0,DELETE0,denied0;
+  no automatic retry or redirect,one submission only. No R2 upload was attempted,
+  so no newly created R2 object or remote cleanup obligation is evidenced.
+  This does not assert that the entire bucket is empty;no objects were enumerated.
+- Once stopped,only offline correction:accept200/204 while still requiring exact
+  local Origin,PUT permission and content-type permission. Save only status and
+  safe match booleans before validation. A focused fixture test covers200/204,
+  rejection403,wildcard Origin,missing PUT and missing content-type:1/1 PASS with
+  six cases,no network. No original receipt modified,no online business retry.
+- Cleanup independently checked:owned containers/volumes absent,local active
+  pointer absent,no4328/56321/56322 listeners,accounts/Storage fallback data and
+  DPAPI credentials deleted by disposable teardown,browser/Worker disposed.
+  Reusable protected R2 config preserved;no secrets in safe results/build vars.
+- Account cost evidence reused:October16 delayed screenshot Class A3/Class B44/
+  displayed storage0/billable0. No live billing request or absolute zero-cost
+  guarantee. These2 read-only/preflight requests may consume quota/create logs.
+  No paid resources,Production request/write,deploy or push. Catalog ACTIVE,
+  UI03 BLOCKED without diagnosis,Public Beta NOT_AUTHORIZED.
+- Evidence:output/playwright/local-supabase-e2e/eaf565c6a919/RESULTS_SAFE.json,
+  CLEANUP_SAFE.json,and REAL_R2_ONE_TIME_REVIEW_SAFE.md in the same directory.
+  This one-time attempt is stopped;unused budget is not a fresh authorization.
+  Next action is owner decision on a new bounded real attempt using the corrected
+  precheck,not another bucket/key/setup investigation. Remind owner to disable
+  the test Public Development URL while testing is paused or after completion.
 
 ## Bounded Offline R2 Ticket Repair (2026-10-16)
 

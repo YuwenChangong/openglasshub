@@ -11,6 +11,14 @@ const bucket='ogh-e2e-video-20261016';
 const digest=b=>createHash('sha256').update(b).digest('hex');
 const safeError=()=>Error('ISOLATED_R2_REQUEST_STOPPED');
 
+export function validateR2CorsResponse(response) {
+  assert.ok([200,204].includes(response.status),'R2_CORS_PREFLIGHT_FAILED');
+  assert.equal(response.headers.get('access-control-allow-origin'),'https://127.0.0.1:4328','R2_CORS_ORIGIN_MISMATCH');
+  assert.ok(response.headers.get('access-control-allow-methods')?.split(',').map(x=>x.trim().toUpperCase()).includes('PUT'),'R2_CORS_PUT_NOT_ALLOWED');
+  assert.ok(response.headers.get('access-control-allow-headers')?.split(',').map(x=>x.trim().toLowerCase()).includes('content-type'),'R2_CORS_CONTENT_TYPE_NOT_ALLOWED');
+  return {originMatched:true,putAllowed:true,contentTypeAllowed:true};
+}
+
 // One owner-approved object; secrets and signed URLs never enter the safe report.
 export async function createIsolatedR2Run({root,s,report,offline=false}) {
   const e=parseEnv(await fs.readFile(path.join(root,'.env.r2-test.local'),'utf8'));
@@ -42,10 +50,12 @@ export async function createIsolatedR2Run({root,s,report,offline=false}) {
     if(url.origin===s3&&url.pathname.startsWith('/'+bucket+'/'))return decodeURIComponent(url.pathname.slice(bucket.length+2));
     throw safeError();
   }
-  function admit(url,method) {
-    const target=objectKey(url);
-    if(!key||target!==key||!['HEAD','GET','PUT','DELETE'].includes(method)||
+  function admit(url,method,bucketCheck=false) {
+    if(bucketCheck&&(method!=='HEAD'||url.href!==s3+'/'+bucket||meta.livePrecheck))throw safeError();
+    const target=bucketCheck?null:objectKey(url);
+    if((!bucketCheck&&(!key||target!==key))||!['HEAD','GET','PUT','DELETE','OPTIONS'].includes(method)||
       (cleanupMode&&!['HEAD','DELETE'].includes(method))||(!cleanupMode&&stopped)||
+      (method==='OPTIONS'&&(putAttempted||url.href!==putUrl))||
       (method==='PUT'&&(putAttempted||url.href!==putUrl))||
       (method==='DELETE'&&(!cleanupMode||deleteSeen===deletionAction)))throw safeError();
     if((cleanupMode?budget.cleanup>=8:budget.work>=22)||budget.work+budget.cleanup>=30)throw safeError();
@@ -58,10 +68,10 @@ export async function createIsolatedR2Run({root,s,report,offline=false}) {
     meta.attempts.push({sequence:meta.attempts.length+1,phase:cleanupMode?'CLEANUP':'WORK',method,status,locationPresent:location});
     if(location||status>=300&&status!==404)stopped=true;
   }
-  async function controlled(url,init={}) {
+  async function controlled(url,init={},bucketCheck=false) {
     if(offline)throw safeError();
     const u=new URL(url),method=init.method??'GET';
-    try {admit(u,method);}catch{budget.denied++;throw safeError();}
+    try {admit(u,method,bucketCheck);}catch{budget.denied++;throw safeError();}
     try {
       const r=await fetch(u,{...init,method,redirect:'manual',signal:AbortSignal.timeout(10000)});
       record(method,r.status,r.headers.has('location'));
@@ -80,6 +90,24 @@ export async function createIsolatedR2Run({root,s,report,offline=false}) {
   }
   return {
     bindings:Object.fromEntries(names.map(k=>[k,e[k]])),meta,
+    async preflight() {
+      const request=await signer.sign(s3+'/'+bucket,{method:'HEAD'});
+      const response=await controlled(request.url,{method:'HEAD',headers:request.headers},true);
+      assert.equal(response.status,200,'R2_TEST_BUCKET_ACCESS_PRECHECK_FAILED');
+      meta.livePrecheck={signedHeadStatus:200};
+    },
+    async verifyCors() {
+      if(offline)return;
+      const response=await controlled(putUrl,{method:'OPTIONS',headers:{Origin:'https://127.0.0.1:4328','Access-Control-Request-Method':'PUT','Access-Control-Request-Headers':'content-type'}});
+      try {
+        meta.livePrecheck.corsResponse={status:response.status,
+          originMatched:response.headers.get('access-control-allow-origin')==='https://127.0.0.1:4328',
+          putAllowed:response.headers.get('access-control-allow-methods')?.split(',').map(x=>x.trim().toUpperCase()).includes('PUT')??false,
+          contentTypeAllowed:response.headers.get('access-control-allow-headers')?.split(',').map(x=>x.trim().toLowerCase()).includes('content-type')??false};
+        validateR2CorsResponse(response);
+        meta.livePrecheck.corsOriginAndPutMatched=true;
+      }finally{await response.body?.cancel();}
+    },
     isTarget:u=>[s3,virtual,publicBase.origin].includes(u.origin),
     setFixture:b=>{assert.ok(b.length>100&&b.length<=65536);fixture=b;},
     register(ticket,payload) {
@@ -155,6 +183,7 @@ export async function runRealR2Cases(h) {
     await h.check(id,fn,'realR2');
     if(report.results.at(-1)?.status!=='PASS')throw Error('R2_SINGLE_ATTEMPT_STOPPED');
   };
+  await check('REAL_R2_LIVE_PRECHECK',async()=>{await r2.preflight();return {signedBucketHead200:true,consumesCurrentBudget:true};});
   await check('REAL_R2_SYNTHETIC_MP4',async()=>{
     const encoded=await pages.A.evaluate(async()=>{
       const mime=['video/mp4;codecs=avc1.42001E','video/mp4;codecs=avc1.42E01E','video/mp4'].find(t=>globalThis.MediaRecorder?.isTypeSupported(t));
@@ -251,6 +280,7 @@ export function createR2TicketRoute(r2) {
       }
       trace.stage='JSON';const data=await response.json();
       trace.stage='VALIDATE';r2.register(data,route.request().postDataJSON());
+      if(r2.verifyCors){trace.stage='CORS_PRECHECK';await r2.verifyCors();}
       trace.stage='FULFILL';await route.fulfill({response});
       trace.stage='COMPLETE';
     }catch(e) {

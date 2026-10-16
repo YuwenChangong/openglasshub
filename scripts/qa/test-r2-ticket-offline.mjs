@@ -7,11 +7,20 @@ import {build,transform} from 'esbuild';
 import {Miniflare,Log,LogLevel,convertV4MiniflareOptions} from 'miniflare';
 import {chromium} from 'playwright';
 import {resolveR2WorkerRuntime} from '../lib/r2-worker-sdk-runtime.mjs';
-import {createR2TicketRoute} from './local-real-r2-cases.mjs';
+import {createR2TicketRoute,validateR2CorsResponse} from './local-real-r2-cases.mjs';
 
 const root=path.resolve(import.meta.dirname,'../..');
 const origin='https://127.0.0.1:4328';
 let externalDispatches=0;
+
+test('CORS preflight accepts 200/204 only with exact origin and required permissions',()=>{
+  const headers={'access-control-allow-origin':origin,'access-control-allow-methods':'PUT, GET, HEAD','access-control-allow-headers':'content-type, range'};
+  for(const status of [200,204])assert.deepEqual(validateR2CorsResponse(new Response(null,{status,headers})),{originMatched:true,putAllowed:true,contentTypeAllowed:true});
+  assert.throws(()=>validateR2CorsResponse(new Response(null,{status:403,headers})),/R2_CORS_PREFLIGHT_FAILED/);
+  assert.throws(()=>validateR2CorsResponse(new Response(null,{status:204,headers:{...headers,'access-control-allow-origin':'*'}})),/R2_CORS_ORIGIN_MISMATCH/);
+  assert.throws(()=>validateR2CorsResponse(new Response(null,{status:204,headers:{...headers,'access-control-allow-methods':'GET'}})),/R2_CORS_PUT_NOT_ALLOWED/);
+  assert.throws(()=>validateR2CorsResponse(new Response(null,{status:204,headers:{...headers,'access-control-allow-headers':'range'}})),/R2_CORS_CONTENT_TYPE_NOT_ALLOWED/);
+});
 
 test('S3 runtime resolution is exact and does not alter other SDK or image modules',()=>{
   const importer=root.replaceAll('\\','/')+'/node_modules/@aws-sdk/client-s3/dist-es/S3Client.js';
